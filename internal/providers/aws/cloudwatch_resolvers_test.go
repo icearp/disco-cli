@@ -44,7 +44,7 @@ func TestResolveAlarmSNSActions_MultipleActions(t *testing.T) {
 	alarmARN := fmt.Sprintf("arn:aws:cloudwatch:%s:%s:alarm:multi-alarm", testCWRegion, testAccountID)
 	topic1ARN := fmt.Sprintf("arn:aws:sns:%s:%s:topic-1", testCWRegion, testAccountID)
 	topic2ARN := fmt.Sprintf("arn:aws:sns:%s:%s:topic-2", testCWRegion, testAccountID)
-	// Same topic in both AlarmActions and OKActions — deduplication should produce one edge.
+	// Same topic in both AlarmActions and OKActions — dedup should produce one edge.
 	attrsJSON := fmt.Sprintf(`{"AlarmArn":%q,"AlarmName":"multi-alarm","AlarmActions":[%q,%q],"OKActions":[%q],"InsufficientDataActions":[]}`,
 		alarmARN, topic1ARN, topic2ARN, topic1ARN)
 
@@ -114,12 +114,11 @@ func TestResolveCompositeAlarmChildren_ByName(t *testing.T) {
 
 	childARN := fmt.Sprintf("arn:aws:cloudwatch:%s:%s:alarm:named-child", testCWRegion, testAccountID)
 	compositeARN := fmt.Sprintf("arn:aws:cloudwatch:%s:%s:alarm:named-composite", testCWRegion, testAccountID)
-	// AlarmRule references the child by plain name rather than ARN.
+	// AlarmRule references the child by name, not ARN.
 	compositeAttrs := fmt.Sprintf(`{"AlarmArn":%q,"AlarmName":"named-composite","AlarmRule":"ALARM(\"named-child\")"}`, compositeARN)
 
-	// Insert the child alarm with Name set so the name-based lookup in the
-	// resolver can find it. upsertTestResource does not set Name, so we
-	// call UpsertResource directly here.
+	// Insert the child alarm with Name set (upsertTestResource doesn't) so the
+	// resolver's name-based lookup can find it.
 	childName := "named-child"
 	region := testCWRegion
 	if _, err := st.UpsertResource(&store.Resource{

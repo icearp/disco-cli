@@ -6,8 +6,8 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveRedisRelationships verifies that a VNet-injected Redis cache
-// derives an attached-to edge to the parent VNet via subnetId path stripping.
+// TestResolveRedisRelationships verifies a VNet-injected Redis cache derives
+// an attached-to edge to the parent VNet via subnetId path stripping.
 func TestResolveRedisRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-redis")

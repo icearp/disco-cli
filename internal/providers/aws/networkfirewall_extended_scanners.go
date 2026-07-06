@@ -48,12 +48,12 @@ func scanNetworkFirewallExtended(ctx context.Context, client networkfirewallAPI,
 	return total, inserted, nil
 }
 
-// isProxyPreviewRegionGap matches the InvalidRequestException that AWS Network
-// Firewall's proxy ops (public preview, us-east-2 only as of 2026-07) return
-// from any region where the preview isn't served ("The API being called does
-// not exist"). Per-region silent-skip — the rest of NetworkFirewall scans, and
-// these ops start returning data automatically wherever the preview reaches,
-// with no code change (self-healing, vs a hardcoded region gate).
+// isProxyPreviewRegionGap matches the InvalidRequestException ("The API being
+// called does not exist") Network Firewall proxy ops return outside their
+// public-preview region (us-east-2 only, as of 2026-07). Silent per-region
+// skip: the rest of NetworkFirewall still scans, and these ops self-heal
+// (start returning data, no code change) as the preview expands, vs a
+// hardcoded region gate.
 func isProxyPreviewRegionGap(err error) bool {
 	return isAPIErrorWithMessage(err, "InvalidRequestException", "does not exist")
 }
@@ -118,9 +118,9 @@ func scanNFProxyRuleGroups(ctx context.Context, client networkfirewallAPI, acct 
 	return upsertBatch(st, batch, "networkfirewall proxy-rule-groups")
 }
 
-// scanNFLoggingConfigurations walks ListFirewalls and calls
-// DescribeLoggingConfiguration per firewall. Skips firewalls whose logging
-// is not configured. Synth ARN: {firewallArn}/logging-configuration.
+// scanNFLoggingConfigurations walks ListFirewalls, calls
+// DescribeLoggingConfiguration per firewall, and skips firewalls with no
+// logging configured. Synth ARN: {firewallArn}/logging-configuration.
 func scanNFLoggingConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := networkfirewall.NewListFirewallsPaginator(client, &networkfirewall.ListFirewallsInput{})
 	var batch []*store.Resource

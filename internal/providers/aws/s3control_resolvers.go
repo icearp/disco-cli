@@ -16,11 +16,10 @@ func init() {
 }
 
 // resolveStorageLensRelationships emits uses edges from each S3 Storage Lens
-// configuration to the buckets it scopes (Include.Buckets[]) and to the S3
-// bucket that receives its metrics export (DataExport.S3BucketDestination.Arn).
-// Exclude.Buckets[] is deliberately skipped — it represents absence of coverage,
-// not a relationship. Cross-account export targets are FK-safe-skipped since
-// they may not be scanned.
+// config to its scoped buckets (Include.Buckets[]) and to its metrics-export
+// bucket (DataExport.S3BucketDestination.Arn). Exclude.Buckets[] is skipped —
+// it marks absence of coverage, not a relationship. Cross-account export
+// targets are FK-safe-skipped since they may be unscanned.
 func resolveStorageLensRelationships(acct *account, st *store.Store) error {
 	lenses, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3StorageLens},
@@ -91,8 +90,8 @@ func init() {
 }
 
 // resolveS3MRAPRegionBuckets wires each multi-region access point to the
-// underlying buckets in its Regions[] report. FK-safe: buckets in
-// non-scanned regions/accounts skip silently.
+// underlying buckets in its Regions[] report. FK-safe: buckets in unscanned
+// regions/accounts skip silently.
 func resolveS3MRAPRegionBuckets(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3MultiRegionAccessPoint}, Limit: util.AllResources,

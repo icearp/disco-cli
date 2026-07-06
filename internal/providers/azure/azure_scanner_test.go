@@ -203,10 +203,10 @@ var expectedAzureServices = []string{
 }
 
 // TestAzClientOptions_PooledTransport verifies the shared ARM client options
-// wire a custom HTTP client whose transport keeps a per-host idle-connection
-// pool well above Go's stdlib default of 2 — every arm* client targets the
-// single host management.azure.com, so connection reuse there gates scan
-// wall-clock under the service/fanout concurrency.
+// wire a custom HTTP client whose transport keeps per-host idle connections
+// well above Go's stdlib default of 2 — every arm* client targets
+// management.azure.com, so connection reuse there gates scan wall-clock
+// under service/fanout concurrency.
 func TestAzClientOptions_PooledTransport(t *testing.T) {
 	hc, ok := azClientOptions.Transport.(*http.Client)
 	if !ok {
@@ -224,7 +224,7 @@ func TestAzClientOptions_PooledTransport(t *testing.T) {
 	}
 }
 
-// TestRegisteredServices_NoDuplicates verifies that no two services share the same name.
+// TestRegisteredServices_NoDuplicates verifies no two services share the same name.
 func TestRegisteredServices_NoDuplicates(t *testing.T) {
 	seen := make(map[string]bool, len(registeredServices))
 	for _, svc := range registeredServices {
@@ -235,7 +235,7 @@ func TestRegisteredServices_NoDuplicates(t *testing.T) {
 	}
 }
 
-// TestRegisteredServices_ExpectedNames verifies that every expected service is registered.
+// TestRegisteredServices_ExpectedNames verifies every expected service is registered.
 func TestRegisteredServices_ExpectedNames(t *testing.T) {
 	registered := make(map[string]bool, len(registeredServices))
 	for _, svc := range registeredServices {
@@ -253,7 +253,7 @@ func TestRegisteredServices_ExpectedNames(t *testing.T) {
 	}
 }
 
-// TestFilteredServices_Nil verifies that nil filter returns all registered services.
+// TestFilteredServices_Nil verifies nil filter returns all registered services.
 func TestFilteredServices_Nil(t *testing.T) {
 	got := filteredServices(nil)
 	if len(got) != len(registeredServices) {
@@ -261,7 +261,7 @@ func TestFilteredServices_Nil(t *testing.T) {
 	}
 }
 
-// TestFilteredServices_Subset verifies that a named filter returns only the matching service.
+// TestFilteredServices_Subset verifies a named filter returns only the matching service.
 func TestFilteredServices_Subset(t *testing.T) {
 	got := filteredServices([]string{"azure:microsoft.compute"})
 	if len(got) != 1 {
@@ -272,7 +272,7 @@ func TestFilteredServices_Subset(t *testing.T) {
 	}
 }
 
-// TestFilteredServices_Unknown verifies that an unknown service returns empty slice.
+// TestFilteredServices_Unknown verifies an unknown service returns empty slice.
 func TestFilteredServices_Unknown(t *testing.T) {
 	got := filteredServices([]string{"azure:nonexistent"})
 	if len(got) != 0 {

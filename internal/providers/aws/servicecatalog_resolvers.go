@@ -141,8 +141,7 @@ func resolveServiceCatalogPortfolioProductAssociations(acct *account, st *store.
 
 	for _, a := range assocs {
 		// NativeID shape: arn:aws:servicecatalog:{r}:{a}:portfolio-product-association/{pid}/{prodID}.
-		// Split off the trailing path; bare ids land directly in the
-		// closing two segments.
+		// Bare ids are the closing two path segments.
 		parts := splitNativePath(a.NativeID, ":portfolio-product-association/")
 		if len(parts) != 2 {
 			continue
@@ -485,8 +484,8 @@ func resolveServiceCatalogConstraints(acct *account, st *store.Store) error {
 
 // servicecatalogPortfolioAttrs mirrors the wrapped attrs JSON written by
 // scanServiceCatalogPortfolios — `{"Portfolio": ..., "Constraints":
-// [...], "ProductARNs": [...]}`. ProductARNs holds the list of product
-// ARNs returned by SearchProductsAsAdmin filtered by this portfolio.
+// [...], "ProductARNs": [...]}`. ProductARNs = product ARNs from
+// SearchProductsAsAdmin, filtered to this portfolio.
 type servicecatalogPortfolioAttrs struct {
 	ProductARNs []string `json:"ProductARNs"`
 }

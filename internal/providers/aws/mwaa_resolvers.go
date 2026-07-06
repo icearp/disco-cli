@@ -20,9 +20,9 @@ func init() {
 	)
 }
 
-// resolveMWAAEnvironmentRefs wires each Airflow environment to its
-// execution + service IAM roles, KMS CMEK, S3 source bucket, VPC subnets
-// and security groups. GetEnvironment body shape.
+// resolveMWAAEnvironmentRefs wires each Airflow environment to its execution +
+// service IAM roles, KMS CMEK, S3 source bucket, VPC subnets, and security
+// groups, from the GetEnvironment body shape.
 func resolveMWAAEnvironmentRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMWAAEnvironment}, Limit: util.AllResources,

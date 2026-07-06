@@ -36,12 +36,12 @@ type docdbAPI interface {
 }
 
 // scanDocDB discovers Amazon DocumentDB clusters and instances in one
-// region. DocumentDB has its own dedicated control-plane API (not shared
-// with RDS, despite the structural similarity), so it needs a dedicated
-// scanner. Two phases run sequentially, both paginator-native with full
-// body on List. Per-phase AccessDenied tolerated. Cluster snapshots,
-// parameter groups, subnet groups, and global clusters deferred — same
-// scope rationale as Redshift.
+// region. DocumentDB has its own control-plane API (not shared with RDS,
+// despite the structural similarity), so it needs a dedicated scanner. Two
+// phases run sequentially, both paginator-native with full List body.
+// Per-phase AccessDenied tolerated. Cluster snapshots, parameter groups,
+// subnet groups, and global clusters deferred — same scope rationale as
+// Redshift.
 func scanDocDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := docdb.NewFromConfig(acct.cfg, func(o *docdb.Options) { o.Region = region })
 

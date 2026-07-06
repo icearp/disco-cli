@@ -6,7 +6,7 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveSecretRelationships_AutomaticCMEK verifies that a secret with
+// TestResolveSecretRelationships_AutomaticCMEK verifies a secret with
 // replication.automatic.customerManagedEncryption produces a uses edge.
 func TestResolveSecretRelationships_AutomaticCMEK(t *testing.T) {
 	st := newTestStore(t)

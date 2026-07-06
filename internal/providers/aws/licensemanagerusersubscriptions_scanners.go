@@ -23,10 +23,10 @@ func init() {
 	})
 }
 
-// licenseManagerUserSubscriptionsAPI is the narrow set of operations called by
-// the user-subscriptions scanner. ListProductSubscriptions requires an
-// IdentityProvider input (fanned out from ListIdentityProviders) and
-// ListUserAssociations requires an InstanceId + IdentityProvider (fanned out
+// licenseManagerUserSubscriptionsAPI is the narrow op set the
+// user-subscriptions scanner calls. ListProductSubscriptions requires an
+// IdentityProvider input (fanned out from ListIdentityProviders);
+// ListUserAssociations requires InstanceId + IdentityProvider (fanned out
 // from ListInstances, whose summaries carry both).
 type licenseManagerUserSubscriptionsAPI interface {
 	ListIdentityProviders(context.Context, *licensemanagerusersubscriptions.ListIdentityProvidersInput, ...func(*licensemanagerusersubscriptions.Options)) (*licensemanagerusersubscriptions.ListIdentityProvidersOutput, error)
@@ -76,10 +76,10 @@ func scanLMUSIdentityProviders(ctx context.Context, client licenseManagerUserSub
 	for p.HasMorePages() {
 		out, err := p.NextPage(ctx)
 		if err != nil {
-			// Missing service-linked role = the account never activated User
-			// Subscriptions; every op fails the same way. Self-enableable
-			// (register an identity provider), so (account: disabled). Returning
-			// the sentinel halts the sibling phases that would each re-warn.
+			// Missing service-linked role means the account never activated User
+			// Subscriptions; every op fails the same way. Self-enableable (register
+			// an identity provider) → (account: disabled); the sentinel halts
+			// sibling phases that would otherwise each re-warn.
 			if isAccessDeniedWithMessage(err, "Service Linked role is not present") {
 				return nil, 0, 0, markServiceDisabled(err)
 			}

@@ -15,9 +15,8 @@ func init() {
 		name: "azure:microsoft.storagemover",
 		fn:   scanStorageMover,
 		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; storage/NFS endpoints
-			// are child resources (not scanned), so the top-level mover ships
-			// scanner-only.
+			// Identity → MSI edges resolved centrally; storage/NFS endpoints are
+			// unscanned child resources, so the top-level mover ships scanner-only.
 			{Service: "microsoft.storagemover", DiscoType: TypeStorageMover, Leaf: true},
 		},
 	})

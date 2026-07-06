@@ -19,8 +19,8 @@ func init() {
 	})
 }
 
-// scanLoggingSinksOrg discovers Cloud Logging sinks defined at organization
-// and folder scopes. Sibling to the per-project scanLoggingSinks; runs ONCE
+// scanLoggingSinksOrg discovers Cloud Logging sinks at organization and
+// folder scopes. Sibling to the per-project scanLoggingSinks; runs ONCE
 // per scan via the org-service lane. NativeIDs follow the GCP-canonical
 // `{scope}/sinks/{name}` shape so they don't collide with project-scope sinks.
 func scanLoggingSinksOrg(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error) {

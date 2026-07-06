@@ -47,14 +47,14 @@ type cloudformationAPI interface {
 // scanCloudFormation runs two phases per region:
 //  1. Stacks — ListStacks (active statuses only), then ListStackResources
 //     fan-out so each stack carries its full child resource list under
-//     AttributesJSON.Resources for the resolver to walk.
+//     AttributesJSON.Resources for the resolver.
 //  2. Stack-sets — ListStackSets + DescribeStackSet + ListStackInstances.
 //     Only the management or delegated-admin account can list stack-sets;
-//     in every other account the API returns AccessDenied or
-//     ValidationError, both tolerated and skipped without barring phase 1.
+//     every other account gets AccessDenied or ValidationError, both
+//     tolerated and skipped without barring phase 1.
 //
-// Multi-phase pattern: phase 1 errors abort, phase 2 errors abort. Phase
-// 2's expected non-admin failures are caught before reaching the abort.
+// Multi-phase pattern: phase 1 and phase 2 errors both abort. Phase 2's
+// expected non-admin failures are caught before reaching the abort.
 func scanCloudFormation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := cloudformation.NewFromConfig(acct.cfg, func(o *cloudformation.Options) { o.Region = region })
 
@@ -176,16 +176,16 @@ func scanCloudFormationStacks(ctx context.Context, client cloudformationAPI, acc
 			if derr != nil {
 				if isAccessDenied(derr) || isStackValidationError(derr) {
 					// Stack went away between ListStacks and ListStackResources,
-					// or caller lacks permission for this specific stack. Persist
-					// the stack with empty resource list rather than dropping it.
+					// or caller lacks permission for this stack — persist it
+					// with an empty resource list rather than dropping it.
 					resources = nil
 				} else {
 					return fmt.Errorf("cloudformation:ListStackResources %s: %w", sv(s.StackName), derr)
 				}
 			}
-			// StackSummary doesn't carry Tags; DescribeStacks does. Best-
-			// effort — on AccessDenied/ValidationError fall through with
-			// nil tags rather than failing the whole scan.
+			// StackSummary doesn't carry Tags; DescribeStacks does. Best-effort:
+			// on AccessDenied/ValidationError, fall through with nil tags
+			// rather than failing the whole scan.
 			var tags []cfntypes.Tag
 			descOut, descErr := client.DescribeStacks(gctx, &cloudformation.DescribeStacksInput{StackName: s.StackId})
 			if descErr == nil && len(descOut.Stacks) > 0 {
@@ -333,10 +333,10 @@ func listAllStackInstances(ctx context.Context, client cloudformationAPI, stackS
 }
 
 // isStackValidationError matches CloudFormation's catch-all error code for
-// "stack does not exist" (race during ListStacks→ListStackResources) and
+// "stack does not exist" (race between ListStacks and ListStackResources) and
 // "StackSets is not active in this account" (non-admin account hitting the
-// stack-set APIs). Both are expected and tolerated, distinct from real
-// validation bugs in disco's request shapes.
+// stack-set APIs) — both expected/tolerated, distinct from real validation
+// bugs in disco's request shapes.
 func isStackValidationError(err error) bool {
 	var ae smithy.APIError
 	if errors.As(err, &ae) {
@@ -346,7 +346,7 @@ func isStackValidationError(err error) bool {
 }
 
 // scanCloudFormationGeneratedTemplates discovers IaC generator templates
-// (ListGeneratedTemplates), the persistent templates produced from a resource
+// (ListGeneratedTemplates) — persistent templates produced from a resource
 // scan.
 func scanCloudFormationGeneratedTemplates(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
@@ -377,7 +377,7 @@ func scanCloudFormationGeneratedTemplates(ctx context.Context, client cloudforma
 }
 
 // scanCloudFormationResourceScans discovers account resource scans
-// (ListResourceScans), the inventory scans the IaC generator runs over existing
+// (ListResourceScans) — inventory scans the IaC generator runs over existing
 // resources.
 func scanCloudFormationResourceScans(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource

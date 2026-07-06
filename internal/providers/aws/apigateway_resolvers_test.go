@@ -72,7 +72,7 @@ func TestResolveAPIGatewayStageToDeployment_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	// REST API must exist for the rest-api→stage contains relationship to succeed.
+	// REST API must exist for the rest-api→stage contains FK to succeed.
 	restAPIARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/api999", testRegion)
 	stageARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/api999/stages/dev", testRegion)
 	_ = upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayRestAPI, restAPIARN, testRegion, "{}")

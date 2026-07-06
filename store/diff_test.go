@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// TestDiffScans_AddedAndStale verifies the two main diff buckets:
-// resources first seen in the newer scan (added) and resources last
-// verified by the older scan (stale).
+// TestDiffScans_AddedAndStale verifies the two diff buckets: resources
+// first seen in the newer scan (added) and resources last verified by
+// the older scan (stale).
 func TestDiffScans_AddedAndStale(t *testing.T) {
 	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {

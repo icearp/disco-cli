@@ -148,8 +148,8 @@ func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account,
 			}
 			dd := &dzDomain{id: id}
 			attrsJSON := mustJSON(d)
-			// Fetch the full body for RootDomainUnitId (downstream walk) and
-			// resolver-side fields (KmsKeyIdentifier, *Role).
+			// Full body carries RootDomainUnitId (downstream walk) and
+			// resolver fields (KmsKeyIdentifier, *Role).
 			gout, derr := client.GetDomain(ctx, &datazone.GetDomainInput{Identifier: &id})
 			if derr == nil {
 				dd.rootUnitID = sv(gout.RootDomainUnitId)

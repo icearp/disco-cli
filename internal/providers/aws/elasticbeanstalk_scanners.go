@@ -31,16 +31,16 @@ type elasticbeanstalkAPI interface {
 	ListPlatformVersions(context.Context, *elasticbeanstalk.ListPlatformVersionsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.ListPlatformVersionsOutput, error)
 }
 
-// scanElasticBeanstalk discovers Beanstalk applications and environments
-// in one region. Two phases. DescribeApplications returns the full list
-// in a single call (no pagination — small per-account quota). Environments
-// use manual NextToken pagination (no SDK paginator). Per-phase
-// AccessDenied tolerated. Application versions, configuration templates,
-// application versions, and custom platform versions. Configuration templates
-// are skipped (sub-resource: names embedded in the application's
-// ConfigurationTemplates[], no standalone list API); solution stacks are an AWS
-// catalog (aws_skips.go). The AWS-managed platform catalogue is excluded by
-// filtering ListPlatformVersions to PlatformOwner=self (custom platforms only).
+// scanElasticBeanstalk discovers Beanstalk applications, environments,
+// application versions, and custom platform versions in one region.
+// DescribeApplications returns the full list in a single call (no
+// pagination — small per-account quota); environments use manual NextToken
+// pagination (no SDK paginator). Per-phase AccessDenied tolerated.
+// Configuration templates are skipped (sub-resource: names embedded in the
+// application's ConfigurationTemplates[], no standalone list API); solution
+// stacks are an AWS catalog (aws_skips.go). The AWS-managed platform
+// catalogue is excluded by filtering ListPlatformVersions to
+// PlatformOwner=self (custom platforms only).
 func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := elasticbeanstalk.NewFromConfig(acct.cfg, func(o *elasticbeanstalk.Options) { o.Region = region })
 

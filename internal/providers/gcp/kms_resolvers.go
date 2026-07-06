@@ -11,11 +11,10 @@ import (
 
 func init() { registerResolver(resolveKMSRelationships) }
 
-// resolveKMSRelationships derives bucket → cryptoKey CMEK edges. The full
-// CMEK matrix (BigQuery dataset, Compute disk, SQL instance, Pub/Sub topic,
-// Secret Manager) is deferred — Storage is the highest-volume CMEK consumer
-// today and exercises the lookup path; remaining services land alongside
-// their respective scanners.
+// resolveKMSRelationships derives bucket → cryptoKey CMEK edges. Full CMEK
+// matrix (BigQuery dataset, Compute disk, SQL instance, Pub/Sub topic, Secret
+// Manager) deferred — Storage is the highest-volume CMEK consumer today and
+// exercises the lookup path; remaining services land alongside their scanners.
 func resolveKMSRelationships(p *project, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
@@ -48,9 +47,9 @@ func resolveKMSRelationships(p *project, st *store.Store) error {
 		if err := json.Unmarshal([]byte(b.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		// defaultKmsKeyName format includes "/cryptoKeyVersions/N" suffix
-		// when a specific version is pinned; KMS resource NativeIDs end at
-		// the cryptoKey level. Strip the version suffix for the lookup.
+		// defaultKmsKeyName includes a "/cryptoKeyVersions/N" suffix when
+		// pinned to a version; KMS NativeIDs end at the cryptoKey level, so
+		// strip the suffix before lookup.
 		keyName := stripCryptoKeyVersion(attrs.Encryption.DefaultKmsKeyName)
 		if keyName == "" {
 			continue

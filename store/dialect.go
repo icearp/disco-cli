@@ -75,10 +75,9 @@ func (s *Store) selectAll(dest any, q string, args ...any) error {
 }
 
 // nowExpr returns a driver-appropriate SQL expression for the current
-// UTC time formatted as "YYYY-MM-DD HH:MM:SS". SQLite's datetime('now')
-// already returns that shape; Postgres needs an explicit to_char.
-// Callers embed this expression directly in INSERT/UPDATE statements
-// where SQLite-specific datetime('now') used to live.
+// UTC time as "YYYY-MM-DD HH:MM:SS". SQLite's datetime('now') already
+// returns that shape; Postgres needs an explicit to_char. Embed directly
+// in INSERT/UPDATE statements that formerly hardcoded datetime('now').
 func (s *Store) nowExpr() string {
 	if s.driver == driverPostgres {
 		return "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD HH24:MI:SS')"
@@ -96,10 +95,10 @@ func (s *Store) tagJSONValueExists() string {
 	return "EXISTS (SELECT 1 FROM json_each(tags) WHERE json_each.value = ?)"
 }
 
-// tagJSONFilter returns an SQL fragment that extracts the named JSON tag key
-// from the `tags` column and a placeholder argument for the value. Branches
-// json_extract (SQLite) vs `->>` (Postgres). Caller appends the value compare
-// (`= ?` or ` IS NOT NULL`) and supplies the value arg if needed.
+// tagJSONFilter returns an SQL fragment extracting the named JSON tag key
+// from `tags`, plus a placeholder arg for the value. Branches json_extract
+// (SQLite) vs `->>` (Postgres). Caller appends the value compare (`= ?` or
+// ` IS NOT NULL`) and supplies the value arg if needed.
 //
 // SQLite shape: `json_extract(tags, ?)` with arg `"$.k"`.
 // Postgres shape: `tags ->> ?` with arg `"k"`.

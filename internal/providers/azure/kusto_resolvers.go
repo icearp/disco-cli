@@ -69,10 +69,10 @@ func resolveKustoRelationships(sub *subscription, st *store.Store) error {
 }
 
 // upsertVNetAttachment resolves a subnet ARM ID to its parent VNet and emits a
-// from -[attached-to]-> VNet edge when that VNet is in vnetByID (a lowercased
-// NativeID → resource-ID index). ARM IDs are case-insensitive, so both the
-// index and the probe are lowercased. Shared by resolvers carrying subnet refs
-// (kusto, appplatform, hdinsight).
+// from -[attached-to]-> VNet edge if found in vnetByID (a lowercased
+// NativeID → resource-ID index). ARM IDs are case-insensitive, so both index
+// and probe are lowercased. Shared by resolvers carrying subnet refs (kusto,
+// appplatform, hdinsight).
 func upsertVNetAttachment(st *store.Store, fromID, subnetID string, vnetByID map[string]string) error {
 	vnetID := vnetIDFromSubnetID(subnetID)
 	if vnetID == "" {

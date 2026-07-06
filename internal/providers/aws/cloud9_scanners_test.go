@@ -21,10 +21,9 @@ func cloud9CfgWithStub(stub func(*smithymw.Stack) error, region string) sdkaws.C
 }
 
 // TestScanCloud9_ClosedToAccountExplicitMessage verifies the non-empty
-// "does not have access to the Cloud9 service" AccessDeniedException — the
-// closed-to-new-customers signal AWS returns for accounts that never
-// onboarded — maps to the not-entitled sentinel (the account can't self-enable
-// Cloud9) and records no warning.
+// "does not have access to the Cloud9 service" AccessDeniedException (AWS's
+// closed-to-new-customers signal for never-onboarded accounts) maps to the
+// not-entitled sentinel — Cloud9 can't be self-enabled — with no warning.
 func TestScanCloud9_ClosedToAccountExplicitMessage(t *testing.T) {
 	st := newTestStore(t)
 	warnings := 0
@@ -46,8 +45,8 @@ func TestScanCloud9_ClosedToAccountExplicitMessage(t *testing.T) {
 }
 
 // TestScanCloud9_RealIAMDenialStillWarns confirms the message-disambiguated
-// silent-skip does not swallow a genuine per-op IAM denial — those carry an
-// action-identifying message and must still surface as a warning.
+// silent-skip doesn't swallow a genuine per-op IAM denial — those carry an
+// action-identifying message and must still warn.
 func TestScanCloud9_RealIAMDenialStillWarns(t *testing.T) {
 	st := newTestStore(t)
 	warnings := 0

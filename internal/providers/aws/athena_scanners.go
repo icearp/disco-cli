@@ -46,10 +46,10 @@ func athenaCapacityReservationARN(region, accountID, name string) string {
 }
 
 // scanAthena discovers Athena workgroups, data catalogs, capacity reservations,
-// and each workgroup's saved (named) queries + prepared statements, in one
-// region. Workgroup/catalog phases List (paginator, name-only) → fan-out Get for
-// the full body (errgroup + fanoutMed); the saved-query phases reuse the
-// workgroup names to drive per-workgroup List + BatchGet.
+// and each workgroup's saved (named) queries + prepared statements, per region.
+// Workgroup/catalog phases List (paginator, name-only) → fan-out Get for the
+// full body (errgroup + fanoutMed); the saved-query phases reuse the workgroup
+// names to drive per-workgroup List + BatchGet.
 func scanAthena(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := athena.NewFromConfig(acct.cfg, func(o *athena.Options) { o.Region = region })
 
@@ -375,9 +375,9 @@ func scanAthenaDataCatalogs(ctx context.Context, client athenaAPI, acct *account
 				if isAccessDenied(derr) || isAPIErrorCode(derr, "InvalidRequestException") {
 					// AwsDataCatalog (the implicit Glue Data Catalog) is
 					// returned by ListDataCatalogs but rejected by
-					// GetDataCatalog with InvalidRequestException — it has
-					// no per-catalog config to fetch. Silent skip preserves
-					// totals from sibling catalogs.
+					// GetDataCatalog with InvalidRequestException — no
+					// per-catalog config to fetch. Skip preserves sibling
+					// totals.
 					return nil
 				}
 				return fmt.Errorf("athena:GetDataCatalog %s: %w", name, derr)

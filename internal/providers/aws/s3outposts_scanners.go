@@ -24,8 +24,8 @@ func init() {
 }
 
 // scanS3Outposts discovers S3 Outposts endpoints, regional buckets, access
-// points, and bucket policies. ListOutpostsWithS3 short-circuits empty (no
-// Outposts), so the cross-SDK fan-out has zero cost in non-Outposts accounts.
+// points, and bucket policies. ListOutpostsWithS3 short-circuits on empty
+// (no Outposts), so cross-SDK fan-out costs nothing in non-Outposts accounts.
 func scanS3Outposts(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := s3outposts.NewFromConfig(acct.cfg, func(o *s3outposts.Options) { o.Region = region })
 	t1, i1, err := scanS3OutpostsEndpoints(ctx, client, acct, region, st, scanID)
@@ -68,9 +68,9 @@ func scanS3OutpostsEndpoints(ctx context.Context, client *s3outposts.Client, acc
 }
 
 // scanS3OutpostsBucketTree enumerates Outposts via s3outposts.ListOutpostsWithS3,
-// then per-Outpost regional buckets via s3control.ListRegionalBuckets, then per
-// bucket access points via s3control.ListAccessPoints (Bucket=outpost-bucket-arn)
-// and bucket policy via s3control.GetBucketPolicy.
+// then per-Outpost regional buckets via s3control.ListRegionalBuckets, then
+// per-bucket access points (s3control.ListAccessPoints, Bucket=outpost-bucket-arn)
+// and policy (s3control.GetBucketPolicy).
 func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Cheap pre-check: zero outposts means nothing else to do.
 	var outpostIDs []string

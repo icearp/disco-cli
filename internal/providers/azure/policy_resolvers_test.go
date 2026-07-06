@@ -63,9 +63,9 @@ func TestResolvePolicyRelationships_BuiltInDef(t *testing.T) {
 }
 
 // TestResolvePolicyRelationships_ManagementGroupScope covers an assignment
-// inherited from an ancestor management group: its scope is the MG ID, and the
-// MG is stored under the tenant account (outside the per-sub index), so the
-// resolver must merge tenant-account MGs in to emit the attached-to edge.
+// inherited from an ancestor management group: its scope is the MG ID, stored
+// under the tenant account (outside the per-sub index), so the resolver must
+// merge tenant-account MGs in to emit the attached-to edge.
 func TestResolvePolicyRelationships_ManagementGroupScope(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-pol")

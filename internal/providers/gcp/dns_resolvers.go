@@ -11,10 +11,9 @@ import (
 func init() { registerResolver(resolveDNSRelationships) }
 
 // resolveDNSRelationships derives A/AAAA record-set -[routes-to]-> forwarding-rule
-// edges by matching the record's `rrdatas[]` IP literals against the
-// `IPAddress` field of every forwarding rule in the project. Forwarding rules
-// (especially global LB ones) are the canonical edge target for "this DNS
-// hostname points to this load balancer."
+// edges by matching the record's `rrdatas[]` IP literals against each
+// forwarding rule's `IPAddress`. Forwarding rules (esp. global LB) are the
+// canonical target for "DNS hostname points to load balancer."
 //
 // Deferred:
 //   - CNAME → record-set / forwarding-rule (CNAME points at a name, not an

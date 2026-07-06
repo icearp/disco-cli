@@ -84,9 +84,9 @@ the unsigned-manifest forgery gap reported in focus-group/SUMMARY.md F1.`,
 		}
 		defer func() { _ = src.Close() }()
 
-		// VACUUM INTO needs a non-existent target file. Place it next to the
-		// final output (same filesystem) so the archive temp + rename stay
-		// atomic on producer crashes.
+		// VACUUM INTO needs a non-existent target file; placed next to the
+		// final output (same filesystem) so archive temp+rename stays atomic
+		// on a producer crash.
 		tmpDB := out + ".db.tmp"
 		_ = os.Remove(tmpDB)
 		defer func() { _ = os.Remove(tmpDB) }()
@@ -103,9 +103,9 @@ the unsigned-manifest forgery gap reported in focus-group/SUMMARY.md F1.`,
 		if err != nil {
 			return fmt.Errorf("list scans: %w", err)
 		}
-		// Sort by ID so the manifest bytes are deterministic across runs at
-		// the same DB state. CanonicalManifestBytes already serialises in
-		// declaration order; this pins slice order for byte-stable signing.
+		// Sort by ID for deterministic manifest bytes across runs at the same
+		// DB state. CanonicalManifestBytes serialises in declaration order;
+		// this pins slice order for byte-stable signing.
 		sort.Slice(scans, func(i, j int) bool { return scans[i].ID < scans[j].ID })
 		refs := make([]snapshot.ScanRef, 0, len(scans))
 		for _, s := range scans {

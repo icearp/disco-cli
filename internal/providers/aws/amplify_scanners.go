@@ -38,9 +38,9 @@ func scanAmplify(ctx context.Context, acct *account, region string, st *store.St
 	return scanAmplifyAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanAmplifyAll runs phase 1 (ListApps) followed by per-app fan-out for
-// branches, domain associations, and webhooks. Branch, Domain, and Webhook rows
-// are hierarchy-closure-wired to their parent app.
+// scanAmplifyAll runs phase 1 (ListApps) then per-app fan-out for branches,
+// domain associations, and webhooks. Branch, Domain, and Webhook rows are
+// hierarchy-closure-wired to their parent app.
 func scanAmplifyAll(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	type appRef struct{ id, arn string }
 	var apps []appRef
@@ -190,8 +190,8 @@ func scanAmplifyAll(ctx context.Context, client amplifyAPI, acct *account, regio
 		}
 		total += len(childBatch)
 		inserted += n
-		// pairs[i][0] was empty when appended (r.ID is populated by UpsertResources).
-		// Rebuild from childBatch[i].ID; pairs[i][1] (parentID) is already set.
+		// pairs[i][0] was empty when appended (UpsertResources populates r.ID);
+		// rebuild from childBatch[i].ID — pairs[i][1] (parentID) is already set.
 		idPairs := make([][2]string, len(childBatch))
 		for i, r := range childBatch {
 			idPairs[i] = [2]string{r.ID, pairs[i][1]}
@@ -203,10 +203,10 @@ func scanAmplifyAll(ctx context.Context, client amplifyAPI, acct *account, regio
 	return total, inserted, nil
 }
 
-// listAmplifyWebhooksForApp returns the webhook rows for one app via manual
-// NextToken pagination (ListWebhooks has no SDK paginator). AccessDenied is
-// soft-skipped (returns the rows collected so far); the caller closure-wires
-// each webhook to its parent app.
+// listAmplifyWebhooksForApp returns one app's webhook rows via manual NextToken
+// pagination (ListWebhooks has no SDK paginator). AccessDenied soft-skips,
+// returning rows collected so far; caller closure-wires each webhook to its
+// parent app.
 func listAmplifyWebhooksForApp(ctx context.Context, client amplifyAPI, acct *account, region, scanID, appID string, st *store.Store) ([]*store.Resource, error) {
 	var rows []*store.Resource
 	var token *string

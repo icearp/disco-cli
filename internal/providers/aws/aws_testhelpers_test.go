@@ -17,8 +17,8 @@ const (
 	testRegion    = "us-east-1"
 )
 
-// newTestStore opens a temporary SQLite database for use in provider tests
-// and inserts a scan record so resources can satisfy the discovered_by FK.
+// newTestStore opens a temp SQLite DB for provider tests and inserts a scan
+// record so resources can satisfy the discovered_by FK.
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
@@ -30,10 +30,9 @@ func newTestStore(t *testing.T) *store.Store {
 		t.Fatalf("newTestStore: insert test scan: %v", err)
 	}
 	// Direction invariant: every `contains` edge must flow parent→child.
-	// Cleanup hook fails the test if any reversed row sneaks in — guards
-	// scanner/resolver direction regressions that would otherwise pass
-	// silently because UpsertRelationship's UNIQUE on (from, to, kind)
-	// just no-ops the second insert.
+	// Cleanup fails the test if a reversed row sneaks in — guards direction
+	// regressions that would otherwise pass silently, since
+	// UpsertRelationship's UNIQUE on (from, to, kind) no-ops the second insert.
 	t.Cleanup(func() {
 		rows, err := st.ReversedContainsEdges()
 		if err != nil {
@@ -107,15 +106,15 @@ func assertRelationship(t *testing.T, rels []store.Relationship, fromID, toID, k
 	t.Errorf("missing relationship: %s -[%s]-> %s", fromID, kind, toID)
 }
 
-// Helpers that build resolver-test AttributesJSON from real SDK structs so
-// any drift in scanner-side wrapping shape (added/removed wrapper key,
-// renamed field, type change in SDK upgrade) surfaces here rather than as
-// silent zero-value resolutions in production.
+// Helpers build resolver-test AttributesJSON from real SDK structs, so drift
+// in scanner-side wrapping shape (added/removed key, renamed field, SDK type
+// change) surfaces here rather than as silent zero-value resolutions in
+// production.
 //
 // Each helper mirrors a wrapper container declared inline in the matching
-// scanner file. The wrapper structs there are unexported function-local
-// types, so they cannot be reused directly — these helpers reproduce the
-// shape with anonymous structs that share the same json tags.
+// scanner file. Those wrapper structs are unexported function-local types
+// and can't be reused directly, so these helpers reproduce the shape with
+// anonymous structs sharing the same json tags.
 
 // elbv2LBAttrs reproduces the wrapping shape produced by elb_scanners.go:
 // {"lb": <SDK LoadBalancer>, "type": "<lb-type>"}.

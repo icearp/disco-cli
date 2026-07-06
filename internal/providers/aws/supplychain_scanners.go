@@ -15,7 +15,7 @@ func init() {
 		fn:   scanSupplyChain,
 		emits: []coverage.TypeDecl{
 			{Service: "scn", DiscoType: TypeSupplyChainInstance, Leaf: true},
-			// flow / dataset / namespace wire an outbound attached-to edge to
+			// flow/dataset/namespace each wire an outbound attached-to edge to
 			// their instance (see supplychain_resolvers.go).
 			{Service: "scn", DiscoType: TypeSupplyChainDataIntegrationFlow},
 			{Service: "scn", DiscoType: TypeSupplyChainDataset},

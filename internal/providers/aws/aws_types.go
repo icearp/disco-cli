@@ -1,8 +1,8 @@
 package aws
 
-// Resource type constants for all AWS resource types discovered by this provider.
-// Using constants prevents typos in scanner and resolver files — a mismatched
-// string would create orphan resources with an undeclared type.
+// Resource type constants for every AWS resource type this provider discovers.
+// Constants prevent typos in scanner and resolver files — a mismatched string
+// would create an orphan resource with an undeclared type.
 const (
 	// EC2 — compute management (ec2_compute_mgmt_scanners.go)
 	TypeEC2Instance                = "aws:ec2:instance"
@@ -188,11 +188,10 @@ const (
 	TypeIAMServerCertificate = "aws:iam:server-certificate"
 	TypeIAMVirtualMFADevice  = "aws:iam:virtual-mfa-device"
 	// IAM — the AWS account itself (account-level posture: summary, aliases,
-	// password policy). NativeID = arn:aws:iam::<acct>:root. The IAM scanner
+	// password policy). NativeID = arn:aws:iam::<acct>:root. IAM scanner
 	// populates one per scanned account; cross-account-trust / org-management
-	// resolvers insert an empty-attribute placeholder at this key for accounts
-	// they reference but that aren't in scan scope (it version-populates if that
-	// account is later scanned).
+	// resolvers insert an empty-attribute placeholder here for out-of-scope
+	// referenced accounts (version-populates if later scanned).
 	TypeIAMAccount = "aws:iam:account"
 	// Lambda
 	TypeLambdaFunction          = "aws:lambda:function"

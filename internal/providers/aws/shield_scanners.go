@@ -25,8 +25,7 @@ func init() {
 	})
 }
 
-// shieldAPI is the narrow set of Shield operations called by the scanShield
-// sub-phases.
+// shieldAPI is the narrow set of Shield ops used by scanShield's sub-phases.
 type shieldAPI interface {
 	DescribeSubscription(context.Context, *shield.DescribeSubscriptionInput, ...func(*shield.Options)) (*shield.DescribeSubscriptionOutput, error)
 	ListProtections(context.Context, *shield.ListProtectionsInput, ...func(*shield.Options)) (*shield.ListProtectionsOutput, error)
@@ -90,20 +89,20 @@ func scanShield(ctx context.Context, acct *account, st *store.Store, scanID stri
 	return total, inserted, nil
 }
 
-// isShieldNotSubscribed reports whether err indicates the account does not
-// have an active Shield Advanced subscription. Shield's List/Describe APIs
-// surface this as ResourceNotFoundException with a "not subscribed" message;
-// treat it as a soft skip identical to AccessDenied so non-Advanced accounts
-// do not pollute scan errors.
+// isShieldNotSubscribed reports whether err means the account lacks an active
+// Shield Advanced subscription. Shield's List/Describe APIs surface this as
+// ResourceNotFoundException with a "not subscribed" message; treat it as a
+// soft skip identical to AccessDenied so non-Advanced accounts don't pollute
+// scan errors.
 func isShieldNotSubscribed(err error) bool {
 	return isAPIErrorCode(err, "ResourceNotFoundException")
 }
 
 // gateShieldSubscription detects whether the account has an active Shield
-// Advanced subscription. Accounts without one surface ResourceNotFoundException
-// — returned wrapped via markServiceDisabled so the dispatcher renders
-// "(account: disabled)" rather than an error. The subscription itself is
-// account-wide config, not an ARN'd resource, so no row is upserted.
+// Advanced subscription. Accounts without one surface ResourceNotFoundException,
+// wrapped via markServiceDisabled so the dispatcher renders "(account: disabled)"
+// instead of an error. The subscription is account-wide config, not an ARN'd
+// resource, so no row is upserted.
 func gateShieldSubscription(ctx context.Context, client shieldAPI, acct *account, st *store.Store) error {
 	if _, derr := client.DescribeSubscription(ctx, &shield.DescribeSubscriptionInput{}); derr != nil {
 		if isAccessDenied(derr) {

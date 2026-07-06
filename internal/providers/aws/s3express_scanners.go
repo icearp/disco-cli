@@ -32,9 +32,8 @@ type s3ExpressControlAPI interface {
 }
 
 // scanS3Express discovers S3 Express directory buckets, per-bucket policies,
-// and per-bucket access points. DirectoryBucket and BucketPolicy come from
-// the s3 SDK; access points come from s3control's
-// ListAccessPointsForDirectoryBuckets.
+// and per-bucket access points. DirectoryBucket/BucketPolicy come from the s3
+// SDK; access points come from s3control's ListAccessPointsForDirectoryBuckets.
 func scanS3Express(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	s3c := s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
 	ctlc := s3control.NewFromConfig(acct.cfg, func(o *s3control.Options) { o.Region = region })

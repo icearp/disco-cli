@@ -7,8 +7,8 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// nmRegion is the home region NetworkManager scanner uses (us-west-2 per the
-// scanner's region guard). Tests pin it for ARN-shape consistency.
+// nmRegion is NetworkManager's home region (us-west-2, per the scanner's
+// region guard); tests pin it for ARN-shape consistency.
 const nmRegion = "us-west-2"
 
 func TestResolveNMSiteRefs(t *testing.T) {

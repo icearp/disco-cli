@@ -40,8 +40,8 @@ func sagemakerModelARN(region, acctID, name string) string {
 }
 
 // resolveSageMakerEndpointConfig links each endpoint to the endpoint-config
-// it activates. The endpoint scanner stores `EndpointConfigName`; we synth
-// the canonical ARN to look up the local endpoint-config row.
+// it activates: the scanner stores `EndpointConfigName`, so we synth the
+// canonical ARN to look up the local row.
 func resolveSageMakerEndpointConfig(acct *account, st *store.Store) error {
 	endpoints, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSageMakerEndpoint},
@@ -197,10 +197,9 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert sagemaker-model→ecr-repo: %w", err)
 			}
 		}
-		// VPC config — note: SageMaker's VpcConfig has no top-level VpcId; the
-		// VPC is derived from the subnets. Skip the VPC edge here; subnet/SG
-		// edges suffice. Subnets[] and SecurityGroupIDs[] are []*string in the
-		// SDK; JSON-marshalled they appear as []string with bare IDs.
+		// VPC config: VpcConfig has no VpcId (derived from subnets), so skip
+		// the VPC edge; subnet/SG edges suffice. Subnets[]/SecurityGroupIDs[]
+		// are SDK []*string, appearing as []string with bare IDs once marshalled.
 		if attrs.VpcConfig == nil {
 			continue
 		}

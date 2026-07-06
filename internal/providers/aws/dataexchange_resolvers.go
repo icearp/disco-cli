@@ -61,9 +61,9 @@ func resolveDataExchangeDataGrantRefs(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range rows {
-		// SourceDataSetId is the sender's OWNED data set (the input to
-		// CreateDataGrant, which disco scans); DataSetId is the entitled copy
-		// made available to the receiver, which is out of an owned-only scan.
+		// SourceDataSetId is the sender's owned data set (input to CreateDataGrant,
+		// which disco scans); DataSetId is the receiver's entitled copy, out of
+		// scope for an owned-only scan.
 		var attrs struct {
 			SourceDataSetID *string `json:"SourceDataSetId"`
 		}

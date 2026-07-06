@@ -22,8 +22,8 @@ func init() {
 }
 
 // scanPubSub discovers Pub/Sub topics, subscriptions, and schemas. All three
-// list APIs are project-scoped (no per-location fan-out — Pub/Sub is global
-// at the API surface even though messages are stored regionally).
+// list APIs are project-scoped (no per-location fan-out — Pub/Sub's API
+// surface is global even though message storage is regional).
 func scanPubSub(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := pubsub.NewService(ctx, opts...)

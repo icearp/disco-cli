@@ -21,8 +21,8 @@ func init() {
 }
 
 // ipamByShortID maps each scanned IPAM's short id (ipam-xxx, parsed from the
-// ":ipam/" segment of its ARN NativeID) to its resource id, so children that
-// carry only the bare IpamId can resolve regardless of the ARN's region.
+// ":ipam/" segment of its ARN NativeID) to its resource id, so children with
+// only a bare IpamId can resolve regardless of the ARN's region.
 func ipamByShortID(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2IPAM}, Limit: util.AllResources,

@@ -64,9 +64,9 @@ func TestDiffCmd_JSON(t *testing.T) {
 	}
 }
 
-// TestDiffCmd_ResolvesShortIDAndLatest verifies diff accepts the 8-char
-// prefixes `disco scans` prints and the `latest` shorthand, the same as every
-// other scan-id consumer — not just full 32-hex IDs.
+// TestDiffCmd_ResolvesShortIDAndLatest verifies diff accepts 8-char prefixes
+// (as `disco scans` prints) and the `latest` shorthand, like every other
+// scan-id consumer — not just full 32-hex IDs.
 func TestDiffCmd_ResolvesShortIDAndLatest(t *testing.T) {
 	resetDiffFlags()
 	dbPath := filepath.Join(t.TempDir(), "disco.db")

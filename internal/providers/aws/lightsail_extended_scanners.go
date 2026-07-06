@@ -8,9 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/lightsail"
 )
 
-// scanLightsailExtended adds 12 disco types covering snapshots,
-// networking, storage, and observability resources. Lightsail uses
-// manual `pageToken` pagination across all Get* ops.
+// scanLightsailExtended adds 12 disco types: snapshots, networking, storage,
+// and observability resources. Lightsail uses manual `pageToken` pagination
+// across all Get* ops.
 func scanLightsailExtended(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	lbNames, t, i, ferr := scanLSLoadBalancers(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
@@ -243,10 +243,10 @@ func scanLSDiskSnapshots(ctx context.Context, client lightsailAPI, acct *account
 	return upsertBatch(st, batch, "lightsail disk-snapshots")
 }
 
-// scanLSDistributions: Lightsail distribution APIs are us-east-1-only —
-// AWS rejects calls from any other region with `InvalidInputException:
+// scanLSDistributions: Lightsail distribution APIs are us-east-1-only — AWS
+// rejects calls from other regions with `InvalidInputException:
 // Distribution-related APIs are only available in the us-east-1 Region`.
-// Gate the phase rather than per-region clienting since the API is
+// Gated per-phase rather than per-region clienting, since the API is
 // genuinely global, just exposed solely on us-east-1.
 func scanLSDistributions(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if region != "us-east-1" {
@@ -286,9 +286,8 @@ func scanLSDistributions(ctx context.Context, client lightsailAPI, acct *account
 }
 
 // scanLSDomains: Lightsail domain APIs are us-east-1-only — same gate as
-// scanLSDistributions; AWS rejects calls from any other region with
-// `InvalidInputException: Domain-related APIs are only available in the
-// us-east-1 Region`.
+// scanLSDistributions; AWS rejects other regions with `InvalidInputException:
+// Domain-related APIs are only available in the us-east-1 Region`.
 func scanLSDomains(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if region != "us-east-1" {
 		return 0, 0, nil

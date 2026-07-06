@@ -37,8 +37,8 @@ type cleanRoomsMLAPI interface {
 }
 
 // scanCleanRoomsML discovers configured model algorithms, training datasets,
-// and configured-model-algorithm associations. Associations require fan-out
-// per Clean Rooms membership ID (sourced from cleanrooms SDK).
+// and configured-model-algorithm associations; associations fan out per Clean
+// Rooms membership ID (from the cleanrooms SDK).
 func scanCleanRoomsML(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	mlClient := cleanroomsml.NewFromConfig(acct.cfg, func(o *cleanroomsml.Options) { o.Region = region })
 	crClient := cleanrooms.NewFromConfig(acct.cfg, func(o *cleanrooms.Options) { o.Region = region })

@@ -69,8 +69,8 @@ func loadDataBrewTargetSets(acct *account, st *store.Store) (dataBrewTargetSets,
 	return sets, nil
 }
 
-// emitDataBrewEdge upserts srcID → tgtType (computed via dbrARN-style ARN)
-// when the target id is in the FK-safe set. tgtARN may be empty.
+// emitDataBrewEdge upserts srcID→tgtType if tgtARN (dbrARN-style, may be empty)
+// is in the FK-safe set.
 func emitDataBrewEdge(st *store.Store, acct *account, srcID, tgtType, tgtARN string, set map[string]bool, kind string) error {
 	if tgtARN == "" {
 		return nil
@@ -215,9 +215,9 @@ func init() {
 }
 
 // resolveDataBrewDatasetRefs wires each dataset to its S3 source bucket via
-// Input.S3InputDefinition.Bucket. Datasets sourced from Glue catalog
-// reference Glue tables that are not first-class disco resources, so
-// DataCatalogInputDefinition is skipped.
+// Input.S3InputDefinition.Bucket. Glue-catalog-sourced datasets reference
+// Glue tables, not first-class disco resources, so DataCatalogInputDefinition
+// is skipped.
 func resolveDataBrewDatasetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataBrewDataset}, Limit: util.AllResources,

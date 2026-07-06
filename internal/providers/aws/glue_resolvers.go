@@ -32,7 +32,7 @@ func init() {
 }
 
 // resolveGlueTableDatabase emits an `attached-to` edge from each Glue
-// table to the database it lives in. Database NativeID shape:
+// table to its database. Database NativeID shape:
 // `arn:aws:glue:{r}:{a}:database/{name}`.
 func resolveGlueTableDatabase(acct *account, st *store.Store) error {
 	tables, err := st.ListResources(store.ResourceFilter{
@@ -68,11 +68,10 @@ func resolveGlueTableDatabase(acct *account, st *store.Store) error {
 	return nil
 }
 
-// glueRoleARN normalises a Role field. The Glue API accepts either a full
-// IAM role ARN or a bare role name. The bare-name form gets rebuilt into
-// the canonical ARN shape `arn:aws:iam::{acct}:role/{name}` for FK
-// lookup. IAM roles have no region segment so the source resource's
-// region is irrelevant here.
+// glueRoleARN normalises a Role field — the Glue API accepts a full IAM
+// role ARN or a bare role name. Bare names get rebuilt into the canonical
+// `arn:aws:iam::{acct}:role/{name}` for FK lookup. IAM roles have no region
+// segment, so the source resource's region is irrelevant here.
 func glueRoleARN(acctID, roleField string) string {
 	if roleField == "" {
 		return ""
@@ -214,11 +213,9 @@ type glueTableAttrs struct {
 }
 
 // resolveGlueTableS3Location emits a `uses` edge from each Glue table to
-// the S3 bucket backing its `StorageDescriptor.Location`. Format is
-// `s3://bucket[/prefix...]`; the bucket portion is parsed and matched
-// against scanned S3 buckets. Non-S3 locations (HDFS, JDBC, federated
-// catalogs, empty) skip silently. FK-safe via scanned-bucket id set;
-// cross-account bucket refs skip.
+// the S3 bucket backing `StorageDescriptor.Location` (`s3://bucket[/prefix...]`).
+// Non-S3 locations (HDFS, JDBC, federated catalogs, empty) skip silently;
+// FK-safe via scanned-bucket id set, so cross-account bucket refs also skip.
 func resolveGlueTableS3Location(acct *account, st *store.Store) error {
 	tables, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -265,10 +262,10 @@ func resolveGlueTableS3Location(acct *account, st *store.Store) error {
 }
 
 // s3BucketARNFromS3URL collapses an `s3://bucket[/prefix...]` URL to the
-// canonical bucket ARN `arn:aws:s3:::bucket`. Returns empty string for
-// non-s3:// schemes (HDFS paths, JDBC URIs, etc.) and malformed inputs.
-// Sibling of `s3BucketARNFromLocation` (which handles `arn:aws:s3:::`
-// prefixes used by Lake Formation registered locations).
+// canonical bucket ARN `arn:aws:s3:::bucket`; returns "" for non-s3://
+// schemes (HDFS, JDBC, etc.) or malformed input. Sibling of
+// `s3BucketARNFromLocation`, which handles `arn:aws:s3:::` prefixes from
+// Lake Formation registered locations.
 func s3BucketARNFromS3URL(url string) string {
 	const scheme = "s3://"
 	if !strings.HasPrefix(url, scheme) {

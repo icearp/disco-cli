@@ -22,7 +22,7 @@ func init() {
 
 // scanContainerRegistry discovers Azure Container Registry (ACR) registries.
 // Replications, webhooks, tasks, scope-maps, tokens, cache rules, and private
-// link resources deferred — narrow cross-service edge value relative to volume.
+// link resources deferred — low cross-service edge value relative to volume.
 func scanContainerRegistry(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcontainerregistry.NewRegistriesClient(sub.ID, cred, azClientOptions)
 	if err != nil {

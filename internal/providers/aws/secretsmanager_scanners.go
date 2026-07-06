@@ -30,7 +30,7 @@ type secretsManagerAPI interface {
 
 // scanSecretsManager discovers Secrets Manager secrets in one region. Secret
 // values are never fetched — only metadata (rotation config, last-rotated date,
-// KMS key binding) suitable for posture rules.
+// KMS key binding) for posture rules.
 func scanSecretsManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := secretsmanager.NewFromConfig(acct.cfg, func(o *secretsmanager.Options) { o.Region = region })
 	t, i, ferr := scanSecretsManagerSecrets(ctx, client, acct, region, st, scanID)

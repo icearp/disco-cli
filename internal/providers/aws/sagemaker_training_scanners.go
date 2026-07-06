@@ -21,7 +21,7 @@ func init() {
 	)
 }
 
-// sagemakerTrainingAPI is the narrow surface used by the Training/Notebook
+// sagemakerTrainingAPI is the narrow surface for the Training/Notebook
 // family. Each phase List+fan-out Describe so attrs carry the full Describe
 // body (NetworkInterfaceId, KmsKeyId, RoleArn, GitConfig, ProcessingResources).
 type sagemakerTrainingAPI interface {

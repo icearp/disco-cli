@@ -91,9 +91,9 @@ or finding ID. Use 'disco findings runs' to list run IDs.`,
 			out = append(out, storedFindingToFinding(r))
 		}
 		// --severity is a MINIMUM cutoff here, matching `disco check --severity`
-		// (reuses the same severityRank map) — not the exact match the store's
-		// FindingFilter.Severity does. Filter in-cmd so both commands give one
-		// consistent meaning on the same persisted findings.
+		// (reuses the same severityRank map) — not the exact match
+		// FindingFilter.Severity does. Filtered in-cmd so both commands agree
+		// on meaning for the same persisted findings.
 		out = filterBySeverity(out, findingsSeverity)
 		return renderFindings(out, findingsOutputFmt)
 	},
@@ -155,9 +155,9 @@ func renderFindings(fs []policy.Finding, format string) error {
 		}
 		return nil
 	case "sarif":
-		// Persisted-findings re-emit can't bind to a single live DB hash —
-		// findings span scans by design. Pass an empty evidence stamp so the
-		// SARIF doc still validates without claiming a single source.
+		// Persisted findings can't bind to a single live DB hash — they span
+		// scans by design. Pass an empty evidence stamp so the SARIF doc
+		// still validates without claiming a single source.
 		return renderCheckSARIF(fs, os.Stdout, sarifEvidence{})
 	case "csv":
 		w := csv.NewWriter(os.Stdout)
@@ -195,7 +195,7 @@ func renderFindings(fs []policy.Finding, format string) error {
 }
 
 func renderCheckRuns(runs []store.CheckRun, format string) error {
-	// Re-establish the non-nil contract so `-o json` emits `[]` not `null`
+	// Re-establish the non-nil contract so `-o json` emits `[]`, not `null`,
 	// on a zero-row query (mirrors resources.go; F6 wire-contract parity).
 	if runs == nil {
 		runs = []store.CheckRun{}

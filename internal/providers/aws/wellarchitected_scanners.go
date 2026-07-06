@@ -31,7 +31,7 @@ type wellArchitectedAPI interface {
 
 // scanWellArchitected discovers Well-Architected workloads, lenses, profiles,
 // and review templates. All expose native ARNs; the lens-review graph is left
-// unscanned (these are Leaf inventory rows).
+// unscanned (Leaf inventory rows).
 func scanWellArchitected(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := wellarchitected.NewFromConfig(acct.cfg, func(o *wellarchitected.Options) { o.Region = region })
 

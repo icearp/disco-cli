@@ -40,8 +40,8 @@ func init() {
 }
 
 // resolveR53RFirewallConfigVPC links each DNS Firewall config to the VPC it
-// protects. FirewallConfig has no native ARN; the scanner stores `ResourceId`
-// (the VPC ID) so we rebuild the canonical EC2 VPC ARN here.
+// protects. FirewallConfig has no native ARN; scanner stores `ResourceId`
+// (the VPC ID), so rebuild the canonical EC2 VPC ARN here.
 func resolveR53RFirewallConfigVPC(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -81,8 +81,8 @@ func resolveR53RFirewallConfigVPC(acct *account, st *store.Store) error {
 }
 
 // resolveR53RResolverConfigVPC links each ResolverConfig to the VPC it
-// configures. ResolverConfig has no native ARN; the scanner stores
-// `ResourceId` (the VPC ID) so we rebuild the canonical EC2 VPC ARN here.
+// configures. ResolverConfig has no native ARN; scanner stores
+// `ResourceId` (the VPC ID), so rebuild the canonical EC2 VPC ARN here.
 func resolveR53RResolverConfigVPC(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

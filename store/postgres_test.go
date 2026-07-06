@@ -15,9 +15,9 @@ import (
 )
 
 // pgTestEnv spins up an ephemeral postgres:16-alpine container and returns a
-// DSN once the server accepts connections. Callers SHOULD defer the returned
-// purge function. If Docker / Podman is unreachable the test is skipped, not
-// failed — CI gates dockertest on its own job.
+// DSN once the server accepts connections. Callers SHOULD defer purge. If
+// Docker/Podman is unreachable the test skips, not fails — CI gates
+// dockertest on its own job.
 func pgTestEnv(t *testing.T) (dsn string, purge func()) {
 	t.Helper()
 	if os.Getenv("DISCO_SKIP_DOCKERTEST") != "" {
@@ -87,8 +87,8 @@ func TestPG_OpenAndMigrate(t *testing.T) {
 }
 
 // TestPG_RoundTripParity exercises the full read+write surface and asserts
-// shapes match what SQLite returns for the same fixture set. This is the
-// "PG looks like SQLite to call sites" guarantee.
+// shapes match SQLite's for the same fixture set — the "PG looks like
+// SQLite to call sites" guarantee.
 func TestPG_RoundTripParity(t *testing.T) {
 	dsn, purge := pgTestEnv(t)
 	defer purge()
@@ -113,15 +113,16 @@ func TestPG_RoundTripParity(t *testing.T) {
 	}
 }
 
-// Tenant isolation (RLS) is no longer part of the OSS schema — the disco-saas
-// control plane layers tenant_id + row-level security onto these tables via its
-// own migration set, and the RLS isolation test lives there. The OSS suite
-// proves the public extension point those layers ride on: TestPG_WithAfterConnect
-// (the per-conn hook fires) and TestPG_WrapTx (the tx-bound request-path store).
+// Tenant isolation (RLS) is no longer part of the OSS schema — disco-saas
+// layers tenant_id + row-level security onto these tables via its own
+// migration set, and the RLS isolation test lives there. This suite proves
+// the public extension point those layers ride on: TestPG_WithAfterConnect
+// (per-conn hook fires) and TestPG_WrapTx (tx-bound request-path store).
 
-// TestPG_WithAfterConnect proves a WithAfterConnect hook runs on every physical
-// connection — the seam disco-saas uses to SET search_path + the app.* RLS GUCs.
-// The hook sets a session GUC; we read it back through a pooled handle.
+// TestPG_WithAfterConnect proves a WithAfterConnect hook runs on every
+// physical connection — the seam disco-saas uses to SET search_path + the
+// app.* RLS GUCs. The hook sets a session GUC; read back through a pooled
+// handle.
 func TestPG_WithAfterConnect(t *testing.T) {
 	dsn, purge := pgTestEnv(t)
 	defer purge()
@@ -148,10 +149,10 @@ func TestPG_WithAfterConnect(t *testing.T) {
 	}
 }
 
-// TestPG_WrapTx exercises read methods on a tx-bound *Store — the request-path
-// primitive disco-saas wraps after pinning search_path + RLS GUCs on the tx.
-// Plain pool, no schema pin: proves WrapTx reads through the caller's tx and
-// that Close on the tx-bound store leaves that tx open.
+// TestPG_WrapTx exercises read methods on a tx-bound *Store — the
+// request-path primitive disco-saas wraps after pinning search_path + RLS
+// GUCs on the tx. Plain pool, no schema pin: proves WrapTx reads through the
+// caller's tx and Close on the tx-bound store leaves that tx open.
 func TestPG_WrapTx(t *testing.T) {
 	dsn, purge := pgTestEnv(t)
 	defer purge()

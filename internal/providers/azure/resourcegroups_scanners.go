@@ -11,17 +11,17 @@ import (
 )
 
 func init() {
-	// scanResourceGroups runs once per subscription invoked direct from
-	// azure.go (not via registerService) since it pre-seeds RG parents
-	// every other scanner depends on. Emits declared via registerExtraEmits.
+	// scanResourceGroups runs once per subscription, invoked directly from
+	// azure.go (not via registerService) since it pre-seeds RG parents every
+	// other scanner depends on. Emits declared via registerExtraEmits.
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "resources", DiscoType: TypeResourcesResourceGroup},
 	)
 }
 
 // scanResourceGroups discovers all resource groups in a subscription and
-// upserts them as parent resources. All other Azure resources use the resource
-// group disco ID as their parent_id.
+// upserts them as parent resources. All other Azure resources use the RG's
+// disco ID as their parent_id.
 func scanResourceGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) error {
 	client, err := armresources.NewResourceGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -62,10 +62,10 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred azcore.Toke
 			if _, err := st.UpsertResources(batch); err != nil {
 				return fmt.Errorf("upsert resource groups: %w", err)
 			}
-			// Seed each RG's closure self-entry now so every RG is queryable in
-			// the closure even when the scan lacks tenant-level management access.
-			// The RG → subscription parent link is wired later by
-			// stitchTopHierarchy, after the subscription-as-resource row exists.
+			// Seed each RG's closure self-entry now so every RG is queryable even
+			// without tenant-level management access. The RG → subscription link
+			// is wired later by stitchTopHierarchy, once the subscription-as-
+			// resource row exists.
 			pairs := make([][2]string, len(batch))
 			for i, r := range batch {
 				rgID := store.ResourceID("azure", sub.ID, TypeResourcesResourceGroup, r.NativeID)

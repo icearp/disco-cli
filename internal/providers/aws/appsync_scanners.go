@@ -46,8 +46,8 @@ type appSyncAPI interface {
 	ListResolvers(context.Context, *appsync.ListResolversInput, ...func(*appsync.Options)) (*appsync.ListResolversOutput, error)
 }
 
-// asyncSplitApis routes API IDs to GraphQL vs Event API buckets based
-// on which list-op returned them.
+// asyncSplitApis routes API IDs to GraphQL vs Event API buckets by which
+// list-op returned them.
 type asyncSplitApis struct {
 	graphqlIDs []string
 	eventIDs   []string
@@ -225,7 +225,7 @@ func scanASCApiKeys(ctx context.Context, client appSyncAPI, acct *account, regio
 	return upsertBatch(st, batch, "appsync api-keys")
 }
 
-// scanASCApiCaches — per GraphQL API singleton. NotFoundException when
+// scanASCApiCaches is a per-GraphQL-API singleton; NotFoundException means
 // no cache configured.
 func scanASCApiCaches(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apiIDs []string) (int, int, error) {
 	if len(apiIDs) == 0 {
@@ -327,8 +327,8 @@ func scanASCFunctions(ctx context.Context, client appSyncAPI, acct *account, reg
 	return upsertBatch(st, batch, "appsync function-configurations")
 }
 
-// scanASCSchemas — per GraphQL API singleton, synth ARN. No SDK list op
-// for schemas; emit one row per known API.
+// scanASCSchemas is a per-GraphQL-API singleton with a synth ARN — no SDK
+// list op for schemas, so emit one row per known API.
 func scanASCSchemas(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apiIDs []string) (int, int, error) {
 	if len(apiIDs) == 0 {
 		return 0, 0, nil
@@ -483,17 +483,17 @@ func scanASCDomainNameAssocs(ctx context.Context, client appSyncAPI, acct *accou
 	return upsertBatch(st, batch, "appsync domain-name-api-associations")
 }
 
-// scanASCResolvers fans out per (api, type) to ListResolvers. Type names come
-// from ListTypes(Format=SDL); a GraphQL schema with N user-defined types
-// triggers N ListResolvers calls per API. Per-(api, type) errors tolerate
-// AccessDenied + NotFoundException without aborting siblings.
+// scanASCResolvers fans out per (api, type) to ListResolvers. Type names
+// come from ListTypes(Format=SDL) — a schema with N user-defined types
+// triggers N ListResolvers calls per API. Per-(api, type) AccessDenied /
+// NotFoundException are tolerated without aborting siblings.
 func scanASCResolvers(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apiIDs []string) (int, int, error) {
 	if len(apiIDs) == 0 {
 		return 0, 0, nil
 	}
 	var batch []*store.Resource
 	for _, apiID := range apiIDs {
-		// First enumerate type names via ListTypes(Format=SDL).
+		// Enumerate type names via ListTypes(Format=SDL).
 		var typeNames []string
 		var typesToken *string
 		for {

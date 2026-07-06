@@ -8,10 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 )
 
-// scanSNSExtended discovers SNS subscriptions and per-topic policies. The
-// AWS::SNS::TopicInlinePolicy CFN type is skip-logged: it represents the same
-// runtime Policy attribute that AWS::SNS::TopicPolicy carries, just with
-// inline lifecycle semantics that have no distinct API surface.
+// scanSNSExtended discovers SNS subscriptions and per-topic policies.
+// AWS::SNS::TopicInlinePolicy is skip-logged: it's the same runtime Policy
+// attribute as AWS::SNS::TopicPolicy, just with inline lifecycle semantics
+// and no distinct API surface.
 func scanSNSExtended(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	t, i, ferr := scanSNSSubscriptions(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
@@ -60,9 +60,9 @@ func scanSNSSubscriptions(ctx context.Context, client snsAPI, acct *account, reg
 	return upsertBatch(st, batch, "sns subscriptions")
 }
 
-// scanSNSTopicPolicies emits one row per topic that has a non-empty Policy
-// attribute. Source = ListResources(TypeSNSTopic) → GetTopicAttributes per
-// topic. Synth ARN: {topicARN}/policy.
+// scanSNSTopicPolicies emits one row per topic with a non-empty Policy
+// attribute. Source: ListTopics → GetTopicAttributes per topic. Synth ARN:
+// {topicARN}/policy.
 func scanSNSTopicPolicies(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := sns.NewListTopicsPaginator(client, &sns.ListTopicsInput{})
 	var batch []*store.Resource

@@ -21,7 +21,7 @@ func init() {
 	)
 }
 
-// connectIntegrationAPI is the narrow surface used by the Integration family.
+// connectIntegrationAPI is the narrow surface for the Integration family.
 type connectIntegrationAPI interface {
 	ListApprovedOrigins(context.Context, *connect.ListApprovedOriginsInput, ...func(*connect.Options)) (*connect.ListApprovedOriginsOutput, error)
 	ListSecurityKeys(context.Context, *connect.ListSecurityKeysInput, ...func(*connect.Options)) (*connect.ListSecurityKeysOutput, error)
@@ -65,8 +65,8 @@ func scanConnectIntegration(ctx context.Context, client connectIntegrationAPI, i
 	return total, inserted, nil
 }
 
-// scanConnectApprovedOrigins emits one row per (instance, origin) pair.
-// SDK returns []string so synthesize NativeID:
+// scanConnectApprovedOrigins emits one row per (instance, origin) pair. SDK
+// returns []string, so NativeID is synthesized:
 // arn:aws:connect:{r}:{a}:instance/{instID}/approved-origin/{urlencoded}.
 func scanConnectApprovedOrigins(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource

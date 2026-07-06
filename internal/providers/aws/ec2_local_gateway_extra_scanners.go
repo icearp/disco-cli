@@ -34,8 +34,8 @@ func scanEC2LocalGatewayExtra(ctx context.Context, client ec2API, acct *account,
 	)
 }
 
-// scanLocalGateways — the local gateway itself is Leaf: its only outbound ref is
-// OutpostArn, and disco does not scan the Outposts service.
+// scanLocalGateways — Leaf: only outbound ref is OutpostArn, which disco
+// doesn't scan (no Outposts service).
 func scanLocalGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeLocalGateways", acct, region, st,

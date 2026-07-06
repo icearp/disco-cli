@@ -22,9 +22,8 @@ func init() {
 	})
 }
 
-// scanStorage discovers Azure storage accounts and storage tasks. Storage
-// tasks live under the microsoft.storage namespace but ship in the separate
-// armstorageactions SDK module.
+// scanStorage discovers Azure storage accounts and storage tasks. Storage tasks
+// live under microsoft.storage but ship via the separate armstorageactions SDK module.
 func scanStorage(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {

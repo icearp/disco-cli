@@ -17,9 +17,9 @@ func init() {
 }
 
 // resolveNetAppRelationships derives NetApp account -[uses]-> Key Vault edges
-// for accounts encrypted with a customer-managed key. NetApp exposes the
-// vault's full ARM resource ID (encryption.keyVaultProperties.keyVaultResourceId),
-// matched case-insensitively against a per-sub Key Vault NativeID index.
+// for CMK-encrypted accounts. NetApp exposes the vault's full ARM resource ID
+// (encryption.keyVaultProperties.keyVaultResourceId), matched case-insensitively
+// against a per-sub Key Vault NativeID index.
 func resolveNetAppRelationships(sub *subscription, st *store.Store) error {
 	accounts, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

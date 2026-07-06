@@ -18,9 +18,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			// Subscription-scoped core networking (VNets, NSGs, PublicIPs).
 			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetwork},
-			// Uncatalogued: disco scans subnets, but ARM Providers/List does not
-			// enumerate the virtualNetworks/subnets proxy child as a standalone
-			// resourceType.
+			// Uncatalogued: ARM Providers/List doesn't enumerate the
+			// virtualNetworks/subnets proxy child as a standalone resourceType,
+			// though disco scans it.
 			{Service: "microsoft.network", DiscoType: TypeNetworkSubnet, Uncatalogued: true},
 			{Service: "microsoft.network", DiscoType: TypeNetworkSecurityGroup},
 			{Service: "microsoft.network", DiscoType: TypeNetworkPublicIPAddress},
@@ -34,9 +34,9 @@ func init() {
 			{Service: "microsoft.network", DiscoType: TypeNetworkVPNSite},
 			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRouteGateway},
 			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetworkGW},
-			// Coverage sweep: the rest of the sub/RG-listable Microsoft.Network
+			// Coverage sweep: rest of the sub/RG-listable Microsoft.Network
 			// surface. All Leaf — no in-scope outbound ARM-ID ref a per-service
-			// resolver would wire (subnet/PE/identity refs are handled centrally).
+			// resolver would wire (subnet/PE/identity refs handled centrally).
 			{Service: "microsoft.network", DiscoType: TypeNetworkWAFPolicy, Leaf: true},
 			{Service: "microsoft.network", DiscoType: TypeNetworkApplicationSecurityGroup, Leaf: true},
 			{Service: "microsoft.network", DiscoType: TypeNetworkAzureFirewallFqdnTag, Leaf: true},
@@ -79,10 +79,10 @@ func init() {
 
 // scanNetwork is the single entry point for every Microsoft.Network resource
 // type disco scans. Phases run concurrently via sync.WaitGroup (NOT errgroup
-// — per "Errors never abort scan", we want every phase to attempt regardless
-// of sibling failures). Per-phase AccessDenied is tolerated via
-// skipIfAccessDenied inside each phase; orchestrator surfaces only the first
-// non-tolerated error so the dispatcher can report-and-continue.
+// — per "Errors never abort scan", every phase attempts regardless of
+// sibling failures). Per-phase AccessDenied is tolerated via
+// skipIfAccessDenied inside each phase; the orchestrator surfaces only the
+// first non-tolerated error so the dispatcher can report-and-continue.
 //
 // Phase split:
 //   - VNets / NSGs / PublicIPs: subscription-wide List, embedded subnet
@@ -423,9 +423,9 @@ func agwToBase(g *armnetwork.ApplicationGateway) azTrackedBase {
 	return azTrackedBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
 }
 
-// scanNetworkNamespace runs every Microsoft.network scanner phase concurrently. The
-// network ARM namespace spans several disco scanners merged under one
-// serviceEntry so the service name aligns to the namespace.
+// scanNetworkNamespace runs every Microsoft.network scanner phase concurrently
+// — the namespace spans several disco scanners merged under one serviceEntry
+// so the service name aligns to the namespace.
 func scanNetworkNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanNetwork(ctx, sub, cred, st, scanID) },

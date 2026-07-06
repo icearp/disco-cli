@@ -130,8 +130,8 @@ func scanRE2DefaultView(ctx context.Context, client resourceExplorer2API, acct *
 	return upsertBatch(st, []*store.Resource{r}, "resource-explorer-2 default-view-association")
 }
 
-// scanRE2ManagedViews lists AWS-managed views (ListManagedViews returns ARNs).
-// These are managed by AWS services, so ManagedByProvider is set.
+// scanRE2ManagedViews lists AWS-managed views (ListManagedViews returns ARNs);
+// sets ManagedByProvider since AWS manages these.
 func scanRE2ManagedViews(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := resourceexplorer2.NewListManagedViewsPaginator(client, &resourceexplorer2.ListManagedViewsInput{})
 	var batch []*store.Resource

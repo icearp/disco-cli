@@ -22,7 +22,7 @@ func init() {
 	})
 }
 
-// scanEdgeMarketplace discovers Edge Marketplace offers + publishers. Both are
+// scanEdgeMarketplace discovers Edge Marketplace offers + publishers, both
 // proxy resources (no location / tags).
 func scanEdgeMarketplace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	offersClient, err := armedgemarketplace.NewOffersClient(sub.ID, cred, azClientOptions)

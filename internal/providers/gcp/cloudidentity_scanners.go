@@ -22,9 +22,9 @@ func init() {
 }
 
 // scanCloudIdentity discovers Workspace Directory users + Cloud Identity
-// groups under the calling identity's customer (Workspace tenant). Tenant-
-// scope, runs once per scan via the org-service lane (folder/org orgScope
-// arg ignored — Cloud Identity is parented above the GCP org tree).
+// groups under the calling identity's customer (Workspace tenant).
+// Tenant-scoped, runs once per scan via the org-service lane (folder/org
+// orgScope arg ignored — Cloud Identity is parented above the GCP org tree).
 //
 // AccountID for emitted resources = the customer ID (e.g. "C03az79cb"),
 // resolved from the first Directory.Users.List page or via the standard
@@ -43,8 +43,8 @@ func scanCloudIdentity(ctx context.Context, _ []orgScope, st *store.Store, scanI
 	opts := clientOptions(ctx, providerCfg{})
 
 	// Phase 1: Workspace Directory users (`customer=my_customer` alias resolves
-	// to the calling identity's customer; no need to know the customer ID up
-	// front). Returns CustomerId on each user — captured for phase 2.
+	// to the calling identity's customer, no customer ID needed upfront).
+	// Returns CustomerId per user — captured for phase 2.
 	dirSvc, derr := directory.NewService(ctx, opts...)
 	if derr != nil {
 		return 0, 0, fmt.Errorf("admin/directory client: %w", derr)
@@ -56,8 +56,8 @@ func scanCloudIdentity(ctx context.Context, _ []orgScope, st *store.Store, scanI
 		return total, inserted, err
 	}
 
-	// Phase 2: Cloud Identity groups parented at customers/{customerID}. If
-	// phase 1 failed to determine a customer ID (no users, all 403) skip groups.
+	// Phase 2: Cloud Identity groups parented at customers/{customerID}. Skip
+	// if phase 1 failed to determine a customer ID (no users, all 403).
 	if customerID == "" {
 		return total, inserted, nil
 	}
@@ -72,8 +72,8 @@ func scanCloudIdentity(ctx context.Context, _ []orgScope, st *store.Store, scanI
 }
 
 // scanWorkspaceUsers paginates over admin/directory/v1 Users.List with the
-// `my_customer` alias. Returns the resolved customer ID along with counts so
-// scanCloudIdentity can hand it off to the groups phase.
+// `my_customer` alias. Returns the resolved customer ID plus counts so
+// scanCloudIdentity can pass it to the groups phase.
 func scanWorkspaceUsers(ctx context.Context, svc *directory.Service, st *store.Store, scanID string) (customerID string, total, inserted int, err error) {
 	var batch []*store.Resource
 	req := svc.Users.List().Customer("my_customer").MaxResults(500)

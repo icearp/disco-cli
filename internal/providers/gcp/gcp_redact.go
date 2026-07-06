@@ -2,12 +2,11 @@ package gcp
 
 import "codeberg.org/icearp/disco/internal/redact"
 
-// Provider-declared redaction rules. GCP API responses are mostly
-// pointer-style — Secret Manager payload is fetched via a separate
-// AccessSecretVersion call (disco does not invoke it), SA keys carry
-// privateKeyData only on Create. The rules below cover env-variable maps
-// surfaced by Cloud Functions / Cloud Run / Composer / Cloud Build, plus
-// defensive password rules for the few fields that surface on Create echoes.
+// Provider-declared redaction rules. GCP responses are mostly pointer-style:
+// Secret Manager payload needs a separate AccessSecretVersion call (disco
+// doesn't invoke it); SA keys carry privateKeyData only on Create. Rules below
+// cover env-var maps from Cloud Functions/Run/Composer/Build, plus defensive
+// password rules for fields that surface on Create echoes.
 func init() {
 	rules := []redact.TypeRules{
 		// Cloud Functions Gen2: serviceConfig.environmentVariables (plain),
@@ -41,9 +40,8 @@ func init() {
 		{Type: TypeIAMSAKey, Attributes: []redact.Rule{
 			{Path: "privateKeyData", Mode: redact.RedactScalar},
 		}},
-		// Secret Manager — payload data, if any future scanner ever fetches
-		// it (current scanner deliberately does not — see comment in
-		// secretmanager_scanners.go).
+		// Secret Manager — payload data, in case a future scanner fetches it
+		// (current scanner deliberately doesn't — see secretmanager_scanners.go).
 		{Type: TypeSecret, Attributes: []redact.Rule{
 			{Path: "payload.data", Mode: redact.RedactScalar},
 		}},

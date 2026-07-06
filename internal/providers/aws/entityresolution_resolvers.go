@@ -29,8 +29,8 @@ func init() {
 // resolveEntityResolutionMatchingWorkflowRefs wires each matching-workflow to
 // its IAM role (RoleArn), output CMKs (OutputSourceConfig[].KMSArn), input
 // glue tables (InputSourceConfig[].InputSourceARN), and output S3 buckets
-// (OutputSourceConfig[].OutputS3Path). All four field paths land on the
-// GetMatchingWorkflow body that the scanner now fans out per row.
+// (OutputSourceConfig[].OutputS3Path). All four land on GetMatchingWorkflow,
+// which the scanner fans out per row.
 func resolveEntityResolutionMatchingWorkflowRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEntityResolutionMatchingWorkflow}, Limit: util.AllResources,

@@ -23,8 +23,8 @@ func init() {
 	)
 }
 
-// opensearchDomainAttrs mirrors the verbatim DomainStatus fields used by
-// the resolver. PascalCase tags match mustJSON of the SDK v2 struct.
+// opensearchDomainAttrs mirrors the DomainStatus fields the resolver reads.
+// PascalCase tags match mustJSON output of the SDK v2 struct.
 type opensearchDomainAttrs struct {
 	VPCOptions *struct {
 		VPCId            *string  `json:"VPCId"`
@@ -143,7 +143,7 @@ func resolveOpenSearchDomainTargets(acct *account, st *store.Store) error {
 }
 
 // openSearchTargetSets bundles the FK-safe target id sets so the per-domain
-// helpers below take a single struct rather than eight maps.
+// helpers take one struct instead of eight maps.
 type openSearchTargetSets struct {
 	vpcIDs          map[string]struct{}
 	subnetIDs       map[string]struct{}

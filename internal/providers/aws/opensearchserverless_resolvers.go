@@ -88,7 +88,7 @@ func init() {
 }
 
 // resolveOSSVpcEndpointRefs wires each OpenSearch Serverless VPC endpoint
-// to its VPC + subnets + security groups. BatchGetVpcEndpoint body shape.
+// to its VPC, subnets, and security groups (BatchGetVpcEndpoint body shape).
 func resolveOSSVpcEndpointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeOSSVpcEndpoint}, Limit: util.AllResources,

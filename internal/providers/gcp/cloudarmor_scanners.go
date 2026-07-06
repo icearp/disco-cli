@@ -20,11 +20,10 @@ func init() {
 }
 
 // scanCloudArmor discovers Cloud Armor security policies. Uses
-// AggregatedList so global + every regional policy come back in one
-// paginated walk. Rules embedded in each policy as `rules[]` survive into
-// AttributesJSON; the rule scanner fan-out is intentionally not its own
-// service — rule cardinality is bounded (per-policy max ~200) and the rules
-// are meaningless without the policy that owns them.
+// AggregatedList so global + every regional policy return in one paginated
+// walk. Rules embedded per policy as `rules[]` survive into AttributesJSON;
+// not split into their own scanner — cardinality is bounded (~200/policy)
+// and rules are meaningless without their owning policy.
 func scanCloudArmor(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := compute.NewService(ctx, opts...)

@@ -16,11 +16,10 @@ func init() {
 	)
 }
 
-// resolveDNSRelationships derives private-DNS-zone vnet-link
-// -[attached-to]-> VNet edges via properties.virtualNetwork.id. Match is
-// case-insensitive against a per-sub VNet NativeID index. The link's hierarchy
-// to its parent private zone is established at scan time via
-// RecordHierarchyBatch (no resolver edge needed).
+// resolveDNSRelationships derives private-DNS-zone vnet-link -[attached-to]->
+// VNet edges via properties.virtualNetwork.id, case-insensitive against a
+// per-sub VNet NativeID index. The link's hierarchy to its parent private zone
+// is set at scan time via RecordHierarchyBatch (no resolver edge needed).
 func resolveDNSRelationships(sub *subscription, st *store.Store) error {
 	links, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

@@ -17,9 +17,9 @@ func init() {
 	)
 }
 
-// kafkaClusterAttrs is a minimal view of types.Cluster covering the fields
-// that carry edges to other scanned resources. Both Provisioned and Serverless
-// cluster types are handled — one branch is populated per cluster.
+// kafkaClusterAttrs is a minimal view of types.Cluster covering fields that
+// carry edges to other scanned resources. Both Provisioned and Serverless are
+// handled — one branch populated per cluster.
 type kafkaClusterAttrs struct {
 	Provisioned *struct {
 		BrokerNodeGroupInfo *struct {

@@ -34,11 +34,10 @@ func iotByRegionName(acct *account, st *store.Store, rtype string) (map[string]s
 	return out, nil
 }
 
-// resolveIoTSecurityProfileRefs wires security-profile → custom-metric (by
-// Behaviors[].Metric name) and dimension (by Behaviors[].MetricDimension.
-// DimensionName + AdditionalMetricsToRetainV2[].MetricDimension.DimensionName).
-// Built-in standard metric names that don't match a scanned custom-metric are
-// skipped via FK-safe lookup.
+// resolveIoTSecurityProfileRefs wires security-profile → custom-metric (via
+// Behaviors[].Metric) and → dimension (via Behaviors[].MetricDimension.DimensionName
+// and AdditionalMetricsToRetainV2[].MetricDimension.DimensionName). Unmatched
+// built-in metric names skip via FK-safe lookup.
 func resolveIoTSecurityProfileRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSecurityProfile}, Limit: util.AllResources,

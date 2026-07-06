@@ -22,9 +22,9 @@ func init() {
 	})
 }
 
-// scanNetworkMonitor discovers CloudWatch Network Monitor monitors and their
-// probes. Probes are embedded in the GetMonitor response, so each monitor is
-// described per-row to surface its probes as standalone resources.
+// scanNetworkMonitor discovers CloudWatch Network Monitor monitors and probes.
+// Probes are embedded in GetMonitor, so each monitor is described per-row to
+// surface its probes as standalone resources.
 func scanNetworkMonitor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := networkmonitor.NewFromConfig(acct.cfg, func(o *networkmonitor.Options) { o.Region = region })
 
@@ -93,8 +93,8 @@ func scanNetworkMonitorProbes(ctx context.Context, client *networkmonitor.Client
 			for _, pr := range out.Probes {
 				arn := sv(pr.ProbeArn)
 				if arn == "" {
-					// Probes are not always issued a standalone ARN; synthesize one
-					// off the monitor ARN so the row stays addressable.
+					// Probes may lack a standalone ARN; synthesize one off the
+					// monitor ARN so the row stays addressable.
 					arn = monitorArn + "/probe/" + sv(pr.ProbeId)
 				}
 				if arn == "" || arn == "/probe/" {

@@ -15,10 +15,10 @@ func isFMSNotEnabled(err error) bool {
 	return isAccessDeniedWithMessage(err, "No default admin could be found")
 }
 
-// isFMSAdminOnlyDenial matches the AccessDeniedException AWS returns when
-// a non-FMS-admin account calls a management-only op (ListPolicies,
-// ListResourceSets). Distinct from isFMSNotEnabled — admin exists, just
-// elsewhere in the org. Member accounts hit this every scan; silent-skip.
+// isFMSAdminOnlyDenial matches the AccessDeniedException a non-FMS-admin
+// account gets on a management-only op (ListPolicies, ListResourceSets).
+// Distinct from isFMSNotEnabled — admin exists elsewhere in the org. Member
+// accounts hit this every scan; silent-skip.
 func isFMSAdminOnlyDenial(err error) bool {
 	return isAccessDeniedWithMessage(err, "only available to AWS Firewall Manager Administrators")
 }
@@ -47,8 +47,7 @@ type fmsAPI interface {
 }
 
 // scanFMS discovers Firewall Manager policies, resource sets, and the
-// per-org notification channel. Service is global; callable only from
-// us-east-1.
+// per-org notification channel. Global service; callable only from us-east-1.
 func scanFMS(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-1"
 	client := fms.NewFromConfig(acct.cfg, func(o *fms.Options) { o.Region = region })

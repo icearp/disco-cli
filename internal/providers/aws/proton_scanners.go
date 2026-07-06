@@ -47,11 +47,11 @@ type protonAPI interface {
 	ListServiceTemplateVersions(context.Context, *proton.ListServiceTemplateVersionsInput, ...func(*proton.Options)) (*proton.ListServiceTemplateVersionsOutput, error)
 }
 
-// scanProton discovers Proton environment account connections, templates,
-// template versions, environments, services, service instances, components,
-// deployments, and repositories. ARNs are native on every type. Template
-// versions require a TemplateName, so they fan out over the names captured
-// from the environment-/service-template phases.
+// scanProton discovers Proton account connections, templates, template
+// versions, environments, services, service instances, components,
+// deployments, and repositories. ARNs are native on every type; template
+// versions need a TemplateName, so they fan out over names captured in the
+// environment-/service-template phases.
 func scanProton(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := proton.NewFromConfig(acct.cfg, func(o *proton.Options) { o.Region = region })
 
@@ -98,10 +98,10 @@ func scanProton(ctx context.Context, acct *account, region string, st *store.Sto
 	return total, inserted, nil
 }
 
-// scanProtonAccountConnections requires RequestedBy per call. Iterate both
-// enum values to capture connections requested from either side. Dedup by
-// ARN since one connection appears under exactly one RequestedBy value, but
-// be defensive in case AWS evolves the API.
+// scanProtonAccountConnections requires RequestedBy per call; iterate both
+// enum values to capture connections from either side. Dedup by ARN — a
+// connection normally appears under exactly one RequestedBy value, but this
+// guards against AWS evolving the API.
 func scanProtonAccountConnections(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	seen := map[string]struct{}{}
 	var batch []*store.Resource

@@ -36,11 +36,11 @@ type deviceFarmAPI interface {
 	ListTestGridProjects(context.Context, *devicefarm.ListTestGridProjectsInput, ...func(*devicefarm.Options)) (*devicefarm.ListTestGridProjectsOutput, error)
 }
 
-// scanDeviceFarm discovers Device Farm projects (with their device pools and
-// network profiles), account-level instance profiles / device instances / VPCE
-// configurations, and Selenium test-grid projects. The device catalog, test
-// runs and their job/suite/test/sample/artifact/session children, and uploaded
-// app packages are not scanned (catalog / ephemeral / content).
+// scanDeviceFarm discovers Device Farm projects (with device pools and network
+// profiles), account-level instance profiles, device instances, VPCE configs,
+// and Selenium test-grid projects. Not scanned: device catalog; test runs and
+// their job/suite/test/sample/artifact/session children; uploaded app packages
+// (catalog / ephemeral / content).
 func scanDeviceFarm(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-west-2"
 	client := devicefarm.NewFromConfig(acct.cfg, func(o *devicefarm.Options) { o.Region = region })
@@ -245,9 +245,9 @@ func scanDeviceFarmVPCEConfigurations(ctx context.Context, client deviceFarmAPI,
 	for {
 		out, perr := client.ListVPCEConfigurations(ctx, &devicefarm.ListVPCEConfigurationsInput{NextToken: token})
 		if perr != nil {
-			// VPCE configs are an allowlist opt-in; accounts not allowlisted get
-			// ServiceAccountException. Expected state, not a resource — silent
-			// skip so the rest of devicefarm still scans.
+			// VPCE configs are allowlist opt-in; non-allowlisted accounts get
+			// ServiceAccountException — expected state, not an error. Silent
+			// skip keeps the rest of devicefarm scanning.
 			if isAPIErrorWithMessage(perr, "ServiceAccountException", "not allowlisted") {
 				return 0, 0, nil
 			}

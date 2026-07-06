@@ -26,7 +26,7 @@ func init() {
 // resolveAuthorizationRelationships derives edges from RBAC role assignments:
 //   - assignment -[uses]-> role-definition (via RoleDefinitionID)
 //   - assignment -[attached-to]-> scoped-resource (via Scope, when the scope
-//     matches a known resource in the local store and is in this subscription)
+//     matches a known resource in the local store, in this subscription)
 //   - assignment -[cross-sub-rbac]-> the referenced subscription's self-node
 //     (when Scope points at a subscription other than the assignment's owner
 //     sub). Out-of-scope subs get an empty-attribute placeholder that
@@ -34,11 +34,11 @@ func init() {
 //
 // Principal edges (assignment -[uses]-> entra:user|group|service-principal)
 // are emitted when the assignment's PrincipalID matches an in-store Entra row.
-// The Entra scanner (azure:microsoft.entra) populates user/group/SP rows under the
-// tenant AccountID; this resolver builds a tenant-wide GUID index once and
-// FK-checks each assignment's principalId. Managed identities still get their
-// edge via resolveManagedIdentityAssignmentPrincipals (different index path —
-// MSI rows live under the sub, not the tenant).
+// The Entra scanner (azure:microsoft.entra) populates user/group/SP rows under
+// the tenant AccountID; this resolver builds a tenant-wide GUID index once and
+// FK-checks each assignment's principalId. Managed identities get their edge
+// via resolveManagedIdentityAssignmentPrincipals instead (different index path
+// — MSI rows live under the sub, not the tenant).
 func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error {
 	assignments, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,
@@ -53,9 +53,9 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 	}
 	scanID := assignments[0].DiscoveredBy
 
-	// Index every Azure resource across ALL subscriptions in the store so the
-	// assignment Scope (cross-sub by construction at MG level) can be resolved
-	// to a canonical store ResourceID. Lowercased per ARM-ID case-insensitivity.
+	// Index every Azure resource across ALL subscriptions so assignment Scope
+	// (cross-sub by construction at MG level) resolves to a canonical store
+	// ResourceID. Lowercased per ARM-ID case-insensitivity.
 	all, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, Limit: util.AllResources,
 	})
@@ -215,8 +215,8 @@ func ptrOr(p *string, fallback string) string {
 	return *p
 }
 
-// upsertForeignSubscriptionPlaceholders collects distinct foreign subscription
-// IDs referenced by assignment scopes (a scope pointing at a subscription other
+// upsertForeignSubscriptionPlaceholders collects distinct foreign-subscription
+// IDs referenced by assignment scopes (scope pointing at a subscription other
 // than the assignment's owner — R5 cross-sub RBAC) and insert-if-absents an
 // empty-attribute row at each subscription's real self-node natural key
 // (azure:microsoft.resources:subscriptions, /subscriptions/<guid>), so the

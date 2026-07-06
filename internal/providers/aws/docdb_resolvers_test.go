@@ -45,7 +45,7 @@ func TestResolveDocDBClusterTargets(t *testing.T) {
 // TestResolveDocDBInstanceCluster verifies instance → cluster closure
 // when the cluster is also scanned. Instance NativeID must persist with
 // Name set (cluster lookup is name-keyed) — bypass upsertTestResource
-// so we can populate Name.
+// to populate Name.
 func TestResolveDocDBInstanceCluster(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -68,10 +68,9 @@ func TestResolveDocDBInstanceCluster(t *testing.T) {
 		testDocDBInst, testDocDBCluster)
 	instID := upsertTestResource(t, st, "aws", acct.ID, TypeDocDBInstance, instARN, testRegion, instAttrs)
 
-	// Seed the cluster self-entry in the closure so the parent's
-	// ancestry chain exists when the resolver wires the instance under
-	// it (RecordHierarchyBatch inherits ancestors from the parent's
-	// existing closure rows).
+	// Seed the cluster self-entry so its ancestry chain exists before the
+	// resolver wires the instance in (RecordHierarchyBatch inherits
+	// ancestors from the parent's existing closure rows).
 	if err := st.RecordHierarchy(clusterID, clusterID); err != nil {
 		t.Fatalf("seed cluster closure: %v", err)
 	}

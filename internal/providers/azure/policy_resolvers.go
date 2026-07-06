@@ -37,8 +37,8 @@ func resolvePolicyRelationships(sub *subscription, st *store.Store) error {
 		return err
 	}
 
-	// Per-sub lowercased index of every Azure resource — used both to resolve
-	// scope (any resource type) and to FK to policy-definition / policy-set-definition.
+	// Per-sub lowercased index of every Azure resource — resolves scope (any
+	// type) and FKs to policy-definition / policy-set-definition.
 	all, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID, Limit: util.AllResources,
 	})
@@ -50,14 +50,14 @@ func resolvePolicyRelationships(sub *subscription, st *store.Store) error {
 		resourceIndex[strings.ToLower(r.NativeID)] = r.ID
 	}
 
-	// Two classes of FK target live outside the per-sub `all` index above and are
-	// merged in here from the tenant account (deduplicated) and the subscription
-	// (degraded mode, when no tenant GUID resolved):
+	// Two FK-target classes live outside the per-sub `all` index above and are
+	// merged in here from the tenant account (deduplicated) or the subscription
+	// (degraded mode, no tenant GUID resolved):
 	//   - Built-in policy/set definitions are ManagedByProvider, which
 	//     ListResources hides by default; their scope-free ARM IDs let an
 	//     assignment's policyDefinitionId match directly.
-	//   - Management groups are stored under the tenant account, so a per-sub
-	//     index misses them; a policy assignment inherited from an ancestor MG
+	//   - Management groups are stored under the tenant account, missed by a
+	//     per-sub index; a policy assignment inherited from an ancestor MG
 	//     carries that MG's ID as its scope and resolves to an attached-to edge.
 	defAccounts := []string{sub.ID}
 	if sub.tenantID != "" && sub.tenantID != sub.ID {

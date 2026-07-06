@@ -26,8 +26,8 @@ func init() {
 			{Service: "appstream", DiscoType: TypeAppStreamImageBuilder},
 			// Image is a resolver target (fleet / image-builder → image). Its own
 			// outbound refs (BaseImageArn / ImageBuilderName) point at an
-			// AWS-managed PUBLIC base or an often-deleted builder — provenance left
-			// deliberately unwired, so image is not a resolver source — leaf.
+			// AWS-managed PUBLIC base or an often-deleted builder — provenance
+			// deliberately left unwired, so image is leaf, not a resolver source.
 			{Service: "appstream", DiscoType: TypeAppStreamImage, Leaf: true},
 			{Service: "appstream", DiscoType: TypeAppStreamStack},
 			{Service: "appstream", DiscoType: TypeAppStreamStackFleetAssociation},
@@ -269,11 +269,10 @@ func scanASApplications(ctx context.Context, client appStreamAPI, acct *account,
 	return upsertBatch(st, batch, "appstream applications")
 }
 
-// scanASAppFleetAssocs — DescribeApplicationFleetAssociations without a
-// FleetName/ApplicationArn filter returns nothing; AWS requires one of
-// the two. Skip global pass and run per-fleet inside scanASFleets is one
-// option; simpler approach: call DescribeFleets to collect fleet names,
-// then per-fleet describe assocs.
+// scanASAppFleetAssocs — DescribeApplicationFleetAssociations requires a
+// FleetName or ApplicationArn filter; a blanket call returns nothing.
+// Collects fleet names via DescribeFleets, then describes associations
+// per fleet.
 func scanASAppFleetAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var fleetNames []string
 	var ftoken *string
@@ -587,9 +586,9 @@ func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *accou
 	return upsertBatch(st, batch, "appstream user-stack-associations")
 }
 
-// scanASUsers iterates the AuthenticationType values DescribeUsers actually
-// supports — USERPOOL (managed users) and API. SAML is not a valid filter
-// (SAML federation users are not first-class user-pool entries; AWS rejects
+// scanASUsers iterates the AuthenticationType values DescribeUsers supports
+// — USERPOOL (managed users) and API. SAML is not a valid filter (SAML
+// federation users aren't first-class user-pool entries; AWS rejects
 // `'SAML' is not a supported authentication type for describing users`).
 func scanASUsers(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	authTypes := []astypes.AuthenticationType{

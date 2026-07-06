@@ -13,10 +13,10 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// gluePartitionARN synthesizes a NativeID for a partition. The Glue API
-// exposes no ARN — partitions are identified by (db, table, values[]). The
-// values are joined with "/" after URL-style escape so that values containing
-// "/" themselves do not collide.
+// gluePartitionARN synthesizes a NativeID for a partition — the Glue API
+// exposes no ARN; partitions are identified by (db, table, values[]). Values
+// are joined with "/" after URL-style escaping so a value containing "/"
+// doesn't collide.
 func gluePartitionARN(region, acct, db, table string, values []string) string {
 	escaped := make([]string, len(values))
 	for i, v := range values {
@@ -25,17 +25,17 @@ func gluePartitionARN(region, acct, db, table string, values []string) string {
 	return fmt.Sprintf("arn:aws:glue:%s:%s:partition/%s/%s/%s", region, acct, db, table, strings.Join(escaped, "/"))
 }
 
-// glueTableOptimizerARN synthesizes a NativeID per (db, table, optimizerType).
-// CFN models AWS::Glue::TableOptimizer with composite key (CatalogId, db,
-// table, type); we mirror that shape.
+// glueTableOptimizerARN synthesizes a NativeID per (db, table, optimizerType),
+// mirroring CFN's AWS::Glue::TableOptimizer composite key (CatalogId, db,
+// table, type).
 func glueTableOptimizerARN(region, acct, db, table, optType string) string {
 	return fmt.Sprintf("arn:aws:glue:%s:%s:table-optimizer/%s/%s/%s", region, acct, db, table, optType)
 }
 
 // scanGluePartitions fans out GetPartitions per (db, table). Cardinality can
-// explode on Hive partitioned tables (millions of partitions); fanoutLow caps
-// concurrency to bound the impact, and per-table errors tolerate AccessDenied
-// + EntityNotFoundException + ValidationException without aborting siblings.
+// explode on Hive-partitioned tables (millions of partitions); fanoutLow
+// bounds concurrency, and per-table AccessDenied/EntityNotFoundException/
+// ValidationException are tolerated without aborting siblings.
 func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, refs []glueTableRef) (total, inserted int, err error) {
 	sem := semaphore.NewWeighted(fanoutLow)
 	var (
@@ -106,8 +106,8 @@ func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, regi
 	return len(batch), n, nil
 }
 
-// glueOptimizerTypes lists the TableOptimizerType values defined by the SDK.
-// Iceberg-only feature; non-Iceberg tables get filtered upstream.
+// glueOptimizerTypes lists the SDK's TableOptimizerType values. Iceberg-only
+// feature; non-Iceberg tables are filtered out upstream.
 var glueOptimizerTypes = []gluetypes.TableOptimizerType{
 	gluetypes.TableOptimizerTypeCompaction,
 	gluetypes.TableOptimizerTypeRetention,
@@ -115,10 +115,9 @@ var glueOptimizerTypes = []gluetypes.TableOptimizerType{
 }
 
 // scanGlueTableOptimizers fans out GetTableOptimizer per (db, table, type).
-// Only Iceberg tables are eligible; non-Iceberg tables skip the call entirely
-// to avoid wasted RPCs. EntityNotFoundException is the expected response when
-// a given optimizer type is not configured for an Iceberg table — silently
-// skip.
+// Only Iceberg tables are eligible; non-Iceberg tables skip the call to avoid
+// wasted RPCs. EntityNotFoundException is expected when an optimizer type
+// isn't configured for a given Iceberg table — skip silently.
 func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, refs []glueTableRef) (total, inserted int, err error) {
 	// Filter to Iceberg tables.
 	icebergRefs := refs[:0:0]

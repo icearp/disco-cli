@@ -67,7 +67,7 @@ func init() {
 }
 
 // ec2NIDSegmentParts splits the post-`<kind>/` tail of an EC2 NativeID built
-// via ec2ARN. Returns the slash-separated id components after the kind.
+// via ec2ARN into slash-separated segments.
 //
 // Example: "arn:aws:ec2:r:a:tgw-rtb-assoc/{rtID}/{attID}" with kind
 // "tgw-rtb-assoc" → ["{rtID}", "{attID}"].
@@ -164,7 +164,7 @@ func resolveEC2TGWRTBJoin(acct *account, st *store.Store, sourceType, kind strin
 }
 
 // resolveEC2TGWMulticastDomainAssoc wires association rows to the parent
-// multicast-domain and the participating subnet. NativeID shape:
+// multicast-domain and participating subnet. NativeID shape:
 // `transit-gateway-multicast-domain-association/{domainID}/{attID}/{subnetID}`.
 func resolveEC2TGWMulticastDomainAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{

@@ -12,8 +12,8 @@ import (
 )
 
 // stubIAMAccountAPI implements only the three account-posture methods
-// scanIAMAccount calls; the embedded iamAPI leaves the rest unimplemented (they
-// are never invoked by this scanner, and would panic if they were).
+// scanIAMAccount calls; embedded iamAPI leaves the rest unimplemented (never
+// invoked by this scanner, would panic if they were).
 type stubIAMAccountAPI struct {
 	iamAPI
 	summary  map[string]int32
@@ -38,8 +38,8 @@ func (s stubIAMAccountAPI) GetAccountPasswordPolicy(context.Context, *iam.GetAcc
 }
 
 // TestScanIAMAccount_PopulatesSelfNode verifies the account self-node lands at
-// the canonical natural key with summary, alias, and password-policy attrs, and
-// that the alias becomes the row name.
+// the canonical natural key with summary/alias/password-policy attrs, and that
+// the alias becomes the row name.
 func TestScanIAMAccount_PopulatesSelfNode(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -73,9 +73,9 @@ func TestScanIAMAccount_PopulatesSelfNode(t *testing.T) {
 	}
 }
 
-// TestScanIAMAccount_NoPasswordPolicy verifies that an account with no password
+// TestScanIAMAccount_NoPasswordPolicy verifies an account with no password
 // policy (NoSuchEntity) still upserts a self-node — without a PasswordPolicy
-// attribute — and falls back to the account ID as the name when no alias exists.
+// attribute — and falls back to the account ID as name when no alias exists.
 func TestScanIAMAccount_NoPasswordPolicy(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

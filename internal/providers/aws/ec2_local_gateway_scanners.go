@@ -73,8 +73,8 @@ func scanLocalGatewayRouteTables(ctx context.Context, client ec2API, acct *accou
 	)
 }
 
-// scanLocalGatewayRoutes fans out per local gateway route table using
-// SearchLocalGatewayRoutes (there is no standalone DescribeLocalGatewayRoutes).
+// scanLocalGatewayRoutes fans out per route table via SearchLocalGatewayRoutes
+// (no standalone DescribeLocalGatewayRoutes).
 func scanLocalGatewayRoutes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	rtIDs, err := listLocalGatewayRouteTableIDs(ctx, client, acct, region, st)
 	if err != nil {

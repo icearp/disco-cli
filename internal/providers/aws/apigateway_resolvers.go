@@ -77,10 +77,9 @@ func init() {
 	)
 }
 
-// resolveAPIGatewayV2VpcLinkRelationships emits VPC-link → security-group
-// (uses) and VPC-link → subnet (attached-to) edges. SecurityGroupIds and
-// SubnetIds are required fields on the SDK VpcLink struct; FK-safe via
-// scanned id sets.
+// resolveAPIGatewayV2VpcLinkRelationships emits VPC-link→security-group (uses)
+// and VPC-link→subnet (attached-to) edges. SecurityGroupIds/SubnetIds are
+// required fields on the SDK VpcLink struct; FK-safe via scanned id sets.
 func resolveAPIGatewayV2VpcLinkRelationships(acct *account, st *store.Store) error {
 	links, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayV2VpcLink},
@@ -137,8 +136,8 @@ func resolveAPIGatewayV2VpcLinkRelationships(acct *account, st *store.Store) err
 }
 
 // resolveAPIGatewayAuthorizerCognito emits an authorizer → Cognito user-pool
-// edge for each REST API authorizer whose Type is COGNITO_USER_POOLS. The
-// user-pool ARNs are carried in ProviderARNs[]. Skip any with no ARNs.
+// edge for each REST API authorizer whose Type is COGNITO_USER_POOLS, using
+// the user-pool ARNs carried in ProviderARNs[]. Skips any with no ARNs.
 func resolveAPIGatewayAuthorizerCognito(acct *account, st *store.Store) error {
 	auths, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayAuthorizer},
@@ -485,8 +484,7 @@ func resolveAPIGatewayUsagePlanKeyRelationships(acct *account, st *store.Store) 
 		return err
 	}
 	for _, r := range keys {
-		// ARN: arn:aws:apigateway:{region}::/usageplans/{planId}/keys/{keyId}
-		// Strip /keys/{keyId} suffix to get the usage plan ARN.
+		// Strip /keys/{keyId} suffix to recover the usage-plan ARN.
 		planARN := apiGatewayUsagePlanARNFromKeyARN(r.NativeID)
 		if planARN == "" {
 			continue
@@ -500,10 +498,10 @@ func resolveAPIGatewayUsagePlanKeyRelationships(acct *account, st *store.Store) 
 }
 
 // resolveAPIGatewayUsagePlanStages links each usage plan to the REST API
-// stages it applies to. The scanner stores the full GetUsagePlans item under
-// attributes; APIStages[] carries {APIID, Stage} pairs. Rebuild each stage's
-// NativeID using the scanner's ARN shape
-// (arn:aws:apigateway:{region}::/restapis/{apiId}/stages/{stage}) and emit an
+// stages it covers. The scanner stores the full GetUsagePlans item as
+// attributes; APIStages[] carries {APIID, Stage} pairs. Rebuilds each stage's
+// NativeID via the scanner's ARN shape
+// (arn:aws:apigateway:{region}::/restapis/{apiId}/stages/{stage}) and emits an
 // attached-to edge.
 func resolveAPIGatewayUsagePlanStages(acct *account, st *store.Store) error {
 	plans, err := st.ListResources(store.ResourceFilter{

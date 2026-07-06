@@ -30,7 +30,7 @@ func init() {
 }
 
 // gaParentARN strips the trailing `/<segment>/{id}` from a Global Accelerator
-// child ARN (listener under accelerator, endpoint-group under listener).
+// child ARN (listener/accelerator, endpoint-group/listener).
 // `arn:aws:globalaccelerator::a:accelerator/A/listener/L/endpoint-group/E`
 // → `arn:aws:globalaccelerator::a:accelerator/A/listener/L`.
 func gaParentARN(arn, childSegment string) string {
@@ -73,8 +73,7 @@ func resolveGlobalAcceleratorListenerParent(acct *account, st *store.Store) erro
 	return nil
 }
 
-// gaEndpointDispatch classifies an EndpointId/Resource.EndpointId against
-// likely target types. Per Global Accelerator API, EndpointId carries:
+// gaEndpointDispatch classifies EndpointId/Resource.EndpointId by shape:
 //   - Full ARN for ALB/NLB (`arn:aws:elasticloadbalancing:r:a:loadbalancer/.../`).
 //   - Bare allocation ID for EIP (`eipalloc-xxx`) — synthesise canonical
 //     `arn:aws:ec2:r:a:elastic-ip/eipalloc-xxx`.

@@ -10,10 +10,10 @@ import (
 
 func init() { registerResolver(resolveIAMServiceAccountKeyRelationships) }
 
-// resolveIAMServiceAccountKeyRelationships emits a `attached-to` edge from
-// every gcp:iam:key to its parent service account. The SA's
-// resource name is derivable from the key's NativeID by trimming the
-// "/keys/{keyid}" suffix — no API call needed.
+// resolveIAMServiceAccountKeyRelationships emits an `attached-to` edge from
+// every gcp:iam:key to its parent service account. The SA's resource name is
+// derivable from the key's NativeID by trimming the "/keys/{keyid}" suffix —
+// no API call needed.
 func resolveIAMServiceAccountKeyRelationships(p *project, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeIAMSAKey},

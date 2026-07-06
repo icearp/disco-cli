@@ -7,15 +7,15 @@ import (
 )
 
 // ScanDiff summarizes the resource delta between two scan runs A and B,
-// where B is assumed to have run after A and to have scanned the same scope.
+// assuming B ran after A over the same scope.
 //
 // Limitations: the current schema stores only the *latest* state of each
 // resource, not per-scan snapshots. This means:
 //   - Added is precise: resources whose discovered_by == B.ID were first
 //     observed in scan B.
 //   - Stale is approximate: resources whose verified_by == A.ID have not
-//     been re-verified by B (or any later scan). They may be deleted in
-//     the cloud, or simply outside B's scope.
+//     been re-verified by B (or later). They may be deleted in the cloud,
+//     or simply outside B's scope.
 //   - Updated (attribute drift) cannot be computed without historical
 //     snapshots — not implemented.
 type ScanDiff struct {

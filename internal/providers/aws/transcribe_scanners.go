@@ -32,23 +32,23 @@ type transcribeAPI interface {
 }
 
 // transcribeNativeID synthesizes an ARN for name-addressed Transcribe
-// resources (the SDK returns names, not ARNs).
+// resources (SDK returns names, not ARNs).
 func transcribeNativeID(region, acct, kind, name string) string {
 	return fmt.Sprintf("arn:aws:transcribe:%s:%s:%s/%s", region, acct, kind, name)
 }
 
 // transcribeRegionErr classifies Transcribe's two BadRequestException
-// availability rejections, which have different SCOPE and so different handling:
+// availability rejections, which differ in scope:
 //
-//   - "isn't supported in this region": a sub-feature (Call Analytics) absent in
-//     a region where Transcribe otherwise works — a per-op gap, so skip this
-//     phase only (returns nil, siblings continue).
-//   - "isn't authorized to call this operation": Transcribe itself isn't offered
-//     to the account in this region. The SSM global-infra catalog over-reports
-//     Transcribe here (it lists eu-north-1 among 24 regions, but every op is
-//     rejected), so the region-scoping preflight can't exclude it — the scanner
-//     is the backstop. The whole service is absent, so mark it unavailable,
-//     which halts the remaining phases with a single (region: unavailable)
+//   - "isn't supported in this region": a sub-feature (Call Analytics) missing
+//     in a region where Transcribe otherwise works — a per-op gap, so skip
+//     this phase only (returns nil, siblings continue).
+//   - "isn't authorized to call this operation": Transcribe itself isn't
+//     offered to the account in this region. The SSM global-infra catalog
+//     over-reports Transcribe here (lists eu-north-1 among 24 regions, but
+//     every op is rejected), so the region-scoping preflight can't exclude it
+//     — the scanner is the backstop. Whole service absent, so mark
+//     unavailable: halts remaining phases with a single (region: unavailable)
 //     marker instead of a per-op skip cascade.
 //
 // Neither is an IAM denial (those are AccessDenied, warned separately).

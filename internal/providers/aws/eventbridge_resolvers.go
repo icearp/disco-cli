@@ -87,8 +87,8 @@ func resolveEventBridgeRelationships(acct *account, st *store.Store) error {
 	return nil
 }
 
-// eventBridgeTargetType returns the disco resource type for a target ARN.
-// Returns "" for target types we don't track.
+// eventBridgeTargetType returns the disco resource type for a target ARN,
+// or "" for untracked target types.
 func eventBridgeTargetType(arn string) string {
 	switch {
 	case strings.Contains(arn, ":function:"):
@@ -111,8 +111,8 @@ func eventBridgeTargetType(arn string) string {
 }
 
 // resolveEventBridgeAPIDestinationConnection emits uses edges from each API
-// destination to the connection it references (ConnectionArn). FK-safe via
-// scanned-connection id set — cross-account refs silently skip.
+// destination to its ConnectionArn target. FK-safe via scanned-connection id
+// set — cross-account refs skip silently.
 func resolveEventBridgeAPIDestinationConnection(acct *account, st *store.Store) error {
 	dests, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventsAPIDestination},

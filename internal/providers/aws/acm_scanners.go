@@ -29,9 +29,9 @@ type acmAPI interface {
 }
 
 // scanACM discovers ACM certificates in one region. ListCertificates returns
-// ARNs + minimal metadata; DescribeCertificate is called concurrently per cert
-// to fetch the full detail (SubjectAlternativeNames, CertificateAuthorityArn,
-// DomainValidationOptions, etc.). Tags fetched via ListTagsForCertificate.
+// ARNs + minimal metadata; DescribeCertificate runs concurrently per cert for
+// full detail (SubjectAlternativeNames, CertificateAuthorityArn,
+// DomainValidationOptions, etc.); tags come from ListTagsForCertificate.
 func scanACM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := acm.NewFromConfig(acct.cfg, func(o *acm.Options) { o.Region = region })
 	t1, i1, err := scanACMCertificates(ctx, client, acct, region, st, scanID)
@@ -46,7 +46,7 @@ func scanACM(ctx context.Context, acct *account, region string, st *store.Store,
 }
 
 // scanACMAccountConfig discovers the per-(account, region) ACM expiry-events
-// configuration as a single aws:acm:account row. NativeID is synthesized:
+// config as a single aws:acm:account row. NativeID synthesized:
 // arn:aws:acm:{r}:{a}:account.
 func scanACMAccountConfig(ctx context.Context, client acmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetAccountConfiguration(ctx, &acm.GetAccountConfigurationInput{})

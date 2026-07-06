@@ -22,10 +22,9 @@ func init() {
 	)
 }
 
-// connectCoreAPI is the narrow surface used by the Core family — top-level
-// resources (Instance), account-scoped sibling resources
-// (TrafficDistributionGroup, PhoneNumber via V2), and per-instance
-// EmailAddress.
+// connectCoreAPI is the narrow surface for the Core family: top-level
+// Instance, account-scoped TrafficDistributionGroup/PhoneNumber (via V2),
+// and per-instance EmailAddress.
 type connectCoreAPI interface {
 	connectInstanceLister
 	DescribeInstance(context.Context, *connect.DescribeInstanceInput, ...func(*connect.Options)) (*connect.DescribeInstanceOutput, error)
@@ -36,9 +35,8 @@ type connectCoreAPI interface {
 	SearchEmailAddresses(context.Context, *connect.SearchEmailAddressesInput, ...func(*connect.Options)) (*connect.SearchEmailAddressesOutput, error)
 }
 
-// scanConnectCore runs the account-scoped + per-instance Core phases:
-// instances, traffic distribution groups, claimed phone numbers, email
-// addresses (per instance).
+// scanConnectCore runs the Core phases: instances, traffic distribution
+// groups, claimed phone numbers, and per-instance email addresses.
 func scanConnectCore(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) {
@@ -115,10 +113,10 @@ func scanConnectTrafficDistributionGroups(ctx context.Context, client connectCor
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			// Global-Resiliency traffic distribution needs a provisioned Connect
-			// instance; without one AWS blocks the op via a resource-based-policy
-			// explicit deny. Expected environmental state — silent-skip. (Distinct
-			// from isSCPExplicitDeny, which matches "service control policy".)
+			// Global-Resiliency TDGs need a provisioned Connect instance; without
+			// one AWS denies via resource-based-policy explicit deny — expected
+			// env state, silent-skip. (Distinct from isSCPExplicitDeny, which
+			// matches "service control policy".)
 			if isAccessDeniedWithMessage(perr, "explicit deny in a resource-based policy") {
 				return 0, 0, nil
 			}
@@ -218,9 +216,8 @@ func scanConnectPhoneNumbers(ctx context.Context, client connectCoreAPI, acct *a
 }
 
 // scanConnectEmailAddresses fans out per instance — SearchEmailAddresses
-// requires InstanceId. Each instance returns its own email-address pool.
-// EmailAddressArn is in the search summary; no Describe op exists, so
-// AttributesJSON = the search-summary entry.
+// requires InstanceId. EmailAddressArn is in the search summary; no Describe
+// op exists, so AttributesJSON = the search-summary entry.
 func scanConnectEmailAddresses(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if len(instances) == 0 {
 		return 0, 0, nil

@@ -24,9 +24,9 @@ func init() {
 
 // scanCertificateManager discovers Certificate Manager resources at the
 // `global` location: certificates, certificate maps, certificate-map entries
-// (per-map fan-out), and DNS authorizations. Per-location fan-out (regional
-// cert resources) is deferred — global is the dominant deployment scope and
-// the regional surface is narrow today.
+// (per-map fan-out), and DNS authorizations. Per-location fan-out for
+// regional cert resources is deferred — global dominates deployment and the
+// regional surface is narrow today.
 func scanCertificateManager(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := certificatemanager.NewService(ctx, opts...)

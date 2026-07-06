@@ -21,9 +21,9 @@ var resourcesColumns = []string{
 	"created_at", "discovered_at", "discovered_by",
 }
 
-// resourcesMarkdownHeaders mirrors resourcesColumns positionally but in Title Case, so
+// resourcesMarkdownHeaders mirrors resourcesColumns positionally in Title Case, so
 // `resources -o markdown` matches the Title Case headers every other markdown
-// renderer uses (summary/scans/diff/findings/graph). Keep the two in lockstep on edits.
+// renderer uses (summary/scans/diff/findings/graph). Keep the two in lockstep.
 var resourcesMarkdownHeaders = []string{
 	"Provider", "Account ID", "Type", "Name", "Region", "Status", "Native ID",
 	"ID", "Account Name", "Zone", "Managed By Provider",
@@ -145,9 +145,9 @@ var resourcesCmd = &cobra.Command{
 		if resourcesLimit == 0 {
 			resources, err = loadAllResourcesPaged(db, f)
 		} else {
-			// Fetch one extra row as a truncation probe. If the store
-			// returns N+1, more matched than --limit allows; warn and trim.
-			// Equal-N populations no longer trip a false positive.
+			// Fetch one extra row as a truncation probe: N+1 returned means more
+			// matched than --limit allows; warn and trim. Equal-N no longer trips
+			// a false positive.
 			f.Limit = resourcesLimit + 1
 			resources, err = db.ListResources(f)
 			if err == nil && uint64(len(resources)) > resourcesLimit {
@@ -171,11 +171,10 @@ var resourcesCmd = &cobra.Command{
 			return err
 		}
 
-		// When --scan-id returns no rows, the most common cause is the
-		// customer-only filter dropping a managed resource the scan
-		// touched. Surface a stderr nudge so the operator sees the
-		// filter as the suspect rather than reading a disagreement
-		// with `scans show` as a bug.
+		// When --scan-id returns no rows, the usual cause is the customer-only
+		// filter dropping a managed resource the scan touched. Nudge on stderr
+		// so the operator suspects the filter, not a disagreement with
+		// `scans show`.
 		if scanID != "" && !resourcesIncludeManaged && len(resources) == 0 {
 			fmt.Fprintf(os.Stderr,
 				"note: --scan-id + customer-only filter returned 0 rows; pass --include-managed to evaluate provider-managed resources the scan touched\n")
@@ -187,8 +186,8 @@ var resourcesCmd = &cobra.Command{
 			enc.SetIndent("", "  ")
 			return enc.Encode(resources)
 		case "jsonl":
-			// Newline-delimited JSON: one resource per line, no indent.
-			// Suited to streaming into jq, log pipelines, or ELK.
+			// Newline-delimited JSON: one resource per line, no indent — suited
+			// to streaming into jq, log pipelines, or ELK.
 			enc := json.NewEncoder(os.Stdout)
 			for _, r := range resources {
 				if err := enc.Encode(r); err != nil {

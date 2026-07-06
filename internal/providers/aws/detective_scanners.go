@@ -35,11 +35,10 @@ type detectiveAPI interface {
 }
 
 // scanDetective discovers Detective behavior graphs and their member accounts
-// in one region. Detective is regional. Accounts that are not the
-// administrator of any behavior graph in the region get an empty graph list
-// from ListGraphs and the scan ends after phase 1. Per-phase AccessDenied is
-// tolerated so a partial-IAM grant (read graphs but not members) still
-// produces useful coverage.
+// in one region (Detective is regional). Non-administrator accounts get an
+// empty ListGraphs result, ending the scan after phase 1. Per-phase
+// AccessDenied is tolerated so a partial IAM grant (graphs but not members)
+// still yields useful coverage.
 func scanDetective(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := detective.NewFromConfig(acct.cfg, func(o *detective.Options) { o.Region = region })
 
@@ -77,11 +76,11 @@ func scanDetective(ctx context.Context, acct *account, region string, st *store.
 	return total, inserted, nil
 }
 
-// detectiveMemberNativeID synthesises an identifier for a behavior-graph
-// member. The Detective API exposes no member ARN — only AccountId scoped to
-// the parent GraphArn. Synthetic shape keeps the parent context so re-scans
-// dedupe and cross-graph members of the same account get distinct rows
-// (precedent: KMS grant, EFS mount-target, SSO assignment).
+// detectiveMemberNativeID synthesises a member identifier — the Detective API
+// exposes no member ARN, only AccountId scoped to the parent GraphArn. Keeping
+// the parent in the shape lets re-scans dedupe and gives cross-graph members
+// of the same account distinct rows (precedent: KMS grant, EFS mount-target,
+// SSO assignment).
 func detectiveMemberNativeID(graphArn, accountID string) string {
 	return fmt.Sprintf("%s/member/%s", graphArn, accountID)
 }

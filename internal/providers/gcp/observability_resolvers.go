@@ -40,8 +40,8 @@ func resolveLoggingSinkRelationships(p *project, st *store.Store) error {
 	})
 	for _, b := range bs {
 		// Storage bucket NativeID is the SelfLink (e.g.
-		// "https://www.googleapis.com/storage/v1/b/my-bucket"). Index by
-		// bucket name for a fast match against the sink destination.
+		// "https://www.googleapis.com/storage/v1/b/my-bucket"); index by
+		// bucket name to match sink destinations.
 		if i := strings.LastIndex(b.NativeID, "/"); i >= 0 {
 			bucketIDByNative[b.NativeID[i+1:]] = b.ID
 		}
@@ -53,9 +53,9 @@ func resolveLoggingSinkRelationships(p *project, st *store.Store) error {
 		Limit: util.AllResources,
 	})
 	for _, d := range dss {
-		// BigQuery dataset NativeID is the canonical "{project}:{dataset}".
-		// Sinks reference datasets in path form
-		// "projects/{p}/datasets/{ds}" — convert to canonical form.
+		// BigQuery dataset NativeID is canonical "{project}:{dataset}"; sinks
+		// reference datasets as "projects/{p}/datasets/{ds}" — convert to
+		// canonical form.
 		dsIDByNative[d.NativeID] = d.ID
 	}
 

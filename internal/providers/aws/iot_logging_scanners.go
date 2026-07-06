@@ -49,8 +49,8 @@ func scanIoTLoggingOptions(ctx context.Context, client iotLoggingAPI, acct *acco
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "iot:GetV2LoggingOptions", acct.ID, region, err)
 		}
-		// NotConfiguredException = SetV2LoggingOptions was never called for this
-		// account/region (default state). Treat as no-op.
+		// NotConfiguredException = SetV2LoggingOptions never called for this
+		// account/region (default state); treat as no-op.
 		if isAPIErrorCode(err, "NotConfiguredException") {
 			return 0, 0, nil
 		}

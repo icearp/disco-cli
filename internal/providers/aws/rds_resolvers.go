@@ -215,7 +215,7 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert rds-instance→subnet-group relationship: %w", err)
 			}
 		}
-		// Instance → KMS key. resolveKMSKeyID handles ARN/alias/bare-id and
+		// Instance → KMS key. resolveKMSKeyID handles ARN/alias/bare-id,
 		// returns ok=false when the target wasn't scanned.
 		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyID), region, acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
@@ -285,7 +285,7 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert db-cluster→cluster-parameter-group relationship: %w", err)
 			}
 		}
-		// Cluster → KMS key. resolveKMSKeyID normalizes ref shape and skips
+		// Cluster → KMS key. resolveKMSKeyID normalizes ref shape, skips
 		// when target was not scanned.
 		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyID), sv(r.Region), acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
@@ -348,8 +348,8 @@ func resolveDBProxyRelationships(acct *account, st *store.Store) error {
 	return nil
 }
 
-// buildProxyNameMap loads all DB proxies and returns a name→resource-ID map.
-// Used by proxy endpoint and target group resolvers to locate their parent proxy.
+// buildProxyNameMap loads all DB proxies and returns a name→resource-ID map,
+// used by proxy endpoint/target group resolvers to locate their parent proxy.
 func buildProxyNameMap(acct *account, st *store.Store) (map[string]string, error) {
 	proxies, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSDBProxy},
@@ -469,8 +469,7 @@ func resolveDBShardGroupRelationships(acct *account, st *store.Store) error {
 }
 
 // resolveRDSSnapshotRefs links each DB snapshot to its source DB instance.
-// FK-safe: the source instance may be deleted, so the edge is emitted only when
-// the instance is present in the store.
+// FK-safe: source instance may be deleted; edge emitted only when present.
 func resolveRDSSnapshotRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSSnapshot}, Limit: util.AllResources,
@@ -575,7 +574,7 @@ func resolveRDSClusterEndpointRefs(acct *account, st *store.Store) error {
 
 // resolveRDSAutoBackupRefs links each automated instance backup to its source
 // DB instance via the verbatim DBInstanceArn. FK-safe: the instance is often
-// deleted (orphaned backups are the common case), so emit only when present.
+// deleted (orphaned backups are common), so emit only when present.
 func resolveRDSAutoBackupRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSAutoBackup}, Limit: util.AllResources,

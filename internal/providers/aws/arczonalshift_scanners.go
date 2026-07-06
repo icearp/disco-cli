@@ -101,8 +101,8 @@ func scanARCZonalShiftConfigurations(ctx context.Context, client arcZonalShiftAP
 				continue
 			}
 			// Only emit a configuration row when zonal autoshift or practice
-			// run is actually configured for the resource — `LIST` returns
-			// every managed-resource-eligible row (ECS, ALB, EC2 ASG).
+			// run is configured for the resource — `LIST` returns every
+			// managed-resource-eligible row (ECS, ALB, EC2 ASG).
 			if string(m.ZonalAutoshiftStatus) == "" && string(m.PracticeRunStatus) == "" {
 				continue
 			}

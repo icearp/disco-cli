@@ -46,10 +46,10 @@ func scanFSxFileCaches(ctx context.Context, client fsxAPI, acct *account, region
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "fsx:DescribeFileCaches", acct.ID, region, err)
 			}
-			// FSx File Cache is a per-account/region opt-in feature; where it isn't
-			// enabled AWS returns "The requested feature is not enabled for this
-			// AWS account". Account-state, not a failure — silent per-op skip
-			// (sibling FSx phases still scan).
+			// FSx File Cache is per-account/region opt-in; when not enabled AWS
+			// returns "The requested feature is not enabled for this AWS account" —
+			// account state, not failure, so silent per-op skip (sibling FSx phases
+			// still scan).
 			if isAPIErrorWithMessage(err, "BadRequest", "requested feature is not enabled") {
 				return 0, 0, nil
 			}

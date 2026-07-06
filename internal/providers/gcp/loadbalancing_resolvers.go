@@ -15,9 +15,9 @@ func init() { registerResolver(resolveLoadBalancingRelationships) }
 //	forwardingRule -[routes-to]-> targetHttpProxy / targetHttpsProxy / backendService
 //	targetHttp(s)Proxy -[routes-to]-> urlMap, then -> backendService / backendBucket (defaultService)
 //
-// All target-of-edge fields are full SelfLink URLs in the SDK responses, so
-// the lookup is a direct NativeID match against the in-store catalog of LB
-// resources. Cross-project / unscanned-resource references skipped.
+// All target-of-edge fields are full SelfLink URLs, so lookup is a direct
+// NativeID match against the in-store LB catalog. Cross-project /
+// unscanned-resource references skipped.
 //
 // Deferred:
 //   - urlMap pathMatchers / hostRules per-route service edges (same shape as
@@ -27,10 +27,9 @@ func init() { registerResolver(resolveLoadBalancingRelationships) }
 //   - urlMap → backendBucket via pathMatchers (same as default, deferred).
 //   - SslCertificate / SslPolicy / EdgeSecurityPolicy edges (no scanner yet).
 func resolveLoadBalancingRelationships(p *project, st *store.Store) error {
-	// Build a NativeID → resource-ID index of everything we just scanned so
+	// Build a NativeID → resource-ID index of everything just scanned, so
 	// every edge can be FK-checked before insert. One ListResources call per
-	// type keeps the per-resolver overhead bounded vs. issuing a SELECT per
-	// edge candidate.
+	// type bounds overhead vs. a SELECT per edge candidate.
 	types := []string{
 		TypeComputeTargetHTTPProxy,
 		TypeComputeTargetHTTPSProxy,

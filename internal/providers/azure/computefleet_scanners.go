@@ -15,8 +15,7 @@ func init() {
 		name: "azure:microsoft.azurefleet",
 		fn:   scanComputeFleet,
 		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; the fleet ships
-			// scanner-only.
+			// Identity → MSI edges resolved centrally; fleet ships scanner-only.
 			{Service: "microsoft.azurefleet", DiscoType: TypeComputeFleet, Leaf: true},
 		},
 	})

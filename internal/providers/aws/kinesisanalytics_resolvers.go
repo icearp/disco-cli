@@ -24,8 +24,8 @@ func init() {
 }
 
 // kaLogStreamARNToGroupARN trims the trailing `:log-stream:<name>` segment
-// from a CloudWatch Logs log-stream ARN to recover the parent log-group ARN
-// used as disco NativeID for `aws:logs:log-group`.
+// from a CloudWatch Logs log-stream ARN, recovering the parent log-group ARN
+// (disco NativeID for `aws:logs:log-group`).
 func kaLogStreamARNToGroupARN(s string) string {
 	if i := strings.Index(s, ":log-stream:"); i > 0 {
 		return s[:i]

@@ -13,8 +13,8 @@ import (
 // httptest-backed *compute.Service. Verifies the runPaginated pipeline,
 // AggregatedList scope-key flattening (scopedListRegion), and resource
 // upsert + project-closure emission. Mirrors the in-process fake-server
-// pattern recommended in googleapis/google-cloud-go/testing.md, applied to
-// the HTTP discovery client.
+// pattern from googleapis/google-cloud-go/testing.md, applied to the HTTP
+// discovery client.
 func TestScanForwardingRules_Fake(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")
@@ -60,9 +60,9 @@ func TestScanForwardingRules_Fake(t *testing.T) {
 }
 
 // TestScanForwardingRules_PermissionDenied verifies a real 403 is downgraded
-// to a ScanWarning (not propagated) by skipIfDenied — the message shape used
-// here lacks the "has not been used in project" sentinel marker, so this
-// exercises the warning path rather than the service-disabled sentinel.
+// to a ScanWarning (not propagated) by skipIfDenied — the message here lacks
+// the "has not been used in project" sentinel, so this exercises the warning
+// path, not the service-disabled sentinel.
 func TestScanForwardingRules_PermissionDenied(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")

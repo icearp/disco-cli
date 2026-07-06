@@ -30,10 +30,9 @@ type macieMemberAttrs struct {
 }
 
 // resolveMacieMemberOrgAccount emits an `attached-to` edge from each Macie
-// member row to its corresponding AWS Organizations account, when the org
-// tree is also scanned. FK-safe via loadOrgTargetIndex; partial-coverage
-// scans (no Org tree) skip silently. Mirrors the GuardDuty + Inspector v2
-// member → org-account precedent.
+// member row to its AWS Organizations account, when the org tree is also
+// scanned. FK-safe via loadOrgTargetIndex; skips silently with no Org tree.
+// Mirrors the GuardDuty + Inspector v2 member → org-account precedent.
 func resolveMacieMemberOrgAccount(acct *account, st *store.Store) error {
 	members, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -146,8 +145,8 @@ func resolveMacieClassificationJobBuckets(acct *account, st *store.Store) error 
 }
 
 // resolveMacieAllowListBucket emits a uses edge from each S3-backed allow
-// list to the bucket hosting its words file. Regex-only allow lists carry no
-// S3 reference and skip. FK-safe via the scanned-bucket id set.
+// list to its words-file bucket. Regex-only allow lists carry no S3
+// reference and skip. FK-safe via the scanned-bucket id set.
 func resolveMacieAllowListBucket(acct *account, st *store.Store) error {
 	lists, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

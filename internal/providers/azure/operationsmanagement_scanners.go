@@ -21,8 +21,8 @@ func init() {
 }
 
 // scanOperationsManagement discovers Azure Operations Management (OMS)
-// solutions. ListBySubscription is a single call (no pager), so it is wrapped
-// inline rather than via azSimpleScan.
+// solutions. ListBySubscription is a single call (no pager), so it's inlined
+// rather than via azSimpleScan.
 func scanOperationsManagement(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armoperationsmanagement.NewSolutionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {

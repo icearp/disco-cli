@@ -20,16 +20,16 @@ type Scanner interface {
 	Scan(ctx context.Context, st *store.Store, scanID string) error
 }
 
-// ServiceFilterer is an optional interface that providers may implement to
-// support scanning a subset of their registered services.
-// The --services flag on "disco scan <provider>" uses this when present.
+// ServiceFilterer is an optional interface for providers that support
+// scanning a subset of their registered services, via the --services flag
+// on "disco scan <provider>".
 type ServiceFilterer interface {
 	SetServiceFilter(services []string)
 }
 
-// ServiceNamer is an optional interface that providers may implement to
-// expose the list of service names they will report via ReportService.
-// cmd/scan.go uses this to compute column widths for aligned output.
+// ServiceNamer is an optional interface for providers to expose the service
+// names they will report via ReportService; cmd/scan.go uses it to compute
+// column widths for aligned output.
 type ServiceNamer interface {
 	ServiceNames() []string
 }
@@ -42,12 +42,11 @@ type RegionOverrider interface {
 
 // RegionNamer surfaces every region/location the provider's static
 // capability list covers — AWS partitions (us-east-1, ...), Azure ARM
-// locations (eastus, ...), GCP compute regions (us-central1, ...). The
-// list is the disco-side opinion of "what could be scanned"; providers
-// scan a subset based on config / creds at runtime. Static — refresh by
-// editing the per-provider list when a new cloud region launches.
-// cmd/scan.go uses this to compute the scope column width for aligned
-// progress output.
+// locations (eastus, ...), GCP compute regions (us-central1, ...): disco's
+// opinion of "what could be scanned"; providers scan a subset based on
+// config/creds at runtime. Static — refresh the per-provider list when a
+// new cloud region launches. cmd/scan.go uses it to compute the scope
+// column width for aligned progress output.
 type RegionNamer interface {
 	RegionNames() []string
 }
@@ -128,24 +127,24 @@ type GlobalsSkipper interface {
 	SetSkipGlobals(skip bool)
 }
 
-// LongDescriber is an optional interface a provider may implement to supply the
-// long help text for its `disco scan <provider>` subcommand. cmd/scan.go falls
-// back to a generic one-line blurb when a provider does not implement it.
+// LongDescriber is an optional interface for a provider to supply the long
+// help text for its `disco scan <provider>` subcommand. cmd/scan.go falls
+// back to a generic one-line blurb if not implemented.
 type LongDescriber interface {
 	LongDescription() string
 }
 
-// ServiceFilterExemplar is an optional interface a provider may implement to
-// supply the real service-prefix example shown in its --services flag help
-// (e.g. "aws:ec2,aws:s3"). cmd/scan.go falls back to "<name>:<service>".
+// ServiceFilterExemplar is an optional interface for a provider to supply
+// the real service-prefix example shown in its --services flag help (e.g.
+// "aws:ec2,aws:s3"). cmd/scan.go falls back to "<name>:<service>".
 type ServiceFilterExemplar interface {
 	ServiceFilterExample() string
 }
 
-// ScopeColumnWidther is an optional interface a provider may implement to
-// declare a minimum width for the scope column in scan progress output — used
-// for scopes that are not region names (Azure subscription UUID = 36, GCP
-// project ID = 30). cmd/scan.go takes the max of this hint and any RegionNames.
+// ScopeColumnWidther is an optional interface for a provider to declare a
+// minimum scope-column width in scan progress output — for scopes that
+// aren't region names (Azure subscription UUID = 36, GCP project ID = 30).
+// cmd/scan.go takes the max of this hint and any RegionNames.
 type ScopeColumnWidther interface {
 	ScopeColumnWidth() int
 }

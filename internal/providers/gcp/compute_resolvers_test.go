@@ -7,10 +7,9 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// TestResolveComputeInstanceRelationships verifies that a GCP instance's
-// network and subnetwork are extracted from the networkInterfaces JSON array.
-// GCP uses lowercase JSON keys ("network", "subnetwork") — different from AWS
-// capitalization. This test locks in the casing.
+// TestResolveComputeInstanceRelationships verifies a GCP instance's network
+// and subnetwork are extracted from the networkInterfaces JSON array, locking
+// in GCP's lowercase JSON keys ("network", "subnetwork") vs AWS's capitalization.
 func TestResolveComputeInstanceRelationships(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")
@@ -43,7 +42,7 @@ func TestResolveComputeInstanceRelationships(t *testing.T) {
 	assertGCPRelationship(t, rels, instID, subnetID, store.RelAttachedTo)
 }
 
-// TestResolveComputeInstanceRelationships_NetworkOnly verifies that an instance
+// TestResolveComputeInstanceRelationships_NetworkOnly verifies an instance
 // with only a network (no subnetwork) produces exactly one relationship.
 func TestResolveComputeInstanceRelationships_NetworkOnly(t *testing.T) {
 	st := newTestStore(t)
@@ -89,8 +88,8 @@ func TestResolveComputeInstanceRelationships_EmptyAttrs(t *testing.T) {
 	}
 }
 
-// TestResolveSubnetworkRelationships verifies that a subnet's parent network
-// is derived from its "network" JSON field.
+// TestResolveSubnetworkRelationships verifies a subnet's parent network is
+// derived from its "network" JSON field.
 func TestResolveSubnetworkRelationships(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")

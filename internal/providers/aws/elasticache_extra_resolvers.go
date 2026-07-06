@@ -22,8 +22,8 @@ func init() {
 	)
 }
 
-// ecByName indexes scanned rows of one type by their Name (ElastiCache snapshots
-// reference clusters/groups by id/name, while those rows are ARN-keyed).
+// ecByName indexes scanned rows of one type by Name (ElastiCache snapshots
+// reference clusters/groups by id/name; those rows are ARN-keyed).
 func ecByName(acct *account, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,

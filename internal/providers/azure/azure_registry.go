@@ -53,14 +53,13 @@ type serviceEntry struct {
 	emits []coverage.TypeDecl
 }
 
-// registeredServices is populated by each *_scanners.go file's init().
-// Adding a new service only requires creating a new file and calling registerService
-// from its init() — no changes to azure.go are needed.
+// registeredServices is populated by each *_scanners.go file's init(). New
+// service: new file + registerService in its init() — no azure.go changes needed.
 var registeredServices []serviceEntry
 
-// registerService adds a service to the package-level registry.
-// Panics if a service with the same name has already been registered, which
-// catches copy-paste errors that would otherwise silently scan a service twice.
+// registerService adds a service to the package-level registry. Panics on
+// duplicate name — catches copy-paste errors that would otherwise silently
+// scan a service twice.
 func registerService(e serviceEntry) {
 	for _, s := range registeredServices {
 		if s.name == e.name {
@@ -70,10 +69,9 @@ func registerService(e serviceEntry) {
 	registeredServices = append(registeredServices, e)
 }
 
-// apiResolverEntry is a phase-2 resolver that ALSO needs to make Azure API
-// calls (i.e. cross-cutting resolvers like diagnostic-settings, which fetch
-// per-resource configuration not captured during phase-1 scanners). It runs
-// AFTER all phase-1 services have completed and BEFORE the local-only
+// apiResolverEntry is a phase-2 resolver that also makes Azure API calls (e.g.
+// diagnostic-settings, fetching per-resource config not captured in phase-1).
+// Runs after all phase-1 services complete and before the local-only
 // resolvers in registeredResolvers, so st.ListResources returns the full
 // resource set. Errors degrade to st.ReportError + ScanService(errCount=1)
 // — never propagate.
@@ -100,8 +98,8 @@ func registerAPIResolver(e apiResolverEntry) {
 
 // EdgeDecl declares one relationship edge a resolver upserts. Resolvers list
 // every distinct (source, target, kind) triple so audit + coverage tooling can
-// reason about resolver coverage without observing actual DB edges (which
-// require both endpoints to be scanned in the current subscription).
+// reason about resolver coverage without needing both endpoints scanned in
+// the current subscription.
 type EdgeDecl struct {
 	Source string // disco type emitting the edge (the resolver's source iteration type)
 	Target string // disco type the edge points at
@@ -109,9 +107,9 @@ type EdgeDecl struct {
 }
 
 // resolverEntry describes a phase-2 relationship resolver. Name is derived from
-// the function's reflected name so error reports can identify the failing
-// resolver. Emits is optional — resolvers that declare their edge shapes power
-// resolver coverage tooling.
+// the function's reflected name so error reports identify the failing
+// resolver. Emits is optional — declared edge shapes power resolver coverage
+// tooling.
 type resolverEntry struct {
 	name  string
 	fn    func(sub *subscription, st *store.Store) error
@@ -121,10 +119,10 @@ type resolverEntry struct {
 // registeredResolvers is populated by each *_resolvers.go file's init().
 var registeredResolvers []resolverEntry
 
-// registerResolver adds a resolver to the package-level registry. The variadic
-// `emits` argument is optional metadata — list every distinct (source, target,
-// kind) triple the resolver upserts. Resolvers without an emits list still
-// register, but their edge coverage is invisible to the audit tooling.
+// registerResolver adds a resolver to the package-level registry. Variadic
+// `emits` is optional metadata — list every distinct (source, target, kind)
+// triple upserted. Resolvers without it still register, but their edge
+// coverage stays invisible to audit tooling.
 func registerResolver(fn func(sub *subscription, st *store.Store) error, emits ...EdgeDecl) {
 	registeredResolvers = append(registeredResolvers, resolverEntry{
 		name: resolverName(fn), fn: fn, emits: emits,
@@ -149,11 +147,11 @@ func CollectResolverEdges() []EdgeDecl {
 	return out
 }
 
-// ResolverInfo summarises one registered resolver for coverage tooling: the
-// unqualified function name, count of declared EdgeDecls, and the distinct disco
-// service segments touched by those edges (Source-side and Target-side
-// combined). EdgeCount==0 marks an unannotated resolver — either a deliberate
-// no-op (sidecar populator) or a sweep target not yet annotated.
+// ResolverInfo summarises one registered resolver for coverage tooling:
+// unqualified function name, count of declared EdgeDecls, and the distinct
+// disco service segments touched (Source+Target combined). EdgeCount==0
+// marks an unannotated resolver — either a deliberate no-op (sidecar
+// populator) or a sweep target not yet annotated.
 type ResolverInfo struct {
 	Name      string
 	EdgeCount int

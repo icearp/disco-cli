@@ -59,11 +59,11 @@ type lightsailAPI interface {
 
 // scanLightsail discovers Lightsail instances, relational databases, and
 // container services in one region. Lightsail uses manual `pageToken`
-// pagination (no SDK paginators). Three phases run sequentially. Per-
-// phase AccessDenied tolerated. Snapshots, disks, key pairs, static
-// IPs, distributions, domains, buckets, and load balancers deferred —
-// Lightsail's resource graph is largely self-contained per service,
-// adding little cross-service edge value.
+// pagination (no SDK paginators); three phases run sequentially, each
+// tolerating per-phase AccessDenied. Snapshots, disks, key pairs, static IPs,
+// distributions, domains, buckets, and load balancers deferred — Lightsail's
+// resource graph is largely self-contained per service, adding little
+// cross-service edge value.
 func scanLightsail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := lightsail.NewFromConfig(acct.cfg, func(o *lightsail.Options) { o.Region = region })
 

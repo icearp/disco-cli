@@ -179,8 +179,8 @@ type codeBuildArtifacts struct {
 	Location *string `json:"Location"`
 }
 
-// codeBuildProjectAttrs mirrors the BatchGetProjects-populated fields the
-// resolver walks. PascalCase JSON tags match mustJSON of the SDK struct.
+// codeBuildProjectAttrs mirrors the BatchGetProjects fields the resolver
+// walks. PascalCase JSON tags match mustJSON of the SDK struct.
 type codeBuildProjectAttrs struct {
 	ServiceRole        *string `json:"ServiceRole"`
 	ResourceAccessRole *string `json:"ResourceAccessRole"`
@@ -218,11 +218,10 @@ type codeBuildTargetSets struct {
 }
 
 // resolveCodeBuildProjectRefs walks each enriched CodeBuild project body
-// (BatchGetProjects-populated) and emits source-side edges for ServiceRole
-// (IAM), EncryptionKey (KMS), VpcConfig (VPC + subnet + SG), Artifacts/
-// SecondaryArtifacts/Cache (S3 bucket via Location field when type S3),
-// LogsConfig.CloudWatchLogs (log group), LogsConfig.S3Logs (S3 bucket).
-// All edges FK-safe.
+// (BatchGetProjects) and emits edges for ServiceRole (IAM), EncryptionKey
+// (KMS), VpcConfig (VPC + subnet + SG), Artifacts/SecondaryArtifacts/Cache
+// (S3 via Location when type S3), LogsConfig.CloudWatchLogs (log group),
+// and LogsConfig.S3Logs (S3). All edges FK-safe.
 func resolveCodeBuildProjectRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeBuildProject},

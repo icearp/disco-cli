@@ -41,7 +41,7 @@ type cloudtrailAPI interface {
 
 // scanCloudTrail discovers CloudTrail trails in one region. DescribeTrails
 // with IncludeShadowTrails=false returns only trails whose home region matches
-// the current region, preventing duplicates across regions.
+// the current region, avoiding cross-region duplicates.
 func scanCloudTrail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	cfg := acct.cfg
 	cfg.Region = region

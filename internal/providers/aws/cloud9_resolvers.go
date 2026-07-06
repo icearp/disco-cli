@@ -18,9 +18,8 @@ func init() {
 }
 
 // resolveCloud9EnvOwner wires each environment to its owner principal
-// (OwnerArn). The principal can be an IAM role, IAM user, or the account
-// root (`arn:aws:iam::<acct>:root`); the root form has no scanned target
-// and is skipped. Dispatch by ARN segment substring.
+// (OwnerArn): IAM role, IAM user, or account root (`arn:aws:iam::<acct>:root`,
+// skipped — no scanned target). Dispatched by ARN segment substring.
 func resolveCloud9EnvOwner(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloud9EnvironmentEC2}, Limit: util.AllResources,

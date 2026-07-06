@@ -110,9 +110,9 @@ func scanCBFleets(ctx context.Context, client codeBuildAPI, acct *account, regio
 }
 
 func scanCBProjects(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	// List names first, then BatchGetProjects (max 100 per call) for full
-	// Project bodies — list returns names only; ServiceRole/VpcConfig/
-	// EncryptionKey/Artifacts/LogsConfig refs live on Project.
+	// List names first, then BatchGetProjects (max 100/call) for full bodies
+	// — list returns names only; ServiceRole/VpcConfig/EncryptionKey/
+	// Artifacts/LogsConfig refs live only on Project.
 	pager := codebuild.NewListProjectsPaginator(client, &codebuild.ListProjectsInput{})
 	var names []string
 	for pager.HasMorePages() {

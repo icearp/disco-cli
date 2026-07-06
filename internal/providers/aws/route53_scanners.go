@@ -57,8 +57,8 @@ type route53ZoneSummary struct {
 }
 
 // scanRoute53 discovers Route53 hosted zones, DNSSEC configs, key-signing keys,
-// record sets, CIDR collections, and health checks.
-// Route53 is a global service; all resources are not tied to a specific region.
+// record sets, CIDR collections, and health checks. Route53 is a global
+// service — resources aren't tied to any region.
 func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := route53.NewFromConfig(acct.cfg, func(o *route53.Options) { o.Region = "us-east-1" })
 
@@ -325,8 +325,8 @@ func scanRoute53TrafficPolicyInstances(ctx context.Context, client route53API, a
 }
 
 // scanRoute53RecordSets pages through all record sets in one hosted zone and
-// upserts them. The NativeID is composed as "<zoneARN>/<type>/<name>" to produce
-// a stable, unique identifier per record set within the zone.
+// upserts them. NativeID is composed as "<zoneARN>/<type>/<name>" — stable
+// and unique per record set within the zone.
 func scanRoute53RecordSets(ctx context.Context, client route53API, acct *account, zoneID, zoneARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := route53.NewListResourceRecordSetsPaginator(client, &route53.ListResourceRecordSetsInput{
 		HostedZoneId: &zoneID,
@@ -455,8 +455,8 @@ func scanRoute53DNSSEC(
 }
 
 // scanRoute53CIDRCollections pages through all CIDR collections in the account
-// and upserts each as an aws:route53:cidr-collection resource. The NativeID is
-// the collection ARN (real ARN provided by the API).
+// and upserts each as an aws:route53:cidr-collection resource. NativeID is
+// the collection ARN (real, API-provided).
 func scanRoute53CIDRCollections(
 	ctx context.Context,
 	client route53API,

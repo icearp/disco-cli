@@ -11,8 +11,8 @@ import (
 // scanConfigExtended discovers seven additional AWS Config resource types:
 // AggregationAuthorization, ConfigurationAggregator, ConformancePack,
 // OrganizationConfigRule, OrganizationConformancePack, RemediationConfiguration,
-// and StoredQuery. RemediationConfigurations are fetched per Config rule (max
-// 25 rule names per call); other types use account/region paginators.
+// and StoredQuery. RemediationConfigurations fetch per Config rule (max 25
+// names per call); others use account/region paginators.
 func scanConfigExtended(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanConfigAggAuthz(ctx, client, acct, region, st, scanID) },
@@ -170,9 +170,9 @@ func scanConfigOrgConformancePacks(ctx context.Context, client configserviceAPI,
 }
 
 // scanConfigRemediationConfigs fetches remediation configs per Config rule.
-// DescribeRemediationConfigurations takes ConfigRuleNames (max 25 per call)
-// and has no paginator. Re-lists rules via DescribeConfigRules paginator
-// rather than threading rule names through scanConfigAll.
+// DescribeRemediationConfigurations takes ConfigRuleNames (max 25/call), no
+// paginator — re-lists rules via DescribeConfigRules paginator rather than
+// threading rule names through scanConfigAll.
 func scanConfigRemediationConfigs(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var ruleNames []string
 	pager := configservice.NewDescribeConfigRulesPaginator(client, &configservice.DescribeConfigRulesInput{})
@@ -216,8 +216,8 @@ func scanConfigRemediationConfigs(ctx context.Context, client configserviceAPI, 
 			}
 			arn := sv(r.Arn)
 			if arn == "" {
-				// Synth: parent rule ARN + /remediation. ConfigRuleArn isn't
-				// in the remediation struct, so use the standard rule ARN form.
+				// Synth: parent rule ARN + /remediation — ConfigRuleArn isn't
+				// in the remediation struct.
 				arn = fmt.Sprintf("arn:aws:config:%s:%s:config-rule/%s/remediation", region, acct.ID, ruleName)
 			}
 			label := ruleName

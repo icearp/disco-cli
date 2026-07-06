@@ -21,11 +21,10 @@ func init() {
 
 // scanSecrets discovers Secret Manager secrets for a project. SecretVersions
 // are intentionally not scanned: per-secret version pagination explodes
-// cardinality on long-lived secrets and the version payload is the actual
-// secret material — disco's denylist already redacts payloads if accidentally
-// captured, but the cleanest path is to skip them entirely. Rotation /
-// last-rotation-time queries can pivot off the secret's `topics` and
-// `rotation` attributes.
+// cardinality on long-lived secrets, and the version payload is the actual
+// secret material (redacted if captured, but cleanest to skip entirely).
+// Rotation queries can pivot off the secret's `topics` and `rotation`
+// attributes instead.
 func scanSecrets(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := secretmanager.NewService(ctx, opts...)

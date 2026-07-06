@@ -17,7 +17,7 @@ import (
 // (RFC 8785) canonical JSON: compact (no whitespace), struct fields in
 // declaration order. encoding/json preserves struct field order, and the
 // Manifest struct fields are all simple types (strings, []string), so a
-// plain Marshal call is canonical without further normalisation.
+// plain Marshal call is already canonical.
 //
 // The byte sequence is what `disco snapshot --signing-payload` writes and
 // what `disco verify --signature ...` re-derives from the embedded
@@ -57,8 +57,8 @@ func VerifyDetachedSignature(m Manifest, sigPath, pubKeyPath string) error {
 //   - OpenSSH authorized-keys / `.pub` line (`ssh-ed25519 AAAAC3... [comment]`).
 //   - Raw 32-byte key (binary).
 //
-// OpenSSH parsing uses x/crypto/ssh, which is already a transitive dep — no
-// new module required. SSHSIG-armored signatures (`ssh-keygen -Y sign` output)
+// OpenSSH parsing uses x/crypto/ssh, already a transitive dep — no new
+// module required. SSHSIG-armored signatures (`ssh-keygen -Y sign` output)
 // are NOT accepted on the --signature path; pair an OpenSSH pubkey with a
 // raw 64-byte ed25519 signature produced by openssl/cosign/minisign instead.
 func LoadEd25519PublicKey(path string) (ed25519.PublicKey, error) {

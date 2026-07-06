@@ -28,9 +28,8 @@ func init() {
 	)
 }
 
-// resolveGalleryImageRelationships derives the parent gallery for each gallery image
-// by truncating the image's NativeID at "/images/".
-// NativeID form: .../galleries/{gallery}/images/{image}
+// resolveGalleryImageRelationships derives each image's parent gallery by truncating
+// NativeID at "/images/". NativeID form: .../galleries/{gallery}/images/{image}
 func resolveGalleryImageRelationships(sub *subscription, st *store.Store) error {
 	images, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -54,9 +53,8 @@ func resolveGalleryImageRelationships(sub *subscription, st *store.Store) error 
 	return nil
 }
 
-// resolveGalleryImageVersionRelationships derives the parent gallery image for each
-// image version by truncating the version's NativeID at "/versions/".
-// NativeID form: .../images/{image}/versions/{version}
+// resolveGalleryImageVersionRelationships derives each image version's parent image
+// by truncating NativeID at "/versions/". NativeID form: .../images/{image}/versions/{version}
 func resolveGalleryImageVersionRelationships(sub *subscription, st *store.Store) error {
 	versions, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -80,9 +78,8 @@ func resolveGalleryImageVersionRelationships(sub *subscription, st *store.Store)
 	return nil
 }
 
-// resolveGalleryApplicationRelationships derives the parent gallery for each gallery
-// application by truncating the application's NativeID at "/applications/".
-// NativeID form: .../galleries/{gallery}/applications/{app}
+// resolveGalleryApplicationRelationships derives each application's parent gallery by
+// truncating NativeID at "/applications/". NativeID form: .../galleries/{gallery}/applications/{app}
 func resolveGalleryApplicationRelationships(sub *subscription, st *store.Store) error {
 	apps, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -106,9 +103,8 @@ func resolveGalleryApplicationRelationships(sub *subscription, st *store.Store) 
 	return nil
 }
 
-// resolveGalleryApplicationVersionRelationships derives the parent gallery application
-// for each application version by truncating the version's NativeID at "/versions/".
-// NativeID form: .../applications/{app}/versions/{version}
+// resolveGalleryApplicationVersionRelationships derives each application version's parent
+// application by truncating NativeID at "/versions/". NativeID form: .../applications/{app}/versions/{version}
 func resolveGalleryApplicationVersionRelationships(sub *subscription, st *store.Store) error {
 	versions, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -132,9 +128,8 @@ func resolveGalleryApplicationVersionRelationships(sub *subscription, st *store.
 	return nil
 }
 
-// resolveGalleryInVMACPRelationships derives the parent gallery for each
-// inVMAccessControlProfile by truncating the profile's NativeID at
-// "/inVMAccessControlProfiles/".
+// resolveGalleryInVMACPRelationships derives each inVMAccessControlProfile's parent gallery
+// by truncating NativeID at "/inVMAccessControlProfiles/".
 // NativeID form: .../galleries/{gallery}/inVMAccessControlProfiles/{profile}
 func resolveGalleryInVMACPRelationships(sub *subscription, st *store.Store) error {
 	profiles, err := st.ListResources(store.ResourceFilter{
@@ -159,8 +154,8 @@ func resolveGalleryInVMACPRelationships(sub *subscription, st *store.Store) erro
 	return nil
 }
 
-// resolveGalleryInVMACPVersionRelationships derives the parent inVMAccessControlProfile
-// for each profile version by truncating the version's NativeID at "/versions/".
+// resolveGalleryInVMACPVersionRelationships derives each profile version's parent
+// inVMAccessControlProfile by truncating NativeID at "/versions/".
 // NativeID form: .../inVMAccessControlProfiles/{profile}/versions/{version}
 func resolveGalleryInVMACPVersionRelationships(sub *subscription, st *store.Store) error {
 	versions, err := st.ListResources(store.ResourceFilter{

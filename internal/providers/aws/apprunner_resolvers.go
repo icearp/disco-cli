@@ -30,10 +30,10 @@ func init() {
 }
 
 // resolveAppRunnerVpcIngressConnectionTargets emits each VPC Ingress
-// Connection → its linked App Runner service (uses). FK-safe via scanned
-// service id set. AutoScaling / Observability configurations have no
-// outbound ARN-bearing fields beyond service association (HasAssociatedService
-// is a bool), so they get no resolver edges.
+// Connection → linked App Runner service (uses), FK-safe via scanned service
+// id set. AutoScaling / Observability configurations have no outbound
+// ARN-bearing fields beyond HasAssociatedService (a bool), so they get no
+// resolver edges.
 func resolveAppRunnerVpcIngressConnectionTargets(acct *account, st *store.Store) error {
 	conns, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppRunnerVpcIngressConnection},
@@ -286,10 +286,10 @@ func emitAppRunnerKMSEdge(st *store.Store, acct *account, s store.Resource, regi
 //	{acct}.dkr.ecr.{region}.amazonaws.com/{repo}:{tag}     (URL form)
 //	public.ecr.aws/{namespace}/{repo}:{tag}                (public ECR — no edge)
 //
-// ECR repository NativeID per ecr scanner is the canonical ARN
-// `arn:aws:ecr:{region}:{acct}:repository/{name}`. Reconstruct from
-// the URL form. Returns empty string for public-ECR images and other
-// non-ECR registries.
+// ECR repository NativeID (per ecr scanner) is the canonical ARN
+// `arn:aws:ecr:{region}:{acct}:repository/{name}`; reconstruct from the
+// URL form. Returns empty string for public-ECR images and other non-ECR
+// registries.
 func apprunnerImageToRepoARN(imageID string) string {
 	if imageID == "" || strings.HasPrefix(imageID, "public.ecr.aws/") {
 		return ""

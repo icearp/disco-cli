@@ -34,9 +34,9 @@ type obsAdminAPI interface {
 }
 
 // scanObservabilityAdmin discovers six CloudWatch Observability Admin
-// resource types. Organization-scoped lists tolerate AccessDenied to support
-// running from non-management accounts. TelemetryEnrichment is a singleton
-// per (acct, region) — synthesized ARN.
+// resource types. Organization-scoped lists tolerate AccessDenied for
+// non-management accounts. TelemetryEnrichment is a singleton per
+// (acct, region) with a synthesized ARN.
 func scanObservabilityAdmin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := observabilityadmin.NewFromConfig(acct.cfg, func(o *observabilityadmin.Options) { o.Region = region })
 
@@ -64,8 +64,8 @@ func scanObsCentralizationRules(ctx context.Context, client obsAdminAPI, acct *a
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			// Org-only API: silent no-op when called from non-org-management or
-			// non-org account. Real IAM denies still warn via isAccessDenied.
+			// Org-only API: silent no-op from non-org-management or non-org
+			// accounts. Real IAM denies still warn via isAccessDenied.
 			if isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
 				return 0, 0, nil
 			}
@@ -96,8 +96,8 @@ func scanObsOrgTelemetryRules(ctx context.Context, client obsAdminAPI, acct *acc
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			// Org-only API: silent no-op when called from non-org-management or
-			// non-org account. Real IAM denies still warn via isAccessDenied.
+			// Org-only API: silent no-op from non-org-management or non-org
+			// accounts. Real IAM denies still warn via isAccessDenied.
 			if isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
 				return 0, 0, nil
 			}
@@ -135,8 +135,8 @@ func scanObsTelemetryRules(ctx context.Context, client obsAdminAPI, acct *accoun
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryRules", acct.ID, region, err)
 			}
-			// "Telemetry evaluation is not enabled" via ValidationException =
-			// observabilityadmin not opted-in for this account.
+			// ValidationException "Telemetry evaluation is not enabled" =
+			// account not opted into observabilityadmin.
 			if isAPIErrorWithMessage(err, "ValidationException", "Telemetry evaluation is not enabled") {
 				return 0, 0, nil
 			}
@@ -214,7 +214,7 @@ func scanObsTelemetryPipelines(ctx context.Context, client obsAdminAPI, acct *ac
 }
 
 // scanObsTelemetryEnrichment captures the per-(acct, region) singleton
-// telemetry enrichment status. Synthesized ARN since the API returns no ARN.
+// telemetry-enrichment status; ARN synthesized since the API returns none.
 func scanObsTelemetryEnrichment(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetTelemetryEnrichmentStatus(ctx, &observabilityadmin.GetTelemetryEnrichmentStatusInput{})
 	if err != nil {

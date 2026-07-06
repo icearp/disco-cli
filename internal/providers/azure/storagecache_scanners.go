@@ -15,8 +15,7 @@ func init() {
 		name: "azure:microsoft.storagecache",
 		fn:   scanStorageCache,
 		emits: []coverage.TypeDecl{
-			// resolveStorageCacheRelationships wires the subnet (VNet) and CMK
-			// (Key Vault) edges below.
+			// resolveStorageCacheRelationships wires the subnet (VNet) and CMK (Key Vault) edges below.
 			{Service: "microsoft.storagecache", DiscoType: TypeStorageCacheCache},
 		},
 	})

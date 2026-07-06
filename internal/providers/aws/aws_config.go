@@ -19,13 +19,12 @@ import (
 )
 
 // emulatorAccountIDOverride returns the explicit account_id the caller
-// (typically an external orchestrator) wants recorded on resources/
-// scans, gated on AWS_ENDPOINT_URL being set. The gate is the AWS SDK's
-// canonical "talking to a non-AWS endpoint" signal — prod scanners
-// never set it, so the override is unreachable in prod. Emulators
-// (e.g. LocalStack) return a sentinel "000000000000" from
-// sts:GetCallerIdentity that would otherwise overwrite the configured
-// account id on every scan. Returns the empty string when either env is
+// (typically an external orchestrator) wants recorded on resources/scans,
+// gated on AWS_ENDPOINT_URL being set — the SDK's canonical "talking to a
+// non-AWS endpoint" signal, so the override is unreachable in prod (prod
+// scanners never set it). Emulators (e.g. LocalStack) return a sentinel
+// "000000000000" from sts:GetCallerIdentity that would otherwise overwrite
+// the configured account id on every scan. Returns "" when either env is
 // unset or whitespace-only.
 func emulatorAccountIDOverride() string {
 	if strings.TrimSpace(os.Getenv("AWS_ENDPOINT_URL")) == "" {
@@ -41,10 +40,10 @@ type providerCfg struct {
 }
 
 // accountCfg is the per-account YAML entry. role_arn is the single-hop
-// assume-role target; role_chain (if non-empty) takes precedence and walks
+// assume-role target; role_chain, if non-empty, takes precedence and walks
 // the slice in order, each step using the prior step's credentials as the
-// source. Use role_chain when a hub/spoke topology requires hopping through
-// an intermediate "audit" role to reach a target account.
+// source. Use role_chain for hub/spoke topologies that hop through an
+// intermediate "audit" role to reach a target account.
 type accountCfg struct {
 	ID        string   `mapstructure:"id"`
 	Name      string   `mapstructure:"name"`
@@ -60,9 +59,9 @@ type accountCfg struct {
 //
 // When roleARNOverride is non-empty, the config-file accounts: section is
 // ignored entirely: a single synthetic account is built that assumes
-// roleARNOverride (with externalIDOverride passed as the STS ExternalId
-// when non-empty). An external orchestrator (e.g. a scan-trigger Lambda)
-// uses this to drive per-tenant scans without writing config to disk in the
+// roleARNOverride (externalIDOverride passed as the STS ExternalId when
+// non-empty). An external orchestrator (e.g. a scan-trigger Lambda) uses
+// this to drive per-tenant scans without writing config to disk in the
 // worker container.
 func loadAccounts(ctx context.Context, profile string, regionOverride []string, roleARNOverride, externalIDOverride, sourceIdentity string) ([]account, error) {
 	var cfg providerCfg
@@ -75,8 +74,8 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 
 	// Build SDK load options; optionally select a named credential profile.
 	// Adaptive retry mode uses a client-side token bucket that learns from
-	// throttling responses and proactively slows down requests. 10 max attempts
-	// gives the backoff enough headroom for low-rate-limit services like IAM.
+	// throttling responses and slows requests proactively. 10 max attempts
+	// gives backoff enough headroom for low-rate-limit services like IAM.
 	opts := []func(*awsconfig.LoadOptions) error{
 		awsconfig.WithRetryMaxAttempts(10),
 		awsconfig.WithRetryMode(sdkaws.RetryModeAdaptive),
@@ -91,24 +90,24 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 		return nil, explainConfigLoadError(err, profile)
 	}
 
-	// Honor the region from the profile/env; fall back to us-east-1 only when none is
-	// configured, since global-endpoint clients built from baseCfg need a non-empty region.
-	// (The us-east-1-pinned probes — enabledScanRegions, region-availability SSM — set o.Region
-	// themselves, so they are unaffected.)
+	// Honor the region from profile/env; fall back to us-east-1 only when none
+	// is configured, since global-endpoint clients built from baseCfg need a
+	// non-empty region. (The us-east-1-pinned probes — enabledScanRegions,
+	// region-availability SSM — set o.Region themselves, so unaffected.)
 	if baseCfg.Region == "" {
 		baseCfg.Region = "us-east-1"
 	}
 
-	// CLI/Lambda override pins a single AssumeRole-driven account; ignore
-	// config-file accounts entirely. Build the synthetic accountCfg here so
-	// the loop below handles role chain + region + override uniformly.
+	// CLI/Lambda override pins a single AssumeRole-driven account; ignores
+	// config-file accounts entirely. Synthetic accountCfg built here so the
+	// loop below handles role chain + region + override uniformly.
 	if roleARNOverride != "" {
 		stsClient := sts.NewFromConfig(baseCfg)
 		acctCfg := baseCfg
 		acctCfg.Credentials = cachedAssumeRole(stsClient, roleARNOverride, assumeRoleOpts(externalIDOverride, sourceIdentity))
 		// Resolve the assumed-role caller account for the synthetic ID; on
-		// error we still proceed with an empty ID rather than failing the
-		// scan, since the override path is meant to short-circuit STS pre-checks.
+		// error, proceed with an empty ID rather than failing the scan — the
+		// override path is meant to short-circuit STS pre-checks.
 		var acctID string
 		if envAcctID := emulatorAccountIDOverride(); envAcctID != "" {
 			acctID = envAcctID
@@ -126,10 +125,10 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 		}}, nil
 	}
 
-	// Auto-detect the current account when none are configured.
-	// Emulator override (F28) short-circuits STS when AWS_ENDPOINT_URL
-	// is set, so emulator-backed scans record the configured account id
-	// instead of the emulator's sentinel "000000000000".
+	// Auto-detect the current account when none are configured. Emulator
+	// override (F28) short-circuits STS when AWS_ENDPOINT_URL is set, so
+	// emulator-backed scans record the configured account id instead of the
+	// emulator's sentinel "000000000000".
 	if len(cfg.Accounts) == 0 {
 		if envAcctID := emulatorAccountIDOverride(); envAcctID != "" {
 			cfg.Accounts = []accountCfg{{ID: envAcctID}}
@@ -149,9 +148,8 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 
 		// Multi-hop role chaining (preferred when present): walk role_chain
 		// in order, each step's STS client built from the prior step's
-		// credentials. Each AssumeRoleProvider is wrapped in a
-		// CredentialsCache so the SDK's normal token refresh kicks in
-		// independently per hop.
+		// credentials. Each AssumeRoleProvider wraps in a CredentialsCache so
+		// the SDK's normal token refresh kicks in independently per hop.
 		switch {
 		case len(a.RoleChain) > 0:
 			acctCfg.Credentials = chainAssumeRoles(acctCfg, a.RoleChain, sourceIdentity)
@@ -182,10 +180,11 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 }
 
 // explainConfigLoadError augments aws-sdk-go-v2's opaque assume-role failure
-// ("… of profile <src>, <nil>") with an actionable hint. The nil inner error means
-// the source profile has no SDK-resolvable credentials (no static keys, credential_process,
-// or sso_session) — commonly because the AWS CLI resolves them via a custom credential
-// helper the Go SDK can't invoke. Exporting the CLI-resolved creds sidesteps it.
+// ("… of profile <src>, <nil>") with an actionable hint. The nil inner error
+// means the source profile has no SDK-resolvable credentials (no static keys,
+// credential_process, or sso_session) — often because the AWS CLI resolves
+// them via a custom credential helper the Go SDK can't invoke. Exporting the
+// CLI-resolved creds sidesteps it.
 //
 // A known trigger is an `aws login` source profile (login_session): the SDK rejects
 // role_arn + source_profile=<login-only> at config-load time because hasCredentials()
@@ -220,10 +219,11 @@ func chainAssumeRoles(baseCfg sdkaws.Config, roleARNs []string, sourceIdentity s
 	cur := baseCfg
 	var last *sdkaws.CredentialsCache
 	for i, role := range roleARNs {
-		// SourceIdentity is set on the entry hop only — AWS propagates it to every
-		// downstream session in the chain automatically. Re-asserting it on later
-		// hops would force each role's trust policy to grant sts:SetSourceIdentity;
-		// setting it once means only the entry role needs that permission.
+		// SourceIdentity is set on the entry hop only — AWS auto-propagates it
+		// to every downstream session in the chain. Re-asserting it on later
+		// hops would force each role's trust policy to grant
+		// sts:SetSourceIdentity; setting it once means only the entry role
+		// needs that permission.
 		var extra func(*stscreds.AssumeRoleOptions)
 		if i == 0 {
 			extra = assumeRoleOpts("", sourceIdentity)
@@ -239,20 +239,21 @@ func chainAssumeRoles(baseCfg sdkaws.Config, roleARNs []string, sourceIdentity s
 
 const (
 	// assumeRoleSessionDuration is the lifetime requested for each assumed-role
-	// session. 1h is the hard cap AWS enforces on chained AssumeRole (>3600s is
-	// rejected) and sits within every role's MaxSessionDuration (the minimum is
-	// 1h), so it is universally safe for both single-hop and chained paths.
+	// session. 1h is AWS's hard cap on chained AssumeRole (>3600s rejected)
+	// and sits within every role's MaxSessionDuration (minimum 1h), so it's
+	// safe for both single-hop and chained paths.
 	assumeRoleSessionDuration = time.Hour
-	// credRefreshWindow makes the CredentialsCache refresh this long BEFORE the
-	// session actually expires, so a long scan never races an expiring token.
-	// Jitter spreads refreshes across the concurrent service goroutines.
+	// credRefreshWindow makes the CredentialsCache refresh this long BEFORE
+	// the session actually expires, so a long scan never races an expiring
+	// token. Jitter spreads refreshes across concurrent service goroutines.
 	credRefreshWindow = 5 * time.Minute
 )
 
-// cachedAssumeRole builds a CredentialsCache around an AssumeRoleProvider with a
-// proactive refresh window, so the SDK renews the session before it expires
-// rather than lazily at the expiry boundary. extra, when non-nil, customizes the
-// AssumeRole options (e.g. ExternalID); Duration is always set first.
+// cachedAssumeRole builds a CredentialsCache around an AssumeRoleProvider
+// with a proactive refresh window, so the SDK renews the session before it
+// expires rather than lazily at the expiry boundary. extra, when non-nil,
+// customizes the AssumeRole options (e.g. ExternalID); Duration is always
+// set first.
 func cachedAssumeRole(client *sts.Client, roleARN string, extra func(*stscreds.AssumeRoleOptions)) *sdkaws.CredentialsCache {
 	provider := stscreds.NewAssumeRoleProvider(client, roleARN, func(o *stscreds.AssumeRoleOptions) {
 		o.Duration = assumeRoleSessionDuration
@@ -270,8 +271,8 @@ func cachedAssumeRole(client *sts.Client, roleARN string, extra func(*stscreds.A
 // site. Returns nil when neither value is set, so callers pass a no-op extra
 // without an empty closure. SourceIdentity, once set on the entry session, is
 // stamped on every API call's CloudTrail record and propagated through role
-// chains — but the target role's trust policy must grant sts:SetSourceIdentity
-// or the assume fails, which is why it is opt-in.
+// chains — but the target role's trust policy must grant
+// sts:SetSourceIdentity or the assume fails, which is why it's opt-in.
 func assumeRoleOpts(externalID, sourceIdentity string) func(*stscreds.AssumeRoleOptions) {
 	if externalID == "" && sourceIdentity == "" {
 		return nil

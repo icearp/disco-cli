@@ -108,8 +108,8 @@ func scanR53RFirewallDomainLists(ctx context.Context, client route53ResolverAPI,
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverFirewallDomainList, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-				// Lists with ManagedOwnerName are the AWS-default
-				// firewall domain lists present in every account.
+				// ManagedOwnerName set marks the AWS-default firewall
+				// domain lists present in every account.
 				ManagedByProvider: d.ManagedOwnerName != nil,
 			})
 		}
@@ -385,9 +385,8 @@ func scanR53RResolverRules(ctx context.Context, client route53ResolverAPI, acct 
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverResolverRule, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-				// Ids prefixed "rslvr-autodefined-rr-" identify the
-				// AWS-default Internet Resolver rules present in every
-				// account.
+				// Id prefix "rslvr-autodefined-rr-" = AWS-default Internet
+				// Resolver rule present in every account.
 				ManagedByProvider: strings.HasPrefix(sv(r.Id), "rslvr-autodefined-rr-"),
 			})
 		}
@@ -421,9 +420,8 @@ func scanR53RResolverRuleAssocs(ctx context.Context, client route53ResolverAPI, 
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverResolverRuleAssociation, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				// Ids prefixed "rslvr-autodefined-assoc-" identify the
-				// AWS-default Internet Resolver associations attached to
-				// every VPC.
+				// Id prefix "rslvr-autodefined-assoc-" = AWS-default
+				// Internet Resolver association attached to every VPC.
 				ManagedByProvider: strings.HasPrefix(id, "rslvr-autodefined-assoc-"),
 			})
 		}

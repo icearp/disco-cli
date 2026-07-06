@@ -31,8 +31,8 @@ type firehoseAPI interface {
 
 // scanFirehose discovers Kinesis Firehose delivery streams in one region.
 // ListDeliveryStreams returns names (paginated via ExclusiveStartDeliveryStreamName);
-// DescribeDeliveryStream is called concurrently per name for full config
-// including destinations and encryption.
+// DescribeDeliveryStream runs concurrently per name for full config
+// (destinations, encryption).
 func scanFirehose(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := firehose.NewFromConfig(acct.cfg, func(o *firehose.Options) { o.Region = region })
 	return scanFirehoseDeliveryStreams(ctx, client, acct, region, st, scanID)

@@ -54,9 +54,9 @@ type networkManagerAPI interface {
 	ListCoreNetworkPrefixListAssociations(context.Context, *networkmanager.ListCoreNetworkPrefixListAssociationsInput, ...func(*networkmanager.Options)) (*networkmanager.ListCoreNetworkPrefixListAssociationsOutput, error)
 }
 
-// scanNetworkManager runs only in us-west-2 — NetworkManager is a global
-// service with a single home region. Calling from other regions returns
-// the same data redundantly.
+// scanNetworkManager runs only in us-west-2 — NetworkManager is a global,
+// single-home-region service; other regions return the same data
+// redundantly.
 func scanNetworkManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-west-2"
 	client := networkmanager.NewFromConfig(acct.cfg, func(o *networkmanager.Options) { o.Region = region })

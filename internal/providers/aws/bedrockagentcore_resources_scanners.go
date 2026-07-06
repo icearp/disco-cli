@@ -8,9 +8,9 @@ import (
 	bac "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
 )
 
-// This file holds the AgentCore resource scanners added after the initial set
-// (configuration bundles, datasets, harnesses + endpoints, registries + records,
-// policy generations). All store list summaries, which carry no secrets.
+// AgentCore resource scanners added after the initial set (configuration
+// bundles, datasets, harnesses + endpoints, registries + records, policy
+// generations). All store list summaries, carrying no secrets.
 
 func scanBACConfigurationBundles(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := bac.NewListConfigurationBundlesPaginator(client, &bac.ListConfigurationBundlesInput{})
@@ -265,8 +265,8 @@ func bacListSkip(st *store.Store, batch []*store.Resource, op, label, acctID, re
 		return upsertBatch(st, batch, "bedrockagentcore "+label)
 	}
 	// Newer AgentCore ops (payment-credential providers) aren't deployed in every
-	// region and 404 with UnknownOperationException. Region gap — keep the rows
-	// already accumulated and move on.
+	// region and 404 with UnknownOperationException — a region gap; keep
+	// accumulated rows and move on.
 	if isAPIErrorCode(perr, "UnknownOperationException") {
 		return upsertBatch(st, batch, "bedrockagentcore "+label)
 	}

@@ -9,12 +9,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// VPC Lattice resolvers wire the cross-resource edges that the per-service
-// scanners cannot derive from a single SDK call. Each resolver reads attrs
-// JSON (PascalCase, raw SDK marshal) plus, where AWS encodes a parent in the
-// child's ARN path (Listener under Service, Rule under Listener), parses
-// the ARN directly. All edges are FK-safe via scannedIDSet — refs to
-// unscanned targets (e.g. cross-account VPC, foreign service) silently skip.
+// VPC Lattice resolvers wire cross-resource edges the per-service scanners
+// can't derive from a single SDK call. Each resolver reads attrs JSON
+// (PascalCase, raw SDK marshal), or — where AWS encodes a parent in the
+// child's ARN path (Listener under Service, Rule under Listener) — parses
+// the ARN directly. All edges are FK-safe via scannedIDSet: refs to unscanned
+// targets (cross-account VPC, foreign service) silently skip.
 func init() {
 	registerResolver(
 		resolveVPCLatticeSNVA,
@@ -213,7 +213,7 @@ func resolveVPCLatticeSNRA(acct *account, st *store.Store) error {
 // resolveVPCLatticeTargetGroup links each TargetGroup to its VPC (via bare
 // VpcIdentifier) and to any Services that reference it (ServiceArns[]).
 // LAMBDA / ALB-typed target groups have no VpcIdentifier; the empty-check
-// handles that case naturally.
+// handles that case.
 func resolveVPCLatticeTargetGroup(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -266,9 +266,9 @@ func resolveVPCLatticeTargetGroup(acct *account, st *store.Store) error {
 }
 
 // resolveVPCLatticeListenerService derives the parent service ARN from the
-// listener's own ARN. The Listener ARN shape is
+// listener's own ARN, shape
 // `arn:aws:vpc-lattice:r:a:service/{svc-id}/listener/{lst-id}` — strip the
-// `/listener/...` suffix to recover the service ARN.
+// `/listener/...` suffix.
 func resolveVPCLatticeListenerService(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -299,9 +299,9 @@ func resolveVPCLatticeListenerService(acct *account, st *store.Store) error {
 }
 
 // resolveVPCLatticeRuleListener derives the parent listener ARN from the
-// rule's own ARN. Rule ARN shape:
-// `arn:aws:vpc-lattice:r:a:service/{svc-id}/listener/{lst-id}/rule/{rule-id}`.
-// Strip the `/rule/...` suffix to recover the listener ARN.
+// rule's own ARN, shape
+// `arn:aws:vpc-lattice:r:a:service/{svc-id}/listener/{lst-id}/rule/{rule-id}`
+// — strip the `/rule/...` suffix.
 func resolveVPCLatticeRuleListener(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -346,10 +346,9 @@ func resolveVPCLatticeResourcePolicyParent(acct *account, st *store.Store) error
 }
 
 // resolveVPCLatticePolicyParent factors the auth-policy / resource-policy
-// parent walk: both synthesize NativeID as `{parentARN}/{suffix}` where the
-// parent is either a service or a service-network. ARN resource segment
-// distinguishes them — `:service/...` for service (lattice service ARN), or
-// `:servicenetwork/...` for service-network.
+// parent walk: both synthesize NativeID as `{parentARN}/{suffix}`, parent
+// either a service or a service-network, distinguished by ARN segment
+// (`:service/...` vs `:servicenetwork/...`).
 func resolveVPCLatticePolicyParent(acct *account, st *store.Store, rtype, suffix string) error {
 	rs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -372,8 +371,7 @@ func resolveVPCLatticePolicyParent(acct *account, st *store.Store, rtype, suffix
 		if parentARN == r.NativeID {
 			continue
 		}
-		// Dispatch on resource segment. Service ARNs contain `:service/`;
-		// service-network ARNs contain `:servicenetwork/`.
+		// Dispatch on resource segment: `:service/` vs `:servicenetwork/`.
 		var ptype string
 		switch {
 		case strings.Contains(parentARN, ":service/"):
@@ -475,9 +473,8 @@ func resolveVPCLatticeResourceGateway(acct *account, st *store.Store) error {
 
 // resolveVPCLatticeResourceConfigurationGateway links each ResourceConfiguration
 // to the ResourceGateway that hosts it. Attrs carries `ResourceGatewayId` as
-// a bare ID; the gateway's NativeID is the full ARN, so we must look up via
-// scannedIDSet keyed by ARN — but we have only the bare ID here. Walk the
-// gateway list once, build an `id → ARN` index, then resolve.
+// a bare ID, but scannedIDSet is keyed by the gateway's full-ARN NativeID —
+// build an `id → ARN` index over the gateway list once, then resolve.
 func resolveVPCLatticeResourceConfigurationGateway(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

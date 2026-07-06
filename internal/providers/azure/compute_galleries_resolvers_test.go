@@ -152,7 +152,7 @@ func TestResolveGalleryInVMACPVersionRelationships_Empty(t *testing.T) {
 	}
 }
 
-// assertRelationship is a helper that verifies a single attached-to relationship exists from→to.
+// assertRelationship verifies a single attached-to relationship exists from→to.
 func assertRelationship(t *testing.T, st *store.Store, fromID, toID string) {
 	t.Helper()
 	rels, err := st.RelationshipsFrom(fromID)

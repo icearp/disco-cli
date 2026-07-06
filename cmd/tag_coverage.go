@@ -16,9 +16,9 @@ import (
 )
 
 // errTagCoverageBelow is the sentinel returned when --min-coverage trips on
-// at least one reported key. cmd/root.go maps it to a non-zero exit; the
-// deferred maybeStructuredError wrapper skips the JSON envelope so the
-// stdout report is the gate's payload.
+// at least one key. cmd/root.go maps it to non-zero exit; the deferred
+// maybeStructuredError wrapper skips the JSON envelope so the stdout report
+// is the gate's payload.
 var errTagCoverageBelow = errors.New("tag coverage below threshold")
 
 var (
@@ -166,9 +166,9 @@ type tagCoverage struct {
 // the absent-tag signal. Sort order: tagged desc, tag asc.
 //
 // caseInsensitive folds every tag key to lower-case before tallying, and
-// matches user-supplied keys against the folded map — fix for F13 where
+// matches user-supplied keys against the folded map — fix for F13, where
 // `environment` (0%) and `Environment` (5.5%) silently produced two
-// different scorecards.
+// scorecards.
 func buildTagReport(rows []store.Resource, keys []string, caseInsensitive bool) []tagCoverage {
 	total := len(rows)
 	counts := map[string]int{}

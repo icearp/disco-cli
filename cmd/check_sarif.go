@@ -31,8 +31,8 @@ type sarifRun struct {
 
 // sarifInvocation carries per-run provenance (which scans contributed to
 // the evaluated population). SARIF spec lets `properties` carry arbitrary
-// keys; consumers reading only the SARIF doc can trace findings back to
-// the source scan IDs without needing the snapshot manifest.
+// keys; consumers reading only the SARIF doc can trace findings to the
+// source scan IDs without needing the snapshot manifest.
 type sarifInvocation struct {
 	ExecutionSuccessful bool           `json:"executionSuccessful"`
 	Properties          map[string]any `json:"properties,omitempty"`
@@ -121,7 +121,7 @@ func severityToLevel(s string) string {
 }
 
 // sarifEvidence carries the per-emit chain-of-custody pointers stamped
-// into SARIF so a consumer reading only the doc can bind findings back to
+// into SARIF so a consumer reading only the doc can bind findings to
 // the source DB and the scan runs that populated it. RulesSHA256 binds
 // the resolved rule set (--rules tree + --packs modules, deterministically
 // hashed) so an attestation can prove which policy produced which finding.

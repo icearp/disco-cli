@@ -28,9 +28,8 @@ type ramAPI interface {
 }
 
 // scanRAM discovers Resource Access Manager resource shares (ResourceOwner=SELF
-// only — OTHER-ACCOUNTS are inbound shares not owned by this account) and
-// the managed permission catalogue (AWS-managed permissions flagged
-// ManagedByProvider).
+// only — OTHER-ACCOUNTS are inbound shares we don't own) and the managed
+// permission catalogue (AWS-managed permissions flagged ManagedByProvider).
 func scanRAM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ram.NewFromConfig(acct.cfg, func(o *ram.Options) { o.Region = region })
 
@@ -104,10 +103,10 @@ func scanRAMPermissions(ctx context.Context, client ramAPI, acct *account, regio
 			// AWS-managed permission ARNs use account "aws": arn:aws:ram::aws:permission/...
 			managed := strings.HasPrefix(arn, "arn:aws:ram::aws:permission/")
 			// The AWS-managed permission catalogue is partition-global with
-			// region-less ARNs; emitting it from every region's concurrent upsert
-			// collides on the region-excluded natural key. Emit it once (us-east-1)
-			// and tag it global. Customer-managed permissions carry their region in
-			// the ARN, so they stay per-region.
+			// region-less ARNs; emitting from every region's concurrent upsert
+			// collides on the region-excluded natural key. Emit once (us-east-1),
+			// tag global. Customer-managed permissions carry region in the ARN,
+			// so stay per-region.
 			permRegion := &region
 			if managed {
 				if region != "us-east-1" {

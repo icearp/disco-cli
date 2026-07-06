@@ -23,8 +23,8 @@ func init() {
 	)
 }
 
-// pcacAdLookupDirectory returns (resourceID, type) for the scanned DS row whose
-// NativeID ends with `/{directoryId}`. Returns ok=false if no matching row.
+// pcacAdLookupDirectory returns the scanned DS row's resourceID whose NativeID
+// ends with `/{directoryId}`; ok=false if no matching row.
 func pcacAdLookupDirectory(acct *account, st *store.Store, directoryID string) (string, bool, error) {
 	for _, dt := range []string{TypeDSMicrosoftAD, TypeDSSimpleAD} {
 		rows, err := st.ListResources(store.ResourceFilter{

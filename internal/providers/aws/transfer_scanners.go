@@ -348,8 +348,8 @@ func scanTransferWorkflows(ctx context.Context, client transferAPI, acct *accoun
 }
 
 // scanTransferHostKeys lists the SSH host keys of one server. ListHostKeys is
-// per-server (no account-wide list op) and has no SDK paginator, so it pages
-// manually via NextToken.
+// per-server (no account-wide list op) with no SDK paginator — pages manually
+// via NextToken.
 func scanTransferHostKeys(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID, serverID string) (int, int, error) {
 	sid := serverID
 	var batch []*store.Resource

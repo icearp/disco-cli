@@ -193,9 +193,10 @@ func resolveAppFabricDestination(acct *account, st *store.Store) error {
 	return nil
 }
 
-// appFabricParentARN truncates a child ARN at the given path segment to recover
-// the parent ARN: arn:…:appbundle/x/ingestion/y → (sep "/ingestiondestination/")
-// is a no-op, but ".../ingestion/y/ingestiondestination/z" → ".../ingestion/y".
+// appFabricParentARN truncates a child ARN at the given path segment to
+// recover the parent ARN. E.g. sep "/ingestiondestination/": no-op on
+// "arn:…:appbundle/x/ingestion/y" (segment absent), but turns
+// ".../ingestion/y/ingestiondestination/z" into ".../ingestion/y".
 func appFabricParentARN(childARN, sep string) string {
 	if i := strings.Index(childARN, sep); i >= 0 {
 		return childARN[:i]

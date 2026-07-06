@@ -9,10 +9,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/licensemanager"
 )
 
-// isLicenseManagerNotSetUp disambiguates the "Service role not found" setup
-// gap from a real IAM denial. License Manager requires creating the
-// AWSServiceRoleForAWSLicenseManagerRole; missing it surfaces as
-// AccessDeniedException with the same "Service role not found" message.
+// isLicenseManagerNotSetUp distinguishes the "Service role not found" setup gap
+// from a real IAM denial. License Manager requires the
+// AWSServiceRoleForAWSLicenseManagerRole; its absence surfaces as
+// AccessDeniedException with that same message.
 func isLicenseManagerNotSetUp(err error) bool {
 	return isAccessDeniedWithMessage(err, "Service role not found")
 }
@@ -42,9 +42,9 @@ type licenseManagerAPI interface {
 	ListLicenseAssetRulesets(context.Context, *licensemanager.ListLicenseAssetRulesetsInput, ...func(*licensemanager.Options)) (*licensemanager.ListLicenseAssetRulesetsOutput, error)
 }
 
-// scanLicenseManager discovers License Manager licenses (issued by this
-// account) and distributed grants. License Manager is global; gate to
-// us-east-1 to avoid duplicate scans across regions.
+// scanLicenseManager discovers License Manager licenses and distributed
+// grants. Global service; gated to us-east-1 to avoid duplicate scans across
+// regions.
 func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-1"
 	client := licensemanager.NewFromConfig(acct.cfg, func(o *licensemanager.Options) { o.Region = region })

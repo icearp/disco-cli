@@ -25,11 +25,11 @@ func init() {
 	)
 }
 
-// appconfigAppARNFromChild trims a child NativeID down to its parent
-// `arn:aws:appconfig:r:a:application/{id}`. Works for both direct children
+// appconfigAppARNFromChild trims a child NativeID to its parent
+// `arn:aws:appconfig:r:a:application/{id}`. Works for direct children
 // (environment, configuration-profile) and grandchildren (deployment,
-// hosted-configuration-version) because the application/{id} segment is
-// always the first path component after the ARN prefix.
+// hosted-configuration-version): application/{id} is always the first
+// path segment after the ARN prefix.
 func appconfigAppARNFromChild(arn string) string {
 	const prefix = "application/"
 	i := strings.Index(arn, prefix)

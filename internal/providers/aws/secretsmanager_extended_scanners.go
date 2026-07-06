@@ -9,10 +9,10 @@ import (
 )
 
 // scanSecretsManagerExtended discovers per-secret resource policies and
-// rotation schedules. Walks ListSecrets, then GetResourcePolicy per secret
-// and synthesizes a rotation-schedule row when RotationEnabled is true.
+// rotation schedules: walks ListSecrets, then GetResourcePolicy per secret,
+// synthesizing a rotation-schedule row when RotationEnabled is true.
 //
-// AWS::SecretsManager::SecretTargetAttachment is skip-logged: it's a
+// AWS::SecretsManager::SecretTargetAttachment is skip-logged — a
 // CloudFormation-only abstraction for linking secrets to RDS/etc, with no
 // distinct AWS API surface.
 func scanSecretsManagerExtended(ctx context.Context, client secretsManagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

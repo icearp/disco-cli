@@ -16,9 +16,8 @@ func init() { registerResolver(resolveComposerRelationships) }
 //   - environment -[uses]-> service-account via config.nodeConfig.serviceAccount
 //
 // Composer's underlying GKE / network resources (composer-{n}-* GKE cluster,
-// internal VPC) are not direct attribute references on the environment, so
-// they're omitted here; an EncryptionConfig CMEK + node SA are the
-// security-meaningful pivots.
+// internal VPC) aren't direct attribute references on the environment, so
+// they're omitted here; CMEK + node SA are the security-meaningful pivots.
 func resolveComposerRelationships(p *project, st *store.Store) error {
 	envs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComposerEnv},

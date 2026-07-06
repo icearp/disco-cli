@@ -15,8 +15,7 @@ func init() {
 		name: "azure:microsoft.onlineexperimentation",
 		fn:   scanOnlineExperimentation,
 		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; the workspace ships
-			// scanner-only.
+			// Identity → MSI edges resolved centrally; workspace ships scanner-only.
 			{Service: "microsoft.onlineexperimentation", DiscoType: TypeOnlineExperimentationWorkspace, Leaf: true},
 		},
 	})

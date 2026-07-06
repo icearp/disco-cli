@@ -20,14 +20,15 @@ func init() {
 			{Service: "microsoft.authorization", DiscoType: TypeAuthorizationRoleDefinition},
 		},
 	})
-	// Tenant phase: built-in role/policy/set definitions are Microsoft-shipped
-	// and identical across every subscription. Fetch them once per scan and store
-	// them under the tenant account so an N-subscription scan keeps one copy
-	// instead of N. The per-sub scanners skip built-ins when a tenant GUID is
-	// available (see scanAuthorization / scanPolicy); the resolvers FK across the
-	// account boundary via the normalized role key / tenant policy-def merge.
-	// Shares the "azure:microsoft.authorization" name with the per-sub service —
-	// CollectEmits dedupes by DiscoType, and --services selects both phases.
+	// Tenant phase: built-in role/policy/set defs are Microsoft-shipped and
+	// identical across every subscription. Fetched once per scan and stored
+	// under the tenant account, so an N-subscription scan keeps one copy
+	// instead of N. Per-sub scanners skip built-ins when a tenant GUID is
+	// available (see scanAuthorization / scanPolicy); the resolvers FK across
+	// the account boundary via the normalized role key / tenant policy-def
+	// merge. Shares the "azure:microsoft.authorization" name with the per-sub
+	// service — CollectEmits dedupes by DiscoType, and --services selects both
+	// phases.
 	registerTenantService(tenantServiceEntry{
 		name: "azure:microsoft.authorization",
 		fn:   scanAuthorizationBuiltins,
@@ -41,9 +42,9 @@ func init() {
 
 // scanAuthorization discovers Azure RBAC role assignments and role definitions
 // scoped to (or visible from) the subscription. Built-in role definitions are
-// tenant-scoped but are returned by the subscription-scoped list call; they are
+// tenant-scoped but returned by the subscription-scoped list call; they are
 // stored under each subscription's account_id (acceptable duplication — the
-// ResourceID hash differs and per-sub resolvers can FK-match locally).
+// ResourceID hash differs, so per-sub resolvers still FK-match locally).
 func scanAuthorization(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Role definitions first so the resolver can FK from assignments.
 	defClient, err := armauthorization.NewRoleDefinitionsClient(cred, azClientOptions)

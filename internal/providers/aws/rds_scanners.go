@@ -80,9 +80,8 @@ type rdsPager[P any] interface {
 	NextPage(context.Context, ...func(*rds.Options)) (P, error)
 }
 
-// rdsPageScan runs a paginated RDS Describe call, converts each page to a
-// batch of resources via toResources, and upserts the batch. Access-denied
-// errors are skipped via skipIfAccessDenied.
+// rdsPageScan pages an RDS Describe call, converts each page via toResources,
+// and upserts. Access-denied errors skip via skipIfAccessDenied.
 func rdsPageScan[P any](
 	ctx context.Context,
 	iamAction string,
@@ -192,14 +191,12 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 	)
 }
 
-// nonRDSEngines covers engines that ride on the rds:Describe* APIs but
-// have their own dedicated SDK service + disco type. Filter these out
-// of the RDS scanner so each engine row lands under exactly one type
-// (and one scanner owns its resolvers). Kept narrow: docdb is here for
-// safety even though rds:DescribeDBClusters does NOT return docdb in
-// practice (per docdb's own dedicated CreateDBCluster.Engine valid
-// values); the filter is cheap and guards against AWS later choosing
-// to surface docdb via the shared API.
+// nonRDSEngines are engines that ride rds:Describe* APIs but have their own
+// dedicated SDK service + disco type; filtered out so each engine row lands
+// under exactly one type (and one scanner owns its resolvers). docdb stays
+// even though rds:DescribeDBClusters does NOT currently return it (per
+// docdb's own CreateDBCluster.Engine valid values) — cheap guard against AWS
+// later surfacing docdb via the shared API.
 var nonRDSEngines = map[string]bool{
 	"neptune": true,
 	"docdb":   true,
@@ -591,7 +588,7 @@ func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *accoun
 	toResources := func(page *rds.DescribeDBEngineVersionsOutput) []*store.Resource {
 		var out []*store.Resource
 		for _, ev := range page.DBEngineVersions {
-			// Guard: skip any standard versions that slip through.
+			// Skip standard versions that slip through.
 			if !strings.HasPrefix(sv(ev.Status), "custom-") {
 				continue
 			}

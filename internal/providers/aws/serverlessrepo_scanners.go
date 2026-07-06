@@ -20,8 +20,8 @@ func init() {
 }
 
 // serverlessRepoAPI is the narrow surface scanServerlessRepoApplications uses.
-// ListApplications is paginator-native and returns owned applications; the
-// summary's ApplicationId field carries the application ARN.
+// ListApplications is paginator-native, returns owned applications; the
+// summary's ApplicationId carries the application ARN.
 type serverlessRepoAPI interface {
 	ListApplications(context.Context, *serverlessapplicationrepository.ListApplicationsInput, ...func(*serverlessapplicationrepository.Options)) (*serverlessapplicationrepository.ListApplicationsOutput, error)
 }

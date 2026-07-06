@@ -46,9 +46,9 @@ type batchComputeEnvAttrs struct {
 //   - compute-env → subnet (uses) per ComputeResources.Subnets[]
 //   - compute-env → security group (uses) per ComputeResources.SecurityGroupIDs[]
 //
-// FK-safe via per-type id sets. Cross-account refs skip silently.
-// Fargate compute-envs have no ComputeResources.InstanceRole/SecurityGroups —
-// the nil-check on ComputeResources covers that path.
+// FK-safe via per-type id sets; cross-account refs skip silently. Fargate
+// compute-envs lack ComputeResources.InstanceRole/SecurityGroups — covered
+// by the nil-check on ComputeResources.
 func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error {
 	envs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -86,9 +86,9 @@ func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error
 			region = *e.Region
 		}
 
-		// Service role: ARN form. Note Batch InstanceRole is also an ARN
-		// (instance profile or role). Both treated as IAM-role refs;
-		// instance-profile ARNs simply skip (FK-safe via roleIDs).
+		// Service role: ARN form. Batch InstanceRole is also an ARN (instance
+		// profile or role); both treated as IAM-role refs, instance-profile
+		// ARNs simply skip (FK-safe via roleIDs).
 		for _, roleARN := range []string{
 			sv(attrs.ServiceRole),
 			func() string {
@@ -148,8 +148,8 @@ type batchJobQueueAttrs struct {
 }
 
 // resolveBatchJobQueueComputeEnvs emits job-queue → compute-env (uses)
-// edges. Compute-env order preserved as edge attrs `{"order":N}` so
-// graph consumers can reconstruct the dispatch priority.
+// edges; compute-env order preserved as edge attrs `{"order":N}` so
+// graph consumers can reconstruct dispatch priority.
 func resolveBatchJobQueueComputeEnvs(acct *account, st *store.Store) error {
 	queues, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -199,9 +199,9 @@ func resolveBatchJobQueueComputeEnvs(acct *account, st *store.Store) error {
 	return nil
 }
 
-// batchJobDefAttrs mirrors verbatim JobDefinition fields used by the
-// resolver. Nests under ContainerProperties (single-container jobs).
-// Multi-node parallel + ECS task-properties variants deferred.
+// batchJobDefAttrs mirrors verbatim JobDefinition fields the resolver uses,
+// nested under ContainerProperties (single-container jobs). Multi-node
+// parallel + ECS task-properties variants deferred.
 type batchJobDefAttrs struct {
 	ContainerProperties *struct {
 		Image            *string `json:"Image"`
@@ -216,8 +216,8 @@ type batchJobDefAttrs struct {
 //   - job-definition → ECR repository (uses) via ContainerProperties.Image
 //     (parsed via existing apprunnerImageToRepoARN helper — same URL shape)
 //
-// FK-safe via per-type id sets. Multi-node parallel jobs (NodeProperties)
-// + ECS task-properties variant + EKS pod-properties variant deferred.
+// FK-safe via per-type id sets. Multi-node parallel jobs (NodeProperties),
+// ECS task-properties, and EKS pod-properties variants deferred.
 func resolveBatchJobDefinitionTargets(acct *account, st *store.Store) error {
 	defs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

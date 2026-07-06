@@ -20,9 +20,9 @@ func init() {
 }
 
 // resolveAppFlowConnectorProfileRelationships wires each connector profile to
-// the Secrets Manager secret holding its credentials (CredentialsArn). The
-// sanitize.go denylist redacts scalars under `credential`-substring keys, but
-// its shape-bounded allowlist preserves AWS ARN values verbatim, so the ARN
+// the Secrets Manager secret holding its credentials (CredentialsArn).
+// sanitize.go's denylist redacts scalars under `credential`-substring keys,
+// but its shape-bounded ARN allowlist preserves the value verbatim, so it
 // survives scrubbing and is readable here.
 func resolveAppFlowConnectorProfileRelationships(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -63,7 +63,7 @@ func resolveAppFlowConnectorProfileRelationships(acct *account, st *store.Store)
 // resolveAppFlowRelationships emits flow → KMS edges via FlowDefinition's
 // per-flow `kmsArn` field. Connector-profile / source / destination edges
 // are deferred until the per-(flow, profile) describe fan-out lands —
-// FlowDefinition itself carries only the connector-type discriminator
+// FlowDefinition carries only the connector-type discriminator
 // (e.g. "S3", "Salesforce") plus a connector-profile name, not target ARNs.
 func resolveAppFlowRelationships(acct *account, st *store.Store) error {
 	flows, err := st.ListResources(store.ResourceFilter{

@@ -11,12 +11,12 @@ import (
 	sltypes "github.com/aws/aws-sdk-go-v2/service/securitylake/types"
 )
 
-// isSecurityLakeNotEnabled disambiguates two not-enabled shapes from real
-// IAM denial: "must be a delegated Security Lake administrator account"
-// (delegation prerequisite missing) and the canned action-less
-// "account is not authorized to perform this operation" (Security Lake
-// not onboarded for the account at all). Real IAM denials always name
-// the action ("User: arn:... is not authorized to perform: <action>").
+// isSecurityLakeNotEnabled disambiguates two not-enabled shapes from real IAM
+// denial: "must be a delegated Security Lake administrator account"
+// (delegation prerequisite missing) and the canned action-less "account is
+// not authorized to perform this operation" (Security Lake not onboarded at
+// all). Real IAM denials always name the action ("User: arn:... is not
+// authorized to perform: <action>").
 func isSecurityLakeNotEnabled(err error) bool {
 	if !isAccessDenied(err) {
 		return false
@@ -47,8 +47,8 @@ type securityLakeAPI interface {
 // scanSecurityLake discovers Security Lake data lakes (per-region), subscribers,
 // and AWS log sources (the per-(account, region, source) flag).
 //
-// AWS::SecurityLake::SubscriberNotification is skip-logged: the SDK exposes
-// only Create/Delete/Update and no list endpoint.
+// AWS::SecurityLake::SubscriberNotification is skipped: the SDK exposes only
+// Create/Delete/Update, no list endpoint.
 func scanSecurityLake(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := securitylake.NewFromConfig(acct.cfg, func(o *securitylake.Options) { o.Region = region })
 

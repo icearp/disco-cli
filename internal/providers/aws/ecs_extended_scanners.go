@@ -8,11 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 )
 
-// isNoTaskSets reports whether err is the InvalidParameterException AWS returns
-// from DescribeTaskSets for a service using the default rolling-update (ECS)
-// deployment controller. Only EXTERNAL / CODE_DEPLOY services have task sets;
-// for the rest AWS rejects the call with "TaskSets cannot be empty." A
-// structural fact about the service, not a scanner error — skip it.
+// isNoTaskSets reports whether err is the InvalidParameterException DescribeTaskSets
+// returns for a default rolling-update (ECS) deployment controller service. Only
+// EXTERNAL / CODE_DEPLOY services have task sets; others get "TaskSets cannot be
+// empty" — a structural fact, not a scanner error, so skip it.
 func isNoTaskSets(err error) bool {
 	return isAPIErrorWithMessage(err, "InvalidParameterException", "TaskSets cannot be empty")
 }

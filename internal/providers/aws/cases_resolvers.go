@@ -19,7 +19,7 @@ func init() {
 }
 
 // casesDomainARNFromChild extracts `arn:aws:cases:r:a:domain/{domainId}` from
-// any per-domain child NativeID of shape
+// a per-domain child NativeID shaped
 // `arn:aws:cases:r:a:domain/{domainId}/<kind>/{childId}`.
 func casesDomainARNFromChild(arn string) string {
 	const seg = ":domain/"

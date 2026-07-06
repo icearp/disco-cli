@@ -18,12 +18,12 @@ func init() {
 	)
 }
 
-// resolveTrafficManagerRelationships derives profile -[uses]-> backend
-// resource edges via embedded properties.endpoints[].properties.targetResourceId.
-// Endpoints of type ExternalEndpoints / NestedEndpoints carry an FQDN target
-// instead of an ARM ID — those are skipped here. Per-sub lowercased
-// NativeID index covers any backend type the targetResourceId might point
-// at (Public IP, App Service site, another Traffic Manager profile, etc.).
+// resolveTrafficManagerRelationships derives profile -[uses]-> backend edges
+// from embedded properties.endpoints[].properties.targetResourceId.
+// ExternalEndpoints/NestedEndpoints carry an FQDN target instead of an ARM ID
+// and are skipped. A per-sub lowercased NativeID index covers any backend
+// type targetResourceId might point at (Public IP, App Service site, another
+// Traffic Manager profile, etc.).
 func resolveTrafficManagerRelationships(sub *subscription, st *store.Store) error {
 	profiles, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

@@ -337,13 +337,13 @@ func TestRedact_BotServiceBot(t *testing.T) {
 
 func TestRedact_AppServiceSite_KeyVaultRefPreserved(t *testing.T) {
 	// Azure Key Vault reference URIs sit at properties.siteConfig.appSettings
-	// values; previous sanitize.go preserved them via isReferenceURI shape
-	// recogniser. Under per-type rules, the value is a plain scalar at the
-	// rule path — REDACTED. That's the intentional trade-off: KV-ref consumers
-	// (resolvers wiring App Service → KV) read the *resolved* settings via
+	// values; previous sanitize.go preserved them via the isReferenceURI shape
+	// recogniser. Under per-type rules the value is a plain scalar at the
+	// rule path — REDACTED. Intentional trade-off: KV-ref consumers (resolvers
+	// wiring App Service → KV) read the *resolved* settings via
 	// Microsoft.Web/sites/config Get with KeyVault references, not the raw
-	// settings array. If a resolver depends on this URI, it should read from
-	// the dedicated config resource (a separate scanner emit).
+	// settings array. A resolver depending on this URI should read from the
+	// dedicated config resource (a separate scanner emit).
 	in := map[string]any{
 		"properties": map[string]any{
 			"siteConfig": map[string]any{

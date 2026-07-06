@@ -43,9 +43,9 @@ type eventbridgeAPI interface {
 	ListEventSources(context.Context, *eventbridge.ListEventSourcesInput, ...func(*eventbridge.Options)) (*eventbridge.ListEventSourcesOutput, error)
 }
 
-// scanEventBridge discovers EventBridge event buses and rules in one region.
-// Rules are listed per event bus and enriched with their targets via
-// ListTargetsByRule (targets are stored inline in attributes for resolver use).
+// scanEventBridge discovers EventBridge buses and rules in one region. Rules
+// are listed per bus and enriched with targets via ListTargetsByRule (stored
+// inline in attributes for resolver use).
 func scanEventBridge(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := eventbridge.NewFromConfig(acct.cfg, func(o *eventbridge.Options) { o.Region = region })
 	t, i, ferr := scanEventBridgeAll(ctx, client, acct, region, st, scanID)
@@ -157,8 +157,7 @@ func scanEventBridgeBuses(ctx context.Context, client eventbridgeAPI, acct *acco
 				Region:         &region,
 				AttributesJSON: attrsJSON,
 				DiscoveredBy:   scanID,
-				// Name "default" is the AWS-managed default event bus
-				// present in every region.
+				// "default" is AWS's managed default bus, present in every region.
 				ManagedByProvider: sv(b.Name) == "default",
 			})
 			busNames = append(busNames, sv(b.Name))

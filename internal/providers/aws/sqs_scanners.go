@@ -23,28 +23,27 @@ func init() {
 	})
 }
 
-// sqsAPI is the narrow set of SQS operations called by scanSQSQueues. The
-// SDK's *sqs.Client satisfies this interface; tests supply a hand-rolled
-// stub. Following AWS SDK Go v2 unit-testing guidance §"Mocking client
-// operations": each method matches the SDK shape so pagination + option
-// fns continue to work unchanged.
+// sqsAPI is the narrow set of SQS operations scanSQSQueues calls. *sqs.Client
+// satisfies it; tests supply a hand-rolled stub. Per AWS SDK Go v2's "Mocking
+// client operations" guidance: each method matches the SDK shape so pagination
+// + option fns keep working unchanged.
 type sqsAPI interface {
 	ListQueues(context.Context, *sqs.ListQueuesInput, ...func(*sqs.Options)) (*sqs.ListQueuesOutput, error)
 	GetQueueAttributes(context.Context, *sqs.GetQueueAttributesInput, ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error)
 }
 
 // scanSQS discovers SQS queues in one region. ListQueues returns URLs;
-// GetQueueAttributes is called concurrently to fetch the queue ARN (used as
-// the NativeID so other services that reference queues by ARN resolve) and
-// attributes (KmsMasterKeyId, RedrivePolicy) needed by the resolver.
+// GetQueueAttributes fetches concurrently the queue ARN (used as the NativeID
+// so other services referencing queues by ARN resolve) and attributes
+// (KmsMasterKeyId, RedrivePolicy) needed by the resolver.
 func scanSQS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sqs.NewFromConfig(acct.cfg, func(o *sqs.Options) { o.Region = region })
 	return scanSQSQueues(ctx, client, acct, region, st, scanID)
 }
 
-// scanSQSQueues holds the testable scan body: it depends only on the narrow
-// sqsAPI interface so unit tests inject a stub client without standing up
-// HTTP mocks. Top-level scanSQS wires the concrete *sqs.Client.
+// scanSQSQueues is the testable scan body: depends only on the narrow sqsAPI
+// interface so unit tests inject a stub client without standing up HTTP
+// mocks. Top-level scanSQS wires the concrete *sqs.Client.
 func scanSQSQueues(ctx context.Context, client sqsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	p := sqs.NewListQueuesPaginator(client, &sqs.ListQueuesInput{
 		MaxResults: sdkaws.Int32(1000),
@@ -79,8 +78,8 @@ func scanSQSQueues(ctx context.Context, client sqsAPI, acct *account, region str
 				if arn == "" {
 					return nil // queue deleted mid-scan or missing permission for QueueArn
 				}
-				// Include the URL alongside AWS attributes so the URL is still
-				// queryable. AWS uses "QueueUrl" naming elsewhere.
+				// Include the URL alongside AWS attributes so it stays queryable;
+				// AWS uses "QueueUrl" naming elsewhere.
 				attrsOut.Attributes["QueueUrl"] = url
 				r := &store.Resource{
 					Provider:       "aws",

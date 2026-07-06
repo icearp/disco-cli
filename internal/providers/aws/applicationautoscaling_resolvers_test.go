@@ -7,7 +7,7 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveApplicationAutoScalingPolicyToTarget verifies that a scaling
+// TestResolveApplicationAutoScalingPolicyToTarget verifies a scaling
 // policy's (ServiceNamespace, ResourceId, ScalableDimension) triple
 // produces a policy → scalable-target attached-to relationship.
 func TestResolveApplicationAutoScalingPolicyToTarget(t *testing.T) {
@@ -37,7 +37,7 @@ func TestResolveApplicationAutoScalingPolicyToTarget(t *testing.T) {
 	assertRelationship(t, rels, policyID, targetID, store.RelAttachedTo)
 }
 
-// TestResolveApplicationAutoScalingPolicyToTarget_Missing verifies that an
+// TestResolveApplicationAutoScalingPolicyToTarget_Missing verifies an
 // unscanned scalable-target produces no edge and no error.
 func TestResolveApplicationAutoScalingPolicyToTarget_Missing(t *testing.T) {
 	st := newTestStore(t)
@@ -60,7 +60,7 @@ func TestResolveApplicationAutoScalingPolicyToTarget_Missing(t *testing.T) {
 	}
 }
 
-// TestResolveApplicationAutoScalingPolicyToTarget_NoAttrs verifies that
+// TestResolveApplicationAutoScalingPolicyToTarget_NoAttrs verifies
 // missing attrs fields produce no edge and no panic.
 func TestResolveApplicationAutoScalingPolicyToTarget_NoAttrs(t *testing.T) {
 	st := newTestStore(t)

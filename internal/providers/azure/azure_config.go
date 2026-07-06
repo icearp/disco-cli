@@ -24,21 +24,21 @@ type subscriptionCfg struct {
 }
 
 // loadSubscriptions parses the viper config and returns resolved subscriptions
-// plus the shared credential. Scope precedence: a non-nil override pins the
-// scan to exactly those subscriptions; otherwise the config 'subscriptions:'
-// list; otherwise every accessible subscription is auto-enumerated. See
-// resolveSubscriptionScope for the fail-closed semantics of override.
+// plus the shared credential. Scope precedence: non-nil override pins the scan
+// to exactly those subscriptions; else the config 'subscriptions:' list; else
+// every accessible subscription auto-enumerates. See resolveSubscriptionScope
+// for override's fail-closed semantics.
 func loadSubscriptions(ctx context.Context, override []string) ([]subscription, azcore.TokenCredential, error) {
 	var cfg providerCfg
 	if err := viper.UnmarshalKey("azure", &cfg); err != nil {
 		return nil, nil, fmt.Errorf("parse azure config: %w", err)
 	}
 
-	// DefaultAzureCredential tries: env vars → workload identity → Azure CLI.
-	// Wrap it in a token cache shared by every arm* client: each client builds
-	// its own BearerTokenPolicy, and an uncached credential serializes GetToken
-	// under the scan's client fan-out — the dominant scan-time cost before this
-	// cache (see cachingCredential).
+	// DefaultAzureCredential tries env vars → workload identity → Azure CLI.
+	// Wrap it in a token cache shared by every arm* client: each client builds its
+	// own BearerTokenPolicy, and an uncached credential serializes GetToken under
+	// the scan's client fan-out — the dominant scan-time cost before this cache
+	// (see cachingCredential).
 	base, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("azure credential: %w", err)
@@ -56,14 +56,13 @@ func loadSubscriptions(ctx context.Context, override []string) ([]subscription, 
 
 // resolveSubscriptionScope decides the subscription set for a scan without
 // touching the network — the enumerate callback wraps the only ARM call, so
-// tests can assert it is never reached. Precedence:
+// tests can assert it's never reached. Precedence:
 //
-//   - override non-nil (an explicit pin from --subscriptions): use ONLY those
-//     IDs and never call enumerate. Fail-closed — if the pin trims to zero
-//     non-empty IDs, return an error rather than auto-enumerating. This is the
-//     security-critical branch: under Azure Lighthouse one shared identity is
-//     delegated subscriptions from many tenants, and silent enumeration would
-//     read every tenant's subscriptions.
+//   - override non-nil (explicit pin from --subscriptions): use only those IDs,
+//     never call enumerate. Fail-closed — if the pin trims to zero non-empty
+//     IDs, error instead of auto-enumerating. Security-critical: under Azure
+//     Lighthouse one shared identity is delegated subscriptions from many
+//     tenants, so silent enumeration would read every tenant's subscriptions.
 //   - override nil + config list present: use the configured subscriptions.
 //   - override nil + config empty: call enumerate (auto-discover all accessible).
 func resolveSubscriptionScope(override []string, cfg providerCfg, enumerate func() ([]subscription, error)) ([]subscription, error) {

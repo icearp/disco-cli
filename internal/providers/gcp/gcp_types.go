@@ -1,8 +1,8 @@
 package gcp
 
-// Resource type constants for all GCP resource types discovered by this provider.
-// Using constants prevents typos in scanner and resolver files — a mismatched
-// string would create orphan resources with an undeclared type.
+// Resource type constants for all GCP resource types this provider discovers.
+// Constants prevent typos in scanner/resolver files — a mismatched string
+// creates orphan resources with an undeclared type.
 const (
 	// Cloud Resource Manager
 	TypeOrganization = "gcp:cloudresourcemanager:organization"

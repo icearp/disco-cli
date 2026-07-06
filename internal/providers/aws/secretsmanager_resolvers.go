@@ -24,10 +24,9 @@ func init() {
 	)
 }
 
-// resolveSecretsManagerReplication links each replica secret back to its
-// primary. A secret is a replica when its PrimaryRegion differs from its own
-// region. The primary's ARN is derived by swapping the region segment of the
-// current secret's ARN with PrimaryRegion.
+// resolveSecretsManagerReplication links each replica secret to its primary.
+// A secret is a replica when PrimaryRegion differs from its own region; the
+// primary's ARN is derived by swapping the region segment of the secret's ARN.
 func resolveSecretsManagerReplication(acct *account, st *store.Store) error {
 	secrets, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -65,9 +64,8 @@ func resolveSecretsManagerReplication(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveSecretsManagerRotation links each secret with rotation enabled to the
-// Lambda function that performs the rotation. RotationLambdaARN is absent for
-// secrets without automatic rotation.
+// resolveSecretsManagerRotation links each secret with rotation enabled to its
+// rotation Lambda. RotationLambdaARN is absent when rotation isn't enabled.
 func resolveSecretsManagerRotation(acct *account, st *store.Store) error {
 	secrets, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -93,9 +91,9 @@ func resolveSecretsManagerRotation(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveSecretsManagerKMS links each secret to the KMS key that encrypts it.
-// KmsKeyID is omitted when the AWS-managed default key is used — skip in that
-// case since disco doesn't scan AWS-managed keys.
+// resolveSecretsManagerKMS links each secret to its encrypting KMS key.
+// KmsKeyID is omitted for the AWS-managed default key — skip since disco
+// doesn't scan AWS-managed keys.
 func resolveSecretsManagerKMS(acct *account, st *store.Store) error {
 	secrets, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

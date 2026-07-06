@@ -17,7 +17,7 @@ func init() {
 		fn:   scanStorageGateway,
 		emits: []coverage.TypeDecl{
 			{Service: "storagegateway", DiscoType: TypeStorageGatewayGateway, Leaf: true},
-			// volume / share / tape / fs-association / device wire an outbound
+			// volume/share/tape/fs-association/device each wire an outbound
 			// attached-to edge to their gateway (see storagegateway_resolvers.go).
 			{Service: "storagegateway", DiscoType: TypeStorageGatewayVolume},
 			{Service: "storagegateway", DiscoType: TypeStorageGatewayShare},
@@ -31,8 +31,8 @@ func init() {
 }
 
 // storageGatewayAPI is the narrow surface the scanner uses. Every List op is
-// account-wide and paginator-native; DescribeVTLDevices is per-gateway (the
-// gateway ARN is required) and has no paginator.
+// account-wide and paginator-native; DescribeVTLDevices is per-gateway
+// (gateway ARN required) and has no paginator.
 type storageGatewayAPI interface {
 	ListGateways(context.Context, *storagegateway.ListGatewaysInput, ...func(*storagegateway.Options)) (*storagegateway.ListGatewaysOutput, error)
 	ListVolumes(context.Context, *storagegateway.ListVolumesInput, ...func(*storagegateway.Options)) (*storagegateway.ListVolumesOutput, error)
@@ -283,8 +283,8 @@ func scanSGWCacheReports(ctx context.Context, client storageGatewayAPI, acct *ac
 
 // scanSGWVTLDevices fans out DescribeVTLDevices per gateway — only VTL (tape)
 // gateways host devices, so non-VTL gateways reject the call; tolerate the
-// per-gateway error and keep scanning siblings. The VTLDeviceARN embeds the
-// gateway ARN, so the resolver recovers the parent from the NativeID.
+// per-gateway error and keep scanning siblings. VTLDeviceARN embeds the
+// gateway ARN, so the resolver recovers the parent from NativeID.
 func scanSGWVTLDevices(ctx context.Context, client storageGatewayAPI, gatewayARNs []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if len(gatewayARNs) == 0 {
 		return 0, 0, nil
@@ -303,8 +303,8 @@ func scanSGWVTLDevices(ctx context.Context, client storageGatewayAPI, gatewayARN
 				}
 				out, derr := client.DescribeVTLDevices(gctx, in)
 				if derr != nil {
-					// Non-VTL gateways (file/volume) reject DescribeVTLDevices;
-					// tolerate per-gateway like an access denial.
+					// Non-VTL (file/volume) gateways reject DescribeVTLDevices;
+					// tolerate per-gateway, like an access denial.
 					if isAccessDenied(derr) || isAPIErrorCode(derr, "InvalidGatewayRequestException") {
 						return nil
 					}

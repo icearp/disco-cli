@@ -13,8 +13,8 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// noRateLimit returns an unthrottled pacer so unit tests don't pace their calls at
-// the production 10 req/s. rate.Inf makes Wait return immediately; burst is ignored.
+// noRateLimit returns an unthrottled pacer so tests skip the production 10 req/s pace;
+// rate.Inf makes Wait return immediately, burst ignored.
 func noRateLimit() *pacer { return newPacer(rate.Inf, 0) }
 
 // stubServiceQuotas is an in-memory serviceQuotasAPI for unit tests. ListServices
@@ -27,7 +27,7 @@ type stubServiceQuotas struct {
 	quotas       map[string][]sqtypes.ServiceQuota
 	quotaPage    int
 	quotaErr     map[string]error // keyed by ServiceCode
-	gotMaxResult atomic.Int32     // a MaxResults seen on ListServiceQuotas (race-free under fanout)
+	gotMaxResult atomic.Int32     // MaxResults seen on ListServiceQuotas (race-free under fanout)
 }
 
 func encodeTok(n int) *string { s := strconv.Itoa(n); return &s }
@@ -345,8 +345,8 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 
 // TestScanServiceQuotas_LimitOnlyChurnFree is the change-over-time contract:
 // re-scanning an unchanged limit produces NO new version; a changed limit splits
-// a new version. Drives the real scanner + mustJSON serialization, so it would
-// also catch a volatile field sneaking into the stored attributes.
+// a new version. Uses the real scanner + mustJSON serialization, so it also
+// catches a volatile field sneaking into the stored attributes.
 func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

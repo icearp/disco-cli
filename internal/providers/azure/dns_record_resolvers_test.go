@@ -7,9 +7,9 @@ import (
 )
 
 // TestResolveDNSRecordSetRelationships covers A record set → public-IP edge
-// derivation across both public + private DNS zones. Non-A record types skip
-// silently. Records pointing at unknown IPs (cross-account / unscanned PIP)
-// also skip silently.
+// derivation across public + private DNS zones. Non-A record types and
+// records pointing at unknown IPs (cross-account/unscanned PIP) both skip
+// silently.
 func TestResolveDNSRecordSetRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-dns")
@@ -26,9 +26,9 @@ func TestResolveDNSRecordSetRelationships(t *testing.T) {
 	privID := upsertTestResource(t, st, "azure", sub.ID, TypeDNSPrivateRecordSet,
 		"/subscriptions/sub-dns/resourceGroups/RG/providers/Microsoft.Network/privateDnsZones/internal.contoso/A/host1", "global", privAAttrs)
 
-	// IPv6 PIP stores the v6 literal in the same properties.ipAddress field. The
-	// PIP writes it expanded/upper-cased; the AAAA record writes it compressed —
-	// canonicalIP must fold both to one key so the edge still resolves.
+	// IPv6 PIP stores the v6 literal in the same properties.ipAddress field.
+	// PIP writes it expanded/upper-cased; AAAA record writes it compressed —
+	// canonicalIP must fold both to one key for the edge to resolve.
 	pip6Attrs := `{"properties":{"ipAddress":"2001:0DB8:0000:0000:0000:0000:0000:0001","publicIPAddressVersion":"IPv6"}}`
 	pip6ID := upsertTestResource(t, st, "azure", sub.ID, TypeNetworkPublicIPAddress,
 		"/subscriptions/sub-dns/resourceGroups/RG/providers/Microsoft.Network/publicIPAddresses/pip6", "eastus", pip6Attrs)

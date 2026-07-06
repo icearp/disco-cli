@@ -51,9 +51,9 @@ func scanSecurityIRCases(ctx context.Context, client securityIRAPI, acct *accoun
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			// Account not signed up for AWS Security Incident Response — the
-			// whole service is inert, so mark it disabled (progress line reads
-			// "(account: disabled)") rather than surfacing a scan error.
+			// Account not signed up for Security IR — whole service is inert,
+			// so mark disabled (progress line reads "(account: disabled)")
+			// rather than surfacing a scan error.
 			if isAPIErrorCode(err, "SecurityIncidentResponseNotActiveException") {
 				return 0, 0, markServiceDisabled(err)
 			}
@@ -67,8 +67,8 @@ func scanSecurityIRCases(ctx context.Context, client securityIRAPI, acct *accoun
 			if id == "" {
 				continue
 			}
-			// ListCases may omit CaseArn; synthesize the canonical ARN from the
-			// case ID so the NativeID is stable across re-scans.
+			// ListCases may omit CaseArn; synthesize the canonical ARN from
+			// CaseId for a stable NativeID across re-scans.
 			arn := sv(c.CaseArn)
 			if arn == "" {
 				arn = fmt.Sprintf("arn:aws:security-ir:%s:%s:case/%s", region, acct.ID, id)

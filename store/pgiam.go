@@ -1,9 +1,9 @@
-// RDS IAM database-authentication support for the Postgres backend. When
+// RDS IAM database authentication for the Postgres backend. When
 // DISCO_PG_IAM_AUTH is set, the scanner authenticates to Postgres with a
-// short-lived IAM token instead of a password, so no DB password needs to be
-// provisioned for the scanner task. Tokens (~15 min TTL) gate only the
-// handshake, so a fresh one is minted before every physical connection via
-// the pgx BeforeConnect hook.
+// short-lived IAM token instead of a password, so the scanner task needs no
+// DB password provisioned. Tokens (~15 min TTL) gate only the handshake, so
+// a fresh one is minted before every physical connection via the pgx
+// BeforeConnect hook.
 package store
 
 import (
@@ -30,10 +30,10 @@ func iamAuthEnabled() bool {
 }
 
 // iamBeforeConnect returns a pgx before-connect hook that mints a fresh RDS
-// IAM auth token and installs it as the connection password, or (nil, nil)
-// when IAM auth is disabled. The AWS region + credentials come from the
-// ambient config (task role on ECS); the DB user + host are read from the
-// per-dial ConnConfig. The DSN is expected to be passwordless.
+// IAM token and sets it as the connection password, or (nil, nil) if IAM
+// auth is disabled. AWS region/credentials come from ambient config (task
+// role on ECS); DB user/host come from the per-dial ConnConfig. DSN is
+// expected passwordless.
 func iamBeforeConnect(ctx context.Context) (func(context.Context, *pgx.ConnConfig) error, error) {
 	if !iamAuthEnabled() {
 		return nil, nil

@@ -7,8 +7,7 @@ import (
 )
 
 // RenderTable writes a tabwriter-aligned plain-text matrix. Bucket column
-// makes filtering by `awk '$4 == "covered"'` etc. straightforward at the
-// shell.
+// supports shell filtering, e.g. `awk '$4 == "covered"'`.
 func RenderTable(w io.Writer, matrices []Matrix) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	if _, err := fmt.Fprintln(tw, "PROVIDER\tSERVICE\tDISCO TYPE\tUPSTREAM KEY\tBUCKET\tREASON"); err != nil {

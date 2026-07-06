@@ -31,8 +31,8 @@ func init() {
 // scanEventGrid discovers Event Grid topics, system topics, domains, and
 // global-scope event subscriptions. Per-topic / per-domain / per-system-topic
 // event-subscription fan-out is deferred — the global pager covers
-// subscription- and resource-group-scoped subscriptions, which is the bulk of
-// graph-relevant traffic. Partner-namespace, partner-topic, partner-channel,
+// subscription- and RG-scoped subscriptions, the bulk of graph-relevant
+// traffic. Partner-namespace, partner-topic, partner-channel,
 // CA-certificates, and namespaces (the newer pull-style EventGrid namespaces)
 // deferred to follow-up iterations.
 func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {

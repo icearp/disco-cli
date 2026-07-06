@@ -68,8 +68,8 @@ func TestResolveLogsGroupAnomalyDetectors(t *testing.T) {
 	groupARN := "arn:aws:logs:us-east-1:123456789012:log-group:my-group"
 	detectorARN := "arn:aws:logs:us-east-1:123456789012:anomaly-detector:det1"
 
-	// Anomaly detector stores ARNs with trailing ":*" as returned by the API;
-	// the resolver must strip it before lookup.
+	// Anomaly detector stores ARNs with trailing ":*" (per the API); the
+	// resolver must strip it before lookup.
 	attrsJSON := `{"LogGroupArnList":["` + groupARN + `:*"]}`
 
 	groupID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsLogGroup, groupARN, "us-east-1", "{}")

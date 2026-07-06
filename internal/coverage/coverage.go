@@ -210,17 +210,16 @@ func Names() []string {
 	return out
 }
 
-// Build assembles the coverage matrix for one provider. emits and upstream
-// are deduped by their canonical keys (DiscoType / UpstreamKey) before
-// matching. A disco-type whose alias resolves to a live upstream key is
-// covered; one whose key is absent falls through to BucketUncatalogued when it
-// is flagged Uncatalogued (an expected registry gap for a scanned resource),
-// otherwise to BucketUpstreamMissing — the drift signal called out in ROADMAP
-// G5. Because Uncatalogued is checked only after a failed match, such a type
-// auto-upgrades to covered if the registry later lists it.
-// skips maps a (case-insensitive) upstream key to the reason disco deliberately
-// does not scan it; matching leftover-upstream entries become BucketNotScannable
-// instead of BucketUncovered. Pass nil when the provider declares no skips.
+// Build assembles the coverage matrix for one provider. emits and upstream are
+// deduped by canonical keys (DiscoType / UpstreamKey) first. A disco-type
+// whose alias resolves to a live upstream key is covered; a miss falls to
+// BucketUncatalogued if flagged Uncatalogued (expected registry gap for a
+// scanned resource), else BucketUpstreamMissing — the drift signal in ROADMAP
+// G5. Uncatalogued is checked only after a failed match, so such a type
+// auto-upgrades to covered once the registry lists it.
+// skips maps a (case-insensitive) upstream key to why disco doesn't scan it;
+// matching leftover-upstream entries become BucketNotScannable instead of
+// BucketUncovered. Pass nil if the provider declares no skips.
 func Build(providerName string, emits []TypeDecl, aliases map[string]string, algorithmic func(string) string, upstream []UpstreamType, skips map[string]string, canonical func(string) string) Matrix {
 	if algorithmic == nil {
 		algorithmic = AlgorithmicUpstreamKey
@@ -228,7 +227,7 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 	// Normalise skip keys to the lowercased namespace Build matches in. Also
 	// index by canonical identity so one skip entry covers a key's cross-catalog
 	// twin (CFN PascalCase vs SR hyphenated) — same collapse the duplicate path
-	// uses, so a skip declared under either spelling matches the other.
+	// uses, so a skip declared under either spelling matches.
 	skipByKey := make(map[string]string, len(skips))
 	skipByCanon := make(map[string]string, len(skips))
 	for k, reason := range skips {
@@ -248,10 +247,10 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 		dedupedEmits = append(dedupedEmits, t)
 	}
 
-	// Index upstream by key (lowercased for case-insensitive lookup; Azure
-	// stores ARM IDs case-insensitively, AWS CFN names are case-sensitive but
-	// alias maps may carry typo'd casing — lowercasing is forgiving without
-	// loss because every provider has a unique key namespace).
+	// Index upstream by key, lowercased for case-insensitive lookup: Azure ARM
+	// IDs are case-insensitive, AWS CFN names are case-sensitive but alias maps
+	// may carry typo'd casing — lowercasing is forgiving since every provider
+	// has a unique key namespace.
 	upstreamByKey := make(map[string]UpstreamType, len(upstream))
 	for _, u := range upstream {
 		upstreamByKey[strings.ToLower(u.Key)] = u
@@ -262,8 +261,8 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 	matched := make(map[string]bool, len(upstream))
 
 	// coveredCanon maps each covered upstream key's canonical identity back to
-	// its raw key, so a leftover key whose identity collides is reclassified as
-	// a cross-catalog duplicate of the covered spelling rather than uncovered.
+	// its raw key, so a leftover key with a colliding identity reclassifies as
+	// a cross-catalog duplicate of the covered spelling instead of uncovered.
 	coveredCanon := map[string]string{}
 
 	rows := make([]Row, 0, len(dedupedEmits)+len(upstream))
@@ -372,16 +371,14 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 	return Matrix{Provider: providerName, Rows: rows}
 }
 
-// AlgorithmicUpstreamKey is the fallback mapping used when no alias is
-// registered for a given disco-type. Today this is just the lowercased
-// disco-type itself — alias maps are the source of truth for accurate
-// matching, and the fallback exists only so that providers whose
-// upstream-key shape happens to equal the disco-type can omit alias entries.
+// AlgorithmicUpstreamKey is the fallback used when no alias is registered
+// for a disco-type. Today it's just the lowercased disco-type itself — alias
+// maps are the source of truth for accurate matching; the fallback only lets
+// providers whose upstream-key shape equals the disco-type skip alias entries.
 //
 // Per-provider algorithmic conversions (CFN PascalCase, ARM camelCase, GCP
 // resource-collection forms) live in the provider's coverage.go alias-map
-// builder, where the disco<->upstream rules are visible alongside the
-// provider's other quirks.
+// builder, alongside the provider's other quirks.
 func AlgorithmicUpstreamKey(discoType string) string {
 	return strings.ToLower(discoType)
 }

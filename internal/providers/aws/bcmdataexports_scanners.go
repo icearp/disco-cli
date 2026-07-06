@@ -21,7 +21,7 @@ func init() {
 
 // bcmDataExportsAPI is the narrow surface scanBCMDataExports uses.
 // ListExports returns ExportReference summaries; GetExport pulls the
-// full Export body needed for the S3-destination edge.
+// full Export body for the S3-destination edge.
 type bcmDataExportsAPI interface {
 	ListExports(context.Context, *bcmdataexports.ListExportsInput, ...func(*bcmdataexports.Options)) (*bcmdataexports.ListExportsOutput, error)
 	GetExport(context.Context, *bcmdataexports.GetExportInput, ...func(*bcmdataexports.Options)) (*bcmdataexports.GetExportOutput, error)

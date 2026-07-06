@@ -17,10 +17,9 @@ func init() {
 }
 
 // resolveContainerRegistryRelationships derives ACR -[uses]-> Key Vault edges
-// for registries that opt into customer-managed key encryption. The CMEK
-// reference on a registry is a Key Vault key URI (https://{vault}.vault.azure.net/keys/{name}/{ver}),
-// so the resolver parses the host to recover the vault name and matches it
-// against a per-sub vault-name index.
+// for CMEK-enabled registries. The CMEK reference is a Key Vault key URI
+// (https://{vault}.vault.azure.net/keys/{name}/{ver}); the resolver parses the
+// host to recover the vault name and matches it against a per-sub vault-name index.
 func resolveContainerRegistryRelationships(sub *subscription, st *store.Store) error {
 	registries, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,
@@ -72,10 +71,10 @@ func resolveContainerRegistryRelationships(sub *subscription, st *store.Store) e
 	return nil
 }
 
-// vaultNameFromKeyURI extracts the vault name from a Key Vault key URI of the
-// form "https://{vault}.vault.azure.net/keys/{name}[/{version}]". Returns ""
-// if the host shape does not match. Reused by any resolver mapping a Key
-// Vault key/secret URI back to a vault resource.
+// vaultNameFromKeyURI extracts the vault name from a Key Vault key URI shaped
+// "https://{vault}.vault.azure.net/keys/{name}[/{version}]"; returns "" if the
+// host doesn't match. Reused by any resolver mapping a Key Vault key/secret
+// URI back to a vault resource.
 func vaultNameFromKeyURI(uri string) string {
 	u, err := url.Parse(uri)
 	if err != nil || u.Host == "" {

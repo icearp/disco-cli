@@ -9,9 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
 )
 
-// ecrExtAPI lists the additional ECR ops used by the extended scanner phases.
-// All registry-scoped Get* ops return singleton config; the Describe* ops are
-// account-wide. Synthesized ARN format: arn:aws:ecr:{region}:{account}:{kind}/{key}.
+// ecrExtAPI lists the ECR ops used by the extended scanner phases: registry-
+// scoped Get* ops return singleton config, Describe* ops are account-wide.
+// Synthesized ARN format: arn:aws:ecr:{region}:{account}:{kind}/{key}.
 type ecrExtAPI interface {
 	DescribePullThroughCacheRules(context.Context, *ecr.DescribePullThroughCacheRulesInput, ...func(*ecr.Options)) (*ecr.DescribePullThroughCacheRulesOutput, error)
 	ListPullTimeUpdateExclusions(context.Context, *ecr.ListPullTimeUpdateExclusionsInput, ...func(*ecr.Options)) (*ecr.ListPullTimeUpdateExclusionsOutput, error)
@@ -194,10 +194,9 @@ func scanECRSigningConfiguration(ctx context.Context, client ecrExtAPI, acct *ac
 			_ = skipIfAccessDenied(st, "ecr:GetSigningConfiguration", acct.ID, region, err)
 			return 0, 0, nil
 		}
-		// SigningConfigurationNotFoundException = no signing config set for the
-		// account/region (default state). Regions where image signing isn't
-		// offered reject with ValidationException "This feature is disabled".
-		// Both are default/availability state — treat as no-op.
+		// SigningConfigurationNotFoundException = no signing config set (default
+		// state). Regions without image signing reject with ValidationException
+		// "This feature is disabled". Both are default/availability state — no-op.
 		if isAPIErrorCode(err, "SigningConfigurationNotFoundException") ||
 			isAPIErrorWithMessage(err, "ValidationException", "feature is disabled") {
 			return 0, 0, nil
@@ -214,8 +213,8 @@ func scanECRSigningConfiguration(ctx context.Context, client ecrExtAPI, acct *ac
 	return upsertBatch(st, batch, "ecr signing-configuration")
 }
 
-// scanECRPublicRepositories scans Public ECR repositories. The ecrpublic
-// service is global but only callable from us-east-1 — gate other regions out.
+// scanECRPublicRepositories scans Public ECR repositories. ecrpublic is
+// global but only callable from us-east-1 — gate other regions out.
 func scanECRPublicRepositories(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if region != "us-east-1" {
 		return 0, 0, nil

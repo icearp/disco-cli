@@ -33,8 +33,7 @@ type crgEntry struct {
 }
 
 // scanDedicated discovers Azure dedicated infrastructure: host groups, dedicated hosts,
-// capacity reservation groups, and capacity reservations.
-// Both top-level resource chains are scanned in parallel.
+// capacity reservation groups, and capacity reservations. Both chains scan in parallel.
 func scanDedicated(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		mu      sync.Mutex

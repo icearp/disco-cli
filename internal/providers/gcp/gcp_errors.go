@@ -10,12 +10,12 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
-// errServiceDisabled is a sentinel returned by per-service scanners when
-// the GCP API itself is not enabled in the calling project. The scanProject
+// errServiceDisabled is a sentinel returned by per-service scanners when the
+// GCP API itself is not enabled in the calling project. scanProject's
 // dispatch loop detects it via errors.Is and surfaces "(project: disabled)"
 // on the per-service progress line — no warning, no error report. Wrap
-// upstream errors via markServiceDisabled so the original message is
-// preserved for debugging if anyone unwraps. Mirrors the AWS pattern in
+// upstream errors via markServiceDisabled so the original message survives
+// for debugging if unwrapped. Mirrors the AWS pattern in
 // internal/providers/aws/aws_errors.go.
 var errServiceDisabled = errors.New("gcp service not enabled")
 
@@ -32,9 +32,9 @@ func markServiceDisabled(err error) error {
 //   - 400 with message "has not enabled..." (BigQuery, Spanner billing-flavour)
 //   - error reason "accessNotConfigured" inside googleapi.Error.Errors[]
 //
-// Distinct from isPermissionDenied (a wider check that also fires on real
-// IAM 403s); the two don't agree on every input. isAPINotEnabled is what
-// gates the sentinel path; isPermissionDenied gates the warning path.
+// Distinct from isPermissionDenied (wider — also fires on real IAM 403s);
+// the two disagree on some inputs. isAPINotEnabled gates the sentinel path,
+// isPermissionDenied the warning path.
 func isAPINotEnabled(err error) bool {
 	var gerr *googleapi.Error
 	if !errors.As(err, &gerr) {

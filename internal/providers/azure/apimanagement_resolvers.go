@@ -18,8 +18,8 @@ func init() {
 // edge for VNet-injected (Internal/External mode) instances via
 // `properties.virtualNetworkConfiguration.subnetResourceId`. Reuses
 // vnetIDFromSubnetID. Identity → MSI edges covered by generic consumer
-// resolver. KeyVault edges (named-values that reference vault secrets) live
-// under sub-resources and are deferred.
+// resolver. KeyVault edges (named-values referencing vault secrets) live
+// under sub-resources; deferred.
 func resolveAPIManagementRelationships(sub *subscription, st *store.Store) error {
 	services, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

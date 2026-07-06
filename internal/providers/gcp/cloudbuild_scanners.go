@@ -20,9 +20,9 @@ func init() {
 }
 
 // scanCloudBuildTriggers discovers Cloud Build triggers. Worker pools +
-// connection (Cloud Build → GitHub/GitLab) deferred — separate sibling APIs
-// (cloudbuild/v2 for repositories, v1 ProjectsLocationsWorkerPools for
-// pools); each merits its own scanner iteration.
+// GitHub/GitLab connections deferred — separate sibling APIs (cloudbuild/v2
+// for repositories, v1 ProjectsLocationsWorkerPools for pools), each
+// meriting its own scanner iteration.
 func scanCloudBuildTriggers(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := cloudbuild.NewService(ctx, opts...)
@@ -35,9 +35,9 @@ func scanCloudBuildTriggers(ctx context.Context, p *project, st *store.Store, sc
 			batch := make([]*store.Resource, 0, len(page.Triggers))
 			for _, tr := range page.Triggers {
 				name := tr.Name
-				// Synthesize NativeID — `ResourceName` is canonical format
-				// `projects/{p}/locations/global/triggers/{id}` but is not
-				// always populated; fall back to a synthesized form.
+				// Synthesize NativeID — `ResourceName` is the canonical
+				// `projects/{p}/locations/global/triggers/{id}` form but
+				// isn't always populated; fall back to synthesized form.
 				nativeID := tr.ResourceName
 				if nativeID == "" {
 					nativeID = fmt.Sprintf("projects/%s/triggers/%s", p.ID, tr.Id)

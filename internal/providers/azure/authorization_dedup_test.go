@@ -9,8 +9,8 @@ import (
 )
 
 // TestIsTenantDedupedPolicyType pins the per-sub skip boundary: BuiltIn and
-// Static are deduplicated to the tenant (both returned by ListBuiltIn), so they
-// are skipped per-sub; NotSpecified and Custom stay per-sub.
+// Static dedup to the tenant (both returned by ListBuiltIn) so are skipped
+// per-sub; NotSpecified and Custom stay per-sub.
 func TestIsTenantDedupedPolicyType(t *testing.T) {
 	cases := []struct {
 		name string
@@ -34,7 +34,7 @@ func TestIsTenantDedupedPolicyType(t *testing.T) {
 
 // upsertManagedTestResource inserts a ManagedByProvider resource (built-in role /
 // policy definition) and returns its stable ID. Built-ins are managed in
-// production, and ListResources hides managed rows by default — so resolver tests
+// production and ListResources hides managed rows by default, so resolver tests
 // MUST seed them managed to exercise the IncludeManaged FK path.
 func upsertManagedTestResource(t *testing.T, st *store.Store, accountID, rtype, nativeID, attrsJSON string) string {
 	t.Helper()
@@ -74,15 +74,15 @@ func TestNormalizeRoleDefKey(t *testing.T) {
 }
 
 // TestResolveAuthorization_CrossAccountBuiltinFK is the FK-break guard for the
-// dedup: a role assignment in a subscription must still resolve its -[uses]->
-// edge to a BUILT-IN role definition that lives under the TENANT account (a
-// different account_id), matched via the scope-independent role key. Reverting
-// the resolver to a same-account GetResource turns this red.
+// dedup: a role assignment in a subscription must resolve its -[uses]-> edge to
+// a BUILT-IN role definition under the TENANT account (a different account_id),
+// matched via the scope-independent role key. Reverting the resolver to a
+// same-account GetResource turns this red.
 func TestResolveAuthorization_CrossAccountBuiltinFK(t *testing.T) {
 	st := newTestStore(t)
 	sub := &subscription{ID: "sub-1", tenantID: "tenant-1"}
 
-	// Built-in role def stored once under the tenant account with a scope-free
+	// Built-in role def stored once under the tenant account, scope-free
 	// NativeID (as scanAuthorizationBuiltins writes it).
 	builtinNativeID := "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
 	builtinID := upsertManagedTestResource(t, st, sub.tenantID, TypeAuthorizationRoleDefinition, builtinNativeID, `{"properties":{"roleName":"Contributor"}}`)

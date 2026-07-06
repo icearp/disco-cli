@@ -12,17 +12,17 @@ import (
 	"strings"
 )
 
-// RulesSHA256 returns a deterministic hex-encoded sha256 over the union of
-// every .rego file under paths (files or directories, recursive) plus every
-// in-memory module passed via modules. The hash is over a NUL-delimited
-// concatenation of `name\x00body\x00...` with entries sorted by name, so
-// adding/removing/editing any rule perturbs it. Used as SARIF rule-pack
-// provenance so attestations can prove which ruleset produced findings.
+// RulesSHA256 returns a deterministic hex-encoded sha256 over every .rego
+// file under paths (files or directories, recursive) plus every in-memory
+// module in modules. Hashed as a NUL-delimited `name\x00body\x00...`
+// concatenation sorted by name, so any rule add/remove/edit perturbs it.
+// Used as SARIF rule-pack provenance so attestations can prove which
+// ruleset produced findings.
 //
-// Module names are normalized to a stable shape: filesystem paths are
-// rendered absolute then made repo-relative via filepath.Clean; embedded
-// pack entries (already keyed `<pack>/<file>`) round-trip unchanged. Empty
-// inputs yield the sha256 of the empty string ("e3b0c4...").
+// Module names normalize to a stable shape: filesystem paths become
+// absolute then repo-relative via filepath.Clean; embedded pack entries
+// (already keyed `<pack>/<file>`) round-trip unchanged. Empty input yields
+// the sha256 of the empty string ("e3b0c4...").
 func RulesSHA256(paths []string, modules map[string]string) (string, error) {
 	collected := map[string]string{}
 	maps.Copy(collected, modules)

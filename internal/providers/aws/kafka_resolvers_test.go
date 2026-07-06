@@ -84,9 +84,9 @@ func TestResolveKafkaRelationships_Serverless(t *testing.T) {
 	assertRelationship(t, rels, clusterID, sgID, store.RelUses)
 }
 
-// TestResolveKafkaRelationships_AWSManagedKMS verifies that an AWS-managed
-// KMS alias reference does not emit a KMS edge (the AWS-managed key is not
-// scanned, so the edge would be dangling).
+// TestResolveKafkaRelationships_AWSManagedKMS verifies an AWS-managed KMS
+// alias reference emits no KMS edge (the AWS-managed key isn't scanned, so
+// the edge would dangle).
 func TestResolveKafkaRelationships_AWSManagedKMS(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

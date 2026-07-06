@@ -90,10 +90,9 @@ func resolveKMSGrants(acct *account, st *store.Store) error {
 
 // kmsEncCtxARNDispatch maps an EncryptionContext key (the well-known
 // "aws:<svc>:<Field>Arn" shape AWS services use to scope KMS grants) to the
-// disco type the value's ARN points at. Lambda's `aws:lambda:FunctionArn`
-// is the canonical case (Lambda env-var encryption); add new keys here as
-// other services adopt the pattern (precedent surfaced by aws-resolver-audit
-// against AWS-managed-key grants).
+// disco type its ARN value points at. Lambda's `aws:lambda:FunctionArn` is
+// the canonical case (env-var encryption); add new keys as other services
+// adopt the pattern (precedent: aws-resolver-audit vs AWS-managed-key grants).
 var kmsEncCtxARNDispatch = map[string]string{
 	"aws:lambda:FunctionArn": TypeLambdaFunction,
 }

@@ -39,7 +39,7 @@ func init() {
 
 // scanBigtable discovers Bigtable instances and their clusters. Tables and
 // app-profiles deferred — table cardinality is unbounded; app-profiles need
-// per-cluster context that the cluster CMEK story doesn't yet require.
+// per-cluster context the cluster CMEK story doesn't yet require.
 func scanBigtable(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := bigtableadmin.NewService(ctx, opts...)

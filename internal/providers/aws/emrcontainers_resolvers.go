@@ -78,8 +78,8 @@ func resolveEMRCJobTemplateRefs(acct *account, st *store.Store) error {
 }
 
 // resolveEMRCEndpointRefs wires each managed endpoint to its parent virtual
-// cluster (via NativeID `/virtualclusters/{id}/endpoints/{id}` extract) and to
-// its execution role.
+// cluster (extracted from NativeID `/virtualclusters/{id}/endpoints/{id}`) and
+// to its execution role.
 func resolveEMRCEndpointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEMRContainersEndpoint}, Limit: util.AllResources,

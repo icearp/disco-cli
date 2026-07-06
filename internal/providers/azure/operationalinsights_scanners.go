@@ -23,9 +23,9 @@ func init() {
 
 // scanOperationalInsights discovers Azure Log Analytics workspaces.
 // Solutions, data collection rules/endpoints, saved searches, and linked
-// services are deferred — workspace rows alone unlock the diagnostic-settings
-// edge target story (resource → workspace) once the diagnostic-settings
-// resolver lands; the sub-resources add inventory volume but few cross-edges.
+// services are deferred: workspace rows alone unlock the diagnostic-settings
+// edge target (resource → workspace) once that resolver lands; sub-resources
+// add inventory volume but few cross-edges.
 func scanOperationalInsights(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {

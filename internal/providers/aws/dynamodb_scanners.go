@@ -19,10 +19,10 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "dynamodb", DiscoType: TypeDynamoDBTable},
 			{Service: "dynamodb", DiscoType: TypeDynamoDBGlobalTable},
-			// CFN has no AWS::DynamoDB::Stream type (a stream is a Table
-			// property there), but the Service Reference catalog lists
-			// dynamodb/stream, so the union covers it. The "dynamodb" service
-			// segment is canonical per IAM/SR despite the dynamodbstreams client.
+			// CFN has no AWS::DynamoDB::Stream (stream is a Table property
+			// there), but Service Reference catalog lists dynamodb/stream, so
+			// the union covers it. "dynamodb" segment is canonical per IAM/SR
+			// despite the dynamodbstreams client.
 			{Service: "dynamodb", DiscoType: TypeDynamoDBStream},
 			{Service: "dynamodb", DiscoType: TypeDynamoDBBackup},
 		},
@@ -70,7 +70,7 @@ func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.S
 
 // scanDynamoDBBackups discovers on-demand DynamoDB table backups. ListBackups
 // paginates via ExclusiveStartBackupArn / LastEvaluatedBackupArn (no SDK
-// paginator type). On-demand and system (PITR) backups are both returned.
+// paginator type). Returns both on-demand and system (PITR) backups.
 func scanDynamoDBBackups(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	var startARN *string
@@ -104,7 +104,7 @@ func scanDynamoDBBackups(ctx context.Context, client dynamodbAPI, acct *account,
 }
 
 // scanDynamoDBTables discovers DynamoDB tables in one region. ListTables returns
-// names only; we describe each table in parallel to avoid N+1 sequential API calls.
+// names only; tables are described in parallel to avoid N+1 sequential calls.
 func scanDynamoDBTables(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	p := dynamodb.NewListTablesPaginator(client, &dynamodb.ListTablesInput{})
 	return pageScanConcurrent(ctx, "dynamodb:ListTables", acct, region, st,
@@ -138,10 +138,9 @@ func scanDynamoDBTables(ctx context.Context, client dynamodbAPI, acct *account, 
 
 // scanDynamoDBGlobalTables discovers DynamoDB global tables (legacy v2017.11.29
 // API). ListGlobalTables is a global operation — it returns all global tables
-// in the account regardless of which region the client is configured for. The
-// scan is registered per-region like all other services; repeated upserts are
-// idempotent because GlobalTableArn is the stable NativeID. Global tables are
-// stored with Region=nil since they span multiple regions.
+// in the account regardless of client region. Registered per-region like other
+// services; repeated upserts are idempotent since GlobalTableArn is the stable
+// NativeID. Stored with Region=nil since global tables span multiple regions.
 func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// ListGlobalTables has no SDK Paginator; paginate manually via LastEvaluatedGlobalTableName.
 	var startName *string
@@ -213,10 +212,10 @@ func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *acc
 }
 
 // scanDynamoDBStreams discovers DynamoDB streams in one region. Streams are
-// first-class resources owned by tables: tables carry LatestStreamArn, the
+// first-class resources owned by tables: tables carry LatestStreamArn; the
 // table→stream `contains` resolver targets these rows. ListStreams has no SDK
 // paginator — manual ExclusiveStartStreamArn loop. DescribeStream enriches
-// each entry with status, view type, key schema, and the current shard page.
+// each entry with status, view type, key schema, and current shard page.
 func scanDynamoDBStreams(ctx context.Context, client dynamodbStreamsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var startArn *string
 	for {

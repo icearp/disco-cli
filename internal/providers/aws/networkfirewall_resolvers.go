@@ -149,8 +149,8 @@ func resolveNetworkFirewallTLSInspectionRefs(acct *account, st *store.Store) err
 }
 
 // nfFirewallAttrs extracts the fields on DescribeFirewall's response needed
-// for edge emission. Tags are PascalCase to match mustJSON output of the AWS
-// SDK v2 response structs (no json tags).
+// for edge emission. PascalCase tags match mustJSON's AWS SDK v2 response
+// output (no json tags).
 type nfFirewallAttrs struct {
 	Firewall *struct {
 		FirewallPolicyArn *string `json:"FirewallPolicyArn"`
@@ -176,8 +176,7 @@ type nfPolicyAttrs struct {
 
 // resolveNetworkFirewallFirewallRelationships emits edges from each Network
 // Firewall to: its firewall policy (uses), its VPC (attached-to), and each
-// subnet mapping (attached-to). FK-safe: targets absent from the store are
-// silently skipped.
+// subnet mapping (attached-to). FK-safe: skips targets absent from the store.
 func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store) error {
 	firewalls, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

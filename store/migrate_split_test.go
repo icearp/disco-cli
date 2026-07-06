@@ -52,7 +52,7 @@ CREATE TABLE u (id INT);`)
 }
 
 func TestSplitStatements_PreservesOriginalBehavior(t *testing.T) {
-	// The pre-existing simple cases must keep splitting on plain ;.
+	// Simple cases must still split on plain ;.
 	stmts := splitStatements(`SELECT 1; SELECT 2; SELECT 3;`)
 	if len(stmts) != 3 {
 		t.Errorf("got %d stmts: %v", len(stmts), stmts)

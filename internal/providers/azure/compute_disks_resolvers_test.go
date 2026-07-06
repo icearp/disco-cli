@@ -8,8 +8,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 )
 
-// TestResolveSnapshotSourceRelationships verifies that a snapshot's source disk
-// relationship is correctly derived from creationData.sourceResourceId.
+// TestResolveSnapshotSourceRelationships verifies a snapshot's source-disk
+// relationship is derived from creationData.sourceResourceId.
 func TestResolveSnapshotSourceRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -52,8 +52,8 @@ func TestResolveSnapshotSourceRelationships_NoSnapshots(t *testing.T) {
 	}
 }
 
-// TestResolveDiskEncryptionSetRelationships verifies that a managed disk is linked
-// to its disk encryption set via properties.encryption.diskEncryptionSetId.
+// TestResolveDiskEncryptionSetRelationships verifies a managed disk links to its
+// disk encryption set via properties.encryption.diskEncryptionSetId.
 func TestResolveDiskEncryptionSetRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -86,8 +86,7 @@ func TestResolveDiskEncryptionSetRelationships(t *testing.T) {
 	}
 }
 
-// TestResolveDiskEncryptionSetRelationships_NoAttrs verifies no error when disk
-// has no encryption field.
+// TestResolveDiskEncryptionSetRelationships_NoAttrs verifies no error when disk has no encryption field.
 func TestResolveDiskEncryptionSetRelationships_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -100,8 +99,8 @@ func TestResolveDiskEncryptionSetRelationships_NoAttrs(t *testing.T) {
 	}
 }
 
-// TestResolveDiskSourceRelationships_FromSnapshot verifies that a managed disk
-// created from a snapshot is linked via properties.creationData.sourceResourceId.
+// TestResolveDiskSourceRelationships_FromSnapshot verifies a disk created from a
+// snapshot links via properties.creationData.sourceResourceId.
 func TestResolveDiskSourceRelationships_FromSnapshot(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -134,8 +133,7 @@ func TestResolveDiskSourceRelationships_FromSnapshot(t *testing.T) {
 	}
 }
 
-// TestResolveDiskSourceRelationships_NoSource verifies no error when disk has
-// no creationData.sourceResourceId.
+// TestResolveDiskSourceRelationships_NoSource verifies no error when disk has no creationData.sourceResourceId.
 func TestResolveDiskSourceRelationships_NoSource(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)

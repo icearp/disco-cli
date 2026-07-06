@@ -29,8 +29,8 @@ type groundStationAPI interface {
 
 // scanGroundStation discovers GroundStation configs, dataflow endpoint
 // groups, and mission profiles. AWS::GroundStation::DataflowEndpointGroupV2
-// is skip-logged: SDK exposes only CreateDataflowEndpointGroupV2 with no
-// corresponding list endpoint.
+// is skip-logged: SDK exposes only CreateDataflowEndpointGroupV2, no list
+// endpoint.
 func scanGroundStation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := groundstation.NewFromConfig(acct.cfg, func(o *groundstation.Options) { o.Region = region })
 

@@ -88,7 +88,7 @@ func resolveS3FilesAccessPointRefs(acct *account, st *store.Store) error {
 }
 
 // s3filesChildToFS wires an s3files child (access-point, mount-target) to its
-// parent file-system via FileSystemId field. FK-safe.
+// parent file-system via FileSystemId. FK-safe.
 func s3filesChildToFS(acct *account, st *store.Store, ttyp string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ttyp}, Limit: util.AllResources,

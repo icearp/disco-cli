@@ -81,9 +81,9 @@ func bedrockModelsListErr(st *store.Store, op, acctID, region string, perr error
 	case isHTTP404(perr):
 		return true, nil
 	// Some model ops (ListImportedModels, ListMarketplaceModelEndpoints) are
-	// account-opt-in sub-features of Bedrock; an un-enrolled account is refused
-	// with this message while the rest of Bedrock works. Sub-feature gap, not a
-	// real IAM denial — silent-skip so the working surface still scans.
+	// account-opt-in Bedrock sub-features; an un-enrolled account is refused with
+	// this message while the rest of Bedrock works. Not a real IAM denial —
+	// silent-skip so the working surface still scans.
 	case isAPIErrorWithMessage(perr, "AccessDeniedException", "not authorized to invoke this API operation"):
 		return true, nil
 	case isAccessDenied(perr):

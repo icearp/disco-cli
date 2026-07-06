@@ -8,12 +8,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
 )
 
-// isGuardDutyMemberRestricted matches the BadRequestException AWS returns when
-// a member account calls a management-account-only GuardDuty op (e.g.
+// isGuardDutyMemberRestricted matches the BadRequestException a member
+// account gets calling a management-account-only GuardDuty op (e.g.
 // ListThreatEntitySets, ListTrustedEntitySets — entity sets are managed
-// centrally by the delegated admin and propagated read-only to members).
-// Code+message disambiguates from real validation errors that share the
-// BadRequestException code.
+// centrally by the delegated admin, propagated read-only to members).
+// Code+message disambiguates from real validation errors sharing the same
+// code.
 func isGuardDutyMemberRestricted(err error) bool {
 	return isAPIErrorWithMessage(err, "BadRequestException", "member accounts cannot manage")
 }

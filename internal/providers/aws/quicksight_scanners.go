@@ -69,18 +69,16 @@ type quickSightAPI interface {
 	DescribeAccountCustomization(context.Context, *quicksight.DescribeAccountCustomizationInput, ...func(*quicksight.Options)) (*quicksight.DescribeAccountCustomizationOutput, error)
 }
 
-// qsSoftSkip — QuickSight returns AccessDenied or
-// UnsupportedUserEditionException when the account is not subscribed
-// or the edition lacks the feature; ResourceNotFoundException when
-// a region/feature is not supported; PreconditionNotMetException when
-// the account has no QuickSight subscription at all (e.g. ListAgents);
-// UnauthorizedException (401) for edition-gated newer ops (e.g. ListFlows).
-// All treated as soft-skips. QuickSight-scoped, so a real credential failure
-// still surfaces on every other service.
+// qsSoftSkip reports whether err is a QuickSight soft-skip: AccessDenied,
+// UnsupportedUserEditionException (not subscribed / edition lacks feature),
+// ResourceNotFoundException (region/feature unsupported), PreconditionNotMetException
+// (no subscription at all, e.g. ListAgents), or UnauthorizedException (401, edition-gated
+// newer ops, e.g. ListFlows). Scoped to QuickSight — a real credential failure still
+// surfaces on every other service.
 func qsSoftSkip(err error) bool {
-	// Newer QuickSight (Q) ops like ListAgents 404 with an HTML body in regions
-	// where the feature isn't deployed — the SDK can't map it to a typed code
-	// (deserialization fails on '<'), so fall back to the HTTP status.
+	// Newer QuickSight (Q) ops like ListAgents 404 with an HTML body where the
+	// feature isn't deployed — SDK can't map it to a typed code (deserialization
+	// fails on '<'), so fall back to the HTTP status.
 	if isHTTP404(err) {
 		return true
 	}
@@ -463,10 +461,10 @@ func scanQSActionConnectors(ctx context.Context, client quickSightAPI, acct *acc
 	})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
-		// ListActionConnectors raises 500 InternalFailure in regions where
-		// the (newish) feature is not deployed. The global 10-attempt
-		// adaptive retryer eats ~2m before giving up. Clamp this op's
-		// retry budget so the soft-skip path triggers fast.
+		// ListActionConnectors raises 500 InternalFailure where the (newish)
+		// feature isn't deployed. The global 10-attempt adaptive retryer eats
+		// ~2m before giving up. Clamp this op's retry budget so soft-skip
+		// triggers fast.
 		out, perr := pager.NextPage(ctx, func(o *quicksight.Options) { o.RetryMaxAttempts = 2 })
 		if perr != nil {
 			if qsSoftSkip(perr) || isAPIErrorCode(perr, "InternalFailure") {

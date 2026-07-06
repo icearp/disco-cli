@@ -22,8 +22,8 @@ func init() {
 }
 
 // resolveSSMIResponsePlanRefs wires each response plan to the ssm-contacts
-// contacts/escalation plans it engages (Engagements[] carries either contact
-// or escalation-plan ARNs — distinguish by ARN suffix `:contact/` vs
+// contact/escalation-plan it engages (Engagements[] carries contact or
+// escalation-plan ARNs, distinguished by ARN suffix `:contact/` vs
 // `:contact-plan/`).
 func resolveSSMIResponsePlanRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -54,8 +54,8 @@ func resolveSSMIResponsePlanRefs(acct *account, st *store.Store) error {
 			if !strings.Contains(e, ":contact/") {
 				continue
 			}
-			// Both contact and escalation-plan ARNs use the `:contact/` segment;
-			// disco splits them by ContactType at scan time. Try plan first then
+			// Both contact and escalation-plan ARNs share the `:contact/` segment;
+			// disco splits them by ContactType at scan time. Try plan then
 			// contact — whichever id-set has the row wins.
 			if pID := store.ResourceID("aws", acct.ID, TypeSSMContactsPlan, e); planSet[pID] {
 				if err := st.UpsertRelationship(r.ID, pID, store.RelUses, "directed", nil); err != nil {

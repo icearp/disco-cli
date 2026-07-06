@@ -22,7 +22,7 @@ func init() {
 	})
 }
 
-// aidevopsAPI is the narrow surface the aidevops scanners use; the SDK's
+// aidevopsAPI is the narrow surface the aidevops scanners use;
 // *devopsagent.Client (the DevOps Agent / aidevops service) satisfies it.
 type aidevopsAPI interface {
 	ListAgentSpaces(context.Context, *devopsagent.ListAgentSpacesInput, ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error)

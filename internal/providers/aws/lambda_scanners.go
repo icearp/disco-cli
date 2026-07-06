@@ -16,12 +16,11 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// lambdaFunctionAttrs wraps the SDK FunctionConfiguration with an enriched
-// Code block so image-package functions surface their ECR image URI in
-// AttributesJSON. The embedded type promotes all FunctionConfiguration
-// fields to top level — existing resolvers reading `Role`, `KMSKeyArn`,
-// `VpcConfig`, etc. continue to work unchanged. The `Code` sibling is
-// populated via GetFunction for PackageType=Image only.
+// lambdaFunctionAttrs wraps SDK FunctionConfiguration with an enriched Code
+// block so image-package functions surface their ECR image URI in
+// AttributesJSON. Embedding promotes all FunctionConfiguration fields to top
+// level, so resolvers reading `Role`, `KMSKeyArn`, `VpcConfig`, etc. keep
+// working unchanged. `Code` is populated via GetFunction, PackageType=Image only.
 type lambdaFunctionAttrs struct {
 	lambdatypes.FunctionConfiguration
 	Code *lambdaFunctionCodeAttrs `json:"Code,omitempty"`
@@ -29,7 +28,7 @@ type lambdaFunctionAttrs struct {
 
 // lambdaFunctionCodeAttrs holds the verbatim Code fields disco needs.
 // ImageURI is the only edge-bearing field; ResolvedImageUri / RepositoryType
-// are not required for graph relationships.
+// aren't needed for graph relationships.
 type lambdaFunctionCodeAttrs struct {
 	ImageURI *string `json:"ImageUri,omitempty"`
 }
@@ -54,11 +53,10 @@ func init() {
 	})
 }
 
-// lambdaAPI is the narrow set of Lambda operations called by the scanLambda
-// sub-phases. Lambda has the largest iface in the codebase (10 paginators)
-// — the scanner discovers functions, their aliases / versions / URLs /
-// event-invoke configs, plus event-source mappings, code-signing configs,
-// capacity providers, layers, and layer-versions.
+// lambdaAPI is the narrow set of Lambda ops called by scanLambda's
+// sub-phases. Largest iface in the codebase (10 paginators): functions,
+// their aliases / versions / URLs / event-invoke configs, plus event-source
+// mappings, code-signing configs, capacity providers, layers, and layer-versions.
 type lambdaAPI interface {
 	ListFunctions(context.Context, *lambda.ListFunctionsInput, ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error)
 	ListAliases(context.Context, *lambda.ListAliasesInput, ...func(*lambda.Options)) (*lambda.ListAliasesOutput, error)
@@ -76,8 +74,8 @@ type lambdaAPI interface {
 	GetLayerVersionPolicy(context.Context, *lambda.GetLayerVersionPolicyInput, ...func(*lambda.Options)) (*lambda.GetLayerVersionPolicyOutput, error)
 }
 
-// lambdaFunctionSummary holds the minimal per-function data reused by per-function
-// sub-scanners (aliases, versions, event invoke configs, function URLs).
+// lambdaFunctionSummary holds minimal per-function data reused by the
+// per-function sub-scanners (aliases, versions, event invoke configs, URLs).
 type lambdaFunctionSummary struct {
 	name string // FunctionName
 	arn  string // FunctionArn (unqualified)
@@ -488,8 +486,8 @@ func scanLambdaEventSourceMappings(ctx context.Context, client lambdaAPI, acct *
 }
 
 // scanLambdaLayerVersions discovers all Lambda layer versions in the region and
-// upserts them as aws:lambda:layer-version resources. It first lists all layers,
-// then paginates layer versions per layer.
+// upserts them as aws:lambda:layer-version resources. Lists layers first, then
+// paginates each layer's versions.
 func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// lambdaLayerSummary holds the minimal data needed to list a layer's versions.
 	type lambdaLayerSummary struct {
@@ -552,12 +550,12 @@ func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *accoun
 	return
 }
 
-// scanLambdaForeignLayers enriches the layer-version coverage with rows for
+// scanLambdaForeignLayers enriches layer-version coverage with rows for
 // AWS-managed (or otherwise cross-account) layers that customer functions
-// reference via Layers[].Arn. ListLayers only returns caller-account
-// layers, so without this phase those references would FK-fail in
-// resolveLambdaLayerRelationships. Each foreign layer is upserted with
-// ManagedByProvider=true so it stays hidden from default `disco resources` /
+// reference via Layers[].Arn. ListLayers only returns caller-account layers,
+// so without this phase those references would FK-fail in
+// resolveLambdaLayerRelationships. Each foreign layer upserts with
+// ManagedByProvider=true, hiding it from default `disco resources` /
 // `disco graph`.
 func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	// Read the function rows the function-scanner just upserted (this

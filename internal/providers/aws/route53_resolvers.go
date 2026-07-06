@@ -53,8 +53,8 @@ func init() {
 }
 
 // resolveRoute53QueryLoggingConfig wires each query-logging config to the hosted
-// zone it logs (HostedZoneId) and the CloudWatch Logs log group it writes to
-// (CloudWatchLogsLogGroupArn, with the SDK's trailing ":*" stripped).
+// zone it logs (HostedZoneId) and the CloudWatch log group it writes to
+// (CloudWatchLogsLogGroupArn; trailing SDK ":*" stripped).
 func resolveRoute53QueryLoggingConfig(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -154,15 +154,15 @@ func resolveRoute53TrafficPolicyInstance(acct *account, st *store.Store) error {
 
 // resolveRoute53AliasRelationships links record sets with AliasTarget.DNSName
 // to the AWS backend fronted by that DNS (ELBv2 LB, CloudFront distribution,
-// APIGW custom domain v1/v2). Emits `uses` edges. Alias records whose DNS
-// doesn't match any scanned backend are skipped — avoids phantom edges.
+// APIGW custom domain v1/v2), emitting `uses` edges. Records whose alias DNS
+// matches no scanned backend are skipped, avoiding phantom edges.
 //
-// S3-website aliases handled separately: the AliasTarget.DNSName is a region
-// endpoint shared by every website-enabled bucket in that region (e.g.
-// `s3-website-us-east-1.amazonaws.com`), so it can't disambiguate which
-// bucket. S3 website hosting requires the bucket name to exactly match the
-// record FQDN, so when the alias DNS is recognized as an S3-website endpoint
-// the resolver pivots to looking up the bucket by record-set name.
+// S3-website aliases are handled separately: AliasTarget.DNSName is a
+// per-region endpoint shared by every website-enabled bucket (e.g.
+// `s3-website-us-east-1.amazonaws.com`), so it can't disambiguate buckets.
+// Since S3 website hosting requires the bucket name to exactly match the
+// record FQDN, when the alias DNS is an S3-website endpoint the resolver
+// looks up the bucket by record-set name instead.
 func resolveRoute53AliasRelationships(acct *account, st *store.Store) error {
 	index, err := buildAliasBackendIndex(acct, st)
 	if err != nil {
@@ -223,20 +223,19 @@ func resolveRoute53AliasRelationships(acct *account, st *store.Store) error {
 	return nil
 }
 
-// isS3WebsiteEndpoint reports whether dns is an S3 static-website hosting
-// regional endpoint. Two shapes coexist: legacy `s3-website-<region>` (older
-// regions like us-east-1) and modern `s3-website.<region>` (newer regions
-// like ap-east-1, eu-south-1). Both are normalized via lowercase + trailing
-// dot strip prior to this check.
+// isS3WebsiteEndpoint reports whether dns is an S3 static-website regional
+// endpoint. Two shapes coexist: legacy `s3-website-<region>` (e.g.
+// us-east-1) and modern `s3-website.<region>` (e.g. ap-east-1, eu-south-1).
+// Both are normalized (lowercase, trailing dot stripped) before this check.
 func isS3WebsiteEndpoint(dns string) bool {
 	return strings.HasPrefix(dns, "s3-website-") || strings.HasPrefix(dns, "s3-website.")
 }
 
 // buildS3BucketNameIndex maps lowercased bucket name → bucket resource ID
-// for every scanned S3 bucket in the account. Bucket NativeID is
-// `arn:aws:s3:::<name>`, so the name is the suffix after the prefix. S3
-// bucket names are globally unique and case-folded by AWS, so the lowercase
-// is just for matching against record FQDNs (which the resolver also lowers).
+// for every scanned S3 bucket. Bucket NativeID is `arn:aws:s3:::<name>`;
+// the name is the suffix after the prefix. S3 bucket names are globally
+// unique and case-folded by AWS — the lowercasing here is only to match
+// record FQDNs (which the resolver also lowercases).
 func buildS3BucketNameIndex(acct *account, st *store.Store) (map[string]string, error) {
 	const arnPrefix = "arn:aws:s3:::"
 	rs, err := st.ListResources(store.ResourceFilter{
@@ -380,9 +379,8 @@ func resolveRoute53Relationships(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range records {
-		// NativeID format: "arn:aws:route53:::hostedzone/<id>/<TYPE>/<name>"
-		// The zone ARN is everything before the second-to-last slash pair.
-		// Specifically: split on "/" after the ARN prefix to isolate zoneID.
+		// NativeID: "arn:aws:route53:::hostedzone/<id>/<TYPE>/<name>";
+		// recordSetZoneARN extracts the zone ARN prefix.
 		zoneARN := recordSetZoneARN(r.NativeID)
 		if zoneARN == "" {
 			continue
@@ -405,9 +403,8 @@ func recordSetZoneARN(nativeID string) string {
 	if !strings.HasPrefix(nativeID, prefix) {
 		return ""
 	}
-	// After the prefix: "<zoneID>/<TYPE>/<name>"
+	// zoneID is the path segment right after the prefix.
 	rest := nativeID[len(prefix):]
-	// The zoneID is the first segment before the first slash.
 	zoneID, _, ok := strings.Cut(rest, "/")
 	if !ok {
 		return ""
@@ -502,9 +499,9 @@ func kskDNSSECNativeID(nativeID string) string {
 	return prefix + zoneID + "/dnssec"
 }
 
-// resolveRoute53HealthCheckRelationships links each record set that references
-// a health check to that health check via a "uses" relationship.
-// HealthCheckID is extracted from the record set's AttributesJSON.
+// resolveRoute53HealthCheckRelationships links each record set referencing a
+// health check to it via a "uses" relationship. HealthCheckID comes from the
+// record set's AttributesJSON.
 func resolveRoute53HealthCheckRelationships(acct *account, st *store.Store) error {
 	records, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53RecordSet},

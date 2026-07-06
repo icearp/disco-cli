@@ -117,10 +117,10 @@ func scanSES(ctx context.Context, acct *account, region string, st *store.Store,
 	return total, inserted, nil
 }
 
-// sesEmailIdentityARN reconstructs the canonical email-identity ARN from an
-// IdentityName (email or domain). SES v2 List/Get APIs return the bare name;
-// the canonical ARN is needed for cross-resource edges (e.g. CloudFront
-// authorizers, Pinpoint, IAM policy doc walkers).
+// sesEmailIdentityARN rebuilds the canonical email-identity ARN from an
+// IdentityName (email or domain). SES v2 List/Get return only the bare name,
+// but cross-resource edges (CloudFront authorizers, Pinpoint, IAM policy doc
+// walkers) need the ARN.
 func sesEmailIdentityARN(region, accountID, name string) string {
 	return fmt.Sprintf("arn:aws:ses:%s:%s:identity/%s", region, accountID, name)
 }

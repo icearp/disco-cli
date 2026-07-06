@@ -25,12 +25,11 @@ func init() {
 	})
 }
 
-// cassandraSystemKeyspaces lists the AWS-managed system keyspaces shipped
-// with every Amazon Keyspaces region. Their tables/types are catalogue
-// rows owned by AWS — they use AWS-managed encryption (no useful KMS
-// edges) and qualify for ManagedByProvider=true. Skip GetTable
-// enrichment on them; the per-region GetTable fan-out is dominated by
-// these ~40+ tables.
+// cassandraSystemKeyspaces lists AWS-managed system keyspaces shipped in
+// every Amazon Keyspaces region. Their tables/types are AWS-owned catalogue
+// rows — AWS-managed encryption (no useful KMS edges), so they qualify for
+// ManagedByProvider=true. Skip GetTable enrichment on them; the per-region
+// GetTable fan-out is dominated by these ~40+ tables.
 var cassandraSystemKeyspaces = map[string]bool{
 	"system":                  true,
 	"system_schema":           true,
@@ -112,8 +111,8 @@ func scanCassandraKeyspaces(ctx context.Context, client cassandraAPI, acct *acco
 
 func scanCassandraTables(ctx context.Context, client cassandraAPI, ksNames []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	// Phase 1: collect all (keyspace, table-summary) pairs from ListTables.
-	// AWS Keyspaces ships ~40+ system tables per region, so the per-table
-	// GetTable enrichment dominates wall time when run serially.
+	// AWS Keyspaces ships ~40+ system tables per region, so serial per-table
+	// GetTable enrichment dominates wall time.
 	type pair struct {
 		ks  string
 		tbl keyspacestypes.TableSummary

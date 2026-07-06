@@ -22,10 +22,9 @@ func init() {
 }
 
 // scanSynapse discovers Azure Synapse Analytics workspaces and private link
-// hubs. SQL pools, Spark pools, integration runtimes, private endpoint
-// connections, and managed private endpoints deferred — sub-resources whose
-// graph value lives in the workspace-level edges (default ADLS, managed VNet,
-// CMEK).
+// hubs. SQL/Spark pools, integration runtimes, private endpoint connections,
+// and managed private endpoints deferred — their graph value lives in
+// workspace-level edges (default ADLS, managed VNet, CMEK).
 func scanSynapse(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {

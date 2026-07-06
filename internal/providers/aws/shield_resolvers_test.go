@@ -72,8 +72,8 @@ func TestResolveShieldProtectionTargets(t *testing.T) {
 	}
 }
 
-// TestResolveShieldProtection_UnknownARN verifies that unrecognised target
-// shapes (e.g. Global Accelerator) skip silently with no edges.
+// TestResolveShieldProtection_UnknownARN verifies unrecognised target shapes
+// (e.g. Global Accelerator) skip silently with no edges.
 func TestResolveShieldProtection_UnknownARN(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -149,7 +149,7 @@ func TestResolveShieldProtectionGroupMembers(t *testing.T) {
 	}
 }
 
-// TestResolveShieldProtectionGroup_NonArbitraryPatternSkipped verifies that
+// TestResolveShieldProtectionGroup_NonArbitraryPatternSkipped verifies
 // Pattern=ALL and Pattern=BY_RESOURCE_TYPE produce no edges (deferred).
 func TestResolveShieldProtectionGroup_NonArbitraryPatternSkipped(t *testing.T) {
 	st := newTestStore(t)

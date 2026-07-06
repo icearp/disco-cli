@@ -23,9 +23,9 @@ func init() {
 
 // resolveBackupGatewayMemberHypervisor wires gateway → hypervisor and
 // virtual-machine → hypervisor via each member's HypervisorId. Hypervisors are
-// stored under their ARN (…:hypervisor/<id>), so the id is recovered from the
-// ARN's last segment to build the lookup. FK-safe: an unknown HypervisorId (or
-// a member with none) emits no edge.
+// stored under their ARN (…:hypervisor/<id>); the id is recovered from the
+// ARN's last segment for the lookup. FK-safe: an unknown HypervisorId (or a
+// member with none) emits no edge.
 func resolveBackupGatewayMemberHypervisor(acct *account, st *store.Store) error {
 	hyps, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

@@ -30,11 +30,10 @@ type r53rcAPI interface {
 	ListSafetyRules(context.Context, *route53recoverycontrolconfig.ListSafetyRulesInput, ...func(*route53recoverycontrolconfig.Options)) (*route53recoverycontrolconfig.ListSafetyRulesOutput, error)
 }
 
-// scanR53RecoveryControl discovers Route53 Recovery Control clusters,
-// control panels, routing controls, and safety rules. Routing controls and
-// safety rules fan out per control panel. Service is global with a single
-// us-west-2 endpoint — gate so multi-region scans skip the DNS-lookup
-// failures that otherwise warn from every other region.
+// scanR53RecoveryControl discovers Route53 Recovery Control clusters, control panels,
+// routing controls, and safety rules (routing controls and safety rules fan out per
+// control panel). Global service, single us-west-2 endpoint — gated to skip the
+// DNS-lookup-failure warnings other regions would otherwise raise.
 func scanR53RecoveryControl(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-west-2"
 	client := route53recoverycontrolconfig.NewFromConfig(acct.cfg, func(o *route53recoverycontrolconfig.Options) { o.Region = region })
@@ -159,7 +158,7 @@ func scanR53RCRoutingControls(ctx context.Context, client r53rcAPI, acct *accoun
 	return upsertBatch(st, batch, "r53rc routing-controls")
 }
 
-// scanR53RCSafetyRules walks the union Rule type and extracts ARN/Name from
+// scanR53RCSafetyRules walks the union Rule type, extracting ARN/Name from
 // whichever subtype (ASSERTION or GATING) is populated.
 func scanR53RCSafetyRules(ctx context.Context, client r53rcAPI, acct *account, region string, st *store.Store, scanID string, cpARN string) (int, int, error) {
 	cp := cpARN

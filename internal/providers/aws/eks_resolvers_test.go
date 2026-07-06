@@ -6,8 +6,8 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveEKSRelationships verifies that an EKS cluster's VPC ID is correctly
-// extracted from the nested ResourcesVpcConfig.VpcId JSON path.
+// TestResolveEKSRelationships verifies an EKS cluster's VPC ID is extracted
+// from the nested ResourcesVpcConfig.VpcId JSON path.
 func TestResolveEKSRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
@@ -35,7 +35,7 @@ func TestResolveEKSRelationships(t *testing.T) {
 	}
 }
 
-// TestResolveEKSRelationships_NoVPC verifies that a cluster with no VPC config
+// TestResolveEKSRelationships_NoVPC verifies a cluster with no VPC config
 // produces no relationships and no error.
 func TestResolveEKSRelationships_NoVPC(t *testing.T) {
 	st := newTestStore(t)

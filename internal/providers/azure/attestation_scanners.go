@@ -15,8 +15,7 @@ func init() {
 		name: "azure:microsoft.attestation",
 		fn:   scanAttestation,
 		emits: []coverage.TypeDecl{
-			// Private-endpoint edges resolved centrally; the provider ships
-			// scanner-only.
+			// Private-endpoint edges resolved centrally; scanner-only, no resolver.
 			{Service: "microsoft.attestation", DiscoType: TypeAttestationProvider, Leaf: true},
 		},
 	})

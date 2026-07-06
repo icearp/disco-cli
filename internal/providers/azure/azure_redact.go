@@ -4,10 +4,10 @@ import "codeberg.org/icearp/disco/internal/redact"
 
 // Provider-declared redaction rules. Azure ARM Get responses are mostly
 // pointer-style — connection strings, keys, passwords are typically returned
-// only via dedicated listKeys / listConnectionStrings ops which disco does
-// not call. The rules below cover the few fields that DO surface on standard
-// Get responses (administratorLoginPassword on Create-shape echoes for SQL
-// flavours) and act as a defensive belt for any future scanner that pulls
+// only via dedicated listKeys / listConnectionStrings ops disco doesn't call.
+// The rules below cover the few fields that DO surface on standard Get
+// responses (administratorLoginPassword on Create-shape echoes for SQL
+// flavours) and act as a defensive belt for any future scanner pulling
 // /config sub-resources for App Service.
 //
 // Key Vault reference URIs (the historical isReferenceURI allowlist) are
@@ -43,9 +43,9 @@ func init() {
 		{Type: TypeMySQLFlexibleServer, Attributes: []redact.Rule{
 			{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar},
 		}},
-		// App Service / Function App config sub-resource shape. Scanners that
-		// fetch /config/appsettings or /config/connectionstrings emit these
-		// shapes; rule fires only if those paths are populated. Empty paths
+		// App Service / Function App config sub-resource shape. Scanners
+		// fetching /config/appsettings or /config/connectionstrings emit these
+		// shapes; rule fires only if those paths are populated — empty paths
 		// no-op (apply walker descends only when the literal segment exists).
 		{Type: TypeAppServiceSite, Attributes: []redact.Rule{
 			{Path: "properties.siteConfig.appSettings[*].value", Mode: redact.RedactScalar},
@@ -115,7 +115,7 @@ func init() {
 		// Bot Service bots carry live LUIS / App Insights keys, publishing
 		// credentials, and a migration token on the bot list response. (The
 		// channel / connection-setting secrets live on separate child clients
-		// disco does not call; appPasswordHint / cmekKeyVaultUrl are KV
+		// disco doesn't call; appPasswordHint / cmekKeyVaultUrl are KV
 		// reference URIs, preserved by omission.)
 		{Type: TypeBotServiceBot, Attributes: []redact.Rule{
 			{Path: "properties.luisKey", Mode: redact.RedactScalar},

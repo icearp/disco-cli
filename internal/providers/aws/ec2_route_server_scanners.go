@@ -16,13 +16,13 @@ func init() {
 	)
 }
 
-// scanEC2RouteServer discovers route server resources in one region.
-// Three sub-resources: route servers (VPC-level BGP control plane),
-// per-route-server endpoints (subnet-bound BGP listeners), per-endpoint
-// peers (the BGP-speaking neighbours). RouteServerAssociation +
-// RouteServerPropagation skipped — they are association/propagation
-// fields on existing scanned resources (route table, route server) and
-// have no separate SDK list op (see docs/aws-missing-services.md).
+// scanEC2RouteServer discovers route server resources in one region: route
+// servers (VPC-level BGP control plane), per-route-server endpoints
+// (subnet-bound BGP listeners), and per-endpoint peers (BGP-speaking
+// neighbours). RouteServerAssociation + RouteServerPropagation are skipped —
+// they're association/propagation fields on already-scanned resources (route
+// table, route server), not resources with their own SDK list op (see
+// docs/aws-missing-services.md).
 func scanEC2RouteServer(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(
 		ctx,

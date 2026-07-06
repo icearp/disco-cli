@@ -48,8 +48,8 @@ func TestScanBCMDashboards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scheduled-report missing: %v", err)
 	}
-	// Global service → rows carry the global region marker, and the report's
-	// Status is mapped from r.State.
+	// Global service → rows carry the global region marker; report Status
+	// maps from r.State.
 	if rep.Region == nil || *rep.Region != "global" {
 		t.Errorf("scheduled-report Region=%v want \"global\"", rep.Region)
 	}

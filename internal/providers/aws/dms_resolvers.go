@@ -100,10 +100,9 @@ func resolveDMSEndpointRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
-// dmsReplicationSubnetGroupARNFromName synthesizes the subnet group ARN
-// from its identifier. DMS API exposes the bare identifier on
-// ReplicationInstance; the synth shape is
-// `arn:aws:dms:{region}:{acct}:subgrp:{identifier}`.
+// dmsReplicationSubnetGroupARNFromName synthesizes the subnet group ARN from
+// its identifier — DMS exposes only the bare identifier on ReplicationInstance.
+// Shape: `arn:aws:dms:{region}:{acct}:subgrp:{identifier}`.
 func dmsReplicationSubnetGroupARNFromName(region, acctID, name string) string {
 	return fmt.Sprintf("arn:aws:dms:%s:%s:subgrp:%s", region, acctID, name)
 }

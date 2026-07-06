@@ -64,9 +64,9 @@ type cwlogsAPI interface {
 	DescribeLookupTables(context.Context, *cwlogs.DescribeLookupTablesInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeLookupTablesOutput, error)
 }
 
-// scanLogs discovers all CloudWatch Logs resources in one region.
-// Phase 1 scans independent resources; phase 2 scans per-log-group resources
-// that depend on phase 1 log groups being in the DB first.
+// scanLogs discovers all CloudWatch Logs resources in one region: phase 1
+// scans independent resources, phase 2 scans per-log-group resources that
+// depend on phase 1's log groups being in the DB first.
 func scanLogs(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := cwlogs.NewFromConfig(acct.cfg, func(o *cwlogs.Options) { o.Region = region })
 
@@ -99,11 +99,10 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 
 	// Phase 2: per-log-group enrichments. The three sub-scanners hit
 	// independent CloudWatch Logs APIs (DescribeLogStreams,
-	// DescribeSubscriptionFilters, GetTransformer), each with its own per-log-
-	// group 5 TPS bucket — so they overlap cleanly. Run them concurrently and
-	// share one ListResources load of the region's log-group set across all
-	// three (loadLogGroupsForRegion is otherwise called three times for the
-	// same rows).
+	// DescribeSubscriptionFilters, GetTransformer), each with its own
+	// per-log-group 5 TPS bucket, so they overlap cleanly — run concurrently,
+	// sharing one ListResources load of the region's log-group set (else
+	// loadLogGroupsForRegion runs three times for the same rows).
 	groups, err := loadLogGroupsForRegion(acct, region, st)
 	if err != nil {
 		return total, inserted, fmt.Errorf("load log groups for phase 2: %w", err)
@@ -145,8 +144,8 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 	return total, inserted, nil
 }
 
-// logGroupARN strips the trailing ":*" that the CloudWatch Logs API appends to
-// log group ARNs. The clean ARN is used as the NativeID.
+// logGroupARN strips the trailing ":*" the CloudWatch Logs API appends to log
+// group ARNs; the clean ARN is used as the NativeID.
 func logGroupARN(arn *string) string {
 	return strings.TrimSuffix(sv(arn), ":*")
 }
@@ -154,8 +153,8 @@ func logGroupARN(arn *string) string {
 // --- Phase 1 scanners ---
 
 // scanLogsLogGroups discovers all CloudWatch Logs log groups in the region.
-// Tags are not returned inline by DescribeLogGroups and require a separate
-// ListTagsForResource call; we skip tag fetching to keep scanning fast.
+// DescribeLogGroups doesn't return tags inline (needs a separate
+// ListTagsForResource call); tag fetching is skipped to keep scanning fast.
 func scanLogsLogGroups(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewDescribeLogGroupsPaginator(client, &cwlogs.DescribeLogGroupsInput{})
 	for pager.HasMorePages() {
@@ -195,7 +194,7 @@ func scanLogsLogGroups(ctx context.Context, client cwlogsAPI, acct *account, reg
 }
 
 // scanLogsAccountPolicies discovers all CloudWatch Logs account-level policies.
-// The API requires a PolicyType parameter; we iterate all known types.
+// The API requires a PolicyType parameter, so iterate every known type.
 func scanLogsAccountPolicies(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, pt := range logsTypes.PolicyType("").Values() {
 		var nextToken *string
@@ -413,7 +412,7 @@ func scanLogsIntegrations(ctx context.Context, client cwlogsAPI, acct *account, 
 		return 0, 0, nil
 	}
 
-	// Fetch full details for each integration concurrently.
+	// Fetch each integration's full details concurrently.
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
@@ -507,8 +506,8 @@ func scanLogsLogAnomalyDetectors(ctx context.Context, client cwlogsAPI, acct *ac
 }
 
 // scanLogsMetricFilters discovers all CloudWatch Logs metric filters in the
-// region. Called without a log group filter to retrieve all filters at once.
-// Hierarchy closure is recorded so each filter points back to its log group.
+// region (no log-group filter — retrieves all at once); records hierarchy
+// closure so each filter points back to its log group.
 func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewDescribeMetricFiltersPaginator(client, &cwlogs.DescribeMetricFiltersInput{})
 	for pager.HasMorePages() {
@@ -651,7 +650,7 @@ func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *accou
 }
 
 // scanLogsLookupTables discovers all CloudWatch Logs lookup tables in the
-// region. DescribeLookupTables is not paginated by the SDK; use a manual
+// region; DescribeLookupTables has no SDK paginator, so use a manual
 // NextToken loop.
 func scanLogsLookupTables(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var nextToken *string
@@ -739,8 +738,8 @@ func scanLogsScheduledQueries(ctx context.Context, client cwlogsAPI, acct *accou
 
 // --- Phase 2 helpers ---
 
-// loadLogGroupsForRegion loads all log group resources from the store for
-// the given account and region, for use by per-log-group Phase 2 scanners.
+// loadLogGroupsForRegion loads all log-group resources for the account and
+// region, for use by per-log-group Phase 2 scanners.
 func loadLogGroupsForRegion(acct *account, region string, st *store.Store) ([]store.Resource, error) {
 	return st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -753,14 +752,13 @@ func loadLogGroupsForRegion(acct *account, region string, st *store.Store) ([]st
 
 // --- Phase 2 scanners ---
 
-// scanLogsLogStreams fetches log streams for every log group in the region.
-// Hierarchy closure is recorded so each stream points back to its log group.
+// scanLogsLogStreams fetches log streams for every log group in the region
+// and records hierarchy closure so each stream points back to its log group.
 //
-// Concurrency uses fanoutMed (10): DescribeLogStreams' 5 TPS limit is
-// per-log-group, so concurrent calls to N distinct groups consume N
-// independent buckets. Within one group the paginator is sequential, so
-// per-group TPS stays ≤ 1. Account-wide pressure is absorbed by the SDK's
-// adaptive retry (aws_config.go).
+// Uses fanoutMed (10): DescribeLogStreams' 5 TPS limit is per-log-group, so
+// concurrent calls to N distinct groups consume N independent buckets. Within
+// one group the paginator is sequential, so per-group TPS stays ≤ 1.
+// Account-wide pressure is absorbed by the SDK's adaptive retry (aws_config.go).
 func scanLogsLogStreams(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(groups) == 0 {
 		return 0, 0, nil
@@ -926,10 +924,10 @@ func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct
 	return
 }
 
-// scanLogsTransformers fetches log transformers for every log group. Each
-// log group has at most one transformer; groups without one return
-// ResourceNotFoundException, which is skipped. Concurrency: fanoutMed —
-// GetTransformer is per-log-group like the other phase-2 APIs.
+// scanLogsTransformers fetches log transformers for every log group (at most
+// one per group); groups without one return ResourceNotFoundException,
+// skipped. Concurrency: fanoutMed — GetTransformer is per-log-group like the
+// other phase-2 APIs.
 func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(groups) == 0 {
 		return 0, 0, nil

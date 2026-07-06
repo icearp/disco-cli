@@ -31,10 +31,9 @@ type pcaADAPI interface {
 	ListTemplateGroupAccessControlEntries(context.Context, *pcaconnectorad.ListTemplateGroupAccessControlEntriesInput, ...func(*pcaconnectorad.Options)) (*pcaconnectorad.ListTemplateGroupAccessControlEntriesOutput, error)
 }
 
-// scanPCAConnectorAD discovers Private CA AD connector resources: connectors,
-// directory registrations, service principal names (per directory
-// registration), templates (per connector), and template group access
-// control entries (per template).
+// scanPCAConnectorAD discovers Private CA AD connectors, directory
+// registrations, per-directory-registration service principal names,
+// per-connector templates, and per-template template-group ACEs.
 func scanPCAConnectorAD(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := pcaconnectorad.NewFromConfig(acct.cfg, func(o *pcaconnectorad.Options) { o.Region = region })
 

@@ -24,10 +24,10 @@ type qappsAPI interface {
 	ListQApps(context.Context, *qapps.ListQAppsInput, ...func(*qapps.Options)) (*qapps.ListQAppsOutput, error)
 }
 
-// scanQApps enumerates Q Business applications (each is a Q Apps "instance")
+// scanQApps enumerates Q Business applications (each a Q Apps "instance")
 // directly via the qbusiness SDK, then lists the Q Apps under each instance.
-// Listing the parents in-scanner avoids depending on the qbusiness service
-// scanner's phase-1 ordering — phase-1 scanners run concurrently, so reading
+// Listing parents in-scanner avoids depending on the qbusiness scanner's
+// phase-1 ordering — phase-1 scanners run concurrently, so reading
 // already-stored qbusiness rows would race.
 func scanQApps(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	qbClient := qbusiness.NewFromConfig(acct.cfg, func(o *qbusiness.Options) { o.Region = region })

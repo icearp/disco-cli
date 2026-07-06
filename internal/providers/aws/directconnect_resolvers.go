@@ -83,11 +83,10 @@ func resolveDXConnectionToLag(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveDXVIRefs wires each virtual interface to its underlying Connection or
-// LAG (via `ConnectionID` — DX connections and LAGs share the same field but
-// distinct ARN shapes; check both target sets), to the DX gateway it terminates
-// on (`DirectConnectGatewayID`, private + transit only), and — for private VIs
-// — to the VPN gateway via `VirtualGatewayID`.
+// resolveDXVIRefs wires each virtual interface to its Connection or LAG (both
+// share `ConnectionID` but differ in ARN shape — check both target sets), to
+// the DX gateway it terminates on (`DirectConnectGatewayID`, private + transit
+// only), and for private VIs to the VPN gateway via `VirtualGatewayID`.
 func resolveDXVIRefs(acct *account, st *store.Store) error {
 	viTypes := []string{
 		TypeDirectConnectPrivateVirtualInterface,

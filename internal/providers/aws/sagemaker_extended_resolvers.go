@@ -123,7 +123,7 @@ func init() {
 		resolveSageMakerPipeline,
 		EdgeDecl{TypeSageMakerPipeline, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveSageMakerProject) // Project has no edge-bearing attributes beyond the service-catalog
+	registerResolver(resolveSageMakerProject) // Project's only edge-bearing attrs are service-catalog
 	// product details, which point at non-disco resource types.
 
 	registerResolver(
@@ -213,8 +213,8 @@ type sagemakerEdgeSets struct {
 }
 
 // loadSagemakerEdgeSets builds every target id-set used by the extended
-// SageMaker resolvers. Cheap (one ListResources per type) — every call site
-// is one resolver, so the per-resolver duplication is intentional for clarity.
+// SageMaker resolvers. Cheap (one ListResources per type); the per-resolver
+// duplication (one call site per resolver) is intentional for clarity.
 func loadSagemakerEdgeSets(acct *account, st *store.Store, types ...string) (*sagemakerEdgeSets, error) {
 	want := make(map[string]bool, len(types))
 	for _, t := range types {
@@ -708,9 +708,9 @@ func resolveSageMakerFeatureGroup(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveSageMakerModelPackageGroup — model package groups themselves carry no
-// KMS field on the standard Describe response; reserved for future settings.
-// Currently emits no edges; resolver retained so registration test passes.
+// resolveSageMakerModelPackageGroup — model package groups carry no KMS field
+// on the standard Describe response (reserved for future settings). Emits no
+// edges today; kept so the registration test passes.
 func resolveSageMakerModelPackageGroup(acct *account, st *store.Store) error {
 	_ = acct
 	_ = st
@@ -863,8 +863,8 @@ func resolveSagemakerJobDef(acct *account, st *store.Store, srcType, inputKey, o
 		return err
 	}
 	for _, r := range rs {
-		// Decode into a generic map so we can pick out the variant-named
-		// keys without a separate struct per variant.
+		// Decode into a generic map to pick out variant-named keys without a
+		// separate struct per variant.
 		raw := map[string]json.RawMessage{}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &raw); err != nil {
 			continue

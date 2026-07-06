@@ -30,8 +30,8 @@ func mqConfigurationAssociationNativeID(brokerARN, configID string) string {
 }
 
 // mqAPI is the narrow surface the MQ scanner uses. ListBrokers + DescribeBroker
-// drive the broker phase; ListConfigurations carries the full Configuration body
-// so no DescribeConfiguration fan-out is needed for the configuration phase.
+// drive the broker phase; ListConfigurations carries the full Configuration
+// body, so no DescribeConfiguration fan-out is needed.
 type mqAPI interface {
 	ListBrokers(context.Context, *mq.ListBrokersInput, ...func(*mq.Options)) (*mq.ListBrokersOutput, error)
 	DescribeBroker(context.Context, *mq.DescribeBrokerInput, ...func(*mq.Options)) (*mq.DescribeBrokerOutput, error)

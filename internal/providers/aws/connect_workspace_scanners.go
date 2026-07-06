@@ -66,8 +66,8 @@ func scanConnectWorkspace(ctx context.Context, client connectWorkspaceAPI, insta
 	return total, inserted, nil
 }
 
-// scanConnectTaskTemplates — list-only (no Describe op). Store list-summary
-// metadata as attrs.
+// scanConnectTaskTemplates is list-only (no Describe op); stores
+// list-summary metadata as attrs.
 func scanConnectTaskTemplates(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {

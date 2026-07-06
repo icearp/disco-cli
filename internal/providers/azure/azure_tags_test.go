@@ -2,10 +2,10 @@ package azure
 
 import "testing"
 
-// TestAzTagsJSON pins the faithful-serialization contract: the stored tags must
-// mirror the Azure API response — null values preserved, an empty non-nil map
-// serialized as "{}", and nil returned only for a genuinely nil map. mustJSON
-// sorts keys, so multi-key output is deterministic.
+// TestAzTagsJSON pins the faithful-serialization contract: stored tags must
+// mirror the Azure API response — null values preserved, empty non-nil map
+// serialized as "{}", nil only for a genuinely nil map. mustJSON sorts keys,
+// so multi-key output is deterministic.
 func TestAzTagsJSON(t *testing.T) {
 	sp := func(s string) *string { return &s }
 	cases := []struct {

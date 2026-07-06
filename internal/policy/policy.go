@@ -1,9 +1,9 @@
-// Package policy is the Rego policy engine for `disco check`. Resources
-// from the local store are handed to a prepared Rego query; the query is
-// expected to bind `data.disco.deny` to a set of finding objects.
+// Package policy is the Rego policy engine for `disco check`: local-store
+// resources are handed to a prepared Rego query, which binds
+// `data.disco.deny` to a set of finding objects.
 //
-// Bring your own policies (Conftest AWS, regula, in-house bundles) via the
-// `--rules` flag. Curated first-party compliance packs (NIST 800-53, CIS,
+// Bring your own policies (Conftest AWS, regula, in-house bundles) via
+// `--rules`. Curated first-party compliance packs (NIST 800-53, CIS,
 // PCI-DSS, Well-Architected) are future work, not yet bundled.
 package policy
 
@@ -27,16 +27,15 @@ import (
 // must populate. Conftest convention so third-party packs drop in unchanged.
 const denyQuery = "data.disco.deny"
 
-// queryBinding is the variable the prepared body assigns the deny-set to.
-// Topdown queries bind expressions to vars; we read this var out of each
-// QueryResult to recover the Rego value.
+// queryBinding is the variable the prepared body assigns the deny-set to;
+// topdown queries bind expressions to vars, and we read this var out of
+// each QueryResult to recover the Rego value.
 const queryBinding = "deny"
 
-// InputContractVersion identifies the shape of the input.* document handed
-// to Rego policies. Bumped on any breaking change to field names or types
-// so BYO rules can pin against a known contract via
-// `input.contract_version == "1"` rather than failing silently when keys
-// rename. The version is stamped into every resource input.
+// InputContractVersion identifies the input.* document shape handed to
+// Rego policies. Bump on any breaking field-name/type change so BYO rules
+// can pin against a known contract via `input.contract_version == "1"`
+// instead of failing silently on rename. Stamped into every resource input.
 const InputContractVersion = "1"
 
 // Finding is the slim, JSON-friendly shape produced by the engine. Field
@@ -177,8 +176,8 @@ func (e *Engine) Evaluate(ctx context.Context, resources []store.Resource) ([]Fi
 // can express freshness-bound controls (`time.parse_rfc3339_ns(input.verified_at)`).
 func resourceToInput(r *store.Resource) (map[string]any, error) {
 	// Fall back to an empty object (not the raw string) on malformed JSON so
-	// object-shaped policies (`input.attributes.Encrypted`) fail closed rather
-	// than silently match nothing against a scalar — matches the documented
+	// object-shaped policies (`input.attributes.Encrypted`) fail closed instead
+	// of matching against a raw scalar — matches the documented
 	// `{}`-on-malformed contract.
 	var attrs any = map[string]any{}
 	if r.AttributesJSON != "" {

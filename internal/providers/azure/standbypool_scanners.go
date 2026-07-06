@@ -23,8 +23,8 @@ func init() {
 
 // scanStandbyPool discovers Standby VM pools and Standby Container Group pools.
 func scanStandbyPool(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	// Both pool types are scanned regardless of either failing — a hard error
-	// on one must not suppress the other. The first non-nil error is returned.
+	// Both pool types scan regardless of either failing — one's hard error
+	// must not suppress the other. azRunPhases returns the first non-nil error.
 	return azRunPhases(
 		func() (int, int, error) {
 			vmClient, err := armstandbypool.NewStandbyVirtualMachinePoolsClient(sub.ID, cred, azClientOptions)

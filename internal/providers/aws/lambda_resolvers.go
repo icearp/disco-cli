@@ -71,9 +71,9 @@ func init() {
 		EdgeDecl{TypeLambdaFunction, TypeLambdaCodeSigningConfig, store.RelUses},
 		EdgeDecl{TypeLambdaFunction, TypeLambdaLayerVersion, store.RelUses},
 		EdgeDecl{TypeLambdaPermission, TypeLambdaFunction, store.RelAttachedTo},
-		// Permission policy SourceArn principals dispatched via
-		// classifyPolicyResource — declare every type that helper may
-		// return so the audit tool sees the edges as expected.
+		// Permission policy SourceArn principals dispatch via
+		// classifyPolicyResource — declare every type it may return
+		// so the audit tool sees these edges.
 		EdgeDecl{TypeLambdaPermission, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeLambdaPermission, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeLambdaPermission, TypeSecretsManagerSecret, store.RelUses},
@@ -223,7 +223,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 
 // emitLambdaSQSOrSNSEdge dispatches an SQS or SNS ARN to the appropriate
 // resource type and upserts a Uses edge. FK-safe via id sets — silent skip
-// when the target is not scanned.
+// when target unscanned.
 func emitLambdaSQSOrSNSEdge(st *store.Store, srcID, targetARN, acctID string, sqsSet, snsSet map[string]bool) error {
 	parts := strings.Split(targetARN, ":")
 	if len(parts) < 6 {
@@ -295,8 +295,8 @@ func resolveLambdaVersionRelationships(acct *account, st *store.Store) error {
 }
 
 // resolveLambdaESMRelationships links each event source mapping to its target
-// function. The FunctionArn in the ESM attributes may be qualified; the
-// qualifier is stripped to obtain the base function ARN.
+// function. The FunctionArn in the ESM attributes may be qualified; strip the
+// qualifier to get the base function ARN.
 func resolveLambdaESMRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaESM},
@@ -321,7 +321,7 @@ func resolveLambdaESMRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		// ESM → source resource (DynamoDB stream, Kinesis stream, SQS queue).
-		// Parse the source ARN's service prefix to pick the right resource type.
+		// Parse the source ARN's service prefix to pick the resource type.
 		srcARN := sv(attrs.EventSourceArn)
 		if srcARN == "" {
 			continue
@@ -500,9 +500,9 @@ func resolveLambdaFunctionURLRelationships(acct *account, st *store.Store) error
 	return nil
 }
 
-// resolveLambdaCodeSigningConfigRelationships links each function that has a
-// code signing config to that config via a "uses" relationship.
-// CodeSigningConfigArn is extracted from the function's AttributesJSON.
+// resolveLambdaCodeSigningConfigRelationships links functions with a code
+// signing config to that config via a "uses" relationship. CodeSigningConfigArn
+// comes from the function's AttributesJSON.
 func resolveLambdaCodeSigningConfigRelationships(acct *account, st *store.Store) error {
 	fns, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaFunction},
@@ -533,10 +533,9 @@ func resolveLambdaCodeSigningConfigRelationships(acct *account, st *store.Store)
 // resolveLambdaLayerRelationships links each function to the layer versions it
 // uses. Layer ARNs are extracted from the Layers array in the function's
 // AttributesJSON. FK-safe via id-set lookup — functions referencing
-// AWS-managed / cross-account layers that have not been scanned (scanner
-// only enumerates caller-account layers via ListLayers, plus foreign-acct
-// layers reached through scanLambdaForeignLayers) silently skip the edge
-// rather than blowing the FK on UpsertRelationship.
+// AWS-managed / cross-account layers not yet scanned (the scanner only
+// enumerates caller-account layers via ListLayers, plus foreign-acct layers
+// via scanLambdaForeignLayers) skip the edge rather than blowing the FK.
 func resolveLambdaLayerRelationships(acct *account, st *store.Store) error {
 	fns, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaFunction},
@@ -681,8 +680,7 @@ func (s *lambdaPermStmtList) UnmarshalJSON(b []byte) error {
 // statement's Condition block across the operators Lambda permission docs
 // commonly use (ArnLike / ArnEquals / StringLike / StringEquals). Each
 // operator maps a context key to a string OR string-array; we accept both.
-// Condition keys are case-insensitive in IAM, so we match keys ignoring
-// case.
+// Condition keys are case-insensitive in IAM, so matched ignoring case.
 func lambdaPermSourceArns(stmt lambdaPermStmt) []string {
 	if len(stmt.Condition) == 0 {
 		return nil

@@ -397,8 +397,8 @@ func resolveEC2VerifiedAccessInstanceTrustProvider(acct *account, st *store.Stor
 // clientVPNEndpointFromChildARN extracts the parent endpoint id from a
 // synthetic child ARN of shape
 // `arn:aws:ec2:{r}:{a}:client-vpn-{auth-rule|route}/{endpointId}/...`. The
-// scanner concatenates with `/` separators so the endpoint id is the first
-// segment after the resource kind.
+// scanner joins segments with `/`, so the endpoint id is the first segment
+// after the resource kind.
 func clientVPNEndpointFromChildARN(arn string) string {
 	const slash = "/"
 	i := strings.Index(arn, ":client-vpn-")
@@ -502,8 +502,8 @@ func resolveEC2ClientVPNRouteRefs(acct *account, st *store.Store) error {
 
 // networkInsightsTargetType classifies a NetworkInsightsPath Source/Destination
 // field by ID prefix. Only eni- and i- shapes are dispatched; ARNs of other
-// resource types (TGW, VPC endpoint, internet-gateway, etc.) are skipped here
-// — a follow-up pass can add them once their NativeID synthesis is verified.
+// resource types (TGW, VPC endpoint, internet-gateway, etc.) are skipped until
+// their NativeID synthesis is verified.
 func networkInsightsTargetType(s string) (string, string) {
 	switch {
 	case strings.HasPrefix(s, "eni-"):
@@ -605,8 +605,8 @@ func resolveEC2CapacityReservationPlacementGroup(acct *account, st *store.Store)
 }
 
 // resolveEC2TGPeeringAttachmentParents emits attached-to → transit-gateway
-// for both the requester and accepter (when same-account; cross-account
-// peerings FK-safe-skip).
+// for requester and accepter (same-account only; cross-account peerings
+// FK-safe-skip).
 func resolveEC2TGPeeringAttachmentParents(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayPeeringAttachment},

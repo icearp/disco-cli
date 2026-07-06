@@ -237,8 +237,8 @@ func scanIoTBillingGroups(ctx context.Context, client iotThingsAPI, acct *accoun
 }
 
 // scanIoTThingPrincipalAttachments emits one row per (Thing, Principal)
-// pair via per-Thing fan-out of ListThingPrincipals. NativeID synthesized
-// since the attachment has no AWS-issued ARN.
+// pair via per-Thing fan-out of ListThingPrincipals. NativeID is synthesized —
+// the attachment has no AWS-issued ARN.
 func scanIoTThingPrincipalAttachments(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := iot.NewListThingsPaginator(client, &iot.ListThingsInput{})
 	var thingNames []string

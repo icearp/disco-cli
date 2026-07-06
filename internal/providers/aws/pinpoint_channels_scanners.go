@@ -8,10 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/pinpoint"
 )
 
-// scanPinpointChannels fans out per-app over all 10 Pinpoint channel
-// types. Each channel is a singleton per (app, kind) — Get*Channel
-// returns the channel config or NotFoundException when not configured
-// for the app. NotFound is silently skipped, AccessDenied tolerated.
+// scanPinpointChannels fans out per-app across all 10 Pinpoint channel
+// types. Each channel is a per-(app,kind) singleton — Get*Channel returns
+// the channel config or NotFoundException if unconfigured; NotFound skipped,
+// AccessDenied tolerated.
 func scanPinpointChannels(ctx context.Context, client pinpointAPI, acct *account, region string, st *store.Store, scanID string, appIDs []string) (int, int, error) {
 	if len(appIDs) == 0 {
 		return 0, 0, nil

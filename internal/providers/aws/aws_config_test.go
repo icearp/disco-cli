@@ -255,8 +255,8 @@ func TestSetSourceIdentity_PinsScannerState(t *testing.T) {
 }
 
 // TestFilterToEnabled partitions a requested region list against the enabled
-// set, preserving order, and asserts disabled regions land in skipped (not
-// silently dropped) so the caller can warn about them.
+// set, preserving order; disabled regions land in skipped (not silently
+// dropped) so the caller can warn about them.
 func TestFilterToEnabled(t *testing.T) {
 	cases := []struct {
 		name        string

@@ -72,10 +72,10 @@ func resolveGuardDutyMemberOrgAccount(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveGuardDutyRelationships emits IPSet→S3 bucket edges when the
-// Location is an S3 URL. detector→{filter,ipset} containment is recorded
-// by guardduty_scanners.go via RecordHierarchyBatch; the unified
-// closure writer emits the matching `contains` row to relationships.
+// resolveGuardDutyRelationships emits IPSet→S3 bucket edges when Location is
+// an S3 URL. detector→{filter,ipset} containment is recorded by
+// guardduty_scanners.go via RecordHierarchyBatch; the unified closure writer
+// emits the matching `contains` row.
 func resolveGuardDutyRelationships(acct *account, st *store.Store) error {
 	return resolveGuardDutyIPSetLocation(acct, st)
 }

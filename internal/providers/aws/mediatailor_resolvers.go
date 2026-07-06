@@ -26,9 +26,8 @@ func mtSourceLocationARN(region, acct, name string) string {
 }
 
 // resolveMediaTailorChannelPolicyToChannel wires channel-policy → channel by
-// stripping the trailing `/policy` segment. Channel ARN shape:
-// `arn:aws:mediatailor:r:a:channel/{name}`; policy NativeID:
-// `arn:aws:mediatailor:r:a:channel/{name}/policy`.
+// stripping the trailing `/policy` segment. Channel ARN:
+// `arn:aws:mediatailor:r:a:channel/{name}`; policy NativeID adds `/policy`.
 func resolveMediaTailorChannelPolicyToChannel(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaTailorChannelPolicy}, Limit: util.AllResources,

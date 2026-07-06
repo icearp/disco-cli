@@ -117,10 +117,9 @@ func resolveAppStreamDirectoryConfigCA(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveAppStreamStackAccessEndpoints wires each stack to the interface VPC
-// endpoints listed in AccessEndpoints[]. The endpoint is referenced by VpceID
-// (a bare `vpce-…` id); rebuild the disco-shape VPCe ARN per region+acct and
-// look up FK-safe.
+// resolveAppStreamStackAccessEndpoints wires each stack to the VPC endpoints
+// listed in AccessEndpoints[], referenced by VpceID (a bare `vpce-…` id);
+// rebuild the disco-shape VPCe ARN per region+acct and look up FK-safe.
 func resolveAppStreamStackAccessEndpoints(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamStack}, Limit: util.AllResources,
@@ -301,10 +300,10 @@ func resolveAppStreamApplicationAppBlock(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveAppStreamImageRefs wires fleet → image and image-builder → image (uses)
-// via each source's ImageArn. FK-safe via the scanned image id set, so an
-// ImageArn pointing at an AWS-managed PUBLIC base image (unscanned) drops
-// silently. Both source types carry a top-level ImageArn, so one walk covers both.
+// resolveAppStreamImageRefs wires fleet → image and image-builder → image
+// (uses) via ImageArn. FK-safe via the scanned image id set, so an ImageArn
+// pointing at an unscanned AWS-managed PUBLIC base image drops silently. Both
+// source types carry a top-level ImageArn, so one walk covers both.
 func resolveAppStreamImageRefs(acct *account, st *store.Store) error {
 	imgSet, err := scannedIDSet(acct, st, TypeAppStreamImage)
 	if err != nil {
@@ -402,7 +401,7 @@ func resolveAppStreamApplicationFleetAssoc(acct *account, st *store.Store) error
 }
 
 // resolveAppStreamEntitlementStack links each entitlement to its parent
-// stack via `StackName` from the SDK shape.
+// stack via `StackName`.
 func resolveAppStreamEntitlementStack(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamEntitlement}, Limit: util.AllResources,

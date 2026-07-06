@@ -27,8 +27,8 @@ type artifactAPI interface {
 	ListCustomerAgreements(context.Context, *artifact.ListCustomerAgreementsInput, ...func(*artifact.Options)) (*artifact.ListCustomerAgreementsOutput, error)
 }
 
-// scanArtifact discovers AWS Artifact customer agreements and reports. Artifact
-// is account-global; gate to us-east-1 to avoid duplicate scans across regions.
+// scanArtifact discovers AWS Artifact customer agreements and reports.
+// Account-global; gated to us-east-1 to avoid duplicate scans across regions.
 func scanArtifact(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-1"
 	client := artifact.NewFromConfig(acct.cfg, func(o *artifact.Options) { o.Region = region })
@@ -76,9 +76,9 @@ func scanArtifactCustomerAgreements(ctx context.Context, client artifactAPI, acc
 	return upsertBatch(st, batch, "artifact customer-agreements")
 }
 
-// scanArtifactReports lists the AWS-published compliance report catalog. The
-// reports are AWS-owned documents identical across accounts, so each row is
-// flagged ManagedByProvider (hidden from default queries).
+// scanArtifactReports lists the AWS-published compliance report catalog —
+// AWS-owned documents identical across accounts, so each row is flagged
+// ManagedByProvider (hidden from default queries).
 func scanArtifactReports(ctx context.Context, client artifactAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := artifact.NewListReportsPaginator(client, &artifact.ListReportsInput{})
 	var batch []*store.Resource

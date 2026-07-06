@@ -219,8 +219,8 @@ func scanDSTasks(ctx context.Context, client dataSyncAPI, acct *account, region 
 }
 
 // dataSyncLocationType routes a LocationUri scheme prefix to a disco type.
-// URI shape: TYPE://GLOBAL_ID/SUBDIR — scheme distinguishes 11 location
-// subtypes that CFN models as separate resources.
+// URI shape TYPE://GLOBAL_ID/SUBDIR; scheme distinguishes the 11 location
+// subtypes CFN models as separate resources.
 func dataSyncLocationType(uri string) string {
 	scheme, _, ok := strings.Cut(strings.ToLower(uri), "://")
 	if !ok {

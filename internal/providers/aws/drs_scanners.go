@@ -9,10 +9,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/drs"
 )
 
-// The AWS Service Reference names every Elastic Disaster Recovery resource type
-// with a "Resource" suffix (SourceServerResource, RecoveryInstanceResource, …),
-// and DRS has no CloudFormation twin, so the disco types mirror that spelling
-// exactly — the algorithmic key matches with no alias.
+// AWS Service Reference names every DRS resource type with a "Resource" suffix
+// (SourceServerResource, RecoveryInstanceResource, …); DRS has no CloudFormation
+// twin, so disco types mirror that spelling exactly — the algorithmic key
+// matches with no alias.
 func init() {
 	registerService(serviceEntry{
 		name: "aws:drs",
@@ -35,9 +35,9 @@ type drsAPI interface {
 	DescribeLaunchConfigurationTemplates(context.Context, *drs.DescribeLaunchConfigurationTemplatesInput, ...func(*drs.Options)) (*drs.DescribeLaunchConfigurationTemplatesOutput, error)
 }
 
-// scanDRS discovers Elastic Disaster Recovery source servers, recovery
-// instances, source networks, and replication / launch configuration templates.
-// Jobs (the ephemeral recovery/drill run records) are not scanned.
+// scanDRS discovers DRS source servers, recovery instances, source networks,
+// and replication / launch configuration templates. Jobs (ephemeral
+// recovery/drill run records) are not scanned.
 func scanDRS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := drs.NewFromConfig(acct.cfg, func(o *drs.Options) { o.Region = region })
 	for _, phase := range []func() (int, int, error){

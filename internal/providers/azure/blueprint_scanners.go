@@ -22,9 +22,9 @@ func init() {
 }
 
 // scanBlueprint discovers Azure Blueprints definitions and assignments. Both
-// list ops are scope-wide; disco scans them at subscription scope (blueprints
-// can also live at management-group scope — those are out of per-sub reach and
-// deferred). Blueprint definitions are proxy resources without location/tags.
+// list ops are scope-wide; disco scans at subscription scope (blueprints can
+// also live at management-group scope, out of per-sub reach — deferred).
+// Blueprint definitions are proxy resources without location/tags.
 func scanBlueprint(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	scope := "/subscriptions/" + sub.ID
 	return azRunPhases(

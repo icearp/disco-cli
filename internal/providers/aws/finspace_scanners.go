@@ -26,11 +26,11 @@ func scanFinSpace(ctx context.Context, acct *account, region string, st *store.S
 	var batch []*store.Resource
 	var nextToken *string
 	for {
-		// AWS marked ListEnvironments deprecated with no successor op; FinSpace
-		// is in legacy maintenance and the only inventory entry point.
+		// ListEnvironments is deprecated with no successor op; FinSpace is in
+		// legacy maintenance and this remains the only inventory entry point.
 		out, err := client.ListEnvironments(ctx, &finspace.ListEnvironmentsInput{NextToken: nextToken}) //nolint:staticcheck // SA1019: no replacement
 		if err != nil {
-			// Per-region feature gap: "You cannot access API in this region".
+			// Per-region feature gap: "You cannot access API in this region" —
 			// FinSpace is deployed in a subset of regions only.
 			if isAccessDeniedWithMessage(err, "cannot access API in this region") {
 				return 0, 0, nil

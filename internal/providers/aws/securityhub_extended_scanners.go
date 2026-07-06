@@ -8,10 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
 )
 
-// scanSecurityHubExtended adds 11 disco types covering V2 hub config,
-// automation rules, configuration policies, finding aggregators,
-// security controls, and standards. Phases tolerate isAccessDenied +
-// isSecurityHubNotEnabled + ResourceNotFoundException.
+// scanSecurityHubExtended adds 11 disco types: V2 hub config, automation
+// rules, configuration policies, finding aggregators, security controls, and
+// standards. Phases tolerate isAccessDenied + isSecurityHubNotEnabled +
+// ResourceNotFoundException.
 func scanSecurityHubExtended(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanSHHubV2(ctx, client, acct, region, st, scanID) },

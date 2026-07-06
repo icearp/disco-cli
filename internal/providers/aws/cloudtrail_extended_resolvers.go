@@ -23,7 +23,7 @@ func init() {
 }
 
 // resolveCloudTrailChannelDestinations wires each channel to the event-data-stores
-// it ingests events into (Destinations[].Location filtered to Type=EVENT_DATA_STORE;
+// it ingests into (Destinations[].Location, Type=EVENT_DATA_STORE only;
 // service-linked channels carry an Amazon-service name in Location, skipped).
 func resolveCloudTrailChannelDestinations(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{

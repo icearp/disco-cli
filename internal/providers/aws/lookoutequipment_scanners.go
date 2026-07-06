@@ -86,7 +86,7 @@ func scanLEInferenceSchedulers(ctx context.Context, client lookoutEquipmentAPI, 
 			}
 			status := string(s.Status)
 			// Enrich with DescribeInferenceScheduler body — RoleArn,
-			// ServerSideKmsKeyId, DataInput/OutputConfiguration are not on the
+			// ServerSideKmsKeyId, DataInput/OutputConfiguration aren't on the
 			// list-summary shape. Fall back to summary on per-row failure.
 			attrs := mustJSON(s)
 			if s.InferenceSchedulerName != nil {

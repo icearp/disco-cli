@@ -175,8 +175,8 @@ func TestResolveInstanceConnectEndpointRelationships_EmptyAttrs(t *testing.T) {
 	}
 }
 
-// TestResolveInstanceRelationships_IAMProfileAndENI verifies that instance
-// profile and network interface edges are emitted.
+// TestResolveInstanceRelationships_IAMProfileAndENI verifies instance-profile
+// and network-interface edges are emitted.
 func TestResolveInstanceRelationships_IAMProfileAndENI(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

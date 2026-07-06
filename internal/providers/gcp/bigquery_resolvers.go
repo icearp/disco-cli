@@ -13,15 +13,15 @@ func init() { registerResolver(resolveBigQueryRelationships) }
 // resolveBigQueryRelationships derives dataset -[uses]-> cryptoKey CMEK
 // edges from `defaultEncryptionConfiguration.kmsKeyName`. The dataset CMEK
 // applies to every newly-created table within unless overridden — useful
-// rule-engine pivot for "all data in this dataset is CMEK-encrypted with
-// rotation interval N".
+// pivot for "all data in this dataset is CMEK-encrypted with rotation
+// interval N".
 //
-// Per-table CMEK edges deferred — table list-shape doesn't include
-// encryption config; would need a Tables.Get fan-out per table, an
-// expensive call we defer until rule-engine demand justifies it.
-// Authorized-views (one dataset granting another query access) deferred —
-// stored under `access[].view` on the dataset Get response, but the edge
-// shape is dataset → dataset which is rare to query graph-style.
+// Per-table CMEK edges deferred — table list-shape lacks encryption config;
+// would need a Tables.Get fan-out per table, deferred until rule-engine
+// demand justifies the expense. Authorized-views (one dataset granting
+// another query access) deferred — stored under `access[].view` on the
+// dataset Get response, but dataset → dataset edges are rare to query
+// graph-style.
 func resolveBigQueryRelationships(p *project, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},

@@ -40,12 +40,12 @@ type chimeChannelFlowAttrs struct {
 	AppInstanceArn *string `json:"appInstanceArn,omitempty"`
 }
 
-// scanChime discovers the Chime SDK surface across its five sub-SDKs: identity
+// scanChime discovers the Chime SDK surface across five sub-SDKs: identity
 // (app-instances + per-instance bots/users), messaging (per-instance channel
 // flows), media-pipelines, and voice (SIP apps, voice connectors, voice-profile
-// domains + their profiles). Channels (data-plane, require a ChimeBearer user
-// identity) and meetings (ephemeral, no list API) are not scanned. Per-region;
-// unsupported regions surface as endpoint/access errors the dispatcher tolerates.
+// domains + profiles). Channels (data-plane, needs ChimeBearer user identity) and
+// meetings (ephemeral, no list API) aren't scanned. Per-region; unsupported
+// regions surface as endpoint/access errors, dispatcher-tolerated.
 func scanChime(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	idClient := ci.NewFromConfig(acct.cfg, func(o *ci.Options) { o.Region = region })
 	msgClient := cm.NewFromConfig(acct.cfg, func(o *cm.Options) { o.Region = region })
@@ -56,7 +56,7 @@ func scanChime(ctx context.Context, acct *account, region string, st *store.Stor
 
 	// The four sub-SDKs have independent regional availability (Voice Connector
 	// reaches more regions than identity/messaging), so an identity failure must
-	// not gate media-pipelines / voice. Each phase tolerates its own errors.
+	// not gate media-pipelines/voice — each phase tolerates its own errors.
 	appInstanceARNs := chimeAppInstances(ctx, idClient, acct, region, st, scanID, &batch)
 	for _, aiARN := range appInstanceARNs {
 		chimeAppInstanceChildren(ctx, idClient, msgClient, acct, region, st, scanID, aiARN, &batch)

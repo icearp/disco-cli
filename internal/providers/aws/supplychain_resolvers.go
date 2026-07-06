@@ -18,8 +18,8 @@ func init() {
 }
 
 // resolveSupplyChainInstanceChildren wires data-integration-flows, datasets,
-// and data-lake namespaces to their parent instance via the InstanceId field
-// each carries. FK-safe: the edge is emitted only when the instance was scanned.
+// and data-lake namespaces to their parent instance via each row's
+// InstanceId. FK-safe: emits only when the instance was scanned.
 func resolveSupplyChainInstanceChildren(acct *account, st *store.Store) error {
 	instSet, err := scannedIDSet(acct, st, TypeSupplyChainInstance)
 	if err != nil {

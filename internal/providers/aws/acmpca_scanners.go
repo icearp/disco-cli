@@ -31,18 +31,18 @@ type acmpcaAPI interface {
 }
 
 // acmpcaPermissionNativeID synthesizes a deterministic NativeID for an ACM-PCA
-// permission grant. The CreatePermission API does not issue an ARN; uniqueness
-// is the (caARN, principal) pair, so we encode both in the synthetic NativeID.
+// permission grant: CreatePermission issues no ARN, so uniqueness is the
+// (caARN, principal) pair, encoded here.
 func acmpcaPermissionNativeID(caARN, principal string) string {
 	return caARN + "/permission/" + principal
 }
 
 // scanACMPCA discovers ACM Private Certificate Authorities and their
 // permission grants. Phase 1: ListCertificateAuthorities returns CA metadata
-// including RevocationConfiguration; DescribeCertificateAuthority is only
-// needed for tag-less access, so skip it and use list output directly.
-// Phase 2: per-CA ListPermissions surfaces CreatePermission grants (only
-// `acm.amazonaws.com` is currently a valid principal per AWS docs).
+// (incl. RevocationConfiguration) directly — DescribeCertificateAuthority,
+// needed only for tag-less access, is skipped. Phase 2: per-CA
+// ListPermissions surfaces CreatePermission grants (only `acm.amazonaws.com`
+// is currently a valid principal per AWS docs).
 func scanACMPCA(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := acmpca.NewFromConfig(acct.cfg, func(o *acmpca.Options) { o.Region = region })
 	caTotal, caInserted, caARNs, err := scanACMPCACertificateAuthorities(ctx, client, acct, region, st, scanID)
@@ -56,8 +56,8 @@ func scanACMPCA(ctx context.Context, acct *account, region string, st *store.Sto
 	return caTotal + pTotal, caInserted + pInserted, nil
 }
 
-// scanACMPCACertificateAuthorities holds the testable scan body and returns
-// the list of CA ARNs scanned, used by the Permissions phase.
+// scanACMPCACertificateAuthorities holds the testable scan body; returns the
+// CA ARNs scanned for use by the Permissions phase.
 func scanACMPCACertificateAuthorities(ctx context.Context, client acmpcaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, caARNs []string, err error) {
 	pager := acmpca.NewListCertificateAuthoritiesPaginator(client, &acmpca.ListCertificateAuthoritiesInput{})
 	for pager.HasMorePages() {

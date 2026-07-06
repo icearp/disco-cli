@@ -81,9 +81,9 @@ func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential
 	return total, inserted, nil
 }
 
-// scanVMExtensions lists all extensions for every VM in the subscription.
-// It fans out one API call per VM using errgroup, bounded by maxConcurrentFanout.
-// Must be called after scanVMs has populated the store.
+// scanVMExtensions lists all extensions for every VM in the subscription, fanning
+// out one API call per VM via errgroup (bounded by maxConcurrentFanout). Must run
+// after scanVMs has populated the store.
 func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewVirtualMachineExtensionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {

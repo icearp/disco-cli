@@ -13,11 +13,11 @@ func init() {
 	registerResolver(
 		resolvePrivateEndpointRelationships,
 		EdgeDecl{Source: TypeNetworkPrivateEndpoint, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
-		// PE targets are matched against a store-wide index of every Azure
-		// resource (provider-agnostic on the target side). Storage account is
-		// the dominant concrete target; private-link-service is the explicit
-		// connection endpoint. Any future scanner storing its native ARM ID
-		// picks up PE edges automatically.
+		// PE targets match against a store-wide index of every Azure resource
+		// (target side is provider-agnostic). Storage account is the dominant
+		// concrete target; private-link-service is the explicit connection
+		// endpoint. Any future scanner storing its native ARM ID picks up PE
+		// edges automatically.
 		EdgeDecl{Source: TypeNetworkPrivateEndpoint, Target: TypeStorageStorageAccount, Kind: store.RelAttachedTo},
 		EdgeDecl{Source: TypeNetworkPrivateEndpoint, Target: TypeNetworkPrivateLinkService, Kind: store.RelAttachedTo},
 	)
@@ -28,10 +28,10 @@ func init() {
 //   - PE -[attached-to]-> target resource (via privateLinkServiceConnections[].privateLinkServiceId
 //     and manualPrivateLinkServiceConnections[].privateLinkServiceId)
 //
-// The target resource is matched against a per-sub lowercased NativeID index
+// The target resource matches against a per-sub lowercased NativeID index
 // covering every Azure resource — Private Link is provider-agnostic on the
-// target side, so any future scanner that stores its native ARM ID picks up
-// PE edges automatically.
+// target side, so any future scanner storing its native ARM ID picks up PE
+// edges automatically.
 func resolvePrivateEndpointRelationships(sub *subscription, st *store.Store) error {
 	pes, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,
@@ -98,8 +98,8 @@ func resolvePrivateEndpointRelationships(sub *subscription, st *store.Store) err
 			}
 			// Private link IDs sometimes carry a sub-resource suffix (e.g.
 			// /subscriptions/.../storageAccounts/foo/blobServices/default).
-			// Try the full ID first, then progressively trim path segments
-			// from the right — the first match wins.
+			// Try the full ID first, then trim path segments from the right
+			// — first match wins.
 			candidate := *targetID
 			for candidate != "" {
 				key := strings.ToLower(candidate)

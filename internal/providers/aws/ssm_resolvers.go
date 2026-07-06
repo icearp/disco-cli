@@ -41,9 +41,9 @@ func init() {
 }
 
 // resolveSSMDocumentRequires walks each customer-owned SSM document's
-// `Requires[]` (DocumentDescription field, populated by Phase-1 DescribeDocument
-// enrichment in scanSSMAll). Each entry names a sibling SSM document by name
-// or ARN; map to in-region NativeID + emit `uses` edge. FK-safe.
+// `Requires[]` (DocumentDescription field, populated by scanSSMAll's Phase-1
+// DescribeDocument enrichment). Each entry names a sibling document by name
+// or ARN; maps to in-region NativeID and emits a `uses` edge. FK-safe.
 func resolveSSMDocumentRequires(acct *account, st *store.Store) error {
 	docs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMDocument},
@@ -75,8 +75,8 @@ func resolveSSMDocumentRequires(acct *account, st *store.Store) error {
 			if name == "" {
 				continue
 			}
-			// Field accepts ARN or bare name; strip any leading
-			// `arn:aws:ssm:...:document/` prefix to recover bare name.
+			// Field accepts ARN or bare name; strip a leading
+			// `arn:aws:ssm:...:document/` prefix to recover the bare name.
 			if i := strings.Index(name, ":document/"); i >= 0 {
 				name = name[i+len(":document/"):]
 			}
@@ -92,9 +92,9 @@ func resolveSSMDocumentRequires(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveSSMRelationships emits edges for SecureString parameters → KMS keys.
-// Alias-name references are normalized to the underlying key via the KMS index
-// so the edge always points at the canonical key resource.
+// resolveSSMRelationships emits SecureString-parameter → KMS-key edges.
+// Alias-name references are normalized to the underlying key via the KMS
+// index, so the edge always points at the canonical key resource.
 func resolveSSMRelationships(acct *account, st *store.Store) error {
 	params, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMParameter},
@@ -135,8 +135,8 @@ func resolveSSMRelationships(acct *account, st *store.Store) error {
 }
 
 // resolveSSMAssociationDocument links each association to the SSM document it
-// runs (Name field — bare document name; build the per-region document NativeID
-// to look up).
+// runs (Name field is the bare document name; build the per-region NativeID
+// to look it up).
 func resolveSSMAssociationDocument(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMAssociation}, Limit: util.AllResources,
@@ -226,8 +226,7 @@ func resolveSSMMaintenanceWindowTargetParent(acct *account, st *store.Store) err
 // resolveSSMMaintenanceWindowTaskRefs walks each mw-task's WindowID,
 // ServiceRoleArn, and TaskArn (dispatched on Type for LAMBDA / STEP_FUNCTIONS).
 // RUN_COMMAND / AUTOMATION TaskArns are document names without per-region
-// resolution context — skip those rather than synthesize a wrong document
-// edge.
+// resolution context — skip rather than synthesize a wrong document edge.
 func resolveSSMMaintenanceWindowTaskRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMMaintenanceWindowTask}, Limit: util.AllResources,

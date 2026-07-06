@@ -14,7 +14,7 @@ import (
 // TestEveryTypeConstantIsUsed guards against orphan disco-type constants
 // in types.go — a Type* identifier declared but referenced nowhere else in
 // the package. Without this guard, retired services leave dead constants
-// behind that silently expand the package vocabulary.
+// that silently expand the package vocabulary.
 //
 // "Used" means the identifier appears as an ast.Ident in any other .go
 // file in the package — emits decl, scanner upsert call, resolver edge

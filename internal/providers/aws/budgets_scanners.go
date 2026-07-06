@@ -34,8 +34,8 @@ type budgetsAPI interface {
 	DescribeBudgetActionsForAccount(context.Context, *budgets.DescribeBudgetActionsForAccountInput, ...func(*budgets.Options)) (*budgets.DescribeBudgetActionsForAccountOutput, error)
 }
 
-// scanBudgets discovers Budgets budgets and budget actions. Budgets is a
-// global service; gate to us-east-1 to avoid duplicate scans across regions.
+// scanBudgets discovers Budgets budgets and budget actions. Global service;
+// gated to us-east-1 to dedupe across regions.
 func scanBudgets(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-1"
 	client := budgets.NewFromConfig(acct.cfg, func(o *budgets.Options) { o.Region = region })

@@ -36,8 +36,8 @@ func init() {
 
 // sagemakerGovernanceAPI is the narrow surface for the governance / lineage /
 // hub family — account-wide List ops whose summaries already carry the resource
-// ARN, plus DescribeTrial (the trial summary omits the parent ExperimentName,
-// which the trial→experiment resolver needs).
+// ARN, plus DescribeTrial (trial summary omits the parent ExperimentName the
+// trial→experiment resolver needs).
 type sagemakerGovernanceAPI interface {
 	ListActions(context.Context, *sagemaker.ListActionsInput, ...func(*sagemaker.Options)) (*sagemaker.ListActionsOutput, error)
 	ListContexts(context.Context, *sagemaker.ListContextsInput, ...func(*sagemaker.Options)) (*sagemaker.ListContextsOutput, error)
@@ -486,7 +486,7 @@ func scanSageMakerTrainingPlans(ctx context.Context, client sagemakerGovernanceA
 		},
 		func(s smtypes.TrainingPlanSummary) (string, string, string, *time.Time) {
 			// TrainingPlanSummary carries no creation timestamp — only the
-			// reservation window (StartTime/EndTime), which isn't a create time.
+			// reservation window (StartTime/EndTime).
 			return sv(s.TrainingPlanArn), sv(s.TrainingPlanName), string(s.Status), s.StartTime
 		})
 }

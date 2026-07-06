@@ -55,10 +55,9 @@ func TestRedact_LambdaFunction_EnvVariables(t *testing.T) {
 }
 
 // EC2 Instance.UserData and KeyPairInfo.KeyMaterial don't exist on the typed
-// list-shape responses (they're DescribeInstanceAttribute / CreateKeyPair
-// output fields). Tests round-trip a synthetic shape — the rule still binds
-// to the JSON path, which is what scanners would emit if they ever did fetch
-// those fields.
+// list-shape responses (they're DescribeInstanceAttribute / CreateKeyPair output
+// fields). Tests round-trip a synthetic shape — the rule still binds to the JSON
+// path, matching what scanners would emit if they ever fetched those fields.
 func TestRedact_EC2Instance_UserData(t *testing.T) {
 	got := applyAndDecode(t, TypeEC2Instance, map[string]any{
 		"InstanceId": "i-abc",
@@ -226,10 +225,10 @@ func TestRedact_CloudHSMCluster_PreCoPassword(t *testing.T) {
 }
 
 // TestRedact_FallbackStillCatchesUnruledTypes confirms the migration phase:
-// types without explicit rules still go through scrubAttributes.
-// (The store-level test TestUpsertResources_ScrubsAttributes already covers
-// the wired path; this exercises the AWS-side expectation that previously-
-// covered substring keys keep redacting until each type gets explicit rules.)
+// types without explicit rules still go through scrubAttributes. (Store-level
+// TestUpsertResources_ScrubsAttributes already covers the wired path; this
+// exercises the AWS-side expectation that previously-covered substring keys
+// keep redacting until each type gets explicit rules.)
 func TestRedact_FallbackStillCatchesUnruledTypes(t *testing.T) {
 	// Synthetic type with no rule registered.
 	out := redact.Apply("aws:fake:type", `{"Password":"x"}`)

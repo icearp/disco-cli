@@ -61,7 +61,7 @@ func resolveLexBotRole(acct *account, st *store.Store) error {
 	return nil
 }
 
-// lexBotARNFromBotChild rebuilds `arn:aws:lex:r:a:bot/{botId}` from any of:
+// lexBotARNFromChild rebuilds `arn:aws:lex:r:a:bot/{botId}` from any of:
 //   - bot-alias  `arn:aws:lex:r:a:bot-alias/{bid}/{aid}`
 //   - bot-version `arn:aws:lex:r:a:bot/{bid}/version/{ver}`
 //   - resource-policy `arn:aws:lex:r:a:bot/{bid}/policy`

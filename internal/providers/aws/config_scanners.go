@@ -43,9 +43,9 @@ type configserviceAPI interface {
 	ListStoredQueries(context.Context, *configservice.ListStoredQueriesInput, ...func(*configservice.Options)) (*configservice.ListStoredQueriesOutput, error)
 }
 
-// scanConfig discovers AWS Config configuration recorders, delivery channels,
-// and Config rules. Recorders and delivery channels have synthesised ARNs
-// (Describe APIs return them without one); rules carry ConfigRuleArn natively.
+// scanConfig discovers AWS Config recorders, delivery channels, and rules.
+// Recorders/delivery channels get synthesised ARNs (Describe APIs return
+// none); rules carry ConfigRuleArn natively.
 func scanConfig(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := configservice.NewFromConfig(acct.cfg, func(o *configservice.Options) { o.Region = region })
 	t, i, ferr := scanConfigAll(ctx, client, acct, region, st, scanID)

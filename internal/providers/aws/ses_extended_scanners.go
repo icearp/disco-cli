@@ -110,8 +110,8 @@ func scanSESCustomVerificationTemplates(ctx context.Context, client sesv2API, ac
 	return len(batch), n, nil
 }
 
-// scanSESDedicatedIPPools — ListDedicatedIpPools returns []string, no
-// per-pool body fan-out (no GetDedicatedIpPool returns useful extra).
+// scanSESDedicatedIPPools — ListDedicatedIpPools returns []string; no per-pool
+// fan-out since GetDedicatedIpPool adds nothing useful.
 func scanSESDedicatedIPPools(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := sesv2.NewListDedicatedIpPoolsPaginator(client, &sesv2.ListDedicatedIpPoolsInput{})
 	var batch []*store.Resource

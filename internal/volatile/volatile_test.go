@@ -99,7 +99,7 @@ func TestHasRules(t *testing.T) {
 	}
 }
 
-// TestRegister_IgnoresEmpty guards the defensive no-ops: an empty Type, an empty
+// TestRegister_IgnoresEmpty guards the defensive no-ops: empty Type, empty
 // path list, or all-empty path strings register nothing.
 func TestRegister_IgnoresEmpty(t *testing.T) {
 	resetForTest()

@@ -17,8 +17,8 @@ func init() {
 	)
 }
 
-// auditManagerAssessmentAttrs mirrors the verbatim Assessment fields used
-// by the resolver. PascalCase tags match mustJSON of the SDK v2 struct.
+// auditManagerAssessmentAttrs mirrors the Assessment fields the resolver
+// reads. PascalCase tags match mustJSON of the SDK v2 struct.
 type auditManagerAssessmentAttrs struct {
 	Framework *struct {
 		Arn *string `json:"Arn"`

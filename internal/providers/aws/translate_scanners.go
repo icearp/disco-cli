@@ -28,9 +28,9 @@ type translateAPI interface {
 // translateBlockListed reports the NotAuthorizedException AWS returns when an
 // account is block-listed from Active Custom Translation (the customization
 // feature ListParallelData powers) — a fraud/abuse gate distinct from account
-// entitlement. The account still uses Translate normally, so this is a
-// sub-feature gap: callers silent-skip the phase (letting sibling phases run)
-// rather than marking the whole service disabled/not-entitled.
+// entitlement. Translate itself still works, so this is a sub-feature gap:
+// callers silent-skip the phase (siblings run) rather than marking the whole
+// service disabled/not-entitled.
 func translateBlockListed(err error) bool {
 	return isAPIErrorWithMessage(err, "NotAuthorizedException", "block-listed")
 }

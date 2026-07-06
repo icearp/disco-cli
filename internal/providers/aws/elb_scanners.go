@@ -26,8 +26,7 @@ func init() {
 	})
 }
 
-// elbv2API is the narrow set of ELBv2 operations called by the scanELBv2
-// sub-phases.
+// elbv2API is the narrow set of ELBv2 ops called by scanELBv2's sub-phases.
 type elbv2API interface {
 	DescribeLoadBalancers(context.Context, *elasticloadbalancingv2.DescribeLoadBalancersInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeLoadBalancersOutput, error)
 	DescribeListeners(context.Context, *elasticloadbalancingv2.DescribeListenersInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeListenersOutput, error)
@@ -105,7 +104,7 @@ func scanELBv2(ctx context.Context, acct *account, region string, st *store.Stor
 }
 
 // scanELBv2LoadBalancers pages through all ALBs, NLBs, and GLBs.
-// Returns the list of ARNs for downstream listener enumeration.
+// Returns ARNs for downstream listener enumeration.
 func scanELBv2LoadBalancers(ctx context.Context, client elbv2API, acct *account, region string, st *store.Store, scanID string) (arns []string, total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeLoadBalancersPaginator(client, &elasticloadbalancingv2.DescribeLoadBalancersInput{})
 	for pager.HasMorePages() {
@@ -192,7 +191,7 @@ func scanELBv2Listeners(ctx context.Context, client elbv2API, acct *account, reg
 }
 
 // scanELBv2ListenerRules pages through rules for one listener.
-// The Rule struct omits the listener ARN, so we inject it into the stored attrs.
+// Rule omits the listener ARN, so it's injected into the stored attrs.
 func scanELBv2ListenerRules(ctx context.Context, client elbv2API, acct *account, region, listenerARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeRulesPaginator(client, &elasticloadbalancingv2.DescribeRulesInput{
 		ListenerArn: &listenerARN,
@@ -233,7 +232,7 @@ func scanELBv2ListenerRules(ctx context.Context, client elbv2API, acct *account,
 }
 
 // scanELBv2ListenerCertificates pages through certificates for one listener.
-// ListenerCertificate has no dedicated ARN; we synthesise one as listenerARN+":cert/"+CertificateArn.
+// ListenerCertificate has no dedicated ARN; synthesized as listenerARN+":cert/"+CertificateArn.
 func scanELBv2ListenerCertificates(ctx context.Context, client elbv2API, acct *account, region, listenerARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeListenerCertificatesPaginator(client, &elasticloadbalancingv2.DescribeListenerCertificatesInput{
 		ListenerArn: &listenerARN,

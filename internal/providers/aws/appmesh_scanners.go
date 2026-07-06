@@ -36,8 +36,8 @@ type appMeshAPI interface {
 }
 
 // scanAppMesh discovers App Mesh meshes plus per-mesh virtual gateways,
-// virtual nodes, virtual routers, virtual services, and the routes /
-// gateway-routes that hang off virtual routers and virtual gateways.
+// nodes, routers, services, and the routes/gateway-routes hanging off
+// virtual routers and gateways.
 func scanAppMesh(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := appmesh.NewFromConfig(acct.cfg, func(o *appmesh.Options) { o.Region = region })
 
@@ -258,10 +258,10 @@ func scanAppMeshVirtualServices(ctx context.Context, client appMeshAPI, acct *ac
 	return upsertBatch(st, batch, "appmesh virtual-services")
 }
 
-// getAppMeshVirtualGatewayNames re-pages virtual gateways purely to collect
-// their names for the gateway-route per-VG fan-out. Upserts already done in
-// scanAppMeshVirtualGateways. Returns (names, total=0, inserted=0, err) so
-// the orchestrator's totals stay accurate.
+// getAppMeshVirtualGatewayNames re-pages virtual gateways to collect their
+// names for the gateway-route per-VG fan-out (upserts already done in
+// scanAppMeshVirtualGateways). Returns (names, 0, 0, err) so the
+// orchestrator's totals stay accurate.
 func getAppMeshVirtualGatewayNames(ctx context.Context, client appMeshAPI, meshName string) ([]string, int, int, error) {
 	mn := meshName
 	pager := appmesh.NewListVirtualGatewaysPaginator(client, &appmesh.ListVirtualGatewaysInput{MeshName: &mn})

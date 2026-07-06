@@ -17,18 +17,16 @@ func init() {
 	)
 }
 
-// controlTowerBaselineAttrs mirrors the verbatim EnabledBaselineSummary
-// fields used by the resolver. PascalCase tags match mustJSON of the
-// SDK v2 struct.
+// controlTowerBaselineAttrs mirrors the EnabledBaselineSummary fields the
+// resolver needs; PascalCase tags match the SDK v2 struct's mustJSON output.
 type controlTowerBaselineAttrs struct {
 	TargetIdentifier *string `json:"TargetIdentifier"`
 }
 
 // resolveControlTowerBaselineTarget emits an `attached-to` edge from each
-// enabled baseline to its target Organizations OU or account. The
-// TargetIdentifier is an Organizations ARN (account or OU); both
-// resolve via existing Organizations id-sets. FK-safe via per-type id
-// sets; targets outside the scanned org tree skip silently.
+// enabled baseline to its target Organizations OU or account
+// (TargetIdentifier, an Organizations ARN), via existing Organizations
+// id-sets. FK-safe per-type; out-of-tree targets skip silently.
 func resolveControlTowerBaselineTarget(acct *account, st *store.Store) error {
 	baselines, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

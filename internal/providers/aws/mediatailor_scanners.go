@@ -139,9 +139,8 @@ func scanMTChannels(ctx context.Context, client mediatailorAPI, acct *account, r
 	return names, t, i, err
 }
 
-// scanMTChannelPolicy fetches the per-channel IAM policy. The API returns
-// only a Policy string; synthesize an ARN of the form
-// arn:aws:mediatailor:{r}:{a}:channel/{name}/policy.
+// scanMTChannelPolicy fetches the per-channel IAM policy. API returns only
+// a Policy string; synthesize ARN: arn:aws:mediatailor:{r}:{a}:channel/{name}/policy.
 func scanMTChannelPolicy(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channelName string) (int, int, error) {
 	cn := channelName
 	out, err := client.GetChannelPolicy(ctx, &mediatailor.GetChannelPolicyInput{ChannelName: &cn})
@@ -286,9 +285,9 @@ func scanMTPlaybackConfigurations(ctx context.Context, client mediatailorAPI, ac
 	return names, t, i, err
 }
 
-// scanMTPrefetchSchedules — ListPrefetchSchedules requires a
-// PlaybackConfigurationName, so fan out over the scanned playback
-// configurations. PrefetchSchedule carries a real distinct ARN (Leaf).
+// scanMTPrefetchSchedules — ListPrefetchSchedules requires
+// PlaybackConfigurationName; fan out over scanned playback configs.
+// PrefetchSchedule carries a real distinct ARN (Leaf).
 func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, pcName string) (int, int, error) {
 	pcn := pcName
 	pager := mediatailor.NewListPrefetchSchedulesPaginator(client, &mediatailor.ListPrefetchSchedulesInput{PlaybackConfigurationName: &pcn})
@@ -317,9 +316,9 @@ func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *a
 	return upsertBatch(st, batch, "mediatailor prefetch-schedules")
 }
 
-// scanMTPrograms — GetChannelSchedule requires a ChannelName, so fan out over
-// the scanned channels. Each ScheduleEntry is a program carrying a real
-// distinct ARN (Leaf).
+// scanMTPrograms — GetChannelSchedule requires ChannelName; fan out over
+// scanned channels. Each ScheduleEntry is a program carrying a real distinct
+// ARN (Leaf).
 func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channelName string) (int, int, error) {
 	cn := channelName
 	pager := mediatailor.NewGetChannelSchedulePaginator(client, &mediatailor.GetChannelScheduleInput{ChannelName: &cn})

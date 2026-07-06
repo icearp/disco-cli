@@ -20,7 +20,7 @@ func init() {
 }
 
 // scanSSMQuickSetup discovers SSM Quick Setup configuration managers.
-// LifecycleAutomation is a sub-resource of a ConfigurationManager with no
+// LifecycleAutomation is a ConfigurationManager sub-resource with no
 // listable endpoint — skip-logged.
 func scanSSMQuickSetup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ssmquicksetup.NewFromConfig(acct.cfg, func(o *ssmquicksetup.Options) { o.Region = region })

@@ -58,8 +58,7 @@ func TestResolveLookoutEquipmentModelVersionRefs(t *testing.T) {
 }
 
 // TestResolveLookoutEquipmentModelVersionRefs_NoAttrs guards the nil/empty
-// attributes path — a model version with no ModelArn emits no edge and panics
-// nowhere.
+// attrs path: a model version with no ModelArn emits no edge and never panics.
 func TestResolveLookoutEquipmentModelVersionRefs_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

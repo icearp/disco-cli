@@ -11,10 +11,10 @@ import (
 
 // serviceEntry describes a scannable GCP service (scoped to one project).
 //
-// emits enumerates every disco type the scanner upserts. Coverage truth
-// source — the matrix in `disco coverage` is built from these decls
-// aggregated across registeredServices + registeredOrgServices +
-// extraEmits (hierarchy_scanners + resolver-side synthetic stubs).
+// emits enumerates every disco type the scanner upserts — coverage truth
+// source for the `disco coverage` matrix, aggregated across
+// registeredServices + registeredOrgServices + extraEmits (hierarchy_scanners
+// + resolver-side synthetic stubs).
 type serviceEntry struct {
 	name  string
 	fn    func(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error)
@@ -22,13 +22,13 @@ type serviceEntry struct {
 }
 
 // registeredServices is populated by each *_scanners.go file's init().
-// Adding a new service only requires creating a new file and calling registerService
-// from its init() — no changes to gcp.go are needed.
+// New service: new file + registerService call from its init() — no gcp.go
+// changes needed.
 var registeredServices []serviceEntry
 
 // registerService adds a service to the package-level registry.
-// Panics if a service with the same name has already been registered, which
-// catches copy-paste errors that would otherwise silently scan a service twice.
+// Panics on duplicate name — catches copy-paste errors that would otherwise
+// silently scan a service twice.
 func registerService(e serviceEntry) {
 	for _, s := range registeredServices {
 		if s.name == e.name {
@@ -109,8 +109,8 @@ func registerOrgService(e orgServiceEntry) {
 
 // runOrgServices fires every registered org/folder-scope service exactly once
 // per scan, after scanHierarchy and before per-project fan-out. Errors per
-// service are reported via st.ReportError + st.ReportService — never propagated
-// (matches the per-service convention in scanProject). Skipped when no
+// service are reported via st.ReportError + st.ReportService, never
+// propagated (matches scanProject's per-service convention). Skipped when no
 // org/folder scopes were resolved (e.g. user only has project-level creds).
 func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st *store.Store, scanID string) {
 	if len(scopes) == 0 || len(registeredOrgServices) == 0 {
@@ -124,10 +124,9 @@ func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st 
 		var newC, changedC atomic.Int64
 		total, _, err := svc.fn(ctx, scopes, st.WithUpsertCounters(&newC, &changedC), scanID)
 		if err != nil {
-			// API-not-enabled at the org scope (accesscontextmanager,
-			// org-policy, etc.) returns the errServiceDisabled sentinel —
-			// mirror scanProject and surface "(project: disabled)" instead
-			// of an error.
+			// API-not-enabled at org scope (accesscontextmanager, org-policy,
+			// etc.) returns errServiceDisabled — mirrors scanProject, surfaces
+			// "(project: disabled)" instead of an error.
 			if errors.Is(err, errServiceDisabled) {
 				st.ReportService(svc.name, "org", 0, 0, 0, 0, store.ServiceDisabled)
 				continue

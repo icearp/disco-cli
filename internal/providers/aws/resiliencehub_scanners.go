@@ -127,9 +127,9 @@ func scanRHResiliencyPolicies(ctx context.Context, client resilienceHubAPI, acct
 	return upsertBatch(st, batch, "resilience-hub resiliency-policies")
 }
 
-// scanRHAppAssessments upserts app-assessments and returns their ARNs — the
-// fan-out driver for scanRHRecommendationTemplates, whose ListRecommendationTemplates
-// op requires an assessmentArn (server-required; the SDK v2 validator omits it).
+// scanRHAppAssessments upserts app-assessments and returns their ARNs — fan-out
+// driver for scanRHRecommendationTemplates, whose ListRecommendationTemplates op
+// requires an assessmentArn (server-required; SDK v2 validator omits it).
 func scanRHAppAssessments(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := resiliencehub.NewListAppAssessmentsPaginator(client, &resiliencehub.ListAppAssessmentsInput{})
 	var batch []*store.Resource
@@ -162,9 +162,9 @@ func scanRHAppAssessments(ctx context.Context, client resilienceHubAPI, acct *ac
 }
 
 // scanRHRecommendationTemplates fans out per assessment ARN: ListRecommendationTemplates
-// requires an assessmentArn server-side (the SDK v2 validator doesn't enforce it),
-// so an empty-input call fails with a garbled "explicit deny on resource: *".
-// Empty assessmentARNs → zero API calls.
+// requires assessmentArn server-side (SDK v2 validator doesn't enforce it) — empty
+// input fails with a garbled "explicit deny on resource: *". No assessmentARNs →
+// zero API calls.
 func scanRHRecommendationTemplates(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, assessmentARNs []string) (int, int, error) {
 	var batch []*store.Resource
 	for _, assessmentARN := range assessmentARNs {

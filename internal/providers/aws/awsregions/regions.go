@@ -1,8 +1,7 @@
 // Package awsregions is disco's static list of supported AWS
-// commercial-partition regions. It is deliberately SDK-free (stdlib only) so
-// external callers — the public codeberg.org/icearp/disco/regions package and,
-// through it, the SaaS control plane — can import the list without linking the
-// AWS SDK.
+// commercial-partition regions. Deliberately SDK-free (stdlib only) so external
+// callers — the public codeberg.org/icearp/disco/regions package and, through
+// it, the SaaS control plane — can import the list without linking the AWS SDK.
 //
 // Excludes GovCloud (us-gov-east-1, us-gov-west-1) and China (cn-north-1,
 // cn-northwest-1) partitions — those need separate creds and are not in the

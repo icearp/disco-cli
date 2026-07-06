@@ -21,8 +21,8 @@ func init() {
 }
 
 // resolveForecastDatasetRefs wires each dataset to its CMK + IAM role
-// (EncryptionConfig.{KMSKeyArn,RoleArn}). Both fields land on the
-// DescribeDataset body that scanForecastDatasets fans out per row.
+// (EncryptionConfig.{KMSKeyArn,RoleArn}), both from the DescribeDataset body
+// scanForecastDatasets fans out per row.
 func resolveForecastDatasetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeForecastDataset}, Limit: util.AllResources,
@@ -73,9 +73,9 @@ func resolveForecastDatasetRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveForecastDatasetGroupMembers wires each dataset group to the datasets
-// it contains (DatasetArns[]). Closure handled via UpsertRelationship rather
-// than RecordHierarchyBatch — datasets exist independently of any group.
+// resolveForecastDatasetGroupMembers wires each dataset group to its datasets
+// (DatasetArns[]) via UpsertRelationship, not RecordHierarchyBatch — datasets
+// exist independently of any group.
 func resolveForecastDatasetGroupMembers(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeForecastDatasetGroup}, Limit: util.AllResources,

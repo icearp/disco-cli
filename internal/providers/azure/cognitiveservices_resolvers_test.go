@@ -10,15 +10,15 @@ import (
 
 // TestResolveCognitiveServicesRelationships verifies a CMK-encrypted account
 // derives a -[uses]-> Key Vault edge from the keyVaultUri vault DNS root, and
-// that an account whose CMK vault is absent produces no edge.
+// an account with an absent CMK vault produces none.
 func TestResolveCognitiveServicesRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
 
 	// Mixed-case vault name segment vs lowercase CMK URI: the index key is
 	// derived via strings.ToLower(nameFromID(...)) and the probe via the URI
-	// host, so a match here genuinely depends on the resolver's index-side
-	// normalization (drop that ToLower and this test goes red).
+	// host, so this match depends on the resolver's index-side normalization
+	// (drop that ToLower and the test goes red).
 	vaultNativeID := "/subscriptions/" + testSubID + "/resourceGroups/rg/providers/Microsoft.KeyVault/vaults/CMKVault"
 	vaultID := upsertTestResource(t, st, "azure", sub.ID, TypeKeyVaultVault, vaultNativeID, "eastus", "{}")
 

@@ -3,16 +3,14 @@ package store
 import sq "github.com/Masterminds/squirrel"
 
 // resourceSelectColumns lists the SELECT projection for reads of the
-// resources table when scanning into *Resource. Aliases `root_id AS id`
-// so Resource.ID carries the deterministic hash (the stable caller-facing
-// identifier), not the per-version UUID stored in the table's actual `id`
-// column. Versioning-only columns (verified_at, previous_version_id, etc.)
-// are deliberately omitted — they live on ResourceVersion
-// (resources_versioning.go), not Resource.
+// resources table into *Resource. Aliases `root_id AS id` so Resource.ID
+// carries the deterministic hash (the stable caller-facing identifier), not
+// the per-version UUID in the table's actual `id` column. Versioning-only
+// columns (verified_at, previous_version_id, etc.) are deliberately omitted
+// — they live on ResourceVersion (resources_versioning.go), not Resource.
 //
-// Invariant: this list must stay in lockstep with the Resource struct's
-// `db` tags. Adding a new field to Resource requires appending the matching
-// column name here.
+// Invariant: this list must stay in lockstep with Resource's `db` tags.
+// Adding a field to Resource requires appending its column name here.
 func resourceSelectColumns() []string {
 	return []string{
 		"root_id AS id",
@@ -31,10 +29,10 @@ func resourceSelectColumns() []string {
 		"created_at",
 		"discovered_at",
 		"discovered_by",
-		// workspace_id deliberately omitted: it exists on both dialects
-		// but the disco-saas RLS layer does the per-workspace filtering,
-		// and no Go consumer reads Resource.WorkspaceID. sqlx tolerates
-		// the field staying nil when the projection omits its column.
+		// workspace_id deliberately omitted: it exists on both dialects but
+		// the disco-saas RLS layer does per-workspace filtering, and no Go
+		// consumer reads Resource.WorkspaceID. sqlx tolerates the field
+		// staying nil when the projection omits its column.
 	}
 }
 
@@ -63,9 +61,9 @@ func resourceSelectColumnsPrefixed(prefix string) []string {
 	return cols
 }
 
-// resourceIDColumn redirects caller-facing "id" lookups to root_id
-// because the paid schema's `id` column carries a per-version UUID
-// while the deterministic hash callers pass lives in `root_id`.
+// resourceIDColumn redirects caller-facing "id" lookups to root_id: the
+// paid schema's `id` column carries a per-version UUID, while the
+// deterministic hash callers pass lives in `root_id`.
 func resourceIDColumn() string { return "root_id" }
 
 // applyCurrentVersionPredicate scopes a SELECT to the current row of
@@ -75,8 +73,8 @@ func applyCurrentVersionPredicate(q sq.SelectBuilder) sq.SelectBuilder {
 	return q.Where(sq.Eq{"superseded_by": nil})
 }
 
-// currentVersionWhereSQL is the raw-SQL fragment that the paid build
-// appends to hand-written WHERE clauses to scope reads to the current
-// row. Always begins with " AND " so the caller's pre-existing WHERE
-// clause concatenates cleanly.
+// currentVersionWhereSQL is the raw-SQL fragment the paid build appends to
+// hand-written WHERE clauses to scope reads to the current row. Always
+// begins with " AND " so it concatenates cleanly onto the caller's existing
+// WHERE clause.
 func currentVersionWhereSQL() string { return " AND superseded_by IS NULL" }

@@ -75,11 +75,11 @@ type detectiveMemberAttrs struct {
 	AccountID *string `json:"AccountID"`
 }
 
-// resolveDetectiveMemberOrgAccount emits an `attached-to` edge from each
-// Detective member row to its corresponding AWS Organizations account, when
-// the org tree is also scanned. FK-safe via loadOrgTargetIndex; partial-
-// coverage scans (no Org tree) skip silently. Precedent: SSO assignment →
-// org account in resolveSSOAccountAssignments.
+// resolveDetectiveMemberOrgAccount wires each Detective member row to its AWS
+// Organizations account (attached-to), when the org tree is also scanned.
+// FK-safe via loadOrgTargetIndex; skips silently on partial-coverage scans
+// (no Org tree). Precedent: SSO assignment → org account in
+// resolveSSOAccountAssignments.
 func resolveDetectiveMemberOrgAccount(acct *account, st *store.Store) error {
 	members, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

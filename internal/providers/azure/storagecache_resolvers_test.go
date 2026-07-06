@@ -8,9 +8,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storagecache/armstoragecache"
 )
 
-// TestResolveStorageCacheRelationships verifies an HPC Cache derives both a
-// -[attached-to]-> VNet edge (properties.subnet) and a -[uses]-> Key Vault edge
-// (CMK encryptionSettings.keyEncryptionKey.sourceVault.id), each matched
+// TestResolveStorageCacheRelationships verifies an HPC Cache derives an
+// -[attached-to]-> VNet edge (properties.subnet) and a -[uses]-> Key Vault
+// edge (CMK encryptionSettings.keyEncryptionKey.sourceVault.id), each matched
 // case-insensitively.
 func TestResolveStorageCacheRelationships(t *testing.T) {
 	st := newTestStore(t)
@@ -20,8 +20,7 @@ func TestResolveStorageCacheRelationships(t *testing.T) {
 	kvID := upsertTestResource(t, st, "azure", sub.ID, TypeKeyVaultVault, kvNativeID, "eastus", "{}")
 	vnetPrefix := "/subscriptions/" + testSubID + "/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/"
 	vnetID := upsertTestResource(t, st, "azure", sub.ID, TypeNetworkVirtualNetwork, vnetPrefix+"cachevnet", "eastus", "{}")
-	// Mixed-case refs vs lowercase stored resources make the probe-side ToLower
-	// load-bearing.
+	// Mixed-case refs vs lowercase stored resources make probe-side ToLower load-bearing.
 	subnetRef := vnetPrefix + "CacheVNet/subnets/s"
 
 	cache := armstoragecache.Cache{
@@ -57,8 +56,8 @@ func TestResolveStorageCacheRelationships(t *testing.T) {
 	}
 }
 
-// TestResolveStorageCacheRelationships_NoRefs verifies a cache with no subnet /
-// CMK config produces no edges and does not panic on missing JSON.
+// TestResolveStorageCacheRelationships_NoRefs verifies a cache with no
+// subnet/CMK config produces no edges and doesn't panic on missing JSON.
 func TestResolveStorageCacheRelationships_NoRefs(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)

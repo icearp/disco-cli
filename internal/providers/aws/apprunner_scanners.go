@@ -22,8 +22,8 @@ func init() {
 			{Service: "apprunner", DiscoType: TypeAppRunnerAutoScalingConfiguration, Leaf: true},
 			{Service: "apprunner", DiscoType: TypeAppRunnerObservabilityConfiguration, Leaf: true},
 			{Service: "apprunner", DiscoType: TypeAppRunnerVpcIngressConnection},
-			// Connection has no outbound refs of its own (it's a credential link
-			// to a source-code provider); the service→connection edge lives on the
+			// Connection has no outbound refs of its own (a credential link to a
+			// source-code provider); the service→connection edge lives on the
 			// service resolver.
 			{Service: "apprunner", DiscoType: TypeAppRunnerConnection, Leaf: true},
 		},
@@ -42,14 +42,14 @@ type apprunnerAPI interface {
 	ListConnections(context.Context, *apprunner.ListConnectionsInput, ...func(*apprunner.Options)) (*apprunner.ListConnectionsOutput, error)
 }
 
-// scanAppRunner discovers App Runner resources in one region across several
-// phases: ListServices (paginator, skeleton) → fan-out DescribeService for full
-// body (NetworkConfiguration, SourceConfiguration, EncryptionConfiguration,
-// InstanceConfiguration); ListVpcConnectors (full body — Subnets, SecurityGroups);
-// auto-scaling configurations; observability configurations; VPC ingress
-// connections; and source-provider connections. Per-phase + per-item
-// AccessDenied tolerated. Custom domains deferred (per-service sub-resource with
-// limited graph value beyond the service rows themselves).
+// scanAppRunner discovers App Runner resources in one region across phases:
+// ListServices (paginator, skeleton) → fan-out DescribeService for full body
+// (NetworkConfiguration, SourceConfiguration, EncryptionConfiguration,
+// InstanceConfiguration); ListVpcConnectors (full body — Subnets,
+// SecurityGroups); auto-scaling configs; observability configs; VPC ingress
+// connections; source-provider connections. Per-phase + per-item AccessDenied
+// tolerated. Custom domains deferred (per-service sub-resource, limited graph
+// value beyond the service rows).
 func scanAppRunner(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := apprunner.NewFromConfig(acct.cfg, func(o *apprunner.Options) { o.Region = region })
 

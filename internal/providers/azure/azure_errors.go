@@ -13,11 +13,11 @@ import (
 )
 
 // errServiceNotRegistered is a sentinel returned (instead of a scan warning)
-// when a service is not available in this subscription — the resource provider
-// is not registered, or ARM reports its resource type as simply absent. The
-// dispatch loop detects it via errors.Is and reports the service as disabled —
-// the Azure analog of AWS's errServiceDisabled. Since each Azure service maps
-// 1:1 to an ARM namespace, an unavailable RP means the whole service is disabled.
+// when a service isn't available in this subscription — the resource provider
+// isn't registered, or ARM reports its resource type as absent. The dispatch
+// loop detects it via errors.Is and reports the service as disabled — the
+// Azure analog of AWS's errServiceDisabled. Since each Azure service maps 1:1
+// to an ARM namespace, an unavailable RP disables the whole service.
 var errServiceNotRegistered = errors.New("azure resource provider not available in subscription")
 
 // isAccessDenied reports whether err is an Azure 403/401 response error.
@@ -89,11 +89,11 @@ func isUnsupportedOperation(err error) bool {
 // response that armpeering PeerAsns returns) or a field-type mismatch
 // (*json.UnmarshalTypeError, e.g. armnetwork VirtualApplianceSKUs returning
 // instanceCount as a string where the generated struct types it int32). These
-// are SDK-vs-live-API mismatches: disco cannot extract data, but must not
+// are SDK-vs-live-API mismatches: disco can't extract data but must not
 // hard-fail the scan. Safe to skip because azSimpleScan compile-checks the
 // response type against the pager, so a decode error is always external, never
 // a wrong-type bug on our side. azcore formats the json error with %s (not %w),
-// so errors.As cannot reach it — the string fallback below handles the real
+// so errors.As can't reach it — the string fallback below handles the real
 // pager errors; the errors.As checks cover any properly-wrapped variants.
 func isDeserializationError(err error) bool {
 	if err == nil {
@@ -171,10 +171,10 @@ func isFeatureNotAvailable(err error) bool {
 
 // skipIfAccessDenied reports a non-fatal skip as a ScanWarning.
 func skipIfAccessDenied(st *store.Store, service, subID string, err error) error {
-	// Service not available in this subscription (RP not registered, or its
-	// resource type absent) == the AWS "service disabled" case: signal the
-	// dispatch loop to mark the service disabled (no warning, no error) rather
-	// than emitting noise for a service the sub doesn't use.
+	// Service unavailable in this subscription (RP not registered, or its
+	// resource type absent) mirrors AWS's "service disabled" case: signal the
+	// dispatch loop to mark it disabled (no warning, no error) instead of
+	// emitting noise for a service the sub doesn't use.
 	if isProviderUnavailable(err) {
 		return errServiceNotRegistered
 	}

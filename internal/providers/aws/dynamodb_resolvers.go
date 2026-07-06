@@ -69,8 +69,8 @@ func resolveDynamoDBBackupRelationships(acct *account, st *store.Store) error {
 }
 
 // resolveDynamoDBTableRelationships links each table to its KMS key when a
-// customer-managed key is used for server-side encryption. SSEDescription is
-// absent when the table uses the default (AWS-owned) key.
+// customer-managed key handles server-side encryption. SSEDescription is
+// absent for the default (AWS-owned) key.
 func resolveDynamoDBTableRelationships(acct *account, st *store.Store) error {
 	tables, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -132,10 +132,10 @@ func resolveDynamoDBStreamRelationships(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveDynamoDBGlobalTableRelationships links each global table to the
-// regional replica tables it contains. The ReplicationGroup field in the
-// global table's attributes holds a ReplicaArn for each replica; each ARN
-// matches the TableArn of an aws:dynamodb:table resource scanned in that region.
+// resolveDynamoDBGlobalTableRelationships links each global table to its
+// regional replica tables. ReplicationGroup holds a ReplicaArn per replica;
+// each matches the TableArn of an aws:dynamodb:table resource scanned in
+// that region.
 func resolveDynamoDBGlobalTableRelationships(acct *account, st *store.Store) error {
 	gts, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

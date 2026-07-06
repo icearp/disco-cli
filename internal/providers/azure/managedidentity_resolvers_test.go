@@ -6,7 +6,7 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveManagedIdentityAssignmentPrincipals verifies that a role assignment
+// TestResolveManagedIdentityAssignmentPrincipals verifies a role assignment
 // whose principalId matches a user-assigned-identity's properties.principalId
 // gets a -[uses]-> edge to that identity. Lookup is case-insensitive on the
 // principal GUID.
@@ -34,8 +34,8 @@ func TestResolveManagedIdentityAssignmentPrincipals(t *testing.T) {
 	}
 }
 
-// TestResolveManagedIdentityConsumers verifies that a host resource (e.g. a
-// VM) whose attributes carry an identity.userAssignedIdentities map gets a
+// TestResolveManagedIdentityConsumers verifies a host resource (e.g. a VM)
+// whose attributes carry an identity.userAssignedIdentities map gets a
 // -[uses]-> edge to each referenced user-assigned identity. Map keys are
 // matched case-insensitively against MSI NativeIDs.
 func TestResolveManagedIdentityConsumers(t *testing.T) {
@@ -63,8 +63,8 @@ func TestResolveManagedIdentityConsumers(t *testing.T) {
 	}
 }
 
-// TestResolveManagedIdentityConsumers_NoIdentity verifies that a host with
-// no `identity` block produces no edges and no error.
+// TestResolveManagedIdentityConsumers_NoIdentity verifies a host with no
+// `identity` block produces no edges and no error.
 func TestResolveManagedIdentityConsumers_NoIdentity(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-msi")

@@ -18,9 +18,9 @@ func init() {
 	)
 }
 
-// resolveAIOpsRelationships emits edges from each AIOps investigation group to
-// its KMS key (uses), IAM role (uses), and SNS topics surfaced via the chatbot
-// notification channel map. ChatbotNotificationChannel keys are SNS topic ARNs.
+// resolveAIOpsRelationships emits uses edges from each AIOps investigation group
+// to its KMS key, IAM role, and SNS topics from the chatbot notification channel
+// map (ChatbotNotificationChannel keys are SNS topic ARNs).
 func resolveAIOpsRelationships(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAIOpsInvestigationGroup},

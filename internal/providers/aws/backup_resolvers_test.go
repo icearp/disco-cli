@@ -29,8 +29,8 @@ func TestResolveBackupRelationships(t *testing.T) {
 	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
 
 	// Mimic backup_scanners.go: closure pair (selection, plan). Unified
-	// closure writer emits the parent→child contains row to relationships,
-	// so the resolver no longer needs to UpsertRelationship that edge.
+	// closure writer emits the parent→child contains row, so the resolver
+	// doesn't need to UpsertRelationship it.
 	if err := st.RecordHierarchyBatch([][2]string{{sID, pID}}); err != nil {
 		t.Fatalf("RecordHierarchyBatch: %v", err)
 	}

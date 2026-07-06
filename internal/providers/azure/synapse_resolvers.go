@@ -16,9 +16,9 @@ func init() {
 }
 
 // resolveSynapseRelationships derives Synapse workspace -[uses]-> Storage
-// account edge for the workspace's default ADLS Gen2 backing store via
-// `properties.defaultDataLakeStorage.resourceId`. Match case-insensitive
-// against per-sub Storage NativeID index.
+// account edge for the workspace's default ADLS Gen2 store via
+// `properties.defaultDataLakeStorage.resourceId`, matched case-insensitively
+// against the per-sub Storage NativeID index.
 func resolveSynapseRelationships(sub *subscription, st *store.Store) error {
 	workspaces, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

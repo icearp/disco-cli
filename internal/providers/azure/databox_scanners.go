@@ -15,9 +15,8 @@ func init() {
 		name: "azure:microsoft.databox",
 		fn:   scanDataBox,
 		emits: []coverage.TypeDecl{
-			// Job destinations reference storage accounts only under the
-			// expand=details filter (not fetched here), so this ships
-			// scanner-only.
+			// Job destinations reference storage accounts only under
+			// expand=details (not fetched here), so scanner-only.
 			{Service: "microsoft.databox", DiscoType: TypeDataBoxJob, Leaf: true},
 		},
 	})

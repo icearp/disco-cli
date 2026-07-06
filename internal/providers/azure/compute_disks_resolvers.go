@@ -22,9 +22,9 @@ func init() {
 	)
 }
 
-// resolveSnapshotSourceRelationships adds an attached-to edge from each snapshot
-// to its source disk, derived from properties.creationData.sourceResourceId in
-// the snapshot's stored attributes JSON.
+// resolveSnapshotSourceRelationships adds an attached-to edge from each snapshot to
+// its source disk, read from properties.creationData.sourceResourceId in the
+// snapshot's stored attributes JSON.
 func resolveSnapshotSourceRelationships(sub *subscription, st *store.Store) error {
 	snapshots, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -52,8 +52,8 @@ func resolveSnapshotSourceRelationships(sub *subscription, st *store.Store) erro
 			continue
 		}
 		sourceNativeID := *attrs.Properties.CreationData.SourceResourceID
-		// Source may be a managed disk or another snapshot. Try both; skip if
-		// neither is in the store (e.g. external or unscanned resource).
+		// Source may be a managed disk or another snapshot; try both, skip if
+		// neither is in the store (external or unscanned resource).
 		var sourceID string
 		for _, rtype := range []string{TypeComputeManagedDisk, TypeComputeSnapshot} {
 			candidate := store.ResourceID("azure", sub.ID, rtype, sourceNativeID)
@@ -72,9 +72,9 @@ func resolveSnapshotSourceRelationships(sub *subscription, st *store.Store) erro
 	return nil
 }
 
-// resolveDiskEncryptionSetRelationships adds an attached-to edge from each
-// managed disk to its disk encryption set, derived from
-// properties.encryption.diskEncryptionSetId in the disk's stored attributes.
+// resolveDiskEncryptionSetRelationships adds an attached-to edge from each managed
+// disk to its disk encryption set, read from properties.encryption.diskEncryptionSetId
+// in the disk's stored attributes.
 func resolveDiskEncryptionSetRelationships(sub *subscription, st *store.Store) error {
 	disks, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -113,9 +113,9 @@ func resolveDiskEncryptionSetRelationships(sub *subscription, st *store.Store) e
 	return nil
 }
 
-// resolveDiskSourceRelationships adds an attached-to edge from each managed
-// disk to its source disk or snapshot, derived from
-// properties.creationData.sourceResourceId in the disk's stored attributes.
+// resolveDiskSourceRelationships adds an attached-to edge from each managed disk to
+// its source disk or snapshot, read from properties.creationData.sourceResourceId in
+// the disk's stored attributes.
 func resolveDiskSourceRelationships(sub *subscription, st *store.Store) error {
 	disks, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -143,8 +143,7 @@ func resolveDiskSourceRelationships(sub *subscription, st *store.Store) error {
 			continue
 		}
 		sourceNativeID := *attrs.Properties.CreationData.SourceResourceID
-		// Source may be a managed disk or a snapshot. Try both; skip if
-		// neither is in the store.
+		// Source may be a managed disk or a snapshot; try both, skip if neither is in the store.
 		var sourceID string
 		for _, rtype := range []string{TypeComputeManagedDisk, TypeComputeSnapshot} {
 			candidate := store.ResourceID("azure", sub.ID, rtype, sourceNativeID)

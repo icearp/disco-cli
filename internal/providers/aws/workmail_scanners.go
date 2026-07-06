@@ -24,8 +24,8 @@ type workMailAPI interface {
 }
 
 // scanWorkMail discovers WorkMail organizations. ListOrganizations has no
-// paginator constructor, so it uses manual NextToken pagination. Organizations
-// expose no native ARN — synthesize from OrganizationId.
+// paginator constructor — manual NextToken pagination. No native ARN —
+// synthesized from OrganizationId.
 func scanWorkMail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := workmail.NewFromConfig(acct.cfg, func(o *workmail.Options) { o.Region = region })
 	return scanWorkMailIn(ctx, client, acct, region, st, scanID)

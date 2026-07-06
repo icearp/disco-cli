@@ -94,9 +94,9 @@ filters that drop every finding likewise yield exit 0.`,
 	RunE: func(cmd *cobra.Command, _ []string) (rerr error) {
 		defer func() {
 			// Skip the stdout JSON envelope on the findings-gate sentinel
-			// — the findings array IS the payload, the exit code IS the
-			// gate. Trailing `{"error":"N finding(s)"}` after the array
-			// would break strict consumers (json.load, jq -e). F7.
+			// — findings array IS the payload, exit code IS the gate.
+			// Trailing `{"error":"N finding(s)"}` after the array would
+			// break strict consumers (json.load, jq -e). F7.
 			if errors.Is(rerr, errFindingsReported) {
 				return
 			}
@@ -113,10 +113,10 @@ filters that drop every finding likewise yield exit 0.`,
 
 		ctx := cmd.Context()
 
-		// `check` opens the DB read-only by default. A writable open flips the
-		// SQLite WAL header, mutating the file and breaking any subsequent
-		// `disco verify` against a snapshot of it. `--persist` needs to write,
-		// so it upgrades to a writable open.
+		// `check` opens the DB read-only by default: a writable open flips
+		// the SQLite WAL header, mutating the file and breaking a subsequent
+		// `disco verify` against a snapshot of it. `--persist` needs to
+		// write, so it upgrades to a writable open.
 		needsWrite := checkPersist
 		var (
 			db  *store.Store
@@ -250,10 +250,10 @@ filters that drop every finding likewise yield exit 0.`,
 		}
 
 		if !checkExitZero && len(findings) > 0 {
-			// Default behaviour: any finding reported gates the exit code.
-			// Print the count to stderr so CI logs still see the gate
-			// fired; sentinel error suppresses the duplicate stdout JSON
-			// envelope above. Pass --exit-zero to override (inventory mode).
+			// Default: any finding reported gates the exit code. Print the
+			// count to stderr so CI logs see the gate fired; sentinel error
+			// suppresses the duplicate stdout JSON envelope above.
+			// --exit-zero overrides (inventory mode).
 			fmt.Fprintf(os.Stderr, "%d finding(s)\n", len(findings))
 			return errFindingsReported
 		}

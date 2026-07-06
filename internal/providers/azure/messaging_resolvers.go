@@ -18,12 +18,11 @@ func init() {
 }
 
 // resolveMessagingRelationships derives Event Hubs + Service Bus namespace
-// -[uses]-> Key Vault edges for CMEK-enabled namespaces. Both services
-// expose CMEK as `properties.encryption.keyVaultProperties[]` with each entry
-// holding a separate `keyVaultUri` field (a vault DNS root, NOT a full key
-// URI), so the resolver parses the URI host directly rather than reusing the
-// key-URI helper. Multiple keyVaultProperties entries on one namespace
-// collapse to one edge per (namespace, vault).
+// -[uses]-> Key Vault edges for CMEK-enabled namespaces. Both expose CMEK via
+// `properties.encryption.keyVaultProperties[].keyVaultUri` (a vault DNS root,
+// not a full key URI), so the resolver parses the URI host directly instead
+// of reusing the key-URI helper. Multiple entries on one namespace collapse
+// to one edge per (namespace, vault).
 func resolveMessagingRelationships(sub *subscription, st *store.Store) error {
 	namespaces, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,
@@ -85,9 +84,8 @@ func resolveMessagingRelationships(sub *subscription, st *store.Store) error {
 }
 
 // vaultNameFromVaultURI extracts the vault subdomain from a Key Vault DNS root
-// URI like "https://{vault}.vault.azure.net/" (no key/secret path).
-// Counterpart to vaultNameFromKeyURI which parses full key URIs; both share
-// the same DNS-suffix list.
+// URI like "https://{vault}.vault.azure.net/" (no key/secret path). Counterpart
+// to vaultNameFromKeyURI (full key URIs); both share the same DNS-suffix list.
 func vaultNameFromVaultURI(uri string) string {
 	u, err := url.Parse(uri)
 	if err != nil || u.Host == "" {

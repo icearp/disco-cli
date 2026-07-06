@@ -34,9 +34,9 @@ func scanDevTestLab(ctx context.Context, sub *subscription, cred azcore.TokenCre
 		})
 }
 
-// scanDevTestLabNamespace runs every Microsoft.devtestlab scanner phase concurrently. The
-// devtestlab ARM namespace spans several disco scanners merged under one
-// serviceEntry so the service name aligns to the namespace.
+// scanDevTestLabNamespace runs every Microsoft.devtestlab phase concurrently; the
+// ARM namespace spans several scanners merged under one serviceEntry so the
+// service name matches the namespace.
 func scanDevTestLabNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanDevTestLab(ctx, sub, cred, st, scanID) },

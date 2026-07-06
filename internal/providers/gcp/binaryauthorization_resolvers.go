@@ -16,13 +16,12 @@ func init() { registerResolver(resolveBinaryAuthorizationRelationships) }
 // occurrences from Container Analysis — the security-meaningful pivot for
 // "who can validate signatures on behalf of this attestor".
 //
-// Attestor → KMS public key edges deferred — v1 surface stores PGP/PKIX
-// public keys inline (not a KMS reference). v1beta1 has KMS-backed
-// attestation key support; that variant lands when GCP graduates it.
+// Attestor → KMS public key edges deferred — v1 stores PGP/PKIX public keys
+// inline (not a KMS reference); v1beta1 has KMS-backed attestation key
+// support, lands when GCP graduates it.
 //
 // Policy → cluster admission rules deferred — keyed on cluster-id strings
-// (`projects/{p}/clusters/{c}` form) which need GKE NativeID alignment;
-// follow-up.
+// (`projects/{p}/clusters/{c}` form) needing GKE NativeID alignment; follow-up.
 func resolveBinaryAuthorizationRelationships(p *project, st *store.Store) error {
 	atts, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeBinAuthAttestor},

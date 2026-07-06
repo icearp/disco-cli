@@ -201,9 +201,9 @@ func appFabricDestAttrs(ctx context.Context, client appFabricAPI, bundleARN, ing
 }
 
 // flattenIngestionDest embeds the native destination body and lifts the S3
-// bucket / Firehose stream out of the nested destination union into flat sibling
-// keys (the embedded union interfaces are not JSON-rehydratable, so the resolver
-// reads only these flattened fields).
+// bucket / Firehose stream out of the nested union into flat sibling keys
+// (union interfaces aren't JSON-rehydratable; the resolver reads only these
+// flattened fields).
 func flattenIngestionDest(dest *aftypes.IngestionDestination) ingestionDestAttrs {
 	out := ingestionDestAttrs{IngestionDestination: *dest}
 	if cfg, ok := dest.DestinationConfiguration.(*aftypes.DestinationConfigurationMemberAuditLog); ok {

@@ -27,16 +27,15 @@ func init() {
 	)
 }
 
-// resolveServerEncryptionProtectorToKey adds a uses edge from each server
-// encryption protector to the server key it references, derived from
-// properties.serverKeyName. Shares logic with the MI-side resolver.
+// resolveServerEncryptionProtectorToKey adds a uses edge from each encryption
+// protector to its referenced server key (properties.serverKeyName).
+// Shares logic with the MI-side resolver.
 func resolveServerEncryptionProtectorToKey(sub *subscription, st *store.Store) error {
 	return resolveEPToKey(sub, st, TypeSQLEncryptionProtector, TypeSQLServerKey, "server")
 }
 
-// resolveDatabaseToElasticPool adds a uses edge from each database that belongs
-// to an elastic pool, derived from properties.elasticPoolId in the database's
-// stored attributes JSON.
+// resolveDatabaseToElasticPool adds a uses edge from each database in an elastic
+// pool, derived from properties.elasticPoolId in the database's attributes JSON.
 func resolveDatabaseToElasticPool(sub *subscription, st *store.Store) error {
 	dbs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -69,9 +68,9 @@ func resolveDatabaseToElasticPool(sub *subscription, st *store.Store) error {
 	return nil
 }
 
-// resolveReplicationLinkToPartner adds a peer edge from each replication link
-// to the partner database, derived from properties.partnerDatabase and
-// properties.partnerServer in the link's stored attributes JSON.
+// resolveReplicationLinkToPartner adds a peer edge from each replication link to
+// its partner database, derived from properties.partnerDatabase/partnerServer in
+// the link's attributes JSON.
 func resolveReplicationLinkToPartner(sub *subscription, st *store.Store) error {
 	links, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -97,11 +96,10 @@ func resolveReplicationLinkToPartner(sub *subscription, st *store.Store) error {
 		if attrs.Properties == nil || attrs.Properties.PartnerDatabase == nil || attrs.Properties.PartnerServer == nil {
 			continue
 		}
-		// Construct the partner database native ID from its ARM path convention.
-		// The native ID is the ARM resource ID of the partner database:
+		// Partner database native ID follows ARM's path convention:
 		// /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Sql/servers/{server}/databases/{db}
-		// We don't know the partner RG from attrs alone, so we derive it by
-		// looking up any database named partnerDatabase on partnerServer.
+		// attrs alone don't carry the partner RG, so we derive it by looking up
+		// any database named partnerDatabase on partnerServer.
 		partnerNativeID := partnerDBNativeID(r.NativeID, *attrs.Properties.PartnerServer, *attrs.Properties.PartnerDatabase)
 		if partnerNativeID == "" {
 			continue
@@ -115,8 +113,8 @@ func resolveReplicationLinkToPartner(sub *subscription, st *store.Store) error {
 }
 
 // resolveFailoverGroupToPartnerServer adds a peer edge from each failover group
-// to each of its partner servers, derived from properties.partnerServers[].id
-// in the failover group's stored attributes JSON.
+// to each partner server, derived from properties.partnerServers[].id in the
+// group's attributes JSON.
 func resolveFailoverGroupToPartnerServer(sub *subscription, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -156,9 +154,8 @@ func resolveFailoverGroupToPartnerServer(sub *subscription, st *store.Store) err
 	return nil
 }
 
-// resolveSyncGroupToSyncAgent adds a uses edge from each sync group to the
-// sync agent it uses, derived from properties.syncAgentId in the sync group's
-// stored attributes JSON.
+// resolveSyncGroupToSyncAgent adds a uses edge from each sync group to its sync
+// agent, derived from properties.syncAgentId in the group's attributes JSON.
 func resolveSyncGroupToSyncAgent(sub *subscription, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},

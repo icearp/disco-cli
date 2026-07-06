@@ -7,8 +7,8 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveSecretToKMSKey verifies that a secret with a KmsKeyId pointing at
-// a customer-managed key produces a secret→key uses edge.
+// TestResolveSecretToKMSKey verifies a secret with a customer-managed KmsKeyId
+// produces a secret→key uses edge.
 func TestResolveSecretToKMSKey(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -30,8 +30,8 @@ func TestResolveSecretToKMSKey(t *testing.T) {
 	assertRelationship(t, rels, secretResID, keyResID, store.RelUses)
 }
 
-// TestResolveSecretToKMSKey_NoKey verifies secrets using the AWS-managed default
-// key (KmsKeyId omitted) produce no edge and no error.
+// TestResolveSecretToKMSKey_NoKey verifies the AWS-managed default key
+// (KmsKeyId omitted) produces no edge and no error.
 func TestResolveSecretToKMSKey_NoKey(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -48,8 +48,8 @@ func TestResolveSecretToKMSKey_NoKey(t *testing.T) {
 	}
 }
 
-// TestResolveSecretsManagerRotation verifies that a secret with rotation
-// enabled links to its rotation Lambda function.
+// TestResolveSecretsManagerRotation verifies a secret with rotation enabled
+// links to its rotation Lambda.
 func TestResolveSecretsManagerRotation(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

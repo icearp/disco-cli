@@ -36,7 +36,7 @@ type mpVodAPI interface {
 }
 
 // scanMediaPackage discovers MediaPackage v1 channels + origin endpoints
-// (live), plus MediaPackage VOD assets, packaging configs, packaging groups.
+// (live), plus VOD assets, packaging configs, packaging groups.
 func scanMediaPackage(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	v1 := mediapackage.NewFromConfig(acct.cfg, func(o *mediapackage.Options) { o.Region = region })
 	vod := mediapackagevod.NewFromConfig(acct.cfg, func(o *mediapackagevod.Options) { o.Region = region })

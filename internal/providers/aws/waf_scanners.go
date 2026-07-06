@@ -65,16 +65,16 @@ type wafPhase struct {
 	list      func(ctx context.Context, marker *string) ([]wafItem, *string, error)
 }
 
-// wafARN synthesizes a stable global ARN for a WAF Classic resource. WAF
-// Classic List ops return only {Id, Name} with no ARN, so we build the
-// documented global-scope shape (empty region segment).
+// wafARN synthesizes a stable global ARN for a WAF Classic resource. List ops
+// return only {Id, Name} with no ARN, so we build the documented global-scope
+// shape (empty region segment).
 func wafARN(account, kind, id string) string {
 	return fmt.Sprintf("arn:aws:waf::%s:%s/%s", account, kind, id)
 }
 
-// scanWAF discovers WAF Classic (v1) resources. The service is global — the
-// API is hosted only in us-east-1 — so it registers global=true and pins the
-// client to us-east-1; resources are stored with region "global".
+// scanWAF discovers WAF Classic (v1) resources. The service is global — API
+// hosted only in us-east-1 — so it registers global=true, pins the client to
+// us-east-1, and stores resources with region "global".
 func scanWAF(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-1"
 	client := waf.NewFromConfig(acct.cfg, func(o *waf.Options) { o.Region = region })
@@ -83,9 +83,9 @@ func scanWAF(ctx context.Context, acct *account, _ string, st *store.Store, scan
 	return t, i, ferr
 }
 
-// wafPhases maps each WAF Classic List op into a uniform wafPhase. WAF Classic
-// uses NextMarker/Limit pagination (no New*Paginator); Limit=100 dodges the
-// zero-limit footgun and the loop walks NextMarker via wafCollect.
+// wafPhases maps each WAF Classic List op into a uniform wafPhase. Uses
+// NextMarker/Limit pagination (no New*Paginator); Limit=100 dodges the
+// zero-limit footgun, wafCollect walks NextMarker.
 func wafPhases(c wafAPI) []wafPhase {
 	const limit = 100
 	return []wafPhase{
@@ -244,7 +244,7 @@ func wafCollect(ctx context.Context, page func(ctx context.Context, marker *stri
 
 // scanWAFPhases runs every phase for one WAF Classic flavour (global or
 // regional). regionScope tags the warning/error scope; regionPtr is the
-// resource Region column ("global" for the global flavour). It returns the
+// resource Region column ("global" for the global flavour). Returns the
 // scanned web-ACL ids so the regional caller can fan out ListResourcesForWebACL.
 func scanWAFPhases(ctx context.Context, phases []wafPhase, acct *account, regionScope string, regionPtr *string, st *store.Store, scanID, svcPrefix string, arnFn func(kind, id string) string) (total, inserted int, webACLIDs []string, err error) {
 	for _, ph := range phases {

@@ -9,8 +9,8 @@ import (
 )
 
 // mailManagerAPI — narrow set of MailManager ops. MailManager is a
-// distinct SDK module (aws-sdk-go-v2/service/mailmanager) covering the
-// SES Mail Manager rule-driven inbound mail processing surface.
+// distinct SDK module (aws-sdk-go-v2/service/mailmanager) for SES Mail
+// Manager's rule-driven inbound mail processing.
 type mailManagerAPI interface {
 	ListAddonInstances(context.Context, *mailmanager.ListAddonInstancesInput, ...func(*mailmanager.Options)) (*mailmanager.ListAddonInstancesOutput, error)
 	ListAddonSubscriptions(context.Context, *mailmanager.ListAddonSubscriptionsInput, ...func(*mailmanager.Options)) (*mailmanager.ListAddonSubscriptionsOutput, error)
@@ -318,9 +318,9 @@ func upsertSESMM(st *store.Store, batch []*store.Resource, kind string) (int, in
 	return upsertBatch(st, batch, "ses mailmanager-"+kind)
 }
 
-// upsertBatch is a generic helper used by scanners that fan-out into a
-// batch and need uniform empty-skip + error formatting. Pass a label
-// describing the resource family for inclusion in error messages.
+// upsertBatch is a generic helper for scanners that fan out into a batch and
+// need uniform empty-skip + error formatting. label names the resource
+// family for error messages.
 func upsertBatch(st *store.Store, batch []*store.Resource, label string) (int, int, error) {
 	if len(batch) == 0 {
 		return 0, 0, nil

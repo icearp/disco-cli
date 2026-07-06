@@ -49,11 +49,10 @@ type staticSiteEntry struct {
 	rg, name, nativeID, discoID string
 }
 
-// scanAppService discovers all Azure App Service / Microsoft.Web resources:
-// App Service plans, web apps and deployment slots, App Service Environments
-// and their pools, Kube Environments, Static Web Apps and their builds, and
-// TLS certificates. All top-level scanners run in parallel; fanout chains are
-// sequential within each chain.
+// scanAppService discovers all Microsoft.Web resources: App Service plans,
+// web apps and deployment slots, App Service Environments and their pools,
+// Kube Environments, Static Web Apps and their builds, and TLS certificates.
+// Top-level scanners run in parallel; each fanout chain runs sequentially.
 func scanAppService(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		mu      sync.Mutex
@@ -235,7 +234,7 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenC
 	}
 
 	// Fan out slot scans per web app, plus app-settings fetch for function
-	// apps. Both share the maxConcurrentFanout budget.
+	// apps; both share the maxConcurrentFanout budget.
 	var (
 		mu                sync.Mutex
 		sTotal, sInserted int
@@ -275,18 +274,18 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenC
 	return total + sTotal, inserted + sInserted, nil
 }
 
-// fetchFunctionAppSettings calls WebAppsClient.ListApplicationSettings for
-// one function-app site and stores the result in the per-subscription
-// sidecar (consumed by resolveFunctionAppRelationships). AccessDenied
-// tolerated — partial-cred scans skip the resolver edges silently.
+// fetchFunctionAppSettings calls WebAppsClient.ListApplicationSettings for one
+// function-app site, storing the result in the per-subscription sidecar
+// (consumed by resolveFunctionAppRelationships). AccessDenied tolerated —
+// partial-cred scans skip the resolver edges silently.
 func fetchFunctionAppSettings(ctx context.Context, sub *subscription, client *armappservice.WebAppsClient, site siteEntry) error {
 	resp, err := client.ListApplicationSettings(ctx, site.rg, site.name, nil)
 	if err != nil {
 		if isSkippableScanError(err) {
 			return nil
 		}
-		// App settings fetch is best-effort enrichment, not a scan-fatal
-		// failure. Resolver tolerates missing entries.
+		// App settings fetch is best-effort enrichment, not scan-fatal;
+		// resolver tolerates missing entries.
 		return nil
 	}
 	if len(resp.Properties) == 0 {

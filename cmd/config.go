@@ -9,9 +9,9 @@ import (
 	"github.com/spf13/viper"
 )
 
-// boilerplateConfig is the template written by `disco config init`.
-// All sections are optional; omitting a provider causes disco to auto-detect
-// accounts/projects/subscriptions via ambient cloud credentials.
+// boilerplateConfig is the template written by `disco config init`. All
+// sections are optional — omitting a provider triggers auto-detect of
+// accounts/projects/subscriptions via ambient credentials.
 const boilerplateConfig = `# disco configuration file
 # All sections are optional. Omitting a provider section causes disco to
 # auto-detect accounts/projects/subscriptions using ambient credentials.
@@ -120,15 +120,14 @@ func runConfigInit(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("write config: %w", err)
 	}
 
-	// Success confirmation goes to stderr (matches snapshot/verify) so stdout
-	// stays clean for any future machine output.
+	// Success message goes to stderr (matches snapshot/verify), keeping
+	// stdout clean for future machine output.
 	fmt.Fprintf(os.Stderr, "Config written to %s\n", path)
 	return nil
 }
 
-// configFilePath returns the path where the config file should be written.
-// Priority: viper already loaded a file → use that path; --config flag set → use that;
-// fallback → platform default (configDir()/config.yaml).
+// configFilePath returns where the config file should be written: viper's
+// loaded path, else --config, else the platform default (configDir()/config.yaml).
 func configFilePath() string {
 	if p := viper.ConfigFileUsed(); p != "" {
 		return p

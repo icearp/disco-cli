@@ -27,7 +27,7 @@ func init() {
 }
 
 // resolveAthenaSavedQueryWorkgroup wires named queries and prepared statements
-// to their owning workgroup. Both NativeIDs embed the workgroup ARN as a prefix
+// to their owning workgroup. Both NativeIDs prefix the workgroup ARN
 // ({workgroupARN}/named-query/{id}, {workgroupARN}/prepared-statement/{name}),
 // so the parent is recovered by truncation. FK-safe.
 func resolveAthenaSavedQueryWorkgroup(acct *account, st *store.Store) error {
@@ -52,9 +52,9 @@ func resolveAthenaSavedQueryWorkgroup(acct *account, st *store.Store) error {
 			return err
 		}
 		for _, r := range rows {
-			// LastIndex, not Index: a workgroup legitimately named "named-query"
-			// would put the separator in the NativeID twice; the true boundary is
-			// the last one (the suffix is a UUID / slash-free statement name).
+			// LastIndex, not Index: a workgroup named "named-query" would put the
+			// separator in the NativeID twice; the true boundary is the last one
+			// (suffix is a UUID / slash-free statement name).
 			i := strings.LastIndex(r.NativeID, pair.sep)
 			if i < 0 {
 				continue
@@ -154,13 +154,11 @@ type athenaDataCatalogAttrs struct {
 }
 
 // resolveAthenaDataCatalogLambda emits a `uses` edge from each LAMBDA-type
-// data catalog to the Lambda function(s) backing it. Athena LAMBDA
-// catalogs encode the function ARN(s) in the catalog's Parameters map
-// under keys like `function`, `metadata-function`, `record-function`.
-// HIVE catalogs use `metadata-function`. GLUE catalogs reference the
-// implicit Glue Data Catalog (no per-catalog edge to emit; see
-// aws:glue:database closure). FEDERATED catalogs (Athena-managed Lambda)
-// behave like LAMBDA for the resolver.
+// data catalog to its backing Lambda function(s). LAMBDA/FEDERATED catalogs
+// encode the function ARN(s) in Parameters under `function`,
+// `metadata-function`, `record-function`; HIVE catalogs use `metadata-function`.
+// GLUE catalogs reference the implicit Glue Data Catalog instead (no edge
+// here; see aws:glue:database closure).
 func resolveAthenaDataCatalogLambda(acct *account, st *store.Store) error {
 	cats, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

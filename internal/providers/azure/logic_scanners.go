@@ -24,8 +24,8 @@ func init() {
 
 // scanLogic discovers Azure Logic Apps workflows, integration accounts, and
 // integration service environments. Triggers, actions, and API connections are
-// deferred — connection refs in the workflow definition are name-keyed (not
-// ARM-IDs) and require per-connection resolution that warrants a follow-up.
+// deferred: workflow-definition connection refs are name-keyed (not ARM IDs)
+// and need per-connection resolution — a follow-up.
 func scanLogic(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {

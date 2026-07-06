@@ -9,22 +9,21 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
-// tenantServiceEntry describes a tenant-scope Azure service (i.e. one whose
-// API surface sits ABOVE the subscription boundary). The fn runs ONCE per
-// scan, after subscription discovery and concurrently with the per-subscription
-// fan-out; each subscription's phase-2 resolvers block on its completion (see
-// Scan / waitForTenant) so the principals it writes are present before any
-// resolver consumes them.
+// tenantServiceEntry describes a tenant-scope Azure service (API surface
+// above the subscription boundary). fn runs ONCE per scan, after subscription
+// discovery and concurrently with the per-subscription fan-out; each
+// subscription's phase-2 resolvers block on its completion (see Scan /
+// waitForTenant) so its written principals are present before any resolver
+// consumes them.
 //
 // Targets: Entra ID (Microsoft Graph users / groups / service principals /
-// app registrations / directory roles) and any other Microsoft Graph or
-// tenant-scope ARM API. Distinct from registeredServices, which fan out
-// per-subscription.
+// app registrations / directory roles) and other Graph or tenant-scope ARM
+// APIs. Distinct from registeredServices, which fans out per-subscription.
 //
 // The signature receives the discovered subscription set so a tenant scanner
-// can correlate tenant principals with the per-sub RBAC scopes already
-// collected (e.g. resolve Graph object IDs against subscription role
-// assignments). Subscriptions are read-only here — never mutate.
+// can correlate tenant principals with already-collected per-sub RBAC scopes
+// (e.g. Graph object IDs against subscription role assignments).
+// Subscriptions are read-only here — never mutate.
 type tenantServiceEntry struct {
 	name  string
 	fn    func(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error)
@@ -48,10 +47,9 @@ func registerTenantService(e tenantServiceEntry) {
 }
 
 // runTenantServices fires every registered tenant-scope service exactly once
-// per scan. Scan runs it concurrently with the per-subscription fan-out and
-// gates each subscription's phase-2 resolvers on its completion. Errors per
-// service are reported
-// via st.ReportError + st.ReportService (errCount=1) — never propagated.
+// per scan, concurrently with the per-subscription fan-out, and gates each
+// subscription's phase-2 resolvers on its completion. Per-service errors go
+// through st.ReportError + st.ReportService (errCount=1) — never propagated.
 // Skipped when no tenant services are registered.
 func runTenantServices(ctx context.Context, subs []subscription, cred azcore.TokenCredential, filter []string, st *store.Store, scanID string) {
 	if len(registeredTenantServices) == 0 {

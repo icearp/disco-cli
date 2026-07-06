@@ -38,12 +38,12 @@ type neptuneAPI interface {
 }
 
 // scanNeptune discovers Amazon Neptune clusters and instances in one
-// region. Although Neptune rides on the RDS control-plane API
-// (rds:DescribeDBClusters returns Engine=neptune rows), the dedicated
-// neptune SDK service gives us proper aws:neptune:* type semantics
-// and isolates Neptune from RDS-engine resolvers. The companion change
-// in scanRDSClusters / scanRDSInstances filters Engine in {neptune,
-// docdb} so rows aren't duplicated across types.
+// region. Neptune also rides the RDS control-plane API
+// (rds:DescribeDBClusters returns Engine=neptune rows); the dedicated
+// neptune SDK service gives proper aws:neptune:* type semantics and
+// isolates Neptune from RDS-engine resolvers. scanRDSClusters /
+// scanRDSInstances filter Engine in {neptune, docdb} so rows aren't
+// duplicated across types.
 //
 // Two phases run sequentially, both Describe* paginator-native with
 // full body on List. Per-phase AccessDenied tolerated. Cluster

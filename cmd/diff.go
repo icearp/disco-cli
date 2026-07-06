@@ -50,8 +50,8 @@ Run 'disco scans' to list scan IDs.`,
 		if err != nil {
 			return err
 		}
-		// Re-establish the non-nil contract so `-o json` emits `[]` not `null`
-		// for the Added/Stale arrays on a zero-delta diff (F6 wire-contract).
+		// Re-establish the non-nil contract so `-o json` emits `[]`, not `null`,
+		// for Added/Stale on a zero-delta diff (F6 wire-contract).
 		if d.Added == nil {
 			d.Added = []store.Resource{}
 		}
@@ -104,9 +104,9 @@ func renderDiffTable(d *store.ScanDiff) error {
 	return w.Flush()
 }
 
-// diffRowsCSV flattens added + stale lists into a single column-stable
-// row stream tagged by `change_type` (added | stale). Columns positional
-// per cmd/CLAUDE.md "csv columns are positional-stable" rule.
+// diffRowsCSV flattens added + stale into one column-stable row stream
+// tagged by `change_type` (added | stale); columns positional per
+// cmd/CLAUDE.md "csv columns are positional-stable" rule.
 func diffRowsCSV(d *store.ScanDiff) [][]string {
 	rows := make([][]string, 0, len(d.Added)+len(d.Stale))
 	for _, r := range d.Added {
@@ -146,9 +146,9 @@ func renderDiffMarkdown(d *store.ScanDiff) error {
 	return renderMarkdownTable(os.Stdout, headers, diffRowsCSV(d))
 }
 
-// renderDiffJSONL emits each added / stale entry as one JSON line tagged
-// with a `change_type` discriminator. Suited to `disco diff … -o jsonl |
-// jq -c '. | select(.change_type=="added")'` drift pipelines.
+// renderDiffJSONL emits each added/stale entry as one JSON line tagged with
+// a `change_type` discriminator, for `disco diff … -o jsonl | jq -c '. |
+// select(.change_type=="added")'` drift pipelines.
 func renderDiffJSONL(d *store.ScanDiff) error {
 	enc := json.NewEncoder(os.Stdout)
 	type entry struct {

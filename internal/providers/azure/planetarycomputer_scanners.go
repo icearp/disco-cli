@@ -12,9 +12,8 @@ import (
 
 func init() {
 	// Microsoft.Orbital/geoCatalogs (Planetary Computer Pro) is the only live
-	// type left in the Microsoft.Orbital namespace — the ground-station
-	// Spacecrafts service was retired Dec 2024 — so this scanner owns the
-	// azure:microsoft.orbital service registration.
+	// type left in Microsoft.Orbital — Spacecrafts (ground-station) retired
+	// Dec 2024 — so this scanner owns the azure:microsoft.orbital registration.
 	registerService(serviceEntry{
 		name: "azure:microsoft.orbital",
 		fn:   scanPlanetaryComputer,

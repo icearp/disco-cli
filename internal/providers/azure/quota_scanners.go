@@ -19,10 +19,10 @@ func init() {
 	// Registration gate caveat: providerDisabled (azure_scanner.go) skips this
 	// scanner only if a subscription's Providers/List reports microsoft.quota as
 	// known-and-unregistered. Microsoft.Quota is a registration-free proxy RP
-	// that serves Compute/Network/ML quotas regardless of its own registration,
-	// so in practice it is absent-or-registered and the scanner runs; a sub that
-	// explicitly lists it unregistered would be skipped (acceptable — no quota
-	// RBAC there anyway).
+	// serving Compute/Network/ML quotas regardless of its own registration, so
+	// in practice it's absent-or-registered and the scanner runs; a sub
+	// explicitly listing it unregistered would be skipped (acceptable — no
+	// quota RBAC there anyway).
 	registerService(serviceEntry{
 		name: "azure:microsoft.quota",
 		fn:   scanQuotaLimits,
@@ -48,11 +48,11 @@ var quotaProviderNamespaces = []string{
 // Microsoft.Quota proxy. The proxy is scope-addressed — one List per
 // (provider-namespace, location) — so this fans out the cartesian product of
 // quotaProviderNamespaces × azureregions.Regions, bounded by maxConcurrentFanout.
-// Each limit is stored limit-only, so the resource version chain bumps only when
-// an actual quota changes (a grant/reduction), giving clean change-over-time
-// history without per-scan churn. The serialized CurrentQuotaLimitBase carries no
-// usage, etag, or systemData timestamp (it omits ProxyResource/SystemData), so the
-// only theoretical churn source is the opaque RP-specific Properties.Properties
+// Each limit is stored limit-only, so the resource version chain bumps only on
+// an actual quota change (grant/reduction) — churn-free change-over-time
+// history. The serialized CurrentQuotaLimitBase carries no usage, etag, or
+// systemData timestamp (omits ProxyResource/SystemData), so the only
+// theoretical churn source is the opaque RP-specific Properties.Properties
 // bag — empty for the compute/network/ML namespaces scanned here.
 func scanQuotaLimits(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armquota.NewClient(cred, azClientOptions)
@@ -89,8 +89,8 @@ func scanQuotaLimitsWithClient(ctx context.Context, sub *subscription, st *store
 					page, err := pager.NextPage(gctx)
 					if err != nil {
 						// Most (namespace, region) pairs the proxy doesn't serve
-						// (RP unregistered, quota unsupported in region) — skip the
-						// combo, never fail the whole scanner.
+						// (RP unregistered, quota unsupported in region) — skip
+						// that combo, never fail the whole scanner.
 						if isSkippableScanError(err) {
 							return nil
 						}

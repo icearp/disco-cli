@@ -6,9 +6,9 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveSubnetVNetRelationships verifies that a subnet's VNet parent is
-// correctly derived from the subnet NativeID path (no JSON parsing needed —
-// the relationship is structural, not attribute-based).
+// TestResolveSubnetVNetRelationships verifies a subnet's VNet parent is
+// derived from the subnet NativeID path (no JSON parsing needed — the
+// relationship is structural, not attribute-based).
 func TestResolveSubnetVNetRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-123")
@@ -47,10 +47,10 @@ func TestResolveSubnetVNetRelationships_NoSubnets(t *testing.T) {
 }
 
 // TestResolveApplicationGatewayRelationships verifies an AGW emits three
-// edges given a configured attributes blob: VNet (via subnet path of the
-// gateway IP config), Public IP (via frontend IP config), and Key Vault (via
-// sslCertificates[].keyVaultSecretId reference URI — preserved by the
-// sanitizer's reference-URI allowlist).
+// edges from a configured attrs blob: VNet (subnet path in gateway IP
+// config), Public IP (frontend IP config), Key Vault (sslCertificates[].
+// keyVaultSecretId reference URI — preserved by the sanitizer's
+// reference-URI allowlist).
 func TestResolveApplicationGatewayRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-agw")
@@ -86,7 +86,7 @@ func TestResolveApplicationGatewayRelationships(t *testing.T) {
 }
 
 // TestResolveApplicationGatewayRelationships_BareAttrs verifies a gateway
-// with no frontend/cert configuration produces no edges and no error.
+// with no frontend/cert config produces no edges and no error.
 func TestResolveApplicationGatewayRelationships_BareAttrs(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-agw")

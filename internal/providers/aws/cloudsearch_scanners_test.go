@@ -21,10 +21,10 @@ func (s *stubCloudSearch) DescribeDomains(_ context.Context, _ *cloudsearch.Desc
 	return &cloudsearch.DescribeDomainsOutput{}, nil
 }
 
-// An account AWS hasn't made eligible for CloudSearch gets NotAuthorized with a
-// "not supported on this account" body. It must surface as the not-entitled
-// sentinel (progress line "(account: not entitled)") and record NO
-// warning — the account can't self-enable it.
+// An account not yet eligible for CloudSearch gets NotAuthorized with a "not
+// supported on this account" body: must surface as the not-entitled sentinel
+// (progress line "(account: not entitled)") and record NO warning — the
+// account can't self-enable it.
 func TestScanCloudSearch_NotEntitled(t *testing.T) {
 	st := newTestStore(t)
 	var warnings int

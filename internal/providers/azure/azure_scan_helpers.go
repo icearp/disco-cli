@@ -42,11 +42,11 @@ func (p *singlePager[P]) NextPage(context.Context) (P, error) {
 	return p.page, nil
 }
 
-// azRunPhases runs the given scan phases concurrently, summing their (total,
-// inserted) counts and returning the first non-nil error. Each phase is one
-// azSimpleScan / azRGFanoutScan call. Use for multi-type single-service
-// scanners (e.g. azurestackhci, connectedvmware) instead of hand-rolling the
-// WaitGroup + mutex aggregation each time.
+// azRunPhases runs scan phases concurrently, summing (total, inserted) and
+// returning the first non-nil error. Each phase is one azSimpleScan /
+// azRGFanoutScan call. Use for multi-type single-service scanners (e.g.
+// azurestackhci, connectedvmware) instead of hand-rolling WaitGroup + mutex
+// aggregation each time.
 func azRunPhases(phases ...func() (int, int, error)) (total, inserted int, err error) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -150,11 +150,11 @@ func azTrackedRows[T any](sub *subscription, scanID, rtype string, items []*T, e
 }
 
 // listSubscriptionRGNames enumerates all resource groups in the subscription
-// via the ARM resource-groups SDK. Used by azRGFanoutScan and any other
-// caller that needs RG names without depending on scan order against the
-// `azure:resourcegroups` service. AccessDenied tolerated (returns empty
-// slice + nil error). Imported as a reverse dep on `armresources` already
-// pulled in by `resourcegroups_scanners.go`.
+// via the ARM resource-groups SDK. Used by azRGFanoutScan and any caller
+// needing RG names without depending on scan order against the
+// `azure:resourcegroups` service. AccessDenied tolerated (empty slice + nil
+// error). Reverse dep on `armresources`, already pulled in by
+// `resourcegroups_scanners.go`.
 func listSubscriptionRGNames(ctx context.Context, sub *subscription, cred azcore.TokenCredential) ([]string, error) {
 	client, err := armresources.NewResourceGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {

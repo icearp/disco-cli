@@ -17,8 +17,8 @@ func init() {
 }
 
 // resolveWAFv2Relationships links each WebACL to the rule groups and IP sets it
-// references. Rules may nest arbitrarily, but we only inspect top-level
-// Statement.RuleGroupReferenceStatement and Statement.IPSetReferenceStatement.
+// references. Rules may nest arbitrarily; only top-level
+// Statement.RuleGroupReferenceStatement / IPSetReferenceStatement are inspected.
 func resolveWAFv2Relationships(acct *account, st *store.Store) error {
 	acls, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWAFv2WebACL},

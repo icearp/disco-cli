@@ -17,15 +17,15 @@ var hexResourceIDRE = regexp.MustCompile(`^[0-9a-f]{32}$`)
 //
 // Wire shape ≠ storage shape: AttributesJSON / TagsJSON live as JSON strings
 // in the DB but MarshalJSON / UnmarshalJSON surface them as nested
-// `attributes` / `tags` objects on the wire. JSON keys are snake_case to
-// match policy.Finding and coverage.Row.
+// `attributes` / `tags` objects on the wire, with snake_case keys matching
+// policy.Finding and coverage.Row.
 //
 // Contract: every key documented under `disco check --help` is always
 // present on the wire (never dropped by `,omitempty`). Optional pointer
 // fields render as `null` when unset; `tags` always emits as an object
-// (possibly empty); `managed_by_provider` always emits its bool. Drift
-// here is the F6 paper-cut from focus-group/SUMMARY.md — fix at this
-// struct, not in each command's renderer.
+// (possibly empty); `managed_by_provider` always emits its bool. Drift here
+// is the F6 paper-cut from focus-group/SUMMARY.md — fix at this struct, not
+// in each command's renderer.
 type Resource struct {
 	ID                string  `db:"id"                  json:"id"`
 	Provider          string  `db:"provider"            json:"provider"`
@@ -46,9 +46,8 @@ type Resource struct {
 	WorkspaceID       *string `db:"workspace_id"        json:"-"` // per-workspace RLS discriminator; nil when the disco-saas app.workspace_id GUC was unset
 
 	// Verification + version-chain metadata live on ResourceVersion
-	// (resources_versioning.go), not here. Resource is the base type: any
-	// new field added here cascades to ResourceVersion via its embedded
-	// Resource.
+	// (resources_versioning.go), not here. Resource is the base type — any
+	// field added here cascades to ResourceVersion via its embedded Resource.
 }
 
 // resourceWire is the on-wire shape: SDK-shape attributes/tags surfaced as
@@ -100,10 +99,10 @@ func (r *Resource) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// idHashBytes is the number of SHA-256 prefix bytes used in a resource ID.
-// 16 bytes hex-encode to the 32-char IDs documented in store/CLAUDE.md;
-// the prefix is short enough to fit in tabular output (cf. cmd.short()) yet
-// long enough that collisions within a single account are vanishingly rare.
+// idHashBytes is the number of SHA-256 prefix bytes in a resource ID. 16
+// bytes hex-encode to the 32-char IDs documented in store/CLAUDE.md — short
+// enough for tabular output (cf. cmd.short()) yet long enough that
+// collisions within one account are vanishingly rare.
 const idHashBytes = 16
 
 // ResourceID computes a stable deterministic ID for a resource.
@@ -126,29 +125,29 @@ type ResourceFilter struct {
 	ExcludeTypes []string
 	Regions      []string
 	Status       string
-	// DiscoveredBy, when set, restricts the result to rows inserted by
-	// the named scan id (matches `discovered_by`). The paid build adds
-	// a verified_by branch via ResourceFilterPaid + ListResourcesPaid;
-	// the OSS-shared filter only knows about discovery.
+	// DiscoveredBy, when set, restricts results to rows inserted by the named
+	// scan id (matches `discovered_by`). The paid build adds a verified_by
+	// branch via ResourceFilterPaid + ListResourcesPaid; the OSS-shared filter
+	// only knows about discovery.
 	DiscoveredBy string
 	// DiscoveredSince filters rows whose discovered_at >= this RFC3339
-	// timestamp. Stored timestamps sort lexicographically the same as
-	// chronologically, so plain string comparison suffices. Pairs with
-	// DiscoveredBefore for half-open `[since, before)` interval queries.
+	// timestamp. Stored timestamps sort lexicographically same as
+	// chronologically, so plain string comparison works. Pairs with
+	// DiscoveredBefore for half-open `[since, before)` queries.
 	DiscoveredSince string
 	// DiscoveredBefore filters rows whose discovered_at < this RFC3339
-	// timestamp (strict). Used for "stale" hygiene queries and as the
-	// upper half of a half-open closed interval with DiscoveredSince.
+	// timestamp (strict). Used for "stale" hygiene queries and as the upper
+	// half of a half-open interval with DiscoveredSince.
 	DiscoveredBefore string
 	// CreatedBefore filters rows whose created_at < this RFC3339 timestamp.
-	// Anchored on the resource's intrinsic CreateDate (lifted from the SDK
-	// at scan time), NOT discovered_at. Rows with NULL created_at are
-	// excluded from the result set; not every scanner lifts the SDK
-	// timestamp yet (see EBS volume precedent in commit 8e61c52).
+	// Anchored on the resource's intrinsic CreateDate (lifted from the SDK at
+	// scan time), NOT discovered_at. Rows with NULL created_at are excluded;
+	// not every scanner lifts the SDK timestamp yet (see EBS volume precedent
+	// in commit 8e61c52).
 	CreatedBefore string
 	// CreatedSince filters rows whose created_at >= this RFC3339 timestamp.
-	// Pairs with CreatedBefore for half-open closed-interval queries on
-	// intrinsic age. Same NULL caveat as CreatedBefore.
+	// Pairs with CreatedBefore for half-open interval queries on intrinsic
+	// age. Same NULL caveat as CreatedBefore.
 	CreatedSince string
 	TagKey       string
 	TagValue     string
@@ -183,10 +182,10 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 		q = q.Where(sq.NotEq{"type": f.ExcludeTypes})
 	}
 	if len(f.Regions) > 0 {
-		// `--regions us-east-1` is intuitively "show me what's scoped to
+		// `--regions us-east-1` intuitively means "show me what's scoped to
 		// us-east-1". Global resources (Region="global") sit logically in
-		// every region; folding them in by default matches that mental
-		// model. `--exclude-global-region` opts out for callers that want
+		// every region, so folding them in by default matches that mental
+		// model. `--exclude-global-region` opts out for callers wanting
 		// strictly region-scoped rows.
 		if f.SkipGlobals {
 			q = q.Where(sq.Eq{"region": f.Regions})
@@ -253,9 +252,9 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	return results, nil
 }
 
-// GetResource retrieves a single resource by its caller-facing ID
-// (the deterministic ResourceID hash). Under paid, this resolves to
-// the current version row of the chain whose root_id matches.
+// GetResource retrieves a single resource by its caller-facing ID (the
+// deterministic ResourceID hash). Under paid, resolves to the current
+// version row of the chain whose root_id matches.
 func (s *Store) GetResource(id string) (*Resource, error) {
 	q := applyCurrentVersionPredicate(
 		sq.Select(resourceSelectColumns()...).From("resources").
@@ -284,11 +283,11 @@ func (s *Store) CountResourcesByScan(scanID string) (int, error) {
 	return n, err
 }
 
-// CountManaged returns the count of provider-managed rows in the resources
-// table — the population a customer-only query (IncludeManaged=false) hides.
-// Used by `disco check` to print the excluded-managed count alongside the
-// evaluated count so SecEng/Compliance personas don't misread the small
-// denominator as "no resources".
+// CountManaged returns the count of provider-managed rows in resources —
+// the population a customer-only query (IncludeManaged=false) hides. Used by
+// `disco check` to print the excluded-managed count alongside the evaluated
+// count so SecEng/Compliance personas don't misread the small denominator as
+// "no resources".
 func (s *Store) CountManaged() (int, error) {
 	var n int
 	err := s.get(&n, "SELECT COUNT(*) FROM resources WHERE managed_by_provider = 1")
@@ -304,22 +303,22 @@ func (r *Resource) Tags() (map[string]string, error) {
 	return tags, json.Unmarshal([]byte(*r.TagsJSON), &tags)
 }
 
-// ResolveResource finds a resource by either its 32-hex ID, an 8+-char
-// hex prefix of an ID, an exact native_id/name, or a substring of
-// native_id/name. Disambiguation flags (provider/rtype/account) narrow
-// the result set; ambiguity surfaces as a multi-candidate error.
+// ResolveResource finds a resource by its 32-hex ID, an 8+-char hex prefix
+// of an ID, an exact native_id/name, or a substring of native_id/name.
+// Disambiguation flags (provider/rtype/account) narrow the result set;
+// ambiguity surfaces as a multi-candidate error.
 //
-// Two-pass matcher: try exact native_id/name first, then fall back to
-// prefix-on-id and substring-on-native_id/name so paste-the-short-ID
-// workflows ("the ticket says 8895a0bd") work the same as full-IDs. F12
-// fix from focus-group/SUMMARY.md.
+// Two-pass matcher: exact native_id/name first, then prefix-on-id and
+// substring-on-native_id/name, so paste-the-short-ID workflows ("the ticket
+// says 8895a0bd") work the same as full IDs. F12 fix from
+// focus-group/SUMMARY.md.
 func (s *Store) ResolveResource(arg, provider, rtype, account string) (*Resource, error) {
 	if hexResourceIDRE.MatchString(arg) {
 		return s.GetResource(arg)
 	}
 
-	// Pass 1: exact match on native_id or name. Most callers pass full
-	// values from `disco resources` output and want a deterministic hit before
+	// Pass 1: exact match on native_id or name. Most callers pass full values
+	// from `disco resources` output and want a deterministic hit before
 	// falling back to fuzzy matching.
 	rows, err := s.resolveQuery(
 		sq.Or{sq.Eq{"native_id": arg}, sq.Eq{"name": arg}},
@@ -329,9 +328,9 @@ func (s *Store) ResolveResource(arg, provider, rtype, account string) (*Resource
 		return nil, err
 	}
 	if len(rows) == 0 && isLikelyHexPrefix(arg) {
-		// Pass 2a: ID-prefix match for paste-the-short-ID flows. Anchored
-		// at the start of `id` so unrelated middle-of-hex collisions don't
-		// surface; minimum length 4 hex to keep noise out of substring.
+		// Pass 2a: ID-prefix match for paste-the-short-ID flows. Anchored at
+		// the start of `id` so middle-of-hex collisions don't surface;
+		// minimum length 4 hex keeps noise out.
 		rows, err = s.resolveQuery(
 			sq.Like{resourceIDColumn(): arg + "%"},
 			provider, rtype, account,
@@ -342,9 +341,8 @@ func (s *Store) ResolveResource(arg, provider, rtype, account string) (*Resource
 	}
 	if len(rows) == 0 {
 		// Pass 2b: substring on native_id or name. Useful for ARN tails,
-		// partial bucket names, etc. Wildcard both sides — small DBs
-		// won't notice; large fleets should pass --provider / --type
-		// to narrow.
+		// partial bucket names, etc. Wildcard both sides — small DBs won't
+		// notice; large fleets should pass --provider / --type to narrow.
 		rows, err = s.resolveQuery(
 			sq.Or{sq.Like{"native_id": "%" + arg + "%"}, sq.Like{"name": "%" + arg + "%"}},
 			provider, rtype, account,
@@ -434,10 +432,10 @@ func resolveFilterSuffix(provider, rtype, account string) string {
 	return " in " + strings.Join(parts, ", ")
 }
 
-// DescendantsOf returns all resources that are descendants of parentID
-// (any depth). Caller passes a deterministic ResourceID hash; the
-// hierarchy_closure table stores hashes, so the join key on r is
-// resourceIDColumn() — `id` in OSS, `root_id` in paid.
+// DescendantsOf returns all resources descended from parentID (any depth).
+// Caller passes a deterministic ResourceID hash; hierarchy_closure stores
+// hashes, so the join key on r is resourceIDColumn() — `id` in OSS, `root_id`
+// in paid.
 func (s *Store) DescendantsOf(parentID string, f ResourceFilter) ([]Resource, error) {
 	q := applyCurrentVersionPredicate(
 		sq.Select(resourceSelectColumnsPrefixed("r")...).

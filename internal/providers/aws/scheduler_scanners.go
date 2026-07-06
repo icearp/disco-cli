@@ -100,7 +100,7 @@ func scanSchedulerGroups(ctx context.Context, client schedulerAPI, acct *account
 				Name: g.Name, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 				// Name "default" identifies the AWS-managed default schedule
-				// group present in every region.
+				// group in every region.
 				ManagedByProvider: sv(g.Name) == "default",
 			})
 		}

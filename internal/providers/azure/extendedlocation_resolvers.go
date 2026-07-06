@@ -25,10 +25,9 @@ func init() {
 // resolveExtendedLocationConsumers derives consumer -[uses]-> custom-location
 // edges for any Azure resource carrying the top-level ARM `extendedLocation`
 // envelope (`{"extendedLocation":{"name":"<customLocationArmId>","type":"CustomLocation"}}`).
-// Like the managed-identity consumer resolver, this is provider-agnostic: any
-// scanner that stores its native SDK response verbatim (Arc data controllers,
-// hybrid logical networks, SCVMM/VMware inventory, ...) is picked up
-// automatically.
+// Provider-agnostic like the managed-identity consumer resolver: any scanner
+// storing its native SDK response verbatim (Arc data controllers, hybrid
+// logical networks, SCVMM/VMware inventory, ...) is picked up automatically.
 func resolveExtendedLocationConsumers(sub *subscription, st *store.Store) error {
 	clByID, err := nativeIDIndex(sub, st, TypeCustomLocation)
 	if err != nil || len(clByID) == 0 {

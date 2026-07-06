@@ -35,8 +35,8 @@ Exit codes:
 	Args: cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		path := args[0]
-		// Validate the format up-front so unsupported extensions surface a
-		// "unsupported snapshot format" error instead of being collapsed into
+		// Validate format up-front: unsupported extensions surface
+		// "unsupported snapshot format" instead of being collapsed into
 		// "archive corrupt or truncated" by friendlyArchiveErr.
 		if _, fmtErr := snapshot.DetectFormat(path); fmtErr != nil {
 			return fmtErr
@@ -49,10 +49,10 @@ Exit codes:
 			return fmt.Errorf("unsupported manifest format %q (want %q)", m.Format, snapshot.FormatV1)
 		}
 
-		// --print-canonical-payload short-circuits all integrity checks below;
-		// the operator just wants the byte-stable canonical bytes the embedded
-		// manifest would have signed against, so they can re-derive it without
-		// trusting an out-of-band --signing-payload sidecar.
+		// --print-canonical-payload short-circuits all integrity checks: the
+		// operator just wants the byte-stable canonical bytes the embedded
+		// manifest would sign, to re-derive it without an out-of-band
+		// --signing-payload sidecar.
 		if verifyPrintPayload {
 			payload, perr := snapshot.CanonicalManifestBytes(m)
 			if perr != nil {
@@ -98,11 +98,11 @@ Exit codes:
 	},
 }
 
-// friendlyArchiveErr converts a raw decoder error into one of four explicit
+// friendlyArchiveErr converts a raw decoder error into one of four
 // auditor-grade strings (manifest missing / manifest format invalid /
 // trailing bytes / archive corrupt) instead of one collapsed line. Same
-// exit code (1) for all; the difference is the diagnostic an auditor
-// quotes in their report. Underlying error is preserved on --verbose.
+// exit code (1) for all; only the diagnostic differs. Underlying error
+// preserved on --verbose.
 func friendlyArchiveErr(err error) error {
 	if err == nil {
 		return nil

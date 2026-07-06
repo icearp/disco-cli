@@ -16,9 +16,9 @@ func init() {
 }
 
 // resolveCassandraTableKMS wires each Keyspaces table to its CMK
-// (EncryptionSpecification.KmsKeyIdentifier — present only on the GetTable
-// body that the scanner now fans out per row). Tables using AWS_OWNED_KMS_KEY
-// have no KmsKeyIdentifier field and emit no edge.
+// (EncryptionSpecification.KmsKeyIdentifier, present only on the per-row
+// GetTable body). Tables using AWS_OWNED_KMS_KEY have no KmsKeyIdentifier
+// field and emit no edge.
 func resolveCassandraTableKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCassandraTable}, Limit: util.AllResources,

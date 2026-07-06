@@ -20,7 +20,7 @@ func init() {
 	})
 }
 
-// scanResilienceManagement discovers Azure Resilience usage plans. The other
+// scanResilienceManagement discovers Azure Resilience usage plans. Other
 // resilience resources (alerts, experiments, fault simulations) are
 // parent-scoped (per usage-plan) and deferred.
 func scanResilienceManagement(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {

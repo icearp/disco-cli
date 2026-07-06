@@ -23,9 +23,9 @@ func init() {
 }
 
 // resolveVPPolicyStoreAliasParent wires each policy-store-alias to its policy
-// store via the alias's PolicyStoreId attr, mapped to the scanned policy-store
-// row's NativeID (the store ARN). Aliases have no parent ARN in their NativeID,
-// so the link is rebuilt from the PolicyStoreId index.
+// store via the alias's PolicyStoreId attr, matched against the scanned
+// policy-store's NativeID (the store ARN). Aliases carry no parent ARN in
+// their own NativeID, so the link is rebuilt from the PolicyStoreId index.
 func resolveVPPolicyStoreAliasParent(acct *account, st *store.Store) error {
 	aliases, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

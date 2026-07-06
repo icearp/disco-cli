@@ -36,9 +36,9 @@ func scanPostgreSQL(ctx context.Context, sub *subscription, cred azcore.TokenCre
 		})
 }
 
-// scanDBforPostgreSQLNamespace runs every Microsoft.dbforpostgresql scanner phase concurrently. The
-// dbforpostgresql ARM namespace spans several disco scanners merged under one
-// serviceEntry so the service name aligns to the namespace.
+// scanDBforPostgreSQLNamespace runs every Microsoft.dbforpostgresql scanner
+// phase concurrently — the namespace spans several disco scanners merged
+// under one serviceEntry so the service name aligns to it.
 func scanDBforPostgreSQLNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanPostgreSQL(ctx, sub, cred, st, scanID) },

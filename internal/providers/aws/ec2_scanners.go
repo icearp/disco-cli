@@ -12,15 +12,15 @@ import (
 )
 
 func init() {
-	// EC2 emits are declared per category file via registerExtraEmits — the
-	// scanEC2 dispatcher itself upserts no resources, only fans out to the
-	// category scanners (compute_mgmt, networking, ipam, tgw, …).
+	// Emits are declared per category file via registerExtraEmits — scanEC2
+	// itself upserts nothing, just fans out to category scanners (compute_mgmt,
+	// networking, ipam, tgw, …).
 	registerService(serviceEntry{name: "aws:ec2", fn: scanEC2})
 }
 
 // scanEC2 discovers all EC2 resource types in one region by running all
-// category scanners in parallel. Each category scanner fans out to its own
-// sub-scanners via an internal errgroup.
+// category scanners in parallel; each fans out to its own sub-scanners via
+// an internal errgroup.
 func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
 	return runScanners(
@@ -92,9 +92,9 @@ func runScanners(ctx context.Context, fns ...func(context.Context) (int, int, er
 			return err
 		})
 	}
-	// Block on Wait BEFORE loading the atomics — Go evaluates return-list
-	// expressions left-to-right, so loading the atomics inline with g.Wait()
-	// reads them while goroutines are still running and yields 0/0.
+	// Wait before loading the atomics — Go evaluates return-list expressions
+	// left-to-right, so loading them inline with g.Wait() would read them while
+	// goroutines are still running and yield 0/0.
 	err := g.Wait()
 	return int(t.Load()), int(n.Load()), err
 }
@@ -105,10 +105,10 @@ type ec2Pager[P any] interface {
 	NextPage(context.Context, ...func(*ec2.Options)) (P, error)
 }
 
-// ec2PageScan runs a paginated EC2 Describe call, converts each full page to
-// a batch of resources via toResources, and upserts the batch. Access-denied
-// errors are handled via skipIfAccessDenied. Returns total resources seen and
-// count of newly inserted resources.
+// ec2PageScan runs a paginated EC2 Describe call, converts each page to a
+// batch of resources via toResources, and upserts the batch. Access-denied
+// errors route through skipIfAccessDenied. Returns total resources seen and
+// count newly inserted.
 func ec2PageScan[P any](
 	ctx context.Context,
 	iamAction string,
@@ -124,12 +124,11 @@ func ec2PageScan[P any](
 			if isAccessDenied(err) {
 				return total, inserted, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
-			// Per-region op-availability gap: EC2 Describe* ops for features not
-			// deployed in a region return UnsupportedOperation (e.g. VPC block
-			// public access), InvalidAction (e.g. Verified Access in regions
-			// where it isn't offered), or the bare Unsupported code
-			// (DescribeCapacityBlocks). All are permanent region facts, not
-			// failures — silent-skip.
+			// Per-region feature gap: Describe* ops for features not deployed in
+			// a region return UnsupportedOperation (e.g. VPC block public access),
+			// InvalidAction (e.g. Verified Access in unsupported regions), or the
+			// bare Unsupported code (DescribeCapacityBlocks) — permanent region
+			// facts, not failures; silent-skip.
 			if isAPIErrorCode(err, "UnsupportedOperation", "InvalidAction", "Unsupported") {
 				return total, inserted, nil
 			}

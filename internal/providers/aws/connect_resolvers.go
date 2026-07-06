@@ -66,8 +66,7 @@ func init() {
 
 // connectInstanceIDFromARN extracts the instance ID from a Connect resource
 // ARN of shape `arn:aws:connect:{r}:{a}:instance/{instId}/<kind>/<id>`.
-// Returns "" when the ARN does not match the instance-nested form (e.g.
-// account-level resources like PhoneNumber).
+// Returns "" for non-instance-nested ARNs (e.g. account-level PhoneNumber).
 func connectInstanceIDFromARN(arn string) string {
 	const prefix = "instance/"
 	i := strings.Index(arn, prefix)
@@ -110,8 +109,8 @@ func connectAccountResourceARN(region, acctID, kind, id string) string {
 // resolveConnectQueueRefs walks each queue's HoursOfOperationID,
 // OutboundCallerConfig.OutboundCallerIDNumberID, and
 // OutboundCallerConfig.OutboundFlowID fields and emits the corresponding
-// edges. The scanner stores `DescribeQueueOutput` whose top-level shape
-// is `{Queue: {...}}`, so we unmarshal under that key.
+// edges. Scanner stores `DescribeQueueOutput`; top-level shape is
+// `{Queue: {...}}`, so unmarshal under that key.
 func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 	queues, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectQueue},
@@ -189,8 +188,8 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 
 // resolveConnectRoutingProfileRefs walks each routing profile's
 // AssociatedQueueIDs + DefaultOutboundQueueID and emits attached-to edges
-// to the local queue rows. The scanner wraps the SDK
-// DescribeRoutingProfileOutput, so attrs root is `{RoutingProfile: ...}`.
+// to the local queue rows. Scanner wraps DescribeRoutingProfileOutput, so
+// attrs root is `{RoutingProfile: ...}`.
 func resolveConnectRoutingProfileRefs(acct *account, st *store.Store) error {
 	profiles, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectRoutingProfile},
@@ -596,9 +595,9 @@ func resolveConnectTrafficDistributionGroupInstance(acct *account, st *store.Sto
 
 // connectVersionParentARN strips a trailing `:version` segment from a
 // version-shaped Connect ARN, recovering the parent (flow / module) ARN.
-// The version segment is the substring after the last `:` in the ARN; the
-// ARN's prefix colons are not affected because they precede the resource
-// path's last `/`.
+// The version segment is the substring after the ARN's last `:`, which
+// falls after the last `/` — earlier prefix colons (region/account) are
+// unaffected.
 func connectVersionParentARN(versionARN string) string {
 	slash := strings.LastIndexByte(versionARN, '/')
 	if slash < 0 {

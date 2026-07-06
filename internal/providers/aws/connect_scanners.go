@@ -10,11 +10,9 @@ import (
 )
 
 func init() {
-	// Connect emits are declared per family file via registerExtraEmits —
-	// the scanConnect dispatcher fans out to family scanners (core,
-	// routing, flows, users, integration, workspace, datatable). Most
-	// Connect resources are per-Instance scoped, so the dispatcher fetches
-	// the instance list once and passes it to each family scanner.
+	// Connect emits are declared per family file via registerExtraEmits;
+	// scanConnect fans out to family scanners (core, routing, flows,
+	// users, integration, workspace, datatable).
 	registerService(serviceEntry{name: "aws:connect", fn: scanConnect})
 }
 
@@ -71,9 +69,9 @@ func listConnectInstances(ctx context.Context, client connectInstanceLister, acc
 				_ = skipIfAccessDenied(st, "connect:ListInstances", acct.ID, region, perr)
 				return nil, nil
 			}
-			// Regions where Connect instance enumeration isn't offered reject
-			// ListInstances with InvalidRequestException. Per-region availability
-			// gap — treat as no instances.
+			// Per-region availability gap: regions without Connect instance
+			// enumeration reject ListInstances with InvalidRequestException —
+			// treat as no instances.
 			if isAPIErrorCode(perr, "InvalidRequestException") {
 				return nil, nil
 			}

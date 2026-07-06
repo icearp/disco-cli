@@ -2,9 +2,9 @@ package aws
 
 import "testing"
 
-// TestEC2ARN verifies the ARN format used as NativeID for EC2 resources.
-// The NativeID feeds into store.ResourceID, so any format change silently
-// breaks all relationships that reference EC2 resources.
+// TestEC2ARN verifies EC2's NativeID ARN format. NativeID feeds
+// store.ResourceID, so a format change silently breaks all relationships
+// referencing EC2 resources.
 func TestEC2ARN(t *testing.T) {
 	cases := []struct {
 		region, account, rtype, id, want string

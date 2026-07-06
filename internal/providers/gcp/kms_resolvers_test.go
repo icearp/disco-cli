@@ -6,9 +6,9 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveKMSRelationships verifies that a bucket's defaultKmsKeyName
-// produces a `uses` edge to the matching cryptoKey resource. Also covers
-// the cryptoKeyVersion-suffix stripping path.
+// TestResolveKMSRelationships verifies a bucket's defaultKmsKeyName produces
+// a `uses` edge to the matching cryptoKey resource, and covers the
+// cryptoKeyVersion-suffix stripping path.
 func TestResolveKMSRelationships(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")

@@ -22,9 +22,9 @@ func init() {
 
 // scanDataFactory discovers Azure Data Factory factories. Linked services,
 // pipelines, datasets, dataflows, triggers, integration runtimes, and managed
-// virtual network sub-resources deferred — pipeline graphs would explode in
-// volume and most edges (linked services → backing resources) live in
-// per-linked-service typed payloads that warrant their own resolver pass.
+// VNet sub-resources deferred — pipeline graphs would explode in volume, and
+// most edges (linked services → backing resources) live in per-linked-service
+// typed payloads warranting their own resolver pass.
 func scanDataFactory(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armdatafactory.NewFactoriesClient(sub.ID, cred, azClientOptions)
 	if err != nil {

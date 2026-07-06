@@ -17,8 +17,8 @@ func init() {
 }
 
 // resolvePersonalizeChildrenToDatasetGroup wires filters and recommenders to
-// their dataset group via the DatasetGroupArn each summary carries. FK-safe:
-// the edge emits only when the dataset group was scanned.
+// their dataset group via each summary's DatasetGroupArn. FK-safe: edge
+// emits only if the dataset group was scanned.
 func resolvePersonalizeChildrenToDatasetGroup(acct *account, st *store.Store) error {
 	dgSet, err := scannedIDSet(acct, st, TypePersonalizeDatasetGroup)
 	if err != nil {

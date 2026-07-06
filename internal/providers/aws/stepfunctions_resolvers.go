@@ -15,9 +15,9 @@ func init() {
 	)
 }
 
-// sfnStateMachineARNFromChild slices an alias / version ARN
-// (`arn:aws:states:r:a:stateMachine:NAME:ALIAS_OR_VERSION`) back to its parent
-// state-machine ARN (`arn:aws:states:r:a:stateMachine:NAME`) by counting to
+// sfnStateMachineARNFromChild trims an alias/version ARN
+// (`arn:aws:states:r:a:stateMachine:NAME:ALIAS_OR_VERSION`) to its parent
+// state-machine ARN (`arn:aws:states:r:a:stateMachine:NAME`) by cutting at
 // the seventh colon.
 func sfnStateMachineARNFromChild(arn string) string {
 	colons := 0

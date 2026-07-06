@@ -278,9 +278,8 @@ func resolveDataSyncLocationFSxOntap(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveDataSyncFSxSGs wires fsx-lustre/openzfs/windows location → SGs from
-// SecurityGroupArns. (No FsxFilesystemArn exposed for these subtypes — only
-// location-fsx-ontap carries it.)
+// resolveDataSyncFSxSGs wires fsx-lustre/openzfs/windows location → SGs via
+// SecurityGroupArns. (FsxFilesystemArn only exists on location-fsx-ontap.)
 func resolveDataSyncFSxSGs(acct *account, st *store.Store) error {
 	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
 	if err != nil {
@@ -451,8 +450,8 @@ func resolveDataSyncAgentRefs(acct *account, st *store.Store) error {
 }
 
 // resolveDataSyncTaskRefs wires CloudWatchLogGroupArn (strip :* suffix per
-// AWS SDK convention) + source/dest location ARNs already covered by
-// per-location resolvers.
+// AWS SDK convention); source/dest location ARNs are covered by per-location
+// resolvers.
 func resolveDataSyncTaskRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataSyncTask}, Limit: util.AllResources,

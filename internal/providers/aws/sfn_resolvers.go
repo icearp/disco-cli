@@ -24,9 +24,9 @@ func init() {
 	)
 }
 
-// resolveSFNRelationships links each state machine to its IAM role, any
+// resolveSFNRelationships links each state machine to its IAM role, its
 // CloudWatch log group destinations, and any downstream AWS services
-// referenced from task states in the state-machine Definition.
+// referenced from task states in the Definition.
 func resolveSFNRelationships(acct *account, st *store.Store) error {
 	sms, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSFNStateMachine},
@@ -122,8 +122,8 @@ func extractSFNStateResources(definition string) []string {
 		}
 		// Service integrations often place the target ARN inside Parameters
 		// (e.g. "FunctionName", "TopicArn", "QueueUrl", "TableName",
-		// "StreamName", "DeliveryStreamName"). Recursively scan Parameters
-		// for any string-valued field containing an ARN.
+		// "StreamName", "DeliveryStreamName") — recursively scan for any
+		// string-valued field containing an ARN.
 		collectARNs(s.Parameters, &out)
 	}
 	return out
@@ -148,9 +148,9 @@ func collectARNs(v any, out *[]string) {
 	}
 }
 
-// sfnTargetType maps a target ARN seen in a state-machine Definition to the
+// sfnTargetType maps a target ARN from a state-machine Definition to the
 // corresponding disco resource type. Returns "" for built-in service ARNs
-// like "arn:aws:states:::lambda:invoke" and anything we don't track.
+// like "arn:aws:states:::lambda:invoke" and anything untracked.
 func sfnTargetType(arn string) string {
 	// Built-in service integration ARNs like "arn:aws:states:::sns:publish"
 	// carry ":::" because region+account segments are empty. Skip them —

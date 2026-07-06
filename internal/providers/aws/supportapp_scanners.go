@@ -28,9 +28,8 @@ type supportAppAPI interface {
 	ListSlackWorkspaceConfigurations(context.Context, *supportapp.ListSlackWorkspaceConfigurationsInput, ...func(*supportapp.Options)) (*supportapp.ListSlackWorkspaceConfigurationsOutput, error)
 }
 
-// scanSupportApp discovers SupportApp account alias plus per-Slack-team
-// channel/workspace configurations. Service is global with endpoints only
-// in us-east-1; gate other regions.
+// scanSupportApp discovers the SupportApp account alias and per-Slack-team
+// channel/workspace configs. Global service; endpoints only in us-east-1.
 func scanSupportApp(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-1"
 	client := supportapp.NewFromConfig(acct.cfg, func(o *supportapp.Options) { o.Region = region })

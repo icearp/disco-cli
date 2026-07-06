@@ -16,9 +16,8 @@ func init() {
 	)
 }
 
-// resolveDedicatedHostRelationships derives the parent host group for each dedicated
-// host by truncating the host's NativeID at "/hosts/".
-// NativeID form: .../hostGroups/{group}/hosts/{host}
+// resolveDedicatedHostRelationships derives each host's parent host group by
+// truncating NativeID at "/hosts/" (form: .../hostGroups/{group}/hosts/{host}).
 func resolveDedicatedHostRelationships(sub *subscription, st *store.Store) error {
 	hosts, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -42,10 +41,8 @@ func resolveDedicatedHostRelationships(sub *subscription, st *store.Store) error
 	return nil
 }
 
-// resolveCapacityReservationRelationships derives the parent capacity reservation
-// group for each capacity reservation by truncating the reservation's NativeID at
-// "/capacityReservations/".
-// NativeID form: .../capacityReservationGroups/{group}/capacityReservations/{reservation}
+// resolveCapacityReservationRelationships derives each reservation's parent CRG by
+// truncating NativeID at "/capacityReservations/" (form: .../capacityReservationGroups/{group}/capacityReservations/{reservation}).
 func resolveCapacityReservationRelationships(sub *subscription, st *store.Store) error {
 	reservations, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},

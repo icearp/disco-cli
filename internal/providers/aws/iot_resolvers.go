@@ -74,8 +74,8 @@ func init() {
 	)
 }
 
-// TypeSFNStateMachine alias used elsewhere; keep this file compiling
-// against the canonical constant declared in aws_types.go.
+// TypeSFNStateMachine alias declared in aws_types.go; referenced here to
+// keep this file compiling against the canonical constant.
 
 // stateMachineARNFromName builds a Step Functions state-machine ARN.
 func stateMachineARNFromName(region, acctID, name string) string {
@@ -127,8 +127,8 @@ func iotARN(region, acctID, kind, id string) string {
 }
 
 // resolveIoTThingRefs walks each Thing's ThingTypeName + BillingGroupName
-// (top-level fields on DescribeThingOutput; SDK structs marshal as PascalCase)
-// and emits attached-to edges to the corresponding ThingType / BillingGroup.
+// (top-level DescribeThingOutput fields, PascalCase) and emits attached-to
+// edges to the corresponding ThingType / BillingGroup.
 func resolveIoTThingRefs(acct *account, st *store.Store) error {
 	things, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTThing},
@@ -177,10 +177,10 @@ func resolveIoTThingRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveIoTThingGroupParent walks each ThingGroup's ThingGroupMetadata
-// .RootToParentThingGroups list. The last entry in that array is the
-// immediate parent group; a missing entry means the group is a root.
-// Emits parent → child contains via RecordHierarchyBatch (closure table).
+// resolveIoTThingGroupParent walks each ThingGroup's
+// ThingGroupMetadata.RootToParentThingGroups; the last entry is the immediate
+// parent (empty list = root group). Emits parent → child contains via
+// RecordHierarchyBatch (closure table).
 func resolveIoTThingGroupParent(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTThingGroup},
@@ -235,9 +235,8 @@ func resolveIoTThingGroupParent(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveIoTAuthorizerLambda walks each Authorizer's AuthorizerFunctionArn.
-// The scanner stores DescribeAuthorizerOutput; AuthorizerDescription is the
-// nested struct holding the Lambda ARN.
+// resolveIoTAuthorizerLambda walks each Authorizer's AuthorizerFunctionArn,
+// nested under AuthorizerDescription in the scanner's DescribeAuthorizerOutput.
 func resolveIoTAuthorizerLambda(acct *account, st *store.Store) error {
 	auths, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTAuthorizer},
@@ -266,8 +265,8 @@ func resolveIoTAuthorizerLambda(acct *account, st *store.Store) error {
 		if fnARN == "" {
 			continue
 		}
-		// Strip trailing :version or :alias qualifier — Lambda function
-		// rows are keyed on the unqualified ARN (7 colon-separated parts).
+		// Strip trailing :version/:alias qualifier — Lambda rows key on the
+		// unqualified ARN (7 colon-separated parts):
 		// arn:aws:lambda:{r}:{a}:function:{name}[:{qual}]
 		if parts := strings.Split(fnARN, ":"); len(parts) == 8 {
 			fnARN = strings.Join(parts[:7], ":")
@@ -588,7 +587,7 @@ type iotTopicRuleAction struct {
 
 // iotTopicRuleTargetSets bundles all FK-safe id sets in one struct so the
 // per-action helper signature stays tight. Mirrors the openSearchTargetSets
-// pattern called out in the providers/CLAUDE.md.
+// pattern (providers/CLAUDE.md).
 type iotTopicRuleTargetSets struct {
 	role     map[string]bool
 	lambda   map[string]bool
@@ -1017,9 +1016,9 @@ func init() {
 }
 
 // resolveIoTCertificateCA wires each device certificate to its issuing CA
-// certificate via CertificateDescription.CaCertificateId. The CA cert's
-// NativeID is its full ARN; build a (region, ID) → resource id index from
-// scanned CA cert rows since CertificateId alone doesn't yield the ARN shape.
+// via CertificateDescription.CaCertificateId. CA cert NativeID is its full
+// ARN, so build a (region, ID) → resource-id index from scanned CA rows,
+// since CertificateId alone doesn't yield the ARN shape.
 func resolveIoTCertificateCA(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTCertificate}, Limit: util.AllResources,

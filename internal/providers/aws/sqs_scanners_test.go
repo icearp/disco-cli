@@ -10,10 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
-// stubSQS is an in-memory implementation of sqsAPI for unit tests. It pages
-// out QueueUrls in fixed-size chunks driven by listPageSize, and serves
-// per-queue attribute responses from attrs. listErr / attrErr (keyed by URL)
-// inject failures into specific calls.
+// stubSQS is an in-memory sqsAPI for unit tests. It pages QueueUrls in
+// fixed-size chunks sized by listPageSize and serves per-queue attribute
+// responses from attrs. listErr / attrErr (keyed by URL) inject failures
+// into specific calls.
 type stubSQS struct {
 	urls         []string
 	listPageSize int
@@ -28,9 +28,9 @@ func (s *stubSQS) ListQueues(_ context.Context, in *sqs.ListQueuesInput, _ ...fu
 	}
 	start := 0
 	if in.NextToken != nil {
-		// Token format: byte-offset string. Tests only need monotonic ordering.
-		// Empty token = start; otherwise interpret as int via len() of provided
-		// string for simplicity — see test fixtures.
+		// Token format: byte-offset string; tests only need monotonic ordering.
+		// Empty token = start, else interpreted via len() of the string —
+		// see test fixtures.
 		start = len(*in.NextToken)
 	}
 	end := start + s.listPageSize
@@ -96,7 +96,7 @@ func TestScanSQSQueues_PersistsQueuesAndArn(t *testing.T) {
 	}
 
 	// Verify resources landed and AttributesJSON includes the synthesized
-	// QueueUrl entry (added by the scanner alongside SDK attrs).
+	// QueueUrl entry the scanner adds alongside SDK attrs.
 	got, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, Types: []string{TypeSQSQueue}, Limit: 100,
 	})

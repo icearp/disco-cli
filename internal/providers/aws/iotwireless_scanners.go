@@ -226,17 +226,16 @@ func scanIWNetworkAnalyzerConfigs(ctx context.Context, client iotWirelessAPI, ac
 	return upsertBatch(st, batch, "iotwireless network-analyzer-configurations")
 }
 
-// scanIWPartnerAccounts — Sidewalk-only currently. Manual NextToken loop
-// (no paginator).
+// scanIWPartnerAccounts — Sidewalk-only; manual NextToken loop (no paginator).
 func scanIWPartnerAccounts(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	var token *string
 	for {
 		out, err := client.ListPartnerAccounts(ctx, &iotwireless.ListPartnerAccountsInput{NextToken: token})
 		if err != nil {
-			// Per-region feature gap: "You are not authorized to call this API
-			// in this region <r>" — Sidewalk partner accounts is gated to a
-			// subset of regions. Distinct from canonical IAM-deny shape.
+			// Per-region feature gap ("not authorized to call this API in this
+			// region <r>"): Sidewalk partner accounts gated to a region subset,
+			// distinct from canonical IAM-deny shape.
 			if isAccessDeniedWithMessage(err, "not authorized to call this API in this region") {
 				return 0, 0, nil
 			}

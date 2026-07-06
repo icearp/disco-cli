@@ -212,8 +212,8 @@ func scanERSchemaMappings(ctx context.Context, client entityResolutionAPI, acct 
 }
 
 // scanERPolicyStatement fetches the resource-based policy attached to a
-// workflow/namespace/schema. ARN synthesized by appending /policy to the
-// parent ARN since policy is sub-resource of the parent.
+// workflow/namespace/schema. NativeID = parentARN + "/policy" (policy is
+// a sub-resource of the parent).
 func scanERPolicyStatement(ctx context.Context, client entityResolutionAPI, acct *account, region string, st *store.Store, scanID string, parentARN string) (int, int, error) {
 	out, err := client.GetPolicy(ctx, &entityresolution.GetPolicyInput{Arn: &parentARN})
 	if err != nil {

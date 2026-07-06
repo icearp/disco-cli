@@ -25,7 +25,7 @@ func init() {
 }
 
 // resolveODBAutonomousDatabaseNetwork wires each Autonomous Database to its ODB
-// network via the OdbNetworkArn attribute (which equals the odb-network NativeID).
+// network via OdbNetworkArn (= the odb-network NativeID).
 func resolveODBAutonomousDatabaseNetwork(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeODBAutonomousDatabase},
@@ -64,8 +64,8 @@ func resolveODBAutonomousDatabaseNetwork(acct *account, st *store.Store) error {
 }
 
 // resolveODBAutonomousDatabaseBackupParent wires each backup to its parent
-// Autonomous Database via the AutonomousDatabaseId attribute, looked up against
-// an id index built from scanned Autonomous Databases.
+// Autonomous Database via AutonomousDatabaseId, using an id index of scanned
+// Autonomous Databases.
 func resolveODBAutonomousDatabaseBackupParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeODBAutonomousDatabaseBackup},
@@ -126,10 +126,9 @@ func odbAutonomousDatabaseIDIndex(acct *account, st *store.Store) (map[string]st
 	return idx, nil
 }
 
-// resolveODBDbNodeCluster wires each DB node to its parent VM cluster. The
-// cluster ARN is recovered from the synthetic NativeID
-// ({clusterARN}/db-node/{id}); the target is verified FK-safe against scanned
-// VM clusters.
+// resolveODBDbNodeCluster wires each DB node to its parent VM cluster. Cluster
+// ARN is recovered from the synthetic NativeID ({clusterARN}/db-node/{id});
+// target is FK-verified against scanned VM clusters.
 func resolveODBDbNodeCluster(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeODBDbNode},

@@ -15,9 +15,9 @@ const (
 	DirBoth = "both"
 )
 
-// ErrNoPath signals GraphPath could not reach the destination from the source
-// within the configured depth/filter constraints. cmd layer maps this to a
-// nonzero exit code so shell pipelines can branch on reachability.
+// ErrNoPath signals GraphPath found no route to the destination within the
+// configured depth/filter constraints. cmd layer maps this to a nonzero exit
+// code so shell pipelines can branch on reachability.
 var ErrNoPath = errors.New("no path between resources")
 
 // GraphNode is a resource plus the BFS depth at which it was first reached.
@@ -33,9 +33,9 @@ type GraphEdge struct {
 	Kind   string `json:"kind"`
 }
 
-// GraphResult is the output of GraphWalk: seed ID plus ordered nodes and edges.
-// Truncated{Nodes,Edges} report how many candidates were dropped because the
-// caller's MaxNodes/MaxEdges caps were hit; zero when no cap or no truncation.
+// GraphResult is GraphWalk's output: seed ID plus ordered nodes and edges.
+// Truncated{Nodes,Edges} count candidates dropped by the caller's
+// MaxNodes/MaxEdges caps; zero when no cap or no truncation.
 type GraphResult struct {
 	SeedID          string      `json:"seed_id"`
 	Nodes           []GraphNode `json:"nodes"`
@@ -51,9 +51,9 @@ type GraphWalkOpts struct {
 	MaxDepth  int      // inclusive; 0 = seed only
 	Kinds     []string // empty = all relationship kinds
 	Direction string   // "out", "in", "both" (default: "both")
-	// IncludeManaged when false treats provider-managed resources as terminal:
-	// they appear as edge endpoints when reached from a non-managed node, but
-	// BFS does not expand through them. The seed itself is never filtered.
+	// IncludeManaged=false treats provider-managed resources as terminal: they
+	// appear as edge endpoints when reached from a non-managed node, but BFS
+	// does not expand through them. The seed itself is never filtered.
 	IncludeManaged bool
 	// ExcludeTypes drops nodes whose Type matches any pattern. Patterns are
 	// either literal ("aws:iam:role") or suffix-glob ("aws:iam:*"). The seed
@@ -322,8 +322,8 @@ func (s *Store) GraphPath(fromID, toID string, opts GraphPathOpts) (*GraphResult
 
 // graphPathExpandStep performs one BFS layer expansion from `frontier`,
 // records parent-pointers, applies exclusion + managed-terminal filtering,
-// and either returns a successfully reconstructed path (if `toID` is hit)
-// or the next layer's expandable ids.
+// and returns either the reconstructed path (if `toID` is hit) or the next
+// layer's expandable ids.
 func graphPathExpandStep(s *Store, fromID, toID string, frontier []string, parent map[string]bfsEdge, dir string, opts GraphPathOpts, fromRes Resource) ([]string, *GraphResult, error) {
 	next := map[string]struct{}{}
 	for _, id := range frontier {

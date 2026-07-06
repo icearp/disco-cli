@@ -48,11 +48,10 @@ func TestResource_MarshalJSON_SnakeAndNested(t *testing.T) {
 	}
 }
 
-// TestResource_MarshalJSON_AlwaysPresent enforces F6 from the focus-group
-// review: the documented Resource keys (`name`, `tags`, `attributes`, ...)
-// must always emit, with `null`/`{}` zero values rather than being dropped.
-// Consumers can then traverse `r.attributes.X` / `r.tags.Y` without per-row
-// presence guards.
+// TestResource_MarshalJSON_AlwaysPresent enforces F6 (focus-group review):
+// documented Resource keys (`name`, `tags`, `attributes`, ...) always emit as
+// `null`/`{}` zero values, never dropped, so consumers can traverse
+// `r.attributes.X` / `r.tags.Y` without presence guards.
 func TestResource_MarshalJSON_AlwaysPresent(t *testing.T) {
 	r := Resource{ID: "abc", Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b1"}
 	b, err := json.Marshal(r)
@@ -76,9 +75,8 @@ func TestResource_MarshalJSON_MalformedAttrs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal must not error on malformed attrs: %v", err)
 	}
-	// Malformed legacy blob renders as the empty-object zero rather than
-	// disappearing — consumers see "no parsed attrs" without breaking the
-	// schema contract.
+	// Malformed legacy blob renders as the empty-object zero, not omitted —
+	// consumers see "no parsed attrs" without breaking the schema contract.
 	if !strings.Contains(string(b), `"attributes":{}`) {
 		t.Errorf("invalid attrs should render as {}, got: %s", b)
 	}

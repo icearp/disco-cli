@@ -12,12 +12,11 @@ import (
 	armcomputefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
 )
 
-// TestScanDisks_FakeTransport exercises the disk scanner end-to-end against a
-// fake-transport-backed *armcompute.DisksClient. Verifies the azSimpleScan
-// pipeline (NewListPager → azPageScan → azTrackedRows → UpsertResources) and
-// the rgHierarchyPair emission for an RG-scoped resource ID. Uses the
-// in-process fake pattern recommended for client-library testing — concrete
-// SDK client retained, transport swapped.
+// TestScanDisks_FakeTransport exercises the disk scanner against a
+// fake-transport-backed *armcompute.DisksClient (concrete SDK client, transport
+// swapped — the recommended in-process fake pattern). Verifies the azSimpleScan
+// pipeline (NewListPager → azPageScan → azTrackedRows → UpsertResources) and the
+// rgHierarchyPair emission for an RG-scoped resource ID.
 func TestScanDisks_FakeTransport(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -102,9 +101,8 @@ func TestScanDisks_FakeTransport_Pagination(t *testing.T) {
 	}
 }
 
-// TestScanDisks_FakeTransport_AccessDenied verifies the scanner tolerates a
-// 403 from the SDK by returning (0, 0, nil) and reporting a scan error
-// rather than propagating the failure.
+// TestScanDisks_FakeTransport_AccessDenied verifies the scanner tolerates a 403
+// by returning (0, 0, nil) and reporting a scan error instead of propagating it.
 func TestScanDisks_FakeTransport_AccessDenied(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -131,11 +129,11 @@ func TestScanDisks_FakeTransport_AccessDenied(t *testing.T) {
 	}
 }
 
-// TestScanDisks_FakeTransport_SubscriptionNotRegistered verifies the scanner
-// surfaces a 404 SubscriptionNotRegistered (the resource provider is not
-// registered on the subscription) end-to-end as the errServiceNotRegistered
-// sentinel and (0, 0) counts — the dispatch loop turns this into a disabled
-// service (no warning, no error), the Azure analog of AWS's errServiceDisabled.
+// TestScanDisks_FakeTransport_SubscriptionNotRegistered verifies a 404
+// SubscriptionNotRegistered (RP not registered on the subscription) surfaces as
+// the errServiceNotRegistered sentinel with (0, 0) counts — the dispatch loop
+// turns this into a disabled service (no warning, no error), Azure's analog of
+// AWS's errServiceDisabled.
 func TestScanDisks_FakeTransport_SubscriptionNotRegistered(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)

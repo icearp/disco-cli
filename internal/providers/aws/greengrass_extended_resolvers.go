@@ -23,7 +23,7 @@ func init() {
 }
 
 // greengrassVersionParent strips the trailing `/versions/{id}` from a v1
-// Greengrass version ARN to recover its parent definition or group ARN.
+// Greengrass version ARN to recover its parent definition/group ARN.
 func greengrassVersionParent(arn string) string {
 	const seg = "/versions/"
 	i := strings.LastIndex(arn, seg)
@@ -33,8 +33,8 @@ func greengrassVersionParent(arn string) string {
 	return arn[:i]
 }
 
-// resolveGreengrassVersionsToParent wires each Greengrass v1 *Version row
-// to its parent definition (or group) via NativeID `/versions/{id}` strip.
+// resolveGreengrassVersionsToParent wires each Greengrass v1 *Version row to
+// its parent definition (or group) via NativeID `/versions/{id}` strip.
 func resolveGreengrassVersionsToParent(acct *account, st *store.Store) error {
 	pairs := []struct {
 		child, parent string

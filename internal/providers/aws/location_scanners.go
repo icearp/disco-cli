@@ -126,8 +126,8 @@ func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, ac
 			}
 			arn := locARN(region, acct.ID, "geofence-collection", name)
 			label := name
-			// Enrich via DescribeGeofenceCollection — list returns summary
-			// (no KmsKeyId); KMS edge needs Describe body.
+			// Enrich via DescribeGeofenceCollection — list summary lacks
+			// KmsKeyId; KMS edge needs Describe body.
 			var attrsJSON string
 			cn := name
 			if dout, derr := client.DescribeGeofenceCollection(ctx, &location.DescribeGeofenceCollectionInput{CollectionName: &cn}); derr == nil {
@@ -253,7 +253,7 @@ func scanLocationTrackers(ctx context.Context, client locationAPI, acct *account
 			arn := locARN(region, acct.ID, "tracker", name)
 			label := name
 			names = append(names, name)
-			// Enrich via DescribeTracker — list returns summary (no KmsKeyId).
+			// Enrich via DescribeTracker — list summary lacks KmsKeyId.
 			var attrsJSON string
 			tn := name
 			if dout, derr := client.DescribeTracker(ctx, &location.DescribeTrackerInput{TrackerName: &tn}); derr == nil {

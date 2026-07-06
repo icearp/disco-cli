@@ -152,8 +152,8 @@ func scanODBExadataInfras(ctx context.Context, client odbAPI, acct *account, reg
 	return upsertBatch(st, batch, "odb cloud-exadata-infrastructures")
 }
 
-// odbVMCluster captures the (id, arn) pair the ListDbNodes fan-out needs: the
-// id satisfies the required CloudVmClusterId input, the arn seeds the synthetic
+// odbVMCluster carries the (id, arn) pair the ListDbNodes fan-out needs: id
+// satisfies the required CloudVmClusterId input; arn seeds the synthetic
 // db-node NativeID so the resolver can recover the parent cluster.
 type odbVMCluster struct {
 	id  string
@@ -195,10 +195,10 @@ func scanODBVmClusters(ctx context.Context, client odbAPI, acct *account, region
 	return clusters, t, i, err
 }
 
-// scanODBDbNodes fans out ListDbNodes per VM cluster (the op requires a
+// scanODBDbNodes fans out ListDbNodes per VM cluster (op requires a
 // CloudVmClusterId). DB nodes carry a real ARN but no parent-cluster field, so
-// the NativeID is synthesised as {clusterARN}/db-node/{dbNodeId} to let the
-// resolver recover the parent.
+// NativeID is synthesised as {clusterARN}/db-node/{dbNodeId} for the resolver
+// to recover the parent.
 func scanODBDbNodes(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, clusters []odbVMCluster) (int, int, error) {
 	var batch []*store.Resource
 	for _, cl := range clusters {

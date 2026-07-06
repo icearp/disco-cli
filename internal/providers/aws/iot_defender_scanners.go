@@ -20,9 +20,9 @@ func init() {
 	)
 }
 
-// iotDefenderAPI is the narrow surface used by the Defender family —
-// IoT Device Defender resources (audits, mitigation actions, security
-// profiles, custom metrics, dimensions).
+// iotDefenderAPI is the narrow surface used by the Defender family — IoT
+// Device Defender audits, mitigation actions, security profiles, custom
+// metrics, dimensions.
 type iotDefenderAPI interface {
 	DescribeAccountAuditConfiguration(context.Context, *iot.DescribeAccountAuditConfigurationInput, ...func(*iot.Options)) (*iot.DescribeAccountAuditConfigurationOutput, error)
 	ListScheduledAudits(context.Context, *iot.ListScheduledAuditsInput, ...func(*iot.Options)) (*iot.ListScheduledAuditsOutput, error)
@@ -67,9 +67,8 @@ func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "iot:DescribeAccountAuditConfiguration", acct.ID, region, err)
 		}
-		// Regions without IoT Device Defender route the request to nothing and
-		// return HTTP 404 ("No method found matching route") under the generic
-		// UnknownError code. Per-region availability gap — silent-skip.
+		// Regions without IoT Device Defender 404 with "No method found matching
+		// route" (generic UnknownError code) — per-region gap, silent-skip.
 		if isHTTP404(err) {
 			return 0, 0, nil
 		}
@@ -107,9 +106,9 @@ func scanIoTScheduledAudits(ctx context.Context, client iotDefenderAPI, acct *ac
 				_ = skipIfAccessDenied(st, "iot:ListScheduledAudits", acct.ID, region, perr)
 				return 0, 0, nil
 			}
-			// Device Defender isn't routed in every IoT region; the data-plane
-			// 404s with "No method found matching route" (untyped, only the HTTP
-			// status is reliable). Region gap — silent-skip.
+			// Device Defender isn't routed in every region; 404s "No method found
+			// matching route" (untyped — only HTTP status is reliable). Region
+			// gap — silent-skip.
 			if isHTTP404(perr) {
 				return 0, 0, nil
 			}

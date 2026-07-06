@@ -6,9 +6,9 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveCloudArmorRelationships verifies that backendService.securityPolicy
-// + .edgeSecurityPolicy fields produce uses edges, and that pointing both to
-// the same policy collapses to one edge.
+// TestResolveCloudArmorRelationships verifies backendService.securityPolicy
+// + .edgeSecurityPolicy produce uses edges, and that pointing both to the
+// same policy collapses to one edge.
 func TestResolveCloudArmorRelationships(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")

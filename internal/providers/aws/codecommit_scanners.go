@@ -19,9 +19,9 @@ func init() {
 	})
 }
 
-// scanCodeCommit discovers CodeCommit repositories. CodeCommit is closed
-// to new customers (2024) but existing customer accounts continue to use
-// it. Synth ARN: arn:aws:codecommit:{r}:{a}:{name}.
+// scanCodeCommit discovers CodeCommit repositories. Closed to new
+// customers since 2024; existing accounts still use it. Synth ARN:
+// arn:aws:codecommit:{r}:{a}:{name}.
 func scanCodeCommit(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := codecommit.NewFromConfig(acct.cfg, func(o *codecommit.Options) { o.Region = region })
 

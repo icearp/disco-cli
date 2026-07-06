@@ -10,9 +10,9 @@ import (
 	batchtypes "github.com/aws/aws-sdk-go-v2/service/batch/types"
 )
 
-// stubBatch is an in-memory batchAPI used for scanner tests on the four
-// types added in this iteration. The pre-existing compute-env / queue /
-// job-def sub-phases pass through the same stub by returning empty pages.
+// stubBatch is an in-memory batchAPI for the four types added this
+// iteration; pre-existing compute-env/queue/job-def phases pass through
+// via empty pages.
 type stubBatch struct {
 	schedPolicies      []batchtypes.SchedulingPolicyListingDetail
 	schedPolicyDetails []batchtypes.SchedulingPolicyDetail

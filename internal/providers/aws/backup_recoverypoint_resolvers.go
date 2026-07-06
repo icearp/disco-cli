@@ -17,11 +17,11 @@ func init() {
 	)
 }
 
-// resolveBackupRecoveryPointRefs wires each recovery point to its vault (the
-// BackupVaultArn container), its encryption KMS key, and the IAM role that
-// created it. The source-resource ARN (ResourceArn) is left unwired: it spans
-// every backable service and disco has no cross-type NativeID index, so an edge
-// would FK-drop more often than not. All edges are FK-safe.
+// resolveBackupRecoveryPointRefs wires each recovery point to its vault
+// (BackupVaultArn), its encryption KMS key, and the IAM role that created it.
+// ResourceArn (the source resource) is left unwired: it spans every backable
+// service and disco has no cross-type NativeID index, so an edge would
+// FK-drop more often than not. All edges are FK-safe.
 func resolveBackupRecoveryPointRefs(acct *account, st *store.Store) error {
 	rps, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

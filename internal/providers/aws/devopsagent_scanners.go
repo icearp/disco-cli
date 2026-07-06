@@ -28,8 +28,8 @@ type devOpsAgentAPI interface {
 }
 
 // scanDevOpsAgent discovers DevOpsAgent agent spaces, services, and per-space
-// associations. PrivateConnection skip-logged: SDK exposes only Create/Delete/
-// Describe with no list endpoint. List APIs return raw IDs — synthesize ARNs.
+// associations. PrivateConnection skipped: SDK has no List op (Create/Delete/
+// Describe only). List APIs return raw IDs — synthesize ARNs.
 func scanDevOpsAgent(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := devopsagent.NewFromConfig(acct.cfg, func(o *devopsagent.Options) { o.Region = region })
 

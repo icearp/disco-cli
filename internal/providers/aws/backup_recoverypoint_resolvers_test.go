@@ -51,8 +51,8 @@ func TestResolveBackupRecoveryPointRefs(t *testing.T) {
 	assertRelationship(t, rels, rpID, roleID, store.RelAssumes)
 }
 
-// A recovery point whose vault/key/role are unscanned (cross-account or AWS-managed
-// default key) emits no edges and does not panic on minimal attrs.
+// A recovery point with unscanned vault/key/role (cross-account or AWS-managed
+// default key) emits no edges and doesn't panic on minimal attrs.
 func TestResolveBackupRecoveryPointRefs_Unscanned(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

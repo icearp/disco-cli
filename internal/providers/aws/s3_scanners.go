@@ -28,20 +28,19 @@ func init() {
 }
 
 // s3API is the narrow set of S3 operations called by the global ListBuckets
-// phase + per-bucket sub-phases. Note: s3 sub-phases construct PER-REGION
-// clients (each bucket's home region), so the iface lift is intentionally
-// SHALLOW — the top-level client used for ListBuckets / GetBucketLocation
-// is bound here; per-bucket clients (GetBucketEncryption / GetBucketPolicy)
-// stay constructed inline. Lifting the per-bucket constructors would require
-// a region→client factory abstraction; defer.
+// phase + per-bucket sub-phases. s3 sub-phases construct PER-REGION clients
+// (each bucket's home region), so the iface lift is intentionally SHALLOW:
+// only ListBuckets / GetBucketLocation (top-level client) are bound here;
+// per-bucket clients (GetBucketEncryption / GetBucketPolicy) stay constructed
+// inline. Lifting those would need a region→client factory abstraction; defer.
 type s3API interface {
 	ListBuckets(context.Context, *s3.ListBucketsInput, ...func(*s3.Options)) (*s3.ListBucketsOutput, error)
 	GetBucketLocation(context.Context, *s3.GetBucketLocationInput, ...func(*s3.Options)) (*s3.GetBucketLocationOutput, error)
 }
 
-// scanS3 discovers S3 buckets. S3 is a global service; buckets are returned
-// without region info from ListBuckets, but each bucket has a region that can
-// be fetched separately. We store the bucket-level region in attributes.
+// scanS3 discovers S3 buckets. S3 is a global service; ListBuckets returns no
+// region info, but each bucket's region can be fetched separately and is
+// stored in attributes.
 func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	// S3 ListBuckets uses a regional endpoint but returns all buckets globally.
 	client := s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = "us-east-1" })
@@ -86,8 +85,8 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 	if err != nil {
 		return total, inserted, err
 	}
-	// Populate per-bucket SSE config on the account for use by
-	// resolveS3BucketEncryptionRelationships. No resources are upserted — the
+	// Populate per-bucket SSE config on the account for
+	// resolveS3BucketEncryptionRelationships. No resources upserted — the
 	// config only exists to drive the bucket→KMS edge.
 	if err := scanS3BucketEncryptions(ctx, acct, client, out.Buckets); err != nil {
 		return total, inserted, err
@@ -97,8 +96,8 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 
 // scanS3BucketEncryptions fetches GetBucketEncryption for each bucket
 // concurrently and stores the result in acct.s3BucketEncryption, keyed by
-// bucket name. Buckets without an explicit encryption config return
-// ServerSideEncryptionConfigurationNotFoundError and are silently skipped.
+// bucket name. Buckets without explicit encryption config return
+// ServerSideEncryptionConfigurationNotFoundError and are silently skipped;
 // AccessDenied is also tolerated (best-effort).
 func scanS3BucketEncryptions(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket) error {
 	sem := semaphore.NewWeighted(fanoutHigh)
@@ -147,7 +146,7 @@ func scanS3BucketEncryptions(ctx context.Context, acct *account, client s3API, b
 // scanS3BucketPolicies fetches the bucket policy for each bucket concurrently.
 // Buckets with no policy (NoSuchBucketPolicy) are silently skipped.
 // Each GetBucketPolicy call uses a client pinned to the bucket's home region —
-// using the wrong region endpoint causes a 301 PermanentRedirect error.
+// the wrong region endpoint causes a 301 PermanentRedirect error.
 func scanS3BucketPolicies(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket, st *store.Store, scanID string) (total, inserted int, err error) {
 	sem := semaphore.NewWeighted(fanoutHigh)
 	var (
@@ -163,9 +162,9 @@ func scanS3BucketPolicies(ctx context.Context, acct *account, client s3API, buck
 			defer sem.Release(1)
 			name := sv(b.Name)
 
-			// Resolve the bucket's home region before fetching the policy.
-			// S3 returns 301 PermanentRedirect when the client region doesn't
-			// match the bucket's region. GetBucketLocation works from any endpoint.
+			// Resolve the bucket's home region before fetching the policy:
+			// S3 returns 301 PermanentRedirect on region mismatch.
+			// GetBucketLocation works from any endpoint.
 			region, err := s3BucketRegion(gctx, client, name)
 			if err != nil {
 				if isAccessDenied(err) {

@@ -48,9 +48,9 @@ type backupAPI interface {
 }
 
 // scanBackup discovers AWS Backup vaults, plans, and per-plan selections.
-// Vaults and plans carry native ARNs from the list APIs. Selections have no
-// list-level ARN so one is synthesised from the parent plan ID + selection ID
-// for a stable NativeID across scans.
+// Vaults and plans carry native ARNs from the list APIs; selections lack one,
+// so a NativeID is synthesised from the parent plan ID + selection ID for
+// stability across scans.
 func scanBackup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := backup.NewFromConfig(acct.cfg, func(o *backup.Options) { o.Region = region })
 	t, i, ferr := scanBackupAll(ctx, client, acct, region, st, scanID)

@@ -79,9 +79,9 @@ func init() {
 }
 
 // routeTargetRule maps a Routes[] field name to the target's disco type and
-// ARN-kind segment. The resolver dispatches on the first non-empty field per
+// ARN-kind segment; resolver dispatches on the first non-empty field per
 // route. `gatewayPrefix` filters `GatewayId` between IGW (`igw-`) and VGW
-// (`vgw-`); empty means "match unconditionally".
+// (`vgw-`); empty = match unconditionally.
 type routeTargetRule struct {
 	field         string
 	gatewayPrefix string
@@ -105,10 +105,9 @@ var routeTargetRules = []routeTargetRule{
 }
 
 // resolveRouteTableRoutes walks each route-table's `Routes[]` and emits a
-// `routes-to` edge from the route-table to whichever target type the route's
-// non-empty field references. Skips `local`-gateway routes (no target
-// resource). FK-safe: target id-sets pre-built per type, edge skipped when
-// target unscanned.
+// `routes-to` edge to whichever target type the route's non-empty field
+// references. Skips `local`-gateway routes (no target resource). FK-safe:
+// id-sets pre-built per type, edge skipped when target unscanned.
 func resolveRouteTableRoutes(acct *account, st *store.Store) error {
 	rts, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2RouteTable},
@@ -146,9 +145,8 @@ func resolveRouteTableRoutes(acct *account, st *store.Store) error {
 	return nil
 }
 
-// emitRouteEdge picks the first matching rule for a single route and emits
-// the edge if the target id is in the local store. Returns the first
-// upsert error.
+// emitRouteEdge picks the first matching rule for a route and emits the
+// edge if the target id is in the store. Returns the first upsert error.
 func emitRouteEdge(st *store.Store, acct *account, rtID, region string, route map[string]any, idSets map[string]map[string]bool) error {
 	for _, rule := range routeTargetRules {
 		v, _ := route[rule.field].(string)
@@ -156,7 +154,7 @@ func emitRouteEdge(st *store.Store, acct *account, rtID, region string, route ma
 			continue
 		}
 		// `GatewayId="local"` is the implicit VPC-internal gateway — no
-		// target resource exists. Skip to avoid phantom edge.
+		// target resource exists; skip to avoid a phantom edge.
 		if rule.field == "GatewayId" && v == "local" {
 			return nil
 		}
@@ -176,8 +174,7 @@ func emitRouteEdge(st *store.Store, acct *account, rtID, region string, route ma
 	return nil
 }
 
-// hasPrefix is a tiny inline alias kept here to dodge an extra import for a
-// single `strings.HasPrefix` call.
+// hasPrefix is a tiny inline alias avoiding an import for one strings.HasPrefix call.
 func hasPrefix(s, p string) bool { return len(s) >= len(p) && s[:len(p)] == p }
 
 // resolveSecurityGroupVPC links each security group to its VPC.
@@ -566,7 +563,7 @@ func resolveVPCPeeringRelationships(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		// Requester VPC — use account from the peering info in case it's cross-account.
+		// Requester VPC — account comes from peering info; may be cross-account.
 		if attrs.RequesterVpcInfo.VpcID != nil {
 			reqAcct := acct.ID
 			if attrs.RequesterVpcInfo.OwnerID != nil {

@@ -68,8 +68,8 @@ type glueAPI interface {
 // Catalog itself is implicit (one per account+region) and not modeled. Two
 // phases run sequentially: GetDatabases (paginator) → per-database GetTables
 // fan-out (errgroup + fanoutMed). Crawlers, jobs, triggers, classifiers, and
-// connections deferred — each adds its own sub-tree of edges (role refs,
-// network refs) that warrant separate iterations.
+// connections deferred — each adds its own edge sub-tree (role/network refs)
+// warranting separate iterations.
 func scanGlue(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := glue.NewFromConfig(acct.cfg, func(o *glue.Options) { o.Region = region })
 
@@ -219,9 +219,9 @@ func scanGlueDatabases(ctx context.Context, client glueAPI, acct *account, regio
 }
 
 // glueTableRef identifies a Glue table by (db, table, catalogId, isIceberg).
-// catalogId is empty for the default catalog. isIceberg is true when the
-// table's parameters carry table_type=ICEBERG; only Iceberg tables support
-// table-optimizers, so this gates the optimizer fan-out.
+// catalogId is empty for the default catalog; isIceberg is true when
+// Parameters carries table_type=ICEBERG — gates the table-optimizer fan-out
+// (Iceberg-only).
 type glueTableRef struct {
 	db        string
 	table     string

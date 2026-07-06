@@ -150,9 +150,9 @@ func scanMLClusters(ctx context.Context, client mediaLiveAPI, acct *account, reg
 				_ = skipIfAccessDenied(st, "medialive:ListClusters", acct.ID, region, perr)
 				return nil, 0, 0, nil
 			}
-			// MediaLive Anywhere (clusters) isn't offered in every region; those
-			// reject ListClusters with 404 NotFoundException. Per-region
-			// availability gap — silent-skip.
+			// MediaLive Anywhere (clusters) isn't offered in every region —
+			// those reject ListClusters with 404 NotFoundException. Per-region
+			// gap, silent-skip.
 			if isAPIErrorCode(perr, "NotFoundException") {
 				return nil, 0, 0, nil
 			}
@@ -407,9 +407,9 @@ func scanMLInputDevices(ctx context.Context, client mediaLiveAPI, acct *account,
 	return upsertBatch(st, batch, "medialive input-devices")
 }
 
-// scanMLNodes — ListNodes requires a ClusterId, so fan out over the clusters
-// discovered by scanMLClusters. DescribeNodeSummary carries a real distinct
-// node ARN, used directly as the NativeID (Leaf).
+// scanMLNodes fans ListNodes out over the clusters from scanMLClusters
+// (ListNodes requires a ClusterId). DescribeNodeSummary carries a real
+// distinct node ARN, used directly as NativeID (Leaf).
 func scanMLNodes(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, clusterIDs []string) (int, int, error) {
 	if len(clusterIDs) == 0 {
 		return 0, 0, nil
@@ -589,8 +589,8 @@ func scanMLNetworks(ctx context.Context, client mediaLiveAPI, acct *account, reg
 				return 0, 0, nil
 			}
 			// MediaLive Anywhere (networks) isn't offered in every MediaLive
-			// region; the gateway 404s with "Unable to determine service/operation
-			// name". Region gap — silent-skip.
+			// region — the gateway 404s with "Unable to determine service/operation
+			// name". Region gap, silent-skip.
 			if isServiceNotAvailableInRegion(perr) {
 				return 0, 0, nil
 			}

@@ -17,10 +17,10 @@ func init() {
 
 // resolveDatabaseWatcherRelationships wires a Database Watcher to its backing
 // Azure Data Explorer cluster via properties.datastore.adxClusterResourceId
-// (a full Microsoft.Kusto/clusters ARM ID). The datastore's required
-// kustoClusterUri is the generic Kusto endpoint and is only ARM-addressable
-// when adxClusterResourceId is also set (free-offering clusters have no ARM
-// resource to link to), so the ARM-ID match is the complete in-scope edge.
+// (full Microsoft.Kusto/clusters ARM ID). kustoClusterUri (the required
+// generic Kusto endpoint) is ARM-addressable only when adxClusterResourceId
+// is also set (free-offering clusters have no ARM resource to link to), so
+// the ARM-ID match is the complete in-scope edge.
 func resolveDatabaseWatcherRelationships(sub *subscription, st *store.Store) error {
 	watchers, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

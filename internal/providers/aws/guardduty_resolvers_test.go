@@ -23,9 +23,9 @@ func TestResolveGuardDutyRelationships(t *testing.T) {
 	iID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyIPSet, ipsetARN, testRegion, ipsetAttrs)
 	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucket, "", "{}")
 
-	// Mimic guardduty_scanners.go: closure pairs (filter, detector) and
-	// (ipset, detector). Unified closure writer emits the matching
-	// parent→child contains rows; resolver only handles ipset→bucket.
+	// Mimics guardduty_scanners.go closure pairs (filter, detector) and
+	// (ipset, detector); unified closure writer emits parent→child contains
+	// rows, resolver only handles ipset→bucket.
 	if err := st.RecordHierarchyBatch([][2]string{
 		{fID, detID}, {iID, detID},
 	}); err != nil {
@@ -64,8 +64,8 @@ func TestResolveGuardDutyRelationships_HttpsS3URL(t *testing.T) {
 }
 
 // TestResolveGuardDutyMemberOrgAccount verifies a member row emits
-// attached-to → its corresponding aws:organizations:account row when both
-// rows are present in the same scan.
+// attached-to → its aws:organizations:account row when both are present in
+// the same scan.
 func TestResolveGuardDutyMemberOrgAccount(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

@@ -162,7 +162,7 @@ func scanTSScheduledQueries(ctx context.Context, client tsQueryAPI, acct *accoun
 			state := string(q.State)
 			// Enrich with DescribeScheduledQuery body — KmsKeyId,
 			// ScheduledQueryExecutionRoleArn, ErrorReportConfiguration, and
-			// NotificationConfiguration are not on the list-summary shape.
+			// NotificationConfiguration are absent from the list-summary.
 			attrs := mustJSON(q)
 			qarn := arn
 			dout, derr := client.DescribeScheduledQuery(ctx, &timestreamquery.DescribeScheduledQueryInput{ScheduledQueryArn: &qarn})
@@ -202,8 +202,8 @@ func scanTSInfluxClusters(ctx context.Context, client tsInfluxAPI, acct *account
 			}
 			status := string(c.Status)
 			// Enrich with GetDbCluster body — VpcSubnetIds, VpcSecurityGroupIds,
-			// InfluxAuthParametersSecretArn, LogDeliveryConfiguration are not on
-			// the list-summary shape.
+			// InfluxAuthParametersSecretArn, LogDeliveryConfiguration are absent
+			// from the list-summary.
 			attrs := mustJSON(c)
 			cid := c.Id
 			if cid != nil {
@@ -245,8 +245,8 @@ func scanTSInfluxInstances(ctx context.Context, client tsInfluxAPI, acct *accoun
 			}
 			status := string(inst.Status)
 			// Enrich with GetDbInstance body — VpcSubnetIds, VpcSecurityGroupIds,
-			// InfluxAuthParametersSecretArn, LogDeliveryConfiguration are not on
-			// the list-summary shape.
+			// InfluxAuthParametersSecretArn, LogDeliveryConfiguration are absent
+			// from the list-summary.
 			attrs := mustJSON(inst)
 			iid := inst.Id
 			if iid != nil {

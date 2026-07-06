@@ -10,9 +10,9 @@ import (
 )
 
 // AWS Migration Hub — migration tracking. Only progress-update-streams are
-// persistent, independently-listable resources; the migration tasks hung off
-// each stream are ephemeral migration state (skipped in aws_skips.go). Leaf:
-// no outbound edges to other scanned AWS resource types.
+// persistent, independently-listable resources; migration tasks hung off
+// each stream are ephemeral state (skipped in aws_skips.go). Leaf: no
+// outbound edges to other scanned AWS types.
 func init() {
 	registerService(serviceEntry{
 		name: "aws:migrationhub",
@@ -39,8 +39,8 @@ func scanMigrationHubProgressUpdateStreams(ctx context.Context, client migration
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			// Migration Hub uses a per-account "home region" model; calls from a
-			// non-home region are refused with an empty-body AccessDenied. Not
-			// configured/available here — silent-skip. Real per-action denials
+			// non-home region get an empty-body AccessDenied — not
+			// configured/available here, silent-skip. Real per-action denials
 			// carry an action-identifying message and still warn below.
 			if isClosedToNewCustomers(err) {
 				break

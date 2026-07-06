@@ -44,7 +44,7 @@ func qbARN(region, acct string, segments ...string) string {
 	for _, seg := range segments {
 		s += "/" + seg
 	}
-	// Replace first '/' with ':' to match AWS qbusiness ARN format `arn:aws:qbusiness:region:account:application/{id}`.
+	// Replace first '/' with ':' to match AWS's arn:aws:qbusiness:region:account:application/{id} format.
 	for i := len(fmt.Sprintf("arn:aws:qbusiness:%s:%s", region, acct)); i < len(s); i++ {
 		if s[i] == '/' {
 			return s[:i] + ":" + s[i+1:]

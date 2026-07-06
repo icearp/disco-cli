@@ -114,9 +114,9 @@ func TestScanBedrockFoundationModels_Empty(t *testing.T) {
 	}
 }
 
-// AR Policies is region/account-gated; an empty-body AccessDeniedException is the
-// region-gap signal and must silent-skip (no rows, no propagated error, no
-// warning) rather than surface as a spurious scan warning.
+// AR Policies is region/account-gated; empty-body AccessDeniedException is the
+// region-gap signal and must silent-skip (no rows, no error, no warning) rather
+// than surface as a spurious scan warning.
 func TestScanBedrockARPolicies_RegionGapSilent(t *testing.T) {
 	st := newTestStore(t)
 	warned := false

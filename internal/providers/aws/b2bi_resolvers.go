@@ -73,9 +73,9 @@ func resolveB2BICapabilityS3(acct *account, st *store.Store) error {
 }
 
 // resolveB2BIPartnershipRefs wires each partnership to its trading profile
-// (ProfileID) and capabilities (Capabilities[] — list of capability IDs).
-// Both ARN shapes synthesised per region+acct from the bare ID; ARNs use
-// `:profile/<id>` and `:capability/<id>` segments.
+// (ProfileID) and capabilities (Capabilities[], capability IDs). Both ARNs
+// synthesised per region+acct from the bare ID, using `:profile/<id>` and
+// `:capability/<id>` segments.
 func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeB2BIPartnership}, Limit: util.AllResources,

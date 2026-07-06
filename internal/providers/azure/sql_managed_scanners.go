@@ -15,8 +15,8 @@ import (
 
 func init() {
 	// Uncatalogued flags mark proxy child types disco scans that ARM
-	// Providers/List never enumerates as standalone resourceTypes (see
-	// azure/CLAUDE.md) — real resources, but absent from the upstream registry.
+	// Providers/List never lists as standalone resourceTypes (see
+	// azure/CLAUDE.md) — real resources absent from the upstream registry.
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstance},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabase},
@@ -47,9 +47,9 @@ type sqlManagedDatabase struct {
 	rgName     string
 }
 
-// scanSQLManaged discovers managed instances and their databases, administrators,
-// vulnerability assessments, and managed database vulnerability assessments.
-// Called concurrently from scanSQL alongside the server-based scanners.
+// scanSQLManaged discovers managed instances, their databases, admins, and
+// vulnerability assessments (instance- and database-level). Runs concurrently
+// from scanSQL alongside the server-based scanners.
 func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	miClient, err := armsql.NewManagedInstancesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -167,9 +167,8 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 			return err
 		})
 
-		// MI keys, encryption protectors, private endpoint connections,
-		// and managed-server security alert policies — each its own goroutine
-		// so slow lists don't stall siblings.
+		// MI keys, encryption protectors, PECs, and managed-server security
+		// alert policies — each its own goroutine so slow lists don't stall siblings.
 		for _, fn := range managedInstanceChildScanners(gctx, sub, cred, st, scanID, mi) {
 			g.Go(func() error {
 				if err := sem.Acquire(gctx, 1); err != nil {
@@ -213,15 +212,15 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 			})
 		}
 	}
-	// Wait BEFORE reading the counters — Go evaluates return-list expressions
-	// left-to-right, so inlining g2.Wait() at position 3 reads total/inserted
+	// Wait BEFORE reading counters — Go evaluates return-list expressions
+	// left-to-right; inlining g2.Wait() at position 3 would read total/inserted
 	// while phase-3 goroutines are still running.
 	err = g2.Wait()
 	return total, inserted, err
 }
 
 // managedInstanceChildScanners returns closures for MI-level sub-resource scanners
-// that run in the phase-2 fan-out (alongside databases, admins, VAs).
+// run in the phase-2 fan-out (alongside databases, admins, VAs).
 func managedInstanceChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) []func() (int, int, error) {
 	return []func() (int, int, error){
 		func() (int, int, error) { return scanManagedInstanceKeys(ctx, sub, cred, st, scanID, mi) },

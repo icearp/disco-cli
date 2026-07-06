@@ -1,5 +1,5 @@
 // Package scanrun wraps the orchestration core of `disco scan` so the engine
-// is reusable independent of the CLI front end (cmd/scan.go). It owns:
+// is reusable outside the CLI front end (cmd/scan.go). It owns:
 //
 //   - resolving Scanner instances from the provider registry by name;
 //   - applying per-request scope (regions, services, profile, skip-globals);
@@ -8,10 +8,10 @@
 //
 // CLI-only concerns (--if-older-than, --resume, --dry-run, progress
 // rendering, --quiet) stay in cmd/scan.go. The Store's OnError /
-// OnServiceComplete / OnResolveStart / OnResolveComplete callbacks are still
-// honoured if the caller wires them — RunScanners attaches its own OnError
-// only as a last-resort fallback so a Scanner that returns an error from
-// Scan() is captured rather than dropped.
+// OnServiceComplete / OnResolveStart / OnResolveComplete callbacks still
+// fire if the caller wires them — RunScanners's own OnError is only a
+// last-resort fallback so an error returned from Scan() is captured, not
+// dropped.
 package scanrun
 
 import (
@@ -84,8 +84,8 @@ func Allocate(st *store.Store, req Request) (*Allocation, error) {
 	return &Allocation{ScanID: scanID, scanners: scanners}, nil
 }
 
-// Allocation is the handle returned by Allocate; pass it to Execute to
-// actually run the scanners + finalise the scan row.
+// Allocation is the handle returned by Allocate; pass it to Execute to run
+// the scanners and finalise the scan row.
 type Allocation struct {
 	ScanID   string
 	scanners []providers.Scanner
@@ -102,7 +102,7 @@ func Execute(ctx context.Context, st *store.Store, a *Allocation) error {
 	// count. Finalize owns the Complete/Partial dispatch and structured-error
 	// persistence shared with the CLI. ctx.Err() != nil means the scan was
 	// interrupted (signal/deadline) before finishing — finalize it partial even
-	// if no per-service error happened to be reported.
+	// if no per-service error was reported.
 	if _, err := Finalize(st, a.ScanID, totalSeen, scanErrors, ctx.Err() != nil); err != nil {
 		return err
 	}
@@ -135,8 +135,8 @@ const interruptedReason = "scan interrupted before completion (signal)"
 // cmd/scan.go so a scan is finalised identically regardless of entry point.
 // count is the canonical rows-visited total. interrupted reflects ctx.Err() at
 // the call site — a cancelled scan is always partial, regardless of whether any
-// provider happened to report a context-canceled error (the silent
-// semaphore-gate path reports none), so the status can't depend on timing.
+// provider reported a context-canceled error (the silent semaphore-gate path
+// reports none), so the status can't depend on timing.
 func Finalize(st *store.Store, scanID string, count int, scanErrors []store.ScanError, interrupted bool) (FinalizeResult, error) {
 	if len(scanErrors) == 0 && !interrupted {
 		if err := st.CompleteScan(scanID, count); err != nil {

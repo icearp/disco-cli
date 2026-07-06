@@ -7,10 +7,10 @@ import (
 )
 
 // TestResolveMessagingRelationships verifies CMEK-enabled Event Hubs and
-// Service Bus namespaces both derive -[uses]-> Key Vault edges via
+// Service Bus namespaces derive -[uses]-> Key Vault edges via
 // properties.encryption.keyVaultProperties[].keyVaultUri (DNS root form).
-// Multiple keyVaultProperties entries pointing at the same vault collapse to
-// one edge per namespace.
+// Multiple entries pointing at the same vault collapse to one edge per
+// namespace.
 func TestResolveMessagingRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-msg")

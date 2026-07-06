@@ -9,9 +9,9 @@ import (
 	dztypes "github.com/aws/aws-sdk-go-v2/service/datazone/types"
 )
 
-// DataZone group/user profiles are the SSO/IAM principals enrolled in a domain.
-// They enumerate per (domain, principal-type): the Search* ops require both a
-// DomainIdentifier and a type enum, so each must be queried across all types.
+// DataZone group/user profiles are the SSO/IAM principals in a domain. They
+// enumerate per (domain, principal-type): Search* ops require both a
+// DomainIdentifier and a type enum, so each type must be queried.
 
 var dzGroupTypes = []dztypes.GroupSearchType{
 	dztypes.GroupSearchTypeSsoGroup,

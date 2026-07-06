@@ -8,8 +8,8 @@ import (
 
 const testSubID = "sub-abc-123"
 
-// TestResolveVMAvailabilitySetRelationships verifies that a VM's availability set
-// relationship is correctly derived from the availabilitySet.id field in stored JSON.
+// TestResolveVMAvailabilitySetRelationships verifies a VM's availability-set
+// relationship derives from availabilitySet.id in stored JSON.
 func TestResolveVMAvailabilitySetRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -38,8 +38,8 @@ func TestResolveVMAvailabilitySetRelationships(t *testing.T) {
 	}
 }
 
-// TestResolveVMAvailabilitySetRelationships_NoAttrs verifies no error when VM has
-// no availability set in its attributes (empty JSON case).
+// TestResolveVMAvailabilitySetRelationships_NoAttrs verifies no error when VM
+// attributes lack an availability set (empty JSON case).
 func TestResolveVMAvailabilitySetRelationships_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -52,8 +52,8 @@ func TestResolveVMAvailabilitySetRelationships_NoAttrs(t *testing.T) {
 	}
 }
 
-// TestResolveVMProximityGroupRelationships verifies that a VM's proximity placement
-// group relationship is correctly derived from the stored attributes JSON.
+// TestResolveVMProximityGroupRelationships verifies a VM's proximity-placement-group
+// relationship derives from the stored attributes JSON.
 func TestResolveVMProximityGroupRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -92,8 +92,8 @@ func TestResolveVMProximityGroupRelationships_NoAttrs(t *testing.T) {
 	}
 }
 
-// TestResolveVMExtensionRelationships verifies that a VM extension is linked to
-// its parent VM by truncating the NativeID at "/extensions/".
+// TestResolveVMExtensionRelationships verifies a VM extension links to its parent
+// VM by truncating NativeID at "/extensions/".
 func TestResolveVMExtensionRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -130,8 +130,8 @@ func TestResolveVMExtensionRelationships_Empty(t *testing.T) {
 	}
 }
 
-// TestResolveImageSourceVMRelationships verifies that a custom image is linked
-// to its source VM via properties.sourceVirtualMachine.id.
+// TestResolveImageSourceVMRelationships verifies a custom image links to its
+// source VM via properties.sourceVirtualMachine.id.
 func TestResolveImageSourceVMRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -160,8 +160,8 @@ func TestResolveImageSourceVMRelationships(t *testing.T) {
 	}
 }
 
-// TestResolveImageSourceVMRelationships_NoAttrs verifies no error when image has
-// no sourceVirtualMachine field.
+// TestResolveImageSourceVMRelationships_NoAttrs verifies no error when image
+// lacks a sourceVirtualMachine field.
 func TestResolveImageSourceVMRelationships_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -174,8 +174,8 @@ func TestResolveImageSourceVMRelationships_NoAttrs(t *testing.T) {
 	}
 }
 
-// TestResolveRestorePointCollectionSourceRelationships verifies that a restore
-// point collection is linked to its source VM via properties.source.id.
+// TestResolveRestorePointCollectionSourceRelationships verifies a restore point
+// collection links to its source VM via properties.source.id.
 func TestResolveRestorePointCollectionSourceRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)

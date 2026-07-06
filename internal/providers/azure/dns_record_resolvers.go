@@ -19,18 +19,18 @@ func init() {
 }
 
 // resolveDNSRecordSetRelationships derives DNS record-set -[uses]-> Public IP
-// edges. Walks both public and private A (IPv4) and AAAA (IPv6) record sets and
-// matches each record's address against a per-sub PIP index built from
+// edges. Walks public and private A (IPv4) and AAAA (IPv6) record sets,
+// matching each record's address against a per-sub PIP index built from
 // `azure:microsoft.network:public-ip-addresses.properties.ipAddress` — a single
-// version-agnostic field that holds the IPv6 address for IPv6 PIPs, so AAAA
+// version-agnostic field holding the IPv6 address for IPv6 PIPs, so AAAA
 // resolves through the same index. Addresses are canonicalised via net.ParseIP
-// before keying so an IPv6 address written compressed in one place and expanded
-// in another still matches.
+// before keying, so a compressed vs. expanded/upper-cased IPv6 literal still
+// matches.
 //
-// CNAME / SRV / MX / PTR / NS / TXT / CAA records intentionally deferred. CNAME
-// requires FQDN→ARM-ID reverse-lookup with per-service DNS suffix tables
+// CNAME/SRV/MX/PTR/NS/TXT/CAA records intentionally deferred: CNAME needs
+// FQDN→ARM-ID reverse lookup via per-service DNS suffix tables
 // (azurewebsites.net → AppService site, *.cloudapp.azure.com → public IP,
-// *.azurefd.net → Front Door, etc.), which is its own iteration.
+// *.azurefd.net → Front Door, etc.) — its own iteration.
 func resolveDNSRecordSetRelationships(sub *subscription, st *store.Store) error {
 	records, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,
@@ -71,16 +71,16 @@ func resolveDNSRecordSetRelationships(sub *subscription, st *store.Store) error 
 
 	for _, r := range records {
 		// Only A (IPv4) and AAAA (IPv6) record sets carry a public-IP literal;
-		// skip the rest cheaply via the type segment of the NativeID before
+		// skip others cheaply via the NativeID's type segment before
 		// unmarshaling — covers CNAME/SRV/MX/PTR/etc.
 		rt := recordTypeFromID(r.NativeID)
 		isA, isAAAA := strings.EqualFold(rt, "A"), strings.EqualFold(rt, "AAAA")
 		if !isA && !isAAAA {
 			continue
 		}
-		// armdns marshals the array keys PascalCase ("ARecords"/"AAAARecords")
-		// while armprivatedns uses camelCase ("aRecords"/"aaaaRecords"); the
-		// camelCase tags match both because encoding/json decodes keys
+		// armdns marshals array keys PascalCase ("ARecords"/"AAAARecords");
+		// armprivatedns uses camelCase ("aRecords"/"aaaaRecords"). The
+		// camelCase tags match both since encoding/json decodes keys
 		// case-insensitively.
 		var attrs struct {
 			Properties *struct {
@@ -127,9 +127,9 @@ func resolveDNSRecordSetRelationships(sub *subscription, st *store.Store) error 
 	return nil
 }
 
-// canonicalIP normalises an IP literal to net.IP's canonical text form so an
-// address written compressed in one place and expanded/upper-cased in another
-// keys identically. Unparseable input passes through unchanged.
+// canonicalIP normalises an IP literal to net.IP's canonical text form, so
+// compressed vs. expanded/upper-cased addresses key identically. Unparseable
+// input passes through unchanged.
 func canonicalIP(s string) string {
 	if ip := net.ParseIP(s); ip != nil {
 		return ip.String()

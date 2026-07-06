@@ -26,8 +26,8 @@ func init() {
 	})
 }
 
-// scanDesktopVirtualization discovers Azure Virtual Desktop host pools,
-// application groups, workspaces, scaling plans, and app-attach packages.
+// scanDesktopVirtualization discovers AVD host pools, application groups,
+// workspaces, scaling plans, and app-attach packages.
 func scanDesktopVirtualization(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	hp, err := armdesktopvirtualization.NewHostPoolsClient(sub.ID, cred, azClientOptions)
 	if err != nil {

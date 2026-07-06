@@ -21,13 +21,13 @@ func init() {
 	})
 }
 
-// scanIAMPolicies fetches the IAM policy attached to the project scope.
-// One synthesized gcp:iam:policy resource per project carries every binding
-// (role, members, condition) under the resource's attributes; phase-2
-// resolvers pivot on those bindings to emit policy → service-account edges.
+// scanIAMPolicies fetches the IAM policy attached to the project scope. One
+// synthesized gcp:iam:policy resource per project carries every binding
+// (role, members, condition) in the resource's attributes; phase-2 resolvers
+// pivot on those bindings to emit policy → service-account edges.
 //
-// Folder + organization scope policies are deferred — they require running
-// once per scan rather than per project, and are tracked under R4.1 follow-up.
+// Folder/organization scope policies are deferred — they require running once
+// per scan rather than per project; tracked under R4.1 follow-up.
 func scanIAMPolicies(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	crmSvc, err := cloudresourcemanager.NewService(ctx, opts...)

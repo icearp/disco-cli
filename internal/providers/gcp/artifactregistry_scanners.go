@@ -20,9 +20,9 @@ func init() {
 }
 
 // scanArtifactRegistry discovers Artifact Registry repositories across every
-// location via the `locations/-` wildcard. Repositories carry the package
-// format (DOCKER / NPM / MAVEN / PYTHON / APT / YUM / GO / KFP) inline; no
-// per-format scanner is needed. Per-package + per-version fan-out deferred —
+// location via the `locations/-` wildcard. Repositories carry package format
+// (DOCKER / NPM / MAVEN / PYTHON / APT / YUM / GO / KFP) inline — no
+// per-format scanner needed. Per-package + per-version fan-out deferred:
 // version cardinality is unbounded on busy registries and the package list
 // rarely contributes graph-meaningful edges.
 func scanArtifactRegistry(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {

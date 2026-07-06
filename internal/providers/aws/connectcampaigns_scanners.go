@@ -19,11 +19,10 @@ func init() {
 	})
 }
 
-// connectCampaignsNotProvisioned reports the denials Connect Campaigns (v1 and
-// v2) return when no Amazon Connect instance backs the account/region: a
-// null-action AccessDenied ("not authorized to perform: null") or a bare
-// ForbiddenException ("Forbidden"). Environmental state, not a real IAM denial —
-// callers silent-skip.
+// connectCampaignsNotProvisioned reports the denials Connect Campaigns (v1/v2)
+// return when no Connect instance backs the account/region: null-action
+// AccessDenied ("not authorized to perform: null") or bare ForbiddenException
+// ("Forbidden"). Environmental state, not a real IAM denial — callers silent-skip.
 func connectCampaignsNotProvisioned(err error) bool {
 	return isAccessDeniedWithMessage(err, "not authorized to perform: null") ||
 		isAPIErrorWithMessage(err, "ForbiddenException", "Forbidden")

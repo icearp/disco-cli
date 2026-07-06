@@ -6,8 +6,8 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveDynamoDBGlobalTableRelationships_HappyPath verifies that a global
-// table is linked to its regional replica table via a "contains" relationship.
+// TestResolveDynamoDBGlobalTableRelationships_HappyPath verifies a global
+// table links to its regional replica table via a "contains" relationship.
 func TestResolveDynamoDBGlobalTableRelationships_HappyPath(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -35,8 +35,8 @@ func TestResolveDynamoDBGlobalTableRelationships_HappyPath(t *testing.T) {
 	assertRelationship(t, rels, globalID, tableID, store.RelContains)
 }
 
-// TestResolveDynamoDBGlobalTableRelationships_Empty verifies that a global
-// table with no ReplicationGroup data produces no relationships and no panic.
+// TestResolveDynamoDBGlobalTableRelationships_Empty verifies a global table
+// with no ReplicationGroup data produces no relationships and no panic.
 func TestResolveDynamoDBGlobalTableRelationships_Empty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -72,7 +72,7 @@ func TestResolveDynamoDBTableRelationships_KMS(t *testing.T) {
 	assertRelationship(t, rels, tableID, keyID, store.RelUses)
 }
 
-// TestResolveDynamoDBStreamRelationships verifies that a table with streaming
+// TestResolveDynamoDBStreamRelationships verifies a table with streaming
 // enabled emits a "contains" edge to its stream.
 func TestResolveDynamoDBStreamRelationships(t *testing.T) {
 	st := newTestStore(t)

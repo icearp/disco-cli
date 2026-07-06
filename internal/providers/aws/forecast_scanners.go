@@ -91,9 +91,8 @@ func scanForecastDatasets(ctx context.Context, client forecastAPI, acct *account
 			if arn == "" {
 				continue
 			}
-			// Enrich with DescribeDataset body — EncryptionConfig (KMSKeyArn +
-			// RoleArn) and DataSource fields are not on the list-summary shape.
-			// Fall back to summary on per-row failure.
+			// Enrich with DescribeDataset: list-summary lacks EncryptionConfig
+			// (KMSKeyArn/RoleArn) and DataSource; fall back to summary on per-row failure.
 			attrs := mustJSON(d)
 			darn := arn
 			dout, derr := client.DescribeDataset(ctx, &forecast.DescribeDatasetInput{DatasetArn: &darn})
@@ -135,8 +134,7 @@ func scanForecastDatasetGroups(ctx context.Context, client forecastAPI, acct *ac
 			if arn == "" {
 				continue
 			}
-			// Enrich with DescribeDatasetGroup body — DatasetArns[] (member
-			// dataset ARNs) is not on the list-summary shape.
+			// Enrich with DescribeDatasetGroup: list-summary lacks DatasetArns[] (member dataset ARNs).
 			attrs := mustJSON(g)
 			garn := arn
 			gout, gerr := client.DescribeDatasetGroup(ctx, &forecast.DescribeDatasetGroupInput{DatasetGroupArn: &garn})

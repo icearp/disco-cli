@@ -34,24 +34,24 @@ type rekognitionAPI interface {
 	DescribeProjectVersions(context.Context, *rekognition.DescribeProjectVersionsInput, ...func(*rekognition.Options)) (*rekognition.DescribeProjectVersionsOutput, error)
 }
 
-// rekDatasetAttrs embeds the SDK DatasetMetadata and carries the parent
-// ProjectArn so the dataset→project resolver has an FK-safe target (the
-// DatasetArn itself does not cleanly encode the parent project ARN).
+// rekDatasetAttrs embeds SDK DatasetMetadata plus the parent ProjectArn, giving
+// the dataset→project resolver an FK-safe target (DatasetArn alone doesn't
+// encode the parent project ARN).
 type rekDatasetAttrs struct {
 	rekognitiontypes.DatasetMetadata
 	ProjectArn string `json:"ProjectArn"`
 }
 
-// rekProjectVersionAttrs embeds the SDK ProjectVersionDescription and carries
-// the parent ProjectArn (the description exposes only ProjectVersionArn).
+// rekProjectVersionAttrs embeds SDK ProjectVersionDescription plus the parent
+// ProjectArn (the description exposes only ProjectVersionArn).
 type rekProjectVersionAttrs struct {
 	rekognitiontypes.ProjectVersionDescription
 	ProjectArn string `json:"ProjectArn"`
 }
 
 // scanRekognition discovers Rekognition collections, custom-labels projects,
-// and stream processors. Collections come back as plain string IDs (synth
-// ARN); projects expose ProjectArn natively; stream processors return only
+// and stream processors. Collections return plain string IDs (synth ARN);
+// projects expose ProjectArn natively; stream processors return only
 // (Name, Status) — synth ARN.
 func scanRekognition(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := rekognition.NewFromConfig(acct.cfg, func(o *rekognition.Options) { o.Region = region })
@@ -115,8 +115,8 @@ func scanRekCollections(ctx context.Context, client rekognitionAPI, acct *accoun
 }
 
 // scanRekProjects upserts projects and the datasets embedded in each project's
-// DescribeProjects response (Datasets []DatasetMetadata — no separate list op).
-// Returns the project ARNs for the project-version fan-out.
+// DescribeProjects response (Datasets []DatasetMetadata — no separate list op);
+// returns the project ARNs for the project-version fan-out.
 func scanRekProjects(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := rekognition.NewDescribeProjectsPaginator(client, &rekognition.DescribeProjectsInput{})
 	var batch, datasetBatch []*store.Resource
@@ -171,7 +171,7 @@ func scanRekProjects(ctx context.Context, client rekognitionAPI, acct *account, 
 }
 
 // scanRekProjectVersions fans out DescribeProjectVersions (requires ProjectArn)
-// across the projects discovered by scanRekProjects.
+// across projects from scanRekProjects.
 func scanRekProjectVersions(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, projectARNs []string) (int, int, error) {
 	if len(projectARNs) == 0 {
 		return 0, 0, nil

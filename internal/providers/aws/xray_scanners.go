@@ -32,10 +32,9 @@ type xrayAPI interface {
 // scanXRay discovers X-Ray groups, resource policies, sampling rules, and the
 // per-(account,region) Transaction Search configuration.
 //
-// AWS::XRay::TransactionSearchConfig has no list endpoint and no dedicated
-// Get*; the trace-segment-destination config (GetTraceSegmentDestination) is
-// the singleton that backs it (it controls whether segments are indexed to
-// CloudWatch Logs for Transaction Search).
+// AWS::XRay::TransactionSearchConfig has no list/dedicated Get endpoint;
+// GetTraceSegmentDestination is the singleton that backs it (controls whether
+// segments index to CloudWatch Logs for Transaction Search).
 func scanXRay(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := xray.NewFromConfig(acct.cfg, func(o *xray.Options) { o.Region = region })
 
@@ -78,8 +77,7 @@ func scanXRayGroups(ctx context.Context, client xrayAPI, acct *account, region s
 				Type: TypeXRayGroup, NativeID: arn,
 				Name: g.GroupName, Region: &region,
 				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-				// GroupName "Default" identifies the AWS-managed default
-				// trace group present in every account.
+				// GroupName "Default" = AWS-managed default trace group present in every account.
 				ManagedByProvider: sv(g.GroupName) == "Default",
 			})
 		}
@@ -140,8 +138,7 @@ func scanXRaySamplingRules(ctx context.Context, client xrayAPI, acct *account, r
 				Type: TypeXRaySamplingRule, NativeID: arn,
 				Name: r.SamplingRule.RuleName, Region: &region,
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-				// RuleName "Default" identifies the AWS-managed default
-				// sampling rule present in every account.
+				// RuleName "Default" = AWS-managed default sampling rule present in every account.
 				ManagedByProvider: sv(r.SamplingRule.RuleName) == "Default",
 			})
 		}
@@ -149,10 +146,10 @@ func scanXRaySamplingRules(ctx context.Context, client xrayAPI, acct *account, r
 	return upsertBatch(st, batch, "xray sampling-rules")
 }
 
-// scanXRayTransactionSearchConfig captures the per-(account,region) trace
-// segment destination singleton (the config backing X-Ray Transaction Search).
-// It has no ARN — synthesize one. Flagged ManagedByProvider as account/region
-// config, not a user-created resource.
+// scanXRayTransactionSearchConfig captures the per-(account,region)
+// trace-segment-destination singleton backing X-Ray Transaction Search. No
+// ARN — synthesize one. ManagedByProvider=true: account/region config, not a
+// user-created resource.
 func scanXRayTransactionSearchConfig(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetTraceSegmentDestination(ctx, &xray.GetTraceSegmentDestinationInput{})
 	if err != nil {

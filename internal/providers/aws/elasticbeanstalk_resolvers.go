@@ -28,19 +28,16 @@ type beanstalkEnvAttrs struct {
 }
 
 // resolveBeanstalkEnvironmentTargets emits environment outbound edges:
-//   - environment → application (contains, reverse — emitted from app side
-//     via ApplicationName lookup against scanned applications)
-//   - environment → CloudFormation stack (uses) — Beanstalk creates an
-//     underlying CFN stack named `awseb-<env-id>-stack`. Resolver does
-//     NOT emit this edge here because the underlying stack ID is not
-//     directly exposed in EnvironmentDescription; downstream stack→env
-//     resource walker (`resolveCloudFormationStackResources` in
-//     cloudformation_resolvers.go) handles the inverse if Beanstalk
-//     environments ever land in `cfnTypeMap`.
-//
-// Application linkage: emitted as `contains` from app to env via the
-// app's name keying scanned environments. FK-safe via name-keyed app
-// id-set; cross-account / unscanned apps skip silently.
+//   - environment → application (contains, reverse — emitted from the app
+//     side via ApplicationName lookup against scanned applications).
+//     FK-safe via name-keyed app id-set; cross-account/unscanned apps
+//     skip silently.
+//   - environment → CloudFormation stack (uses) — NOT emitted here.
+//     Beanstalk creates an underlying CFN stack named
+//     `awseb-<env-id>-stack`, but the stack ID isn't exposed in
+//     EnvironmentDescription; the stack→env resource walker
+//     (`resolveCloudFormationStackResources` in cloudformation_resolvers.go)
+//     handles the inverse if Beanstalk environments ever land in `cfnTypeMap`.
 func resolveBeanstalkEnvironmentTargets(acct *account, st *store.Store) error {
 	envs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

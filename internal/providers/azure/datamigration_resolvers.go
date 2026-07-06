@@ -13,11 +13,10 @@ func init() {
 	)
 }
 
-// resolveDataMigrationRelationships wires a DMS instance to the VNet it is
-// joined to via properties.virtualSubnetId (a Microsoft.Network/.../subnets
-// ARM ID). The sibling virtualNicId is intentionally not resolved — the NIC is
-// itself placed in that subnet, so the subnet edge already captures the
-// network placement.
+// resolveDataMigrationRelationships wires a DMS instance to the VNet it joins
+// via properties.virtualSubnetId (a Microsoft.Network/.../subnets ARM ID).
+// The sibling virtualNicId is intentionally unresolved — the NIC lives in
+// that subnet, so the subnet edge already captures network placement.
 func resolveDataMigrationRelationships(sub *subscription, st *store.Store) error {
 	svcs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

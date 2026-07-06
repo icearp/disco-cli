@@ -16,9 +16,9 @@ func init() {
 }
 
 // resolveSSMQuickSetupConfigManagerRoles wires each configuration-manager to
-// the IAM administration role declared on each ConfigurationDefinition
+// the IAM admin role on each ConfigurationDefinition
 // (LocalDeploymentAdministrationRoleArn). Skips bare role-name fields
-// (LocalDeploymentExecutionRoleName) — names without region/acct context
+// (LocalDeploymentExecutionRoleName) — without region/acct context they
 // can't be safely resolved to an ARN.
 func resolveSSMQuickSetupConfigManagerRoles(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{

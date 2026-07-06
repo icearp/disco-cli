@@ -21,8 +21,8 @@ func init() {
 }
 
 // scanVPCSC discovers Access Context Manager access policies and the service
-// perimeters under each one. VPC-SC is exclusively org-scoped — folders carry
-// no access policies — so the scanner skips folder scopes silently.
+// perimeters under each one. VPC-SC is exclusively org-scoped (folders carry
+// no access policies), so folder scopes are skipped silently.
 //
 // Phase 1 of the once-per-scan org-service lane (see services.go). Sibling to
 // scanIAMPoliciesOrg. Permission denial / API-not-enabled propagates via
@@ -110,8 +110,8 @@ func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc 
 }
 
 // scanServicePerimetersForPolicy lists every service perimeter under the
-// given access policy and persists each as a child of the policy in the
-// closure table. Permission errors per policy degrade to a warning.
+// access policy and persists each as its child in the closure table.
+// Permission errors per policy degrade to a warning.
 func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total, inserted int, err error) {
 	policyID := store.ResourceID("gcp", sc.Name, TypeAccessPolicy, policyName)
 	err = svc.AccessPolicies.ServicePerimeters.List(policyName).Context(ctx).Pages(ctx,

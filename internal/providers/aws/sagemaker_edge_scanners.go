@@ -227,18 +227,18 @@ func scanSageMakerImages(ctx context.Context, client sagemakerEdgeAPI, acct *acc
 	}, st, "sagemaker images")
 }
 
-// imageVersionKey carries (ImageName, Version) — DescribeImageVersion can
-// take either a Version int or default to latest. ListImageVersions lists
-// every version per image, so use the explicit Version to disambiguate.
+// imageVersionKey carries (ImageName, Version) — DescribeImageVersion accepts
+// an int Version or defaults to latest; ListImageVersions lists every version
+// per image, so pass the explicit Version to disambiguate.
 type imageVersionKey struct {
 	imageName string
 	version   int32
 }
 
-// scanSageMakerImageVersions enumerates all SageMaker images then per-image
-// pages ListImageVersions, building a (image, version) key set used to fan
-// out DescribeImageVersion. Two-stage list (no embedding) since each
-// version is its own CFN type.
+// scanSageMakerImageVersions enumerates SageMaker images, then per-image pages
+// ListImageVersions to build an (image, version) key set for the
+// DescribeImageVersion fan-out. Two-stage list (no embedding): each version
+// is its own CFN type.
 func scanSageMakerImageVersions(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	imagesPager := sagemaker.NewListImagesPaginator(client, &sagemaker.ListImagesInput{})
 	var imageNames []string

@@ -171,10 +171,9 @@ func scanConnectUserHierarchyGroups(ctx context.Context, client connectUsersAPI,
 	}, st, "connect user hierarchy groups")
 }
 
-// scanConnectUserHierarchyStructures emits one row per instance — the
-// hierarchy structure is a singleton describing the agent-hierarchy
-// configuration. NativeID synthesized as
-// arn:aws:connect:{region}:{acct}:instance/{instID}/agent-hierarchy.
+// scanConnectUserHierarchyStructures emits one row per instance: a
+// singleton describing the agent-hierarchy config. NativeID synthesized
+// as arn:aws:connect:{region}:{acct}:instance/{instID}/agent-hierarchy.
 func scanConnectUserHierarchyStructures(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {

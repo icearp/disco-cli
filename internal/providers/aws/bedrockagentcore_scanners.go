@@ -227,10 +227,10 @@ func scanBACOauth2Creds(ctx context.Context, client bedrockAgentCoreAPI, acct *a
 	return upsertBatch(st, batch, "bedrockagentcore oauth2-credential-providers")
 }
 
-// scanBACBrowsers lists both CUSTOM browsers (customer-created) as
-// aws:bedrockagentcore:browser-custom and SYSTEM browsers (the AWS built-in
-// browser tools, e.g. aws.browser.v1) as aws:bedrockagentcore:browser with
-// ManagedByProvider set — the two are distinct upstream resource types.
+// scanBACBrowsers lists CUSTOM browsers (customer-created) as
+// aws:bedrockagentcore:browser-custom and SYSTEM browsers (AWS built-in tools,
+// e.g. aws.browser.v1) as aws:bedrockagentcore:browser with ManagedByProvider
+// set — distinct upstream resource types.
 func scanBACBrowsers(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	for _, rt := range []bactypes.ResourceType{bactypes.ResourceTypeCustom, bactypes.ResourceTypeSystem} {
@@ -300,7 +300,7 @@ func scanBACBrowserProfiles(ctx context.Context, client bedrockAgentCoreAPI, acc
 }
 
 // scanBACCodeInterpreters lists CUSTOM code interpreters as
-// aws:bedrockagentcore:code-interpreter-custom and SYSTEM ones (the AWS built-in
+// aws:bedrockagentcore:code-interpreter-custom and SYSTEM ones (AWS built-in
 // interpreter, e.g. aws.codeinterpreter.v1) as aws:bedrockagentcore:code-
 // interpreter with ManagedByProvider set.
 func scanBACCodeInterpreters(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -347,8 +347,8 @@ func scanBACEvaluators(ctx context.Context, client bedrockAgentCoreAPI, acct *ac
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			// Per-region feature gap: gateway-level "Unable to determine
-			// service/operation name to be authorized" means the op is not
-			// recognised by the regional endpoint. Silent-skip.
+			// service/operation name to be authorized" means the op isn't
+			// recognised by this regional endpoint. Silent-skip.
 			if isServiceNotAvailableInRegion(perr) {
 				return 0, 0, nil
 			}
@@ -485,8 +485,8 @@ func scanBACOnlineEvalConfigs(ctx context.Context, client bedrockAgentCoreAPI, a
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			// Per-region feature gap: gateway-level "Unable to determine
-			// service/operation name to be authorized" means the op is not
-			// recognised by the regional endpoint. Silent-skip.
+			// service/operation name to be authorized" means the op isn't
+			// recognised by this regional endpoint. Silent-skip.
 			if isServiceNotAvailableInRegion(perr) {
 				return 0, 0, nil
 			}

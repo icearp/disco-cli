@@ -24,10 +24,10 @@ func (c *countingCred) GetToken(_ context.Context, _ policy.TokenRequestOptions)
 }
 
 // blockingCred is a fake inner credential that blocks inside GetToken until
-// release is closed, signalling entry (once) via entered. It lets a test observe
-// the deterministic in-flight window: while a leader is blocked inside the
-// singleflight fn, no other goroutine can run the keyed fn, so calls is provably
-// 1 regardless of how many callers are outstanding.
+// release closes, signaling entry once via entered. Lets a test observe the
+// deterministic in-flight window: while a leader is blocked inside the
+// singleflight fn, no other goroutine can run it, so calls is provably 1
+// regardless of how many callers are outstanding.
 type blockingCred struct {
 	calls   atomic.Int64
 	expires time.Time
@@ -50,12 +50,12 @@ func (c *blockingCred) GetToken(_ context.Context, _ policy.TokenRequestOptions)
 func TestCachingCredential_CoalescesByScope(t *testing.T) {
 	arm := policy.TokenRequestOptions{Scopes: []string{armScope}}
 
-	// Concurrent same-scope callers coalesce: while a leader is blocked inside
-	// the inner fetch it holds the singleflight key, so the inner call count is
-	// deterministically 1 — no follower can run the keyed fn. Asserting at this
-	// in-flight instant (vs after the race resolves) removes the old flake where
-	// a follower that read the cache empty before the leader populated it could
-	// start a second fetch and push the count to 2–3.
+	// Concurrent same-scope callers coalesce: a blocked leader holds the
+	// singleflight key, so the inner call count is deterministically 1 — no
+	// follower can run the keyed fn. Asserting at this in-flight instant (vs
+	// after the race resolves) removes the old flake where a follower that
+	// read the cache empty before the leader populated it could start a
+	// second fetch and push the count to 2–3.
 	t.Run("concurrent same-scope coalesces", func(t *testing.T) {
 		inner := &blockingCred{
 			expires: time.Now().Add(time.Hour),

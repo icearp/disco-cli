@@ -57,7 +57,7 @@ func fakeDataprocService(t *testing.T, baseURL string, c *http.Client) *dataproc
 // TestRegionFanout_HappyPath fans out across two regions, each returning one
 // cluster, and verifies both rows land with correct per-region NativeID +
 // Region fields. Exercises gcpRegionFanoutScanIn (the testable core of
-// gcpRegionFanoutScan) so the test does not depend on compute.Regions.List.
+// gcpRegionFanoutScan) so it doesn't depend on compute.Regions.List.
 func TestRegionFanout_HappyPath(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")

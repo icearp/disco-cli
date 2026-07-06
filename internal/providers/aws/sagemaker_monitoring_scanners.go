@@ -19,8 +19,8 @@ func init() {
 	)
 }
 
-// sagemakerMonitoringAPI is the narrow surface used by the Monitoring family.
-// Each phase List+fan-out Describe so attrs carry the full Describe body
+// sagemakerMonitoringAPI is the narrow surface for the Monitoring family.
+// Each phase List+fan-out Describes so attrs carry the full body
 // (MonitoringScheduleConfig + EndpointName for schedules, RoleArn +
 // JobResources + NetworkConfig + StoppingCondition for job definitions).
 type sagemakerMonitoringAPI interface {

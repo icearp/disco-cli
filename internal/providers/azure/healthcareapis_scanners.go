@@ -21,9 +21,9 @@ func init() {
 	})
 }
 
-// scanHealthcareAPIs discovers Azure Health Data Services: account-level
-// service instances (DICOM/FHIR/IoT connectors of the classic shape) and the
-// newer workspaces.
+// scanHealthcareAPIs discovers Azure Health Data Services: classic
+// account-level service instances (DICOM/FHIR/IoT connectors) and newer
+// workspaces.
 func scanHealthcareAPIs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {

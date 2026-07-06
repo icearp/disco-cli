@@ -34,9 +34,9 @@ type docdbClusterAttrs struct {
 //   - cluster → security group (uses) per VpcSecurityGroups[]
 //
 // FK-safe via scanned-SG id set + KMS resolve index. Cluster → subnet
-// group + → VPC + → IAM role deferred until subnet groups are scanned
-// as their own type (RDS scanner doesn't model `aws:rds:subnet-group`
-// either; pattern can be lifted from there in a future iteration).
+// group/VPC/IAM role deferred until subnet groups are scanned as their
+// own type (RDS scanner doesn't model `aws:rds:subnet-group` either;
+// pattern can be lifted from there later).
 func resolveDocDBClusterTargets(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -101,11 +101,10 @@ type docdbInstanceAttrs struct {
 	DBClusterIdentifier *string `json:"DBClusterIdentifier"`
 }
 
-// resolveDocDBInstanceCluster emits instance → cluster (`contains` reverse
-// — emitted from cluster side via closure once both are known). Cluster
-// is the parent; we wire the closure here rather than during the scanner
-// because instance and cluster come from separate List calls and the
-// pairing is naturally relational. FK-safe via scanned-cluster id set.
+// resolveDocDBInstanceCluster emits instance → cluster (`contains`, reverse
+// direction via closure once both are known). Wired here rather than in the
+// scanner because instance and cluster come from separate List calls, so the
+// pairing is resolver-side. FK-safe via scanned-cluster id set.
 func resolveDocDBInstanceCluster(acct *account, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

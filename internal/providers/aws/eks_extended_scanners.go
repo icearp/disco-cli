@@ -9,9 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks/types"
 )
 
-// eksExtAPI lists ops for the seven per-cluster EKS resource types. ARN
-// shapes synthesized as arn:aws:eks:{r}:{a}:{kind}/{cluster}/{key} since the
-// SDK's List* responses return only names/IDs.
+// eksExtAPI lists ops for the seven per-cluster EKS resource types. ARNs
+// synthesized as arn:aws:eks:{r}:{a}:{kind}/{cluster}/{key} since List*
+// responses return only names/IDs.
 type eksExtAPI interface {
 	ListClusters(context.Context, *eks.ListClustersInput, ...func(*eks.Options)) (*eks.ListClustersOutput, error)
 	ListAccessEntries(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)

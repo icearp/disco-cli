@@ -21,7 +21,7 @@ func init() {
 }
 
 // resolveDSQLStreamCluster wires each DSQL stream to its source cluster. The
-// stream carries the bare ClusterIdentifier, so clusters are indexed by the
+// stream carries bare ClusterIdentifier, so clusters are indexed by the
 // identifier embedded in their ARN (…:cluster/{identifier}).
 func resolveDSQLStreamCluster(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{

@@ -7,16 +7,14 @@ import (
 )
 
 // ec2API is the narrow set of EC2 operations called across every ec2_*_scanners.go
-// file in this package. EC2 has the broadest API surface in AWS (~80 ops here);
-// the iface lifts every op the scanners use so unit tests can stub the whole
-// service without standing up the real *ec2.Client. *ec2.Client satisfies this
-// interface; tests substitute a hand-rolled implementation.
+// file in this package. EC2 has the broadest API surface in AWS (~80 ops here); the
+// iface lifts every op the scanners use so tests can stub the whole service without
+// a real *ec2.Client, which satisfies this interface.
 //
-// New EC2 op needed by a scanner? Add the method here AND ensure the SDK has
-// it (`go doc github.com/aws/aws-sdk-go-v2/service/ec2.Client.<Op>`). The
-// "narrow API" rule (CLAUDE.md) is intentionally bent for EC2: keeping per-file
-// ifaces would create 10+ overlapping shapes; one shared iface is the more
-// maintainable trade-off.
+// New EC2 op needed by a scanner? Add the method here and confirm the SDK has it
+// (`go doc github.com/aws/aws-sdk-go-v2/service/ec2.Client.<Op>`). This bends the
+// "narrow API" rule (CLAUDE.md) deliberately: per-file ifaces would create 10+
+// overlapping shapes; one shared iface is more maintainable.
 type ec2API interface {
 	// Direct (non-paginated) calls.
 	DescribeAddresses(context.Context, *ec2.DescribeAddressesInput, ...func(*ec2.Options)) (*ec2.DescribeAddressesOutput, error)
@@ -31,9 +29,9 @@ type ec2API interface {
 	DescribeVpnGateways(context.Context, *ec2.DescribeVpnGatewaysInput, ...func(*ec2.Options)) (*ec2.DescribeVpnGatewaysOutput, error)
 	GetSnapshotBlockPublicAccessState(context.Context, *ec2.GetSnapshotBlockPublicAccessStateInput, ...func(*ec2.Options)) (*ec2.GetSnapshotBlockPublicAccessStateOutput, error)
 	SearchTransitGatewayRoutes(context.Context, *ec2.SearchTransitGatewayRoutesInput, ...func(*ec2.Options)) (*ec2.SearchTransitGatewayRoutesOutput, error)
-	// Paginator-backed ops. NewListXxxPaginator(client, ...) constructors only
-	// require the matching DescribeXxx / GetXxx / SearchXxx method on `client`,
-	// so listing the underlying op is sufficient.
+	// Paginator-backed ops. NewListXxxPaginator(client, ...) only requires the
+	// matching DescribeXxx / GetXxx / SearchXxx method on `client`, so listing
+	// the underlying op suffices.
 	DescribeCapacityReservationFleets(context.Context, *ec2.DescribeCapacityReservationFleetsInput, ...func(*ec2.Options)) (*ec2.DescribeCapacityReservationFleetsOutput, error)
 	DescribeCapacityReservations(context.Context, *ec2.DescribeCapacityReservationsInput, ...func(*ec2.Options)) (*ec2.DescribeCapacityReservationsOutput, error)
 	DescribeCarrierGateways(context.Context, *ec2.DescribeCarrierGatewaysInput, ...func(*ec2.Options)) (*ec2.DescribeCarrierGatewaysOutput, error)

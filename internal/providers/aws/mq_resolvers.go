@@ -19,9 +19,9 @@ func init() {
 }
 
 // resolveMQRelationships emits broker → KMS / security-group / subnet /
-// configuration edges. ConfigurationId.Id (broker side) maps to Configuration.Id
-// (configuration side) — build (acct, region, configId) → configuration ARN
-// index from scanned configurations to recover the ARN-keyed NativeID.
+// configuration edges. Broker-side ConfigurationId.Id maps to configuration-side
+// Configuration.Id — build a (acct, region, configId) → ARN index from scanned
+// configurations to recover the ARN-keyed NativeID.
 func resolveMQRelationships(acct *account, st *store.Store) error {
 	brokers, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMQBroker},
@@ -116,9 +116,9 @@ func resolveMQRelationships(acct *account, st *store.Store) error {
 	return nil
 }
 
-// mqConfigIndex maps Configuration.Id (the AWS-issued opaque ID brokers refer
-// to) → Configuration.Arn for every scanned MQ configuration in the account.
-// Brokers reference configurations by Id; the store keys by Arn.
+// mqConfigIndex maps Configuration.Id (opaque AWS-issued ID brokers reference)
+// → Configuration.Arn for every scanned MQ configuration in the account.
+// Brokers reference by Id; the store keys by Arn.
 func mqConfigIndex(acct *account, st *store.Store) (map[string]string, error) {
 	configs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMQConfiguration},

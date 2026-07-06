@@ -46,10 +46,10 @@ func init() {
 	})
 }
 
-// iamAPI is the narrow set of IAM operations called by the scanIAM sub-phases.
-// `GetAccountAuthorizationDetails` consolidates what used to be 7 separate
-// list/describe calls (roles, users, groups, policies + per-policy version,
-// per-principal inline policies).
+// iamAPI is the narrow set of IAM operations the scanIAM sub-phases call.
+// `GetAccountAuthorizationDetails` consolidates 7 former separate list/describe
+// calls (roles, users, groups, policies + per-policy version, per-principal
+// inline policies).
 type iamAPI interface {
 	GetAccountAuthorizationDetails(context.Context, *iam.GetAccountAuthorizationDetailsInput, ...func(*iam.Options)) (*iam.GetAccountAuthorizationDetailsOutput, error)
 	ListPolicies(context.Context, *iam.ListPoliciesInput, ...func(*iam.Options)) (*iam.ListPoliciesOutput, error)
@@ -116,12 +116,12 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 }
 
 // scanIAMAccount upserts the account self-node (aws:iam:account) carrying
-// account-level posture: the IAM account summary, the account alias (if any),
-// and the password policy (absent when none is configured). One row per
-// scanned account, keyed NativeID = arn:aws:iam::<acct>:root — the same natural
-// key the cross-account-trust and org-management resolvers use for placeholder
-// rows, so an account first seen as a referenced foreign account
-// version-populates its empty placeholder when it later gets scanned directly.
+// account-level posture: IAM account summary, account alias (if any), and
+// password policy (absent if unconfigured). One row per scanned account, keyed
+// NativeID = arn:aws:iam::<acct>:root — the same natural key the
+// cross-account-trust and org-management resolvers use for placeholder rows,
+// so a foreign account first seen by reference version-populates its empty
+// placeholder once directly scanned.
 func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
 	summary, err := client.GetAccountSummary(ctx, &iam.GetAccountSummaryInput{})
 	if err != nil {
@@ -162,29 +162,26 @@ func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store
 }
 
 // scanIAMAuthDetails paginates iam:GetAccountAuthorizationDetails to upsert
-// users + roles + groups + managed policies (Local + AWS scope) + their
-// inline policies in a single API call sequence. Replaces the previous
-// 7-scanner phase split (ListRoles, ListUsers, ListGroups, ListPolicies +
-// per-policy GetPolicyVersion fan-out, plus ListRolePolicies / ListUserPolicies
-// / ListGroupPolicies + per-name Get*Policy fan-outs). MaxItems=1000 (API
-// ceiling) cuts page count.
+// users + roles + groups + managed policies (Local + AWS scope) + their inline
+// policies in one API call sequence. Replaces the former 7-scanner phase split
+// (ListRoles, ListUsers, ListGroups, ListPolicies + per-policy GetPolicyVersion
+// fan-out, plus ListRolePolicies/ListUserPolicies/ListGroupPolicies + per-name
+// Get*Policy fan-outs). MaxItems=1000 (API ceiling) cuts page count.
 //
-// Filter requests all five entity types in one call. AccessDenied degrades
-// to a single warning and an empty scan — no per-entity-type fallback.
+// Filter requests all five entity types in one call. AccessDenied degrades to
+// a single warning and an empty scan — no per-entity-type fallback.
 //
 // **AWS-managed catalogue gotcha**: GAAD's `AWSManagedPolicy` filter returns
-// only AWS-managed policies *currently attached* to a principal, NOT the
-// full ~1500-policy catalogue. To preserve the legacy "scan every AWS-
-// managed policy" behaviour, scanIAMAuthDetails first runs a stub
-// `ListPolicies(Scope=AWS)` pass (metadata only, no document enrichment —
-// avoids the GetPolicyVersion fan-out that triggered IAM throttling).
-// Order: GAAD first (rich attached-policy + entity rows, captures attached
-// AWS-managed ARNs), then catalogue stub for the unattached remainder.
-// Reversing the historical catalogue-first order keeps each row upserted
+// only AWS-managed policies *currently attached* to a principal, not the full
+// ~1500-policy catalogue. To preserve the legacy "scan every AWS-managed
+// policy" behavior, scanIAMAuthDetails first runs a stub `ListPolicies(Scope=AWS)`
+// pass (metadata only, no document enrichment — avoids the GetPolicyVersion
+// fan-out that triggered IAM throttling). Order: GAAD first (captures attached
+// AWS-managed ARNs), then the catalogue stub for the unattached remainder —
+// reversing the historical catalogue-first order keeps each row upserted
 // exactly once so per-service totals == inserted on a fresh DB. Unattached
-// catalogue policies keep their stub form — they exist as FK targets for
-// resolveManagedPolicyAttachments and the walker silently skips no-document
-// rows.
+// catalogue policies keep their stub form as FK targets for
+// resolveManagedPolicyAttachments; the walker silently skips no-document rows.
 func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	attachedManagedARNs := map[string]bool{}
 
@@ -322,15 +319,14 @@ func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *s
 	return total, inserted, err
 }
 
-// scanIAMAWSManagedCatalogue lists every AWS-managed policy ARN
-// (`Scope=AWS`) and upserts a stub row per policy that the prior GAAD pass
-// did not already enrich. No GetPolicyVersion enrichment — those rows carry
-// metadata only. ListPolicies returns ~1500 entries across ~15 paginated
-// calls — cheap, no per-policy fan-out, no throttling risk. `skipARNs`
-// holds the attached-managed ARN set GAAD already inserted with rich
-// PolicyVersion bodies; the catalogue pass skips those to avoid a redundant
-// second upsert that would inflate the per-service `total` count above
-// `inserted`.
+// scanIAMAWSManagedCatalogue lists every AWS-managed policy ARN (`Scope=AWS`)
+// and upserts a stub row per policy the prior GAAD pass didn't already enrich.
+// No GetPolicyVersion enrichment — these rows carry metadata only. ListPolicies
+// returns ~1500 entries across ~15 paginated calls — cheap, no per-policy
+// fan-out, no throttling risk. `skipARNs` holds the attached-managed ARN set
+// GAAD already inserted with rich PolicyVersion bodies; the catalogue pass
+// skips those to avoid a redundant second upsert that would inflate `total`
+// above `inserted`.
 func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string, skipARNs map[string]bool) (total, inserted int, err error) {
 	pager := iam.NewListPoliciesPaginator(client, &iam.ListPoliciesInput{
 		Scope: iamtypes.PolicyScopeTypeAws,
@@ -351,8 +347,8 @@ func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *accoun
 			}
 			name := sv(p.PolicyName)
 			// Wrap shape mirrors the GAAD-pass output so resolvers see one
-			// consistent JSON shape regardless of whether the policy was
-			// attached. PolicyVersion is omitted (no enrichment).
+			// consistent JSON shape regardless of attachment. PolicyVersion
+			// omitted (no enrichment).
 			wrapped := struct {
 				Policy        iamtypes.Policy         `json:"Policy"`
 				PolicyVersion *iamtypes.PolicyVersion `json:"PolicyVersion,omitempty"`
@@ -383,11 +379,10 @@ func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *accoun
 	return total, inserted, nil
 }
 
-// inlinePolicyRows projects a slice of GAAD-embedded inline policies into
-// store.Resource rows. NativeID format `{parentARN}/policy/{policyName}` is
-// preserved from the legacy scanIAM{Role,User,Group}Policies output so the
-// inline-policy resolvers (parent-link extraction in resolveInlinePolicyParents)
-// keep working unchanged.
+// inlinePolicyRows projects GAAD-embedded inline policies into store.Resource
+// rows. NativeID format `{parentARN}/policy/{policyName}` matches the legacy
+// scanIAM{Role,User,Group}Policies output so resolveInlinePolicyParents
+// (parent-link extraction) keeps working unchanged.
 func inlinePolicyRows(list []iamtypes.PolicyDetail, parentARN, rtype string, acct *account, scanID string) []*store.Resource {
 	if len(list) == 0 {
 		return nil

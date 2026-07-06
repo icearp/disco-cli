@@ -25,7 +25,7 @@ type glacierAPI interface {
 }
 
 // scanGlacier discovers S3 Glacier vaults. ListVaults requires an AccountId
-// input; the literal "-" means the account behind the calling credentials.
+// input; literal "-" resolves to the caller's account.
 func scanGlacier(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := glacier.NewFromConfig(acct.cfg, func(o *glacier.Options) { o.Region = region })
 	return scanGlacierVaults(ctx, client, acct, region, st, scanID)

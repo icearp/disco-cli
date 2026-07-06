@@ -34,9 +34,9 @@ func init() {
 	)
 }
 
-// drsIDIndex maps a DRS child id (extracted from each scanned row's attrs) to
-// its resource ID, so resolvers can resolve a bare id reference to the scanned
-// row without reconstructing ARNs.
+// drsIDIndex maps a DRS child id (from each scanned row's attrs) to its
+// resource ID, so resolvers can resolve a bare id reference without
+// reconstructing ARNs.
 func drsIDIndex(acct *account, st *store.Store, rtype, idKey string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,

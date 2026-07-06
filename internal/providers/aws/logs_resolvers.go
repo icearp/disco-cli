@@ -32,9 +32,8 @@ func resolveLogsRelationships(acct *account, st *store.Store) error {
 	return resolveLogsGroupAnomalyDetectors(acct, st)
 }
 
-// resolveLogsDeliveryLinks links each delivery to its source and destination.
-// Delivery → DeliverySource: uses
-// Delivery → DeliveryDestination: uses
+// resolveLogsDeliveryLinks links each delivery to its source (uses) and
+// destination (uses).
 func resolveLogsDeliveryLinks(acct *account, st *store.Store) error {
 	deliveries, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -49,9 +48,9 @@ func resolveLogsDeliveryLinks(acct *account, st *store.Store) error {
 		return nil
 	}
 
-	// Build name→ID map for delivery sources. Delivery source ARNs have the
-	// format arn:aws:logs:{region}:{account}:delivery-source:{name}, so the
-	// name is the last colon-separated component of the NativeID (ARN).
+	// Build name→ID map for delivery sources; ARN format is
+	// arn:aws:logs:{region}:{account}:delivery-source:{name}, so the name is
+	// the last colon-separated component of the NativeID (ARN).
 	sources, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
 		AccountID: acct.ID,
@@ -195,8 +194,7 @@ func resolveLogsDeliveryDestTarget(acct *account, st *store.Store) error {
 }
 
 // resolveLogsGroupAnomalyDetectors links each anomaly detector to the log
-// groups it monitors.
-// LogAnomalyDetector → LogGroup: uses
+// groups it monitors (uses).
 func resolveLogsGroupAnomalyDetectors(acct *account, st *store.Store) error {
 	detectors, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -211,9 +209,8 @@ func resolveLogsGroupAnomalyDetectors(acct *account, st *store.Store) error {
 		return nil
 	}
 
-	// Build ARN→ID map for log groups. Log group NativeID is the clean ARN
-	// (without trailing ":*"), matching what anomaly detectors store in
-	// LogGroupArnList.
+	// Build ARN→ID map for log groups; NativeID is the clean ARN (no
+	// trailing ":*"), matching what anomaly detectors store in LogGroupArnList.
 	groups, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
 		AccountID: acct.ID,

@@ -16,8 +16,8 @@ func init() {
 	)
 }
 
-// resolveCloudServiceRoleRelationships derives the parent cloud service for each
-// cloud service role by truncating the role's NativeID at "/roles/".
+// resolveCloudServiceRoleRelationships derives each role's parent cloud service
+// by truncating its NativeID at "/roles/".
 // NativeID form: .../cloudServices/{service}/roles/{role}
 func resolveCloudServiceRoleRelationships(sub *subscription, st *store.Store) error {
 	roles, err := st.ListResources(store.ResourceFilter{
@@ -42,8 +42,8 @@ func resolveCloudServiceRoleRelationships(sub *subscription, st *store.Store) er
 	return nil
 }
 
-// resolveCloudServiceRoleInstanceRelationships derives the parent cloud service for
-// each role instance by truncating the role instance's NativeID at "/roleInstances/".
+// resolveCloudServiceRoleInstanceRelationships derives each role instance's parent
+// cloud service by truncating its NativeID at "/roleInstances/".
 // NativeID form: .../cloudServices/{service}/roleInstances/{instance}
 func resolveCloudServiceRoleInstanceRelationships(sub *subscription, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{

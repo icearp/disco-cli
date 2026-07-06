@@ -57,10 +57,10 @@ func (stubOmics) ListRunCaches(context.Context, *omics.ListRunCachesInput, ...fu
 	return &omics.ListRunCachesOutput{}, nil
 }
 
-// In a region where HealthOmics isn't offered the endpoint answers
-// "Unable to determine service/operation name" — the whole service is absent,
-// so the phase returns the errServiceUnavailable sentinel (the dispatcher
-// renders "(region: unavailable)") with zero rows and records no scan warning.
+// Outside HealthOmics regions the endpoint answers "Unable to determine
+// service/operation name" (whole service absent), so the phase returns the
+// errServiceUnavailable sentinel (dispatcher renders "(region: unavailable)"),
+// zero rows, no scan warning.
 func TestScanOmicsAnnotationStores_ReturnsUnavailableSentinel(t *testing.T) {
 	st := newTestStore(t)
 	warned := false

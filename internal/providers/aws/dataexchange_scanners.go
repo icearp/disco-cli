@@ -28,10 +28,10 @@ type dataExchangeAPI interface {
 	ListEventActions(context.Context, *dataexchange.ListEventActionsInput, ...func(*dataexchange.Options)) (*dataexchange.ListEventActionsOutput, error)
 }
 
-// scanDataExchange discovers owned AWS Data Exchange data sets, the data grants
-// shared from this account, and the event actions automating revision exports.
-// Revisions/assets (content within a data set), entitled-* (consumer-side
-// marketplace subscriptions) and jobs (import/export run records) are not scanned.
+// scanDataExchange discovers owned data sets, data grants shared from this
+// account, and event actions automating revision exports. Not scanned:
+// revisions/assets (data-set content), entitled-* (consumer-side marketplace
+// subscriptions), jobs (import/export run records).
 func scanDataExchange(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := dataexchange.NewFromConfig(acct.cfg, func(o *dataexchange.Options) { o.Region = region })
 
@@ -52,8 +52,8 @@ func scanDataExchange(ctx context.Context, acct *account, region string, st *sto
 
 func scanDataExchangeDataSets(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
-	// Owned-only: entitled (subscribed-from-others) data sets are out of scope —
-	// they're catalogued separately upstream as entitled-data-sets (not scanned).
+	// Owned-only: entitled (subscribed-from-others) data sets are catalogued
+	// separately upstream as entitled-data-sets and not scanned here.
 	pager := dataexchange.NewListDataSetsPaginator(client, &dataexchange.ListDataSetsInput{Origin: sdkaws.String("OWNED")})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)

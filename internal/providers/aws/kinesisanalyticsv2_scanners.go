@@ -23,9 +23,8 @@ func init() {
 }
 
 // scanKinesisAnalyticsV2 discovers Kinesis Data Analytics v2 applications and
-// the configuration sub-resources (CloudWatch logging options, outputs,
-// reference data sources) embedded in each application's DescribeApplication
-// response.
+// their config sub-resources (CloudWatch logging options, outputs, reference
+// data sources), embedded in each app's DescribeApplication response.
 func scanKinesisAnalyticsV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kinesisanalyticsv2.NewFromConfig(acct.cfg, func(o *kinesisanalyticsv2.Options) { o.Region = region })
 
@@ -80,9 +79,9 @@ func scanKinesisAnalyticsV2(ctx context.Context, acct *account, region string, s
 		if appARN == "" {
 			continue
 		}
-		// Re-upsert parent with detail body so resolvers see ServiceExecutionRole
-		// and CloudWatchLoggingOptionDescriptions[]. UpsertResources ON CONFLICT
-		// updates the attributes column.
+		// Re-upsert parent with detail body so resolvers see ServiceExecutionRole +
+		// CloudWatchLoggingOptionDescriptions[]; UpsertResources ON CONFLICT updates
+		// the attributes column.
 		appStatus := string(d.ApplicationStatus)
 		var subBatch []*store.Resource
 		subBatch = append(subBatch, &store.Resource{

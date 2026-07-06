@@ -23,16 +23,16 @@ func init() {
 //
 //	arn:aws:securityhub:{region}:{acct}:product-subscription/{vendor}/{product}
 //
-// AWS-vendor products map to disco scanner types as follows:
+// AWS-vendor products map to disco scanner types:
 //
 //	aws/guardduty            → aws:guardduty:detector  (any in region)
 //	aws/macie                → aws:macie:session       (singleton, NativeID known)
 //	aws/config               → aws:config:configuration-recorder     (any in region)
 //
-// Self (aws/securityhub) skipped — no edge. Third-party vendors and AWS
-// products without a corresponding scanner (Inspector, IAM Access Analyzer,
-// Firewall Manager, Detective, etc.) skip silently. FK-safe via per-type id
-// sets keyed on resource ID.
+// Self (aws/securityhub) skipped. Third-party vendors and AWS products
+// without a scanner (Inspector, IAM Access Analyzer, Firewall Manager,
+// Detective, etc.) skip silently. FK-safe via per-type id sets keyed on
+// resource ID.
 func resolveSecurityHubProductSubscriptions(acct *account, st *store.Store) error {
 	subs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

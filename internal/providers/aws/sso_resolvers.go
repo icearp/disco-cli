@@ -41,8 +41,8 @@ func init() {
 	)
 }
 
-// ssoInstanceIndex pre-loads scanned instances keyed by InstanceArn so the
-// permission-set → instance edge resolves without re-querying per row.
+// ssoInstanceIndex pre-loads scanned instances keyed by InstanceArn so
+// permission-set → instance edges resolve without a per-row query.
 type ssoInstanceIndex struct {
 	idByArn         map[string]string
 	identityStoreID map[string]string // InstanceArn → IdentityStoreID
@@ -76,10 +76,9 @@ func loadSSOInstanceIndex(acct *account, st *store.Store) (*ssoInstanceIndex, er
 	return idx, nil
 }
 
-// permissionSetArn → instanceArn — encoded inside the permission-set ARN
-// shape `arn:aws:sso:::permissionSet/{ssoins-id}/{ps-id}`. The instance
-// segment maps back to the canonical instance ARN
-// `arn:aws:sso:::instance/{ssoins-id}`.
+// permissionSetArn → instanceArn: the instance id is encoded in the
+// permission-set ARN shape `arn:aws:sso:::permissionSet/{ssoins-id}/{ps-id}`;
+// maps back to the canonical instance ARN `arn:aws:sso:::instance/{ssoins-id}`.
 func instanceArnFromPermissionSetArn(psArn string) string {
 	_, tail, ok := strings.Cut(psArn, ":permissionSet/")
 	if !ok {

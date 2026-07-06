@@ -11,12 +11,12 @@ import (
 )
 
 // hierarchyMissingWarn is the canonical message ReportWarning fires when
-// RecordHierarchy can't write the depth-1 `contains` relationship row
-// because an endpoint isn't in `resources`. Closure rows still go down
-// (caller intent — descendants of an unscanned parent stay meaningful).
-// Operators see the warning in scan output; tests attach OnWarn to
-// detect drift. Returning an error instead would force ~50 call sites
-// to add `errors.Is` boilerplate for what is normally a benign skip.
+// RecordHierarchy can't write the depth-1 `contains` row because an
+// endpoint isn't in `resources`. Closure rows still go down (caller intent
+// — descendants of an unscanned parent stay meaningful). Operators see the
+// warning in scan output; tests attach OnWarn to detect drift. An error
+// instead would force ~50 call sites into `errors.Is` boilerplate for what
+// is normally a benign skip.
 const hierarchyMissingWarn = "hierarchy endpoint missing — relationship row skipped"
 
 // Relationship represents a directed edge between two resources.
@@ -29,19 +29,19 @@ type Relationship struct {
 	Attributes   *string `db:"attributes"` // JSON
 	DiscoveredAt string  `db:"discovered_at"`
 	// WorkspaceID is the per-workspace RLS discriminator. Omitted from the read
-	// projection (relationshipColumns) like Resource.WorkspaceID — no OSS
-	// consumer reads it and the disco-saas RLS layer filters by workspace — so
-	// it stays nil. (No TenantID field: disco OSS has no tenant_id column; the
-	// disco-saas overlay column is simply not selected.)
+	// projection (relationshipColumns), like Resource.WorkspaceID — no OSS
+	// consumer reads it and disco-saas's RLS layer filters by workspace — so it
+	// stays nil. (No TenantID field: OSS has no tenant_id column; the
+	// disco-saas overlay column simply isn't selected.)
 	WorkspaceID *string `db:"workspace_id" json:"-"`
 }
 
 // relationshipColumns is the explicit read projection for the relationships
 // table. Like scanColumns / resourceSelectColumns it omits the RLS columns
-// (workspace_id, plus the tenant_id disco-saas overlays onto the same table) so
-// a read ignores rather than collides with control-plane columns. Keep in sync
-// with the Relationship struct's db tags. relationshipColumnsR is the same list
-// qualified for an `r`-aliased relationships table in a join.
+// (workspace_id, plus the tenant_id disco-saas overlays on the same table) so
+// reads ignore rather than collide with control-plane columns. Keep in sync
+// with Relationship's db tags. relationshipColumnsR is the same list qualified
+// for an `r`-aliased relationships table in a join.
 const (
 	relationshipColumns  = "id, from_id, to_id, kind, direction, attributes, discovered_at"
 	relationshipColumnsR = "r.id, r.from_id, r.to_id, r.kind, r.direction, r.attributes, r.discovered_at"
@@ -147,11 +147,11 @@ func (s *Store) UpsertRelationships(edges []RelEdge) error {
 }
 
 // ReversedContainsEdges returns `contains` rows where `to_id` is an
-// ancestor of `from_id` per hierarchy_closure — i.e. the edge points
-// child→parent instead of the canonical parent→child. Always-empty result
-// is the invariant; non-empty means a scanner regressed and is emitting
-// reversed direction. Used by the store-side test that guards future
-// drift; CI fails on any non-empty return.
+// ancestor of `from_id` per hierarchy_closure — i.e. edges pointing
+// child→parent instead of the canonical parent→child. Invariant: always
+// empty; non-empty means a scanner regressed and emits reversed direction.
+// Used by the store-side test guarding against drift; CI fails on any
+// non-empty return.
 func (s *Store) ReversedContainsEdges() ([]Relationship, error) {
 	const q = `
 		SELECT ` + relationshipColumnsR + `
@@ -215,24 +215,23 @@ func (s *Store) RelationshipsTo(toID string, kinds ...string) ([]Relationship, e
 	return rels, s.selectAll(&rels, query, args...)
 }
 
-// RecordHierarchy writes both halves of a parent/child relationship in a
-// single transaction:
+// RecordHierarchy writes both halves of a parent/child relationship in one
+// transaction:
 //
-//   - the child's self-entry in hierarchy_closure (depth 0) plus one
-//     closure row per ancestor of parent extending depth + 1, so the
-//     transitive closure stays O(1) for "all descendants of X" queries
-//     (org→folder→project shape produces nine rows: each node's self
-//     entry plus org→folder, org→project, folder→project);
+//   - the child's self-entry in hierarchy_closure (depth 0) plus one closure
+//     row per ancestor of parent, extending depth+1, so the transitive
+//     closure stays O(1) for "all descendants of X" (org→folder→project
+//     produces nine rows: each node's self entry plus org→folder,
+//     org→project, folder→project);
 //   - a depth-1 `parent → child contains` row in `relationships` so
-//     GraphWalk (which reads only `relationships`) sees the hierarchy
-//     edge. This unification is what makes Azure/GCP hierarchy visible
-//     in `disco graph` — those providers record hierarchy via closure
-//     only.
+//     GraphWalk (relationships-only) sees the hierarchy edge — this
+//     unification is what makes Azure/GCP hierarchy visible in `disco
+//     graph`, since those providers record hierarchy via closure only.
 //
-// Missing endpoints (a pair referring to a resource not in `resources`,
-// e.g. an Azure RG not scanned in this pass) skip the relationship row
-// and emit a ScanWarning via ReportWarning — operators see the drift,
-// callers stay simple. Closure rows always go down regardless.
+// Missing endpoints (a pair referencing a resource not in `resources`, e.g.
+// an unscanned Azure RG) skip the relationship row and emit a ScanWarning via
+// ReportWarning — operators see the drift, callers stay simple. Closure rows
+// always go down regardless.
 func (s *Store) RecordHierarchy(childID, parentID string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -258,9 +257,9 @@ func (s *Store) RecordHierarchy(childID, parentID string) error {
 // recordHierarchyTx is the per-pair body shared by RecordHierarchy and
 // RecordHierarchyBatch. Closure rows go down unconditionally; the
 // relationship row is gated on both endpoints existing in `resources`.
-// Returns (missing=true, nil) when the gate fails — caller fires a
-// ScanWarning so operators see the drift without each scanner needing
-// `errors.Is` boilerplate. Real DB errors propagate normally.
+// Returns (missing=true, nil) on gate failure — caller fires a ScanWarning
+// so operators see the drift without scanners needing `errors.Is`
+// boilerplate. Real DB errors propagate normally.
 func (s *Store) recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing bool, err error) {
 	if _, err := tx.Exec(s.rebind(`
 		INSERT INTO hierarchy_closure (ancestor_id, descendant_id, depth)
@@ -301,10 +300,9 @@ func (s *Store) recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing
 }
 
 func (s *Store) resourceExistsTx(tx *sql.Tx, id string) (bool, error) {
-	// Caller-facing id is the deterministic ResourceID hash. Under
-	// paid that's resources.root_id with a current-version filter;
-	// under OSS it's resources.id directly. Hooks resolve the
-	// difference.
+	// Caller-facing id is the deterministic ResourceID hash: under paid it's
+	// resources.root_id with a current-version filter; under OSS it's
+	// resources.id directly. Hooks resolve the difference.
 	sqlText := "SELECT 1 FROM resources WHERE " + resourceIDColumn() + " = ?" + currentVersionWhereSQL() + " LIMIT 1"
 	var n int
 	if err := tx.QueryRow(s.rebind(sqlText), id).Scan(&n); err != nil {
@@ -316,10 +314,10 @@ func (s *Store) resourceExistsTx(tx *sql.Tx, id string) (bool, error) {
 	return true, nil
 }
 
-// RecordHierarchyBatch is the multi-pair form of RecordHierarchy. Pairs
-// are `[2]string{childID, parentID}`. Missing-endpoint pairs collect
-// into a single ScanWarning at the end so one warning per call surfaces
-// the drift without spamming on busy scans.
+// RecordHierarchyBatch is the multi-pair form of RecordHierarchy. Pairs are
+// `[2]string{childID, parentID}`. Missing-endpoint pairs collect into one
+// ScanWarning at the end, so one warning per call surfaces drift without
+// spamming busy scans.
 func (s *Store) RecordHierarchyBatch(pairs [][2]string) error {
 	if len(pairs) == 0 {
 		return nil

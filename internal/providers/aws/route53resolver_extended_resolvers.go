@@ -68,9 +68,8 @@ func r53rResolveVPCField(acct *account, st *store.Store, sourceType, fieldName s
 	return nil
 }
 
-// resolveR53RQueryLogAssocRefs wires query-log-config-association to the
-// underlying query-log-config (by ID lookup) and to the VPC carrying the
-// associated resource.
+// resolveR53RQueryLogAssocRefs wires query-log-config-association to its
+// query-log-config (by ID lookup) and to the VPC carrying the associated resource.
 func resolveR53RQueryLogAssocRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53ResolverResolverQueryLoggingConfigAssociation},

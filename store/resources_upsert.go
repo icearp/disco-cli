@@ -15,24 +15,23 @@ import (
 // UpsertResources bulk-upserts resources under the paid version-chain
 // model. Caller-facing signature unchanged. Per-resource logic:
 //
-//   - First discovery (no row with this natural key has
-//     superseded_by IS NULL): INSERT a new row with id = UUIDv7,
-//     root_id = Resource.ID (deterministic hash), verified_at = now.
+//   - First discovery (no row with this natural key has superseded_by
+//     IS NULL): INSERT a new row with id = UUIDv7, root_id =
+//     Resource.ID (deterministic hash), verified_at = now.
 //   - Unchanged rescan (existing current row matches attributes +
 //     tags): UPDATE verified_at / verified_by on the existing row;
 //     top-level columns (name/region/zone/status/managed) update in
 //     place. No new row.
 //   - Changed rescan (attributes or tags differ): INSERT a new row
-//     with a fresh UUIDv7 PK, inheriting discovered_at /
-//     discovered_by from the chain root, linking
-//     previous_version_id to the predecessor, and setting
-//     verified_at / verified_by to the current scan. Then UPDATE the
-//     previous row's superseded_by to point at the new row. The
-//     attributes/tags on the previous row stay frozen.
+//     with a fresh UUIDv7 PK, inheriting discovered_at / discovered_by
+//     from the chain root, linking previous_version_id to the
+//     predecessor, and setting verified_at / verified_by to the
+//     current scan. Then UPDATE the previous row's superseded_by to
+//     point at the new row. The attributes/tags on the previous row
+//     stay frozen.
 //
 // The returned `inserted` counts version splits + first discoveries
-// (every INSERT into resources). Unchanged-rescan updates do not
-// count.
+// (every INSERT into resources). Unchanged-rescan updates don't count.
 //
 // Idempotency: calling UpsertResources twice with the same payload
 // produces one INSERT on the first call and one verified-only UPDATE
@@ -45,9 +44,9 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 			r.ID = ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
 		}
 		r.AttributesJSON = redact.Apply(r.Type, r.AttributesJSON)
-		// Drop volatile fields (e.g. CloudWatch Logs UploadSequenceToken) that
-		// AWS rotates on every read — left in, they version-split an unchanged
-		// resource on every scan. Runs before the jsonEqual comparison below.
+		// Drop volatile fields (e.g. CloudWatch Logs UploadSequenceToken) that AWS
+		// rotates every read — left in, they'd version-split an unchanged resource
+		// every scan. Runs before the jsonEqual comparison below.
 		r.AttributesJSON = volatile.Apply(r.Type, r.AttributesJSON)
 	}
 
@@ -83,13 +82,13 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		case errors.Is(lookupErr, sql.ErrNoRows):
 			// First discovery. Fresh root row.
 			//
-			// Scanners upsert concurrently (errgroup goroutines, each on its
-			// own transaction), so a sibling can insert this natural key
-			// between our lookup and this insert. ON CONFLICT DO NOTHING on the
+			// Scanners upsert concurrently (errgroup goroutines, each on its own
+			// transaction), so a sibling can insert this natural key between our
+			// lookup and this insert. ON CONFLICT DO NOTHING on the
 			// current-by-natural-key partial index turns that race into a no-op
-			// instead of a 23505 that would abort the whole batch tx — the
-			// sibling has already recorded the row, so we skip it (no info lost:
-			// same natural key, same point-in-time scan).
+			// instead of a 23505 that would abort the whole batch tx — the sibling
+			// already recorded the row, so we skip (same natural key, same
+			// point-in-time scan — no info lost).
 			if r.DiscoveredAt == "" {
 				r.DiscoveredAt = now
 			}
@@ -146,18 +145,15 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 			}
 
 		default:
-			// Attributes or tags changed → version split. The new row
-			// inherits discovered_at / discovered_by from the chain
-			// root so "when was this resource first seen" stays stable
-			// across splits.
+			// Attributes or tags changed → version split. The new row inherits
+			// discovered_at / discovered_by from the chain root so "when was this
+			// resource first seen" stays stable across splits.
 			//
-			// Order matters: mark the old row as superseded BEFORE
-			// inserting the new row. The partial unique index
-			// idx_resources_current_by_natural_key forbids two rows
-			// with the same natural key and superseded_by IS NULL
-			// simultaneously. We give the old row a placeholder
-			// superseded_by value first (the new UUID, computed
-			// upfront), then INSERT — the new row takes the
+			// Order matters: mark the old row as superseded BEFORE inserting the
+			// new row. The partial unique index idx_resources_current_by_natural_key
+			// forbids two rows with the same natural key and superseded_by IS NULL
+			// simultaneously. Set the old row's superseded_by to the new UUID
+			// (computed upfront) first, then INSERT — the new row takes the
 			// current-version slot atomically.
 			newRowID := uuid.Must(uuid.NewV7()).String()
 			if _, err := tx.Exec(tx.Rebind(
@@ -193,23 +189,23 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 }
 
 // InsertResourcesIfAbsent inserts each resource only when no current-version
-// row already holds its natural key, and otherwise leaves the existing row
+// row already holds its natural key, otherwise leaves the existing row
 // untouched. Unlike UpsertResources it never runs the verify or version-split
-// paths — so a populated row is never reduced back to a placeholder's
+// paths, so a populated row is never reduced back to a placeholder's
 // attributes.
 //
 // This is the reference-discovery primitive: a resolver that sees an edge into
 // an account/subscription/project outside the current scan scope inserts an
-// empty-attribute row at that resource's real self-node natural key, so the
-// edge has a stable FK target (the deterministic root_id is identical whether
+// empty-attribute row at that resource's real self-node natural key, giving
+// the edge a stable FK target (the deterministic root_id is identical whether
 // the row is the empty placeholder or later fully populated). When that target
 // is itself scanned — this run or a future one — its own scanner calls
 // UpsertResources, finds the placeholder as the current version, and
 // version-splits it to the populated form. The placeholder is preserved in
 // history; the edge keeps resolving across the split.
 //
-// Returns the count of rows actually inserted (placeholders that found their
-// natural key already occupied do not count).
+// Returns the count of rows actually inserted (placeholders whose natural key
+// was already occupied don't count).
 func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, err error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
@@ -232,10 +228,10 @@ func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, er
 			r.DiscoveredAt = now
 		}
 		rowID := uuid.Must(uuid.NewV7()).String()
-		// ON CONFLICT DO NOTHING on the current-by-natural-key partial index:
-		// if the row already exists (placeholder racing its own scanner, or a
-		// prior run already populated it), this is a no-op — the populated form
-		// is never clobbered down to the placeholder's empty attributes.
+		// ON CONFLICT DO NOTHING on the current-by-natural-key partial index: if
+		// the row already exists (placeholder racing its own scanner, or a prior
+		// run already populated it), this is a no-op — a populated row is never
+		// clobbered down to the placeholder's empty attributes.
 		res, err := tx.Exec(tx.Rebind(`
 			INSERT INTO resources
 				(id, root_id, provider, account_id, account_name, type, native_id,

@@ -27,9 +27,9 @@ func init() {
 	)
 }
 
-// resolveCSCHostNetwork wires a self-managed-SCM host to the VPC, subnets and
-// security groups of its VpcConfiguration (present only when the host is
-// installed inside a private network), all FK-safe.
+// resolveCSCHostNetwork wires a self-managed-SCM host to its VpcConfiguration's
+// VPC, subnets, and security groups (present only when installed inside a
+// private network), all FK-safe.
 func resolveCSCHostNetwork(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeStarConnectionsHost}, Limit: util.AllResources,
@@ -146,8 +146,7 @@ func resolveCSCRepositoryLinkRefs(acct *account, st *store.Store) error {
 }
 
 // resolveCSCSyncConfigurationRefs wires sync-configuration → repository-link
-// (RepositoryLinkID, looked up in an index of scanned link IDs) and IAM role
-// (RoleArn).
+// (RepositoryLinkID, via scanned-link-ID index) and IAM role (RoleArn).
 func resolveCSCSyncConfigurationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeStarConnectionsSyncConfiguration}, Limit: util.AllResources,

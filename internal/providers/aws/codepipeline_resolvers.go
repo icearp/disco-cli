@@ -22,8 +22,8 @@ func init() {
 }
 
 // resolveCodePipelinePipelineRefs wires each pipeline to its service role,
-// artifact-store S3 buckets and KMS keys. GetPipeline body shape: top-level
-// Pipeline.RoleArn + ArtifactStore (or ArtifactStores map per region).
+// artifact-store S3 buckets, and KMS keys. GetPipeline body: Pipeline.RoleArn
+// + ArtifactStore (or ArtifactStores map per region).
 func resolveCodePipelinePipelineRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodePipelinePipeline}, Limit: util.AllResources,

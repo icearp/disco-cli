@@ -9,7 +9,7 @@ import (
 )
 
 // TestResolveRecoveryServicesRelationships verifies a CMK-encrypted vault
-// derives a -[uses]-> Key Vault edge from the keyUri key URI.
+// derives a -[uses]-> Key Vault edge from keyUri.
 func TestResolveRecoveryServicesRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -57,8 +57,8 @@ func TestResolveRecoveryServicesRelationships(t *testing.T) {
 }
 
 // TestResolveRecoveryServicesRelationships_NoCMK verifies a vault without
-// encryption properties produces no edge and does not panic on the missing
-// JSON (guards the nil-pointer path through properties.encryption).
+// encryption properties produces no edge and doesn't panic on missing JSON
+// (guards the nil-pointer path through properties.encryption).
 func TestResolveRecoveryServicesRelationships_NoCMK(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)

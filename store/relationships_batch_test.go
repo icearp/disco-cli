@@ -65,7 +65,7 @@ func TestUpsertRelationships_Empty(t *testing.T) {
 }
 
 // TestRelBuffer_DefersThenFlushes pins the buffer seam: edges emitted on a
-// buffered store are not written until FlushRelBuffer, and the activeCounter
+// buffered store aren't written until FlushRelBuffer, and activeCounter
 // still advances so ReportResolveComplete's tally is unaffected.
 func TestRelBuffer_DefersThenFlushes(t *testing.T) {
 	st := openTestStore(t)
@@ -105,11 +105,12 @@ func TestRelBuffer_DefersThenFlushes(t *testing.T) {
 }
 
 // TestRelBuffer_ConcurrentResolversPattern reproduces the provider phase-2
-// dispatch under the race detector: N "resolvers" run in parallel, each taking
-// its own buffered store off the shared counter-bound store, emitting edges,
-// reporting an error via OnError, and flushing. Pins that the buffer seam +
-// activeCounter + ReportError path is data-race-free under concurrency (run with
-// `go test -race`). Mirrors what aws/gcp/azure resolveRelationships now do.
+// dispatch under the race detector: N "resolvers" run in parallel, each
+// taking its own buffered store off the shared counter-bound store, emitting
+// edges, reporting an error via OnError, and flushing. Pins that the buffer
+// seam + activeCounter + ReportError path is data-race-free under
+// concurrency (run with `go test -race`). Mirrors aws/gcp/azure's
+// resolveRelationships.
 func TestRelBuffer_ConcurrentResolversPattern(t *testing.T) {
 	st := openTestStore(t)
 	const n = 16

@@ -31,12 +31,12 @@ func init() {
 	})
 }
 
-// scanManagementTenant discovers Azure Management Groups, which are a
-// tenant-level construct (the API list is tenant-wide, not subscription-scoped).
-// It runs ONCE per scan as a tenant service and stores each MG under the tenant
-// GUID, so a multi-subscription scan keeps a single copy of the MG tree rather
-// than one per subscription. When the tenant GUID could not be resolved it falls
-// back to the first subscription's ID — still a single deduplicated copy.
+// scanManagementTenant discovers Azure Management Groups, a tenant-level
+// construct (the API list is tenant-wide, not subscription-scoped). Runs ONCE
+// per scan as a tenant service, storing each MG under the tenant GUID so a
+// multi-subscription scan keeps one copy of the MG tree, not one per
+// subscription. Falls back to the first subscription's ID when the tenant GUID
+// could not be resolved — still a single deduplicated copy.
 func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(subs) == 0 {
 		return 0, 0, nil
@@ -52,9 +52,10 @@ func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.
 	return scanManagementInto(ctx, accountID, st, scanID, mgClient)
 }
 
-// scanManagementInto is the testable core: it pages the (tenant-wide) management
-// group list from the supplied client and upserts each MG under accountID. Split
-// from scanManagementTenant so tests can drive it with a fake-transport client.
+// scanManagementInto is the testable core: pages the tenant-wide management
+// group list from the supplied client and upserts each MG under accountID.
+// Split from scanManagementTenant so tests can drive it with a fake-transport
+// client.
 func scanManagementInto(ctx context.Context, accountID string, st *store.Store, scanID string, client *armmanagementgroups.Client) (total, inserted int, err error) {
 	// scopeRef satisfies azPageScan's *subscription parameter (used only for the
 	// AccessDenied scope label, never for the stored AccountID).
@@ -89,17 +90,17 @@ func scanManagementInto(ctx context.Context, accountID string, st *store.Store, 
 //	management-group -[contains]-> subscription             (tenant + per-sub)
 //	subscription     -[contains]-> resource-group           (per-sub)
 //
-// It runs ONCE after the whole scan's phase-1 (every subscription's resource
-// groups + the subscription-as-resource rows, and the tenant phase's management
-// groups) so RecordHierarchyBatch sees both endpoints in `resources` and emits
-// the graph-visible `contains` relationship row rather than gating it out.
+// Runs ONCE after phase-1 completes (every subscription's RG rows + the
+// subscription-as-resource rows, and the tenant phase's MG rows) so
+// RecordHierarchyBatch sees both endpoints in `resources` and emits the
+// graph-visible `contains` row instead of gating it out.
 //
-// Closure targets are looked up in store-built NativeID→ResourceID indexes
-// instead of recomputed via store.ResourceID, so a casing difference between the
-// Entities API and the flat management-group list can never desync the hash.
-// The RG→subscription tier is pure store data (no API), so it links even when
-// the caller lacks tenant-level Microsoft.Management read; only the
-// management-group tiers need the Entities call, whose AccessDenied is tolerated.
+// Closure targets are looked up via store-built NativeID→ResourceID indexes,
+// not recomputed via store.ResourceID, so a casing difference between the
+// Entities API and the flat MG list can never desync the hash. The
+// RG→subscription tier is pure store data (no API), so it links even when the
+// caller lacks tenant-level Microsoft.Management read; only the MG tiers need
+// the Entities call, whose AccessDenied is tolerated.
 func stitchTopHierarchy(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store) {
 	if len(subs) == 0 {
 		return
@@ -121,12 +122,12 @@ func stitchTopHierarchy(ctx context.Context, subs []subscription, cred azcore.To
 		return
 	}
 
-	// Tiers 1+2: management-group / subscription -[contains]-> parent management
-	// group, from the tenant-wide Entities list (the flat management-group list
-	// carries no parent linkage), shallowest-first so each parent's chain exists
-	// before its children record. AccessDenied self-reports via skipIfAccessDenied
-	// and degrades to the self-seeds + RG tier; any other failure is reported so
-	// the missing tiers don't vanish silently.
+	// Tiers 1+2: MG / subscription -[contains]-> parent MG, from the tenant-wide
+	// Entities list (the flat MG list carries no parent linkage), shallowest-first
+	// so each parent's chain exists before its children record. AccessDenied
+	// self-reports via skipIfAccessDenied and degrades to the self-seeds + RG
+	// tier; any other failure is reported so the missing tiers don't vanish
+	// silently.
 	mgPairs, eerr := managementParentPairs(ctx, cred, subs[0], mgIndex, subIndex, st)
 	if eerr != nil {
 		st.ReportError(store.ScanError{
@@ -141,7 +142,7 @@ func stitchTopHierarchy(ctx context.Context, subs []subscription, cred azcore.To
 // that lets every transitive ancestor row materialise, then writes it in a single
 // RecordHierarchyBatch. Split from stitchTopHierarchy so tests drive it without a
 // live Entities client:
-//  1. Self-seed every management group and subscription. RecordHierarchyBatch
+//  1. Self-seed every MG and subscription. RecordHierarchyBatch
 //     builds a child's depth-N+1 rows by joining its parent's existing closure
 //     rows, so a node that is only ever a parent (the tenant root group) must be
 //     seeded or its children's chains never form. Seeding from the store indexes

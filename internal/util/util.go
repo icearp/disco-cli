@@ -8,11 +8,11 @@ import (
 )
 
 // AllResources is a query limit large enough to fetch every resource of a type
-// in one call. Used by relationship resolvers that need all resources in memory.
+// in one call, for resolvers that need all resources in memory.
 const AllResources = uint64(math.MaxUint32)
 
-// MustJSON marshals v to a JSON string. Returns "{}" if marshalling fails —
-// this should never happen for well-formed SDK response structs.
+// MustJSON marshals v to a JSON string, returning "{}" on failure — should
+// never happen for well-formed SDK response structs.
 func MustJSON(v any) string {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -29,8 +29,8 @@ func Sv(p *string) string {
 	return *p
 }
 
-// TimeRFC3339 formats a *time.Time as an RFC3339 string pointer.
-// Returns nil when t is nil.
+// TimeRFC3339 formats a *time.Time as an RFC3339 string pointer, or nil when
+// t is nil.
 func TimeRFC3339(t *time.Time) *string {
 	if t == nil {
 		return nil

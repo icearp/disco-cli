@@ -15,9 +15,9 @@ func init() {
 		name: "azure:microsoft.storageactions",
 		fn:   scanStorageActions,
 		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; the task assignment to a
-			// storage account is a separate child resource (not scanned), so
-			// the task definition ships scanner-only.
+			// Identity → MSI edges resolved centrally; task-to-storage-account
+			// assignment is a separate unscanned child resource, so the task
+			// definition ships scanner-only.
 			{Service: "microsoft.storageactions", DiscoType: TypeStorageActionsTask, Leaf: true},
 		},
 	})

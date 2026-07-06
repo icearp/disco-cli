@@ -38,9 +38,9 @@ var (
 )
 
 // validRankdirs are the four DOT layout directions. LR (left-to-right) is
-// the default; RL inverts horizontally — useful when edges in the DB are
-// emitted child→parent (some hierarchy scanners do) and you want parent
-// on the left visually. TB / BT give a vertical tree layout.
+// the default; RL inverts horizontally — useful when DB edges run
+// child→parent (some hierarchy scanners do) and parent should sit left
+// visually. TB / BT give a vertical tree layout.
 var validRankdirs = map[string]bool{"LR": true, "RL": true, "TB": true, "BT": true}
 
 // graphOutputFormats is the set of values accepted by --output across all
@@ -118,9 +118,9 @@ within the configured constraints.`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 		defer func() {
-			// Skip structured envelope on ErrNoPath: empty stdout + exit 1
-			// is the documented contract for "no path", and pipelines key
-			// off exit code rather than parsing a result document.
+			// Skip structured envelope on ErrNoPath: empty stdout + exit 1 is the
+			// documented "no path" contract; pipelines key off exit code, not a
+			// parsed result document.
 			if !errors.Is(rerr, store.ErrNoPath) {
 				maybeStructuredError(graphOutputFmt, rerr)
 			}
@@ -155,10 +155,9 @@ within the configured constraints.`,
 				// suppresses the trailing error message.
 				cmd.SilenceErrors = true
 				cmd.SilenceUsage = true
-				// Print a one-line stderr hint so interactive operators see
-				// the retry shape; pipelines that discard stderr (or read
-				// only stdout / $?) are unaffected — stdout stays empty,
-				// exit code stays 1.
+				// Print a one-line stderr hint so interactive operators see the retry
+				// shape; pipelines that discard stderr (or read only stdout/$?) are
+				// unaffected — stdout stays empty, exit code stays 1.
 				kindsHint := "any"
 				if len(graphKinds) > 0 {
 					kindsHint = strings.Join(graphKinds, ",")
@@ -205,9 +204,9 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 			return err
 		}
 
-		// Default kind-set: all relationship kinds except 'contains', so a
-		// noun like "VPC" doesn't drag in every subnet/sg as blast targets.
-		// User may override with --kinds.
+		// Default kind-set: all relationship kinds except 'contains', so a noun
+		// like "VPC" doesn't drag in every subnet/sg as blast targets. Override
+		// with --kinds.
 		kinds := graphKinds
 		if len(kinds) == 0 {
 			kinds = []string{
@@ -233,12 +232,12 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 			return err
 		}
 
-		// Inbound-only seeds (IAM principals, target groups, VPCs, subnets,
-		// any resource whose edges are emitted by other resolvers) leave a
-		// DirOut walk seed-only. Re-walk DirBoth when the user did not pin
-		// --direction. If --kinds was also left default, also include
-		// 'contains' on the retry — closure edges (IAM principal → access
-		// key, VPC → subnet) are 'contains' by schema.
+		// Inbound-only seeds (IAM principals, target groups, VPCs, subnets — any
+		// resource whose edges are emitted by other resolvers) leave a DirOut
+		// walk seed-only. Re-walk DirBoth when the user didn't pin --direction;
+		// if --kinds was also left default, include 'contains' on the retry too
+		// — closure edges (IAM principal → access key, VPC → subnet) are
+		// 'contains' by schema.
 		if !dirSet && len(g.Nodes) == 1 && len(g.Edges) == 0 {
 			opts.Direction = store.DirBoth
 			if !kindsSet {
@@ -256,13 +255,13 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 	},
 }
 
-// graphCompleteCmd implements `disco graph complete` — dump the entire
+// graphCompleteCmd implements `disco graph complete` — dumps the entire
 // stored graph in one shot. Customer-managed resources always included;
-// provider-managed resources kept only when they share an edge with a
-// customer resource (set --include-managed to keep orphan managed nodes too).
+// provider-managed resources kept only when they share an edge with one
+// (set --include-managed to keep orphan managed nodes too).
 //
-// Traversal flags (--depth/--kinds/--direction) are ignored since this is
-// not a seeded walk; --exclude-types/--exclude-regions/--max-* honoured.
+// Traversal flags (--depth/--kinds/--direction) are ignored (no seed, no
+// BFS); --exclude-types/--exclude-regions/--max-* still honoured.
 var graphCompleteCmd = &cobra.Command{
 	Use:   "complete",
 	Short: "Render the full discovered graph (all customer resources + connected managed)",
@@ -511,22 +510,20 @@ func renderGraphBlastTable(g *store.GraphResult) error {
 // {{.Field}} placeholder is substituted; otherwise the default "type\nname"
 // shape is used.
 //
-// Deliberately a plain string substitution, NOT text/template, and that choice
-// is load-bearing for binary size. text/template's field evaluator
-// (text/template.(*state).evalField) calls reflect.Value.MethodByName with a
-// non-constant name. The Go linker treats any reachable non-constant
-// MethodByName as a signal to disable per-method dead-code elimination for the
-// ENTIRE binary (cmd/link/internal/ld/deadcode.go: the whole-link-unit
-// reflectSeen flag), which retains the full AWS SDK v2 method surface (~600MB).
-// This func is reachable from the always-compiled graph command; before this
-// change it was one of two reachable text/template call sites. Six flat string
-// fields don't need a template engine, so keep it out of the reachable graph.
+// Deliberately a plain string substitution, not text/template — load-bearing
+// for binary size. text/template's field evaluator (evalField) calls
+// reflect.Value.MethodByName with a non-constant name; the Go linker treats
+// any reachable non-constant MethodByName as a signal to disable per-method
+// DCE for the ENTIRE binary (cmd/link/internal/ld/deadcode.go's whole-link-unit
+// reflectSeen flag), retaining the full AWS SDK v2 method surface (~600MB).
+// This func is reachable from the always-compiled graph command and was one
+// of two reachable text/template call sites; six flat string fields don't
+// need a template engine, so it's kept out of the reachable graph.
 //
-// NOTE: removing this alone does not shrink the binary — the other call site is
+// NOTE: removing this alone doesn't shrink the binary — the other site is
 // OPA's gojsonschema (ast.Compiler.Compile → Compiler.init → loadSchema →
 // gojsonschema.formatErrorDescription), reachable via policy.NewEngine. Both
-// must be eliminated for DCE to re-engage. See CLAUDE.md "text/template defeats
-// linker DCE".
+// must go for DCE to re-engage. See CLAUDE.md "text/template defeats linker DCE".
 func nodeLabel(r store.Resource) (string, error) {
 	if graphLabelTemplate == "" {
 		label := r.Type
@@ -545,8 +542,8 @@ func nodeLabel(r store.Resource) (string, error) {
 	).Replace(graphLabelTemplate), nil
 }
 
-// ptrOrEmpty mirrors ptrOrDash but returns "" instead of "-" — required for
-// template execution where "-" would leak into rendered labels.
+// ptrOrEmpty mirrors ptrOrDash but returns "" instead of "-" — avoids "-"
+// leaking into rendered labels.
 func ptrOrEmpty(p *string) string {
 	if p == nil {
 		return ""

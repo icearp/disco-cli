@@ -16,7 +16,7 @@ func init() {
 	)
 }
 
-// scanEC2Secondary discovers the multi-VPC secondary networking resources:
+// scanEC2Secondary discovers multi-VPC secondary networking resources:
 // secondary networks, their secondary subnets, and the secondary interfaces
 // attached across them.
 func scanEC2Secondary(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

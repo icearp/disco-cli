@@ -47,10 +47,10 @@ type networkfirewallAPI interface {
 }
 
 // scanNetworkFirewall discovers Network Firewall firewalls, firewall policies,
-// and rule groups in one region. Each of the three phases List→Describe fans
-// out describe calls concurrently via errgroup. Phase-level AccessDenied is
-// tolerated via skipIfAccessDenied + break, preserving totals from earlier
-// phases (per the multi-phase scanner pattern).
+// and rule groups in one region. Each phase fans out List→Describe
+// concurrently via errgroup. Phase-level AccessDenied is tolerated via
+// skipIfAccessDenied + break, preserving earlier phases' totals (per the
+// multi-phase scanner pattern).
 func scanNetworkFirewall(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := networkfirewall.NewFromConfig(acct.cfg, func(o *networkfirewall.Options) { o.Region = region })
 

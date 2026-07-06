@@ -11,17 +11,17 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// pacer holds a per-(account,region,service) fan-out at a fixed req/s ceiling.
+// pacer caps a per-(account,region,service) fan-out at a fixed req/s ceiling.
 // Size the worker count ABOVE rate × worst-case-latency so this limiter — not the
-// worker semaphore — is what bounds throughput: a fixed semaphore of N only reaches
-// N÷latency req/s, which under-fills a low-TPS bucket whenever control-plane latency
+// worker semaphore — bounds throughput: a fixed semaphore of N only reaches
+// N÷latency req/s, under-filling a low-TPS bucket whenever control-plane latency
 // is high (the regression that motivated this helper).
 //
-// Reach for a pacer ONLY for a high-call-count fan-out against a low *documented*
+// Use a pacer ONLY for a high-call-count fan-out against a low *documented*
 // per-second API limit. Latency-bound scanners (a handful of calls each) want the
 // fanout* concurrency tiers in aws_concurrency.go instead — a limiter there is a
-// no-op at best, a regression at worst. Sole user today: scanServiceQuotas; an audit
-// of every other AWS fan-out found no clear fit (most are low-cardinality, per-parent
+// no-op at best, a regression at worst. Sole user: scanServiceQuotas; an audit of
+// every other AWS fan-out found no clear fit (most are low-cardinality, per-parent
 // throttled, or better consolidated than paced — see aws/CLAUDE.md "Rate-paced fan-out").
 type pacer struct {
 	lim   *rate.Limiter

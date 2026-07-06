@@ -12,12 +12,12 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// isMacieNotEnabled reports whether err is the AccessDeniedException variant
-// that Macie raises when the service is not enabled in the calling region.
-// Macie collides on AccessDeniedException for both real IAM denial AND the
-// not-enabled feature-gate state, so disambiguate by message substring
-// (precedent: isCacheSecurityGroupsNotPermitted in elasticache_scanners.go,
-// per aws/CLAUDE.md "Smithy API-error-code predicates").
+// isMacieNotEnabled reports whether err is the AccessDeniedException Macie
+// raises when the service is not enabled in the calling region. Macie
+// collides on AccessDeniedException for real IAM denial AND the not-enabled
+// feature-gate state, so disambiguate by message substring (precedent:
+// isCacheSecurityGroupsNotPermitted in elasticache_scanners.go, per
+// aws/CLAUDE.md "Smithy API-error-code predicates").
 func isMacieNotEnabled(err error) bool {
 	return isAccessDeniedWithMessage(err, "Macie is not enabled")
 }
@@ -27,9 +27,9 @@ func init() {
 		name: "aws:macie",
 		fn:   scanMacie,
 		emits: []coverage.TypeDecl{
-			// Macie session is a per-(account,region) singleton config that
-			// CloudFormation does model as AWS::Macie::Session (per-region
-			// enablement); synth NativeID since the API exposes no ARN.
+			// Macie session is a per-(account,region) singleton config;
+			// CFN models it as AWS::Macie::Session (per-region enablement),
+			// but synth NativeID since the API exposes no ARN.
 			{Service: "macie", DiscoType: TypeMacieSession, Leaf: true},
 			// CFN models no AWS::Macie::ClassificationJob, but the Service
 			// Reference catalog lists macie2/ClassificationJob (aliased — disco's

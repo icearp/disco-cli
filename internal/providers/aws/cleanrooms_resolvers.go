@@ -76,11 +76,11 @@ func resolveCleanRoomsMembershipCollaboration(acct *account, st *store.Store) er
 	return nil
 }
 
-// resolveCleanRoomsChildToMembership wires every per-membership child
+// resolveCleanRoomsChildToMembership wires each per-membership child
 // (analysis-template, configured-table-association, id-mapping-table,
-// id-namespace-association, privacy-budget-template) to its parent
-// membership and collaboration via the SDK MembershipArn / CollaborationArn
-// fields the summary types carry.
+// id-namespace-association, privacy-budget-template) to its parent membership
+// and collaboration via the summary types' MembershipArn / CollaborationArn
+// fields.
 func resolveCleanRoomsChildToMembership(acct *account, st *store.Store) error {
 	memSet, err := scannedIDSet(acct, st, TypeCleanRoomsMembership)
 	if err != nil {

@@ -43,7 +43,7 @@ func init() {
 
 // cognitoUserPoolARNFromChild extracts the parent user-pool ARN from a child
 // resource's NativeID of shape `arn:aws:cognito-idp:r:a:userpool/{poolID}/<kind>/<id>`.
-// Returns "" when the ARN does not carry the userpool/{id}/... segment.
+// Returns "" if no userpool/{id}/... segment is present.
 func cognitoUserPoolARNFromChild(arn string) string {
 	const prefix = "userpool/"
 	i := strings.Index(arn, prefix)

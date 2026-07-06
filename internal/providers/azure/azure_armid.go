@@ -2,13 +2,11 @@ package azure
 
 import "strings"
 
-// ARM resource-ID parsing helpers. Each helper centralises one shape so a
-// drift in segment naming or case rules fixes in one place rather than
-// scattering the same logic across resolvers and scanners. ARM IDs are
-// case-insensitive when stored by Azure but returned with whatever case
-// the user typed at create time, so anywhere we *match* against an ID we
-// lowercase first; anywhere we *call APIs* with extracted segments we
-// preserve the original case.
+// ARM resource-ID parsing helpers, one per ID shape, so a naming/case drift
+// fixes in one place instead of scattering logic across resolvers and
+// scanners. ARM IDs are case-insensitive in storage but keep the user's
+// original casing on return, so we lowercase before *matching* an ID and
+// preserve original case when *calling APIs* with extracted segments.
 
 // rgFromID extracts the resource group name from an Azure resource ID,
 // lowercased for use in computing stable hierarchy IDs.
@@ -40,8 +38,8 @@ func rgNameFromID(id string) string {
 	return rest
 }
 
-// nameFromID returns the last path segment of an Azure resource ID,
-// preserving original casing. Used to extract resource names for API calls.
+// nameFromID returns the last path segment of an Azure resource ID, preserving
+// original casing, for extracting resource names in API calls.
 // e.g. /subscriptions/xxx/.../virtualMachines/myVM → "myVM"
 func nameFromID(id string) string {
 	idx := strings.LastIndex(id, "/")

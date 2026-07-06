@@ -16,9 +16,9 @@ func init() {
 	)
 }
 
-// sagemakerMiscAPI is the narrow surface used by the misc family —
-// resources that don't fit the larger family groupings (HyperPod
-// cluster + ground-truth workteam).
+// sagemakerMiscAPI is the narrow surface for the misc family —
+// resources that don't fit other groupings (HyperPod cluster,
+// ground-truth workteam).
 type sagemakerMiscAPI interface {
 	ListClusters(context.Context, *sagemaker.ListClustersInput, ...func(*sagemaker.Options)) (*sagemaker.ListClustersOutput, error)
 	DescribeCluster(context.Context, *sagemaker.DescribeClusterInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeClusterOutput, error)
@@ -92,8 +92,8 @@ func scanSageMakerClusters(ctx context.Context, client sagemakerMiscAPI, acct *a
 }
 
 // scanSageMakerWorkteams lists ground-truth workteams then fans out
-// DescribeWorkteam for the full body so attrs match the per-Describe
-// rule used by every other SageMaker family.
+// DescribeWorkteam for the full body, matching every other SageMaker
+// family's per-Describe rule.
 func scanSageMakerWorkteams(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := sagemaker.NewListWorkteamsPaginator(client, &sagemaker.ListWorkteamsInput{})
 	var names []string

@@ -206,9 +206,9 @@ func resolveECSContainerRelationships(acct *account, st *store.Store) error {
 
 // resolveECSTaskDefinitionSecrets emits `uses` edges from each task definition
 // to Secrets Manager secrets or SSM parameters referenced via
-// ContainerDefinitions[].Secrets[].ValueFrom. ValueFrom is either a full secret
-// ARN (optionally suffixed with a JSON key / version), a full SSM parameter
-// ARN, or a bare parameter name (with or without a leading slash).
+// ContainerDefinitions[].Secrets[].ValueFrom — a full secret ARN (optionally
+// suffixed with a JSON key / version), a full SSM parameter ARN, or a bare
+// parameter name (with or without a leading slash).
 func resolveECSTaskDefinitionSecrets(acct *account, st *store.Store) error {
 	tds, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeECSTaskDefinition},
@@ -255,9 +255,9 @@ func resolveECSTaskDefinitionSecrets(acct *account, st *store.Store) error {
 }
 
 // ecsSecretTarget maps an ECS Secrets ValueFrom reference to a (resource-type,
-// NativeID) pair. Secrets Manager references can carry :key::version-stage:
-// :version-id suffixes that must be stripped to match the secret's stored ARN.
-// Bare SSM parameter names are expanded to the scanner-side NativeID shape.
+// NativeID) pair. Secrets Manager refs may carry :key::version-stage:version-id
+// suffixes, stripped to match the secret's stored ARN; bare SSM parameter names
+// expand to the scanner-side NativeID shape.
 func ecsSecretTarget(vf, region, acctID string) (string, string) {
 	switch {
 	case strings.HasPrefix(vf, "arn:aws:secretsmanager:"):

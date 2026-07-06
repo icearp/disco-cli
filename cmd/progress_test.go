@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// TestProgress_DisabledIsPlain pins the non-TTY / CI contract: a disabled
-// printer emits each line as a plain newline-terminated write with no carriage
-// return or spinner glyph, so redirected stderr / CI logs stay clean.
+// TestProgress_DisabledIsPlain pins the non-TTY/CI contract: a disabled
+// printer emits each line as a plain newline-terminated write, no carriage
+// return or spinner glyph — keeps redirected stderr/CI logs clean.
 func TestProgress_Disabled_PlainLines(t *testing.T) {
 	var buf bytes.Buffer
 	p := newProgress(&buf, time.Now(), false)
@@ -34,12 +34,12 @@ func TestProgress_Disabled_PlainLines(t *testing.T) {
 }
 
 // TestProgress_EnabledDrawsSpinner verifies the enabled printer animates a
-// transient spinner line (carriage-return prefixed) carrying the elapsed time +
+// transient, carriage-return-prefixed spinner line carrying elapsed time +
 // completed-unit count, and that a permanent line clears then redraws it.
 func TestProgress_Enabled_DrawsAndClears(t *testing.T) {
 	var buf bytes.Buffer
-	// Construct disabled (so no ticker goroutine races the buffer), then force
-	// enabled to drive the synchronous draw/line/clear methods deterministically.
+	// Construct disabled (no ticker goroutine racing the buffer), then force
+	// enabled to drive draw/line/clear synchronously and deterministically.
 	p := newProgress(&buf, time.Now(), false)
 	p.enabled = true
 
@@ -72,9 +72,9 @@ func TestProgress_Enabled_DrawsAndClears(t *testing.T) {
 }
 
 // TestProgress_ConcurrentSafe exercises the production path under -race: an
-// enabled printer runs its ticker goroutine while many goroutines call line()
-// and incDone() concurrently (mirroring RunScanners fanning OnServiceComplete
-// across scanners). All stderr writes must serialise through the mutex.
+// enabled printer runs its ticker goroutine while many goroutines call
+// line()/incDone() concurrently (mirrors RunScanners fanning OnServiceComplete
+// across scanners). All stderr writes must serialize through the mutex.
 func TestProgress_ConcurrentSafe(t *testing.T) {
 	var buf bytes.Buffer
 	p := newProgress(&buf, time.Now(), true) // starts the ticker goroutine

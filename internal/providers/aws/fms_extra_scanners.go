@@ -8,9 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/fms"
 )
 
-// scanFMSAppsLists discovers the customer-defined Firewall Manager applications
-// lists (DefaultLists=false excludes the AWS-managed ones). Leaf — policies
-// reference these, the lists carry no outbound edges.
+// scanFMSAppsLists discovers customer-defined Firewall Manager applications lists
+// (DefaultLists=false excludes AWS-managed ones). Leaf — policies reference these,
+// no outbound edges.
 func scanFMSAppsLists(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := fms.NewListAppsListsPaginator(client, &fms.ListAppsListsInput{}, func(o *fms.ListAppsListsPaginatorOptions) { o.Limit = 100 })
 	var batch []*store.Resource
@@ -44,8 +44,7 @@ func scanFMSAppsLists(ctx context.Context, client fmsAPI, acct *account, region 
 	return upsertBatch(st, batch, "fms applications-lists")
 }
 
-// scanFMSProtocolsLists discovers the customer-defined Firewall Manager
-// protocols lists. Leaf.
+// scanFMSProtocolsLists discovers customer-defined Firewall Manager protocols lists. Leaf.
 func scanFMSProtocolsLists(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := fms.NewListProtocolsListsPaginator(client, &fms.ListProtocolsListsInput{}, func(o *fms.ListProtocolsListsPaginatorOptions) { o.Limit = 100 })
 	var batch []*store.Resource

@@ -37,9 +37,9 @@ func init() {
 }
 
 // resolveS3BucketEncryptionRelationships emits bucket→KMS `uses` edges from
-// the per-bucket SSE config collected by scanS3BucketEncryptions. Only rules
-// with SSEAlgorithm "aws:kms" / "aws:kms:dsse" and a non-empty KMSMasterKeyID
-// produce edges; resolveKMSKeyID handles alias-name → key-ARN resolution.
+// per-bucket SSE config collected by scanS3BucketEncryptions. Only rules with
+// SSEAlgorithm "aws:kms" / "aws:kms:dsse" and non-empty KMSMasterKeyID produce
+// edges; resolveKMSKeyID resolves alias-name → key-ARN.
 func resolveS3BucketEncryptionRelationships(acct *account, st *store.Store) error {
 	if len(acct.s3BucketEncryption) == 0 {
 		return nil
@@ -77,7 +77,7 @@ func resolveS3BucketEncryptionRelationships(acct *account, st *store.Store) erro
 
 // resolveS3BucketPolicyRelationships links each bucket policy to its bucket.
 // The policy NativeID is arn:aws:s3:::{bucket}/policy; stripping "/policy" gives
-// the bucket ARN that was stored by the S3 bucket scanner.
+// the bucket ARN stored by the S3 bucket scanner.
 func resolveS3BucketPolicyRelationships(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3BucketPolicy},
@@ -117,9 +117,8 @@ func buildAccessGrantsInstanceByRegion(acct *account, st *store.Store) (map[stri
 }
 
 // resolveS3AccessGrantRelationships links each access grant to the access
-// grants instance in the same region. The list API does not return the
-// instance ARN on each grant, so we match by region (at most one instance
-// per account per region).
+// grants instance in the same region. The list API returns no instance ARN
+// per grant, so match by region (at most one instance per account per region).
 func resolveS3AccessGrantRelationships(acct *account, st *store.Store) error {
 	grants, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3AccessGrant},

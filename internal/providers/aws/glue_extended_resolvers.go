@@ -549,8 +549,8 @@ func emitGlueSecConfigKMSEdges(st *store.Store, acct *account, r store.Resource,
 }
 
 // resolveGlueDataCatalogEncryptionKMS wires the per-region data-catalog
-// encryption singleton to the KMS keys used for catalog and connection-password
-// encryption (EncryptionAtRest.SseAwsKmsKeyID, ConnectionPasswordEncryption.AwsKmsKeyID).
+// encryption singleton to its KMS keys (EncryptionAtRest.SseAwsKmsKeyID,
+// ConnectionPasswordEncryption.AwsKmsKeyID).
 func resolveGlueDataCatalogEncryptionKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueDataCatalogEncryptionSettings},
@@ -616,9 +616,9 @@ type glueWorkflowNodeKind struct {
 	set            map[string]bool
 }
 
-// resolveGlueWorkflowGraphNodes walks each workflow's Graph.Nodes[] and emits
-// contains → job/trigger/crawler by Type discriminator. The JSON shape is the
-// SDK Workflow struct as marshalled by mustJSON.
+// resolveGlueWorkflowGraphNodes emits contains → job/trigger/crawler from each
+// workflow's Graph.Nodes[] by Type discriminator. JSON shape is the SDK
+// Workflow struct as marshalled by mustJSON.
 func resolveGlueWorkflowGraphNodes(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueWorkflow},

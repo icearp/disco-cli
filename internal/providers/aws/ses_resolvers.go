@@ -38,11 +38,10 @@ type sesEmailIdentityAttrs struct {
 }
 
 // resolveSESEmailIdentityConfigSet emits a `uses` edge from each email
-// identity to its default configuration set, when the config set is also
-// scanned in the same (account, region). Identities without a default
-// config-set or referencing an unscanned name skip silently. FK-safe via
-// scanned config-set id set; cross-region refs intentionally not supported
-// (config sets are region-scoped and SES v2 enforces same-region).
+// identity to its default configuration set when that set is scanned in the
+// same (account, region); identities with no default or an unscanned name
+// skip silently (FK-safe via scanned config-set id set). Cross-region refs
+// unsupported — config sets are region-scoped and SES v2 enforces same-region.
 func resolveSESEmailIdentityConfigSet(acct *account, st *store.Store) error {
 	identities, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -102,9 +101,9 @@ func sesEventDestinationConfigSetName(nativeID string) string {
 	return name
 }
 
-// sesEventDestinationAttrs mirrors the verbatim sesv2types.EventDestination
-// shape: only the destination sub-structs the resolver walks. PascalCase
-// matches mustJSON output.
+// sesEventDestinationAttrs mirrors sesv2types.EventDestination — only the
+// destination sub-structs the resolver walks. PascalCase matches mustJSON
+// output.
 type sesEventDestinationAttrs struct {
 	KinesisFirehoseDestination *struct {
 		DeliveryStreamArn *string `json:"DeliveryStreamArn"`
@@ -118,10 +117,9 @@ type sesEventDestinationAttrs struct {
 }
 
 // resolveSESEventDestinationTargets emits edges from each configuration-set
-// event-destination to (1) its parent config-set, (2) the SNS topic /
-// Firehose stream / Pinpoint app referenced by the destination block.
-// CloudWatch dimensions intentionally skipped — they are metric refs, not
-// resource refs (per mission spec).
+// event-destination to (1) its parent config-set and (2) the SNS topic /
+// Firehose stream / Pinpoint app the destination references. CloudWatch
+// dimensions are skipped — metric refs, not resource refs.
 func resolveSESEventDestinationTargets(acct *account, st *store.Store) error {
 	dests, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

@@ -34,8 +34,7 @@ func init() {
 
 // scanContainerApps discovers Microsoft.App resources — Container Apps managed
 // environments + apps, connected environments, jobs, session pools.
-// Microsoft.App/builders has no subscription-wide list op in the SDK and is
-// omitted.
+// Microsoft.App/builders has no subscription-wide list op in the SDK — omitted.
 func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {

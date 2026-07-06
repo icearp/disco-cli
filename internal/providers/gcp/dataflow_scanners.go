@@ -19,9 +19,9 @@ func init() {
 	})
 }
 
-// scanDataflow discovers Dataflow jobs across all locations using the
+// scanDataflow discovers Dataflow jobs across all locations via the
 // aggregated `Projects.Jobs.Aggregated` endpoint — no per-region fan-out
-// needed, the Dataflow API surface includes a project-wide variant.
+// needed; the API exposes a project-wide variant.
 func scanDataflow(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := dataflow.NewService(ctx, opts...)

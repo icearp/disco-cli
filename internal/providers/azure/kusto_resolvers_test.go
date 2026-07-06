@@ -19,9 +19,9 @@ func TestResolveKustoRelationships(t *testing.T) {
 	kvID := upsertTestResource(t, st, "azure", sub.ID, TypeKeyVaultVault, kvNativeID, "eastus", "{}")
 	vnetPrefix := "/subscriptions/" + testSubID + "/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/"
 	vnetID := upsertTestResource(t, st, "azure", sub.ID, TypeNetworkVirtualNetwork, vnetPrefix+"kustovnet", "eastus", "{}")
-	// Mixed-case subnet ref vs lowercase stored VNet makes the probe-side
-	// ToLower in upsertVNetAttachment load-bearing (vnetIDFromSubnetID
-	// preserves the input case).
+	// Mixed-case subnet ref vs lowercase stored VNet makes probe-side ToLower
+	// in upsertVNetAttachment load-bearing (vnetIDFromSubnetID preserves
+	// input case).
 	subnetRef := vnetPrefix + "KustoVNet/subnets/s"
 
 	cluster := armkusto.Cluster{

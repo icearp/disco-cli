@@ -9,10 +9,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iotfleetwise"
 )
 
-// isIoTFleetWiseFeatureNotAuthorized disambiguates the per-feature "Account
-// is not authorized to use this feature" gate from a real IAM denial. Used
-// on opt-in surfaces like ListStateTemplates that account base IoTFleetWise
-// access does not unlock.
+// isIoTFleetWiseFeatureNotAuthorized distinguishes the per-feature "Account
+// is not authorized to use this feature" gate from a real IAM denial. For
+// opt-in surfaces (e.g. ListStateTemplates) that base IoTFleetWise access
+// doesn't unlock.
 func isIoTFleetWiseFeatureNotAuthorized(err error) bool {
 	return isAccessDeniedWithMessage(err, "not authorized to use this feature")
 }
@@ -69,12 +69,11 @@ func scanIoTFleetWise(ctx context.Context, acct *account, region string, st *sto
 	return total, inserted, nil
 }
 
-// gateIoTFleetWise probes the cheapest list op once. If it returns the
-// closed-to-new-customers shape (empty-message AccessDeniedException), the
-// account can't self-enable the service — short-circuit via
-// markServiceNotEntitled so the dispatcher renders `(not available to this
-// account)` once instead of N per-phase warnings. Any other error or success
-// returns nil and the phase loop runs.
+// gateIoTFleetWise probes the cheapest list op once. An empty-message
+// AccessDeniedException (closed-to-new-customers) means the account can't
+// self-enable the service — return markServiceNotEntitled so the dispatcher
+// renders `(not available to this account)` once instead of N per-phase
+// warnings. Any other error or success returns nil and the phase loop runs.
 func gateIoTFleetWise(ctx context.Context, client iotFWAPI) error {
 	mr := int32(1)
 	_, err := client.ListCampaigns(ctx, &iotfleetwise.ListCampaignsInput{MaxResults: &mr})

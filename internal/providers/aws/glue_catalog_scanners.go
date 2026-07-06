@@ -116,9 +116,8 @@ func scanGlueConnections(ctx context.Context, client glueAPI, acct *account, reg
 	return len(batch), n, nil
 }
 
-// glueClassifierName extracts the name from a Classifier tagged-union — any
-// of CsvClassifier / GrokClassifier / JsonClassifier / XMLClassifier may be
-// non-nil. SDK returns one variant per row.
+// glueClassifierName extracts the name from a Classifier tagged union — one of
+// CsvClassifier/GrokClassifier/JsonClassifier/XMLClassifier is non-nil per SDK row.
 func glueClassifierName(c gluetypes.Classifier) string {
 	switch {
 	case c.CsvClassifier != nil:

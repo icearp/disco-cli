@@ -26,9 +26,8 @@ func init() {
 	)
 }
 
-// apigatewayRestAPIARNFromChild extracts the parent rest-api ARN from a
-// child resource's NativeID of shape
-// `arn:aws:apigateway:r::/restapis/{apiId}/<kind>/...`.
+// apigatewayRestAPIARNFromChild extracts the parent rest-api ARN from a child
+// NativeID shaped `arn:aws:apigateway:r::/restapis/{apiId}/<kind>/...`.
 func apigatewayRestAPIARNFromChild(arn string) string {
 	const prefix = "/restapis/"
 	i := strings.Index(arn, prefix)

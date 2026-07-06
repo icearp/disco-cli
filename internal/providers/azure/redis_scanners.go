@@ -38,7 +38,7 @@ func scanRedis(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 
 // scanCacheNamespace runs every Microsoft.cache scanner phase concurrently. The
 // cache ARM namespace spans several disco scanners merged under one
-// serviceEntry so the service name aligns to the namespace.
+// serviceEntry so the service name matches the namespace.
 func scanCacheNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanRedis(ctx, sub, cred, st, scanID) },

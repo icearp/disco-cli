@@ -94,8 +94,8 @@ func omicsWorkflowIDIndex(acct *account, st *store.Store) (map[string]string, er
 }
 
 // resolveOmicsAnnotationStoreVersionParent wires each annotation-store version
-// to its parent annotation store via the StoreId attribute, looked up against an
-// id index built from scanned annotation stores.
+// to its parent annotation store via StoreId, using an id index of scanned
+// annotation stores.
 func resolveOmicsAnnotationStoreVersionParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeOmicsAnnotationStoreVersion},
@@ -134,8 +134,7 @@ func resolveOmicsAnnotationStoreVersionParent(acct *account, st *store.Store) er
 }
 
 // resolveOmicsReferenceParent wires each reference to its parent reference store
-// via the ReferenceStoreId attribute, looked up against an id index built from
-// scanned reference stores.
+// via ReferenceStoreId, using an id index of scanned reference stores.
 func resolveOmicsReferenceParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeOmicsReference},

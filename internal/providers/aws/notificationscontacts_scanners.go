@@ -21,8 +21,7 @@ func init() {
 }
 
 // scanNotificationsContacts discovers AWS User Notifications Contacts email
-// contacts. Service is global; gate to us-east-1 to avoid duplicate scans
-// across regions.
+// contacts. Global service, gated to us-east-1 to dedupe across regions.
 func scanNotificationsContacts(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-1"
 	client := notificationscontacts.NewFromConfig(acct.cfg, func(o *notificationscontacts.Options) { o.Region = region })

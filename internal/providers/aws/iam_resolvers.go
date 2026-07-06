@@ -176,7 +176,7 @@ func resolveInstanceProfileRoles(acct *account, st *store.Store) error {
 // resolveInlinePolicyParents links inline policies (role/user/group) to their
 // parent principal. NativeID encodes the parent ARN as "{parentARN}/policy/{name}".
 // For role policies, both TypeIAMRole and TypeIAMServiceLinkedRole are tried so
-// that service-linked role inline policies resolve correctly.
+// service-linked role inline policies resolve correctly.
 func resolveInlinePolicyParents(acct *account, st *store.Store) error {
 	// Role policies: parent may be a regular role or a service-linked role.
 	rolePolicies, err := st.ListResources(store.ResourceFilter{
@@ -263,8 +263,8 @@ func resolveAccessKeyUsers(acct *account, st *store.Store) error {
 }
 
 // resolveMFADeviceToUser links each assigned virtual MFA device to its owning
-// user. The owning user's ARN is stored in the device's attributes JSON under
-// the User.Arn field, present only when the device is assigned to a user.
+// user. The owning user's ARN lives in the device's attrs JSON under User.Arn,
+// present only when the device is assigned to a user.
 func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 	devices, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -275,10 +275,10 @@ func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	// FK-safe: device User.Arn may point to the AWS account root user
-	// (arn:aws:iam::{acct}:root), which is not an aws:iam:user resource
-	// — root has no IAM-user identity. Build the scanned-user set so we
-	// skip emit when target is absent, regardless of arn-shape mismatch.
+	// FK-safe: device User.Arn may point to the AWS root user
+	// (arn:aws:iam::{acct}:root), which has no aws:iam:user resource —
+	// root has no IAM-user identity. Build the scanned-user set so emit
+	// is skipped when the target is absent, regardless of arn-shape mismatch.
 	users, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
 		AccountID: acct.ID,
@@ -318,11 +318,11 @@ func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 }
 
 // resolveManagedPolicyAttachments creates attached-to edges from each managed
-// policy (customer-managed AND AWS-managed) to the roles, users, and groups it is
-// attached to. GAAD already returns every principal's AttachedManagedPolicies with
-// ARNs (stored verbatim in the principal's attributes by scanIAMAuthDetails), so we
-// read attachments straight from the store — no per-policy ListEntitiesForPolicy
-// fan-out, and IncludeManaged surfaces the AWS-managed catalogue rows that the
+// policy (customer + AWS-managed) to the roles, users, and groups it's attached
+// to. GAAD returns every principal's AttachedManagedPolicies with ARNs (stored
+// verbatim in the principal's attributes by scanIAMAuthDetails), so attachments
+// are read straight from the store — no per-policy ListEntitiesForPolicy
+// fan-out — and IncludeManaged surfaces the AWS-managed catalogue rows the
 // default filter would hide (so AdministratorAccess et al. become edge targets).
 func resolveManagedPolicyAttachments(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
@@ -343,8 +343,8 @@ func resolveManagedPolicyAttachments(acct *account, st *store.Store) error {
 		return nil
 	}
 
-	// SLRs carry ManagedByProvider=true, so IncludeManaged is required or they drop
-	// out of the principal set entirely.
+	// SLRs carry ManagedByProvider=true, so IncludeManaged is required or they
+	// drop out of the principal set.
 	principals, err := st.ListResources(store.ResourceFilter{
 		Providers:      []string{"aws"},
 		AccountID:      acct.ID,
@@ -554,10 +554,10 @@ func resolveIAMPolicyResources(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(decoded), &parsed); err != nil {
 			continue
 		}
-		// Region carried by the policy itself only matters as a fallback for KMS
-		// references that lack a region (bare key UUID, alias name); managed and
-		// inline policies are global, so use the empty string and let any embedded
-		// ARN provide its own region.
+		// The policy's own region only matters as a fallback for region-less KMS
+		// refs (bare key UUID, alias name); managed and inline policies are
+		// global, so pass empty string and let any embedded ARN carry its own
+		// region.
 		region := ""
 		if p.Region != nil {
 			region = *p.Region
@@ -676,9 +676,8 @@ func loadPolicyResourceSets(acct *account, st *store.Store) (*policyResourceSets
 }
 
 // lookupTargetID returns the stored resource ID for ref under rtype, gated on
-// wildcard-free input and presence in the per-type id set. Shared by the
-// straightforward classifyPolicyResource branches that just need a wildcard
-// guard + map lookup.
+// wildcard-free input and presence in the per-type id set. Shared by
+// classifyPolicyResource branches that just need a wildcard guard + map lookup.
 func lookupTargetID(ref, rtype, acctID string, set map[string]struct{}) (string, bool) {
 	if strings.ContainsAny(ref, "*?") {
 		return "", false
@@ -978,10 +977,10 @@ func resourceIDSet(st *store.Store, accountID, rtype string) (map[string]struct{
 	return out, nil
 }
 
-// resolveUserGroupMemberships creates contains edges from each group to the users
-// that belong to it (modelling AWS::IAM::UserToGroupAddition). GAAD's UserDetail
-// already carries each user's GroupList (group names), stored verbatim in the
-// user's attributes by scanIAMAuthDetails, so memberships come straight from the
+// resolveUserGroupMemberships creates contains edges from each group to its
+// member users (models AWS::IAM::UserToGroupAddition). GAAD's UserDetail
+// carries each user's GroupList (group names), stored verbatim in the user's
+// attributes by scanIAMAuthDetails, so memberships come straight from the
 // store — no per-user ListGroupsForUser fan-out.
 func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 	users, err := st.ListResources(store.ResourceFilter{
@@ -1036,13 +1035,12 @@ func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 }
 
 // resolveIAMRoleCrossAccountTrust walks each role's AssumeRolePolicyDocument and
-// emits cross-account-trust edges for any Allow Statement Principal.AWS that
-// names a different AWS account. When that account isn't in scan scope, we
-// insert-if-absent an empty-attribute aws:iam:account row at the account's
-// self-node natural key (arn:aws:iam::<acct>:root) so the FK on
-// relationships.to_id holds and the account is a real graph node. If that
-// account is later scanned, scanIAMAccount version-populates the placeholder.
-// ROADMAP R5.
+// emits cross-account-trust edges for any Allow Statement Principal.AWS naming
+// a different AWS account. When that account isn't in scan scope, insert-if-
+// absent an empty-attribute aws:iam:account row at its self-node natural key
+// (arn:aws:iam::<acct>:root) so the FK on relationships.to_id holds and the
+// account is a real graph node. scanIAMAccount version-populates the
+// placeholder if that account is later scanned. ROADMAP R5.
 func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 	roles, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -1135,7 +1133,7 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 
 // statementPrincipalList decodes Statement[] with Principal.AWS payload.
 // Mirrors statementList shape (string-or-array) but preserves the Principal
-// field that the policy-resource walker discards.
+// field the policy-resource walker discards.
 type statementPrincipalList []principalStatement
 
 func (s *statementPrincipalList) UnmarshalJSON(b []byte) error {

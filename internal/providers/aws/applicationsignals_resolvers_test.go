@@ -5,10 +5,9 @@ import (
 )
 
 // TestResolveApplicationSignalsRelationships_NoEdges documents the no-op
-// contract: SLO + GroupingConfiguration rows carry no cross-resource ARNs
-// to scanned types, so the resolver intentionally emits zero edges.
-// Guards against accidental edge emission breaking the no-op contract if a
-// future SDK adds ARN fields without an audit pass.
+// contract: SLO + GroupingConfiguration rows carry no cross-resource ARNs,
+// so the resolver intentionally emits zero edges. Guards against a future
+// SDK adding ARN fields without an audit pass silently breaking this.
 func TestResolveApplicationSignalsRelationships_NoEdges(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

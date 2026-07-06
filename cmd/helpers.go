@@ -28,11 +28,10 @@ func providerListHint() string { return strings.Join(providers.Names(), ", ") }
 // message (the JSON envelope on stdout), not two (envelope + plaintext).
 var structuredErrorEmitted bool
 
-// maybeStructuredError emits a JSON error envelope to stdout when the caller's
-// selected output format is structured (json/jsonl). Lets pipelines such as
-// `disco ... -o json | jq` see a parseable signal on failure rather than
-// empty stdout. Sets structuredErrorEmitted so root.go can suppress the
-// duplicate plaintext stderr print.
+// maybeStructuredError emits a JSON error envelope to stdout when format is
+// json/jsonl, so pipelines like `disco ... -o json | jq` see a parseable
+// signal on failure rather than empty stdout. Sets structuredErrorEmitted so
+// root.go can suppress the duplicate plaintext stderr print.
 func maybeStructuredError(format string, err error) {
 	if err == nil {
 		return
@@ -44,11 +43,10 @@ func maybeStructuredError(format string, err error) {
 		}{err.Error()})
 		structuredErrorEmitted = true
 		// "sarif" is deliberately excluded: SARIF is a rigid schema (runs[].
-		// results[], tool driver) and a bare {"error":"..."} object is NOT valid
-		// SARIF — emitting it would break strict consumers (e.g. GitHub code
-		// scanning). On error under -o sarif we leave stdout empty and let the
-		// non-zero exit + plaintext stderr (root.go) carry the failure, which is
-		// safe for SARIF readers (they get no malformed document).
+		// results[], tool driver); a bare {"error":"..."} isn't valid SARIF and
+		// would break strict consumers (e.g. GitHub code scanning). On error
+		// under -o sarif, stdout stays empty and the non-zero exit + plaintext
+		// stderr (root.go) carry the failure.
 	}
 }
 

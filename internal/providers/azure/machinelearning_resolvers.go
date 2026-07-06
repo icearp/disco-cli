@@ -19,11 +19,11 @@ func init() {
 }
 
 // resolveMachineLearningRelationships derives Azure ML workspace -[uses]->
-// edges to its bound storage account, key vault, and container registry. Each
-// is a full ARM resource ID on the workspace properties, matched
+// edges to its bound storage account, key vault, and container registry —
+// each a full ARM resource ID on the workspace properties, matched
 // case-insensitively against the per-sub NativeID index for that type.
 // (applicationInsights points at microsoft.insights/components, which disco
-// does not scan, so no edge is emitted for it.)
+// doesn't scan, so it emits no edge.)
 func resolveMachineLearningRelationships(sub *subscription, st *store.Store) error {
 	workspaces, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

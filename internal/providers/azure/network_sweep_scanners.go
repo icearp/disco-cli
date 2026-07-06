@@ -10,11 +10,11 @@ import (
 )
 
 // scanNetworkSweep discovers the remaining sub/RG-listable Microsoft.Network
-// resource types not covered by the core scanNetwork phases. It runs every
-// type concurrently (sync.WaitGroup + mutex aggregation, matching scanNetwork)
-// so a single AccessDenied on one type never blocks the others. Most types
-// expose a subscription-wide NewListAllPager / NewListPager; the handful that
-// only offer per-RG endpoints (connections, localnetworkgateways) fan out via
+// resource types not covered by the core scanNetwork phases. Runs every type
+// concurrently (sync.WaitGroup + mutex aggregation, matching scanNetwork) so
+// a single AccessDenied never blocks the others. Most types expose a
+// subscription-wide NewListAllPager / NewListPager; the handful offering only
+// per-RG endpoints (connections, localnetworkgateways) fan out via
 // azRGFanoutScan.
 //
 // Catalogue types Azure auto-materialises and the user cannot delete
@@ -30,8 +30,8 @@ func scanNetworkSweep(ctx context.Context, sub *subscription, cred azcore.TokenC
 }
 
 // networkSweepPhases constructs every armnetwork client once and returns the
-// per-type scan closures. Client construction is the only error-returning step;
-// a failure there aborts the whole sweep (credential/options are shared, so one
+// per-type scan closures. Client construction is the only error-returning
+// step; a failure there aborts the whole sweep (shared cred/options — one
 // failing means all would).
 //
 //nolint:gocognit // linear client-construct + one closure per type; splitting hides the per-type list.
@@ -74,8 +74,8 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 		vrouters  *armnetwork.VirtualRoutersClient
 		vpnSrvCfg *armnetwork.VPNServerConfigurationsClient
 	)
-	// Each entry constructs one armnetwork client; the first construction
-	// failure aborts the sweep (shared cred/options means all would fail).
+	// Each entry constructs one armnetwork client; first construction failure
+	// aborts the sweep (shared cred/options — all would fail).
 	ctors := map[string]func() error{
 		"WebApplicationFirewallPoliciesClient": func() (e error) {
 			waf, e = armnetwork.NewWebApplicationFirewallPoliciesClient(sub.ID, cred, azClientOptions)

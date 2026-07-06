@@ -25,8 +25,8 @@ type fisAPI interface {
 	ListTargetAccountConfigurations(context.Context, *fis.ListTargetAccountConfigurationsInput, ...func(*fis.Options)) (*fis.ListTargetAccountConfigurationsOutput, error)
 }
 
-// scanFIS discovers Fault Injection Service experiment templates and
-// target-account configurations (per template).
+// scanFIS discovers FIS (Fault Injection Service) experiment templates and
+// per-template target-account configurations.
 func scanFIS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := fis.NewFromConfig(acct.cfg, func(o *fis.Options) { o.Region = region })
 

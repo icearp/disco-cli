@@ -7,8 +7,8 @@ import (
 )
 
 // TestResolveDNSRelationships verifies a private-DNS-zone vnet-link derives
-// an attached-to edge to the linked VNet via properties.virtualNetwork.id.
-// Match is case-insensitive.
+// an attached-to edge to the linked VNet via properties.virtualNetwork.id,
+// case-insensitive.
 func TestResolveDNSRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-dns")

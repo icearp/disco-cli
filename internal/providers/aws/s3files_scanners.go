@@ -31,7 +31,7 @@ type s3filesAPI interface {
 
 // scanS3Files discovers S3 Files file systems and per-FS access points,
 // mount targets, and policies. MountTarget and FileSystemPolicy synthesize
-// ARN since the SDK returns no native ARN for either.
+// ARN; the SDK returns none for either.
 func scanS3Files(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := s3files.NewFromConfig(acct.cfg, func(o *s3files.Options) { o.Region = region })
 

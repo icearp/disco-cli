@@ -21,8 +21,8 @@ func init() {
 }
 
 // resolveECRRepositoryRelationships links each ECR repository to the KMS key
-// that encrypts its image layers when encryption type is KMS. AES256
-// encryption uses AWS-owned keys that disco doesn't scan.
+// encrypting its image layers when encryption type is KMS. AES256 uses
+// AWS-owned keys disco doesn't scan.
 func resolveECRRepositoryRelationships(acct *account, st *store.Store) error {
 	repos, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -57,8 +57,8 @@ func resolveECRRepositoryRelationships(acct *account, st *store.Store) error {
 // resolveECRReplicationConfiguration emits one edge per (replication-config,
 // matched repo) pair. A rule with no RepositoryFilters replicates the whole
 // registry; a PREFIX_MATCH filter restricts to repos whose name starts with
-// the given prefix. Source-side only — destinations are (RegistryId, Region)
-// tuples, not repo ARNs, so there is no concrete target to point at without a
+// that prefix. Source-side only — destinations are (RegistryId, Region)
+// tuples, not repo ARNs, so there's no concrete target without a
 // stub-resource pass.
 func resolveECRReplicationConfiguration(acct *account, st *store.Store) error {
 	configs, err := st.ListResources(store.ResourceFilter{

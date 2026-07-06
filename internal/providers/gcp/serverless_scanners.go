@@ -28,10 +28,10 @@ func init() {
 	})
 }
 
-// scanCloudFunctions discovers Cloud Functions Gen1 + Gen2 (the v2 API
-// surface returns both, with `environment` distinguishing them). The wildcard
-// location parent `projects/{p}/locations/-` returns functions across every
-// location in one paginated call — no per-location fan-out needed.
+// scanCloudFunctions discovers Cloud Functions Gen1 + Gen2 (v2 API returns
+// both; `environment` distinguishes them). Wildcard location parent
+// `projects/{p}/locations/-` returns functions across every location in one
+// paginated call — no per-location fan-out needed.
 func scanCloudFunctions(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := cloudfunctions.NewService(ctx, opts...)
@@ -64,9 +64,9 @@ func scanCloudFunctions(ctx context.Context, p *project, st *store.Store, scanID
 		})
 }
 
-// scanCloudRun discovers Cloud Run v2 services. Same wildcard-location
-// pattern as Functions. Cloud Run Jobs (separate sibling API surface
-// `Projects.Locations.Jobs`) deferred — Jobs are R4.20.
+// scanCloudRun discovers Cloud Run v2 services, same wildcard-location
+// pattern as Functions. Cloud Run Jobs (`Projects.Locations.Jobs`, a separate
+// sibling API surface) deferred as R4.20.
 func scanCloudRun(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := run.NewService(ctx, opts...)
@@ -98,9 +98,8 @@ func scanCloudRun(ctx context.Context, p *project, st *store.Store, scanID strin
 		})
 }
 
-// locationFromResourceName extracts the location segment from any
-// `projects/{p}/locations/{loc}/...` resource name. Returns "" if the
-// pattern doesn't match.
+// locationFromResourceName extracts the location segment from a
+// `projects/{p}/locations/{loc}/...` resource name, or "" if no match.
 func locationFromResourceName(name string) string {
 	_, rest, ok := strings.Cut(name, "/locations/")
 	if !ok {

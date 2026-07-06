@@ -3,8 +3,8 @@
 package all
 
 import (
-	// Blank-importing the azureregions leaf runs its init(), registering the
-	// Azure location list into the regions registry. Gated so `-tags slim`
-	// without `azure` excludes it.
+	// Blank-importing azureregions runs its init(), registering Azure's
+	// location list into the regions registry. Gated so `-tags slim` without
+	// `azure` excludes it.
 	_ "codeberg.org/icearp/disco/internal/providers/azure/azureregions"
 )

@@ -30,11 +30,10 @@ type globalAcceleratorAPI interface {
 	ListEndpointGroups(context.Context, *globalaccelerator.ListEndpointGroupsInput, ...func(*globalaccelerator.Options)) (*globalaccelerator.ListEndpointGroupsOutput, error)
 }
 
-// scanGlobalAccelerator discovers Global Accelerator resources. Service is
-// global; the API is hosted only in us-west-2 — registered with global=true
-// and dispatched once per account. The dispatcher passes region="", so we
-// substitute the canonical home so resource Region columns and per-op error
-// scopes stay accurate.
+// scanGlobalAccelerator discovers Global Accelerator resources. The API is
+// hosted only in us-west-2 (global=true, dispatched once per account,
+// dispatcher passes region=""); substitute the canonical home to keep
+// resource Region columns and per-op error scopes accurate.
 func scanGlobalAccelerator(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-west-2"
 	client := globalaccelerator.NewFromConfig(acct.cfg, func(o *globalaccelerator.Options) { o.Region = region })

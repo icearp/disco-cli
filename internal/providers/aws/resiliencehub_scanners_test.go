@@ -36,9 +36,9 @@ func (s *stubResilienceHub) ListRecommendationTemplates(_ context.Context, in *r
 	}, nil
 }
 
-// ListRecommendationTemplates requires an assessmentArn server-side (the SDK v2
-// validator omits it). The scanner must fan out per assessment, passing the ARN
-// — never call it with empty input.
+// ListRecommendationTemplates requires assessmentArn server-side (SDK v2
+// validator omits it); scanner must fan out per assessment, passing the ARN
+// — never call with empty input.
 func TestScanRHRecommendationTemplates_FansOutWithAssessmentArn(t *testing.T) {
 	st := newTestStore(t)
 	acct := &account{ID: testAccountID, Name: "test"}

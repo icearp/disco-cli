@@ -17,11 +17,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Terminal-state exit-code sentinels. The summary line is already written to
-// stdout; these only carry the exit-code gate, so cmd/root.go::Execute maps
-// them without re-printing (mirrors errFindingsReported). errScanInterrupted →
-// 130 (conventional SIGINT code); errScanPartial → 1, emitted only under
-// --fail-on-error so the default partial-run behaviour stays exit 0.
+// Terminal-state exit-code sentinels. The summary line is already on stdout;
+// these only carry the exit-code gate, so cmd/root.go::Execute maps them
+// without re-printing (mirrors errFindingsReported). errScanInterrupted → 130
+// (conventional SIGINT code); errScanPartial → 1, emitted only under
+// --fail-on-error so default partial-run behaviour stays exit 0.
 var (
 	errScanInterrupted = errors.New("scan interrupted")
 	errScanPartial     = errors.New("scan completed with errors")
@@ -85,13 +85,13 @@ but only re-scan if 6 h have elapsed.`,
 
 // startOrResumeScan picks the scan_id for this run. resumeFlag values:
 //   - "" (default) — fresh scan via CreateScan.
-//   - "latest" — pick up the most-recent scan whose status is running/partial.
-//   - any other value — treated as an explicit scan_id to reuse.
+//   - "latest" — most-recent scan whose status is running/partial.
+//   - any other value — explicit scan_id to reuse.
 //
-// Returns (scanID, resuming, err). When resuming, callers should expect the
-// checkpoint table to carry per-service watermarks a future incremental
-// scanner can consume; today the scan persists fresh checkpoints from this
-// scan_id without consuming them.
+// Returns (scanID, resuming, err). When resuming, expect the checkpoint table
+// to carry per-service watermarks a future incremental scanner can consume;
+// today the scan persists fresh checkpoints from this scan_id without
+// consuming them.
 func startOrResumeScan(db *store.Store, resumeFlag string, providers []string, scope map[string]any) (string, bool, error) {
 	if resumeFlag == "" {
 		if scope == nil {
@@ -145,8 +145,8 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		return err
 	}
 
-	// openWriteDB opens Postgres when DISCO_PG_DSN is set (the scan-worker
-	// deployment); otherwise it falls back to SQLite at defaultDBPath() for
+	// openWriteDB opens Postgres when DISCO_PG_DSN is set (scan-worker
+	// deployment); otherwise falls back to SQLite at defaultDBPath() for
 	// normal CLI / local-dev use.
 	db, err := openWriteDB()
 	if err != nil {
@@ -154,11 +154,11 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	}
 	defer func() { _ = db.Close() }()
 
-	// --if-older-than gates the scan on recency: if the latest complete
-	// (or partial) scan covering each requested provider is younger than the
-	// threshold, skip with exit 0 + a stderr note. Cron-friendly idempotency
-	// — drop a `disco scan aws --if-older-than 1h` into a 5-min cron and
-	// only do real work when the cached state is stale.
+	// --if-older-than gates the scan on recency: if the latest complete (or
+	// partial) scan covering each requested provider is younger than the
+	// threshold, skip with exit 0 + a stderr note. Cron-friendly: drop
+	// `disco scan aws --if-older-than 1h` into a 5-min cron and only do real
+	// work when cached state is stale.
 	if d, _ := cmd.Flags().GetDuration("if-older-than"); d > 0 {
 		skip, msg, err := evaluateIfOlderThan(db, names, d)
 		if err != nil {
@@ -170,11 +170,10 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		}
 	}
 
-	// --resume reuses a previously-started scan_id and its checkpoint set.
-	// Without it (default), a fresh scan_id is generated. Today the scan
-	// persists checkpoints and exposes the lookup; a future incremental
-	// scanner can consume the per-page watermarks to skip already-listed
-	// pages without re-scanning.
+	// --resume reuses a previously-started scan_id and its checkpoint set;
+	// without it, a fresh scan_id is generated. Today the scan persists
+	// checkpoints and exposes the lookup; a future incremental scanner can
+	// consume the per-page watermarks to skip already-listed pages.
 	resumeFlag, _ := cmd.Flags().GetString("resume")
 	scope := buildScanScope(cmd, names, scanners)
 	scanID, resuming, err := startOrResumeScan(db, resumeFlag, names, scope)
@@ -214,21 +213,21 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	scopeWidth := scopeColumnWidth(scanners)
 
 	// Print a status line each time a provider completes scanning one service.
-	// scope = the per-call dimension that would otherwise produce duplicate
-	// lines in multi-region / multi-account scans (AWS region or "global",
-	// Azure subscription ID, GCP project ID). Without it, --regions us-east-1,
-	// eu-west-1 prints aws:ec2 twice with no way to tell them apart.
-	// errCount > 0 means the service hit one or more errors (which were already
-	// reported via OnError); annotate the line with "(with errors)" so the user
-	// can scan output for trouble without grepping. Totals are accumulated by
+	// scope is the per-call dimension that would otherwise produce duplicate
+	// lines in multi-region/multi-account scans (AWS region or "global", Azure
+	// subscription ID, GCP project ID) — without it, --regions us-east-1,
+	// eu-west-1 prints aws:ec2 twice with no way to tell them apart. errCount >
+	// 0 means the service hit one or more errors (already reported via
+	// OnError); annotate the line with "(with errors)" so the user can scan
+	// output for trouble without grepping. Totals are accumulated by
 	// scanrun.RunScanners (single source of truth shared with the API driver).
-	// p streams the permanent per-service / resolve lines and, on an interactive
-	// terminal, animates a spinner so a slow service or the resolve phase still
-	// shows liveness. No done/total fraction: the denominator (services × scopes)
-	// isn't knowable up front (Azure subscriptions and GCP projects are
-	// discovered at scan time), so the spinner reports elapsed + completed-unit
-	// count only — honest, not a fake %. The spinner is suppressed off-TTY (CI),
-	// under --no-progress, and under --quiet. incDone is atomic because
+	// p streams the permanent per-service/resolve lines and, on an interactive
+	// terminal, animates a spinner so a slow service or resolve phase still
+	// shows liveness. No done/total fraction: the denominator (services ×
+	// scopes) isn't knowable up front (Azure subscriptions and GCP projects
+	// are discovered at scan time), so the spinner reports elapsed +
+	// completed-unit count only — honest, not a fake %. Suppressed off-TTY
+	// (CI), under --no-progress, and under --quiet. incDone is atomic because
 	// RunScanners fans scanners out concurrently, so these closures run from
 	// multiple goroutines.
 	spinnerOn := !quiet && !noProgress && isTerminal(progressW)
@@ -259,13 +258,12 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 			elapsedField(time.Since(start)), provider, edges))
 	}
 
-	// Fan-out + warning/error capture + total accumulation live in scanrun so
-	// the engine can be reused by other drivers. RunScanners chains its
-	// callbacks on top of the OnServiceComplete progress callback installed
-	// above and returns the canonical totals.
-	// cmd.Context() carries main's SIGINT/SIGTERM cancellation, so an
-	// interrupted scan unwinds (scanners honor ctx on their SDK calls) and the
-	// deferred db.Close() still runs the WAL checkpoint+cleanup.
+	// Fan-out + warning/error capture + total accumulation live in scanrun so the
+	// engine can be reused by other drivers. RunScanners chains its callbacks on
+	// top of the OnServiceComplete progress callback installed above and returns
+	// the canonical totals. cmd.Context() carries main's SIGINT/SIGTERM
+	// cancellation, so an interrupted scan unwinds (scanners honor ctx on SDK
+	// calls) and the deferred db.Close() still runs the WAL checkpoint+cleanup.
 	ctx := cmd.Context()
 	warnings, scanErrors, totalSeen, totalNew, totalChanged := scanrun.RunScanners(ctx, db, scanID, scanners)
 
@@ -317,20 +315,20 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	return nil
 }
 
-// elapsedField renders the scan-elapsed time as an 8-char-wide bracketed column
-// ("[45s]   ") so the #N counter and columns after it don't shift as the scan
-// runs. The brackets hug the natural Duration string; padding sits to the RIGHT
-// of "]". Values up to ~1h fit in 8 ("[10m23s]"); a scan past ~1h (e.g.
-// "[1h2m3s]" = 8, "[1h40m0s]" = 9) overflows by a char — rare, scans are minutes.
+// elapsedField renders the scan-elapsed time as an 8-char-wide bracketed
+// column ("[45s]   ") so the #N counter and columns after it don't shift as
+// the scan runs. Brackets hug the natural Duration string; padding sits to
+// the right of "]". Values up to ~1h fit in 8 ("[10m23s]"); past ~1h (e.g.
+// "[1h2m3s]"=8, "[1h40m0s]"=9) overflows by a char — rare, scans are minutes.
 func elapsedField(d time.Duration) string {
 	return fmt.Sprintf("%-8s", "["+d.Round(time.Second).String()+"]")
 }
 
-// tenantNoun returns the account-scope word for the provider that owns service
-// (an "aws:ec2" / "gcp:compute" / "azure:x" style name). Used to render the
+// tenantNoun returns the account-scope word for the provider that owns
+// service ("aws:ec2" / "gcp:compute" / "azure:x" style name). Renders the
 // scope half of a "(<scope>: <state>)" status suffix so a shared status like
 // ServiceDisabled reads correctly across providers (AWS account, GCP project,
-// Azure subscription) even though one render path serves all three.
+// Azure subscription) despite one render path serving all three.
 func tenantNoun(service string) string {
 	provider, _, _ := strings.Cut(service, ":")
 	switch provider {
@@ -346,11 +344,11 @@ func tenantNoun(service string) string {
 // serviceStatusSuffix renders the trailing annotation on a per-service scan
 // progress line as a uniform "(<scope>: <state>)": ServiceUnavailable →
 // "(region: unavailable)" (service not deployed in this AWS region),
-// ServiceDisabled → "(<tenant>: disabled)" (the account/project/subscription
-// hasn't enabled it but could), ServiceNotEntitled → "(<tenant>: not entitled)"
-// (exists but the tenant can't self-enable it). All three are mutually exclusive
-// with the error suffix, since a skipped service produces no errors. The tenant
-// noun is derived from service's provider prefix via tenantNoun.
+// ServiceDisabled → "(<tenant>: disabled)" (account/project/subscription
+// hasn't enabled it but could), ServiceNotEntitled → "(<tenant>: not
+// entitled)" (exists but the tenant can't self-enable it). All three are
+// mutually exclusive with the error suffix, since a skipped service produces
+// no errors. tenantNoun derives the tenant noun from service's provider prefix.
 func serviceStatusSuffix(service string, status store.ServiceStatus, errCount int) string {
 	switch {
 	case status == store.ServiceUnavailable:
@@ -365,14 +363,13 @@ func serviceStatusSuffix(service string, status store.ServiceStatus, errCount in
 	return ""
 }
 
-// scopeColumnWidth returns the padding width for the per-line scope column
-// in scan progress output, sized to the worst-case scope shape across the
-// enabled providers. Region scopes come from each provider's static
-// RegionNamer list; non-region scope shapes (Azure subscription UUID, GCP
-// project ID) carry per-provider baselines because they aren't in the
-// region list. "global" / "tenant" / "org" rows slot into the same column
-// with trailing padding, keeping the (N total, N new) counts at a fixed
-// column.
+// scopeColumnWidth returns the padding width for the per-line scope column in
+// scan progress output, sized to the worst-case scope shape across enabled
+// providers. Region scopes come from each provider's static RegionNamer list;
+// non-region shapes (Azure subscription UUID, GCP project ID) carry
+// per-provider baselines since they aren't in the region list. "global" /
+// "tenant" / "org" rows slot into the same column with trailing padding,
+// keeping the (N total, N new) counts at a fixed column.
 func scopeColumnWidth(scanners []providers.Scanner) int {
 	width := len("global")
 	for _, s := range scanners {
@@ -393,13 +390,12 @@ func scopeColumnWidth(scanners []providers.Scanner) int {
 }
 
 // buildScanScope captures the resolved per-provider scope (regions, profile,
-// services, skip_globals) into a map suitable for the scans.scope JSON
-// column. Always emits positive defaults (`regions:"all"`, `profile:"default"`)
-// rather than omitting unset flags, so an audit trail can answer "what did
-// the operator actually scan?" without "absence-of-flag-implies-default"
-// guesswork. Only the per-provider subcommand's cmd carries the scoping
-// flags; the multi-provider parent path receives a baseline scope keyed by
-// provider names.
+// services, skip_globals) into a map for the scans.scope JSON column. Always
+// emits positive defaults (`regions:"all"`, `profile:"default"`) rather than
+// omitting unset flags, so an audit trail can answer "what did the operator
+// actually scan?" without "absence-of-flag-implies-default" guesswork. Only
+// the per-provider subcommand's cmd carries scoping flags; the multi-provider
+// parent path receives a baseline scope keyed by provider names.
 func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Scanner) map[string]any {
 	scope := map[string]any{"providers": names}
 	if len(scanners) != 1 {
@@ -575,9 +571,9 @@ func renderDryRun(cmd *cobra.Command, decisions []dryRunDecision, output string)
 }
 
 // evaluateIfOlderThan returns (skip, message, error). skip=true means the
-// freshest qualifying scan for every requested provider is younger than d
-// — so the caller should print message and exit 0. Any provider missing a
-// recent scan keeps skip=false (the scan must run for that provider).
+// freshest qualifying scan for every requested provider is younger than d —
+// caller should print message and exit 0. Any provider missing a recent scan
+// keeps skip=false (must run for that provider).
 func evaluateIfOlderThan(db *store.Store, names []string, d time.Duration) (bool, string, error) {
 	threshold := time.Now().UTC().Add(-d)
 	youngest := time.Time{}
@@ -624,11 +620,10 @@ func renderWarnings(w io.Writer, warnings []store.ScanWarning, quiet bool) {
 }
 
 // scopeRegionsEnabled resolves the effective region-scoping setting for a
-// provider: default on, overridden by the explicit --scope-regions flag, then
-// the per-provider config key, and finally the negative --no-scope-regions
-// alias (mirrors --no-progress) which forces it off when set. Shared by the
-// scan-record scope builder and the SetRegionScope call so both stay in
-// lockstep.
+// provider: default on, overridden by --scope-regions, then the per-provider
+// config key, and finally the negative --no-scope-regions alias (mirrors
+// --no-progress), which forces it off when set. Shared by the scan-record
+// scope builder and the SetRegionScope call so both stay in lockstep.
 func scopeRegionsEnabled(cmd *cobra.Command, provider string) bool {
 	enabled := true
 	if cmd.Flags().Changed("scope-regions") {
@@ -790,11 +785,10 @@ func init() {
 }
 
 // scanProviderLong returns the per-provider Long description shown by
-// `disco scan <provider> --help`. The text lives on each provider (via the
-// providers.LongDescriber capability) so the top of every help page documents
-// that provider's own scoping ground rules; providers that don't implement it
-// fall through to a generic blurb so adding a new scanner package never breaks
-// the help.
+// `disco scan <provider> --help`. The text lives on each provider (via
+// providers.LongDescriber) so every help page documents that provider's own
+// scoping ground rules; providers that don't implement it fall back to a
+// generic blurb so adding a new scanner package never breaks the help.
 func scanProviderLong(s providers.Scanner) string {
 	if d, ok := s.(providers.LongDescriber); ok {
 		return d.LongDescription()

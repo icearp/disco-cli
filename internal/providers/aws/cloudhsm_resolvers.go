@@ -21,8 +21,8 @@ func init() {
 	)
 }
 
-// resolveCloudHSMClusterNetwork wires each cluster to its VPC, security group and
-// the subnets it spans (SubnetMapping az→subnet), all FK-safe.
+// resolveCloudHSMClusterNetwork wires each cluster to its VPC, security group, and
+// subnets (SubnetMapping az→subnet); FK-safe.
 func resolveCloudHSMClusterNetwork(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudHSMCluster},

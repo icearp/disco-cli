@@ -21,10 +21,10 @@ func init() {
 	})
 }
 
-// snsAPI is the narrow set of SNS operations called by scanSNSTopics. The
-// SDK's *sns.Client satisfies this interface; tests supply a hand-rolled
-// stub. Methods preserve the SDK shape (variadic option fns) so the SDK
-// paginator's `NewListTopicsPaginator(client, ...)` continues to compile.
+// snsAPI is the narrow set of SNS operations scanSNSTopics calls. *sns.Client
+// satisfies it; tests supply a hand-rolled stub. Methods keep the SDK's
+// variadic option-fn shape so `NewListTopicsPaginator(client, ...)` still
+// compiles.
 type snsAPI interface {
 	ListTopics(context.Context, *sns.ListTopicsInput, ...func(*sns.Options)) (*sns.ListTopicsOutput, error)
 	GetTopicAttributes(context.Context, *sns.GetTopicAttributesInput, ...func(*sns.Options)) (*sns.GetTopicAttributesOutput, error)
@@ -32,8 +32,8 @@ type snsAPI interface {
 }
 
 // scanSNS discovers SNS topics in one region. ListTopics returns only ARNs;
-// GetTopicAttributes is called concurrently to fetch the attributes map
-// (KmsMasterKeyId, RedrivePolicy, etc.) needed by the resolver.
+// GetTopicAttributes runs concurrently to fetch the attributes map
+// (KmsMasterKeyId, RedrivePolicy, etc.) the resolver needs.
 func scanSNS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sns.NewFromConfig(acct.cfg, func(o *sns.Options) { o.Region = region })
 	t, i, ferr := scanSNSTopics(ctx, client, acct, region, st, scanID)
@@ -51,9 +51,9 @@ func scanSNS(ctx context.Context, acct *account, region string, st *store.Store,
 	return total, inserted, nil
 }
 
-// scanSNSTopics holds the testable scan body: depends only on the narrow
-// snsAPI interface so unit tests inject a stub client without standing up
-// HTTP mocks. Top-level scanSNS wires the concrete *sns.Client.
+// scanSNSTopics is the testable scan body: depends only on the narrow snsAPI
+// interface so unit tests can inject a stub client without HTTP mocks.
+// scanSNS wires the concrete *sns.Client.
 func scanSNSTopics(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	p := sns.NewListTopicsPaginator(client, &sns.ListTopicsInput{})
 	return pageScanConcurrent(ctx, "sns:ListTopics", acct, region, st,

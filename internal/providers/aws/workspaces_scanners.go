@@ -136,12 +136,12 @@ func scanWSWorkspacesPools(ctx context.Context, client workSpacesAPI, acct *acco
 	for {
 		out, err := client.DescribeWorkspacesPools(ctx, &workspaces.DescribeWorkspacesPoolsInput{NextToken: nextToken})
 		if err != nil {
-			// WorkSpaces Pools is a per-region sub-feature; in regions where
-			// it has not launched, AWS returns a canned AccessDeniedException
-			// pointing at the workspaces-access-control docs URL — distinct
-			// from a real IAM denial which carries the
-			// "is not authorized to perform: <action>" SDK-formatted body.
-			// Silent-skip on the canned shape; warn on real denials.
+			// WorkSpaces Pools is a per-region sub-feature. Where not launched,
+			// AWS returns a canned AccessDeniedException pointing at the
+			// workspaces-access-control docs URL — distinct from a real IAM
+			// denial, which carries the "is not authorized to perform:
+			// <action>" SDK-formatted body. Silent-skip the canned shape;
+			// warn on real denials.
 			if isAccessDeniedWithMessage(err, "workspaces-access-control.html") {
 				return 0, 0, nil
 			}
@@ -203,10 +203,10 @@ func scanWSDirectories(ctx context.Context, client workSpacesAPI, acct *account,
 	return upsertBatch(st, batch, "workspaces directories")
 }
 
-// scanWSBundles lists the account's own WorkSpace bundles. The SDK's
-// DescribeWorkspaceBundles input carries no Owner field, so an empty request
-// returns only the account-owned bundles (not the AMAZON public catalogue);
-// any AMAZON-owned bundle that surfaces is flagged ManagedByProvider.
+// scanWSBundles lists the account's own WorkSpace bundles. DescribeWorkspaceBundles
+// takes no Owner field, so an empty request returns only account-owned bundles
+// (not the AMAZON public catalogue); any AMAZON-owned bundle that surfaces is
+// flagged ManagedByProvider.
 func scanWSBundles(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := workspaces.NewDescribeWorkspaceBundlesPaginator(client, &workspaces.DescribeWorkspaceBundlesInput{})
 	var batch []*store.Resource

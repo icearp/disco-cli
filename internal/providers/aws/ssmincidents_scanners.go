@@ -28,8 +28,8 @@ type ssmIncidentsAPI interface {
 }
 
 // scanSSMIncidents discovers Incident Manager replication sets and response
-// plans. Replication set is a per-account singleton; ListReplicationSets
-// returns ARN list, GetReplicationSet enriches.
+// plans. Replication set is a per-account singleton: ListReplicationSets
+// returns the ARN list, GetReplicationSet enriches.
 func scanSSMIncidents(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ssmincidents.NewFromConfig(acct.cfg, func(o *ssmincidents.Options) { o.Region = region })
 

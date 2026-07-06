@@ -19,10 +19,10 @@ func init() { registerResolver(resolveDatabasesRelationships) }
 //
 // Cross-project key references skipped (FK-safe).
 //
-// Spanner `encryptionInfo[]` (per-database key version detail) deferred —
-// it duplicates the encryptionConfig key reference for graph purposes.
-// Bigtable instance-level CMEK doesn't exist (only cluster-level), so the
-// resolver picks up encryption per-cluster naturally.
+// Spanner `encryptionInfo[]` (per-database key-version detail) deferred —
+// duplicates the encryptionConfig key ref for graph purposes.
+// No Bigtable instance-level CMEK (cluster-level only) — resolver picks up
+// encryption per-cluster naturally.
 func resolveDatabasesRelationships(p *project, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},

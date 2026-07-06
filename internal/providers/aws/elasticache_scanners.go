@@ -78,8 +78,8 @@ func scanElastiCache(ctx context.Context, acct *account, region string, st *stor
 	return
 }
 
-// scanElastiCacheReplicationGroups pages through DescribeReplicationGroups and
-// upserts each group. Tags are included via ListTagsForResource.
+// scanElastiCacheReplicationGroups pages DescribeReplicationGroups and upserts
+// each group, tags included via ListTagsForResource.
 func scanElastiCacheReplicationGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeReplicationGroupsPaginator(client, &elasticache.DescribeReplicationGroupsInput{})
 	for pager.HasMorePages() {
@@ -173,7 +173,7 @@ func scanElastiCacheClusters(ctx context.Context, client elasticacheAPI, acct *a
 }
 
 // scanElastiCacheGlobalReplicationGroups pages through DescribeGlobalReplicationGroups.
-// These are global resources (not region-scoped); UpsertResources deduplicates by
+// These are global resources (not region-scoped); UpsertResources dedupes by
 // stable NativeID-derived primary key, so calling per-region is safe.
 func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	showMembers := true
@@ -500,12 +500,12 @@ func scanElastiCacheUserGroups(ctx context.Context, client elasticacheAPI, acct 
 }
 
 // isDefaultElastiCachePG reports whether a CacheParameterGroupName matches
-// AWS's pre-created defaults — names like "default.redis6.x",
-// "default.memcached1.6", "default.valkey7". AWS creates one per supported
-// engine/version, immutable by the customer; treating them as managed hides
-// them from `disco resources` / `disco graph` defaults. Customer PGs may also
-// start with "default" but never embed a "." (forbidden in user-supplied
-// names alongside the "default" prefix), so the two-part check is reliable.
+// AWS's pre-created defaults — e.g. "default.redis6.x", "default.memcached1.6",
+// "default.valkey7". AWS creates one per supported engine/version, immutable
+// by the customer; treating them as managed hides them from `disco resources`
+// / `disco graph` defaults. Customer PGs may start with "default" too, but
+// never contain a "." (disallowed in user-supplied names), so the two-part
+// check holds.
 func isDefaultElastiCachePG(name string) bool {
 	return strings.HasPrefix(name, "default") && strings.Contains(name, ".")
 }

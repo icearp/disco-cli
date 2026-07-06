@@ -308,9 +308,9 @@ var expectedAWSServices = []string{
 	"aws:trustedadvisor",
 }
 
-// TestRegisteredServices_NoDuplicates verifies that no two services share the
-// same name. The registerService function panics on duplicates at runtime, but
-// this test surfaces the bug in CI rather than at startup.
+// TestRegisteredServices_NoDuplicates verifies no two services share a name.
+// registerService panics on duplicates at runtime; this test surfaces the bug
+// in CI rather than at startup.
 func TestRegisteredServices_NoDuplicates(t *testing.T) {
 	seen := make(map[string]bool, len(registeredServices))
 	for _, svc := range registeredServices {
@@ -333,8 +333,8 @@ func TestRegisteredServices_ExpectedNames(t *testing.T) {
 			t.Errorf("service %q is not registered", want)
 		}
 	}
-	// Also fail if extra services appear that aren't in the expected list,
-	// so that newly added services are consciously acknowledged here.
+	// Also fail on extra registered services not in the expected list, so new
+	// services are consciously acknowledged here.
 	for _, svc := range registeredServices {
 		if !slices.Contains(expectedAWSServices, svc.name) {
 			t.Errorf("unrecognised service %q — add it to expectedAWSServices in this test", svc.name)

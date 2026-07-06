@@ -219,9 +219,9 @@ func TestResolveManagedPolicyAttachments_Empty(t *testing.T) {
 }
 
 // TestResolveManagedPolicyAttachments_IncludesAWSManaged is the regression ratchet
-// for the gap fixed here: attachment edges must reach AWS-managed policies (and
-// service-linked roles), not just customer-managed ones. Reads each principal's
-// GAAD AttachedManagedPolicies from stored attrs — no API calls.
+// ensuring attachment edges reach AWS-managed policies (and service-linked roles),
+// not just customer-managed ones. Reads each principal's GAAD AttachedManagedPolicies
+// from stored attrs — no API calls.
 func TestResolveManagedPolicyAttachments_IncludesAWSManaged(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -291,10 +291,10 @@ func TestResolveUserGroupMemberships_Empty(t *testing.T) {
 	}
 }
 
-// TestResolveUserGroupMemberships_FromGroupList verifies memberships are built from
+// TestResolveUserGroupMemberships_FromGroupList verifies memberships build from
 // the user's stored GAAD GroupList (group names) with no API calls: a group →
-// user contains edge appears for each scanned group, and an unscanned group name
-// is skipped FK-safe.
+// user contains edge appears per scanned group, and an unscanned group name
+// skips FK-safe.
 func TestResolveUserGroupMemberships_FromGroupList(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -464,8 +464,8 @@ func TestResolveIAMPolicyResources_ManagedPolicyToDynamoAndSecrets(t *testing.T)
 	tableARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/orders"
 	secretARN := "arn:aws:secretsmanager:us-east-1:" + testAccountID + ":secret:prod/db-AbCdEf"
 
-	// Reference the table via an index ARN to exercise child-suffix trimming,
-	// and the secret via a versioned ARN to exercise version-segment trimming.
+	// Reference the table via an index ARN (child-suffix trimming) and the
+	// secret via a versioned ARN (version-segment trimming).
 	tableIndexRef := tableARN + "/index/by-customer"
 	secretVersionedRef := secretARN + ":AWSCURRENT:abcdefab-1234-1234-1234-abcdefabcdef"
 
@@ -901,10 +901,10 @@ func TestResolveIAMPolicyResources_EFSFileSystem(t *testing.T) {
 
 // --- resolveIAMRoleCrossAccountTrust (R5) ---
 
-// TestResolveIAMRoleCrossAccountTrust verifies that a role whose trust policy
-// names another AWS account (both bare-ID and ARN forms) yields one
-// cross-account-trust edge per distinct foreign principal, plus a single
-// empty-attribute aws:iam:account placeholder per distinct other account.
+// TestResolveIAMRoleCrossAccountTrust verifies a role whose trust policy names
+// another AWS account (bare-ID or ARN form) yields one cross-account-trust
+// edge per distinct foreign principal, plus a single empty-attribute
+// aws:iam:account placeholder per distinct other account.
 func TestResolveIAMRoleCrossAccountTrust(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -963,8 +963,8 @@ func TestResolveIAMRoleCrossAccountTrust(t *testing.T) {
 
 // TestResolveIAMRoleCrossAccountTrust_DoesNotClobberScannedAccount verifies the
 // placeholder insert is FK-safe but non-destructive: when the referenced
-// account's self-node already exists fully populated (it was scanned), the
-// resolver leaves its attributes intact and still points the edge at it.
+// account's self-node is already fully populated (scanned), the resolver
+// leaves its attributes intact and still points the edge at it.
 func TestResolveIAMRoleCrossAccountTrust_DoesNotClobberScannedAccount(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -1029,8 +1029,8 @@ func TestResolveIAMRoleCrossAccountTrust_SameAccountOnly(t *testing.T) {
 	}
 }
 
-// TestResolveIAMRoleCrossAccountTrust_NoRoles verifies the resolver is a
-// no-op when no IAM roles are present in the account.
+// TestResolveIAMRoleCrossAccountTrust_NoRoles verifies the resolver no-ops
+// when no IAM roles are present in the account.
 func TestResolveIAMRoleCrossAccountTrust_NoRoles(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

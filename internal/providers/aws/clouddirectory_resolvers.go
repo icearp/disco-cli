@@ -15,8 +15,8 @@ func init() {
 	)
 }
 
-// resolveCloudDirectoryAppliedSchema wires each applied schema to the directory
-// it is applied to via the DirectoryArn the scanner records, FK-safe.
+// resolveCloudDirectoryAppliedSchema wires each applied schema to its directory
+// via the scanner-recorded DirectoryArn, FK-safe.
 func resolveCloudDirectoryAppliedSchema(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudDirectoryAppliedSchema},

@@ -13,12 +13,11 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// isAuditManagerNotEnabled disambiguates the "Audit Manager not set up in
-// this account" state from real IAM denial: both surface as
-// AccessDeniedException, but the not-enabled variant carries the
-// "complete AWS Audit Manager setup" message. Same pattern as
-// isMacieNotEnabled (per aws/CLAUDE.md "Macie variant — code+message
-// disambiguation").
+// isAuditManagerNotEnabled disambiguates "Audit Manager not set up in this
+// account" from real IAM denial: both surface as AccessDeniedException, but
+// the not-enabled variant carries the "complete AWS Audit Manager setup"
+// message. Same pattern as isMacieNotEnabled (per aws/CLAUDE.md "Macie
+// variant — code+message disambiguation").
 func isAuditManagerNotEnabled(err error) bool {
 	return isAccessDeniedWithMessage(err, "complete AWS Audit Manager setup")
 }
@@ -29,10 +28,10 @@ func init() {
 		fn:   scanAuditManager,
 		emits: []coverage.TypeDecl{
 			{Service: "auditmanager", DiscoType: TypeAuditManagerAssessment},
-			// CFN models only AWS::AuditManager::Assessment, but the Service
-			// Reference catalog lists control + assessmentFramework, so the
-			// union covers them. Leaf: AWS-managed catalogue items, no outbound
-			// resolver.
+			// CFN models only AWS::AuditManager::Assessment; the Service
+			// Reference catalog also lists control + assessmentFramework, so
+			// the union covers them. Leaf: AWS-managed catalogue items, no
+			// outbound resolver.
 			{Service: "auditmanager", DiscoType: TypeAuditManagerControl, Leaf: true},
 			{Service: "auditmanager", DiscoType: TypeAuditManagerFramework, Leaf: true},
 		},

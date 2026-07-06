@@ -293,9 +293,9 @@ func scanBedrockFlows(ctx context.Context, client bedrockAgentAPI, acct *account
 	var ids []string
 	var batch []*store.Resource
 	for pager.HasMorePages() {
-		// Clamp retries: ListFlows returns persistent InternalServerError in
-		// regions where Flows isn't deployed; the global 10-attempt budget
-		// burns ~2 minutes before surfacing. Mirror the quicksight pattern.
+		// Clamp retries: ListFlows returns persistent InternalServerError where
+		// Flows isn't deployed; global 10-attempt budget burns ~2min before
+		// surfacing. Mirrors the quicksight pattern.
 		out, perr := pager.NextPage(ctx, func(o *bedrockagent.Options) {
 			o.RetryMaxAttempts = 2
 		})

@@ -37,8 +37,8 @@ func init() {
 // Every type exposes a subscription-wide ListBySubscription pager.
 //
 // SECURITY: bare-metal-machines, storage-appliances, and virtual-machines
-// return administrative / BMC / image-repository credentials inline on the list
-// response — those passwords are redacted via rules in azure_redact.go.
+// return admin / BMC / image-repository credentials inline in the list response,
+// redacted via rules in azure_redact.go.
 func scanNetworkCloud(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	clClient, err := armnetworkcloud.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -215,10 +215,10 @@ func scanNetworkCloud(ctx context.Context, sub *subscription, cred azcore.TokenC
 	)
 }
 
-// scanNetworkCloudRackSKUs scans the platform-supplied rack-SKU catalog. These
-// are not user-created — Azure materialises them and they cannot be deleted —
-// so each row is flagged ManagedByProvider. They are also proxy resources
-// (no location / tags / RG), so azSimpleScan's tracked shape does not fit.
+// scanNetworkCloudRackSKUs scans the platform-supplied rack-SKU catalog: not
+// user-created (Azure materialises them, undeletable), so each row is flagged
+// ManagedByProvider. Also proxy resources (no location / tags / RG), so
+// azSimpleScan's tracked shape doesn't fit.
 func scanNetworkCloudRackSKUs(ctx context.Context, sub *subscription, client *armnetworkcloud.RackSKUsClient, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azPageScan(ctx, "armnetworkcloud:RackSKUs.ListBySubscription", sub, st,
 		client.NewListBySubscriptionPager(nil),

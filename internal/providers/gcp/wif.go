@@ -13,22 +13,21 @@ import (
 
 // Workload Identity Federation keyless GCP access — AWS/ECS env contract.
 //
-// These two env vars enable keyless GCP auth for a disco process whose AWS
-// identity is reachable only via the ECS container-credentials endpoint
-// (AWS ECS / Fargate). Google's built-in AWS external-account source reads
-// credentials only from AWS_* env vars or the EC2 IMDS endpoint — neither
-// carries a Fargate task role — so this path supplies them programmatically
-// via the AWS SDK default chain (which does speak the container-credentials
-// endpoint). For every other platform, prefer the standard
-// gcp.credential_config_file / --credential-config path, which uses Google's
-// native sources.
+// These two env vars enable keyless GCP auth when disco's AWS identity is
+// reachable only via the ECS container-credentials endpoint (ECS/Fargate).
+// Google's built-in AWS external-account source reads only AWS_* env vars or
+// the EC2 IMDS endpoint — neither carries a Fargate task role — so this path
+// supplies credentials programmatically via the AWS SDK default chain (which
+// does speak the container-credentials endpoint). Elsewhere, prefer the
+// standard gcp.credential_config_file / --credential-config path, which uses
+// Google's native sources.
 //
-// Both values are non-secret public identifiers: the audience names the
-// workload-identity provider, and the service-account email names the
-// read-only account to impersonate. The AWS subject identity that the
-// provider trusts is the running task's own role, retrieved at runtime — no
-// key or token is stored or transferred. An external orchestrator can set
-// these on its scanner task, but any disco run on ECS/Fargate can use them.
+// Both values are non-secret public identifiers: audience names the
+// workload-identity provider; service-account email names the read-only
+// account to impersonate. The AWS subject the provider trusts is the running
+// task's own role, retrieved at runtime — no key or token is stored or
+// transferred. An external orchestrator can set these on its scanner task,
+// but any disco run on ECS/Fargate can use them.
 const (
 	envWIFAudience       = "DISCO_GCP_WIF_AUDIENCE"
 	envWIFServiceAccount = "DISCO_GCP_WIF_SERVICE_ACCOUNT"
@@ -49,11 +48,11 @@ func wifConfigured(audience, serviceAccount string) bool {
 // task's own AWS identity (via Google's STS) for a short-lived token
 // impersonating serviceAccount. No service-account key is involved.
 //
-// The AWS subject credentials are supplied programmatically by [ecsAwsSupplier]
-// rather than via a credential_source JSON file, because Google's built-in AWS
-// source only reads env vars or the EC2 IMDS endpoint — neither of which
-// carries a Fargate task role. The supplier delegates to the AWS SDK default
-// chain, which speaks the ECS container-credentials endpoint.
+// The AWS subject credentials come from [ecsAwsSupplier], not a
+// credential_source JSON file, because Google's built-in AWS source only
+// reads env vars or the EC2 IMDS endpoint — neither carries a Fargate task
+// role. The supplier delegates to the AWS SDK default chain, which speaks
+// the ECS container-credentials endpoint.
 func wifTokenSource(ctx context.Context, audience, serviceAccount string, scopes []string) (oauth2.TokenSource, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -70,10 +69,10 @@ func wifTokenSource(ctx context.Context, audience, serviceAccount string, scopes
 	return externalaccount.NewTokenSource(ctx, conf)
 }
 
-// ecsAwsSupplier supplies the running task's AWS identity to the Google
-// external-account token exchange. The zero value is not usable — build it
-// from a loaded aws.Config so it resolves Fargate task-role credentials via
-// the ECS container-credentials endpoint.
+// ecsAwsSupplier supplies the running task's AWS identity to Google's
+// external-account token exchange. Zero value unusable — build it from a
+// loaded aws.Config so it resolves Fargate task-role credentials via the ECS
+// container-credentials endpoint.
 type ecsAwsSupplier struct {
 	region   string
 	provider aws.CredentialsProvider

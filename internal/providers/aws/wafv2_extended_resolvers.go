@@ -25,8 +25,8 @@ func init() {
 
 // resolveWAFv2LoggingConfigToWebACL wires each logging-configuration to its
 // target web-acl. Scanner stores the WebACL ARN as the LoggingConfiguration
-// NativeID directly (the API uses ResourceArn = WebACL ARN), so the lookup
-// is a same-ARN identity match into the web-acl set.
+// NativeID (API uses ResourceArn = WebACL ARN), so lookup is a same-ARN
+// identity match into the web-acl set.
 func resolveWAFv2LoggingConfigToWebACL(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWAFv2LoggingConfiguration}, Limit: util.AllResources,
@@ -55,8 +55,8 @@ func resolveWAFv2LoggingConfigToWebACL(acct *account, st *store.Store) error {
 
 // resolveWAFv2WebACLAssociationRefs wires the synthetic web-acl-association
 // row to its web-acl (NativeID prefix before `/association/`) and to the
-// protected resource (ARN tail after `/association/`). The protected resource
-// dispatches by service segment of the ARN.
+// protected resource (ARN tail after `/association/`), dispatched by ARN
+// service segment.
 func resolveWAFv2WebACLAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWAFv2WebACLAssociation}, Limit: util.AllResources,

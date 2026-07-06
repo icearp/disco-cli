@@ -51,7 +51,7 @@ func TestResolveBACResourceParents(t *testing.T) {
 	assertRelationship(t, genRels, genID, engID, store.RelAttachedTo)
 }
 
-// A child whose parent is not scanned, and one with empty attrs, emit no edge.
+// A child with an unscanned parent, and one with empty attrs, emit no edge.
 func TestResolveBACResourceParents_NoEdge(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

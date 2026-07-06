@@ -35,9 +35,8 @@ type sagemakerInferenceAPI interface {
 	DescribeInferenceExperiment(context.Context, *sagemaker.DescribeInferenceExperimentInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeInferenceExperimentOutput, error)
 }
 
-// scanSageMakerInference runs all Inference family phases for one region:
-// endpoints, endpoint configs, models, inference components, inference
-// experiments.
+// scanSageMakerInference runs all Inference-family phases for one region:
+// endpoints, endpoint configs, models, inference components, experiments.
 func scanSageMakerInference(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func(context.Context, sagemakerInferenceAPI, *account, string, *store.Store, string) (int, int, error){
 		scanSageMakerEndpoints,

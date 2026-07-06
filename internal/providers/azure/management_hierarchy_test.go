@@ -108,9 +108,9 @@ func TestStitchTopHierarchy_LinksAllTiers(t *testing.T) {
 	assertContains(subID, rgID, "subscription->RG")
 
 	// Closure depth chains: DescendantsOf walks the transitive closure (depth>0),
-	// so the root must reach all three descendants, the child two, the sub one.
-	// This is the regression the contains-only assertions above miss — without
-	// the root self-seed + ancestor ordering the closure stays depth-0 only.
+	// so root must reach all 3 descendants, child 2, sub 1. This is the regression
+	// the contains-only assertions above miss — without the root self-seed +
+	// ancestor ordering the closure stays depth-0 only.
 	assertDescendants := func(ancestor, label string, want int) {
 		t.Helper()
 		desc, err := st.DescendantsOf(ancestor, store.ResourceFilter{})

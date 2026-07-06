@@ -11,14 +11,14 @@ import (
 	"testing"
 )
 
-// TestEveryTypeConstantIsUsed guards against orphan disco-type constants
-// in types.go — a Type* identifier declared but referenced nowhere else in
-// the package. Without this guard, retired services leave dead constants
-// behind that silently expand the package vocabulary.
+// TestEveryTypeConstantIsUsed guards against orphan disco-type constants in
+// types.go — a Type* identifier declared but referenced nowhere else in the
+// package. Without this guard, retired services leave dead constants that
+// silently expand the package vocabulary.
 //
-// "Used" means the identifier appears as an ast.Ident in any other .go
-// file in the package — emits decl, scanner upsert call, resolver edge
-// emit, test fixture, redact rule, etc. all count.
+// "Used" means the identifier appears as an ast.Ident in any other .go file
+// in the package — emits decl, scanner upsert, resolver edge emit, test
+// fixture, redact rule, etc. all count.
 func TestEveryTypeConstantIsUsed(t *testing.T) {
 	declared := parseTypeConstants(t, "gcp_types.go")
 	used := collectIdentRefs(t, ".", "gcp_types.go")

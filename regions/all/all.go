@@ -10,8 +10,8 @@
 // Each gate references only `slim` plus its own provider tag, never siblings.
 //
 // The disco binary already triggers registration transitively (each provider
-// package imports its own <p>regions leaf), so it has no need to import this
-// package; it exists for callers that link regions without the providers.
+// package imports its own <p>regions leaf), so it never needs this package;
+// it exists for callers that link regions without the providers.
 //
 // This file carries the package clause with no imports so the package stays
 // importable when every provider is tagged out (`-tags slim` alone).

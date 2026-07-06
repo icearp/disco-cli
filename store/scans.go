@@ -26,16 +26,16 @@ type Scan struct {
 	MetaJSON      *string `db:"meta"`
 	// WorkspaceID is the per-workspace RLS discriminator. Omitted from the read
 	// projection (scanColumns) like Resource.WorkspaceID — no OSS consumer reads
-	// it and the disco-saas RLS layer does the per-workspace filtering — so it
-	// stays nil. Kept as a field so the type still documents the column.
+	// it and disco-saas's RLS layer filters per-workspace, so it stays nil.
+	// Kept as a field so the type still documents the column.
 	WorkspaceID *string `db:"workspace_id" json:"-"`
 }
 
 // scanColumns is the explicit read projection for the scans table. Like
-// resourceSelectColumns it omits the RLS columns (workspace_id, plus the
-// tenant_id that disco-saas overlays onto the same table) so a read never
-// collides with columns the control plane adds — disco is consumed as a module
-// whose tables disco-saas extends. Keep in sync with the Scan struct's db tags.
+// resourceSelectColumns, it omits the RLS columns (workspace_id, plus the
+// tenant_id disco-saas overlays onto the same table) so a read never collides
+// with columns the control plane adds — disco is consumed as a module whose
+// tables disco-saas extends. Keep in sync with the Scan struct's db tags.
 const scanColumns = "id, started_at, finished_at, status, providers, scope, " +
 	"error, errors, resource_count, meta"
 
@@ -54,10 +54,10 @@ type scanWire struct {
 	Meta          map[string]any `json:"meta"`
 }
 
-// MarshalJSON renders a Scan with snake_case keys, parsed providers / scope
-// / meta objects, and RFC3339 timestamps. The SQLite `datetime('now')`
-// shape (`YYYY-MM-DD HH:MM:SS`) is normalised so consumers can use a
-// single `time.Parse(time.RFC3339, ...)` regardless of the row source.
+// MarshalJSON renders a Scan with snake_case keys, parsed providers / scope /
+// meta objects, and RFC3339 timestamps. The SQLite `datetime('now')` shape
+// (`YYYY-MM-DD HH:MM:SS`) is normalised so consumers can use a single
+// `time.Parse(time.RFC3339, ...)` regardless of row source.
 func (s Scan) MarshalJSON() ([]byte, error) {
 	w := scanWire{
 		ID:            s.ID,
@@ -118,9 +118,9 @@ func rfc3339Ptr(p *string) *string {
 	return &v
 }
 
-// CreateScan inserts a new scan record with status "running" and returns its ID.
-// The id is freshly minted (32-hex). Use CreateScanWithID when the caller (e.g.
-// an external orchestrator) needs to assign the id ahead of time so its audit
+// CreateScan inserts a new scan record with status "running" and returns its
+// ID (freshly minted, 32-hex). Use CreateScanWithID when the caller (e.g. an
+// external orchestrator) needs to assign the id ahead of time so its audit
 // trail / resources / scans share a single identifier.
 func (s *Store) CreateScan(providers []string, scope map[string]any) (string, error) {
 	return s.CreateScanWithID("", providers, scope)
@@ -144,11 +144,11 @@ func (s *Store) CreateScanWithID(id string, providers []string, scope map[string
 	if err != nil {
 		return "", err
 	}
-	// PG ON CONFLICT DO UPDATE so an external orchestrator that pre-claimed
-	// the row with attribution metadata (principal_arn, account_id,
+	// ON CONFLICT DO UPDATE so an external orchestrator that pre-claimed the
+	// row with attribution metadata (principal_arn, account_id,
 	// triggered_by, …) keeps that data while the scanner takes over
-	// status / started_at. SQLite tolerates ON CONFLICT(id) the same way
-	// but uses INSERT-OR-IGNORE semantics on the unchanged columns.
+	// status / started_at. SQLite tolerates ON CONFLICT(id) the same way but
+	// uses INSERT-OR-IGNORE semantics on the unchanged columns.
 	_, err = s.exec(
 		`
 		INSERT INTO scans (id, started_at, status, providers, scope)
@@ -205,10 +205,9 @@ func (s *Store) PartialScan(id string, resourceCount int, scanErr string) error 
 }
 
 // ScanErrorEntry is one structured failure row appended to scans.errors.
-// service / region narrow the failure scope so the UI can group and
-// filter; code mirrors the AWS API error code (or a synthesised
-// "transient" / "auth" / "throttle" for non-AWS providers); message is
-// human-readable but kept terse.
+// service / region narrow the failure scope for UI grouping/filtering; code
+// mirrors the AWS API error code (or a synthesised "transient" / "auth" /
+// "throttle" for non-AWS providers); message is human-readable but terse.
 type ScanErrorEntry struct {
 	Service string `json:"service"`
 	Region  string `json:"region"`

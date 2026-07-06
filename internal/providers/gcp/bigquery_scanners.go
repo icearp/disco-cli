@@ -43,14 +43,13 @@ const maxConcurrentBQDatasets = 10
 //     stubs (no encryption config).
 //   - Phase 2: per-dataset fan-out: `Datasets.Get` for the full proto
 //     (needed for `defaultEncryptionConfiguration.kmsKeyName` → CMEK edge),
-//     then `Tables.List` paginated. Routines + Models deferred — per
-//     ROADMAP they're queued but rarer; the dataset+table coverage here
-//     hits the bulk of "what's the schema, which tables are CMEK".
+//     then `Tables.List` paginated. Routines + Models deferred per ROADMAP —
+//     rarer, and dataset+table coverage already hits the bulk of "what's
+//     the schema, which tables are CMEK".
 //
-// Tables stored as `Tables.List` stubs (no encryption / schema). The deeper
-// `Tables.Get` per table is intentionally skipped — table counts can run
-// into the thousands per dataset and per-table Get pays for nothing without
-// a corresponding rule-engine query.
+// Tables stored as `Tables.List` stubs (no encryption / schema). Per-table
+// `Tables.Get` is intentionally skipped — table counts can run into the
+// thousands per dataset and pay for nothing without a rule-engine query.
 func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := bigquery.NewService(ctx, opts...)
@@ -91,8 +90,8 @@ func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID strin
 			}
 			return err
 		}
-		// Native ID for dataset: the full opaque "{project}:{dataset}" ID
-		// returned from List/Get; matches BigQuery's own canonical reference.
+		// Native ID: opaque "{project}:{dataset}" ID from List/Get — matches
+		// BigQuery's own canonical reference.
 		nativeID := full.Id
 		name := d.datasetID
 		region := full.Location

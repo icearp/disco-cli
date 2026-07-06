@@ -6,10 +6,10 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveContainerRegistryRelationships verifies that an ACR with a CMEK
-// keyIdentifier resolves to the corresponding Key Vault by parsing the host
-// of the key URI and matching the leading subdomain against the local vault
-// name index. Match is case-insensitive.
+// TestResolveContainerRegistryRelationships verifies an ACR with a CMEK
+// keyIdentifier resolves to its Key Vault by parsing the key URI host and
+// matching the leading subdomain against the local vault-name index
+// (case-insensitive).
 func TestResolveContainerRegistryRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-acr")

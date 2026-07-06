@@ -29,14 +29,12 @@ type rtbfabricAPI interface {
 	ListLinkRoutingRules(context.Context, *rtbfabric.ListLinkRoutingRulesInput, ...func(*rtbfabric.Options)) (*rtbfabric.ListLinkRoutingRulesOutput, error)
 }
 
-// scanRTBFabric discovers RTBFabric (real-time bidding fabric) requester and
-// responder gateways plus the links between them. Gateways are returned as
-// IDs; ARN synthesized as arn:aws:rtbfabric:{r}:{a}:gateway/{id}. Links
-// fetched per gateway.
+// scanRTBFabric discovers RTBFabric (real-time bidding fabric) requester/
+// responder gateways and the links between them. Gateways return as IDs;
+// ARN synth: arn:aws:rtbfabric:{r}:{a}:gateway/{id}. Links fetched per gateway.
 //
-// AWS::RTBFabric::InboundExternalLink and OutboundExternalLink are
-// skip-logged: the SDK exposes only Get* / Create* / Delete* per external
-// link, with no list endpoint.
+// AWS::RTBFabric::InboundExternalLink / OutboundExternalLink are skip-logged:
+// the SDK exposes only Get*/Create*/Delete* per external link, no list endpoint.
 func scanRTBFabric(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := rtbfabric.NewFromConfig(acct.cfg, func(o *rtbfabric.Options) { o.Region = region })
 
@@ -177,8 +175,8 @@ func rtbLinkARN(region, acctID, gatewayID, linkID string) string {
 }
 
 // scanRTBLinkRoutingRules lists routing rules for one link. ListLinkRoutingRules
-// requires both GatewayId and LinkId. Rules carry no ARN — synth from the link
-// ARN + RuleId.
+// requires both GatewayId and LinkId. Rules carry no ARN — synth from link ARN
+// + RuleId.
 func scanRTBLinkRoutingRules(ctx context.Context, client rtbfabricAPI, acct *account, region string, st *store.Store, scanID, gatewayID, linkID string) (int, int, error) {
 	gid, lid := gatewayID, linkID
 	linkARN := rtbLinkARN(region, acct.ID, gid, lid)

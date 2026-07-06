@@ -4,8 +4,8 @@ import (
 	"testing"
 )
 
-// TestRGFromID verifies that the resource group name is correctly extracted
-// from a well-formed Azure resource ID.
+// TestRGFromID verifies the resource group name extracts correctly from a
+// well-formed Azure resource ID.
 func TestRGFromID(t *testing.T) {
 	cases := []struct {
 		name, id, want string
@@ -34,8 +34,8 @@ func TestRGFromID(t *testing.T) {
 	}
 }
 
-// TestRGFromID_Malformed verifies that a malformed or empty resource ID
-// returns "" without panicking.
+// TestRGFromID_Malformed verifies a malformed or empty resource ID returns ""
+// without panicking.
 func TestRGFromID_Malformed(t *testing.T) {
 	cases := []string{
 		"",
@@ -51,8 +51,8 @@ func TestRGFromID_Malformed(t *testing.T) {
 	}
 }
 
-// TestVNetIDFromSubnetID verifies that the VNet ID is correctly stripped from
-// a subnet resource ID. This drives the subnet→vnet and aks→vnet resolvers.
+// TestVNetIDFromSubnetID verifies the VNet ID strips correctly from a subnet
+// resource ID; drives the subnet→vnet and aks→vnet resolvers.
 func TestVNetIDFromSubnetID(t *testing.T) {
 	subnetID := "/subscriptions/sub-123/resourceGroups/NetRG/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/my-subnet"
 	want := "/subscriptions/sub-123/resourceGroups/NetRG/providers/Microsoft.Network/virtualNetworks/my-vnet"
@@ -63,7 +63,7 @@ func TestVNetIDFromSubnetID(t *testing.T) {
 	}
 }
 
-// TestVNetIDFromSubnetID_NoSubnet verifies that a non-subnet ID returns "".
+// TestVNetIDFromSubnetID_NoSubnet verifies a non-subnet ID returns "".
 func TestVNetIDFromSubnetID_NoSubnet(t *testing.T) {
 	cases := []string{
 		"",

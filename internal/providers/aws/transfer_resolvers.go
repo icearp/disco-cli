@@ -33,8 +33,8 @@ func init() {
 	)
 }
 
-// resolveTransferHostKeyParent wires each host key to its parent server. The
-// host-key ARN shape is `arn:aws:transfer:r:a:host-key/{serverID}/{hostKeyID}`.
+// resolveTransferHostKeyParent wires each host key to its parent server.
+// Host-key ARN shape: `arn:aws:transfer:r:a:host-key/{serverID}/{hostKeyID}`.
 func resolveTransferHostKeyParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTransferHostKey}, Limit: util.AllResources,
@@ -72,7 +72,7 @@ func resolveTransferHostKeyParent(acct *account, st *store.Store) error {
 }
 
 // transferServerIDIndex maps ServerID → resource ID. Server List items carry
-// ServerID, so we read it from attrs.
+// ServerID; read from attrs.
 func transferServerIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTransferServer},

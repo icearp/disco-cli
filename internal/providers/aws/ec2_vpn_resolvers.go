@@ -53,11 +53,10 @@ func resolveVPNConnectionRelationships(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveVPNGatewayRoutePropagations walks each route-table's PropagatingVgws
-// list and emits a `routes-to` edge from the VGW to the route-table. The list
-// is populated by EnableVgwRoutePropagation; each VGW that propagates BGP
-// routes into the table appears as one entry. FK-safe: skips VGWs not in the
-// scanned set.
+// resolveVPNGatewayRoutePropagations emits a `routes-to` edge from each VGW in
+// a route-table's PropagatingVgws list to that table. Populated by
+// EnableVgwRoutePropagation — one entry per BGP-propagating VGW. FK-safe:
+// skips VGWs not in the scanned set.
 func resolveVPNGatewayRoutePropagations(acct *account, st *store.Store) error {
 	rts, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2RouteTable},

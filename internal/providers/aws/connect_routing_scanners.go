@@ -75,9 +75,8 @@ type connectInstanceItem struct {
 	instanceID, id string
 }
 
-// connectPerInstanceFanout runs build per (instanceID, id) concurrently
-// and upserts the collected batch. Mirrors connectDescribeFanout but
-// keys are two-tuple.
+// connectPerInstanceFanout runs build per (instanceID, id) concurrently and
+// upserts the batch. Mirrors connectDescribeFanout but with two-tuple keys.
 func connectPerInstanceFanout(
 	ctx context.Context,
 	items []connectInstanceItem,

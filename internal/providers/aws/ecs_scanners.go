@@ -77,8 +77,8 @@ func scanECS(ctx context.Context, acct *account, region string, st *store.Store,
 }
 
 // scanECSClusters pages through ListClusters, batch-describes each page via
-// DescribeClusters (max 100 per call), and returns all cluster ARNs for use
-// by scanECSServices.
+// DescribeClusters (max 100 per call), and returns all cluster ARNs for
+// scanECSServices.
 func scanECSClusters(ctx context.Context, client ecsAPI, acct *account, region string, st *store.Store, scanID string) (clusterARNs []string, total, inserted int, err error) {
 	pager := ecs.NewListClustersPaginator(client, &ecs.ListClustersInput{})
 	for pager.HasMorePages() {

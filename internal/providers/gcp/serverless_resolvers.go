@@ -17,12 +17,11 @@ func init() { registerResolver(resolveServerlessRelationships) }
 //   - cloudFunction -[uses]-> cryptoKey       (via kmsKeyName)
 //   - run.service   -[uses]-> service-account (via template.serviceAccount)
 //
-// VPC-connector edges deferred — connectors are a separate scanner surface
-// (`vpcaccess.googleapis.com`) that hasn't landed yet. EventTrigger →
-// Pub/Sub topic / Cloud Storage bucket edges deferred — Pub/Sub topic
-// scanner (R4.11) lands next iteration; storage edge would need parsing
-// EventTrigger.eventFilters[]. SA edges land now because the SA index
-// shape from R4.1 is reused.
+// VPC-connector edges deferred — separate scanner surface
+// (`vpcaccess.googleapis.com`) not yet landed. EventTrigger → Pub/Sub topic /
+// Cloud Storage bucket edges deferred — Pub/Sub topic scanner (R4.11) lands
+// next iteration; storage edge needs parsing EventTrigger.eventFilters[]. SA
+// edges land now, reusing the SA index shape from R4.1.
 func resolveServerlessRelationships(p *project, st *store.Store) error {
 	saByEmail, err := buildSAEmailIndex(p, st)
 	if err != nil {

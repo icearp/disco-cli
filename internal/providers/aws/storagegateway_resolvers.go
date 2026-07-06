@@ -24,9 +24,9 @@ func init() {
 }
 
 // resolveStorageGatewayChildren wires volumes, file shares, tapes, and file
-// system associations to their parent gateway via the GatewayARN field each
-// carries in its attributes. FK-safe: the edge is emitted only when the
-// gateway was scanned (archived tapes carry an empty GatewayARN — skipped).
+// system associations to their parent gateway via each row's GatewayARN
+// attribute. FK-safe: emits only when the gateway was scanned (archived
+// tapes carry an empty GatewayARN — skipped).
 func resolveStorageGatewayChildren(acct *account, st *store.Store) error {
 	gwSet, err := scannedIDSet(acct, st, TypeStorageGatewayGateway)
 	if err != nil {
@@ -71,10 +71,10 @@ func resolveStorageGatewayChildren(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveStorageGatewayDevices wires each VTL device to its gateway. The
-// VTLDeviceARN embeds the gateway ARN as its prefix
-// (`{gatewayARN}/device/{deviceId}`), so the parent is recovered from the
-// NativeID rather than an attribute.
+// resolveStorageGatewayDevices wires each VTL device to its gateway.
+// VTLDeviceARN embeds the gateway ARN as a prefix
+// (`{gatewayARN}/device/{deviceId}`), so the parent comes from NativeID,
+// not an attribute.
 func resolveStorageGatewayDevices(acct *account, st *store.Store) error {
 	gwSet, err := scannedIDSet(acct, st, TypeStorageGatewayGateway)
 	if err != nil {

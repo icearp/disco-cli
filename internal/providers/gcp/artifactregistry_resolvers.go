@@ -11,10 +11,9 @@ import (
 func init() { registerResolver(resolveArtifactRegistryRelationships) }
 
 // resolveArtifactRegistryRelationships derives repository -[uses]-> cryptoKey
-// CMEK edges via `kmsKeyName`. Reverse-direction edges (GKE / Cloud Run →
-// repository pull) deferred — they require parsing image references out of
-// container specs which neither workload scanner exposes today as
-// structured fields.
+// CMEK edges via `kmsKeyName`. Reverse edges (GKE / Cloud Run → repository
+// pull) deferred — they need image-ref parsing from container specs, which
+// neither workload scanner exposes as structured fields today.
 func resolveArtifactRegistryRelationships(p *project, st *store.Store) error {
 	repos, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeArtifactRepository},

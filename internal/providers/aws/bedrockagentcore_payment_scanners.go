@@ -8,9 +8,9 @@ import (
 	bac "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
 )
 
-// AgentCore payments scanners. The List ops return summaries only — the
-// secret-bearing fields (provider API keys, OAuth secrets) live on the per-
-// resource Get bodies, which are intentionally NOT fetched.
+// AgentCore payments scanners. List ops return summaries only — secret-bearing
+// fields (provider API keys, OAuth secrets) live on per-resource Get bodies,
+// intentionally NOT fetched.
 
 // scanBACPaymentManagers lists payment managers and returns their IDs for the
 // connector fan-out.
@@ -50,7 +50,7 @@ func scanBACPaymentManagers(ctx context.Context, client bedrockAgentCoreAPI, acc
 }
 
 // scanBACPaymentConnectors fans out per payment-manager ID. PaymentConnectorSummary
-// carries no ARN, so the NativeID is synthesized as
+// carries no ARN, so NativeID is synthesized as
 // `arn:aws:bedrock-agentcore:r:a:payment-connector/{managerID}/{connectorID}` —
 // the resolver recovers the parent manager from it.
 func scanBACPaymentConnectors(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, managerIDs []string) (int, int, error) {

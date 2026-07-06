@@ -38,8 +38,8 @@ type kmsAPI interface {
 }
 
 // kmsKeyAttrs is the stored attribute shape for a KMS key — DescribeKey metadata
-// plus the key policy and rotation status, which each require their own API call.
-// Rule predicates like "rotation disabled on customer key" read these fields.
+// plus policy and rotation status, each requiring its own API call. Rule
+// predicates like "rotation disabled on customer key" read these fields.
 type kmsKeyAttrs struct {
 	Metadata           types.KeyMetadata
 	Policy             *string
@@ -49,7 +49,7 @@ type kmsKeyAttrs struct {
 // scanKMS discovers customer-managed KMS keys and aliases in one region. ListKeys
 // returns KeyId only; DescribeKey + GetKeyPolicy + GetKeyRotationStatus fan out
 // concurrently per page. AWS-managed keys are skipped — their policies are
-// boilerplate and they can't be configured by the user.
+// boilerplate and not user-configurable.
 func scanKMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kms.NewFromConfig(acct.cfg, func(o *kms.Options) { o.Region = region })
 	return scanKMSKeys(ctx, client, acct, region, st, scanID)

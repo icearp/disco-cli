@@ -1,7 +1,7 @@
 // Package gcp implements cloud resource discovery for Google Cloud Platform.
-// It makes per-service REST API calls using google.golang.org/api and follows
-// the two-phase scan pattern: resources (and the org→folder→project hierarchy)
-// are written first, relationships second.
+// Makes per-service REST calls via google.golang.org/api and follows a
+// two-phase scan: resources (and the org→folder→project hierarchy) written
+// first, relationships second.
 package gcp
 
 import (
@@ -129,17 +129,17 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	return nil
 }
 
-// resolveRelationships is phase 2 for GCP: derive edges between resources that
-// have already been written to the DB. Resolvers run concurrently (bounded by
+// resolveRelationships is phase 2 for GCP: derive edges between resources
+// already written to the DB. Resolvers run concurrently (bounded by
 // maxConcurrentServices) since they operate on disjoint resource types; a
-// failure in one is reported and does not stop the others — partial graph beats
-// no graph.
+// failure in one is reported and does not stop the others — partial graph
+// beats no graph.
 func resolveRelationships(ctx context.Context, p *project, st *store.Store) {
 	_ = forEachItem(ctx, maxConcurrentServices, registeredResolvers,
 		func(_ context.Context, r resolverEntry) error {
-			// Each resolver gets its own buffered store (independent buffer) so
-			// concurrent resolvers stay isolated; flush collapses the per-edge
-			// autocommit serialisation into one tx per resolver.
+			// Each resolver gets its own buffered store so concurrent resolvers
+			// stay isolated; flush collapses the per-edge autocommit
+			// serialisation into one tx per resolver.
 			bs := st.BeginRelBuffer()
 			if err := r.fn(p, bs); err != nil {
 				st.ReportError(store.ScanError{

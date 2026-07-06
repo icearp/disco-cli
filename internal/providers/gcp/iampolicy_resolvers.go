@@ -17,17 +17,16 @@ func init() {
 // and emits edges for every service-account / user / group member.
 //
 //   - same-project SA → `uses` edge (FK-checked via buildSAEmailIndex).
-//   - cross-project SA: if the SA exists in any other scanned project, emit a
-//     `cross-project-iam` edge directly to that SA. If the SA's project is not
-//     in scan scope, emit `cross-project-iam` to that project's self-node
-//     (gcp:cloudresourcemanager:project), insert-if-absented as an empty-
-//     attribute placeholder that version-populates if the project is later
-//     scanned. R5.
-//   - `user:{email}` → `uses` edge to a gcp:admin:user row when the
-//     Cloud Identity / Workspace Directory scanner has populated one with the
-//     same primary email.
+//   - cross-project SA: if the SA exists in another scanned project, emit
+//     `cross-project-iam` directly to it. Otherwise emit `cross-project-iam`
+//     to that project's self-node (gcp:cloudresourcemanager:project) as an
+//     insert-if-absent empty-attribute placeholder, version-populated if the
+//     project is later scanned. R5.
+//   - `user:{email}` → `uses` edge to a gcp:admin:user row when the Cloud
+//     Identity / Workspace Directory scanner populated one with the same
+//     primary email.
 //   - `group:{email}` → `uses` edge to a gcp:cloudidentity:group row when the
-//     scanner has populated one with the same group-key email.
+//     scanner populated one with the same group-key email.
 //
 // `domain:`, `allUsers`, `allAuthenticatedUsers` still skip — no resource
 // rows. Workforce/Workload identity-pool federation members will land via a
@@ -95,10 +94,10 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	}
 
 	if len(foreignProjects) > 0 {
-		// Empty-attribute placeholder at the project's real self-node natural
-		// key (account_id=native_id=<projectID>, matching gcp_hierarchy.go), so
-		// the cross-project-iam FK holds and the project version-populates if it
-		// is later scanned directly.
+		// Empty-attribute placeholder at the project's self-node natural key
+		// (account_id=native_id=<projectID>, matching gcp_hierarchy.go) so the
+		// cross-project-iam FK holds and the project version-populates if
+		// scanned directly later.
 		placeholders := make([]*store.Resource, 0, len(foreignProjects))
 		for proj := range foreignProjects {
 			name := proj
@@ -199,7 +198,7 @@ func emitGroupMemberEdge(st *store.Store, fromID, role, member string, groupByEm
 
 // classifySAMember handles `serviceAccount:{email}` bindings. Same-project
 // matches emit a `uses` edge directly; cross-project matches accumulate into
-// pending so the referenced-project placeholders can be inserted before edges fire.
+// pending so referenced-project placeholders insert before edges fire.
 // Non-SA members fall through silently.
 func classifySAMember(st *store.Store, saByEmail map[string]string, crossSAByEmail *map[string]string, foreignProjects map[string]struct{}, pending *[]pendingCross, fromID, role, member string) error {
 	email, ok := strings.CutPrefix(member, "serviceAccount:")

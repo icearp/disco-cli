@@ -16,17 +16,17 @@ var spinnerFrames = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧
 
 // progress renders scan progress to stderr. Permanent per-service / resolve
 // lines stream through line(); when enabled (an interactive terminal), a
-// transient bottom line animates a spinner so the user can see the scan is
-// alive even while a single slow service or the resolve phase is in flight.
-// The denominator (services × scopes) isn't knowable up front — Azure
+// transient bottom line animates a spinner so the scan looks alive even
+// while a single slow service or the resolve phase is in flight. The
+// denominator (services × scopes) isn't knowable up front — Azure
 // subscriptions and GCP projects are discovered at scan time — so the spinner
 // is an honest liveness indicator (elapsed + completed-unit count), not a %.
 //
 // All stderr writes funnel through the mutex so the concurrent OnServiceComplete
 // callers and the ticker goroutine never garble each other's output. When
 // disabled (non-TTY / CI, --no-progress, or --quiet), line() is a plain
-// newline-terminated write and no goroutine runs — identical to having no
-// spinner at all, keeping CI logs clean and greppable.
+// newline-terminated write and no goroutine runs — identical to no spinner,
+// keeping CI logs clean and greppable.
 type progress struct {
 	w       io.Writer
 	start   time.Time

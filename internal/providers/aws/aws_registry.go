@@ -24,10 +24,10 @@ type serviceEntry struct {
 	emits  []coverage.TypeDecl
 }
 
-// extraEmits accumulates disco-type decls for code paths that do NOT flow
-// through registerService — namely multi-file services that declare their
-// emits per-category file (EC2, IoT, Glue, SageMaker, Connect) from the file
-// that owns the upsert site rather than on one central serviceEntry.
+// extraEmits accumulates disco-type decls for code paths that bypass
+// registerService — multi-file services (EC2, IoT, Glue, SageMaker, Connect)
+// declare emits per-category file, from the file owning the upsert site,
+// rather than on one central serviceEntry.
 var extraEmits []coverage.TypeDecl
 
 // registerExtraEmits is for non-serviceEntry sources of disco types. Call
@@ -57,8 +57,8 @@ func CollectEmits() []coverage.TypeDecl {
 }
 
 // registeredServices is populated by each *_scanners.go file's init().
-// Adding a new service only requires creating a new file and calling registerService
-// from its init() — no changes to aws.go are needed.
+// Adding a service only requires a new file calling registerService from its
+// init() — no aws.go changes needed.
 var registeredServices []serviceEntry
 
 // registerService adds a service to the package-level registry.
@@ -128,12 +128,12 @@ func CollectResolverEdges() []EdgeDecl {
 }
 
 // ResolverInfo summarises one registered resolver for coverage tooling:
-// the unqualified function name, count of declared EdgeDecls, and the
-// distinct disco service segments touched by those edges (Source-side and
-// Target-side combined). EdgeCount==0 marks an unannotated resolver —
-// either a deliberate no-op (sidecar populator, audit-stub) or a sweep
-// target that hasn't been annotated yet. cmd-side tooling consumes
-// Services for the `disco coverage resolvers --services` filter.
+// unqualified function name, count of declared EdgeDecls, and the distinct
+// disco service segments touched by those edges (Source+Target combined).
+// EdgeCount==0 marks an unannotated resolver — either a deliberate no-op
+// (sidecar populator, audit-stub) or a sweep target not yet annotated.
+// cmd-side tooling consumes Services for the `disco coverage resolvers
+// --services` filter.
 type ResolverInfo struct {
 	Name      string
 	EdgeCount int

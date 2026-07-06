@@ -21,8 +21,8 @@ func init() {
 //   - account -[uses]-> storage account via properties.autoStorage.storageAccountId
 //   - account -[uses]-> key vault via properties.keyVaultReference.id
 //
-// Both references are full ARM resource IDs (not URIs), matched
-// case-insensitively against per-sub NativeID indexes.
+// Both are full ARM resource IDs (not URIs), matched case-insensitively
+// against per-sub NativeID indexes.
 func resolveBatchRelationships(sub *subscription, st *store.Store) error {
 	accounts, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,
@@ -74,7 +74,7 @@ func resolveBatchRelationships(sub *subscription, st *store.Store) error {
 
 // nativeIDIndex builds a lowercased NativeID → resource-ID index for one type
 // in the subscription. Use when a reference field carries a full ARM resource
-// ID (case-insensitive) rather than a name or URI.
+// ID (case-insensitive), not a name or URI.
 func nativeIDIndex(sub *subscription, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

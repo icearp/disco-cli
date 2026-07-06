@@ -27,14 +27,14 @@ func init() {
 const maxConcurrentKMSLocations = 10
 
 // scanCloudKMS discovers KMS keyrings and crypto keys across every location
-// in a project. Three phases:
-//  1. Projects.Locations.List(projects/{p}) — paginated, returns all locations
-//     KMS is enabled in for this project.
+// in a project, in three phases:
+//  1. Projects.Locations.List(projects/{p}) — paginated, all locations KMS
+//     is enabled in for this project.
 //  2. Per-location KeyRings.List, fan-out bounded by maxConcurrentKMSLocations.
-//  3. Per-keyring CryptoKeys.List (sequential within each location goroutine —
-//     keyring counts per location are typically small).
+//  3. Per-keyring CryptoKeys.List, sequential within each location goroutine —
+//     keyring counts per location are typically small.
 //
-// CryptoKey versions and ImportJobs deferred — versions in particular have
+// CryptoKey versions and ImportJobs deferred — versions especially have
 // pagination concerns at scale.
 func scanCloudKMS(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
@@ -59,11 +59,10 @@ func scanCloudKMS(ctx context.Context, p *project, st *store.Store, scanID strin
 
 	// Phase 2 + 3: keyrings + crypto keys per location, bounded fan-out.
 	// Locations.List returns the global location catalog even when the KMS
-	// API has not been enabled in the project — the per-location keyRings.List
-	// is what gates on enablement and surfaces a 403. To avoid logging the
-	// same "API not enabled" warning once per location (~30+ noisy lines),
-	// trip a shared flag on the first such 403 and skip the remaining
-	// locations for this scan.
+	// API isn't enabled in the project — per-location keyRings.List is what
+	// gates on enablement and surfaces the 403. To avoid logging the same
+	// "API not enabled" warning per location (~30+ noisy lines), trip a
+	// shared flag on the first 403 and skip remaining locations for this scan.
 	var apiDisabled atomic.Bool
 	var mu sync.Mutex
 	var batch []*store.Resource

@@ -17,9 +17,9 @@ func init() {
 	)
 }
 
-// firehoseDestinationAttrs picks out the fields we care about across each of
-// the DestinationDescription sub-types. The AWS SDK struct is large; we only
-// parse the subset that yields edges to resources disco scans.
+// firehoseDestinationAttrs picks out the fields we care about across each
+// DestinationDescription sub-type. The SDK struct is large; we only parse
+// the subset that yields edges to resources disco scans.
 type firehoseDestinationAttrs struct {
 	S3DestinationDescription *struct {
 		BucketARN               *string             `json:"BucketARN"`

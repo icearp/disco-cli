@@ -21,20 +21,20 @@ func init() {
 	})
 }
 
-// scanIAMPoliciesOrg fetches the IAM policy attached to each org+folder scope
-// discovered by scanHierarchy. Sibling to scanIAMPolicies (per-project) — runs
-// ONCE per scan because folder/org GetIamPolicy is invoked at the parent scope,
-// not duplicated under each child project.
+// scanIAMPoliciesOrg fetches the IAM policy attached to each org/folder scope
+// from scanHierarchy. Sibling to scanIAMPolicies (per-project) — runs ONCE per
+// scan since folder/org GetIamPolicy is called at the parent scope, not
+// duplicated per child project.
 //
 // One synthesized gcp:iam:policy resource per scope carries every binding
-// (role, members, condition) under attributes; phase-2 resolvers pivot on those
-// bindings to emit policy → service-account edges (same shape as the per-project
-// resolver, which is scope-agnostic).
+// (role, members, condition) in attributes; phase-2 resolvers pivot on those
+// bindings to emit policy → service-account edges, same shape as the
+// per-project (scope-agnostic) resolver.
 //
-// AccountID for the synthesized resource is the GCP-canonical scope name
-// ("organizations/123" / "folders/456"), matching the per-project AccountID
-// convention (project ID for project-scope policies). Closure links the policy
-// to its scope's hierarchy resource so the org/folder appears as the parent.
+// AccountID is the GCP-canonical scope name ("organizations/123" /
+// "folders/456"), matching the per-project convention (project ID for
+// project-scope policies). Closure links the policy to its scope's hierarchy
+// resource so the org/folder appears as parent.
 func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	crmSvc, err := cloudresourcemanager.NewService(ctx, opts...)
@@ -53,8 +53,7 @@ func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store,
 		}
 		nativeID := sc.Name + "/policy"
 		name := nativeID
-		// Use a stable AccountName derived from the scope name; we lack a
-		// display name here without an extra Get call.
+		// AccountName is the scope name itself; no display name without an extra Get call.
 		acctName := sc.Name
 
 		r := &store.Resource{
@@ -83,9 +82,9 @@ func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store,
 	return total, inserted, nil
 }
 
-// getOrgScopePolicy dispatches to the right CRM client method per scope kind.
-// Wraps the two SDK call shapes (Organizations.GetIamPolicy vs Folders.GetIamPolicy)
-// with identical PolicyVersion=3 options.
+// getOrgScopePolicy dispatches to the right CRM client method per scope kind,
+// wrapping Organizations.GetIamPolicy vs Folders.GetIamPolicy with identical
+// PolicyVersion=3 options.
 func getOrgScopePolicy(ctx context.Context, crm *cloudresourcemanager.Service, sc orgScope) (*cloudresourcemanager.Policy, error) {
 	req := &cloudresourcemanager.GetIamPolicyRequest{
 		Options: &cloudresourcemanager.GetPolicyOptions{RequestedPolicyVersion: 3},

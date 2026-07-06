@@ -17,16 +17,15 @@ func init() { registerResolver(resolveCertificateManagerRelationships) }
 //  2. targetHttpsProxy -[uses]-> certificateMap via the proxy's
 //     `certificateMap` field.
 //
-// Cert Manager `Certificate` resource names match the SDK `certificates[]`
-// elements on a map entry verbatim (`projects/*/locations/*/certificates/*`),
-// so the lookup is a direct NativeID match. targetHttpsProxy.certificateMap
-// likewise stores the full resource name. Cross-project / unscanned-resource
-// references skipped.
+// Certificate names match the SDK certificates[] entries verbatim
+// (`projects/*/locations/*/certificates/*`), so lookup is a direct NativeID
+// match; targetHttpsProxy.certificateMap likewise stores the full resource
+// name. Cross-project / unscanned-resource references skipped.
 //
 // Deferred:
 //   - DNS authorization → managed certificate edge: ManagedCertificate.dnsAuthorizations[]
 //     references DNS auths but is on the certificate side; same-pattern
-//     follow-up. Useful but lower priority than the map-entry chain.
+//     follow-up, lower priority than the map-entry chain.
 //   - targetSslProxy / targetHttpsProxy older-surface SslCertificate (compute
 //     SslCertificates resource) — separate older API not yet scanned.
 func resolveCertificateManagerRelationships(p *project, st *store.Store) error {

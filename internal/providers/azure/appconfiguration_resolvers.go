@@ -18,7 +18,7 @@ func init() {
 // resolveAppConfigurationRelationships derives App Configuration store
 // -[uses]-> Key Vault edges for stores using customer-managed key encryption.
 // The CMK reference is a Key Vault key URI
-// (properties.encryption.keyVaultProperties.keyIdentifier), parsed back to a
+// (properties.encryption.keyVaultProperties.keyIdentifier), parsed to a
 // vault name and matched against a per-sub vault-name index.
 func resolveAppConfigurationRelationships(sub *subscription, st *store.Store) error {
 	stores, err := st.ListResources(store.ResourceFilter{

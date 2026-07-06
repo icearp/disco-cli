@@ -447,16 +447,16 @@ func scanCarrierGateways(ctx context.Context, client ec2API, acct *account, regi
 			return out
 		},
 	)
-	// Carrier gateways are Wavelength-zone-only; AWS rejects in non-Wavelength
-	// regions with UnsupportedOperation. Silent-skip.
+	// Carrier gateways are Wavelength-zone-only; non-Wavelength regions
+	// reject with UnsupportedOperation — silent-skip.
 	if err != nil && isAPIErrorCode(err, "UnsupportedOperation") {
 		return 0, 0, nil
 	}
 	return total, inserted, err
 }
 
-// scanVPCBlockPublicAccessOptions retrieves the account-level VPC block public access
-// setting. There is one per account; NativeID omits region for stability across scans.
+// scanVPCBlockPublicAccessOptions retrieves the account-level VPC block public
+// access setting (one per account); NativeID omits region for cross-scan stability.
 func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.DescribeVpcBlockPublicAccessOptions(ctx, &ec2.DescribeVpcBlockPublicAccessOptionsInput{})
 	if err != nil {
@@ -469,7 +469,7 @@ func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *a
 		return
 	}
 	opt := out.VpcBlockPublicAccessOptions
-	// Use account-level NativeID (no region) so the same resource is upserted each region.
+	// Account-level NativeID (no region) so every region upserts the same row.
 	nativeID := ec2ARN("", acct.ID, "vpc-block-public-access-options", acct.ID)
 	n, err := st.UpsertResource(&store.Resource{
 		Provider:    "aws",
@@ -561,9 +561,9 @@ func scanVPCEndpointConnectionNotifications(ctx context.Context, client ec2API, 
 }
 
 // scanVPCEndpointServices scans services owned by this account.
-// DescribeVpcEndpointServices has no paginator; uses manual NextToken pagination.
-// The owner filter restricts results to account-owned services; without it the
-// API returns AWS-managed services as well.
+// DescribeVpcEndpointServices has no paginator (manual NextToken). The owner
+// filter restricts to account-owned services — omitted, the API also returns
+// AWS-managed ones.
 func scanVPCEndpointServices(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	ownerFilter := ec2types.Filter{Name: aws.String("owner"), Values: []string{acct.ID}}
 	var nextToken *string
@@ -654,10 +654,10 @@ func scanVPCEndpointServicePermissions(ctx context.Context, client ec2API, acct 
 	return int(t.Load()), int(n.Load()), err
 }
 
-// listVPCEndpointServiceIDs returns all VPC endpoint service IDs owned by this account.
-// Uses manual NextToken pagination (no paginator available in SDK).
-// The owner filter is required; without it the API returns AWS-managed services
-// which cannot be queried for permissions.
+// listVPCEndpointServiceIDs returns all VPC endpoint service IDs owned by this
+// account (manual NextToken pagination — no SDK paginator). The owner filter
+// is required: without it, the API also returns AWS-managed services, which
+// reject permission queries.
 func listVPCEndpointServiceIDs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store) ([]string, error) {
 	ownerFilter := ec2types.Filter{Name: aws.String("owner"), Values: []string{acct.ID}}
 	var ids []string

@@ -32,18 +32,18 @@ func init() {
 // Scope decisions:
 //   - TargetTcp/Ssl/GrpcProxies + regional UrlMaps deferred — proxy variants
 //     repeat the same scanner shape and the global HTTP(S) path covers the
-//     overwhelming majority of L7 LBs. Regional UrlMaps land alongside
-//     regional Internal HTTP(S) LB attention in a follow-up.
-//   - InstanceGroups + NetworkEndpointGroups intentionally NOT scanned here.
-//     They have their own R4 follow-up and the resolver below skips edges
-//     that would FK-violate against absent rows.
+//     vast majority of L7 LBs; regional UrlMaps land with regional Internal
+//     HTTP(S) LB support in a follow-up.
+//   - InstanceGroups + NetworkEndpointGroups intentionally NOT scanned here —
+//     have their own R4 follow-up; the resolver below skips edges that would
+//     FK-violate against absent rows.
 //   - SslCertificates + SslPolicies + HealthChecks deferred — narrow security
 //     value vs. node count; HealthChecks especially produce hundreds of rows
 //     in busy projects with no edges of their own.
 //
 // All `*.List` calls here are global-scope; `AggregatedList` covers global +
-// every region in a single paginated walk so we don't need a per-region
-// fan-out tier yet.
+// every region in one paginated walk, so no per-region fan-out tier is
+// needed yet.
 func scanLoadBalancing(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := compute.NewService(ctx, opts...)
@@ -69,16 +69,16 @@ func scanLoadBalancing(ctx context.Context, p *project, st *store.Store, scanID 
 }
 
 // upsertWithProjClosure upserts a batch and fans out hierarchy_closure pairs
-// to the project parent. Centralizes the boilerplate the LB sub-phases all
-// share. Equivalent to upsertWithParent with the project's resource ID.
+// to the project parent — centralizes boilerplate shared by the LB
+// sub-phases. Equivalent to upsertWithParent with the project's resource ID.
 func upsertWithProjClosure(p *project, st *store.Store, batch []*store.Resource) (int, int, error) {
 	return upsertWithParent(st, batch, store.ResourceID("gcp", p.ID, TypeProject, p.ID))
 }
 
 // upsertWithParent upserts a batch and fans out hierarchy_closure pairs to a
-// caller-supplied parent resource id. Use when the parent is something other
-// than the project (e.g. table → dataset, record-set → managed-zone, entry →
-// cert-map, crypto-key → keyring, cluster → instance).
+// caller-supplied parent resource id. Use when the parent isn't the project
+// (e.g. table→dataset, record-set→managed-zone, entry→cert-map,
+// crypto-key→keyring, cluster→instance).
 func upsertWithParent(st *store.Store, batch []*store.Resource, parentID string) (int, int, error) {
 	if len(batch) == 0 {
 		return 0, 0, nil
@@ -247,8 +247,8 @@ func scanBackendBuckets(ctx context.Context, svc *compute.Service, p *project, s
 }
 
 // scopedListRegion extracts the region from an AggregatedList scope key.
-// Scope keys come in two shapes: "global" or "regions/{region}". For global
-// returns "". For regional returns the region segment.
+// Scope keys are either "global" or "regions/{region}" — returns "" for
+// global, the region segment otherwise.
 func scopedListRegion(scope string) string {
 	const prefix = "regions/"
 	if len(scope) > len(prefix) && scope[:len(prefix)] == prefix {

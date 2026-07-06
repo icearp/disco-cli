@@ -1,6 +1,6 @@
 // aws-resolver-audit walks every AWS resource's AttributesJSON, extracts ARN
 // and bare-ID references to other scanned types, then diffs the proposed
-// (source_type, target_type) pairs against the edges already persisted in
+// (source_type, target_type) pairs against edges already persisted in
 // `relationships`. Audit-but-not-actual pairs surface as candidate resolver
 // gaps, ranked by sample frequency.
 //
@@ -121,10 +121,10 @@ func collectHits(byType map[string][]store.Resource, knownTypes map[string]struc
 	for src, rows := range byType {
 		for _, r := range rows {
 			for _, ref := range extractRefs(r.AttributesJSON) {
-				// Skip self-NativeID — e.g. SLR's `Arn` field matches
-				// `:role/` and classifies as TypeIAMRole (the SLR row
-				// is itself aws:iam:service-linked-role). Same physical
-				// resource = no implementable cross-edge.
+				// Skip self-NativeID — e.g. SLR's `Arn` matches `:role/`
+				// and classifies as TypeIAMRole (the SLR row is itself
+				// aws:iam:service-linked-role): same physical resource,
+				// no implementable cross-edge.
 				if ref.value == r.NativeID {
 					continue
 				}
@@ -267,7 +267,7 @@ func walk(path string, v any, out *[]ref) {
 }
 
 // looksLikeRef returns true when the string carries an ARN prefix or matches
-// one of the well-known AWS resource-ID prefixes.
+// a well-known AWS resource-ID prefix.
 func looksLikeRef(s string) bool {
 	if strings.HasPrefix(s, "arn:") {
 		return true
@@ -311,8 +311,8 @@ func classifyTarget(ref string) string {
 }
 
 // classifyARN maps (service, resource-segment) to a disco type best-effort.
-// Resource segment is the everything-after-account portion; first segment
-// before `/` or `:` is usually the resource kind.
+// Resource segment is everything after account; first segment before `/` or
+// `:` is usually the resource kind.
 func classifyARN(svc, resource string) string {
 	kind := resource
 	if i := strings.IndexAny(resource, "/:"); i > 0 {

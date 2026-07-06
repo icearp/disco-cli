@@ -22,9 +22,9 @@ func init() {
 	)
 }
 
-// resolveDocDBElasticSnapshotRefs wires each cluster snapshot to its source
-// cluster (FK-safe — snapshots outlive deleted clusters) and to the KMS key
-// that encrypts it. The GetClusterSnapshot body carries ClusterArn / KmsKeyId.
+// resolveDocDBElasticSnapshotRefs wires each snapshot to its source cluster
+// (FK-safe — snapshots outlive deleted clusters) and its encrypting KMS key.
+// GetClusterSnapshot carries ClusterArn / KmsKeyId.
 func resolveDocDBElasticSnapshotRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDocDBElasticClusterSnapshot}, Limit: util.AllResources,
@@ -71,8 +71,8 @@ func resolveDocDBElasticSnapshotRefs(acct *account, st *store.Store) error {
 }
 
 // resolveDocDBElasticClusterRefs wires each elastic cluster to its CMEK,
-// VPC subnets, and security groups. GetCluster body shape carries
-// KmsKeyId / SubnetIds / VpcSecurityGroupIds.
+// VPC subnets, and security groups. GetCluster carries KmsKeyId / SubnetIds
+// / VpcSecurityGroupIds.
 func resolveDocDBElasticClusterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDocDBElasticCluster}, Limit: util.AllResources,

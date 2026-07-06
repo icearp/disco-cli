@@ -24,7 +24,7 @@ func init() { registerResolver(resolveSecretRelationships) }
 // Cross-project key references are skipped (FK-safe).
 //
 // Secret → IAM policy edges deferred — Secret Manager exposes
-// `secrets.getIamPolicy` per-secret, which is N extra calls per project; the
+// `secrets.getIamPolicy` per-secret (N extra calls per project); the
 // project-scope IAM policy resource (R4.1) already captures the broad
 // principal → secret access pattern via role grants like
 // roles/secretmanager.secretAccessor.

@@ -25,8 +25,8 @@ func TestResolveCloudDirectoryAppliedSchema(t *testing.T) {
 	assertRelationship(t, rels, schemaID, dirID, store.RelAttachedTo)
 }
 
-// An applied schema whose DirectoryArn points at an unscanned directory, and one
-// with no DirectoryArn at all, emit no edge.
+// An applied schema whose DirectoryArn points at an unscanned directory, or has
+// none at all, emits no edge.
 func TestResolveCloudDirectoryAppliedSchema_NoEdge(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

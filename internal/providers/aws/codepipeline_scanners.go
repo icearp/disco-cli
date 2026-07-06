@@ -29,9 +29,8 @@ type codePipelineAPI interface {
 	GetPipeline(context.Context, *codepipeline.GetPipelineInput, ...func(*codepipeline.Options)) (*codepipeline.GetPipelineOutput, error)
 }
 
-// scanCodePipeline discovers pipelines, custom action types (Owner=Custom
-// only — AWS-managed types are catalogue, not customer resources), and
-// webhooks.
+// scanCodePipeline discovers pipelines, Owner=Custom action types (AWS-managed
+// types are catalogue, not customer resources), and webhooks.
 func scanCodePipeline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := codepipeline.NewFromConfig(acct.cfg, func(o *codepipeline.Options) { o.Region = region })
 

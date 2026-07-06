@@ -96,9 +96,9 @@ func TestResolveAuthorizationRelationships_UnknownScope(t *testing.T) {
 // that a role assignment inherited from an ancestor management group resolves
 // its scope to the MG resource — which lives under the tenant account, not the
 // assignment's subscription. The resolver's store-wide scope index (every
-// subscription + the tenant account, managed rows excluded but MGs are not
-// managed) is what makes this work; this test fails if that index is ever
-// narrowed to the per-sub account.
+// subscription + tenant account; managed rows excluded, but MGs aren't managed)
+// is what makes this work; this test fails if that index is ever narrowed to
+// the per-sub account.
 func TestResolveAuthorizationRelationships_ManagementGroupScope(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-mg")

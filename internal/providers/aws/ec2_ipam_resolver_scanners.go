@@ -16,8 +16,8 @@ func init() {
 }
 
 // scanEC2IPAMResolver discovers IPAM prefix list resolver resources.
-// Resolvers and resolver targets each carry a native ARN field on the
-// SDK summary so no synthesis is required.
+// Resolvers and targets each carry a native ARN on the SDK summary, so no
+// NativeID synthesis is needed.
 func scanEC2IPAMResolver(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(
 		ctx,

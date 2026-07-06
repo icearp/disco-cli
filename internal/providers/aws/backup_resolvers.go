@@ -18,9 +18,9 @@ func init() {
 }
 
 // resolveBackupRelationships emits vault→KMS edges, selection→plan contains,
-// and selection→IAM-role assumes. Tag-condition expansion (selection → tagged
-// resources) is deferred — the selection's tag criteria would have to be
-// matched against the full resources table, a distinct mini-project.
+// and selection→IAM-role assumes. Tag-condition expansion (selection→tagged
+// resources) is deferred — matching tag criteria against the full resources
+// table is a distinct mini-project.
 func resolveBackupRelationships(acct *account, st *store.Store) error {
 	if err := resolveBackupVaults(acct, st); err != nil {
 		return err
@@ -69,10 +69,10 @@ func resolveBackupSelections(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range sels {
-		// Plan→selection containment is recorded by backup_scanners.go via
-		// RecordHierarchyBatch; the unified closure writer emits the
-		// matching `contains` row to relationships, so no UpsertRelationship
-		// call is needed here. Resolver only handles the IAM role edge.
+		// Plan→selection containment comes from backup_scanners.go's
+		// RecordHierarchyBatch; the unified closure writer emits the matching
+		// `contains` row, so no UpsertRelationship here — this resolver only
+		// handles the IAM-role edge.
 		var attrs struct {
 			IamRoleArn *string `json:"IamRoleArn"`
 		}
@@ -97,7 +97,7 @@ func init() {
 }
 
 // resolveBackupPlanVaultRefs walks each plan's Rules[] and emits a
-// routes-to edge to the TargetBackupVaultName. GetBackupPlan body shape:
+// routes-to edge to the TargetBackupVaultName. GetBackupPlan shape:
 // {"BackupPlan":{"Rules":[{"TargetBackupVaultName":"..."}]}}.
 func resolveBackupPlanVaultRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{

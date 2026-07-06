@@ -44,8 +44,7 @@ func init() {
 
 // logGroupARNFromChild strips a trailing `/<kind>/<name>` from a synthetic
 // child NativeID (`{lgARN}/{stream|filter|subscription}/{name}`) to recover
-// the parent log-group ARN. Returns "" when the input has no recognized
-// child segment.
+// the parent log-group ARN. Returns "" if no recognized child segment.
 func logGroupARNFromChild(arn string) string {
 	for _, kind := range []string{"/stream/", "/filter/", "/subscription/"} {
 		if i := strings.Index(arn, kind); i >= 0 {
@@ -95,10 +94,9 @@ func resolveLogsChildToGroup(acct *account, st *store.Store, ctype, label string
 }
 
 // resolveLogsSubscriptionFilterRefs links each subscription filter to its
-// parent log-group (NativeID parse) and to the DestinationArn target — a
-// lambda function, kinesis stream, or firehose delivery stream. RoleArn
-// (when present, for IAM-pass-through targets like kinesis) emits an
-// assumes edge.
+// parent log-group (NativeID parse) and to its DestinationArn target — a
+// lambda function, kinesis stream, or firehose delivery stream. A present
+// RoleArn (IAM pass-through targets like kinesis) also emits an assumes edge.
 func resolveLogsSubscriptionFilterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLogsSubscriptionFilter},

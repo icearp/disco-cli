@@ -69,9 +69,9 @@ func scanCloudWatch(ctx context.Context, acct *account, region string, st *store
 	return total, inserted, nil
 }
 
-// scanCWAlarms discovers CloudWatch metric alarms and composite alarms. Both
-// types are returned by DescribeAlarms; we split them into their own disco
-// resource types so gap-analysis and filtering work correctly.
+// scanCWAlarms discovers CloudWatch metric and composite alarms. DescribeAlarms
+// returns both; split into separate disco resource types for correct
+// gap-analysis and filtering.
 func scanCWAlarms(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudwatch.NewDescribeAlarmsPaginator(client, &cloudwatch.DescribeAlarmsInput{
 		AlarmTypes: []cwtypes.AlarmType{
@@ -406,9 +406,8 @@ func scanCWOTelEnrichment(ctx context.Context, client cloudwatchAPI, acct *accou
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "cloudwatch:GetOTelEnrichment", acct.ID, region, err)
 		}
-		// Service not available in this region — soft skip.
-		// `InvalidAction` ("Operation not supported") fires in regions where
-		// the OTel enrichment op is not deployed.
+		// Soft skip: `InvalidAction` ("Operation not supported") fires where the
+		// OTel enrichment op isn't deployed.
 		if isAPIErrorCode(err, "ValidationException", "UnknownOperationException", "InvalidAction") {
 			return 0, 0, nil
 		}

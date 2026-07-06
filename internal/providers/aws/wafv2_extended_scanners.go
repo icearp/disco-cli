@@ -116,9 +116,9 @@ func scanWAFv2RegexPatternSets(ctx context.Context, client wafv2API, acct *accou
 	return upsertBatch(st, batch, "wafv2 regex-pattern-sets")
 }
 
-// scanWAFv2ManagedRuleSets lists the managed rule sets owned by the account
+// scanWAFv2ManagedRuleSets lists managed rule sets owned by the account
 // (relevant only to AWS Marketplace managed-rule-group sellers). Per-scope;
-// AccessDenied is tolerated since most accounts are not sellers.
+// AccessDenied tolerated — most accounts aren't sellers.
 func scanWAFv2ManagedRuleSets(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	var nextMarker *string

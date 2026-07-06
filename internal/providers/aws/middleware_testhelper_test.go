@@ -11,9 +11,9 @@ import (
 
 // stubCall is one canned response in the middleware stub queue. Output must be
 // the SDK's *<Op>Output pointer for the operation. Err is returned to the
-// caller; when non-nil the SDK retryer/error-classifier still runs against it,
-// which is what makes this harness preferable to interface mocks for testing
-// retry / transient classification.
+// caller; when non-nil the SDK retryer/error-classifier still runs against
+// it — why this harness beats interface mocks for retry/transient
+// classification tests.
 type stubCall struct {
 	Output any
 	Err    error
@@ -21,13 +21,13 @@ type stubCall struct {
 
 // stubResponses returns an APIOption that injects an Initialize-step middleware
 // short-circuiting requests with canned responses. responses is keyed by SDK
-// operation name (e.g. "ListQueues", "GetQueueAttributes") with a slice of
-// stubCalls consumed in order — the Nth call to that op pops the Nth entry,
+// operation name (e.g. "ListQueues", "GetQueueAttributes"); each stubCall
+// slice is consumed in order — the Nth call to an op pops its Nth entry,
 // supporting multi-page paginator state without per-page reconstruction. Per
 // AWS SDK Go v2 unit-testing guide §"Using middleware".
 //
-// Calling an operation with no queued response or exhausting the queue fails
-// the test via t.Fatalf so silent over-/under-call regressions surface.
+// Calling an op with no queued response, or exhausting the queue, fails the
+// test via t.Fatalf so silent over-/under-call regressions surface.
 func stubResponses(t *testing.T, responses map[string][]stubCall) func(*smithymw.Stack) error {
 	t.Helper()
 	type opQueue struct {

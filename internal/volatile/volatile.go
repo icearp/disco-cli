@@ -3,13 +3,12 @@
 // Store.UpsertResources.
 //
 // Some cloud APIs return fields that change on every read independent of any
-// real change to the resource — e.g. CloudWatch Logs returns a fresh,
-// deprecated UploadSequenceToken on every DescribeLogStreams call. Storing
-// such a field version-splits an otherwise-unchanged resource on every scan,
-// reporting it as "changed" with no real change. Unlike redaction (which
-// replaces a value with "[REDACTED]"), volatile rules REMOVE the key entirely,
-// so the stored attributes honestly reflect only the fields disco tracks —
-// no stale value is left behind.
+// real resource change — e.g. CloudWatch Logs returns a fresh, deprecated
+// UploadSequenceToken on every DescribeLogStreams call. Storing such a field
+// version-splits an otherwise-unchanged resource on every scan, falsely
+// reporting it as "changed". Unlike redaction (which replaces a value with
+// "[REDACTED]"), volatile rules REMOVE the key entirely, so stored attributes
+// honestly reflect only the fields disco tracks — no stale value left behind.
 //
 // Provider packages register per-type rules in their init() blocks (see
 // internal/providers/aws/aws_volatile.go). Store.UpsertResources calls Apply
@@ -23,10 +22,9 @@ import (
 )
 
 // TypeRules names every volatile JSON path to drop for one resource type.
-// Paths are dot-separated literal keys (e.g. "A.B.C"); the leaf key at the end
-// of each path is deleted from its parent object. No wildcards — the values
-// disco needs to drop today are flat keys; extend if a nested-array volatile
-// field ever appears.
+// Paths are dot-separated literal keys (e.g. "A.B.C"); the leaf key is
+// deleted from its parent object. No wildcards — today's drops are flat
+// keys; extend if a nested-array volatile field appears.
 type TypeRules struct {
 	Type  string
 	Paths []string
@@ -66,7 +64,7 @@ func HasRules(resourceType string) bool {
 	return ok
 }
 
-// Apply removes every registered volatile path from attributesJSON. Returns the
+// Apply removes every registered volatile path from attributesJSON, returning
 // input unchanged when no rules exist or JSON parse/marshal fails — callers
 // never want a silently dropped row.
 func Apply(resourceType, attributesJSON string) string {

@@ -17,9 +17,8 @@ func init() {
 }
 
 // resolveCognitiveServicesRelationships derives Cognitive Services account
-// -[uses]-> Key Vault edges for accounts opting into customer-managed key
-// encryption. The CMK reference exposes the vault DNS root
-// (properties.encryption.keyVaultProperties.keyVaultUri,
+// -[uses]-> Key Vault edges for CMK-encrypted accounts. The CMK reference
+// exposes the vault DNS root (properties.encryption.keyVaultProperties.keyVaultUri,
 // "https://{vault}.vault.azure.net/"), matched against a per-sub vault-name
 // index. Identity → MSI and private-endpoint edges resolve centrally.
 func resolveCognitiveServicesRelationships(sub *subscription, st *store.Store) error {
@@ -72,7 +71,7 @@ func resolveCognitiveServicesRelationships(sub *subscription, st *store.Store) e
 }
 
 // vaultNameIndex builds a lowercased vault-name → resource-ID index for the
-// subscription's Key Vaults. Shared by CMK resolvers that recover a vault from
+// subscription's Key Vaults. Shared by CMK resolvers recovering a vault from
 // a key/vault URI.
 func vaultNameIndex(sub *subscription, st *store.Store) (map[string]string, error) {
 	vaults, err := st.ListResources(store.ResourceFilter{

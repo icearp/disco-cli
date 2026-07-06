@@ -21,16 +21,15 @@ func init() {
 }
 
 // maxConcurrentSAKeyFetches caps the per-SA Keys.List fan-out within a project.
-// Tightly bounded — Keys.List is unauthenticated for some access patterns and
+// Tightly bounded: Keys.List is unauthenticated for some access patterns and
 // the iam.googleapis.com quota is shared across the project.
 const maxConcurrentSAKeyFetches = 10
 
-// scanIAMServiceAccountKeys discovers IAM service account keys (user-managed
-// + system-managed) for every service account in a project. Each key becomes
-// a gcp:iam:key resource whose NativeID is the full key
-// resource name returned by the API. The phase-2 resolver derives a
-// key -[attached-to]-> service-account edge by stripping the "/keys/{id}"
-// suffix.
+// scanIAMServiceAccountKeys discovers IAM service account keys (user- and
+// system-managed) for every service account in a project. Each key becomes
+// a gcp:iam:key resource whose NativeID is the API's full key resource name.
+// The phase-2 resolver derives a key -[attached-to]-> service-account edge by
+// stripping the "/keys/{id}" suffix.
 func scanIAMServiceAccountKeys(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := iam.NewService(ctx, opts...)

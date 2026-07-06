@@ -16,9 +16,9 @@ func init() {
 	)
 }
 
-// resolveCodeGuruReviewerAssociationRefs wires each repository-association
-// to its CodeStar Connection (ConnectionArn). Bitbucket / GitHub-Enterprise
-// / S3 sources skip via FK-safe lookup.
+// resolveCodeGuruReviewerAssociationRefs wires each repository-association to
+// its CodeStar Connection (ConnectionArn); Bitbucket/GitHub-Enterprise/S3
+// sources skip via FK-safe lookup.
 func resolveCodeGuruReviewerAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeGuruReviewerRepositoryAssociation}, Limit: util.AllResources,

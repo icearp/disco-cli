@@ -37,9 +37,9 @@ func init() {
 	})
 }
 
-// bedrockAPI is the narrow set of Bedrock SDK ops invoked by scanBedrock
-// sub-phases. Foundation-only — agent-side scanners use a separate client.
-// bedrockAgentAPI covers the bedrockagent SDK (Agents, KBs, Flows, Prompts).
+// bedrockAPI is the narrow set of Bedrock SDK ops scanBedrock's foundation
+// sub-phases use — agent-side scanners use a separate client (bedrockAgentAPI
+// covers the bedrockagent SDK: Agents, KBs, Flows, Prompts).
 type bedrockAgentAPI interface {
 	ListAgents(context.Context, *bedrockagent.ListAgentsInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListAgentsOutput, error)
 	ListAgentAliases(context.Context, *bedrockagent.ListAgentAliasesInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListAgentAliasesOutput, error)

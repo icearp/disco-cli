@@ -101,10 +101,10 @@ func resolveContainerAppEnvironments(sub *subscription, st *store.Store) error {
 	return nil
 }
 
-// resolveContainerAppRegistries derives container-app -[uses]-> ACR via the
-// properties.configuration.registries[].server reference. The server field is
-// the ACR login-server FQDN (e.g. "myreg.azurecr.io"); the resolver matches
-// the leading subdomain against a per-sub registry-name index.
+// resolveContainerAppRegistries derives container-app -[uses]-> ACR from
+// properties.configuration.registries[].server, the ACR login-server FQDN
+// (e.g. "myreg.azurecr.io"); matches the leading subdomain against a per-sub
+// registry-name index.
 func resolveContainerAppRegistries(sub *subscription, st *store.Store) error {
 	apps, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

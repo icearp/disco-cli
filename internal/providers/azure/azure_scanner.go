@@ -1,6 +1,6 @@
-// Package azure implements cloud resource discovery for Microsoft Azure.
-// It makes per-service API calls using the Azure SDK for Go (arm* packages)
-// and follows the two-phase scan pattern.
+// Package azure implements cloud resource discovery for Microsoft Azure via
+// per-service API calls using the Azure SDK for Go (arm* packages), following
+// the two-phase scan pattern.
 package azure
 
 import (
@@ -38,12 +38,11 @@ const (
 
 // azHTTPClient pools connections to the ARM control plane. Every arm* client
 // targets the single host management.azure.com, but Go's default transport
-// keeps only MaxIdleConnsPerHost=2 idle connections — under the scan's
-// service + fanout concurrency that forces most requests to pay a fresh
-// TCP+TLS handshake (or block waiting for a connection to free up), which
-// dominates wall-clock even for empty services. Raise the per-host idle pool;
-// the scan's own semaphores already bound in-flight concurrency, so
-// MaxConnsPerHost stays unbounded.
+// keeps only MaxIdleConnsPerHost=2 — under the scan's service+fanout
+// concurrency this forces most requests to pay a fresh TCP+TLS handshake (or
+// block for a free connection), dominating wall-clock even for empty
+// services. Raise the per-host idle pool; the scan's own semaphores already
+// bound in-flight concurrency, so MaxConnsPerHost stays unbounded.
 var azHTTPClient = newAzHTTPClient()
 
 func newAzHTTPClient() *http.Client {
@@ -139,10 +138,10 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 
 	// Resolve the tenant GUID once and stamp it onto every subscription so
 	// tenant-scope scanners/resolvers can store tenant-identical resources
-	// (management groups, built-in role/policy definitions) under a single
-	// account rather than duplicating them per subscription. Resolution is
-	// best-effort: on failure the empty tenantID disables that deduplication and
-	// each subscription falls back to storing its own copy (current behavior).
+	// (management groups, built-in role/policy definitions) under one account
+	// instead of duplicating per subscription. Best-effort: on failure the
+	// empty tenantID disables dedup and each subscription falls back to
+	// storing its own copy (current behavior).
 	if tenantID, terr := tenantIDFromCredScope(ctx, cred, armScope); terr != nil {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "azure", Service: "scan", Scope: "tenant",
@@ -167,10 +166,11 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	// Tenant-scope services (e.g. Entra ID via Microsoft Graph) populate the
 	// principal resources that per-sub phase-2 resolvers (RBAC role assignments)
 	// FK-match against. The dependency is narrow — only the phase-2 authorization
-	// resolver consumes Entra rows — so rather than run the tenant phase serially
-	// before the fan-out, we run it concurrently and gate only each subscription's
-	// resolver phase on entraDone (see scanSubscription). Entra's latency is thus
-	// hidden behind phase-1 scanning instead of added onto total scan time.
+	// resolver consumes Entra rows — so instead of running the tenant phase
+	// serially before the fan-out, we run it concurrently and gate only each
+	// subscription's resolver phase on entraDone (see scanSubscription). Entra's
+	// latency is thus hidden behind phase-1 scanning instead of added to total
+	// scan time.
 	//
 	// close(entraDone) is deferred FIRST so it runs LAST — after reportPanic
 	// recovers — guaranteeing waiters are released even if the tenant phase panics
@@ -363,12 +363,12 @@ func resolveRelationships(ctx context.Context, sub *subscription, st *store.Stor
 	_ = g.Wait()
 }
 
-// waitForTenant blocks until the tenant phase (Entra) has completed (done is
-// closed) or the context is cancelled. It is the entire synchronization surface
-// between the concurrent tenant goroutine and each subscription's phase-2
-// resolver — split out so the ordering invariant is unit-testable without a
-// live scan. On ctx cancellation it returns so a cancelled scan never hangs;
-// the downstream resolvers honour the cancelled ctx themselves.
+// waitForTenant blocks until the tenant phase (Entra) completes (done closed)
+// or ctx is cancelled. It's the entire synchronization surface between the
+// concurrent tenant goroutine and each subscription's phase-2 resolver —
+// split out so the ordering invariant is unit-testable without a live scan.
+// Returns on ctx cancellation so a cancelled scan never hangs; downstream
+// resolvers honour the cancelled ctx themselves.
 func waitForTenant(ctx context.Context, done <-chan struct{}) {
 	select {
 	case <-done:
@@ -377,11 +377,11 @@ func waitForTenant(ctx context.Context, done <-chan struct{}) {
 }
 
 // reportPanic recovers a panicking scan goroutine and reports it as a scan
-// error instead of letting the panic crash the whole process. Scanner and
-// resolver extract closures dereference deeply-nested SDK pointer fields; a nil
-// deref in any one of them must degrade to a reported error for that
-// service/scope, never abort the scan — the panic-case extension of the
-// "errors never abort scan" contract (providers/CLAUDE.md). Call deferred.
+// error instead of crashing the process. Scanner/resolver extract closures
+// dereference deeply-nested SDK pointer fields; a nil deref must degrade to a
+// reported error for that service/scope, never abort the scan — the
+// panic-case extension of the "errors never abort scan" contract
+// (providers/CLAUDE.md). Call deferred.
 func reportPanic(st *store.Store, service, scope string) {
 	if r := recover(); r != nil {
 		st.ReportError(store.ScanError{
@@ -466,11 +466,11 @@ type subscription struct {
 	ID   string
 	Name string
 	// tenantID is the AAD tenant GUID, resolved once in Scan and stamped onto
-	// every subscription. Tenant-scope scanners/resolvers use it as the
-	// AccountID for tenant-identical resources (management groups, built-in
-	// role/policy definitions) so they are stored once per tenant rather than
-	// once per subscription. Empty when tenant resolution failed — callers must
-	// fall back to per-subscription behavior.
+	// every subscription. Tenant-scope scanners/resolvers use it as AccountID
+	// for tenant-identical resources (management groups, built-in role/policy
+	// definitions) so they're stored once per tenant, not once per
+	// subscription. Empty when tenant resolution failed — callers fall back
+	// to per-subscription behavior.
 	tenantID string
 	// tenantName is the tenant's friendly display name, resolved once in Scan
 	// via Microsoft Graph's /organization endpoint and stamped onto every
@@ -494,10 +494,10 @@ func (s *subscription) scopeLabel() string {
 
 // tenantScopeLabel renders the scope column for tenant-scope service rows
 // (Entra ID, management groups, built-in role/policy definitions). Mirrors
-// the per-subscription scopeLabel "friendly name, else GUID" shape: prefer the
-// tenant display name, fall back to the tenant GUID, and only as a last resort
-// the literal "tenant" placeholder when neither resolved (degraded mode). The
-// tenant identity is uniform across subs, so the first one is representative.
+// scopeLabel's "friendly name, else GUID" shape: prefer the tenant display
+// name, fall back to the tenant GUID, and only as a last resort the literal
+// "tenant" placeholder when neither resolved (degraded mode). Tenant identity
+// is uniform across subs, so the first one is representative.
 func tenantScopeLabel(subs []subscription) string {
 	if len(subs) > 0 {
 		if subs[0].tenantName != "" {
@@ -514,11 +514,11 @@ func tenantScopeLabel(subs []subscription) string {
 // AppService scanner during scan and consumed by the Functions resolver.
 // Outer key = subscription ID, inner key = function-app disco ID, innermost
 // = setting name → value. App settings are NOT a first-class ARM resource
-// (they live as sub-resource config of `Microsoft.Web/sites`), so per the
-// providers/CLAUDE.md "non-resource config fetches" rule they sidecar
+// (they live as sub-resource config of `Microsoft.Web/sites`), so per
+// providers/CLAUDE.md's "non-resource config fetches" rule they sidecar
 // rather than wrap into the parent site's AttributesJSON. Package-level
-// rather than `subscription` field because subscription is passed by value
-// in some call paths and adding a mutex would break those copy semantics.
+// rather than a `subscription` field because subscription is passed by value
+// in some call paths, and adding a mutex would break those copy semantics.
 var (
 	functionAppSettingsMu sync.Mutex
 	functionAppSettings   = map[string]map[string]map[string]string{}

@@ -17,10 +17,9 @@ func init() {
 			{Service: "securityhub", DiscoType: TypeSecurityHubHub, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubInsight, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubProductSubscription},
-			// The per-standards-subscription view disco scans (GetEnabledStandards)
-			// appears in neither CFN (which models the enablement as
-			// AWS::SecurityHub::Standard) nor the Service Reference catalog, so it
-			// is uncatalogued — real, scanned, just absent from every registry.
+			// GetEnabledStandards' view appears in neither CFN (models enablement as
+			// AWS::SecurityHub::Standard) nor the Service Reference catalog —
+			// uncatalogued: real, scanned, just absent from every registry.
 			{Service: "securityhub", DiscoType: TypeSecurityHubStandardsSubscription, Leaf: true, Uncatalogued: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubAggregatorV2, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubAutomationRule, Leaf: true},
@@ -58,10 +57,10 @@ type securityhubAPI interface {
 }
 
 // scanSecurityHub discovers the per-region hub, enabled standards, imported
-// products, and saved insights. Security Hub is regional. Accounts that have
-// not enabled the hub in this region surface InvalidAccessException at every
-// API — phase 1 sets a `present` flag (mirrors scanMacie) and sibling phases
-// short-circuit when not enabled, avoiding N redundant denied errors.
+// products, and saved insights. Security Hub is regional; accounts without
+// the hub enabled here return InvalidAccessException on every API, so phase
+// 1 sets a `present` flag (mirrors scanMacie) and sibling phases short-circuit
+// when not enabled, avoiding N redundant denied errors.
 func scanSecurityHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := securityhub.NewFromConfig(acct.cfg, func(o *securityhub.Options) { o.Region = region })
 
@@ -114,17 +113,17 @@ func scanSecurityHub(ctx context.Context, acct *account, region string, st *stor
 	return total, inserted, nil
 }
 
-// isSecurityHubNotEnabled reports whether err indicates Security Hub is not
-// enabled in the calling region. DescribeHub and downstream APIs return
-// InvalidAccessException in that case; treat as a soft skip identical to
-// AccessDenied so non-enabled regions do not pollute scan errors.
+// isSecurityHubNotEnabled reports whether err means Security Hub isn't
+// enabled in the calling region — DescribeHub and downstream APIs return
+// InvalidAccessException in that case; treat as a soft skip like AccessDenied
+// so non-enabled regions don't pollute scan errors.
 func isSecurityHubNotEnabled(err error) bool {
 	return isAPIErrorCode(err, "InvalidAccessException", "ResourceNotFoundException")
 }
 
 // securityHubHubNativeID synthesises the canonical hub ARN when DescribeHub
-// returns a body without HubArn populated. Hub is a singleton per (acct,
-// region); shape matches the AWS-issued ARN.
+// returns no HubArn. Hub is a singleton per (acct, region); shape matches
+// the AWS-issued ARN.
 func securityHubHubNativeID(accountID, region string) string {
 	return fmt.Sprintf("arn:aws:securityhub:%s:%s:hub/default", region, accountID)
 }

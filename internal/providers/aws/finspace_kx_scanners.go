@@ -35,12 +35,11 @@ type finspaceKxAPI interface {
 	ListKxVolumes(context.Context, *finspace.ListKxVolumesInput, ...func(*finspace.Options)) (*finspace.ListKxVolumesOutput, error)
 }
 
-// scanFinspaceKx discovers FinSpace Managed kdb (kx) resources: each kdb
-// environment (the parent) plus its clusters, databases, dataviews, scaling
-// groups, users, and volumes. Child summaries carry no AWS-issued ARN (except
-// KxUser), so their NativeID is synthesized as `{envARN}/<kind>/{id}` mirroring
-// the dominant child→parent NativeID shape; resolvers recover the parent by
-// trimming the segment.
+// scanFinspaceKx discovers FinSpace Managed kdb (kx) resources: parent kdb
+// environment plus its clusters, databases, dataviews, scaling groups, users,
+// and volumes. Child summaries carry no AWS-issued ARN (except KxUser), so
+// NativeID synthesizes as `{envARN}/<kind>/{id}` (dominant child→parent
+// shape); resolvers recover the parent by trimming the segment.
 func scanFinspaceKx(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := finspace.NewFromConfig(acct.cfg, func(o *finspace.Options) { o.Region = region })
 	return scanFinspaceKxEntities(ctx, client, acct, region, st, scanID)
@@ -87,8 +86,8 @@ func scanFinspaceKxEntities(ctx context.Context, client finspaceKxAPI, acct *acc
 }
 
 // scanFinspaceKxChildren fans out every per-environment list op. Per-environment
-// AccessDenied / not-found / validation errors are tolerated (an environment may
-// be mid-creation or partially permissioned) — they never abort the scan.
+// AccessDenied/not-found/validation errors are tolerated (environment may be
+// mid-creation or partially permissioned) — never abort the scan.
 func scanFinspaceKxChildren(ctx context.Context, client finspaceKxAPI, acct *account, region string, st *store.Store, scanID, envARN, envID string) []*store.Resource {
 	var out []*store.Resource
 	out = append(out, listKxClusters(ctx, client, acct, region, st, scanID, envARN, envID)...)

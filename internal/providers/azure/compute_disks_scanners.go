@@ -27,7 +27,7 @@ func scanDisks(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 	return scanDisksWithClient(ctx, sub, st, scanID, client)
 }
 
-// scanDisksWithClient is the body of scanDisks split out so tests can inject a
+// scanDisksWithClient is scanDisks's body, split out so tests can inject a
 // fake-transport-backed *armcompute.DisksClient (see compute_disks_scanners_test.go).
 func scanDisksWithClient(ctx context.Context, sub *subscription, st *store.Store, scanID string, client *armcompute.DisksClient) (total, inserted int, err error) {
 	return azSimpleScan(ctx, "armcompute:Disks.List", TypeComputeManagedDisk, sub, st, scanID,

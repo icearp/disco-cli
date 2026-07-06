@@ -42,7 +42,6 @@ func resolveAKSRelationships(sub *subscription, st *store.Store) error {
 			if ap.VnetSubnetID == nil {
 				continue
 			}
-			// Extract the VNet ID from the subnet ID.
 			vnetID := vnetIDFromSubnetID(*ap.VnetSubnetID)
 			if vnetID == "" || seen[vnetID] {
 				continue

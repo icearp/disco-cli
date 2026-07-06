@@ -67,11 +67,10 @@ func newTestSubscription(id string) *subscription {
 	return &subscription{ID: id, Name: "Test Subscription"}
 }
 
-// marshalAttrs returns the JSON encoding of v as the attrsJSON value scanners
-// would persist to the store. Tests use this with real SDK structs (e.g.
-// armcompute.Disk, armnetwork.VirtualNetwork) so that schema drift between
-// SDK upgrades surfaces as a Go compile error rather than a silent
-// resolver edge-loss when hand-rolled JSON literals fall out of sync.
+// marshalAttrs JSON-encodes v as the attrsJSON value scanners persist to the
+// store. Tests use this with real SDK structs (e.g. armcompute.Disk,
+// armnetwork.VirtualNetwork) so SDK schema drift is a Go compile error, not a
+// silent resolver edge-loss from stale hand-rolled JSON literals.
 func marshalAttrs(t *testing.T, v any) string {
 	t.Helper()
 	b, err := json.Marshal(v)
@@ -81,20 +80,20 @@ func marshalAttrs(t *testing.T, v any) string {
 	return string(b)
 }
 
-// fakeCred returns an azcore.TokenCredential that the SDK auth pipeline accepts
-// without ever issuing a real auth call. Paired with a fake transport, no HTTP
-// or token exchange occurs.
+// fakeCred returns an azcore.TokenCredential the SDK auth pipeline accepts
+// without a real auth call. Paired with a fake transport, no HTTP or token
+// exchange occurs.
 func fakeCred() azcore.TokenCredential { return &fake.TokenCredential{} }
 
 // fakeClientOptions returns *arm.ClientOptions wired to short-circuit every
-// request through the supplied fake server transport. Tests use this in place
-// of azClientOptions when constructing arm* clients so that NewListPager and
-// friends never touch the network.
+// request through the supplied fake transport. Tests use this in place of
+// azClientOptions when constructing arm* clients so NewListPager and friends
+// never touch the network.
 //
-// The retry policy is collapsed (MaxRetries=0) because a fake transport
-// returning a deterministic response should never trigger retries; if it does,
-// the test wants the error surfaced immediately rather than masked by the
-// production retry loop.
+// Retry is collapsed (MaxRetries=0): a fake transport returning a
+// deterministic response should never need a retry; if it does, the test
+// wants the error surfaced immediately, not masked by the production retry
+// loop.
 func fakeClientOptions(t *testing.T, transport policy.Transporter) *arm.ClientOptions {
 	t.Helper()
 	return &arm.ClientOptions{

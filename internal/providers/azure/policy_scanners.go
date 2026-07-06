@@ -22,7 +22,7 @@ func init() {
 // assignments. Mirrors the RBAC pattern (definitions then assignments) so
 // resolvers can FK assignments to definitions locally. Built-ins are returned
 // alongside customer-authored definitions and stored under each subscription's
-// account_id (acceptable duplication — same logic as RBAC role-definitions).
+// account_id (acceptable duplication — same as RBAC role-definitions).
 // Exemptions (`armpolicy.ExemptionsClient`) deferred — narrow customer base.
 func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	defClient, err := armpolicy.NewDefinitionsClient(sub.ID, cred, azClientOptions)

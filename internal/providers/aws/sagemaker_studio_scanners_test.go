@@ -11,9 +11,9 @@ import (
 	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 )
 
-// stubSageMakerStudio satisfies sagemakerStudioAPI for unit tests. Each
-// op returns either a prepared output or empty page. The stub does not
-// model paginator NextToken — first NextPage call yields the full slice.
+// stubSageMakerStudio satisfies sagemakerStudioAPI for tests: each op
+// returns a prepared output or empty page. It does not model paginator
+// NextToken — the first NextPage call yields the full slice.
 type stubSageMakerStudio struct {
 	domains             []smtypes.DomainDetails
 	domainOut           map[string]*sagemaker.DescribeDomainOutput

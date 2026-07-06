@@ -26,9 +26,8 @@ func init() {
 	)
 }
 
-// resolveVMAvailabilitySetRelationships adds an attached-to edge from each VM to
-// its availability set, derived from the availabilitySet.id field in the VM's
-// stored attributes JSON.
+// resolveVMAvailabilitySetRelationships adds an attached-to edge from each VM to its
+// availability set, from availabilitySet.id in the VM's stored attributes JSON.
 func resolveVMAvailabilitySetRelationships(sub *subscription, st *store.Store) error {
 	vms, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -63,9 +62,8 @@ func resolveVMAvailabilitySetRelationships(sub *subscription, st *store.Store) e
 	return nil
 }
 
-// resolveVMProximityGroupRelationships adds an attached-to edge from each VM to
-// its proximity placement group, derived from proximityPlacementGroup.id in
-// the VM's stored attributes JSON.
+// resolveVMProximityGroupRelationships adds an attached-to edge from each VM to its
+// proximity placement group, from proximityPlacementGroup.id in the VM's stored attributes JSON.
 func resolveVMProximityGroupRelationships(sub *subscription, st *store.Store) error {
 	vms, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -100,9 +98,8 @@ func resolveVMProximityGroupRelationships(sub *subscription, st *store.Store) er
 	return nil
 }
 
-// resolveVMExtensionRelationships derives the parent VM for each VM extension
-// by truncating the extension's NativeID at "/extensions/".
-// NativeID form: .../virtualMachines/{vm}/extensions/{ext}
+// resolveVMExtensionRelationships derives each extension's parent VM by truncating
+// NativeID at "/extensions/". NativeID form: .../virtualMachines/{vm}/extensions/{ext}
 func resolveVMExtensionRelationships(sub *subscription, st *store.Store) error {
 	exts, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -126,9 +123,8 @@ func resolveVMExtensionRelationships(sub *subscription, st *store.Store) error {
 	return nil
 }
 
-// resolveImageSourceVMRelationships adds an attached-to edge from each custom
-// image to its source VM, derived from properties.sourceVirtualMachine.id in
-// the image's stored attributes JSON.
+// resolveImageSourceVMRelationships adds an attached-to edge from each custom image
+// to its source VM, from properties.sourceVirtualMachine.id in stored attributes JSON.
 func resolveImageSourceVMRelationships(sub *subscription, st *store.Store) error {
 	images, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},
@@ -167,9 +163,8 @@ func resolveImageSourceVMRelationships(sub *subscription, st *store.Store) error
 	return nil
 }
 
-// resolveRestorePointCollectionSourceRelationships adds an attached-to edge
-// from each restore point collection to its source VM, derived from
-// properties.source.id in the stored attributes JSON.
+// resolveRestorePointCollectionSourceRelationships adds an attached-to edge from each
+// restore point collection to its source VM, from properties.source.id in stored attributes JSON.
 func resolveRestorePointCollectionSourceRelationships(sub *subscription, st *store.Store) error {
 	rpcs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},

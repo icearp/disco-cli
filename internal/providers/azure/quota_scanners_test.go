@@ -178,8 +178,8 @@ func TestScanQuotaLimits_SynthesizedNativeID(t *testing.T) {
 }
 
 // TestScanQuotaLimits_GenuineErrorPropagates proves a non-skippable error (500)
-// surfaces to the dispatcher (which reports it) rather than being silently
-// swallowed like the tolerated skippable cases.
+// surfaces to the dispatcher (which reports it) rather than being swallowed
+// like the tolerated skippable cases.
 func TestScanQuotaLimits_GenuineErrorPropagates(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)

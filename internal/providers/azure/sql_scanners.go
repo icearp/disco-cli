@@ -13,10 +13,10 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// SQL type constants are defined in types.go.
-// Server sub-resource scanners live in sql_server_child_scanners.go.
-// Database sub-resource scanners live in sql_database_child_scanners.go.
-// Managed instance + managed database scanners live in sql_managed_scanners.go.
+// SQL type constants: types.go.
+// Server sub-resource scanners: sql_server_child_scanners.go.
+// Database sub-resource scanners: sql_database_child_scanners.go.
+// Managed instance + managed database scanners: sql_managed_scanners.go.
 
 func init() {
 	registerService(serviceEntry{
@@ -46,14 +46,13 @@ type sqlDatabase struct {
 	rgName     string
 }
 
-// scanSQL discovers Azure SQL servers and their databases plus all supported sub-resources.
-// Servers, instance pools, virtual clusters, and managed instances are scanned in parallel.
+// scanSQL discovers Azure SQL servers, their databases, and all supported sub-resources.
+// Servers, instance pools, virtual clusters, and managed instances scan in parallel.
 func scanSQL(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	// Top-level phases run concurrently via azRunPhases (no cross-phase
-	// cancellation): a failure in one (e.g. managed instances) must not abort the
-	// servers/pools/clusters scans — "errors never abort scan". Per-server and
-	// per-database fan-out inside scanSQLServersAndChildren keeps its own
-	// bounded errgroup, matching the azRGFanoutScan pattern.
+	// Top-level phases run concurrently via azRunPhases (no cross-phase cancellation) — a
+	// failure in one (e.g. managed instances) must not abort servers/pools/clusters
+	// ("errors never abort scan"). Per-server/per-database fan-out inside
+	// scanSQLServersAndChildren keeps its own bounded errgroup, matching azRGFanoutScan.
 	return azRunPhases(
 		func() (int, int, error) { return scanSQLServersAndChildren(ctx, sub, cred, st, scanID) },
 		func() (int, int, error) { return scanSQLInstancePools(ctx, sub, cred, st, scanID) },
@@ -62,9 +61,9 @@ func scanSQL(ctx context.Context, sub *subscription, cred azcore.TokenCredential
 	)
 }
 
-// scanSQLServersAndChildren lists servers, then fans out concurrently to databases
-// and all 16 server-level sub-resources per server, then fans out to all 10
-// database-level sub-resources per database.
+// scanSQLServersAndChildren lists servers, fans out concurrently to databases and all
+// 16 server-level sub-resources per server, then fans out to all 10 database-level
+// sub-resources per database.
 func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	serversClient, err := armsql.NewServersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -123,7 +122,7 @@ func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred azco
 	}
 
 	// Phase 2: per-server fan-out — databases + 16 server sub-resource types.
-	// Semaphore bounds total concurrent goroutines across all servers.
+	// Semaphore bounds total concurrent goroutines across servers.
 	var (
 		mu     sync.Mutex
 		allDBs []sqlDatabase
@@ -192,8 +191,8 @@ func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred azco
 			})
 		}
 	}
-	// Wait BEFORE reading the counters — Go evaluates return-list expressions
-	// left-to-right, so inlining g2.Wait() at position 3 reads total/inserted
+	// Wait BEFORE reading counters — Go evaluates return-list expressions
+	// left-to-right; inlining g2.Wait() at position 3 would read total/inserted
 	// while phase-3 goroutines are still running.
 	err = g2.Wait()
 	return total, inserted, err

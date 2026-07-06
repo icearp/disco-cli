@@ -2,10 +2,10 @@ package aws
 
 import "codeberg.org/icearp/disco/internal/redact"
 
-// Provider-declared redaction rules. Rules name the SDK-shape JSON paths
-// disco wants redacted from AttributesJSON before write. Centralised here
-// (rather than scattered across each <svc>_scanners.go init) so a reviewer
-// can audit "what does aws scrub?" in one read.
+// Provider-declared redaction rules: SDK-shape JSON paths disco redacts from
+// AttributesJSON before write. Centralised here (rather than scattered across
+// each <svc>_scanners.go init) so a reviewer can audit "what does aws scrub?"
+// in one read.
 //
 // Path syntax: dotted literals; "*" map-key wildcard; "[*]" array wildcard.
 // Modes: RedactScalar (leaf-only) and RedactSubtree (every scalar descendant).

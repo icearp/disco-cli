@@ -61,11 +61,9 @@ type ec2LaunchTemplateTargetSets struct {
 	kmsIdx          *kmsResolveIndex
 }
 
-// resolveEC2LaunchTemplateRefs walks the embedded DefaultVersion's
-// LaunchTemplateData and emits AMI / IAM-instance-profile / key-pair /
-// security-group / subnet / KMS edges. The wrapped attrs shape is
-// `{"LaunchTemplate":..., "DefaultVersion":...}` (per scanner enrichment).
-// FK-safe via scannedIDSet; refs to public AMIs / shared keys / etc. skip.
+// resolveEC2LaunchTemplateRefs walks DefaultVersion.LaunchTemplateData and
+// emits AMI / IAM-instance-profile / key-pair / security-group / subnet / KMS
+// edges. FK-safe via scannedIDSet; refs to public AMIs, shared keys, etc. skip.
 func resolveEC2LaunchTemplateRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2LaunchTemplate}, Limit: util.AllResources,

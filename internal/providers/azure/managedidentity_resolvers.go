@@ -15,10 +15,10 @@ func init() {
 	)
 	// resolveManagedIdentityConsumers is a cross-cutting central resolver: its
 	// source is EVERY resource type carrying an identity.userAssignedIdentities
-	// map, so enumerating per-type EdgeDecl.Source entries is meaningless (and
-	// would pollute the `coverage resolvers --missing` per-service inventory).
-	// Left unannotated deliberately — the target (user-assigned-identity) is
-	// reached via consumer edges from arbitrary types.
+	// map, so per-type EdgeDecl.Source entries would be meaningless (and pollute
+	// the `coverage resolvers --missing` per-service inventory). Left unannotated
+	// deliberately — the target (user-assigned-identity) is reached via consumer
+	// edges from arbitrary types.
 	registerResolver(resolveManagedIdentityConsumers)
 }
 
@@ -91,10 +91,9 @@ func resolveManagedIdentityAssignmentPrincipals(sub *subscription, st *store.Sto
 
 // resolveManagedIdentityConsumers derives consumer -[uses]-> user-assigned-identity
 // edges for any Azure resource whose attributes contain an `identity.userAssignedIdentities`
-// map (VMs, VMSS, AppService sites, AKS clusters, storage accounts, ...). The
-// keys of that map are the full ARM IDs of the referenced identities, so this
-// is provider-agnostic: any future scanner that stores its native SDK response
-// verbatim will be picked up automatically.
+// map (VMs, VMSS, AppService sites, AKS clusters, storage accounts, ...). Map keys
+// are the full ARM IDs of the referenced identities, so this is provider-agnostic:
+// any future scanner storing its native SDK response verbatim is picked up automatically.
 func resolveManagedIdentityConsumers(sub *subscription, st *store.Store) error {
 	identities, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

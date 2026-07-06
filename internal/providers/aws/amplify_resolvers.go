@@ -21,8 +21,8 @@ func init() {
 //   - app.ComputeRoleArn (uses, SSR)
 //   - branch.ComputeRoleArn (uses, SSR per-branch)
 //
-// Domain associations carry no cross-resource ARNs to scanned resources
-// beyond the parent app (already wired via hierarchy closure at scan time).
+// Domain associations carry no cross-resource ARNs beyond the parent app
+// (already hierarchy-wired at scan time).
 func resolveAmplifyRelationships(acct *account, st *store.Store) error {
 	apps, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAmplifyApp},

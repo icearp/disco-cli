@@ -15,10 +15,10 @@ func init() {
 	)
 }
 
-// resolveSocialMessagingPhoneNumberWABA wires each WhatsApp phone number to the
-// linked WhatsApp Business Account it belongs to. The parent WABA ARN is
-// embedded as WabaArn at scan time (the SDK phone-number entry carries no
-// back-reference). FK-safe against the scanned WABA set.
+// resolveSocialMessagingPhoneNumberWABA wires each WhatsApp phone number to
+// its linked WhatsApp Business Account. The parent WABA ARN is embedded as
+// WabaArn at scan time (the SDK phone-number entry carries no back-reference).
+// FK-safe against the scanned WABA set.
 func resolveSocialMessagingPhoneNumberWABA(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSocialMessagingPhoneNumberID}, Limit: util.AllResources,

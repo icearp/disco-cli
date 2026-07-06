@@ -25,8 +25,7 @@ func init() {
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerAuditingSettings},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerExtAuditingSettings},
 		// Uncatalogued: disco scans this proxy child, but ARM Providers/List
-		// does not enumerate servers/devOpsAuditingSettings as a standalone
-		// resourceType.
+		// doesn't enumerate servers/devOpsAuditingSettings as a standalone resourceType.
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerDevOpsAuditSettings, Uncatalogued: true},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerDNSAlias},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLSyncAgent},
@@ -34,21 +33,18 @@ func init() {
 	)
 }
 
-// sqlChildExtract is the per-item shape returned by each child scanner's
-// extractor: identity (id, name) and optional tracked-resource fields
-// (region, tags). Region/tags are pointer/map so scanners covering proxy
-// resources (no Location/Tags) leave them nil, matching prior behavior.
+// sqlChildExtract is each child scanner's extractor output: id, name, plus optional
+// tracked-resource fields (region, tags) — pointer/map so proxy scanners (no
+// Location/Tags) can leave them nil.
 type sqlChildExtract struct {
 	id, name string
 	region   *string
 	tags     map[string]*string
 }
 
-// sqlChildScan is the shared body for SQL-server sub-resource scans:
-// page through the ListByServer pager, map each item to a Resource hierarchical
-// to its parent server, and upsert via sqlUpsert. AccessDenied and
-// FeatureNotAvailable errors break the loop without surfacing — matches the
-// pre-existing per-function behavior.
+// sqlChildScan is the shared body for SQL-server sub-resource scans: pages the
+// ListByServer pager, maps each item to a Resource under its parent server, and
+// upserts via sqlUpsert. AccessDenied/FeatureNotAvailable errors break the loop silently.
 func sqlChildScan[C any, T any](
 	ctx context.Context,
 	label, rtype string,

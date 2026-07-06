@@ -12,8 +12,8 @@ import (
 func init() { registerResolver(resolveCloudBuildRelationships) }
 
 // resolveCloudBuildRelationships derives trigger -[uses]-> service-account
-// edges. The trigger's `serviceAccount` field is documented as
-// `projects/{projectId}/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}` —
+// edges. The trigger's `serviceAccount` field
+// (`projects/{projectId}/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`)
 // matches the SA NativeID format directly. Email-form fallback handled the
 // same way as R4.10's serverless resolver.
 //

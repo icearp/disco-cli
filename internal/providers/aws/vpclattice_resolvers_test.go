@@ -7,7 +7,7 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// vlARN builds a VPC Lattice resource ARN for a top-level resource (service,
+// vlARN builds an ARN for a VPC Lattice top-level resource (service,
 // servicenetwork, targetgroup, resourcegateway, resourceconfiguration).
 func vlARN(region, acctID, kind, id string) string {
 	return fmt.Sprintf("arn:aws:vpc-lattice:%s:%s:%s/%s", region, acctID, kind, id)
@@ -359,9 +359,9 @@ func TestResolveVPCLatticeAuthPolicyParent(t *testing.T) {
 }
 
 func TestResolveVPCLatticeAuthPolicyParent_EmptyAttrs(t *testing.T) {
-	// Empty attrs are irrelevant — resolver reads NativeID. Use an ARN
-	// without a recognizable `/service/` or `/servicenetwork/` segment to
-	// hit the default-skip branch.
+	// Empty attrs don't matter — resolver reads NativeID. ARN lacks a
+	// recognizable `/service/` or `/servicenetwork/` segment to hit the
+	// default-skip branch.
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	authID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeAuthPolicy,

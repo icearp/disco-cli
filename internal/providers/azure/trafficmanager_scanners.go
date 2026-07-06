@@ -17,10 +17,9 @@ func init() {
 }
 
 // scanTrafficManager discovers Azure Traffic Manager profiles. Endpoints are
-// embedded in the profile's properties.endpoints[] array (full body returned
-// by ListBySubscription), so a separate endpoint scan is not required.
-// Heatmap, geographic-hierarchy, and user-metric-keys APIs deferred — config
-// surfaces, not edge sources.
+// embedded in properties.endpoints[] (full body from ListBySubscription), so
+// no separate endpoint scan is needed. Heatmap, geographic-hierarchy, and
+// user-metric-keys APIs deferred — config surfaces, not edge sources.
 func scanTrafficManager(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armtrafficmanager.NewProfilesClient(sub.ID, cred, azClientOptions)
 	if err != nil {

@@ -17,9 +17,9 @@ func init() {
 	)
 }
 
-// resolveSNSTopicRelationships links each SNS topic to its KMS key (when a
-// customer-managed key encrypts messages at rest) and to the SQS queue
-// configured as its dead-letter target (parsed from RedrivePolicy).
+// resolveSNSTopicRelationships links each SNS topic to its KMS key (customer-
+// managed key encrypting messages at rest) and to its dead-letter SQS queue
+// (parsed from RedrivePolicy).
 func resolveSNSTopicRelationships(acct *account, st *store.Store) error {
 	topics, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSNSTopic},
@@ -58,8 +58,8 @@ func resolveSNSTopicRelationships(acct *account, st *store.Store) error {
 }
 
 // kmsKeyTargetARN normalizes a KMS key reference (key ID, alias, or ARN) to a
-// full key ARN so it matches the NativeID of a scanned KMS key. Aliases and
-// bare key IDs are assumed to live in the caller's account and region.
+// full key ARN matching a scanned KMS key's NativeID. Aliases and bare key
+// IDs are assumed to live in the caller's account and region.
 func kmsKeyTargetARN(ref, region, acct string) string {
 	if strings.HasPrefix(ref, "arn:") {
 		return ref

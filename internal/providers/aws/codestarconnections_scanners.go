@@ -31,9 +31,9 @@ type codeStarConnectionsAPI interface {
 }
 
 // scanCodeStarConnections discovers third-party SCM connections, repository
-// links, and sync configurations. SyncConfiguration list requires
-// (RepositoryLinkId, SyncType) — fan-out per scanned link, all known sync
-// types.
+// links, and sync configurations. ListSyncConfigurations requires
+// (RepositoryLinkId, SyncType) — fan out per scanned link across all known
+// sync types.
 func scanCodeStarConnections(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := codestarconnections.NewFromConfig(acct.cfg, func(o *codestarconnections.Options) { o.Region = region })
 
@@ -100,9 +100,9 @@ func scanCSCConnections(ctx context.Context, client codeStarConnectionsAPI, acct
 	return t, i, err
 }
 
-// scanCSCHosts discovers CodeConnections hosts — the install endpoints for
+// scanCSCHosts discovers CodeConnections hosts — install endpoints for
 // self-managed SCM providers (GitHub Enterprise Server, GitLab self-managed,
-// Bitbucket Data Center). A host installed inside a private network carries a
+// Bitbucket Data Center). A host inside a private network carries a
 // VpcConfiguration wired by resolveCSCHostNetwork.
 func scanCSCHosts(ctx context.Context, client codeStarConnectionsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource

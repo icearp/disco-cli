@@ -92,11 +92,10 @@ func scanAPIGatewayV2VpcLinks(ctx context.Context, acct *account, region string,
 	return total, inserted, nil
 }
 
-// scanAPIGatewayV2 discovers HTTP and WebSocket APIs (API Gateway v2).
-// Tags are included in the GetApis response; no separate tag call is needed.
-// ARN format: arn:aws:apigateway:{region}::/apis/{id}
 // scanAPIGatewayHTTPAPIs discovers HTTP and WebSocket APIs (API Gateway v2),
-// then fans out to scan per-API child resources (authorizers) concurrently.
+// then fans out to per-API child scans (authorizers) concurrently. Tags come
+// from the GetApis response — no separate tag call needed.
+// ARN format: arn:aws:apigateway:{region}::/apis/{id}
 func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := apigatewayv2.NewFromConfig(acct.cfg, func(o *apigatewayv2.Options) { o.Region = region })
 

@@ -35,8 +35,8 @@ type ecrAPI interface {
 	ListTagsForResource(context.Context, *ecr.ListTagsForResourceInput, ...func(*ecr.Options)) (*ecr.ListTagsForResourceOutput, error)
 }
 
-// scanECR discovers ECR repositories in one region. DescribeRepositories returns
-// full repository details in a single paginated call — no separate describe step needed.
+// scanECR discovers ECR repositories in one region. DescribeRepositories
+// returns full details in a single paginated call — no separate describe step.
 // Tags are fetched concurrently via ListTagsForResource (one call per repository).
 func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ecr.NewFromConfig(acct.cfg, func(o *ecr.Options) { o.Region = region })

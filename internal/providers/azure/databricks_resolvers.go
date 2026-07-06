@@ -17,9 +17,8 @@ func init() {
 }
 
 // resolveDatabricksRelationships derives Databricks workspace
-// -[attached-to]-> VNet edge for VNet-injected ("VNet-injected workspaces"
-// Premium tier) deployments. The custom VNet ID lives in
-// properties.parameters.customVirtualNetworkId.value.
+// -[attached-to]-> VNet edge for VNet-injected (Premium tier) deployments.
+// The custom VNet ID lives in properties.parameters.customVirtualNetworkId.value.
 func resolveDatabricksRelationships(sub *subscription, st *store.Store) error {
 	workspaces, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

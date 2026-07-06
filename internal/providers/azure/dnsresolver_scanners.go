@@ -11,7 +11,7 @@ import (
 )
 
 // Azure DNS Private Resolver lives under the microsoft.network/* ARM namespace
-// but ships in its own SDK module (armdnsresolver), so it registers as its own
+// but ships in its own SDK module (armdnsresolver), registering as its own
 // disco service. All four types expose a subscription-wide NewListPager.
 func init() {
 	registerExtraEmits([]coverage.TypeDecl{

@@ -25,10 +25,10 @@ func (coverageProvider) Name() string { return "gcp" }
 
 func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 
-// Aliases overrides the algorithmic disco-type → upstream-key mapping for
-// GCP types whose Discovery resource-collection name doesn't match the
-// disco service segment one-to-one (e.g. cloudresourcemanager Discovery
-// uses singular "Project" while disco's segment is "cloudresourcemanager").
+// Aliases overrides the algorithmic disco-type → upstream-key mapping for GCP
+// types whose Discovery resource-collection name doesn't match the disco
+// service segment 1:1 (e.g. cloudresourcemanager Discovery uses singular
+// "Project" while disco's segment is "cloudresourcemanager").
 //
 // Discovery key shape: "<api>.googleapis.com/<Resource>" — the same shape
 // produced by Fetch below. Empty map allowed; algorithmic fallback handles
@@ -117,9 +117,9 @@ func (coverageProvider) Aliases() map[string]string {
 }
 
 // AlgorithmicKey converts a disco type to a best-effort Discovery key shape.
-// Used as fallback when Aliases() has no entry — primarily exists to keep
-// the matrix render sensible for entries that haven't been audited yet
-// against a live Discovery dump. Format: "<service>.googleapis.com/<Pascal>".
+// Fallback when Aliases() has no entry — keeps the matrix render sensible
+// for entries not yet audited against a live Discovery dump. Format:
+// "<service>.googleapis.com/<Pascal>".
 func (coverageProvider) AlgorithmicKey(discoType string) string {
 	parts := strings.SplitN(discoType, ":", 3)
 	if len(parts) != 3 {
@@ -151,10 +151,9 @@ const discoveryFetchLimit = 8
 //   - parent / sibling APIs that don't have their own scanner but supply
 //     resource shapes scanners depend on (cloudresourcemanager, iam, run, …).
 //
-// The filter is *post-fetch* — we still paginate the full Discovery list
-// once but skip per-API discovery doc HTTP calls for APIs disco doesn't care
-// about. Keeps the matrix focused; trims runtime ~10× vs scanning every
-// Google API.
+// The filter is *post-fetch* — we still paginate the full Discovery list once
+// but skip per-API doc HTTP calls for APIs disco doesn't need. Keeps the
+// matrix focused; trims runtime ~10× vs scanning every Google API.
 func (coverageProvider) Fetch(ctx context.Context, _ coverage.FetchOptions) ([]coverage.UpstreamType, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 
@@ -196,8 +195,8 @@ func (coverageProvider) Fetch(ctx context.Context, _ coverage.FetchOptions) ([]c
 			if err != nil {
 				// A per-API doc failure would leave that API's types absent
 				// from the upstream set, falsely bucketing them upstream-missing.
-				// Record and propagate rather than silently degrade — the cmd
-				// layer turns this into a fatal "registry unreachable" (exit 2).
+				// Record and propagate rather than silently degrade — cmd turns
+				// this into a fatal "registry unreachable" (exit 2).
 				mu.Lock()
 				if firstErr == nil {
 					firstErr = fmt.Errorf("discovery doc %s: %w", ref.name, err)
@@ -321,15 +320,13 @@ func fetchDiscoveryDoc(ctx context.Context, client *http.Client, url string) (*d
 }
 
 // walkResourceCollections recursively walks a Discovery doc's resources tree
-// and emits one UpstreamType per fetchable collection. A "fetchable
-// collection" is any node carrying a `get` or `list` method, which closely
-// matches GCP's notion of a resource type in tooling like gcloud + asset
-// inventory.
+// and emits one UpstreamType per fetchable collection — any node carrying a
+// `get` or `list` method, matching GCP's notion of a resource type in
+// tooling like gcloud + asset inventory.
 //
 // Resource name conversion: Discovery uses lowerCamel collection names
 // ("forwardingRules" → singular "ForwardingRule"). Strip a trailing 's' and
-// PascalCase. Imperfect but consistent — alias-map overrides cover the
-// edge cases.
+// PascalCase. Imperfect but consistent — alias-map overrides cover edge cases.
 func walkResourceCollections(api string, doc *discoveryDoc) []coverage.UpstreamType {
 	if doc == nil {
 		return nil
@@ -389,11 +386,11 @@ func pascalCase(s string) string {
 }
 
 // FetchRegions calls compute.Regions.List for the first accessible project
-// and returns the region-name list. Reuses gcpRegions(ctx, *project) so the
-// scanner-side and coverage-side fetch paths share the same shape (incl.
-// silent-skip on permission denied / API not enabled, which yields an empty
-// slice — DiffRegions will then mark every static entry as "stale", a clear
-// signal that the caller needs broader creds).
+// and returns the region-name list. Reuses gcpRegions(ctx, *project) so
+// scanner-side and coverage-side fetch paths share the same shape, including
+// silent-skip on permission denied / API not enabled (yields empty slice —
+// DiffRegions then marks every static entry "stale", a clear signal the
+// caller needs broader creds).
 func (coverageProvider) FetchRegions(ctx context.Context, _ coverage.FetchOptions) ([]string, error) {
 	// Coverage tooling uses ambient/config credentials; no per-scan override.
 	projects, err := loadProjects(ctx, "")

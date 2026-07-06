@@ -27,8 +27,8 @@ func init() {
 	})
 }
 
-// scanCloudRunJobs discovers Cloud Run v2 Jobs (sibling surface to Cloud Run
-// Services from R4.10). Uses the locations/- wildcard parent.
+// scanCloudRunJobs discovers Cloud Run v2 Jobs (sibling to Cloud Run Services
+// from R4.10) via the locations/- wildcard parent.
 func scanCloudRunJobs(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := run.NewService(ctx, opts...)
@@ -60,9 +60,9 @@ func scanCloudRunJobs(ctx context.Context, p *project, st *store.Store, scanID s
 		})
 }
 
-// scanBatchJobs discovers Cloud Batch jobs. Like Cloud Run Jobs, uses the
-// locations/- wildcard. Job task groups + per-task data deferred — task
-// objects are runtime artifacts, not graph-meaningful.
+// scanBatchJobs discovers Cloud Batch jobs via the locations/- wildcard
+// (like Cloud Run Jobs). Task groups + per-task data deferred — task objects
+// are runtime artifacts, not graph-meaningful.
 func scanBatchJobs(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := batch.NewService(ctx, opts...)

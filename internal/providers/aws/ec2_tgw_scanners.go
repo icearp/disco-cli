@@ -510,8 +510,8 @@ func scanTGWVPCAttachments(ctx context.Context, client ec2API, acct *account, re
 	)
 }
 
-// scanTGWRoutes fans out per TGW route table and emits each route as a resource.
-// SearchTransitGatewayRoutes does not have a paginator; we call it directly per table.
+// scanTGWRoutes fans out per TGW route table, emitting each route as a resource.
+// SearchTransitGatewayRoutes has no paginator; called directly per table.
 func scanTGWRoutes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region, st)
 	if err != nil {
@@ -525,8 +525,7 @@ func scanTGWRoutes(ctx context.Context, client ec2API, acct *account, region str
 	g, ctx := errgroup.WithContext(ctx)
 	for _, rtID := range rtIDs {
 		g.Go(func() error {
-			// SearchTransitGatewayRoutes: returns up to 1000 routes; no pagination available.
-			// Use a broad filter to match all states.
+			// SearchTransitGatewayRoutes returns up to 1000 routes, no pagination; filter matches all states.
 			stateFilter := "state"
 			out, err := client.SearchTransitGatewayRoutes(ctx, &ec2.SearchTransitGatewayRoutesInput{
 				TransitGatewayRouteTableId: &rtID,

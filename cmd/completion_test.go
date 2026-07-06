@@ -19,8 +19,8 @@ func TestStaticCompletion(t *testing.T) {
 }
 
 // TestOutputCompletion_Integration drives cobra's hidden __complete command so
-// a registration attached to the wrong flag name (which RegisterFlagCompletionFunc
-// would silently no-op on) is caught end-to-end, unlike the helper unit tests.
+// a registration attached to the wrong flag name (RegisterFlagCompletionFunc
+// silently no-ops on that) is caught end-to-end, unlike the helper unit tests.
 func TestOutputCompletion_Integration(t *testing.T) {
 	out, err := captureStdout(t, func() error {
 		rootCmd.SetArgs([]string{"__complete", "resources", "-o", ""})

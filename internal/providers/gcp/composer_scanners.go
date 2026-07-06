@@ -23,9 +23,9 @@ func init() {
 // `locations/-` wildcard parent (supported by composer/v1) so all
 // per-location environments come back in one paginated call.
 //
-// Composer SDK doesn't expose a Locations.List, so an explicit per-location
-// fan-out is not implementable cheaply anyway — the wildcard is the only
-// reasonable shape.
+// Composer SDK doesn't expose a Locations.List, so per-location fan-out
+// isn't cheaply implementable anyway — the wildcard is the only reasonable
+// shape.
 func scanComposer(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := composer.NewService(ctx, opts...)

@@ -42,9 +42,9 @@ func pipesARNType(arn string) string {
 }
 
 // resolvePipesPipeRefs walks DescribePipe body and emits RoleArn (assumes),
-// KmsKeyIdentifier (uses), and Source / Target / Enrichment ARNs through
-// substring dispatch. Skips AWS service-integration ARNs (`:::` empty
-// account/region segments).
+// KmsKeyIdentifier (uses), and Source/Target/Enrichment ARNs via substring
+// dispatch. Skips AWS service-integration ARNs (`:::` empty account/region
+// segments).
 func resolvePipesPipeRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypePipesPipe}, Limit: util.AllResources,

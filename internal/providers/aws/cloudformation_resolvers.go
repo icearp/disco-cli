@@ -49,8 +49,8 @@ func init() {
 	)
 }
 
-// cfnStackAttrs mirrors the wrapped attrs persisted by scanCloudFormationStacks.
-// Only the fields the resolver consumes are listed.
+// cfnStackAttrs mirrors scanCloudFormationStacks' wrapped attrs; only the
+// fields the resolver consumes are listed.
 type cfnStackAttrs struct {
 	Resources []struct {
 		LogicalResourceID  *string `json:"LogicalResourceID"`
@@ -69,24 +69,22 @@ type cfnStackSetAttrs struct {
 	} `json:"Instances"`
 }
 
-// cfnTypeBinding maps one CloudFormation ResourceType to a disco type plus
-// the function that turns the CloudFormation PhysicalResourceID (which varies
-// in shape per service — sometimes the ARN, sometimes a bare name or ID)
-// into the disco NativeID. Returning empty string skips this row, used for
-// shapes like custom-bus EventBridge rules where physID alone can't rebuild
-// the canonical ARN.
+// cfnTypeBinding maps one CloudFormation ResourceType to a disco type and
+// the function that converts PhysicalResourceID (shape varies per service —
+// ARN, bare name, or ID) into the disco NativeID. Returning empty string
+// skips this row, used for shapes like custom-bus EventBridge rules where
+// physID alone can't rebuild the canonical ARN.
 type cfnTypeBinding struct {
 	discoType  string
 	toNativeID func(physID, region, acctID string) string
 }
 
-// passthrough returns the physID verbatim, used for services where CloudFormation
+// passthrough returns physID verbatim, for services where CloudFormation's
 // PhysicalResourceID already matches disco NativeID (full ARNs).
 func passthrough(physID, _, _ string) string { return physID }
 
-// cfnTypeMap is the dispatch table from `AWS::Service::Resource` to disco type
-// + NativeID synthesis. Adding a new service edge is one row here, no
-// resolver-level changes needed.
+// cfnTypeMap dispatches `AWS::Service::Resource` to disco type + NativeID
+// synthesis. A new service edge is one row here, no resolver changes needed.
 //
 // Most AWS services return PhysicalResourceID = full ARN — those use
 // passthrough. The rest synthesize from a name or ID using the same ARN
@@ -183,10 +181,10 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::SNS::Topic": {discoType: TypeSNSTopic, toNativeID: passthrough},
 	"AWS::SQS::Queue": {
-		// PhysicalResourceID for SQS is the queue URL —
+		// SQS PhysicalResourceID is the queue URL —
 		// https://sqs.{region}.amazonaws.com/{acct}/{name} — but disco's
 		// queue NativeID is the ARN. Take the trailing path segment as the
-		// queue name; region/acct come from the stack row itself, not the URL.
+		// queue name; region/acct come from the stack row, not the URL.
 		discoType: TypeSQSQueue,
 		toNativeID: func(url, region, acct string) string {
 			if url == "" {
@@ -238,11 +236,11 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::StepFunctions::StateMachine": {discoType: TypeSFNStateMachine, toNativeID: passthrough},
 	"AWS::Events::Rule": {
-		// Custom-bus rules set PhysicalResourceID to a bare name with no
-		// embedded bus reference, so we cannot reconstruct the canonical
-		// ARN. Skip those (return empty); only default-bus rules resolve.
-		// Default-bus name is just the rule name; custom-bus shows up as
-		// `BusName|RuleName` in some templates — reject the pipe form too.
+		// Custom-bus rules set PhysicalResourceID to a bare name with no bus
+		// reference, so the canonical ARN can't be rebuilt — skip those
+		// (return empty); only default-bus rules resolve. Default-bus name
+		// is just the rule name; custom-bus shows as `BusName|RuleName` in
+		// some templates — reject the pipe form too.
 		discoType: TypeEventsRule,
 		toNativeID: func(name, region, acct string) string {
 			if name == "" || strings.ContainsAny(name, "|") {
@@ -288,9 +286,9 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		},
 	},
 	"AWS::SSM::Parameter": {
-		// CloudFormation's PhysicalResourceID for SSM parameters drops the
-		// leading slash that bare names have in the API. Disco's SSM scanner
-		// stores the canonical ARN with `parameter/{name}` (no double slash).
+		// CFN's PhysicalResourceID for SSM parameters drops the leading
+		// slash bare names have in the API. Disco's SSM scanner stores the
+		// canonical ARN as `parameter/{name}` (no double slash).
 		discoType: TypeSSMParameter,
 		toNativeID: func(name, region, acct string) string {
 			if name == "" {
@@ -325,9 +323,9 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 }
 
-// skipResourceStatus lists statuses where the underlying AWS resource
-// either never existed (CREATE_FAILED) or no longer exists (DELETE_*),
-// so emitting a contains edge would point at a phantom target.
+// skipResourceStatus lists statuses where the underlying resource never
+// existed (CREATE_FAILED) or no longer exists (DELETE_*) — a contains edge
+// here would point at a phantom target.
 var skipResourceStatus = map[string]bool{
 	"CREATE_FAILED":      true,
 	"DELETE_COMPLETE":    true,
@@ -439,9 +437,9 @@ func resolveCloudFormationStackSetInstances(acct *account, st *store.Store) erro
 	return nil
 }
 
-// cfnTargetIDSet pre-builds the membership set covering every disco type
-// referenced from cfnTypeMap, so the resolver answers FK-existence in a
-// single map lookup per resource. One ListResources call instead of one
+// cfnTargetIDSet pre-builds the membership set for every disco type
+// referenced in cfnTypeMap, so the resolver checks FK-existence via a
+// single map lookup per resource — one ListResources call instead of one
 // per type.
 func cfnTargetIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 	seen := make(map[string]struct{}, len(cfnTypeMap))
@@ -469,8 +467,8 @@ func cfnTargetIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 }
 
 // cfnStackIDSet returns the membership set of every scanned stack across
-// all accounts — stack-set instances often deploy into accounts other than
-// the one running the scan, so this is account-unfiltered intentionally.
+// all accounts — stack-set instances often deploy into other accounts, so
+// this is intentionally account-unfiltered.
 func cfnStackIDSet(st *store.Store) (map[string]bool, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

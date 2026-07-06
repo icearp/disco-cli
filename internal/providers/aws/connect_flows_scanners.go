@@ -32,10 +32,9 @@ type connectFlowsAPI interface {
 	DescribeContactFlowModuleAlias(context.Context, *connect.DescribeContactFlowModuleAliasInput, ...func(*connect.Options)) (*connect.DescribeContactFlowModuleAliasOutput, error)
 }
 
-// scanConnectFlows runs the Flows-family phases per instance. ContactFlow
-// versions are list-only (no Describe op exists) — store list summary as
-// attrs. Same for ContactFlowModuleVersion. ContactFlowModuleAlias has
-// a Describe op and stores the full body.
+// scanConnectFlows runs the Flows-family phases per instance. ContactFlow and
+// ContactFlowModule versions are list-only (no Describe op) — stored as list
+// summary. ContactFlowModuleAlias has a Describe op and stores the full body.
 func scanConnectFlows(ctx context.Context, client connectFlowsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(instances) == 0 {
 		return 0, 0, nil
@@ -64,9 +63,8 @@ func scanConnectFlows(ctx context.Context, client connectFlowsAPI, instances []c
 	return total, inserted, nil
 }
 
-// listFlowsByInstance returns (instanceID, flowID) pairs across all
-// instances. Default ListContactFlows (no ContactFlowTypes filter) returns
-// every flow type.
+// listFlowsByInstance returns (instanceID, flowID) pairs across all instances.
+// Default ListContactFlows (no ContactFlowTypes filter) returns every flow type.
 func listFlowsByInstance(ctx context.Context, client connectFlowsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store) ([]connectInstanceItem, error) {
 	var items []connectInstanceItem
 	for _, inst := range instances {
@@ -253,9 +251,9 @@ func scanConnectContactFlowModules(ctx context.Context, client connectFlowsAPI, 
 	}, st, "connect contact flow modules")
 }
 
-// scanConnectContactFlowModuleVersionsAndAliases is one phase combining the
-// two per-module sub-resources to share a single ListContactFlowModules
-// pre-pass — avoids paying that walk twice.
+// scanConnectContactFlowModuleVersionsAndAliases combines the two per-module
+// sub-resources into one phase to share a single ListContactFlowModules
+// pre-pass — avoids walking it twice.
 func scanConnectContactFlowModuleVersionsAndAliases(ctx context.Context, client connectFlowsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	modules, lerr := listFlowModulesByInstance(ctx, client, instances, acct, region, st)
 	if lerr != nil {

@@ -10,16 +10,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Region scoping pre-filters each regional service to the regions where AWS
-// actually offers it, so dormant (service × region) cells are never dispatched.
-// The source of truth is AWS's own SSM global-infrastructure catalog — a public
-// parameter tree under /aws/service/global-infrastructure. Because it is AWS's
-// authoritative availability data, a region it omits for a service is one where
-// that service's API genuinely isn't reachable (we'd NXDOMAIN / error anyway), so
-// trusting it cannot lose coverage the API would have served. The only failure
-// mode that could is a wrong service-code mapping; that is contained by the
-// fail-open design (an unknown / divergent code is scanned everywhere) plus the
-// unique endpoint-prefix convention behind regionAvailabilityCode.
+// Region scoping pre-filters each regional service to the regions AWS actually
+// offers it in, so dormant (service × region) cells are never dispatched. Source
+// of truth: AWS's own SSM global-infrastructure catalog — a public parameter tree
+// under /aws/service/global-infrastructure. Since it's AWS's authoritative
+// availability data, a region it omits for a service genuinely isn't reachable
+// (we'd NXDOMAIN / error anyway), so trusting it can't lose coverage. The only
+// failure mode is a wrong service-code mapping, contained by the fail-open design
+// (an unknown/divergent code is scanned everywhere) plus regionAvailabilityCode's
+// unique endpoint-prefix convention.
 
 // ssmRegionAvailabilityAPI is the test seam for the global-infrastructure lookup.
 // *ssm.Client satisfies it; tests inject a stub.
@@ -28,16 +27,15 @@ type ssmRegionAvailabilityAPI interface {
 }
 
 // regionAvailabilityCodeOverrides maps a disco service name (the registerService
-// "name" field) to its AWS global-infrastructure service code, for the services
-// whose code diverges from the derived default (the name minus the "aws:" prefix
-// — e.g. "aws:code-build" derives "code-build" but the catalog code is
-// "codebuild", "aws:directory-service" → "ds"). Intentionally empty by default:
-// pure derivation already optimises every service whose name matches its code,
-// and a divergent name simply isn't found in the catalog (→ fail-open, scanned
-// everywhere). Populating an entry here UNLOCKS scoping for a divergent service —
-// only add a mapping verified against the live catalog (see the validation step
-// in plans/), since a wrong override is the one way to skip a region the service
-// actually serves.
+// "name" field) to its AWS global-infrastructure service code, for services whose
+// code diverges from the derived default (name minus the "aws:" prefix — e.g.
+// "aws:code-build" derives "code-build" but the catalog code is "codebuild",
+// "aws:directory-service" → "ds"). Empty by default: pure derivation already
+// covers every service whose name matches its code, and a divergent name simply
+// isn't found in the catalog (→ fail-open, scanned everywhere). Populating an
+// entry here UNLOCKS scoping for that service — only add a mapping verified
+// against the live catalog (see the validation step in plans/), since a wrong
+// override is the one way to skip a region the service actually serves.
 var regionAvailabilityCodeOverrides = map[string]string{}
 
 // regionAvailabilityCode returns the AWS global-infrastructure service code for a
@@ -54,7 +52,7 @@ func regionAvailabilityCode(name string) string {
 // region. This is the load-bearing fail-open decision: scan (true) unless the
 // code is KNOWN to the catalog (present with ≥1 region) AND region is absent from
 // its set. A nil map, an unknown/divergent code, or an empty set all yield true,
-// so any gap in the availability data degrades to "scan it anyway".
+// so any gap in the data degrades to "scan it anyway".
 func serviceAvailableInRegion(availByCode map[string]map[string]bool, code, region string) bool {
 	regions, known := availByCode[code]
 	if !known || len(regions) == 0 {
@@ -63,11 +61,11 @@ func serviceAvailableInRegion(availByCode map[string]map[string]bool, code, regi
 	return regions[region]
 }
 
-// loadServiceRegionAvailability resolves, for each distinct service code, the set
-// of regions where AWS offers it, by paging the SSM global-infrastructure tree
-// at /aws/service/global-infrastructure/services/<code>/regions. Lookups run
-// concurrently (bounded by fanoutScope) and fail open per code: a code whose lookup
-// errors or returns no parameters is omitted from the result (→ scanned
+// loadServiceRegionAvailability resolves the region set where AWS offers each
+// distinct service code, by paging the SSM global-infrastructure tree at
+// /aws/service/global-infrastructure/services/<code>/regions. Lookups run
+// concurrently (bounded by fanoutScope) and fail open per code: a code whose
+// lookup errors or returns no parameters is omitted from the result (→ scanned
 // everywhere). The returned error is the first access-denied seen — the caller
 // uses it only to warn that the optimisation is off; it is never fatal.
 func loadServiceRegionAvailability(ctx context.Context, client ssmRegionAvailabilityAPI, codes []string) (map[string]map[string]bool, error) {
@@ -88,8 +86,8 @@ func loadServiceRegionAvailability(ctx context.Context, client ssmRegionAvailabi
 			for pager.HasMorePages() {
 				page, err := pager.NextPage(gctx)
 				if err != nil {
-					// Fail open: this code just won't be scoped. Record the first
-					// access-denied so the caller can note the optimisation is off.
+					// Fail open: this code stays unscoped. Record the first
+					// access-denied so the caller can flag the optimisation as off.
 					if isAccessDenied(err) {
 						mu.Lock()
 						if denyErr == nil {
@@ -120,9 +118,9 @@ func loadServiceRegionAvailability(ctx context.Context, client ssmRegionAvailabi
 // buildRegionAvailability populates acct.availByCode from the SSM global-infra
 // catalog, so scanRegion can skip services AWS doesn't offer in a region. No-op
 // (leaves availByCode nil → full fail-open) when scoping is disabled or only one
-// region is scanned (nothing to scope). The SSM client is pinned to us-east-1,
-// where the commercial-partition global-infra parameters live. A blanket
-// access-denied (no data at all) warns once that the optimisation is off.
+// region is scanned. The SSM client is pinned to us-east-1, where the
+// commercial-partition global-infra parameters live. A blanket access-denied (no
+// data at all) warns once that the optimisation is off.
 func buildRegionAvailability(ctx context.Context, acct *account, services []string, st *store.Store, kept []string) {
 	if acct.regionScopeDisabled || len(kept) <= 1 {
 		return

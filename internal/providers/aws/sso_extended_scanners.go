@@ -63,8 +63,8 @@ func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, reg
 }
 
 // scanSSOApplicationProviders captures the AWS-managed catalog of application
-// providers (federation providers). Flagged ManagedByProvider — these are
-// AWS-owned catalog entries, not user-created resources.
+// (federation) providers. Flagged ManagedByProvider: AWS-owned catalog
+// entries, not user-created resources.
 func scanSSOApplicationProviders(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := ssoadmin.NewListApplicationProvidersPaginator(client, &ssoadmin.ListApplicationProvidersInput{})
 	var batch []*store.Resource
@@ -98,8 +98,7 @@ func scanSSOApplicationProviders(ctx context.Context, client ssoadminAPI, acct *
 
 // scanSSOTrustedTokenIssuers captures per-instance trusted token issuers.
 // The resolver wires each to its parent instance (RelAttachedTo); the parent
-// instance ARN is embedded as InstanceArn since the issuer metadata carries no
-// back-reference.
+// ARN is embedded as InstanceArn since issuer metadata carries no back-reference.
 func scanSSOTrustedTokenIssuers(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, instanceARN string) (int, int, error) {
 	ia := instanceARN
 	var batch []*store.Resource
@@ -133,9 +132,9 @@ func scanSSOTrustedTokenIssuers(ctx context.Context, client ssoadminAPI, acct *a
 	return upsertBatch(st, batch, "sso trusted-token-issuers")
 }
 
-// ssoTrustedTokenIssuerAttrs embeds the SDK issuer metadata and adds the parent
-// instance ARN, which the metadata does not carry. The resolver reads
-// InstanceArn to wire the attached-to edge.
+// ssoTrustedTokenIssuerAttrs embeds the SDK issuer metadata plus the parent
+// instance ARN (absent from the metadata); the resolver reads InstanceArn to
+// wire the attached-to edge.
 type ssoTrustedTokenIssuerAttrs struct {
 	ssotypes.TrustedTokenIssuerMetadata
 	InstanceArn string `json:"InstanceArn,omitempty"`

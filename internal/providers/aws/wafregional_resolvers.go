@@ -15,9 +15,9 @@ func init() {
 	)
 }
 
-// resolveWAFRegionalWebACLAssociations links each web-ACL association row back
-// to the regional web-ACL that protects the resource. The association's
-// WebACLId + Region rebuild the synthetic web-ACL ARN.
+// resolveWAFRegionalWebACLAssociations links each web-ACL association row to
+// the regional web-ACL protecting the resource, rebuilding the synthetic
+// web-ACL ARN from WebACLId + Region.
 func resolveWAFRegionalWebACLAssociations(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

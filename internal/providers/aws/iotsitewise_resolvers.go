@@ -40,9 +40,9 @@ func init() {
 		EdgeDecl{TypeIoTSWComputationModel, TypeIoTSWAssetModel, store.RelUses},
 		EdgeDecl{TypeIoTSWComputationModel, TypeIoTSWAsset, store.RelUses},
 	)
-	// Hierarchy emitted at scan time: portal contains project, project contains
-	// dashboard. Declared so coverage gap-analysis treats portal/project as
-	// containing parents rather than orphans.
+	// Hierarchy emitted at scan time (portal contains project, project
+	// contains dashboard); declared so coverage gap-analysis treats
+	// portal/project as containing parents, not orphans.
 	registerResolver(
 		noopIoTSWHierarchy,
 		EdgeDecl{TypeIoTSWPortal, TypeIoTSWProject, store.RelContains},
@@ -50,9 +50,9 @@ func init() {
 	)
 }
 
-// noopIoTSWHierarchy is a placeholder: the IoT SiteWise scanner emits the
+// noopIoTSWHierarchy is a placeholder — the scanner already emits the
 // portal→project and project→dashboard contains edges directly via
-// RecordHierarchyBatch in scanIoTSWProjects / scanIoTSWDashboards. This
+// RecordHierarchyBatch (scanIoTSWProjects / scanIoTSWDashboards). This
 // resolver only carries the EdgeDecl metadata so coverage tooling sees the
 // edges as wired.
 func noopIoTSWHierarchy(_ *account, _ *store.Store) error {
@@ -212,9 +212,8 @@ type computationBindingValue struct {
 
 // resolveIoTSWComputationModelBindings wires each computation-model to the
 // asset-models and assets referenced in ComputationModelDataBinding values.
-// The map entries (and nested List entries) carry either AssetModelProperty
-// or AssetProperty bindings — walk both, build target ARNs from per-region
-// (id) shape, FK-safe.
+// Map entries (and nested List entries) carry AssetModelProperty or
+// AssetProperty bindings — walk both, build target ARNs per-region, FK-safe.
 func resolveIoTSWComputationModelBindings(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSWComputationModel}, Limit: util.AllResources,

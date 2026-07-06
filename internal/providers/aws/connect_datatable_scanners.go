@@ -18,9 +18,9 @@ func init() {
 	)
 }
 
-// connectDataTableAPI is the narrow surface used by the DataTable family.
-// SDK has no DescribeDataTable — list summary serves as attrs for the
-// parent. Attributes and Records are per-table sub-resources also list-only.
+// connectDataTableAPI is the narrow surface for the DataTable family. SDK
+// has no DescribeDataTable — the list summary serves as parent attrs.
+// Attributes and Records are per-table sub-resources, also list-only.
 type connectDataTableAPI interface {
 	ListDataTables(context.Context, *connect.ListDataTablesInput, ...func(*connect.Options)) (*connect.ListDataTablesOutput, error)
 	ListDataTableAttributes(context.Context, *connect.ListDataTableAttributesInput, ...func(*connect.Options)) (*connect.ListDataTableAttributesOutput, error)

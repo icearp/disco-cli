@@ -23,7 +23,7 @@ type repostspaceAPI interface {
 	ListSpaces(context.Context, *repostspace.ListSpacesInput, ...func(*repostspace.Options)) (*repostspace.ListSpacesOutput, error)
 }
 
-// scanRepostspace discovers AWS re:Post Private spaces. NativeID = the space
+// scanRepostspace discovers AWS re:Post Private spaces; NativeID = the space
 // ARN (SpaceData.Arn).
 func scanRepostspace(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := repostspace.NewFromConfig(acct.cfg, func(o *repostspace.Options) { o.Region = region })

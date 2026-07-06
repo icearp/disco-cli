@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// TestMustJSON_Struct verifies that a struct is marshalled to JSON correctly.
+// TestMustJSON_Struct verifies a struct marshals to JSON correctly.
 func TestMustJSON_Struct(t *testing.T) {
 	v := struct {
 		Name string `json:"name"`
@@ -27,7 +27,7 @@ func TestMustJSON_Nil(t *testing.T) {
 	}
 }
 
-// TestMustJSON_Map verifies that a map marshals correctly.
+// TestMustJSON_Map verifies a map marshals correctly.
 func TestMustJSON_Map(t *testing.T) {
 	m := map[string]string{"key": "value"}
 	got := MustJSON(m)
@@ -36,14 +36,14 @@ func TestMustJSON_Map(t *testing.T) {
 	}
 }
 
-// TestSv_Nil verifies that Sv returns "" for a nil pointer.
+// TestSv_Nil verifies Sv returns "" for a nil pointer.
 func TestSv_Nil(t *testing.T) {
 	if got := Sv(nil); got != "" {
 		t.Errorf("Sv(nil): got %q, want %q", got, "")
 	}
 }
 
-// TestSv_Value verifies that Sv dereferences a non-nil pointer.
+// TestSv_Value verifies Sv dereferences a non-nil pointer.
 func TestSv_Value(t *testing.T) {
 	s := "hello"
 	if got := Sv(&s); got != "hello" {
@@ -51,14 +51,14 @@ func TestSv_Value(t *testing.T) {
 	}
 }
 
-// TestTimeRFC3339_Nil verifies that a nil *time.Time returns nil.
+// TestTimeRFC3339_Nil verifies a nil *time.Time returns nil.
 func TestTimeRFC3339_Nil(t *testing.T) {
 	if got := TimeRFC3339(nil); got != nil {
 		t.Errorf("TimeRFC3339(nil): got %v, want nil", got)
 	}
 }
 
-// TestTimeRFC3339_Value verifies that a non-nil time is formatted as RFC3339 UTC.
+// TestTimeRFC3339_Value verifies a non-nil time formats as RFC3339 UTC.
 func TestTimeRFC3339_Value(t *testing.T) {
 	ts := time.Date(2024, 3, 15, 12, 0, 0, 0, time.UTC)
 	got := TimeRFC3339(&ts)
@@ -70,8 +70,8 @@ func TestTimeRFC3339_Value(t *testing.T) {
 	}
 }
 
-// TestAllResources verifies the sentinel value is large enough to be used as
-// a "no limit" constant in ListResources calls.
+// TestAllResources verifies the sentinel is large enough to serve as a
+// "no limit" constant in ListResources calls.
 func TestAllResources(t *testing.T) {
 	if AllResources < 1_000_000 {
 		t.Errorf("AllResources = %d, expected a very large number", AllResources)

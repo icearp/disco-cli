@@ -22,8 +22,8 @@ func init() {
 }
 
 // resolveLookoutEquipmentModelVersionRefs wires each model version to its
-// parent model via the ModelArn carried on the version summary. The version's
-// own NativeID is synthesized {modelArn}/version/{n}, but the ModelArn field is
+// parent model via the ModelArn on the version summary. The version's own
+// NativeID is synthesized {modelArn}/version/{n}, but ModelArn is
 // authoritative for the parent lookup.
 func resolveLookoutEquipmentModelVersionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -64,7 +64,7 @@ func resolveLookoutEquipmentModelVersionRefs(acct *account, st *store.Store) err
 // resolveLookoutEquipmentSchedulerRefs wires each inference scheduler to its
 // IAM role (RoleArn), KMS keys (ServerSideKmsKeyID + output-config KmsKeyID),
 // and S3 buckets (input + output bucket). ModelArn refs a LookoutEquipment ML
-// model — disco does not scan that resource type, ref skipped.
+// model, unscanned by disco — ref skipped.
 func resolveLookoutEquipmentSchedulerRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLookoutEquipmentInferenceScheduler}, Limit: util.AllResources,

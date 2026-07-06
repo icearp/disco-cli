@@ -23,11 +23,10 @@ func init() {
 }
 
 // diagnosableTypes is the allowlist of resource types known to support
-// Microsoft.Insights/diagnosticSettings. Calling ListByResource on a
-// non-diagnosable type returns a benign error per call; the allowlist keeps
-// the API call count bounded and avoids per-resource error noise. Extend as
-// new scanners land — Azure docs maintain a master list at
-// learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories.
+// Microsoft.Insights/diagnosticSettings. ListByResource on a non-diagnosable
+// type returns a benign error per call; the allowlist bounds the API call
+// count and avoids per-resource error noise. Extend as new scanners land —
+// Azure's master list: learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories.
 var diagnosableTypes = []string{
 	TypeKeyVaultVault,
 	TypeStorageStorageAccount,
@@ -64,18 +63,18 @@ var diagnosableTypes = []string{
 
 // resolveDiagnosticSettings is a cross-service API resolver that walks every
 // diagnosable resource in the subscription, reads its
-// Microsoft.Insights/diagnosticSettings via armmonitor, and emits
-// `routes-to` edges from the source resource to each configured destination
-// (Log Analytics workspace, Storage Account, or Event Hub namespace).
+// Microsoft.Insights/diagnosticSettings via armmonitor, and emits `routes-to`
+// edges from the source resource to each configured destination (Log
+// Analytics workspace, Storage Account, or Event Hub namespace).
 //
 // Edge attrs carry the diagnostic-setting name + destination kind so the rule
 // engine can distinguish "logs to Storage" from "logs to Log Analytics".
 //
-// API cost: O(N) ListByResource calls where N = #diagnosable resources in the
-// sub. Bounded by `maxConcurrentFanout` (50) to stay under ARM throttle. Per-
-// resource errors are tolerated — first error per type counts toward an
-// in-memory counter so we don't fan out a million warnings on a tenant
-// without diag-settings permissions.
+// API cost: O(N) ListByResource calls, N = #diagnosable resources in the sub.
+// Bounded by `maxConcurrentFanout` (50) to stay under ARM throttle.
+// Per-resource errors are tolerated and counted in memory rather than
+// reported individually, so a tenant without diag-settings permissions
+// doesn't trigger a warning per resource.
 func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store) (int, error) {
 	resources, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,
@@ -94,9 +93,9 @@ func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred azco
 		return 0, fmt.Errorf("armmonitor:NewDiagnosticSettingsClient: %w", err)
 	}
 
-	// Pre-build target indexes: any destination must be a resource the store
-	// already knows about so the FK on relationships.to_id holds. Index by
-	// lowercased ARM ID — Azure stores IDs as-typed at create time.
+	// Pre-build target indexes: destinations must already be known resources
+	// so the FK on relationships.to_id holds. Indexed by lowercased ARM ID —
+	// Azure stores IDs as-typed at create time.
 	workspaceIdx, err := buildLowerIDIndex(st, sub.ID, TypeOpInsightsWorkspace)
 	if err != nil {
 		return 0, err
@@ -181,9 +180,9 @@ func scanDiagnosticSettingsForResource(ctx context.Context, client *armmonitor.D
 
 // emitDiagSettingEdges fans the three known destination kinds (workspace,
 // storage account, event-hub namespace) into routes-to edges. Per-edge upsert
-// failures are tolerated (partial-edge progress beats failing the whole
-// resolver) but counted into failCount so the caller can surface them rather
-// than letting edge loss vanish silently.
+// failures are tolerated (partial progress beats failing the whole resolver)
+// but counted into failCount so the caller can surface them instead of
+// letting edge loss vanish silently.
 func emitDiagSettingEdges(st *store.Store, fromID string, ds *armmonitor.DiagnosticSettingsResource, idx diagTargetIndexes, edgeCount, failCount *atomic.Int64) {
 	if ds == nil || ds.Properties == nil {
 		return
@@ -265,12 +264,12 @@ func eventHubNamespaceFromAuthRule(authRuleID string) (string, bool) {
 	return authRuleID[:idx], true
 }
 
-// isDiagSettingsBenign matches the typical "diagnostic settings not supported
-// for this resource" responses Azure returns when called on a resource that
-// (a) doesn't model diag-settings at all, or (b) the caller lacks the narrow
-// `Microsoft.Insights/diagnosticSettings/read` permission on a resource where
-// real RBAC (Reader/etc.) was granted. Both surface as 404/400 with a
-// distinct error code — neither is fatal.
+// isDiagSettingsBenign matches Azure's typical "diagnostic settings not
+// supported for this resource" responses: (a) the resource type doesn't
+// model diag-settings at all, or (b) the caller lacks the narrow
+// `Microsoft.Insights/diagnosticSettings/read` permission despite real RBAC
+// (Reader/etc.) being granted. Both surface as 404/400 with a distinct error
+// code — neither is fatal.
 func isDiagSettingsBenign(err error) bool {
 	var respErr *azcore.ResponseError
 	if !errors.As(err, &respErr) {

@@ -24,9 +24,9 @@ type cloudSearchAPI interface {
 	DescribeDomains(context.Context, *cloudsearch.DescribeDomainsInput, ...func(*cloudsearch.Options)) (*cloudsearch.DescribeDomainsOutput, error)
 }
 
-// scanCloudSearch discovers CloudSearch domains. ListDomainNames enumerates the
-// region's domains, then DescribeDomains fetches each one's full status (the
-// list returns only name→state). Neither op is paginated.
+// scanCloudSearch discovers CloudSearch domains: ListDomainNames enumerates the
+// region's domain names, then DescribeDomains fetches each one's full status
+// (List returns only name→state). Neither op is paginated.
 func scanCloudSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := cloudsearch.NewFromConfig(acct.cfg, func(o *cloudsearch.Options) { o.Region = region })
 	return scanCloudSearchWithClient(ctx, client, acct, region, st, scanID)
@@ -35,9 +35,9 @@ func scanCloudSearch(ctx context.Context, acct *account, region string, st *stor
 func scanCloudSearchWithClient(ctx context.Context, client cloudSearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	names, err := client.ListDomainNames(ctx, &cloudsearch.ListDomainNamesInput{})
 	if err != nil {
-		// Accounts AWS hasn't made eligible for CloudSearch get NotAuthorized
-		// "New domain creation not supported on this account" — not self-
-		// enableable (requires AWS Support), so (account: not entitled).
+		// Accounts not yet eligible for CloudSearch get NotAuthorized "New domain
+		// creation not supported on this account" — not self-enableable (needs
+		// AWS Support), so (account: not entitled).
 		if isAPIErrorWithMessage(err, "NotAuthorized", "not supported on this account") {
 			return 0, 0, markServiceNotEntitled(err)
 		}

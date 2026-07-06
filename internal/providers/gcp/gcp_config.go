@@ -14,10 +14,10 @@ import (
 // providerCfg mirrors the gcp: section of ~/.disco/config.yaml.
 type providerCfg struct {
 	Projects []projectCfg `mapstructure:"projects"`
-	// CredentialConfigFile is a path to a credential-configuration file —
-	// a Workload Identity Federation cred-config (gcloud iam
+	// CredentialConfigFile is a path to a credential-configuration file: a
+	// Workload Identity Federation cred-config (gcloud iam
 	// workload-identity-pools create-cred-config) for keyless auth, or a
-	// traditional service-account key. Both are consumed by
+	// traditional service-account key. Both consumed by
 	// option.WithCredentialsFile, which parses external_account and
 	// service_account JSON natively.
 	CredentialConfigFile string `mapstructure:"credential_config_file"`
@@ -83,8 +83,8 @@ func loadProjects(ctx context.Context, credentialConfigOverride string) ([]proje
 }
 
 // credentialMode names the credential path clientOptions selects, in
-// precedence order. Kept as a typed string so the selection logic is unit-
-// testable without real credentials or opaque option.ClientOption values.
+// precedence order. Typed string so the selection logic is unit-testable
+// without real credentials or opaque option.ClientOption values.
 type credentialMode string
 
 const (
@@ -113,8 +113,8 @@ func clientOptions(ctx context.Context, cfg providerCfg) []option.ClientOption {
 	scopes := []string{
 		"https://www.googleapis.com/auth/cloud-platform.read-only",
 		// Workspace Directory + Cloud Identity for the tenant identity scanner
-		// (cloudidentity_scanners.go). Scope-additive; APIs only request the
-		// scopes they need, so projects without Workspace tenants are unaffected.
+		// (cloudidentity_scanners.go). Scope-additive — APIs only request what
+		// they need, so non-Workspace projects are unaffected.
 		"https://www.googleapis.com/auth/admin.directory.user.readonly",
 		"https://www.googleapis.com/auth/cloud-identity.groups.readonly",
 	}

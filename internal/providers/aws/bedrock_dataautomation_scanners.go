@@ -48,9 +48,9 @@ func scanBedrockDataAutomation(ctx context.Context, client bedrockDataAutomation
 	return total, inserted, nil
 }
 
-// bedrockDAListErr soft-skips the SCP-deny / access-denied / per-region feature-
-// gap shapes shared by the data-automation List ops. Returns nil to stop the
-// phase with no rows.
+// bedrockDAListErr soft-skips the SCP-deny / access-denied / per-region
+// feature-gap shapes shared by the data-automation List ops, returning nil
+// to stop the phase with no rows.
 func bedrockDAListErr(st *store.Store, op, acctID, region string, perr error) error {
 	switch {
 	case isSCPExplicitDeny(perr):
@@ -58,16 +58,15 @@ func bedrockDAListErr(st *store.Store, op, acctID, region string, perr error) er
 	case isAPIErrorWithMessage(perr, "ValidationException", "operation is not recognized"),
 		isAPIErrorWithMessage(perr, "ValidationException", "don't have the permissions to perform the requested operation"):
 		return nil
-	// The blueprint "library" sub-feature isn't deployed in every region; AWS
-	// rejects with an AccessDenied whose body says so while the rest of Data
-	// Automation works. Per-op sub-feature gap — silent-skip, siblings continue.
+	// Blueprint "library" sub-feature isn't deployed everywhere; AWS's
+	// AccessDenied body says so while the rest of Data Automation works.
+	// Per-op sub-feature gap — silent-skip, siblings continue.
 	case isAccessDeniedWithMessage(perr, "not supported in this region"):
 		return nil
-	// Empty-body AccessDenied fires uniformly on every Data Automation op in
-	// regions where the whole service isn't offered (it's a newer, regionally
-	// limited service). Whole-service-absent → markServiceUnavailable so the
-	// caller short-circuits to a single (region: unavailable) suffix rather than
-	// silently reporting zero rows with no status.
+	// Empty-body AccessDenied fires on every op where the whole (newer,
+	// regionally limited) service isn't offered. markServiceUnavailable
+	// short-circuits the caller to one (region: unavailable) suffix instead
+	// of silently reporting zero rows.
 	case isClosedToNewCustomers(perr):
 		return markServiceUnavailable(perr)
 	case isAccessDenied(perr):
@@ -116,9 +115,9 @@ func scanBedrockBlueprints(ctx context.Context, client bedrockDataAutomationAPI,
 }
 
 // scanBedrockDataAutomationProjects lists only the account's own projects — AWS
-// ships no SERVICE-owned project catalog, so the owner loop the blueprint scanner
-// uses is deliberately omitted here (ListDataAutomationProjectsInput exposes
-// ResourceOwner but defaults to ACCOUNT).
+// ships no SERVICE-owned project catalog, so the blueprint scanner's owner loop
+// is deliberately omitted (ListDataAutomationProjectsInput exposes ResourceOwner
+// but defaults to ACCOUNT).
 func scanBedrockDataAutomationProjects(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	pager := bda.NewListDataAutomationProjectsPaginator(client, &bda.ListDataAutomationProjectsInput{})

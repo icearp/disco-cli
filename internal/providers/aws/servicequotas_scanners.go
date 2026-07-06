@@ -20,19 +20,19 @@ const (
 	sqReqPerSec = rate.Limit(10) // documented ListServiceQuotas steady limit, per region per account
 	sqBurst     = 10             // documented burst allowance
 	// sqWorkers ≥ rate × worst-case latency (~3s): enough concurrency that the rate
-	// limiter — not the semaphore — is what bounds throughput. A fixed cap of 10 only
-	// reaches 10 req/s when calls take ~1s; at higher control-plane latency it
-	// under-utilizes the bucket, which is the regression this sizing avoids.
+	// limiter — not the semaphore — bounds throughput. A fixed cap of 10 only reaches
+	// 10 req/s when calls take ~1s; at higher latency it under-utilizes the bucket —
+	// the regression this sizing avoids.
 	sqWorkers = 30
 )
 
 func init() {
 	// global:false (default) — the harness dispatches this scanner once per
-	// enabled region; it fans out over service codes within that one region.
+	// enabled region; it fans out over service codes within that region.
 	// optIn:true — account quota limits are metadata, not resources, and the scan
-	// is markedly slower than any resource scanner, so it is excluded from a default
-	// `disco scan aws`. Select it with --include-service-quotas or --services
-	// aws:servicequotas.
+	// is far slower than any resource scanner, so it's excluded from a default
+	// `disco scan aws`. Select it with --include-service-quotas or
+	// --services aws:servicequotas.
 	registerService(serviceEntry{
 		name:  "aws:servicequotas",
 		optIn: true,
@@ -56,17 +56,17 @@ type serviceQuotasAPI interface {
 
 // scanServiceQuotas records adjustable service-quota *limits* (not usage) for
 // one region. ServiceQuota carries no usage value, etag, or timestamp, so each
-// row is stored limit-only and the resource version chain bumps only on a real
-// limit change — clean change-over-time history via `disco history`, no churn.
+// row is limit-only and its version bumps only on a real limit change — clean
+// change-over-time history via `disco history`, no churn.
 //
-// The scanner enumerates every service code via ListServices, then fans
-// ListServiceQuotas out over them bounded by sqWorkers and paced by a per-region
-// rate limiter at the documented 10 req/s ceiling (sqReqPerSec). The limiter — not
-// the worker count — holds the ceiling, so throughput stays at ~10 req/s regardless
-// of control-plane latency without ever overshooting into throttling. MaxResults=100
-// (the API max, set per call below) keeps the page count near one-per-service so the
-// wall-time floor stays at calls÷10req/s. The whole scanner is opt-in (optIn:true);
-// see --include-service-quotas.
+// Enumerates every service code via ListServices, then fans ListServiceQuotas
+// out over them bounded by sqWorkers and paced by a per-region rate limiter at
+// the documented 10 req/s ceiling (sqReqPerSec). The limiter — not the worker
+// count — holds the ceiling, so throughput stays ~10 req/s regardless of
+// control-plane latency with no throttling overshoot. MaxResults=100 (the API
+// max, set per call below) keeps the page count near one-per-service, so the
+// wall-time floor stays at calls÷10req/s. The whole scanner is opt-in
+// (optIn:true); see --include-service-quotas.
 func scanServiceQuotas(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := servicequotas.NewFromConfig(acct.cfg, func(o *servicequotas.Options) { o.Region = region })
 	pacer := newPacer(sqReqPerSec, sqBurst)

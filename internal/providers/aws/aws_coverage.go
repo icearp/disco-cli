@@ -25,10 +25,10 @@ type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "aws" }
 
-// Emits returns CollectEmits() verbatim — the Leaf flag on each TypeDecl
-// is set at registration time alongside the scanner's emits decl. Locality
-// keeps the decision next to the SDK-shape author who knows whether the
-// type carries outbound refs.
+// Emits returns CollectEmits() verbatim — the Leaf flag on each TypeDecl is
+// set at registration time alongside the scanner's emits decl, keeping the
+// decision next to the SDK-shape author who knows whether the type carries
+// outbound refs.
 func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 
 // ListResolvers implements coverage.ResolverAuditor by adapting the package's
@@ -1034,8 +1034,8 @@ func (coverageProvider) Aliases() map[string]string {
 // AlgorithmicKey is the fallback when no alias entry exists. Disco type
 // "aws:foo:bar-baz" → "AWS::Foo::BarBaz". The alias map handles the cases
 // where this fails (any disco service segment that doesn't map cleanly to
-// CFN's segment, e.g. logs vs Logs, ses vs SES, plus all the "aws prefix
-// missing" or different-case oddities).
+// CFN's segment, e.g. logs vs Logs, ses vs SES, plus "aws prefix missing" or
+// different-case oddities).
 func (coverageProvider) AlgorithmicKey(discoType string) string {
 	parts := strings.SplitN(discoType, ":", 3)
 	if len(parts) != 3 {

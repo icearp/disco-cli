@@ -29,11 +29,10 @@ type kafkaAPI interface {
 	ListClustersV2(context.Context, *kafka.ListClustersV2Input, ...func(*kafka.Options)) (*kafka.ListClustersV2Output, error)
 }
 
-// scanKafka discovers MSK clusters (both Provisioned and Serverless) in one
+// scanKafka discovers MSK clusters (Provisioned and Serverless) in one
 // region. ListClustersV2 returns the full Cluster object per entry — no
-// separate Describe is needed. The Provisioned and Serverless variants are
-// both carried in AttributesJSON as returned by the SDK; resolvers branch on
-// which sub-struct is populated.
+// separate Describe needed. Both variants are carried in AttributesJSON as
+// returned by the SDK; resolvers branch on which sub-struct is populated.
 func scanKafka(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kafka.NewFromConfig(acct.cfg, func(o *kafka.Options) { o.Region = region })
 
@@ -72,8 +71,8 @@ func scanKafka(ctx context.Context, acct *account, region string, st *store.Stor
 	return total, inserted, nil
 }
 
-// scanKafkaClustersAndCollect wraps scanKafkaClusters and additionally returns
-// the cluster ARN list for downstream per-cluster fan-out (cluster-policy,
+// scanKafkaClustersAndCollect wraps scanKafkaClusters and also returns the
+// cluster ARN list for downstream per-cluster fan-out (cluster-policy,
 // scram-secrets).
 func scanKafkaClustersAndCollect(ctx context.Context, client kafkaAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	t, i, err := scanKafkaClusters(ctx, client, acct, region, st, scanID)

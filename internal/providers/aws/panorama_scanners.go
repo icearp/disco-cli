@@ -28,7 +28,7 @@ type panoramaAPI interface {
 }
 
 // scanPanorama discovers Panorama application instances and packages.
-// PackageVersion skip-logged: SDK exposes only DescribePackageVersion with no
+// PackageVersion skip-logged: SDK exposes only DescribePackageVersion, no
 // list endpoint.
 func scanPanorama(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := panorama.NewFromConfig(acct.cfg, func(o *panorama.Options) { o.Region = region })
@@ -103,9 +103,9 @@ func scanPanoramaPackages(ctx context.Context, client panoramaAPI, acct *account
 	return upsertBatch(st, batch, "panorama packages")
 }
 
-// scanPanoramaDevices discovers Panorama appliance devices. The Device list
-// shape carries no ARN, so the NativeID is synthesized from DeviceId in the
-// canonical panorama device ARN shape.
+// scanPanoramaDevices discovers Panorama appliance devices. Device list
+// carries no ARN; NativeID is synthesized from DeviceId in the canonical
+// panorama device ARN shape.
 func scanPanoramaDevices(ctx context.Context, client panoramaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := panorama.NewListDevicesPaginator(client, &panorama.ListDevicesInput{})
 	var batch []*store.Resource

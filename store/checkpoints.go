@@ -8,10 +8,10 @@ import (
 )
 
 // Checkpoint is a per-(scan, provider, service, scope) progress marker.
-// Scanners save it after each successfully-upserted page; on resume they read
-// the latest row and pass `LastToken` back to the upstream SDK as a
-// continuation cursor. The token is opaque to the store — this schema is the
-// foundation for a future incremental-scan feature (see ROADMAP.md).
+// Scanners save one after each successfully-upserted page; on resume,
+// `LastToken` feeds back to the upstream SDK as a continuation cursor. The
+// token is opaque to the store — this schema is the foundation for a future
+// incremental-scan feature (see ROADMAP.md).
 type Checkpoint struct {
 	ScanID    string
 	Provider  string
@@ -21,8 +21,8 @@ type Checkpoint struct {
 	UpdatedAt time.Time
 }
 
-// SaveCheckpoint upserts a checkpoint row. lastToken may be empty (the page
-// returned no continuation token); callers persist that case so resume logic
+// SaveCheckpoint upserts a checkpoint row. lastToken may be empty (page
+// returned no continuation token); callers persist that so resume logic
 // distinguishes "completed" from "never started". Updates `updated_at` on
 // every call so stale checkpoints can be detected.
 func (s *Store) SaveCheckpoint(scanID, provider, service, scope, lastToken string) error {

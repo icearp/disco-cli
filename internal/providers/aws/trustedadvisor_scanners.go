@@ -25,10 +25,10 @@ type trustedAdvisorAPI interface {
 }
 
 // scanTrustedAdvisor enumerates the AWS-published Trusted Advisor check
-// catalog. The catalog is AWS-owned (ManagedByProvider). The ListChecks API
-// requires Business/Enterprise Support; accounts on Basic/Developer get
-// "Access denied due to support level" and surface as (not available to this
-// account) — the account can't self-enable the API without upgrading support.
+// catalog (AWS-owned, ManagedByProvider). ListChecks requires
+// Business/Enterprise Support; Basic/Developer accounts get "Access denied
+// due to support level" and surface as (not available to this account) —
+// can't self-enable without upgrading support.
 func scanTrustedAdvisor(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-1"
 	client := trustedadvisor.NewFromConfig(acct.cfg, func(o *trustedadvisor.Options) { o.Region = region })
@@ -41,8 +41,8 @@ func scanTrustedAdvisorChecks(ctx context.Context, client trustedAdvisorAPI, acc
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			// The TA API (not the 56 console checks) requires Business+ support;
-			// Basic/Developer returns "Access denied due to support level". Not
+			// TA API (not the 56 console checks) requires Business+ support;
+			// Basic/Developer returns "Access denied due to support level" — not
 			// self-enableable → (account: not entitled), not disabled.
 			if isAPIErrorWithMessage(perr, "AccessDeniedException", "support level") {
 				return 0, 0, markServiceNotEntitled(perr)

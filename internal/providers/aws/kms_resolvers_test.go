@@ -7,8 +7,8 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveKMSAliasToKey verifies that an alias with a TargetKeyId resolves
-// to an attached-to edge against the key sharing the same region+account.
+// TestResolveKMSAliasToKey verifies an alias with a TargetKeyId resolves to
+// an attached-to edge against the key sharing the same region+account.
 func TestResolveKMSAliasToKey(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

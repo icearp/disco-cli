@@ -8,10 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 )
 
-// scanOpenSearchDataSources discovers the S3 direct-query data sources attached
-// to each OpenSearch domain (legacy es:datasource). ListDataSources needs a
-// DomainName, so it fans out per domain. DataSourceDetails carries no ARN — the
-// NativeID is synthesized as `{domainARN}/data-source/{name}`.
+// scanOpenSearchDataSources discovers each domain's S3 direct-query data
+// sources (legacy es:datasource). ListDataSources requires a DomainName, so
+// it fans out per domain; DataSourceDetails carries no ARN, so NativeID is
+// synthesized as `{domainARN}/data-source/{name}`.
 func scanOpenSearchDataSources(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	listOut, lerr := client.ListDomainNames(ctx, &opensearch.ListDomainNamesInput{})
 	if lerr != nil {

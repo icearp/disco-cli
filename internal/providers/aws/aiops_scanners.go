@@ -18,9 +18,9 @@ func init() {
 	})
 }
 
-// aiopsAPI is the narrow surface scanAIOpsInvestigationGroups uses.
+// aiopsAPI is the narrow surface scanAIOpsInvestigationGroups uses:
 // ListInvestigationGroups returns only Arn + Name; GetInvestigationGroup
-// supplies the full body needed by the resolver (KMS key, IAM role, SNS
+// supplies the full body the resolver needs (KMS key, IAM role, SNS
 // channels, cross-account configs).
 type aiopsAPI interface {
 	ListInvestigationGroups(context.Context, *aiops.ListInvestigationGroupsInput, ...func(*aiops.Options)) (*aiops.ListInvestigationGroupsOutput, error)

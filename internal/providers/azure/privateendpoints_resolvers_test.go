@@ -42,7 +42,7 @@ func TestResolvePrivateEndpointRelationships(t *testing.T) {
 // TestResolvePrivateEndpointRelationships_SubResourceTargetID verifies a PE
 // whose privateLinkServiceId points to a sub-resource path (e.g.
 // /storageAccounts/foo/blobServices/default) trims back to the parent
-// resource that disco actually has stored.
+// resource disco actually has stored.
 func TestResolvePrivateEndpointRelationships_SubResourceTargetID(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-pe")
@@ -64,8 +64,8 @@ func TestResolvePrivateEndpointRelationships_SubResourceTargetID(t *testing.T) {
 }
 
 // TestResolvePrivateEndpointRelationships_UnknownTarget verifies a PE whose
-// target resource is not in the local store produces no edge for that target
-// (but still emits the VNet edge if the subnet's parent VNet is known).
+// target resource is not in the local store produces no edge for it (but
+// still emits the VNet edge if the subnet's parent VNet is known).
 func TestResolvePrivateEndpointRelationships_UnknownTarget(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-pe")

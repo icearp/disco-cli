@@ -113,9 +113,9 @@ func scanNeptuneDBSubnetGroups(ctx context.Context, client neptuneAPI, acct *acc
 
 // scanNeptuneGlobalClusters discovers Neptune global database clusters via the
 // dedicated neptune SDK (distinct from RDS Aurora global clusters). Global
-// clusters are not region-scoped; this runs per-region but UpsertResources
+// clusters aren't region-scoped; this runs per-region but UpsertResources
 // dedupes by NativeID (GlobalClusterArn carries no region), so Region is left
-// unset to avoid version churn across regions.
+// unset to avoid cross-region version churn.
 func scanNeptuneGlobalClusters(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := neptune.NewDescribeGlobalClustersPaginator(client, &neptune.DescribeGlobalClustersInput{})
 	var batch []*store.Resource

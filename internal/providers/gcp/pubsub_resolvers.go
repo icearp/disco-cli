@@ -17,11 +17,11 @@ func init() { registerResolver(resolvePubSubRelationships) }
 //   - topic        -[uses]-> cryptoKey            (topic.kmsKeyName)
 //   - topic        -[uses]-> schema               (topic.schemaSettings.schema)
 //
-// Push-endpoint URLs (subscription.pushConfig.pushEndpoint) deferred — they
-// can target Cloud Run / Cloud Functions / arbitrary HTTPS, but the URL
-// rarely matches a disco resource NativeID directly without service-specific
-// hostname parsing. BigQuery dataset / Cloud Storage bucket subscription
-// targets deferred — BQ scanner is R4.12, Storage edge needs subscription
+// Push-endpoint URLs (subscription.pushConfig.pushEndpoint) deferred — can
+// target Cloud Run / Cloud Functions / arbitrary HTTPS, but rarely matches a
+// disco resource NativeID without service-specific hostname parsing.
+// BigQuery dataset / Cloud Storage bucket subscription targets deferred —
+// BQ scanner is R4.12, Storage edge needs subscription
 // `cloudStorageConfig.bucket` parsing alongside.
 //
 // `_deleted-topic_` strings (Pub/Sub's tombstone for orphaned topic refs)

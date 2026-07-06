@@ -20,10 +20,10 @@ func init() {
 	})
 }
 
-// scanCloud9 discovers Cloud9 EC2 environments. Cloud9 is closed to new
-// customers (2024-07-31) but existing tenants continue to use it. ListEnvironments
-// returns IDs only — DescribeEnvironments fan-out fills in ARN+Type. Only Type=ec2
-// rows emit (CFN models only AWS::Cloud9::EnvironmentEC2; SSH variant has no CFN type).
+// scanCloud9 discovers Cloud9 EC2 environments. Closed to new customers
+// (2024-07-31); existing tenants still use it. ListEnvironments returns IDs
+// only — DescribeEnvironments fan-out fills in ARN+Type. Only Type=ec2 emits
+// (CFN models only AWS::Cloud9::EnvironmentEC2; SSH variant has no CFN type).
 func scanCloud9(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := cloud9.NewFromConfig(acct.cfg, func(o *cloud9.Options) { o.Region = region })
 
@@ -32,14 +32,13 @@ func scanCloud9(ctx context.Context, acct *account, region string, st *store.Sto
 	for {
 		out, err := client.ListEnvironments(ctx, &cloud9.ListEnvironmentsInput{NextToken: nextToken})
 		if err != nil {
-			// Cloud9 is closed to new customers (2024-07-31). Accounts that
-			// never onboarded surface the closed state two ways: an
-			// empty-message AccessDeniedException, or one with the explicit
-			// body "This account does not have access to the Cloud9 service".
-			// The account can't self-enable it — mark not-entitled so the
-			// dispatcher renders (account: not entitled). Existing
-			// tenants with real IAM gaps still carry an action-identifying
-			// message and surface via skipIfAccessDenied below.
+			// Cloud9 closed to new customers (2024-07-31). Never-onboarded
+			// accounts surface either an empty-message AccessDeniedException
+			// or one with body "This account does not have access to the
+			// Cloud9 service". Can't self-enable — mark not-entitled so the
+			// dispatcher renders (account: not entitled). Existing tenants
+			// with real IAM gaps still carry an action-identifying message
+			// and surface via skipIfAccessDenied below.
 			if isClosedToNewCustomers(err) ||
 				isAccessDeniedWithMessage(err, "does not have access to the Cloud9 service") {
 				return 0, 0, markServiceNotEntitled(err)

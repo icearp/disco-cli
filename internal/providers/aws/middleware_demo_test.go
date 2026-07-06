@@ -22,12 +22,12 @@ func newSQSClientWithStub(stub func(*smithymw.Stack) error, region string) *sqs.
 	})
 }
 
-// TestScanSQSQueues_ViaSDKMiddleware exercises scanSQSQueues against a real
-// *sqs.Client whose request path is short-circuited by an Initialize-step
+// TestScanSQSQueues_ViaSDKMiddleware runs scanSQSQueues against a real
+// *sqs.Client whose requests are short-circuited by an Initialize-step
 // middleware. Unlike the interface-mock tests in sqs_scanners_test.go, this
-// path executes the SDK's paginator state machine, retry classifier, and
-// option chain end-to-end — proving the scanner integrates with the real
-// client wiring, not just with a hand-rolled stub.
+// exercises the SDK's paginator, retry classifier, and option chain
+// end-to-end — proving the scanner works against real client wiring, not
+// just a hand-rolled stub.
 func TestScanSQSQueues_ViaSDKMiddleware(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -60,10 +60,10 @@ func TestScanSQSQueues_ViaSDKMiddleware(t *testing.T) {
 }
 
 // TestScanSQSQueues_AccessDeniedListShortCircuits_ViaSDK confirms an
-// AccessDenied error returned from the SDK boundary is classified by the
-// scanner's isAccessDenied predicate and downgraded to a warning — the same
-// behavior as the interface-mock test, but proving classification works
-// against an error that traversed the real SDK option chain.
+// AccessDenied error from the SDK boundary is classified by isAccessDenied
+// and downgraded to a warning — same behavior as the interface-mock test,
+// but proving classification works on an error that traversed the real SDK
+// option chain.
 func TestScanSQSQueues_AccessDeniedListShortCircuits_ViaSDK(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

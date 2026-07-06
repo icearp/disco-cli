@@ -9,21 +9,19 @@ import (
 )
 
 // ResourceVersion is the paid-build wire shape that carries verification
-// and version-chain metadata. Embeds Resource so OSS-side field
-// additions cascade automatically — adding a new field to Resource
-// flows here via embedding with no parallel edit.
+// and version-chain metadata. Embeds Resource, so new Resource fields
+// cascade here automatically — no parallel edit needed.
 //
 // Identity model:
 //   - VersionRowID is the per-row UUIDv7 PK in the resources table.
-//   - RootID is the deterministic ResourceID hash shared across every
-//     row in this resource's version chain. Resource.ID (embedded)
-//     also carries this hash — the resourceSelectColumns hook aliases
-//     `root_id AS id` on read so OSS-shape projections stay
-//     consistent.
-//   - PreviousVersionID points at the immediate predecessor in the
-//     chain (NULL on the root row).
-//   - SupersededBy points at the successor that replaced this version
-//     (NULL on the current row of every chain).
+//   - RootID is the deterministic ResourceID hash shared across every row in
+//     this resource's version chain. Resource.ID (embedded) also carries
+//     this hash — the resourceSelectColumns hook aliases `root_id AS id` on
+//     read so OSS-shape projections stay consistent.
+//   - PreviousVersionID points at the immediate predecessor in the chain
+//     (NULL on the root row).
+//   - SupersededBy points at the successor that replaced this version (NULL
+//     on the current row of every chain).
 type ResourceVersion struct {
 	Resource
 	VerifiedAt        *string `db:"verified_at"          json:"verified_at"`
@@ -82,19 +80,18 @@ func (s *Store) GetResourceVersions(rootID string) ([]ResourceVersion, error) {
 	return out, nil
 }
 
-// jsonEqual canonicalizes two JSON strings and reports equality. Empty
-// inputs and parse failures fall back to plain string equality so the
-// comparison is conservative (treats malformed JSON as not-equal to
-// well-formed JSON, which is the correct change-detection behavior).
+// jsonEqual canonicalizes two JSON strings and reports equality. Empty inputs
+// and parse failures fall back to plain string equality, so malformed JSON
+// never matches well-formed JSON — the correct change-detection behavior.
 //
-// Both sides are run through canonicalizeJSONValue before re-marshalling,
-// which recursively canonicalizes any string leaf that is itself a JSON
+// Both sides run through canonicalizeJSONValue before re-marshalling, which
+// recursively canonicalizes any string leaf that is itself a JSON
 // object/array. This absorbs non-deterministic key ordering inside embedded
 // policy documents — AWS returns the KMS key Policy (and S3/SNS/SQS resource
 // policies, IAM assume-role docs) as an opaque JSON *string* with
 // Condition-map keys in random order, which would otherwise version-split an
-// unchanged resource on every scan. A genuinely different policy still
-// produces different canonical bytes, so real changes are still detected.
+// unchanged resource every scan. A genuinely different policy still produces
+// different canonical bytes, so real changes are still detected.
 func jsonEqual(a, b string) bool {
 	if a == b {
 		return true
@@ -120,11 +117,11 @@ func jsonEqual(a, b string) bool {
 	return string(abytes) == string(bbytes)
 }
 
-// canonicalizeJSONValue recursively normalizes a decoded JSON value so that
+// canonicalizeJSONValue recursively normalizes a decoded JSON value so
 // json.Marshal (which sorts object keys) yields order-stable bytes at every
 // nesting level — including inside string leaves that themselves carry an
 // embedded JSON object/array. A string leaf is reinterpreted as JSON only
-// when it begins with '{' or '[' AND parses cleanly; otherwise it is left
+// when it begins with '{' or '[' AND parses cleanly; otherwise it's left
 // untouched (so values like "123" or "true" stay literal strings, and
 // malformed embedded JSON passes through unchanged).
 func canonicalizeJSONValue(v any) any {

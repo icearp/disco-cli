@@ -70,8 +70,8 @@ func appsyncAPIARNFromChild(arn string) string {
 // api-cache, data-source, function, schema, source-api-assoc, channel-
 // namespace, resolver) to its parent graphql-api or event-api by parsing
 // the NativeID's `apis/{apiID}` segment. Channel-namespace lives on event
-// APIs (TypeAppSyncAPI); the rest live on graphql-apis. Try both target
-// types per row — only the matching one will land via FK-safe set check.
+// APIs (TypeAppSyncAPI); the rest on graphql-apis. Tries both target
+// types per row — only the match lands via FK-safe set check.
 func resolveAppSyncAPIChildren(acct *account, st *store.Store) error {
 	childTypes := []string{
 		TypeAppSyncAPIKey,
@@ -352,8 +352,8 @@ func resolveAppSyncFunctionDataSource(acct *account, st *store.Store) error {
 }
 
 // resolveAppSyncSourceAPIAssoc links each source-api-association to the
-// MergedApi side; the parent (SourceApi) is wired by resolveAppSyncAPIChildren
-// already since the row's NativeID encodes it.
+// MergedApi side; the parent (SourceApi) is already wired by
+// resolveAppSyncAPIChildren since the row's NativeID encodes it.
 func resolveAppSyncSourceAPIAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppSyncSourceAPIAssociation},

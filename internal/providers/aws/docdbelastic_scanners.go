@@ -98,7 +98,7 @@ func scanDocDBElasticSnapshots(ctx context.Context, client docDBElasticAPI, acct
 			}
 			status := string(s.Status)
 			attrsJSON := mustJSON(s)
-			// Enrich for KMS / subnet / SG edges, which the list shape omits.
+			// Enrich for KMS/subnet/SG edges the list shape omits.
 			if gout, gerr := client.GetClusterSnapshot(ctx, &docdbelastic.GetClusterSnapshotInput{SnapshotArn: s.SnapshotArn}); gerr == nil && gout.Snapshot != nil {
 				attrsJSON = mustJSON(gout.Snapshot)
 			}

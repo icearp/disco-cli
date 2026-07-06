@@ -268,9 +268,9 @@ func resolveBedrockARPolicyVersion(acct *account, st *store.Store) error {
 	return nil
 }
 
-// bedrockGuardrailARN rebuilds the canonical ARN for a guardrail. The
-// AgentSummary.GuardrailConfiguration carries either the bare guardrail ID
-// or the full ARN — callers handle both shapes.
+// bedrockGuardrailARN rebuilds the canonical guardrail ARN.
+// AgentSummary.GuardrailConfiguration carries either the bare ID or the full
+// ARN — callers handle both shapes.
 func bedrockGuardrailARN(region, acct, id string) string {
 	return fmt.Sprintf("arn:aws:bedrock:%s:%s:guardrail/%s", region, acct, id)
 }
@@ -334,9 +334,8 @@ func resolveBedrockAgentAlias(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range aliases {
-		// NativeID = arn:aws:bedrock:{r}:{a}:agent-alias/{agentID}/{aliasID}.
-		// Drop the trailing /{aliasID} segment, then swap the agent-alias
-		// path component for agent to recover the parent agent's ARN.
+		// Drop trailing /{aliasID}, then swap agent-alias→agent to recover
+		// the parent ARN (see shape above).
 		idx := strings.LastIndex(r.NativeID, "/")
 		if idx < 0 {
 			continue
@@ -421,9 +420,9 @@ func resolveBedrockVersionParent(acct *account, st *store.Store, childType, pare
 		return err
 	}
 	for _, r := range rows {
-		// Trim the final ":<version>" suffix; AWS ARNs use 5 colons before
-		// account/resource segments (arn:aws:svc:region:acct:resource), so
-		// the version-delimiter colon is the 6th — i.e. the last one.
+		// Trim the final ":<version>" suffix — ARNs have 5 colons before the
+		// resource segment (arn:aws:svc:region:acct:resource), so the
+		// version delimiter is the 6th (last) colon.
 		idx := strings.LastIndex(r.NativeID, ":")
 		if idx < 0 {
 			continue

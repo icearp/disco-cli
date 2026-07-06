@@ -24,8 +24,8 @@ func init() {
 }
 
 // resolveVMSSProximityGroupRelationships adds an attached-to edge from each VMSS
-// to its proximity placement group, derived from properties.proximityPlacementGroup.id
-// in the VMSS's stored attributes JSON.
+// to its proximity placement group, read from properties.proximityPlacementGroup.id
+// in the VMSS's attributes JSON.
 func resolveVMSSProximityGroupRelationships(sub *subscription, st *store.Store) error {
 	vmsses, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"},

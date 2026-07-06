@@ -36,7 +36,7 @@ func TestResolveFinspaceKxChildEnv(t *testing.T) {
 func TestResolveFinspaceKxChildEnv_NoEnv(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	// Cluster whose parent environment was never scanned: no edge, no FK error.
+	// Parent environment never scanned: no edge, no FK error.
 	envARN := finspaceKxEnvARN(acct.ID, "env-missing")
 	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeFinspaceKxCluster, envARN+"/cluster/c1", testRegion, "{}")
 	if err := resolveFinspaceKxChildEnv(acct, st); err != nil {

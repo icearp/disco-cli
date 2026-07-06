@@ -28,8 +28,8 @@ func init() {
 }
 
 // scanLoggingSinks discovers Cloud Logging sinks. Folder + organization
-// scope sinks are deferred — they're scoped above the per-project fan-out
-// shape. Per-bucket views and exclusion filters deferred (low graph value).
+// scope sinks are deferred — scoped above the per-project fan-out shape.
+// Per-bucket views and exclusion filters also deferred (low graph value).
 func scanLoggingSinks(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := logging.NewService(ctx, opts...)
@@ -63,9 +63,9 @@ func scanLoggingSinks(ctx context.Context, p *project, st *store.Store, scanID s
 }
 
 // scanMonitoringAlertPolicies discovers Cloud Monitoring alert policies.
-// Notification channels (referenced by alert.notificationChannels[]) are not
-// scanned this iteration — they'd be a sibling Channels.List call; deferred
-// to alert-policy → channel resolver follow-up.
+// Notification channels (alert.notificationChannels[]) aren't scanned yet —
+// would need a sibling Channels.List call; deferred to an alert-policy →
+// channel resolver follow-up.
 func scanMonitoringAlertPolicies(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := monitoring.NewService(ctx, opts...)

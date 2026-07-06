@@ -9,7 +9,7 @@ import (
 )
 
 // scanAPSExtended discovers anomaly detectors, rule-groups namespaces, and
-// resource-based policies. All three fan out per workspace ID.
+// resource-based policies — all three fan out per workspace ID.
 // ResourcePolicy synth ARN: {workspaceArn}/policy.
 func scanAPSExtended(ctx context.Context, client apsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	workspaces, err := loadAPSWorkspaceIDs(ctx, client, acct, region, st)

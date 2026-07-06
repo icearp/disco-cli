@@ -109,7 +109,7 @@ CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).`,
 		asOf := ""
 		if scans, sErr := db.ListScans(); sErr == nil && len(scans) > 0 {
 			// scans[0].StartedAt is SQLite-flavoured (`YYYY-MM-DD HH:MM:SS`);
-			// renderJSON / consumers expect RFC3339 to match the resource-row
+			// renderJSON / consumers expect RFC3339 to match resource-row
 			// timestamps and the disco check input contract.
 			asOf = store.ToRFC3339(scans[0].StartedAt)
 		}
@@ -122,8 +122,8 @@ CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).`,
 	},
 }
 
-// summaryBucket is a single (dimension-value, count) pair. Same shape for
-// each of the three sections — JSON tags differ via the dedicated wrapper
+// summaryBucket is a single (dimension-value, count) pair, same shape
+// across all three sections; JSON tags differ via dedicated wrapper
 // types so consumers can decode by section.
 type providerBucket struct {
 	Provider string `json:"provider"`
@@ -147,11 +147,10 @@ type accountBucket struct {
 }
 
 // summaryReport is the JSON envelope. TypeBucketsTotal preserves the
-// pre-truncation distinct-type count so the table renderer can show
-// "top N of M" without recomputing. ManagedIncluded echoes the
-// --include-managed flag value so consumers can disambiguate the three
-// "correct" totals (customer-only / customer+managed) without inspecting
-// the invocation (F5 fix).
+// pre-truncation distinct-type count so the table renderer can show "top
+// N of M" without recomputing. ManagedIncluded echoes --include-managed
+// so consumers can disambiguate customer-only vs customer+managed totals
+// without inspecting the invocation (F5 fix).
 type summaryReport struct {
 	AsOf             string           `json:"as_of"`
 	Total            int              `json:"total"`
@@ -265,7 +264,7 @@ func renderSummary(rep summaryReport, format string) error {
 
 // renderSummaryJSONL emits one JSON object per bucket, mirroring the long-form
 // CSV shape (dimension,value,count) so `disco summary -o jsonl | jq` streams
-// rows the same way the other reports do.
+// rows like the other reports do.
 func renderSummaryJSONL(rep summaryReport) error {
 	enc := json.NewEncoder(os.Stdout)
 	type line struct {

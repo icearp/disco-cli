@@ -79,10 +79,10 @@ func TestScanBedrockModels(t *testing.T) {
 }
 
 // TestBedrockModelsListErr covers the region-gap classification: newer model
-// ops (ListCustomModels / ListCustomModelDeployments) that aren't deployed in a
-// region reject with UnknownOperationException or a ValidationException whose
-// body reads "Unknown operation" (casing varies) — all silent-skipped — while
-// an unrelated error still propagates.
+// ops (ListCustomModels / ListCustomModelDeployments) undeployed in a region
+// reject with UnknownOperationException or a ValidationException reading
+// "Unknown operation" (casing varies) — all silent-skipped; an unrelated
+// error still propagates.
 func TestBedrockModelsListErr(t *testing.T) {
 	st := newTestStore(t)
 	cases := []struct {

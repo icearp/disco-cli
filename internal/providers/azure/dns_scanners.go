@@ -23,15 +23,15 @@ func init() {
 	}...)
 }
 
-// dnsZoneRef captures a zone's RG + name + disco resource ID — shared
-// shape between public and private zones for record-set fan-out.
+// dnsZoneRef captures a zone's RG + name + disco resource ID — shared by
+// public and private zones for record-set fan-out.
 type dnsZoneRef struct {
 	rg, name, discoID string
 }
 
 // scanDNS discovers Azure public DNS zones, private DNS zones, the
 // virtual-network links per private zone, and record sets per zone. SOA
-// records are skipped — auto-managed and offer no graph value.
+// records are skipped — auto-managed, no graph value.
 func scanDNS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	pubZones, t, i, ferr := scanDNSPublicZones(ctx, sub, cred, st, scanID)
 	total += t
@@ -238,10 +238,10 @@ type recordSetRef struct {
 	rg, name, parentDiscoID string
 }
 
-// recordSetPager is the minimal pager surface needed for both armdns + armprivatedns
-// record-set list APIs. Each page returns []recordSetRow with NativeID +
-// AttributesJSON + a synthetic Location (zone is global; record-sets carry no
-// location of their own).
+// recordSetPager is the minimal pager surface shared by armdns and
+// armprivatedns record-set list APIs. Each page returns []recordSetRow with
+// NativeID + AttributesJSON + a synthetic Location (zone is global;
+// record-sets carry no location of their own).
 type recordSetPager interface {
 	More() bool
 	NextPage(ctx context.Context) ([]recordSetRow, error)

@@ -230,8 +230,7 @@ func resolveWSWUserAccessLoggingKinesis(acct *account, st *store.Store) error {
 }
 
 // resolveWSWIdentityProviderPortal links each identity-provider to its parent
-// portal by parsing the `portal/{portalID}` segment from the IdP NativeID.
-// AWS encodes IdP ARNs as
+// portal. AWS encodes IdP ARNs as
 // `arn:aws:workspaces-web:r:a:identityProvider/{portalUUID}/{idpUUID}` —
 // rebuild the portal ARN by replacing `identityProvider/{a}/{b}` with
 // `portal/{a}`.
@@ -285,9 +284,9 @@ func init() {
 }
 
 // resolveWSWSettingsKMS wires each WorkSpaces Web settings type to its
-// CustomerManagedKey CMEK. TrustStore has no CMK (no KmsKeyArn field on
-// the SDK type). All settings types share AssociatedPortalArns but the
-// reverse Portal→Settings edge is already wired by resolveWSWPortalRefs.
+// CustomerManagedKey CMEK. TrustStore has no CMK (no KmsKeyArn on the SDK
+// type). All settings types share AssociatedPortalArns, but the reverse
+// Portal→Settings edge is already wired by resolveWSWPortalRefs.
 func resolveWSWSettingsKMS(acct *account, st *store.Store) error {
 	idx, err := loadKMSResolveIndex(acct, st)
 	if err != nil {

@@ -29,8 +29,8 @@ func scanPolly(ctx context.Context, acct *account, region string, st *store.Stor
 }
 
 // scanPollyLexicons discovers Polly pronunciation lexicons. ListLexicons has no
-// SDK paginator (manual NextToken). Lexicons carry no ARN on the list shape, so
-// the NativeID is synthesized from the lexicon name.
+// SDK paginator (manual NextToken); lexicons carry no ARN on the list shape, so
+// NativeID is synthesized from the name.
 func scanPollyLexicons(ctx context.Context, client pollyAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	input := &polly.ListLexiconsInput{}
 	var batch []*store.Resource

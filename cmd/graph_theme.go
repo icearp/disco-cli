@@ -27,8 +27,8 @@ type dotTheme struct {
 	// fall through to EdgeDefaults only.
 	EdgePresets map[string]map[string]string
 	// ClusterPalette rotates by cluster index. Cycles silently for graphs
-	// with more clusters than entries — five distinct hues is plenty in
-	// practice and beats picking a sixth that clashes.
+	// with more clusters than entries — five distinct hues is plenty and
+	// beats picking a sixth that clashes.
 	ClusterPalette []clusterStyle
 }
 
@@ -172,8 +172,8 @@ type themePalette struct {
 }
 
 // buildTheme stamps a palette into the standard preset / edge / cluster
-// shape. Both themed themes (light, dark) flow through here so adding a
-// new theme is one palette literal + one buildTheme call.
+// shape. Both themes (light, dark) flow through here so adding a new
+// theme is one palette literal + one buildTheme call.
 func buildTheme(p themePalette) *dotTheme {
 	crossTenant := map[string]string{"style": "dotted", "color": p.EdgeCrossTenant}
 	return &dotTheme{

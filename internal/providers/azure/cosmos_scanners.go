@@ -25,9 +25,9 @@ func init() {
 // scanCosmos discovers Azure Cosmos DB database accounts, managed Cassandra
 // clusters, and restorable database accounts. Per-API child resources
 // (SQL/Mongo/Cassandra/Gremlin/Table databases + containers/graphs) are
-// deferred — they explode in volume on multi-tenant accounts and the account
-// row alone carries the security-relevant edges (CMEK, identity, network ACLs,
-// private endpoints).
+// deferred — they explode in volume on multi-tenant accounts, and the account
+// row alone already carries the security-relevant edges (CMEK, identity,
+// network ACLs, private endpoints).
 func scanCosmos(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcosmos.NewDatabaseAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -82,9 +82,9 @@ func scanCosmos(ctx context.Context, sub *subscription, cred azcore.TokenCredent
 	return total, inserted, err
 }
 
-// scanDocumentDBNamespace runs every Microsoft.documentdb scanner phase concurrently. The
-// documentdb ARM namespace spans several disco scanners merged under one
-// serviceEntry so the service name aligns to the namespace.
+// scanDocumentDBNamespace runs every Microsoft.documentdb scanner phase
+// concurrently — the namespace spans several disco scanners merged under one
+// serviceEntry so the service name aligns to the ARM namespace.
 func scanDocumentDBNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanCosmos(ctx, sub, cred, st, scanID) },

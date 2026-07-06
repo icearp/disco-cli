@@ -20,9 +20,9 @@ func init() {
 	})
 }
 
-// scanServiceFabric discovers Service Fabric clusters. The Clusters.List op is
-// a single non-paginated subscription-wide call (no pager), so it can't use
-// azSimpleScan; AccessDenied is unwrapped manually like security_scanners.go.
+// scanServiceFabric discovers Service Fabric clusters. Clusters.List is a
+// single subscription-wide call with no pager, so it can't use azSimpleScan;
+// AccessDenied is unwrapped manually like security_scanners.go.
 func scanServiceFabric(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armservicefabric.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -56,7 +56,7 @@ func scanServiceFabric(ctx context.Context, sub *subscription, cred azcore.Token
 
 // scanServiceFabricNamespace runs every Microsoft.servicefabric scanner phase concurrently. The
 // servicefabric ARM namespace spans several disco scanners merged under one
-// serviceEntry so the service name aligns to the namespace.
+// serviceEntry so the service name matches it.
 func scanServiceFabricNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanServiceFabric(ctx, sub, cred, st, scanID) },

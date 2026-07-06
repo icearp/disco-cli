@@ -9,8 +9,8 @@ import (
 
 // --- CacheCluster → ReplicationGroup ---
 
-// TestResolveElastiCacheRelationships verifies that a Redis cache cluster with a
-// ReplicationGroupId is linked to its replication group with an attached-to edge.
+// TestResolveElastiCacheRelationships verifies a Redis cache cluster with
+// ReplicationGroupId links to its replication group via attached-to.
 func TestResolveElastiCacheRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -44,7 +44,7 @@ func TestResolveElastiCacheRelationships(t *testing.T) {
 	}
 }
 
-// TestResolveElastiCacheRelationships_Memcached verifies that a Memcached cluster
+// TestResolveElastiCacheRelationships_Memcached verifies a Memcached cluster
 // (no ReplicationGroupId) produces no relationships.
 func TestResolveElastiCacheRelationships_Memcached(t *testing.T) {
 	st := newTestStore(t)

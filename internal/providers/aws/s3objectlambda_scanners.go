@@ -9,8 +9,8 @@ import (
 )
 
 // scanS3ObjectLambdaAccessPoints discovers S3 Object Lambda access points
-// (with embedded resource policies). Both list under s3control with
-// AccountId scoping.
+// (with embedded resource policies), both listed under s3control and
+// scoped by AccountId.
 func scanS3ObjectLambdaAccessPoints(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	var apBatch []*store.Resource
 	var policyBatch []*store.Resource

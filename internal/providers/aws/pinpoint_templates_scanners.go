@@ -10,7 +10,7 @@ import (
 
 // scanPinpointTemplates lists all templates via ListTemplates (single
 // account-scoped op covering Email/InApp/Push/Sms/Voice). Per-row
-// TemplateType discriminates which disco type to assign.
+// TemplateType picks the disco type.
 func scanPinpointTemplates(ctx context.Context, client pinpointAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	var token *string

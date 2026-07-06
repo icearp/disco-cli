@@ -21,8 +21,8 @@ func init() {
 }
 
 // resolveCoipPoolRelationships wires each CoIP pool to its local-gateway route
-// table. The route table is keyed by its full ARN, so index scanned route
-// tables by the short id parsed from the ":local-gateway-route-table/" segment.
+// table. Route tables are keyed by full ARN, so build an index by the short
+// id parsed from the ":local-gateway-route-table/" segment.
 func resolveCoipPoolRelationships(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2CoipPool}, Limit: util.AllResources,

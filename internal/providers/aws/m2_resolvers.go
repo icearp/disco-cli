@@ -18,8 +18,8 @@ func init() {
 }
 
 // resolveM2DeploymentRefs wires each deployment to its parent application
-// (NativeID `{appARN}/deployment/{id}` strip) and to the environment it
-// targets (EnvironmentID — looked up against a `lastSegment(envARN) → id` index).
+// (strip NativeID `{appARN}/deployment/{id}`) and to its target environment
+// (EnvironmentID, via a `lastSegment(envARN) → id` index).
 func resolveM2DeploymentRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeM2Deployment}, Limit: util.AllResources,

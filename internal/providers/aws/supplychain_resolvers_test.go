@@ -40,7 +40,7 @@ func TestResolveSupplyChainInstanceChildren_NoAttrs(t *testing.T) {
 	instARN := scnInstanceARN(testRegion, acct.ID, instID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeSupplyChainInstance, instARN, testRegion, "{}")
 
-	// Namespace row with empty attrs must not panic and must yield no edge.
+	// Namespace row with empty attrs must not panic or yield an edge.
 	nsARN := fmt.Sprintf("arn:aws:scn:%s:%s:instance/%s/namespace/asc", testRegion, acct.ID, instID)
 	nsID := upsertTestResource(t, st, "aws", acct.ID, TypeSupplyChainNamespace, nsARN, testRegion, "{}")
 

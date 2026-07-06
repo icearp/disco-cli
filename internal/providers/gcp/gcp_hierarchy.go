@@ -11,11 +11,10 @@ import (
 )
 
 func init() {
-	// scanHierarchy is invoked direct from gcp.go (not via registerService)
-	// because it runs once before per-project fan-out and emits the project /
-	// folder / organization rows that downstream resolvers anchor against.
-	// Its emits are declared via registerExtraEmits so the coverage matrix
-	// still picks them up.
+	// scanHierarchy runs direct from gcp.go (not via registerService) — it
+	// fires once before per-project fan-out and emits the project/folder/
+	// organization rows resolvers anchor against. Declared via
+	// registerExtraEmits so the coverage matrix still picks up its emits.
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeOrganization},
 		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeFolder},
@@ -33,8 +32,8 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		return nil, fmt.Errorf("cloudresourcemanager client: %w", err)
 	}
 
-	// Fetch each project once and cache; the cached data is reused below when
-	// upserting project resources, avoiding a second round of API calls.
+	// Fetch each project once and cache — reused below when upserting project
+	// resources, avoiding a second round of API calls.
 	projCache := make(map[string]*cloudresourcemanager.Project, len(projects))
 	seen := map[string]bool{}
 	var orgs, folders []string

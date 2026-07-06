@@ -38,11 +38,11 @@ func newScanTestCmd(out, errOut *bytes.Buffer) *cobra.Command {
 	return c
 }
 
-// TestRunScan_QuietGatesBanners pins the --quiet contract. The test's stderr is
-// a *bytes.Buffer (not a TTY), so the spinner is off and the per-service line
-// prints plainly: without --quiet the start banner + that line hit stderr and
-// the summary hits stdout; with --quiet stderr carries neither banner nor
-// per-service line, but the final summary still lands on stdout.
+// TestRunScan_QuietGatesBanners pins the --quiet contract: stderr is a
+// *bytes.Buffer (not a TTY) so the spinner is off and the per-service line
+// prints plainly. Without --quiet: banner + per-service line hit stderr,
+// summary hits stdout. With --quiet: stderr carries neither, but summary
+// still lands on stdout.
 func TestRunScan_QuietGatesBanners(t *testing.T) {
 	seedTestDB(t) // sets viper "db" so openWriteDB targets the temp store
 	fake := stubScanner{name: "aws"}
@@ -145,10 +145,10 @@ func TestEvaluateIfOlderThan_RunsWhenNoCompleteScan(t *testing.T) {
 	}
 }
 
-// TestElapsedField pins the scan progress timer column: the natural Duration
-// string wrapped in brackets that hug the value, right-padded to a fixed 8
-// chars so the #N counter and columns after it don't shift mid-scan. Padding
-// sits to the RIGHT of "]", never inside the brackets.
+// TestElapsedField pins the scan progress timer column: the Duration string
+// wrapped in brackets that hug the value, right-padded to 8 chars so the #N
+// counter and later columns don't shift mid-scan. Padding sits right of "]",
+// never inside the brackets.
 // TestScopeRegionsEnabled pins the flag precedence: default on, --scope-regions
 // wins when set, and --no-scope-regions forces off even over an explicit
 // --scope-regions=true.

@@ -21,8 +21,8 @@ func init() {
 }
 
 // resolveKinesisStreamConsumerToStream wires each enhanced-fan-out consumer
-// back to its parent stream. The Consumer SDK struct carries no StreamARN
-// field, but the consumer's own ARN encodes the parent stream:
+// to its parent stream. The Consumer SDK struct carries no StreamARN field,
+// but the consumer's own ARN encodes the parent stream:
 //
 //	arn:aws:kinesis:<r>:<a>:stream/<streamName>/consumer/<consumerName>:<ts>
 //

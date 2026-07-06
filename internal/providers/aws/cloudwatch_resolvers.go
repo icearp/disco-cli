@@ -135,10 +135,9 @@ func resolveAlarmSNSActions(acct *account, st *store.Store) error {
 var alarmRuleTokenRe = regexp.MustCompile(`"([^"]+)"`)
 
 // resolveCompositeAlarmChildren links each composite alarm to the child alarms
-// referenced in its AlarmRule expression. The rule is a boolean expression
-// such as: ALARM("arn:aws:cloudwatch:…") AND OK("other-alarm")
-// Tokens are resolved against a pre-built map from NativeID/Name → store ID.
-// Relationship: contains.
+// referenced in its AlarmRule expression, a boolean expression such as
+// ALARM("arn:aws:cloudwatch:…") AND OK("other-alarm"). Tokens resolve via a
+// pre-built NativeID/Name → store ID map. Relationship: contains.
 func resolveCompositeAlarmChildren(acct *account, st *store.Store) error {
 	// Load all known alarms (both types) once to build lookup maps.
 	all, err := st.ListResources(store.ResourceFilter{
@@ -207,8 +206,8 @@ type alarmDimTarget struct {
 	mode string
 }
 
-// alarmDimMap covers the common CloudWatch namespaces whose scanners are
-// already landed. Extensions land only when matched-type scanners exist.
+// alarmDimMap covers CloudWatch namespaces whose scanners are already landed;
+// extend only when the matched-type scanner exists.
 var alarmDimMap = map[alarmDimKey]alarmDimTarget{
 	{"AWS/EC2", "InstanceId"}:              {TypeEC2Instance, "ec2-instance"},
 	{"AWS/RDS", "DBInstanceIdentifier"}:    {TypeRDSDBInstance, "name"},

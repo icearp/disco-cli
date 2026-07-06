@@ -9,10 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kendra"
 )
 
-// isKendraClosedToAccount detects the closed-to-new-customers state for
-// Amazon Kendra (discontinued for new customers in 2024). Surfaces as
-// NotAuthorizedException with the canned "Your account is not authorized
-// to make this call." body — distinct from per-action IAM denials.
+// isKendraClosedToAccount detects Kendra's closed-to-new-customers state
+// (discontinued 2024): NotAuthorizedException with canned "Your account is
+// not authorized to make this call." body — distinct from per-action IAM denials.
 func isKendraClosedToAccount(err error) bool {
 	return isAPIErrorWithMessage(err, "NotAuthorizedException", "not authorized to make this call")
 }

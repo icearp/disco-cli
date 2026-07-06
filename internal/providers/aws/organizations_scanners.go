@@ -45,9 +45,9 @@ type organizationsAPI interface {
 }
 
 // scanOrganizations discovers the AWS Organizations structure — organization,
-// roots, OUs, accounts, and service control policies. Only callable from the
-// management account; AccessDenied from member accounts is treated as "not the
-// payer" and silently skipped so member-account scans remain clean.
+// roots, OUs, accounts, and SCPs. Only callable from the management account;
+// AccessDenied from member accounts means "not the payer" and is silently
+// skipped so member-account scans stay clean.
 func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := organizations.NewFromConfig(acct.cfg)
 
@@ -110,11 +110,11 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	return total, inserted, ferr
 }
 
-// scanOrgRootResources lists the organization roots as standalone
-// aws:organizations:root resources. The root is auto-created with the org and
-// cannot be deleted while the org exists, so it is provider-managed. (The org
-// hierarchy walk also records roots as OU containers; this phase exists to
-// surface the dedicated root type for coverage.)
+// scanOrgRootResources lists organization roots as standalone
+// aws:organizations:root resources. Auto-created with the org and
+// undeletable while it exists, so provider-managed. (The org hierarchy walk
+// already records roots as OU containers; this phase surfaces the dedicated
+// root type for coverage.)
 func scanOrgRootResources(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
 	pager := organizations.NewListRootsPaginator(client, &organizations.ListRootsInput{})
 	var batch []*store.Resource
@@ -142,9 +142,9 @@ func scanOrgRootResources(ctx context.Context, client organizationsAPI, acct *ac
 	return upsertBatch(st, batch, "organizations roots")
 }
 
-// scanOrgResponsibilityTransfers captures billing responsibility transfers from
-// both the inbound and outbound lists (a transfer can appear in both), deduped
-// by ARN/id. Currently only the BILLING transfer type is supported by the API.
+// scanOrgResponsibilityTransfers captures billing responsibility transfers
+// from both inbound and outbound lists (a transfer can appear in both),
+// deduped by ARN/id. Only the BILLING transfer type is API-supported.
 func scanOrgResponsibilityTransfers(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
 	seen := map[string]bool{}
 	var batch []*store.Resource
@@ -210,10 +210,10 @@ func scanOrgResponsibilityTransfers(ctx context.Context, client organizationsAPI
 	return upsertBatch(st, batch, "organizations responsibility-transfers")
 }
 
-// scanOrgRoot describes the organization itself, upserts the org resource,
-// and returns the organization SDK struct so the caller can route on
-// MasterAccountId. Returns (nil, ...) if the account isn't part of an org
-// or the call surfaces a service-disabled / access-denied skip.
+// scanOrgRoot describes the organization, upserts the org resource, and
+// returns the SDK struct so the caller can route on MasterAccountId. Returns
+// (nil, ...) if the account isn't in an org or the call is service-disabled /
+// access-denied.
 func scanOrgRoot(ctx context.Context, client *organizations.Client, acct *account, st *store.Store, scanID string) (*types.Organization, int, int, error) {
 	descOrg, err := client.DescribeOrganization(ctx, &organizations.DescribeOrganizationInput{})
 	if err != nil {
@@ -249,9 +249,9 @@ func scanOrgRoot(ctx context.Context, client *organizations.Client, acct *accoun
 	return org, 1, n, nil
 }
 
-// scanOrgRoots upserts the org's top-level Root containers, returning the
-// list of native ids + an ARN-by-id map populated for the roots only.
-// Subsequent phases extend the map with deeper OUs.
+// scanOrgRoots upserts the org's top-level Root containers, returning native
+// ids + an ARN-by-id map populated for roots only; later phases extend it
+// with deeper OUs.
 func scanOrgRoots(ctx context.Context, client *organizations.Client, acct *account, st *store.Store, scanID, orgID string, closurePairs *[][2]string) ([]string, map[string]string, int, int, error) {
 	var rootIDs []string
 	ouARNByNativeID := map[string]string{}
@@ -444,9 +444,9 @@ func scanOrganizationsResourcePolicy(ctx context.Context, client organizationsAP
 	return upsertBatch(st, []*store.Resource{r}, "organizations resource-policy")
 }
 
-// walkOUs recursively walks children of parentNativeID, upserting each OU and
-// accumulating closure pairs. parentARN is the ARN of the parent (root or OU)
-// used to compute the parent's stable ResourceID.
+// walkOUs recursively walks children of parentNativeID, upserting each OU
+// and accumulating closure pairs. parentARN is the parent's (root or OU) ARN,
+// used to compute its stable ResourceID.
 func walkOUs(
 	ctx context.Context,
 	client organizationsAPI,
@@ -511,9 +511,9 @@ func walkOUs(
 	return total, inserted, nil
 }
 
-// firstParentARN resolves the first parent of an account via ListParents. The
-// native parent id is mapped to its ARN via arnByID (populated during the OU
-// walk). Returns "" if the account has no resolvable parent.
+// firstParentARN resolves an account's first parent via ListParents, mapping
+// the native parent id to its ARN via arnByID (populated during the OU walk).
+// Returns "" if no parent resolves.
 func firstParentARN(ctx context.Context, client organizationsAPI, accountID string, arnByID map[string]string) (string, error) {
 	out, err := client.ListParents(ctx, &organizations.ListParentsInput{ChildId: &accountID})
 	if err != nil {
@@ -532,9 +532,8 @@ func firstParentARN(ctx context.Context, client organizationsAPI, accountID stri
 
 // describeSCPs fans out DescribePolicy across the listed SCP summaries to
 // fetch each policy's full body (Content + PolicySummary). Per-policy
-// AccessDenied tolerated via skipIfAccessDenied (warn + continue) so a
-// single permission gap on one SCP doesn't drop sibling SCPs. Concurrency
-// bounded by fanoutMed.
+// AccessDenied is tolerated via skipIfAccessDenied (warn + continue) so one
+// permission gap doesn't drop sibling SCPs. Concurrency bounded by fanoutMed.
 func describeSCPs(ctx context.Context, client organizationsAPI, summaries []types.PolicySummary, acct *account, st *store.Store) ([]*types.Policy, error) {
 	out := make([]*types.Policy, len(summaries))
 	sem := semaphore.NewWeighted(fanoutMed)

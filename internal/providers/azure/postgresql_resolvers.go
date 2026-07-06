@@ -15,9 +15,9 @@ func init() {
 }
 
 // resolvePostgreSQLRelationships derives PG flexible-server -[attached-to]->
-// VNet via properties.network.delegatedSubnetResourceId. PG flexible servers
-// integrate via subnet delegation (not standalone subnetId like Redis), so
-// the parent VNet is recovered with vnetIDFromSubnetID.
+// VNet via properties.network.delegatedSubnetResourceId. Servers use subnet
+// delegation (not standalone subnetId like Redis), so vnetIDFromSubnetID
+// recovers the parent VNet.
 func resolvePostgreSQLRelationships(sub *subscription, st *store.Store) error {
 	servers, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

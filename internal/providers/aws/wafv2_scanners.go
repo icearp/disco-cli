@@ -40,10 +40,9 @@ type wafv2API interface {
 	ListManagedRuleSets(context.Context, *wafv2.ListManagedRuleSetsInput, ...func(*wafv2.Options)) (*wafv2.ListManagedRuleSetsOutput, error)
 }
 
-// scanWAFv2 discovers WAFv2 web ACLs, rule groups, and IP sets in one region.
-// WAFv2 uses two scopes: REGIONAL (per region) and CLOUDFRONT (global, only
-// reachable from us-east-1). Both are scanned; CloudFront-scope resources are
-// only fetched in us-east-1 to avoid duplicates.
+// scanWAFv2 discovers WAFv2 web ACLs, rule groups, and IP sets in one region,
+// across both scopes: REGIONAL (per region) and CLOUDFRONT (global, reachable
+// only from us-east-1 — fetched only there to avoid duplicates).
 func scanWAFv2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := wafv2.NewFromConfig(acct.cfg, func(o *wafv2.Options) { o.Region = region })
 

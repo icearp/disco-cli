@@ -44,13 +44,12 @@ type ssmAPI interface {
 	ListOpsMetadata(context.Context, *ssm.ListOpsMetadataInput, ...func(*ssm.Options)) (*ssm.ListOpsMetadataOutput, error)
 }
 
-// scanSSM discovers SSM parameters (metadata only — never values), customer-
+// scanSSM discovers SSM parameters (metadata only, never values), customer-
 // owned SSM documents, and customer-owned patch baselines.
 //
-// Parameter values are intentionally never fetched: even with the store-level
-// secret scrubber, plaintext values would transit memory and could land in
-// debug dumps. The KMS edge off SecureString parameters is recoverable from
-// metadata alone.
+// Values are never fetched: even with the store-level secret scrubber,
+// plaintext would transit memory and risk landing in debug dumps. The KMS
+// edge for SecureString parameters is recoverable from metadata alone.
 func scanSSM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ssm.NewFromConfig(acct.cfg, func(o *ssm.Options) { o.Region = region })
 	t, i, ferr := scanSSMAll(ctx, client, acct, region, st, scanID)
@@ -86,8 +85,8 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 			if name == "" {
 				continue
 			}
-			// Parameter names may or may not start with '/'; ARN format uses the
-			// name verbatim after 'parameter'. Leading slash joins naturally.
+			// Parameter names may lack a leading '/'; add one so it joins
+			// cleanly after 'parameter' in the ARN.
 			joined := name
 			if joined[0] != '/' {
 				joined = "/" + joined
@@ -138,8 +137,8 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 			}
 			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:document/%s", region, acct.ID, name)
 			dtype := string(d.DocumentType)
-			// Enrich with DescribeDocument — list returns DocumentIdentifier
-			// (skeleton); Requires field (cross-doc refs) only on Describe body.
+			// Enrich with DescribeDocument: List returns a skeleton
+			// DocumentIdentifier; Requires (cross-doc refs) is Describe-only.
 			var attrsJSON string
 			if dout, derr := client.DescribeDocument(ctx, &ssm.DescribeDocumentInput{Name: d.Name}); derr == nil && dout.Document != nil {
 				attrsJSON = mustJSON(dout.Document)

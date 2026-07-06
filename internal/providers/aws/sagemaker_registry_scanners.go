@@ -19,11 +19,11 @@ func init() {
 	)
 }
 
-// sagemakerRegistryAPI is the narrow surface used by the model registry
-// family. Each phase List+fan-out Describe so attrs carry the full
-// Describe body — InferenceSpecification (model package), Status/Description
-// (group), ModelCardContent (card), OnlineStoreConfig + OfflineStoreConfig
-// (feature group), ArtifactStoreUri + RoleArn (MLflow tracking server).
+// sagemakerRegistryAPI is the model-registry family's narrow surface. Each
+// phase List+fan-out Describe so attrs carry the full Describe body:
+// InferenceSpecification (model package), Status/Description (group),
+// ModelCardContent (card), OnlineStoreConfig + OfflineStoreConfig (feature
+// group), ArtifactStoreUri + RoleArn (MLflow tracking server).
 type sagemakerRegistryAPI interface {
 	ListModelPackages(context.Context, *sagemaker.ListModelPackagesInput, ...func(*sagemaker.Options)) (*sagemaker.ListModelPackagesOutput, error)
 	DescribeModelPackage(context.Context, *sagemaker.DescribeModelPackageInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeModelPackageOutput, error)
@@ -56,10 +56,9 @@ func scanSageMakerRegistry(ctx context.Context, client sagemakerRegistryAPI, acc
 	return total, inserted, nil
 }
 
-// scanSageMakerModelPackages fans out by ARN — model packages have versioned
-// (ModelPackageName may be empty for versioned entries) and unversioned forms,
-// but every entry carries a ModelPackageArn. DescribeModelPackage's input
-// field accepts either name or ARN.
+// scanSageMakerModelPackages fans out by ARN — versioned entries may leave
+// ModelPackageName empty, but every entry (versioned or not) carries
+// ModelPackageArn; DescribeModelPackage accepts either name or ARN as input.
 func scanSageMakerModelPackages(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := sagemaker.NewListModelPackagesPaginator(client, &sagemaker.ListModelPackagesInput{})
 	var arns []string

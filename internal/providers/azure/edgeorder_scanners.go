@@ -22,9 +22,9 @@ func init() {
 	})
 }
 
-// scanEdgeOrder discovers Azure Edge Order items, addresses, and orders via the
-// single ManagementClient's subscription-level list pagers. Orders are proxy
-// resources (no location/tags).
+// scanEdgeOrder discovers Azure Edge Order items, addresses, and orders via
+// the single ManagementClient's subscription-level list pagers; orders are
+// proxy resources (no location/tags).
 func scanEdgeOrder(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armedgeorder.NewManagementClient(sub.ID, cred, azClientOptions)
 	if err != nil {

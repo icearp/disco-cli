@@ -21,8 +21,8 @@ func init() {
 //   - cache -[attached-to]-> VNet via properties.subnet
 //   - cache -[uses]-> Key Vault via the CMK
 //     properties.encryptionSettings.keyEncryptionKey.sourceVault.id (full vault ARM ID).
-//     sourceVault is SDK-REQUIRED whenever a CMK is set, so the ARM-ID match is
-//     complete — no keyUrl-only fallback is needed.
+//     sourceVault is SDK-required whenever a CMK is set, so the ARM-ID match
+//     suffices — no keyUrl fallback needed.
 func resolveStorageCacheRelationships(sub *subscription, st *store.Store) error {
 	caches, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

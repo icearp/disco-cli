@@ -153,8 +153,8 @@ func TestStrDeref(t *testing.T) {
 }
 
 // TestJSONOrEmpty confirms a marshal-friendly value succeeds and the helper
-// returns valid JSON. (Marshal-failing inputs are rare in practice — Go
-// types either marshal or panic before reaching this helper.)
+// returns valid JSON. (Marshal-failing inputs are rare — Go types either
+// marshal or panic before reaching this helper.)
 func TestJSONOrEmpty(t *testing.T) {
 	got := jsonOrEmpty(map[string]string{"k": "v"})
 	if !strings.Contains(got, `"k":"v"`) {

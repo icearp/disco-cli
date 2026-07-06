@@ -26,8 +26,8 @@ func init() {
 	})
 }
 
-// controltowerAPI is the narrow set of Control Tower operations called by
-// the scanControlTower sub-phases.
+// controltowerAPI lists the Control Tower operations scanControlTower's
+// sub-phases call.
 type controltowerAPI interface {
 	ListLandingZones(context.Context, *controltower.ListLandingZonesInput, ...func(*controltower.Options)) (*controltower.ListLandingZonesOutput, error)
 	GetLandingZone(context.Context, *controltower.GetLandingZoneInput, ...func(*controltower.Options)) (*controltower.GetLandingZoneOutput, error)
@@ -35,17 +35,14 @@ type controltowerAPI interface {
 	ListEnabledControls(context.Context, *controltower.ListEnabledControlsInput, ...func(*controltower.Options)) (*controltower.ListEnabledControlsOutput, error)
 }
 
-// isControlTowerNotEnabled disambiguates the "Control Tower not deployed
-// in this account" state from real errors. Two surface shapes seen in
-// practice:
+// isControlTowerNotEnabled distinguishes "Control Tower not deployed in
+// this account" from real errors. Two shapes seen in practice:
 //
-//   - AccessDeniedException with phrasing about management account /
-//     landing zone setup (account is not the org management account).
-//   - ValidationException with phrasing about the AWSControlTowerAdmin
-//     role (Control Tower is not yet bootstrapped in the calling
-//     account/region).
+//   - AccessDeniedException: account is not the org management account.
+//   - ValidationException: AWSControlTowerAdmin role not yet bootstrapped
+//     in this account/region.
 //
-// Both treated as "service disabled" for progress reporting.
+// Both map to "service disabled" for progress reporting.
 func isControlTowerNotEnabled(err error) bool {
 	msg := err.Error()
 	ctSetupHint := strings.Contains(msg, "AWSControlTowerAdmin") ||
@@ -59,11 +56,11 @@ func isControlTowerNotEnabled(err error) bool {
 }
 
 // scanControlTower discovers Control Tower landing zones and enabled
-// baselines in one region (typically the home region of the landing
-// zone — usually us-east-1). Two phases. Enabled controls deferred —
+// baselines in one region (typically the landing zone's home region,
+// usually us-east-1), in two phases. Enabled controls are deferred:
 // `ListEnabledControls` requires a per-OU `TargetIdentifier` parameter,
-// so it would need a fan-out keyed off baseline targets or a separate
-// org-OU enumeration; defensible to land in a follow-up iteration.
+// needing a fan-out keyed off baseline targets or a separate org-OU
+// enumeration.
 func scanControlTower(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := controltower.NewFromConfig(acct.cfg, func(o *controltower.Options) { o.Region = region })
 
@@ -166,11 +163,10 @@ func scanControlTowerLandingZones(ctx context.Context, client controltowerAPI, a
 	return len(batch), n, nil
 }
 
-// listEnabledControlsForTarget enumerates the EnabledControls scoped to a
-// single OU/account TargetIdentifier. Per-target AccessDenied + ValidationException
-// degrade to an empty slice rather than aborting the parent baseline upsert —
-// per CLAUDE.md: surface a warning, never propagate per-target errors during
-// embedded-data fan-out.
+// listEnabledControlsForTarget enumerates EnabledControls scoped to one
+// OU/account TargetIdentifier. Per-target AccessDenied/ValidationException
+// degrade to an empty slice instead of aborting the parent baseline upsert
+// (CLAUDE.md: never propagate per-target errors during embedded-data fan-out).
 func listEnabledControlsForTarget(ctx context.Context, client controltowerAPI, targetID string, st *store.Store, acctID, region string) ([]cttypes.EnabledControlSummary, error) {
 	if targetID == "" {
 		return nil, nil

@@ -1,8 +1,8 @@
 package azure
 
-// Resource type constants for all Azure resource types discovered by this provider.
-// Using constants prevents typos in scanner and resolver files — a mismatched
-// string would create orphan resources with an undeclared type.
+// Resource type constants for every Azure resource type this provider discovers.
+// Constants prevent typos in scanner and resolver files — a mismatched string
+// would create orphan resources with an undeclared type.
 const (
 	// Resource Manager
 	TypeResourcesResourceGroup = "azure:microsoft.resources:resource-groups"

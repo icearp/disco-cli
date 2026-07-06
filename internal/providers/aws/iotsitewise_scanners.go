@@ -11,11 +11,10 @@ import (
 )
 
 // isIoTSiteWiseFeatureUnsupported reports whether err is the per-region
-// `InvalidRequestException: Feature not supported yet` shape that
-// IoT SiteWise raises when a sub-API is not available in the calling
-// region (ListComputationModels is the canonical case — works in
-// us-east-1 / eu-west-1 but rejects in us-west-2). Distinct from a
-// real validation error, which carries a different message body.
+// `InvalidRequestException: Feature not supported yet` shape IoT SiteWise
+// returns when a sub-API isn't available in-region (e.g. ListComputationModels:
+// works in us-east-1/eu-west-1, rejects in us-west-2) — distinct from a real
+// validation error, which carries a different message body.
 func isIoTSiteWiseFeatureUnsupported(err error) bool {
 	return isAPIErrorWithMessage(err, "InvalidRequestException", "Feature not supported")
 }
@@ -164,8 +163,8 @@ func scanIoTSWAssetModels(ctx context.Context, client iotSWAPI, acct *account, r
 			if id != "" {
 				ids = append(ids, id)
 			}
-			// Enrich with DescribeAssetModel body — AssetModelHierarchies[].ChildAssetModelId
-			// are not on the list-summary shape. Fall back to summary on per-row failure.
+			// Enrich via DescribeAssetModel — AssetModelHierarchies[].ChildAssetModelId
+			// isn't in the list-summary shape; fall back to summary on per-row failure.
 			attrs := mustJSON(m)
 			if id != "" {
 				mid := id
@@ -248,9 +247,8 @@ func scanIoTSWComputationModels(ctx context.Context, client iotSWAPI, acct *acco
 			if label == "" {
 				label = sv(c.Id)
 			}
-			// Enrich with DescribeComputationModel body — DataBinding refs to
-			// asset-models / assets are not on the list-summary shape. Fall back
-			// to summary on per-row failure.
+			// Enrich via DescribeComputationModel — DataBinding refs to asset-models/
+			// assets aren't in the list-summary shape; fall back to summary on per-row failure.
 			attrs := mustJSON(c)
 			if cid := c.Id; cid != nil {
 				dout, derr := client.DescribeComputationModel(ctx, &iotsitewise.DescribeComputationModelInput{ComputationModelId: cid})
@@ -331,8 +329,8 @@ func scanIoTSWDatasets(ctx context.Context, client iotSWAPI, acct *account, regi
 			if label == "" {
 				label = sv(d.Id)
 			}
-			// Enrich with DescribeDataset body — Source.SourceDetail.Kendra.{KnowledgeBaseArn,RoleArn}
-			// are not on the list-summary shape. Fall back to summary on per-row failure.
+			// Enrich via DescribeDataset — Source.SourceDetail.Kendra.{KnowledgeBaseArn,RoleArn}
+			// isn't in the list-summary shape; fall back to summary on per-row failure.
 			attrs := mustJSON(d)
 			did := d.Id
 			if did != nil {

@@ -32,9 +32,9 @@ const maxConcurrentDNSZones = 10
 //     maxConcurrentDNSZones.
 //
 // RecordSets have no API-issued resource name — synthesized NativeID is
-// `{zoneNativeID}/rrsets/{type}/{name}`. Both `name` and `type` are needed
-// because (name, type) is the natural key (one zone can have, e.g.,
-// www.example.com. with both A and AAAA record sets).
+// `{zoneNativeID}/rrsets/{type}/{name}`. Both `name` and `type` are needed:
+// (name, type) is the natural key — one zone can have, e.g., www.example.com.
+// as both A and AAAA record sets.
 //
 // DNSSEC keys + policies + response policy rules deferred — narrow graph
 // value vs. cardinality risk; revisit if rule-engine demand surfaces.

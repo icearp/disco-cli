@@ -32,9 +32,8 @@ func init() {
 	})
 }
 
-// wisdomAPI — narrow surface of qconnect ops. AWS renamed Wisdom to
-// Amazon Q Connect; the SDK package is qconnect but CFN types remain
-// AWS::Wisdom::*.
+// wisdomAPI — narrow surface of qconnect ops. AWS renamed Wisdom to Amazon Q
+// Connect: SDK package is qconnect, CFN types remain AWS::Wisdom::*.
 type wisdomAPI interface {
 	ListAssistants(context.Context, *qconnect.ListAssistantsInput, ...func(*qconnect.Options)) (*qconnect.ListAssistantsOutput, error)
 	ListAssistantAssociations(context.Context, *qconnect.ListAssistantAssociationsInput, ...func(*qconnect.Options)) (*qconnect.ListAssistantAssociationsOutput, error)

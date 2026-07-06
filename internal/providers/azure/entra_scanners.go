@@ -17,9 +17,9 @@ import (
 )
 
 func init() {
-	// Entra ID types are real identities disco scans via Microsoft Graph, but
-	// ARM Providers/List doesn't surface them (Graph is not an ARM RP), so they
-	// are uncatalogued rather than synthetic.
+	// Entra ID types are real identities scanned via Microsoft Graph; ARM
+	// Providers/List can't see them (Graph isn't an ARM RP), so uncatalogued
+	// rather than synthetic.
 	registerTenantService(tenantServiceEntry{
 		name: "azure:microsoft.entra",
 		fn:   scanEntra,
@@ -36,24 +36,24 @@ const (
 	graphScope      = "https://graph.microsoft.com/.default"
 	graphDefaultURL = "https://graph.microsoft.com/v1.0"
 	graphPageSize   = 500
-	// armScope is the ARM token audience. Used to resolve the tenant GUID from
-	// the `tid` claim without depending on Graph access — every scan already
-	// holds an ARM token, so this is the robust source for tenant resolution.
+	// armScope is the ARM token audience — resolves the tenant GUID from the
+	// `tid` claim without needing Graph access; every scan already holds an
+	// ARM token.
 	armScope = "https://management.azure.com/.default"
 )
 
 // tokenIssuer narrows azcore.TokenCredential to the one method scanEntra
-// uses. Lets tests stub token issuance without standing up a full
-// azidentity credential graph.
+// uses, letting tests stub token issuance without a full azidentity
+// credential graph.
 type tokenIssuer interface {
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
 }
 
 // graphClient is a tiny REST client for the four Microsoft Graph list
-// endpoints disco scans. Replaces msgraph-sdk-go (kiota-generated, ~9 MB
-// of named symbols + 88 transitive subpkgs) — the curated *Attrs structs
-// already model exactly the JSON shape Graph returns, so the SDK's
-// discriminator-driven model graph was pure overhead.
+// endpoints disco scans. Replaces msgraph-sdk-go (kiota-generated, ~9MB
+// symbols + 88 transitive subpkgs) — the curated *Attrs structs already
+// model Graph's JSON shape, so the SDK's discriminator-driven model graph
+// was pure overhead.
 type graphClient struct {
 	cred    tokenIssuer
 	http    *http.Client
@@ -106,9 +106,9 @@ func (g *graphClient) get(ctx context.Context, fullURL string, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-// iterateGraph paginates through @odata.nextLink, calling fn for every
-// entity. Returning false from fn stops the iteration. nextLink is
-// absolute when present so we use it verbatim — no rewriting needed.
+// iterateGraph paginates via @odata.nextLink, calling fn for every entity.
+// Returning false from fn stops iteration. nextLink is absolute when
+// present, so it's used verbatim — no rewriting needed.
 func iterateGraph[T any](ctx context.Context, g *graphClient, startURL string, fn func(T) bool) error {
 	cur := startURL
 	for cur != "" {
@@ -127,7 +127,7 @@ func iterateGraph[T any](ctx context.Context, g *graphClient, startURL string, f
 }
 
 // graphURL builds a Graph list-endpoint URL with $select + $top set so the
-// response carries only the curated attribute fields and pages predictably.
+// response carries only curated attribute fields and pages predictably.
 func (g *graphClient) listURL(path string, fields []string) string {
 	q := url.Values{}
 	q.Set("$select", strings.Join(fields, ","))
@@ -138,14 +138,14 @@ func (g *graphClient) listURL(path string, fields []string) string {
 // scanEntra discovers Entra ID (Azure AD) directory objects via Microsoft
 // Graph: users, groups, service principals, and application registrations.
 // Uses raw REST against graph.microsoft.com — the curated *Attrs structs
-// below model exactly the JSON keys we ask for via $select.
+// below model exactly the JSON keys requested via $select.
 //
-// Tenant scope: NativeID is the object's `id` GUID. AccountID is the tenant
+// Tenant scope: NativeID is the object's `id` GUID; AccountID is the tenant
 // ID resolved from the JWT `tid` claim of a Graph token. Closure is empty —
 // these objects sit above the subscription/RG hierarchy.
 //
-// Permission failures (Directory.Read.All not granted) degrade to a single
-// scan warning and a partial scan; later sub-scope scanners proceed normally.
+// Permission failures (Directory.Read.All not granted) degrade to one scan
+// warning and a partial scan; later sub-scope scanners proceed normally.
 func scanEntra(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(subs) == 0 {
 		return 0, 0, nil
@@ -176,9 +176,9 @@ func scanEntra(ctx context.Context, subs []subscription, cred azcore.TokenCreden
 }
 
 // userAttrs is the curated subset persisted under attributes for a Graph
-// User. Stable shape so resolvers can index by upn / object id without
-// depending on the full Graph payload. Field tags match Graph JSON keys
-// 1:1 — same struct doubles as the unmarshal target for the REST response.
+// User — stable shape so resolvers can index by upn / object id without
+// depending on the full payload. Field tags match Graph JSON keys 1:1 —
+// same struct doubles as the unmarshal target for the REST response.
 type userAttrs struct {
 	ID                string `json:"id"`
 	DisplayName       string `json:"displayName"`
@@ -290,10 +290,10 @@ type spAttrs struct {
 
 // microsoftFirstPartyTenants are the Entra tenants Microsoft uses to host
 // first-party / built-in service principals (Microsoft Graph, Azure CLI,
-// Office 365 apps, etc.). A service-principal whose appOwnerOrganizationId
+// Office 365 apps, etc.). A service principal whose appOwnerOrganizationId
 // matches is provider-managed: it appears automatically when the customer
 // tenant consents to or uses the corresponding Microsoft service. Customer-
-// authored apps (in their own tenant) and managed-identities (no
+// authored apps (own tenant) and managed identities (no
 // appOwnerOrganizationId) fall through unmanaged.
 var microsoftFirstPartyTenants = map[string]bool{
 	"f8cdef31-a31e-4b4a-93e4-5f571e91255a": true, // Microsoft Services tenant — most first-party app SPs
@@ -397,9 +397,9 @@ func scanEntraApplications(ctx context.Context, g *graphClient, tenantID string,
 // reportEntraErr classifies a Graph error: missing-permission paths surface
 // as ScanWarning + abort the entity, hard errors surface as ScanError. The
 // substring classifier matches against the raw HTTP body that *graphErr.
-// Error() exposes (Authorization_RequestDenied / Insufficient privileges
-// JSON live there); for transport / parse errors it falls through to the
-// hard-error branch.
+// Error() exposes (where Authorization_RequestDenied / Insufficient
+// privileges JSON live); transport / parse errors fall to the hard-error
+// branch.
 func reportEntraErr(st *store.Store, scope string, err error) {
 	raw := err.Error()
 	if strings.Contains(raw, "Authorization_RequestDenied") ||
@@ -441,12 +441,13 @@ type orgAttrs struct {
 	DisplayName string `json:"displayName"`
 }
 
-// tenantDisplayName fetches the tenant's friendly display name from Microsoft
-// Graph's /organization endpoint (a single-element collection scoped to the
-// calling tenant). Best-effort: requires directory read access, so on any
-// failure the caller falls back to the tenant GUID for the scope label rather
-// than surfacing a warning — the Entra scanner already reports Graph
-// permission denials, and the GUID is an honest label on its own.
+// tenantDisplayName fetches the tenant's friendly display name from
+// Microsoft Graph's /organization endpoint (a single-element collection
+// scoped to the calling tenant). Best-effort: requires directory read
+// access, so on any failure the caller falls back to the tenant GUID for
+// the scope label rather than surfacing a warning — the Entra scanner
+// already reports Graph permission denials, and the GUID is an honest
+// label on its own.
 func tenantDisplayName(ctx context.Context, cred tokenIssuer) (string, error) {
 	return tenantDisplayNameWithClient(ctx, newGraphClient(cred))
 }
@@ -470,10 +471,10 @@ func tenantIDFromCred(ctx context.Context, cred azcore.TokenCredential) (string,
 	return tenantIDFromCredScope(ctx, cred, graphScope)
 }
 
-// tenantIDFromCredScope resolves the tenant GUID from the `tid` claim of a token
-// issued for the given scope. Any AAD token carries `tid`; the scope only
-// decides which audience must be reachable. Prefer armScope when the caller has
-// no guaranteed Graph access — every scan already obtains ARM tokens.
+// tenantIDFromCredScope resolves the tenant GUID from the `tid` claim of a
+// token issued for the given scope. Any AAD token carries `tid`; scope only
+// decides which audience must be reachable. Prefer armScope when the caller
+// lacks guaranteed Graph access — every scan already obtains ARM tokens.
 func tenantIDFromCredScope(ctx context.Context, cred azcore.TokenCredential, scope string) (string, error) {
 	tok, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{scope}})
 	if err != nil {
@@ -482,9 +483,9 @@ func tenantIDFromCredScope(ctx context.Context, cred azcore.TokenCredential, sco
 	return tenantIDFromJWT(tok.Token)
 }
 
-// tenantIDFromJWT decodes the unverified payload of a JWT and pulls the
-// `tid` claim. Signature verification is unnecessary — the token came from
-// our own credential and is being used by us, not consumed externally.
+// tenantIDFromJWT decodes the unverified JWT payload and pulls the `tid`
+// claim. Signature verification is unnecessary — the token came from our
+// own credential and is used by us, not consumed externally.
 func tenantIDFromJWT(jwt string) (string, error) {
 	parts := strings.Split(jwt, ".")
 	if len(parts) < 2 {

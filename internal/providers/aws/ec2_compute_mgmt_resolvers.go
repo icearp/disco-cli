@@ -38,7 +38,7 @@ func init() {
 }
 
 // resolveSnapshotRelationships wires each EBS snapshot to its source volume
-// (FK-safe — snapshots outlive deleted volumes) and to the KMS key that
+// (FK-safe — snapshots outlive deleted volumes) and the KMS key that
 // encrypts it.
 func resolveSnapshotRelationships(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -86,7 +86,7 @@ func resolveSnapshotRelationships(acct *account, st *store.Store) error {
 	return nil
 }
 
-// instanceAttrs captures the fields we need from an EC2 instance's JSON blob.
+// instanceAttrs captures the fields used from an EC2 instance's JSON blob.
 type instanceAttrs struct {
 	InstanceID         *string `json:"InstanceID"`
 	ImageID            *string `json:"ImageID"`

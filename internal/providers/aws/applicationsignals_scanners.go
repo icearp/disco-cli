@@ -32,10 +32,9 @@ type applicationSignalsAPI interface {
 }
 
 // applicationSignalsServiceNativeID synthesizes a stable NativeID for an
-// Application Signals service. The SDK exposes no ARN — a service is identified
-// by its required KeyAttributes map (Type/Name/Environment/…). Sorting the map
-// into "k=v" pairs keeps the NativeID stable across scans regardless of Go's
-// map-iteration order.
+// Application Signals service. The SDK exposes no ARN — identity is the
+// required KeyAttributes map (Type/Name/Environment/…). Sorting into "k=v"
+// pairs keeps the NativeID stable regardless of Go's map-iteration order.
 func applicationSignalsServiceNativeID(region, acct string, keyAttrs map[string]string) string {
 	keys := make([]string, 0, len(keyAttrs))
 	for k := range keyAttrs {
@@ -51,8 +50,7 @@ func applicationSignalsServiceNativeID(region, acct string, keyAttrs map[string]
 
 // applicationSignalsGroupingConfigurationNativeID synthesizes the singleton
 // per-(account, region) NativeID for the grouping configuration. The SDK
-// exposes no ARN; the configuration is a one-per-account-region resource
-// whose body is enumerated via ListGroupingAttributeDefinitions.
+// exposes no ARN; body enumerated via ListGroupingAttributeDefinitions.
 func applicationSignalsGroupingConfigurationNativeID(region, acct string) string {
 	return fmt.Sprintf("arn:aws:application-signals:%s:%s:grouping-configuration", region, acct)
 }
@@ -74,11 +72,11 @@ func scanApplicationSignals(ctx context.Context, acct *account, region string, s
 	return sloTotal + gcTotal + svcTotal, sloInserted + gcInserted + svcInserted, nil
 }
 
-// scanApplicationSignalsServices lists the Application Signals services
-// discovered in the trailing 24h. ListServices requires a time window and
-// returns only services with telemetry in that window, so a service quiet for
-// longer than the window will not appear — an inherent API limitation. Services
-// carry no ARN; the NativeID is synthesized from their KeyAttributes.
+// scanApplicationSignalsServices lists Application Signals services seen in
+// the trailing 24h. ListServices requires a time window and returns only
+// services with telemetry in it — a service quiet longer than the window
+// won't appear (inherent API limit). Services carry no ARN; NativeID is
+// synthesized from KeyAttributes.
 func scanApplicationSignalsServices(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string, now time.Time) (total, inserted int, err error) {
 	start := now.Add(-24 * time.Hour)
 	in := &applicationsignals.ListServicesInput{
@@ -126,9 +124,9 @@ func scanApplicationSignalsServices(ctx context.Context, client applicationSigna
 
 // scanApplicationSignalsGroupingConfiguration upserts the singleton
 // grouping-configuration resource by aggregating ListGroupingAttributeDefinitions
-// pages into a single attrs body. The configuration row is emitted only when
-// the API returns at least one definition or a non-zero UpdatedAt — an empty
-// response indicates no configuration was created in this region.
+// pages into one attrs body. Emitted only when the API returns at least one
+// definition or a non-zero UpdatedAt; empty means no configuration exists in
+// this region.
 func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	type aggregate struct {
 		GroupingAttributeDefinitions []applicationsignalsListGroupingAttributeDefinitionsItem `json:"GroupingAttributeDefinitions"`
@@ -185,10 +183,9 @@ func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client app
 }
 
 // applicationsignalsListGroupingAttributeDefinitionsItem is a JSON-friendly
-// projection of `applicationsignalstypes.GroupingAttributeDefinition`. The
-// SDK type carries an unexported smithy serde marker that breaks
-// `json.Marshal` when nested inside the aggregate; this projection captures
-// the fields that matter for graph analysis.
+// projection of `applicationsignalstypes.GroupingAttributeDefinition` — the
+// SDK type's unexported smithy serde marker breaks `json.Marshal` when
+// nested in the aggregate. Captures only the fields graph analysis needs.
 type applicationsignalsListGroupingAttributeDefinitionsItem struct {
 	GroupingName         string   `json:"GroupingName"`
 	DefaultGroupingValue string   `json:"DefaultGroupingValue,omitempty"`

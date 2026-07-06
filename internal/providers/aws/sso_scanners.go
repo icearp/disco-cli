@@ -23,16 +23,16 @@ func init() {
 			{Service: "sso", DiscoType: TypeSSOInstance},
 			{Service: "sso", DiscoType: TypeSSOPermissionSet, Leaf: true},
 			// SSO assignments + Identity Store users/groups have AWS API
-			// surfaces but no AWS-issued ARN; disco synthesizes NativeIDs.
-			// CFN has no AWS::IdentityStore::User type, but the Service Reference
-			// catalog lists identitystore/User, so the union covers it.
+			// surfaces but no AWS-issued ARN; disco synthesizes NativeIDs. CFN
+			// lacks AWS::IdentityStore::User, but Service Reference lists
+			// identitystore/User, so the union covers it.
 			{Service: "sso", DiscoType: TypeSSOAccountAssignment},
 			{Service: "sso", DiscoType: TypeSSOApplication},
 			{Service: "sso", DiscoType: TypeSSOApplicationAssignment},
 			{Service: "sso", DiscoType: TypeSSOInstanceAccessControlAttributeConfiguration},
-			// Application providers are the AWS-managed catalog of federation
-			// providers (ManagedByProvider); trusted-token-issuers wire to their
-			// parent instance via a resolver, so they are not Leaf.
+			// Application providers are the AWS-managed federation-provider
+			// catalog (ManagedByProvider); trusted-token-issuers wire to their
+			// parent instance via a resolver, so they aren't Leaf.
 			{Service: "sso", DiscoType: TypeSSOApplicationProvider, Leaf: true},
 			{Service: "sso", DiscoType: TypeSSOTrustedTokenIssuer},
 			{Service: "identitystore", DiscoType: TypeIdentityStoreUser, Leaf: true},
@@ -67,9 +67,9 @@ type identitystoreAPI interface {
 
 // scanSSOAdmin discovers IAM Identity Center (SSO) instances, permission
 // sets, account-assignments, and the connected Identity Store's users +
-// groups. Scoped per region: ListInstances returns instances reachable
-// from the calling region only, so empty regions short-circuit immediately
-// and the home region of the org's instance is the one that does work.
+// groups. Scoped per region: ListInstances only returns instances reachable
+// from the calling region, so empty regions short-circuit immediately and
+// only the org instance's home region does work.
 //
 // Phases (each tolerates AccessDenied via skipIfAccessDenied without
 // barring later phases — non-management accounts hit AccessDenied on
@@ -77,9 +77,9 @@ type identitystoreAPI interface {
 //  1. ListInstances → upsert TypeSSOInstance.
 //  2. Per instance: ListPermissionSets + DescribePermissionSet fan-out.
 //  3. Per (instance, permission-set): ListAccountsForProvisionedPermissionSet
-//     → for each account, ListAccountAssignments. Each AccountAssignment
-//     row becomes a TypeSSOAccountAssignment with synthesized NativeID
-//     (assignments have no AWS-issued ARN — see aws/CLAUDE.md).
+//     → per account, ListAccountAssignments. Each AccountAssignment becomes
+//     a TypeSSOAccountAssignment with synthesized NativeID (assignments
+//     have no AWS-issued ARN — see aws/CLAUDE.md).
 //  4. Per instance: ListUsers + ListGroups against the connected Identity
 //     Store (instance.IdentityStoreId).
 func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -257,10 +257,9 @@ func scanSSOPermissionSets(ctx context.Context, client ssoadminAPI, acct *accoun
 }
 
 // scanSSOAccountAssignments walks the (instance × permission-set ×
-// provisioned-account) cube, calling ListAccountAssignments for each
-// (instance, account, permission-set) triple. Result count scales with
-// the org's overall assignment fan-out; sized for typical orgs with
-// dozens of permission sets and hundreds of accounts.
+// provisioned-account) cube, calling ListAccountAssignments per triple.
+// Result count scales with the org's assignment fan-out; sized for typical
+// orgs with dozens of permission sets and hundreds of accounts.
 func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
 	type pair struct {
 		instanceArn string
@@ -270,9 +269,9 @@ func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *ac
 	var pairs []pair
 
 	// Step 1: enumerate (instance, permission-set, account) triples by
-	// listing accounts each permission-set is provisioned to. Sequential
-	// — output drives fan-out, semaphore-based concurrency only buys time
-	// once the work-list exists.
+	// listing accounts each permission-set is provisioned to. Sequential:
+	// output drives fan-out, so concurrency only helps once the work-list
+	// exists.
 	for _, in := range instances {
 		instArn := sv(in.InstanceArn)
 		psPager := ssoadmin.NewListPermissionSetsPaginator(client, &ssoadmin.ListPermissionSetsInput{InstanceArn: in.InstanceArn})

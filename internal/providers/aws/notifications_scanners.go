@@ -240,8 +240,8 @@ func scanNotifOUAssocs(ctx context.Context, client notifsAPI, acct *account, reg
 }
 
 func scanNotifManagedConfigs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	// ManagedNotificationConfigurations are AWS-managed (not user-created) — flagged
-	// ManagedByProvider. They double as parent context for the
+	// ManagedNotificationConfigurations are AWS-managed (not user-created),
+	// flagged ManagedByProvider, and serve as parent context for the
 	// ManagedNotificationAdditionalChannelAssociation child fan-out.
 	pager := notifications.NewListManagedNotificationConfigurationsPaginator(client, &notifications.ListManagedNotificationConfigurationsInput{})
 	var arns []string

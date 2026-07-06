@@ -54,8 +54,8 @@ func roleDefsServer(t *testing.T) *armauthorization.RoleDefinitionsClient {
 }
 
 // TestScanBuiltinRoleDefsInto_NormalizesUnderTenant verifies the tenant built-in
-// fetch stores built-in role definitions under the tenant account with a
-// scope-free NativeID, and never leaks a custom role into the tenant store.
+// fetch stores built-in role defs under the tenant account with a scope-free
+// NativeID, never leaking a custom role into the tenant store.
 func TestScanBuiltinRoleDefsInto_NormalizesUnderTenant(t *testing.T) {
 	st := newTestStore(t)
 	const tenantID = "tenant-1"
@@ -74,8 +74,8 @@ func TestScanBuiltinRoleDefsInto_NormalizesUnderTenant(t *testing.T) {
 }
 
 // TestScanRoleDefinitionsInto_SkipsBuiltinsWhenTenantSet verifies the per-sub
-// scanner stores ONLY custom roles when a tenant GUID is set (built-ins are
-// deduplicated to the tenant), but stores both when it is empty (degraded mode).
+// scanner stores ONLY custom roles when a tenant GUID is set (built-ins dedup
+// to the tenant), but stores both when it is empty (degraded mode).
 func TestScanRoleDefinitionsInto_SkipsBuiltinsWhenTenantSet(t *testing.T) {
 	t.Run("tenant set → custom only", func(t *testing.T) {
 		st := newTestStore(t)
@@ -104,9 +104,9 @@ func TestScanRoleDefinitionsInto_SkipsBuiltinsWhenTenantSet(t *testing.T) {
 	})
 }
 
-// TestScanBuiltinPolicyDefsInto verifies built-in policy definitions are fetched
-// from the tenant-level ListBuiltIn endpoint and stored under the tenant account
-// with their scope-free NativeID verbatim.
+// TestScanBuiltinPolicyDefsInto verifies built-in policy defs are fetched from
+// the tenant-level ListBuiltIn endpoint and stored under the tenant account with
+// scope-free NativeID verbatim.
 func TestScanBuiltinPolicyDefsInto(t *testing.T) {
 	st := newTestStore(t)
 	const tenantID = "tenant-1"

@@ -88,9 +88,9 @@ func resolveShieldProtectionTargets(acct *account, st *store.Store) error {
 
 // resolveShieldProtectionGroupMembers emits a contains edge from each
 // protection group (Pattern=ARBITRARY only) to every member protection ARN
-// listed in its Members[] array. Pattern=ALL and Pattern=BY_RESOURCE_TYPE are
-// implicit memberships that would require expanding against the scanned
-// protection set; deferred. FK-safe via a protection id-set lookup.
+// in its Members[] array. Pattern=ALL / BY_RESOURCE_TYPE are implicit
+// memberships needing expansion against the scanned set; deferred. FK-safe
+// via a protection id-set lookup.
 func resolveShieldProtectionGroupMembers(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -134,10 +134,10 @@ func resolveShieldProtectionGroupMembers(acct *account, st *store.Store) error {
 }
 
 // classifyShieldProtectedResource maps a Shield ResourceArn to (disco type,
-// canonical NativeID, ok). Returns ok=false when the ARN does not match any
-// scanned target type. EIPs receive a small normalisation: Shield emits
-// `:eip-allocation/` while disco's EC2 scanner stores `:elastic-ip/` — rewrite
-// to match the scanner's NativeID shape so the FK-safe lookup succeeds.
+// canonical NativeID, ok). ok=false means the ARN matches no scanned target
+// type. EIPs are normalised: Shield emits `:eip-allocation/`, disco's EC2
+// scanner stores `:elastic-ip/` — rewritten to match so the FK-safe lookup
+// succeeds.
 func classifyShieldProtectedResource(arn string) (rtype, nativeID string, ok bool) {
 	switch {
 	case strings.Contains(arn, ":elasticloadbalancingv2:") && strings.Contains(arn, ":loadbalancer/"):

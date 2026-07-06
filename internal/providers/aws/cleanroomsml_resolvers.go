@@ -23,9 +23,8 @@ func init() {
 	)
 }
 
-// crmlArnEdge wires each source row's ARN-bearing attribute field to a scanned
-// target, FK-safe against the target set. The arn extractor reads the field off
-// the row's AttributesJSON.
+// crmlArnEdge wires each source row's ARN-bearing field to a scanned target,
+// FK-safe against the target set. arnOf reads the field from AttributesJSON.
 func crmlArnEdge(acct *account, st *store.Store, srcType, tgtType string, arnOf func(json.RawMessage) string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{srcType},

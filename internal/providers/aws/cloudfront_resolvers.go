@@ -154,9 +154,9 @@ func resolveDistributionCertificates(acct *account, st *store.Store) error {
 // cache, origin-request, response-headers, realtime-log, key-group, and
 // CloudFront Function resources it references in its behavior configs.
 //
-// All IDs come from the stored DistributionSummary AttributesJSON. Both the
-// DefaultCacheBehavior and each entry in CacheBehaviors are inspected;
-// duplicate target IDs are deduplicated per distribution.
+// All IDs come from the stored DistributionSummary AttributesJSON; both
+// DefaultCacheBehavior and each CacheBehaviors entry are inspected, and
+// duplicate target IDs are deduped per distribution.
 func resolveDistributionPolicies(acct *account, st *store.Store) error {
 	dists, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
@@ -166,7 +166,7 @@ func resolveDistributionPolicies(acct *account, st *store.Store) error {
 		return err
 	}
 
-	// Minimal shape of a DistributionSummary covering only the fields we need.
+	// Minimal DistributionSummary shape — only the fields we need.
 	type behavior struct {
 		CachePolicyID           *string `json:"CachePolicyID"`
 		OriginRequestPolicyID   *string `json:"OriginRequestPolicyID"`
@@ -344,8 +344,8 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 }
 
 // resolveDistributionTenants emits "uses" edges from each distribution tenant
-// to its parent distribution. The DistributionID field on the tenant is used to
-// reconstruct the distribution ARN (the NativeID used by the distribution scanner).
+// to its parent distribution. The tenant's DistributionID field reconstructs
+// the distribution ARN (the NativeID the distribution scanner uses).
 func resolveDistributionTenants(acct *account, st *store.Store) error {
 	tenants, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontDistributionTenant},

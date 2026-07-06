@@ -7,8 +7,8 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveAPIGatewayMethodRelationships_Lambda verifies that a method with
-// a Lambda integration Uri produces a uses→function edge.
+// TestResolveAPIGatewayMethodRelationships_Lambda verifies a method with a
+// Lambda integration Uri produces a uses→function edge.
 func TestResolveAPIGatewayMethodRelationships_Lambda(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

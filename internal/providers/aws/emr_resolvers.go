@@ -34,9 +34,9 @@ func init() {
 	)
 }
 
-// resolveEMRClusterRefs walks the DescribeCluster body and emits service /
-// auto-scaling roles, log-encryption KMS, EC2 subnet + master/slave SGs +
-// key-pair edges. ServiceRole and AutoScalingRole are bare role names; build
+// resolveEMRClusterRefs walks the DescribeCluster body, emitting service/
+// auto-scaling role, log-encryption KMS, EC2 subnet, master/slave SG, and
+// key-pair edges. ServiceRole/AutoScalingRole are bare role names; build
 // `arn:aws:iam::{acct}:role/{name}` for FK-safe lookup.
 func resolveEMRClusterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{

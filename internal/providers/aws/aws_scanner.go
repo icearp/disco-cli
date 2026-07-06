@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	// maxConcurrentServices caps the number of service scanners running in parallel
-	// per region to avoid hitting AWS API rate limits.
+	// maxConcurrentServices caps service scanners running in parallel per
+	// region, to avoid hitting AWS API rate limits.
 	maxConcurrentServices = 10
 	// maxConcurrentRegions caps how many regions are scanned in parallel for a
 	// single account. Each region multiplies the in-flight service goroutines
@@ -183,15 +183,15 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 // When skipGlobals is true, services registered as global=true are not
 // invoked; per-region services run normally.
 func scanAccount(ctx context.Context, acct *account, services []string, skipGlobals bool, st *store.Store, scanID string) {
-	// Phase 1: global + regional services run CONCURRENTLY. Globals had
-	// historically gated regionals via a wg.Wait() barrier, but phase-1
-	// scanners only upsert (no DB reads); resolvers in phase 2 are the only
-	// readers and they're already gated by the combined wait below. Letting
-	// regionals start immediately means slow globals (IAM with its
-	// ~1100-policy enrichment) no longer stall the rest of the scan.
+	// Phase 1: global + regional services run CONCURRENTLY. Globals used to
+	// gate regionals via a wg.Wait() barrier, but phase-1 scanners only upsert
+	// (no DB reads) — phase-2 resolvers are the only readers, already gated by
+	// the combined wait below. Letting regionals start immediately means slow
+	// globals (IAM's ~1100-policy enrichment) no longer stall the rest of the
+	// scan.
 	//
-	// Plain WaitGroups + semaphores rather than errgroup — sibling
-	// cancellation on first error is explicitly unwanted.
+	// Plain WaitGroups + semaphores, not errgroup — sibling cancellation on
+	// first error is explicitly unwanted.
 	globalSem := semaphore.NewWeighted(maxConcurrentServices)
 	regionSem := semaphore.NewWeighted(maxConcurrentRegions)
 	var wg sync.WaitGroup
@@ -244,13 +244,13 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 	}
 
 	kept := enabledScanRegions(ctx, acct, st)
-	// Pre-scope per-service regions from the SSM global-infrastructure catalog so
-	// services AWS doesn't offer in a region are never dispatched there. Fail-open
-	// + skipped entirely for single-region scans (nothing to scope).
+	// Pre-scopes per-service regions from the SSM global-infrastructure catalog
+	// so services AWS doesn't offer in a region are never dispatched there.
+	// Fail-open; skipped entirely for single-region scans (nothing to scope).
 	//
 	// Runs on this goroutine while the global scanners launched above are still
-	// in flight (they're on wg, no wait between) — the preflight overlaps them for
-	// free. The regional loop below reads acct.availByCode via
+	// in flight (on wg, no wait between) — the preflight overlaps them for free.
+	// The regional loop below reads acct.availByCode via
 	// serviceAvailableInRegion, a genuine data dependency, so it must join here
 	// before dispatching; that join is the only necessary serial point.
 	buildRegionAvailability(ctx, acct, services, st, kept)
@@ -284,9 +284,9 @@ func resolveRelationships(ctx context.Context, acct *account, st *store.Store) {
 	g.SetLimit(fanoutMed)
 	for _, r := range registeredResolvers {
 		g.Go(func() error {
-			// Each resolver gets its own buffered store (independent buffer) so
-			// concurrent resolvers stay isolated; flush collapses the per-edge
-			// autocommit serialisation into one tx per resolver.
+			// Each resolver gets its own buffered store so concurrent resolvers
+			// stay isolated; flush collapses per-edge autocommit serialisation
+			// into one tx per resolver.
 			bs := st.BeginRelBuffer()
 			if err := r.fn(acct, bs); err != nil {
 				st.ReportError(store.ScanError{

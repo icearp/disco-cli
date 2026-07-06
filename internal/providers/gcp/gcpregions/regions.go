@@ -1,10 +1,10 @@
 // Package gcpregions is disco's static list of supported GCP compute regions.
-// It is deliberately SDK-free (stdlib only) so external callers — the public
+// Deliberately SDK-free (stdlib only) so external callers — the public
 // codeberg.org/icearp/disco/regions package and, through it, the SaaS control
-// plane — can import the list without linking the GCP SDK.
+// plane — can import it without linking the GCP SDK.
 //
-// Refresh when Google adds a region. Source shape:
-// `gcloud compute regions list --format="value(name)"`.
+// Refresh when Google adds a region. Source: `gcloud compute regions list
+// --format="value(name)"`.
 package gcpregions
 
 import "codeberg.org/icearp/disco/regions"

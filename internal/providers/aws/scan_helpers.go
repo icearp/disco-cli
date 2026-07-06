@@ -13,12 +13,12 @@ import (
 // *store.Resource via toResource, and upserts in per-page batches. iamAction
 // labels the call for AccessDenied warnings (e.g. "secretsmanager:ListSecrets").
 //
-// hasMore + next are taken as callbacks rather than an interface because every
-// SDK v2 paginator's NextPage carries a service-typed variadic
-// (`...func(*<svc>.Options)`) that can't be expressed in a single generic
-// interface. Caller passes `p.HasMorePages` and a one-line closure around
-// `p.NextPage`. Transient network errors are wrapped at the dispatch layer
-// (aws.go scanRegion); pageScan only handles AccessDenied + propagates.
+// hasMore/next are callbacks, not an interface, because every SDK v2
+// paginator's NextPage carries a service-typed variadic
+// (`...func(*<svc>.Options)`) no single generic interface can express.
+// Caller passes `p.HasMorePages` and a one-line closure around `p.NextPage`.
+// Transient network errors are wrapped at the dispatch layer (aws.go
+// scanRegion); pageScan only handles AccessDenied and propagates.
 func pageScan[Page any, Item any](
 	ctx context.Context,
 	iamAction string,
@@ -63,14 +63,14 @@ func pageScan[Page any, Item any](
 
 // pageScanConcurrent is pageScan's sibling for the List-then-Describe N+1
 // pattern: the List API yields skeletons (names or ARNs), each requiring a
-// concurrent Describe/Get to assemble the persisted Resource. enrich is
-// invoked per item with a derived context; returning (nil, nil) silently
-// drops the item (e.g. on per-item AccessDenied — mirrors existing scanner
-// behavior). A non-nil error from enrich aborts the page via errgroup.
+// concurrent Describe/Get to assemble the persisted Resource. enrich runs
+// per item with a derived context; returning (nil, nil) silently drops the
+// item (e.g. on per-item AccessDenied — mirrors existing scanner behavior).
+// A non-nil error from enrich aborts the page via errgroup.
 //
 // concurrency caps in-flight enrich goroutines per page; 0 means unbounded
-// (matches current sns/acm/eks behavior). Use a positive bound for services
-// where unbounded fan-out has tripped throttling in practice.
+// (matches sns/acm/eks). Use a positive bound where unbounded fan-out has
+// tripped throttling in practice.
 func pageScanConcurrent[Page any, Item any](
 	ctx context.Context,
 	iamAction string,

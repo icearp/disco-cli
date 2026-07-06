@@ -64,9 +64,9 @@ func TestResolveAppFabricDestination(t *testing.T) {
 	bucketID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::logs-bkt", testRegion, "{}")
 
 	destARN := ingARN + "/ingestiondestination/id-1"
-	// Build attrs through the production flattening over a fully-populated
-	// destination union — this is the shape the scanner actually stores, and
-	// guards the union type-switch + the resolver's read of the flat keys.
+	// Build attrs via the production flattening over a fully-populated
+	// destination union — mirrors what the scanner stores, guarding the union
+	// type-switch + the resolver's flat-key read.
 	attrs := flattenIngestionDest(&aftypes.IngestionDestination{
 		Arn: ptrStr(destARN), IngestionArn: ptrStr(ingARN),
 		DestinationConfiguration: &aftypes.DestinationConfigurationMemberAuditLog{

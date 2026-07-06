@@ -9,13 +9,13 @@ import (
 )
 
 // All Pinpoint child resources (channels, campaigns, segments, settings,
-// event-streams) attach to the parent application via ApplicationID. Each
-// resolver below rebuilds the canonical app ARN (mobiletargeting :apps/{id})
-// and FK-safe-emits an `attached-to` edge when the parent app is scanned.
+// event-streams) attach to the parent app via ApplicationID. Each resolver
+// below rebuilds the canonical app ARN (mobiletargeting :apps/{id}) and
+// FK-safe-emits an `attached-to` edge when the parent app is scanned.
 //
-// Templates are name-keyed account-wide and have no per-app linkage of
-// their own; campaigns reference templates via TemplateConfiguration.*.Name
-// → resolved through a name-keyed index over scanned templates.
+// Templates are name-keyed account-wide with no per-app linkage; campaigns
+// reference templates via TemplateConfiguration.*.Name, resolved through a
+// name-keyed index over scanned templates.
 func init() {
 	registerResolver(
 		resolvePinpointChannelApps,
@@ -53,24 +53,24 @@ func init() {
 	)
 }
 
-// pinpointAppARN builds the canonical Pinpoint application ARN. Mirrors
-// the `pinpointARN` builder in pinpoint_scanners.go but for the parent app
-// itself (no kind suffix path under `apps/{id}`).
+// pinpointAppARN builds the canonical Pinpoint app ARN — mirrors
+// `pinpointARN` in pinpoint_scanners.go for the parent app itself
+// (no kind suffix under `apps/{id}`).
 func pinpointAppARN(region, acctID, appID string) string {
 	return fmt.Sprintf("arn:aws:mobiletargeting:%s:%s:apps/%s", region, acctID, appID)
 }
 
-// pinpointAppIDOnly carries just the field used to recover the parent app
-// ARN; channels, settings, and event-streams all surface ApplicationID as
-// a top-level field on their respective response wrappers.
+// pinpointAppIDOnly carries only the field needed to recover the parent
+// app ARN; channels, settings, and event-streams all surface ApplicationID
+// as a top-level field.
 type pinpointAppIDOnly struct {
 	ApplicationID *string `json:"ApplicationId"`
 }
 
 // resolvePinpointChannelApps emits `attached-to` edges from each channel
-// row (and from application-settings) to its parent Pinpoint app. Walks
-// every channel type plus the singleton settings type in one pass to
-// share the scanned-app id set.
+// row (and application-settings) to its parent Pinpoint app. Walks every
+// channel type plus the singleton settings type in one pass, sharing the
+// scanned-app id set.
 func resolvePinpointChannelApps(acct *account, st *store.Store) error {
 	childTypes := []string{
 		TypePinpointADMChannel, TypePinpointAPNSChannel, TypePinpointAPNSSandboxChannel,
@@ -129,8 +129,8 @@ type pinpointCampaignAttrs struct {
 		SMSTemplate   *pinpointTemplateRef `json:"SMSTemplate"`
 		PushTemplate  *pinpointTemplateRef `json:"PushTemplate"`
 		InAppTemplate *pinpointTemplateRef `json:"InAppTemplate"`
-		// VoiceTemplate intentionally skipped — VoiceTemplate is not
-		// scanned (see scanPinpointTemplates VOICE branch).
+		// VoiceTemplate intentionally skipped — not scanned (see
+		// scanPinpointTemplates VOICE branch).
 	} `json:"TemplateConfiguration"`
 }
 

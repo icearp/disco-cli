@@ -6,13 +6,13 @@ import (
 	"testing"
 )
 
-// TestResource_NoVersioningFields locks the type-separation rule: the
-// `Resource` struct stays the base row type. Versioning-only state belongs
-// on ResourceVersion (resources_versioning.go) via embedding so future
-// additions to Resource cascade for free.
+// TestResource_NoVersioningFields locks the type-separation rule: `Resource`
+// stays the base row type; versioning-only state lives on ResourceVersion
+// (resources_versioning.go) via embedding, so additions to Resource cascade
+// for free.
 //
-// A future PR that adds a `db:"verified_at"` (or similar versioning-only
-// tag) to Resource regresses the split. This test fails the build.
+// A PR that adds a `db:"verified_at"` (or similar versioning-only tag) to
+// Resource regresses the split. This test fails the build.
 func TestResource_NoVersioningFields(t *testing.T) {
 	forbidden := map[string]struct{}{
 		"verified_at":         {},
@@ -27,7 +27,7 @@ func TestResource_NoVersioningFields(t *testing.T) {
 		f := rt.Field(i)
 		tag := f.Tag.Get("db")
 		// db tags may carry options (e.g. "name,omitempty"); split on
-		// comma so we compare the column name only.
+		// comma to compare column name only.
 		col := tag
 		if idx := strings.IndexByte(col, ','); idx >= 0 {
 			col = col[:idx]

@@ -10,8 +10,8 @@ import (
 )
 
 // scanBackupHoldsAndRecoveryPoints lists legal holds (account-wide) and recovery
-// points (per backup vault — ListRecoveryPointsByBackupVault requires a vault
-// name, so it fans out over the vaults scanned earlier in this region).
+// points (per vault — ListRecoveryPointsByBackupVault requires a vault name, so
+// it fans out over vaults already scanned in this region).
 func scanBackupHoldsAndRecoveryPoints(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	lhTotal, lhInserted, ferr := scanBackupLegalHolds(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
@@ -83,9 +83,9 @@ func scanBackupRecoveryPoints(ctx context.Context, client backupAPI, acct *accou
 }
 
 func scanBackupRecoveryPointsForVault(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID, vaultName string) (int, int, error) {
-	// Recovery points scale with backup history (potentially tens of thousands
-	// per vault), so request the max page size and upsert per page rather than
-	// accumulating the whole vault's history in memory.
+	// Recovery points can reach tens of thousands per vault, so request max
+	// page size and upsert per page rather than buffering the whole vault's
+	// history in memory.
 	pager := backup.NewListRecoveryPointsByBackupVaultPaginator(client, &backup.ListRecoveryPointsByBackupVaultInput{BackupVaultName: &vaultName},
 		func(o *backup.ListRecoveryPointsByBackupVaultPaginatorOptions) { o.Limit = 1000 })
 	var total, inserted int

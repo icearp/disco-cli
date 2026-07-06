@@ -16,7 +16,7 @@ func init() {
 }
 
 // resolveTextractAdapterVersion wires each adapter version to its parent
-// adapter via the AdapterId carried on the version's list-summary shape.
+// adapter via AdapterId on the version's list-summary shape.
 func resolveTextractAdapterVersion(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTextractAdapterVersion}, Limit: util.AllResources,

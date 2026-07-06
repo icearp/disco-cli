@@ -16,13 +16,12 @@ func init() {
 }
 
 // resolveARCZonalShiftRelationships wires zonal-autoshift configurations to
-// their underlying managed resource via `attached-to`. The managed-resource
-// ARN is not type-classified at resolver time (could be ALB, ECS service, EC2
-// ASG, etc.), so the edge target uses store.ResourceID across the multi-type
-// candidate set.
+// their managed resource via `attached-to`. The managed-resource ARN isn't
+// type-classified at resolver time (could be ALB, ECS service, EC2 ASG, etc.),
+// so the edge target uses store.ResourceID across the multi-type candidate set.
 //
 // The autoshift-observer-notification-status singleton has no outbound
-// ARN-bearing fields (only an enum Status), so it gets no resolver edges.
+// ARN fields (only an enum Status), so it gets no resolver edges.
 func resolveARCZonalShiftRelationships(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeARCZonalShiftConfiguration},

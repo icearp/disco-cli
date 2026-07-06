@@ -176,7 +176,7 @@ func scanCogResourceServers(ctx context.Context, client cognitoidpAPI, acct *acc
 }
 
 // scanCogRiskConfig — per-pool singleton; tolerates ResourceNotFound when
-// risk configuration not enabled for the pool.
+// risk config isn't enabled for the pool.
 func scanCogRiskConfig(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
 	var batch []*store.Resource
 	for _, pid := range poolIDs {
@@ -293,8 +293,8 @@ func scanCogTerms(ctx context.Context, client cognitoidpAPI, acct *account, regi
 }
 
 // scanCogIDPoolRoleAttachments — one row per identity pool keyed on the
-// pool ARN with the role mappings as attributes. Distinct disco type
-// from identity-pool itself; CFN models RoleAttachment as separate.
+// pool ARN with the role mappings as attributes. Distinct type from
+// identity-pool itself; CFN models RoleAttachment separately.
 func scanCogIDPoolRoleAttachments(ctx context.Context, client cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string, idPoolIDs []string) (int, int, error) {
 	var batch []*store.Resource
 	for _, pid := range idPoolIDs {

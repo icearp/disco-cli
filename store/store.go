@@ -20,9 +20,9 @@ import (
 )
 
 // ScanWarning is a non-fatal skip captured during a scan — typically an
-// access-denied error on a single service or region. Warnings are collected
-// in memory by the scan orchestrator and rendered as a grouped block after
-// the scan completes, instead of interleaving with progress output.
+// access-denied error on a single service or region. The scan orchestrator
+// collects warnings in memory and renders them as a grouped block after the
+// scan, instead of interleaving with progress output.
 type ScanWarning struct {
 	Provider string // "aws", "azure", "gcp"
 	Service  string // e.g. "kms:ListKeys", "compute"
@@ -46,9 +46,9 @@ type ScanError struct {
 // providers never propagate per-service or per-resolver errors out of Scan().
 // Instead they invoke OnError / OnWarn so cmd/scan.go can accumulate the
 // failures and render one grouped block at the end. A nil callback is the
-// silent default; callers (cmd/scan.go) wire the ones they need before
-// kicking off a scan. See internal/providers/CLAUDE.md ("Errors never abort
-// scan") for the wider contract.
+// silent default; cmd/scan.go wires the ones it needs before kicking off a
+// scan. See internal/providers/CLAUDE.md ("Errors never abort scan") for the
+// wider contract.
 // driver names the underlying database backend. Branched in dialect-specific
 // query construction (json_extract vs ->>, placeholder format, ON CONFLICT
 // semantics). Set by Open* constructors; never mutated.
@@ -61,15 +61,15 @@ const (
 
 // ServiceStatus is the terminal state of a per-service scan, surfaced as a
 // uniform "(<scope>: <state>)" suffix on the progress line (see
-// cmd/scan.go::serviceStatusSuffix). ServiceDisabled = the
-// account/subscription/project has not enabled the service but could turn it on
-// → "(<tenant>: disabled)". ServiceUnavailable = the service is not deployed in
-// this AWS region (nothing the user can do) → "(region: unavailable)".
-// ServiceNotEntitled = the service exists but the tenant is not entitled to it
-// and cannot self-enable it — a paid support-tier gate (Trusted Advisor API), a
-// service closed to new customers (Migration Hub), or an account AWS has not made
-// eligible (CloudSearch) → "(<tenant>: not entitled)". Distinct from
-// ServiceDisabled precisely because there is no toggle the user controls.
+// cmd/scan.go::serviceStatusSuffix). ServiceDisabled: account/subscription/
+// project hasn't enabled the service but could → "(<tenant>: disabled)".
+// ServiceUnavailable: service not deployed in this AWS region, nothing the
+// user can do → "(region: unavailable)". ServiceNotEntitled: service exists
+// but the tenant can't self-enable it — a paid support-tier gate (Trusted
+// Advisor API), a service closed to new customers (Migration Hub), or an
+// account AWS hasn't made eligible (CloudSearch) → "(<tenant>: not
+// entitled)". Distinct from ServiceDisabled because there's no toggle the
+// user controls.
 type ServiceStatus uint8
 
 const (
@@ -83,7 +83,7 @@ type Store struct {
 	db                *sqlx.DB // pool. nil iff this Store was produced by WrapTx.
 	tx                *sqlx.Tx // non-nil iff produced by WrapTx; caller owns lifecycle.
 	driver            driver
-	readOnly          bool                                                                                      // true iff opened via OpenReadOnly; gates the Close-time WAL checkpoint+cleanup off a RO DB.
+	readOnly          bool                                                                                      // true iff opened via OpenReadOnly; skips the Close-time WAL checkpoint+cleanup on a RO DB.
 	path              string                                                                                    // SQLite file path; set by Open. Names the DB in the WAL-cleanup-deferred diagnostic.
 	OnServiceComplete func(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", status surfaces "(<tenant>: disabled)" / "(region: unavailable)" / "(<tenant>: not entitled)"
 	OnResolveStart    func(provider string)                                                                     // just before phase-2 resolvers run
@@ -96,20 +96,19 @@ type Store struct {
 	relBuf            *relBuffer                                                                                // non-nil only in scoped copies returned by BeginRelBuffer
 }
 
-// ReportService invokes OnServiceComplete if set. Providers call this after each
-// service scan function returns. scope identifies the per-call dimension that
-// would otherwise duplicate the line in multi-region / multi-account scans
-// (AWS region or "global", Azure subscription ID, GCP project ID). total =
-// resources seen this scan, newCount = resources discovered for the first time
-// (never previously in the DB), changed = existing resources whose attributes
-// or tags changed this scan (a version split), errCount = number of errors
-// encountered while scanning this service (>0 surfaces as a "(with errors)"
-// suffix on the progress line). status = ServiceDisabled (not enabled in this
-// account/project/subscription), ServiceNotEntitled (exists but the tenant can't
-// self-enable it), or ServiceUnavailable (not deployed in this AWS region); each
-// surfaces as a "(<scope>: <state>)" suffix and is mutually exclusive with
-// errCount>0 since a
-// skipped service emits no errors.
+// ReportService invokes OnServiceComplete if set, called after each service
+// scan function returns. scope is the per-call dimension that would otherwise
+// duplicate the line in multi-region / multi-account scans (AWS region or
+// "global", Azure subscription ID, GCP project ID). total = resources seen
+// this scan; newCount = resources discovered for the first time (never
+// previously in the DB); changed = existing resources whose attributes or
+// tags changed this scan (a version split); errCount = errors encountered
+// scanning this service (>0 surfaces as a "(with errors)" suffix on the
+// progress line). status = ServiceDisabled (not enabled in this
+// account/project/subscription), ServiceNotEntitled (exists but the tenant
+// can't self-enable it), or ServiceUnavailable (not deployed in this AWS
+// region); each surfaces as a "(<scope>: <state>)" suffix, mutually exclusive
+// with errCount>0 since a skipped service emits no errors.
 func (s *Store) ReportService(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) {
 	if s.OnServiceComplete != nil {
 		s.OnServiceComplete(service, scope, total, newCount, changed, errCount, status)
@@ -221,8 +220,8 @@ func Open(path string) (*Store, error) {
 
 	// SQLite allows only one writer at a time. Setting MaxOpenConns=1 prevents
 	// "database is locked" (SQLITE_BUSY) errors when multiple goroutines write
-	// concurrently during a scan. Reads are not affected because WAL mode allows
-	// concurrent readers alongside the single writer.
+	// concurrently during a scan. WAL mode still allows concurrent readers
+	// alongside the single writer.
 	db.SetMaxOpenConns(1)
 
 	if err := applyPragmas(db.DB, false); err != nil {
@@ -283,10 +282,10 @@ func OpenReadOnly(path string) (*Store, error) {
 // For a writable SQLite store it first ends the WAL session cleanly: checkpoint
 // the WAL tail into the main file, then switch journal_mode to DELETE so SQLite
 // deterministically removes the -wal/-shm sidecars (the next Open re-enables
-// WAL). Without this we rely on SQLite's best-effort last-connection auto-delete,
-// which needs an exclusive lock and is silently skipped if a reader lingers —
-// the source of orphaned sidecars. Errors are ignored: a held lock leaves the
-// WAL in place (safely replayed on next open) rather than failing the command.
+// WAL). Without this, SQLite's best-effort last-connection auto-delete — which
+// needs an exclusive lock and is silently skipped if a reader lingers — is the
+// source of orphaned sidecars. Errors are ignored: a held lock leaves the WAL
+// in place (safely replayed on next open) rather than failing the command.
 func (s *Store) Close() error {
 	if s.db == nil {
 		return nil
@@ -304,12 +303,12 @@ var walCleanupWarnW io.Writer = os.Stderr
 // checkpointAndCleanup ends the WAL session before the final db.Close():
 // checkpoint the WAL tail into the main file, then flip journal_mode to DELETE
 // so SQLite removes the -wal/-shm sidecars (the next Open re-enables WAL). Both
-// steps need to win the locks; another process (or a lingering reader) holding
-// the DB blocks them — wal_checkpoint(TRUNCATE) reports busy and the DELETE
-// switch is refused (SQLite forbids leaving WAL mode while other connections are
-// open). That is safe (the WAL stays, replayed on next open) but it is the
-// likely source of "sidecars left behind", so surface one diagnostic line
-// instead of failing silently. Never returns an error or blocks.
+// steps need the locks; another process (or a lingering reader) holding the DB
+// blocks them — wal_checkpoint(TRUNCATE) reports busy and the DELETE switch is
+// refused (SQLite forbids leaving WAL mode while other connections are open).
+// That is safe (the WAL stays, replayed on next open) but is the likely source
+// of "sidecars left behind", so surface one diagnostic line instead of failing
+// silently. Never returns an error or blocks.
 func (s *Store) checkpointAndCleanup() {
 	// wal_checkpoint(TRUNCATE) returns one row: (busy, log, checkpointed).
 	// busy != 0 (or a scan error) means locks blocked a full checkpoint.
@@ -341,8 +340,8 @@ func (s *Store) DB() *sqlx.DB {
 // has already issued `SET LOCAL search_path = tenant_<hex>, public` and
 // `SET LOCAL app.tenant_id = '<uuid>'` on the tx. Write methods that call
 // s.db.Begin* directly (UpsertResources, UpsertRelationships, RecordHierarchyBatch,
-// etc.) will panic on a nil pool — that is intentional; do not invoke them on
-// this code path.
+// etc.) will panic on a nil pool — intentional; do not invoke them on this code
+// path.
 //
 // drv must match the dialect of the tx's driver: store.DriverPostgres for a
 // pgx-backed tx, store.DriverSQLite for SQLite.

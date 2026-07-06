@@ -159,16 +159,16 @@ func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			// Feature-gap canned 403: "Your account is not authorized to invoke
-			// this API operation" — distinct from the per-action IAM-deny
-			// "User: arn:... is not authorized to perform: <action>" form.
-			// AR Policies is gated to limited regions/accounts.
+			// Feature-gap canned 403 ("Your account is not authorized to invoke this
+			// API operation"), distinct from per-action IAM-deny ("User: arn:... is not
+			// authorized to perform: <action>"). AR Policies is gated to limited
+			// regions/accounts.
 			if isAccessDeniedWithMessage(perr, "not authorized to invoke this API operation") {
 				return nil, 0, 0, nil
 			}
-			// Empty-body AccessDeniedException is the region-gap variant of the
-			// same feature gate — AR Policies simply isn't offered in this region
-			// (a real per-action IAM deny always names the action in the message).
+			// Empty-body AccessDeniedException is the region-gap variant of the same
+			// feature gate — AR Policies isn't offered here (a real IAM deny always
+			// names the action in the message).
 			if isClosedToNewCustomers(perr) {
 				return nil, 0, 0, nil
 			}
@@ -263,12 +263,11 @@ func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *acco
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			// Op not deployed in this region. AWS returns two feature-gap
-			// shapes under ValidationException — older "operation is not
-			// recognized" and newer canned "You don't have the permissions
-			// to perform the requested operation." Real IAM denials surface
-			// as AccessDeniedException with an action-identifying body and
-			// route through skipIfAccessDenied below.
+			// Op not deployed in this region. AWS returns two feature-gap shapes under
+			// ValidationException — older "operation is not recognized" and newer canned
+			// "You don't have the permissions to perform the requested operation." Real
+			// IAM denials surface as AccessDeniedException with an action-identifying
+			// body, routed through skipIfAccessDenied below.
 			if isAPIErrorWithMessage(perr, "ValidationException", "operation is not recognized") ||
 				isAPIErrorWithMessage(perr, "ValidationException", "don't have the permissions to perform the requested operation") {
 				return 0, 0, nil
@@ -299,9 +298,8 @@ func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *acco
 				NativeID:    arn,
 				Name:        &label,
 				Region:      &region,
-				// AWS-supplied default routers carry Type="Default"; customer-defined
-				// routers carry Type="Custom". SDK enum is lowercase but case-insensitive
-				// match guards against AWS surface drift.
+				// AWS-supplied default routers carry Type="Default"; customer-defined carry
+				// "Custom". SDK enum is lowercase; case-insensitive match guards against drift.
 				ManagedByProvider: strings.EqualFold(string(p.Type), "Default"),
 				AttributesJSON:    mustJSON(p),
 				DiscoveredBy:      scanID,

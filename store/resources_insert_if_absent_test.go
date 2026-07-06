@@ -32,9 +32,9 @@ func TestInsertResourcesIfAbsent_InsertsWhenAbsent(t *testing.T) {
 	}
 }
 
-// TestInsertResourcesIfAbsent_NoClobber verifies the primitive is a no-op when
-// a current-version row already holds the natural key — the existing
-// (populated) attributes survive and no version split occurs.
+// TestInsertResourcesIfAbsent_NoClobber verifies the primitive no-ops when a
+// current-version row already holds the natural key: existing (populated)
+// attributes survive, no version split occurs.
 func TestInsertResourcesIfAbsent_NoClobber(t *testing.T) {
 	st := openTestStore(t)
 

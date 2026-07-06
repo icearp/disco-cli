@@ -43,8 +43,8 @@ func TestResolveGlueTableS3Location_FKSafe(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	// Seed a different bucket so the resolver actually iterates rather
-	// than short-circuiting on the empty id-set fast-path.
+	// Seed a different bucket so the resolver iterates instead of
+	// short-circuiting on the empty id-set fast path.
 	upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::other", "", "{}")
 
 	tableARN := glueTableARN(testRegion, testAccountID, testGlueDB, testGlueTable)

@@ -21,12 +21,11 @@ func init() {
 }
 
 // scanSecurity discovers Microsoft Defender for Cloud per-resource-type
-// pricing (plan-tier) settings for the subscription. Each pricing entry
-// covers one resource type (VirtualMachines, AppServices, SqlServers,
-// KeyVaults, StorageAccounts, etc.) and its enabled tier (Free / Standard).
-// Auto-provisioning settings, security contacts, workspace settings,
-// assessments, and recommendations deferred — config + evaluation surfaces,
-// not edge sources.
+// pricing (plan-tier) settings for the subscription — one entry per resource
+// type (VirtualMachines, AppServices, SqlServers, KeyVaults, StorageAccounts,
+// etc.) with its enabled tier (Free / Standard). Auto-provisioning settings,
+// security contacts, workspace settings, assessments, and recommendations
+// deferred — config + evaluation surfaces, not edge sources.
 func scanSecurity(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armsecurity.NewPricingsClient(cred, azClientOptions)
 	if err != nil {
@@ -50,11 +49,11 @@ func scanSecurity(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 		}
 		name := sv(p.Name)
 		// Defender for Cloud surfaces a pricing row per plan (VirtualMachines,
-		// StorageAccounts, ...) on every subscription, regardless of whether
-		// the customer has enabled the plan. EnablementTime is set only when
-		// the plan was switched to Standard — its absence marks the row as a
-		// system-emitted placeholder (Free tier / never-enabled), which we
-		// flag managed so `disco resources` / `disco graph` defaults skip them.
+		// StorageAccounts, ...) on every subscription regardless of whether the
+		// customer enabled it. EnablementTime is set only when switched to
+		// Standard — its absence marks the row a system-emitted placeholder
+		// (Free tier / never-enabled), which we flag managed so `disco
+		// resources` / `disco graph` defaults skip them.
 		managed := p.Properties == nil || p.Properties.EnablementTime == nil
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,

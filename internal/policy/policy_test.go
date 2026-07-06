@@ -112,9 +112,9 @@ func TestResourceToInput_NilTagsEmptyMap(t *testing.T) {
 }
 
 // TestResourceToInput_MalformedJSONFailsClosed: malformed attributes/tags must
-// fall back to an empty object (not the raw string) so object-shaped policies
-// (`input.attributes.X`) match nothing against {} rather than silently matching
-// nothing against a scalar — fails closed, matching the documented contract.
+// fall back to an empty object (not the raw string), so object-shaped policies
+// (`input.attributes.X`) fail closed against {} instead of erroring on a raw
+// scalar — matches the documented contract.
 func TestResourceToInput_MalformedJSONFailsClosed(t *testing.T) {
 	badTags := `{not json`
 	r := &store.Resource{

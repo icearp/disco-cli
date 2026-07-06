@@ -76,7 +76,7 @@ func resolveNeptuneGraphSnapshotRefs(acct *account, st *store.Store) error {
 
 // resolveNeptuneGraphPrivateEndpointRefs wires each private-graph-endpoint to
 // its parent graph (NativeID `{graphARN}/private-graph-endpoint/{vpcId}`) and
-// the VPC it lives in.
+// its VPC.
 func resolveNeptuneGraphPrivateEndpointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeNeptuneGraphPrivateGraphEndpoint}, Limit: util.AllResources,

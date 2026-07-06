@@ -16,8 +16,8 @@ func init() {
 }
 
 // resolveThinClientDeviceEnvironment wires each thin-client device to the
-// environment it is enrolled in. The device's EnvironmentId is the environment's
-// service id, so the resolver indexes environments by their Id before matching.
+// environment it's enrolled in. Device EnvironmentId matches the environment's
+// own service Id, so environments are indexed by Id before matching.
 func resolveThinClientDeviceEnvironment(acct *account, st *store.Store) error {
 	devices, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeThinClientDevice}, Limit: util.AllResources,

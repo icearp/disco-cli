@@ -9,9 +9,8 @@ import (
 )
 
 // TestResolveAppPlatformRelationships verifies a VNet-injected Spring Apps
-// service derives a single -[attached-to]-> VNet edge even when both the
-// runtime and app subnets point at the same VNet (dedup), matched
-// case-insensitively.
+// service derives a single -[attached-to]-> VNet edge even when the runtime
+// and app subnets share a VNet (dedup), matched case-insensitively.
 func TestResolveAppPlatformRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)

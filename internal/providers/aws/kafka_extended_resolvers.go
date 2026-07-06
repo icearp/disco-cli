@@ -29,7 +29,7 @@ func init() {
 
 // resolveMSKChildrenToCluster wires cluster-policy and batch-scram-secret to
 // their parent cluster via NativeID parent extract; batch-scram-secret also
-// references its underlying secretsmanager secret.
+// references its secretsmanager secret.
 func resolveMSKChildrenToCluster(acct *account, st *store.Store) error {
 	clSet, err := scannedIDSet(acct, st, TypeMSKCluster)
 	if err != nil {

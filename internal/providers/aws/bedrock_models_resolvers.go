@@ -17,11 +17,10 @@ func init() {
 }
 
 // resolveBedrockModelServes wires custom-model-deployment → custom-model and
-// provisioned-model → custom-model, both via the live ModelArn (the model
-// currently associated; ProvisionedModelSummary.DesiredModelArn is the requested
-// target mid-update). Both are FK-safe: a deployment/throughput serving a base
-// foundation model (not a scanned custom model) emits no edge. Foundation-model
-// targets aren't scanned, so those refs are intentionally left unwired.
+// provisioned-model → custom-model via the live ModelArn (currently-associated
+// model; ProvisionedModelSummary.DesiredModelArn is the requested target
+// mid-update, not used). FK-safe: refs to an unscanned base foundation model
+// emit no edge.
 func resolveBedrockModelServes(acct *account, st *store.Store) error {
 	customModels, err := scannedIDSet(acct, st, TypeBedrockCustomModel)
 	if err != nil {

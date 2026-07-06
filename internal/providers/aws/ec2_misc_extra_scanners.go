@@ -19,11 +19,11 @@ func init() {
 	)
 }
 
-// scanEC2MiscExtra discovers small EC2 resource families that do not warrant
-// their own scanner file: CapacityManager data exports, AWS Network
-// Performance metric subscriptions, TransitGateway metering policies,
-// VPC encryption controls, VPN concentrators. None carry native ARN
-// fields on the SDK summary — synthesize via ec2ARN.
+// scanEC2MiscExtra discovers small EC2 families not worth their own scanner
+// file: CapacityManager data exports, AWS Network Performance metric
+// subscriptions, TransitGateway metering policies, VPC encryption controls,
+// VPN concentrators. None carry native ARN fields on the SDK summary —
+// synthesize via ec2ARN.
 func scanEC2MiscExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(
 		ctx,
@@ -157,8 +157,8 @@ func scanVPCEncryptionControls(ctx context.Context, client ec2API, acct *account
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "ec2:DescribeVpcEncryptionControls", acct.ID, region, perr)
 			}
-			// Per-region availability gap: VPC encryption controls aren't deployed
-			// in every region (UnsupportedOperation). Silent-skip.
+			// VPC encryption controls aren't deployed in every region
+			// (UnsupportedOperation) — silent-skip.
 			if isAPIErrorCode(perr, "UnsupportedOperation") {
 				return 0, 0, nil
 			}

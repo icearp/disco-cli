@@ -6,8 +6,8 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveACMCertificateRelationships_PrivateCA verifies that a PRIVATE cert
-// emits a uses edge to the referenced Private CA.
+// TestResolveACMCertificateRelationships_PrivateCA verifies a PRIVATE cert
+// emits a uses edge to its referenced Private CA.
 func TestResolveACMCertificateRelationships_PrivateCA(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

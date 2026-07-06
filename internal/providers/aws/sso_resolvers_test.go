@@ -53,9 +53,9 @@ func TestResolveSSOPermissionSetInstance(t *testing.T) {
 	assertRelationship(t, rels, insID, psID, store.RelContains)
 }
 
-// TestResolveSSOAccountAssignments_UserPath covers the principal=USER
-// branch: the assignment links to the permission-set, identity-store user,
-// and Organizations account targets when all three are scanned.
+// TestResolveSSOAccountAssignments_UserPath covers principal=USER: the
+// assignment links to the permission-set, identity-store user, and
+// Organizations account targets when all three are scanned.
 func TestResolveSSOAccountAssignments_UserPath(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -90,8 +90,8 @@ func TestResolveSSOAccountAssignments_UserPath(t *testing.T) {
 }
 
 // TestResolveSSOAccountAssignments_GroupPath covers principal=GROUP and
-// verifies cross-account: assignment grants access to a target AWS account
-// distinct from the assignment's own row account.
+// cross-account: the assignment grants access to a target AWS account
+// distinct from its own row account.
 func TestResolveSSOAccountAssignments_GroupPath(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -119,8 +119,8 @@ func TestResolveSSOAccountAssignments_GroupPath(t *testing.T) {
 }
 
 // TestResolveSSOAccountAssignments_FKSafe verifies missing targets skip
-// without erroring. Tests the partial-coverage scenario: assignments
-// scanned but the corresponding identity-store / org tree not.
+// without erroring — the partial-coverage case: assignments scanned but
+// the identity-store / org tree not.
 func TestResolveSSOAccountAssignments_FKSafe(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

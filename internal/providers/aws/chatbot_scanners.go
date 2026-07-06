@@ -29,8 +29,8 @@ type chatbotAPI interface {
 }
 
 // scanChatbot discovers Chatbot custom actions and channel configurations
-// (Slack + Microsoft Teams). Service is global; gate to us-east-2 to avoid
-// duplicate scans across regions.
+// (Slack + Microsoft Teams). Global service; gated to us-east-2 to dedupe
+// across regions.
 func scanChatbot(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-2"
 	client := chatbot.NewFromConfig(acct.cfg, func(o *chatbot.Options) { o.Region = region })

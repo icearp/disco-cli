@@ -6,10 +6,9 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveAKSRelationships verifies that an AKS cluster's VNet is derived
-// from the agentPoolProfiles[].vnetSubnetID JSON path (lowercase keys — Azure SDK).
-// This test catches case-sensitivity bugs: the JSON keys are lowercase in Azure
-// SDK responses, which differs from AWS SDK convention.
+// TestResolveAKSRelationships verifies an AKS cluster's VNet is derived from
+// agentPoolProfiles[].vnetSubnetID (lowercase JSON keys — Azure SDK, unlike
+// AWS SDK PascalCase). Catches case-sensitivity bugs.
 func TestResolveAKSRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-123")
@@ -44,9 +43,9 @@ func TestResolveAKSRelationships(t *testing.T) {
 	}
 }
 
-// TestResolveAKSRelationships_MultiplePoolsSameVNet verifies that duplicate
-// VNet relationships are deduplicated (multiple agent pools on the same VNet
-// should produce exactly one edge).
+// TestResolveAKSRelationships_MultiplePoolsSameVNet verifies duplicate VNet
+// relationships dedupe — multiple agent pools on the same VNet produce
+// exactly one edge.
 func TestResolveAKSRelationships_MultiplePoolsSameVNet(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-123")
@@ -81,7 +80,7 @@ func TestResolveAKSRelationships_MultiplePoolsSameVNet(t *testing.T) {
 	}
 }
 
-// TestResolveAKSRelationships_EmptyAttrs verifies that a cluster with no
+// TestResolveAKSRelationships_EmptyAttrs verifies a cluster with no
 // agentPoolProfiles produces no relationships and no error.
 func TestResolveAKSRelationships_EmptyAttrs(t *testing.T) {
 	st := newTestStore(t)

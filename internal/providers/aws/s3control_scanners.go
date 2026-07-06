@@ -13,8 +13,8 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// s3controlAPI is the narrow set of S3 Control operations called by the
-// scanS3Control sub-phases.
+// s3controlAPI is the narrow set of S3 Control ops used by scanS3Control's
+// sub-phases.
 type s3controlAPI interface {
 	ListAccessGrantsInstances(context.Context, *s3control.ListAccessGrantsInstancesInput, ...func(*s3control.Options)) (*s3control.ListAccessGrantsInstancesOutput, error)
 	ListAccessGrantsLocations(context.Context, *s3control.ListAccessGrantsLocationsInput, ...func(*s3control.Options)) (*s3control.ListAccessGrantsLocationsOutput, error)
@@ -50,9 +50,9 @@ func init() {
 }
 
 // scanS3Control discovers S3 Control resources for the given region.
-// Regional resources (Access Grants, Access Points, Storage Lens) are scanned
-// in every region. Global resources (Multi-Region Access Points) are only
-// scanned in us-east-1.
+// Regional resources (Access Grants, Access Points, Storage Lens) scan in
+// every region; global resources (Multi-Region Access Points) scan only in
+// us-east-1.
 func scanS3Control(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := s3control.NewFromConfig(acct.cfg, func(o *s3control.Options) { o.Region = region })
 	// Regional resources: scan in every region.
@@ -72,8 +72,8 @@ func scanS3Control(ctx context.Context, acct *account, region string, st *store.
 		total += tt
 		inserted += nn
 	}
-	// Multi-Region Access Points are a global resource but the API endpoint is
-	// only available in us-west-2. Scan once, using a client pinned to that region.
+	// MRAPs are a global resource but the API endpoint is only available in
+	// us-west-2 — scan once with a client pinned to that region.
 	if region == "us-west-2" {
 		mrapClient := s3control.NewFromConfig(acct.cfg, func(o *s3control.Options) { o.Region = "us-west-2" })
 		tt, nn, e := scanMultiRegionAccessPoints(ctx, acct, mrapClient, st, scanID)
@@ -361,12 +361,12 @@ func scanMRAPPolicies(ctx context.Context, acct *account, client s3controlAPI, m
 	return
 }
 
-// scanStorageLens lists S3 Storage Lens configurations for the given region,
-// then fans out GetStorageLensConfiguration concurrently to capture the full
-// body (Include/Exclude buckets, DataExport target). The list response is
-// sparse — only the Get response carries edge-bearing fields consumed by
-// resolveStorageLensRelationships. Per-item access-denied is tolerated so one
-// unreadable config does not fail the whole scan.
+// scanStorageLens lists S3 Storage Lens configs for the region, then fans out
+// GetStorageLensConfiguration concurrently for the full body (Include/Exclude
+// buckets, DataExport target) — the list response is sparse; only Get carries
+// the edge-bearing fields resolveStorageLensRelationships needs. Per-item
+// access-denied is tolerated so one unreadable config doesn't fail the whole
+// scan.
 func scanStorageLens(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	// 1. List.
 	var entries []s3ctypes.ListStorageLensConfigurationEntry
@@ -377,9 +377,9 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client s
 			if isAccessDenied(apiErr) {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
 			}
-			// S3 Control returns a non-typed XML error body that smithy maps to the
-			// generic UnknownError code; a 403 here is a permission signal worth
-			// surfacing as a warning rather than aborting the region.
+			// S3 Control returns an untyped XML error body that smithy maps to the
+			// generic UnknownError code; a 403 here is a permission signal — warn
+			// rather than abort the region.
 			if c, ok := httpStatusCode(apiErr); ok && c == 403 {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
 			}
@@ -429,8 +429,8 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client s
 				Region:         &region,
 				AttributesJSON: mustJSON(out.StorageLensConfiguration),
 				DiscoveredBy:   scanID,
-				// Id "default-account-dashboard" identifies the AWS-managed
-				// default Storage Lens dashboard present in every account.
+				// Id "default-account-dashboard" is the AWS-managed default Storage
+				// Lens dashboard present in every account.
 				ManagedByProvider: id == "default-account-dashboard",
 			}
 			mu.Lock()
@@ -460,9 +460,9 @@ func scanStorageLensGroups(ctx context.Context, acct *account, region string, cl
 	for p.HasMorePages() {
 		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
-			// Storage Lens groups live only in the account's supported home
-			// Region; other regions reject with this message. Region gap, not a
-			// denial — silent-skip.
+			// Storage Lens groups live only in the account's supported home Region;
+			// other regions reject with this message — region gap, not denial, so
+			// silent-skip.
 			if isAccessDeniedWithMessage(apiErr, "supported home Region") {
 				return 0, 0, nil
 			}

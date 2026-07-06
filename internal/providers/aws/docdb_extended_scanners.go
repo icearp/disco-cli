@@ -115,8 +115,8 @@ func scanDocDBEventSubs(ctx context.Context, client docdbAPI, acct *account, reg
 	return upsertBatch(st, batch, "docdb event-subscriptions")
 }
 
-// scanDocDBGlobalClusters uses manual Marker pagination since the SDK does
-// not expose a paginator constructor for DescribeGlobalClusters.
+// scanDocDBGlobalClusters uses manual Marker pagination — the SDK exposes no
+// paginator constructor for DescribeGlobalClusters.
 func scanDocDBGlobalClusters(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	var marker *string

@@ -14,11 +14,11 @@ import (
 
 func init() { coverage.Register(&coverageProvider{}) }
 
-// coverageProvider implements coverage.Provider for Azure. Upstream truth
-// source = ARM `Providers/List?$expand=resourceTypes`. Coverage truth source
-// = CollectEmits() in services.go, which unions every registerService /
-// registerTenantService emits decl plus extraEmits from compute / sql child
-// scanner files and resourcegroups.
+// coverageProvider implements coverage.Provider for Azure. Upstream truth =
+// ARM `Providers/List?$expand=resourceTypes`; coverage truth = CollectEmits()
+// in services.go, unioning every registerService / registerTenantService
+// emits decl plus extraEmits from compute / sql child scanner files and
+// resourcegroups.
 type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "azure" }
@@ -53,9 +53,9 @@ func (coverageProvider) ResolverEdgeSources() []string {
 	return out
 }
 
-// Aliases inverts azureAPITypeMap (types.go) — that map is already an
-// upstream→disco lookup for live scanner scans; coverage needs the
-// reverse direction. Built once at process start.
+// Aliases inverts azureAPITypeMap (types.go): that map is upstream→disco
+// for live scanner scans; coverage needs the reverse. Built once at
+// process start.
 //
 // ARM type keys are stored lowercased ("microsoft.compute/virtualmachines")
 // to match coverage.Build's lowercased lookup. Multi-segment children
@@ -68,11 +68,11 @@ func (coverageProvider) Aliases() map[string]string {
 	return out
 }
 
-// AlgorithmicKey is the fallback for disco types missing from the alias
-// map. Disco type "azure:microsoft.compute:galleries:images:versions" -> ARM
-// key "microsoft.compute/galleries/images/versions": strip kebab dashes (ARM
-// resource segments have no separators) and turn the disco ':' sub-resource
-// separators back into the ARM '/' hierarchy. Mostly exists so future types
+// AlgorithmicKey is the fallback for disco types missing from the alias map:
+// e.g. disco "azure:microsoft.compute:galleries:images:versions" -> ARM key
+// "microsoft.compute/galleries/images/versions" by stripping kebab dashes
+// (ARM segments have no separators) and turning the disco ':' sub-resource
+// separators back into ARM '/' hierarchy. Mostly exists so future types
 // compile-check without an alias entry.
 func (coverageProvider) AlgorithmicKey(discoType string) string {
 	parts := strings.SplitN(discoType, ":", 3)

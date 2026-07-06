@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	// Greengrass v2 deployments target an IoT thing or thing-group via
-	// the canonical TargetArn field. The shape of TargetArn (`:thing/...`
-	// vs `:thinggroup/...`) selects the target type.
+	// Greengrass v2 deployments target an IoT thing or thing-group via the
+	// canonical TargetArn field; its shape (`:thing/...` vs `:thinggroup/...`)
+	// selects the target type.
 	registerResolver(
 		resolveGGV2DeploymentTarget,
 		EdgeDecl{TypeGreengrassV2Deployment, TypeIoTThing, store.RelUses},
@@ -21,13 +21,12 @@ func init() {
 }
 
 // resolveGGV2DeploymentTarget links each Greengrass v2 deployment to its
-// IoT thing or thing-group target. The scanner stores the SDK Deployment
-// struct verbatim; `TargetArn` carries the canonical IoT ARN
+// IoT thing or thing-group target. Scanner stores the SDK Deployment struct
+// verbatim; `TargetArn` carries the canonical IoT ARN
 // (`arn:aws:iot:{r}:{a}:thing/{name}` or `:thinggroup/{name}`).
 //
-// Cross-service edge: skip when the IoT side was not scanned (or the
-// referenced thing/thing-group is not in the local store) so we don't
-// create phantom edges.
+// Cross-service edge: skip if the IoT side wasn't scanned (target absent
+// from the local store) to avoid phantom edges.
 func resolveGGV2DeploymentTarget(acct *account, st *store.Store) error {
 	deps, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -80,9 +79,8 @@ func resolveGGV2DeploymentTarget(acct *account, st *store.Store) error {
 	return nil
 }
 
-// iotTargetTypeFromArn classifies an IoT ARN as either a thing or a
-// thing-group. Returns "" for any other shape (e.g. an unexpected
-// service or resource segment) so the caller skips emit.
+// iotTargetTypeFromArn classifies an IoT ARN as thing or thing-group;
+// returns "" for any other shape so the caller skips emit.
 func iotTargetTypeFromArn(arn string) string {
 	switch {
 	case strings.Contains(arn, ":thinggroup/"):

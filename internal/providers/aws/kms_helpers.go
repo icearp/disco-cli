@@ -20,8 +20,7 @@ type kmsResolveIndex struct {
 	// aliasToKeyARN maps both "alias/foo" and the alias ARN form
 	// ("arn:aws:kms:{region}:{acct}:alias/foo") to the target key's ARN.
 	aliasToKeyARN map[string]string
-	// keyARNByID lets callers find the canonical key ARN given a partially
-	//-built ID — used when the input ref is the bare key UUID.
+	// keyARNByID resolves a bare key UUID ref to its canonical key ARN.
 	keyARNByID map[string]string
 }
 

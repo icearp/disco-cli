@@ -18,9 +18,8 @@ func TestResolveEventBridgeRelationships(t *testing.T) {
 	lambdaARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:my-fn", testRegion, acct.ID)
 	snsARN := fmt.Sprintf("arn:aws:sns:%s:%s:my-topic", testRegion, acct.ID)
 
-	// SDK Rule has no EventBusArn field — resolver synthesizes the bus ARN
-	// from EventBusName via region+account. Test fixture mirrors production
-	// SDK shape (only EventBusName is populated).
+	// SDK Rule has no EventBusArn field — resolver synthesizes the bus ARN from
+	// EventBusName+region+account. Fixture mirrors production shape (EventBusName only).
 	ruleAttrs := eventBridgeRuleAttrs(
 		eventstypes.Rule{EventBusName: sdkaws.String("my-bus")},
 		eventstypes.Target{Arn: sdkaws.String(lambdaARN)},

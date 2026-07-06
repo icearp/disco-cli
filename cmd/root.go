@@ -23,11 +23,11 @@ var (
 )
 
 // Version is set at build time via -ldflags "-X codeberg.org/icearp/disco/cmd.Version=<tag>".
-// Defaults to "dev" for local builds, but when produced by `go build .` from
-// inside a git checkout we substitute the VCS revision via build-info so the
-// stamp propagated to snapshot manifests + SARIF tool.driver.version is at
-// least traceable. Falls through to the literal "dev" only when no VCS info
-// is available (e.g. `go test`, `go install` from a tarball).
+// Defaults to "dev" for local builds, but `go build .` inside a git checkout
+// substitutes the VCS revision via build-info, so the stamp propagated to
+// snapshot manifests + SARIF tool.driver.version stays traceable. Falls back
+// to "dev" only when no VCS info is available (e.g. `go test`, `go install`
+// from a tarball).
 var Version = resolveVersion()
 
 func resolveVersion() string {
@@ -86,9 +86,9 @@ Getting started:
 }
 
 // Execute runs the root command. ctx carries SIGINT/SIGTERM cancellation from
-// main; cobra propagates it to the executing subcommand via cmd.Context(), so a
-// long-running scan can unwind cleanly (and run its deferred WAL checkpoint)
-// on interrupt instead of being hard-killed.
+// main; cobra propagates it to the subcommand via cmd.Context(), so a
+// long-running scan unwinds cleanly (running its deferred WAL checkpoint) on
+// interrupt instead of being hard-killed.
 func Execute(ctx context.Context) {
 	rootCmd.SetContext(ctx)
 	cmd, err := rootCmd.ExecuteC()

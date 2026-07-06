@@ -21,10 +21,10 @@ func init() {
 	})
 }
 
-// accessAnalyzerAPI is the narrow surface the accessanalyzer scanners use; the
-// SDK's *accessanalyzer.Client satisfies it. ListAnalyzers populates the full
-// AnalyzerSummary body — no per-item Describe fan-out needed. ListArchiveRules
-// is keyed by analyzer name, so archive rules fan out per analyzer.
+// accessAnalyzerAPI is the narrow surface the accessanalyzer scanners use;
+// *accessanalyzer.Client satisfies it. ListAnalyzers returns the full
+// AnalyzerSummary body — no per-item Describe needed. ListArchiveRules is
+// keyed by analyzer name, so archive rules fan out per analyzer.
 type accessAnalyzerAPI interface {
 	ListAnalyzers(context.Context, *accessanalyzer.ListAnalyzersInput, ...func(*accessanalyzer.Options)) (*accessanalyzer.ListAnalyzersOutput, error)
 	ListArchiveRules(context.Context, *accessanalyzer.ListArchiveRulesInput, ...func(*accessanalyzer.Options)) (*accessanalyzer.ListArchiveRulesOutput, error)
@@ -72,9 +72,9 @@ func scanAccessAnalyzerAnalyzers(ctx context.Context, client accessAnalyzerAPI, 
 	return total, inserted, analyzers, err
 }
 
-// scanAccessAnalyzerArchiveRules fans out ListArchiveRules per analyzer. Archive
-// rules carry no AWS-issued ARN — NativeID is synthesized as
-// {analyzerARN}/archive-rule/{ruleName}, and each rule is closure-wired to its
+// scanAccessAnalyzerArchiveRules fans out ListArchiveRules per analyzer.
+// Archive rules carry no AWS-issued ARN — NativeID is synthesized as
+// {analyzerARN}/archive-rule/{ruleName}; each rule is closure-wired to its
 // parent analyzer.
 func scanAccessAnalyzerArchiveRules(ctx context.Context, client accessAnalyzerAPI, acct *account, region string, st *store.Store, scanID string, analyzers []analyzerRef) (total, inserted int, err error) {
 	if len(analyzers) == 0 {

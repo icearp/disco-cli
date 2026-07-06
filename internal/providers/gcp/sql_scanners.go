@@ -20,8 +20,7 @@ func init() {
 }
 
 // scanCloudSQL discovers Cloud SQL instances for a project. Uses Pages() so
-// that projects with many instances are not silently truncated at the default
-// page size.
+// many-instance projects aren't silently truncated at the default page size.
 func scanCloudSQL(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := sqladmin.NewService(ctx, opts...)

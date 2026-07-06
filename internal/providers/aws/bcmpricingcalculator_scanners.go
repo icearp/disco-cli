@@ -11,8 +11,8 @@ import (
 
 // isCostExplorerNotEnabled disambiguates the "User not enabled for cost
 // explorer access" / linked-account state from a real IAM denial. Shared by
-// BCM Pricing Calculator + Cost Explorer scanners since both gate on the
-// same account-level Cost Explorer enablement.
+// BCM Pricing Calculator + Cost Explorer scanners — both gate on the same
+// account-level Cost Explorer enablement.
 func isCostExplorerNotEnabled(err error) bool {
 	return isAccessDeniedWithMessage(err, "not enabled for cost explorer") ||
 		isAccessDeniedWithMessage(err, "doesn't have access to cost category")
@@ -64,12 +64,12 @@ func bcmPricingCalculatorNativeID(acct, kind, id string) string {
 }
 
 // bcmPCListErr classifies a BCM Pricing Calculator List* page error into the
-// value a phase should return: the markServiceDisabled sentinel when the
-// account hasn't enabled Cost Explorer (self-enableable → (account: disabled)),
-// the markServiceNotEntitled sentinel for the payer-only topology gate (a
-// member account can't self-enable → (account: not entitled)), nil for
-// the migration-required IAM deny and the soft access-denied skip (the
-// orchestrator continues to the next phase), or a wrapped fatal error otherwise.
+// value a phase returns: markServiceDisabled when the account hasn't enabled
+// Cost Explorer (self-enableable → (account: disabled)); markServiceNotEntitled
+// for the payer-only topology gate (member account can't self-enable →
+// (account: not entitled)); nil for the migration-required IAM deny and the
+// soft access-denied skip (orchestrator continues to next phase); or a
+// wrapped fatal error otherwise.
 func bcmPCListErr(st *store.Store, op, acctID, region string, perr error) error {
 	switch {
 	case isCostExplorerNotEnabled(perr):

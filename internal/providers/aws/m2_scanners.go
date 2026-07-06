@@ -28,8 +28,8 @@ type m2API interface {
 }
 
 // scanM2 discovers M2 (Mainframe Modernization) applications, environments,
-// and per-application deployments. Application/Environment ARNs native;
-// deployments synthesize ARN as parent application ARN + path.
+// and per-application deployments. Application/Environment ARNs are native;
+// deployment ARNs synthesize as parent-app ARN + path.
 func scanM2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := m2.NewFromConfig(acct.cfg, func(o *m2.Options) { o.Region = region })
 

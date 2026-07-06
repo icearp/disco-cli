@@ -121,8 +121,8 @@ support resolver auditing); naming a provider without auditing support errors.`,
 }
 
 func init() {
-	// Parent owns --output (PersistentFlags) so every subcommand inherits the
-	// same set of formats with one declaration.
+	// Parent owns --output (PersistentFlags): one declaration, inherited by
+	// every subcommand.
 	coverageCmd.PersistentFlags().StringP("output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	_ = coverageCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 
@@ -155,25 +155,24 @@ func init() {
 	rootCmd.AddCommand(coverageCmd)
 }
 
-// errCoverageRegistryUnreachable signals at least one provider's upstream
-// registry fetch failed (e.g. expired/missing credentials), so coverage cannot
-// be assessed. Always fatal — without it every emitted type would falsely
-// bucket as upstream-missing against an empty registry. Mapped to exit 2 in
-// Execute() (vs exit 1 for genuine drift) so CI can distinguish a transient
-// registry/credential failure from a real drift signal.
+// errCoverageRegistryUnreachable signals a provider's upstream registry fetch
+// failed (e.g. expired/missing credentials), so coverage can't be assessed.
+// Always fatal — otherwise every emitted type would falsely bucket as
+// upstream-missing against an empty registry. Mapped to exit 2 in Execute()
+// (vs exit 1 for genuine drift) so CI can tell transient credential failure
+// from real drift.
 var errCoverageRegistryUnreachable = errors.New("upstream registry unreachable for")
 
-// outputFormat resolves the --output flag (parent persistent flag) on the
-// invoking subcommand.
+// outputFormat resolves the --output persistent flag on the invoking subcommand.
 func outputFormat(cmd *cobra.Command) string {
 	v, _ := cmd.Flags().GetString("output")
 	return v
 }
 
-// firstOrEmpty returns the first element of vals, or "" when empty. Shaped to
-// consume a pflag GetStringSlice (slice, error) result directly. Used where a
-// CLI flag is plural for surface consistency but only one value is meaningful
-// (the Azure coverage registry context is subscription-invariant).
+// firstOrEmpty returns the first element of vals, or "" if empty. Shaped to
+// consume a pflag GetStringSlice (slice, error) result directly, for flags
+// that are plural for consistency but take only one meaningful value (e.g.
+// Azure's subscription-invariant coverage registry context).
 func firstOrEmpty(vals []string, _ error) string {
 	if len(vals) > 0 {
 		return vals[0]
@@ -224,10 +223,9 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 		upstream, err := p.Fetch(fetchCtx, opts)
 		cancel()
 		if err != nil {
-			// A failed fetch (commonly expired/missing credentials) yields an
-			// empty upstream, which would falsely bucket every emitted type as
-			// upstream-missing. Skip the build and fail below rather than print
-			// a confidently-wrong matrix.
+			// A failed fetch (commonly expired/missing credentials) yields an empty
+			// upstream, which would falsely bucket every type as upstream-missing.
+			// Skip the build and fail below rather than print a confidently-wrong matrix.
 			fmt.Fprintf(os.Stderr, "  %s: fetch failed: %v\n", p.Name(), err)
 			fetchFailures = append(fetchFailures, p.Name())
 			continue
@@ -245,8 +243,8 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 		matrices = append(matrices, m)
 	}
 
-	// Fetch failure is always fatal (exit 2), independent of --check-strict,
-	// and returned before rendering so no misleading matrix is emitted.
+	// Fetch failure is always fatal (exit 2), independent of --check-strict;
+	// returned before rendering so no misleading matrix is emitted.
 	if len(fetchFailures) > 0 {
 		return fmt.Errorf("%w: %s; check credentials, then retry or scope --providers", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
 	}
@@ -431,8 +429,8 @@ func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
 	outputFmt := outputFormat(cmd)
 	defer func() { maybeStructuredError(outputFmt, rerr) }()
 
-	// Pre-validate like the services/regions siblings; both resolvers render
-	// paths otherwise fall through to the tabwriter table on an unknown value.
+	// Pre-validate like the services/regions siblings; an unknown value would
+	// otherwise fall through silently to the tabwriter table renderer.
 	switch outputFmt {
 	case "table", "markdown", "md", "json", "jsonl", "csv":
 	default:
@@ -457,12 +455,12 @@ type auditorPair struct {
 	ra   coverage.ResolverAuditor
 }
 
-// selectedAuditors resolves the providers whose resolver registries should be
-// audited. An empty provNames (the `--providers` default) selects every
-// compiled provider that implements coverage.ResolverAuditor; a non-empty list
-// selects exactly those, erroring if a named provider is unknown or lacks
-// resolver auditing. Returns a clear error when no auditor is available (e.g. a
-// slim build excluding AWS+Azure) so `coverage resolvers` degrades gracefully.
+// selectedAuditors resolves the providers whose resolver registries get
+// audited. Empty provNames (the `--providers` default) selects every compiled
+// provider implementing coverage.ResolverAuditor; a non-empty list selects
+// exactly those, erroring if a named provider is unknown or lacks resolver
+// auditing. Errors clearly when no auditor exists (e.g. a slim build
+// excluding AWS+Azure) so `coverage resolvers` degrades gracefully.
 func selectedAuditors(provNames []string) ([]auditorPair, error) {
 	var out []auditorPair
 	if len(provNames) == 0 {
@@ -491,7 +489,7 @@ func selectedAuditors(provNames []string) ([]auditorPair, error) {
 }
 
 // runResolversList prints per-resolver EdgeDecl counts, optionally filtered
-// to resolvers that touch one of the named services.
+// to resolvers touching a named service.
 func runResolversList(w io.Writer, auditors []auditorPair, services []string, onlyUnannotated bool, outputFmt string) error {
 	allowed := lowerSet(services)
 	type row struct {
@@ -568,9 +566,9 @@ func runResolversList(w io.Writer, auditors []auditorPair, services []string, on
 	return nil
 }
 
-// runResolversMissing prints orphan disco types — those never appearing
-// as the Source of any EdgeDecl. Optionally filtered to types whose service
-// segment matches one of the named services.
+// runResolversMissing prints orphan disco types — those never appearing as
+// the Source of any EdgeDecl — optionally filtered to types whose service
+// segment matches a named service.
 func runResolversMissing(w io.Writer, auditors []auditorPair, services []string, outputFmt string) error {
 	allowed := lowerSet(services)
 	type row struct {
@@ -709,7 +707,7 @@ func filterRows(rows []coverage.Row, filter string, services []string) []coverag
 		allowedSvc[strings.ToLower(s)] = true
 	}
 	// "duplicate" is a cross-cut, not a bucket: the canonical-twin rows Build
-	// emits as covered with a "duplicate of …" reason. Surfaced for auditing the
+	// emits as covered with a "duplicate of …" reason, surfaced for auditing
 	// SR↔CFN merges before trusting them to hide a gap.
 	wantBucket := coverage.Bucket(filter)
 	out := rows[:0]

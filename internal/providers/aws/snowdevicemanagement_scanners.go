@@ -52,8 +52,8 @@ func scanSnowDevices(ctx context.Context, client snowDeviceManagementAPI, acct *
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			// "No devices found in this region" is an empty-state 403, not a
-			// real deny — the service works, there are just zero devices.
+			// "No devices found in this region" is an empty-state 403, not a real
+			// deny — the service works, just with zero devices.
 			if isAPIErrorWithMessage(err, "AccessDeniedException", "No devices found") {
 				return 0, 0, nil
 			}
@@ -85,8 +85,8 @@ func scanSnowTasks(ctx context.Context, client snowDeviceManagementAPI, acct *ac
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			// "No devices found in this region" is an empty-state 403, not a
-			// real deny — the service works, there are just zero devices/tasks.
+			// "No devices found in this region" is an empty-state 403, not a real
+			// deny — the service works, just with zero devices/tasks.
 			if isAPIErrorWithMessage(err, "AccessDeniedException", "No devices found") {
 				return 0, 0, nil
 			}

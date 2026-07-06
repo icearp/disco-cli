@@ -33,12 +33,11 @@ type opensearchAPI interface {
 	ListDataSources(context.Context, *opensearch.ListDataSourcesInput, ...func(*opensearch.Options)) (*opensearch.ListDataSourcesOutput, error)
 }
 
-// scanOpenSearch discovers OpenSearch (and legacy Elasticsearch — same SDK)
-// domains in one region. ListDomainNames returns name-only entries; full
-// edge-bearing body lives on DescribeDomain. Per-item AccessDenied
-// tolerated. Outbound connections (cross-cluster), package associations,
-// and reserved instances deferred — narrow value relative to the core
-// domain edges.
+// scanOpenSearch discovers OpenSearch (and legacy Elasticsearch, same SDK)
+// domains in one region. ListDomainNames returns name-only entries;
+// DescribeDomain carries the edge-bearing body. Per-item AccessDenied
+// tolerated. Outbound (cross-cluster) connections, package associations, and
+// reserved instances deferred as low value vs core domain edges.
 func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := opensearch.NewFromConfig(acct.cfg, func(o *opensearch.Options) { o.Region = region })
 	t, i, ferr := scanOpenSearchDomains(ctx, client, acct, region, st, scanID)

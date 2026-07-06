@@ -32,9 +32,9 @@ func resolveSubnetVNetRelationships(sub *subscription, st *store.Store) error {
 		return err
 	}
 	for _, r := range subnets {
-		// Subnet NativeID is /subscriptions/{sub}/resourceGroups/{rg}/providers/
-		// Microsoft.Network/virtualNetworks/{vnet}/subnets/{subnet}.
-		// The VNet ID is the parent path up to /subnets/.
+		// Subnet NativeID: /subscriptions/{sub}/resourceGroups/{rg}/providers/
+		// Microsoft.Network/virtualNetworks/{vnet}/subnets/{subnet}. VNet ID
+		// is the parent path up to /subnets/.
 		vnetID := vnetIDFromSubnetID(r.NativeID)
 		if vnetID != "" {
 			vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
@@ -50,11 +50,11 @@ func resolveSubnetVNetRelationships(sub *subscription, st *store.Store) error {
 //   - AGW -[attached-to]-> VNet via gatewayIPConfigurations[].properties.subnet.id
 //   - AGW -[uses]-> Public IP via frontendIPConfigurations[].properties.publicIPAddress.id
 //   - AGW -[uses]-> Key Vault via sslCertificates[].properties.keyVaultSecretId
-//     (Key Vault reference URI — pointer, not material). Reference URIs now
-//     pass the sanitizer allowlist (`store/sanitize.go::isReferenceURI`).
+//     (reference URI, not material — passes the sanitizer allowlist,
+//     `store/sanitize.go::isReferenceURI`)
 //
-// Backend pool members (FQDN/IP addresses, NIC refs) deferred — AGW backends
-// are usually FQDNs which don't map cleanly to ARM IDs. Identity → MSI edges
+// Backend pool members (FQDN/IP, NIC refs) deferred — AGW backends are
+// usually FQDNs, which don't map cleanly to ARM IDs. Identity → MSI edges
 // covered by the generic consumer resolver.
 // agwAttrs mirrors the AGW fields the resolver walks.
 type agwAttrs struct {

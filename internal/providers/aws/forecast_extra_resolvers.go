@@ -37,8 +37,8 @@ func init() {
 	)
 }
 
-// forecastEdge emits one FK-safe edge from each row of srcType to the target
-// identified by the ARN at attrKey, against the pre-built target id set.
+// forecastEdge emits one FK-safe edge per srcType row to the target identified
+// by the ARN at attrKey, checked against the pre-built target id set.
 func forecastEdge(acct *account, st *store.Store, srcType, attrKey, tgtType string, kind string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{srcType}, Limit: util.AllResources,
@@ -84,8 +84,7 @@ func resolveForecastMonitorRefs(acct *account, st *store.Store) error {
 	return forecastEdge(acct, st, TypeForecastMonitor, "ResourceArn", TypeForecastPredictor, store.RelAttachedTo)
 }
 
-// resolveForecastExplainabilityRefs — ResourceArn is a predictor OR a forecast;
-// emit to whichever is scanned.
+// resolveForecastExplainabilityRefs — ResourceArn is a predictor or forecast; emits to whichever is scanned.
 func resolveForecastExplainabilityRefs(acct *account, st *store.Store) error {
 	if err := forecastEdge(acct, st, TypeForecastExplainability, "ResourceArn", TypeForecastPredictor, store.RelUses); err != nil {
 		return err

@@ -7,6 +7,6 @@ import (
 )
 
 // RegionNames implements providers.RegionNamer. Returns a clone so callers
-// can't mutate the package-level list. The region list itself is the SDK-free
-// source of truth in the gcpregions leaf package.
+// can't mutate the package-level list — gcpregions is the SDK-free source of
+// truth.
 func (s *Scanner) RegionNames() []string { return slices.Clone(gcpregions.Regions) }

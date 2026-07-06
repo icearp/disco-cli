@@ -39,11 +39,11 @@ func scanMigrationHubOrchestrator(ctx context.Context, acct *account, region str
 
 // mhoListErr classifies the two non-fatal shapes both Migration Hub Orchestrator
 // list phases share: the Nov-2025 closed-to-new-customers gate (not-entitled —
-// the whole service is inert for this account and can't be enabled) and the
-// per-region "Unauthorized access denied" that fires outside the account's MHO
-// home region (region gap). Returns (handled, out): out is the not-entitled
-// sentinel for the former, nil for the latter; (false, nil) leaves err for the
-// caller to treat as a real error.
+// the whole service is inert for this account, can't be enabled) and the
+// per-region "Unauthorized access denied" outside the account's MHO home
+// region (region gap). Returns (handled, out): out is the not-entitled
+// sentinel for the former, nil for the latter; (false, nil) leaves err for
+// the caller to treat as real.
 func mhoListErr(err error) (handled bool, out error) {
 	switch {
 	case isAccessDeniedWithMessage(err, "no longer open to new customers"):

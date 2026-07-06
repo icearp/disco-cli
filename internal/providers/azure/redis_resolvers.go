@@ -15,10 +15,10 @@ func init() {
 }
 
 // resolveRedisRelationships derives Redis cache -[attached-to]-> VNet edges
-// for VNet-injected Premium-tier instances. The cache references its target
-// subnet via properties.subnetId; the parent VNet ID is recovered with
-// vnetIDFromSubnetID (precedent: aks_resolvers.go). Multiple caches in the
-// same VNet collapse to one edge per cache.
+// for VNet-injected Premium-tier instances. The cache references its subnet
+// via properties.subnetId; vnetIDFromSubnetID recovers the parent VNet ID
+// (precedent: aks_resolvers.go). Multiple caches in the same VNet each get
+// their own edge.
 func resolveRedisRelationships(sub *subscription, st *store.Store) error {
 	caches, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"azure"}, AccountID: sub.ID,

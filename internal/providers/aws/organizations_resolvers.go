@@ -29,9 +29,9 @@ func init() {
 }
 
 // resolveOrganizationsSCPTargets attaches each SCP to the roots, OUs, and
-// accounts it applies to. ListTargetsForPolicy returns native ids
-// (r-*/ou-*/12-digit account); translate each back to the stable ResourceID
-// the scanner used (keyed by ARN) via an index rebuilt from the store.
+// accounts it applies to. ListTargetsForPolicy returns native ids (r-*/ou-*/
+// 12-digit account); translate each to the scanner's ARN-keyed ResourceID via
+// an index rebuilt from the store.
 func resolveOrganizationsSCPTargets(acct *account, st *store.Store) error {
 	scps, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -115,12 +115,11 @@ func loadOrgTargetIndex(acct *account, st *store.Store) (arnByID, typeByID map[s
 }
 
 // resolveOrganizationsDelegatedAdmins emits an `attached-to` edge from the
-// organization to each delegated-admin account, with the delegated service
-// principals captured in the edge attributes. The hierarchy org→account
-// (contains) already lives in the closure table; this adds a distinct
-// relationship for privilege-scoped queries ("which accounts admin which
-// services?"). Relationship uniqueness is (from, to, kind), so the two
-// edges coexist without conflict.
+// organization to each delegated-admin account, with delegated service
+// principals in the edge attributes. org→account `contains` already lives in
+// the closure table; this adds a distinct relationship for privilege-scoped
+// queries ("which accounts admin which services?"). Uniqueness is (from, to,
+// kind), so both edges coexist.
 func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 	orgs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -181,8 +180,7 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 			}
 		}
 
-		// Scanner stores accounts keyed by ARN, not the raw 12-digit ID —
-		// look up via the index built from the store.
+		// Scanner keys accounts by ARN, not raw 12-digit ID — look up via the store-built index.
 		acctARN, ok := arnByID[adminID]
 		if !ok {
 			continue
@@ -197,13 +195,13 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 }
 
 // resolveOrganizationsManagementAccount links each org row to the AWS account
-// identified by Organization.MasterAccountID. When the master account row is
-// already in the store (management-account scan), the edge points to the real
+// identified by Organization.MasterAccountID. If the master account row is
+// already in the store (management-account scan), the edge points at the real
 // aws:organizations:account row. Otherwise (member-account scan, master not
-// scanned by this run) the resolver insert-if-absents an empty-attribute
-// aws:iam:account placeholder for the master account ID and points at it —
-// the same self-node natural key the IAM scanner / cross-account-trust resolver
-// use, so a later management scan version-populates the placeholder.
+// scanned this run) it insert-if-absents an empty-attribute aws:iam:account
+// placeholder at the master account ID — the same self-node natural key the
+// IAM scanner / cross-account-trust resolver use — so a later management scan
+// version-populates it.
 func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error {
 	orgs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

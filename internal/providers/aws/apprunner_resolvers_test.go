@@ -85,9 +85,8 @@ func TestResolveAppRunnerServiceTargets(t *testing.T) {
 	assertRelationship(t, rels, svcID, srcConnID, store.RelUses)
 }
 
-// TestResolveAppRunnerServiceConnection_Unscanned: a ConnectionArn pointing at a
-// connection disco didn't scan emits no edge (FK-safe) and doesn't panic on a
-// service with minimal attrs.
+// TestResolveAppRunnerServiceConnection_Unscanned: an unscanned ConnectionArn
+// emits no edge (FK-safe) and doesn't panic on a service with minimal attrs.
 func TestResolveAppRunnerServiceConnection_Unscanned(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

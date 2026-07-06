@@ -15,8 +15,8 @@ import (
 // testScanID is the fixed scan ID inserted into every test database.
 const testScanID = "00000000000000000000000000000000"
 
-// newTestStore opens a temporary SQLite database for use in provider tests
-// and inserts a scan record so resources can satisfy the discovered_by FK.
+// newTestStore opens a temp SQLite DB for provider tests and inserts a scan
+// record so resources satisfy the discovered_by FK.
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
@@ -68,11 +68,10 @@ func newTestProject(id string) *project {
 }
 
 // marshalAttrs returns the JSON encoding of v as the attrsJSON value scanners
-// would persist to the store. Tests use this with real SDK structs (e.g.
-// compute.Instance, compute.Firewall) so that JSON-tag drift between
-// google.golang.org/api/* SDK upgrades surfaces as a Go compile error rather
-// than a silent resolver edge-loss when hand-rolled JSON literals fall out of
-// sync with the discovery document.
+// persist. Tests use real SDK structs (e.g. compute.Instance,
+// compute.Firewall) so JSON-tag drift across google.golang.org/api/* SDK
+// upgrades surfaces as a compile error, not a silent resolver edge-loss from
+// hand-rolled JSON drifting out of sync with the discovery document.
 func marshalAttrs(t *testing.T, v any) string {
 	t.Helper()
 	b, err := json.Marshal(v)
@@ -87,9 +86,9 @@ func marshalAttrs(t *testing.T, v any) string {
 // the test loudly so silent zero-result regressions surface immediately
 // rather than masquerading as legitimate empty pages.
 //
-// Each route value is the full HTTP body the discovery client will receive
-// and unmarshal into the response page type. Use the helper marshalAttrs to
-// build it from the SDK struct (e.g. compute.ForwardingRuleAggregatedList).
+// Each route value is the full HTTP body the discovery client unmarshals
+// into the response page type. Use marshalAttrs to build it from the SDK
+// struct (e.g. compute.ForwardingRuleAggregatedList).
 func fakeGCPServer(t *testing.T, routes map[string]string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -106,10 +105,10 @@ func fakeGCPServer(t *testing.T, routes map[string]string) *httptest.Server {
 	return srv
 }
 
-// fakeGCPServerStatus is the error-injection sibling of fakeGCPServer. It
-// returns the supplied HTTP status + JSON body for every request, so tests
-// covering the permission-denied / API-not-enabled branches of runPaginated
-// can pin the exact googleapi.Error shape isPermissionDenied + isAPINotEnabled
+// fakeGCPServerStatus is the error-injection sibling of fakeGCPServer:
+// returns the given HTTP status + JSON body for every request, so tests
+// covering runPaginated's permission-denied / API-not-enabled branches can
+// pin the exact googleapi.Error shape isPermissionDenied + isAPINotEnabled
 // inspect.
 func fakeGCPServerStatus(t *testing.T, status int, body string) *httptest.Server {
 	t.Helper()
@@ -124,10 +123,9 @@ func fakeGCPServerStatus(t *testing.T, status int, body string) *httptest.Server
 
 // fakeComputeService builds a *compute.Service pointed at the fake server.
 // Mirrors the production clientOptions chain (option.WithEndpoint /
-// WithHTTPClient) minus authentication. The returned client is concrete —
-// tests retain the same type production code uses, so no interface
-// extraction is required (mirrors googleapis/google-cloud-go/testing.md
-// fakes-over-mocks guidance).
+// WithHTTPClient) minus authentication. Returned client is concrete — same
+// type production code uses, so no interface extraction needed (mirrors
+// googleapis/google-cloud-go/testing.md fakes-over-mocks guidance).
 func fakeComputeService(t *testing.T, srv *httptest.Server) *compute.Service {
 	t.Helper()
 	svc, err := compute.NewService(

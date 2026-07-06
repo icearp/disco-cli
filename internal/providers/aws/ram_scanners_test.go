@@ -23,9 +23,9 @@ func (s *stubRAM) ListPermissions(_ context.Context, _ *ram.ListPermissionsInput
 
 // The AWS-managed RAM permission catalogue has region-less ARNs. scanRAM runs
 // per region, so without dedup the same managed ARN collides on the
-// region-excluded natural key across the concurrent per-region upserts
-// (SQLSTATE 23505). Assert it's emitted once (region "global") from us-east-1
-// and skipped elsewhere, while customer-managed permissions stay per-region.
+// region-excluded natural key across concurrent per-region upserts (SQLSTATE
+// 23505). Assert it's emitted once (region "global") from us-east-1 and
+// skipped elsewhere, while customer-managed permissions stay per-region.
 func TestScanRAMPermissions_ManagedCatalogueDedup(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

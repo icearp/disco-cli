@@ -10,10 +10,10 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 )
 
-// fakeCoverageProvider scopes coverage tests to a synthetic provider so the
-// real AWS/Azure/GCP providers (which Fetch live registries over the
-// network) stay untouched. Name carries the test name to avoid duplicate-
-// registration panics across t.Run / parallel tests.
+// fakeCoverageProvider scopes coverage tests to a synthetic provider so real
+// AWS/Azure/GCP providers (which Fetch live registries over the network)
+// stay untouched. Name carries the test name to avoid duplicate-registration
+// panics across t.Run / parallel tests.
 type fakeCoverageProvider struct {
 	name     string
 	emits    []coverage.TypeDecl
@@ -22,9 +22,9 @@ type fakeCoverageProvider struct {
 }
 
 // resetCoverageFlags clears StringSlice flags on every coverage subcommand
-// before each test. pflag's StringSlice values accumulate across consecutive
+// before each test: pflag's StringSlice values accumulate across consecutive
 // Execute() calls in the same process, so providers/regions/services would
-// otherwise carry stale entries from a prior test invocation.
+// otherwise carry stale entries from a prior run.
 func resetCoverageFlags(t *testing.T) {
 	t.Helper()
 	for _, sub := range coverageCmd.Commands() {
@@ -101,8 +101,8 @@ func TestCoverage_StrictDriftStillFires(t *testing.T) {
 }
 
 // TestCoverage_NonStrictErrorsOnFetchFailure: even without --check-strict, a
-// fetch failure (e.g. expired/missing credentials) is fatal — proceeding with
-// an empty upstream would falsely bucket every emitted type as upstream-missing.
+// fetch failure (e.g. expired/missing credentials) is fatal — an empty
+// upstream would falsely bucket every emitted type as upstream-missing.
 func TestCoverage_NonStrictErrorsOnFetchFailure(t *testing.T) {
 	name := "f9-fatal"
 	coverage.Register(&fakeCoverageProvider{

@@ -21,9 +21,9 @@ func init() {
 	})
 }
 
-// socialMessagingPhoneNumberAttrs embeds the SDK phone-number summary and adds
-// the parent WABA ARN, which the list/get response does not carry on each
-// phone-number entry. The resolver reads WabaArn to wire the attached-to edge.
+// socialMessagingPhoneNumberAttrs embeds the SDK phone-number summary plus the
+// parent WABA ARN, which the list/get response doesn't carry per phone-number
+// entry. The resolver reads WabaArn to wire the attached-to edge.
 type socialMessagingPhoneNumberAttrs struct {
 	socialmessagingtypes.WhatsAppPhoneNumberSummary
 	WabaArn string `json:"WabaArn,omitempty"`
@@ -35,8 +35,8 @@ type socialMessagingAPI interface {
 }
 
 // scanSocialMessaging discovers linked WhatsApp Business Accounts (WABAs) and,
-// per WABA, the phone numbers registered to it. Phone numbers are only exposed
-// on the per-WABA Get call, so the scanner fans out one Get per linked account.
+// per WABA, its registered phone numbers. Phone numbers are only exposed via
+// the per-WABA Get call, so the scanner fans out one Get per linked account.
 func scanSocialMessaging(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := socialmessaging.NewFromConfig(acct.cfg, func(o *socialmessaging.Options) { o.Region = region })
 

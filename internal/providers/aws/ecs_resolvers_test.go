@@ -6,7 +6,7 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// TestResolveECSRelationships_ServiceToClusterAndTaskDef verifies that a service's
+// TestResolveECSRelationships_ServiceToClusterAndTaskDef verifies a service's
 // cluster ARN and task definition ARN both produce the correct relationships.
 func TestResolveECSRelationships_ServiceToClusterAndTaskDef(t *testing.T) {
 	st := newTestStore(t)
@@ -47,7 +47,7 @@ func TestResolveECSRelationships_ServiceToClusterAndTaskDef(t *testing.T) {
 	}
 }
 
-// TestResolveECSRelationships_NoAttrs verifies that a service with empty attrs
+// TestResolveECSRelationships_NoAttrs verifies a service with empty attrs
 // produces no relationships and no error.
 func TestResolveECSRelationships_NoAttrs(t *testing.T) {
 	st := newTestStore(t)

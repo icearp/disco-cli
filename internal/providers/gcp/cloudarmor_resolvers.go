@@ -17,10 +17,10 @@ func init() { registerResolver(resolveCloudArmorRelationships) }
 //   - `securityPolicy` (top-level WAF policy applied at the LB edge)
 //   - `edgeSecurityPolicy` (separate edge-tier policy for Cloud CDN integration)
 //
-// Both are full SelfLink URLs and resolve against the in-store policy
-// catalog. Backend-bucket → securityPolicy edges deferred — backendBucket
-// also has an `edgeSecurityPolicy` field but the security-policy story for
-// CDN-fronted buckets is narrow vs. the LB-fronted services.
+// Both are full SelfLink URLs, resolved against the in-store policy catalog.
+// Backend-bucket → securityPolicy edges deferred: backendBucket also has an
+// `edgeSecurityPolicy` field, but CDN-fronted-bucket policy usage is narrow
+// vs. LB-fronted services.
 func resolveCloudArmorRelationships(p *project, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeSecurityPolicy},

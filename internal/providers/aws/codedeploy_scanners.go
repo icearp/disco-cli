@@ -31,9 +31,8 @@ type codeDeployAPI interface {
 	GetDeploymentConfig(context.Context, *codedeploy.GetDeploymentConfigInput, ...func(*codedeploy.Options)) (*codedeploy.GetDeploymentConfigOutput, error)
 }
 
-// scanCodeDeploy discovers applications, deployment groups (per app),
-// and deployment configurations (built-in CodeDeployDefault.* configs
-// flagged ManagedByProvider).
+// scanCodeDeploy discovers applications, deployment groups (per app), and
+// deployment configs (built-in CodeDeployDefault.* flagged ManagedByProvider).
 func scanCodeDeploy(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := codedeploy.NewFromConfig(acct.cfg, func(o *codedeploy.Options) { o.Region = region })
 

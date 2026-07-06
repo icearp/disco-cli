@@ -17,9 +17,8 @@ func init() { registerResolver(resolveJobsRelationships) }
 //
 // Cross-project SA refs skipped. Network edges (batch.job's
 // allocationPolicy.network.networkInterfaces[].network/subnetwork) deferred —
-// they reference compute network selfLinks but the lookup pattern is the same
-// as compute_resolvers; landing it here would duplicate that resolver's
-// shape without strong demand.
+// same selfLink lookup pattern as compute_resolvers; duplicating that
+// resolver's shape here lacks strong demand.
 func resolveJobsRelationships(p *project, st *store.Store) error {
 	saByEmail, err := buildSAEmailIndex(p, st)
 	if err != nil {

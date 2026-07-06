@@ -22,8 +22,8 @@ func init() {
 }
 
 // resolveIoTFWRefs wires every IoT FleetWise resource to the catalog/manifest
-// it references. Each summary already carries full ARN refs; FK-safe via
-// per-target scannedIDSet.
+// it references. Summaries carry full ARN refs; FK-safe via per-target
+// scannedIDSet.
 func resolveIoTFWRefs(acct *account, st *store.Store) error {
 	scSet, err := scannedIDSet(acct, st, TypeIoTFWSignalCatalog)
 	if err != nil {

@@ -26,17 +26,17 @@ type pager[P any] interface {
 
 // runPaginated drives a paginated List call with the boilerplate every GCP
 // scanner phase repeats: invoke req.Pages with a page handler that returns
-// (pageTotal, pageInserted, err), accumulate the totals, then classify the
-// final error via isPermissionDenied / skipIfDenied. Behavior:
+// (pageTotal, pageInserted, err), accumulate totals, then classify the final
+// error via isPermissionDenied / skipIfDenied. Behavior:
 //
-//   - API-not-enabled (`isAPINotEnabled`) → returns the wrapped errServiceDisabled
-//     sentinel so the dispatch loop renders "(project: disabled)".
+//   - API-not-enabled (`isAPINotEnabled`) → returns wrapped errServiceDisabled
+//     so the dispatch loop renders "(project: disabled)".
 //   - Real permission denial → records a ScanWarning, returns nil.
 //   - Other errors → propagated unwrapped.
 //
-// `action` is the per-API label used in any ScanWarning
-// (e.g. "pubsub:topics.list"). `pageHandler` builds and persists the batch
-// from each page and reports its own counts; counts are summed across pages.
+// `action` is the per-API label used in any ScanWarning (e.g.
+// "pubsub:topics.list"). `pageHandler` builds + persists the batch from each
+// page and reports its own counts; counts are summed across pages.
 func runPaginated[P any](ctx context.Context, st *store.Store, p *project, action string,
 	req pager[P], pageHandler func(*P) (int, int, error),
 ) (total, inserted int, err error) {
@@ -104,22 +104,22 @@ func gcpRegions(ctx context.Context, p *project) ([]string, error) {
 	return out, nil
 }
 
-// gcpRegionFanoutScan drives the per-region fan-out pattern shared by
-// GCP services that have no aggregated/wildcard list endpoint (Dataproc,
-// future per-region Spanner, AI Platform regional, etc.). It enumerates
-// enabled regions via gcpRegions, fans out one paginated list call per
-// region (concurrency-bounded by `concurrency`), accumulates resources
-// across all regions under a mutex, and finally upserts + closure-pairs
-// the batch with the project as parent.
+// gcpRegionFanoutScan drives the per-region fan-out pattern shared by GCP
+// services with no aggregated/wildcard list endpoint (Dataproc, future
+// per-region Spanner, AI Platform regional, etc.). Enumerates enabled regions
+// via gcpRegions, fans out one paginated list call per region
+// (concurrency-bounded by `concurrency`), accumulates resources across all
+// regions under a mutex, then upserts + closure-pairs the batch with the
+// project as parent.
 //
-// Per-region permission-denied + API-not-enabled are tolerated silently
-// per region (caller's region scope might be restricted) — other errors
-// propagate. action is the label fed to skipIfDenied for the warning
-// path. pagerFn returns a fresh pager per region. pageItems projects a
-// page into items. itemToResource shapes each item; returning nil skips.
+// Permission-denied + API-not-enabled tolerated silently per region (caller's
+// region scope might be restricted); other errors propagate. action is the
+// label fed to skipIfDenied for the warning path. pagerFn returns a fresh
+// pager per region. pageItems projects a page into items. itemToResource
+// shapes each item; returning nil skips.
 //
 // Generic over Page (P) and Item (T) — works against any
-// google.golang.org/api List request that exposes Pages(ctx, fn).
+// google.golang.org/api List request exposing Pages(ctx, fn).
 func gcpRegionFanoutScan[P any, T any](
 	ctx context.Context,
 	p *project,
@@ -139,8 +139,8 @@ func gcpRegionFanoutScan[P any, T any](
 
 // gcpRegionFanoutScanIn is the testable core of gcpRegionFanoutScan: same
 // fan-out + accumulate + upsert pipeline, but takes a pre-resolved region
-// slice instead of calling gcpRegions. Lets unit tests inject an arbitrary
-// region list (and skip the compute.Regions.List dependency).
+// slice instead of calling gcpRegions. Lets tests inject an arbitrary region
+// list, skipping the compute.Regions.List dependency.
 func gcpRegionFanoutScanIn[P any, T any](
 	ctx context.Context,
 	p *project,

@@ -12,19 +12,16 @@ func init() { registerResolver(resolveFirewallRelationships) }
 
 // resolveFirewallRelationships derives two firewall edge classes:
 //
-//  1. firewall -[attached-to]-> network (VPC) via the firewall's `network`
-//     URL.
-//  2. firewall -[uses]-> instance for every instance whose
-//     `tags.items[]` intersects the firewall's `targetTags[]` AND whose
-//     primary NIC's `network` matches the firewall's network. Firewalls
-//     with no targetTags are deliberately not exploded into per-instance
-//     edges — they apply to every instance in the network and the
-//     firewall→network edge already conveys that. Reverse-graph from the
-//     network surfaces the membership.
+//  1. firewall -[attached-to]-> network (VPC) via the firewall's `network` URL.
+//  2. firewall -[uses]-> instance for every instance whose `tags.items[]`
+//     intersects the firewall's `targetTags[]` AND whose primary NIC's
+//     `network` matches the firewall's network. Firewalls with no targetTags
+//     are not exploded into per-instance edges — they apply to every instance
+//     in the network, already conveyed by the firewall→network edge; reverse-graph
+//     from the network surfaces membership.
 //
-// targetServiceAccounts → service-account edges deferred — service-account
-// based firewall targeting is rarer than tag-based and the SA email index
-// pattern from R4.1 is reusable for that follow-up.
+// targetServiceAccounts → service-account edges deferred: rarer than tag-based
+// targeting, and the SA email index pattern from R4.1 is reusable for that follow-up.
 func resolveFirewallRelationships(p *project, st *store.Store) error {
 	fws, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeFirewall},
@@ -71,9 +68,8 @@ func resolveFirewallRelationships(p *project, st *store.Store) error {
 		return nil
 	}
 
-	// Fan out: per instance, check tags against each tag-targeting firewall
-	// in the same network. Linear scan acceptable — firewall counts and
-	// instance counts in a project are both modest.
+	// Fan out: per instance, check tags against each tag-targeting firewall in the
+	// same network. Linear scan is fine — firewall/instance counts per project are modest.
 	insts, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeInstance},
 		Limit: util.AllResources,

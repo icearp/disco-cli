@@ -44,9 +44,8 @@ func init() {
 }
 
 // resolveTSInfluxParameterGroup wires each Timestream-for-InfluxDB cluster +
-// instance to the DB parameter group it references (DbParameterGroupIdentifier,
-// the group's service id). Parameter groups are indexed by their Id since the
-// reference is the id, not the ARN.
+// instance to its referenced DB parameter group (DbParameterGroupIdentifier).
+// Parameter groups are indexed by Id, not ARN — that's what the reference uses.
 func resolveTSInfluxParameterGroup(acct *account, st *store.Store) error {
 	pgRows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTimestreamInfluxDBParameterGroup}, Limit: util.AllResources,
@@ -95,10 +94,9 @@ func resolveTSInfluxParameterGroup(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveTSInfluxRefs wires each Timestream-for-InfluxDB cluster + instance
-// to its VPC subnets, security groups, auth-parameters secret, and log
-// delivery S3 bucket. Cluster + instance share the same field set; resolver
-// loops both types.
+// resolveTSInfluxRefs wires each Timestream-for-InfluxDB cluster + instance to
+// its VPC subnets, security groups, auth-parameters secret, and log-delivery S3
+// bucket. Cluster and instance share the same fields, so it loops both types.
 func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
 	if err != nil {

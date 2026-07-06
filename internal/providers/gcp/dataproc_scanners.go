@@ -20,8 +20,8 @@ func init() {
 }
 
 // scanDataproc discovers Dataproc clusters in every enabled region of the
-// project. Dataproc has no aggregated/wildcard endpoint, so we delegate
-// per-region fan-out to gcpRegionFanoutScan.
+// project. Dataproc has no aggregated/wildcard endpoint, so per-region
+// fan-out delegates to gcpRegionFanoutScan.
 func scanDataproc(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := dataproc.NewService(ctx, opts...)

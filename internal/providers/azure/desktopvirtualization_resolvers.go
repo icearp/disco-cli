@@ -18,8 +18,8 @@ func init() {
 	)
 }
 
-// resolveDesktopVirtualizationRelationships wires the Azure Virtual Desktop
-// object graph (all ARM-ID references, matched case-insensitively):
+// resolveDesktopVirtualizationRelationships wires the AVD object graph
+// (ARM-ID references, matched case-insensitively):
 //   - application-group -[attached-to]-> host-pool   (properties.hostPoolArmPath)
 //   - workspace         -[attached-to]-> application-group (properties.applicationGroupReferences[])
 //   - scaling-plan      -[attached-to]-> host-pool   (properties.hostPoolReferences[].hostPoolArmPath)

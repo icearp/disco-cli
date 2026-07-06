@@ -12,9 +12,9 @@ import (
 )
 
 func main() {
-	// Cancel the command's context on the first SIGINT/SIGTERM so a running
-	// scan unwinds gracefully and its deferred store.Close() runs the WAL
-	// checkpoint+cleanup (no orphaned -wal/-shm sidecars). A second signal
+	// Cancel the command's context on first SIGINT/SIGTERM so a running scan
+	// unwinds gracefully and its deferred store.Close() runs the WAL
+	// checkpoint+cleanup (no orphaned -wal/-shm sidecars); a second signal
 	// restores the default handler and force-kills if shutdown hangs.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

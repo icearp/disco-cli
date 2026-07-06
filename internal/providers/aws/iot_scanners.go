@@ -8,9 +8,9 @@ import (
 )
 
 func init() {
-	// IoT emits are declared per family file via registerExtraEmits — the
-	// scanIoT dispatcher upserts no resources, only fans out to family
-	// scanners (things, certs/auth, defender, jobs, software, logging).
+	// IoT emits are declared per family file via registerExtraEmits — scanIoT
+	// upserts nothing itself, only fans out to family scanners (things,
+	// certs/auth, defender, jobs, software, logging).
 	registerService(serviceEntry{name: "aws:iot", fn: scanIoT})
 }
 

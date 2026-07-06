@@ -114,8 +114,8 @@ func scanVpcLattice(ctx context.Context, acct *account, region string, st *store
 	return total, inserted, nil
 }
 
-// vlListenerKey carries (serviceArn, listenerArn) needed for ListRules
-// — Rules require both ServiceIdentifier and ListenerIdentifier.
+// vlListenerKey carries (serviceArn, listenerArn) — ListRules requires
+// both ServiceIdentifier and ListenerIdentifier.
 type vlListenerKey struct {
 	svcARN string
 	lstARN string
@@ -294,8 +294,8 @@ func scanVLTargetGroups(ctx context.Context, client vpcLatticeAPI, acct *account
 	return upsertBatch(st, batch, "vpclattice target-groups")
 }
 
-// scanVLAccessLogSubs runs per (service or service-network) — each
-// resource can have its own access log subscription.
+// scanVLAccessLogSubs runs per (service or service-network) — each can
+// have its own access log subscription.
 func scanVLAccessLogSubs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, svcARNs, netARNs []string) (int, int, error) {
 	var batch []*store.Resource
 	for _, ra := range append(append([]string{}, svcARNs...), netARNs...) {
@@ -444,7 +444,7 @@ func scanVLResourceConfigs(ctx context.Context, client vpcLatticeAPI, acct *acco
 }
 
 // scanVLResourceEndpointAssocs fans out ListResourceEndpointAssociations per
-// resource-configuration (the op requires ResourceConfigurationIdentifier).
+// resource-configuration (op requires ResourceConfigurationIdentifier).
 // NativeID = the VPC endpoint association ARN.
 func scanVLResourceEndpointAssocs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, rcARNs []string) (int, int, error) {
 	if len(rcARNs) == 0 {
@@ -538,8 +538,8 @@ func scanVLSNRA(ctx context.Context, client vpcLatticeAPI, acct *account, region
 	return upsertBatch(st, batch, "vpclattice service-network-resource-associations")
 }
 
-// scanVLSNSA requires either ServiceNetworkIdentifier or ServiceIdentifier per
-// call. Fan-out across service-network ARNs enumerated by scanVLServiceNetworks.
+// scanVLSNSA requires ServiceNetworkIdentifier or ServiceIdentifier per call.
+// Fans out across service-network ARNs from scanVLServiceNetworks.
 func scanVLSNSA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, netARNs []string) (int, int, error) {
 	if len(netARNs) == 0 {
 		return 0, 0, nil
@@ -576,8 +576,8 @@ func scanVLSNSA(ctx context.Context, client vpcLatticeAPI, acct *account, region
 	return upsertBatch(st, batch, "vpclattice service-network-service-associations")
 }
 
-// scanVLSNVA requires either ServiceNetworkIdentifier or VpcIdentifier per
-// call. Fan-out across service-network ARNs enumerated by scanVLServiceNetworks.
+// scanVLSNVA requires ServiceNetworkIdentifier or VpcIdentifier per call.
+// Fans out across service-network ARNs from scanVLServiceNetworks.
 func scanVLSNVA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, netARNs []string) (int, int, error) {
 	if len(netARNs) == 0 {
 		return 0, 0, nil

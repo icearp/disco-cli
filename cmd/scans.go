@@ -178,7 +178,7 @@ func renderScanShow(sc *store.Scan, format string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(sc)
 	case "jsonl":
-		// Single record as one line. Provided for shape parity with the parent
+		// Single record as one line, for shape parity with the parent
 		// `disco scans -o jsonl` so consumers can pipe either form through
 		// `jq -c` without branching.
 		enc := json.NewEncoder(os.Stdout)

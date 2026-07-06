@@ -469,15 +469,11 @@ func resolveNMCGWAssociationRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
-// nmAttachmentCoreNetworkEdge emits a single attachment→core-network edge,
-// honouring the FK-safe id-set check. Shared body for the five attachment
-// resolvers — all wrap an `Attachment` SDK struct that carries
-// `CoreNetworkId`.
-//
-// The scanner stores the bare `Attachment` SDK struct as AttributesJSON for
-// the simple Vpc / SiteToSiteVpn / Connect / DirectConnectGateway /
-// TransitGatewayRouteTable rows (each surfaces via ListAttachments rather
-// than a sub-shape Describe), so the field is at the top level.
+// nmAttachmentCoreNetworkEdge emits one attachment→core-network edge, FK-safe
+// via the id-set check. Shared by the five attachment resolvers (Vpc /
+// SiteToSiteVpn / Connect / DirectConnectGateway / TransitGatewayRouteTable),
+// whose rows come from ListAttachments as the bare `Attachment` SDK struct —
+// so CoreNetworkId sits at the top level, not under a Describe sub-shape.
 func nmAttachmentCoreNetworkEdge(acct *account, st *store.Store, r store.Resource, coreSet map[string]bool, label string) error {
 	var attrs struct {
 		CoreNetworkID  *string `json:"CoreNetworkId"`
@@ -522,9 +518,8 @@ func resolveNMVpcAttachmentRefs(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range rows {
-		// VpcAttachment rows are stored from ListAttachments which yields
-		// `Attachment`. The CoreNetworkId / ResourceArn fields live at the
-		// top level of that struct.
+		// VpcAttachment rows come from ListAttachments (`Attachment`);
+		// CoreNetworkId / ResourceArn live at the top level of that struct.
 		if err := nmAttachmentCoreNetworkEdge(acct, st, r, coreSet, "nm-vpc-attachment"); err != nil {
 			return err
 		}
@@ -584,8 +579,8 @@ func resolveNMTGWRouteTableAttachmentRefs(acct *account, st *store.Store) error 
 }
 
 // nmSimpleAttachmentResolver runs the CoreNetwork edge for any attachment
-// type whose AttributesJSON is the bare `Attachment` SDK struct (i.e.
-// produced by ListAttachments).
+// type whose AttributesJSON is the bare `Attachment` SDK struct (produced by
+// ListAttachments).
 func nmSimpleAttachmentResolver(acct *account, st *store.Store, rtype, label string) error {
 	rows, err := listNMResources(acct, st, rtype)
 	if err != nil {

@@ -44,11 +44,10 @@ func (s *stubIoTFW) ListVehicles(_ context.Context, _ *iotfleetwise.ListVehicles
 	return &iotfleetwise.ListVehiclesOutput{}, nil
 }
 
-// TestGateIoTFleetWiseClosedToAccount verifies the empty-message
-// AccessDeniedException — the closed-to-new-customers signal — yields a
-// not-entitled sentinel (the account can't self-enable IoT FleetWise) so the
-// dispatcher renders `(account: not entitled)` instead of N per-phase
-// warnings.
+// TestGateIoTFleetWiseClosedToAccount verifies an empty-message
+// AccessDeniedException (closed-to-new-customers) yields a not-entitled
+// sentinel — the account can't self-enable IoT FleetWise — so the dispatcher
+// renders `(account: not entitled)` instead of N per-phase warnings.
 func TestGateIoTFleetWiseClosedToAccount(t *testing.T) {
 	stub := &stubIoTFW{
 		listCampaignsErr: &smithy.GenericAPIError{Code: "AccessDeniedException", Message: ""},
@@ -62,9 +61,9 @@ func TestGateIoTFleetWiseClosedToAccount(t *testing.T) {
 	}
 }
 
-// TestGateIoTFleetWiseRealIAMDenial verifies that a per-op IAM denial with
-// an action-identifying message does NOT trip the gate — the per-phase
-// skipIfAccessDenied path keeps handling it as a warning.
+// TestGateIoTFleetWiseRealIAMDenial verifies a per-op IAM denial with an
+// action-identifying message does NOT trip the gate — skipIfAccessDenied
+// still handles it as a warning.
 func TestGateIoTFleetWiseRealIAMDenial(t *testing.T) {
 	stub := &stubIoTFW{
 		listCampaignsErr: &smithy.GenericAPIError{

@@ -152,7 +152,7 @@ func scanOmicsAnnotationStores(ctx context.Context, client omicsAPI, acct *accou
 
 // scanOmicsAnnotationStoreVersions lists versions for one annotation store
 // (ListAnnotationStoreVersions requires the store Name). NativeID = the version
-// ARN; the resolver wires version→annotation-store via the StoreId attribute.
+// ARN; the resolver wires version→annotation-store via StoreId.
 func scanOmicsAnnotationStoreVersions(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID, storeName string) (int, int, error) {
 	name := storeName
 	pager := omics.NewListAnnotationStoreVersionsPaginator(client, &omics.ListAnnotationStoreVersionsInput{Name: &name})
@@ -263,7 +263,7 @@ func scanOmicsReferenceStores(ctx context.Context, client omicsAPI, acct *accoun
 
 // scanOmicsReferences lists references for one reference store (ListReferences
 // requires ReferenceStoreId). NativeID = the reference ARN; the resolver wires
-// reference→reference-store via the ReferenceStoreId attribute.
+// reference→reference-store via ReferenceStoreId.
 func scanOmicsReferences(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID, refStoreID string) (int, int, error) {
 	rsid := refStoreID
 	pager := omics.NewListReferencesPaginator(client, &omics.ListReferencesInput{ReferenceStoreId: &rsid})

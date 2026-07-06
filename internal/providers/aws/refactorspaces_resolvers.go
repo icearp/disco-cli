@@ -17,8 +17,8 @@ func init() {
 	)
 }
 
-// rsParentARN slices a NativeID up to (but not including) the segment marker
-// `/<segment>/`. Returns the prefix when the segment is present.
+// rsParentARN slices a NativeID up to (not including) the `/<segment>/` marker,
+// or returns "" if the marker is absent.
 func rsParentARN(arn, segment string) string {
 	i := strings.Index(arn, "/"+segment+"/")
 	if i < 0 {
@@ -27,12 +27,11 @@ func rsParentARN(arn, segment string) string {
 	return arn[:i]
 }
 
-// rsServiceARN reconstructs the service ARN from a route NativeID. Route:
-// `…/application/{appId}/route/{routeId}` — service NativeID has the same
-// `…/application/{appId}` prefix plus `/service/{serviceId}`. We can't recover
-// the service id from a route ARN alone (route doesn't reference it textually),
-// so this resolver wires routes only to their application — service edges
-// require a ServiceId attribute lookup.
+// rsServiceARN: route ARN `…/application/{appId}/route/{routeId}` shares the
+// `…/application/{appId}` prefix with service ARN
+// `…/application/{appId}/service/{serviceId}`, but never encodes the service
+// id — so this resolver wires routes only to their application; service
+// edges need a ServiceId attribute lookup.
 func resolveRefactorSpacesHierarchy(acct *account, st *store.Store) error {
 	envSet, err := scannedIDSet(acct, st, TypeRefactorSpacesEnvironment)
 	if err != nil {

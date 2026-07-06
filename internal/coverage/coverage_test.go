@@ -88,8 +88,8 @@ func TestBuild_DedupesEmits(t *testing.T) {
 }
 
 func TestBuild_NotScannableReclassifiesUncovered(t *testing.T) {
-	// No emits: every upstream entry is leftover. The skip map should pull the
-	// declared key into not-scannable (with its reason); the rest stay uncovered.
+	// No emits: every upstream entry is leftover. Skip map pulls the declared
+	// key into not-scannable (with its reason); the rest stay uncovered.
 	upstream := []UpstreamType{
 		{Key: "AWS::EC2::Route", Service: "EC2"},
 		{Key: "AWS::EC2::Instance", Service: "EC2"},
@@ -143,9 +143,9 @@ func TestRenderMarkdown_HasSections(t *testing.T) {
 }
 
 // TestCanonicalDuplicateMatching: when a provider supplies a CanonicalKey, an
-// unmatched upstream key whose canonical identity equals an already-covered
-// key's identity is reclassified as a covered cross-catalog duplicate (carrying
-// a "duplicate of …" Reason) rather than left as an actionable uncovered gap.
+// unmatched upstream key whose canonical identity matches an already-covered
+// key's is reclassified as a covered cross-catalog duplicate (carrying a
+// "duplicate of …" Reason) instead of an actionable uncovered gap.
 func TestCanonicalDuplicateMatching(t *testing.T) {
 	emits := []TypeDecl{{Service: "amplify", DiscoType: "aws:amplify:app"}}
 	aliases := map[string]string{"aws:amplify:app": "AWS::Amplify::App"}
@@ -199,8 +199,8 @@ func TestCanonicalDuplicateMatching(t *testing.T) {
 }
 
 // A skip declared under one catalog's spelling (SR hyphenated) must also mark
-// the cross-catalog twin (CFN PascalCase) not-scannable via canonical matching,
-// so each divergent service needs only one skip entry.
+// the cross-catalog twin (CFN PascalCase) not-scannable via canonical
+// matching — each divergent service needs only one skip entry.
 func TestSkipMatchesCanonicalTwin(t *testing.T) {
 	skips := map[string]string{
 		"AWS::aws-external-anthropic::workspace": "no SDK: external-partner prefix",

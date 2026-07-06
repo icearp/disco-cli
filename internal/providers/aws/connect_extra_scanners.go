@@ -17,7 +17,7 @@ func init() {
 	)
 }
 
-// connectExtraAPI is the narrow surface used by the extra per-instance leaf
+// connectExtraAPI is the narrow surface for the extra per-instance leaf
 // families (custom transcription vocabularies, agent authentication profiles).
 type connectExtraAPI interface {
 	SearchVocabularies(context.Context, *connect.SearchVocabulariesInput, ...func(*connect.Options)) (*connect.SearchVocabulariesOutput, error)

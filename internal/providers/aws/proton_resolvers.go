@@ -32,9 +32,8 @@ func init() {
 }
 
 // protonNameIndex maps (region, Name) → resourceID for scanned rows of rtype.
-// Proton names are unique per (account, region); keying on region disambiguates
-// a name that recurs across regions. IDs come from scanned rows, so every hit
-// is FK-safe.
+// Proton names are unique per (account, region); the region key avoids collisions
+// across regions. IDs come from scanned rows, so every hit is FK-safe.
 func protonNameIndex(acct *account, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype},
@@ -143,10 +142,9 @@ func resolveProtonServiceInstanceTargets(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveProtonComponentTargets emits each component → the service instance it
-// is attached to (attached-to), keyed by (region, ServiceName, InstanceName).
-// Components not attached to an instance (ServiceName/ServiceInstanceName empty)
-// emit no edge.
+// resolveProtonComponentTargets emits each component → its service instance
+// (attached-to), keyed by (region, ServiceName, InstanceName). Components with
+// empty ServiceName/ServiceInstanceName emit no edge.
 func resolveProtonComponentTargets(acct *account, st *store.Store) error {
 	components, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeProtonComponent},

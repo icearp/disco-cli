@@ -56,11 +56,10 @@ func scanB2BI(ctx context.Context, acct *account, region string, st *store.Store
 	return total, inserted, nil
 }
 
-// gateB2BI probes the cheapest list op once. B2B Data Interchange is
-// deployed in a subset of regions only; unsupported regions return
-// empty-message AccessDeniedException. B2BI is closed to new customers, so the
-// account can't self-enable it — short-circuit via markServiceNotEntitled so the
-// dispatcher renders (account: not entitled) once.
+// gateB2BI probes the cheapest list op once. B2BI deploys to a region subset;
+// unsupported regions return empty-message AccessDeniedException. B2BI is
+// closed to new customers, so the account can't self-enable — short-circuit
+// via markServiceNotEntitled so the dispatcher renders (account: not entitled) once.
 func gateB2BI(ctx context.Context, client b2biAPI) error {
 	mr := int32(1)
 	_, err := client.ListProfiles(ctx, &b2bi.ListProfilesInput{MaxResults: &mr})

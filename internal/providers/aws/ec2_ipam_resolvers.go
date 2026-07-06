@@ -25,9 +25,8 @@ func init() {
 	)
 }
 
-// resolveIPAMRelationships: IPAM scopes are owned by an IPAM — each scope
-// in the attributes IpamArn field points back to its parent IPAM.
-// (Relationship written from the scope, not the IPAM itself.)
+// resolveIPAMRelationships: IPAM scopes are owned by an IPAM — each scope's
+// attrs.IpamArn points back to its parent IPAM (edge written from the scope).
 func resolveIPAMRelationships(_ *account, _ *store.Store) error {
 	// Top-level; no parent to relate to. Reserved for future cross-resource edges.
 	return nil
