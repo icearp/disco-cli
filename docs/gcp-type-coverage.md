@@ -263,12 +263,24 @@ testable `scanCloudKMSWithClient` core (test-seam pattern, `internal/providers/C
 | cloudkms ImportJob | cloudkms/v1 ImportJobsService | List(parent) | fan-out per KeyRing |
 | cloudkms KeyHandle | cloudkms/v1 KeyHandlesService | List(parent) | project |
 | cloudkms SingleTenantHsmInstance | cloudkms/v1 SingleTenantHsmInstancesService | List(parent) | project |
-| cloudresourcemanager TagKey | cloudresourcemanager/v3 TagKeysService | List() | org |
+| cloudresourcemanager TagKey | cloudresourcemanager/v3 TagKeysService | List(parent) | org **and** project — a TagKey can be parented directly by either (`TagKey.Parent` doc), so both `scanCRMTags` (org-wide) and `scanCRMLiensAndBindings` (per-project) call `TagKeys.List` |
 | cloudresourcemanager TagValue | cloudresourcemanager/v3 TagValuesService | List(parent) | fan-out per TagKey |
-| cloudresourcemanager TagBinding | cloudresourcemanager/v3 TagBindingsService | List(parent) | fan-out per resource |
-| cloudresourcemanager EffectiveTag | cloudresourcemanager/v3 EffectiveTagsService | List(parent) | fan-out per resource |
+| cloudresourcemanager TagBinding | cloudresourcemanager/v3 TagBindingsService | List(parent) | **scoped down to project resource only**, not the API's full per-resource fan-out — see below |
+| cloudresourcemanager EffectiveTag | cloudresourcemanager/v3 EffectiveTagsService | List(parent) | **scoped down to project resource only** — see below |
 | cloudresourcemanager TagHold | cloudresourcemanager/v3 TagValuesTagHoldsService | List(parent) | fan-out per TagValue |
 | cloudresourcemanager Lien | cloudresourcemanager/v3 LiensService | List(parent) | project |
+
+**8b — cloudresourcemanager, implemented.** TagBinding/EffectiveTag formally
+accept any Google Cloud resource as `parent`, but enumerating every scanned
+resource of every type in a project to check for tag bindings would multiply
+the API-call count across the entire scan for a feature most commonly used at
+the project/folder/org level. Scoped down to the project resource itself only
+(same judgment call as Wave 7's ReservationSlot deferral) — per-resource
+TagBinding/EffectiveTag rows are a known, accepted gap, not yet implemented.
+TagBindings/EffectiveTags require the full-resource-name form of `parent`
+(`//cloudresourcemanager.googleapis.com/projects/{number}`), built from the
+project NUMBER; skipped (not an error) for any project whose number wasn't
+resolved during hierarchy discovery (permission-denied `Projects.Get`).
 | accesscontextmanager AccessLevel | accesscontextmanager/v1 AccessPoliciesAccessLevelsService | List(parent) | fan-out per AccessPolicy (already scanned) |
 | accesscontextmanager AuthorizedOrgsDesc | accesscontextmanager/v1 AccessPoliciesAuthorizedOrgsDescsService | List(parent) | fan-out per AccessPolicy |
 | accesscontextmanager GcpUserAccessBinding | accesscontextmanager/v1 OrganizationsGcpUserAccessBindingsService | List(parent) | org |

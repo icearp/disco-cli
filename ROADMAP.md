@@ -81,10 +81,15 @@ BackendService dual-type split, TargetInstance, TargetPool), and Wave 7 (Compute
 reservations: Autoscaler/RegionAutoscaler, Reservation → ReservationBlock →
 ReservationSubBlock 3-level nested fan-out, FutureReservation, RegionCommitment,
 ResourcePolicy, RegionSecurityPolicy — ReservationSlot, a 4th nesting level with unbounded
-per-subblock cardinality and no edges of its own, deferred) landed; remaining waves tracked
-here, implement independently in any order:
+per-subblock cardinality and no edges of its own, deferred), Wave 8a (cloudkms:
+CryptoKeyVersion, EkmConnection, ImportJob, KeyHandle, SingleTenantHsmInstance, inlined into the
+existing `scanCloudKMS` nested loops), and Wave 8b (cloudresourcemanager: TagKey/TagValue/TagHold
+3-level nested fan-out from both org and project entry points — a TagKey can be parented by
+either; Lien/TagBinding/EffectiveTag project-scoped, the latter two deliberately not fanned out
+to every scanned resource per docs/gcp-type-coverage.md) landed; remaining waves tracked here,
+implement independently in any order:
 
-- **Wave 8** — Security-critical secondary services: cloudkms, cloudresourcemanager Tags, accesscontextmanager `AccessLevel`, sqladmin, dns, cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
+- **Wave 8 (remaining: 8c-8g)** — accesscontextmanager `AccessLevel`, sqladmin, dns, cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
 - **Wave 9** — Observability: logging (Bucket/Exclusion/Metric/View/LogScope), monitoring (Dashboard/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
 - **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.

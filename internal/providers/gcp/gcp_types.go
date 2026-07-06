@@ -8,6 +8,13 @@ const (
 	TypeOrganization = "gcp:cloudresourcemanager:organization"
 	TypeFolder       = "gcp:cloudresourcemanager:folder"
 	TypeProject      = "gcp:cloudresourcemanager:project"
+	// Cloud Resource Manager — Tags + Liens (Wave 8b of the type-coverage buildout)
+	TypeTagKey       = "gcp:cloudresourcemanager:tag-key"
+	TypeTagValue     = "gcp:cloudresourcemanager:tag-value"
+	TypeTagBinding   = "gcp:cloudresourcemanager:tag-binding"
+	TypeEffectiveTag = "gcp:cloudresourcemanager:effective-tag"
+	TypeTagHold      = "gcp:cloudresourcemanager:tag-hold"
+	TypeLien         = "gcp:cloudresourcemanager:lien"
 	// Compute Engine
 	TypeComputeInstance         = "gcp:compute:instance"
 	TypeComputeNetwork          = "gcp:compute:network"

@@ -22,6 +22,7 @@ var expectedGCPServices = []string{
 	"gcp:clouddns",
 	"gcp:cloudfunctions",
 	"gcp:cloudkms",
+	"gcp:cloudresourcemanager-liens",
 	"gcp:cloudrun",
 	"gcp:cloudrunjobs",
 	"gcp:composer",
@@ -96,6 +97,7 @@ func TestFilteredServices_Subset(t *testing.T) {
 // (e.g. VPC Service Controls, folder/org IAM policies, org Logging sinks).
 var expectedGCPOrgServices = []string{
 	"gcp:cloudidentity",
+	"gcp:cloudresourcemanager-tags",
 	"gcp:iam-policy-org",
 	"gcp:logging-org",
 	"gcp:vpcsc",
