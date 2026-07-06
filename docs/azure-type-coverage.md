@@ -9,25 +9,29 @@ listable user resource). Provider-managed resources (auto-materialised + not
 user-deletable) are scanned with `managed_by_provider=true` and hidden from
 default `resources`/`graph`/`check` unless `--include-managed`.
 
-Generated 2026-06-17. Regenerate the candidate set with the coverage command above.
+Generated 2026-06-17, refreshed 2026-07-06: re-diffed against a fresh
+`--filter uncovered` run, corrected 7 stale INCLUDE rows (4 rows for RPs retired by
+the 2026-06-27 cleanup commit, 3 rows with wrong upstream keys), and filed the 35
+type keys the new run surfaced that weren't in the 6/17 ledger (20 nested-child
+DEFER, 15 top-level DROP — none had an importable SDK module). Regenerate the
+candidate set with the coverage command above.
 
 ## Totals
 
 | Bucket | Count |
 |---|---|
-| Top-level types adjudicated | 1900 |
-| — INCLUDE (scannable) | 182 |
+| Top-level types adjudicated | 1916 |
+| — INCLUDE (scannable) | 172 |
 | — DEFER (parent-scoped) | 32 |
-| — DROP (probed: no list / no module / query / third-party) | 304 |
-| — DROP (pattern: operations/metadata/action-verb) | 778 |
+| — DROP (probed: no list / no module / query / third-party) | 328 |
+| — DROP (pattern: operations/metadata/action-verb) | 780 |
 | — DROP (namespace: third-party / billing / query / metadata RP) | 604 |
-| Nested child types (bulk DEFER parent-scoped) | 2319 |
+| Nested child types (bulk DEFER parent-scoped) | 2337 |
 
 ## INCLUDE — scanners added (work-list)
 
 | Type | Module | List op | Item | Managed | Secrets |
 |---|---|---|---|---|---|
-| microsoft.app/builders | appcontainers/armappcontainers/v3 | BuildersClient.NewListBySubscriptionPager | BuilderResource | false | - |
 | microsoft.app/connectedenvironments | appcontainers/armappcontainers/v3 | ConnectedEnvironmentsClient.NewListBySubscriptionPager | ConnectedEnvironment | false | - |
 | microsoft.app/jobs | appcontainers/armappcontainers/v3 | JobsClient.NewListBySubscriptionPager | Job | false | properties.configuration.secrets.value |
 | microsoft.app/sessionpools | appcontainers/armappcontainers/v3 | ContainerAppsSessionPoolsClient.NewListBySubscriptionPager | SessionPool | false | - |
@@ -53,8 +57,8 @@ Generated 2026-06-17. Regenerate the candidate set with the coverage command abo
 | microsoft.cloudhealth/healthmodels | cloudhealth/armcloudhealth | HealthModelsClient.NewListBySubscriptionPager | HealthModel | false | - |
 | microsoft.codesigning/codesigningaccounts | trustedsigning/armtrustedsigning | CodeSigningAccountsClient.NewListBySubscriptionPager | CodeSigningAccount | false | - |
 | microsoft.cognitiveservices/commitmentplans | cognitiveservices/armcognitiveservices | CommitmentPlansClient.NewListPlansBySubscriptionPager | CommitmentPlan | false | - |
-| microsoft.connectedcache/enterprisecustomers | connectedcache/armconnectedcache | EnterpriseMccCustomersClient.NewListBySubscriptionPager | EnterpriseMccCustomerResource | false | - |
-| microsoft.connectedcache/enterprisemcccustomers | connectedcache/armconnectedcache | EnterpriseMccCustomersClient.NewListBySubscriptionPager | EnterpriseMccCustomerResource | false | - |
+| microsoft.connectedcache/enterprisecustomers[^1] | connectedcache/armconnectedcache | EnterpriseMccCustomersClient.NewListBySubscriptionPager | EnterpriseMccCustomerResource | false | - |
+| microsoft.connectedcache/enterprisemcccustomers[^1] | connectedcache/armconnectedcache | EnterpriseMccCustomersClient.NewListBySubscriptionPager | EnterpriseMccCustomerResource | false | - |
 | microsoft.connectedcache/ispcustomers | connectedcache/armconnectedcache | IspCustomersClient.NewListBySubscriptionPager | IspCustomerResource | false | - |
 | microsoft.connectedvmwarevsphere/clusters | connectedvmware/armconnectedvmware | ClustersClient.NewListPager | Cluster | false | - |
 | microsoft.connectedvmwarevsphere/datastores | connectedvmware/armconnectedvmware | DatastoresClient.NewListPager | Datastore | false | - |
@@ -65,15 +69,11 @@ Generated 2026-06-17. Regenerate the candidate set with the coverage command abo
 | microsoft.containerservice/fleets | containerservicefleet/armcontainerservicefleet/v3 | FleetsClient.NewListBySubscriptionPager | Fleet | false | - |
 | microsoft.containerservice/snapshots | containerservice/armcontainerservice/v6 | SnapshotsClient.NewListPager | Snapshot | false | - |
 | microsoft.customproviders/resourceproviders | customproviders/armcustomproviders | CustomResourceProviderClient.NewListBySubscriptionPager | CustomRPManifest | false | - |
-| microsoft.dashboard/dashboards | dashboard/armdashboard | GrafanaClient.NewListPager | ManagedGrafana | false | - |
+| microsoft.dashboard/grafana | dashboard/armdashboard | GrafanaClient.NewListPager | ManagedGrafana | false | - |
 | microsoft.databricks/accessconnectors | databricks/armdatabricks | AccessConnectorsClient.NewListBySubscriptionPager | AccessConnector | false | - |
-| microsoft.datalakeanalytics/accounts | datalake-analytics/armdatalakeanalytics | AccountsClient.NewListPager | AccountBasic | false | - |
 | microsoft.dataprotection/resourceguards | dataprotection/armdataprotection | ResourceGuardsClient.NewGetResourcesInSubscriptionPager | ResourceGuardResource | false | - |
 | microsoft.datareplication/replicationfabrics | recoveryservicesdatareplication/armrecoveryservicesdatareplication | FabricClient.NewListBySubscriptionPager | FabricModel | false | - |
 | microsoft.datareplication/replicationvaults | recoveryservicesdatareplication/armrecoveryservicesdatareplication | VaultClient.NewListBySubscriptionPager | VaultModel | false | - |
-| microsoft.dbformariadb/servers | mariadb/armmariadb | ServersClient.NewListPager | Server | false | - |
-| microsoft.dbformysql/servers | mysql/armmysql | ServersClient.NewListPager | Server | false | - |
-| microsoft.dbforpostgresql/servers | postgresql/armpostgresql | ServersClient.NewListPager | Server | false | - |
 | microsoft.dependencymap/maps | dependencymap/armdependencymap | MapsClient.NewListBySubscriptionPager | MapsResource | false | - |
 | microsoft.desktopvirtualization/appattachpackages | desktopvirtualization/armdesktopvirtualization/v2 | AppAttachPackageClient.NewListBySubscriptionPager | AppAttachPackage | false | - |
 | microsoft.devcenter/networkconnections | devcenter/armdevcenter | NetworkConnectionsClient.NewListBySubscriptionPager | NetworkConnection | false | - |
@@ -107,7 +107,7 @@ Generated 2026-06-17. Regenerate the candidate set with the coverage command abo
 | microsoft.maintenance/configurationassignments | maintenance/armmaintenance | ConfigurationAssignmentsWithinSubscriptionClient.NewListPager | ConfigurationAssignment | false | - |
 | microsoft.maintenance/publicmaintenanceconfigurations | maintenance/armmaintenance | PublicMaintenanceConfigurationsClient.NewListPager | MaintenanceConfiguration | true | - |
 | microsoft.managednetworkfabric/accesscontrollists | managednetworkfabric/armmanagednetworkfabric | AccessControlListsClient.NewListBySubscriptionPager | AccessControlList | false | - |
-| microsoft.managednetworkfabric/fabrics | managednetworkfabric/armmanagednetworkfabric | NetworkFabricsClient.NewListBySubscriptionPager | NetworkFabric | false | - |
+| microsoft.managednetworkfabric/networkfabrics | managednetworkfabric/armmanagednetworkfabric | NetworkFabricsClient.NewListBySubscriptionPager | NetworkFabric | false | - |
 | microsoft.managednetworkfabric/internetgatewayrules | managednetworkfabric/armmanagednetworkfabric | InternetGatewayRulesClient.NewListBySubscriptionPager | InternetGatewayRule | false | - |
 | microsoft.managednetworkfabric/internetgateways | managednetworkfabric/armmanagednetworkfabric | InternetGatewaysClient.NewListBySubscriptionPager | InternetGateway | false | - |
 | microsoft.managednetworkfabric/ipcommunities | managednetworkfabric/armmanagednetworkfabric | IPCommunitiesClient.NewListBySubscriptionPager | IPCommunity | false | - |
@@ -132,12 +132,10 @@ Generated 2026-06-17. Regenerate the candidate set with the coverage command abo
 | microsoft.network/azurewebcategories | network/armnetwork/v6 | WebCategoriesClient.NewListBySubscriptionPager | AzureWebCategory | true | - |
 | microsoft.network/bastionhosts | network/armnetwork/v6 | BastionHostsClient.NewListPager | BastionHost | false | - |
 | microsoft.network/bgpservicecommunities | network/armnetwork/v6 | BgpServiceCommunitiesClient.NewListPager | BgpServiceCommunity | true | - |
-| microsoft.networkcloud/accessbridges | networkcloud/armnetworkcloud | AccessBridgesClient.NewListBySubscriptionPager | AccessBridge | false | - |
 | microsoft.networkcloud/baremetalmachines | networkcloud/armnetworkcloud | BareMetalMachinesClient.NewListBySubscriptionPager | BareMetalMachine | false | - |
 | microsoft.networkcloud/cloudservicesnetworks | networkcloud/armnetworkcloud | CloudServicesNetworksClient.NewListBySubscriptionPager | CloudServicesNetwork | false | - |
 | microsoft.networkcloud/clustermanagers | networkcloud/armnetworkcloud | ClusterManagersClient.NewListBySubscriptionPager | ClusterManager | false | - |
 | microsoft.networkcloud/kubernetesclusters | networkcloud/armnetworkcloud | KubernetesClustersClient.NewListBySubscriptionPager | KubernetesCluster | false | - |
-| microsoft.networkcloud/kubernetesversions | networkcloud/armnetworkcloud | KubernetesVersionsClient.NewListBySubscriptionPager | KubernetesVersion | true | - |
 | microsoft.networkcloud/l2networks | networkcloud/armnetworkcloud | L2NetworksClient.NewListBySubscriptionPager | L2Network | false | - |
 | microsoft.networkcloud/l3networks | networkcloud/armnetworkcloud | L3NetworksClient.NewListBySubscriptionPager | L3Network | false | - |
 | microsoft.networkcloud/rackskus | networkcloud/armnetworkcloud | RackSKUsClient.NewListBySubscriptionPager | RackSKU | true | - |
@@ -205,8 +203,14 @@ Generated 2026-06-17. Regenerate the candidate set with the coverage command abo
 | microsoft.streamanalytics/clusters | streamanalytics/armstreamanalytics | ClustersClient.NewListBySubscriptionPager | Cluster | false | - |
 | microsoft.synapse/privatelinkhubs | synapse/armsynapse | PrivateLinkHubsClient.NewListPager | PrivateLinkHub | false | - |
 | microsoft.virtualmachineimages/imagetemplates | virtualmachineimagebuilder/armvirtualmachineimagebuilder | VirtualMachineImageTemplatesClient.NewListPager | ImageTemplate | false | - |
-| microsoft.web/containerapps | appservice/armappservice | ContainerAppsClient.NewListBySubscriptionPager | ContainerApp | false | - |
 | microsoft.workloads/monitors | workloads/armworkloads | MonitorsClient.NewListPager | Monitor | false | - |
+
+[^1]: Deliberate many-to-one collapse — both ARM keys map to the same disco type
+`TypeConnectedCacheEnterpriseCustomer` (commit `0ae603c`). `coverageProvider.Aliases()`
+(`azure_coverage.go`) sorts candidates and picks the shortest as canonical, so
+`--filter uncovered` always reports `enterprisemcccustomers` as the uncovered alias,
+deterministically across runs (previously flapped between the two on Go's randomized
+map iteration order).
 
 ## DEFER — parent-scoped (no subscription/RG-wide list)
 
@@ -326,16 +330,21 @@ microsoft.containerinstance/serviceassociationlinks	no-sdk-module
 microsoft.containerservice/aimanagers	no-sdk-module
 microsoft.containerservice/deploymentsafeguards	no-sdk-module
 microsoft.containerservice/managedclustersnapshots	no-sdk-module
+microsoft.dashboard/dashboards	no SDK client in armdashboard v1.2.0: distinct legacy type, not the Grafana resource (that's microsoft.dashboard/grafana); ledger previously conflated the two under one wrong key
 microsoft.databoxedge/availableskus	metadata/ops
 microsoft.datadog/activatesaas	third-party
 microsoft.datadog/agreements	third-party
 microsoft.datadog/monitors	third-party
 microsoft.datadog/subscriptionstatuses	third-party
+microsoft.datalakeanalytics/accounts	retiring: Data Lake Analytics RP retiring, scanner removed 2026-06-27 (commit 31b7ab2) — do not re-add
 microsoft.datamigration/databasemigrations	no-sdk-module
 microsoft.datamigration/migrationservices	no-sdk-module
 microsoft.datamigration/sqlmigrationservices	no-sdk-module
+microsoft.dbformariadb/servers	retiring: MariaDB RP retiring, scanner removed 2026-06-27 (commit 31b7ab2) — do not re-add
 microsoft.dbformysql/assessformigration	action-verb
+microsoft.dbformysql/servers	retiring: MySQL Single Server tier retiring, scanner removed 2026-06-27 (commit 31b7ab2) — Flexible Server tier stays covered under a different type
 microsoft.dbforpostgresql/availableengineversions	query-only
+microsoft.dbforpostgresql/servers	retiring: PostgreSQL Single Server tier retiring, scanner removed 2026-06-27 (commit 31b7ab2) — Flexible/Hyperscale tiers stay covered under different types
 microsoft.desktopvirtualization/connectionpolicies	no-sdk-module
 microsoft.desktopvirtualization/repositoryfolders	no-sdk-module
 microsoft.devhub/templates	query-only
@@ -366,6 +375,9 @@ microsoft.eventgrid/verifiedpartners	Global catalog of verified partners (metada
 microsoft.eventhub/availableclusterregions	Metadata: regions where clusters can be created, not resource instances
 microsoft.eventhub/sku	SKU metadata, not a listable tracked resource
 microsoft.fabric/privatelinkservicesforfabric	No client for this type in SDK (only CapacitiesClient/OperationsClient)
+microsoft.falcon/fleetnamespaces	no-sdk-module: no arm module for falcon (new RP, not yet published to Go SDK)
+microsoft.falcon/namespace	no-sdk-module: singular alias, likely a lookup endpoint not a resource; no arm module regardless
+microsoft.falcon/namespaces	no-sdk-module: no arm module for falcon (new RP, not yet published to Go SDK)
 microsoft.genome/accounts	No arm SDK module published
 microsoft.hanaonazure/hanainstances	Deprecated/retired service; no HanaInstances client in SDK module
 microsoft.hanaonazure/sapmonitors	Retired: HANA Large Instances decommissioned (Dec 2025); SAP monitor superseded by microsoft.workloads/monitors (scanned)
@@ -420,8 +432,14 @@ microsoft.managednetworkfabric/networkbootstrapinterfaces	no SDK client in armma
 microsoft.managednetworkfabric/networkmonitors	no SDK client in armmanagednetworkfabric
 microsoft.migrate/castscanreports	no SDK client in migrate/armmigrate
 microsoft.migrate/onpremtcodetails	no SDK client in migrate/armmigrate
+microsoft.mission/approvals	no-sdk-module: sibling of standalone microsoft.approvals namespace (already DROP, workflow/approval metadata not infra); no arm module for mission either
+microsoft.mission/catalogs	no-sdk-module: no arm module for mission (new RP, not yet published to Go SDK)
+microsoft.mission/communities	no-sdk-module: no arm module for mission (new RP, not yet published to Go SDK)
+microsoft.mission/enclaveconnections	no-sdk-module: no arm module for mission (new RP, not yet published to Go SDK)
+microsoft.mission/virtualenclaves	no-sdk-module: no arm module for mission (new RP, not yet published to Go SDK)
 microsoft.monitor/accounts	Azure Monitor Workspace: no resolvable Go SDK module
 microsoft.monitor/investigations	no SDK client / module
+microsoft.monitor/observabilityagents	no-sdk-module: sibling of accounts/investigations/pipelinegroups/settings/slis in same namespace, same no-module fate
 microsoft.monitor/pipelinegroups	no resolvable Go SDK module
 microsoft.monitor/settings	no SDK client / module
 microsoft.monitor/slisignalpreview	preview, no SDK client / module
@@ -444,6 +462,8 @@ microsoft.network/dnsoperationstatuses	metadata/ops (async operation status)
 microsoft.network/expressroutelags	no ExpressRouteLags client in armnetwork (LAGs surfaced under ExpressRoutePort)
 microsoft.network/expressrouteproviderports	metadata/ops (provider port lookup, not a tracked resource)
 microsoft.network/frontdooroperationresults	metadata/ops (async operation result)
+microsoft.networkcloud/accessbridges	no client in pinned armnetworkcloud v1.4.0: ledger row was aspirational, never implemented
+microsoft.networkcloud/kubernetesversions	no client in pinned armnetworkcloud v1.4.0: ledger row was aspirational, never implemented
 microsoft.networkfunction/copilot	action/feature verb, no listable resource client
 microsoft.networkfunction/meshvpns	no SDK client (armnetworkfunction has only AzureTrafficCollectors/CollectorPolicies)
 microsoft.orbital/spacecrafts	Retired: Azure Orbital ground-station service ended Dec 2024; microsoft.orbital/geocatalogs (Planetary Computer) still scanned
@@ -472,6 +492,7 @@ microsoft.offazure/vmwaresites	no SDK module: no offazure site arm module
 microsoft.openenergyplatform/energyservices	no SDK module: resourcemanager/openenergyplatform absent
 microsoft.operationalinsights/linktargets	metadata/ops: no LinkTargets client; available-to-link account enumeration, not a tracked resource
 microsoft.operationsmanagement/views	no SDK support: armoperationsmanagement has no Views client
+microsoft.partnerenrollment/maicppprograms	no-sdk-module: no arm module for partnerenrollment; partner-program enrollment status, not a customer resource
 microsoft.peering/cdnpeeringprefixes	query-only/catalog: NewListPager requires peeringLocation; read-only CDN prefix reference data, not a subscription-owned resource
 microsoft.peering/legacypeerings	query-only: NewListPager(peeringLocation,kind) enumerates legacy peerings for migration; discovery helper, not a tracked resource
 microsoft.peering/lookingglass	action-verb: LookingGlassClient exposes Invoke only, no List
@@ -526,6 +547,8 @@ microsoft.serviceshub/supportofferingentitlement	no-sdk-module: no arm module fo
 microsoft.serviceshub/workspaces	no-sdk-module: no arm module for serviceshub
 microsoft.singularity/accounts	no-sdk-module: no arm module for singularity
 microsoft.singularity/images	no-sdk-module: no arm module for singularity
+microsoft.sovereign/transparencylogs	no-sdk-module: audit/transparency log stream, query-only, no arm module surface
+microsoft.storage/contextcaches	no-sdk-module: mirrors microsoft.azurecontextcache/accounts, same preview feature via a second RP surface, armstorage doesn't cover it
 microsoft.storagecache/amlfilesystems	no-sdk-module: AmlFilesystemsClient absent from published GA module (v1.0.0)
 microsoft.storagecache/usagemodels	metadata: usage-model catalog
 microsoft.synapse/kustooperations	metadata/ops: KustoOperationsClient lists available operations
@@ -540,6 +563,7 @@ microsoft.web/billingmeters	metadata: billing-meter catalog
 microsoft.web/connectiongateways	no-sdk-module: API-connection gateway has no modern Go arm module
 microsoft.web/connections	no-sdk-module: Logic Apps API connections have no modern Go arm module
 microsoft.web/connectorgateways	no-sdk-module: connector gateway has no modern Go arm module
+microsoft.web/containerapps	duplicate: legacy Microsoft.Web/containerApps ContainerAppsClient (armappservice) is a preview-era alias RP for the same Container Apps resources already scanned under microsoft.app/containerapps (appcontainers); do not double-scan
 microsoft.web/customapis	no-sdk-module: Logic Apps custom APIs have no modern Go arm module
 microsoft.web/customhostnamesites	metadata: hostname-to-site lookup, not a tracked resource
 microsoft.web/deploymentlocations	metadata: deployment-location catalog
@@ -951,6 +975,8 @@ microsoft.extendedlocation/locations	metadata/ops
 microsoft.extendedlocation/operations	metadata/ops
 microsoft.fabric/locations	metadata/ops
 microsoft.fabric/operations	metadata/ops
+microsoft.falcon/locations	metadata/ops
+microsoft.falcon/operations	metadata/ops
 microsoft.features/operations	metadata/ops
 microsoft.fileshares/locations	metadata/ops
 microsoft.fileshares/operations	metadata/ops
@@ -2420,6 +2446,7 @@ microsoft.billing/transfers/accepttransfer
 microsoft.billing/transfers/declinetransfer
 microsoft.billing/transfers/operationstatus
 microsoft.billing/transfers/validatetransfer
+microsoft.billingtrust/assessments/rules
 microsoft.billingtrust/locations/operationstatuses
 microsoft.bing/accounts/customsearchconfigurations
 microsoft.bing/accounts/skus
@@ -2590,7 +2617,9 @@ microsoft.compute/galleries/scripts
 microsoft.compute/galleries/scripts/versions
 microsoft.computelimit/locations/features
 microsoft.computelimit/locations/guestsubscriptions
+microsoft.computelimit/locations/membercapoverrides
 microsoft.computelimit/locations/operationresults
+microsoft.computelimit/locations/sharedlimitcaps
 microsoft.computelimit/locations/sharedlimits
 microsoft.computelimit/locations/vmfamilies
 microsoft.compute/locations/artifactpublishers
@@ -2743,6 +2772,7 @@ microsoft.containerservice/fleets/managednamespaces
 microsoft.containerservice/fleets/members
 microsoft.containerservice/fleets/updateruns
 microsoft.containerservice/fleets/updatestrategies
+microsoft.containerservice/locations/aimodels
 microsoft.containerservice/locations/guardrailsversions
 microsoft.containerservice/locations/kubernetesversions
 microsoft.containerservice/locations/meshrevisionprofiles
@@ -3180,6 +3210,7 @@ microsoft.healthdataaiservices/deidservices/privatelinkresources
 microsoft.healthdataaiservices/locations/operationstatuses
 microsoft.horizondb/locations/azureasyncoperation
 microsoft.horizondb/locations/operationresults
+microsoft.horizondb/locations/privateendpointconnectionproxyazureasyncoperation
 microsoft.hybridcompute/locations/notifyextension
 microsoft.hybridcompute/locations/notifynetworksecurityperimeterupdatesavailable
 microsoft.hybridcompute/locations/notifyruncommand
@@ -3480,7 +3511,11 @@ microsoft.marketplace/publishers/offers/amendments
 microsoft.migrate/assessmentprojects/assessments
 microsoft.migrate/locations/operationstatuses
 microsoft.migrate/locations/rmsoperationresults
+microsoft.migrate/migrateprojects/createwavesfromplan
+microsoft.migrate/migrateprojects/fetchsasuri
 microsoft.migrate/migrateprojects/generatewaveplan
+microsoft.migrate/migrateprojects/getwaveplans
+microsoft.migrate/migrateprojects/importwaveplan
 microsoft.migrate/migrateprojects/migrationentities
 microsoft.migrate/migrateprojects/migrationentitygroups
 microsoft.migrate/migrateprojects/refreshentities
@@ -3490,7 +3525,12 @@ microsoft.migrate/migrateprojects/tasksummary
 microsoft.migrate/migrateprojects/waveoperations
 microsoft.migrate/migrateprojects/waves
 microsoft.migrate/migrateprojects/workloadoperations
+microsoft.mission/communities/communityendpoints
+microsoft.mission/communities/dedicatedhubs
+microsoft.mission/communities/transithubs
 microsoft.mission/locations/operationstatuses
+microsoft.mission/virtualenclaves/enclaveendpoints
+microsoft.mission/virtualenclaves/workloads
 microsoft.monitor/accounts/issues
 microsoft.monitor/locations/locationoperationstatuses
 microsoft.monitor/locations/operationresults
@@ -3551,6 +3591,7 @@ microsoft.network/dnszones/dnssecconfigs
 microsoft.network/dnszones/ds
 microsoft.network/dnszones/mx
 microsoft.network/dnszones/naptr
+microsoft.network/dnszones/ns
 microsoft.network/dnszones/ptr
 microsoft.network/dnszones/recordsets
 microsoft.network/dnszones/soa
@@ -3624,6 +3665,7 @@ microsoft.network/privatednszones/a
 microsoft.network/privatednszones/aaaa
 microsoft.network/privatednszones/all
 microsoft.network/privatednszones/cname
+microsoft.network/privatednszones/mx
 microsoft.network/privatednszones/ptr
 microsoft.network/privatednszones/soa
 microsoft.network/privatednszones/srv
@@ -4145,9 +4187,11 @@ microsoft.storagecache/locations/ascoperations
 microsoft.storagecache/locations/usages
 microsoft.storagediscovery/locations/operationstatuses
 microsoft.storagediscovery/storagediscoveryworkspaces/reports
+microsoft.storage/contextcaches/contextcachecontainers
 microsoft.storage/locations/actionsrpoperationstatuses
 microsoft.storage/locations/asyncoperations
 microsoft.storage/locations/checknameavailability
+microsoft.storage/locations/contextcacherpoperationstatuses
 microsoft.storage/locations/deletedaccounts
 microsoft.storage/locations/deletevirtualnetworkorsubnets
 microsoft.storage/locations/notifynetworksecurityperimeterupdatesavailable

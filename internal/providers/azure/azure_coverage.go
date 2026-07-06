@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -60,10 +61,27 @@ func (coverageProvider) ResolverEdgeSources() []string {
 // ARM type keys are stored lowercased ("microsoft.compute/virtualmachines")
 // to match coverage.Build's lowercased lookup. Multi-segment children
 // (e.g. "microsoft.network/virtualnetworks/subnets") preserved verbatim.
+//
+// azureAPITypeMap is intentionally many-to-one for a few documented aliases
+// (e.g. "microsoft.connectedcache/enterprisecustomers" and ".../enterprisemcccustomers"
+// both map to TypeConnectedCacheEnterpriseCustomer). A plain `range` picks
+// whichever upstream key Go's randomized map iteration visits last, so the
+// "covered" key flips between runs. Sort candidates and take the shortest
+// (tie-break lexicographic) as the canonical alias, deterministically.
 func (coverageProvider) Aliases() map[string]string {
-	out := make(map[string]string, len(azureAPITypeMap))
+	candidates := make(map[string][]string, len(azureAPITypeMap))
 	for upstream, disco := range azureAPITypeMap {
-		out[disco] = upstream
+		candidates[disco] = append(candidates[disco], upstream)
+	}
+	out := make(map[string]string, len(candidates))
+	for disco, upstreams := range candidates {
+		sort.Slice(upstreams, func(i, j int) bool {
+			if len(upstreams[i]) != len(upstreams[j]) {
+				return len(upstreams[i]) < len(upstreams[j])
+			}
+			return upstreams[i] < upstreams[j]
+		})
+		out[disco] = upstreams[0]
 	}
 	return out
 }
