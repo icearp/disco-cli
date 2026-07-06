@@ -68,11 +68,11 @@ was stale.) Outstanding:
 **R4.24 GCP type-coverage buildout** — `docs/gcp-type-coverage.md` (2026-07-06 audit) found only
 56 GCP resource types scanned against ~228 real, listable, currently-unscanned types across
 Compute Engine + 26 other services. Wave 1 (Compute storage domain: Disk, Image, Snapshot
-family) and Wave 2 (Compute instance groups & templates: InstanceGroup\*, InstanceTemplate\*,
-InstanceGroupManager\* incl. nested ResizeRequest) landed; remaining waves tracked here,
-implement independently in any order:
+family), Wave 2 (Compute instance groups & templates: InstanceGroup\*, InstanceTemplate\*,
+InstanceGroupManager\* incl. nested ResizeRequest), and Wave 3 (Compute addressing: Address,
+GlobalAddress, \*Prefix) landed; remaining waves tracked here, implement independently in any
+order:
 
-- **Wave 3** — Compute addressing (5 types: Address, GlobalAddress, \*Prefix).
 - **Wave 4** — Compute networking core (~20 types: Route, Router, VpnGateway family, NEG family, NodeGroup/Template, etc).
 - **Wave 5** — Compute Interconnect (4 types).
 - **Wave 6** — Compute LB/health-check/SSL-TLS (~24 types).

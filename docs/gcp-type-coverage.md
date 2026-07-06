@@ -73,7 +73,7 @@ zone/region enumeration.
 | InstanceTemplate | `InstanceTemplatesService.AggregatedList` | global |
 | RegionInstanceTemplate | `RegionInstanceTemplatesService.List(project, region)` | regional |
 
-### Addressing (5) — Wave 3
+### Addressing (5) — Wave 3, implemented
 | Type | Method | Scope |
 |---|---|---|
 | Address | `AddressesService.AggregatedList` | regional |

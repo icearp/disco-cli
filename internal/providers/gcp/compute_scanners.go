@@ -54,6 +54,10 @@ func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string
 		func() (int, int, error) { return scanComputeInstanceGroupManagers(ctx, svc, p, st, scanID) },
 		func() (int, int, error) { return scanComputeRegionInstanceGroupManagers(ctx, svc, p, st, scanID) },
 		func() (int, int, error) { return scanComputeInstanceTemplates(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeAddresses(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeGlobalAddresses(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputePublicAdvertisedPrefixes(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputePublicDelegatedPrefixes(ctx, svc, p, st, scanID) },
 	} {
 		t, n, err := sub()
 		if err != nil {

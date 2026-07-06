@@ -41,6 +41,12 @@ const (
 	TypeComputeRegionInstanceGroupManagerResizeRequest = "gcp:compute:region-instance-group-manager-resize-request"
 	TypeComputeInstanceTemplate                        = "gcp:compute:instance-template"
 	TypeComputeRegionInstanceTemplate                  = "gcp:compute:region-instance-template"
+	// Compute Engine — addressing (Wave 3 of the type-coverage buildout)
+	TypeComputeAddress                     = "gcp:compute:address"
+	TypeComputeGlobalAddress               = "gcp:compute:global-address"
+	TypeComputePublicAdvertisedPrefix      = "gcp:compute:public-advertised-prefix"
+	TypeComputePublicDelegatedPrefix       = "gcp:compute:public-delegated-prefix"
+	TypeComputeGlobalPublicDelegatedPrefix = "gcp:compute:global-public-delegated-prefix"
 	// Certificate Manager
 	TypeCertManagerCertificate = "gcp:certificatemanager:certificate"
 	TypeCertManagerMap         = "gcp:certificatemanager:certificate-map"
