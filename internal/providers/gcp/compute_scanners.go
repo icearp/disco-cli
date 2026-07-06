@@ -76,6 +76,10 @@ func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string
 		func() (int, int, error) { return scanComputeServiceAttachments(ctx, svc, p, st, scanID) },
 		func() (int, int, error) { return scanComputeNetworkEdgeSecurityServices(ctx, svc, p, st, scanID) },
 		func() (int, int, error) { return scanComputeCrossSiteNetworks(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeInterconnects(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeInterconnectAttachments(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeInterconnectGroups(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeInterconnectAttachmentGroups(ctx, svc, p, st, scanID) },
 	} {
 		t, n, err := sub()
 		if err != nil {

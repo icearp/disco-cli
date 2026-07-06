@@ -106,7 +106,7 @@ zone/region enumeration.
 | CrossSiteNetwork | `CrossSiteNetworksService.List(project)` | global |
 | WireGroup | `WireGroupsService.List(project, crossSiteNetwork)` | nested under CrossSiteNetwork |
 
-### Interconnect (4) — Wave 5
+### Interconnect (4) — Wave 5, implemented
 | Type | Method | Scope |
 |---|---|---|
 | Interconnect | `InterconnectsService.List(project)` | global |

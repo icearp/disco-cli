@@ -68,6 +68,11 @@ const (
 	TypeComputeNetworkEdgeSecurityService  = "gcp:compute:network-edge-security-service"
 	TypeComputeCrossSiteNetwork            = "gcp:compute:cross-site-network"
 	TypeComputeWireGroup                   = "gcp:compute:wire-group"
+	// Compute Engine — interconnect (Wave 5 of the type-coverage buildout)
+	TypeComputeInterconnect                = "gcp:compute:interconnect"
+	TypeComputeInterconnectAttachment      = "gcp:compute:interconnect-attachment"
+	TypeComputeInterconnectGroup           = "gcp:compute:interconnect-group"
+	TypeComputeInterconnectAttachmentGroup = "gcp:compute:interconnect-attachment-group"
 	// Certificate Manager
 	TypeCertManagerCertificate = "gcp:certificatemanager:certificate"
 	TypeCertManagerMap         = "gcp:certificatemanager:certificate-map"
