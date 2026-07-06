@@ -58,12 +58,31 @@ R3.1–R3.23 landed; see `FEATURES.md`. Outstanding:
 
 ### R4. GCP scanner expansion
 
-R4.1–R4.20 landed; see `FEATURES.md`. Outstanding:
+R4.1–R4.22 landed; see `FEATURES.md`. (R4.14 Dataproc/Dataflow fan-out, R4.21 Cloud Identity +
+Workspace Directory, and R4.22 non-SA IAM member edges were previously listed here as
+outstanding — verified landed in code during the 2026-07-06 GCP coverage audit; this section
+was stale.) Outstanding:
 
-- **R4.14 stragglers — Dataproc + Dataflow** — both need a shared per-region fan-out helper since neither supports the `locations/-` wildcard pattern. (Composer landed.)
-- **R4.21 Cloud Identity + Workspace Directory** — `gcp:cloudidentity:group` (via `cloudidentity/v1` `Groups.List(parent="customers/{id}")`) and `gcp:admin:user` (via `admin/directory/v1` `Users.List(customer="my_customer")`). Tenant-scope, runs once per scan via the org-service lane. Two new OAuth scopes added to `clientOptions` (`cloud-identity.groups.readonly`, `admin.directory.user.readonly`). Customer ID resolved once at scanner start; if no Workspace tenant, skip silently with one warning. Enables R4.22.
-- **R4.22 Non-SA IAM member edges** — extend `iampolicy_resolvers.go` (and the org-scope sibling) to FK-check `user:` / `group:` member strings against the new Cloud Identity rows. Emits `policy -[uses]-> user|group` with `{role: roles/...}` in edge attrs. `domain:`, `allUsers`, `allAuthenticatedUsers` still skip (no resource rows). Closes the residual leg of R4.1.
-- **R4.23 Workforce + Workload Identity Pools** — `gcp:iam:workforce-pool` (org-scope, `iam.Locations.WorkforcePools.List(parent="locations/global")`) + `gcp:iam:workload-identity-pool` (project-scope, `iam.Projects.Locations.WorkloadIdentityPools.List`). Resolver: pool provider → external-IdP issuer URL (string-only until something else scans IdPs). Federation trust edges across cloud boundaries.
+- **R4.23 Workforce + Workload Identity Pools** — `gcp:iam:workforce-pool` (org-scope, `iam.Locations.WorkforcePools.List(parent="locations/global")`) + `gcp:iam:workload-identity-pool` (project-scope, `iam.Projects.Locations.WorkloadIdentityPools.List`). Resolver: pool provider → external-IdP issuer URL (string-only until something else scans IdPs). Federation trust edges across cloud boundaries. Folded into R4.24 wave 8 below.
+
+**R4.24 GCP type-coverage buildout** — `docs/gcp-type-coverage.md` (2026-07-06 audit) found only
+56 GCP resource types scanned against ~228 real, listable, currently-unscanned types across
+Compute Engine + 26 other services. Wave 1 (Compute storage domain: Disk, Image, Snapshot
+family) and Wave 2 (Compute instance groups & templates: InstanceGroup\*, InstanceTemplate\*,
+InstanceGroupManager\* incl. nested ResizeRequest) landed; remaining waves tracked here,
+implement independently in any order:
+
+- **Wave 3** — Compute addressing (5 types: Address, GlobalAddress, \*Prefix).
+- **Wave 4** — Compute networking core (~20 types: Route, Router, VpnGateway family, NEG family, NodeGroup/Template, etc).
+- **Wave 5** — Compute Interconnect (4 types).
+- **Wave 6** — Compute LB/health-check/SSL-TLS (~24 types).
+- **Wave 7** — Compute autoscaling + reservations (~10 types).
+- **Wave 8** — Security-critical secondary services: cloudkms, cloudresourcemanager Tags, accesscontextmanager `AccessLevel`, sqladmin, dns, cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
+- **Wave 9** — Observability: logging (Bucket/Exclusion/Metric/View/LogScope), monitoring (Dashboard/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
+- **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
+- **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
+
+Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.
 
 ### R5. Cross-service resolvers (multi-provider aware)
 

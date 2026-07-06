@@ -51,6 +51,18 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeComputeBackendService:   "compute.googleapis.com/BackendService",
 		TypeComputeBackendBucket:    "compute.googleapis.com/BackendBucket",
 		TypeComputeSecurityPolicy:   "compute.googleapis.com/SecurityPolicy",
+		// Compute Engine — storage (Wave 1, docs/gcp-type-coverage.md).
+		TypeComputeDisk:                       "compute.googleapis.com/Disk",
+		TypeComputeRegionDisk:                 "compute.googleapis.com/RegionDisk",
+		TypeComputeImage:                      "compute.googleapis.com/Image",
+		TypeComputeMachineImage:               "compute.googleapis.com/MachineImage",
+		TypeComputeSnapshot:                   "compute.googleapis.com/Snapshot",
+		TypeComputeRegionSnapshot:             "compute.googleapis.com/RegionSnapshot",
+		TypeComputeInstantSnapshot:            "compute.googleapis.com/InstantSnapshot",
+		TypeComputeRegionInstantSnapshot:      "compute.googleapis.com/RegionInstantSnapshot",
+		TypeComputeInstantSnapshotGroup:       "compute.googleapis.com/InstantSnapshotGroup",
+		TypeComputeRegionInstantSnapshotGroup: "compute.googleapis.com/RegionInstantSnapshotGroup",
+		TypeComputeStoragePool:                "compute.googleapis.com/StoragePool",
 		// Certificate Manager.
 		TypeCertManagerCertificate: "certificatemanager.googleapis.com/Certificate",
 		TypeCertManagerMap:         "certificatemanager.googleapis.com/CertificateMap",
@@ -366,16 +378,32 @@ func hasFetchMethod(methods map[string]json.RawMessage) bool {
 
 // singularize strips a trailing plural marker from a lowerCamel collection
 // name. Heuristic only — alias-map handles cases this gets wrong (e.g.
-// "indexes" → "Index", "policies" → "Policy" handled here, but irregular
-// plurals must be aliased).
+// "indexes" → "Index" handled here via the sibilant-stem rule, "policies" →
+// "Policy" via the -ies rule, but irregular plurals must be aliased).
 func singularize(s string) string {
 	switch {
 	case strings.HasSuffix(s, "ies") && len(s) > 3:
 		return s[:len(s)-3] + "y"
+	case strings.HasSuffix(s, "es") && len(s) > 2 && hasSibilantStem(s[:len(s)-2]):
+		return s[:len(s)-2]
 	case strings.HasSuffix(s, "s") && len(s) > 1:
 		return s[:len(s)-1]
 	}
 	return s
+}
+
+// hasSibilantStem reports whether stem ends in a sound that pluralizes with
+// "-es" rather than a bare "-s" (s, x, z, ch, sh) — e.g. "address"/"alias"/
+// "box"/"branch"/"dish", distinguishing "addresses" → "address" from
+// "instances" → "instance".
+func hasSibilantStem(stem string) bool {
+	switch {
+	case strings.HasSuffix(stem, "s"), strings.HasSuffix(stem, "x"), strings.HasSuffix(stem, "z"):
+		return true
+	case strings.HasSuffix(stem, "ch"), strings.HasSuffix(stem, "sh"):
+		return true
+	}
+	return false
 }
 
 func pascalCase(s string) string {

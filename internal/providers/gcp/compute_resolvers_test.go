@@ -88,6 +88,59 @@ func TestResolveComputeInstanceRelationships_EmptyAttrs(t *testing.T) {
 	}
 }
 
+// TestResolveComputeInstanceRelationships_Disk verifies an attached zonal
+// disk (Disks[].Source) resolves to an instance→disk RelAttachedTo edge.
+func TestResolveComputeInstanceRelationships_Disk(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	diskURL := "https://www.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a/disks/disk1"
+	inst := compute.Instance{Disks: []*compute.AttachedDisk{{Source: diskURL}}}
+	instID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeInstance,
+		"//compute.googleapis.com/projects/my-project/zones/us-central1-a/instances/inst-3", "", marshalAttrs(t, inst))
+	diskID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeDisk, diskURL, "", "{}")
+
+	if err := resolveComputeInstanceRelationships(p, st); err != nil {
+		t.Fatalf("resolveComputeInstanceRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(instID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertGCPRelationship(t, rels, instID, diskID, store.RelAttachedTo)
+}
+
+// TestResolveComputeInstanceRelationships_RegionDisk verifies a regional
+// disk source (".../regions/{region}/disks/...") resolves against the
+// TypeComputeRegionDisk type, not TypeComputeDisk.
+func TestResolveComputeInstanceRelationships_RegionDisk(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	diskURL := "https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/disks/rdisk1"
+	inst := compute.Instance{Disks: []*compute.AttachedDisk{{Source: diskURL}}}
+	instID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeInstance,
+		"//compute.googleapis.com/projects/my-project/zones/us-central1-a/instances/inst-4", "", marshalAttrs(t, inst))
+	diskID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeRegionDisk, diskURL, "", "{}")
+
+	if err := resolveComputeInstanceRelationships(p, st); err != nil {
+		t.Fatalf("resolveComputeInstanceRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(instID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertGCPRelationship(t, rels, instID, diskID, store.RelAttachedTo)
+}
+
 // TestResolveSubnetworkRelationships verifies a subnet's parent network is
 // derived from its "network" JSON field.
 func TestResolveSubnetworkRelationships(t *testing.T) {
@@ -114,6 +167,86 @@ func TestResolveSubnetworkRelationships(t *testing.T) {
 	}
 	if rels[0].ToID != netID || rels[0].Kind != store.RelAttachedTo {
 		t.Errorf("expected subnet -[attached-to]-> network, got %+v", rels[0])
+	}
+}
+
+// TestResolveInstanceGroupManagerRelationships verifies a zonal IGM's
+// embedded instanceTemplate/instanceGroup self-links resolve to
+// RelUses edges against the zonal (Instance)Template/(Instance)Group types.
+func TestResolveInstanceGroupManagerRelationships(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	tplURL := "https://www.googleapis.com/compute/v1/projects/my-project/global/instanceTemplates/tpl1"
+	igURL := "https://www.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a/instanceGroups/ig1"
+	igm := compute.InstanceGroupManager{InstanceTemplate: tplURL, InstanceGroup: igURL}
+	igmID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeInstanceGroupManager,
+		"//compute.googleapis.com/projects/my-project/zones/us-central1-a/instanceGroupManagers/igm1", "", marshalAttrs(t, igm))
+	tplID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeInstanceTemplate, tplURL, "", "{}")
+	igID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeInstanceGroup, igURL, "", "{}")
+
+	if err := resolveInstanceGroupManagerRelationships(p, st); err != nil {
+		t.Fatalf("resolveInstanceGroupManagerRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(igmID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 relationships (template + group), got %d", len(rels))
+	}
+	assertGCPRelationship(t, rels, igmID, tplID, store.RelUses)
+	assertGCPRelationship(t, rels, igmID, igID, store.RelUses)
+}
+
+// TestResolveInstanceGroupManagerRelationships_Regional verifies a regional
+// IGM's self-links resolve against the Region variants, not the zonal ones.
+func TestResolveInstanceGroupManagerRelationships_Regional(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	tplURL := "https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/instanceTemplates/tpl2"
+	igURL := "https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/instanceGroups/ig2"
+	igm := compute.InstanceGroupManager{InstanceTemplate: tplURL, InstanceGroup: igURL}
+	igmID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeRegionInstanceGroupManager,
+		"//compute.googleapis.com/projects/my-project/regions/us-central1/instanceGroupManagers/igm2", "", marshalAttrs(t, igm))
+	tplID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeRegionInstanceTemplate, tplURL, "", "{}")
+	igID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeRegionInstanceGroup, igURL, "", "{}")
+
+	if err := resolveInstanceGroupManagerRelationships(p, st); err != nil {
+		t.Fatalf("resolveInstanceGroupManagerRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(igmID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 relationships (template + group), got %d", len(rels))
+	}
+	assertGCPRelationship(t, rels, igmID, tplID, store.RelUses)
+	assertGCPRelationship(t, rels, igmID, igID, store.RelUses)
+}
+
+// TestResolveInstanceGroupManagerRelationships_EmptyAttrs verifies no error
+// and no edges when an IGM has neither field set.
+func TestResolveInstanceGroupManagerRelationships_EmptyAttrs(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	igmID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeInstanceGroupManager,
+		"//compute.googleapis.com/projects/my-project/zones/us-central1-a/instanceGroupManagers/bare", "", "{}")
+
+	if err := resolveInstanceGroupManagerRelationships(p, st); err != nil {
+		t.Fatalf("resolveInstanceGroupManagerRelationships (empty): %v", err)
+	}
+	rels, err := st.RelationshipsFrom(igmID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
 

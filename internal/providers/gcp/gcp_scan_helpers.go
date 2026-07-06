@@ -104,6 +104,33 @@ func gcpRegions(ctx context.Context, p *project) ([]string, error) {
 	return out, nil
 }
 
+// gcpZones enumerates the compute zones enabled for a project. Used by
+// scanners whose SDK exposes only a per-zone List with no AggregatedList
+// variant (e.g. InstantSnapshotGroups). Returns empty + nil on permission
+// denial, mirroring gcpRegions.
+func gcpZones(ctx context.Context, p *project) ([]string, error) {
+	opts := clientOptions(ctx, providerCfg{})
+	svc, err := compute.NewService(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	if err := svc.Zones.List(p.ID).Pages(ctx, func(page *compute.ZoneList) error {
+		for _, z := range page.Items {
+			if z != nil && z.Name != "" {
+				out = append(out, z.Name)
+			}
+		}
+		return nil
+	}); err != nil {
+		if isPermissionDenied(err) || isAPINotEnabled(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return out, nil
+}
+
 // gcpRegionFanoutScan drives the per-region fan-out pattern shared by GCP
 // services with no aggregated/wildcard list endpoint (Dataproc, future
 // per-region Spanner, AI Platform regional, etc.). Enumerates enabled regions

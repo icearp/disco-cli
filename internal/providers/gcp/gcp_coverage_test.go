@@ -64,3 +64,23 @@ func TestCoverageFetch_AllDocsOKNoError(t *testing.T) {
 		t.Error("want at least one upstream type from the fetchable collection, got 0")
 	}
 }
+
+func TestSingularize(t *testing.T) {
+	cases := map[string]string{
+		"addresses": "address",
+		"aliases":   "alias",
+		"boxes":     "box",
+		"branches":  "branch",
+		"indexes":   "index",
+		"instances": "instance",
+		"policies":  "policy",
+		"keys":      "key",
+		"services":  "service",
+		"disks":     "disk",
+	}
+	for in, want := range cases {
+		if got := singularize(in); got != want {
+			t.Errorf("singularize(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

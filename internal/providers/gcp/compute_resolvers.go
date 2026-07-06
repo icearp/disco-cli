@@ -3,6 +3,7 @@ package gcp
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
@@ -11,6 +12,7 @@ import (
 func init() {
 	registerResolver(resolveComputeInstanceRelationships)
 	registerResolver(resolveSubnetworkRelationships)
+	registerResolver(resolveInstanceGroupManagerRelationships)
 }
 
 func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
@@ -27,6 +29,9 @@ func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
 				Network    string `json:"network"`
 				Subnetwork string `json:"subnetwork"`
 			} `json:"networkInterfaces"`
+			Disks []struct {
+				Source string `json:"source"`
+			} `json:"disks"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -43,6 +48,78 @@ func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
 				if err := st.UpsertRelationship(r.ID, snID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→subnetwork relationship: %w", err)
 				}
+			}
+		}
+		for _, disk := range attrs.Disks {
+			if disk.Source == "" {
+				continue
+			}
+			diskID := store.ResourceID("gcp", p.ID, computeDiskTypeForSelfLink(disk.Source), disk.Source)
+			if err := st.UpsertRelationship(r.ID, diskID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert instance→disk relationship: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// selfLinkIsRegional reports whether a Compute self-link's scope segment is
+// regional (".../regions/{region}/...") rather than zonal or global. Used to
+// pick between a resource's zonal/global and regional disco-type variants
+// (Disk vs RegionDisk, InstanceTemplate vs RegionInstanceTemplate, etc.).
+func selfLinkIsRegional(selfLink string) bool {
+	return strings.Contains(selfLink, "/regions/")
+}
+
+// computeDiskTypeForSelfLink picks the disco type matching a disk self-link's
+// scope segment. Attached disks are almost always zonal in practice; this
+// only matters when an instance references a regional (replicated) disk.
+func computeDiskTypeForSelfLink(selfLink string) string {
+	if selfLinkIsRegional(selfLink) {
+		return TypeComputeRegionDisk
+	}
+	return TypeComputeDisk
+}
+
+// resolveInstanceGroupManagerRelationships wires each (Region)InstanceGroupManager
+// to the (Region)InstanceTemplate it deploys and the (Region)InstanceGroup it
+// manages — both are self-link fields embedded directly on the IGM resource,
+// no extra API call needed.
+func resolveInstanceGroupManagerRelationships(p *project, st *store.Store) error {
+	igms, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID,
+		Types: []string{TypeComputeInstanceGroupManager, TypeComputeRegionInstanceGroupManager},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range igms {
+		var attrs struct {
+			InstanceTemplate string `json:"instanceTemplate"`
+			InstanceGroup    string `json:"instanceGroup"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.InstanceTemplate != "" {
+			tplType := TypeComputeInstanceTemplate
+			if selfLinkIsRegional(attrs.InstanceTemplate) {
+				tplType = TypeComputeRegionInstanceTemplate
+			}
+			tplID := store.ResourceID("gcp", p.ID, tplType, attrs.InstanceTemplate)
+			if err := st.UpsertRelationship(r.ID, tplID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert igm→instance-template relationship: %w", err)
+			}
+		}
+		if attrs.InstanceGroup != "" {
+			igType := TypeComputeInstanceGroup
+			if selfLinkIsRegional(attrs.InstanceGroup) {
+				igType = TypeComputeRegionInstanceGroup
+			}
+			igID := store.ResourceID("gcp", p.ID, igType, attrs.InstanceGroup)
+			if err := st.UpsertRelationship(r.ID, igID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert igm→instance-group relationship: %w", err)
 			}
 		}
 	}

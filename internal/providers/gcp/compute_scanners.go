@@ -38,6 +38,22 @@ func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string
 		func() (int, int, error) { return scanComputeNetworks(ctx, svc, p, st, scanID) },
 		func() (int, int, error) { return scanComputeSubnetworks(ctx, svc, p, st, scanID) },
 		func() (int, int, error) { return scanComputeFirewalls(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeDisks(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeRegionDisks(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeImages(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeMachineImages(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeSnapshots(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeRegionSnapshots(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeInstantSnapshots(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeRegionInstantSnapshots(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeInstantSnapshotGroups(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeRegionInstantSnapshotGroups(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeStoragePools(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeInstanceGroups(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeRegionInstanceGroups(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeInstanceGroupManagers(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeRegionInstanceGroupManagers(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeInstanceTemplates(ctx, svc, p, st, scanID) },
 	} {
 		t, n, err := sub()
 		if err != nil {
