@@ -178,6 +178,12 @@ const (
 	// Access Context Manager (VPC Service Controls — org-scoped)
 	TypeAccessPolicy     = "gcp:accesscontextmanager:access-policy"
 	TypeServicePerimeter = "gcp:accesscontextmanager:service-perimeter"
+	// Access Context Manager — Access Levels + Authorized Orgs Descs (fan-out
+	// per AccessPolicy) and GcpUserAccessBinding (org-scoped, context-aware
+	// access for Workspace users) — Wave 8c of the type-coverage buildout.
+	TypeAccessLevel          = "gcp:accesscontextmanager:access-level"
+	TypeAuthorizedOrgsDesc   = "gcp:accesscontextmanager:authorized-orgs-desc"
+	TypeGcpUserAccessBinding = "gcp:accesscontextmanager:gcp-user-access-binding"
 	// Dataproc + Dataflow
 	TypeDataprocCluster = "gcp:dataproc:cluster"
 	TypeDataflowJob     = "gcp:dataflow:job"

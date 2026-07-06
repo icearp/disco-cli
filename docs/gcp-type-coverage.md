@@ -281,6 +281,16 @@ TagBindings/EffectiveTags require the full-resource-name form of `parent`
 (`//cloudresourcemanager.googleapis.com/projects/{number}`), built from the
 project NUMBER; skipped (not an error) for any project whose number wasn't
 resolved during hierarchy discovery (permission-denied `Projects.Get`).
+
+**8c — accesscontextmanager, implemented.** AccessLevel and AuthorizedOrgsDesc
+inlined as new siblings in the existing `scanVPCSCForOrg` per-policy loop
+(alongside the pre-existing ServicePerimeter fan-out) rather than a parallel
+scanner re-listing AccessPolicies — same "extend in place" precedent as 8a.
+GcpUserAccessBinding is parented directly by the org (not by any
+AccessPolicy), so it's a sibling call in the outer `scanVPCSC` org loop
+instead. `vpcsc_scanners.go` had zero test coverage before this sub-wave;
+`vpcsc_scanners_test.go` is new.
+
 | accesscontextmanager AccessLevel | accesscontextmanager/v1 AccessPoliciesAccessLevelsService | List(parent) | fan-out per AccessPolicy (already scanned) |
 | accesscontextmanager AuthorizedOrgsDesc | accesscontextmanager/v1 AccessPoliciesAuthorizedOrgsDescsService | List(parent) | fan-out per AccessPolicy |
 | accesscontextmanager GcpUserAccessBinding | accesscontextmanager/v1 OrganizationsGcpUserAccessBindingsService | List(parent) | org |
