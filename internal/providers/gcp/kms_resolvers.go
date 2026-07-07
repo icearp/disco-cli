@@ -15,24 +15,37 @@ func init() {
 	)
 }
 
-// resolveKMSRelationships derives bucket → cryptoKey CMEK edges. Full CMEK
-// matrix (BigQuery dataset, Compute disk, SQL instance, Pub/Sub topic, Secret
-// Manager) deferred — Storage is the highest-volume CMEK consumer today and
-// exercises the lookup path; remaining services land alongside their scanners.
-func resolveKMSRelationships(p *project, st *store.Store) error {
+// loadKMSCryptoKeyIndex builds a NativeID→resource-ID map of every CryptoKey
+// scanned in this project, for resolvers that link a CMEK reference
+// (kmsKeyName, possibly version-pinned) back to its key row. Cross-project
+// key references return a miss (caller skips — the key was never scanned in
+// this project).
+func loadKMSCryptoKeyIndex(p *project, st *store.Store) (map[string]string, error) {
 	keys, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]string, len(keys))
+	for _, k := range keys {
+		idx[k.NativeID] = k.ID
+	}
+	return idx, nil
+}
+
+// resolveKMSRelationships derives bucket → cryptoKey CMEK edges. Full CMEK
+// matrix (BigQuery dataset, Compute disk, SQL instance, Pub/Sub topic, Secret
+// Manager) deferred — Storage is the highest-volume CMEK consumer today and
+// exercises the lookup path; remaining services land alongside their scanners.
+func resolveKMSRelationships(p *project, st *store.Store) error {
+	keyIDByNative, err := loadKMSCryptoKeyIndex(p, st)
+	if err != nil {
 		return err
 	}
-	if len(keys) == 0 {
+	if len(keyIDByNative) == 0 {
 		return nil
-	}
-	keyIDByNative := make(map[string]string, len(keys))
-	for _, k := range keys {
-		keyIDByNative[k.NativeID] = k.ID
 	}
 
 	buckets, err := st.ListResources(store.ResourceFilter{
@@ -60,8 +73,7 @@ func resolveKMSRelationships(p *project, st *store.Store) error {
 		}
 		keyID, ok := keyIDByNative[keyName]
 		if !ok {
-			// Cross-project key references skipped — would FK-violate.
-			continue
+			continue // cross-project key reference — not scanned in this project
 		}
 		if err := st.UpsertRelationship(b.ID, keyID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert bucket→cryptoKey: %w", err)

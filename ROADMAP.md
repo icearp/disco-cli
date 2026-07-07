@@ -244,6 +244,22 @@ Dashboard→alert-policy ref, CRM Folder→management-project ref) — moved bac
 orphan types remain, tracked as the resolver-implementation backlog for future waves (not yet
 started — this pass built the ledger, not the resolvers).
 
+**Resolver Wave R1 (compute storage lineage).** First implementation wave against the 132-type
+backlog: `internal/providers/gcp/compute_storage_resolvers.go` wires lineage edges for the Wave 1
+disk-family types (Disk, RegionDisk, Image, MachineImage, Snapshot, RegionSnapshot,
+InstantSnapshot, RegionInstantSnapshot) — every "source\*" self-link field (sourceDisk,
+sourceImage, sourceSnapshot, sourceInstantSnapshot, sourceInstance) plus CMEK
+(`*EncryptionKey.kmsKeyName`) read straight off the already-scanned AttributesJSON, no extra API
+calls. Also resolves (Region)InstantSnapshotGroup → ResourcePolicy via `sourceConsistencyGroup`
+(adversarial review caught this — the two group types were initially mis-triaged as `Leaf: true`
+during Wave 0.5 on the assumption ResourcePolicy is unscanned; it is (`compute_reservation_scanners.go`),
+so the flag was dropped and the edge wired instead). New shared helpers: `loadKMSCryptoKeyIndex`
+(extracted from `kms_resolvers.go`, behavior-preserving) and `scannedIDSet`, both reusable by
+future waves. Net: 132 → 122 orphan types. Review also corrected stale comments claiming a
+relationships-table FK enforces target existence — migration `006_resource_versioning.sql`
+dropped that FK when the table moved to root-ID addressing; the scanned-ID pre-check is a
+data-quality guard, not an FK-violation avoidance.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
