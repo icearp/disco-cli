@@ -20,6 +20,15 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "bigtableadmin", DiscoType: TypeBigtableInstance},
 			{Service: "bigtableadmin", DiscoType: TypeBigtableCluster},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableBackup},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableAppProfile},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableTable},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableAuthorizedView},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableLogicalView},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableMaterializedView},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableSchemaBundle},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableHotTablet},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableMemoryLayer},
 		},
 	})
 	registerService(serviceEntry{
@@ -49,26 +58,117 @@ func init() {
 // modest like the DNS/logging/monitoring per-item fan-outs.
 const maxConcurrentSpannerFanout = 10
 
-// scanBigtable discovers Bigtable instances and their clusters. Tables and
-// app-profiles deferred — table cardinality is unbounded; app-profiles need
-// per-cluster context the cluster CMEK story doesn't yet require.
+// maxConcurrentBigtableFanout caps per-Instance/per-Cluster/per-Table fan-out
+// (AppProfile, Table, LogicalView, MaterializedView, AuthorizedView,
+// SchemaBundle, Backup, HotTablet, MemoryLayer). Per-project cardinality is
+// modest; keep consistent with the other providers' per-item fan-outs.
+const maxConcurrentBigtableFanout = 10
+
+// scanBigtable discovers Bigtable instances, clusters, and their secondary
+// resources: AppProfiles (project-wide wildcard, per-row Instance derived
+// from name), Tables/LogicalViews/MaterializedViews (fan-out per Instance),
+// AuthorizedViews/SchemaBundles (fan-out per Table), Backups/MemoryLayers
+// (fan-out per Instance using the cluster wildcard, per-row Cluster derived
+// from name), and HotTablets (fan-out per Cluster — no wildcard support).
 func scanBigtable(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := bigtableadmin.NewService(ctx, opts...)
 	if err != nil {
 		return 0, 0, fmt.Errorf("bigtableadmin client: %w", err)
 	}
-	parent := fmt.Sprintf("projects/%s", p.ID)
 
+	instances, t, n, err := scanBigtableInstances(ctx, svc, p, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	clusters, t, n, err := scanBigtableClusters(ctx, svc, p, instances, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanBigtableAppProfiles(ctx, svc, p, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	tableNames, t, n, err := scanBigtableTables(ctx, svc, p, instances, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanBigtableLogicalViews(ctx, svc, p, instances, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanBigtableMaterializedViews(ctx, svc, p, instances, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanBigtableAuthorizedViews(ctx, svc, p, tableNames, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanBigtableSchemaBundles(ctx, svc, p, tableNames, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanBigtableBackups(ctx, svc, p, instances, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanBigtableHotTablets(ctx, svc, p, clusters, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanBigtableMemoryLayers(ctx, svc, p, instances, st, scanID)
+	total += t
+	inserted += n
+	return total, inserted, err
+}
+
+// scanBigtableInstances discovers Bigtable instances. NextPageToken on
+// ListInstancesResponse is SDK-doc-marked "DEPRECATED: unused and ignored",
+// so a single .Do() call (not .Pages()) is correct here — unlike Spanner's
+// Databases.List, this endpoint genuinely never paginates.
+func scanBigtableInstances(ctx context.Context, svc *bigtableadmin.Service, p *project, st *store.Store, scanID string) (instances []*bigtableadmin.Instance, total, inserted int, err error) {
+	parent := fmt.Sprintf("projects/%s", p.ID)
 	resp, err := svc.Projects.Instances.List(parent).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "bigtableadmin:instances.list", p.ID, err)
+			return nil, 0, 0, skipIfDenied(st, "bigtableadmin:instances.list", p.ID, err)
 		}
-		return 0, 0, err
+		return nil, 0, 0, err
 	}
 	var batch []*store.Resource
 	for _, inst := range resp.Instances {
+		instances = append(instances, inst)
 		name := lastSegment(inst.Name)
 		batch = append(batch, &store.Resource{
 			Provider:       "gcp",
@@ -82,25 +182,27 @@ func scanBigtable(ctx context.Context, p *project, st *store.Store, scanID strin
 			DiscoveredBy:   scanID,
 		})
 	}
-	t, n, e := upsertWithProjClosure(p, st, batch)
-	total += t
-	inserted += n
-	if e != nil {
-		return total, inserted, e
-	}
+	total, inserted, err = upsertWithProjClosure(p, st, batch)
+	return instances, total, inserted, err
+}
 
-	// Per-instance clusters — sequential because instance counts are tiny.
-	for _, inst := range resp.Instances {
-		cresp, err := svc.Projects.Instances.Clusters.List(inst.Name).Context(ctx).Do()
-		if err != nil {
-			if isPermissionDenied(err) {
-				_ = skipIfDenied(st, "bigtableadmin:clusters.list", p.ID, err)
+// scanBigtableClusters discovers clusters per already-scanned Instance
+// (same NextPageToken-deprecated reasoning as scanBigtableInstances — single
+// .Do() call is correct). Returns the flat cluster list for the
+// HotTablet per-Cluster fan-out.
+func scanBigtableClusters(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (clusters []*bigtableadmin.Cluster, total, inserted int, err error) {
+	for _, inst := range instances {
+		cresp, cerr := svc.Projects.Instances.Clusters.List(inst.Name).Context(ctx).Do()
+		if cerr != nil {
+			if isPermissionDenied(cerr) {
+				_ = skipIfDenied(st, "bigtableadmin:clusters.list", p.ID, cerr)
 				continue
 			}
-			return total, inserted, err
+			return clusters, total, inserted, cerr
 		}
 		var cbatch []*store.Resource
 		for _, c := range cresp.Clusters {
+			clusters = append(clusters, c)
 			cname := lastSegment(c.Name)
 			cbatch = append(cbatch, &store.Resource{
 				Provider:       "gcp",
@@ -116,12 +218,470 @@ func scanBigtable(ctx context.Context, p *project, st *store.Store, scanID strin
 			})
 		}
 		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
-		ct, cn, cerr := upsertWithParent(st, cbatch, instResID)
+		ct, cn, uerr := upsertWithParent(st, cbatch, instResID)
 		total += ct
 		inserted += cn
-		if cerr != nil {
-			return total, inserted, cerr
+		if uerr != nil {
+			return clusters, total, inserted, uerr
 		}
+	}
+	return clusters, total, inserted, nil
+}
+
+// scanBigtableAppProfiles discovers app profiles across every instance via
+// the project-wide wildcard parent (SDK doc confirms `{instance} = '-'`
+// support). Each page may mix profiles from multiple instances, so the
+// owning Instance is derived per-row by splitting the profile's own resource
+// name (KMS-style / Spanner-InstancePartitions-style).
+func scanBigtableAppProfiles(ctx context.Context, svc *bigtableadmin.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+	parent := fmt.Sprintf("projects/%s/instances/-", p.ID)
+	return runPaginated(ctx, st, p, "bigtableadmin:appProfiles.list",
+		svc.Projects.Instances.AppProfiles.List(parent),
+		func(page *bigtableadmin.ListAppProfilesResponse) (int, int, error) {
+			var batch []*store.Resource
+			var pairs [][2]string
+			for _, ap := range page.AppProfiles {
+				if ap == nil || ap.Name == "" {
+					continue
+				}
+				instanceNative, _, ok := strings.Cut(ap.Name, "/appProfiles/")
+				if !ok {
+					continue
+				}
+				name := lastSegment(ap.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBigtableAppProfile,
+					NativeID:       ap.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(ap),
+					DiscoveredBy:   scanID,
+				})
+				instID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, instanceNative)
+				apID := store.ResourceID("gcp", p.ID, TypeBigtableAppProfile, ap.Name)
+				pairs = append(pairs, [2]string{apID, instID})
+			}
+			n, upErr := st.UpsertResources(batch)
+			if upErr != nil {
+				return 0, 0, fmt.Errorf("upsert bigtable app profiles: %w", upErr)
+			}
+			if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
+				return 0, 0, fmt.Errorf("closure bigtable app profiles: %w", cErr)
+			}
+			return len(batch), n, nil
+		})
+}
+
+// scanBigtableTables fans out Tables.List per already-scanned Instance (no
+// wildcard parent support). Returns every table's NativeID (across all
+// instances) for the AuthorizedView/SchemaBundle per-Table fan-out.
+func scanBigtableTables(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (tableNames []string, total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
+		if inst == nil || inst.Name == "" {
+			return nil
+		}
+		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
+		var batch []*store.Resource
+		var names []string
+		listErr := svc.Projects.Instances.Tables.List(inst.Name).Pages(gctx, func(page *bigtableadmin.ListTablesResponse) error {
+			for _, tb := range page.Tables {
+				if tb == nil || tb.Name == "" {
+					continue
+				}
+				names = append(names, tb.Name)
+				name := lastSegment(tb.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBigtableTable,
+					NativeID:       tb.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(tb),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return nil
+		})
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "bigtableadmin:tables.list", inst.Name, listErr)
+			}
+			return listErr
+		}
+		t, n, uerr := upsertWithParent(st, batch, instResID)
+		mu.Lock()
+		defer mu.Unlock()
+		total += t
+		inserted += n
+		tableNames = append(tableNames, names...)
+		return uerr
+	}); ferr != nil {
+		return tableNames, total, inserted, ferr
+	}
+	return tableNames, total, inserted, nil
+}
+
+// scanBigtableLogicalViews fans out LogicalViews.List per already-scanned
+// Instance (no wildcard parent support).
+func scanBigtableLogicalViews(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
+		if inst == nil || inst.Name == "" {
+			return nil
+		}
+		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
+		var batch []*store.Resource
+		listErr := svc.Projects.Instances.LogicalViews.List(inst.Name).Pages(gctx, func(page *bigtableadmin.ListLogicalViewsResponse) error {
+			for _, lv := range page.LogicalViews {
+				if lv == nil || lv.Name == "" {
+					continue
+				}
+				name := lastSegment(lv.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBigtableLogicalView,
+					NativeID:       lv.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(lv),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return nil
+		})
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "bigtableadmin:logicalViews.list", inst.Name, listErr)
+			}
+			return listErr
+		}
+		t, n, uerr := upsertWithParent(st, batch, instResID)
+		mu.Lock()
+		defer mu.Unlock()
+		total += t
+		inserted += n
+		return uerr
+	}); ferr != nil {
+		return total, inserted, ferr
+	}
+	return total, inserted, nil
+}
+
+// scanBigtableMaterializedViews fans out MaterializedViews.List per
+// already-scanned Instance (no wildcard parent support).
+func scanBigtableMaterializedViews(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
+		if inst == nil || inst.Name == "" {
+			return nil
+		}
+		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
+		var batch []*store.Resource
+		listErr := svc.Projects.Instances.MaterializedViews.List(inst.Name).Pages(gctx, func(page *bigtableadmin.ListMaterializedViewsResponse) error {
+			for _, mv := range page.MaterializedViews {
+				if mv == nil || mv.Name == "" {
+					continue
+				}
+				name := lastSegment(mv.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBigtableMaterializedView,
+					NativeID:       mv.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(mv),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return nil
+		})
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "bigtableadmin:materializedViews.list", inst.Name, listErr)
+			}
+			return listErr
+		}
+		t, n, uerr := upsertWithParent(st, batch, instResID)
+		mu.Lock()
+		defer mu.Unlock()
+		total += t
+		inserted += n
+		return uerr
+	}); ferr != nil {
+		return total, inserted, ferr
+	}
+	return total, inserted, nil
+}
+
+// scanBigtableAuthorizedViews fans out AuthorizedViews.List per
+// already-scanned Table (no wildcard parent support).
+func scanBigtableAuthorizedViews(ctx context.Context, svc *bigtableadmin.Service, p *project, tableNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, tableNames, func(gctx context.Context, tableName string) error {
+		tableResID := store.ResourceID("gcp", p.ID, TypeBigtableTable, tableName)
+		var batch []*store.Resource
+		listErr := svc.Projects.Instances.Tables.AuthorizedViews.List(tableName).Pages(gctx, func(page *bigtableadmin.ListAuthorizedViewsResponse) error {
+			for _, av := range page.AuthorizedViews {
+				if av == nil || av.Name == "" {
+					continue
+				}
+				name := lastSegment(av.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBigtableAuthorizedView,
+					NativeID:       av.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(av),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return nil
+		})
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "bigtableadmin:authorizedViews.list", tableName, listErr)
+			}
+			return listErr
+		}
+		t, n, uerr := upsertWithParent(st, batch, tableResID)
+		mu.Lock()
+		defer mu.Unlock()
+		total += t
+		inserted += n
+		return uerr
+	}); ferr != nil {
+		return total, inserted, ferr
+	}
+	return total, inserted, nil
+}
+
+// scanBigtableSchemaBundles fans out SchemaBundles.List per already-scanned
+// Table (no wildcard parent support).
+func scanBigtableSchemaBundles(ctx context.Context, svc *bigtableadmin.Service, p *project, tableNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, tableNames, func(gctx context.Context, tableName string) error {
+		tableResID := store.ResourceID("gcp", p.ID, TypeBigtableTable, tableName)
+		var batch []*store.Resource
+		listErr := svc.Projects.Instances.Tables.SchemaBundles.List(tableName).Pages(gctx, func(page *bigtableadmin.ListSchemaBundlesResponse) error {
+			for _, sb := range page.SchemaBundles {
+				if sb == nil || sb.Name == "" {
+					continue
+				}
+				name := lastSegment(sb.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBigtableSchemaBundle,
+					NativeID:       sb.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(sb),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return nil
+		})
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "bigtableadmin:schemaBundles.list", tableName, listErr)
+			}
+			return listErr
+		}
+		t, n, uerr := upsertWithParent(st, batch, tableResID)
+		mu.Lock()
+		defer mu.Unlock()
+		total += t
+		inserted += n
+		return uerr
+	}); ferr != nil {
+		return total, inserted, ferr
+	}
+	return total, inserted, nil
+}
+
+// scanBigtableBackups fans out Backups.List per already-scanned Instance,
+// using the cluster wildcard (SDK doc confirms `{cluster} = '-'` support) so
+// one call covers every cluster in the instance. Each page may mix backups
+// from multiple clusters, so the owning Cluster is derived per-row by
+// splitting the backup's own resource name.
+func scanBigtableBackups(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
+		if inst == nil || inst.Name == "" {
+			return nil
+		}
+		parent := inst.Name + "/clusters/-"
+		var batch []*store.Resource
+		var pairs [][2]string
+		listErr := svc.Projects.Instances.Clusters.Backups.List(parent).Pages(gctx, func(page *bigtableadmin.ListBackupsResponse) error {
+			for _, b := range page.Backups {
+				if b == nil || b.Name == "" {
+					continue
+				}
+				clusterNative, _, ok := strings.Cut(b.Name, "/backups/")
+				if !ok {
+					continue
+				}
+				name := lastSegment(b.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBigtableBackup,
+					NativeID:       b.Name,
+					Name:           &name,
+					Status:         strp(b.State),
+					AttributesJSON: mustJSON(b),
+					DiscoveredBy:   scanID,
+				})
+				clusterID := store.ResourceID("gcp", p.ID, TypeBigtableCluster, clusterNative)
+				backupID := store.ResourceID("gcp", p.ID, TypeBigtableBackup, b.Name)
+				pairs = append(pairs, [2]string{backupID, clusterID})
+			}
+			return nil
+		})
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "bigtableadmin:backups.list", inst.Name, listErr)
+			}
+			return listErr
+		}
+		n, upErr := st.UpsertResources(batch)
+		if upErr != nil {
+			return fmt.Errorf("upsert bigtable backups: %w", upErr)
+		}
+		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
+			return fmt.Errorf("closure bigtable backups: %w", cErr)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		total += len(batch)
+		inserted += n
+		return nil
+	}); ferr != nil {
+		return total, inserted, ferr
+	}
+	return total, inserted, nil
+}
+
+// scanBigtableHotTablets fans out HotTablets.List per already-scanned
+// Cluster — unlike Backups/MemoryLayers, this endpoint has no cluster
+// wildcard, so per-Cluster fan-out (not per-Instance) is the only shape.
+func scanBigtableHotTablets(ctx context.Context, svc *bigtableadmin.Service, p *project, clusters []*bigtableadmin.Cluster, st *store.Store, scanID string) (total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, clusters, func(gctx context.Context, c *bigtableadmin.Cluster) error {
+		if c == nil || c.Name == "" {
+			return nil
+		}
+		clusterResID := store.ResourceID("gcp", p.ID, TypeBigtableCluster, c.Name)
+		var batch []*store.Resource
+		listErr := svc.Projects.Instances.Clusters.HotTablets.List(c.Name).Pages(gctx, func(page *bigtableadmin.ListHotTabletsResponse) error {
+			for _, ht := range page.HotTablets {
+				if ht == nil || ht.Name == "" {
+					continue
+				}
+				name := lastSegment(ht.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBigtableHotTablet,
+					NativeID:       ht.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(ht),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return nil
+		})
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "bigtableadmin:hotTablets.list", c.Name, listErr)
+			}
+			return listErr
+		}
+		t, n, uerr := upsertWithParent(st, batch, clusterResID)
+		mu.Lock()
+		defer mu.Unlock()
+		total += t
+		inserted += n
+		return uerr
+	}); ferr != nil {
+		return total, inserted, ferr
+	}
+	return total, inserted, nil
+}
+
+// scanBigtableMemoryLayers fans out MemoryLayers.List per already-scanned
+// Instance, using the cluster wildcard (SDK doc confirms `{cluster} = '-'`
+// support). Each page may mix memory layers from multiple clusters; the
+// owning Cluster is derived per-row by trimming the fixed `/memoryLayer`
+// suffix from the resource name (there is always exactly one memory layer
+// per cluster, unlike Backup's variable-cardinality child).
+func scanBigtableMemoryLayers(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
+		if inst == nil || inst.Name == "" {
+			return nil
+		}
+		parent := inst.Name + "/clusters/-"
+		var batch []*store.Resource
+		var pairs [][2]string
+		listErr := svc.Projects.Instances.Clusters.MemoryLayers.List(parent).Pages(gctx, func(page *bigtableadmin.ListMemoryLayersResponse) error {
+			for _, ml := range page.MemoryLayers {
+				if ml == nil || ml.Name == "" {
+					continue
+				}
+				clusterNative := strings.TrimSuffix(ml.Name, "/memoryLayer")
+				if clusterNative == ml.Name {
+					continue
+				}
+				name := lastSegment(clusterNative) + "/memoryLayer"
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBigtableMemoryLayer,
+					NativeID:       ml.Name,
+					Name:           &name,
+					Status:         strp(ml.State),
+					AttributesJSON: mustJSON(ml),
+					DiscoveredBy:   scanID,
+				})
+				clusterID := store.ResourceID("gcp", p.ID, TypeBigtableCluster, clusterNative)
+				mlID := store.ResourceID("gcp", p.ID, TypeBigtableMemoryLayer, ml.Name)
+				pairs = append(pairs, [2]string{mlID, clusterID})
+			}
+			return nil
+		})
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "bigtableadmin:memoryLayers.list", inst.Name, listErr)
+			}
+			return listErr
+		}
+		n, upErr := st.UpsertResources(batch)
+		if upErr != nil {
+			return fmt.Errorf("upsert bigtable memory layers: %w", upErr)
+		}
+		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
+			return fmt.Errorf("closure bigtable memory layers: %w", cErr)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		total += len(batch)
+		inserted += n
+		return nil
+	}); ferr != nil {
+		return total, inserted, ferr
 	}
 	return total, inserted, nil
 }

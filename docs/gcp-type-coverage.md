@@ -484,6 +484,27 @@ commit each item's row as soon as it's fetched, inside the `forEachItem` closure
 behind one final upsert — per the per-item-commit convention established in Wave 9b. Resolver
 work deferred, per every prior wave this session.
 
+**10b — bigtableadmin, implemented.** `internal/providers/gcp/databases_scanners.go`'s
+`scanBigtable` extends the existing `gcp:bigtable` service (was Instances/Clusters-only) into a
+10-phase orchestrator: Instances → Clusters (both unchanged, single `.Do()` calls — their
+`NextPageToken` is SDK-doc-marked "DEPRECATED: unused and ignored", so no pagination gap exists
+here unlike Spanner's Databases) → AppProfiles (project-wide wildcard `instances/-`, per-row
+Instance derived via `strings.Cut(ap.Name, "/appProfiles/")`) → Tables/LogicalViews/
+MaterializedViews (fan-out per Instance, no wildcard support) → AuthorizedViews/SchemaBundles
+(fan-out per Table) → Backups (fan-out per Instance using the cluster wildcard `clusters/-`,
+per-row Cluster derived via `strings.Cut(b.Name, "/backups/")`) → HotTablets (fan-out per
+Cluster — the one endpoint in this wave confirmed to have no wildcard support, verified against
+its own doc comment rather than assumed from sibling endpoints) → MemoryLayers (fan-out per
+Instance using the cluster wildcard, per-row Cluster derived via
+`strings.TrimSuffix(ml.Name, "/memoryLayer")`, since a memory layer's name always ends in that
+literal fixed suffix — one per cluster, unlike Backup's variable-cardinality child). Every
+wildcard/no-wildcard claim was checked against its own SDK doc comment individually rather than
+inferred from a sibling endpoint's shape — this wave's own precedent (Wave 9a's LogScope
+wildcard mistake) was the reason to re-verify rather than pattern-match. An adversarial review
+found zero real issues: all wildcard claims, per-row parent derivations, pagination choices, and
+fan-out commit patterns checked out against the vendored SDK source. Resolver work deferred,
+per every prior wave this session.
+
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
 | spanner Backup | spanner/v1 ProjectsInstancesBackupsService | List(parent) | fan-out per Instance |
@@ -491,15 +512,15 @@ work deferred, per every prior wave this session.
 | spanner BackupSchedule | spanner/v1 ProjectsInstancesDatabasesBackupSchedulesService | List(parent) | fan-out per Database |
 | spanner DatabaseRole | spanner/v1 ProjectsInstancesDatabasesDatabaseRolesService | List(parent) | fan-out per Database |
 | spanner InstanceConfig | spanner/v1 ProjectsInstanceConfigsService | List(parent) | project (mix of Google catalog + custom configs) |
-| bigtableadmin Backup | bigtableadmin/v2 ProjectsInstancesClustersBackupsService | List(parent) | fan-out per Cluster |
-| bigtableadmin AppProfile | bigtableadmin/v2 ProjectsInstancesAppProfilesService | List(parent) | fan-out per Instance |
+| bigtableadmin Backup | bigtableadmin/v2 ProjectsInstancesClustersBackupsService | List(parent) | fan-out per Instance, cluster wildcard `clusters/-` |
+| bigtableadmin AppProfile | bigtableadmin/v2 ProjectsInstancesAppProfilesService | List(parent) | project-wide wildcard `instances/-` |
 | bigtableadmin Table | bigtableadmin/v2 ProjectsInstancesTablesService | List(parent) | fan-out per Instance |
 | bigtableadmin AuthorizedView | bigtableadmin/v2 ProjectsInstancesTablesAuthorizedViewsService | List(parent) | fan-out per Table |
 | bigtableadmin LogicalView | bigtableadmin/v2 ProjectsInstancesLogicalViewsService | List(parent) | fan-out per Instance |
 | bigtableadmin MaterializedView | bigtableadmin/v2 ProjectsInstancesMaterializedViewsService | List(parent) | fan-out per Instance |
 | bigtableadmin SchemaBundle | bigtableadmin/v2 ProjectsInstancesTablesSchemaBundlesService | List(parent) | fan-out per Table |
-| bigtableadmin HotTablet | bigtableadmin/v2 ProjectsInstancesClustersHotTabletsService | List(parent) | fan-out per Cluster |
-| bigtableadmin MemoryLayer | bigtableadmin/v2 (instance-scoped Service) | List(parent) | fan-out per Instance |
+| bigtableadmin HotTablet | bigtableadmin/v2 ProjectsInstancesClustersHotTabletsService | List(parent) | fan-out per Cluster (no wildcard support) |
+| bigtableadmin MemoryLayer | bigtableadmin/v2 ProjectsInstancesClustersMemoryLayersService | List(parent) | fan-out per Instance, cluster wildcard `clusters/-` |
 | firestore Backup | firestore/v1 ProjectsLocationsBackupsService | List(parent) | fan-out per location |
 | firestore BackupSchedule | firestore/v1 ProjectsDatabasesBackupSchedulesService | List(parent) | fan-out per Database |
 | firestore UserCred | firestore/v1 ProjectsDatabasesUserCredsService | List(parent) | fan-out per Database |

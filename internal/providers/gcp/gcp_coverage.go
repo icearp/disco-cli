@@ -93,6 +93,15 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeSpannerBackup:            "spanner.googleapis.com/Backup",
 		TypeSpannerBackupSchedule:    "spanner.googleapis.com/BackupSchedule",
 		TypeSpannerDatabaseRole:      "spanner.googleapis.com/DatabaseRole",
+		TypeBigtableBackup:           "bigtableadmin.googleapis.com/Backup",
+		TypeBigtableAppProfile:       "bigtableadmin.googleapis.com/AppProfile",
+		TypeBigtableTable:            "bigtableadmin.googleapis.com/Table",
+		TypeBigtableAuthorizedView:   "bigtableadmin.googleapis.com/AuthorizedView",
+		TypeBigtableLogicalView:      "bigtableadmin.googleapis.com/LogicalView",
+		TypeBigtableMaterializedView: "bigtableadmin.googleapis.com/MaterializedView",
+		TypeBigtableSchemaBundle:     "bigtableadmin.googleapis.com/SchemaBundle",
+		TypeBigtableHotTablet:        "bigtableadmin.googleapis.com/HotTablet",
+		TypeBigtableMemoryLayer:      "bigtableadmin.googleapis.com/MemoryLayer",
 		// Composer.
 		TypeComposerEnv: "composer.googleapis.com/Environment",
 		// Artifact Registry.

@@ -123,9 +123,14 @@ InstancePartitions (wildcard `instances/-`, per-row parent derived via `strings.
 page can mix partitions from multiple instances), Databases (fixed `.Do()` → `.Pages()`,
 review-caught — a truncated first page would silently starve the new BackupSchedule/DatabaseRole
 fan-outs that consume its output), Backups fan-out per Instance, BackupSchedules/DatabaseRoles
-fan-out per Database) — landed. Remaining waves tracked here, implement independently in any
-order:
-- **Wave 10 (remaining: 10b-10e)** — bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
+fan-out per Database) — landed. Wave 10b (bigtableadmin: `scanBigtable` extended from
+Instances/Clusters-only into a 10-phase orchestrator — AppProfiles (project-wide wildcard
+`instances/-`), Tables/LogicalViews/MaterializedViews fan-out per Instance, AuthorizedViews/
+SchemaBundles fan-out per Table, Backups/MemoryLayers fan-out per Instance using the cluster
+wildcard `clusters/-`, HotTablets fan-out per Cluster — the one endpoint individually confirmed
+to lack wildcard support rather than assumed from siblings; adversarial review found zero real
+issues) — landed. Remaining waves tracked here, implement independently in any order:
+- **Wave 10 (remaining: 10c-10e)** — firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.

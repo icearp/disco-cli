@@ -152,6 +152,16 @@ const (
 	TypeSpannerBackup            = "gcp:spanner:backup"
 	TypeSpannerBackupSchedule    = "gcp:spanner:backup-schedule"
 	TypeSpannerDatabaseRole      = "gcp:spanner:database-role"
+	// Bigtable secondary resources (Wave 10b of the type-coverage buildout)
+	TypeBigtableBackup           = "gcp:bigtableadmin:backup"
+	TypeBigtableAppProfile       = "gcp:bigtableadmin:app-profile"
+	TypeBigtableTable            = "gcp:bigtableadmin:table"
+	TypeBigtableAuthorizedView   = "gcp:bigtableadmin:authorized-view"
+	TypeBigtableLogicalView      = "gcp:bigtableadmin:logical-view"
+	TypeBigtableMaterializedView = "gcp:bigtableadmin:materialized-view"
+	TypeBigtableSchemaBundle     = "gcp:bigtableadmin:schema-bundle"
+	TypeBigtableHotTablet        = "gcp:bigtableadmin:hot-tablet"
+	TypeBigtableMemoryLayer      = "gcp:bigtableadmin:memory-layer"
 	// Composer
 	TypeComposerEnv = "gcp:composer:environment"
 	// Artifact Registry
