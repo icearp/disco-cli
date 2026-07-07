@@ -57,6 +57,23 @@ func init() {
 		{Type: TypeCloudIdentityInboundOidcSsoProfile, Attributes: []redact.Rule{
 			{Path: "rpConfig.clientSecret", Mode: redact.RedactScalar},
 		}},
+		// IAM OAuth client credential — clientSecret is SDK-documented "Output
+		// only": the system-generated secret genuinely comes back on List, not
+		// just Create (unlike the two defensive rules above).
+		{Type: TypeIAMCredential, Attributes: []redact.Rule{
+			{Path: "clientSecret", Mode: redact.RedactScalar},
+		}},
+		// IAM Provider — only the WorkforcePoolProvider side carries an OIDC/
+		// OAuth2 client secret (workload identity federation's Oidc config has
+		// no secret — token verification only). Both secret fields are
+		// SDK-documented "Input only... will never be populated in any
+		// response"; defensive against a future echo, same rationale as the
+		// SQL user password / Cloud Identity OIDC rules above.
+		{Type: TypeIAMProvider, Attributes: []redact.Rule{
+			{Path: "oidc.clientSecret.value.plainText", Mode: redact.RedactScalar},
+			{Path: "extendedAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar},
+			{Path: "extraAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

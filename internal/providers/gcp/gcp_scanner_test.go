@@ -34,6 +34,7 @@ var expectedGCPServices = []string{
 	"gcp:iam",
 	"gcp:iam-key",
 	"gcp:iam-policy",
+	"gcp:iam-project",
 	"gcp:loadbalancing",
 	"gcp:logging",
 	"gcp:monitoring",
@@ -98,6 +99,7 @@ func TestFilteredServices_Subset(t *testing.T) {
 var expectedGCPOrgServices = []string{
 	"gcp:cloudidentity",
 	"gcp:cloudresourcemanager-tags",
+	"gcp:iam-org",
 	"gcp:iam-policy-org",
 	"gcp:logging-org",
 	"gcp:vpcsc",

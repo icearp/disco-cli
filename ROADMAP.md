@@ -58,12 +58,10 @@ R3.1–R3.23 landed; see `FEATURES.md`. Outstanding:
 
 ### R4. GCP scanner expansion
 
-R4.1–R4.22 landed; see `FEATURES.md`. (R4.14 Dataproc/Dataflow fan-out, R4.21 Cloud Identity +
-Workspace Directory, and R4.22 non-SA IAM member edges were previously listed here as
-outstanding — verified landed in code during the 2026-07-06 GCP coverage audit; this section
-was stale.) Outstanding:
-
-- **R4.23 Workforce + Workload Identity Pools** — `gcp:iam:workforce-pool` (org-scope, `iam.Locations.WorkforcePools.List(parent="locations/global")`) + `gcp:iam:workload-identity-pool` (project-scope, `iam.Projects.Locations.WorkloadIdentityPools.List`). Resolver: pool provider → external-IdP issuer URL (string-only until something else scans IdPs). Federation trust edges across cloud boundaries. Folded into R4.24 wave 8 below.
+R4.1–R4.23 landed; see `FEATURES.md`. (R4.14 Dataproc/Dataflow fan-out, R4.21 Cloud Identity +
+Workspace Directory, R4.22 non-SA IAM member edges, and R4.23 Workforce + Workload Identity
+Pools — `gcp:iam:workforce-pool`/`gcp:iam:workload-identity-pool`, landed as part of R4.24 Wave
+8g below — were previously listed here as outstanding; this section was stale.)
 
 **R4.24 GCP type-coverage buildout** — `docs/gcp-type-coverage.md` (2026-07-06 audit) found only
 56 GCP resource types scanned against ~228 real, listable, currently-unscanned types across
@@ -97,15 +95,19 @@ singular ends in a sibilant vs. a silent "e"), and Wave 8e (dns: DnsKey/Policy/R
 ResponsePolicyRule added to the existing `scanCloudDNS`, reversing its own Wave-1-era deferral
 note; DnsKey fans out per already-scanned zone, ResponsePolicyRule per already-listed
 ResponsePolicy; `dns_scanners.go` split into thin wrapper + `scanCloudDNSWithClient` test seam
-and gained its first test file this sub-wave), and Wave 8f (cloudidentity: Device/DeviceUser/
+and gained its first test file this sub-wave), Wave 8f (cloudidentity: Device/DeviceUser/
 ClientState/Membership/InboundOidcSsoProfile/InboundSamlSsoProfile/IdpCredential/
 InboundSsoAssignment/Policy/Userinvitation added to the existing `scanCloudIdentity`;
 DeviceUser/ClientState use the API's wildcard parent rather than fanning out per already-scanned
 parent, deriving each row's owner by splitting its own resource name KMS-style; added a redact
-rule for InboundOidcSsoProfile's input-only OAuth client secret; first test file this sub-wave)
-landed; remaining waves tracked here, implement independently in any order:
+rule for InboundOidcSsoProfile's input-only OAuth client secret; first test file this sub-wave),
+and Wave 8g (iam: new `iam_federation_scanners.go` — WorkforcePool → Provider → ScimTenant
+org-scoped, WorkloadIdentityPool → Provider / → Namespace → ManagedIdentity and OauthClient →
+Credential project-scoped, custom Role both scopes; `TypeIAMProvider` is one disco type shared
+by two distinct SDK structs since the Discovery API's collection name collides at both nesting
+paths; closes R4.23) — **Wave 8 fully landed**. Remaining waves tracked here, implement
+independently in any order:
 
-- **Wave 8 (remaining: 8g)** — iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
 - **Wave 9** — Observability: logging (Bucket/Exclusion/Metric/View/LogScope), monitoring (Dashboard/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
 - **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.

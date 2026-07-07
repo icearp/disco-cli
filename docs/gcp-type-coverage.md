@@ -369,6 +369,27 @@ scanner ever had.
 | cloudidentity InboundSsoAssignment | cloudidentity/v1 InboundSsoAssignmentsService | List() | tenant |
 | cloudidentity Policy | cloudidentity/v1 PoliciesService | List() | tenant |
 | cloudidentity Userinvitation | cloudidentity/v1 CustomersUserinvitationsService | List(parent) | tenant |
+
+**8g — iam, implemented, closes ROADMAP R4.23 and Wave 8.** New file
+`iam_federation_scanners.go` (existing `iam_scanners.go` only had
+ServiceAccounts). Two new registrations: `gcp:iam-org` (WorkforcePool →
+Provider → ScimTenant, plus org-scoped custom Roles) and `gcp:iam-project`
+(WorkloadIdentityPool → Provider, WorkloadIdentityPool → Namespace →
+ManagedIdentity, OauthClient → Credential, plus project-scoped custom
+Roles). `TypeIAMProvider` is ONE disco type shared by two distinct SDK
+structs (`WorkforcePoolProvider`, `WorkloadIdentityPoolProvider`) — the
+Discovery API's collection name (`providers`) is identical at both nesting
+paths, so they singularize to the same upstream key; splitting into two
+disco types would leave one permanently unmatched against that shared key.
+Custom Role has separate org/project SDK service types (unlike CRM TagKeys,
+which shares one List call across both scopes) but both emit the same
+`TypeIAMRole`. Redact rules added for `TypeIAMCredential.clientSecret`
+(genuinely returned by List, SDK-documented "Output only") and
+`TypeIAMProvider`'s three OIDC/OAuth2 client-secret paths (input-only,
+defensive against a future echo — adversarial review caught the latter
+after the former was already in place). First test file this scanner ever
+had.
+
 | iam WorkforcePool | iam/v1 LocationsWorkforcePoolsService | List(location="locations/global") | org — closes ROADMAP R4.23 |
 | iam WorkloadIdentityPool | iam/v1 ProjectsLocationsWorkloadIdentityPoolsService | List(parent) | project — closes R4.23 |
 | iam Provider (workforce+workload) | iam/v1 (respective ProvidersService) | List(parent) | fan-out per pool — closes R4.23 |

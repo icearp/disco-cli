@@ -94,6 +94,53 @@ func TestRedact_SQLUser_Password(t *testing.T) {
 	}
 }
 
+func TestRedact_IAMCredential_ClientSecret(t *testing.T) {
+	got := applyAndDecode(t, TypeIAMCredential, map[string]any{
+		"name":         "projects/p1/locations/global/oauthClients/c1/credentials/cred1",
+		"displayName":  "prod credential",
+		"clientSecret": "s3cr3t-live-value",
+	})
+	if got["clientSecret"] != redact.Placeholder {
+		t.Errorf("clientSecret not redacted")
+	}
+	if got["displayName"] != "prod credential" {
+		t.Errorf("displayName clobbered")
+	}
+}
+
+func TestRedact_IAMProvider_OidcClientSecret(t *testing.T) {
+	got := applyAndDecode(t, TypeIAMProvider, map[string]any{
+		"name":        "locations/global/workforcePools/pool1/providers/prov1",
+		"displayName": "Okta",
+		"oidc": map[string]any{
+			"issuerUri": "https://okta.example.com",
+			"clientSecret": map[string]any{
+				"value": map[string]any{
+					"plainText":  "s3cr3t",
+					"thumbprint": "abc123",
+				},
+			},
+		},
+	})
+	oidc, ok := got["oidc"].(map[string]any)
+	if !ok {
+		t.Fatalf("oidc missing or wrong shape: %+v", got)
+	}
+	value, ok := oidc["clientSecret"].(map[string]any)["value"].(map[string]any)
+	if !ok {
+		t.Fatalf("oidc.clientSecret.value missing or wrong shape: %+v", oidc)
+	}
+	if value["plainText"] != redact.Placeholder {
+		t.Errorf("plainText not redacted")
+	}
+	if value["thumbprint"] != "abc123" {
+		t.Errorf("thumbprint clobbered")
+	}
+	if oidc["issuerUri"] != "https://okta.example.com" {
+		t.Errorf("issuerUri clobbered")
+	}
+}
+
 func TestRedact_CloudIdentityInboundOidcSsoProfile_ClientSecret(t *testing.T) {
 	got := applyAndDecode(t, TypeCloudIdentityInboundOidcSsoProfile, map[string]any{
 		"name":        "inboundOidcSsoProfiles/o1",

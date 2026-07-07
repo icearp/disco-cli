@@ -167,6 +167,24 @@ const (
 	TypeIAMServiceAccount = "gcp:iam:service-account"
 	TypeIAMPolicy         = "gcp:iam:policy"
 	TypeIAMSAKey          = "gcp:iam:key"
+	// IAM — workforce/workload federation, OAuth clients, custom roles
+	// (Wave 8g of the type-coverage buildout, closes ROADMAP R4.23)
+	TypeIAMWorkforcePool        = "gcp:iam:workforce-pool"
+	TypeIAMWorkloadIdentityPool = "gcp:iam:workload-identity-pool"
+	// TypeIAMProvider covers BOTH WorkforcePoolProvider and
+	// WorkloadIdentityPoolProvider — the Discovery API's collection name
+	// ("providers") is identical at both nesting paths, so they singularize to
+	// the same upstream key; splitting into two disco types would leave one
+	// permanently unmatched against that shared key.
+	TypeIAMProvider        = "gcp:iam:provider"
+	TypeIAMScimTenant      = "gcp:iam:scim-tenant"
+	TypeIAMNamespace       = "gcp:iam:namespace"
+	TypeIAMManagedIdentity = "gcp:iam:managed-identity"
+	TypeIAMOauthClient     = "gcp:iam:oauth-client"
+	TypeIAMCredential      = "gcp:iam:credential"
+	// TypeIAMRole is custom roles only (org- and project-scoped) — the
+	// predefined-role catalog is Google-managed and out of scope.
+	TypeIAMRole = "gcp:iam:role"
 	// Cloud KMS
 	TypeKMSKeyRing                 = "gcp:cloudkms:key-ring"
 	TypeKMSCryptoKey               = "gcp:cloudkms:crypto-key"
