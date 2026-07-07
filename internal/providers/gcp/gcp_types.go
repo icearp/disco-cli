@@ -146,6 +146,12 @@ const (
 	TypeFirestoreDB      = "gcp:firestore:database"
 	TypeSpannerInstance  = "gcp:spanner:instance"
 	TypeSpannerDatabase  = "gcp:spanner:database"
+	// Spanner secondary resources (Wave 10a of the type-coverage buildout)
+	TypeSpannerInstanceConfig    = "gcp:spanner:instance-config"
+	TypeSpannerInstancePartition = "gcp:spanner:instance-partition"
+	TypeSpannerBackup            = "gcp:spanner:backup"
+	TypeSpannerBackupSchedule    = "gcp:spanner:backup-schedule"
+	TypeSpannerDatabaseRole      = "gcp:spanner:database-role"
 	// Composer
 	TypeComposerEnv = "gcp:composer:environment"
 	// Artifact Registry

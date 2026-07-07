@@ -116,9 +116,16 @@ separate API version), Groups (Members embedded via `embedMembersJSON` rather th
 independent type, since `MonitoredResource` carries no name/ID of its own), NotificationChannels
 (`labels.*` redacted), Services → SLOs fan-out, Snoozes, UptimeCheckConfigs; also fixed a
 `singularize()` coverage-key bug ("snoozes" → "Snooz" instead of "Snooze", same sibilant-stem
-ambiguity class as the existing "databases" exception) — **Wave 9 fully landed**. Remaining
-waves tracked here, implement independently in any order:
-- **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
+ambiguity class as the existing "databases" exception) — **Wave 9 fully landed**. Wave 10a
+(spanner: `scanSpanner` extended from Instances/Databases-only into a 7-phase orchestrator —
+InstanceConfigs (Google-managed catalog entries flagged `ManagedByProvider`, review-caught gap),
+InstancePartitions (wildcard `instances/-`, per-row parent derived via `strings.Cut` since one
+page can mix partitions from multiple instances), Databases (fixed `.Do()` → `.Pages()`,
+review-caught — a truncated first page would silently starve the new BackupSchedule/DatabaseRole
+fan-outs that consume its output), Backups fan-out per Instance, BackupSchedules/DatabaseRoles
+fan-out per Database) — landed. Remaining waves tracked here, implement independently in any
+order:
+- **Wave 10 (remaining: 10b-10e)** — bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.

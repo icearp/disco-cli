@@ -83,11 +83,16 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeBQDataset: "bigquery.googleapis.com/Dataset",
 		TypeBQTable:   "bigquery.googleapis.com/Table",
 		// Bigtable / Firestore / Spanner.
-		TypeBigtableInstance: "bigtableadmin.googleapis.com/Instance",
-		TypeBigtableCluster:  "bigtableadmin.googleapis.com/Cluster",
-		TypeFirestoreDB:      "firestore.googleapis.com/Database",
-		TypeSpannerInstance:  "spanner.googleapis.com/Instance",
-		TypeSpannerDatabase:  "spanner.googleapis.com/Database",
+		TypeBigtableInstance:         "bigtableadmin.googleapis.com/Instance",
+		TypeBigtableCluster:          "bigtableadmin.googleapis.com/Cluster",
+		TypeFirestoreDB:              "firestore.googleapis.com/Database",
+		TypeSpannerInstance:          "spanner.googleapis.com/Instance",
+		TypeSpannerDatabase:          "spanner.googleapis.com/Database",
+		TypeSpannerInstanceConfig:    "spanner.googleapis.com/InstanceConfig",
+		TypeSpannerInstancePartition: "spanner.googleapis.com/InstancePartition",
+		TypeSpannerBackup:            "spanner.googleapis.com/Backup",
+		TypeSpannerBackupSchedule:    "spanner.googleapis.com/BackupSchedule",
+		TypeSpannerDatabaseRole:      "spanner.googleapis.com/DatabaseRole",
 		// Composer.
 		TypeComposerEnv: "composer.googleapis.com/Environment",
 		// Artifact Registry.

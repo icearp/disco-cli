@@ -462,6 +462,28 @@ deferred, per every prior wave this session.
 | monitoring UptimeCheckConfig | monitoring/v3 ProjectsUptimeCheckConfigsService | List(parent) | project |
 
 ### Data services secondary resources — Wave 10
+
+**10a — spanner, implemented.** `internal/providers/gcp/databases_scanners.go`'s spanner
+section extends the existing `gcp:spanner` service (was Instances/Databases-only) into a
+7-phase orchestrator: Instances → InstanceConfigs (project-scoped, mix of Google-catalog and
+customer-defined) → InstancePartitions (wildcard parent `projects/{p}/instances/-` — one page
+can mix partitions from multiple instances, so each row's owning Instance is derived via
+`strings.Cut(ip.Name, "/instancePartitions/")`, safe since Spanner instance IDs cannot contain
+`/`) → Databases (now paginated via `.Pages()`, see below) → Backups (fan-out per Instance) →
+BackupSchedules (fan-out per Database) → DatabaseRoles (fan-out per Database). An adversarial
+review caught three issues: (1) a real bug — Google-managed catalog InstanceConfigs
+(`ConfigType == "GOOGLE_MANAGED"`) weren't flagged `ManagedByProvider`, so they'd show up
+alongside customer-defined configs in `disco resources`/`disco graph` by default; fixed to set
+the flag per-row from the SDK's own `ConfigType` field. (2) a test-coverage gap for
+`scanSpannerInstances`/`scanSpannerDatabases` — fixed with 3 added tests. (3) a pagination gap:
+`scanSpannerDatabases` used a single `.Do()` call per instance instead of `.Pages()` — harmless
+while Databases was a leaf, but the new BackupSchedule/DatabaseRole fan-out phases consume its
+`databaseNames` output, so a truncated first page would have silently starved both downstream
+phases; fixed to paginate fully. All three fan-out phases (Backups/BackupSchedules/DatabaseRoles)
+commit each item's row as soon as it's fetched, inside the `forEachItem` closure — not batched
+behind one final upsert — per the per-item-commit convention established in Wave 9b. Resolver
+work deferred, per every prior wave this session.
+
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
 | spanner Backup | spanner/v1 ProjectsInstancesBackupsService | List(parent) | fan-out per Instance |
