@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveCloudBuildRelationships) }
+func init() {
+	registerResolver(resolveCloudBuildRelationships,
+		EdgeDecl{TypeCloudBuildTrigger, TypeIAMServiceAccount, store.RelUses},
+	)
+}
 
 // resolveCloudBuildRelationships derives trigger -[uses]-> service-account
 // edges. The trigger's `serviceAccount` field

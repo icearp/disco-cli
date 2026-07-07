@@ -3,6 +3,10 @@ package gcp
 import (
 	"context"
 	"errors"
+	"reflect"
+	"regexp"
+	"runtime"
+	"strings"
 	"sync/atomic"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -155,15 +159,105 @@ func serviceFilterSet(filter []string) map[string]bool {
 	return out
 }
 
-// resolverEntry describes a phase-2 relationship resolver.
+// EdgeDecl declares one (source disco type, target disco type, edge kind)
+// triple a resolver emits. Optional, but resolvers that declare their edges
+// let `disco coverage resolvers` reason about resolver coverage without
+// observing actual DB edges (which require both endpoints scanned in the
+// current project). Mirrors aws.EdgeDecl.
+type EdgeDecl struct {
+	Source string // disco type emitting the edge (the resolver's source iteration type)
+	Target string // disco type the edge points at
+	Kind   string // store.Rel* constant — "attached-to", "uses", "routes-to", etc.
+}
+
+// resolverEntry describes a phase-2 relationship resolver. Name is derived
+// from the function's reflected name (see resolverName) so call sites don't
+// spell their own. emits is optional metadata powering resolver coverage
+// tooling.
 type resolverEntry struct {
-	fn func(p *project, st *store.Store) error
+	name  string
+	fn    func(p *project, st *store.Store) error
+	emits []EdgeDecl
 }
 
 // registeredResolvers is populated by each *_resolvers.go file's init().
 var registeredResolvers []resolverEntry
 
-// registerResolver adds a resolver to the package-level registry.
-func registerResolver(fn func(p *project, st *store.Store) error) {
-	registeredResolvers = append(registeredResolvers, resolverEntry{fn: fn})
+// registerResolver adds a resolver to the package-level registry. The
+// variadic `emits` argument is optional — list every distinct
+// (source, target, kind) triple the resolver upserts. Resolvers without an
+// emits list still register, but their edge coverage is invisible to
+// `disco coverage resolvers`.
+func registerResolver(fn func(p *project, st *store.Store) error, emits ...EdgeDecl) {
+	registeredResolvers = append(registeredResolvers, resolverEntry{
+		name: resolverName(fn), fn: fn, emits: emits,
+	})
+}
+
+// resolverName returns the unqualified function name from runtime reflection,
+// e.g. "resolveFirewallRelationships". Anonymous closures reflect as
+// "pkg.init.funcN" — panic at init time so the foot-gun (an unnamed resolver
+// polluting coverage-tool / ScanError output) is loud, mirroring aws.resolverName.
+func resolverName(fn func(p *project, st *store.Store) error) string {
+	full := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	short := full
+	if i := strings.LastIndex(full, "."); i >= 0 {
+		short = full[i+1:]
+	}
+	if anonResolverNameRE.MatchString(short) {
+		panic("disco: registerResolver requires a named function, got anonymous closure: " + full)
+	}
+	return short
+}
+
+var anonResolverNameRE = regexp.MustCompile(`^func\d+$`)
+
+// serviceSegment returns the middle segment of a disco type
+// ("gcp:compute:instance" -> "compute"). Returns "" for malformed inputs.
+func serviceSegment(discoType string) string {
+	parts := strings.SplitN(discoType, ":", 3)
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[1]
+}
+
+// ListResolvers returns one coverage.ResolverInfo per registered resolver in
+// registration order — the coverage.ResolverAuditor implementation backing
+// `disco coverage resolvers --providers gcp`.
+func ListResolvers() []coverage.ResolverInfo {
+	out := make([]coverage.ResolverInfo, 0, len(registeredResolvers))
+	for _, r := range registeredResolvers {
+		seen := map[string]struct{}{}
+		var svcs []string
+		for _, e := range r.emits {
+			for _, t := range []string{e.Source, e.Target} {
+				if s := serviceSegment(t); s != "" {
+					if _, dup := seen[s]; !dup {
+						seen[s] = struct{}{}
+						svcs = append(svcs, s)
+					}
+				}
+			}
+		}
+		out = append(out, coverage.ResolverInfo{Name: r.name, EdgeCount: len(r.emits), Services: svcs})
+	}
+	return out
+}
+
+// ResolverEdgeSources returns the distinct EdgeDecl.Source disco-types across
+// every registered resolver — backs `disco coverage resolvers --missing`,
+// which reports emitted disco types never appearing as a resolver source.
+func ResolverEdgeSources() []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, r := range registeredResolvers {
+		for _, e := range r.emits {
+			if _, dup := seen[e.Source]; !dup {
+				seen[e.Source] = struct{}{}
+				out = append(out, e.Source)
+			}
+		}
+	}
+	return out
 }

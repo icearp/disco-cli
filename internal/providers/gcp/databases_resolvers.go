@@ -8,7 +8,13 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveDatabasesRelationships) }
+func init() {
+	registerResolver(resolveDatabasesRelationships,
+		EdgeDecl{TypeBigtableCluster, TypeKMSCryptoKey, store.RelUses},
+		EdgeDecl{TypeFirestoreDB, TypeKMSCryptoKey, store.RelUses},
+		EdgeDecl{TypeSpannerDatabase, TypeKMSCryptoKey, store.RelUses},
+	)
+}
 
 // resolveDatabasesRelationships derives CMEK edges across the three
 // database services:

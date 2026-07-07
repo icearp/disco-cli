@@ -8,7 +8,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveComposerRelationships) }
+func init() {
+	registerResolver(resolveComposerRelationships,
+		EdgeDecl{TypeComposerEnv, TypeKMSCryptoKey, store.RelUses},
+		EdgeDecl{TypeComposerEnv, TypeIAMServiceAccount, store.RelUses},
+	)
+}
 
 // resolveComposerRelationships derives:
 //

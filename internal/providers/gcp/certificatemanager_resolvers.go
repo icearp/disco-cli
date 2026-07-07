@@ -8,7 +8,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveCertificateManagerRelationships) }
+func init() {
+	registerResolver(resolveCertificateManagerRelationships,
+		EdgeDecl{TypeCertManagerMapEntry, TypeCertManagerCertificate, store.RelUses},
+		EdgeDecl{TypeComputeTargetHTTPSProxy, TypeCertManagerMap, store.RelUses},
+	)
+}
 
 // resolveCertificateManagerRelationships derives two edge classes:
 //

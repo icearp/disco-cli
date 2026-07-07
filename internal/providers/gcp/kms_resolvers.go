@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveKMSRelationships) }
+func init() {
+	registerResolver(resolveKMSRelationships,
+		EdgeDecl{TypeStorageBucket, TypeKMSCryptoKey, store.RelUses},
+	)
+}
 
 // resolveKMSRelationships derives bucket → cryptoKey CMEK edges. Full CMEK
 // matrix (BigQuery dataset, Compute disk, SQL instance, Pub/Sub topic, Secret

@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveIAMServiceAccountKeyRelationships) }
+func init() {
+	registerResolver(resolveIAMServiceAccountKeyRelationships,
+		EdgeDecl{TypeIAMSAKey, TypeIAMServiceAccount, store.RelAttachedTo},
+	)
+}
 
 // resolveIAMServiceAccountKeyRelationships emits an `attached-to` edge from
 // every gcp:iam:key to its parent service account. The SA's resource name is

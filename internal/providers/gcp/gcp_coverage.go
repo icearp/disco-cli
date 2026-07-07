@@ -25,6 +25,11 @@ func (coverageProvider) Name() string { return "gcp" }
 
 func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 
+// ListResolvers and ResolverEdgeSources implement coverage.ResolverAuditor,
+// backing `disco coverage resolvers --providers gcp`.
+func (coverageProvider) ListResolvers() []coverage.ResolverInfo { return ListResolvers() }
+func (coverageProvider) ResolverEdgeSources() []string          { return ResolverEdgeSources() }
+
 // Aliases overrides the algorithmic disco-type → upstream-key mapping for GCP
 // types whose Discovery resource-collection name doesn't match the disco
 // service segment 1:1 (e.g. cloudresourcemanager Discovery uses singular

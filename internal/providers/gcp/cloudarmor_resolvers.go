@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveCloudArmorRelationships) }
+func init() {
+	registerResolver(resolveCloudArmorRelationships,
+		EdgeDecl{TypeComputeBackendService, TypeComputeSecurityPolicy, store.RelUses},
+	)
+}
 
 // resolveCloudArmorRelationships derives backend-service -[uses]-> security-policy
 // edges. BackendServices reference their attached Cloud Armor policy via two

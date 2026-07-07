@@ -10,9 +10,25 @@ import (
 )
 
 func init() {
-	registerResolver(resolveComputeInstanceRelationships)
-	registerResolver(resolveSubnetworkRelationships)
-	registerResolver(resolveInstanceGroupManagerRelationships)
+	registerResolver(resolveComputeInstanceRelationships,
+		EdgeDecl{TypeComputeInstance, TypeComputeNetwork, store.RelAttachedTo},
+		EdgeDecl{TypeComputeInstance, TypeComputeSubnet, store.RelAttachedTo},
+		EdgeDecl{TypeComputeInstance, TypeComputeDisk, store.RelAttachedTo},
+		EdgeDecl{TypeComputeInstance, TypeComputeRegionDisk, store.RelAttachedTo},
+	)
+	registerResolver(resolveSubnetworkRelationships,
+		EdgeDecl{TypeComputeSubnet, TypeComputeNetwork, store.RelAttachedTo},
+	)
+	registerResolver(resolveInstanceGroupManagerRelationships,
+		EdgeDecl{TypeComputeInstanceGroupManager, TypeComputeInstanceTemplate, store.RelUses},
+		EdgeDecl{TypeComputeInstanceGroupManager, TypeComputeRegionInstanceTemplate, store.RelUses},
+		EdgeDecl{TypeComputeInstanceGroupManager, TypeComputeInstanceGroup, store.RelUses},
+		EdgeDecl{TypeComputeInstanceGroupManager, TypeComputeRegionInstanceGroup, store.RelUses},
+		EdgeDecl{TypeComputeRegionInstanceGroupManager, TypeComputeInstanceTemplate, store.RelUses},
+		EdgeDecl{TypeComputeRegionInstanceGroupManager, TypeComputeRegionInstanceTemplate, store.RelUses},
+		EdgeDecl{TypeComputeRegionInstanceGroupManager, TypeComputeInstanceGroup, store.RelUses},
+		EdgeDecl{TypeComputeRegionInstanceGroupManager, TypeComputeRegionInstanceGroup, store.RelUses},
+	)
 }
 
 func resolveComputeInstanceRelationships(p *project, st *store.Store) error {

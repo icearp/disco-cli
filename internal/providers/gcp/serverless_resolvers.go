@@ -8,7 +8,13 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveServerlessRelationships) }
+func init() {
+	registerResolver(resolveServerlessRelationships,
+		EdgeDecl{TypeCloudFunction, TypeIAMServiceAccount, store.RelUses},
+		EdgeDecl{TypeCloudFunction, TypeKMSCryptoKey, store.RelUses},
+		EdgeDecl{TypeCloudRunSvc, TypeIAMServiceAccount, store.RelUses},
+	)
+}
 
 // resolveServerlessRelationships derives runtime-identity edges for the
 // serverless surfaces:

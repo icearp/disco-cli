@@ -9,7 +9,13 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveLoggingSinkRelationships) }
+func init() {
+	registerResolver(resolveLoggingSinkRelationships,
+		EdgeDecl{TypeLoggingSink, TypeStorageBucket, store.RelRoutesTo},
+		EdgeDecl{TypeLoggingSink, TypeBQDataset, store.RelRoutesTo},
+		EdgeDecl{TypeLoggingSink, TypePubSubTopic, store.RelRoutesTo},
+	)
+}
 
 // resolveLoggingSinkRelationships derives sink -[routes-to]-> destination
 // edges. Logging sink destinations come in three canonical shapes:

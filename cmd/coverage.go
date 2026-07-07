@@ -108,7 +108,7 @@ Candidate gap list for new resolvers.
 --services filters to resolvers (or orphan types) whose service segment
 matches one of the named services.
 
-Implemented by AWS and Azure. --providers selects which (unset = all that
+Implemented by AWS, Azure, and GCP. --providers selects which (unset = all that
 support resolver auditing); naming a provider without auditing support errors.`,
 	Example: `  disco coverage resolvers
   disco coverage resolvers --providers azure

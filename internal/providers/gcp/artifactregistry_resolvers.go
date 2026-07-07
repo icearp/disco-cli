@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveArtifactRegistryRelationships) }
+func init() {
+	registerResolver(resolveArtifactRegistryRelationships,
+		EdgeDecl{TypeArtifactRepository, TypeKMSCryptoKey, store.RelUses},
+	)
+}
 
 // resolveArtifactRegistryRelationships derives repository -[uses]-> cryptoKey
 // CMEK edges via `kmsKeyName`. Reverse edges (GKE / Cloud Run → repository

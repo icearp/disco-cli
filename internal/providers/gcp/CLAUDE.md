@@ -11,6 +11,10 @@ GCP scanner/resolver conventions. Cross-provider rules: `internal/providers/CLAU
 
 `disco coverage services --providers gcp --filter uncovered` — diff GCP Discovery API vs scanner emits. Works credless (Discovery is public). Other filters: `covered`, `uncatalogued` (SDK-scanned but absent from Discovery — none on GCP today: `gcp:iam:policy` lands `covered` because Discovery's `iam.googleapis.com/Policy` matches it), `upstream-missing`. `--check-strict` exits 1 on `upstream-missing` rows (alias-map drift signal) — wire into CI to catch alias/scanner drift. A Discovery fetch failure — the top-level list **or any per-API doc** — is always fatal (exit 2 via the cmd layer's `errCoverageRegistryUnreachable`), so a dropped doc never silently undercounts the upstream and falsely flags that API's types as drift.
 
+## Resolver-edge metadata: `EdgeDecl`
+
+`registerResolver(fn, emits ...EdgeDecl)` is variadic — every resolver should list each `(source, target, kind)` triple it upserts (mirrors AWS's `aws.EdgeDecl`/`aws_registry.go`). Backs `disco coverage resolvers --providers gcp` (per-resolver edge counts + service segments) and `--missing` (emitted disco types never appearing as an `EdgeDecl.Source` — the resolver-gap inventory). `fn` must be a named function, not an anonymous closure — `registerResolver` panics at init time on an anonymous fn (reflects as `pkg.init.funcN`, useless in audit output). As of the Wave 11 scanner buildout closing, this gap list is large (~216 of 247 emitted types) because Waves 1-11 shipped scanners only, resolver work deferred every wave — most orphans are genuinely terminal (KeyRing, Organization, Project self-node, config singletons) rather than real gaps; triage via a `Leaf: true` flag on the scanner's `coverage.TypeDecl` (AWS precedent: `internal/providers/CLAUDE.md` "Leaf") before treating the raw `--missing` count as an actionable backlog.
+
 ## Scoping cheat-sheet
 
 Pick scanner shape on first read:

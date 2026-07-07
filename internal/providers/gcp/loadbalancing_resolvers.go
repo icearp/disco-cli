@@ -8,7 +8,17 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveLoadBalancingRelationships) }
+func init() {
+	registerResolver(resolveLoadBalancingRelationships,
+		EdgeDecl{TypeComputeForwardingRule, TypeComputeTargetHTTPProxy, store.RelRoutesTo},
+		EdgeDecl{TypeComputeForwardingRule, TypeComputeTargetHTTPSProxy, store.RelRoutesTo},
+		EdgeDecl{TypeComputeForwardingRule, TypeComputeBackendService, store.RelRoutesTo},
+		EdgeDecl{TypeComputeTargetHTTPProxy, TypeComputeURLMap, store.RelRoutesTo},
+		EdgeDecl{TypeComputeTargetHTTPSProxy, TypeComputeURLMap, store.RelRoutesTo},
+		EdgeDecl{TypeComputeURLMap, TypeComputeBackendService, store.RelRoutesTo},
+		EdgeDecl{TypeComputeURLMap, TypeComputeBackendBucket, store.RelRoutesTo},
+	)
+}
 
 // resolveLoadBalancingRelationships derives the LB traffic-flow chain:
 //

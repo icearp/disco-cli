@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveBinaryAuthorizationRelationships) }
+func init() {
+	registerResolver(resolveBinaryAuthorizationRelationships,
+		EdgeDecl{TypeBinAuthAttestor, TypeIAMServiceAccount, store.RelUses},
+	)
+}
 
 // resolveBinaryAuthorizationRelationships derives attestor -[uses]->
 // service-account via `userOwnedGrafeasNote.delegationServiceAccountEmail`.

@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveSecretRelationships) }
+func init() {
+	registerResolver(resolveSecretRelationships,
+		EdgeDecl{TypeSecret, TypeKMSCryptoKey, store.RelUses},
+	)
+}
 
 // resolveSecretRelationships derives secret -[uses]-> cryptoKey CMEK edges.
 // Secrets express CMEK in three places depending on replication mode:

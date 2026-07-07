@@ -8,7 +8,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveFirewallRelationships) }
+func init() {
+	registerResolver(resolveFirewallRelationships,
+		EdgeDecl{TypeComputeFirewall, TypeComputeNetwork, store.RelAttachedTo},
+		EdgeDecl{TypeComputeFirewall, TypeComputeInstance, store.RelUses},
+	)
+}
 
 // resolveFirewallRelationships derives two firewall edge classes:
 //

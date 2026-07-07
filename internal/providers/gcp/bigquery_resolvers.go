@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveBigQueryRelationships) }
+func init() {
+	registerResolver(resolveBigQueryRelationships,
+		EdgeDecl{TypeBQDataset, TypeKMSCryptoKey, store.RelUses},
+	)
+}
 
 // resolveBigQueryRelationships derives dataset -[uses]-> cryptoKey CMEK
 // edges from `defaultEncryptionConfiguration.kmsKeyName`. The dataset CMEK

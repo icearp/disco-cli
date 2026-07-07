@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveDNSRelationships) }
+func init() {
+	registerResolver(resolveDNSRelationships,
+		EdgeDecl{TypeDNSRecordSet, TypeComputeForwardingRule, store.RelRoutesTo},
+	)
+}
 
 // resolveDNSRelationships derives A/AAAA record-set -[routes-to]-> forwarding-rule
 // edges by matching the record's `rrdatas[]` IP literals against each

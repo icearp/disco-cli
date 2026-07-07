@@ -8,7 +8,14 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolvePubSubRelationships) }
+func init() {
+	registerResolver(resolvePubSubRelationships,
+		EdgeDecl{TypePubSubTopic, TypeKMSCryptoKey, store.RelUses},
+		EdgeDecl{TypePubSubTopic, TypePubSubSchema, store.RelUses},
+		EdgeDecl{TypePubSubSubscription, TypePubSubTopic, store.RelAttachedTo},
+		EdgeDecl{TypePubSubSubscription, TypePubSubTopic, store.RelRoutesTo},
+	)
+}
 
 // resolvePubSubRelationships derives:
 //

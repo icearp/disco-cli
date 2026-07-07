@@ -10,7 +10,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveIAMPolicyRelationships)
+	registerResolver(resolveIAMPolicyRelationships,
+		EdgeDecl{TypeIAMPolicy, TypeIAMServiceAccount, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeWorkspaceUser, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeCloudIdentityGroup, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeIAMServiceAccount, store.RelCrossProjectIAM},
+		EdgeDecl{TypeIAMPolicy, TypeProject, store.RelCrossProjectIAM},
+	)
 }
 
 // resolveIAMPolicyRelationships walks each gcp:iam:policy resource's bindings

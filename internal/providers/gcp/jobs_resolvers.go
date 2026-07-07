@@ -8,7 +8,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveJobsRelationships) }
+func init() {
+	registerResolver(resolveJobsRelationships,
+		EdgeDecl{TypeCloudRunJob, TypeIAMServiceAccount, store.RelUses},
+		EdgeDecl{TypeBatchJob, TypeIAMServiceAccount, store.RelUses},
+	)
+}
 
 // resolveJobsRelationships derives:
 //
