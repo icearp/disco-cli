@@ -203,9 +203,27 @@ which correctly used a manual `.Pages()` + single classification; fixed to match
 type-mirror test, without checking the live Discovery doc — the test only proves the alias matches
 `AlgorithmicKey`, not that either matches the real upstream key; fixed by checking
 `run.googleapis.com/$discovery/rest` directly (confirms `workerPools`, camelCase) and reverting the
-type to `gcp:run:worker-pool` / alias `WorkerPool`. Both fixes fail-first verified. Remaining
-sub-wave tracked here:
-- **Wave 11 (remaining: 11e)** — container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
+type to `gcp:run:worker-pool` / alias `WorkerPool`. Both fixes fail-first verified. Wave 11e
+(container: `scanGKE` gained a per-Cluster NodePool fan-out; certificatemanager: 4 new phases
+— CertificateIssuanceConfigs, TrustConfigs, plus the pre-existing CertificateMaps/DNSAuthorizations
+retrofitted; composer: per-Environment UserWorkloadsConfigMap fan-out; dataflow: per-region Snapshot
+fan-out via the same `gcpRegions`-threaded test-seam shape as 11d's run WorkerPool/Instance;
+secretmanager: per-Secret Version fan-out, metadata only per SDK docs — supersedes a stale
+"intentionally not scanned" comment; pubsub: Snapshot phase added, Subscriptions/Schemas
+retrofitted) — landed, closing Wave 11. certificatemanager's own test suite caught a real bug
+before review: its pre-existing flat sibling phases (CertificateMaps, DNSAuthorizations, and by
+extension the new CertificateIssuanceConfigs/TrustConfigs) were routed through the `runPaginated`
+helper, which internally classifies isPermissionDenied/isAPINotEnabled and returns an
+already-`errServiceDisabled`-wrapped sentinel on API-not-enabled — re-checking isPermissionDenied on
+that result a second time can never match, since `markServiceDisabled` embeds the original error via
+`%s` not `%w`. This generalizes the discard-not-escalate rule beyond genuine per-item fan-outs
+(Wave 10d/11b-d) to ANY phase after the first in a scanner, including flat siblings of the same API —
+all of certificatemanager's phases 2-5 were retrofitted to a manual `.Pages()` + single
+classification, and the same lesson was applied proactively to pubsub before it could hit the same
+bug. `TypeSecretVersion`'s disco type is `gcp:secretmanager:version`, not `secret-version` — the
+live Discovery key is the bare word `Version`; the SDK's Go type name `SecretVersion` is a
+disambiguating alias only, the same self-consistency-test trap as 11d's WorkerPool. All 6 files'
+discard-pattern fixes fail-first verified before commit.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.
 

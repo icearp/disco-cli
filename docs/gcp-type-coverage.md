@@ -751,7 +751,7 @@ every prior wave this session.
 | run Location | run/v2 ProjectsLocationsService | DROP — catalog, not a resource |
 | run Operation | run/v2 ProjectsLocationsOperationsService | DROP — action-verb/operation record |
 
-### Container / certificate / composer / dataflow / secret / pubsub secondary — Wave 11e
+### Container / certificate / composer / dataflow / secret / pubsub secondary — Wave 11e, implemented
 
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
@@ -759,9 +759,46 @@ every prior wave this session.
 | certificatemanager CertificateIssuanceConfig | certificatemanager/v1 ProjectsLocationsCertificateIssuanceConfigsService | List(parent) | project |
 | certificatemanager TrustConfig | certificatemanager/v1 ProjectsLocationsTrustConfigsService | List(parent) | project |
 | composer UserWorkloadsConfigMap | composer/v1 ProjectsLocationsEnvironmentsUserWorkloadsConfigMapsService | List(parent) | fan-out per Environment |
-| dataflow Snapshot | dataflow/v1b3 ProjectsLocationsSnapshotsService | List(projectId, location) | per-region |
+| dataflow Snapshot | dataflow/v1b3 ProjectsLocationsSnapshotsService | List(projectId, location) | per-region (regions resolved once via `gcpRegions` and threaded into the test-seam core, same shape as `run` WorkerPool/Instance in 11d) |
 | secretmanager Version | secretmanager/v1 ProjectsSecretsVersionsService | List(parent) | fan-out per Secret (already scanned); metadata only, no payload |
 | pubsub Snapshot | pubsub/v1 ProjectsSnapshotsService | List(project) | project |
+
+`gke_scanners.go` (Clusters, previously the only phase) gains a per-Cluster NodePool fan-out —
+`NodePools.List` takes a resource-name parent that must be built manually
+(`projects/{p}/locations/{loc}/clusters/{name}`) since `Cluster.SelfLink` is a full URL, not the
+shape the call expects. `certificatemanager_scanners.go` and `pubsub_scanners.go` needed a larger
+retrofit than the other four files: both already had 2-4 flat sibling phases (CertificateMaps,
+CertificateMapEntries, DNSAuthorizations / Subscriptions, Schemas) routed through the `runPaginated`
+helper, which internally classifies `isPermissionDenied`/`isAPINotEnabled` and returns the
+already-`errServiceDisabled`-wrapped sentinel on API-not-enabled — re-checking `isPermissionDenied`
+on that result a second time (as the discard pattern requires) can never succeed, because
+`markServiceDisabled` embeds the original error only via `%s`, not `%w`, so `errors.As` can't
+unwrap it twice. This surfaced as a real test failure: `TestScanCertificateManager_
+TrustConfigsAPINotEnabledShapeDoesNotDisableWholeService` went red on first run, disproving an
+initial assumption that flat siblings of an already-proven-enabled API don't need the
+discard-not-escalate treatment (Wave 10d/11b-d's discard pattern had so far only been applied to
+genuine per-item fan-outs). All phases after the first List in both files were converted from
+`runPaginated` to a manual `.Pages()` call classified exactly once. The same generalization was
+then applied proactively to `pubsub_scanners.go`'s Subscriptions/Schemas/Snapshot phases before
+writing its tests, so no red run was needed there. `secretmanager_scanners.go`'s scanner-header
+comment claiming Versions were "intentionally not scanned" because "the version payload is the
+actual secret material" was stale and superseded — the SDK docs are explicit that `Versions.List`
+never returns payload (`AccessSecretVersion` is the only call that does, and disco never invokes
+it), so Version rows carry only metadata (state, timestamps, replication), consistent with
+CLAUDE.md's "ROADMAP.md is historical, not authoritative" principle. Type-mirror naming note:
+`TypeSecretVersion`'s disco type is `gcp:secretmanager:version` (not `secret-version`) because the
+live Discovery key is the bare word `Version`, not the SDK's Go-side disambiguating type name
+`SecretVersion` — same self-consistency-test trap as 11d's WorkerPool, caught the same way (checked
+live Discovery casing before trusting `TestGCPTypeMirrorsDiscovery` alone). All 6 files' discard-
+pattern fixes were fail-first verified (each reverted to bubble-up, confirmed the exact `gcp service
+not enabled` escalation error, restored, confirmed green) before commit. Resolver work deferred, per
+every prior wave this session.
+
+This closes Wave 11 (all sub-waves 11a-11e landed) and, per the original wave-order plan, the GCP
+type-coverage buildout as scoped in this ledger — modulo `run` Instance being a live-research
+addition not in the original plan, which suggests future sessions should re-run
+`go run . coverage services --providers gcp --filter uncovered` before declaring the backlog
+fully closed, rather than trusting this ledger's INCLUDE list as final.
 
 ### Admin Directory (partial — most of the 29 uncovered `admin` types)
 | Type | Package.Client | List method | Scope |

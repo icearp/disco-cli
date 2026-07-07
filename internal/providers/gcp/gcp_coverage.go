@@ -64,10 +64,12 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeComputeRegionInstantSnapshotGroup: "compute.googleapis.com/RegionInstantSnapshotGroup",
 		TypeComputeStoragePool:                "compute.googleapis.com/StoragePool",
 		// Certificate Manager.
-		TypeCertManagerCertificate: "certificatemanager.googleapis.com/Certificate",
-		TypeCertManagerMap:         "certificatemanager.googleapis.com/CertificateMap",
-		TypeCertManagerMapEntry:    "certificatemanager.googleapis.com/CertificateMapEntry",
-		TypeCertManagerDNSAuth:     "certificatemanager.googleapis.com/DnsAuthorization",
+		TypeCertManagerCertificate:    "certificatemanager.googleapis.com/Certificate",
+		TypeCertManagerMap:            "certificatemanager.googleapis.com/CertificateMap",
+		TypeCertManagerMapEntry:       "certificatemanager.googleapis.com/CertificateMapEntry",
+		TypeCertManagerDNSAuth:        "certificatemanager.googleapis.com/DnsAuthorization",
+		TypeCertManagerIssuanceConfig: "certificatemanager.googleapis.com/CertificateIssuanceConfig",
+		TypeCertManagerTrustConfig:    "certificatemanager.googleapis.com/TrustConfig",
 		// DNS.
 		TypeDNSManagedZone: "dns.googleapis.com/ManagedZone",
 		TypeDNSRecordSet:   "dns.googleapis.com/ResourceRecordSet",
@@ -85,6 +87,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypePubSubTopic:        "pubsub.googleapis.com/Topic",
 		TypePubSubSubscription: "pubsub.googleapis.com/Subscription",
 		TypePubSubSchema:       "pubsub.googleapis.com/Schema",
+		TypePubSubSnapshot:     "pubsub.googleapis.com/Snapshot",
 		// BigQuery.
 		TypeBQDataset:         "bigquery.googleapis.com/Dataset",
 		TypeBQTable:           "bigquery.googleapis.com/Table",
@@ -115,7 +118,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeBigtableHotTablet:        "bigtableadmin.googleapis.com/HotTablet",
 		TypeBigtableMemoryLayer:      "bigtableadmin.googleapis.com/MemoryLayer",
 		// Composer.
-		TypeComposerEnv: "composer.googleapis.com/Environment",
+		TypeComposerEnv:                    "composer.googleapis.com/Environment",
+		TypeComposerUserWorkloadsConfigMap: "composer.googleapis.com/UserWorkloadsConfigMap",
 		// Artifact Registry.
 		TypeArtifactRepository: "artifactregistry.googleapis.com/Repository",
 		TypeArtifactPackage:    "artifactregistry.googleapis.com/Package",
@@ -151,7 +155,8 @@ func (coverageProvider) Aliases() map[string]string {
 		// Batch.
 		TypeBatchJob: "batch.googleapis.com/Job",
 		// GKE.
-		TypeGKECluster: "container.googleapis.com/Cluster",
+		TypeGKECluster:  "container.googleapis.com/Cluster",
+		TypeGKENodePool: "container.googleapis.com/NodePool",
 		// IAM.
 		TypeIAMServiceAccount: "iam.googleapis.com/ServiceAccount",
 		TypeIAMSAKey:          "iam.googleapis.com/Key",
@@ -159,7 +164,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeKMSKeyRing:   "cloudkms.googleapis.com/KeyRing",
 		TypeKMSCryptoKey: "cloudkms.googleapis.com/CryptoKey",
 		// Secret Manager.
-		TypeSecret: "secretmanager.googleapis.com/Secret",
+		TypeSecret:        "secretmanager.googleapis.com/Secret",
+		TypeSecretVersion: "secretmanager.googleapis.com/Version",
 		// Cloud Storage.
 		TypeStorageBucket:                     "storage.googleapis.com/Bucket",
 		TypeStorageHmacKey:                    "storage.googleapis.com/HmacKey",
@@ -183,6 +189,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeDataprocWorkflowTemplate:  "dataproc.googleapis.com/WorkflowTemplate",
 		TypeDataprocJob:               "dataproc.googleapis.com/Job",
 		TypeDataflowJob:               "dataflow.googleapis.com/Job",
+		TypeDataflowSnapshot:          "dataflow.googleapis.com/Snapshot",
 		// Workspace + Cloud Identity.
 		TypeWorkspaceUser:      "admin.googleapis.com/User",
 		TypeCloudIdentityGroup: "cloudidentity.googleapis.com/Group",

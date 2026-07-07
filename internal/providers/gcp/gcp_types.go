@@ -117,10 +117,12 @@ const (
 	TypeComputeResourcePolicy       = "gcp:compute:resource-policy"
 	TypeComputeRegionSecurityPolicy = "gcp:compute:region-security-policy"
 	// Certificate Manager
-	TypeCertManagerCertificate = "gcp:certificatemanager:certificate"
-	TypeCertManagerMap         = "gcp:certificatemanager:certificate-map"
-	TypeCertManagerMapEntry    = "gcp:certificatemanager:certificate-map-entry"
-	TypeCertManagerDNSAuth     = "gcp:certificatemanager:dns-authorization"
+	TypeCertManagerCertificate    = "gcp:certificatemanager:certificate"
+	TypeCertManagerMap            = "gcp:certificatemanager:certificate-map"
+	TypeCertManagerMapEntry       = "gcp:certificatemanager:certificate-map-entry"
+	TypeCertManagerDNSAuth        = "gcp:certificatemanager:dns-authorization"
+	TypeCertManagerIssuanceConfig = "gcp:certificatemanager:certificate-issuance-config"
+	TypeCertManagerTrustConfig    = "gcp:certificatemanager:trust-config"
 	// Cloud DNS
 	TypeDNSManagedZone = "gcp:dns:managed-zone"
 	TypeDNSRecordSet   = "gcp:dns:resource-record-set"
@@ -142,6 +144,7 @@ const (
 	TypePubSubTopic        = "gcp:pubsub:topic"
 	TypePubSubSubscription = "gcp:pubsub:subscription"
 	TypePubSubSchema       = "gcp:pubsub:schema"
+	TypePubSubSnapshot     = "gcp:pubsub:snapshot"
 	// BigQuery
 	TypeBQDataset = "gcp:bigquery:dataset"
 	TypeBQTable   = "gcp:bigquery:table"
@@ -176,7 +179,8 @@ const (
 	TypeBigtableHotTablet        = "gcp:bigtableadmin:hot-tablet"
 	TypeBigtableMemoryLayer      = "gcp:bigtableadmin:memory-layer"
 	// Composer
-	TypeComposerEnv = "gcp:composer:environment"
+	TypeComposerEnv                    = "gcp:composer:environment"
+	TypeComposerUserWorkloadsConfigMap = "gcp:composer:user-workloads-config-map"
 	// Artifact Registry
 	TypeArtifactRepository = "gcp:artifactregistry:repository"
 	// Artifact Registry secondary resources (Wave 11b of the type-coverage buildout)
@@ -216,7 +220,8 @@ const (
 	TypeCloudRunExecution = "gcp:run:execution"
 	TypeBatchJob          = "gcp:batch:job"
 	// GKE
-	TypeGKECluster = "gcp:container:cluster"
+	TypeGKECluster  = "gcp:container:cluster"
+	TypeGKENodePool = "gcp:container:node-pool"
 	// IAM
 	TypeIAMServiceAccount = "gcp:iam:service-account"
 	TypeIAMPolicy         = "gcp:iam:policy"
@@ -248,7 +253,8 @@ const (
 	TypeKMSKeyHandle               = "gcp:cloudkms:key-handle"
 	TypeKMSSingleTenantHsmInstance = "gcp:cloudkms:single-tenant-hsm-instance"
 	// Secret Manager
-	TypeSecret = "gcp:secretmanager:secret"
+	TypeSecret        = "gcp:secretmanager:secret"
+	TypeSecretVersion = "gcp:secretmanager:version"
 	// Cloud Storage
 	TypeStorageBucket = "gcp:storage:bucket"
 	// Cloud Storage secondary resources (Wave 11a of the type-coverage buildout)
@@ -276,8 +282,9 @@ const (
 	TypeAuthorizedOrgsDesc   = "gcp:accesscontextmanager:authorized-orgs-desc"
 	TypeGcpUserAccessBinding = "gcp:accesscontextmanager:gcp-user-access-binding"
 	// Dataproc + Dataflow
-	TypeDataprocCluster = "gcp:dataproc:cluster"
-	TypeDataflowJob     = "gcp:dataflow:job"
+	TypeDataprocCluster  = "gcp:dataproc:cluster"
+	TypeDataflowJob      = "gcp:dataflow:job"
+	TypeDataflowSnapshot = "gcp:dataflow:snapshot"
 	// Dataproc secondary resources (Wave 10e of the type-coverage buildout)
 	TypeDataprocAutoscalingPolicy = "gcp:dataproc:autoscaling-policy"
 	TypeDataprocBatch             = "gcp:dataproc:batch"
