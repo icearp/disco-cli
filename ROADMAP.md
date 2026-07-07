@@ -322,6 +322,28 @@ tested with one member/wire); added multi-member `AttachmentGroupToMembers` and 
 `resolveInterconnectRelationships` (previously only the VPN resolver had one), fail-first
 verified against a corrupted single-iteration loop. Net: 102 → 93 orphan types.
 
+**Resolver Wave R6 (network edge closeout, part 1).** New
+`internal/providers/gcp/compute_network_edge_resolvers.go`: Network → NetworkFirewallPolicy
+(`firewallPolicy`) + peer Network (`peerings[].network`); (Region)NetworkFirewallPolicy → Network
+(`associations[].attachmentTarget` — safe because these disco types are only ever populated by
+`scanComputeNetworkFirewallPolicies`, never the org-scoped `FirewallPolicies` service, so the
+generic "attachment target" field can only be a network here); NetworkAttachment → Network +
+Subnetwork[]; ServiceAttachment → ForwardingRule (`producerForwardingRule` — always the regional
+type since `serviceAttachments` has no global variant); RegionCommitment → Reservation[]
+(`existingReservations[]` — the one field in this wave with no SDK doc comment at all; corroborated
+only by the sibling `Reservations` field's doc text, not authoritative, flagged for a live-scan
+spot-check); NodeGroup → NodeTemplate. Scoped deliberately to only the unambiguous single-target-
+type fields in the remaining "compute" bucket — deferred BackendService/RegionBackendService
+(HealthChecks mixes modern/legacy health-check types), Backend.Group (five possible group/NEG
+target types), Autoscaler.Target, and the HealthCheckService/HealthSource/CompositeHealthCheck
+cross-referencing chain to a later wave rather than guess wrong, matching this backlog's established
+"defer ambiguous, don't guess" precedent (nextHopGateway, ResourcePolicies bare names). Adversarial
+review: clean, no bugs — confirmed every field/self-link claim against the vendored SDK source and
+Google's live discovery doc; one pre-existing, not-new limitation noted (cross-project VPC peering
+targets are structurally unresolvable since `scannedIDSet`/`upsertIfScanned` scope lookups to the
+same project, same as the existing cross-project service-account-ref limitation). Net: 93 → 86
+orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
