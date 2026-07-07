@@ -160,9 +160,20 @@ opt-in-feature endpoints (ManagedFolders/AnywhereCaches/Folders) tolerate a bare
 doesn't abort the scan; `HmacKeyMetadata`'s list shape carries no secret so the audit's
 "flag for redaction" note doesn't apply; fixed a `singularize()` bug — `"anywhereCaches"` was
 mis-reduced to `"anywhereCach"` by the sibilant-stem rule, added to `singularizeExceptions`;
-adversarial review found zero real issues) — landed. Remaining sub-waves tracked here, implement
+adversarial review found zero real issues) — landed. Wave 11b (artifactregistry:
+`scanArtifactRegistry` extended from Repositories-only into a 3-phase orchestrator —
+Packages/Rules/Attachments fan-out per Repository, Tags fan-out per Package (nested two levels
+deep); re-scoped the original audit's type list after reading the vendored SDK directly — Version
+and the 4 format-specific per-artifact views (DockerImage/MavenArtifact/NpmPackage/PythonPackage)
+share the same unbounded per-push cardinality and are deliberately not scanned, PrewarmedArtifact
+turned out to have no List RPC at all; adversarial review caught the scope-decision comment
+overstating its own evidence (claimed the 4 format-specific views' fields are "literally mirrored"
+into Version — true for only a few DockerImage fields, false for the other 3), fixed to state the
+real cardinality rationale; the 4 nested per-repo/per-package fan-out phases all apply the Wave
+10d fix pattern so a nested isAPINotEnabled-shaped error can't escalate past a phase-1 call that
+already proved the API enabled) — landed. Remaining sub-waves tracked here, implement
 independently in any order:
-- **Wave 11 (remaining: 11b-11e)** — artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
+- **Wave 11 (remaining: 11c-11e)** — cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.
 

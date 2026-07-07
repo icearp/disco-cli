@@ -174,6 +174,11 @@ const (
 	TypeComposerEnv = "gcp:composer:environment"
 	// Artifact Registry
 	TypeArtifactRepository = "gcp:artifactregistry:repository"
+	// Artifact Registry secondary resources (Wave 11b of the type-coverage buildout)
+	TypeArtifactPackage    = "gcp:artifactregistry:package"
+	TypeArtifactTag        = "gcp:artifactregistry:tag"
+	TypeArtifactRule       = "gcp:artifactregistry:rule"
+	TypeArtifactAttachment = "gcp:artifactregistry:attachment"
 	// Logging / Monitoring
 	TypeLoggingSink                   = "gcp:logging:sink"
 	TypeLoggingBucket                 = "gcp:logging:bucket"

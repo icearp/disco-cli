@@ -625,16 +625,43 @@ prior wave this session.
 | storage Folder | storage/v1 FoldersService | List(bucket) | fan-out per Bucket, opt-in feature (400 tolerated) |
 | storage BucketAccessControl | storage/v1 BucketAccessControlsService | List(bucket) | fan-out per Bucket |
 | storage DefaultObjectAccessControl | storage/v1 DefaultObjectAccessControlsService | List(bucket) | fan-out per Bucket |
+
+**11b — artifactregistry, implemented.** `internal/providers/gcp/artifactregistry_scanners.go`'s
+`scanArtifactRegistry` extends the existing `gcp:artifactregistry` service (was Repositories-only)
+into a 3-phase orchestrator: Repositories (unchanged, now also captures each repo's
+`(name, ResourceID)` pair) → per-Repository fan-out (Packages, Rules, Attachments) → per-Package
+fan-out (Tags, nested two levels deep: Repository → Package → Tag). Re-scoped the original
+audit's type list after reading the vendored SDK directly: Version, DockerImage, MavenArtifact,
+NpmPackage, and PythonPackage are all NOT scanned — they share Version's cardinality profile (one
+row per pushed image/artifact, not per logical package, unbounded on busy/CI-fed registries), and
+Tag already captures the graph/security-relevant named subset. PrewarmedArtifact has no resource
+`Name` field and — confirmed during review — no List RPC at all (only reachable via
+Check/Report/Remove request bodies), so it isn't a listable resource to begin with. An adversarial
+review caught one real issue: the code's original comment claimed DockerImage/MavenArtifact/
+NpmPackage/PythonPackage's fields are "literally mirrored" into the generic Version resource's
+Metadata — checked against the vendored source and only a handful of DockerImage's fields actually
+carry that doc annotation; MavenArtifact/NpmPackage/PythonPackage are independently-addressable
+resources with their own `Name`/List RPC, not duplicates of anything else scanned. The skip
+decision itself still holds (same cardinality argument as Version), but the comment was rewritten
+to state that rationale accurately instead of the inaccurate "already captured elsewhere" claim.
+The nested per-repository/per-package fan-out phases (Packages/Rules/Attachments/Tags) all run
+only after Repositories.List already proves the artifactregistry API enabled, so each applies the
+Wave 10d fix pattern: `isAPINotEnabled`-shaped errors warn-and-continue rather than escalating to
+the whole-service disabled sentinel — verified consistently applied across all 4 nested call
+sites. Resolver work deferred, per every prior wave this session.
+
+| Type | Package.Client | List method | Scope |
+|---|---|---|---|
 | artifactregistry Package | artifactregistry/v1 ProjectsLocationsRepositoriesPackagesService | List(parent) | fan-out per Repository |
-| artifactregistry Version | artifactregistry/v1 ...PackagesVersionsService | List(parent) | fan-out per Package |
 | artifactregistry Tag | artifactregistry/v1 ...PackagesTagsService | List(parent) | fan-out per Package |
 | artifactregistry Rule | artifactregistry/v1 ProjectsLocationsRepositoriesRulesService | List(parent) | fan-out per Repository |
 | artifactregistry Attachment | artifactregistry/v1 ...RepositoriesAttachmentsService | List(parent) | fan-out per Repository |
-| artifactregistry DockerImage | artifactregistry/v1 ...RepositoriesDockerImagesService | List(parent) | fan-out per Repository, format-specific view |
-| artifactregistry MavenArtifact | artifactregistry/v1 ...RepositoriesMavenArtifactsService | List(parent) | fan-out per Repository |
-| artifactregistry NpmPackage | artifactregistry/v1 ...RepositoriesNpmPackagesService | List(parent) | fan-out per Repository |
-| artifactregistry PythonPackage | artifactregistry/v1 ...RepositoriesPythonPackagesService | List(parent) | fan-out per Repository |
-| artifactregistry PrewarmedArtifact | artifactregistry/v1 ...RepositoriesPrewarmedArtifactsService | List(parent) | fan-out per Repository |
+| artifactregistry Version | artifactregistry/v1 ...PackagesVersionsService | DROP — same cardinality class as the 4 format-specific views below; Tag captures the named/referenced subset |
+| artifactregistry DockerImage | artifactregistry/v1 ...RepositoriesDockerImagesService | DROP — one row per pushed image, unbounded on busy registries |
+| artifactregistry MavenArtifact | artifactregistry/v1 ...RepositoriesMavenArtifactsService | DROP — same cardinality class as DockerImage |
+| artifactregistry NpmPackage | artifactregistry/v1 ...RepositoriesNpmPackagesService | DROP — same cardinality class as DockerImage |
+| artifactregistry PythonPackage | artifactregistry/v1 ...RepositoriesPythonPackagesService | DROP — same cardinality class as DockerImage |
+| artifactregistry PrewarmedArtifact | artifactregistry/v1 ...RepositoriesPrewarmedArtifactsService | DROP — no `Name` field, no List RPC at all; not a listable resource |
 | cloudbuild Connection | **cloudbuild/v2** (new import; existing scanner uses v1) ProjectsLocationsConnectionsService | List(parent) | project |
 | cloudbuild Repository (2nd-gen) | **cloudbuild/v2** ...ConnectionsRepositoriesService | List(parent) | fan-out per Connection |
 | cloudbuild WorkerPool | cloudbuild/v1 ProjectsLocationsWorkerPoolsService | List(parent) | project |

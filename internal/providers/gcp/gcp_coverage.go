@@ -112,6 +112,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeComposerEnv: "composer.googleapis.com/Environment",
 		// Artifact Registry.
 		TypeArtifactRepository: "artifactregistry.googleapis.com/Repository",
+		TypeArtifactPackage:    "artifactregistry.googleapis.com/Package",
+		TypeArtifactTag:        "artifactregistry.googleapis.com/Tag",
+		TypeArtifactRule:       "artifactregistry.googleapis.com/Rule",
+		TypeArtifactAttachment: "artifactregistry.googleapis.com/Attachment",
 		// Logging / Monitoring.
 		TypeLoggingSink:                   "logging.googleapis.com/Sink",
 		TypeLoggingBucket:                 "logging.googleapis.com/Bucket",
