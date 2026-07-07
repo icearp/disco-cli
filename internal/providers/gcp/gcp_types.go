@@ -201,4 +201,16 @@ const (
 	// Workspace Directory + Cloud Identity (tenant-scope identity)
 	TypeWorkspaceUser      = "gcp:admin:user"
 	TypeCloudIdentityGroup = "gcp:cloudidentity:group"
+	// Cloud Identity — devices, memberships, SSO, policy (Wave 8f of the
+	// type-coverage buildout)
+	TypeCloudIdentityDevice                = "gcp:cloudidentity:device"
+	TypeCloudIdentityDeviceUser            = "gcp:cloudidentity:device-user"
+	TypeCloudIdentityClientState           = "gcp:cloudidentity:client-state"
+	TypeCloudIdentityMembership            = "gcp:cloudidentity:membership"
+	TypeCloudIdentityInboundOidcSsoProfile = "gcp:cloudidentity:inbound-oidc-sso-profile"
+	TypeCloudIdentityInboundSamlSsoProfile = "gcp:cloudidentity:inbound-saml-sso-profile"
+	TypeCloudIdentityIdpCredential         = "gcp:cloudidentity:idp-credential"
+	TypeCloudIdentityInboundSsoAssignment  = "gcp:cloudidentity:inbound-sso-assignment"
+	TypeCloudIdentityPolicy                = "gcp:cloudidentity:policy"
+	TypeCloudIdentityUserinvitation        = "gcp:cloudidentity:userinvitation"
 )

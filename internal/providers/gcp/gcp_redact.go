@@ -51,6 +51,12 @@ func init() {
 		{Type: TypeSecret, Attributes: []redact.Rule{
 			{Path: "payload.data", Mode: redact.RedactScalar},
 		}},
+		// Cloud Identity OIDC SSO profile — rpConfig.clientSecret (input-only per
+		// SDK doc; defensive against a future SDK where List echoes it, same
+		// rationale as SQL user's password above).
+		{Type: TypeCloudIdentityInboundOidcSsoProfile, Attributes: []redact.Rule{
+			{Path: "rpConfig.clientSecret", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

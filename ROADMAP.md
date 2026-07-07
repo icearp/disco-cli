@@ -97,10 +97,15 @@ singular ends in a sibilant vs. a silent "e"), and Wave 8e (dns: DnsKey/Policy/R
 ResponsePolicyRule added to the existing `scanCloudDNS`, reversing its own Wave-1-era deferral
 note; DnsKey fans out per already-scanned zone, ResponsePolicyRule per already-listed
 ResponsePolicy; `dns_scanners.go` split into thin wrapper + `scanCloudDNSWithClient` test seam
-and gained its first test file this sub-wave) landed; remaining waves tracked here, implement
-independently in any order:
+and gained its first test file this sub-wave), and Wave 8f (cloudidentity: Device/DeviceUser/
+ClientState/Membership/InboundOidcSsoProfile/InboundSamlSsoProfile/IdpCredential/
+InboundSsoAssignment/Policy/Userinvitation added to the existing `scanCloudIdentity`;
+DeviceUser/ClientState use the API's wildcard parent rather than fanning out per already-scanned
+parent, deriving each row's owner by splitting its own resource name KMS-style; added a redact
+rule for InboundOidcSsoProfile's input-only OAuth client secret; first test file this sub-wave)
+landed; remaining waves tracked here, implement independently in any order:
 
-- **Wave 8 (remaining: 8f-8g)** — cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
+- **Wave 8 (remaining: 8g)** — iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
 - **Wave 9** — Observability: logging (Bucket/Exclusion/Metric/View/LogScope), monitoring (Dashboard/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
 - **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.

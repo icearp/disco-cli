@@ -93,3 +93,27 @@ func TestRedact_SQLUser_Password(t *testing.T) {
 		t.Errorf("name clobbered")
 	}
 }
+
+func TestRedact_CloudIdentityInboundOidcSsoProfile_ClientSecret(t *testing.T) {
+	got := applyAndDecode(t, TypeCloudIdentityInboundOidcSsoProfile, map[string]any{
+		"name":        "inboundOidcSsoProfiles/o1",
+		"displayName": "Okta OIDC",
+		"rpConfig": map[string]any{
+			"clientId":     "abc123",
+			"clientSecret": "s3cr3t",
+		},
+	})
+	rpConfig, ok := got["rpConfig"].(map[string]any)
+	if !ok {
+		t.Fatalf("rpConfig missing or wrong shape: %+v", got)
+	}
+	if rpConfig["clientSecret"] != redact.Placeholder {
+		t.Errorf("clientSecret not redacted")
+	}
+	if rpConfig["clientId"] != "abc123" {
+		t.Errorf("clientId clobbered")
+	}
+	if got["displayName"] != "Okta OIDC" {
+		t.Errorf("displayName clobbered")
+	}
+}

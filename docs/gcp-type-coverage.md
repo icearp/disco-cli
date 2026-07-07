@@ -335,9 +335,33 @@ embed the full `dns/v1/` prefix — test fake-server routes use `/dns/v1/...`.
 | dns Policy | dns/v1 PoliciesService | List(project) | project |
 | dns ResponsePolicy | dns/v1 ResponsePoliciesService | List(project) | project |
 | dns ResponsePolicyRule | dns/v1 ResponsePolicyRulesService | List(project, responsePolicy) | fan-out per ResponsePolicy |
+
+**8f — cloudidentity, implemented.** Ten new types added to the existing
+`scanCloudIdentity` (previously Workspace Directory Users + Cloud Identity
+Groups only, both flat with no hierarchy closure). Device is flat
+(customer-scoped, no parent); DeviceUser/ClientState use the API's wildcard
+parent (`devices/-`, `devices/-/deviceUsers/-`) rather than fanning out per
+already-scanned Device/DeviceUser — one paginated call returns every device's
+children customer-wide, KMS-style multi-parent batch derives each row's
+owning parent by string-splitting its own resource name (`/deviceUsers/`,
+`/clientStates/`) since a single page can mix children of many different
+parents. Membership has no wildcard support (GCP requires an explicit
+`groups/{group}`), so it fans out per already-scanned Group via
+`forEachItem`; IdpCredential likewise fans out per already-listed SAML SSO
+profile. InboundOidcSsoProfile/InboundSamlSsoProfile/InboundSsoAssignment/
+Policy all omit their optional `filter` param entirely rather than
+hand-building a CEL expression — the SDK documents omission as defaulting to
+the caller's own customer, which is this scanner's only supported scope
+anyway. `scanCloudIdentityGroups`'s signature grew a `groupNames []string`
+return so the Membership fan-out has a list to iterate. Added a
+`redact.Register` rule for `InboundOidcSsoProfile.rpConfig.clientSecret`
+(SDK-documented input-only field, defensive against a future echo — same
+rationale as the pre-existing SQL user password rule). First test file this
+scanner ever had.
+
 | cloudidentity Device | cloudidentity/v1 DevicesService | List() | tenant |
-| cloudidentity DeviceUser | cloudidentity/v1 DevicesDeviceUsersService | List(parent) | fan-out per Device |
-| cloudidentity ClientState | cloudidentity/v1 DevicesDeviceUsersClientStatesService | List(parent) | fan-out per DeviceUser |
+| cloudidentity DeviceUser | cloudidentity/v1 DevicesDeviceUsersService | List(parent=`devices/-`) | wildcard, customer-wide |
+| cloudidentity ClientState | cloudidentity/v1 DevicesDeviceUsersClientStatesService | List(parent=`devices/-/deviceUsers/-`) | wildcard, customer-wide |
 | cloudidentity Membership | cloudidentity/v1 GroupsMembershipsService | List(parent) | fan-out per Group (already scanned) |
 | cloudidentity InboundOidcSsoProfile | cloudidentity/v1 InboundOidcSsoProfilesService | List() | tenant |
 | cloudidentity InboundSamlSsoProfile | cloudidentity/v1 InboundSamlSsoProfilesService | List() | tenant |
