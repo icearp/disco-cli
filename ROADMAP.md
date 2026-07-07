@@ -86,12 +86,17 @@ CryptoKeyVersion, EkmConnection, ImportJob, KeyHandle, SingleTenantHsmInstance, 
 existing `scanCloudKMS` nested loops), and Wave 8b (cloudresourcemanager: TagKey/TagValue/TagHold
 3-level nested fan-out from both org and project entry points — a TagKey can be parented by
 either; Lien/TagBinding/EffectiveTag project-scoped, the latter two deliberately not fanned out
-to every scanned resource per docs/gcp-type-coverage.md), and Wave 8c (accesscontextmanager:
+to every scanned resource per docs/gcp-type-coverage.md), Wave 8c (accesscontextmanager:
 AccessLevel/AuthorizedOrgsDesc inlined as new siblings in the existing per-AccessPolicy fan-out,
 GcpUserAccessBinding parented directly by the org — `vpcsc_scanners.go` gained its first test
-file this sub-wave) landed; remaining waves tracked here, implement independently in any order:
+file this sub-wave), and Wave 8d (sqladmin: BackupRun/Database/SslCert/User fanned out per
+already-scanned Instance via bounded-concurrency `forEachItem`; fixed a pre-existing
+`singularize()` coverage-tool bug found while verifying `Database`'s alias — "databases" and
+"aliases" share an identical `-ases` suffix with no suffix-only way to tell apart which one's
+singular ends in a sibilant vs. a silent "e") landed; remaining waves tracked here, implement
+independently in any order:
 
-- **Wave 8 (remaining: 8d-8g)** — sqladmin, dns, cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
+- **Wave 8 (remaining: 8e-8g)** — dns, cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
 - **Wave 9** — Observability: logging (Bucket/Exclusion/Metric/View/LogScope), monitoring (Dashboard/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
 - **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.

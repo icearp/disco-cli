@@ -36,6 +36,12 @@ func init() {
 		{Type: TypeSQLInstance, Attributes: []redact.Rule{
 			{Path: "rootPassword", Mode: redact.RedactScalar},
 		}},
+		// SQL user — password (List doesn't populate it, but the field is
+		// shared with Insert/Update payloads; defensive against a future SDK
+		// where it does echo).
+		{Type: TypeSQLUser, Attributes: []redact.Rule{
+			{Path: "password", Mode: redact.RedactScalar},
+		}},
 		// Service-account key — privateKeyData (Create echo only).
 		{Type: TypeIAMSAKey, Attributes: []redact.Rule{
 			{Path: "privateKeyData", Mode: redact.RedactScalar},

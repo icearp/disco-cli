@@ -80,3 +80,16 @@ func TestRedact_IAMSAKey_PrivateKeyData(t *testing.T) {
 		t.Errorf("privateKeyData not redacted")
 	}
 }
+
+func TestRedact_SQLUser_Password(t *testing.T) {
+	got := applyAndDecode(t, TypeSQLUser, map[string]any{
+		"name":     "appuser",
+		"password": "hunter2",
+	})
+	if got["password"] != redact.Placeholder {
+		t.Errorf("password not redacted")
+	}
+	if got["name"] != "appuser" {
+		t.Errorf("name clobbered")
+	}
+}

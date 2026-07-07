@@ -376,11 +376,27 @@ func hasFetchMethod(methods map[string]json.RawMessage) bool {
 	return false
 }
 
+// singularizeExceptions handles plurals no suffix-only rule can resolve.
+// "databases" and "aliases" both end in identical "-ases", but the true
+// singular of one ends in a silent "e" (non-sibilant stem, "+s" plural) and
+// the other in a genuine sibilant "s" (sibilant stem, "+es" plural) — the
+// suffix alone can't tell them apart. Extend this map, not the heuristic
+// below, when a new word hits the same ambiguity (surfaces as an
+// "upstream-missing" row in `disco coverage services` for a type that's
+// actually scanned).
+var singularizeExceptions = map[string]string{
+	"databases": "database",
+}
+
 // singularize strips a trailing plural marker from a lowerCamel collection
 // name. Heuristic only — alias-map handles cases this gets wrong (e.g.
 // "indexes" → "Index" handled here via the sibilant-stem rule, "policies" →
-// "Policy" via the -ies rule, but irregular plurals must be aliased).
+// "Policy" via the -ies rule, but genuinely irregular plurals go in
+// singularizeExceptions above).
 func singularize(s string) string {
+	if exc, ok := singularizeExceptions[s]; ok {
+		return exc
+	}
 	switch {
 	case strings.HasSuffix(s, "ies") && len(s) > 3:
 		return s[:len(s)-3] + "y"

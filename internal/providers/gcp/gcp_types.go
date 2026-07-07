@@ -175,6 +175,11 @@ const (
 	TypeStorageBucket = "gcp:storage:bucket"
 	// Cloud SQL
 	TypeSQLInstance = "gcp:sqladmin:instance"
+	// Cloud SQL — per-instance children (Wave 8d of the type-coverage buildout)
+	TypeSQLBackupRun = "gcp:sqladmin:backup-run"
+	TypeSQLDatabase  = "gcp:sqladmin:database"
+	TypeSQLSslCert   = "gcp:sqladmin:ssl-cert"
+	TypeSQLUser      = "gcp:sqladmin:user"
 	// Access Context Manager (VPC Service Controls — org-scoped)
 	TypeAccessPolicy     = "gcp:accesscontextmanager:access-policy"
 	TypeServicePerimeter = "gcp:accesscontextmanager:service-perimeter"

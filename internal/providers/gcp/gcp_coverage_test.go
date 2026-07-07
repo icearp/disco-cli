@@ -77,6 +77,10 @@ func TestSingularize(t *testing.T) {
 		"keys":      "key",
 		"services":  "service",
 		"disks":     "disk",
+		// Exception: "databases" ends in the identical "-ases" suffix as
+		// "aliases" but its true singular ends in a silent "e", not a
+		// sibilant — no suffix-only rule distinguishes them.
+		"databases": "database",
 	}
 	for in, want := range cases {
 		if got := singularize(in); got != want {

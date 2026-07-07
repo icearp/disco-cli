@@ -294,6 +294,20 @@ instead. `vpcsc_scanners.go` had zero test coverage before this sub-wave;
 | accesscontextmanager AccessLevel | accesscontextmanager/v1 AccessPoliciesAccessLevelsService | List(parent) | fan-out per AccessPolicy (already scanned) |
 | accesscontextmanager AuthorizedOrgsDesc | accesscontextmanager/v1 AccessPoliciesAuthorizedOrgsDescsService | List(parent) | fan-out per AccessPolicy |
 | accesscontextmanager GcpUserAccessBinding | accesscontextmanager/v1 OrganizationsGcpUserAccessBindingsService | List(parent) | org |
+
+**8d — sqladmin, implemented.** Fans out per already-scanned Instance
+(bounded concurrency via `forEachItem`, same shape as KMS's per-location
+fan-out). Only BackupRuns paginates (`Pages()`); Databases/SslCerts/Users are
+single-page `.Do()` calls per the SDK (Users' `NextPageToken` is explicitly
+documented "Unused"). Fixed a pre-existing `singularize()` bug found while
+verifying `Database` lands `covered`: the Discovery collection name
+`"databases"` and `"aliases"` share an identical `-ases` suffix, but one's
+true singular ends in a sibilant "s" and the other in a silent "e" — no
+suffix-only rule can tell them apart. Added a small exception map rather than
+reworking the general heuristic; this also fixed two other previously
+`upstream-missing` rows (`firestore Database`, `spanner Database`) as a
+side effect.
+
 | sqladmin BackupRun | sqladmin/v1 BackupRunsService | List(project, instance) | fan-out per Instance |
 | sqladmin Database | sqladmin/v1 DatabasesService | List(project, instance) | fan-out per Instance |
 | sqladmin SslCert | sqladmin/v1 SslCertsService | List(project, instance) | fan-out per Instance |
