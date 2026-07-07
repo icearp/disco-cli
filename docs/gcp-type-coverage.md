@@ -505,6 +505,20 @@ found zero real issues: all wildcard claims, per-row parent derivations, paginat
 fan-out commit patterns checked out against the vendored SDK source. Resolver work deferred,
 per every prior wave this session.
 
+**10c — firestore, implemented.** `internal/providers/gcp/databases_scanners.go`'s
+`scanFirestore` extends the existing `gcp:firestore` service (was Databases-only) into a
+4-phase orchestrator: Databases -> Backups (project-wide wildcard `locations/-`; unlike
+Spanner/Bigtable's name-splitting, each `Backup` carries its owning Database's full resource
+name directly in its own `Database` field, byte-identical in format to the already-stored
+Database `Name`, so no string-splitting is needed) -> BackupSchedules (fan-out per Database) ->
+UserCreds (fan-out per Database). None of the three new List endpoints paginates at all — their
+response types carry no `NextPageToken` field and their List calls expose no `Pages()` method —
+so all three use single `.Do()` calls, verified individually rather than assumed. UserCreds gets
+a defensive `securePassword` redact rule even though the SDK doc states List responses never
+populate it (only Create/ResetPassword echo it) — same defense-in-depth rationale as the
+existing SQL user password rule. An adversarial review found zero real issues. Resolver work
+deferred, per every prior wave this session.
+
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
 | spanner Backup | spanner/v1 ProjectsInstancesBackupsService | List(parent) | fan-out per Instance |
@@ -521,7 +535,7 @@ per every prior wave this session.
 | bigtableadmin SchemaBundle | bigtableadmin/v2 ProjectsInstancesTablesSchemaBundlesService | List(parent) | fan-out per Table |
 | bigtableadmin HotTablet | bigtableadmin/v2 ProjectsInstancesClustersHotTabletsService | List(parent) | fan-out per Cluster (no wildcard support) |
 | bigtableadmin MemoryLayer | bigtableadmin/v2 ProjectsInstancesClustersMemoryLayersService | List(parent) | fan-out per Instance, cluster wildcard `clusters/-` |
-| firestore Backup | firestore/v1 ProjectsLocationsBackupsService | List(parent) | fan-out per location |
+| firestore Backup | firestore/v1 ProjectsLocationsBackupsService | List(parent) | project-wide wildcard `locations/-` |
 | firestore BackupSchedule | firestore/v1 ProjectsDatabasesBackupSchedulesService | List(parent) | fan-out per Database |
 | firestore UserCred | firestore/v1 ProjectsDatabasesUserCredsService | List(parent) | fan-out per Database |
 | bigquery Model | bigquery/v2 ModelsService | List(projectId, datasetId) | fan-out per Dataset |

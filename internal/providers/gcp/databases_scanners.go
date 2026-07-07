@@ -36,6 +36,9 @@ func init() {
 		fn:   scanFirestore,
 		emits: []coverage.TypeDecl{
 			{Service: "firestore", DiscoType: TypeFirestoreDB},
+			{Service: "firestore", DiscoType: TypeFirestoreBackup},
+			{Service: "firestore", DiscoType: TypeFirestoreBackupSchedule},
+			{Service: "firestore", DiscoType: TypeFirestoreUserCred},
 		},
 	})
 	registerService(serviceEntry{
@@ -63,6 +66,10 @@ const maxConcurrentSpannerFanout = 10
 // SchemaBundle, Backup, HotTablet, MemoryLayer). Per-project cardinality is
 // modest; keep consistent with the other providers' per-item fan-outs.
 const maxConcurrentBigtableFanout = 10
+
+// maxConcurrentFirestoreFanout caps per-Database BackupSchedule/UserCred
+// fan-out.
+const maxConcurrentFirestoreFanout = 10
 
 // scanBigtable discovers Bigtable instances, clusters, and their secondary
 // resources: AppProfiles (project-wide wildcard, per-row Instance derived
@@ -686,24 +693,63 @@ func scanBigtableMemoryLayers(ctx context.Context, svc *bigtableadmin.Service, p
 	return total, inserted, nil
 }
 
-// scanFirestore discovers Firestore databases (multi-DB project support).
-// Indexes / collection groups / fields deferred — narrow graph value vs.
-// per-database fan-out cost.
+// scanFirestore discovers Firestore databases (multi-DB project support),
+// backups (project-wide wildcard, each row carries its owning Database's
+// full resource name directly — no name-splitting needed), and
+// BackupSchedules/UserCreds (fan-out per Database). Indexes / collection
+// groups / fields deferred — narrow graph value vs. per-database fan-out
+// cost.
 func scanFirestore(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := firestore.NewService(ctx, opts...)
 	if err != nil {
 		return 0, 0, fmt.Errorf("firestore client: %w", err)
 	}
+
+	databaseNames, t, n, err := scanFirestoreDatabases(ctx, svc, p, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanFirestoreBackups(ctx, svc, p, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanFirestoreBackupSchedules(ctx, svc, p, databaseNames, st, scanID)
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t, n, err = scanFirestoreUserCreds(ctx, svc, p, databaseNames, st, scanID)
+	total += t
+	inserted += n
+	return total, inserted, err
+}
+
+// scanFirestoreDatabases discovers Firestore databases. ListDatabasesResponse
+// has no NextPageToken (no pagination on this endpoint). Returns every
+// database's NativeID for the BackupSchedule/UserCred per-Database fan-out.
+func scanFirestoreDatabases(ctx context.Context, svc *firestore.Service, p *project, st *store.Store, scanID string) (databaseNames []string, total, inserted int, err error) {
 	resp, err := svc.Projects.Databases.List(fmt.Sprintf("projects/%s", p.ID)).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "firestore:databases.list", p.ID, err)
+			return nil, 0, 0, skipIfDenied(st, "firestore:databases.list", p.ID, err)
 		}
-		return 0, 0, err
+		return nil, 0, 0, err
 	}
 	var batch []*store.Resource
 	for _, d := range resp.Databases {
+		if d == nil || d.Name == "" {
+			continue
+		}
+		databaseNames = append(databaseNames, d.Name)
 		name := lastSegment(d.Name)
 		batch = append(batch, &store.Resource{
 			Provider:       "gcp",
@@ -718,8 +764,147 @@ func scanFirestore(ctx context.Context, p *project, st *store.Store, scanID stri
 			DiscoveredBy:   scanID,
 		})
 	}
-	t, n, e := upsertWithProjClosure(p, st, batch)
-	return t, n, e
+	total, inserted, err = upsertWithProjClosure(p, st, batch)
+	return databaseNames, total, inserted, err
+}
+
+// scanFirestoreBackups discovers backups across every location via the
+// project-wide wildcard parent (SDK doc confirms `{location} = '-'`
+// support). ListBackupsResponse has no NextPageToken (no pagination). Unlike
+// the Spanner/Bigtable multi-parent cases, each Backup carries its owning
+// Database's full resource name directly in its own `Database` field — no
+// name-splitting needed.
+func scanFirestoreBackups(ctx context.Context, svc *firestore.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
+	resp, err := svc.Projects.Locations.Backups.List(parent).Context(ctx).Do()
+	if err != nil {
+		if isPermissionDenied(err) {
+			return 0, 0, skipIfDenied(st, "firestore:backups.list", p.ID, err)
+		}
+		return 0, 0, err
+	}
+	var batch []*store.Resource
+	var pairs [][2]string
+	for _, b := range resp.Backups {
+		if b == nil || b.Name == "" || b.Database == "" {
+			continue
+		}
+		name := lastSegment(b.Name)
+		batch = append(batch, &store.Resource{
+			Provider:       "gcp",
+			AccountID:      p.ID,
+			AccountName:    &p.Name,
+			Type:           TypeFirestoreBackup,
+			NativeID:       b.Name,
+			Name:           &name,
+			Status:         strp(b.State),
+			AttributesJSON: mustJSON(b),
+			DiscoveredBy:   scanID,
+		})
+		dbID := store.ResourceID("gcp", p.ID, TypeFirestoreDB, b.Database)
+		backupID := store.ResourceID("gcp", p.ID, TypeFirestoreBackup, b.Name)
+		pairs = append(pairs, [2]string{backupID, dbID})
+	}
+	n, upErr := st.UpsertResources(batch)
+	if upErr != nil {
+		return 0, 0, fmt.Errorf("upsert firestore backups: %w", upErr)
+	}
+	if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
+		return 0, 0, fmt.Errorf("closure firestore backups: %w", cErr)
+	}
+	return len(batch), n, nil
+}
+
+// scanFirestoreBackupSchedules fans out BackupSchedules.List per
+// already-scanned Database (no wildcard parent support).
+// ListBackupSchedulesResponse has no NextPageToken (no pagination).
+func scanFirestoreBackupSchedules(ctx context.Context, svc *firestore.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentFirestoreFanout, databaseNames, func(gctx context.Context, dbName string) error {
+		dbResID := store.ResourceID("gcp", p.ID, TypeFirestoreDB, dbName)
+		resp, listErr := svc.Projects.Databases.BackupSchedules.List(dbName).Context(gctx).Do()
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "firestore:backupSchedules.list", dbName, listErr)
+			}
+			return listErr
+		}
+		var batch []*store.Resource
+		for _, bs := range resp.BackupSchedules {
+			if bs == nil || bs.Name == "" {
+				continue
+			}
+			name := lastSegment(bs.Name)
+			batch = append(batch, &store.Resource{
+				Provider:       "gcp",
+				AccountID:      p.ID,
+				AccountName:    &p.Name,
+				Type:           TypeFirestoreBackupSchedule,
+				NativeID:       bs.Name,
+				Name:           &name,
+				AttributesJSON: mustJSON(bs),
+				DiscoveredBy:   scanID,
+			})
+		}
+		t, n, uerr := upsertWithParent(st, batch, dbResID)
+		mu.Lock()
+		defer mu.Unlock()
+		total += t
+		inserted += n
+		return uerr
+	}); ferr != nil {
+		return total, inserted, ferr
+	}
+	return total, inserted, nil
+}
+
+// scanFirestoreUserCreds fans out UserCreds.List per already-scanned
+// Database (no wildcard parent support). ListUserCredsResponse has no
+// NextPageToken (no pagination). The SDK doc states List "does not contain
+// the secret value itself" — SecurePassword is only ever populated on
+// Create/ResetPassword responses — but redact.Register still flags the
+// field defensively since the type is shared and this is a credential-
+// shaped field.
+func scanFirestoreUserCreds(ctx context.Context, svc *firestore.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var mu sync.Mutex
+	if ferr := forEachItem(ctx, maxConcurrentFirestoreFanout, databaseNames, func(gctx context.Context, dbName string) error {
+		dbResID := store.ResourceID("gcp", p.ID, TypeFirestoreDB, dbName)
+		resp, listErr := svc.Projects.Databases.UserCreds.List(dbName).Context(gctx).Do()
+		if listErr != nil {
+			if isPermissionDenied(listErr) {
+				return skipIfDenied(st, "firestore:userCreds.list", dbName, listErr)
+			}
+			return listErr
+		}
+		var batch []*store.Resource
+		for _, uc := range resp.UserCreds {
+			if uc == nil || uc.Name == "" {
+				continue
+			}
+			name := lastSegment(uc.Name)
+			batch = append(batch, &store.Resource{
+				Provider:       "gcp",
+				AccountID:      p.ID,
+				AccountName:    &p.Name,
+				Type:           TypeFirestoreUserCred,
+				NativeID:       uc.Name,
+				Name:           &name,
+				Status:         strp(uc.State),
+				CreatedAt:      strp(uc.CreateTime),
+				AttributesJSON: mustJSON(uc),
+				DiscoveredBy:   scanID,
+			})
+		}
+		t, n, uerr := upsertWithParent(st, batch, dbResID)
+		mu.Lock()
+		defer mu.Unlock()
+		total += t
+		inserted += n
+		return uerr
+	}); ferr != nil {
+		return total, inserted, ferr
+	}
+	return total, inserted, nil
 }
 
 // scanSpanner discovers Spanner instances, databases, instance configs,

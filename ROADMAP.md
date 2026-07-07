@@ -129,8 +129,13 @@ Instances/Clusters-only into a 10-phase orchestrator — AppProfiles (project-wi
 SchemaBundles fan-out per Table, Backups/MemoryLayers fan-out per Instance using the cluster
 wildcard `clusters/-`, HotTablets fan-out per Cluster — the one endpoint individually confirmed
 to lack wildcard support rather than assumed from siblings; adversarial review found zero real
-issues) — landed. Remaining waves tracked here, implement independently in any order:
-- **Wave 10 (remaining: 10c-10e)** — firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
+issues) — landed. Wave 10c (firestore: `scanFirestore` extended from Databases-only into a
+4-phase orchestrator — Backups (project-wide wildcard `locations/-`, parented via the SDK's own
+`Backup.Database` field rather than name-splitting), BackupSchedules/UserCreds fan-out per
+Database; none of the three new endpoints paginates at all, verified individually; UserCreds
+gets a defensive `securePassword` redact rule; adversarial review found zero real issues) —
+landed. Remaining waves tracked here, implement independently in any order:
+- **Wave 10 (remaining: 10d-10e)** — bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.

@@ -81,6 +81,13 @@ func init() {
 		{Type: TypeMonitoringNotificationChannel, Attributes: []redact.Rule{
 			{Path: "labels.*", Mode: redact.RedactScalar},
 		}},
+		// Firestore UserCred — securePassword (Create/ResetPassword echo only per
+		// SDK doc: "List... does not contain the secret value itself"); defensive
+		// against a future SDK where List echoes it, same rationale as SQL user's
+		// password above.
+		{Type: TypeFirestoreUserCred, Attributes: []redact.Rule{
+			{Path: "securePassword", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

@@ -144,8 +144,12 @@ const (
 	TypeBigtableInstance = "gcp:bigtableadmin:instance"
 	TypeBigtableCluster  = "gcp:bigtableadmin:cluster"
 	TypeFirestoreDB      = "gcp:firestore:database"
-	TypeSpannerInstance  = "gcp:spanner:instance"
-	TypeSpannerDatabase  = "gcp:spanner:database"
+	// Firestore secondary resources (Wave 10c of the type-coverage buildout)
+	TypeFirestoreBackup         = "gcp:firestore:backup"
+	TypeFirestoreBackupSchedule = "gcp:firestore:backup-schedule"
+	TypeFirestoreUserCred       = "gcp:firestore:user-cred"
+	TypeSpannerInstance         = "gcp:spanner:instance"
+	TypeSpannerDatabase         = "gcp:spanner:database"
 	// Spanner secondary resources (Wave 10a of the type-coverage buildout)
 	TypeSpannerInstanceConfig    = "gcp:spanner:instance-config"
 	TypeSpannerInstancePartition = "gcp:spanner:instance-partition"
