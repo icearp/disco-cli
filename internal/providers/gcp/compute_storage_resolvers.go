@@ -169,15 +169,8 @@ func resolveComputeStorageLineageRelationships(p *project, st *store.Store) erro
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.SourceConsistencyGroup == "" {
-			continue
-		}
-		toID := store.ResourceID("gcp", p.ID, TypeComputeResourcePolicy, attrs.SourceConsistencyGroup)
-		if !scanned[toID] {
-			continue
-		}
-		if err := st.UpsertRelationship(r.ID, toID, store.RelUses, "directed", nil); err != nil {
-			return fmt.Errorf("upsert instant-snapshot-group→resource-policy: %w", err)
+		if err := upsertIfScanned(st, scanned, r.ID, "gcp", p.ID, TypeComputeResourcePolicy, attrs.SourceConsistencyGroup, store.RelUses); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -191,23 +184,13 @@ type computeEncryptionKey struct {
 
 // upsertComputeStorageLineageEdge upserts a lineage edge from fromID to the
 // resource named by a "source*" self-link, resolving which disco type the
-// self-link belongs to via typeFor. No-op when selfLink is empty (field
-// unset) or the target was never scanned (cross-project source, or the
-// source resource has since been deleted) — nothing enforces this at the DB
-// layer, but an edge to a target row that doesn't exist in this scan is
-// noise, not a real relationship.
+// self-link belongs to via typeFor. No-op when selfLink is empty or the
+// target was never scanned (cross-project source, or deleted since).
 func upsertComputeStorageLineageEdge(st *store.Store, scanned map[string]bool, fromID, projectID, selfLink string, typeFor func(string) string) error {
 	if selfLink == "" {
 		return nil
 	}
-	toID := store.ResourceID("gcp", projectID, typeFor(selfLink), selfLink)
-	if !scanned[toID] {
-		return nil
-	}
-	if err := st.UpsertRelationship(fromID, toID, store.RelAttachedTo, "directed", nil); err != nil {
-		return fmt.Errorf("upsert compute storage lineage edge: %w", err)
-	}
-	return nil
+	return upsertIfScanned(st, scanned, fromID, "gcp", projectID, typeFor(selfLink), selfLink, store.RelAttachedTo)
 }
 
 // scannedIDSet returns the set of resource IDs among the given disco types

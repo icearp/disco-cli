@@ -260,6 +260,21 @@ relationships-table FK enforces target existence — migration `006_resource_ver
 dropped that FK when the table moved to root-ID addressing; the scanned-ID pre-check is a
 data-quality guard, not an FK-violation avoidance.
 
+**Resolver Wave R2 part 1 (instance groups + templates).**
+`internal/providers/gcp/compute_instance_group_resolvers.go`: InstanceGroup/RegionInstanceGroup
+→ Network/Subnetwork (its own `network`/`subnetwork` self-link fields); InstanceTemplate/
+RegionInstanceTemplate → Network/Subnetwork (via `properties.networkInterfaces[]`), → Image/
+Snapshot (via `properties.disks[].initializeParams.source{Image,Snapshot}`), → ResourcePolicy and
+→ IAM ServiceAccount (via `properties.resourcePolicies[]` / `properties.serviceAccounts[].email`).
+Adversarial review caught a real bug before merge: `InstanceProperties.ResourcePolicies` is
+documented as "(names, not URLs)" — the only self-link-shaped field on the struct that isn't
+actually a self-link — so the initial implementation's self-link-based `ResourceID` lookup silently
+matched zero rows in practice; fixed via a name-keyed index (`buildResourcePolicyNameIndex`,
+mirrors the existing `buildSAEmailIndex` shape) instead of the usual `scannedIDSet` self-link path.
+New shared helper `upsertIfScanned` (self-link → ResourceID → existence-check → upsert) also
+absorbed Wave R1's `upsertComputeStorageLineageEdge` internals, removing the duplication. Net:
+122 → 118 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
