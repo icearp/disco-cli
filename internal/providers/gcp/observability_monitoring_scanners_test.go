@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"codeberg.org/icearp/disco/store"
 	monitoringv1 "google.golang.org/api/monitoring/v1"
@@ -151,6 +153,16 @@ func TestScanMonitoringGroups_OneGroupErrorDoesNotDropSiblings(t *testing.T) {
 	g2MembersBody := marshalAttrs(t, monitoring.ListGroupMembersResponse{
 		Members: []*monitoring.MonitoredResource{{Type: "gce_instance"}},
 	})
+	// g1 and g2 are fanned out concurrently by forEachItem, which cancels
+	// every in-flight sibling's context as soon as one goroutine returns a
+	// real error — so without ordering, whether g2's upsert has already
+	// committed by the time g1 errors is a genuine race. g2ServedCh makes
+	// g1's response (and the resulting error/cancellation) wait until the
+	// server has at least started writing g2's response, biasing the
+	// outcome deterministically toward "g2 finishes first" instead of
+	// leaving it to goroutine-scheduling luck.
+	g2ServedCh := make(chan struct{})
+	var g2ServedOnce sync.Once
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -162,10 +174,19 @@ func TestScanMonitoringGroups_OneGroupErrorDoesNotDropSiblings(t *testing.T) {
 				},
 			})))
 		case "/v3/" + g1Name + "/members":
+			select {
+			case <-g2ServedCh:
+			case <-time.After(time.Second):
+			}
+			// Give g2's client-side JSON decode + upsert (in-process,
+			// no further I/O) a generous margin to finish before g1's
+			// error reaches forEachItem and cancels g2's context.
+			time.Sleep(50 * time.Millisecond)
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(serverErrBody))
 		case "/v3/" + g2Name + "/members":
 			_, _ = w.Write([]byte(g2MembersBody))
+			g2ServedOnce.Do(func() { close(g2ServedCh) })
 		default:
 			t.Errorf("unrouted GCP fake hit: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
