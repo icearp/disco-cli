@@ -105,10 +105,15 @@ and Wave 8g (iam: new `iam_federation_scanners.go` — WorkforcePool → Provide
 org-scoped, WorkloadIdentityPool → Provider / → Namespace → ManagedIdentity and OauthClient →
 Credential project-scoped, custom Role both scopes; `TypeIAMProvider` is one disco type shared
 by two distinct SDK structs since the Discovery API's collection name collides at both nesting
-paths; closes R4.23) — **Wave 8 fully landed**. Remaining waves tracked here, implement
+paths; closes R4.23) — **Wave 8 fully landed**. Wave 9a (logging: `scanLogging` extended from
+sinks-only into a 7-phase orchestrator — Sinks, Buckets (wildcard `locations/-`), per-Bucket
+Links/Views fan-out, Exclusions, Metrics, LogScopes (literal `locations/global` — SDK doc:
+global-only, not a wildcard), SavedQueries (wildcard); Metric NativeID uses the SDK's
+already-URL-encoded `ResourceName` field rather than hand-building the path, since
+`LogMetric.Name` may itself contain `/`) also landed. Remaining waves tracked here, implement
 independently in any order:
 
-- **Wave 9** — Observability: logging (Bucket/Exclusion/Metric/View/LogScope), monitoring (Dashboard/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
+- **Wave 9b** — Observability: monitoring (Dashboard/Group/GroupMember/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
 - **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 

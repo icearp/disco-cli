@@ -152,6 +152,13 @@ const (
 	TypeArtifactRepository = "gcp:artifactregistry:repository"
 	// Logging / Monitoring
 	TypeLoggingSink        = "gcp:logging:sink"
+	TypeLoggingBucket      = "gcp:logging:bucket"
+	TypeLoggingExclusion   = "gcp:logging:exclusion"
+	TypeLoggingMetric      = "gcp:logging:metric"
+	TypeLoggingLink        = "gcp:logging:link"
+	TypeLoggingView        = "gcp:logging:view"
+	TypeLoggingLogScope    = "gcp:logging:log-scope"
+	TypeLoggingSavedQuery  = "gcp:logging:saved-query"
 	TypeMonitoringAlertPol = "gcp:monitoring:alert-policy"
 	// Cloud Build
 	TypeCloudBuildTrigger = "gcp:cloudbuild:trigger"

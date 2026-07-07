@@ -94,6 +94,13 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeArtifactRepository: "artifactregistry.googleapis.com/Repository",
 		// Logging / Monitoring.
 		TypeLoggingSink:        "logging.googleapis.com/Sink",
+		TypeLoggingBucket:      "logging.googleapis.com/Bucket",
+		TypeLoggingExclusion:   "logging.googleapis.com/Exclusion",
+		TypeLoggingMetric:      "logging.googleapis.com/Metric",
+		TypeLoggingLink:        "logging.googleapis.com/Link",
+		TypeLoggingView:        "logging.googleapis.com/View",
+		TypeLoggingLogScope:    "logging.googleapis.com/LogScope",
+		TypeLoggingSavedQuery:  "logging.googleapis.com/SavedQuery",
 		TypeMonitoringAlertPol: "monitoring.googleapis.com/AlertPolicy",
 		// Cloud Build.
 		TypeCloudBuildTrigger: "cloudbuild.googleapis.com/Trigger",

@@ -399,15 +399,37 @@ had.
 | iam Role (custom only) | iam/v1 ProjectsRolesService / OrganizationsRolesService | List(parent) | project/org (exclude predefined-role catalog) |
 
 ### Observability — Wave 9
+
+**9a — logging, implemented.** `internal/providers/gcp/observability_scanners.go`'s
+`scanLogging` extends the existing `gcp:logging` service (was sinks-only) into a 7-phase
+orchestrator: Sinks → Buckets (wildcard `locations/-`, SDK-doc-confirmed) → Links/Views
+(fan-out per already-scanned Bucket, no wildcard support for either) → Exclusions → Metrics
+→ LogScopes → SavedQueries (wildcard `locations/-`, SDK-doc-confirmed). LogScopes uses the
+literal `locations/global` (not a wildcard) — LogScope.Name's SDK doc states log scopes are
+only available in the global location, so there's nothing else to fan out across; an
+adversarial review caught an earlier draft's incorrect "every sibling confirms the wildcard"
+claim (Links/Views don't support it either) before this shipped. Metric NativeID uses the
+SDK-populated `ResourceName` field rather than hand-building `projects/{p}/metrics/{name}` —
+review also caught that `LogMetric.Name` may itself contain `/` (SDK example: `nginx/requests`),
+which would mis-nest a hand-built path; `ResourceName` is already correctly URL-encoded.
+Sinks/Exclusions/Metrics still synthesize NativeIDs where the SDK provides only a bare name
+(Sinks/Exclusions have a restricted charset with no `/`, so their synthesis is safe).
+Resolver work deferred, per every prior wave this session.
+
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
-| logging Bucket | logging/v2 ProjectsLocationsBucketsService | List(parent) | fan-out per location |
+| logging Bucket | logging/v2 ProjectsLocationsBucketsService | List(parent) | wildcard `locations/-` |
 | logging Exclusion | logging/v2 ProjectsExclusionsService | List(parent) | project |
 | logging Metric | logging/v2 ProjectsMetricsService | List(parent) | project |
 | logging Link | logging/v2 ProjectsLocationsBucketsLinksService | List(parent) | fan-out per Bucket |
 | logging View | logging/v2 ProjectsLocationsBucketsViewsService | List(parent) | fan-out per Bucket (IAM-boundary relevant) |
-| logging LogScope | logging/v2 ProjectsLocationsLogScopesService | List(parent) | fan-out per location |
-| logging SavedQuery | logging/v2 ProjectsLocationsSavedQueriesService | List(parent) | fan-out per location |
+| logging LogScope | logging/v2 ProjectsLocationsLogScopesService | List(parent) | literal `locations/global` (global-only, not a wildcard) |
+| logging SavedQuery | logging/v2 ProjectsLocationsSavedQueriesService | List(parent) | wildcard `locations/-` |
+
+**9b — monitoring, not yet implemented.**
+
+| Type | Package.Client | List method | Scope |
+|---|---|---|---|
 | monitoring Dashboard | monitoring/v1 ProjectsDashboardsService | List(parent) | project |
 | monitoring Group | monitoring/v3 ProjectsGroupsService | List(name) | project |
 | monitoring Group Member | monitoring/v3 ProjectsGroupsMembersService | List(name) | fan-out per Group |
