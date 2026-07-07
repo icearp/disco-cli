@@ -254,6 +254,13 @@ const (
 	// Dataproc + Dataflow
 	TypeDataprocCluster = "gcp:dataproc:cluster"
 	TypeDataflowJob     = "gcp:dataflow:job"
+	// Dataproc secondary resources (Wave 10e of the type-coverage buildout)
+	TypeDataprocAutoscalingPolicy = "gcp:dataproc:autoscaling-policy"
+	TypeDataprocBatch             = "gcp:dataproc:batch"
+	TypeDataprocSession           = "gcp:dataproc:session"
+	TypeDataprocSessionTemplate   = "gcp:dataproc:session-template"
+	TypeDataprocWorkflowTemplate  = "gcp:dataproc:workflow-template"
+	TypeDataprocJob               = "gcp:dataproc:job"
 	// Workspace Directory + Cloud Identity (tenant-scope identity)
 	TypeWorkspaceUser      = "gcp:admin:user"
 	TypeCloudIdentityGroup = "gcp:cloudidentity:group"

@@ -154,8 +154,14 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeAccessPolicy:     "accesscontextmanager.googleapis.com/AccessPolicy",
 		TypeServicePerimeter: "accesscontextmanager.googleapis.com/ServicePerimeter",
 		// Dataproc + Dataflow.
-		TypeDataprocCluster: "dataproc.googleapis.com/Cluster",
-		TypeDataflowJob:     "dataflow.googleapis.com/Job",
+		TypeDataprocCluster:           "dataproc.googleapis.com/Cluster",
+		TypeDataprocAutoscalingPolicy: "dataproc.googleapis.com/AutoscalingPolicy",
+		TypeDataprocBatch:             "dataproc.googleapis.com/Batch",
+		TypeDataprocSession:           "dataproc.googleapis.com/Session",
+		TypeDataprocSessionTemplate:   "dataproc.googleapis.com/SessionTemplate",
+		TypeDataprocWorkflowTemplate:  "dataproc.googleapis.com/WorkflowTemplate",
+		TypeDataprocJob:               "dataproc.googleapis.com/Job",
+		TypeDataflowJob:               "dataflow.googleapis.com/Job",
 		// Workspace + Cloud Identity.
 		TypeWorkspaceUser:      "admin.googleapis.com/User",
 		TypeCloudIdentityGroup: "cloudidentity.googleapis.com/Group",

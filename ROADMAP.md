@@ -142,9 +142,18 @@ type's own `*Reference` struct since — unlike Dataset/Table — none carries a
 service had no test file before this wave; adversarial review caught a real bug — the
 RowAccessPolicies per-table branch could escalate an `isAPINotEnabled`-shaped error to the
 whole-service disabled sentinel despite Datasets.List already proving the API enabled, fixed to
-always warn-and-continue for that nested call, fail-first verified) — landed. Remaining waves
-tracked here, implement independently in any order:
-- **Wave 10 (remaining: 10e)** — dataproc.
+always warn-and-continue for that nested call, fail-first verified) — landed. Wave 10e (dataproc:
+`scanDataproc` extended from Clusters-only into a 7-phase per-region orchestrator —
+AutoscalingPolicy/WorkflowTemplate/Job parented `projects/{p}/regions/{region}`,
+Batch/Session/SessionTemplate parented `projects/{p}/locations/{region}`, each verified against
+its own SDK URL template rather than assumed from siblings; Job has no SDK `Name` field, NativeID
+synthesized from `JobReference.JobId`, List call takes positional `(projectId, region)` args
+unlike the other 6 endpoints' single-parent-string form; introduced a 3-layer test seam
+(`scanDataproc` → `scanDataprocWithClient` → `scanDataprocIn`) that also fixed a latent
+inefficiency — regions now resolve once per scan and thread via `gcpRegionFanoutScanIn` into all 7
+phases instead of each phase independently re-resolving them; adversarial review found zero real
+issues) — **Wave 10 fully landed**. Remaining waves tracked here, implement independently in any
+order:
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.

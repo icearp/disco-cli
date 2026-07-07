@@ -540,6 +540,26 @@ Tables.Get skip) is an accepted tradeoff — it's the only enumeration path for 
 type with no independent listing surface. Resolver work deferred, per every prior wave this
 session.
 
+**10e — dataproc, implemented, closing Wave 10.** `internal/providers/gcp/dataproc_scanners.go`'s
+`scanDataproc` extends the existing `gcp:dataproc` service (was Clusters-only) into a 7-phase
+per-region orchestrator: Clusters → AutoscalingPolicy/WorkflowTemplate/Job (parent
+`projects/{p}/regions/{region}`) → Batch/Session/SessionTemplate (parent
+`projects/{p}/locations/{region}`, per each endpoint's own SDK URL template — not assumed by
+analogy to the Regions-scoped trio). Job has no SDK-issued `Name` field (unlike the other 6
+types); its NativeID is synthesized from `JobReference.JobId` (confirmed the correct field over
+the separate `JobUuid`, by cross-checking the Get/Cancel/Delete URL templates which key on
+`jobId`), and its `List` call takes two positional args (`projectId`, `region`) rather than a
+single parent string — matches the vendored SDK signature exactly, verified during review rather
+than assumed from the other 6 endpoints' single-parent-string shape. The rewrite also introduced
+a 3-layer test seam (`scanDataproc` → `scanDataprocWithClient` → `scanDataprocIn`, the latter
+taking a pre-resolved `regions []string`) so tests never call the live Compute Regions API; as a
+side effect of solving that, `gcpRegions` is now resolved once per project scan and threaded via
+`gcpRegionFanoutScanIn` into all 7 phases, instead of each phase's own `gcpRegionFanoutScan`
+independently re-resolving the region list (6 redundant `Regions.List` calls removed per scan). An
+adversarial review of the parent-string choices, the Job NativeID/positional-List claims, and all
+7 response types' pagination support against the vendored SDK source found zero real issues.
+Resolver work deferred, per every prior wave this session — this closes out Wave 10 in full.
+
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
 | spanner Backup | spanner/v1 ProjectsInstancesBackupsService | List(parent) | fan-out per Instance |
@@ -562,12 +582,12 @@ session.
 | bigquery Model | bigquery/v2 ModelsService | List(projectId, datasetId) | fan-out per Dataset |
 | bigquery Routine | bigquery/v2 RoutinesService | List(projectId, datasetId) | fan-out per Dataset |
 | bigquery RowAccessPolicy | bigquery/v2 RowAccessPoliciesService | List(projectId, datasetId, tableId) | fan-out per Table |
-| dataproc AutoscalingPolicy | dataproc/v1 ProjectsRegionsAutoscalingPoliciesService | List(parent) | per-region fan-out (`gcpRegionFanoutScan`) |
+| dataproc AutoscalingPolicy | dataproc/v1 ProjectsRegionsAutoscalingPoliciesService | List(parent) | per-region fan-out (`gcpRegionFanoutScanIn`) |
 | dataproc Batches | dataproc/v1 ProjectsLocationsBatchesService | List(parent) | per-region fan-out |
 | dataproc Session | dataproc/v1 ProjectsLocationsSessionsService | List(parent) | per-region fan-out |
 | dataproc SessionTemplate | dataproc/v1 ProjectsLocationsSessionTemplatesService | List(parent) | per-region fan-out |
 | dataproc WorkflowTemplate | dataproc/v1 ProjectsRegionsWorkflowTemplatesService | List(parent) | per-region fan-out |
-| dataproc Job | dataproc/v1 ProjectsRegionsJobsService | List(projectId, region) | per-region fan-out |
+| dataproc Job | dataproc/v1 ProjectsRegionsJobsService | List(projectId, region) | per-region fan-out, NativeID synthesized from JobReference.JobId |
 
 ### Storage/artifact/build/misc secondary — Wave 11
 | Type | Package.Client | List method | Scope |
