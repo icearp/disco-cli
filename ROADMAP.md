@@ -171,9 +171,22 @@ overstating its own evidence (claimed the 4 format-specific views' fields are "l
 into Version — true for only a few DockerImage fields, false for the other 3), fixed to state the
 real cardinality rationale; the 4 nested per-repo/per-package fan-out phases all apply the Wave
 10d fix pattern so a nested isAPINotEnabled-shaped error can't escalate past a phase-1 call that
-already proved the API enabled) — landed. Remaining sub-waves tracked here, implement
+already proved the API enabled) — landed. Wave 11c (cloudbuild: `scanCloudBuildTriggers` extended
+from Triggers-only into a 5-phase orchestrator — the first scanner to import two API-version
+packages for one service (`cloudbuild/v1` + `cloudbuild/v2`, since 2nd-gen repository Connections
+only exist in v2); WorkerPools (v1) and Connections (v2) fan-out per location using a v2
+Locations.List catalog reused for both (v1 has no Locations.List of its own — disclosed
+assumption that v1/v2 share one regional footprint), Repositories 2nd-gen (v2) fan-out per
+Connection, GithubEnterpriseConfig (v1) queried at both the global and per-location parent since
+it's a location-partitioned resource; GitLabConfig/BitbucketServerConfig/Repo deliberately not
+scanned — self-marked experimental APIs superseded by 2nd-gen Connections, an honest usage/risk
+tradeoff rather than a duplicate-data claim; adversarial review caught two real bugs — the
+original code missed location-scoped GitHub Enterprise configs (global-parent-only query), and
+both the Locations.List and GithubEnterpriseConfigs calls could escalate an isAPINotEnabled-shaped
+error to the whole-service disabled sentinel despite phase 1 already proving the service enabled
+— both fixed and fail-first verified) — landed. Remaining sub-waves tracked here, implement
 independently in any order:
-- **Wave 11 (remaining: 11c-11e)** — cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
+- **Wave 11 (remaining: 11d-11e)** — run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.
 

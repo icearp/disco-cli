@@ -134,7 +134,11 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeMonitoringSnooze:              "monitoring.googleapis.com/Snooze",
 		TypeMonitoringUptimeCheckConfig:   "monitoring.googleapis.com/UptimeCheckConfig",
 		// Cloud Build.
-		TypeCloudBuildTrigger: "cloudbuild.googleapis.com/Trigger",
+		TypeCloudBuildTrigger:                "cloudbuild.googleapis.com/Trigger",
+		TypeCloudBuildWorkerPool:             "cloudbuild.googleapis.com/WorkerPool",
+		TypeCloudBuildConnection:             "cloudbuild.googleapis.com/Connection",
+		TypeCloudBuildRepository:             "cloudbuild.googleapis.com/Repository",
+		TypeCloudBuildGithubEnterpriseConfig: "cloudbuild.googleapis.com/GithubEnterpriseConfig",
 		// Binary Authorization.
 		TypeBinAuthPolicy:   "binaryauthorization.googleapis.com/Policy",
 		TypeBinAuthAttestor: "binaryauthorization.googleapis.com/Attestor",

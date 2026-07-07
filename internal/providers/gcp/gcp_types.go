@@ -198,6 +198,11 @@ const (
 	TypeMonitoringUptimeCheckConfig   = "gcp:monitoring:uptime-check-config"
 	// Cloud Build
 	TypeCloudBuildTrigger = "gcp:cloudbuild:trigger"
+	// Cloud Build secondary resources (Wave 11c of the type-coverage buildout)
+	TypeCloudBuildWorkerPool             = "gcp:cloudbuild:worker-pool"
+	TypeCloudBuildConnection             = "gcp:cloudbuild:connection"
+	TypeCloudBuildRepository             = "gcp:cloudbuild:repository"
+	TypeCloudBuildGithubEnterpriseConfig = "gcp:cloudbuild:github-enterprise-config"
 	// Binary Authorization
 	TypeBinAuthPolicy   = "gcp:binaryauthorization:policy"
 	TypeBinAuthAttestor = "gcp:binaryauthorization:attestor"

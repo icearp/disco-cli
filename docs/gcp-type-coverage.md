@@ -662,13 +662,44 @@ sites. Resolver work deferred, per every prior wave this session.
 | artifactregistry NpmPackage | artifactregistry/v1 ...RepositoriesNpmPackagesService | DROP — same cardinality class as DockerImage |
 | artifactregistry PythonPackage | artifactregistry/v1 ...RepositoriesPythonPackagesService | DROP — same cardinality class as DockerImage |
 | artifactregistry PrewarmedArtifact | artifactregistry/v1 ...RepositoriesPrewarmedArtifactsService | DROP — no `Name` field, no List RPC at all; not a listable resource |
-| cloudbuild Connection | **cloudbuild/v2** (new import; existing scanner uses v1) ProjectsLocationsConnectionsService | List(parent) | project |
+
+**11c — cloudbuild, implemented.** `internal/providers/gcp/cloudbuild_scanners.go`'s
+`scanCloudBuildTriggers` extends the existing `gcp:cloudbuild` service (was Triggers-only) into a
+5-phase orchestrator — the first scanner in the repo to import two API-version packages for the
+same service (`cloudbuild/v1` and `cloudbuild/v2`, since 2nd-gen repository Connections only
+exist in v2). Triggers (unchanged) → Locations.List (v2, discovers Cloud Build's regional
+footprint — v1 has no Locations.List of its own, so this catalog is reused for the v1 WorkerPools
+fan-out too, on the disclosed assumption that v1/v2 share one regional deployment rather than two
+independently-scoped location catalogs; residual risk noted in code: WorkerPools is the older
+product and could in principle exist in a region 2nd-gen Connections hasn't reached) →
+WorkerPools (v1) + Connections (v2, capturing refs for the next phase), both fan-out per location
+→ Repositories 2nd-gen (v2, fan-out per Connection) → GithubEnterpriseConfig (v1, queried at both
+the legacy global parent AND every discovered location's parent, since `GitHubEnterpriseConfig.Name`
+is a location-partitioned resource like `BuildTrigger`; both parents hit the identical flexible
+`{+parent}/githubEnterpriseConfigs` URL template so an overlap upserts as a no-op). Deliberately
+NOT scanned: GitLabConfig, BitbucketServerConfig, and their nested Repo child — both APIs are
+self-marked "experimental," superseded by 2nd-gen Connections/Repositories; this is an honest
+usage/risk tradeoff, not a duplicate-data claim (BitbucketServerConfig's `PeeredNetwork`/`SslCa`
+fields carry real data 2nd-gen Connection doesn't expose, acknowledged in the code comment rather
+than glossed over). An adversarial review caught two real bugs: (1) the original code only queried
+the legacy global GithubEnterpriseConfigs parent, silently missing any config created at a
+location scope — fixed by also fanning out per discovered location; (2) the Locations.List call
+(phase 2) and the GithubEnterpriseConfigs calls (phase 5) propagated an `isAPINotEnabled`-shaped
+error as the whole-service disabled sentinel even though phase 1's Triggers.List already proved
+the service enabled (API enablement is per-service, not per-API-version) — fixed to discard the
+sentinel and warn-and-continue, matching the pattern already applied correctly at the other three
+nested call sites. Both fixes fail-first verified. Resolver work deferred, per every prior wave
+this session.
+
+| Type | Package.Client | List method | Scope |
+|---|---|---|---|
+| cloudbuild WorkerPool | cloudbuild/v1 ProjectsLocationsWorkerPoolsService | List(parent) | fan-out per location (v2 Locations.List catalog) |
+| cloudbuild Connection | **cloudbuild/v2** (new import; existing scanner uses v1) ProjectsLocationsConnectionsService | List(parent) | fan-out per location |
 | cloudbuild Repository (2nd-gen) | **cloudbuild/v2** ...ConnectionsRepositoriesService | List(parent) | fan-out per Connection |
-| cloudbuild WorkerPool | cloudbuild/v1 ProjectsLocationsWorkerPoolsService | List(parent) | project |
-| cloudbuild GitLabConfig | cloudbuild/v1 ProjectsLocationsGitLabConfigsService | List(parent) | project |
-| cloudbuild GithubEnterpriseConfig | cloudbuild/v1 ProjectsGithubEnterpriseConfigsService | List(projectId) | project |
-| cloudbuild BitbucketServerConfig | cloudbuild/v1 ProjectsLocationsBitbucketServerConfigsService | List(parent) | project |
-| cloudbuild Repo | cloudbuild/v1 (BitbucketServerConfigs/GitLabConfigs ReposService) | List(parent) | fan-out per VCS config |
+| cloudbuild GithubEnterpriseConfig | cloudbuild/v1 ProjectsGithubEnterpriseConfigsService | List(parent) | global parent + fan-out per location (location-partitioned resource) |
+| cloudbuild GitLabConfig | cloudbuild/v1 ProjectsLocationsGitLabConfigsService | DROP — experimental API, superseded by 2nd-gen Connections |
+| cloudbuild BitbucketServerConfig | cloudbuild/v1 ProjectsLocationsBitbucketServerConfigsService | DROP — experimental API, superseded by 2nd-gen Connections (real but low-usage data loss: PeeredNetwork/SslCa) |
+| cloudbuild Repo | cloudbuild/v1 (BitbucketServerConfigs/GitLabConfigs ReposService) | DROP — child of the two dropped VCS configs above |
 | run WorkerPool | run/v2 ProjectsLocationsWorkerPoolsService | List(parent) | project |
 | run Revision | run/v2 ProjectsLocationsServicesRevisionsService | List(parent) | fan-out per Service (already scanned) |
 | run Execution | run/v2 ProjectsLocationsJobsExecutionsService | List(parent) | fan-out per Job (already scanned) |
