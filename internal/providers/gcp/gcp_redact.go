@@ -23,6 +23,18 @@ func init() {
 		{Type: TypeCloudRunJob, Attributes: []redact.Rule{
 			{Path: "template.template.containers[*].env[*].value", Mode: redact.RedactScalar},
 		}},
+		{Type: TypeCloudRunRevision, Attributes: []redact.Rule{
+			{Path: "containers[*].env[*].value", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeCloudRunInstance, Attributes: []redact.Rule{
+			{Path: "containers[*].env[*].value", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeCloudRunWorkerPool, Attributes: []redact.Rule{
+			{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeCloudRunExecution, Attributes: []redact.Rule{
+			{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar},
+		}},
 		// Cloud Build trigger — substitution map values + per-step env values.
 		{Type: TypeCloudBuildTrigger, Attributes: []redact.Rule{
 			{Path: "substitutions.*", Mode: redact.RedactScalar},

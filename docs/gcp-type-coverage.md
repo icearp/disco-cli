@@ -700,11 +700,61 @@ this session.
 | cloudbuild GitLabConfig | cloudbuild/v1 ProjectsLocationsGitLabConfigsService | DROP — experimental API, superseded by 2nd-gen Connections |
 | cloudbuild BitbucketServerConfig | cloudbuild/v1 ProjectsLocationsBitbucketServerConfigsService | DROP — experimental API, superseded by 2nd-gen Connections (real but low-usage data loss: PeeredNetwork/SslCa) |
 | cloudbuild Repo | cloudbuild/v1 (BitbucketServerConfigs/GitLabConfigs ReposService) | DROP — child of the two dropped VCS configs above |
-| run WorkerPool | run/v2 ProjectsLocationsWorkerPoolsService | List(parent) | project |
+
+**11d — run (Cloud Run), implemented.** `internal/providers/gcp/serverless_scanners.go`'s
+`scanCloudRun` (Services, previously the only phase) gains 5 more phases: per-Service fan-out
+(Revisions), per-region fan-out (WorkerPool + Instance — run/v2 exposes no Locations catalog of
+its own, unlike cloudbuild/v2, so the existing `gcpRegions` Compute-regions helper is reused), and
+two project-scoped legacy calls via a new `run/v1` import (DomainMapping, AuthorizedDomain — both
+`Projects.Locations.*` service names despite carrying no real per-location fan-out: DomainMapping's
+parent is a bare `namespaces/{project}` Knative namespace, AuthorizedDomain's is `projects/{project}`
+with no location segment at all). `Instance` was not in the original wave-order note — found live
+during SDK research: a real, independently-creatable Cloud Run resource (`Projects.Locations.
+Instances`, GPU/long-running single-container deployments distinct from Services/Jobs), added to
+scope after verifying it against the vendored SDK and the coverage tool's live uncovered list.
+`scanCloudRunJobs` (jobs_scanners.go, previously Jobs-only) gains a per-Job fan-out phase
+(Executions). Every nested phase in both scanners runs only after its file's phase-1 List already
+proves the run API enabled, so each applies the discard-not-escalate `isAPINotEnabled` pattern
+(Wave 10d/11b/11c precedent) rather than the standard bubble-up `skipIfDenied` return. `DomainMapping`'s
+List call exposes no `Pages()` helper (Knative-legacy Kubernetes-style continue-token pagination,
+not the standard googleapi pager) — implemented as a single `Do()` call; domain mappings are a
+low-cardinality legacy feature, unlikely to paginate in practice.
+Deliberately NOT scanned: the Knative-legacy `Configuration`/`Route` types (run/v1 only — v2 has no
+`ProjectsLocationsConfigurationsService`/`RoutesService` at all) are shadow representations of the
+same `Service` already scanned (one Configuration + one Route per Service, no independent data);
+`Task` (per-Execution runtime attempt, same unbounded-cardinality/runtime-artifact profile as
+Batch's `Task` — see jobs_scanners.go's existing Batch comment); `Location`/`Operation` are
+catalog/action-verb types. Type-mirror naming note: live Discovery collection names for
+`Domainmapping`/`Authorizeddomain` are genuinely single un-split lowercase words
+(`domainmappings`/`authorizeddomains`, confirmed via `run.googleapis.com/$discovery/rest?version=v1`)
+so the disco type stays undashed (`gcp:run:domainmapping`/`authorizeddomain`). `WorkerPool` is
+different: Discovery's collection name is camelCase `workerPools` (two words), same as the
+already-scanned `cloudbuild.googleapis.com/WorkerPool` precedent, so the disco type keeps the dash
+(`gcp:run:worker-pool` → alias `run.googleapis.com/WorkerPool`) — an earlier draft of this wave
+wrongly collapsed WorkerPool to a single word to make `TestGCPTypeMirrorsDiscovery` pass, which
+only proved self-consistency between the hand-written alias and `AlgorithmicKey`, not agreement
+with the live Discovery casing; caught by adversarial review, fixed by checking the live discovery
+doc directly rather than trusting the self-consistency test alone. Resolver work deferred, per
+every prior wave this session.
+
+| Type | Package.Client | List method | Scope |
+|---|---|---|---|
 | run Revision | run/v2 ProjectsLocationsServicesRevisionsService | List(parent) | fan-out per Service (already scanned) |
+| run WorkerPool | run/v2 ProjectsLocationsWorkerPoolsService | List(parent) | per-region fan-out (Compute regions catalog) |
+| run Instance | run/v2 ProjectsLocationsInstancesService | List(parent) | per-region fan-out; found during SDK research, not in the original wave-order note |
 | run Execution | run/v2 ProjectsLocationsJobsExecutionsService | List(parent) | fan-out per Job (already scanned) |
-| run Domainmapping | **run/v1** (new import; existing scanner uses v2) ProjectsLocationsDomainmappingsService | List(parent) | project — legacy Knative API |
+| run Domainmapping | **run/v1** (new import; existing scanner uses v2) ProjectsLocationsDomainmappingsService | List(parent) | project (bare namespace) — legacy Knative API, no Pages() support |
 | run Authorizeddomain | **run/v1** ProjectsLocationsAuthorizeddomainsService | List(parent) | project |
+| run Configuration | run/v1 (Knative-legacy, no v2 equivalent) | DROP — shadow of already-scanned Service, no independent data |
+| run Route | run/v1 (Knative-legacy, no v2 equivalent) | DROP — shadow of already-scanned Service, no independent data |
+| run Task | run/v2 ...ExecutionsTasksService | DROP — per-Execution runtime attempt, same cardinality class as Batch Task |
+| run Location | run/v2 ProjectsLocationsService | DROP — catalog, not a resource |
+| run Operation | run/v2 ProjectsLocationsOperationsService | DROP — action-verb/operation record |
+
+### Container / certificate / composer / dataflow / secret / pubsub secondary — Wave 11e
+
+| Type | Package.Client | List method | Scope |
+|---|---|---|---|
 | container NodePool | container/v1 ProjectsLocationsClustersNodePoolsService | List(parent) | fan-out per Cluster (already scanned) |
 | certificatemanager CertificateIssuanceConfig | certificatemanager/v1 ProjectsLocationsCertificateIssuanceConfigsService | List(parent) | project |
 | certificatemanager TrustConfig | certificatemanager/v1 ProjectsLocationsTrustConfigsService | List(parent) | project |

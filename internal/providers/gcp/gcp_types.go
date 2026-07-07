@@ -131,8 +131,13 @@ const (
 	TypeDNSResponsePolicy     = "gcp:dns:response-policy"
 	TypeDNSResponsePolicyRule = "gcp:dns:response-policy-rule"
 	// Cloud Functions / Cloud Run
-	TypeCloudFunction = "gcp:cloudfunctions:function"
-	TypeCloudRunSvc   = "gcp:run:service"
+	TypeCloudFunction            = "gcp:cloudfunctions:function"
+	TypeCloudRunSvc              = "gcp:run:service"
+	TypeCloudRunRevision         = "gcp:run:revision"
+	TypeCloudRunWorkerPool       = "gcp:run:worker-pool"
+	TypeCloudRunInstance         = "gcp:run:instance"
+	TypeCloudRunDomainMapping    = "gcp:run:domainmapping"
+	TypeCloudRunAuthorizedDomain = "gcp:run:authorizeddomain"
 	// Pub/Sub
 	TypePubSubTopic        = "gcp:pubsub:topic"
 	TypePubSubSubscription = "gcp:pubsub:subscription"
@@ -207,8 +212,9 @@ const (
 	TypeBinAuthPolicy   = "gcp:binaryauthorization:policy"
 	TypeBinAuthAttestor = "gcp:binaryauthorization:attestor"
 	// Cloud Run Jobs / Batch
-	TypeCloudRunJob = "gcp:run:job"
-	TypeBatchJob    = "gcp:batch:job"
+	TypeCloudRunJob       = "gcp:run:job"
+	TypeCloudRunExecution = "gcp:run:execution"
+	TypeBatchJob          = "gcp:batch:job"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

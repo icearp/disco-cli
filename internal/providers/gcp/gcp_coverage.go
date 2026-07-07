@@ -72,9 +72,15 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeDNSManagedZone: "dns.googleapis.com/ManagedZone",
 		TypeDNSRecordSet:   "dns.googleapis.com/ResourceRecordSet",
 		// Serverless.
-		TypeCloudFunction: "cloudfunctions.googleapis.com/Function",
-		TypeCloudRunSvc:   "run.googleapis.com/Service",
-		TypeCloudRunJob:   "run.googleapis.com/Job",
+		TypeCloudFunction:            "cloudfunctions.googleapis.com/Function",
+		TypeCloudRunSvc:              "run.googleapis.com/Service",
+		TypeCloudRunJob:              "run.googleapis.com/Job",
+		TypeCloudRunRevision:         "run.googleapis.com/Revision",
+		TypeCloudRunExecution:        "run.googleapis.com/Execution",
+		TypeCloudRunWorkerPool:       "run.googleapis.com/WorkerPool",
+		TypeCloudRunInstance:         "run.googleapis.com/Instance",
+		TypeCloudRunDomainMapping:    "run.googleapis.com/Domainmapping",
+		TypeCloudRunAuthorizedDomain: "run.googleapis.com/Authorizeddomain",
 		// Pub/Sub.
 		TypePubSubTopic:        "pubsub.googleapis.com/Topic",
 		TypePubSubSubscription: "pubsub.googleapis.com/Subscription",

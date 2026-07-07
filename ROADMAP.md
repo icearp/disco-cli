@@ -184,9 +184,28 @@ tradeoff rather than a duplicate-data claim; adversarial review caught two real 
 original code missed location-scoped GitHub Enterprise configs (global-parent-only query), and
 both the Locations.List and GithubEnterpriseConfigs calls could escalate an isAPINotEnabled-shaped
 error to the whole-service disabled sentinel despite phase 1 already proving the service enabled
-— both fixed and fail-first verified) — landed. Remaining sub-waves tracked here, implement
-independently in any order:
-- **Wave 11 (remaining: 11d-11e)** — run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
+— both fixed and fail-first verified) — landed. Wave 11d (run: `scanCloudRun` extended from
+Services-only into a 6-phase orchestrator — per-Service fan-out (Revisions), per-region fan-out
+(WorkerPool + Instance, reusing the Compute-regions `gcpRegions` helper since run/v2 exposes no
+Locations catalog of its own), two project-scoped legacy `run/v1` calls (DomainMapping,
+AuthorizedDomain — new API-version import, mirroring the 11c cloudbuild precedent);
+`scanCloudRunJobs` (jobs_scanners.go) gained a per-Job Executions fan-out phase; `Instance` was a
+scope addition found live during SDK research, not in the original wave-order note — a real,
+independently-creatable Cloud Run resource distinct from Services/Jobs. `Domainmapping`/
+`Authorizeddomain` mirror Discovery's genuinely single-word lowercase collection names; `WorkerPool`
+keeps its dash (Discovery's `workerPools` is camelCase, same as the already-scanned cloudbuild
+WorkerPool). Adversarial review caught two real bugs: (1) the AuthorizedDomain phase routed through
+`runPaginated` (which already classifies isPermissionDenied/isAPINotEnabled internally) and then
+re-classified the already-sentinel-wrapped error a second time, so its isAPINotEnabled shape fell
+through to the escalate branch instead of discard — unlike every other nested phase in this wave,
+which correctly used a manual `.Pages()` + single classification; fixed to match; (2) the original
+`WorkerPool` alias collapsed to the single-word `Workerpool` casing to satisfy the self-consistency
+type-mirror test, without checking the live Discovery doc — the test only proves the alias matches
+`AlgorithmicKey`, not that either matches the real upstream key; fixed by checking
+`run.googleapis.com/$discovery/rest` directly (confirms `workerPools`, camelCase) and reverting the
+type to `gcp:run:worker-pool` / alias `WorkerPool`. Both fixes fail-first verified. Remaining
+sub-wave tracked here:
+- **Wave 11 (remaining: 11e)** — container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.
 
