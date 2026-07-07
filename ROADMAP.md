@@ -275,6 +275,14 @@ New shared helper `upsertIfScanned` (self-link → ResourceID → existence-chec
 absorbed Wave R1's `upsertComputeStorageLineageEdge` internals, removing the duplication. Net:
 122 → 118 orphan types.
 
+**Resolver Wave R3 (addressing + core L3 networking).**
+`internal/providers/gcp/compute_networking_core_resolvers.go`: Address/GlobalAddress →
+Network/Subnetwork; Router → Network; Route → Network + next-hop (Instance, VpnTunnel,
+InterconnectAttachment, ForwardingRule via `nextHopIlb`). `nextHopGateway` deliberately excluded —
+confirmed via the SDK's own doc comment that its value is always the literal internet-gateway
+pseudo-resource path, never a real scannable type; `nextHopPeering`/`nextHopHub` also out of scope
+(bare name / no scanner respectively) — clean review, no bugs found. Net: 118 → 114 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
