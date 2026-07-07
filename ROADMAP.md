@@ -152,9 +152,17 @@ unlike the other 6 endpoints' single-parent-string form; introduced a 3-layer te
 (`scanDataproc` → `scanDataprocWithClient` → `scanDataprocIn`) that also fixed a latent
 inefficiency — regions now resolve once per scan and thread via `gcpRegionFanoutScanIn` into all 7
 phases instead of each phase independently re-resolving them; adversarial review found zero real
-issues) — **Wave 10 fully landed**. Remaining waves tracked here, implement independently in any
-order:
-- **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
+issues) — **Wave 10 fully landed**. Wave 11a (storage: `scanStorage` extended from Buckets-only
+into a 3-phase orchestrator — HmacKeys per-project, then per-bucket fan-out for Notifications/
+ManagedFolders/AnywhereCaches/Folders/BucketAccessControls/DefaultObjectAccessControls; the 3
+opt-in-feature endpoints (ManagedFolders/AnywhereCaches/Folders) tolerate a bare 400 via a narrow
+`isBucketFeatureNotApplicable` predicate so one bucket lacking hierarchical-namespace/cache
+doesn't abort the scan; `HmacKeyMetadata`'s list shape carries no secret so the audit's
+"flag for redaction" note doesn't apply; fixed a `singularize()` bug — `"anywhereCaches"` was
+mis-reduced to `"anywhereCach"` by the sibilant-stem rule, added to `singularizeExceptions`;
+adversarial review found zero real issues) — landed. Remaining sub-waves tracked here, implement
+independently in any order:
+- **Wave 11 (remaining: 11b-11e)** — artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.
 

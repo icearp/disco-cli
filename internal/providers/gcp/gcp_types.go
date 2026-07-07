@@ -235,6 +235,14 @@ const (
 	TypeSecret = "gcp:secretmanager:secret"
 	// Cloud Storage
 	TypeStorageBucket = "gcp:storage:bucket"
+	// Cloud Storage secondary resources (Wave 11a of the type-coverage buildout)
+	TypeStorageHmacKey                    = "gcp:storage:hmac-key"
+	TypeStorageNotification               = "gcp:storage:notification"
+	TypeStorageManagedFolder              = "gcp:storage:managed-folder"
+	TypeStorageAnywhereCache              = "gcp:storage:anywhere-cache"
+	TypeStorageFolder                     = "gcp:storage:folder"
+	TypeStorageBucketAccessControl        = "gcp:storage:bucket-access-control"
+	TypeStorageDefaultObjectAccessControl = "gcp:storage:default-object-access-control"
 	// Cloud SQL
 	TypeSQLInstance = "gcp:sqladmin:instance"
 	// Cloud SQL — per-instance children (Wave 8d of the type-coverage buildout)

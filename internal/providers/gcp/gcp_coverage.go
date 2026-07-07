@@ -147,7 +147,14 @@ func (coverageProvider) Aliases() map[string]string {
 		// Secret Manager.
 		TypeSecret: "secretmanager.googleapis.com/Secret",
 		// Cloud Storage.
-		TypeStorageBucket: "storage.googleapis.com/Bucket",
+		TypeStorageBucket:                     "storage.googleapis.com/Bucket",
+		TypeStorageHmacKey:                    "storage.googleapis.com/HmacKey",
+		TypeStorageNotification:               "storage.googleapis.com/Notification",
+		TypeStorageManagedFolder:              "storage.googleapis.com/ManagedFolder",
+		TypeStorageAnywhereCache:              "storage.googleapis.com/AnywhereCache",
+		TypeStorageFolder:                     "storage.googleapis.com/Folder",
+		TypeStorageBucketAccessControl:        "storage.googleapis.com/BucketAccessControl",
+		TypeStorageDefaultObjectAccessControl: "storage.googleapis.com/DefaultObjectAccessControl",
 		// Cloud SQL.
 		TypeSQLInstance: "sqladmin.googleapis.com/Instance",
 		// VPC Service Controls.
@@ -425,8 +432,9 @@ func hasFetchMethod(methods map[string]json.RawMessage) bool {
 // "upstream-missing" row in `disco coverage services` for a type that's
 // actually scanned).
 var singularizeExceptions = map[string]string{
-	"databases": "database",
-	"snoozes":   "snooze",
+	"databases":      "database",
+	"snoozes":        "snooze",
+	"anywhereCaches": "anywhereCache",
 }
 
 // singularize strips a trailing plural marker from a lowerCamel collection

@@ -590,13 +590,39 @@ Resolver work deferred, per every prior wave this session — this closes out Wa
 | dataproc Job | dataproc/v1 ProjectsRegionsJobsService | List(projectId, region) | per-region fan-out, NativeID synthesized from JobReference.JobId |
 
 ### Storage/artifact/build/misc secondary — Wave 11
+
+**11a — storage, implemented.** `internal/providers/gcp/storage_scanners.go`'s `scanStorage`
+extends the existing `gcp:storage` service (was Buckets-only) into a 3-phase orchestrator:
+Buckets (unchanged, now also captures each bucket's `(name, ResourceID)` pair for the fan-out
+below) → HmacKeys (per-project, independent of any bucket) → per-bucket fan-out (Notifications,
+ManagedFolders, AnywhereCaches, Folders, BucketAccessControls, DefaultObjectAccessControls).
+Notifications/BucketAccessControls/DefaultObjectAccessControls use a single `.Do()` call each
+(none of the three paginates — verified individually, no `Pages()` method on any of their List
+calls); ManagedFolders/AnywhereCaches/Folders/HmacKeys paginate via `.Pages()`. ManagedFolders,
+AnywhereCaches, and Folders are opt-in bucket features (hierarchical namespace / cache) that most
+buckets in a real project won't have enabled — their List calls 400 rather than returning an empty
+page on a bucket lacking the feature, so a narrow `isBucketFeatureNotApplicable` predicate (bare
+400, scoped to just these 3 call sites) treats that shape as non-fatal alongside the usual
+`isPermissionDenied` path, so one bucket's missing feature can't abort the whole storage scan.
+`HmacKeyMetadata` (the List/Get response shape) carries no `Secret` field — only the separate
+`HmacKey` struct returned by `Create` does — so no redaction rule is needed, contrary to the
+audit's original "flag for redaction rule" note (struck below). Fixed a real `singularize()`
+coverage-key bug along the way: `"anywhereCaches"` hit the sibilant-stem `-es` rule (stem
+`"anywhereCach"` ends in `"ch"`) and wrongly reduced to `"anywhereCach"` instead of
+`"anywhereCache"` — added to `singularizeExceptions`, same ambiguity class as the existing
+`databases`/`snoozes` entries. An adversarial review found zero real issues; the bucket
+ResourceID/NativeID linkage (`b.SelfLink` used identically for both the upserted row and the
+per-bucket-fan-out parent lookup) was independently traced end-to-end through
+`RecordHierarchyBatch`/`recordHierarchyTx` and confirmed correct. Resolver work deferred, per every
+prior wave this session.
+
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
-| storage HmacKey | storage/v1 ProjectsHmacKeysService | List(projectId) | project — credential-shaped metadata, flag for redaction rule |
+| storage HmacKey | storage/v1 ProjectsHmacKeysService | List(projectId) | project — `HmacKeyMetadata` list shape carries no secret, no redaction rule needed |
 | storage Notification | storage/v1 NotificationsService | List(bucket) | fan-out per Bucket |
-| storage ManagedFolder | storage/v1 ManagedFoldersService | List(bucket) | fan-out per Bucket |
-| storage AnywhereCache | storage/v1 AnywhereCachesService | List(bucket) | fan-out per Bucket |
-| storage Folder | storage/v1 FoldersService | List(bucket) | fan-out per Bucket |
+| storage ManagedFolder | storage/v1 ManagedFoldersService | List(bucket) | fan-out per Bucket, opt-in feature (400 tolerated) |
+| storage AnywhereCache | storage/v1 AnywhereCachesService | List(bucket) | fan-out per Bucket, opt-in feature (400 tolerated) |
+| storage Folder | storage/v1 FoldersService | List(bucket) | fan-out per Bucket, opt-in feature (400 tolerated) |
 | storage BucketAccessControl | storage/v1 BucketAccessControlsService | List(bucket) | fan-out per Bucket |
 | storage DefaultObjectAccessControl | storage/v1 DefaultObjectAccessControlsService | List(bucket) | fan-out per Bucket |
 | artifactregistry Package | artifactregistry/v1 ProjectsLocationsRepositoriesPackagesService | List(parent) | fan-out per Repository |
