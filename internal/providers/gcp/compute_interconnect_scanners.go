@@ -10,13 +10,16 @@ import (
 
 // Wave 5 of the GCP type-coverage buildout (docs/gcp-type-coverage.md): the
 // Compute Engine Interconnect domain. New phases of the existing
-// "gcp:compute" service. No resolver this wave — InterconnectAttachment
-// references its Router/Interconnect via bare self-link strings; wiring
-// deferred alongside the rest of the networking-domain resolver follow-up
-// noted in compute_networking_scanners.go.
+// "gcp:compute" service. Resolved by compute_vpn_interconnect_resolvers.go
+// (Resolver Wave R5).
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInterconnect},
+		// Interconnect.Location/EffectiveLocation/RemoteLocation are genuine
+		// outbound refs (InterconnectLocation/InterconnectRemoteLocation),
+		// but disco doesn't scan those types, so no resolver-eligible target
+		// exists today. Leaf reflects current scan scope, not schema shape —
+		// revisit if InterconnectLocation is ever added.
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInterconnect, Leaf: true},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInterconnectAttachment},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInterconnectGroup},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInterconnectAttachmentGroup},

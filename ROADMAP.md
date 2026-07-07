@@ -302,6 +302,26 @@ types, so real SSL Proxy LB / TCP Proxy LB / gRPC forwarding rules silently prod
 both fixed, fail-first verified, with new tests covering the previously-untested paths. Net:
 114 → 102 orphan types.
 
+**Resolver Wave R5 (VPN + Interconnect).** New
+`internal/providers/gcp/compute_vpn_interconnect_resolvers.go`: (Target)VpnGateway → Network;
+VpnTunnel → VpnGateway/TargetVpnGateway/Router (`vpnTunnel.peerGcpGateway` HA-VPN-to-HA-VPN
+peering deliberately deferred — a genuine second edge target, rare enough to defer past this
+wave); InterconnectAttachment → Interconnect + Router; InterconnectAttachmentGroup → member
+InterconnectAttachments (nested `map[string]{Attachment}`); InterconnectGroup → member
+Interconnects (nested `map[string]{Interconnect}`); WireGroup → Interconnect (via nested
+`Wires[].Endpoints[].Interconnect`); NetworkEdgeSecurityService → SecurityPolicy. Interconnect
+itself flagged `Leaf: true` — every field describes the physical circuit or is an inbound
+reference from its own attachments/groups; `Location`/`EffectiveLocation`/`RemoteLocation` are
+genuine outbound refs but disco doesn't scan `InterconnectLocation`/`InterconnectRemoteLocation`,
+so no resolver-eligible target exists today (Leaf reflects current scan scope, not schema shape).
+Adversarial review found the scanner-side doc comment in `compute_interconnect_scanners.go` was
+stale — it claimed "no resolver this wave," directly contradicted by this wave's own resolver;
+corrected. Review also flagged thin test coverage on the nested map/slice traversals (only ever
+tested with one member/wire); added multi-member `AttachmentGroupToMembers` and two-wire
+`WireGroup` cases plus a full unscanned-targets-skipped negative test for
+`resolveInterconnectRelationships` (previously only the VPN resolver had one), fail-first
+verified against a corrupted single-iteration loop. Net: 102 → 93 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
