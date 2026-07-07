@@ -140,6 +140,10 @@ const (
 	// BigQuery
 	TypeBQDataset = "gcp:bigquery:dataset"
 	TypeBQTable   = "gcp:bigquery:table"
+	// BigQuery secondary resources (Wave 10d of the type-coverage buildout)
+	TypeBQModel           = "gcp:bigquery:model"
+	TypeBQRoutine         = "gcp:bigquery:routine"
+	TypeBQRowAccessPolicy = "gcp:bigquery:row-access-policy"
 	// Bigtable / Firestore / Spanner
 	TypeBigtableInstance = "gcp:bigtableadmin:instance"
 	TypeBigtableCluster  = "gcp:bigtableadmin:cluster"

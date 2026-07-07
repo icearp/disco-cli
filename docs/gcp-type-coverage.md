@@ -519,6 +519,27 @@ populate it (only Create/ResetPassword echo it) — same defense-in-depth ration
 existing SQL user password rule. An adversarial review found zero real issues. Resolver work
 deferred, per every prior wave this session.
 
+**10d — bigquery, implemented.** `internal/providers/gcp/bigquery_scanners.go`'s `scanBigQuery`
+extends the existing `gcp:bigquery` service (was Datasets/Tables-only) with Models/Routines
+(fan-out per Dataset) and RowAccessPolicies (fan-out per Table, nested inside the per-dataset
+Tables.List page loop — row access policies must be listed after their owning Table row is
+already committed, since `upsertWithParent`'s closure write silently no-ops otherwise). Unlike
+Dataset/Table (which carry an SDK-issued opaque `.Id` string), Model/Routine/RowAccessPolicy have
+no such field — NativeIDs are synthesized from each type's own `*Reference` struct
+(`ModelReference`/`RoutineReference`/`RowAccessPolicyReference`), all fields SDK-doc-marked
+Required so no empty-segment risk. `scanBigQuery` was also split into a thin outer wrapper plus
+`scanBigQueryWithClient` — the existing test-seam convention — since this service previously had
+no test file at all. An adversarial review found one real bug: the RowAccessPolicies per-table
+branch escalated an `isAPINotEnabled`-shaped error (a documented BigQuery error class) to the
+whole-service disabled sentinel, discarding the already-successful dataset/table work from the
+caller's perspective — even though Datasets.List (phase 1) already proves the API is enabled by
+the time this nested call runs. Fixed to always warn-and-continue for this specific nested call
+regardless of error shape, fail-first verified. The per-table RowAccessPolicies fan-out cost
+(one extra call per table, same cardinality concern already documented for the pre-existing
+Tables.Get skip) is an accepted tradeoff — it's the only enumeration path for a security-relevant
+type with no independent listing surface. Resolver work deferred, per every prior wave this
+session.
+
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
 | spanner Backup | spanner/v1 ProjectsInstancesBackupsService | List(parent) | fan-out per Instance |

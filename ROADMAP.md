@@ -134,8 +134,17 @@ issues) — landed. Wave 10c (firestore: `scanFirestore` extended from Databases
 `Backup.Database` field rather than name-splitting), BackupSchedules/UserCreds fan-out per
 Database; none of the three new endpoints paginates at all, verified individually; UserCreds
 gets a defensive `securePassword` redact rule; adversarial review found zero real issues) —
-landed. Remaining waves tracked here, implement independently in any order:
-- **Wave 10 (remaining: 10d-10e)** — bigquery, dataproc.
+landed. Wave 10d (bigquery: `scanBigQuery` extended from Datasets/Tables-only with Models/
+Routines fan-out per Dataset and RowAccessPolicies fan-out per Table, nested inside the Tables
+page loop so the parent Table row is always committed first; NativeIDs synthesized from each
+type's own `*Reference` struct since — unlike Dataset/Table — none carries an SDK-issued opaque
+`.Id`; `scanBigQuery` split into a thin wrapper + `scanBigQueryWithClient` test seam since this
+service had no test file before this wave; adversarial review caught a real bug — the
+RowAccessPolicies per-table branch could escalate an `isAPINotEnabled`-shaped error to the
+whole-service disabled sentinel despite Datasets.List already proving the API enabled, fixed to
+always warn-and-continue for that nested call, fail-first verified) — landed. Remaining waves
+tracked here, implement independently in any order:
+- **Wave 10 (remaining: 10e)** — dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.
