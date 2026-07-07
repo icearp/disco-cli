@@ -164,3 +164,28 @@ func TestRedact_CloudIdentityInboundOidcSsoProfile_ClientSecret(t *testing.T) {
 		t.Errorf("displayName clobbered")
 	}
 }
+
+func TestRedact_MonitoringNotificationChannel_Labels(t *testing.T) {
+	got := applyAndDecode(t, TypeMonitoringNotificationChannel, map[string]any{
+		"name":        "projects/p1/notificationChannels/c1",
+		"displayName": "Ops Slack",
+		"type":        "slack",
+		"labels": map[string]any{
+			"url":          "https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXX",
+			"channel_name": "#ops",
+		},
+	})
+	labels, ok := got["labels"].(map[string]any)
+	if !ok {
+		t.Fatalf("labels missing or wrong shape: %+v", got)
+	}
+	if labels["url"] != redact.Placeholder {
+		t.Errorf("url not redacted")
+	}
+	if labels["channel_name"] != redact.Placeholder {
+		t.Errorf("channel_name not redacted")
+	}
+	if got["displayName"] != "Ops Slack" {
+		t.Errorf("displayName clobbered")
+	}
+}

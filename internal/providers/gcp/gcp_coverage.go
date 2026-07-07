@@ -93,15 +93,22 @@ func (coverageProvider) Aliases() map[string]string {
 		// Artifact Registry.
 		TypeArtifactRepository: "artifactregistry.googleapis.com/Repository",
 		// Logging / Monitoring.
-		TypeLoggingSink:        "logging.googleapis.com/Sink",
-		TypeLoggingBucket:      "logging.googleapis.com/Bucket",
-		TypeLoggingExclusion:   "logging.googleapis.com/Exclusion",
-		TypeLoggingMetric:      "logging.googleapis.com/Metric",
-		TypeLoggingLink:        "logging.googleapis.com/Link",
-		TypeLoggingView:        "logging.googleapis.com/View",
-		TypeLoggingLogScope:    "logging.googleapis.com/LogScope",
-		TypeLoggingSavedQuery:  "logging.googleapis.com/SavedQuery",
-		TypeMonitoringAlertPol: "monitoring.googleapis.com/AlertPolicy",
+		TypeLoggingSink:                   "logging.googleapis.com/Sink",
+		TypeLoggingBucket:                 "logging.googleapis.com/Bucket",
+		TypeLoggingExclusion:              "logging.googleapis.com/Exclusion",
+		TypeLoggingMetric:                 "logging.googleapis.com/Metric",
+		TypeLoggingLink:                   "logging.googleapis.com/Link",
+		TypeLoggingView:                   "logging.googleapis.com/View",
+		TypeLoggingLogScope:               "logging.googleapis.com/LogScope",
+		TypeLoggingSavedQuery:             "logging.googleapis.com/SavedQuery",
+		TypeMonitoringAlertPol:            "monitoring.googleapis.com/AlertPolicy",
+		TypeMonitoringDashboard:           "monitoring.googleapis.com/Dashboard",
+		TypeMonitoringGroup:               "monitoring.googleapis.com/Group",
+		TypeMonitoringNotificationChannel: "monitoring.googleapis.com/NotificationChannel",
+		TypeMonitoringService:             "monitoring.googleapis.com/Service",
+		TypeMonitoringSLO:                 "monitoring.googleapis.com/ServiceLevelObjective",
+		TypeMonitoringSnooze:              "monitoring.googleapis.com/Snooze",
+		TypeMonitoringUptimeCheckConfig:   "monitoring.googleapis.com/UptimeCheckConfig",
 		// Cloud Build.
 		TypeCloudBuildTrigger: "cloudbuild.googleapis.com/Trigger",
 		// Binary Authorization.
@@ -393,6 +400,7 @@ func hasFetchMethod(methods map[string]json.RawMessage) bool {
 // actually scanned).
 var singularizeExceptions = map[string]string{
 	"databases": "database",
+	"snoozes":   "snooze",
 }
 
 // singularize strips a trailing plural marker from a lowerCamel collection

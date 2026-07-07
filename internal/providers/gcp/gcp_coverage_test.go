@@ -81,6 +81,10 @@ func TestSingularize(t *testing.T) {
 		// "aliases" but its true singular ends in a silent "e", not a
 		// sibilant — no suffix-only rule distinguishes them.
 		"databases": "database",
+		// Exception: "snoozes" ends in "-zes"; the sibilant-stem rule reads
+		// "snooz" (ends in "z") as a genuine sibilant stem and strips "-es",
+		// but the true singular is "snooze" (silent-e word, "+s" plural).
+		"snoozes": "snooze",
 	}
 	for in, want := range cases {
 		if got := singularize(in); got != want {

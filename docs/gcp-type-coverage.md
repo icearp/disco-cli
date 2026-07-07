@@ -426,14 +426,36 @@ Resolver work deferred, per every prior wave this session.
 | logging LogScope | logging/v2 ProjectsLocationsLogScopesService | List(parent) | literal `locations/global` (global-only, not a wildcard) |
 | logging SavedQuery | logging/v2 ProjectsLocationsSavedQueriesService | List(parent) | wildcard `locations/-` |
 
-**9b — monitoring, not yet implemented.**
+**9b — monitoring, implemented.** `scanMonitoring` extends the existing `gcp:monitoring`
+service (was AlertPolicies-only) into a 7-phase orchestrator: AlertPolicies → Dashboards
+(separate `monitoring/v1` client — dashboards live on a different API version from everything
+else here) → Groups (with Members embedded, see below) → NotificationChannels → Services →
+SLOs (fan-out per already-scanned Service) → Snoozes → UptimeCheckConfigs. Group Members
+(`MonitoredResource`) have no SDK-issued name or ID of their own — just a `Type` string and a
+`Labels` map describing whichever resource they refer to — so there's no natural key for an
+independent row; they're fetched per Group and embedded under a `members` key in the owning
+Group's own attributes via `embedMembersJSON`, per the embed-child-data convention. That helper
+exists because the obvious approach (anonymously struct-embedding `*monitoring.Group` and
+marshaling the wrapper directly) silently drops the `Members` field: the SDK generates a
+value-receiver `MarshalJSON` on `Group` (for `ForceSendFields` handling) that gets promoted to
+satisfy `json.Marshaler` on the wrapper, so `encoding/json` calls only that promoted method and
+ignores every sibling field. `embedMembersJSON` round-trips through a `map[string]json.RawMessage`
+instead. An adversarial review also caught that the first cut of `scanMonitoringGroups` batched
+every group behind one final upsert after the whole per-group Members fan-out completed — so a
+single real (non-permission-denied) error fetching one group's members discarded every other
+group's row too, including ones already fetched successfully. Fixed to commit each group's row
+as soon as its own Members fetch completes, matching the per-item-commit shape already used by
+`scanLoggingBucketLinks`/`Views` and `scanMonitoringSLOs`. Also fixed a pre-existing
+`singularize()` coverage-key bug this wave's own `TypeMonitoringSnooze` addition surfaced:
+"snoozes" was mis-derived to "Snooz" (the sibilant-stem rule reads "snooz" as a genuine `+es`
+stem), added to `singularizeExceptions` alongside the existing "databases" entry. Resolver work
+deferred, per every prior wave this session.
 
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
 | monitoring Dashboard | monitoring/v1 ProjectsDashboardsService | List(parent) | project |
-| monitoring Group | monitoring/v3 ProjectsGroupsService | List(name) | project |
-| monitoring Group Member | monitoring/v3 ProjectsGroupsMembersService | List(name) | fan-out per Group |
-| monitoring NotificationChannel | monitoring/v3 ProjectsNotificationChannelsService | List(name) | project — some `labels` may carry secrets (Slack/PagerDuty keys), flag for redaction |
+| monitoring Group | monitoring/v3 ProjectsGroupsService | List(name) | project, Members embedded (no independent type) |
+| monitoring NotificationChannel | monitoring/v3 ProjectsNotificationChannelsService | List(name) | project — `labels.*` redacted (Slack/PagerDuty webhook URLs/keys) |
 | monitoring Service | monitoring/v3 ServicesService | List(parent) | project |
 | monitoring ServiceLevelObjective | monitoring/v3 ServicesServiceLevelObjectivesService | List(parent) | fan-out per Service |
 | monitoring Snooze | monitoring/v3 ProjectsSnoozesService | List(parent) | project |

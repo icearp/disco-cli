@@ -110,10 +110,14 @@ sinks-only into a 7-phase orchestrator — Sinks, Buckets (wildcard `locations/-
 Links/Views fan-out, Exclusions, Metrics, LogScopes (literal `locations/global` — SDK doc:
 global-only, not a wildcard), SavedQueries (wildcard); Metric NativeID uses the SDK's
 already-URL-encoded `ResourceName` field rather than hand-building the path, since
-`LogMetric.Name` may itself contain `/`) also landed. Remaining waves tracked here, implement
-independently in any order:
-
-- **Wave 9b** — Observability: monitoring (Dashboard/Group/GroupMember/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
+`LogMetric.Name` may itself contain `/`) and Wave 9b (monitoring: `scanMonitoring` extended from
+AlertPolicies-only into a 7-phase orchestrator — AlertPolicies, Dashboards (`monitoring/v1`,
+separate API version), Groups (Members embedded via `embedMembersJSON` rather than given an
+independent type, since `MonitoredResource` carries no name/ID of its own), NotificationChannels
+(`labels.*` redacted), Services → SLOs fan-out, Snoozes, UptimeCheckConfigs; also fixed a
+`singularize()` coverage-key bug ("snoozes" → "Snooz" instead of "Snooze", same sibilant-stem
+ambiguity class as the existing "databases" exception) — **Wave 9 fully landed**. Remaining
+waves tracked here, implement independently in any order:
 - **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.
 

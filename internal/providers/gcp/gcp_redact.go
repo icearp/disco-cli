@@ -74,6 +74,13 @@ func init() {
 			{Path: "extendedAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar},
 			{Path: "extraAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar},
 		}},
+		// Monitoring notification channel — labels carry per-channel-type
+		// config (SDK doc: populated per NotificationChannelDescriptor), which
+		// for Slack/PagerDuty/webhook channel types includes the webhook URL
+		// or service key in plaintext.
+		{Type: TypeMonitoringNotificationChannel, Attributes: []redact.Rule{
+			{Path: "labels.*", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)
