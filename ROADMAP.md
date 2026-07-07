@@ -93,10 +93,14 @@ file this sub-wave), and Wave 8d (sqladmin: BackupRun/Database/SslCert/User fann
 already-scanned Instance via bounded-concurrency `forEachItem`; fixed a pre-existing
 `singularize()` coverage-tool bug found while verifying `Database`'s alias — "databases" and
 "aliases" share an identical `-ases` suffix with no suffix-only way to tell apart which one's
-singular ends in a sibilant vs. a silent "e") landed; remaining waves tracked here, implement
+singular ends in a sibilant vs. a silent "e"), and Wave 8e (dns: DnsKey/Policy/ResponsePolicy/
+ResponsePolicyRule added to the existing `scanCloudDNS`, reversing its own Wave-1-era deferral
+note; DnsKey fans out per already-scanned zone, ResponsePolicyRule per already-listed
+ResponsePolicy; `dns_scanners.go` split into thin wrapper + `scanCloudDNSWithClient` test seam
+and gained its first test file this sub-wave) landed; remaining waves tracked here, implement
 independently in any order:
 
-- **Wave 8 (remaining: 8e-8g)** — dns, cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
+- **Wave 8 (remaining: 8f-8g)** — cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
 - **Wave 9** — Observability: logging (Bucket/Exclusion/Metric/View/LogScope), monitoring (Dashboard/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
 - **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.
 - **Wave 11** — Storage/artifact/build/misc secondary: storage, artifactregistry, cloudbuild (needs new `cloudbuild/v2` import for Connection/Repository), run (needs new `run/v1` import for legacy Domainmapping), container NodePool, certificatemanager, composer, dataflow, secretmanager, pubsub.

@@ -124,6 +124,12 @@ const (
 	// Cloud DNS
 	TypeDNSManagedZone = "gcp:dns:managed-zone"
 	TypeDNSRecordSet   = "gcp:dns:resource-record-set"
+	// Cloud DNS — DNSSEC keys, network policies, response policies (Wave 8e of
+	// the type-coverage buildout)
+	TypeDNSKey                = "gcp:dns:dns-key"
+	TypeDNSPolicy             = "gcp:dns:policy"
+	TypeDNSResponsePolicy     = "gcp:dns:response-policy"
+	TypeDNSResponsePolicyRule = "gcp:dns:response-policy-rule"
 	// Cloud Functions / Cloud Run
 	TypeCloudFunction = "gcp:cloudfunctions:function"
 	TypeCloudRunSvc   = "gcp:run:service"

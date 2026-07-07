@@ -312,6 +312,25 @@ side effect.
 | sqladmin Database | sqladmin/v1 DatabasesService | List(project, instance) | fan-out per Instance |
 | sqladmin SslCert | sqladmin/v1 SslCertsService | List(project, instance) | fan-out per Instance |
 | sqladmin User | sqladmin/v1 UsersService | List(project, instance) | fan-out per Instance |
+
+**8e — dns, implemented.** DnsKey/Policy/ResponsePolicy/ResponsePolicyRule added
+to the existing `scanCloudDNS` (previously ManagedZone + ResourceRecordSet
+only) rather than a new scanner — reverses this file's own Wave-1-era
+deferral note ("DNSSEC keys + policies + response policy rules deferred —
+narrow graph value vs. cardinality risk"); the ledger's Wave 8 priority list
+re-scoped these as in-scope. DnsKey fans out per already-scanned zone
+alongside the pre-existing record-set listing (same zone closure's per-zone
+loop gained a second sequential list call); Policy is project-scoped, no zone
+parent; ResponsePolicy → ResponsePolicyRule is a new two-level fan-out
+(response policy list, then per-response-policy rules list). DnsKey has no
+API-issued name — NativeID synthesized from its per-zone-unique numeric `Id`,
+with a synthesized display `Name` of `"{Type} ({Algorithm})"`. Split
+`scanCloudDNS` into a thin outer wrapper + `scanCloudDNSWithClient` test-seam
+core (this scanner had zero test coverage before this sub-wave). Route-prefix
+gotcha: unlike cloudkms/cloudresourcemanager/accesscontextmanager/sqladmin
+(bare `v1/` route templates), the `dns/v1` SDK package's route templates
+embed the full `dns/v1/` prefix — test fake-server routes use `/dns/v1/...`.
+
 | dns DnsKey | dns/v1 DnsKeysService | List(project, managedZone) | fan-out per zone (already scanned) |
 | dns Policy | dns/v1 PoliciesService | List(project) | project |
 | dns ResponsePolicy | dns/v1 ResponsePoliciesService | List(project) | project |
