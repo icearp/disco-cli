@@ -30,7 +30,7 @@ func init() {
 			{Service: "run", DiscoType: TypeCloudRunWorkerPool},
 			{Service: "run", DiscoType: TypeCloudRunInstance},
 			{Service: "run", DiscoType: TypeCloudRunDomainMapping},
-			{Service: "run", DiscoType: TypeCloudRunAuthorizedDomain},
+			{Service: "run", DiscoType: TypeCloudRunAuthorizedDomain, Leaf: true},
 		},
 	})
 }

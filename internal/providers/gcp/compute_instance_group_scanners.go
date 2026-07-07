@@ -19,8 +19,8 @@ func init() {
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstanceGroup},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstanceGroupManager},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstanceGroupManager},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstanceGroupManagerResizeRequest},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstanceGroupManagerResizeRequest},
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstanceGroupManagerResizeRequest, Leaf: true},
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstanceGroupManagerResizeRequest, Leaf: true},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstanceTemplate},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstanceTemplate},
 	)

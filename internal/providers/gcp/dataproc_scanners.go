@@ -15,7 +15,7 @@ func init() {
 		fn:   scanDataproc,
 		emits: []coverage.TypeDecl{
 			{Service: "dataproc", DiscoType: TypeDataprocCluster},
-			{Service: "dataproc", DiscoType: TypeDataprocAutoscalingPolicy},
+			{Service: "dataproc", DiscoType: TypeDataprocAutoscalingPolicy, Leaf: true},
 			{Service: "dataproc", DiscoType: TypeDataprocBatch},
 			{Service: "dataproc", DiscoType: TypeDataprocSession},
 			{Service: "dataproc", DiscoType: TypeDataprocSessionTemplate},

@@ -15,11 +15,11 @@ func init() {
 		fn:   scanCertificateManager,
 		emits: []coverage.TypeDecl{
 			{Service: "certificatemanager", DiscoType: TypeCertManagerCertificate},
-			{Service: "certificatemanager", DiscoType: TypeCertManagerMap},
+			{Service: "certificatemanager", DiscoType: TypeCertManagerMap, Leaf: true},
 			{Service: "certificatemanager", DiscoType: TypeCertManagerMapEntry},
-			{Service: "certificatemanager", DiscoType: TypeCertManagerDNSAuth},
-			{Service: "certificatemanager", DiscoType: TypeCertManagerIssuanceConfig},
-			{Service: "certificatemanager", DiscoType: TypeCertManagerTrustConfig},
+			{Service: "certificatemanager", DiscoType: TypeCertManagerDNSAuth, Leaf: true},
+			{Service: "certificatemanager", DiscoType: TypeCertManagerIssuanceConfig, Leaf: true},
+			{Service: "certificatemanager", DiscoType: TypeCertManagerTrustConfig, Leaf: true},
 		},
 	})
 }

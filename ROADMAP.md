@@ -227,6 +227,23 @@ discard-pattern fixes fail-first verified before commit.
 
 Full verdict ledger (INCLUDE/DEFER/DROP + client/method per type) in `docs/gcp-type-coverage.md`.
 
+**Resolver buildout (follow-on to R4.24).** Waves 1-11 above shipped scanners only —
+every commit deferred resolver work. A resolver-edge-coverage audit tool was retrofitted onto GCP
+(mirrors AWS's `EdgeDecl`/`registerResolver(fn, emits...)` pattern — see
+`internal/providers/gcp/gcp_registry.go`, `disco coverage resolvers --providers gcp`), all 22
+pre-existing GCP resolvers annotated with the edges they actually emit (adversarially verified
+against each resolver body, zero mismatches). This surfaced 216 of 247 emitted types with no
+outbound edge. A classification pass (89 LEAF: genuinely terminal, e.g. KeyRing/Organization/
+Project self-nodes, credential/identity rows already covered by inbound edges, free-text-only
+config bodies; 127 GAP: real unread FK-shaped fields — KMS key refs, network self-links,
+service-account emails, cross-resource name refs) flagged the 89 leaves via `Leaf: true` on their
+`coverage.TypeDecl`, mirroring AWS's convention, guarded by a new `TestLeafTypesNotResolverSources`
+(fail-first verified). Adversarial review of the classification caught 5 real misclassifications
+(cloudkms CryptoKey→backend ref, BigQuery Table CMEK, Logging Metric→bucket ref, Monitoring
+Dashboard→alert-policy ref, CRM Folder→management-project ref) — moved back to GAP. Net: 132 real
+orphan types remain, tracked as the resolver-implementation backlog for future waves (not yet
+started — this pass built the ledger, not the resolvers).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

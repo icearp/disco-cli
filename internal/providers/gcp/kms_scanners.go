@@ -17,13 +17,13 @@ func init() {
 		name: "gcp:cloudkms",
 		fn:   scanCloudKMS,
 		emits: []coverage.TypeDecl{
-			{Service: "cloudkms", DiscoType: TypeKMSKeyRing},
+			{Service: "cloudkms", DiscoType: TypeKMSKeyRing, Leaf: true},
 			{Service: "cloudkms", DiscoType: TypeKMSCryptoKey},
 			{Service: "cloudkms", DiscoType: TypeKMSCryptoKeyVersion},
-			{Service: "cloudkms", DiscoType: TypeKMSEkmConnection},
-			{Service: "cloudkms", DiscoType: TypeKMSImportJob},
+			{Service: "cloudkms", DiscoType: TypeKMSEkmConnection, Leaf: true},
+			{Service: "cloudkms", DiscoType: TypeKMSImportJob, Leaf: true},
 			{Service: "cloudkms", DiscoType: TypeKMSKeyHandle},
-			{Service: "cloudkms", DiscoType: TypeKMSSingleTenantHsmInstance},
+			{Service: "cloudkms", DiscoType: TypeKMSSingleTenantHsmInstance, Leaf: true},
 		},
 	})
 }

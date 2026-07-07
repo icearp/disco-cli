@@ -20,12 +20,12 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "logging", DiscoType: TypeLoggingSink},
 			{Service: "logging", DiscoType: TypeLoggingBucket},
-			{Service: "logging", DiscoType: TypeLoggingExclusion},
+			{Service: "logging", DiscoType: TypeLoggingExclusion, Leaf: true},
 			{Service: "logging", DiscoType: TypeLoggingMetric},
 			{Service: "logging", DiscoType: TypeLoggingLink},
-			{Service: "logging", DiscoType: TypeLoggingView},
+			{Service: "logging", DiscoType: TypeLoggingView, Leaf: true},
 			{Service: "logging", DiscoType: TypeLoggingLogScope},
-			{Service: "logging", DiscoType: TypeLoggingSavedQuery},
+			{Service: "logging", DiscoType: TypeLoggingSavedQuery, Leaf: true},
 		},
 	})
 	registerService(serviceEntry{
@@ -35,9 +35,9 @@ func init() {
 			{Service: "monitoring", DiscoType: TypeMonitoringAlertPol},
 			{Service: "monitoring", DiscoType: TypeMonitoringDashboard},
 			{Service: "monitoring", DiscoType: TypeMonitoringGroup},
-			{Service: "monitoring", DiscoType: TypeMonitoringNotificationChannel},
+			{Service: "monitoring", DiscoType: TypeMonitoringNotificationChannel, Leaf: true},
 			{Service: "monitoring", DiscoType: TypeMonitoringService},
-			{Service: "monitoring", DiscoType: TypeMonitoringSLO},
+			{Service: "monitoring", DiscoType: TypeMonitoringSLO, Leaf: true},
 			{Service: "monitoring", DiscoType: TypeMonitoringSnooze},
 			{Service: "monitoring", DiscoType: TypeMonitoringUptimeCheckConfig},
 		},

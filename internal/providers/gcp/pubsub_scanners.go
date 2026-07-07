@@ -16,7 +16,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "pubsub", DiscoType: TypePubSubTopic},
 			{Service: "pubsub", DiscoType: TypePubSubSubscription},
-			{Service: "pubsub", DiscoType: TypePubSubSchema},
+			{Service: "pubsub", DiscoType: TypePubSubSchema, Leaf: true},
 			{Service: "pubsub", DiscoType: TypePubSubSnapshot},
 		},
 	})

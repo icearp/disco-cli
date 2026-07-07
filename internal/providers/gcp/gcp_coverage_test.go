@@ -92,3 +92,23 @@ func TestSingularize(t *testing.T) {
 		}
 	}
 }
+
+// TestLeafTypesNotResolverSources guards against marking a type as leaf
+// (Leaf: true on the scanner's emits decl) when a resolver actually emits
+// edges from it. Such a misclassification silently hides the type from
+// `disco coverage resolvers --missing` without a resolver existing —
+// bug-attractant. Mirrors aws.TestLeafTypesNotResolverSources.
+func TestLeafTypesNotResolverSources(t *testing.T) {
+	sources := make(map[string]bool)
+	for _, s := range ResolverEdgeSources() {
+		sources[s] = true
+	}
+	for _, decl := range CollectEmits() {
+		if !decl.Leaf {
+			continue
+		}
+		if sources[decl.DiscoType] {
+			t.Errorf("emits[%q] flagged Leaf: true but type appears as resolver source — drop the Leaf flag or remove the resolver", decl.DiscoType)
+		}
+	}
+}

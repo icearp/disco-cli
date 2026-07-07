@@ -14,7 +14,7 @@ func init() {
 		name: "gcp:cloudarmor",
 		fn:   scanCloudArmor,
 		emits: []coverage.TypeDecl{
-			{Service: "compute", DiscoType: TypeComputeSecurityPolicy},
+			{Service: "compute", DiscoType: TypeComputeSecurityPolicy, Leaf: true},
 		},
 	})
 }

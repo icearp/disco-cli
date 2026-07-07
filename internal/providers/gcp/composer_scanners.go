@@ -16,7 +16,7 @@ func init() {
 		fn:   scanComposer,
 		emits: []coverage.TypeDecl{
 			{Service: "composer", DiscoType: TypeComposerEnv},
-			{Service: "composer", DiscoType: TypeComposerUserWorkloadsConfigMap},
+			{Service: "composer", DiscoType: TypeComposerUserWorkloadsConfigMap, Leaf: true},
 		},
 	})
 }

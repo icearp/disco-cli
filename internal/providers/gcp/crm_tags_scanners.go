@@ -25,23 +25,23 @@ func init() {
 		name: "gcp:cloudresourcemanager-tags",
 		fn:   scanCRMTags,
 		emits: []coverage.TypeDecl{
-			{Service: "cloudresourcemanager", DiscoType: TypeTagKey},
-			{Service: "cloudresourcemanager", DiscoType: TypeTagValue},
-			{Service: "cloudresourcemanager", DiscoType: TypeTagHold},
+			{Service: "cloudresourcemanager", DiscoType: TypeTagKey, Leaf: true},
+			{Service: "cloudresourcemanager", DiscoType: TypeTagValue, Leaf: true},
+			{Service: "cloudresourcemanager", DiscoType: TypeTagHold, Leaf: true},
 		},
 	})
 	registerService(serviceEntry{
 		name: "gcp:cloudresourcemanager-liens",
 		fn:   scanCRMLiensAndBindings,
 		emits: []coverage.TypeDecl{
-			{Service: "cloudresourcemanager", DiscoType: TypeLien},
+			{Service: "cloudresourcemanager", DiscoType: TypeLien, Leaf: true},
 			{Service: "cloudresourcemanager", DiscoType: TypeTagBinding},
 			{Service: "cloudresourcemanager", DiscoType: TypeEffectiveTag},
 			// Also declared on the org-service above — a project-parented
 			// TagKey tree (see package doc comment) surfaces the same types.
-			{Service: "cloudresourcemanager", DiscoType: TypeTagKey},
-			{Service: "cloudresourcemanager", DiscoType: TypeTagValue},
-			{Service: "cloudresourcemanager", DiscoType: TypeTagHold},
+			{Service: "cloudresourcemanager", DiscoType: TypeTagKey, Leaf: true},
+			{Service: "cloudresourcemanager", DiscoType: TypeTagValue, Leaf: true},
+			{Service: "cloudresourcemanager", DiscoType: TypeTagHold, Leaf: true},
 		},
 	})
 }

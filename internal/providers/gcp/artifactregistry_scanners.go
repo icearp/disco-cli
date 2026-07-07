@@ -16,8 +16,8 @@ func init() {
 		fn:   scanArtifactRegistry,
 		emits: []coverage.TypeDecl{
 			{Service: "artifactregistry", DiscoType: TypeArtifactRepository},
-			{Service: "artifactregistry", DiscoType: TypeArtifactPackage},
-			{Service: "artifactregistry", DiscoType: TypeArtifactTag},
+			{Service: "artifactregistry", DiscoType: TypeArtifactPackage, Leaf: true},
+			{Service: "artifactregistry", DiscoType: TypeArtifactTag, Leaf: true},
 			{Service: "artifactregistry", DiscoType: TypeArtifactRule},
 			{Service: "artifactregistry", DiscoType: TypeArtifactAttachment},
 		},

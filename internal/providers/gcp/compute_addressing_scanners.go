@@ -19,7 +19,7 @@ func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeAddress},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeGlobalAddress},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputePublicAdvertisedPrefix},
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputePublicAdvertisedPrefix, Leaf: true},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputePublicDelegatedPrefix},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeGlobalPublicDelegatedPrefix},
 	)

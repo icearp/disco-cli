@@ -17,10 +17,10 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "dns", DiscoType: TypeDNSManagedZone},
 			{Service: "dns", DiscoType: TypeDNSRecordSet},
-			{Service: "dns", DiscoType: TypeDNSKey},
+			{Service: "dns", DiscoType: TypeDNSKey, Leaf: true},
 			{Service: "dns", DiscoType: TypeDNSPolicy},
 			{Service: "dns", DiscoType: TypeDNSResponsePolicy},
-			{Service: "dns", DiscoType: TypeDNSResponsePolicyRule},
+			{Service: "dns", DiscoType: TypeDNSResponsePolicyRule, Leaf: true},
 		},
 	})
 }

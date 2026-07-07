@@ -19,7 +19,7 @@ func init() {
 			{Service: "cloudbuild", DiscoType: TypeCloudBuildTrigger},
 			{Service: "cloudbuild", DiscoType: TypeCloudBuildWorkerPool},
 			{Service: "cloudbuild", DiscoType: TypeCloudBuildConnection},
-			{Service: "cloudbuild", DiscoType: TypeCloudBuildRepository},
+			{Service: "cloudbuild", DiscoType: TypeCloudBuildRepository, Leaf: true},
 			{Service: "cloudbuild", DiscoType: TypeCloudBuildGithubEnterpriseConfig},
 		},
 	})

@@ -25,23 +25,23 @@ func init() {
 		name: "gcp:iam-org",
 		fn:   scanIAMOrgScoped,
 		emits: []coverage.TypeDecl{
-			{Service: "iam", DiscoType: TypeIAMWorkforcePool},
-			{Service: "iam", DiscoType: TypeIAMProvider},
-			{Service: "iam", DiscoType: TypeIAMScimTenant},
-			{Service: "iam", DiscoType: TypeIAMRole},
+			{Service: "iam", DiscoType: TypeIAMWorkforcePool, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMProvider, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMScimTenant, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMRole, Leaf: true},
 		},
 	})
 	registerService(serviceEntry{
 		name: "gcp:iam-project",
 		fn:   scanIAMProjectScoped,
 		emits: []coverage.TypeDecl{
-			{Service: "iam", DiscoType: TypeIAMWorkloadIdentityPool},
-			{Service: "iam", DiscoType: TypeIAMProvider},
-			{Service: "iam", DiscoType: TypeIAMNamespace},
-			{Service: "iam", DiscoType: TypeIAMManagedIdentity},
-			{Service: "iam", DiscoType: TypeIAMOauthClient},
-			{Service: "iam", DiscoType: TypeIAMCredential},
-			{Service: "iam", DiscoType: TypeIAMRole},
+			{Service: "iam", DiscoType: TypeIAMWorkloadIdentityPool, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMProvider, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMNamespace, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMManagedIdentity, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMOauthClient, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMCredential, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMRole, Leaf: true},
 		},
 	})
 }

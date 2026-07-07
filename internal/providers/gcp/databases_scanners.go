@@ -18,17 +18,17 @@ func init() {
 		name: "gcp:bigtable",
 		fn:   scanBigtable,
 		emits: []coverage.TypeDecl{
-			{Service: "bigtableadmin", DiscoType: TypeBigtableInstance},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableInstance, Leaf: true},
 			{Service: "bigtableadmin", DiscoType: TypeBigtableCluster},
 			{Service: "bigtableadmin", DiscoType: TypeBigtableBackup},
 			{Service: "bigtableadmin", DiscoType: TypeBigtableAppProfile},
 			{Service: "bigtableadmin", DiscoType: TypeBigtableTable},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableAuthorizedView},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableLogicalView},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableMaterializedView},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableSchemaBundle},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableAuthorizedView, Leaf: true},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableLogicalView, Leaf: true},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableMaterializedView, Leaf: true},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableSchemaBundle, Leaf: true},
 			{Service: "bigtableadmin", DiscoType: TypeBigtableHotTablet},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableMemoryLayer},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableMemoryLayer, Leaf: true},
 		},
 	})
 	registerService(serviceEntry{
@@ -36,9 +36,9 @@ func init() {
 		fn:   scanFirestore,
 		emits: []coverage.TypeDecl{
 			{Service: "firestore", DiscoType: TypeFirestoreDB},
-			{Service: "firestore", DiscoType: TypeFirestoreBackup},
-			{Service: "firestore", DiscoType: TypeFirestoreBackupSchedule},
-			{Service: "firestore", DiscoType: TypeFirestoreUserCred},
+			{Service: "firestore", DiscoType: TypeFirestoreBackup, Leaf: true},
+			{Service: "firestore", DiscoType: TypeFirestoreBackupSchedule, Leaf: true},
+			{Service: "firestore", DiscoType: TypeFirestoreUserCred, Leaf: true},
 		},
 	})
 	registerService(serviceEntry{
@@ -51,7 +51,7 @@ func init() {
 			{Service: "spanner", DiscoType: TypeSpannerInstancePartition},
 			{Service: "spanner", DiscoType: TypeSpannerBackup},
 			{Service: "spanner", DiscoType: TypeSpannerBackupSchedule},
-			{Service: "spanner", DiscoType: TypeSpannerDatabaseRole},
+			{Service: "spanner", DiscoType: TypeSpannerDatabaseRole, Leaf: true},
 		},
 	})
 }

@@ -17,8 +17,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "sqladmin", DiscoType: TypeSQLInstance},
 			{Service: "sqladmin", DiscoType: TypeSQLBackupRun},
-			{Service: "sqladmin", DiscoType: TypeSQLDatabase},
-			{Service: "sqladmin", DiscoType: TypeSQLSslCert},
+			{Service: "sqladmin", DiscoType: TypeSQLDatabase, Leaf: true},
+			{Service: "sqladmin", DiscoType: TypeSQLSslCert, Leaf: true},
 			{Service: "sqladmin", DiscoType: TypeSQLUser},
 		},
 	})

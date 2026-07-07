@@ -25,12 +25,12 @@ func init() {
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeAutoscaler},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionAutoscaler},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeReservation},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeReservationBlock},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeReservationSubBlock},
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeReservationBlock, Leaf: true},
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeReservationSubBlock, Leaf: true},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeFutureReservation},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionCommitment},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeResourcePolicy},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionSecurityPolicy},
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeResourcePolicy, Leaf: true},
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionSecurityPolicy, Leaf: true},
 	)
 }
 

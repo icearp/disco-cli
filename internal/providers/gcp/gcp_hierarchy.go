@@ -16,9 +16,9 @@ func init() {
 	// organization rows resolvers anchor against. Declared via
 	// registerExtraEmits so the coverage matrix still picks up its emits.
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeOrganization},
+		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeOrganization, Leaf: true},
 		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeFolder},
-		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeProject},
+		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeProject, Leaf: true},
 	)
 }
 

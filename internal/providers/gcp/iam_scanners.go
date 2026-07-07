@@ -14,7 +14,7 @@ func init() {
 		name: "gcp:iam",
 		fn:   scanIAMServiceAccounts,
 		emits: []coverage.TypeDecl{
-			{Service: "iam", DiscoType: TypeIAMServiceAccount},
+			{Service: "iam", DiscoType: TypeIAMServiceAccount, Leaf: true},
 		},
 	})
 }

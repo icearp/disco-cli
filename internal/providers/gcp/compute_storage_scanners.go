@@ -26,7 +26,7 @@ func init() {
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstantSnapshot},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstantSnapshotGroup},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstantSnapshotGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeStoragePool},
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeStoragePool, Leaf: true},
 	)
 }
 
