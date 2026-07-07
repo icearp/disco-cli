@@ -283,6 +283,25 @@ confirmed via the SDK's own doc comment that its value is always the literal int
 pseudo-resource path, never a real scannable type; `nextHopPeering`/`nextHopHub` also out of scope
 (bare name / no scanner respectively) — clean review, no bugs found. Net: 118 → 114 orphan types.
 
+**Resolver Wave R4 (load balancing).** Extended the pre-existing `loadbalancing_resolvers.go`
+traffic-flow chain (forwardingRule → target proxy → urlMap → backendService/backendBucket) to
+cover every global/regional variant and proxy family: GlobalForwardingRule, regional target
+HTTP(S) proxies, target gRPC proxy (routes via `urlMap` like HTTP(S)), target SSL/TCP + regional
+TCP proxies (route via `service` directly to BackendService, no urlMap hop), regional URL map.
+New `internal/providers/gcp/compute_lb_misc_resolvers.go` covers the surfaces outside that chain:
+BackendBucket/RegionBackendBucket → Storage bucket (`bucketName` is a bare name, not a self-link —
+matched via a name index built off `store.Resource.Name`, not `ResourceID`), TargetPool →
+Instance/HealthCheck/backup-TargetPool, TargetInstance → Instance/Network. Adversarial review
+caught two real bugs before merge: (1) `TargetPool.HealthChecks` only ever holds legacy
+`HttpHealthCheck` self-links per the SDK's own doc comment ("Only legacy HttpHealthChecks are
+supported") — the initial code resolved against the modern `HealthCheck` type instead, a dead
+edge in every real project, masked by a test that fabricated the wrong SDK struct at the wrong
+self-link shape; (2) the traffic-chain's own doc comment claimed forwarding rules route to
+gRPC/SSL/TCP target proxies, but the `idByNative` existence index never actually included those
+types, so real SSL Proxy LB / TCP Proxy LB / gRPC forwarding rules silently produced no edge —
+both fixed, fail-first verified, with new tests covering the previously-untested paths. Net:
+114 → 102 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
