@@ -205,4 +205,91 @@ func TestResolveLoggingObservabilityResolvers_EmptyProjectNoResources(t *testing
 	if err := resolveLoggingMetricRelationships(p, st); err != nil {
 		t.Fatalf("resolveLoggingMetricRelationships on empty project: %v", err)
 	}
+	if err := resolveMonitoringServiceRelationships(p, st); err != nil {
+		t.Fatalf("resolveMonitoringServiceRelationships on empty project: %v", err)
+	}
+}
+
+func TestResolveMonitoringServiceRelationships_CloudRunAndGKEVariants(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	runID := upsertNamedTestResource(t, st, "gcp", p.ID, TypeCloudRunSvc,
+		"projects/my-project/locations/us-central1/services/svc-1", "us-central1", "svc-1", "{}")
+	clusterID := upsertNamedTestResource(t, st, "gcp", p.ID, TypeGKECluster,
+		"https://container.googleapis.com/v1/projects/my-project/locations/us-central1-a/clusters/prod",
+		"us-central1-a", "prod", "{}")
+
+	runSvcID := upsertTestResource(t, st, "gcp", p.ID, TypeMonitoringService,
+		"projects/my-project/services/run-svc-1", "",
+		`{"cloudRun": {"location": "us-central1", "serviceName": "svc-1"}}`)
+	istioSvcID := upsertTestResource(t, st, "gcp", p.ID, TypeMonitoringService,
+		"projects/my-project/services/istio-svc-1", "",
+		`{"clusterIstio": {"clusterName": "prod", "location": "us-central1-a", "serviceName": "s", "serviceNamespace": "ns"}}`)
+	gkeNsID := upsertTestResource(t, st, "gcp", p.ID, TypeMonitoringService,
+		"projects/my-project/services/gke-ns-svc-1", "",
+		`{"gkeNamespace": {"clusterName": "prod", "location": "us-central1-a", "namespaceName": "ns"}}`)
+	gkeSvcID := upsertTestResource(t, st, "gcp", p.ID, TypeMonitoringService,
+		"projects/my-project/services/gke-svc-1", "",
+		`{"gkeService": {"clusterName": "prod", "location": "us-central1-a", "serviceName": "s", "namespaceName": "ns"}}`)
+	gkeWorkloadID := upsertTestResource(t, st, "gcp", p.ID, TypeMonitoringService,
+		"projects/my-project/services/gke-workload-svc-1", "",
+		`{"gkeWorkload": {"clusterName": "prod", "location": "us-central1-a", "topLevelControllerName": "w", "topLevelControllerType": "Deployment"}}`)
+
+	if err := resolveMonitoringServiceRelationships(p, st); err != nil {
+		t.Fatalf("resolveMonitoringServiceRelationships: %v", err)
+	}
+
+	rels, _ := st.RelationshipsFrom(runSvcID)
+	if len(rels) != 1 || rels[0].ToID != runID || rels[0].Kind != store.RelUses {
+		t.Errorf("cloudRun: got %+v, want →run.service uses", rels)
+	}
+	for label, id := range map[string]string{
+		"clusterIstio": istioSvcID, "gkeNamespace": gkeNsID, "gkeService": gkeSvcID, "gkeWorkload": gkeWorkloadID,
+	} {
+		rels, _ := st.RelationshipsFrom(id)
+		if len(rels) != 1 || rels[0].ToID != clusterID || rels[0].Kind != store.RelUses {
+			t.Errorf("%s: got %+v, want →GKE cluster uses", label, rels)
+		}
+	}
+}
+
+func TestResolveMonitoringServiceRelationships_UnscannedTargetsSkipped(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	svcID := upsertTestResource(t, st, "gcp", p.ID, TypeMonitoringService,
+		"projects/my-project/services/run-svc-1", "",
+		`{"cloudRun": {"location": "us-central1", "serviceName": "not-scanned"}, `+
+			`"gkeWorkload": {"clusterName": "not-scanned", "location": "us-central1-a", "topLevelControllerName": "w", "topLevelControllerType": "Deployment"}}`)
+
+	if err := resolveMonitoringServiceRelationships(p, st); err != nil {
+		t.Fatalf("resolveMonitoringServiceRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(svcID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("want no edges for unscanned targets, got %+v", rels)
+	}
+}
+
+func TestResolveMonitoringServiceRelationships_NoIdentifierNoPanic(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	svcID := upsertTestResource(t, st, "gcp", p.ID, TypeMonitoringService,
+		"projects/my-project/services/custom-svc-1", "", `{"custom": {}}`)
+
+	if err := resolveMonitoringServiceRelationships(p, st); err != nil {
+		t.Fatalf("resolveMonitoringServiceRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(svcID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("want no edges for a non-resolvable identifier oneof, got %+v", rels)
+	}
 }

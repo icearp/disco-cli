@@ -28,6 +28,10 @@ func init() {
 	registerResolver(resolveLoggingMetricRelationships,
 		EdgeDecl{TypeLoggingMetric, TypeLoggingBucket, store.RelUses},
 	)
+	registerResolver(resolveMonitoringServiceRelationships,
+		EdgeDecl{TypeMonitoringService, TypeCloudRunSvc, store.RelUses},
+		EdgeDecl{TypeMonitoringService, TypeGKECluster, store.RelUses},
+	)
 }
 
 // bqDatasetIDFromResourcePath converts a BigQuery resource path of the form
@@ -344,6 +348,98 @@ func resolveLoggingMetricRelationships(p *project, st *store.Store) error {
 		}
 		if err := upsertIfScanned(st, scannedBuckets, r.ID, "gcp", p.ID, TypeLoggingBucket, attrs.BucketName, store.RelUses); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// resolveMonitoringServiceRelationships derives the per-project Monitoring
+// Service singleton's outbound edges — Resolver Wave R25. `MService` carries
+// 11 mutually-exclusive service-identifier fields (`go doc
+// monitoring.MService`); only 2 name a disco-scanned resource type:
+//
+//   - service -[uses]-> run.service via `cloudRun.{location,serviceName}`
+//   - service -[uses]-> GKE cluster via the 4 GKE-family oneof variants
+//     (`clusterIstio`, `gkeNamespace`, `gkeService`, `gkeWorkload`), which all
+//     share the same `location`+`clusterName` component pair
+//
+// Both pairs are location+bare-name, not a self-link or full resource name,
+// so matched via `regionNameIndex` against each target's own Region+Name
+// columns (same technique as Binary Authorization Policy's cluster
+// admission rules, above). `appEngine` (module ID, no App Engine scanner in
+// this provider), `cloudEndpoints` (external API service name, not a GCP
+// resource), `custom`/`basicService` (no structured resource ref), and
+// `meshIstio`/`istioCanonicalService` (mesh-scoped canonical names, no
+// direct cluster/service pointer) are left unwired — no resolvable disco
+// target for any of them.
+func resolveMonitoringServiceRelationships(p *project, st *store.Store) error {
+	services, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeMonitoringService},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(services) == 0 {
+		return nil
+	}
+	runByRegionName, err := regionNameIndex(p, st, TypeCloudRunSvc)
+	if err != nil {
+		return err
+	}
+	clusterByRegionName, err := regionNameIndex(p, st, TypeGKECluster)
+	if err != nil {
+		return err
+	}
+
+	for _, s := range services {
+		var a struct {
+			CloudRun *struct {
+				Location    string `json:"location"`
+				ServiceName string `json:"serviceName"`
+			} `json:"cloudRun"`
+			ClusterIstio *struct {
+				ClusterName string `json:"clusterName"`
+				Location    string `json:"location"`
+			} `json:"clusterIstio"`
+			GkeNamespace *struct {
+				ClusterName string `json:"clusterName"`
+				Location    string `json:"location"`
+			} `json:"gkeNamespace"`
+			GkeService *struct {
+				ClusterName string `json:"clusterName"`
+				Location    string `json:"location"`
+			} `json:"gkeService"`
+			GkeWorkload *struct {
+				ClusterName string `json:"clusterName"`
+				Location    string `json:"location"`
+			} `json:"gkeWorkload"`
+		}
+		if err := json.Unmarshal([]byte(s.AttributesJSON), &a); err != nil {
+			continue
+		}
+		if a.CloudRun != nil && a.CloudRun.Location != "" && a.CloudRun.ServiceName != "" {
+			if toID, ok := runByRegionName[a.CloudRun.Location+"."+a.CloudRun.ServiceName]; ok {
+				if err := st.UpsertRelationship(s.ID, toID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert monitoringService→run: %w", err)
+				}
+			}
+		}
+		gkeRefs := []*struct {
+			ClusterName string `json:"clusterName"`
+			Location    string `json:"location"`
+		}{a.ClusterIstio, a.GkeNamespace, a.GkeService, a.GkeWorkload}
+		for _, ref := range gkeRefs {
+			if ref == nil || ref.ClusterName == "" || ref.Location == "" {
+				continue
+			}
+			toID, ok := clusterByRegionName[ref.Location+"."+ref.ClusterName]
+			if !ok {
+				continue
+			}
+			if err := st.UpsertRelationship(s.ID, toID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert monitoringService→gkeCluster: %w", err)
+			}
 		}
 	}
 	return nil

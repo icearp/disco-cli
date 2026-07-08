@@ -692,6 +692,45 @@ negative-space tests (RegionCompositeHealthCheck/RegionHealthSource unscanned-ta
 FutureReservation unmatched-commitment-name). Net: 31 → 20 orphan types (161 → 160 emitted, one
 type dropping out of resolver-eligibility via the new Leaf flag).
 
+**Resolver Wave R25 (non-compute singletons — BinAuth Policy/Certificate/Monitoring Service/
+PubSub Snapshot/Cloud Run Execution/Secret Version/Spanner BackupSchedule).** First wave fully
+outside the `compute` domain since R24 closed it out; wired all 7 remaining singleton/near-leaf
+orphans. `binaryauthorization_resolvers.go`: new `resolveBinaryAuthorizationPolicyRelationships` —
+Policy → Attestor via `defaultAdmissionRule`/`clusterAdmissionRules[*].requireAttestationsBy`
+(full resource names) and Policy → GKECluster via `clusterAdmissionRules` map keys, which turned
+out to be `{location}.{clusterId}` composites rather than the ARN-like shape a prior comment
+guessed — split via `strings.Cut` on the first `.` (GKE cluster IDs are RFC1035, never contain a
+dot) and matched via a new `regionNameIndex` helper (added to `compute_storage_resolvers.go`,
+keys on each resource's own `Region`+`Name` store columns). `secretmanager_resolvers.go`: new
+`resolveSecretVersionRelationships` — Version → KMSCryptoKey via
+`customerManagedEncryption.kmsKeyVersionName`, `stripCryptoKeyVersion`-normalized. `pubsub_resolvers.go`:
+extended the existing function with Snapshot → Topic. `serverless_resolvers.go`: merged Cloud Run
+Execution into the pre-existing WorkerPool loop (identical nested-template shape) for → SA/CMEK
+key edges; Execution's own `.Job` field deliberately left unwired — already redundant with the
+scanner's own `upsertWithParent` hierarchy closure in `jobs_scanners.go`. `databases_resolvers.go`:
+extended with Spanner BackupSchedule → KMSCryptoKey (CMEK), reusing the existing Database
+encryption-config shape verbatim. `observability_resolvers.go`: new
+`resolveMonitoringServiceRelationships` — Service → CloudRunSvc via `cloudRun.{location,serviceName}`
+and Service → GKECluster via 4 structurally-identical anonymous-struct oneof variants
+(`clusterIstio`/`gkeNamespace`/`gkeService`/`gkeWorkload`, all sharing `location`+`clusterName`),
+both matched via the same new `regionNameIndex` helper — reused rather than re-derived from
+Binary Authorization's copy. `certificatemanager_resolvers.go`: new
+`resolveCertificateRelationships` — Certificate → DNSAuth (`managed.dnsAuthorizations[]`) and
+Certificate → IssuanceConfig (`managed.issuanceConfig`), both full resource names, direct NativeID
+match; `Certificate.usedBy[]` deliberately deferred — reverse-direction, already covered forward
+by the pre-existing MapEntry→Certificate edge, and its `Name` field uses an AIP-122
+`//service.googleapis.com/`-prefixed format unlike every other field in the file.
+
+Adversarial review found no field-format or dead-EdgeDecl bugs this wave (every claim checked
+against the real SDK docs held up) — findings were two test-coverage gaps, both fixed before
+shipping: `resolveSecretVersionRelationships`'s only "no CMEK" test used an empty-attrs fixture
+that short-circuited on the earlier `len(keyIDByNative) == 0` guard before ever reaching the
+per-version lookup, so the actual unscanned-key-skip branch was untested (added
+`TestResolveSecretVersionRelationships_UnscannedKeySkipped` with one scanned key + one
+non-matching reference); the two resolvers extended in place (PubSub, Databases) were missing the
+whole-function empty-project test the wave's net-new resolvers all got (added to both). Net: 20 →
+13 orphan types (160 emitted, unchanged — no Leaf reflags this wave).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

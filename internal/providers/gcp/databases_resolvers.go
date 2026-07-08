@@ -13,6 +13,7 @@ func init() {
 		EdgeDecl{TypeBigtableCluster, TypeKMSCryptoKey, store.RelUses},
 		EdgeDecl{TypeFirestoreDB, TypeKMSCryptoKey, store.RelUses},
 		EdgeDecl{TypeSpannerDatabase, TypeKMSCryptoKey, store.RelUses},
+		EdgeDecl{TypeSpannerBackupSchedule, TypeKMSCryptoKey, store.RelUses},
 	)
 }
 
@@ -23,6 +24,9 @@ func init() {
 //   - Firestore database -[uses]-> cryptoKey via cmekConfig.kmsKeyName
 //   - Spanner database -[uses]-> cryptoKey via encryptionConfig.{kmsKeyName,kmsKeyNames[]}
 //     (kmsKeyNames is the multi-region form — one key per covered region)
+//   - Spanner backup schedule -[uses]-> cryptoKey, same encryptionConfig
+//     shape as Spanner database above (Resolver Wave R25) — Firestore's own
+//     BackupSchedule sibling stays `Leaf: true`, it has no such field.
 //
 // Cross-project key references skipped (FK-safe).
 //
@@ -128,6 +132,35 @@ func resolveDatabasesRelationships(p *project, st *store.Store) error {
 		}
 		for _, key := range a.EncryptionConfig.KmsKeyNames {
 			if err := emit(d.ID, key); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Spanner backup schedule — same encryptionConfig shape as Spanner
+	// database above (Resolver Wave R25).
+	sbss, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeSpannerBackupSchedule},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, s := range sbss {
+		var a struct {
+			EncryptionConfig struct {
+				KmsKeyName  string   `json:"kmsKeyName"`
+				KmsKeyNames []string `json:"kmsKeyNames"`
+			} `json:"encryptionConfig"`
+		}
+		if err := json.Unmarshal([]byte(s.AttributesJSON), &a); err != nil {
+			continue
+		}
+		if err := emit(s.ID, a.EncryptionConfig.KmsKeyName); err != nil {
+			return err
+		}
+		for _, key := range a.EncryptionConfig.KmsKeyNames {
+			if err := emit(s.ID, key); err != nil {
 				return err
 			}
 		}

@@ -13,6 +13,10 @@ func init() {
 		EdgeDecl{TypeCertManagerMapEntry, TypeCertManagerCertificate, store.RelUses},
 		EdgeDecl{TypeComputeTargetHTTPSProxy, TypeCertManagerMap, store.RelUses},
 	)
+	registerResolver(resolveCertificateRelationships,
+		EdgeDecl{TypeCertManagerCertificate, TypeCertManagerDNSAuth, store.RelUses},
+		EdgeDecl{TypeCertManagerCertificate, TypeCertManagerIssuanceConfig, store.RelUses},
+	)
 }
 
 // resolveCertificateManagerRelationships derives two edge classes:
@@ -28,9 +32,10 @@ func init() {
 // name. Cross-project / unscanned-resource references skipped.
 //
 // Deferred:
-//   - DNS authorization → managed certificate edge: ManagedCertificate.dnsAuthorizations[]
-//     references DNS auths but is on the certificate side; same-pattern
-//     follow-up, lower priority than the map-entry chain.
+//   - Certificate.usedBy[]: reverse-direction pointer (mapEntry/proxy → cert),
+//     already covered forward by mapEntry.certificates[] above; its Name is
+//     also AIP-122 full-resource-name-with-`//service/`-prefix, a different
+//     format than every other field this file matches on.
 //   - targetSslProxy / targetHttpsProxy older-surface SslCertificate (compute
 //     SslCertificates resource) — separate older API not yet scanned.
 func resolveCertificateManagerRelationships(p *project, st *store.Store) error {
@@ -109,6 +114,56 @@ func resolveCertificateManagerRelationships(p *project, st *store.Store) error {
 		}
 		if err := st.UpsertRelationship(pr.ID, mapID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert targetHttpsProxy→certificateMap: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveCertificateRelationships derives certificate -[uses]-> dnsAuthorization
+// (one edge per Managed.DnsAuthorizations[] entry) and certificate
+// -[uses]-> certificateIssuanceConfig (Managed.IssuanceConfig, private-PKI
+// certs only). Both fields store the full resource name verbatim, matched
+// directly against the target's NativeID.
+func resolveCertificateRelationships(p *project, st *store.Store) error {
+	certs, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCertManagerCertificate},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(certs) == 0 {
+		return nil
+	}
+
+	dnsAuths, err := scannedIDSet(p, st, TypeCertManagerDNSAuth)
+	if err != nil {
+		return err
+	}
+	issuanceConfigs, err := scannedIDSet(p, st, TypeCertManagerIssuanceConfig)
+	if err != nil {
+		return err
+	}
+
+	for _, c := range certs {
+		var a struct {
+			Managed *struct {
+				DnsAuthorizations []string `json:"dnsAuthorizations"`
+				IssuanceConfig    string   `json:"issuanceConfig"`
+			} `json:"managed"`
+		}
+		if err := json.Unmarshal([]byte(c.AttributesJSON), &a); err != nil || a.Managed == nil {
+			continue
+		}
+		for _, dnsAuthName := range a.Managed.DnsAuthorizations {
+			if err := upsertIfScanned(st, dnsAuths, c.ID, "gcp", p.ID, TypeCertManagerDNSAuth, dnsAuthName, store.RelUses); err != nil {
+				return fmt.Errorf("upsert certificate→dnsAuthorization: %w", err)
+			}
+		}
+		if a.Managed.IssuanceConfig != "" {
+			if err := upsertIfScanned(st, issuanceConfigs, c.ID, "gcp", p.ID, TypeCertManagerIssuanceConfig, a.Managed.IssuanceConfig, store.RelUses); err != nil {
+				return fmt.Errorf("upsert certificate→issuanceConfig: %w", err)
+			}
 		}
 	}
 	return nil

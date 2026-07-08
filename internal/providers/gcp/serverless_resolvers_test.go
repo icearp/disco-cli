@@ -78,6 +78,10 @@ func TestResolveCloudRunChildRelationships(t *testing.T) {
 		"projects/my-project/locations/us-central1/workerPools/wp-1", "us-central1",
 		`{"template": {"serviceAccount": "`+saEmail+`", "encryptionKey": "`+keyName+`"}}`)
 
+	execID := upsertTestResource(t, st, "gcp", p.ID, TypeCloudRunExecution,
+		"projects/my-project/locations/us-central1/jobs/job-1/executions/job-1-abcde", "us-central1",
+		`{"job": "projects/my-project/locations/us-central1/jobs/job-1", "template": {"serviceAccount": "`+saEmail+`", "encryptionKey": "`+keyName+`"}}`)
+
 	svcID := upsertTestResource(t, st, "gcp", p.ID, TypeCloudRunSvc,
 		"projects/my-project/locations/us-central1/services/svc-1", "us-central1", "{}")
 
@@ -100,13 +104,15 @@ func TestResolveCloudRunChildRelationships(t *testing.T) {
 		}
 	}
 
-	wpRels, _ := st.RelationshipsFrom(wpID)
-	gotWP := map[string]string{}
-	for _, r := range wpRels {
-		gotWP[r.ToID] = r.Kind
-	}
-	if gotWP[saID] != store.RelUses || gotWP[keyID] != store.RelUses {
-		t.Errorf("workerPool edges: got %+v, want →SA + →key", gotWP)
+	for label, id := range map[string]string{"workerPool": wpID, "execution": execID} {
+		rels, _ := st.RelationshipsFrom(id)
+		got := map[string]string{}
+		for _, r := range rels {
+			got[r.ToID] = r.Kind
+		}
+		if got[saID] != store.RelUses || got[keyID] != store.RelUses {
+			t.Errorf("%s edges: got %+v, want →SA + →key", label, got)
+		}
 	}
 
 	dmRels, _ := st.RelationshipsFrom(dmID)
@@ -126,6 +132,10 @@ func TestResolveCloudRunChildRelationships_UnmatchedRefsSkipped(t *testing.T) {
 		"projects/my-project/locations/us-central1/services/svc-1/revisions/svc-1-00001", "us-central1",
 		`{"serviceAccount": "not-scanned@my-project.iam.gserviceaccount.com", "encryptionKey": "projects/my-project/locations/us-central1/keyRings/r/cryptoKeys/not-scanned"}`)
 
+	execID := upsertTestResource(t, st, "gcp", p.ID, TypeCloudRunExecution,
+		"projects/my-project/locations/us-central1/jobs/job-1/executions/job-1-abcde", "us-central1",
+		`{"template": {"serviceAccount": "not-scanned@my-project.iam.gserviceaccount.com", "encryptionKey": "projects/my-project/locations/us-central1/keyRings/r/cryptoKeys/not-scanned"}}`)
+
 	dmID := upsertTestResource(t, st, "gcp", p.ID, TypeCloudRunDomainMapping,
 		"projects/my-project/domainMappings/example.com", "", `{"spec": {}}`)
 
@@ -136,6 +146,10 @@ func TestResolveCloudRunChildRelationships_UnmatchedRefsSkipped(t *testing.T) {
 	revRels, _ := st.RelationshipsFrom(revID)
 	if len(revRels) != 0 {
 		t.Errorf("revision: want no edges for unscanned SA/key, got %+v", revRels)
+	}
+	execRels, _ := st.RelationshipsFrom(execID)
+	if len(execRels) != 0 {
+		t.Errorf("execution: want no edges for unscanned SA/key, got %+v", execRels)
 	}
 	dmRels, _ := st.RelationshipsFrom(dmID)
 	if len(dmRels) != 0 {

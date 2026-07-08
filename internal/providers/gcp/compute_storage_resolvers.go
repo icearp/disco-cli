@@ -255,6 +255,33 @@ func nativeIDIndex(p *project, st *store.Store, rtype string) (map[string]string
 	return idx, nil
 }
 
+// regionNameIndex maps every scanned resource of the given type to its
+// resource ID, keyed by "{region}.{name}" (using the resource's own Region
+// and Name columns as scanned — not parsed from NativeID). Use when a
+// cross-API field names a target only by its region/location plus bare
+// name, with no self-link or fully-qualified resource name to exact-match
+// against — e.g. Binary Authorization Policy's `clusterAdmissionRules` map
+// keys (`{location}.{clusterId}`) and Cloud Monitoring Service's per-oneof
+// `location`+`clusterName`/`serviceName` field pairs, both referencing GKE
+// clusters or Cloud Run services by the same two components their own
+// scanners already store as Region/Name.
+func regionNameIndex(p *project, st *store.Store, rtype string) (map[string]string, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{rtype}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]string, len(rows))
+	for _, r := range rows {
+		if r.Region == nil || r.Name == nil || *r.Region == "" || *r.Name == "" {
+			continue
+		}
+		idx[*r.Region+"."+*r.Name] = r.ID
+	}
+	return idx, nil
+}
+
 // computeSnapshotTypeForSelfLink mirrors computeDiskTypeForSelfLink for the
 // Snapshot/RegionSnapshot pair.
 func computeSnapshotTypeForSelfLink(selfLink string) string {

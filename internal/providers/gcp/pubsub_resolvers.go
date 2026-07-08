@@ -14,6 +14,7 @@ func init() {
 		EdgeDecl{TypePubSubTopic, TypePubSubSchema, store.RelUses},
 		EdgeDecl{TypePubSubSubscription, TypePubSubTopic, store.RelAttachedTo},
 		EdgeDecl{TypePubSubSubscription, TypePubSubTopic, store.RelRoutesTo},
+		EdgeDecl{TypePubSubSnapshot, TypePubSubTopic, store.RelUses},
 	)
 }
 
@@ -23,6 +24,7 @@ func init() {
 //   - subscription -[routes-to]-> dead-letter topic (subscription.deadLetterPolicy.deadLetterTopic)
 //   - topic        -[uses]-> cryptoKey            (topic.kmsKeyName)
 //   - topic        -[uses]-> schema               (topic.schemaSettings.schema)
+//   - snapshot     -[uses]-> topic                (snapshot.topic) — Resolver Wave R25
 //
 // Push-endpoint URLs (subscription.pushConfig.pushEndpoint) deferred — can
 // target Cloud Run / Cloud Functions / arbitrary HTTPS, but rarely matches a
@@ -126,6 +128,28 @@ func resolvePubSubRelationships(p *project, st *store.Store) error {
 				if err := st.UpsertRelationship(s.ID, dlID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert subscription→DLQ: %w", err)
 				}
+			}
+		}
+	}
+
+	// Snapshot → topic.
+	snaps, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypePubSubSnapshot},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, sn := range snaps {
+		var a struct {
+			Topic string `json:"topic"`
+		}
+		if err := json.Unmarshal([]byte(sn.AttributesJSON), &a); err != nil {
+			continue
+		}
+		if topicID, ok := topicIDByNative[a.Topic]; ok {
+			if err := st.UpsertRelationship(sn.ID, topicID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert snapshot→topic: %w", err)
 			}
 		}
 	}

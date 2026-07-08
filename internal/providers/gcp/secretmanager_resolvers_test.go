@@ -91,3 +91,77 @@ func TestResolveSecretRelationships_NoCMEK(t *testing.T) {
 		t.Errorf("expected 0 edges, got %d", len(rels))
 	}
 }
+
+func TestResolveSecretVersionRelationships_CMEKKeyVersionStripped(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	keyName := "projects/my-project/locations/us-central1/keyRings/r1/cryptoKeys/k1"
+	keyID := upsertTestResource(t, st, "gcp", p.ID, TypeKMSCryptoKey, keyName, "us-central1", "{}")
+
+	versionID := upsertTestResource(t, st, "gcp", p.ID, TypeSecretVersion,
+		"projects/my-project/secrets/my-secret/versions/1", "",
+		`{"customerManagedEncryption": {"kmsKeyVersionName": "`+keyName+`/cryptoKeyVersions/3"}}`)
+
+	if err := resolveSecretVersionRelationships(p, st); err != nil {
+		t.Fatalf("resolveSecretVersionRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(versionID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 || rels[0].ToID != keyID || rels[0].Kind != store.RelUses {
+		t.Errorf("got %+v, want →cryptoKey uses", rels)
+	}
+}
+
+func TestResolveSecretVersionRelationships_UnscannedKeySkipped(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	scannedKeyName := "projects/my-project/locations/us-central1/keyRings/r1/cryptoKeys/scanned"
+	upsertTestResource(t, st, "gcp", p.ID, TypeKMSCryptoKey, scannedKeyName, "us-central1", "{}")
+
+	notScannedKeyName := "projects/my-project/locations/us-central1/keyRings/r1/cryptoKeys/not-scanned"
+	versionID := upsertTestResource(t, st, "gcp", p.ID, TypeSecretVersion,
+		"projects/my-project/secrets/my-secret/versions/1", "",
+		`{"customerManagedEncryption": {"kmsKeyVersionName": "`+notScannedKeyName+`/cryptoKeyVersions/1"}}`)
+
+	if err := resolveSecretVersionRelationships(p, st); err != nil {
+		t.Fatalf("resolveSecretVersionRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(versionID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("want no edge for an unscanned key, got %+v", rels)
+	}
+}
+
+func TestResolveSecretVersionRelationships_NoCMEKNoPanic(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	versionID := upsertTestResource(t, st, "gcp", p.ID, TypeSecretVersion,
+		"projects/my-project/secrets/my-secret/versions/1", "", "{}")
+
+	if err := resolveSecretVersionRelationships(p, st); err != nil {
+		t.Fatalf("resolveSecretVersionRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(versionID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("want no edge when CMEK is unset, got %+v", rels)
+	}
+}
+
+func TestResolveSecretVersionRelationships_EmptyProjectNoResources(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+	if err := resolveSecretVersionRelationships(p, st); err != nil {
+		t.Fatalf("resolveSecretVersionRelationships on empty project: %v", err)
+	}
+}

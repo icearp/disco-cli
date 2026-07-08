@@ -22,6 +22,8 @@ func init() {
 		EdgeDecl{TypeCloudRunInstance, TypeIAMServiceAccount, store.RelUses},
 		EdgeDecl{TypeCloudRunInstance, TypeKMSCryptoKey, store.RelUses},
 		EdgeDecl{TypeCloudRunDomainMapping, TypeCloudRunSvc, store.RelRoutesTo},
+		EdgeDecl{TypeCloudRunExecution, TypeIAMServiceAccount, store.RelUses},
+		EdgeDecl{TypeCloudRunExecution, TypeKMSCryptoKey, store.RelUses},
 	)
 }
 
@@ -135,8 +137,12 @@ func resolveServerlessRelationships(p *project, st *store.Store) error {
 //   - run.domainMapping -[routes-to]-> run.service (`spec.routeName`, a bare
 //     Knative route name — matches the Service's bare name, not its full
 //     run/v2 resource name, so resolved via bareNameIndex)
+//   - run.execution  -[uses]-> service-account (`template.serviceAccount`,
+//     identical shape to run.workerPool — Resolver Wave R25)
+//   - run.execution  -[uses]-> cryptoKey       (`template.encryptionKey`)
 //
-// VpcAccess.Connector (present on Revision/WorkerPool/Instance) deferred —
+// VpcAccess.Connector (present on Revision/WorkerPool/Instance/Execution)
+// deferred —
 // same "vpcaccess.googleapis.com not yet landed" reason as the Service-level
 // edge above.
 func resolveCloudRunChildRelationships(p *project, st *store.Store) error {
@@ -190,25 +196,30 @@ func resolveCloudRunChildRelationships(p *project, st *store.Store) error {
 		}
 	}
 
-	// WorkerPool: nested under template.
-	wps, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCloudRunWorkerPool},
+	// WorkerPool and Execution (run/v2 Jobs' per-run child, Resolver Wave
+	// R25): both nest an identical serviceAccount/encryptionKey shape under
+	// `template`. Execution.Job (the parent Job's resource name) is NOT
+	// wired here — already covered by the scanner's own hierarchy-closure
+	// parent (jobs_scanners.go's upsertWithParent), so a separate edge would
+	// be redundant.
+	tplRows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCloudRunWorkerPool, TypeCloudRunExecution},
 		Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
 	}
-	for _, wp := range wps {
+	for _, row := range tplRows {
 		var a struct {
 			Template struct {
 				ServiceAccount string `json:"serviceAccount"`
 				EncryptionKey  string `json:"encryptionKey"`
 			} `json:"template"`
 		}
-		if err := json.Unmarshal([]byte(wp.AttributesJSON), &a); err != nil {
+		if err := json.Unmarshal([]byte(row.AttributesJSON), &a); err != nil {
 			continue
 		}
-		if err := emitIdentityEdges(wp.ID, a.Template.ServiceAccount, a.Template.EncryptionKey); err != nil {
+		if err := emitIdentityEdges(row.ID, a.Template.ServiceAccount, a.Template.EncryptionKey); err != nil {
 			return err
 		}
 	}

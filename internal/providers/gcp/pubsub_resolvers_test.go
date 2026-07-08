@@ -30,8 +30,16 @@ func TestResolvePubSubRelationships(t *testing.T) {
 	upsertTestResource(t, st, "gcp", p.ID, TypePubSubSubscription,
 		"projects/my-project/subscriptions/orphan", "", `{"topic": "_deleted-topic_"}`)
 
+	snapID := upsertTestResource(t, st, "gcp", p.ID, TypePubSubSnapshot,
+		"projects/my-project/snapshots/snap1", "", `{"topic": "`+topicName+`"}`)
+
 	if err := resolvePubSubRelationships(p, st); err != nil {
 		t.Fatalf("resolvePubSubRelationships: %v", err)
+	}
+
+	relsSnap, _ := st.RelationshipsFrom(snapID)
+	if len(relsSnap) != 1 || relsSnap[0].ToID != topicID || relsSnap[0].Kind != store.RelUses {
+		t.Errorf("snapshot edges: got %+v, want →topic uses", relsSnap)
 	}
 
 	relsTopic, _ := st.RelationshipsFrom(topicID)
@@ -50,5 +58,32 @@ func TestResolvePubSubRelationships(t *testing.T) {
 	}
 	if got[topicID] != store.RelAttachedTo || got[dlqID] != store.RelRoutesTo {
 		t.Errorf("sub edges: got %+v, want →topic (attached-to) + →dlq (routes-to)", got)
+	}
+}
+
+func TestResolvePubSubRelationships_SnapshotUnscannedTopicSkipped(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	snapID := upsertTestResource(t, st, "gcp", p.ID, TypePubSubSnapshot,
+		"projects/my-project/snapshots/snap1", "", `{"topic": "_deleted-topic_"}`)
+
+	if err := resolvePubSubRelationships(p, st); err != nil {
+		t.Fatalf("resolvePubSubRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(snapID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("want no edge for a deleted/unscanned topic, got %+v", rels)
+	}
+}
+
+func TestResolvePubSubRelationships_EmptyProjectNoResources(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+	if err := resolvePubSubRelationships(p, st); err != nil {
+		t.Fatalf("resolvePubSubRelationships on empty project: %v", err)
 	}
 }

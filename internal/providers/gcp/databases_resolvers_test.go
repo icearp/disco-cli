@@ -22,16 +22,46 @@ func TestResolveDatabasesRelationships(t *testing.T) {
 	spID := upsertTestResource(t, st, "gcp", p.ID, TypeSpannerDatabase,
 		"projects/my-project/instances/i1/databases/d1", "us-central1",
 		`{"encryptionConfig": {"kmsKeyName": "`+keyName+`"}}`)
+	sbsID := upsertTestResource(t, st, "gcp", p.ID, TypeSpannerBackupSchedule,
+		"projects/my-project/instances/i1/databases/d1/backupSchedules/bs1", "us-central1",
+		`{"encryptionConfig": {"kmsKeyName": "`+keyName+`"}}`)
 
 	if err := resolveDatabasesRelationships(p, st); err != nil {
 		t.Fatalf("resolveDatabasesRelationships: %v", err)
 	}
 
-	for label, fromID := range map[string]string{"bigtable": btID, "firestore": fsID, "spanner": spID} {
+	for label, fromID := range map[string]string{"bigtable": btID, "firestore": fsID, "spanner": spID, "spanner-backup-schedule": sbsID} {
 		rels, _ := st.RelationshipsFrom(fromID)
 		if len(rels) != 1 || rels[0].ToID != keyID || rels[0].Kind != store.RelUses {
 			t.Errorf("%s: got %+v, want →key uses", label, rels)
 		}
+	}
+}
+
+func TestResolveDatabasesRelationships_EmptyProjectNoResources(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+	if err := resolveDatabasesRelationships(p, st); err != nil {
+		t.Fatalf("resolveDatabasesRelationships on empty project: %v", err)
+	}
+}
+
+func TestResolveDatabasesRelationships_SpannerBackupScheduleNoCMEKNoPanic(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	sbsID := upsertTestResource(t, st, "gcp", p.ID, TypeSpannerBackupSchedule,
+		"projects/my-project/instances/i1/databases/d1/backupSchedules/bs1", "us-central1", "{}")
+
+	if err := resolveDatabasesRelationships(p, st); err != nil {
+		t.Fatalf("resolveDatabasesRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(sbsID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("want no edge when encryptionConfig is unset, got %+v", rels)
 	}
 }
 

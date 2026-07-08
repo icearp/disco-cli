@@ -12,6 +12,9 @@ func init() {
 	registerResolver(resolveSecretRelationships,
 		EdgeDecl{TypeSecret, TypeKMSCryptoKey, store.RelUses},
 	)
+	registerResolver(resolveSecretVersionRelationships,
+		EdgeDecl{TypeSecretVersion, TypeKMSCryptoKey, store.RelUses},
+	)
 }
 
 // resolveSecretRelationships derives secret -[uses]-> cryptoKey CMEK edges.
@@ -104,6 +107,57 @@ func resolveSecretRelationships(p *project, st *store.Store) error {
 			if err := emit(rep.CustomerManagedEncryption.KmsKeyName); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// resolveSecretVersionRelationships derives version -[uses]-> cryptoKey CMEK
+// edges via `customerManagedEncryption.kmsKeyVersionName` — Resolver Wave
+// R25. Only populated on regionalized secrets using CMEK (per `go doc
+// secretmanager.CustomerManagedEncryptionStatus`), and unlike Secret's own
+// `kmsKeyName` fields, this one is a `.../cryptoKeys/*/versions/*` reference
+// (a CryptoKeyVersion, not itself a scanned type) — `stripCryptoKeyVersion`
+// trims the trailing version segment to recover the parent CryptoKey's own
+// NativeID, same normalization already used for every other KMS-version
+// reference in this package.
+func resolveSecretVersionRelationships(p *project, st *store.Store) error {
+	versions, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeSecretVersion},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(versions) == 0 {
+		return nil
+	}
+	keyIDByNative, err := loadKMSCryptoKeyIndex(p, st)
+	if err != nil {
+		return err
+	}
+	if len(keyIDByNative) == 0 {
+		return nil
+	}
+	for _, v := range versions {
+		var attrs struct {
+			CustomerManagedEncryption struct {
+				KmsKeyVersionName string `json:"kmsKeyVersionName"`
+			} `json:"customerManagedEncryption"`
+		}
+		if err := json.Unmarshal([]byte(v.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		keyName := stripCryptoKeyVersion(attrs.CustomerManagedEncryption.KmsKeyVersionName)
+		if keyName == "" {
+			continue
+		}
+		keyID, ok := keyIDByNative[keyName]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(v.ID, keyID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert secretVersion→cryptoKey: %w", err)
 		}
 	}
 	return nil
