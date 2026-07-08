@@ -369,6 +369,22 @@ different-typed decoys are present — added
 `TestResolveBackendServiceRelationships_AmbiguousGroupPicksCorrectCandidate`, fail-first verified
 against a truncated candidate list. Net: 86 → 83 orphan types.
 
+**Resolver Wave R8 (Cloud KMS).** First wave to leave the "compute" domain. New
+`internal/providers/gcp/kms_backend_resolvers.go`: CryptoKey → its primary CryptoKeyVersion
+(`primary.name`) and → the external backend hosting its key material (`cryptoKeyBackend`, tried
+against `{EkmConnection, SingleTenantHsmInstance}` via `upsertIfScannedAny` since the two are
+mutually exclusive per protection level); KeyHandle → the CryptoKey it provisioned (`kmsKey`);
+CryptoKeyVersion → the ImportJob used in its most recent import (`importJob`, when key material was
+imported rather than generated in place). Adversarial review caught one real bug before merge: the
+initial pass flagged `TypeKMSCryptoKeyVersion` as `Leaf: true` on the reasoning that its only
+non-scalar field (`ExternalProtectionLevelOptions`) points outside GCP — missing that
+`CryptoKeyVersion.ImportJob` is itself a real, unwired same-project resource reference; fixed by
+dropping the Leaf flag and adding `resolveCryptoKeyVersionRelationships`, fail-first verified.
+Review also flagged (documented, not fixed — false-negative risk only, not a wrong-edge bug) that
+`CryptoKeyBackend`'s own SDK doc says its EkmConnection/SingleTenantHsmInstance enumeration is
+"non-exhaustive and may apply to additional ProtectionLevels in the future." Net: 83 → 80 orphan
+types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
