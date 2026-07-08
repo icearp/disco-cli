@@ -778,6 +778,30 @@ AccessLevel→AccessLevel reference per the SDK's own doc comment; dropped the L
 the self-reference edge instead. Net: 13 → 4 orphan types (all remaining are `bigquery`; 160
 emitted, unchanged since AccessLevel un-Leafing and its own new EdgeDecl cancel out).
 
+**Resolver Wave R27 (bigquery closeout — GCP resolver buildout complete, 0 source-orphans).**
+Closed the final 4 orphans: `Table`, `Model`, `Routine`, `RowAccessPolicy`. All four turned out to
+be genuine `Leaf: true` cases, not missed resolver work — each is the "List-only summary scanner"
+bug class documented in `internal/providers/CLAUDE.md`, confirmed independently via each SDK
+response type's own doc comment rather than assumed from the full resource-struct docs:
+`TableList.Tables[]` is typed `*TableListTables`, a doc'd "partial projection" lacking
+`EncryptionConfiguration`/`TableReplicationInfo`; `ListModelsResponse`'s doc lists only 5 populated
+fields, excluding `EncryptionConfiguration`; `ListRoutinesResponse`'s doc lists only 9 populated
+fields absent a `ReadMask` (never set here), excluding `DefinitionBody`/`ImportedLibraries`/
+`SparkOptions`/`PythonOptions` — the one populated resource-shaped field, `RemoteFunctionOptions.Connection`,
+targets a BigQuery Connections resource disco has no scanner for.
+
+RowAccessPolicy initially shipped a real resolver (`grantees[]` matched against ServiceAccount/
+WorkspaceUser/CloudIdentityGroup email indexes, reusing `buildSAEmailIndex`/
+`buildWorkspaceUserEmailIndex`/`buildCloudIdentityGroupEmailIndex` from `iampolicy_resolvers.go`)
+— adversarial review caught that `RowAccessPolicy.Grantees` is doc'd "Optional. Input only.": Rows
+List never actually populates it; real grantee data lives behind `RowAccessPolicies.GetIamPolicy`,
+which the scanner doesn't call. The resolver would have been dead code against real scan data (the
+new test's hand-written `grantees` JSON fixture is not data the live API would ever return).
+Reverted to `Leaf: true` rather than adding the extra `GetIamPolicy` fan-out this session.
+
+Net: 4 → 0 orphan types. **The GCP resolver buildout (R1-R27) is complete** — every emitted GCP
+disco type either has an outbound resolver or is a verified `Leaf`.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

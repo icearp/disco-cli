@@ -29,10 +29,10 @@ func init() {
 		fn:   scanBigQuery,
 		emits: []coverage.TypeDecl{
 			{Service: "bigquery", DiscoType: TypeBQDataset},
-			{Service: "bigquery", DiscoType: TypeBQTable},
-			{Service: "bigquery", DiscoType: TypeBQModel},
-			{Service: "bigquery", DiscoType: TypeBQRoutine},
-			{Service: "bigquery", DiscoType: TypeBQRowAccessPolicy},
+			{Service: "bigquery", DiscoType: TypeBQTable, Leaf: true},
+			{Service: "bigquery", DiscoType: TypeBQModel, Leaf: true},
+			{Service: "bigquery", DiscoType: TypeBQRoutine, Leaf: true},
+			{Service: "bigquery", DiscoType: TypeBQRowAccessPolicy, Leaf: true},
 		},
 	})
 }
@@ -58,6 +58,33 @@ const maxConcurrentBQDatasets = 10
 // cheap and is the only way to discover a security-relevant resource type
 // that has no independent enumeration path — accepted per the type-coverage
 // buildout's audit (docs/gcp-type-coverage.md).
+//
+// Resolver Wave R27 confirmed via `go doc` that this same List-shape gap
+// (internal/providers/CLAUDE.md "List-only summary scanners block resolver
+// work") also covers Model and Routine, flagged `Leaf: true` alongside Table:
+//   - `ListModelsResponse`'s own doc: "Only the following fields are
+//     populated: model_reference, model_type, creation_time,
+//     last_modified_time and labels" — `EncryptionConfiguration` (the only
+//     resolvable field on Model) is never populated by `Models.List`.
+//   - `ListRoutinesResponse`'s own doc: "Unless read_mask is set... only...
+//     etag, project_id, dataset_id, routine_id, routine_type, creation_time,
+//     last_modified_time, language, and remote_function_options" —
+//     `DefinitionBody`/`ImportedLibraries`/`SparkOptions`/`PythonOptions` are
+//     never populated (no `ReadMask` call here); `RemoteFunctionOptions.Connection`
+//     IS populated but points at a BigQuery Connections resource disco
+//     doesn't scan (no scanner for that service exists), so even the one
+//     populated field has no valid target.
+//
+// All three would need a per-row `.Get` fan-out (Tables.Get / Models.Get) or
+// a `ReadMask` on Routines.List to become resolvable — same cost tradeoff as
+// the Table note above, deferred until rule-engine demand justifies it.
+//
+// `RowAccessPolicy` is also `Leaf: true` — its `grantees[]` field is doc'd
+// "Optional. Input only." (go doc bigquery.RowAccessPolicy), so
+// RowAccessPolicies.List never actually populates it; real grantee data
+// lives behind RowAccessPolicies.GetIamPolicy, which this scanner doesn't
+// call. A resolver keyed on `grantees[]` would be dead code against real
+// scan data.
 func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := bigquery.NewService(ctx, opts...)
