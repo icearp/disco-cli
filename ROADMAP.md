@@ -637,6 +637,25 @@ defensible scope decision, not a coverage gap). Adversarial review found zero re
 field format, the same-region claim, and the exact-match claim all checked out against source.
 Net: 35 → 33 orphan types (161 emitted, unchanged).
 
+**Resolver Wave R23 (Artifact Registry Rule/Attachment).** Extended the pre-existing
+`internal/providers/gcp/artifactregistry_resolvers.go` (which already wired Repository →
+CryptoKey). Rule → Package: `packageId` is a bare package ID scoped to the rule's own owning
+repository ("if empty, this rule applies to all packages inside the repository") — the owning
+repository's resource-name prefix is derived from the Rule's own NativeID by cutting at
+"/rules/", then the bare packageId is appended to reconstruct the full Package NativeID (same
+reconstruct-from-own-NativeID technique as Dataproc's Job→Cluster resolver). Empty packageId
+(repo-wide rule) emits no edge — already covered by the rule's own hierarchy-closure parent.
+Attachment → Package: `target` is a heterogeneous field naming a Version (unscanned type), a
+Package, or the Attachment's own owning Repository — classified by trailing path shape (mirrors
+Wave R16's LogScope per-entry classification): skip on `/versions/`, skip on anything lacking
+`/packages/` (the only other shape per the SDK doc is the bare Repository reference, redundant
+with the hierarchy parent), otherwise wire by exact NativeID match. Caught and fixed one bug in
+my own draft before shipping: an initial explicit "target equals owning-repository prefix" check
+was dead code — any such target already lacks `/packages/` and gets excluded by the very next
+check regardless, so the redundant check was simplified away (confirmed via fail-first: disabling
+it changed nothing). Adversarial review independently re-derived the same conclusion and found no
+other bugs. Net: 33 → 31 orphan types (161 emitted, unchanged).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
