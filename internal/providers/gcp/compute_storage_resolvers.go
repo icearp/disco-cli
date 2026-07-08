@@ -234,6 +234,27 @@ func bareNameIndex(p *project, st *store.Store, rtype string) (map[string]string
 	return idx, nil
 }
 
+// nativeIDIndex maps every scanned resource of the given type to its
+// resource ID, keyed by its full NativeID. Use over bareNameIndex whenever a
+// cross-field reference is (or can be reconstructed into) the target's own
+// fully-qualified NativeID — bareNameIndex's bare-last-segment key is only
+// safe when that segment is unique across the whole project, which does not
+// hold for scoped children like Bigtable clusters (unique per-instance, not
+// per-project).
+func nativeIDIndex(p *project, st *store.Store, rtype string) (map[string]string, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{rtype}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]string, len(rows))
+	for _, r := range rows {
+		idx[r.NativeID] = r.ID
+	}
+	return idx, nil
+}
+
 // computeSnapshotTypeForSelfLink mirrors computeDiskTypeForSelfLink for the
 // Snapshot/RegionSnapshot pair.
 func computeSnapshotTypeForSelfLink(selfLink string) string {

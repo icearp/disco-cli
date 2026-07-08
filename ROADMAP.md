@@ -488,6 +488,26 @@ coverage. VpcAccess.Connector (present on all three per-revision-shaped types) s
 matching the pre-existing Service-level deferral note (`vpcaccess.googleapis.com` scanner not yet
 landed). Adversarial review found no bugs. Net: 62 → 58 orphan types.
 
+**Resolver Wave R15 (Cloud Bigtable secondary resources).** New
+`internal/providers/gcp/bigtable_resolvers.go`: AppProfile → Cluster (via
+`singleClusterRouting.clusterId` / `multiClusterRoutingUseAny.clusterIds[]`), Backup → Table
+(`sourceTable`) and → Backup (`sourceBackup`, self-referential copy lineage), Table → Backup
+(`restoreInfo.backupInfo.backup`, restore lineage), HotTablet → Table (`tableName`, `attached-to`
+kind — a diagnostic child, not a runtime dependency). Grepped for pre-existing `EdgeDecl`
+registrations first per the R13 lesson — confirmed `databases_resolvers.go` only touches
+`TypeBigtableCluster`'s CMEK, no overlap. Adversarial review caught a real bug: the initial
+AppProfile resolver used the shared `bareNameIndex` helper against `TypeBigtableCluster`, but
+Bigtable cluster IDs are only unique **within their owning instance** (SDK doc: "the ID to be
+used when referring to the new cluster within its instance"), not project-wide like
+`bareNameIndex`'s other consumers (networks, SQL instances) — two instances in the same project
+can both have a cluster named `c1`, and the bare-name map would silently collapse them to
+whichever one sorted last, producing a wrong edge rather than an error. Fixed by adding a new
+`nativeIDIndex(p, st, rtype)` helper (full-NativeID keyed, alongside `bareNameIndex` in
+`compute_storage_resolvers.go`) and reconstructing the instance-scoped full cluster name from the
+AppProfile's own NativeID + the bare cluster ID, mirroring the Wave R12 Dataproc
+region-reconstruction precedent. A dedicated cross-instance-collision test proves the fix
+(fail-first confirmed red against the bare-name-index version). Net: 58 → 54 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
