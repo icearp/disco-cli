@@ -154,18 +154,7 @@ func resolveMonitoringGroupRelationships(p *project, st *store.Store) error {
 // resourceGroup.groupId is documented as the bare ID only, never the full
 // "projects/{p}/groups/{id}" path Group.Name/NativeID actually uses.
 func monitoringGroupNameIndex(p *project, st *store.Store) (map[string]string, error) {
-	rows, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeMonitoringGroup},
-		Limit: util.AllResources,
-	})
-	if err != nil {
-		return nil, err
-	}
-	idx := make(map[string]string, len(rows))
-	for _, r := range rows {
-		idx[lastSegment(r.NativeID)] = r.ID
-	}
-	return idx, nil
+	return bareNameIndex(p, st, TypeMonitoringGroup)
 }
 
 // resolveMonitoringUptimeCheckConfigRelationships wires UptimeCheckConfig ->

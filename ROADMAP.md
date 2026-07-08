@@ -435,6 +435,24 @@ the flag and adding `resolveMonitoringDashboardRelationships` (Dashboard → Pro
 cross-project insert-if-absent placeholder pattern from `resolveIAMPolicyRelationships` for
 projects outside the current scan. Net: 73 → 68 orphan types.
 
+**Resolver Wave R12 (Dataproc).** New `internal/providers/gcp/dataproc_resolvers.go`: Cluster →
+Network/Subnetwork (`gceClusterConfig.{networkUri,subnetworkUri}` — the SDK doc explicitly allows
+"a full URL, partial URI, or short name", all three collapsing to the same trailing segment, so
+resolved via bare-name index rather than exact match), → IAM ServiceAccount
+(`gceClusterConfig.serviceAccount`, plain email), → CryptoKey (`encryptionConfig.{
+gcePdKmsKeyName,kmsKey}` — genuinely a full same-cloudkms-family resource name, unlike the network
+fields, so exact match via the existing `loadKMSCryptoKeyIndex`), → Storage Bucket
+(`config.configBucket` — documented as a bare bucket name, not a `gs://` URI or self-link, so
+bare-name index against Bucket's self-link-derived NativeID); Job → Cluster
+(`placement.clusterName`, a bare name reconstructed into the composite Cluster NativeID using the
+Job row's own Region, since both are region-scoped by the same fan-out — fail-first verified this
+region-scoping is load-bearing, not incidental, via a wrong-region test). Extracted the
+now-3x-repeated bare-name-index body (previously hand-rolled separately in Wave R9's
+`networkNameIndex`/`sqlInstanceNameIndex` and Wave R11's `monitoringGroupNameIndex`) into a shared
+`bareNameIndex(p, st, rtype)` helper in `compute_storage_resolvers.go`; all three now delegate to
+it, behavior-preserving (confirmed by the existing R9/R11 tests staying green unchanged).
+Adversarial review found no bugs. Net: 68 → 66 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

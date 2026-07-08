@@ -212,6 +212,28 @@ func scannedIDSet(p *project, st *store.Store, types ...string) (map[string]bool
 	return m, nil
 }
 
+// bareNameIndex maps every scanned resource of the given type to its
+// resource ID, keyed by the bare name (the segment after the last "/" in
+// its NativeID). Reused wherever a cross-API field references a resource
+// by its short/relative name rather than that resource's own
+// fully-qualified NativeID convention (see
+// project_gcp_cross_api_selflink_mismatch memory) — e.g. Cloud SQL's
+// privateNetwork, Cloud Monitoring's UptimeCheckConfig.resourceGroup.groupId,
+// Dataproc's subnetworkUri/configBucket.
+func bareNameIndex(p *project, st *store.Store, rtype string) (map[string]string, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{rtype}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]string, len(rows))
+	for _, r := range rows {
+		idx[lastSegment(r.NativeID)] = r.ID
+	}
+	return idx, nil
+}
+
 // computeSnapshotTypeForSelfLink mirrors computeDiskTypeForSelfLink for the
 // Snapshot/RegionSnapshot pair.
 func computeSnapshotTypeForSelfLink(selfLink string) string {

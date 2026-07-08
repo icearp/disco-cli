@@ -33,18 +33,7 @@ func init() {
 // resource ID, for masterInstanceName references, which name the primary
 // instance bare, not via the composite NativeID format.
 func sqlInstanceNameIndex(p *project, st *store.Store) (map[string]string, error) {
-	rows, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeSQLInstance},
-		Limit: util.AllResources,
-	})
-	if err != nil {
-		return nil, err
-	}
-	idx := make(map[string]string, len(rows))
-	for _, r := range rows {
-		idx[lastSegment(r.NativeID)] = r.ID
-	}
-	return idx, nil
+	return bareNameIndex(p, st, TypeSQLInstance)
 }
 
 // networkNameIndex maps a Network's bare name (the last self-link segment)
@@ -56,18 +45,7 @@ func sqlInstanceNameIndex(p *project, st *store.Store) (map[string]string, error
 // so this cross-API reference is resolved by bare name instead, mirroring
 // the existing ResourcePolicy/BackendBucket bare-name precedents.
 func networkNameIndex(p *project, st *store.Store) (map[string]string, error) {
-	nets, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeNetwork},
-		Limit: util.AllResources,
-	})
-	if err != nil {
-		return nil, err
-	}
-	idx := make(map[string]string, len(nets))
-	for _, n := range nets {
-		idx[lastSegment(n.NativeID)] = n.ID
-	}
-	return idx, nil
+	return bareNameIndex(p, st, TypeComputeNetwork)
 }
 
 func resolveSQLInstanceRelationships(p *project, st *store.Store) error {
