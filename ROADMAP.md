@@ -417,6 +417,24 @@ required). Adversarial review found no bugs — first clean wave since R6/R7. Co
 flags remain correct (no cross-resource reference fields on any of the three). Net: 77 → 73 orphan
 types.
 
+**Resolver Wave R11 (Cloud Monitoring).** New `internal/providers/gcp/monitoring_resolvers.go`: 5
+resolvers, all within the monitoring/v3 (+v1 Dashboard) API family. AlertPolicy →
+NotificationChannel (`notificationChannels[]`), Snooze → AlertPolicy (`criteria.policies[]`),
+Group → parent Group (`parentName`, self-referential) — all three are full
+`projects/{p}/xxx/{id}` resource-name strings matching each target's own `.Name`-as-NativeID
+convention, so plain `scannedIDSet`/`upsertIfScanned` exact-match applies (same-API-family fields
+reliably match per this backlog's rule). UptimeCheckConfig → Group (`resourceGroup.groupId`) is
+the one exception: the SDK doc comment explicitly calls out `groupId` as the bare `[GROUP_ID]`
+only, never the full path — handled with a new `monitoringGroupNameIndex` bare-name lookup;
+fail-first verified against a regression to exact-match. Adversarial review caught a real bug
+before merge: `TypeMonitoringDashboard` had been given `Leaf: true` on the (wrong) assumption that
+a dashboard body is pure chart-layout config with no outbound refs — `Dashboard.Annotations.{
+DefaultResourceNames, EventAnnotations[].ResourceNames}` are real project-name references
+(`projects/{id}`) scoping which project's logs an event annotation searches. Fixed by dropping
+the flag and adding `resolveMonitoringDashboardRelationships` (Dashboard → Project), reusing the
+cross-project insert-if-absent placeholder pattern from `resolveIAMPolicyRelationships` for
+projects outside the current scan. Net: 73 → 68 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
