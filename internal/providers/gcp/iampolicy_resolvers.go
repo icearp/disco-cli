@@ -19,6 +19,14 @@ func init() {
 		EdgeDecl{TypeIAMPolicy, TypeIAMServiceAccount, store.RelCrossProjectIAM},
 		EdgeDecl{TypeIAMPolicy, TypeProject, store.RelCrossProjectIAM},
 	)
+	registerOrgResolver(resolveIAMPolicyOrgRelationships,
+		EdgeDecl{TypeIAMPolicy, TypeWorkspaceUser, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeCloudIdentityGroup, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeIAMWorkforcePool, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeIAMWorkloadIdentityPool, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeIAMServiceAccount, store.RelOrgIAM},
+		EdgeDecl{TypeIAMPolicy, TypeProject, store.RelOrgIAM},
+	)
 }
 
 // resolveIAMPolicyRelationships walks each gcp:iam:policy resource's bindings
@@ -56,12 +64,65 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	if len(policies) == 0 {
 		return nil
 	}
-	scanID := policies[0].DiscoveredBy
 
 	saByEmail, err := buildSAEmailIndex(p, st)
 	if err != nil {
 		return err
 	}
+
+	return resolveIAMPolicyBindings(st, policies, saByEmail, store.RelCrossProjectIAM)
+}
+
+// resolveIAMPolicyOrgRelationships is the org/folder-scope counterpart to
+// resolveIAMPolicyRelationships. iampolicy_org_scanners.go scans gcp:iam:policy
+// rows at org/folder scope (AccountID = "organizations/{n}" or "folders/{n}",
+// via registerOrgService) — the per-project resolver's `AccountID: p.ID`
+// filter never matches those rows, so they were scanned but never resolved.
+// Registered via registerOrgResolver (runs once per scan, after every
+// per-project resolve pass), this queries every gcp:iam:policy row with no
+// AccountID filter and keeps only the org/folder-shaped ones — the exact
+// complement of what the per-project resolver already covers, so nothing is
+// double-processed.
+//
+// There is no "same project" concept at org/folder scope, so saByEmail is
+// nil (every serviceAccount: member falls through to the cross-scope path
+// in classifySAMember) and the edge kind is RelOrgIAM rather than
+// RelCrossProjectIAM — an org/folder-level grant has org-wide blast radius,
+// a materially different risk category from a two-project grant, even
+// though the target-resolution mechanism (direct match in another scanned
+// project, else a project self-node placeholder) is identical.
+func resolveIAMPolicyOrgRelationships(st *store.Store) error {
+	all, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, Types: []string{TypeIAMPolicy},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	orgPolicies := make([]store.Resource, 0, len(all))
+	for _, r := range all {
+		if strings.HasPrefix(r.AccountID, "organizations/") || strings.HasPrefix(r.AccountID, "folders/") {
+			orgPolicies = append(orgPolicies, r)
+		}
+	}
+	if len(orgPolicies) == 0 {
+		return nil
+	}
+	return resolveIAMPolicyBindings(st, orgPolicies, nil, store.RelOrgIAM)
+}
+
+// resolveIAMPolicyBindings walks each gcp:iam:policy resource's bindings and
+// emits member edges — shared by the per-project resolver
+// (resolveIAMPolicyRelationships, saByEmail scoped via buildSAEmailIndex) and
+// the org/folder-scope resolver (resolveIAMPolicyOrgRelationships, saByEmail
+// nil since there's no "same project" concept at that scope — every
+// serviceAccount: member falls through to the cross-scope path). crossKind
+// is the edge kind used for that cross-scope path (RelCrossProjectIAM for
+// the per-project lane, RelOrgIAM for the org/folder lane) since the two
+// scopes carry different blast-radius semantics despite an identical
+// resolution mechanism.
+func resolveIAMPolicyBindings(st *store.Store, policies []store.Resource, saByEmail map[string]string, crossKind string) error {
+	scanID := policies[0].DiscoveredBy
 
 	// Tenant-wide identity indexes (workspace users + Cloud Identity groups).
 	// Lazily populated on first non-SA member encountered so single-project
@@ -152,8 +213,8 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 			"member-email":   e.email,
 			"member-project": e.projectID,
 		})
-		if err := st.UpsertRelationship(e.fromID, toID, store.RelCrossProjectIAM, "directed", &attrs); err != nil {
-			return fmt.Errorf("upsert cross-project-iam: %w", err)
+		if err := st.UpsertRelationship(e.fromID, toID, crossKind, "directed", &attrs); err != nil {
+			return fmt.Errorf("upsert %s: %w", crossKind, err)
 		}
 	}
 	return nil

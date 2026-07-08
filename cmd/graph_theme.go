@@ -218,6 +218,7 @@ func buildTheme(p themePalette) *dotTheme {
 			store.RelCrossAccountTrust: crossTenant,
 			store.RelCrossSubRBAC:      crossTenant,
 			store.RelCrossProjectIAM:   crossTenant,
+			store.RelOrgIAM:            crossTenant,
 		},
 		ClusterPalette: p.Cluster,
 	}

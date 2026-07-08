@@ -598,7 +598,7 @@ func TestThemesCompleteness(t *testing.T) {
 		store.RelContains, store.RelAttachedTo, store.RelUses,
 		store.RelAssumes, store.RelRoutesTo, store.RelPeer,
 		store.RelBoundedBy, store.RelCrossAccountTrust,
-		store.RelCrossSubRBAC, store.RelCrossProjectIAM,
+		store.RelCrossSubRBAC, store.RelCrossProjectIAM, store.RelOrgIAM,
 	}
 	for name, theme := range themes {
 		for _, p := range allPresets {

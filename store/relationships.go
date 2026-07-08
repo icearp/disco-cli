@@ -58,6 +58,7 @@ const (
 	RelCrossAccountTrust = "cross-account-trust" // AWS IAM role trust → foreign account/role/user
 	RelCrossSubRBAC      = "cross-sub-rbac"      // Azure RBAC assignment → resource in different sub
 	RelCrossProjectIAM   = "cross-project-iam"   // GCP IAM binding → SA in different project
+	RelOrgIAM            = "org-iam"             // GCP org/folder IAM binding → SA in some project, org-wide blast radius
 	RelBoundedBy         = "bounded-by"          // IAM principal → permission-boundary policy (AWS) or analogue
 )
 

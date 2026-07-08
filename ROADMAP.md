@@ -925,6 +925,38 @@ it — full elimination requires the `errgroup.WithContext` → `sync.WaitGroup`
 deferred-items plan** (D1/D2/D4 tiers the user approved; D3 — BigQuery Table/Model CMEK via
 per-row `.Get` fan-out — remains deliberately deferred, unchanged).
 
+**Resolver Wave R32 (org/folder-scoped IAM policy resolution — closes the R28 flagged-but-deferred
+gap).** `iampolicy_org_scanners.go` scans `gcp:iam:policy` at org/folder scope (`AccountID =
+"organizations/{n}"` / `"folders/{n}"`), but the only resolver reading that type,
+`resolveIAMPolicyRelationships`, was per-project-only (`AccountID: p.ID` filter) — those rows were
+scanned but never resolved into edges, flagged during R28 as a real, separate gap and deliberately
+left for a later wave. Fixed by extracting the shared binding-walk body into
+`resolveIAMPolicyBindings(st, policies, saByEmail, crossKind)`, called from both the existing
+per-project resolver and a new `resolveIAMPolicyOrgRelationships(st *store.Store) error` registered
+via the R26 org-resolver lane (`registerOrgResolver`, runs once per scan after every per-project
+pass). The org resolver queries every `gcp:iam:policy` row with no `AccountID` filter, then keeps
+only rows prefixed `"organizations/"`/`"folders/"` — the exact complement of the per-project
+resolver's own filter, so nothing double-processes. `saByEmail` is `nil` for the org path (no
+same-project concept at that scope; a nil-map read safely falls through to the existing
+cross-scope/placeholder branch in `classifySAMember`, verified panic-free and read-only).
+
+New relationship kind `store.RelOrgIAM = "org-iam"` (user chose this over reusing
+`RelCrossProjectIAM` after being shown the two would otherwise be visually/query-indistinguishable
+in the graph despite carrying different real-world blast radius — an org/folder-level grant
+reaches every project under it, not just one). Wired into `store/relationships.go`,
+`store/CLAUDE.md`, `README.md`, `FEATURES.md`, `cmd/graph_theme.go` (styled like the other
+cross-tenant kinds), `cmd/graph_test.go`'s `TestThemesCompleteness`, and `cmd/graph.go`'s default
+`--kinds` list. Adversarial review fail-first-verified the AccountID-prefix filter (patched to
+match everything, confirmed the new `_DoesNotReprocessProjectScopedPolicies` test goes red, then
+green after restoring), confirmed GCP project-ID naming rules make a false-positive prefix match
+structurally impossible, and confirmed the 4 identity-edge helpers (`emitUserMemberEdge`/
+`emitGroupMemberEdge`/`emitFederationMemberEdge`/their index builders) are genuinely scope-agnostic
+by reading them directly rather than trusting the investigation summary. Two minor doc-gap findings
+(README/FEATURES.md hadn't been in the original side-effect-site list) fixed; a theoretical
+malformed-AccountID test gap was left unaddressed since GCP's own naming rules make that shape
+unreachable in practice. Net: 0 → 0 orphans, 159 emitted unchanged (`TypeIAMPolicy` was already
+non-orphan via the per-project resolver) — a data-completeness fix, not a new orphan closure.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

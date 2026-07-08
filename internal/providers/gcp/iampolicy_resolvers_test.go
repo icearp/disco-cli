@@ -266,3 +266,164 @@ func TestResolveIAMPolicyRelationships_NoBindings(t *testing.T) {
 		t.Errorf("expected 0 edges, got %d", len(rels))
 	}
 }
+
+// TestResolveIAMPolicyOrgRelationships verifies an organization-scoped policy
+// (AccountID = "organizations/123", mirroring iampolicy_org_scanners.go's
+// exact shape) resolves its serviceAccount: member as RelOrgIAM (not
+// RelUses, not RelCrossProjectIAM) when the SA is found in some scanned
+// project, plus user:/group: members via the same scope-agnostic indexes
+// the per-project resolver uses.
+func TestResolveIAMPolicyOrgRelationships(t *testing.T) {
+	st := newTestStore(t)
+
+	saEmail := "sa1@some-project.iam.gserviceaccount.com"
+	saNative := "projects/some-project/serviceAccounts/" + saEmail
+	saID := upsertTestResource(t, st, "gcp", "some-project", TypeIAMServiceAccount, saNative, "", "{}")
+
+	userID := upsertTestResource(t, st, "gcp", "customer123", TypeWorkspaceUser, "users/1", "",
+		`{"primaryEmail": "alice@example.com"}`)
+
+	policyAttrs := `{
+		"bindings": [
+			{"role": "roles/owner", "members": ["serviceAccount:` + saEmail + `", "user:alice@example.com"]}
+		]
+	}`
+	policyID := upsertTestResource(t, st, "gcp", "organizations/123", TypeIAMPolicy,
+		"organizations/123/policy", "", policyAttrs)
+
+	if err := resolveIAMPolicyOrgRelationships(st); err != nil {
+		t.Fatalf("resolveIAMPolicyOrgRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 edges (org-iam SA + uses workspace user), got %d: %+v", len(rels), rels)
+	}
+	byKind := map[string]store.Relationship{}
+	for _, r := range rels {
+		byKind[r.Kind] = r
+	}
+	if _, ok := byKind[store.RelCrossProjectIAM]; ok {
+		t.Errorf("org-scope SA member must not emit cross-project-iam, got %+v", byKind[store.RelCrossProjectIAM])
+	}
+	orgEdge, ok := byKind[store.RelOrgIAM]
+	if !ok || orgEdge.ToID != saID {
+		t.Errorf("expected org-iam edge to SA, got %+v", orgEdge)
+	}
+	userEdge, ok := byKind[store.RelUses]
+	if !ok || userEdge.ToID != userID {
+		t.Errorf("expected uses edge to workspace user, got %+v", userEdge)
+	}
+}
+
+// TestResolveIAMPolicyOrgRelationships_UnscannedSAPlaceholder verifies that
+// an org-scope SA member not found in any scanned project still gets a
+// RelOrgIAM edge, to a project self-node placeholder (mirrors the
+// per-project resolver's cross-project-iam placeholder mechanism, R5).
+func TestResolveIAMPolicyOrgRelationships_UnscannedSAPlaceholder(t *testing.T) {
+	st := newTestStore(t)
+
+	policyAttrs := `{
+		"bindings": [
+			{"role": "roles/owner", "members": ["serviceAccount:ghost@unscanned-project.iam.gserviceaccount.com"]}
+		]
+	}`
+	policyID := upsertTestResource(t, st, "gcp", "organizations/123", TypeIAMPolicy,
+		"organizations/123/policy", "", policyAttrs)
+
+	if err := resolveIAMPolicyOrgRelationships(st); err != nil {
+		t.Fatalf("resolveIAMPolicyOrgRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 || rels[0].Kind != store.RelOrgIAM {
+		t.Fatalf("expected 1 org-iam placeholder edge, got %+v", rels)
+	}
+	wantID := store.ResourceID("gcp", "unscanned-project", TypeProject, "unscanned-project")
+	if rels[0].ToID != wantID {
+		t.Errorf("placeholder target: got %q want %q", rels[0].ToID, wantID)
+	}
+}
+
+// TestResolveIAMPolicyOrgRelationships_FolderScope proves the AccountID
+// prefix filter also catches folder-scoped policies, not just
+// organization-scoped ones.
+func TestResolveIAMPolicyOrgRelationships_FolderScope(t *testing.T) {
+	st := newTestStore(t)
+
+	saEmail := "sa1@some-project.iam.gserviceaccount.com"
+	saNative := "projects/some-project/serviceAccounts/" + saEmail
+	saID := upsertTestResource(t, st, "gcp", "some-project", TypeIAMServiceAccount, saNative, "", "{}")
+
+	policyAttrs := `{"bindings": [{"role": "roles/owner", "members": ["serviceAccount:` + saEmail + `"]}]}`
+	policyID := upsertTestResource(t, st, "gcp", "folders/456", TypeIAMPolicy,
+		"folders/456/policy", "", policyAttrs)
+
+	if err := resolveIAMPolicyOrgRelationships(st); err != nil {
+		t.Fatalf("resolveIAMPolicyOrgRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 || rels[0].Kind != store.RelOrgIAM || rels[0].ToID != saID {
+		t.Fatalf("expected 1 org-iam edge to SA, got %+v", rels)
+	}
+}
+
+// TestResolveIAMPolicyOrgRelationships_DoesNotReprocessProjectScopedPolicies
+// seeds a project-scoped policy alongside an org-scoped one and confirms the
+// org resolver only touches the org-scoped row — proving the AccountID
+// prefix filter genuinely excludes project-scoped rows rather than
+// double-processing them (which would misclassify an in-project uses edge
+// as org-iam, since the org lane never builds a same-project SA index).
+func TestResolveIAMPolicyOrgRelationships_DoesNotReprocessProjectScopedPolicies(t *testing.T) {
+	st := newTestStore(t)
+
+	saEmail := "sa1@my-project.iam.gserviceaccount.com"
+	saNative := "projects/my-project/serviceAccounts/" + saEmail
+	upsertTestResource(t, st, "gcp", "my-project", TypeIAMServiceAccount, saNative, "", "{}")
+
+	projectPolicyAttrs := `{"bindings": [{"role": "roles/owner", "members": ["serviceAccount:` + saEmail + `"]}]}`
+	projectPolicyID := upsertTestResource(t, st, "gcp", "my-project", TypeIAMPolicy,
+		"projects/my-project/policy", "", projectPolicyAttrs)
+
+	orgPolicyAttrs := `{"bindings": [{"role": "roles/owner", "members": ["serviceAccount:` + saEmail + `"]}]}`
+	orgPolicyID := upsertTestResource(t, st, "gcp", "organizations/123", TypeIAMPolicy,
+		"organizations/123/policy", "", orgPolicyAttrs)
+
+	if err := resolveIAMPolicyOrgRelationships(st); err != nil {
+		t.Fatalf("resolveIAMPolicyOrgRelationships: %v", err)
+	}
+
+	projectRels, err := st.RelationshipsFrom(projectPolicyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom(project): %v", err)
+	}
+	if len(projectRels) != 0 {
+		t.Errorf("org resolver must not touch project-scoped policy, got %+v", projectRels)
+	}
+
+	orgRels, err := st.RelationshipsFrom(orgPolicyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom(org): %v", err)
+	}
+	if len(orgRels) != 1 || orgRels[0].Kind != store.RelOrgIAM {
+		t.Fatalf("expected 1 org-iam edge for the org-scoped policy, got %+v", orgRels)
+	}
+}
+
+// TestResolveIAMPolicyOrgRelationships_EmptyStoreNoResources verifies the
+// empty-store case returns nil with no panic.
+func TestResolveIAMPolicyOrgRelationships_EmptyStoreNoResources(t *testing.T) {
+	st := newTestStore(t)
+	if err := resolveIAMPolicyOrgRelationships(st); err != nil {
+		t.Fatalf("resolveIAMPolicyOrgRelationships on empty store: %v", err)
+	}
+}

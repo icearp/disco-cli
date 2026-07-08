@@ -34,7 +34,9 @@ For the authoritative, live list of scanned resource types, run
 - **Typed edges** connect resources during a resolve phase that runs after scanning:
   `contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`, `bounded-by`,
   plus the cross-boundary kinds `cross-account-trust` (AWS), `cross-sub-rbac`
-  (Azure), and `cross-project-iam` (GCP).
+  (Azure), `cross-project-iam` (GCP), and `org-iam` (GCP org/folder-scoped IAM
+  policy grants, distinct from `cross-project-iam` since an org/folder-level
+  grant has org-wide blast radius, not a two-project relationship).
 - **Resolvers** read scanned rows and emit edges into `relationships` and a
   `hierarchy_closure` table — e.g. Lambda → KMS/subnet/SG, IAM policy documents →
   KMS/S3/Secrets/DynamoDB/…, ECS task-def → task & execution roles, CloudFront →

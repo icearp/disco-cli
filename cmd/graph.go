@@ -212,7 +212,7 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 			kinds = []string{
 				store.RelAttachedTo, store.RelUses, store.RelRoutesTo, store.RelPeer,
 				store.RelAssumes, store.RelCrossAccountTrust, store.RelCrossSubRBAC,
-				store.RelCrossProjectIAM,
+				store.RelCrossProjectIAM, store.RelOrgIAM,
 			}
 		}
 		dirSet := cmd.Parent().PersistentFlags().Changed("direction")

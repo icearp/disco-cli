@@ -5,7 +5,7 @@
 ## What it does
 
 - `scan` walks an AWS account, Azure subscription, or GCP org and writes every resource it finds.
-- `scan` also runs a resolve phase that connects resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`, `bounded-by`, plus `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam`).
+- `scan` also runs a resolve phase that connects resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`, `bounded-by`, plus `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam` / `org-iam`).
 - `resources`, `diff`, `graph`, `check`, `coverage`, `summary`, `tag-coverage`, `scans`, `snapshot`, and `verify` query the local DB without going back to the cloud.
 
 ## Why not Resource Explorer, Resource Graph, or Cloud Asset Inventory?
