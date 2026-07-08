@@ -99,6 +99,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeBQModel:           "bigquery.googleapis.com/Model",
 		TypeBQRoutine:         "bigquery.googleapis.com/Routine",
 		TypeBQRowAccessPolicy: "bigquery.googleapis.com/RowAccessPolicy",
+		TypeBQConnection:      "bigqueryconnection.googleapis.com/Connection",
 		// Bigtable / Firestore / Spanner.
 		TypeBigtableInstance:         "bigtableadmin.googleapis.com/Instance",
 		TypeBigtableCluster:          "bigtableadmin.googleapis.com/Cluster",

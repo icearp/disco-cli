@@ -268,3 +268,58 @@ func TestResolveBigQueryRowAccessPolicyRelationships_EmptyProjectNoResources(t *
 		t.Fatalf("resolveBigQueryRowAccessPolicyRelationships on empty project: %v", err)
 	}
 }
+
+// TestResolveBigQueryRoutineConnectionRelationships covers both wiring
+// sources — remoteFunctionOptions.connection (always populated) and
+// sparkOptions.connection (only populated since Wave R30's ReadMask) — plus
+// an unscanned-connection skip and the no-attrs empty case.
+func TestResolveBigQueryRoutineConnectionRelationships(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	connName := "projects/my-project/locations/us/connections/conn1"
+	connID := upsertTestResource(t, st, "gcp", p.ID, TypeBQConnection, connName, "us", "{}")
+
+	remoteRoutineID := upsertTestResource(t, st, "gcp", p.ID, TypeBQRoutine,
+		"projects/my-project/datasets/ds1/routines/remote1", "",
+		`{"remoteFunctionOptions": {"connection": "`+connName+`"}}`)
+	sparkRoutineID := upsertTestResource(t, st, "gcp", p.ID, TypeBQRoutine,
+		"projects/my-project/datasets/ds1/routines/spark1", "",
+		`{"sparkOptions": {"connection": "`+connName+`"}}`)
+	unscannedRoutineID := upsertTestResource(t, st, "gcp", p.ID, TypeBQRoutine,
+		"projects/my-project/datasets/ds1/routines/unscanned1", "",
+		`{"remoteFunctionOptions": {"connection": "projects/my-project/locations/us/connections/ghost"}}`)
+	plainRoutineID := upsertTestResource(t, st, "gcp", p.ID, TypeBQRoutine,
+		"projects/my-project/datasets/ds1/routines/plain1", "", `{}`)
+
+	if err := resolveBigQueryRoutineConnectionRelationships(p, st); err != nil {
+		t.Fatalf("resolveBigQueryRoutineConnectionRelationships: %v", err)
+	}
+
+	for _, id := range []string{remoteRoutineID, sparkRoutineID} {
+		rels, err := st.RelationshipsFrom(id)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom(%s): %v", id, err)
+		}
+		if len(rels) != 1 || rels[0].ToID != connID || rels[0].Kind != store.RelUses {
+			t.Errorf("routine %s: got %+v, want single →connection uses edge", id, rels)
+		}
+	}
+	for _, id := range []string{unscannedRoutineID, plainRoutineID} {
+		rels, err := st.RelationshipsFrom(id)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom(%s): %v", id, err)
+		}
+		if len(rels) != 0 {
+			t.Errorf("routine %s: expected no edges, got %+v", id, rels)
+		}
+	}
+}
+
+func TestResolveBigQueryRoutineConnectionRelationships_EmptyProjectNoResources(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+	if err := resolveBigQueryRoutineConnectionRelationships(p, st); err != nil {
+		t.Fatalf("resolveBigQueryRoutineConnectionRelationships on empty project: %v", err)
+	}
+}

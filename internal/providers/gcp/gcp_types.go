@@ -152,6 +152,11 @@ const (
 	TypeBQModel           = "gcp:bigquery:model"
 	TypeBQRoutine         = "gcp:bigquery:routine"
 	TypeBQRowAccessPolicy = "gcp:bigquery:row-access-policy"
+	// BigQuery Connections (Resolver Wave R31) — its own Discovery API
+	// (bigqueryconnection.googleapis.com), so the type namespace must match
+	// that service segment, not "bigquery:" (TestGCPTypeMirrorsDiscovery
+	// enforces disco types mirror their upstream Discovery key exactly).
+	TypeBQConnection = "gcp:bigqueryconnection:connection"
 	// Bigtable / Firestore / Spanner
 	TypeBigtableInstance = "gcp:bigtableadmin:instance"
 	TypeBigtableCluster  = "gcp:bigtableadmin:cluster"

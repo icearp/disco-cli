@@ -31,7 +31,7 @@ func init() {
 			{Service: "bigquery", DiscoType: TypeBQDataset},
 			{Service: "bigquery", DiscoType: TypeBQTable, Leaf: true},
 			{Service: "bigquery", DiscoType: TypeBQModel, Leaf: true},
-			{Service: "bigquery", DiscoType: TypeBQRoutine, Leaf: true},
+			{Service: "bigquery", DiscoType: TypeBQRoutine},
 			{Service: "bigquery", DiscoType: TypeBQRowAccessPolicy},
 		},
 	})

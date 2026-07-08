@@ -882,6 +882,49 @@ bare 500) propagates as a real scan error rather than being silently warn-and-sk
 denied case. Net: 0 → 0 orphans, 156 → 157 emitted (expected from the Leaf drop) — another
 coverage-completeness wave, not a new orphan closure.
 
+**Resolver Wave R31 (BigQuery Connections scanner + resolver, Routine→Connection edge — new
+service, D4 tier, closes the R28-R31 deferred-items plan).** First wave to add a brand-new
+scanner rather than extend an existing one: `bigqueryconnection_scanners.go` /
+`bigqueryconnection_resolvers.go` (new `gcp:bigqueryconnection:connection` type — separate
+Discovery API from `bigquery:`, so the type namespace must match; `TestGCPTypeMirrorsDiscovery`
+caught an initial `gcp:bigquery:connection` naming attempt that grouped it under the wrong
+namespace). Connection's own outbound edges wire what's already fetched by the List call, no
+extra API cost: `kmsKeyName` → CryptoKey (CMEK, same `stripCryptoKeyVersion` pattern as
+everywhere else); `cloudSql.instanceId` (`project:region:instance`, colon-separated) → SQLInstance
+(reformatted to its `projects/{p}/instances/{name}` NativeID, region dropped — Cloud SQL instance
+names are project-unique across regions, confirmed via `sql_scanners.go`); `cloudSpanner.database`
+→ Spanner Database, confirmed via live BigQuery docs (`bq mk --connection` examples) to hold the
+full canonical resource name despite the SDK's own field doc being deceptively terse
+("`project/instance/database`") — exact match, no reconstruction. `cloudResource.serviceAccountId`
+deliberately skipped (Google-managed service agent, never a scanned resource). Also added
+`resolveBigQueryRoutineConnectionRelationships` (Routine → Connection via
+`remoteFunctionOptions.connection` and R30's newly-populated `sparkOptions.connection`, mutually
+exclusive per `RoutineType` so dispatch order is inconsequential) and dropped `TypeBQRoutine`'s
+`Leaf: true` — the reason it stayed Leaf through R29/R30 (both its resolvable fields needed
+Connections, which didn't exist yet).
+
+Adversarial review caught a real design flaw before commit: the scanner originally listed via the
+`locations/-` wildcard parent, matching every other wildcard-capable GCP scanner in this package —
+but bigqueryconnection's discovery doc documents no wildcard exception (unlike Cloud Run/Functions
+v2/Artifact Registry, which do), and a Google community thread indicates no all-locations list
+call exists for this API. Worse, GCP's `scanProject`/`Scan()` dispatch still uses
+`errgroup.WithContext` for both per-service and per-project fan-out (never migrated to the
+`sync.WaitGroup` pattern AWS already uses per `internal/providers/CLAUDE.md`'s "Errors never abort
+scan" rule) — so a wildcard-rejected 400 wouldn't have failed just this one service, it would have
+cancelled every sibling service and every sibling project's scan, aborting relationship resolution
+scan-wide. Rewrote the scanner to use the established `gcpRegionFanoutScan`/`gcpRegionFanoutScanIn`
+per-region helper instead (same helper Dataproc already uses in production), enumerating real
+Compute-API regions via `gcpRegions` — eliminates the "invalid wildcard" failure mode entirely,
+accepting the narrower, explicitly-documented trade-off that BigQuery's multi-region locations
+("US"/"EU", not real Compute regions) go unenumerated. A follow-up review confirmed this narrows
+the risk (near-certain failure → rare transient per-region failure) rather than fully eliminating
+it — full elimination requires the `errgroup.WithContext` → `sync.WaitGroup` migration across
+`gcp_scanner.go`, flagged as a real, separate, repo-wide follow-up, out of scope here (same
+"flagged but not fixed" treatment R28 gave the org/folder IAMPolicy gap). Net: 0 → 0 orphans, 157 →
+159 emitted (Connection newly counted + Routine's Leaf drop, each +1) — **closes the R28-R31
+deferred-items plan** (D1/D2/D4 tiers the user approved; D3 — BigQuery Table/Model CMEK via
+per-row `.Get` fan-out — remains deliberately deferred, unchanged).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

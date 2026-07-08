@@ -13,6 +13,7 @@ import (
 var expectedGCPServices = []string{
 	"gcp:artifactregistry",
 	"gcp:bigquery",
+	"gcp:bigqueryconnection",
 	"gcp:batch",
 	"gcp:bigtable",
 	"gcp:binaryauthorization",

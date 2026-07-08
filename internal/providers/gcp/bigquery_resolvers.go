@@ -21,6 +21,9 @@ func init() {
 		EdgeDecl{TypeBQRowAccessPolicy, TypeWorkspaceUser, store.RelUses},
 		EdgeDecl{TypeBQRowAccessPolicy, TypeCloudIdentityGroup, store.RelUses},
 	)
+	registerResolver(resolveBigQueryRoutineConnectionRelationships,
+		EdgeDecl{TypeBQRoutine, TypeBQConnection, store.RelUses},
+	)
 }
 
 // datasetAccessEntry mirrors bigquery.DatasetAccess's `view`/`routine`/
@@ -307,6 +310,65 @@ func resolveBigQueryRowAccessPolicyRelationships(p *project, st *store.Store) er
 					}
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// resolveBigQueryRoutineConnectionRelationships wires routine -[uses]->
+// connection edges from `remoteFunctionOptions.connection` (always
+// populated by a bare Routines.List) and `sparkOptions.connection` (only
+// populated since Wave R30's ReadMask addition) — both store the
+// connection's full resource name verbatim
+// (`projects/{p}/locations/{loc}/connections/{id}`), an exact match against
+// TypeBQConnection's own NativeID, no reconstruction needed.
+func resolveBigQueryRoutineConnectionRelationships(p *project, st *store.Store) error {
+	routines, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeBQRoutine},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(routines) == 0 {
+		return nil
+	}
+
+	connIDByNative, err := nativeIDIndex(p, st, TypeBQConnection)
+	if err != nil {
+		return err
+	}
+	if len(connIDByNative) == 0 {
+		return nil
+	}
+
+	for _, rt := range routines {
+		var a struct {
+			RemoteFunctionOptions *struct {
+				Connection string `json:"connection"`
+			} `json:"remoteFunctionOptions"`
+			SparkOptions *struct {
+				Connection string `json:"connection"`
+			} `json:"sparkOptions"`
+		}
+		if err := json.Unmarshal([]byte(rt.AttributesJSON), &a); err != nil {
+			continue
+		}
+		var conn string
+		switch {
+		case a.RemoteFunctionOptions != nil && a.RemoteFunctionOptions.Connection != "":
+			conn = a.RemoteFunctionOptions.Connection
+		case a.SparkOptions != nil && a.SparkOptions.Connection != "":
+			conn = a.SparkOptions.Connection
+		default:
+			continue
+		}
+		toID, ok := connIDByNative[conn]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(rt.ID, toID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert routine→connection: %w", err)
 		}
 	}
 	return nil
