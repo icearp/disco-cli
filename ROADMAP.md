@@ -403,6 +403,20 @@ each side (relative link vs. fully-qualified self-link) rather than the same abb
 both, since the original fixture had accidentally masked the mismatch — fail-first verified against
 an exact-string-match regression. Net: 80 → 77 orphan types.
 
+**Resolver Wave R10 (Cloud Storage ACL/notification children).** New
+`internal/providers/gcp/storage_acl_resolvers.go`: HmacKey → IAM ServiceAccount
+(`serviceAccountEmail`, reusing `buildSAEmailIndex`); Notification → Pub/Sub Topic (`topic`,
+formatted `//pubsub.googleapis.com/projects/{p}/topics/{name}` per the vendored `storage-gen.go`
+doc comment — independently re-verified against the raw source this wave, given the exact-format
+bug class Waves R8/R9 both hit; the stripped prefix matches `TypePubSubTopic`'s NativeID verbatim,
+no bare-name fallback needed here); BucketAccessControl + DefaultObjectAccessControl → IAM
+ServiceAccount (`email`, one resolver covering both types since they share the identical field/
+shape — empty for allUsers/allAuthenticatedUsers/project-team entities, no special-casing
+required). Adversarial review found no bugs — first clean wave since R6/R7. Confirmed
+`TypeStorageManagedFolder`/`TypeStorageAnywhereCache`/`TypeStorageFolder`'s existing `Leaf: true`
+flags remain correct (no cross-resource reference fields on any of the three). Net: 77 → 73 orphan
+types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
