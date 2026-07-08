@@ -453,6 +453,27 @@ now-3x-repeated bare-name-index body (previously hand-rolled separately in Wave 
 it, behavior-preserving (confirmed by the existing R9/R11 tests staying green unchanged).
 Adversarial review found no bugs. Net: 68 → 66 orphan types.
 
+**Resolver Wave R13 (Cloud Spanner).** New `internal/providers/gcp/spanner_resolvers.go`: Instance →
+InstanceConfig (`config`), InstanceConfig → InstanceConfig (`baseConfig`, self-referential —
+user-managed config to its Google-managed base), InstancePartition → InstanceConfig (`config`,
+same field/format as Instance's), Backup → Database (`database`) and → CryptoKey
+(`encryptionInfo.kmsKeyVersion` / `encryptionInformation[].kmsKeyVersion`, via the existing
+`loadKMSCryptoKeyIndex`/`stripCryptoKeyVersion`). All exact-match — confirmed via `go doc` that
+none of this wave's fields carry Dataproc's "full URL, partial URI, or short name" ambiguity;
+every field is documented as exactly one full resource-name format matching its target's own
+NativeID. Parent-child containment (Database/Backup→Instance, BackupSchedule/DatabaseRole→
+Database, InstancePartition→Instance) was already covered by the scanner's
+`RecordHierarchyBatch`/`upsertWithParent` closures, so these resolvers only add the edges the
+hierarchy walk doesn't produce. Adversarial review caught a real duplicate: the wave's initial
+`resolveSpannerDatabaseRelationships` (Database → CryptoKey via `encryptionConfig.kmsKeyName`)
+re-implemented an edge `resolveDatabasesRelationships` (`databases_resolvers.go`, pre-existing)
+already owned — that resolver already covers Bigtable/Firestore/Spanner CMEK in one place. Fixed
+by dropping the duplicate resolver and instead extending the existing one to also cover the
+multi-region `kmsKeyNames[]` array form (previously only the singular `kmsKeyName` was handled),
+closing a small real gap rather than adding a second competing resolver for the same edge — this
+is also why the pre-fix orphan count only dropped by 4 of the wave's 5 resolvers (Database was
+never actually an orphan). Net: 66 → 62 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

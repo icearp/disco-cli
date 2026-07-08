@@ -21,7 +21,8 @@ func init() {
 //
 //   - Bigtable cluster -[uses]-> cryptoKey via encryptionConfig.kmsKeyName
 //   - Firestore database -[uses]-> cryptoKey via cmekConfig.kmsKeyName
-//   - Spanner database -[uses]-> cryptoKey via encryptionConfig.kmsKeyName
+//   - Spanner database -[uses]-> cryptoKey via encryptionConfig.{kmsKeyName,kmsKeyNames[]}
+//     (kmsKeyNames is the multi-region form — one key per covered region)
 //
 // Cross-project key references skipped (FK-safe).
 //
@@ -115,7 +116,8 @@ func resolveDatabasesRelationships(p *project, st *store.Store) error {
 	for _, d := range sdbs {
 		var a struct {
 			EncryptionConfig struct {
-				KmsKeyName string `json:"kmsKeyName"`
+				KmsKeyName  string   `json:"kmsKeyName"`
+				KmsKeyNames []string `json:"kmsKeyNames"`
 			} `json:"encryptionConfig"`
 		}
 		if err := json.Unmarshal([]byte(d.AttributesJSON), &a); err != nil {
@@ -123,6 +125,11 @@ func resolveDatabasesRelationships(p *project, st *store.Store) error {
 		}
 		if err := emit(d.ID, a.EncryptionConfig.KmsKeyName); err != nil {
 			return err
+		}
+		for _, key := range a.EncryptionConfig.KmsKeyNames {
+			if err := emit(d.ID, key); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

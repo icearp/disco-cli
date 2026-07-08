@@ -34,3 +34,46 @@ func TestResolveDatabasesRelationships(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveDatabasesRelationships_SpannerMultiRegionKmsKeyNames covers the
+// multi-region CMEK form (encryptionConfig.kmsKeyNames[], one key per
+// covered region) alongside the single-key kmsKeyName form the base test
+// already exercises.
+func TestResolveDatabasesRelationships_SpannerMultiRegionKmsKeyNames(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	key1Name := "projects/my-project/locations/us-central1/keyRings/r/cryptoKeys/k1"
+	key1ID := upsertTestResource(t, st, "gcp", p.ID, TypeKMSCryptoKey, key1Name, "us-central1", "{}")
+	key2Name := "projects/my-project/locations/us-east1/keyRings/r/cryptoKeys/k2"
+	key2ID := upsertTestResource(t, st, "gcp", p.ID, TypeKMSCryptoKey, key2Name, "us-east1", "{}")
+
+	spID := upsertTestResource(t, st, "gcp", p.ID, TypeSpannerDatabase,
+		"projects/my-project/instances/i1/databases/d1", "us-central1",
+		`{"encryptionConfig": {"kmsKeyNames": ["`+key1Name+`", "`+key2Name+`"]}}`)
+
+	if err := resolveDatabasesRelationships(p, st); err != nil {
+		t.Fatalf("resolveDatabasesRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(spID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 edges (one per region key), got %d: %+v", len(rels), rels)
+	}
+	want := map[string]bool{key1ID: false, key2ID: false}
+	for _, r := range rels {
+		if _, ok := want[r.ToID]; !ok {
+			t.Errorf("unexpected edge target %q", r.ToID)
+			continue
+		}
+		want[r.ToID] = true
+	}
+	for id, hit := range want {
+		if !hit {
+			t.Errorf("missing edge to %q", id)
+		}
+	}
+}
