@@ -577,6 +577,30 @@ since it shares `wireDataprocExecutionConfig` with Batch's already-tested paths)
 in for parity. Net: 44 → 40 orphan types (161 emitted, unchanged — these 4 were already emitted,
 non-Leaf).
 
+**Resolver Wave R20 (Cloud Build WorkerPool/Connection/GithubEnterpriseConfig).** Extended the
+pre-existing `internal/providers/gcp/cloudbuild_resolvers.go` — the 3 types this file's original
+comment explicitly deferred at scanner-landing time ("Worker pool edges deferred... GitHub / repo
+connection edges deferred"). WorkerPool's `privatePoolV1Config` carries two independent network
+bindings (`networkConfig.peeredNetwork`, `privateServiceConnect.networkAttachment`), both bare
+`projects/{num-or-id}/...` references matched by trailing segment — note `peeredNetwork`'s project
+segment is documented as a project *number*, not necessarily the caller's project ID, which doesn't
+matter for bare-name matching since only the trailing segment is ever compared. Connection
+(cloudbuild/v2) is a oneof over 5 VCS provider configs (github/githubEnterprise/gitlab/
+bitbucketCloud/bitbucketDataCenter); gitlab/bitbucketCloud/bitbucketDataCenter share an identical
+3-field credential shape, factored into a shared `cloudBuildUserCredConfig` type — every populated
+config carries 1-3 `projects/*/secrets/*/versions/*` SecretManager references, wired to
+`TypeSecretVersion` by exact NativeID match. The legacy standalone v1 `GithubEnterpriseConfig` type
+(distinct from Connection's nested v2 config of a similar name) has its own `peeredNetwork` plus an
+8-field `Secrets` block pairing 4 Secret refs with 4 SecretVersion refs — both wired since both are
+independently scanned types. Every field path verified via `go doc` before writing code; grepped
+for pre-existing `EdgeDecl` registrations on all 3 new source types first per the R13 lesson —
+confirmed zero prior coverage. A test-fixture bug (helper closures returning NativeID instead of
+the resource's actual store ID for use in expected-edge-target assertions — `RelationshipsFrom`
+returns resource IDs, not NativeIDs) was self-caught by the tests' own first run before any review;
+adversarial review then found zero further real bugs, only a cosmetic gap (a test named
+"EachVCSKind" only exercised 3 of 5 oneof branches) which was filled in for accuracy. Net:
+40 → 37 orphan types (161 emitted, unchanged).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
