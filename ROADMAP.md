@@ -385,6 +385,24 @@ Review also flagged (documented, not fixed — false-negative risk only, not a w
 "non-exhaustive and may apply to additional ProtectionLevels in the future." Net: 83 → 80 orphan
 types.
 
+**Resolver Wave R9 (Cloud SQL).** New `internal/providers/gcp/sql_resolvers.go`: DatabaseInstance →
+Network (private VPC attachment), → CryptoKey (CMEK, reusing the existing
+`loadKMSCryptoKeyIndex`/`stripCryptoKeyVersion` helpers), → IAM ServiceAccount (reusing
+`buildSAEmailIndex`), → its replication primary instance (`masterInstanceName`, a bare instance
+name resolved via a new `sqlInstanceNameIndex` keyed on `lastSegment(NativeID)` — same bare-name
+pattern as Wave R2's ResourcePolicy fix); BackupRun → CryptoKey (CMEK); User → IAM ServiceAccount
+(`iamEmail`, IAM database authentication users only). Adversarial review caught a real bug before
+merge: `settings.ipConfiguration.privateNetwork` looked self-link-shaped but the sqladmin API's own
+doc example (confirmed via Google's live API reference) gives a *relative* resource link
+(`/projects/p/global/networks/default`), never the fully-qualified
+`https://www.googleapis.com/compute/v1/...` format Compute's own `Network.SelfLink` uses as its
+NativeID — an exact-string `ResourceID` lookup across those two API families would never match on
+real data. Fixed with a new `networkNameIndex` (bare-name lookup, same shape as
+`sqlInstanceNameIndex`); the happy-path test was also corrected to use each field's *real* format on
+each side (relative link vs. fully-qualified self-link) rather than the same abbreviated style on
+both, since the original fixture had accidentally masked the mismatch — fail-first verified against
+an exact-string-match regression. Net: 80 → 77 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
