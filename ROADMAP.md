@@ -553,6 +553,30 @@ coverage. Adversarial review found one test-coverage gap (missing negative-space
 EffectiveTag, added) and confirmed everything else correct. Net: 47 → 44 orphan types (162 → 161
 emitted, since Folder is no longer resolver-eligible).
 
+**Resolver Wave R19 (Dataproc Batch/Session/SessionTemplate/WorkflowTemplate).** Extended the
+pre-existing `internal/providers/gcp/dataproc_resolvers.go`. Batch/Session/SessionTemplate share
+`environmentConfig.executionConfig`'s flat `{networkUri,subnetworkUri,serviceAccount,kmsKey,
+stagingBucket}` shape — a different, flatter struct than Cluster's nested `gceClusterConfig` +
+`encryptionConfig` (verified via `go doc dataproc.ExecutionConfig` before writing any code).
+WorkflowTemplate's `placement.managedCluster.config` is typed `*dataproc.ClusterConfig` —
+byte-identical to Cluster's own top-level config, so its wiring reuses the Wave R12 struct/helper
+directly rather than duplicating it; WorkflowTemplate also carries its own top-level
+`encryptionConfig.kmsKey` (a distinct CMEK field for workflow job arguments, separate from the
+managed cluster's own encryption — both wired, producing 6 edges when the two keys differ).
+`ClusterSelector` (the other half of `WorkflowTemplatePlacement`'s oneof) is a label matcher, not
+a resource reference — no edge. Session also references its SessionTemplate, which the SDK doc
+says may arrive as either a bare resource name or a full URL — both share the same trailing
+`projects/.../sessionTemplates/{id}` path, normalized via a new `dataprocResourceNameSuffix`
+helper before matching. Refactored the Wave R12 Cluster resolver in the same commit to share the
+new `dataprocClusterConfigAttrs`/`wireDataprocClusterConfig`/`loadDataprocRelIndex` helpers instead
+of carrying its own inline copy — verified byte-identical JSON tags and identical emitted edges
+before and after. Grepped for pre-existing `EdgeDecl` registrations on all 4 new source types
+first per the R13 lesson — confirmed zero prior coverage. Adversarial review found zero real bugs;
+one minor test-coverage gap (SessionTemplate missing its own unscanned-targets/nil-config tests,
+since it shares `wireDataprocExecutionConfig` with Batch's already-tested paths) was still filled
+in for parity. Net: 44 → 40 orphan types (161 emitted, unchanged — these 4 were already emitted,
+non-Leaf).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
