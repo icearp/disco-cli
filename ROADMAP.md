@@ -474,6 +474,20 @@ closing a small real gap rather than adding a second competing resolver for the 
 is also why the pre-fix orphan count only dropped by 4 of the wave's 5 resolvers (Database was
 never actually an orphan). Net: 66 → 62 orphan types.
 
+**Resolver Wave R14 (Cloud Run children).** Extended the pre-existing `serverless_resolvers.go`
+(not a new file — it already owned `TypeCloudRunSvc`'s SA edge) with a second resolver,
+`resolveCloudRunChildRelationships`: Revision → IAM ServiceAccount + CryptoKey (flat
+`serviceAccount`/`encryptionKey` fields), WorkerPool → same two targets but nested under
+`template.*` (confirmed via `go doc` — WorkerPool's fields live one level deeper than
+Revision/Instance's), Instance → same two targets (flat, same shape as Revision), DomainMapping →
+Service via `spec.routeName` — a bare Knative route name (per `run/v1.DomainMappingSpec`'s own doc
+comment), not `TypeCloudRunSvc`'s full run/v2 resource name, so resolved via the existing
+`bareNameIndex` helper rather than exact match. Grepped for pre-existing `EdgeDecl` registrations
+on all 4 types before writing anything (the R13 duplicate-resolver lesson) — confirmed zero prior
+coverage. VpcAccess.Connector (present on all three per-revision-shaped types) stays deferred,
+matching the pre-existing Service-level deferral note (`vpcaccess.googleapis.com` scanner not yet
+landed). Adversarial review found no bugs. Net: 62 → 58 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

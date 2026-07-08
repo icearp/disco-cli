@@ -14,6 +14,15 @@ func init() {
 		EdgeDecl{TypeCloudFunction, TypeKMSCryptoKey, store.RelUses},
 		EdgeDecl{TypeCloudRunSvc, TypeIAMServiceAccount, store.RelUses},
 	)
+	registerResolver(resolveCloudRunChildRelationships,
+		EdgeDecl{TypeCloudRunRevision, TypeIAMServiceAccount, store.RelUses},
+		EdgeDecl{TypeCloudRunRevision, TypeKMSCryptoKey, store.RelUses},
+		EdgeDecl{TypeCloudRunWorkerPool, TypeIAMServiceAccount, store.RelUses},
+		EdgeDecl{TypeCloudRunWorkerPool, TypeKMSCryptoKey, store.RelUses},
+		EdgeDecl{TypeCloudRunInstance, TypeIAMServiceAccount, store.RelUses},
+		EdgeDecl{TypeCloudRunInstance, TypeKMSCryptoKey, store.RelUses},
+		EdgeDecl{TypeCloudRunDomainMapping, TypeCloudRunSvc, store.RelRoutesTo},
+	)
 }
 
 // resolveServerlessRelationships derives runtime-identity edges for the
@@ -108,6 +117,132 @@ func resolveServerlessRelationships(p *project, st *store.Store) error {
 		}
 		if err := st.UpsertRelationship(s.ID, saID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert run.service→SA: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveCloudRunChildRelationships derives runtime-identity edges for
+// run/v2's per-Service children — Wave R14 of the resolver-implementation
+// backlog:
+//
+//   - run.revision   -[uses]-> service-account (flat `serviceAccount`)
+//   - run.revision   -[uses]-> cryptoKey       (flat `encryptionKey`)
+//   - run.workerPool -[uses]-> service-account (`template.serviceAccount`)
+//   - run.workerPool -[uses]-> cryptoKey       (`template.encryptionKey`)
+//   - run.instance   -[uses]-> service-account (flat `serviceAccount`)
+//   - run.instance   -[uses]-> cryptoKey       (flat `encryptionKey`)
+//   - run.domainMapping -[routes-to]-> run.service (`spec.routeName`, a bare
+//     Knative route name — matches the Service's bare name, not its full
+//     run/v2 resource name, so resolved via bareNameIndex)
+//
+// VpcAccess.Connector (present on Revision/WorkerPool/Instance) deferred —
+// same "vpcaccess.googleapis.com not yet landed" reason as the Service-level
+// edge above.
+func resolveCloudRunChildRelationships(p *project, st *store.Store) error {
+	saByEmail, err := buildSAEmailIndex(p, st)
+	if err != nil {
+		return err
+	}
+	keyIDByNative, err := loadKMSCryptoKeyIndex(p, st)
+	if err != nil {
+		return err
+	}
+
+	emitIdentityEdges := func(fromID, sa, kmsKey string) error {
+		if sa != "" {
+			if saID, ok := saByEmail[sa]; ok {
+				if err := st.UpsertRelationship(fromID, saID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert run child→SA: %w", err)
+				}
+			}
+		}
+		if kmsKey != "" {
+			if keyID, ok := keyIDByNative[stripCryptoKeyVersion(kmsKey)]; ok {
+				if err := st.UpsertRelationship(fromID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert run child→cryptoKey: %w", err)
+				}
+			}
+		}
+		return nil
+	}
+
+	// Revision and Instance: flat serviceAccount/encryptionKey fields.
+	for _, rtype := range []string{TypeCloudRunRevision, TypeCloudRunInstance} {
+		rows, err := st.ListResources(store.ResourceFilter{
+			Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{rtype},
+			Limit: util.AllResources,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			var a struct {
+				ServiceAccount string `json:"serviceAccount"`
+				EncryptionKey  string `json:"encryptionKey"`
+			}
+			if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
+				continue
+			}
+			if err := emitIdentityEdges(r.ID, a.ServiceAccount, a.EncryptionKey); err != nil {
+				return err
+			}
+		}
+	}
+
+	// WorkerPool: nested under template.
+	wps, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCloudRunWorkerPool},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, wp := range wps {
+		var a struct {
+			Template struct {
+				ServiceAccount string `json:"serviceAccount"`
+				EncryptionKey  string `json:"encryptionKey"`
+			} `json:"template"`
+		}
+		if err := json.Unmarshal([]byte(wp.AttributesJSON), &a); err != nil {
+			continue
+		}
+		if err := emitIdentityEdges(wp.ID, a.Template.ServiceAccount, a.Template.EncryptionKey); err != nil {
+			return err
+		}
+	}
+
+	// DomainMapping -> Service, by bare Knative route name.
+	dms, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCloudRunDomainMapping},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(dms) > 0 {
+		svcByName, err := bareNameIndex(p, st, TypeCloudRunSvc)
+		if err != nil {
+			return err
+		}
+		for _, dm := range dms {
+			var a struct {
+				Spec struct {
+					RouteName string `json:"routeName"`
+				} `json:"spec"`
+			}
+			if err := json.Unmarshal([]byte(dm.AttributesJSON), &a); err != nil {
+				continue
+			}
+			if a.Spec.RouteName == "" {
+				continue
+			}
+			if svcID, ok := svcByName[a.Spec.RouteName]; ok {
+				if err := st.UpsertRelationship(dm.ID, svcID, store.RelRoutesTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert domainMapping→service: %w", err)
+				}
+			}
 		}
 	}
 	return nil
