@@ -731,6 +731,53 @@ non-matching reference); the two resolvers extended in place (PubSub, Databases)
 whole-function empty-project test the wave's net-new resolvers all got (added to both). Net: 20 →
 13 orphan types (160 emitted, unchanged — no Leaf reflags this wave).
 
+**Resolver Wave R26 (org-resolver-lane infrastructure + accesscontextmanager/cloudidentity).**
+Solved the architectural blocker documented since R18/R21: 9 remaining orphans (5
+accesscontextmanager, 4 cloudidentity) are org/customer-scoped — their `AccountID` is an org name
+or Workspace customer ID, never a project ID — so the per-project `registerResolver`/
+`resolveRelationships` lane (called once per project, filtered by `AccountID: p.ID`) could never
+see them no matter what field-matching logic a resolver used. Added a parallel org-resolver lane
+mirroring the existing `registerOrgService`/`runOrgServices` scanner-side pattern:
+`orgResolverEntry`/`registeredOrgResolvers`/`registerOrgResolver(fn func(st *store.Store) error,
+emits ...EdgeDecl)` in `gcp_registry.go` (generalized `resolverName` → `resolverFnName(fn any)` so
+both registries share one reflection-based naming helper), a new `resolveOrgRelationships(ctx,
+st)` in `gcp_scanner.go` fired exactly once per scan — after every per-project scan AND every
+per-project resolve pass completes, so cross-scope lookups (Project-by-number, Group-by-email,
+etc.) see the full store — using the same `BeginRelBuffer`/`FlushRelBuffer` per-resolver isolation
+as the per-project lane. `ListResolvers()`/`ResolverEdgeSources()` updated to union both
+registries so `disco coverage resolvers` treats org-resolved types identically to per-project ones.
+
+Used the new lane immediately for both blocked clusters. `accesscontextmanager_resolvers.go`
+(new): ServicePerimeter → AccessLevel (`status`/`spec.accessLevels[]`) and → Project
+(`resources[]`, `projects/{number}` entries — project *number*, not the ID string Project rows are
+otherwise keyed by, resolved via a new `projectIDByNumberIndex` that parses each scanned Project's
+own `attrs.name` field); AccessPolicy → Project/Folder (`scopes[]`); GcpUserAccessBinding →
+AccessLevel (`accessLevels[]`/`dryRunAccessLevels[]`); AccessLevel → AccessLevel self-reference
+(`basic.conditions[].requiredAccessLevels[]`, same-policy); AuthorizedOrgsDesc → Organization
+(`orgs[]`, inherently cross-tenant — reuses the `InsertResourcesIfAbsent` placeholder pattern from
+`resolveIAMPolicyRelationships`'s cross-project-IAM edges). `cloudidentity_resolvers.go` (new):
+DeviceUser → WorkspaceUser (`userEmail`), InboundSsoAssignment → Group (`targetGroup`, a full
+`groups/{id}` name matching Group's own NativeID directly), Membership → Group-or-WorkspaceUser
+(`preferredMemberKey.id` is always an email per the SDK's own doc, for both user and group
+members — discriminated by the membership's `type` field), Policy → Group (`policyQuery.group`,
+same full-name shape) — both files reuse the pre-existing `buildWorkspaceUserEmailIndex`/
+`buildCloudIdentityGroupEmailIndex` helpers from `iampolicy_resolvers.go` rather than
+re-deriving them.
+
+Adversarial review caught two real bugs, both fixed before shipping: (1) the AccessPolicy→Folder
+edge used a bare-number lookup (`strings.TrimPrefix(scope, "folders/")`) against a map keyed by
+Folder's own NativeID — but Folder's NativeID is the FULL `folders/{number}` string (`gcp_hierarchy.go`
+sets `NativeID: folder.Name`, same convention as Organization), not a bare number, so the edge
+could never fire in production; the paired test happened to pass only because its Folder fixture
+used the same wrong bare-number NativeID the buggy resolver expected — fixed the resolver to match
+the full scope string directly (no trim) and fixed the test fixture to the realistic full-form
+NativeID (fail-first confirmed: reverting the fix turned the corrected-fixture test red). (2)
+`TypeAccessLevel` was flagged `Leaf: true` on the claim that `Basic`/`Custom` carry no resource
+refs — false: `Basic.Conditions[].RequiredAccessLevels[]` is a genuine, structured same-policy
+AccessLevel→AccessLevel reference per the SDK's own doc comment; dropped the Leaf flag and added
+the self-reference edge instead. Net: 13 → 4 orphan types (all remaining are `bigquery`; 160
+emitted, unchanged since AccessLevel un-Leafing and its own new EdgeDecl cancel out).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

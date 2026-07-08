@@ -190,15 +190,42 @@ var registeredResolvers []resolverEntry
 // `disco coverage resolvers`.
 func registerResolver(fn func(p *project, st *store.Store) error, emits ...EdgeDecl) {
 	registeredResolvers = append(registeredResolvers, resolverEntry{
-		name: resolverName(fn), fn: fn, emits: emits,
+		name: resolverFnName(fn), fn: fn, emits: emits,
 	})
 }
 
-// resolverName returns the unqualified function name from runtime reflection,
-// e.g. "resolveFirewallRelationships". Anonymous closures reflect as
-// "pkg.init.funcN" — panic at init time so the foot-gun (an unnamed resolver
-// polluting coverage-tool / ScanError output) is loud, mirroring aws.resolverName.
-func resolverName(fn func(p *project, st *store.Store) error) string {
+// orgResolverEntry describes a phase-2 relationship resolver over org/
+// customer-scoped resource types (accesscontextmanager, cloudidentity) —
+// types whose AccountID is an org/folder/customer identifier, not a project
+// ID. Runs ONCE per scan (mirrors orgServiceEntry's once-per-scan scanner
+// lane), after every per-project resolver has finished, so it can freely
+// query across every project/org/customer scope in the store without a
+// per-project AccountID filter.
+type orgResolverEntry struct {
+	name  string
+	fn    func(st *store.Store) error
+	emits []EdgeDecl
+}
+
+// registeredOrgResolvers is populated by each org-scoped *_resolvers.go
+// file's init().
+var registeredOrgResolvers []orgResolverEntry
+
+// registerOrgResolver adds an org-scoped resolver to the package-level
+// registry. Mirrors registerResolver — see its doc for the emits contract.
+func registerOrgResolver(fn func(st *store.Store) error, emits ...EdgeDecl) {
+	registeredOrgResolvers = append(registeredOrgResolvers, orgResolverEntry{
+		name: resolverFnName(fn), fn: fn, emits: emits,
+	})
+}
+
+// resolverFnName returns the unqualified function name from runtime
+// reflection, e.g. "resolveFirewallRelationships". Anonymous closures reflect
+// as "pkg.init.funcN" — panic at init time so the foot-gun (an unnamed
+// resolver polluting coverage-tool / ScanError output) is loud, mirroring
+// aws.resolverName. Takes `any` so both registerResolver's and
+// registerOrgResolver's distinct fn signatures share one implementation.
+func resolverFnName(fn any) string {
 	full := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
 	short := full
 	if i := strings.LastIndex(full, "."); i >= 0 {
@@ -222,42 +249,57 @@ func serviceSegment(discoType string) string {
 	return parts[1]
 }
 
-// ListResolvers returns one coverage.ResolverInfo per registered resolver in
-// registration order — the coverage.ResolverAuditor implementation backing
-// `disco coverage resolvers --providers gcp`.
+// ListResolvers returns one coverage.ResolverInfo per registered resolver
+// (per-project + org-scoped, in that registration order) — the
+// coverage.ResolverAuditor implementation backing `disco coverage resolvers
+// --providers gcp`.
 func ListResolvers() []coverage.ResolverInfo {
-	out := make([]coverage.ResolverInfo, 0, len(registeredResolvers))
+	out := make([]coverage.ResolverInfo, 0, len(registeredResolvers)+len(registeredOrgResolvers))
 	for _, r := range registeredResolvers {
-		seen := map[string]struct{}{}
-		var svcs []string
-		for _, e := range r.emits {
-			for _, t := range []string{e.Source, e.Target} {
-				if s := serviceSegment(t); s != "" {
-					if _, dup := seen[s]; !dup {
-						seen[s] = struct{}{}
-						svcs = append(svcs, s)
-					}
-				}
-			}
-		}
-		out = append(out, coverage.ResolverInfo{Name: r.name, EdgeCount: len(r.emits), Services: svcs})
+		out = append(out, resolverInfo(r.name, r.emits))
+	}
+	for _, r := range registeredOrgResolvers {
+		out = append(out, resolverInfo(r.name, r.emits))
 	}
 	return out
 }
 
+func resolverInfo(name string, emits []EdgeDecl) coverage.ResolverInfo {
+	seen := map[string]struct{}{}
+	var svcs []string
+	for _, e := range emits {
+		for _, t := range []string{e.Source, e.Target} {
+			if s := serviceSegment(t); s != "" {
+				if _, dup := seen[s]; !dup {
+					seen[s] = struct{}{}
+					svcs = append(svcs, s)
+				}
+			}
+		}
+	}
+	return coverage.ResolverInfo{Name: name, EdgeCount: len(emits), Services: svcs}
+}
+
 // ResolverEdgeSources returns the distinct EdgeDecl.Source disco-types across
-// every registered resolver — backs `disco coverage resolvers --missing`,
-// which reports emitted disco types never appearing as a resolver source.
+// every registered resolver (per-project + org-scoped) — backs `disco
+// coverage resolvers --missing`, which reports emitted disco types never
+// appearing as a resolver source.
 func ResolverEdgeSources() []string {
 	seen := map[string]struct{}{}
 	var out []string
-	for _, r := range registeredResolvers {
-		for _, e := range r.emits {
+	collect := func(emits []EdgeDecl) {
+		for _, e := range emits {
 			if _, dup := seen[e.Source]; !dup {
 				seen[e.Source] = struct{}{}
 				out = append(out, e.Source)
 			}
 		}
+	}
+	for _, r := range registeredResolvers {
+		collect(r.emits)
+	}
+	for _, r := range registeredOrgResolvers {
+		collect(r.emits)
 	}
 	return out
 }

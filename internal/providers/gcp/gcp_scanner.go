@@ -125,6 +125,14 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	for i := range projects {
 		resolveRelationships(ctx, &projects[i], st2)
 	}
+
+	// Phase 2b: org/customer-scoped resolvers (accesscontextmanager,
+	// cloudidentity) run once per scan, after every per-project resolver —
+	// their source types' AccountID is an org/folder/customer identifier, not
+	// a project ID, so they query across every scope in one pass rather than
+	// once per project.
+	resolveOrgRelationships(ctx, st2)
+
 	st.ReportResolveComplete("gcp", int(counter.Load()))
 	return nil
 }
@@ -149,6 +157,28 @@ func resolveRelationships(ctx context.Context, p *project, st *store.Store) {
 			if ferr := bs.FlushRelBuffer(); ferr != nil {
 				st.ReportError(store.ScanError{
 					Provider: "gcp", Service: "resolve", Scope: p.ID, Message: ferr.Error(),
+				})
+			}
+			return nil // resolver errors are reported, never abort siblings
+		})
+}
+
+// resolveOrgRelationships runs every registered org-scoped resolver exactly
+// once per scan (mirrors runOrgServices' once-per-scan scanner lane). Errors
+// are reported and never abort siblings, matching resolveRelationships'
+// per-project convention.
+func resolveOrgRelationships(ctx context.Context, st *store.Store) {
+	_ = forEachItem(ctx, maxConcurrentServices, registeredOrgResolvers,
+		func(_ context.Context, r orgResolverEntry) error {
+			bs := st.BeginRelBuffer()
+			if err := r.fn(bs); err != nil {
+				st.ReportError(store.ScanError{
+					Provider: "gcp", Service: "resolve", Scope: "org", Message: err.Error(),
+				})
+			}
+			if ferr := bs.FlushRelBuffer(); ferr != nil {
+				st.ReportError(store.ScanError{
+					Provider: "gcp", Service: "resolve", Scope: "org", Message: ferr.Error(),
 				})
 			}
 			return nil // resolver errors are reported, never abort siblings
