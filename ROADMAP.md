@@ -601,6 +601,25 @@ adversarial review then found zero further real bugs, only a cosmetic gap (a tes
 "EachVCSKind" only exercised 3 of 5 oneof branches) which was filled in for accuracy. Net:
 40 → 37 orphan types (161 emitted, unchanged).
 
+**Resolver Wave R21 (GKE Cluster/NodePool — first `gke_resolvers.go`).** No resolver file existed
+for `gke_scanners.go`'s Cluster/NodePool before this wave. New
+`internal/providers/gcp/gke_resolvers.go`: Cluster → Network/Subnetwork (both bare Compute names
+per the SDK's own doc comment, not full self-links — matched via `bareNameIndex`), Cluster →
+ServiceAccount (`nodeConfig.serviceAccount` — the legacy top-level SA field, present on clusters
+that never migrated to per-NodePool config), Cluster → CryptoKey (`databaseEncryption.keyName`, a
+full CryptoKey resource name). NodePool → ServiceAccount (`config.serviceAccount`, the same
+`NodeConfig` struct/field, just the modern per-pool location). Both resolvers rely on the SDK's own
+`"default"` sentinel value (meaning "use the project's default Compute Engine SA") naturally
+missing in `buildSAEmailIndex`'s email-keyed map — no special-casing needed, verified by reading
+the helper's key-construction logic rather than assumed. NodePool's edge to its owning Cluster
+needs no resolver — the scanner's own `upsertWithParent` hierarchy closure already covers it.
+Deliberately NOT wired: `NodePool.InstanceGroupUrls` (GKE-owned, ephemeral across blue-green
+upgrades — implementation detail, not an addressable edge). Adversarial review found the field
+formats and nil-safety all correct, but caught one real test-coverage gap — no
+unscanned-target-skipped test existed for any of the 5 wired edges, unlike every other resolver
+file in the package that uses these same shared index helpers; filled in for both resolvers. Net:
+37 → 35 orphan types (161 emitted, unchanged).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
