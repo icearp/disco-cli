@@ -620,6 +620,23 @@ unscanned-target-skipped test existed for any of the 5 wired edges, unlike every
 file in the package that uses these same shared index helpers; filled in for both resolvers. Net:
 37 → 35 orphan types (161 emitted, unchanged).
 
+**Resolver Wave R22 (Dataflow Job/Snapshot — first `dataflow_resolvers.go`).** No resolver file
+existed for `dataflow_scanners.go`'s Job/Snapshot before this wave. New
+`internal/providers/gcp/dataflow_resolvers.go`: Job → ServiceAccount (`environment.
+serviceAccountEmail`), Job → CryptoKey (`environment.serviceKmsKeyName`, full resource name), Job →
+Network/Subnetwork per worker pool (`environment.workerPools[].network`/`.subnetwork`, both
+bare-name matched — multiple pools walked and deduped rather than assuming only the first
+matters). Snapshot → Job (`sourceJobId` is a bare job ID; reconstructed into the full Job NativeID
+using the Snapshot row's own Region — verified this is a real API constraint, not a scanner-code
+coincidence: Dataflow's Snapshot API is itself keyed by `(project, location, jobId)`, so a snapshot
+cannot exist at a location its source job doesn't share). Snapshot → PubSubTopic
+(`pubsubMetadata[].topicName`, exact NativeID match, verified against `pubsub_scanners.go`'s own
+NativeID convention). Deliberately NOT wired: `environment.tempStoragePrefix` (a GCS staging path
+in one of two undocumented-boundary shapes with no live-account sample to verify against — a
+defensible scope decision, not a coverage gap). Adversarial review found zero real bugs — every
+field format, the same-region claim, and the exact-match claim all checked out against source.
+Net: 35 → 33 orphan types (161 emitted, unchanged).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
