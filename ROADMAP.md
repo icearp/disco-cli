@@ -522,6 +522,20 @@ LogBucket (`bucketName`, empty for project-scoped/non-Bucket metrics). Grepped f
 Adversarial review found no bugs — every field/format claim checked out against `go doc`. Net:
 54 → 50 orphan types.
 
+**Resolver Wave R17 (Cloud DNS network bindings).** Extended the pre-existing `dns_resolvers.go`
+(already owned the record-set → forwarding-rule edge) with three new resolvers: ManagedZone →
+Network (`privateVisibilityConfig.networks[].networkUrl`, kind `attached-to` — the zone is
+visible from these VPCs; and `peeringConfig.targetNetwork.networkUrl`, kind `uses` — the zone
+forwards resolution to that VPC, a distinct edge kind for a distinct field on the same type pair),
+Policy → Network and ResponsePolicy → Network (both `networks[].networkUrl`, kind `attached-to`).
+All four `networkUrl` fields are documented as the exact same Compute self-link URL shape
+Compute Network's own NativeID already uses (`net.SelfLink`), confirmed via `go doc` against
+`compute_scanners.go`'s `scanComputeNetworks` — no bare-name/self-link mismatch (Wave R9's usual
+trap), so exact match via the existing `nativeIDIndex` helper (from Wave R15) sufficed; added a
+one-line `networkIDByNetworkURL` wrapper for readability at each call site. Grepped for pre-existing
+`EdgeDecl` registrations on all 3 types first per the R13 lesson — confirmed zero prior coverage.
+Adversarial review found no bugs. Net: 50 → 47 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
