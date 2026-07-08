@@ -802,6 +802,35 @@ Reverted to `Leaf: true` rather than adding the extra `GetIamPolicy` fan-out thi
 Net: 4 → 0 orphan types. **The GCP resolver buildout (R1-R27) is complete** — every emitted GCP
 disco type either has an outbound resolver or is a verified `Leaf`.
 
+**Resolver Wave R28 (IAM policy federation principal edges — correctness wave, not an orphan
+closure).** After R27 closed the buildout to 0 orphans, went back to implement items previously
+deferred with a reason rather than genuinely finished. `resolveIAMPolicyRelationships`
+(`iampolicy_resolvers.go`) previously left Workforce/Workload Identity Federation principal
+bindings (`principal://iam.googleapis.com/{pool}/subject/...`,
+`principalSet://iam.googleapis.com/{pool}/{group,attribute.*,*}`) unresolved, noting "will land via
+a follow-up resolver once the pool scanners ship" — the pool scanners (`iam_federation_scanners.go`)
+shipped separately since. New `federationPoolFromPrincipal` extracts the pool's resource-name
+prefix from the principal string and matches it directly against each scanned pool's own stored
+`Name` (via the pre-existing R26 `accessContextIDByNative(st, rtype)` helper) — deliberately
+format-agnostic: WebFetch research during planning couldn't confirm from Google's docs whether
+`WorkloadIdentityPool.Name` echoes the project *number* or *ID* it was queried with, so rather than
+reconstruct an expected name, the resolver matches whatever string GCP's control plane actually
+put in both places. `TypeIAMWorkforcePool`/`TypeIAMWorkloadIdentityPool` keep their `Leaf: true`
+flags — this is an *inbound* edge (IAMPolicy → Pool), and `Leaf` gates a type's own *outbound*
+resolver-source status, which neither pool type has; the adversarial review caught an initial draft
+incorrectly dropping both flags (confirmed via `disco coverage resolvers --missing` diffing clean
+before/after vs. incorrectly surfacing both types after the erroneous drop) and a real parsing bug
+— the separator search (`/subject/`, `/group/`, `/attribute.`) was tried in a fixed priority order
+rather than by leftmost position, so a free-form IdP-asserted group/attribute value containing one
+of the other separators as a substring (plausible for real OIDC `sub` claims) would mis-split the
+pool prefix; fixed to pick the leftmost-occurring separator, fail-first confirmed. Also flagged
+during this wave's research, deliberately **not fixed here**: `resolveIAMPolicyRelationships` is a
+per-project resolver (`AccountID: p.ID` filter) but `gcp:iam:policy` rows are also emitted at
+org/folder scope (`iampolicy_org_scanners.go`) — those rows are structurally never processed by
+this resolver, the same architectural class R26 fixed for accesscontextmanager/cloudidentity, just
+invisible to the coverage tool because project-scoped policy rows already make the type non-orphan.
+Candidate for its own future wave.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

@@ -14,6 +14,8 @@ func init() {
 		EdgeDecl{TypeIAMPolicy, TypeIAMServiceAccount, store.RelUses},
 		EdgeDecl{TypeIAMPolicy, TypeWorkspaceUser, store.RelUses},
 		EdgeDecl{TypeIAMPolicy, TypeCloudIdentityGroup, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeIAMWorkforcePool, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeIAMWorkloadIdentityPool, store.RelUses},
 		EdgeDecl{TypeIAMPolicy, TypeIAMServiceAccount, store.RelCrossProjectIAM},
 		EdgeDecl{TypeIAMPolicy, TypeProject, store.RelCrossProjectIAM},
 	)
@@ -23,20 +25,26 @@ func init() {
 // and emits edges for every service-account / user / group member.
 //
 //   - same-project SA → `uses` edge (FK-checked via buildSAEmailIndex).
+//
 //   - cross-project SA: if the SA exists in another scanned project, emit
 //     `cross-project-iam` directly to it. Otherwise emit `cross-project-iam`
 //     to that project's self-node (gcp:cloudresourcemanager:project) as an
 //     insert-if-absent empty-attribute placeholder, version-populated if the
 //     project is later scanned. R5.
+//
 //   - `user:{email}` → `uses` edge to a gcp:admin:user row when the Cloud
 //     Identity / Workspace Directory scanner populated one with the same
 //     primary email.
+//
 //   - `group:{email}` → `uses` edge to a gcp:cloudidentity:group row when the
 //     scanner populated one with the same group-key email.
 //
+//   - `principal://iam.googleapis.com/{pool}/subject/...` and
+//     `principalSet://iam.googleapis.com/{pool}/{group,attribute.*,*}` →
+//     `uses` edge to the referenced Workforce or Workload Identity Pool.
+//
 // `domain:`, `allUsers`, `allAuthenticatedUsers` still skip — no resource
-// rows. Workforce/Workload identity-pool federation members will land via a
-// follow-up resolver once the pool scanners ship.
+// rows.
 func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeIAMPolicy},
@@ -61,6 +69,13 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	var (
 		userByEmail  map[string]string
 		groupByEmail map[string]string
+	)
+
+	// Federation pool indexes (Workforce/Workload Identity). Lazily populated
+	// per pool type, same reasoning as above.
+	var (
+		workforceByNative map[string]string
+		workloadByNative  map[string]string
 	)
 
 	// Cross-project SA index: SA email → resource ID across every project in
@@ -88,6 +103,11 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 					continue
 				}
 				if handled, err := emitGroupMemberEdge(st, r.ID, b.Role, m, &groupByEmail); err != nil {
+					return err
+				} else if handled {
+					continue
+				}
+				if handled, err := emitFederationMemberEdge(st, r.ID, b.Role, m, &workforceByNative, &workloadByNative); err != nil {
 					return err
 				} else if handled {
 					continue
@@ -198,6 +218,80 @@ func emitGroupMemberEdge(st *store.Store, fromID, role, member string, groupByEm
 	attrs := mustJSON(map[string]string{"role": role})
 	if err := st.UpsertRelationship(fromID, gid, store.RelUses, "directed", &attrs); err != nil {
 		return true, fmt.Errorf("upsert policy→cloud-identity group: %w", err)
+	}
+	return true, nil
+}
+
+// federationPoolFromPrincipal extracts the pool resource-name prefix from a
+// `principal://iam.googleapis.com/{poolPrefix}/subject/{...}` or
+// `principalSet://iam.googleapis.com/{poolPrefix}/group/{...}` /
+// `.../attribute.{name}/{value}` / `.../*` member string (Workforce/Workload
+// Identity Federation). poolPrefix is exactly the pool's own `Name` field
+// (`locations/global/workforcePools/{id}` or
+// `projects/{num}/locations/global/workloadIdentityPools/{id}` — confirmed
+// via Google's own docs), so callers match it directly against a NativeID
+// index built from the pool rows the scanner already stored — no format
+// reconstruction, no project-number-vs-ID guessing.
+func federationPoolFromPrincipal(member string) (poolPrefix string, ok bool) {
+	rest, ok := strings.CutPrefix(member, "principal://iam.googleapis.com/")
+	if !ok {
+		rest, ok = strings.CutPrefix(member, "principalSet://iam.googleapis.com/")
+	}
+	if !ok {
+		return "", false
+	}
+	// Find the leftmost-occurring separator, not the first checked — a
+	// free-form IdP-asserted subject/group/attribute value (e.g. an OIDC
+	// `sub` claim) can itself contain one of the other separators as a
+	// substring, which would mis-split if separators were tried in a fixed
+	// priority order instead of by position.
+	bestIdx := -1
+	for _, sep := range []string{"/subject/", "/group/", "/attribute."} {
+		if i := strings.Index(rest, sep); i >= 0 && (bestIdx == -1 || i < bestIdx) {
+			bestIdx = i
+		}
+	}
+	if bestIdx >= 0 {
+		return rest[:bestIdx], true
+	}
+	if prefix, ok := strings.CutSuffix(rest, "/*"); ok {
+		return prefix, true
+	}
+	return "", false
+}
+
+// emitFederationMemberEdge handles Workforce/Workload Identity Federation
+// principal bindings. Lazily builds each pool-type index on first match.
+func emitFederationMemberEdge(st *store.Store, fromID, role, member string, workforceByNative, workloadByNative *map[string]string) (bool, error) {
+	poolPrefix, ok := federationPoolFromPrincipal(member)
+	if !ok {
+		return false, nil
+	}
+	target := func(idxPtr *map[string]string, rtype string) (string, error) {
+		if *idxPtr == nil {
+			idx, err := accessContextIDByNative(st, rtype)
+			if err != nil {
+				return "", err
+			}
+			*idxPtr = idx
+		}
+		return (*idxPtr)[poolPrefix], nil
+	}
+	toID, err := target(workforceByNative, TypeIAMWorkforcePool)
+	if err != nil {
+		return true, err
+	}
+	if toID == "" {
+		if toID, err = target(workloadByNative, TypeIAMWorkloadIdentityPool); err != nil {
+			return true, err
+		}
+	}
+	if toID == "" {
+		return true, nil
+	}
+	attrs := mustJSON(map[string]string{"role": role})
+	if err := st.UpsertRelationship(fromID, toID, store.RelUses, "directed", &attrs); err != nil {
+		return true, fmt.Errorf("upsert policy→federation pool: %w", err)
 	}
 	return true, nil
 }

@@ -163,6 +163,89 @@ func TestResolveIAMPolicyRelationships_NonSAMembers(t *testing.T) {
 	}
 }
 
+// TestResolveIAMPolicyRelationships_FederationMembers covers Workforce and
+// Workload Identity Pool principal/principalSet bindings (subject, group,
+// attribute, and bare wildcard variants), plus an unscanned pool reference
+// that must be silently skipped.
+func TestResolveIAMPolicyRelationships_FederationMembers(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	wfPoolID := upsertTestResource(t, st, "gcp", "organizations/456", TypeIAMWorkforcePool,
+		"locations/global/workforcePools/my-wf-pool", "", `{"name":"locations/global/workforcePools/my-wf-pool"}`)
+	wlPoolID := upsertTestResource(t, st, "gcp", p.ID, TypeIAMWorkloadIdentityPool,
+		"projects/123456789012/locations/global/workloadIdentityPools/my-wl-pool", "",
+		`{"name":"projects/123456789012/locations/global/workloadIdentityPools/my-wl-pool"}`)
+
+	policyAttrs := `{
+		"bindings": [
+			{"role": "roles/viewer", "members": [
+				"principal://iam.googleapis.com/locations/global/workforcePools/my-wf-pool/subject/alice",
+				"principalSet://iam.googleapis.com/projects/123456789012/locations/global/workloadIdentityPools/my-wl-pool/group/eng",
+				"principalSet://iam.googleapis.com/locations/global/workforcePools/unscanned-pool/*"
+			]}
+		]
+	}`
+	policyID := upsertTestResource(t, st, "gcp", p.ID, TypeIAMPolicy,
+		"projects/my-project/policy", "", policyAttrs)
+
+	if err := resolveIAMPolicyRelationships(p, st); err != nil {
+		t.Fatalf("resolveIAMPolicyRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 edges (workforce pool + workload pool), got %d: %+v", len(rels), rels)
+	}
+	hits := map[string]bool{}
+	for _, r := range rels {
+		if r.Kind != store.RelUses {
+			t.Errorf("expected RelUses, got %q for %+v", r.Kind, r)
+		}
+		hits[r.ToID] = true
+	}
+	if !hits[wfPoolID] {
+		t.Errorf("missing edge to workforce pool %q; got %+v", wfPoolID, rels)
+	}
+	if !hits[wlPoolID] {
+		t.Errorf("missing edge to workload identity pool %q; got %+v", wlPoolID, rels)
+	}
+}
+
+// TestFederationPoolFromPrincipal covers the principal-string parsing
+// directly: subject/group/attribute/wildcard variants and non-matching
+// members (SA/user/group/domain) that must return ok=false.
+func TestFederationPoolFromPrincipal(t *testing.T) {
+	cases := []struct {
+		member   string
+		wantPool string
+		wantOK   bool
+	}{
+		{"principal://iam.googleapis.com/locations/global/workforcePools/p1/subject/alice", "locations/global/workforcePools/p1", true},
+		{"principalSet://iam.googleapis.com/locations/global/workforcePools/p1/group/g1", "locations/global/workforcePools/p1", true},
+		{"principalSet://iam.googleapis.com/locations/global/workforcePools/p1/attribute.department/eng", "locations/global/workforcePools/p1", true},
+		{"principalSet://iam.googleapis.com/locations/global/workforcePools/p1/*", "locations/global/workforcePools/p1", true},
+		{"principal://iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/p2/subject/s", "projects/123/locations/global/workloadIdentityPools/p2", true},
+		// A free-form IdP-asserted group ID containing "/subject/" as a
+		// substring must not be mistaken for a later, unrelated separator —
+		// the leftmost real separator ("/group/") must win.
+		{"principalSet://iam.googleapis.com/locations/global/workforcePools/p1/group/team/subject/oddball", "locations/global/workforcePools/p1", true},
+		{"serviceAccount:foo@my-project.iam.gserviceaccount.com", "", false},
+		{"user:alice@example.com", "", false},
+		{"domain:example.com", "", false},
+		{"allUsers", "", false},
+	}
+	for _, c := range cases {
+		gotPool, gotOK := federationPoolFromPrincipal(c.member)
+		if gotOK != c.wantOK || gotPool != c.wantPool {
+			t.Errorf("federationPoolFromPrincipal(%q) = (%q, %v); want (%q, %v)",
+				c.member, gotPool, gotOK, c.wantPool, c.wantOK)
+		}
+	}
+}
+
 // TestResolveIAMPolicyRelationships_NoBindings verifies that a policy with no
 // bindings produces no edges and no errors.
 func TestResolveIAMPolicyRelationships_NoBindings(t *testing.T) {
