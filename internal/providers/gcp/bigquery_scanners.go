@@ -32,7 +32,7 @@ func init() {
 			{Service: "bigquery", DiscoType: TypeBQTable, Leaf: true},
 			{Service: "bigquery", DiscoType: TypeBQModel, Leaf: true},
 			{Service: "bigquery", DiscoType: TypeBQRoutine, Leaf: true},
-			{Service: "bigquery", DiscoType: TypeBQRowAccessPolicy, Leaf: true},
+			{Service: "bigquery", DiscoType: TypeBQRowAccessPolicy},
 		},
 	})
 }
@@ -40,6 +40,16 @@ func init() {
 // maxConcurrentBQDatasets caps per-project dataset fan-out for the
 // per-dataset Get + Tables.List pair.
 const maxConcurrentBQDatasets = 10
+
+// rowAccessPolicyAttrs embeds a row access policy's real IAM policy
+// (fetched separately via GetIamPolicy, since List never populates
+// `Grantees`) alongside the raw policy — named fields, not an anonymous
+// embed, so the wrapper's own JSON shape isn't lost to RowAccessPolicy's
+// custom MarshalJSON method.
+type rowAccessPolicyAttrs struct {
+	RowAccessPolicy *bigquery.RowAccessPolicy `json:"rowAccessPolicy"`
+	IamPolicy       *bigquery.Policy          `json:"iamPolicy,omitempty"`
+}
 
 // scanBigQuery discovers BigQuery datasets, tables, models, routines, and
 // row access policies.
@@ -68,23 +78,36 @@ const maxConcurrentBQDatasets = 10
 //     resolvable field on Model) is never populated by `Models.List`.
 //   - `ListRoutinesResponse`'s own doc: "Unless read_mask is set... only...
 //     etag, project_id, dataset_id, routine_id, routine_type, creation_time,
-//     last_modified_time, language, and remote_function_options" —
-//     `DefinitionBody`/`ImportedLibraries`/`SparkOptions`/`PythonOptions` are
-//     never populated (no `ReadMask` call here); `RemoteFunctionOptions.Connection`
-//     IS populated but points at a BigQuery Connections resource disco
-//     doesn't scan (no scanner for that service exists), so even the one
-//     populated field has no valid target.
+//     last_modified_time, language, and remote_function_options" are
+//     populated. `RemoteFunctionOptions.Connection` IS populated even
+//     without a `ReadMask`, but points at a BigQuery Connections resource
+//     disco doesn't scan yet (no scanner for that service exists), so even
+//     that one populated field has no valid target today. This scanner now
+//     sets a `ReadMask` (previously bare `Routines.List`) to additionally
+//     populate `SparkOptions` — its `Connection` field is the same target
+//     type, a second potential source once the Connections scanner lands.
+//     `DefinitionBody`/`ImportedLibraries` remain informational only (SQL
+//     text / `gs://` object paths, no matching scanned-resource type).
 //
-// All three would need a per-row `.Get` fan-out (Tables.Get / Models.Get) or
-// a `ReadMask` on Routines.List to become resolvable — same cost tradeoff as
-// the Table note above, deferred until rule-engine demand justifies it.
+// Table/Model/Routine all stay `Leaf: true` for now — Table/Model would need
+// a per-row `.Get` fan-out (Tables.Get / Models.Get) to become resolvable,
+// same cost tradeoff as the Table note above (thousands of calls per
+// dataset), deferred until rule-engine demand justifies it. Routine's only
+// resolvable fields (`RemoteFunctionOptions.Connection`,
+// `SparkOptions.Connection`) both target BigQuery Connections, which disco
+// doesn't scan yet — dropping Routine's `Leaf` flag is a future wave's job,
+// paired with adding that scanner.
 //
-// `RowAccessPolicy` is also `Leaf: true` — its `grantees[]` field is doc'd
-// "Optional. Input only." (go doc bigquery.RowAccessPolicy), so
-// RowAccessPolicies.List never actually populates it; real grantee data
-// lives behind RowAccessPolicies.GetIamPolicy, which this scanner doesn't
-// call. A resolver keyed on `grantees[]` would be dead code against real
-// scan data.
+// `RowAccessPolicy.Grantees` is doc'd "Optional. Input only." (go doc
+// bigquery.RowAccessPolicy) — `RowAccessPolicies.List` never actually
+// populates it. This scanner instead fetches real grantee data via a
+// per-policy `RowAccessPolicies.GetIamPolicy` call (bounded: policies are
+// few per table, same cost class already accepted for `RowAccessPolicies.List`
+// itself) and embeds the returned IAM policy alongside the raw
+// `RowAccessPolicy` under a wrapper (`rowAccessPolicyAttrs`) — per the
+// "Embedding child data in parent attributes" convention
+// (`internal/providers/CLAUDE.md`), since the IAM policy has no independent
+// lifecycle apart from its row access policy.
 func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := bigquery.NewService(ctx, opts...)
@@ -203,15 +226,29 @@ func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *proje
 						}
 						ref := rap.RowAccessPolicyReference
 						rapNative := fmt.Sprintf("projects/%s/datasets/%s/tables/%s/rowAccessPolicies/%s", ref.ProjectId, ref.DatasetId, ref.TableId, ref.PolicyId)
+						var iamPolicy *bigquery.Policy
+						pol, perr := svc.RowAccessPolicies.GetIamPolicy(rapNative, &bigquery.GetIamPolicyRequest{}).Context(gctx).Do()
+						if perr != nil {
+							if isPermissionDenied(perr) {
+								_ = skipIfDenied(st, "bigquery:rowAccessPolicies.getIamPolicy", p.ID, perr)
+							} else {
+								return perr
+							}
+						} else {
+							iamPolicy = pol
+						}
 						rbatch = append(rbatch, &store.Resource{
-							Provider:       "gcp",
-							AccountID:      p.ID,
-							AccountName:    &p.Name,
-							Type:           TypeBQRowAccessPolicy,
-							NativeID:       rapNative,
-							Name:           &ref.PolicyId,
-							AttributesJSON: mustJSON(rap),
-							DiscoveredBy:   scanID,
+							Provider:    "gcp",
+							AccountID:   p.ID,
+							AccountName: &p.Name,
+							Type:        TypeBQRowAccessPolicy,
+							NativeID:    rapNative,
+							Name:        &ref.PolicyId,
+							AttributesJSON: mustJSON(rowAccessPolicyAttrs{
+								RowAccessPolicy: rap,
+								IamPolicy:       iamPolicy,
+							}),
+							DiscoveredBy: scanID,
 						})
 					}
 					mu.Lock()
@@ -282,9 +319,12 @@ func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *proje
 			return err
 		}
 
-		// Routines for the dataset.
+		// Routines for the dataset. ReadMask additionally populates
+		// SparkOptions (bare List omits it) — see the SparkOptions.Connection
+		// resolver note above.
 		if _, _, err := runPaginated(gctx, st, p, "bigquery:routines.list",
-			svc.Routines.List(d.projectID, d.datasetID),
+			svc.Routines.List(d.projectID, d.datasetID).ReadMask(
+				"etag,routineReference,routineType,creationTime,lastModifiedTime,language,definitionBody,importedLibraries,sparkOptions,remoteFunctionOptions"),
 			func(page *bigquery.ListRoutinesResponse) (int, int, error) {
 				var batch []*store.Resource
 				for _, rt := range page.Routines {

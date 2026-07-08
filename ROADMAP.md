@@ -854,6 +854,34 @@ convention (mirrors the firewall→instance direction precedent). Net: 0 → 0 o
 keep `Leaf: true`; an inbound edge doesn't change outbound-source status; Dataset already had an
 outbound resolver via CMEK) — this wave is about coverage completeness, not orphan closure.
 
+**Resolver Wave R30 (BigQuery RowAccessPolicy real grantees + Routine SparkOptions bonus —
+bounded-cost correctness wave).** R27 found `RowAccessPolicy.Grantees` doc'd "Optional. Input
+only." — `RowAccessPolicies.List` never actually populates it, so R27 shipped RowAccessPolicy as a
+`Leaf` dead end rather than wire a resolver against data that's never there. This wave adds the one
+bounded per-policy call that actually has the data: `RowAccessPolicies.GetIamPolicy(rapNative, ...)`,
+same cost class already accepted for `RowAccessPolicies.List` itself (few policies per table). The
+real `bindings[].members[]` is embedded alongside the raw policy under a new named-field wrapper,
+`rowAccessPolicyAttrs{RowAccessPolicy, IamPolicy}` — named fields, not anonymous embedding, because
+both `bigquery.RowAccessPolicy` and `bigquery.Policy` carry the SDK's standard custom `MarshalJSON`;
+anonymous embedding would have let one of them hijack the whole wrapper's marshaling and silently
+drop the sibling field (confirmed empirically, not assumed). `resolveBigQueryRowAccessPolicyRelationships`
+is reinstated reading `iamPolicy.bindings[].members[]` instead of the dead `grantees[]`, same
+`serviceAccount:`/`user:`/`group:` matching as every other IAM-policy-shaped resolver in this
+package; `RowAccessPolicy`'s `Leaf: true` dropped (156→157 emitted, since dropping Leaf adds a type
+to the "must have a source" denominator — expected, not a new orphan). Also added `.ReadMask(...)`
+to the pre-existing `Routines.List` call (same round trip, no extra call) to additionally populate
+`SparkOptions` — a bonus field, not wired to any edge yet (`SparkOptions.Connection` needs a
+BigQuery Connections scanner, R31's job); `Routine` deliberately keeps `Leaf: true` this wave.
+Adversarial review found the new `ReadMask` string omitted `etag` — since a ReadMask *replaces*
+rather than extends BigQuery's default field set, this silently dropped a previously-populated
+field with no test catching it (nothing reads `Routine.Etag` today, so no functional break, but a
+real completeness regression) — fixed by adding `etag` back to the mask. Review also flagged that
+only the permission-denied `GetIamPolicy` path had a test; added
+`TestScanBigQuery_RowAccessPolicyGetIamPolicyHardErrorPropagates` confirming a non-403 failure (a
+bare 500) propagates as a real scan error rather than being silently warn-and-skipped like the
+denied case. Net: 0 → 0 orphans, 156 → 157 emitted (expected from the Leaf drop) — another
+coverage-completeness wave, not a new orphan closure.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

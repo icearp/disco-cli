@@ -1,6 +1,7 @@
 package gcp
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -57,6 +58,11 @@ func TestScanBigQuery_ModelsRoutinesRowAccessPoliciesChain(t *testing.T) {
 				{RowAccessPolicyReference: &bigquery.RowAccessPolicyReference{ProjectId: "proj1", DatasetId: "ds1", TableId: "t1", PolicyId: "rap1"}},
 			},
 		}),
+		"/projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies/rap1:getIamPolicy": marshalAttrs(t, bigquery.Policy{
+			Bindings: []*bigquery.Binding{
+				{Role: "roles/bigquery.dataViewer", Members: []string{"user:alice@example.com"}},
+			},
+		}),
 		"/projects/proj1/datasets/ds1/models": marshalAttrs(t, bigquery.ListModelsResponse{
 			Models: []*bigquery.Model{
 				{ModelReference: &bigquery.ModelReference{ProjectId: "proj1", DatasetId: "ds1", ModelId: "m1"}, Location: "US"},
@@ -103,6 +109,163 @@ func TestScanBigQuery_ModelsRoutinesRowAccessPoliciesChain(t *testing.T) {
 	assertChild(dsResID, modelResID, "model")
 	assertChild(dsResID, routineResID, "routine")
 	assertChild(tableResID, rapResID, "row access policy")
+
+	rapRes, err := st.GetResource(rapResID)
+	if err != nil {
+		t.Fatalf("GetResource(rap): %v", err)
+	}
+	var stored rowAccessPolicyAttrs
+	if err := json.Unmarshal([]byte(rapRes.AttributesJSON), &stored); err != nil {
+		t.Fatalf("unmarshal row access policy attrs: %v", err)
+	}
+	if stored.RowAccessPolicy == nil || stored.RowAccessPolicy.RowAccessPolicyReference.PolicyId != "rap1" {
+		t.Errorf("row access policy attrs missing rowAccessPolicy: %+v", stored)
+	}
+	if stored.IamPolicy == nil || len(stored.IamPolicy.Bindings) != 1 ||
+		stored.IamPolicy.Bindings[0].Members[0] != "user:alice@example.com" {
+		t.Errorf("row access policy attrs missing real iamPolicy grantee, got %+v", stored.IamPolicy)
+	}
+}
+
+// TestScanBigQuery_RowAccessPolicyGetIamPolicyDeniedStillStoresPolicy covers
+// a per-policy GetIamPolicy 403: the row access policy row itself must still
+// be stored (with a nil IamPolicy), and the denial must not abort the rest
+// of the scan (models/routines still land) — same warn-and-skip contract as
+// the sibling RowAccessPolicies.List denial test above, but scoped to one
+// policy's IAM-policy fetch instead of the whole List call.
+func TestScanBigQuery_RowAccessPolicyGetIamPolicyDeniedStillStoresPolicy(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("proj1")
+
+	dsNative := "proj1:ds1"
+	tableNative := "proj1:ds1.t1"
+	deniedBody := `{"error":{"code":403,"message":"caller is missing bigquery.rowAccessPolicies.getIamPolicy","errors":[{"reason":"forbidden"}]}}`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/projects/proj1/datasets":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.DatasetList{
+				Datasets: []*bigquery.DatasetListDatasets{
+					{DatasetReference: &bigquery.DatasetReference{ProjectId: "proj1", DatasetId: "ds1"}},
+				},
+			})))
+		case "/projects/proj1/datasets/ds1":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.Dataset{
+				Id: dsNative, Location: "US",
+				DatasetReference: &bigquery.DatasetReference{ProjectId: "proj1", DatasetId: "ds1"},
+			})))
+		case "/projects/proj1/datasets/ds1/tables":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.TableList{
+				Tables: []*bigquery.TableListTables{
+					{Id: tableNative, TableReference: &bigquery.TableReference{ProjectId: "proj1", DatasetId: "ds1", TableId: "t1"}},
+				},
+			})))
+		case "/projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.ListRowAccessPoliciesResponse{
+				RowAccessPolicies: []*bigquery.RowAccessPolicy{
+					{RowAccessPolicyReference: &bigquery.RowAccessPolicyReference{ProjectId: "proj1", DatasetId: "ds1", TableId: "t1", PolicyId: "rap1"}},
+				},
+			})))
+		case "/projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies/rap1:getIamPolicy":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(deniedBody))
+		case "/projects/proj1/datasets/ds1/models":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.ListModelsResponse{
+				Models: []*bigquery.Model{
+					{ModelReference: &bigquery.ModelReference{ProjectId: "proj1", DatasetId: "ds1", ModelId: "m1"}},
+				},
+			})))
+		case "/projects/proj1/datasets/ds1/routines":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.ListRoutinesResponse{})))
+		default:
+			t.Errorf("unrouted GCP fake hit: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":404,"message":"no fake route"}}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	svc := fakeBigQueryService(t, srv)
+
+	total, inserted, err := scanBigQueryWithClient(t.Context(), svc, p, st, testScanID)
+	if err != nil {
+		t.Fatalf("scanBigQueryWithClient: %v", err)
+	}
+	// 1 dataset + 1 table + 1 row access policy (stored, IAM fetch denied) + 1 model + 0 routines.
+	if total != 4 || inserted != 4 {
+		t.Fatalf("counts: got total=%d inserted=%d, want 4/4", total, inserted)
+	}
+
+	rapResID := store.ResourceID("gcp", p.ID, TypeBQRowAccessPolicy, "projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies/rap1")
+	rapRes, err := st.GetResource(rapResID)
+	if err != nil {
+		t.Fatalf("GetResource(rap): %v", err)
+	}
+	if rapRes == nil {
+		t.Fatalf("row access policy not stored despite GetIamPolicy denial")
+	}
+	var stored rowAccessPolicyAttrs
+	if err := json.Unmarshal([]byte(rapRes.AttributesJSON), &stored); err != nil {
+		t.Fatalf("unmarshal row access policy attrs: %v", err)
+	}
+	if stored.IamPolicy != nil {
+		t.Errorf("expected nil IamPolicy after GetIamPolicy denial, got %+v", stored.IamPolicy)
+	}
+}
+
+// TestScanBigQuery_RowAccessPolicyGetIamPolicyHardErrorPropagates covers a
+// non-permission-denied GetIamPolicy failure (e.g. a 500) — isPermissionDenied
+// and isAPINotEnabled both return false for this shape, so it must propagate
+// as a real error rather than being warn-and-skipped like the 403 case above.
+func TestScanBigQuery_RowAccessPolicyGetIamPolicyHardErrorPropagates(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("proj1")
+
+	dsNative := "proj1:ds1"
+	tableNative := "proj1:ds1.t1"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/projects/proj1/datasets":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.DatasetList{
+				Datasets: []*bigquery.DatasetListDatasets{
+					{DatasetReference: &bigquery.DatasetReference{ProjectId: "proj1", DatasetId: "ds1"}},
+				},
+			})))
+		case "/projects/proj1/datasets/ds1":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.Dataset{
+				Id: dsNative, Location: "US",
+				DatasetReference: &bigquery.DatasetReference{ProjectId: "proj1", DatasetId: "ds1"},
+			})))
+		case "/projects/proj1/datasets/ds1/tables":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.TableList{
+				Tables: []*bigquery.TableListTables{
+					{Id: tableNative, TableReference: &bigquery.TableReference{ProjectId: "proj1", DatasetId: "ds1", TableId: "t1"}},
+				},
+			})))
+		case "/projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies":
+			_, _ = w.Write([]byte(marshalAttrs(t, bigquery.ListRowAccessPoliciesResponse{
+				RowAccessPolicies: []*bigquery.RowAccessPolicy{
+					{RowAccessPolicyReference: &bigquery.RowAccessPolicyReference{ProjectId: "proj1", DatasetId: "ds1", TableId: "t1", PolicyId: "rap1"}},
+				},
+			})))
+		case "/projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies/rap1:getIamPolicy":
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":{"code":500,"message":"internal error"}}`))
+		default:
+			t.Errorf("unrouted GCP fake hit: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":404,"message":"no fake route"}}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	svc := fakeBigQueryService(t, srv)
+
+	_, _, err := scanBigQueryWithClient(t.Context(), svc, p, st, testScanID)
+	if err == nil {
+		t.Fatalf("scanBigQueryWithClient: expected a real GetIamPolicy 500 error to propagate, got nil")
+	}
 }
 
 func TestScanBigQuery_RowAccessPoliciesPermissionDeniedContinuesToModels(t *testing.T) {

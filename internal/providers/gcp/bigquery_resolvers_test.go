@@ -168,3 +168,103 @@ func TestResolveBigQueryRelationships_EmptyProjectNoResources(t *testing.T) {
 		t.Fatalf("resolveBigQueryRelationships on empty project: %v", err)
 	}
 }
+
+func TestResolveBigQueryRowAccessPolicyRelationships(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	saEmail := "rap-sa@my-project.iam.gserviceaccount.com"
+	saID := upsertTestResource(t, st, "gcp", p.ID, TypeIAMServiceAccount,
+		"projects/my-project/serviceAccounts/"+saEmail, "", "{}")
+
+	userEmail := "alice@example.com"
+	userID := upsertTestResource(t, st, "gcp", "C0123abc", TypeWorkspaceUser, "users/u1", "",
+		`{"primaryEmail": "`+userEmail+`"}`)
+
+	groupEmail := "eng-team@example.com"
+	groupID := upsertTestResource(t, st, "gcp", "C0123abc", TypeCloudIdentityGroup, "groups/g1", "",
+		`{"groupKey": {"id": "`+groupEmail+`"}}`)
+
+	rapAttrs := `{"iamPolicy": {"bindings": [
+		{"role": "roles/bigquery.dataViewer", "members": [
+			"serviceAccount:` + saEmail + `",
+			"user:` + userEmail + `",
+			"group:` + groupEmail + `",
+			"domain:example.com",
+			"allUsers"
+		]}
+	]}}`
+	rapID := upsertTestResource(t, st, "gcp", p.ID, TypeBQRowAccessPolicy,
+		"projects/my-project/datasets/ds1/tables/t1/rowAccessPolicies/rap1", "", rapAttrs)
+
+	if err := resolveBigQueryRowAccessPolicyRelationships(p, st); err != nil {
+		t.Fatalf("resolveBigQueryRowAccessPolicyRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(rapID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	got := map[string]string{}
+	for _, r := range rels {
+		got[r.ToID] = r.Kind
+	}
+	if len(got) != 3 || got[saID] != store.RelUses || got[userID] != store.RelUses || got[groupID] != store.RelUses {
+		t.Errorf("got %+v, want exactly →SA + →workspaceUser + →group (uses), no domain/allUsers edges", got)
+	}
+}
+
+func TestResolveBigQueryRowAccessPolicyRelationships_UnscannedTargetsSkipped(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	rapAttrs := `{"iamPolicy": {"bindings": [
+		{"role": "roles/bigquery.dataViewer", "members": [
+			"serviceAccount:not-scanned@my-project.iam.gserviceaccount.com",
+			"user:not-scanned@example.com",
+			"group:not-scanned@example.com"
+		]}
+	]}}`
+	rapID := upsertTestResource(t, st, "gcp", p.ID, TypeBQRowAccessPolicy,
+		"projects/my-project/datasets/ds1/tables/t1/rowAccessPolicies/rap1", "", rapAttrs)
+
+	if err := resolveBigQueryRowAccessPolicyRelationships(p, st); err != nil {
+		t.Fatalf("resolveBigQueryRowAccessPolicyRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(rapID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("want no edges for unscanned grantees, got %+v", rels)
+	}
+}
+
+// TestResolveBigQueryRowAccessPolicyRelationships_NoIamPolicyNoPanic covers
+// the pre-R30 shape (no iamPolicy fetched, e.g. the GetIamPolicy call was
+// denied) — must not panic and must produce no edges.
+func TestResolveBigQueryRowAccessPolicyRelationships_NoIamPolicyNoPanic(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	rapID := upsertTestResource(t, st, "gcp", p.ID, TypeBQRowAccessPolicy,
+		"projects/my-project/datasets/ds1/tables/t1/rowAccessPolicies/rap1", "", `{}`)
+
+	if err := resolveBigQueryRowAccessPolicyRelationships(p, st); err != nil {
+		t.Fatalf("resolveBigQueryRowAccessPolicyRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(rapID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("want no edges when iamPolicy is unset, got %+v", rels)
+	}
+}
+
+func TestResolveBigQueryRowAccessPolicyRelationships_EmptyProjectNoResources(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+	if err := resolveBigQueryRowAccessPolicyRelationships(p, st); err != nil {
+		t.Fatalf("resolveBigQueryRowAccessPolicyRelationships on empty project: %v", err)
+	}
+}

@@ -3,6 +3,7 @@ package gcp
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
@@ -14,6 +15,11 @@ func init() {
 		EdgeDecl{TypeBQDataset, TypeBQTable, store.RelUses},
 		EdgeDecl{TypeBQDataset, TypeBQRoutine, store.RelUses},
 		EdgeDecl{TypeBQDataset, TypeBQDataset, store.RelUses},
+	)
+	registerResolver(resolveBigQueryRowAccessPolicyRelationships,
+		EdgeDecl{TypeBQRowAccessPolicy, TypeIAMServiceAccount, store.RelUses},
+		EdgeDecl{TypeBQRowAccessPolicy, TypeWorkspaceUser, store.RelUses},
+		EdgeDecl{TypeBQRowAccessPolicy, TypeCloudIdentityGroup, store.RelUses},
 	)
 }
 
@@ -218,4 +224,90 @@ func bqRoutineRefKey(attrsJSON string) (string, bool) {
 		return "", false
 	}
 	return a.RoutineReference.ProjectId + "/" + a.RoutineReference.DatasetId + "/" + a.RoutineReference.RoutineId, true
+}
+
+// resolveBigQueryRowAccessPolicyRelationships wires the real grantees the
+// scanner fetches via a per-policy `RowAccessPolicies.GetIamPolicy` call
+// (embedded as `iamPolicy.bindings[].members[]` — `RowAccessPolicy.Grantees`
+// itself is doc'd "Input only" and never populated by List, see the scanner
+// header comment). Same `serviceAccount:`/`user:`/`group:` member-prefix
+// shape as an ordinary IAM policy binding, so this reuses the exact same
+// email-keyed indexes `resolveIAMPolicyRelationships` already builds
+// (buildSAEmailIndex/buildWorkspaceUserEmailIndex/buildCloudIdentityGroupEmailIndex).
+// `domain:`, `allUsers`, `allAuthenticatedUsers` members skip — no resource
+// row.
+func resolveBigQueryRowAccessPolicyRelationships(p *project, st *store.Store) error {
+	policies, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeBQRowAccessPolicy},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(policies) == 0 {
+		return nil
+	}
+
+	saByEmail, err := buildSAEmailIndex(p, st)
+	if err != nil {
+		return err
+	}
+	var userByEmail, groupByEmail map[string]string
+
+	for _, rap := range policies {
+		var a struct {
+			IamPolicy *struct {
+				Bindings []struct {
+					Members []string `json:"members"`
+				} `json:"bindings"`
+			} `json:"iamPolicy"`
+		}
+		if err := json.Unmarshal([]byte(rap.AttributesJSON), &a); err != nil || a.IamPolicy == nil {
+			continue
+		}
+		for _, b := range a.IamPolicy.Bindings {
+			for _, member := range b.Members {
+				switch {
+				case strings.HasPrefix(member, "serviceAccount:"):
+					email := strings.TrimPrefix(member, "serviceAccount:")
+					toID, ok := saByEmail[email]
+					if !ok {
+						continue
+					}
+					if err := st.UpsertRelationship(rap.ID, toID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert rowAccessPolicy→serviceAccount: %w", err)
+					}
+				case strings.HasPrefix(member, "user:"):
+					email := strings.ToLower(strings.TrimPrefix(member, "user:"))
+					if userByEmail == nil {
+						if userByEmail, err = buildWorkspaceUserEmailIndex(st); err != nil {
+							return err
+						}
+					}
+					toID, ok := userByEmail[email]
+					if !ok {
+						continue
+					}
+					if err := st.UpsertRelationship(rap.ID, toID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert rowAccessPolicy→workspaceUser: %w", err)
+					}
+				case strings.HasPrefix(member, "group:"):
+					email := strings.ToLower(strings.TrimPrefix(member, "group:"))
+					if groupByEmail == nil {
+						if groupByEmail, err = buildCloudIdentityGroupEmailIndex(st); err != nil {
+							return err
+						}
+					}
+					toID, ok := groupByEmail[email]
+					if !ok {
+						continue
+					}
+					if err := st.UpsertRelationship(rap.ID, toID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert rowAccessPolicy→cloudIdentityGroup: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
