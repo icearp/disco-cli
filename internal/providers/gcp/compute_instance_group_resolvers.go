@@ -212,3 +212,25 @@ func upsertIfScanned(st *store.Store, scanned map[string]bool, fromID, provider,
 	}
 	return nil
 }
+
+// upsertIfScannedAny is upsertIfScanned for fields whose target disco type is
+// genuinely ambiguous from the field alone (e.g. a "group" self-link that may
+// name an InstanceGroup, a zonal NEG, or a regional/global NEG). Since a
+// given self-link belongs to exactly one type in practice, the first
+// candidate found in scanned wins; no candidate matching is a normal skip
+// (cross-project reference, deleted resource, or unscanned target type).
+func upsertIfScannedAny(st *store.Store, scanned map[string]bool, fromID, provider, projectID string, rtypes []string, selfLink, kind string) error {
+	if selfLink == "" {
+		return nil
+	}
+	for _, rtype := range rtypes {
+		toID := store.ResourceID(provider, projectID, rtype, selfLink)
+		if scanned[toID] {
+			if err := st.UpsertRelationship(fromID, toID, kind, "directed", nil); err != nil {
+				return fmt.Errorf("upsert %s -[%s]-> %s: %w", fromID, kind, toID, err)
+			}
+			return nil
+		}
+	}
+	return nil
+}

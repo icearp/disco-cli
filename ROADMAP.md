@@ -344,6 +344,31 @@ targets are structurally unresolvable since `scannedIDSet`/`upsertIfScanned` sco
 same project, same as the existing cross-project service-account-ref limitation). Net: 93 → 86
 orphan types.
 
+**Resolver Wave R7 (backend-service ambiguous fields).** New
+`internal/providers/gcp/compute_backend_service_resolvers.go` picks up the two fields deferred out
+of Wave R6 as genuinely ambiguous. New shared helper `upsertIfScannedAny` (added to
+`compute_instance_group_resolvers.go` next to `upsertIfScanned`) tries a list of candidate disco
+types in order and upserts against the first whose computed `ResourceID` is in the scanned set —
+safe because GCP self-link URLs embed the resource-collection segment, so the same literal
+self-link string is structurally never valid for two different candidate types.
+BackendService/RegionBackendService → Network (own field); → HealthCheck via `healthChecks[]`
+(candidates `{HealthCheck, HttpHealthCheck, HttpsHealthCheck}` for global rows, `{RegionHealthCheck}`
+only for regional — GCP requires a regional backend service's health checks to themselves be
+regional and co-located, confirmed via GCP docs); → each backend's group/NEG via `backends[].group`
+(candidates spanning InstanceGroup/RegionInstanceGroup/NetworkEndpointGroup family, 5 types).
+Also (Region)Autoscaler → (Region)InstanceGroupManager via `target`, dispatched by the autoscaler's
+own zonal/regional scope rather than a candidate search (unambiguous). Extended the pre-existing
+`cloudarmor_resolvers.go`'s BackendService→SecurityPolicy resolver to also cover
+RegionBackendService (same struct, same fields, gap found during this wave's research — one-line
+fix). Adversarial review: clean, no bugs — independently verified every field/self-link/legacy-
+health-check claim against the vendored SDK and GCP docs, confirmed `upsertIfScannedAny`'s
+type-in-hash + self-link-structure reasoning holds, confirmed all 16 EdgeDecls in the long
+`resolveBackendServiceRelationships` registration match the body exactly. One test-quality gap
+flagged and fixed: no test proved `upsertIfScannedAny` picks the correct candidate when multiple
+different-typed decoys are present — added
+`TestResolveBackendServiceRelationships_AmbiguousGroupPicksCorrectCandidate`, fail-first verified
+against a truncated candidate list. Net: 86 → 83 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

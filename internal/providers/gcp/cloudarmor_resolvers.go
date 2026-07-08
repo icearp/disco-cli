@@ -11,6 +11,7 @@ import (
 func init() {
 	registerResolver(resolveCloudArmorRelationships,
 		EdgeDecl{TypeComputeBackendService, TypeComputeSecurityPolicy, store.RelUses},
+		EdgeDecl{TypeComputeRegionBackendService, TypeComputeSecurityPolicy, store.RelUses},
 	)
 }
 
@@ -22,7 +23,8 @@ func init() {
 //   - `edgeSecurityPolicy` (separate edge-tier policy for Cloud CDN integration)
 //
 // Both are full SelfLink URLs, resolved against the in-store policy catalog.
-// Backend-bucket → securityPolicy edges deferred: backendBucket also has an
+// Covers RegionBackendService too — same struct, same fields. Backend-bucket
+// → securityPolicy edges deferred: backendBucket also has an
 // `edgeSecurityPolicy` field, but CDN-fronted-bucket policy usage is narrow
 // vs. LB-fronted services.
 func resolveCloudArmorRelationships(p *project, st *store.Store) error {
@@ -42,7 +44,8 @@ func resolveCloudArmorRelationships(p *project, st *store.Store) error {
 	}
 
 	bss, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeBackendService},
+		Providers: []string{"gcp"}, AccountID: p.ID,
+		Types: []string{TypeComputeBackendService, TypeComputeRegionBackendService},
 		Limit: util.AllResources,
 	})
 	if err != nil {
