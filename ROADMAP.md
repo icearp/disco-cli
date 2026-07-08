@@ -656,6 +656,42 @@ check regardless, so the redundant check was simplified away (confirmed via fail
 it changed nothing). Adversarial review independently re-derived the same conclusion and found no
 other bugs. Net: 33 → 31 orphan types (161 emitted, unchanged).
 
+**Resolver Wave R24 (Compute residual cleanup — NEG/PacketMirroring/Reservation/
+FutureReservation/health-check chain/PublicDelegatedPrefix).** The largest coherent cluster
+left after R23: 11 remaining `compute` orphans, split across 4 new files matching the existing
+scanner-file layout. `compute_networking_resolvers.go`: NetworkEndpointGroup family (zonal/
+regional/global) → Network/Subnetwork (full same-API self-links, exact match — mirrors
+`firewall_resolvers.go`'s Firewall.Network) and → CloudRunSvc/CloudFunction (bare cross-API
+names via `bareNameIndex`, regional NEG only — see below); PacketMirroring → Network/Instance/
+Subnetwork/ForwardingRule (all full self-links). `compute_reservation_resolvers.go`:
+Reservation → RegionCommitment (`commitment`/`linkedCommitments[]`, full self-links);
+FutureReservation → RegionCommitment (`commitmentInfo.commitmentName`, a bare name unlike
+Reservation's own field, matched via `bareNameIndex` — same bare-name cross-region-collision
+tradeoff already accepted elsewhere, e.g. CloudRunSvc). `compute_lb_ext_resolvers.go`:
+RegionCompositeHealthCheck → ForwardingRule + RegionHealthSource; RegionHealthCheckService →
+RegionHealthCheck/HealthCheck/NEG-family/RegionNotificationEndpoint; RegionHealthSource →
+RegionHealthAggregationPolicy (all full self-links). `compute_addressing_resolvers.go`:
+PublicDelegatedPrefix/GlobalPublicDelegatedPrefix → parent prefix, a genuine 3-way oneof
+(PublicAdvertisedPrefix or either PDP scope) tried via `upsertIfScannedAny`.
+
+Adversarial review caught one real bug and one coverage-metadata drift, both fixed before
+shipping: (1) `scanComputeRegionHealthCheckServices` conflates regional- and global-scope
+HealthCheckService rows under one disco type (global rows carry a nil Region) — the initial
+resolver only checked `TypeComputeRegionHealthCheck` as a match candidate, silently dropping
+every global row's `healthChecks[]` edges; fixed by matching against both the regional and
+global HealthCheck types via `upsertIfScannedAny` (fail-first confirmed: reverting to the
+regional-only list turns the new global-scope test red). (2) 5 of the initially-declared
+`EdgeDecl`s for the NEG family were structurally unreachable per the SDK's own field docs —
+`Network` "cannot be set for ... global NEGs" and `CloudRun`/`CloudFunction` only apply to
+SERVERLESS-type endpoints, which the package doc says are created only via the regional API, so
+zonal/global NEGs never carry them. Dropped those 5 EdgeDecls; `TypeComputeGlobalNetworkEndpointGroup`
+now has zero real outbound fields and was reflagged `Leaf: true` (mirrors the R18 Folder
+precedent). Review also flagged and this wave then added the previously-missed
+`HealthCheckService.NetworkEndpointGroups[]`/`.NotificationEndpoints[]` fields, plus 3 missing
+negative-space tests (RegionCompositeHealthCheck/RegionHealthSource unscanned-target-skipped,
+FutureReservation unmatched-commitment-name). Net: 31 → 20 orphan types (161 → 160 emitted, one
+type dropping out of resolver-eligibility via the new Leaf flag).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

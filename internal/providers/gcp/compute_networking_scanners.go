@@ -26,7 +26,7 @@ func init() {
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNetworkAttachment},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNetworkEndpointGroup},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionNetworkEndpointGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeGlobalNetworkEndpointGroup},
+		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeGlobalNetworkEndpointGroup, Leaf: true},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNetworkFirewallPolicy},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionNetworkFirewallPolicy},
 		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNetworkProfile, Leaf: true},
