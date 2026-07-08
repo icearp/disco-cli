@@ -508,6 +508,20 @@ AppProfile's own NativeID + the bare cluster ID, mirroring the Wave R12 Dataproc
 region-reconstruction precedent. A dedicated cross-instance-collision test proves the fix
 (fail-first confirmed red against the bare-name-index version). Net: 58 → 54 orphan types.
 
+**Resolver Wave R16 (Cloud Logging secondary resources).** Extended the pre-existing
+`observability_resolvers.go` (already owned `TypeLoggingSink`'s destination edges) with four new
+resolvers: LogBucket → CryptoKey (`cmekSettings.kmsKeyName`), Link → BigQuery dataset
+(`bigqueryDataset.datasetId`, in the `bigquery.googleapis.com/projects/{p}/datasets/{ds}` shape —
+extracted the existing sink resolver's inline path-conversion logic into a shared
+`bqDatasetIDFromResourcePath` helper and reused it for both), LogScope → Project or → LogView
+(classified per-entry in `resourceNames[]`: `/views/`-containing entries exact-match `TypeLoggingView`,
+everything else is a bare `projects/{id}` reference resolved via the cross-project placeholder
+pattern — GCP project IDs can't contain `/`, so the discriminator is unambiguous), LogMetric →
+LogBucket (`bucketName`, empty for project-scoped/non-Bucket metrics). Grepped for pre-existing
+`EdgeDecl` registrations on all 4 types first per the R13 lesson — confirmed zero prior coverage.
+Adversarial review found no bugs — every field/format claim checked out against `go doc`. Net:
+54 → 50 orphan types.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
