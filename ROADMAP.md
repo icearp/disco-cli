@@ -831,6 +831,29 @@ this resolver, the same architectural class R26 fixed for accesscontextmanager/c
 invisible to the coverage tool because project-scoped policy rows already make the type non-orphan.
 Candidate for its own future wave.
 
+**Resolver Wave R29 (BigQuery authorized-view/routine/dataset access edges — correctness wave).**
+Extended `resolveBigQueryRelationships` (`bigquery_resolvers.go`, previously CMEK-only) to wire
+`Dataset -[uses]-> {Table,Routine,Dataset}` from `Dataset.Access[]`'s `view`/`routine`/`dataset`
+grant kinds — all already fetched by the existing `Datasets.Get` call, zero extra API cost.
+Table's NativeID is a genuinely opaque SDK-assigned ID (no reconstructable format); rather than
+special-case Dataset/Routine (whose NativeIDs actually ARE reconstructable — `{projectId}:{datasetId}`
+and the scanner's own `projects/.../routines/...` format respectively), all three grant kinds match
+uniformly via a new `bqRefIndex` helper: parse each stored Table/Routine/Dataset row's own
+`tableReference`/`routineReference`/`datasetReference` field into a project/dataset/item key,
+same key built from the grant entry, direct match — format-agnostic, one code path. Scope:
+same-project only (a cross-project grant is silently skipped; cross-project BigQuery sharing is a
+real feature but out of scope this wave). Adversarial review caught the `bqRefIndex` doc comment
+overclaiming Dataset's NativeID as opaque (corrected) and the helper missing an `AccountID` filter
+— every project's resolver call was scanning Table/Routine/Dataset rows across the *entire* store
+instead of just its own project, pure wasted work since the grant's own `ProjectId` check already
+excludes cross-project matches (fixed: `bqRefIndex` now takes an `accountID` param). Also added a
+missing self-loop test (a dataset naming itself in its own `access[].dataset` grant) and a short
+edge-direction note — the *data* flows from the referenced view/routine into this dataset, but the
+edge is still emitted dataset→target to match the file's existing "attrs holder is the FROM side"
+convention (mirrors the firewall→instance direction precedent). Net: 0 → 0 orphans (Table/Routine
+keep `Leaf: true`; an inbound edge doesn't change outbound-source status; Dataset already had an
+outbound resolver via CMEK) — this wave is about coverage completeness, not orphan closure.
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:
