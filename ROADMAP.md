@@ -536,6 +536,23 @@ one-line `networkIDByNetworkURL` wrapper for readability at each call site. Grep
 `EdgeDecl` registrations on all 3 types first per the R13 lesson — confirmed zero prior coverage.
 Adversarial review found no bugs. Net: 50 → 47 orphan types.
 
+**Resolver Wave R18 (Cloud Resource Manager Tags + Folder Leaf-flag fix).** New
+`internal/providers/gcp/crm_tags_resolvers.go`: TagBinding → TagValue and EffectiveTag → TagValue
+(both via a `tagValue` field in the form `tagValues/{id}`, TagValue's own NativeID convention —
+exact match). TagBinding's other reference (`parent`, the resource it's bound to) needs no
+resolver — Tags are only ever scanned at project scope (`scanCRMLiensAndBindings`), so that edge
+is already covered by the scanner's own hierarchy closure. Also fixed a real but harmless gap
+found while researching this cluster: `gcp_hierarchy.go`'s `TypeFolder` emit was missing
+`Leaf: true` — sibling `TypeOrganization`/`TypeProject` both already had it, but Folder didn't,
+making it a false-positive orphan (`Parent` is Folder's only outbound field, already wired via
+`RecordHierarchy`, same as Organization/Project). `Folder.ManagementProject` (a rare
+app-management-capability field referencing an arbitrary project) is deliberately left unresolved
+— documented as a niche field, not treated as a gap. Grepped for pre-existing `EdgeDecl`
+registrations on TagBinding/EffectiveTag/Folder first per the R13 lesson — confirmed zero prior
+coverage. Adversarial review found one test-coverage gap (missing negative-space test for
+EffectiveTag, added) and confirmed everything else correct. Net: 47 → 44 orphan types (162 → 161
+emitted, since Folder is no longer resolver-eligible).
+
 ### R5. Cross-service resolvers (multi-provider aware)
 
 AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed (see `FEATURES.md`). Outstanding:

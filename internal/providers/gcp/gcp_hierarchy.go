@@ -17,7 +17,14 @@ func init() {
 	// registerExtraEmits so the coverage matrix still picks up its emits.
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeOrganization, Leaf: true},
-		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeFolder},
+		// Folder's only outbound reference is `Parent`, already wired via
+		// RecordHierarchy above (a hierarchy_closure/contains edge, not a
+		// registerResolver edge) — mirrors Organization/Project's Leaf flag.
+		// `ManagementProject` (rare app-management-capability field,
+		// referencing an arbitrary project outside any predictable scope)
+		// is deliberately not resolved — not worth the cross-project
+		// placeholder machinery for a niche, often-empty field.
+		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeFolder, Leaf: true},
 		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeProject, Leaf: true},
 	)
 }
