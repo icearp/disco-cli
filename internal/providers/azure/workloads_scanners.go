@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/workloads/armworkloads"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWorkloadsSAPVirtualInstance, Service: "microsoft.workloads", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkloadsMonitor, Service: "microsoft.workloads", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.workloads",
 		fn:   scanWorkloads,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.workloads", DiscoType: TypeWorkloadsSAPVirtualInstance, Leaf: true},
-			{Service: "microsoft.workloads", DiscoType: TypeWorkloadsMonitor, Leaf: true},
-		},
 	})
 }
 

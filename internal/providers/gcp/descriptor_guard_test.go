@@ -9,9 +9,6 @@ import "testing"
 // decl so the overlap would otherwise be silent.
 func TestNoDoubleDeclaredTypes(t *testing.T) {
 	legacy := make(map[string]bool)
-	for _, d := range extraEmits {
-		legacy[d.DiscoType] = true
-	}
 	for _, s := range registeredServices {
 		for _, d := range s.emits {
 			legacy[d.DiscoType] = true

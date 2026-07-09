@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDashboardGrafana, Service: "microsoft.dashboard", Leaf: true, Redact: []redact.Rule{{Path: "properties.grafanaConfigurations.smtp.password", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.dashboard",
 		fn:   scanDashboard,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.dashboard", DiscoType: TypeDashboardGrafana, Leaf: true},
-		},
 	})
 }
 

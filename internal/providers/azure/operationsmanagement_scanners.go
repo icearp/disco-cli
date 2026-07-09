@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationsmanagement/armoperationsmanagement"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOpsManagementSolution, Service: "microsoft.operationsmanagement", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.operationsmanagement",
 		fn:   scanOperationsManagement,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.operationsmanagement", DiscoType: TypeOpsManagementSolution, Leaf: true},
-		},
 	})
 }
 

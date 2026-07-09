@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/relay/armrelay"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRelayNamespace, Service: "microsoft.relay", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.relay",
 		fn:   scanRelay,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.relay", DiscoType: TypeRelayNamespace, Leaf: true},
-		},
 	})
 }
 

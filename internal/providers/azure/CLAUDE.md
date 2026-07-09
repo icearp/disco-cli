@@ -14,7 +14,29 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 1. `azure_types.go`: `Type*` const **and** entry in `azureAPITypeMap` (lowercase ARM key like `microsoft.foo/bars`).
 2. `azure_scanner_test.go`: append service name to `expectedAzureServices`.
-3. New `<svc>_scanners.go` self-registers via `init() { registerService(serviceEntry{name, fn}) }`. Resolvers via `registerResolver(fn)` from `<svc>_resolvers.go`.
+3. New `<svc>_scanners.go` self-registers the service via `init() { registerService(serviceEntry{name, fn}) }` and declares each type it upserts via `registerType(restype.Descriptor{...})` in the same `init()`. Resolvers via `registerResolver(fn)` from `<svc>_resolvers.go`.
+
+### Unified per-type declaration via `registerType`
+
+`registerType(restype.Descriptor{...})` in `azure_registry.go` is the single-site
+declaration for coverage emit (`Service` + `Leaf`/`Uncatalogued`), redaction
+rules (`Redact`), and the unconditional `Managed` flag (the store stamps
+`ManagedByProvider` by type — used only by `TypeNetworkCloudRackSKU`; the
+built-in role/policy/set-definition types stay scanner-set because they are
+managed only for tenant built-ins, not custom defs). It forwards field rules
+into the shared redact/volatile/managed engines and routes the coverage decl
+through `descriptorEmits`.
+
+**Aliases are NOT on the descriptor.** Azure keeps them in `azureAPITypeMap`
+(`azure_types.go`) because that map is both the alias source AND the
+`azure_type_mirror_test.go` truth, and it carries *multiple* upstream keys per
+disco type (which a single `Descriptor.Upstream` can't represent). `Aliases()`
+inverts it as before — leave it alone.
+
+**Azure is fully migrated** — every type is declared via `registerType`;
+`azure_redact.go` and the legacy `serviceEntry.emits` / `registerExtraEmits`
+paths are gone. `TestNoDoubleDeclaredTypes` guards against a type declared via
+both paths; the mirror/leaf/redact tests guard naming and redaction.
 
 ## Service names align to the ARM namespace: `azure:microsoft.<namespace>`
 

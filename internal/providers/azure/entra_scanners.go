@@ -10,25 +10,23 @@ import (
 	"net/url"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEntraUser, Service: "graph", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeEntraGroup, Service: "graph", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeEntraServicePrincipal, Service: "graph", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeEntraApplication, Service: "graph", Uncatalogued: true})
 	// Entra ID types are real identities scanned via Microsoft Graph; ARM
 	// Providers/List can't see them (Graph isn't an ARM RP), so uncatalogued
 	// rather than synthetic.
 	registerTenantService(tenantServiceEntry{
 		name: "azure:microsoft.entra",
 		fn:   scanEntra,
-		emits: []coverage.TypeDecl{
-			{Service: "graph", DiscoType: TypeEntraUser, Uncatalogued: true},
-			{Service: "graph", DiscoType: TypeEntraGroup, Uncatalogued: true},
-			{Service: "graph", DiscoType: TypeEntraServicePrincipal, Uncatalogued: true},
-			{Service: "graph", DiscoType: TypeEntraApplication, Uncatalogued: true},
-		},
 	})
 }
 

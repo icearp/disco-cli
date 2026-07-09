@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/blueprint/armblueprint"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBlueprintBlueprint, Service: "microsoft.blueprint"})
+	registerType(restype.Descriptor{Type: TypeBlueprintAssignment, Service: "microsoft.blueprint"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.blueprint",
 		fn:   scanBlueprint,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.blueprint", DiscoType: TypeBlueprintBlueprint},
-			{Service: "microsoft.blueprint", DiscoType: TypeBlueprintAssignment},
-		},
 	})
 }
 

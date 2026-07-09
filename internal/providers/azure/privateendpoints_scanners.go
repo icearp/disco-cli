@@ -4,16 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.network", DiscoType: TypeNetworkPrivateEndpoint},
-	}...)
+	registerType(restype.Descriptor{Type: TypeNetworkPrivateEndpoint, Service: "microsoft.network"})
 }
 
 // scanPrivateEndpoints discovers Azure Private Endpoints subscription-wide.

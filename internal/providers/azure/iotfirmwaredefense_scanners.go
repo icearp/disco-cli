@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iotfirmwaredefense/armiotfirmwaredefense"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIoTFirmwareDefenseWorkspace, Service: "microsoft.iotfirmwaredefense", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.iotfirmwaredefense",
 		fn:   scanIoTFirmwareDefense,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.iotfirmwaredefense", DiscoType: TypeIoTFirmwareDefenseWorkspace, Leaf: true},
-		},
 	})
 }
 

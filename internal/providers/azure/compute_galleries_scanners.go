@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -14,15 +14,13 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGallery},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryImage},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryImageVersion},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryApplication},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryApplicationVersion},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryInVMACP},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryInVMACPVersion},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeGallery, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeGalleryImage, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeGalleryImageVersion, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeGalleryApplication, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeGalleryApplicationVersion, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeGalleryInVMACP, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeGalleryInVMACPVersion, Service: "microsoft.compute"})
 }
 
 // galleryEntry holds the identifying fields of a gallery for child scans.

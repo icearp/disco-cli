@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/standbypool/armstandbypool"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStandbyVMPool, Service: "microsoft.standbypool", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStandbyContainerGroupPool, Service: "microsoft.standbypool", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.standbypool",
 		fn:   scanStandbyPool,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.standbypool", DiscoType: TypeStandbyVMPool, Leaf: true},
-			{Service: "microsoft.standbypool", DiscoType: TypeStandbyContainerGroupPool, Leaf: true},
-		},
 	})
 }
 

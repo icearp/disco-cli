@@ -4,24 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurearcdata/armazurearcdata"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAzureArcDataController, Service: "microsoft.azurearcdata", Leaf: true, Redact: []redact.Rule{{Path: "properties.logsDashboardCredential.password", Mode: redact.RedactScalar}, {Path: "properties.metricsDashboardCredential.password", Mode: redact.RedactScalar}, {Path: "properties.logAnalyticsWorkspaceConfig.primaryKey", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAzureArcDataPostgres, Service: "microsoft.azurearcdata", Leaf: true, Redact: []redact.Rule{{Path: "properties.basicLoginInformation.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAzureArcDataSQLManagedInstance, Service: "microsoft.azurearcdata", Leaf: true, Redact: []redact.Rule{{Path: "properties.basicLoginInformation.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAzureArcDataSQLServerInstance, Service: "microsoft.azurearcdata", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azurearcdata",
 		fn:   scanAzureArcData,
-		emits: []coverage.TypeDecl{
-			// Custom-location edge wired centrally (resolveExtendedLocationConsumers);
-			// scanner-only here.
-			{Service: "microsoft.azurearcdata", DiscoType: TypeAzureArcDataController, Leaf: true},
-			{Service: "microsoft.azurearcdata", DiscoType: TypeAzureArcDataPostgres, Leaf: true},
-			{Service: "microsoft.azurearcdata", DiscoType: TypeAzureArcDataSQLManagedInstance, Leaf: true},
-			{Service: "microsoft.azurearcdata", DiscoType: TypeAzureArcDataSQLServerInstance, Leaf: true},
-		},
 	})
 }
 

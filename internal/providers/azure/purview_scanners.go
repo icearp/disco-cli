@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/purview/armpurview"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePurviewAccount, Service: "microsoft.purview", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.purview",
 		fn:   scanPurview,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.purview", DiscoType: TypePurviewAccount, Leaf: true},
-		},
 	})
 }
 

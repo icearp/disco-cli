@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/powerbidedicated/armpowerbidedicated"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePowerBIDedicatedCapacity, Service: "microsoft.powerbidedicated", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePowerBIDedicatedAutoScaleVCore, Service: "microsoft.powerbidedicated", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.powerbidedicated",
 		fn:   scanPowerBIDedicated,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.powerbidedicated", DiscoType: TypePowerBIDedicatedCapacity, Leaf: true},
-			{Service: "microsoft.powerbidedicated", DiscoType: TypePowerBIDedicatedAutoScaleVCore, Leaf: true},
-		},
 	})
 }
 

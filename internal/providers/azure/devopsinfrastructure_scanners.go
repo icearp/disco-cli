@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/devopsinfrastructure/armdevopsinfrastructure"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDevOpsInfrastructurePool, Service: "microsoft.devopsinfrastructure", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.devopsinfrastructure",
 		fn:   scanDevOpsInfrastructure,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; the managed DevOps pool
-			// ships scanner-only.
-			{Service: "microsoft.devopsinfrastructure", DiscoType: TypeDevOpsInfrastructurePool, Leaf: true},
-		},
 	})
 }
 

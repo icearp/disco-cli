@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databricks/armdatabricks"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDatabricksWorkspace, Service: "microsoft.databricks"})
+	registerType(restype.Descriptor{Type: TypeDatabricksAccessConnector, Service: "microsoft.databricks", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.databricks",
 		fn:   scanDatabricks,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.databricks", DiscoType: TypeDatabricksWorkspace},
-			{Service: "microsoft.databricks", DiscoType: TypeDatabricksAccessConnector, Leaf: true},
-		},
 	})
 }
 

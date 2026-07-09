@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/synapse/armsynapse"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSynapseWorkspace, Service: "microsoft.synapse"})
+	registerType(restype.Descriptor{Type: TypeSynapsePrivateLinkHub, Service: "microsoft.synapse", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.synapse",
 		fn:   scanSynapse,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.synapse", DiscoType: TypeSynapseWorkspace},
-			{Service: "microsoft.synapse", DiscoType: TypeSynapsePrivateLinkHub, Leaf: true},
-		},
 	})
 }
 

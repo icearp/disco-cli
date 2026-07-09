@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNetAppAccount, Service: "microsoft.netapp", Redact: []redact.Rule{{Path: "properties.activeDirectories[*].password", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.netapp",
 		fn:   scanNetApp,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.netapp", DiscoType: TypeNetAppAccount},
-		},
 	})
 }
 

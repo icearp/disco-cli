@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/providers/azure/azureregions"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -16,6 +16,7 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeQuotaLimit, Service: "microsoft.quota", Leaf: true})
 	// Registration gate caveat: providerDisabled (azure_scanner.go) skips this
 	// scanner only if a subscription's Providers/List reports microsoft.quota as
 	// known-and-unregistered. Microsoft.Quota is a registration-free proxy RP
@@ -26,11 +27,6 @@ func init() {
 	registerService(serviceEntry{
 		name: "azure:microsoft.quota",
 		fn:   scanQuotaLimits,
-		emits: []coverage.TypeDecl{
-			// Leaf: quotas are limit metadata — no resolver wires outbound edges
-			// from them. Change tracking rides the resource version chain.
-			{Service: "microsoft.quota", DiscoType: TypeQuotaLimit, Leaf: true},
-		},
 	})
 }
 

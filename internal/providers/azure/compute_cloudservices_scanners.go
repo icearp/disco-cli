@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -14,11 +14,9 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeCloudService},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeCloudServiceRole},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeCloudServiceRoleInstance},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeCloudService, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeCloudServiceRole, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeCloudServiceRoleInstance, Service: "microsoft.compute"})
 }
 
 // cloudServiceEntry holds the identifying fields of a cloud service for child scans.

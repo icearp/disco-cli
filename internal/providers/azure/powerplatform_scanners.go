@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/powerplatform/armpowerplatform"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePowerPlatformEnterprisePolicy, Service: "microsoft.powerplatform", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePowerPlatformAccount, Service: "microsoft.powerplatform", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.powerplatform",
 		fn:   scanPowerPlatform,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.powerplatform", DiscoType: TypePowerPlatformEnterprisePolicy, Leaf: true},
-			{Service: "microsoft.powerplatform", DiscoType: TypePowerPlatformAccount, Leaf: true},
-		},
 	})
 }
 

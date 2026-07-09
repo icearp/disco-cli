@@ -4,22 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/deviceregistry/armdeviceregistry"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDeviceRegistryAsset, Service: "microsoft.deviceregistry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDeviceRegistryAssetEndpointProfile, Service: "microsoft.deviceregistry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDeviceRegistryBillingContainer, Service: "microsoft.deviceregistry", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.deviceregistry",
 		fn:   scanDeviceRegistry,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.deviceregistry", DiscoType: TypeDeviceRegistryAsset, Leaf: true},
-			{Service: "microsoft.deviceregistry", DiscoType: TypeDeviceRegistryAssetEndpointProfile, Leaf: true},
-			// Billing containers are auto-materialised + non-deletable.
-			{Service: "microsoft.deviceregistry", DiscoType: TypeDeviceRegistryBillingContainer, Leaf: true},
-		},
 	})
 }
 

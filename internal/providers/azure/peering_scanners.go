@@ -4,21 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/peering/armpeering"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePeeringPeering, Service: "microsoft.peering", Leaf: true, Redact: []redact.Rule{{Path: "properties.direct.connections[*].bgpSession.md5AuthenticationKey", Mode: redact.RedactScalar}, {Path: "properties.exchange.connections[*].bgpSession.md5AuthenticationKey", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypePeeringPeerAsn, Service: "microsoft.peering", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePeeringPeeringService, Service: "microsoft.peering", Leaf: true, Redact: []redact.Rule{{Path: "properties.logAnalyticsWorkspaceProperties.key", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.peering",
 		fn:   scanPeering,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.peering", DiscoType: TypePeeringPeering, Leaf: true},
-			{Service: "microsoft.peering", DiscoType: TypePeeringPeerAsn, Leaf: true},
-			{Service: "microsoft.peering", DiscoType: TypePeeringPeeringService, Leaf: true},
-		},
 	})
 }
 

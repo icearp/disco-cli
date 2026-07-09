@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/avs/armavs"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAVSPrivateCloud, Service: "microsoft.avs", Leaf: true, Redact: []redact.Rule{{Path: "properties.nsxtPassword", Mode: redact.RedactScalar}, {Path: "properties.vcenterPassword", Mode: redact.RedactScalar}, {Path: "properties.identitySources[*].password", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.avs",
 		fn:   scanAVS,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.avs", DiscoType: TypeAVSPrivateCloud, Leaf: true},
-		},
 	})
 }
 

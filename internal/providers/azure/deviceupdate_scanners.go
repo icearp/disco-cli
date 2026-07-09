@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/deviceupdate/armdeviceupdate"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDeviceUpdateAccount, Service: "microsoft.deviceupdate", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.deviceupdate",
 		fn:   scanDeviceUpdate,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI and private-endpoint edges resolved centrally; the
-			// account ships scanner-only.
-			{Service: "microsoft.deviceupdate", DiscoType: TypeDeviceUpdateAccount, Leaf: true},
-		},
 	})
 }
 

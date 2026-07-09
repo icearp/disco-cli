@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridconnectivity/armhybridconnectivity"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHybridConnectivityPublicCloud, Service: "microsoft.hybridconnectivity", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hybridconnectivity",
 		fn:   scanHybridConnectivity,
-		emits: []coverage.TypeDecl{
-			// Public-cloud connector (AWS/GCP multicloud onboarding) is the root;
-			// its endpoints/solution-configs are parent-scoped (DEFER). Scanner-only.
-			{Service: "microsoft.hybridconnectivity", DiscoType: TypeHybridConnectivityPublicCloud, Leaf: true},
-		},
 	})
 }
 

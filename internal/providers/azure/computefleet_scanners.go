@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/computefleet/armcomputefleet"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeComputeFleet, Service: "microsoft.azurefleet", Leaf: true, Redact: []redact.Rule{{Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.adminPassword", Mode: redact.RedactScalar}, {Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.customData", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azurefleet",
 		fn:   scanComputeFleet,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; fleet ships scanner-only.
-			{Service: "microsoft.azurefleet", DiscoType: TypeComputeFleet, Leaf: true},
-		},
 	})
 }
 

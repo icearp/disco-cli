@@ -4,21 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/extendedlocation/armextendedlocation"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCustomLocation, Service: "microsoft.extendedlocation", Redact: []redact.Rule{{Path: "properties.authentication.value", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.extendedlocation",
 		fn:   scanExtendedLocation,
-		emits: []coverage.TypeDecl{
-			// resolveCustomLocationRelationships wires the host (connected
-			// cluster / appliance / AKS) edge below.
-			{Service: "microsoft.extendedlocation", DiscoType: TypeCustomLocation},
-		},
 	})
 }
 

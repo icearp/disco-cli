@@ -5,75 +5,65 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNetworkVirtualNetwork, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkSubnet, Service: "microsoft.network", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeNetworkSecurityGroup, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkPublicIPAddress, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkApplicationGateway, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkExpressRouteCircuit, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkVirtualWAN, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkVirtualHub, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkVPNGateway, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkVPNSite, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkExpressRouteGateway, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkVirtualNetworkGW, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkWAFPolicy, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkApplicationSecurityGroup, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkAzureFirewallFqdnTag, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkAzureFirewall, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkAzureWebCategory, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkBastionHost, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkBgpServiceCommunity, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkConnection, Service: "microsoft.network", Leaf: true, Redact: []redact.Rule{{Path: "properties.sharedKey", Mode: redact.RedactScalar}, {Path: "properties.authorizationKey", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkCustomIPPrefix, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkDdosProtectionPlan, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkDscpConfiguration, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkExpressRoutePort, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkExpressRoutePortsLocation, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkExpressRouteServiceProv, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallPolicy, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkIPAllocation, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkIPGroup, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkLoadBalancer, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkLocalNetworkGateway, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkNatGateway, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkInterface, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerConnection, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkManager, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkProfile, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkVirtualAppliance, Service: "microsoft.network", Leaf: true, Redact: []redact.Rule{{Path: "properties.cloudInitConfiguration", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkWatcher, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkP2SVPNGateway, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkPrivateLinkService, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkPublicIPPrefix, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkRouteFilter, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkRouteTable, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkSecurityPartnerProvider, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkServiceEndpointPolicy, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkVirtualNetworkTap, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkVirtualRouter, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkVPNServerConfiguration, Service: "microsoft.network", Leaf: true, Redact: []redact.Rule{{Path: "properties.radiusServerSecret", Mode: redact.RedactScalar}, {Path: "properties.radiusServers[*].radiusServerSecret", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.network",
 		fn:   scanNetworkNamespace,
-		emits: []coverage.TypeDecl{
-			// Subscription-scoped core networking (VNets, NSGs, PublicIPs).
-			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetwork},
-			// Uncatalogued: ARM Providers/List doesn't enumerate the
-			// virtualNetworks/subnets proxy child as a standalone resourceType,
-			// though disco scans it.
-			{Service: "microsoft.network", DiscoType: TypeNetworkSubnet, Uncatalogued: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkSecurityGroup},
-			{Service: "microsoft.network", DiscoType: TypeNetworkPublicIPAddress},
-			// Application Gateway (consolidated from former azure:applicationgateway).
-			{Service: "microsoft.network", DiscoType: TypeNetworkApplicationGateway},
-			// Enterprise networking (consolidated from former azure:wan).
-			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRouteCircuit},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualWAN},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualHub},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVPNGateway},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVPNSite},
-			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRouteGateway},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetworkGW},
-			// Coverage sweep: rest of the sub/RG-listable Microsoft.Network
-			// surface. All Leaf — no in-scope outbound ARM-ID ref a per-service
-			// resolver would wire (subnet/PE/identity refs handled centrally).
-			{Service: "microsoft.network", DiscoType: TypeNetworkWAFPolicy, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkApplicationSecurityGroup, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkAzureFirewallFqdnTag, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkAzureFirewall, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkAzureWebCategory, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkBastionHost, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkBgpServiceCommunity, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkConnection, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkCustomIPPrefix, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkDdosProtectionPlan, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkDscpConfiguration, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRoutePort, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRoutePortsLocation, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRouteServiceProv, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkFirewallPolicy, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkIPAllocation, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkIPGroup, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkLoadBalancer, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkLocalNetworkGateway, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkNatGateway, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkInterface, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkManagerConnection, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkManager, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkProfile, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualAppliance, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkWatcher, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkP2SVPNGateway, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkPrivateLinkService, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkPublicIPPrefix, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkRouteFilter, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkRouteTable, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkSecurityPartnerProvider, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkServiceEndpointPolicy, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetworkTap, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualRouter, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVPNServerConfiguration, Leaf: true},
-		},
 	})
 }
 

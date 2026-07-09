@@ -4,20 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/attestation/armattestation"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAttestationProvider, Service: "microsoft.attestation", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.attestation",
 		fn:   scanAttestation,
-		emits: []coverage.TypeDecl{
-			// Private-endpoint edges resolved centrally; scanner-only, no resolver.
-			{Service: "microsoft.attestation", DiscoType: TypeAttestationProvider, Leaf: true},
-		},
 	})
 }
 

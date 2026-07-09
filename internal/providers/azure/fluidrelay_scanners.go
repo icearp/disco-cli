@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fluidrelay/armfluidrelay"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeFluidRelayServer, Service: "microsoft.fluidrelay", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.fluidrelay",
 		fn:   scanFluidRelay,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.fluidrelay", DiscoType: TypeFluidRelayServer, Leaf: true},
-		},
 	})
 }
 

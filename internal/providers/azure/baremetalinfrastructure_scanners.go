@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/baremetalinfrastructure/armbaremetalinfrastructure"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBareMetalInstance, Service: "microsoft.baremetalinfrastructure", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.baremetalinfrastructure",
 		fn:   scanBareMetalInfrastructure,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.baremetalinfrastructure", DiscoType: TypeBareMetalInstance, Leaf: true},
-		},
 	})
 }
 

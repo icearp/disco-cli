@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/quantum/armquantum"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeQuantumWorkspace, Service: "microsoft.quantum", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.quantum",
 		fn:   scanQuantum,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; the workspace references
-			// a storage account by name (not ARM ID), so it ships scanner-only.
-			{Service: "microsoft.quantum", DiscoType: TypeQuantumWorkspace, Leaf: true},
-		},
 	})
 }
 

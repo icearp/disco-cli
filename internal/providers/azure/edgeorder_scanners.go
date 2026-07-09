@@ -4,21 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgeorder/armedgeorder"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEdgeOrderItem, Service: "microsoft.edgeorder", Leaf: true, Redact: []redact.Rule{{Path: "properties.orderItemDetails.reverseShippingDetails.sasKeyForLabel", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeEdgeOrderAddress, Service: "microsoft.edgeorder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEdgeOrderOrder, Service: "microsoft.edgeorder", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.edgeorder",
 		fn:   scanEdgeOrder,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.edgeorder", DiscoType: TypeEdgeOrderItem, Leaf: true},
-			{Service: "microsoft.edgeorder", DiscoType: TypeEdgeOrderAddress, Leaf: true},
-			{Service: "microsoft.edgeorder", DiscoType: TypeEdgeOrderOrder, Leaf: true},
-		},
 	})
 }
 

@@ -4,22 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/streamanalytics/armstreamanalytics"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStreamAnalyticsJob, Service: "microsoft.streamanalytics", Leaf: true, Redact: []redact.Rule{{Path: "properties.jobStorageAccount.accountKey", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeStreamAnalyticsCluster, Service: "microsoft.streamanalytics", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.streamanalytics",
 		fn:   scanStreamAnalytics,
-		emits: []coverage.TypeDecl{
-			// Inputs/outputs are child config, not standalone resources;
-			// identity edges resolve centrally.
-			{Service: "microsoft.streamanalytics", DiscoType: TypeStreamAnalyticsJob, Leaf: true},
-			{Service: "microsoft.streamanalytics", DiscoType: TypeStreamAnalyticsCluster, Leaf: true},
-		},
 	})
 }
 

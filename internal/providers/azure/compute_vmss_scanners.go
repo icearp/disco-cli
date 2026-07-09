@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -14,12 +14,10 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMSS},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMSSExtension},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMSSVM},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMSSVMExtension},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeVMSS, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeVMSSExtension, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeVMSSVM, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeVMSSVMExtension, Service: "microsoft.compute"})
 }
 
 // vmssEntry holds the identifying fields of a VMSS, used to fan out child scans.

@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managedservices/armmanagedservices"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeManagedServicesRegistrationDefinition, Service: "microsoft.managedservices", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedServicesMarketplaceRegDef, Service: "microsoft.managedservices", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedServicesRegistrationAssign, Service: "microsoft.managedservices", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.managedservices",
 		fn:   scanManagedServices,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.managedservices", DiscoType: TypeManagedServicesRegistrationDefinition, Leaf: true},
-			{Service: "microsoft.managedservices", DiscoType: TypeManagedServicesMarketplaceRegDef, Leaf: true},
-			{Service: "microsoft.managedservices", DiscoType: TypeManagedServicesRegistrationAssign, Leaf: true},
-		},
 	})
 }
 

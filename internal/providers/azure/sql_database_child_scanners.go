@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBTransparentDataEnc},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBVulnAssessment},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBSecurityAlert},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBAdvancedThreatProt},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBAuditingSettings},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLGeoBackupPolicy},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLLedgerDigestUpload},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLReplicationLink},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLSyncGroup},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLWorkloadGroup},
-	)
+	registerType(restype.Descriptor{Type: TypeSQLDBTransparentDataEnc, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLDBVulnAssessment, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLDBSecurityAlert, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLDBAdvancedThreatProt, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLDBAuditingSettings, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLGeoBackupPolicy, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLLedgerDigestUpload, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLReplicationLink, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLSyncGroup, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLWorkloadGroup, Service: "microsoft.sql"})
 }
 
 // dbChildScanners returns one closure per database sub-resource type.

@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fileshares/armfileshares"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeFileSharesFileShare, Service: "microsoft.fileshares", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.fileshares",
 		fn:   scanFileShares,
-		emits: []coverage.TypeDecl{
-			// Private-endpoint → target edges resolved centrally; no other
-			// in-scope reference, so this ships scanner-only.
-			{Service: "microsoft.fileshares", DiscoType: TypeFileSharesFileShare, Leaf: true},
-		},
 	})
 }
 

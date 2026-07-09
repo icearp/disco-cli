@@ -4,32 +4,30 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/networkcloud/armnetworkcloud"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNetworkCloudCluster, Service: "microsoft.networkcloud", Leaf: true, Redact: []redact.Rule{{Path: "properties.aggregatorOrSingleRackDefinition.bareMetalMachineConfigurationData[*].bmcCredentials.password", Mode: redact.RedactScalar}, {Path: "properties.aggregatorOrSingleRackDefinition.storageApplianceConfigurationData[*].adminCredentials.password", Mode: redact.RedactScalar}, {Path: "properties.computeRackDefinitions[*].bareMetalMachineConfigurationData[*].bmcCredentials.password", Mode: redact.RedactScalar}, {Path: "properties.computeRackDefinitions[*].storageApplianceConfigurationData[*].adminCredentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudBareMetalMachine, Service: "microsoft.networkcloud", Leaf: true, Redact: []redact.Rule{{Path: "properties.bmcCredentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudServicesNetwork, Service: "microsoft.networkcloud", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudClusterManager, Service: "microsoft.networkcloud", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudKubernetesCluster, Service: "microsoft.networkcloud", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudL2Network, Service: "microsoft.networkcloud", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudL3Network, Service: "microsoft.networkcloud", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudRack, Service: "microsoft.networkcloud", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudRackSKU, Service: "microsoft.networkcloud", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudStorageAppliance, Service: "microsoft.networkcloud", Leaf: true, Redact: []redact.Rule{{Path: "properties.administratorCredentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudTrunkedNetwork, Service: "microsoft.networkcloud", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudVirtualMachine, Service: "microsoft.networkcloud", Leaf: true, Redact: []redact.Rule{{Path: "properties.vmImageRepositoryCredentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudVolume, Service: "microsoft.networkcloud", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.networkcloud",
 		fn:   scanNetworkCloud,
-		emits: []coverage.TypeDecl{
-			// Custom-location edge wired centrally; all ship scanner-only.
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudCluster, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudBareMetalMachine, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudServicesNetwork, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudClusterManager, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudKubernetesCluster, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudL2Network, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudL3Network, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudRack, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudRackSKU, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudStorageAppliance, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudTrunkedNetwork, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudVirtualMachine, Leaf: true},
-			{Service: "microsoft.networkcloud", DiscoType: TypeNetworkCloudVolume, Leaf: true},
-		},
 	})
 }
 
@@ -233,8 +231,8 @@ func scanNetworkCloudRackSKUs(ctx context.Context, sub *subscription, client *ar
 					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
 					Type: TypeNetworkCloudRackSKU, NativeID: sv(sku.ID),
 					Name: &name, AttributesJSON: mustJSON(sku),
-					ManagedByProvider: true,
-					DiscoveredBy:      scanID,
+					// ManagedByProvider stamped by type via registerType(Managed: true).
+					DiscoveredBy: scanID,
 				})
 			}
 			return batch, nil

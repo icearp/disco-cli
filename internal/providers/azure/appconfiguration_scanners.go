@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appconfiguration/armappconfiguration"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppConfigurationStore, Service: "microsoft.appconfiguration"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.appconfiguration",
 		fn:   scanAppConfiguration,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.appconfiguration", DiscoType: TypeAppConfigurationStore},
-		},
 	})
 }
 

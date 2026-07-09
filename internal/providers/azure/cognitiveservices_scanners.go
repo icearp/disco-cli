@@ -4,20 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCognitiveServicesAccount, Service: "microsoft.cognitiveservices", Redact: []redact.Rule{{Path: "properties.apiProperties.eventHubConnectionString", Mode: redact.RedactScalar}, {Path: "properties.apiProperties.qnaAzureSearchEndpointKey", Mode: redact.RedactScalar}, {Path: "properties.apiProperties.storageAccountConnectionString", Mode: redact.RedactScalar}, {Path: "properties.migrationToken", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCognitiveCommitmentPlan, Service: "microsoft.cognitiveservices", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.cognitiveservices",
 		fn:   scanCognitiveServices,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.cognitiveservices", DiscoType: TypeCognitiveServicesAccount},
-			{Service: "microsoft.cognitiveservices", DiscoType: TypeCognitiveCommitmentPlan, Leaf: true},
-		},
 	})
 }
 

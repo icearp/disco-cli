@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/policyinsights/armpolicyinsights"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePolicyInsightsRemediation, Service: "microsoft.policyinsights", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePolicyInsightsAttestation, Service: "microsoft.policyinsights", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.policyinsights",
 		fn:   scanPolicyInsights,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.policyinsights", DiscoType: TypePolicyInsightsRemediation, Leaf: true},
-			{Service: "microsoft.policyinsights", DiscoType: TypePolicyInsightsAttestation, Leaf: true},
-		},
 	})
 }
 

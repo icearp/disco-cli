@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/maps/armmaps"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMapsAccount, Service: "microsoft.maps", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.maps",
 		fn:   scanMaps,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.maps", DiscoType: TypeMapsAccount, Leaf: true},
-		},
 	})
 }
 

@@ -4,20 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storagecache/armstoragecache"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStorageCacheCache, Service: "microsoft.storagecache"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.storagecache",
 		fn:   scanStorageCache,
-		emits: []coverage.TypeDecl{
-			// resolveStorageCacheRelationships wires the subnet (VNet) and CMK (Key Vault) edges below.
-			{Service: "microsoft.storagecache", DiscoType: TypeStorageCacheCache},
-		},
 	})
 }
 

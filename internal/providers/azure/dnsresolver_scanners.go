@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dnsresolver/armdnsresolver"
@@ -14,12 +14,10 @@ import (
 // but ships in its own SDK module (armdnsresolver), registering as its own
 // disco service. All four types expose a subscription-wide NewListPager.
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.network", DiscoType: TypeNetworkDNSResolver, Leaf: true},
-		{Service: "microsoft.network", DiscoType: TypeNetworkDNSForwardingRuleset, Leaf: true},
-		{Service: "microsoft.network", DiscoType: TypeNetworkDNSResolverDomainList, Leaf: true},
-		{Service: "microsoft.network", DiscoType: TypeNetworkDNSResolverPolicy, Leaf: true},
-	}...)
+	registerType(restype.Descriptor{Type: TypeNetworkDNSResolver, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkDNSForwardingRuleset, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkDNSResolverDomainList, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkDNSResolverPolicy, Service: "microsoft.network", Leaf: true})
 }
 
 func scanDNSResolver(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/frontdoor/armfrontdoor"
@@ -16,12 +16,10 @@ import (
 // disco service. The managed-ruleset catalogue is Azure-supplied and
 // undeletable (managed=true).
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.network", DiscoType: TypeNetworkFrontDoor, Leaf: true},
-		{Service: "microsoft.network", DiscoType: TypeNetworkFrontDoorWAFPolicy, Leaf: true},
-		{Service: "microsoft.network", DiscoType: TypeNetworkFrontDoorWAFManagedRuleset, Leaf: true},
-		{Service: "microsoft.network", DiscoType: TypeNetworkExperimentProfile, Leaf: true},
-	}...)
+	registerType(restype.Descriptor{Type: TypeNetworkFrontDoor, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkFrontDoorWAFPolicy, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkFrontDoorWAFManagedRuleset, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkExperimentProfile, Service: "microsoft.network", Leaf: true})
 }
 
 func scanFrontDoor(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {

@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databoxedge/armdataboxedge"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataBoxEdgeDevice, Service: "microsoft.databoxedge", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.databoxedge",
 		fn:   scanDataBoxEdge,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; the device carries no
-			// other in-scope reference, so this ships scanner-only.
-			{Service: "microsoft.databoxedge", DiscoType: TypeDataBoxEdgeDevice, Leaf: true},
-		},
 	})
 }
 

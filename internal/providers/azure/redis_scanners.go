@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRedisCache, Service: "microsoft.cache"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.cache",
 		fn:   scanCacheNamespace,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.cache", DiscoType: TypeRedisCache},
-		},
 	})
 }
 

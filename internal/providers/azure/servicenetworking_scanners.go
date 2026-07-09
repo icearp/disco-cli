@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicenetworking/armservicenetworking"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeServiceNetworkingTrafficController, Service: "microsoft.servicenetworking", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.servicenetworking",
 		fn:   scanServiceNetworking,
-		emits: []coverage.TypeDecl{
-			// Frontends / associations (which carry subnet refs) are child
-			// resources; the traffic controller ships scanner-only.
-			{Service: "microsoft.servicenetworking", DiscoType: TypeServiceNetworkingTrafficController, Leaf: true},
-		},
 	})
 }
 

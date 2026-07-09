@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resiliencemanagement/armresiliencemanagement"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeResilienceUsagePlan, Service: "microsoft.azureresiliencemanagement"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azureresiliencemanagement",
 		fn:   scanResilienceManagement,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.azureresiliencemanagement", DiscoType: TypeResilienceUsagePlan},
-		},
 	})
 }
 

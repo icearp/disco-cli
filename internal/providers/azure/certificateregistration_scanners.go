@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/certificateregistration/armcertificateregistration"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCertificateOrder, Service: "microsoft.certificateregistration", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.certificateregistration",
 		fn:   scanCertificateRegistration,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.certificateregistration", DiscoType: TypeCertificateOrder, Leaf: true},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appplatform/armappplatform"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppPlatformService, Service: "microsoft.appplatform"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.appplatform",
 		fn:   scanAppPlatform,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.appplatform", DiscoType: TypeAppPlatformService},
-		},
 	})
 }
 

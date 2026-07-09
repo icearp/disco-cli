@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/devcenter/armdevcenter"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDevCenter, Service: "microsoft.devcenter", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDevCenterProject, Service: "microsoft.devcenter", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDevCenterNetworkConnection, Service: "microsoft.devcenter", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.devcenter",
 		fn:   scanDevCenter,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.devcenter", DiscoType: TypeDevCenter, Leaf: true},
-			{Service: "microsoft.devcenter", DiscoType: TypeDevCenterProject, Leaf: true},
-			{Service: "microsoft.devcenter", DiscoType: TypeDevCenterNetworkConnection, Leaf: true},
-		},
 	})
 }
 

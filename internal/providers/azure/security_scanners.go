@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/security/armsecurity"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSecurityPricing, Service: "microsoft.security"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.security",
 		fn:   scanSecurity,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.security", DiscoType: TypeSecurityPricing},
-		},
 	})
 }
 

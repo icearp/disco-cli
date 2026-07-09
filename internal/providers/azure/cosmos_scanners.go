@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCosmosDatabaseAccount, Service: "microsoft.documentdb"})
+	registerType(restype.Descriptor{Type: TypeCosmosCassandraCluster, Service: "microsoft.documentdb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCosmosRestorableDatabaseAccount, Service: "microsoft.documentdb", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.documentdb",
 		fn:   scanDocumentDBNamespace,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.documentdb", DiscoType: TypeCosmosDatabaseAccount},
-			{Service: "microsoft.documentdb", DiscoType: TypeCosmosCassandraCluster, Leaf: true},
-			{Service: "microsoft.documentdb", DiscoType: TypeCosmosRestorableDatabaseAccount, Leaf: true},
-		},
 	})
 }
 

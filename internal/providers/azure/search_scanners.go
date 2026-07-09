@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/search/armsearch"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSearchService, Service: "microsoft.search", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.search",
 		fn:   scanSearch,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges and private-endpoint → target edges are
-			// resolved centrally, so this service ships scanner-only.
-			{Service: "microsoft.search", DiscoType: TypeSearchService, Leaf: true},
-		},
 	})
 }
 

@@ -4,18 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc"
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		// resolvePostgreSQLHSCRelationships wires the CMK (Key Vault) edge
-		// below.
-		{Service: "microsoft.dbforpostgresql", DiscoType: TypePostgreSQLServerGroupV2},
-	}...)
+	registerType(restype.Descriptor{Type: TypePostgreSQLServerGroupV2, Service: "microsoft.dbforpostgresql", Redact: []redact.Rule{{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar}}})
 }
 
 // scanPostgreSQLHSC discovers Azure Cosmos DB for PostgreSQL (Citus) clusters.

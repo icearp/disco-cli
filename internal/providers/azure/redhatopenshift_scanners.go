@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redhatopenshift/armredhatopenshift"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOpenShiftCluster, Service: "microsoft.redhatopenshift", Leaf: true, Redact: []redact.Rule{{Path: "properties.servicePrincipalProfile.clientSecret", Mode: redact.RedactScalar}, {Path: "properties.clusterProfile.pullSecret", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.redhatopenshift",
 		fn:   scanRedHatOpenShift,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.redhatopenshift", DiscoType: TypeOpenShiftCluster, Leaf: true},
-		},
 	})
 }
 

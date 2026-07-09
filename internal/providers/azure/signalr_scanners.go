@@ -4,20 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/signalr/armsignalr"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSignalR, Service: "microsoft.signalrservice", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.signalrservice",
 		fn:   scanSignalRServiceNamespace,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI and private-endpoint edges resolve centrally.
-			{Service: "microsoft.signalrservice", DiscoType: TypeSignalR, Leaf: true},
-		},
 	})
 }
 

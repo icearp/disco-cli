@@ -4,22 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dataprotection/armdataprotection"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataProtectionBackupVault, Service: "microsoft.dataprotection", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataProtectionResourceGuard, Service: "microsoft.dataprotection", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.dataprotection",
 		fn:   scanDataProtection,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolve centrally; no other single-hop
-			// outbound edge, so both ship as leaves.
-			{Service: "microsoft.dataprotection", DiscoType: TypeDataProtectionBackupVault, Leaf: true},
-			{Service: "microsoft.dataprotection", DiscoType: TypeDataProtectionResourceGuard, Leaf: true},
-		},
 	})
 }
 

@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storagemover/armstoragemover"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStorageMover, Service: "microsoft.storagemover", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.storagemover",
 		fn:   scanStorageMover,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; storage/NFS endpoints are
-			// unscanned child resources, so the top-level mover ships scanner-only.
-			{Service: "microsoft.storagemover", DiscoType: TypeStorageMover, Leaf: true},
-		},
 	})
 }
 

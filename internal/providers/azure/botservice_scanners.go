@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/botservice/armbotservice"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBotServiceBot, Service: "microsoft.botservice", Leaf: true, Redact: []redact.Rule{{Path: "properties.luisKey", Mode: redact.RedactScalar}, {Path: "properties.developerAppInsightsApiKey", Mode: redact.RedactScalar}, {Path: "properties.publishingCredentials", Mode: redact.RedactScalar}, {Path: "properties.migrationToken", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.botservice",
 		fn:   scanBotService,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.botservice", DiscoType: TypeBotServiceBot, Leaf: true},
-		},
 	})
 }
 

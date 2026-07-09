@@ -6,7 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice"
@@ -15,21 +16,19 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppServiceServerFarm, Service: "microsoft.web"})
+	registerType(restype.Descriptor{Type: TypeAppServiceSite, Service: "microsoft.web", Redact: []redact.Rule{{Path: "properties.siteConfig.appSettings[*].value", Mode: redact.RedactScalar}, {Path: "properties.siteConfig.connectionStrings[*].connectionString", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAppServiceSiteSlot, Service: "microsoft.web", Redact: []redact.Rule{{Path: "properties.siteConfig.appSettings[*].value", Mode: redact.RedactScalar}, {Path: "properties.siteConfig.connectionStrings[*].connectionString", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAppServiceEnvironment, Service: "microsoft.web"})
+	registerType(restype.Descriptor{Type: TypeAppServiceEnvironmentWorkerPool, Service: "microsoft.web"})
+	registerType(restype.Descriptor{Type: TypeAppServiceEnvironmentMultiRolePool, Service: "microsoft.web"})
+	registerType(restype.Descriptor{Type: TypeAppServiceKubeEnvironment, Service: "microsoft.web"})
+	registerType(restype.Descriptor{Type: TypeAppServiceStaticSite, Service: "microsoft.web"})
+	registerType(restype.Descriptor{Type: TypeAppServiceStaticSiteBuild, Service: "microsoft.web"})
+	registerType(restype.Descriptor{Type: TypeAppServiceCertificate, Service: "microsoft.web"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.web",
 		fn:   scanAppService,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.web", DiscoType: TypeAppServiceServerFarm},
-			{Service: "microsoft.web", DiscoType: TypeAppServiceSite},
-			{Service: "microsoft.web", DiscoType: TypeAppServiceSiteSlot},
-			{Service: "microsoft.web", DiscoType: TypeAppServiceEnvironment},
-			{Service: "microsoft.web", DiscoType: TypeAppServiceEnvironmentWorkerPool},
-			{Service: "microsoft.web", DiscoType: TypeAppServiceEnvironmentMultiRolePool},
-			{Service: "microsoft.web", DiscoType: TypeAppServiceKubeEnvironment},
-			{Service: "microsoft.web", DiscoType: TypeAppServiceStaticSite},
-			{Service: "microsoft.web", DiscoType: TypeAppServiceStaticSiteBuild},
-			{Service: "microsoft.web", DiscoType: TypeAppServiceCertificate},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/batch/armbatch"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBatchAccount, Service: "microsoft.batch"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.batch",
 		fn:   scanBatch,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.batch", DiscoType: TypeBatchAccount},
-		},
 	})
 }
 

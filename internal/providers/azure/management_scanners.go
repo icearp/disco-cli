@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -15,19 +15,15 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeManagementGroup, Service: "microsoft.management"})
+	registerType(restype.Descriptor{Type: TypeSubscription, Service: "microsoft.resources"})
 	registerTenantService(tenantServiceEntry{
 		name: "azure:microsoft.management",
 		fn:   scanManagementTenant,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.management", DiscoType: TypeManagementGroup},
-		},
 	})
 	registerService(serviceEntry{
 		name: "azure:microsoft.resources",
 		fn:   scanSubscriptionResource,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.resources", DiscoType: TypeSubscription},
-		},
 	})
 }
 

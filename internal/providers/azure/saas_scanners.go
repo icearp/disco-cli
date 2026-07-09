@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/saas/armsaas"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSaaSApplication, Service: "microsoft.saas"})
+	registerType(restype.Descriptor{Type: TypeSaaSResource, Service: "microsoft.saas"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.saas",
 		fn:   scanSaaS,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.saas", DiscoType: TypeSaaSApplication},
-			{Service: "microsoft.saas", DiscoType: TypeSaaSResource},
-		},
 	})
 }
 

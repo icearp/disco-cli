@@ -4,16 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.network", DiscoType: TypeNetworkTrafficManagerProfile},
-	}...)
+	registerType(restype.Descriptor{Type: TypeNetworkTrafficManagerProfile, Service: "microsoft.network"})
 }
 
 // scanTrafficManager discovers Azure Traffic Manager profiles. Endpoints are

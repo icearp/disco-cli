@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/healthdataaiservices/armhealthdataaiservices"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHealthDataAIDeidService, Service: "microsoft.healthdataaiservices", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.healthdataaiservices",
 		fn:   scanHealthDataAIServices,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI and private-endpoint edges resolved centrally; the
-			// de-identification service ships scanner-only.
-			{Service: "microsoft.healthdataaiservices", DiscoType: TypeHealthDataAIDeidService, Leaf: true},
-		},
 	})
 }
 

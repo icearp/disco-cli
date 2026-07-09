@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
@@ -12,13 +12,14 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAuthorizationRoleAssignment, Service: "microsoft.authorization"})
+	registerType(restype.Descriptor{Type: TypeAuthorizationRoleDefinition, Service: "microsoft.authorization"})
+	registerType(restype.Descriptor{Type: TypeAuthorizationRoleDefinition, Service: "microsoft.authorization"})
+	registerType(restype.Descriptor{Type: TypePolicyDefinition, Service: "microsoft.authorization"})
+	registerType(restype.Descriptor{Type: TypePolicySetDefinition, Service: "microsoft.authorization"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.authorization",
 		fn:   scanAuthorizationNamespace,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.authorization", DiscoType: TypeAuthorizationRoleAssignment},
-			{Service: "microsoft.authorization", DiscoType: TypeAuthorizationRoleDefinition},
-		},
 	})
 	// Tenant phase: built-in role/policy/set defs are Microsoft-shipped and
 	// identical across every subscription. Fetched once per scan and stored
@@ -32,11 +33,6 @@ func init() {
 	registerTenantService(tenantServiceEntry{
 		name: "azure:microsoft.authorization",
 		fn:   scanAuthorizationBuiltins,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.authorization", DiscoType: TypeAuthorizationRoleDefinition},
-			{Service: "microsoft.authorization", DiscoType: TypePolicyDefinition},
-			{Service: "microsoft.authorization", DiscoType: TypePolicySetDefinition},
-		},
 	})
 }
 

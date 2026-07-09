@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databox/armdatabox"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataBoxJob, Service: "microsoft.databox", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.databox",
 		fn:   scanDataBox,
-		emits: []coverage.TypeDecl{
-			// Job destinations reference storage accounts only under
-			// expand=details (not fetched here), so scanner-only.
-			{Service: "microsoft.databox", DiscoType: TypeDataBoxJob, Leaf: true},
-		},
 	})
 }
 

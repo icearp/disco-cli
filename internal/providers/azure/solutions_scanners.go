@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/solutions/armmanagedapplications"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSolutionsApplicationDefinition, Service: "microsoft.solutions"})
+	registerType(restype.Descriptor{Type: TypeSolutionsApplication, Service: "microsoft.solutions"})
+	registerType(restype.Descriptor{Type: TypeSolutionsJitRequest, Service: "microsoft.solutions"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.solutions",
 		fn:   scanSolutions,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.solutions", DiscoType: TypeSolutionsApplicationDefinition},
-			{Service: "microsoft.solutions", DiscoType: TypeSolutionsApplication},
-			{Service: "microsoft.solutions", DiscoType: TypeSolutionsJitRequest},
-		},
 	})
 }
 

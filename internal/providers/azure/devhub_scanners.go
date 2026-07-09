@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/devhub/armdevhub"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDevHubWorkflow, Service: "microsoft.devhub", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.devhub",
 		fn:   scanDevHub,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.devhub", DiscoType: TypeDevHubWorkflow, Leaf: true},
-		},
 	})
 }
 

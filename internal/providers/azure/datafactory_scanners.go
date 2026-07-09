@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datafactory/armdatafactory"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataFactoryFactory, Service: "microsoft.datafactory"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.datafactory",
 		fn:   scanDataFactory,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.datafactory", DiscoType: TypeDataFactoryFactory},
-		},
 	})
 }
 

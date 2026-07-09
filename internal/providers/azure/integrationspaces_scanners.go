@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/integrationspaces/armintegrationspaces"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIntegrationSpace, Service: "microsoft.integrationspaces", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.integrationspaces",
 		fn:   scanIntegrationSpaces,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.integrationspaces", DiscoType: TypeIntegrationSpace, Leaf: true},
-		},
 	})
 }
 

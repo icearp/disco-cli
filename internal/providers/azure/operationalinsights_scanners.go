@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationalinsights/armoperationalinsights"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOpInsightsWorkspace, Service: "microsoft.operationalinsights"})
+	registerType(restype.Descriptor{Type: TypeOpInsightsCluster, Service: "microsoft.operationalinsights", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.operationalinsights",
 		fn:   scanOperationalInsights,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.operationalinsights", DiscoType: TypeOpInsightsWorkspace},
-			{Service: "microsoft.operationalinsights", DiscoType: TypeOpInsightsCluster, Leaf: true},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/elastic/armelastic"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeElasticMonitor, Service: "microsoft.elastic"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.elastic",
 		fn:   scanElastic,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.elastic", DiscoType: TypeElasticMonitor},
-		},
 	})
 }
 

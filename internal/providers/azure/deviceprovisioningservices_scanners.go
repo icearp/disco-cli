@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/deviceprovisioningservices/armdeviceprovisioningservices"
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.devices", DiscoType: TypeDevicesProvisioningService},
-	}...)
+	registerType(restype.Descriptor{Type: TypeDevicesProvisioningService, Service: "microsoft.devices", Redact: []redact.Rule{{Path: "properties.authorizationPolicies[*].primaryKey", Mode: redact.RedactScalar}, {Path: "properties.authorizationPolicies[*].secondaryKey", Mode: redact.RedactScalar}}})
 }
 
 // scanDeviceProvisioningServices discovers IoT Device Provisioning Service

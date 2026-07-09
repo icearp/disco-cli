@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
@@ -14,22 +14,20 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSQLManagedInstance, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLManagedDatabase, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLManagedDatabaseSecAlert, Service: "microsoft.sql", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeSQLManagedDatabaseTDE, Service: "microsoft.sql", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeSQLManagedDatabaseVA, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceAdmin, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceEP, Service: "microsoft.sql", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceKey, Service: "microsoft.sql", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeSQLManagedInstancePEC, Service: "microsoft.sql", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceVA, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLManagedServerSecurityAlert, Service: "microsoft.sql", Uncatalogued: true})
 	// Uncatalogued flags mark proxy child types disco scans that ARM
 	// Providers/List never lists as standalone resourceTypes (see
 	// azure/CLAUDE.md) — real resources absent from the upstream registry.
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstance},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabase},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseSecAlert, Uncatalogued: true},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseTDE, Uncatalogued: true},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseVA},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceAdmin},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceEP, Uncatalogued: true},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceKey, Uncatalogued: true},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstancePEC, Uncatalogued: true},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceVA},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedServerSecurityAlert, Uncatalogued: true},
-	)
 }
 
 // sqlManagedInstance holds the fields we need after listing managed instances.

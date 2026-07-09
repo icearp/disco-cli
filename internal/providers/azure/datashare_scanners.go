@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datashare/armdatashare"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataShareAccount, Service: "microsoft.datashare", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.datashare",
 		fn:   scanDataShare,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; the account carries no
-			// other in-scope reference, so this ships scanner-only.
-			{Service: "microsoft.datashare", DiscoType: TypeDataShareAccount, Leaf: true},
-		},
 	})
 }
 

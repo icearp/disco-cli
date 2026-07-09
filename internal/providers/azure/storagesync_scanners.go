@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storagesync/armstoragesync"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStorageSyncService, Service: "microsoft.storagesync", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.storagesync",
 		fn:   scanStorageSync,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.storagesync", DiscoType: TypeStorageSyncService, Leaf: true},
-		},
 	})
 }
 

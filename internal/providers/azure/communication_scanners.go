@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/communication/armcommunication/v2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCommunicationService, Service: "microsoft.communication", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCommunicationEmailService, Service: "microsoft.communication", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.communication",
 		fn:   scanCommunication,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.communication", DiscoType: TypeCommunicationService, Leaf: true},
-			{Service: "microsoft.communication", DiscoType: TypeCommunicationEmailService, Leaf: true},
-		},
 	})
 }
 

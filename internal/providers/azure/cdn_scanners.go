@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCDNProfile, Service: "microsoft.cdn"})
+	registerType(restype.Descriptor{Type: TypeCDNWAFPolicy, Service: "microsoft.cdn"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.cdn",
 		fn:   scanCDN,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.cdn", DiscoType: TypeCDNProfile},
-			{Service: "microsoft.cdn", DiscoType: TypeCDNWAFPolicy},
-		},
 	})
 }
 

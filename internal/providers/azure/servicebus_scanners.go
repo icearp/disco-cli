@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicebus/armservicebus"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeServiceBusNamespace, Service: "microsoft.servicebus"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.servicebus",
 		fn:   scanServiceBus,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.servicebus", DiscoType: TypeServiceBusNamespace},
-		},
 	})
 }
 

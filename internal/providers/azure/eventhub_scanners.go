@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEventHubNamespace, Service: "microsoft.eventhub"})
+	registerType(restype.Descriptor{Type: TypeEventHubCluster, Service: "microsoft.eventhub", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.eventhub",
 		fn:   scanEventHub,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.eventhub", DiscoType: TypeEventHubNamespace},
-			{Service: "microsoft.eventhub", DiscoType: TypeEventHubCluster, Leaf: true},
-		},
 	})
 }
 

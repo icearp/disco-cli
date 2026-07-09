@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appcontainers/armappcontainers/v3"
@@ -12,23 +13,19 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppContainersManagedEnvironment, Service: "microsoft.app"})
+	registerType(restype.Descriptor{Type: TypeAppContainersContainerApp, Service: "microsoft.app"})
+	registerType(restype.Descriptor{Type: TypeAppContainersConnectedEnvironment, Service: "microsoft.app"})
+	registerType(restype.Descriptor{Type: TypeAppContainersJob, Service: "microsoft.app", Redact: []redact.Rule{{Path: "properties.configuration.secrets[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAppContainersSessionPool, Service: "microsoft.app", Redact: []redact.Rule{{Path: "properties.secrets[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeContainerInstanceContainerGroup, Service: "microsoft.containerinstance"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.app",
 		fn:   scanContainerApps,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.app", DiscoType: TypeAppContainersManagedEnvironment},
-			{Service: "microsoft.app", DiscoType: TypeAppContainersContainerApp},
-			{Service: "microsoft.app", DiscoType: TypeAppContainersConnectedEnvironment},
-			{Service: "microsoft.app", DiscoType: TypeAppContainersJob},
-			{Service: "microsoft.app", DiscoType: TypeAppContainersSessionPool},
-		},
 	})
 	registerService(serviceEntry{
 		name: "azure:microsoft.containerinstance",
 		fn:   scanContainerInstance,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.containerinstance", DiscoType: TypeContainerInstanceContainerGroup},
-		},
 	})
 }
 

@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/machinelearning/armmachinelearning/v4"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMachineLearningWorkspace, Service: "microsoft.machinelearningservices"})
+	registerType(restype.Descriptor{Type: TypeMachineLearningRegistry, Service: "microsoft.machinelearningservices", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.machinelearningservices",
 		fn:   scanMachineLearning,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.machinelearningservices", DiscoType: TypeMachineLearningWorkspace},
-			{Service: "microsoft.machinelearningservices", DiscoType: TypeMachineLearningRegistry, Leaf: true},
-		},
 	})
 }
 

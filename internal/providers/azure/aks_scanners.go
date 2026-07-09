@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
@@ -12,14 +12,12 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeContainerServiceManagedCluster, Service: "microsoft.containerservice"})
+	registerType(restype.Descriptor{Type: TypeContainerServiceSnapshot, Service: "microsoft.containerservice"})
+	registerType(restype.Descriptor{Type: TypeContainerServiceFleet, Service: "microsoft.containerservice"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.containerservice",
 		fn:   scanAKS,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.containerservice", DiscoType: TypeContainerServiceManagedCluster},
-			{Service: "microsoft.containerservice", DiscoType: TypeContainerServiceSnapshot},
-			{Service: "microsoft.containerservice", DiscoType: TypeContainerServiceFleet},
-		},
 	})
 }
 

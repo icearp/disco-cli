@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMySQLFlexibleServer, Service: "microsoft.dbformysql", Redact: []redact.Rule{{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.dbformysql",
 		fn:   scanMySQL,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.dbformysql", DiscoType: TypeMySQLFlexibleServer},
-		},
 	})
 }
 

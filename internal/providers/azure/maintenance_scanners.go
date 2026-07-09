@@ -4,22 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/maintenance/armmaintenance"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMaintenanceConfiguration, Service: "microsoft.maintenance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMaintenanceConfigAssignment, Service: "microsoft.maintenance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMaintenancePublicConfiguration, Service: "microsoft.maintenance", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.maintenance",
 		fn:   scanMaintenance,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.maintenance", DiscoType: TypeMaintenanceConfiguration, Leaf: true},
-			{Service: "microsoft.maintenance", DiscoType: TypeMaintenanceConfigAssignment, Leaf: true},
-			// Public maintenance configurations are platform-supplied catalog.
-			{Service: "microsoft.maintenance", DiscoType: TypeMaintenancePublicConfiguration, Leaf: true},
-		},
 	})
 }
 

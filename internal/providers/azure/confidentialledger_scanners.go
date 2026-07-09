@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/confidentialledger/armconfidentialledger"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeConfidentialLedger, Service: "microsoft.confidentialledger", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.confidentialledger",
 		fn:   scanConfidentialLedger,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.confidentialledger", DiscoType: TypeConfidentialLedger, Leaf: true},
-		},
 	})
 }
 

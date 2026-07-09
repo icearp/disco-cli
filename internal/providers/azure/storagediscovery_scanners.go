@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storagediscovery/armstoragediscovery"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStorageDiscoveryWorkspace, Service: "microsoft.storagediscovery", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.storagediscovery",
 		fn:   scanStorageDiscovery,
-		emits: []coverage.TypeDecl{
-			// Workspace scopes reference storage accounts by ARM ID; that edge is a
-			// future enrichment — ships scanner-only for now.
-			{Service: "microsoft.storagediscovery", DiscoType: TypeStorageDiscoveryWorkspace, Leaf: true},
-		},
 	})
 }
 

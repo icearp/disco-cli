@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/logic/armlogic"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLogicWorkflow, Service: "microsoft.logic"})
+	registerType(restype.Descriptor{Type: TypeLogicIntegrationAccount, Service: "microsoft.logic"})
+	registerType(restype.Descriptor{Type: TypeLogicIntegrationServiceEnv, Service: "microsoft.logic"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.logic",
 		fn:   scanLogic,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.logic", DiscoType: TypeLogicWorkflow},
-			{Service: "microsoft.logic", DiscoType: TypeLogicIntegrationAccount},
-			{Service: "microsoft.logic", DiscoType: TypeLogicIntegrationServiceEnv},
-		},
 	})
 }
 

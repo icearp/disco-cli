@@ -4,27 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEventGridTopic, Service: "microsoft.eventgrid"})
+	registerType(restype.Descriptor{Type: TypeEventGridSystemTopic, Service: "microsoft.eventgrid"})
+	registerType(restype.Descriptor{Type: TypeEventGridDomain, Service: "microsoft.eventgrid"})
+	registerType(restype.Descriptor{Type: TypeEventGridEventSubscription, Service: "microsoft.eventgrid"})
+	registerType(restype.Descriptor{Type: TypeEventGridNamespace, Service: "microsoft.eventgrid", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventGridPartnerConfiguration, Service: "microsoft.eventgrid", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventGridPartnerNamespace, Service: "microsoft.eventgrid", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventGridPartnerRegistration, Service: "microsoft.eventgrid", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventGridPartnerTopic, Service: "microsoft.eventgrid", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.eventgrid",
 		fn:   scanEventGrid,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridTopic},
-			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridSystemTopic},
-			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridDomain},
-			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridEventSubscription},
-			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridNamespace, Leaf: true},
-			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridPartnerConfiguration, Leaf: true},
-			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridPartnerNamespace, Leaf: true},
-			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridPartnerRegistration, Leaf: true},
-			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridPartnerTopic, Leaf: true},
-		},
 	})
 }
 

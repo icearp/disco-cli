@@ -4,20 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/healthbot/armhealthbot"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHealthBot, Service: "microsoft.healthbot", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.healthbot",
 		fn:   scanHealthBot,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; the bot ships scanner-only.
-			{Service: "microsoft.healthbot", DiscoType: TypeHealthBot, Leaf: true},
-		},
 	})
 }
 

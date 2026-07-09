@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/digitaltwins/armdigitaltwins"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDigitalTwinsInstance, Service: "microsoft.digitaltwins", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.digitaltwins",
 		fn:   scanDigitalTwins,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.digitaltwins", DiscoType: TypeDigitalTwinsInstance, Leaf: true},
-		},
 	})
 }
 

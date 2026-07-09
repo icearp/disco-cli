@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/automation/armautomation"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAutomationAccount, Service: "microsoft.automation"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.automation",
 		fn:   scanAutomation,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.automation", DiscoType: TypeAutomationAccount},
-		},
 	})
 }
 

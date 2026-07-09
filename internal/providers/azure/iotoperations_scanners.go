@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iotoperations/armiotoperations"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIoTOperationsInstance, Service: "microsoft.iotoperations", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.iotoperations",
 		fn:   scanIoTOperations,
-		emits: []coverage.TypeDecl{
-			// Custom-location + MSI edges wired centrally; the AIO instance is
-			// the root and ships scanner-only.
-			{Service: "microsoft.iotoperations", DiscoType: TypeIoTOperationsInstance, Leaf: true},
-		},
 	})
 }
 

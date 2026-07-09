@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/largeinstance/armlargeinstance"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLargeInstance, Service: "microsoft.azurelargeinstance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLargeInstanceStorage, Service: "microsoft.azurelargeinstance", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azurelargeinstance",
 		fn:   scanLargeInstance,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.azurelargeinstance", DiscoType: TypeLargeInstance, Leaf: true},
-			{Service: "microsoft.azurelargeinstance", DiscoType: TypeLargeInstanceStorage, Leaf: true},
-		},
 	})
 }
 

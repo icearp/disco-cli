@@ -4,21 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iothub/armiothub"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIoTHub, Service: "microsoft.devices", Leaf: true, Redact: []redact.Rule{{Path: "properties.authorizationPolicies[*].primaryKey", Mode: redact.RedactScalar}, {Path: "properties.authorizationPolicies[*].secondaryKey", Mode: redact.RedactScalar}, {Path: "properties.routing.endpoints.eventHubs[*].connectionString", Mode: redact.RedactScalar}, {Path: "properties.routing.endpoints.serviceBusQueues[*].connectionString", Mode: redact.RedactScalar}, {Path: "properties.routing.endpoints.serviceBusTopics[*].connectionString", Mode: redact.RedactScalar}, {Path: "properties.routing.endpoints.storageContainers[*].connectionString", Mode: redact.RedactScalar}, {Path: "properties.routing.endpoints.cosmosDBSqlContainers[*].primaryKey", Mode: redact.RedactScalar}, {Path: "properties.storageEndpoints.*.connectionString", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.devices",
 		fn:   scanDevicesNamespace,
-		emits: []coverage.TypeDecl{
-			// Routing endpoints reference Event Hubs / Service Bus / Storage by
-			// connection string, not ARM ID; identity edges resolve centrally.
-			{Service: "microsoft.devices", DiscoType: TypeIoTHub, Leaf: true},
-		},
 	})
 }
 

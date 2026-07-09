@@ -4,20 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sqlvirtualmachine/armsqlvirtualmachine"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSQLVirtualMachine, Service: "microsoft.sqlvirtualmachine", Leaf: true, Redact: []redact.Rule{{Path: "properties.autoBackupSettings.password", Mode: redact.RedactScalar}, {Path: "properties.autoBackupSettings.storageAccessKey", Mode: redact.RedactScalar}, {Path: "properties.keyVaultCredentialSettings.servicePrincipalSecret", Mode: redact.RedactScalar}, {Path: "properties.wsfcDomainCredentials.clusterBootstrapAccountPassword", Mode: redact.RedactScalar}, {Path: "properties.wsfcDomainCredentials.clusterOperatorAccountPassword", Mode: redact.RedactScalar}, {Path: "properties.wsfcDomainCredentials.sqlServiceAccountPassword", Mode: redact.RedactScalar}, {Path: "properties.serverConfigurationsManagementSettings.sqlConnectivityUpdateSettings.sqlAuthUpdatePassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSQLVirtualMachineGroup, Service: "microsoft.sqlvirtualmachine", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.sqlvirtualmachine",
 		fn:   scanSQLVirtualMachine,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.sqlvirtualmachine", DiscoType: TypeSQLVirtualMachine, Leaf: true},
-			{Service: "microsoft.sqlvirtualmachine", DiscoType: TypeSQLVirtualMachineGroup, Leaf: true},
-		},
 	})
 }
 

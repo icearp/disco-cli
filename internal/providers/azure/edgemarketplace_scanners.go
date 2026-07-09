@@ -5,20 +5,18 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgemarketplace/armedgemarketplace"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEdgeMarketplaceOffer, Service: "microsoft.edgemarketplace", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEdgeMarketplacePublisher, Service: "microsoft.edgemarketplace", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.edgemarketplace",
 		fn:   scanEdgeMarketplace,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.edgemarketplace", DiscoType: TypeEdgeMarketplaceOffer, Leaf: true},
-			{Service: "microsoft.edgemarketplace", DiscoType: TypeEdgeMarketplacePublisher, Leaf: true},
-		},
 	})
 }
 

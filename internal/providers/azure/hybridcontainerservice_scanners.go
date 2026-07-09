@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridcontainerservice/armhybridcontainerservice"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHybridContainerVirtualNetwork, Service: "microsoft.hybridcontainerservice", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hybridcontainerservice",
 		fn:   scanHybridContainerService,
-		emits: []coverage.TypeDecl{
-			// Custom-location edge wired centrally; the logical network ships
-			// scanner-only.
-			{Service: "microsoft.hybridcontainerservice", DiscoType: TypeHybridContainerVirtualNetwork, Leaf: true},
-		},
 	})
 }
 

@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHDInsightCluster, Service: "microsoft.hdinsight", Redact: []redact.Rule{{Path: "properties.computeProfile.roles[*].osProfile.linuxOperatingSystemProfile.password", Mode: redact.RedactScalar}, {Path: "properties.securityProfile.domainUserPassword", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hdinsight",
 		fn:   scanHDInsight,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.hdinsight", DiscoType: TypeHDInsightCluster},
-		},
 	})
 }
 

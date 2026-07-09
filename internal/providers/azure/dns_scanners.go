@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
@@ -14,13 +14,11 @@ import (
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.network", DiscoType: TypeDNSZone},
-		{Service: "microsoft.network", DiscoType: TypeDNSRecordSet},
-		{Service: "microsoft.network", DiscoType: TypeDNSPrivateZone},
-		{Service: "microsoft.network", DiscoType: TypeDNSPrivateRecordSet},
-		{Service: "microsoft.network", DiscoType: TypeDNSPrivateZoneVNetLink},
-	}...)
+	registerType(restype.Descriptor{Type: TypeDNSZone, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeDNSRecordSet, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeDNSPrivateZone, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeDNSPrivateRecordSet, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeDNSPrivateZoneVNetLink, Service: "microsoft.network"})
 }
 
 // dnsZoneRef captures a zone's RG + name + disco resource ID — shared by

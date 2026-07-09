@@ -4,22 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridcompute/armhybridcompute"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHybridComputeMachine, Service: "microsoft.hybridcompute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHybridComputePrivateLinkScope, Service: "microsoft.hybridcompute", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hybridcompute",
 		fn:   scanHybridCompute,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; Arc machines / private-link
-			// scopes carry no other in-scope ARM-ID reference, so scanner-only.
-			{Service: "microsoft.hybridcompute", DiscoType: TypeHybridComputeMachine, Leaf: true},
-			{Service: "microsoft.hybridcompute", DiscoType: TypeHybridComputePrivateLinkScope, Leaf: true},
-		},
 	})
 }
 

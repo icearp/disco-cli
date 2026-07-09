@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeManagedIdentityUserAssigned, Service: "microsoft.managedidentity"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.managedidentity",
 		fn:   scanManagedIdentity,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.managedidentity", DiscoType: TypeManagedIdentityUserAssigned},
-		},
 	})
 }
 

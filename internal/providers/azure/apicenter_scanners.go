@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/apicenter/armapicenter"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAPICenterService, Service: "microsoft.apicenter", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.apicenter",
 		fn:   scanAPICenter,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.apicenter", DiscoType: TypeAPICenterService, Leaf: true},
-		},
 	})
 }
 

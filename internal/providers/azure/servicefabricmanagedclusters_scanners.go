@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicefabricmanagedclusters/armservicefabricmanagedclusters"
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.servicefabric", DiscoType: TypeServiceFabricManagedCluster},
-	}...)
+	registerType(restype.Descriptor{Type: TypeServiceFabricManagedCluster, Service: "microsoft.servicefabric", Redact: []redact.Rule{{Path: "properties.adminPassword", Mode: redact.RedactScalar}}})
 }
 
 // scanServiceFabricManagedClusters discovers Service Fabric managed clusters.

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/springappdiscovery/armspringappdiscovery"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSpringbootSite, Service: "microsoft.offazurespringboot", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.offazurespringboot",
 		fn:   scanSpringAppDiscovery,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.offazurespringboot", DiscoType: TypeSpringbootSite, Leaf: true},
-		},
 	})
 }
 

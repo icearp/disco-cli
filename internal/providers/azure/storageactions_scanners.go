@@ -4,22 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storageactions/armstorageactions"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStorageActionsTask, Service: "microsoft.storageactions", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.storageactions",
 		fn:   scanStorageActions,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; task-to-storage-account
-			// assignment is a separate unscanned child resource, so the task
-			// definition ships scanner-only.
-			{Service: "microsoft.storageactions", DiscoType: TypeStorageActionsTask, Leaf: true},
-		},
 	})
 }
 

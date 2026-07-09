@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
@@ -12,13 +12,11 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStorageStorageAccount, Service: "microsoft.storage"})
+	registerType(restype.Descriptor{Type: TypeStorageStorageTask, Service: "microsoft.storage", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.storage",
 		fn:   scanStorage,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.storage", DiscoType: TypeStorageStorageAccount},
-			{Service: "microsoft.storage", DiscoType: TypeStorageStorageTask, Leaf: true},
-		},
 	})
 }
 

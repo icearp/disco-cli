@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armpolicy"
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.authorization", DiscoType: TypePolicyDefinition},
-		{Service: "microsoft.authorization", DiscoType: TypePolicySetDefinition},
-		{Service: "microsoft.authorization", DiscoType: TypePolicyAssignment},
-	}...)
+	registerType(restype.Descriptor{Type: TypePolicyDefinition, Service: "microsoft.authorization"})
+	registerType(restype.Descriptor{Type: TypePolicySetDefinition, Service: "microsoft.authorization"})
+	registerType(restype.Descriptor{Type: TypePolicyAssignment, Service: "microsoft.authorization"})
 }
 
 // scanPolicy discovers Azure Policy definitions, set definitions, and

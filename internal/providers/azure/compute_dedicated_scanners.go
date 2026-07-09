@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -14,12 +14,10 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeHostGroup},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeDedicatedHost},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeCapacityReservationGroup},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeCapacityReservation},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeHostGroup, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeDedicatedHost, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeCapacityReservationGroup, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeCapacityReservation, Service: "microsoft.compute"})
 }
 
 // hostGroupEntry holds the identifying fields of a dedicated host group for child scans.

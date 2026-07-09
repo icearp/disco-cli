@@ -4,25 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/desktopvirtualization/armdesktopvirtualization/v2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDVCHostPool, Service: "microsoft.desktopvirtualization", Leaf: true, Redact: []redact.Rule{{Path: "properties.registrationInfo.token", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeDVCApplicationGroup, Service: "microsoft.desktopvirtualization"})
+	registerType(restype.Descriptor{Type: TypeDVCWorkspace, Service: "microsoft.desktopvirtualization"})
+	registerType(restype.Descriptor{Type: TypeDVCScalingPlan, Service: "microsoft.desktopvirtualization"})
+	registerType(restype.Descriptor{Type: TypeDesktopVirtAppAttachPackage, Service: "microsoft.desktopvirtualization", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.desktopvirtualization",
 		fn:   scanDesktopVirtualization,
-		emits: []coverage.TypeDecl{
-			// App-group/workspace/scaling-plan are resolver sources (see
-			// desktopvirtualization_resolvers.go) — not Leaf.
-			{Service: "microsoft.desktopvirtualization", DiscoType: TypeDVCHostPool, Leaf: true},
-			{Service: "microsoft.desktopvirtualization", DiscoType: TypeDVCApplicationGroup},
-			{Service: "microsoft.desktopvirtualization", DiscoType: TypeDVCWorkspace},
-			{Service: "microsoft.desktopvirtualization", DiscoType: TypeDVCScalingPlan},
-			{Service: "microsoft.desktopvirtualization", DiscoType: TypeDesktopVirtAppAttachPackage, Leaf: true},
-		},
 	})
 }
 

@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridnetwork/armhybridnetwork"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHybridNetworkFunction, Service: "microsoft.hybridnetwork", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHybridNetworkDevice, Service: "microsoft.hybridnetwork", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hybridnetwork",
 		fn:   scanHybridNetwork,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.hybridnetwork", DiscoType: TypeHybridNetworkFunction, Leaf: true},
-			{Service: "microsoft.hybridnetwork", DiscoType: TypeHybridNetworkDevice, Leaf: true},
-		},
 	})
 }
 

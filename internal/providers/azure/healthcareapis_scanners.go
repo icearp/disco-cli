@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/healthcareapis/armhealthcareapis"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHealthcareAPIsService, Service: "microsoft.healthcareapis", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHealthcareAPIsWorkspace, Service: "microsoft.healthcareapis", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.healthcareapis",
 		fn:   scanHealthcareAPIs,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.healthcareapis", DiscoType: TypeHealthcareAPIsService, Leaf: true},
-			{Service: "microsoft.healthcareapis", DiscoType: TypeHealthcareAPIsWorkspace, Leaf: true},
-		},
 	})
 }
 

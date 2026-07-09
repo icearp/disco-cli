@@ -4,33 +4,29 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLElasticPool},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLFailoverGroup},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLJobAgent},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLRestorableDroppedDB},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLEncryptionProtector},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerAdministrator},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerKey},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerAdvancedThreatProt},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerSecurityAlert},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerVulnAssessment},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerAuditingSettings},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerExtAuditingSettings},
-		// Uncatalogued: disco scans this proxy child, but ARM Providers/List
-		// doesn't enumerate servers/devOpsAuditingSettings as a standalone resourceType.
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerDevOpsAuditSettings, Uncatalogued: true},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerDNSAlias},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLSyncAgent},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLVirtualNetworkRule},
-	)
+	registerType(restype.Descriptor{Type: TypeSQLElasticPool, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLFailoverGroup, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLJobAgent, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLRestorableDroppedDB, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLEncryptionProtector, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLServerAdministrator, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLServerKey, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLServerAdvancedThreatProt, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLServerSecurityAlert, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLServerVulnAssessment, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLServerAuditingSettings, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLServerExtAuditingSettings, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLServerDevOpsAuditSettings, Service: "microsoft.sql", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeSQLServerDNSAlias, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLSyncAgent, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLVirtualNetworkRule, Service: "microsoft.sql"})
 }
 
 // sqlChildExtract is each child scanner's extractor output: id, name, plus optional

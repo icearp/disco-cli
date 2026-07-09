@@ -4,20 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/onlineexperimentation/armonlineexperimentation"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOnlineExperimentationWorkspace, Service: "microsoft.onlineexperimentation", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.onlineexperimentation",
 		fn:   scanOnlineExperimentation,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; workspace ships scanner-only.
-			{Service: "microsoft.onlineexperimentation", DiscoType: TypeOnlineExperimentationWorkspace, Leaf: true},
-		},
 	})
 }
 

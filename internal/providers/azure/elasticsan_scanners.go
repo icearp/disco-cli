@@ -4,22 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/elasticsan/armelasticsan"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeElasticSan, Service: "microsoft.elasticsan", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.elasticsan",
 		fn:   scanElasticSan,
-		emits: []coverage.TypeDecl{
-			// Private-endpoint → target edges resolved centrally; CMK/network
-			// settings live on the child VolumeGroup (not scanned), so the SAN
-			// itself ships scanner-only.
-			{Service: "microsoft.elasticsan", DiscoType: TypeElasticSan, Leaf: true},
-		},
 	})
 }
 

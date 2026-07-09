@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/analysisservices/armanalysisservices"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAnalysisServicesServer, Service: "microsoft.analysisservices", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.analysisservices",
 		fn:   scanAnalysisServices,
-		emits: []coverage.TypeDecl{
-			// Backup storage is referenced by blob URI (not an ARM ID), so the
-			// server ships scanner-only.
-			{Service: "microsoft.analysisservices", DiscoType: TypeAnalysisServicesServer, Leaf: true},
-		},
 	})
 }
 

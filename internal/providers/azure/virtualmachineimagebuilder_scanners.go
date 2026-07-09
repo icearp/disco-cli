@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeVMImageBuilderImageTemplate, Service: "microsoft.virtualmachineimages"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.virtualmachineimages",
 		fn:   scanVMImageBuilder,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.virtualmachineimages", DiscoType: TypeVMImageBuilderImageTemplate},
-		},
 	})
 }
 

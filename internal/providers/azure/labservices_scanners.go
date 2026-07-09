@@ -4,20 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/labservices/armlabservices"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLabServicesLab, Service: "microsoft.labservices", Leaf: true, Redact: []redact.Rule{{Path: "properties.virtualMachineProfile.adminUser.password", Mode: redact.RedactScalar}, {Path: "properties.virtualMachineProfile.nonAdminUser.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeLabServicesLabPlan, Service: "microsoft.labservices", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.labservices",
 		fn:   scanLabServices,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.labservices", DiscoType: TypeLabServicesLab, Leaf: true},
-			{Service: "microsoft.labservices", DiscoType: TypeLabServicesLabPlan, Leaf: true},
-		},
 	})
 }
 

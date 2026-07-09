@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurestackhci/armazurestackhci"
@@ -12,22 +12,17 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAzureStackHCICluster, Service: "microsoft.azurestackhci", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCIGalleryImage, Service: "microsoft.azurestackhci", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCILogicalNetwork, Service: "microsoft.azurestackhci", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCIMarketplaceGalleryImage, Service: "microsoft.azurestackhci", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCINetworkInterface, Service: "microsoft.azurestackhci", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCINetworkSecurityGroup, Service: "microsoft.azurestackhci", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCIStorageContainer, Service: "microsoft.azurestackhci", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCIVirtualHardDisk, Service: "microsoft.azurestackhci", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azurestackhci",
 		fn:   scanAzureStackHCI,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.azurestackhci", DiscoType: TypeAzureStackHCICluster, Leaf: true},
-			// Azure Local VM/network/storage family (armazurestackhcivm). All
-			// carry an extendedLocation envelope → central
-			// resolveExtendedLocationConsumers wires them to their custom-location.
-			{Service: "microsoft.azurestackhci", DiscoType: TypeAzureStackHCIGalleryImage, Leaf: true},
-			{Service: "microsoft.azurestackhci", DiscoType: TypeAzureStackHCILogicalNetwork, Leaf: true},
-			{Service: "microsoft.azurestackhci", DiscoType: TypeAzureStackHCIMarketplaceGalleryImage, Leaf: true},
-			{Service: "microsoft.azurestackhci", DiscoType: TypeAzureStackHCINetworkInterface, Leaf: true},
-			{Service: "microsoft.azurestackhci", DiscoType: TypeAzureStackHCINetworkSecurityGroup, Leaf: true},
-			{Service: "microsoft.azurestackhci", DiscoType: TypeAzureStackHCIStorageContainer, Leaf: true},
-			{Service: "microsoft.azurestackhci", DiscoType: TypeAzureStackHCIVirtualHardDisk, Leaf: true},
-		},
 	})
 }
 

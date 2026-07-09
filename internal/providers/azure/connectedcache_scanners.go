@@ -4,22 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedcache/armconnectedcache"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeConnectedCacheEnterpriseCustomer, Service: "microsoft.connectedcache", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectedCacheIspCustomer, Service: "microsoft.connectedcache", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.connectedcache",
 		fn:   scanConnectedCache,
-		emits: []coverage.TypeDecl{
-			// Enterprise / ISP MCC customer roots; their cache nodes are
-			// parent-scoped (DEFER). Scanner-only.
-			{Service: "microsoft.connectedcache", DiscoType: TypeConnectedCacheEnterpriseCustomer, Leaf: true},
-			{Service: "microsoft.connectedcache", DiscoType: TypeConnectedCacheIspCustomer, Leaf: true},
-		},
 	})
 }
 

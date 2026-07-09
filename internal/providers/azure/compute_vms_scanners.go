@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -15,10 +15,8 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVirtualMachine},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMExtension},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeVirtualMachine, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeVMExtension, Service: "microsoft.compute"})
 }
 
 func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {

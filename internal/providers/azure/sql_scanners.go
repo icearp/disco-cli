@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
@@ -19,15 +20,13 @@ import (
 // Managed instance + managed database scanners: sql_managed_scanners.go.
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSQLServer, Service: "microsoft.sql", Redact: []redact.Rule{{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSQLDatabase, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLVirtualCluster, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLInstancePool, Service: "microsoft.sql"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.sql",
 		fn:   scanSQL,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.sql", DiscoType: TypeSQLServer},
-			{Service: "microsoft.sql", DiscoType: TypeSQLDatabase},
-			{Service: "microsoft.sql", DiscoType: TypeSQLVirtualCluster},
-			{Service: "microsoft.sql", DiscoType: TypeSQLInstancePool},
-		},
 	})
 }
 

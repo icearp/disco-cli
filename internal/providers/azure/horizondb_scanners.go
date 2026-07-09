@@ -4,22 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHorizonDBCluster, Service: "microsoft.horizondb", Leaf: true, Redact: []redact.Rule{{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeHorizonDBParameterGroup, Service: "microsoft.horizondb", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.horizondb",
 		fn:   scanHorizonDB,
-		emits: []coverage.TypeDecl{
-			// Private-endpoint → target edges resolved centrally; carries no
-			// other in-scope ARM-ID reference, so both ship scanner-only.
-			{Service: "microsoft.horizondb", DiscoType: TypeHorizonDBCluster, Leaf: true},
-			{Service: "microsoft.horizondb", DiscoType: TypeHorizonDBParameterGroup, Leaf: true},
-		},
 	})
 }
 

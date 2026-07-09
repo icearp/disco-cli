@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicefabric/armservicefabric"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeServiceFabricCluster, Service: "microsoft.servicefabric", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.servicefabric",
 		fn:   scanServiceFabricNamespace,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.servicefabric", DiscoType: TypeServiceFabricCluster, Leaf: true},
-		},
 	})
 }
 

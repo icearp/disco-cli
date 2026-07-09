@@ -4,23 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/automanage/armautomanage"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAutomanageConfigProfile, Service: "microsoft.automanage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAutomanageBestPractice, Service: "microsoft.automanage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAutomanageConfigProfileAssignment, Service: "microsoft.automanage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAutomanageServicePrincipal, Service: "microsoft.automanage", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.automanage",
 		fn:   scanAutomanage,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.automanage", DiscoType: TypeAutomanageConfigProfile, Leaf: true},
-			// Best practices are platform-supplied (tenant-listed, non-deletable).
-			{Service: "microsoft.automanage", DiscoType: TypeAutomanageBestPractice, Leaf: true},
-			{Service: "microsoft.automanage", DiscoType: TypeAutomanageConfigProfileAssignment, Leaf: true},
-			{Service: "microsoft.automanage", DiscoType: TypeAutomanageServicePrincipal, Leaf: true},
-		},
 	})
 }
 

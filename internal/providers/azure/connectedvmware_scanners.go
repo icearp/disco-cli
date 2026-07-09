@@ -4,28 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedvmware/armconnectedvmware"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareVCenter, Service: "microsoft.connectedvmwarevsphere", Leaf: true, Redact: []redact.Rule{{Path: "properties.credentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareCluster, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareDatastore, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareHost, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareResourcePool, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareVMTemplate, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareVirtualNetwork, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.connectedvmwarevsphere",
 		fn:   scanConnectedVMware,
-		emits: []coverage.TypeDecl{
-			// vCenter is the Arc-VMware root; the inventory resources below all
-			// carry an extendedLocation envelope → custom-location edge wired
-			// centrally. No other in-scope ARM-ID reference, so all ship Leaf.
-			{Service: "microsoft.connectedvmwarevsphere", DiscoType: TypeConnectedVMwareVCenter, Leaf: true},
-			{Service: "microsoft.connectedvmwarevsphere", DiscoType: TypeConnectedVMwareCluster, Leaf: true},
-			{Service: "microsoft.connectedvmwarevsphere", DiscoType: TypeConnectedVMwareDatastore, Leaf: true},
-			{Service: "microsoft.connectedvmwarevsphere", DiscoType: TypeConnectedVMwareHost, Leaf: true},
-			{Service: "microsoft.connectedvmwarevsphere", DiscoType: TypeConnectedVMwareResourcePool, Leaf: true},
-			{Service: "microsoft.connectedvmwarevsphere", DiscoType: TypeConnectedVMwareVMTemplate, Leaf: true},
-			{Service: "microsoft.connectedvmwarevsphere", DiscoType: TypeConnectedVMwareVirtualNetwork, Leaf: true},
-		},
 	})
 }
 

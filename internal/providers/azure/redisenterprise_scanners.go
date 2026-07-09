@@ -4,16 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.cache", DiscoType: TypeRedisEnterpriseCluster, Leaf: true},
-	}...)
+	registerType(restype.Descriptor{Type: TypeRedisEnterpriseCluster, Service: "microsoft.cache", Leaf: true})
 }
 
 // scanRedisEnterprise discovers Azure Cache for Redis Enterprise clusters.

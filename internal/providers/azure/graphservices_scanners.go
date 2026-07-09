@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/graphservices/armgraphservices"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGraphServicesAccount, Service: "microsoft.graphservices", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.graphservices",
 		fn:   scanGraphServices,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.graphservices", DiscoType: TypeGraphServicesAccount, Leaf: true},
-		},
 	})
 }
 

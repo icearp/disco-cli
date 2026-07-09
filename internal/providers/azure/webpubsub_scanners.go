@@ -4,17 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/webpubsub/armwebpubsub"
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		// Identity → MSI and private-endpoint edges resolve centrally.
-		{Service: "microsoft.signalrservice", DiscoType: TypeWebPubSub, Leaf: true},
-	}...)
+	registerType(restype.Descriptor{Type: TypeWebPubSub, Service: "microsoft.signalrservice", Leaf: true})
 }
 
 // scanWebPubSub discovers Azure Web PubSub resources.

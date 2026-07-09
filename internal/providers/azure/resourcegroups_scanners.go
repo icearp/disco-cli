@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeResourcesResourceGroup, Service: "resources"})
 	// scanResourceGroups runs once per subscription, invoked directly from
 	// azure.go (not via registerService) since it pre-seeds RG parents every
 	// other scanner depends on. Emits declared via registerExtraEmits.
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "resources", DiscoType: TypeResourcesResourceGroup},
-	)
 }
 
 // scanResourceGroups discovers all resource groups in a subscription and

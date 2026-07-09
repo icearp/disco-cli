@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridkubernetes/armhybridkubernetes"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKubernetesConnectedCluster, Service: "microsoft.kubernetes", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.kubernetes",
 		fn:   scanHybridKubernetes,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; the connected cluster is
-			// the Arc-K8s root, so this ships scanner-only.
-			{Service: "microsoft.kubernetes", DiscoType: TypeKubernetesConnectedCluster, Leaf: true},
-		},
 	})
 }
 

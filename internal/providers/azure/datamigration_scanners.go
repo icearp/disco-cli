@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datamigration/armdatamigration"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataMigrationService, Service: "microsoft.datamigration"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.datamigration",
 		fn:   scanDataMigration,
-		emits: []coverage.TypeDecl{
-			// resolveDataMigrationRelationships wires the virtualSubnetId (VNet)
-			// edge below.
-			{Service: "microsoft.datamigration", DiscoType: TypeDataMigrationService},
-		},
 	})
 }
 

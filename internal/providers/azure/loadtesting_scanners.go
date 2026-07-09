@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/loadtesting/armloadtesting"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLoadTest, Service: "microsoft.loadtestservice", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.loadtestservice",
 		fn:   scanLoadTesting,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI edges resolved centrally; CMK is referenced by key
-			// URI (preserved by omission), so the load test ships scanner-only.
-			{Service: "microsoft.loadtestservice", DiscoType: TypeLoadTest, Leaf: true},
-		},
 	})
 }
 

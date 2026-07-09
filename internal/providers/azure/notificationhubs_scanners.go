@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/notificationhubs/armnotificationhubs"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNotificationHubNamespace, Service: "microsoft.notificationhubs", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.notificationhubs",
 		fn:   scanNotificationHubs,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.notificationhubs", DiscoType: TypeNotificationHubNamespace, Leaf: true},
-		},
 	})
 }
 

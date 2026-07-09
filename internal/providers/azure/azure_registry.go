@@ -8,26 +8,36 @@ import (
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
-// extraEmits accumulates disco-type decls for non-serviceEntry sources —
-// child scanner files of multi-file services (compute_*, sql_*, dns_*) and
-// resolver-side synthetic stubs.
-var extraEmits []coverage.TypeDecl
+// registeredDescriptors holds every type declared via the unified registerType
+// path. Source for the TestNoDoubleDeclaredTypes guard. Azure aliases stay in
+// azureAPITypeMap (it is both the alias source and the mirror-test truth, and
+// carries multiple upstream keys per type), so descriptors set no Upstream.
+var registeredDescriptors []restype.Descriptor
 
-// registerExtraEmits is for non-serviceEntry sources of disco types. Call
-// from init() in the file that owns the upsert site.
-func registerExtraEmits(decls ...coverage.TypeDecl) {
-	extraEmits = append(extraEmits, decls...)
+// descriptorEmits accumulates the coverage decls produced by registerType,
+// kept separate from extraEmits so the migration guard can tell descriptor-
+// declared types apart from legacy-declared ones.
+var descriptorEmits []coverage.TypeDecl
+
+// registerType is the unified per-type registration: it records the descriptor
+// and forwards its field rules into the shared redact/volatile/managed engines
+// via restype.Emit, whose coverage decl joins descriptorEmits so CollectEmits
+// surfaces it. Call from the init() of the file owning the type's upsert.
+func registerType(d restype.Descriptor) {
+	registeredDescriptors = append(registeredDescriptors, d)
+	descriptorEmits = append(descriptorEmits, restype.Emit(d))
 }
 
 // CollectEmits returns the deduped union of every emits decl registered
 // across the Azure package. Consumed by the coverage.Provider impl.
 func CollectEmits() []coverage.TypeDecl {
 	out := make([]coverage.TypeDecl, 0, 128)
-	out = append(out, extraEmits...)
+	out = append(out, descriptorEmits...)
 	for _, s := range registeredServices {
 		out = append(out, s.emits...)
 	}

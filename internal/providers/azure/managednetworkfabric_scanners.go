@@ -5,35 +5,34 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managednetworkfabric/armmanagednetworkfabric"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricACL, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabric, Service: "microsoft.managednetworkfabric", Leaf: true, Redact: []redact.Rule{{Path: "properties.terminalServerConfiguration.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricInternetGwRule, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricInternetGateway, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricIPCommunity, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricIPExtCommunity, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricIPPrefix, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricL2IsolationDom, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricL3IsolationDom, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricNeighborGroup, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricNetworkDevice, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricController, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricPacketBroker, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricRack, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricNetworkTapRule, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricNetworkTap, Service: "microsoft.managednetworkfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedNetworkFabricRoutePolicy, Service: "microsoft.managednetworkfabric", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.managednetworkfabric",
 		fn:   scanManagedNetworkFabric,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricACL, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabric, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricInternetGwRule, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricInternetGateway, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricIPCommunity, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricIPExtCommunity, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricIPPrefix, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricL2IsolationDom, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricL3IsolationDom, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricNeighborGroup, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricNetworkDevice, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricController, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricPacketBroker, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricRack, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricNetworkTapRule, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricNetworkTap, Leaf: true},
-			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricRoutePolicy, Leaf: true},
-		},
 	})
 }
 

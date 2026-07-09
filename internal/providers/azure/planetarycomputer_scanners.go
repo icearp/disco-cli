@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/planetarycomputer/armplanetarycomputer"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOrbitalGeoCatalog, Service: "microsoft.orbital"})
 	// Microsoft.Orbital/geoCatalogs (Planetary Computer Pro) is the only live
 	// type left in Microsoft.Orbital — Spacecrafts (ground-station) retired
 	// Dec 2024 — so this scanner owns the azure:microsoft.orbital registration.
 	registerService(serviceEntry{
 		name: "azure:microsoft.orbital",
 		fn:   scanPlanetaryComputer,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.orbital", DiscoType: TypeOrbitalGeoCatalog},
-		},
 	})
 }
 

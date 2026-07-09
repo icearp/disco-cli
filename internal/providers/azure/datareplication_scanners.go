@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/recoveryservicesdatareplication/armrecoveryservicesdatareplication"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataReplicationFabric, Service: "microsoft.datareplication", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataReplicationVault, Service: "microsoft.datareplication", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.datareplication",
 		fn:   scanDataReplication,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.datareplication", DiscoType: TypeDataReplicationFabric, Leaf: true},
-			{Service: "microsoft.datareplication", DiscoType: TypeDataReplicationVault, Leaf: true},
-		},
 	})
 }
 

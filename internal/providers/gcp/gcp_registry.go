@@ -16,10 +16,8 @@ import (
 
 // serviceEntry describes a scannable GCP service (scoped to one project).
 //
-// emits enumerates every disco type the scanner upserts — coverage truth
-// source for the `disco coverage` matrix, aggregated across
-// registeredServices + registeredOrgServices + extraEmits (hierarchy_scanners
-// + resolver-side synthetic stubs).
+// Types the scanner upserts are declared via registerType (descriptorEmits);
+// serviceEntry itself no longer carries an emits list.
 type serviceEntry struct {
 	name  string
 	fn    func(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error)
@@ -61,28 +59,14 @@ type orgServiceEntry struct {
 	emits []coverage.TypeDecl
 }
 
-// extraEmits accumulates disco-type decls for code paths that do NOT
-// flow through registerService / registerOrgService — namely:
-//   - hierarchy_scanners.go (called direct from gcp.go's scanHierarchy)
-//
-// CollectEmits unions registeredServices + registeredOrgServices +
-// extraEmits and dedupes by DiscoType.
-var extraEmits []coverage.TypeDecl
-
-// registerExtraEmits is for non-serviceEntry sources of disco types.
-// Call from init() in the file that owns the upsert site.
-func registerExtraEmits(decls ...coverage.TypeDecl) {
-	extraEmits = append(extraEmits, decls...)
-}
-
 // registeredDescriptors holds every type declared via the unified registerType
 // path. Source of truth for descriptor-derived aliases and the
 // TestNoDoubleDeclaredTypes guard.
 var registeredDescriptors []restype.Descriptor
 
-// descriptorEmits accumulates the coverage decls produced by registerType,
-// kept separate from extraEmits so the migration guard can tell descriptor-
-// declared types apart from legacy-declared ones.
+// descriptorEmits accumulates the coverage decls produced by registerType —
+// the sole emit source now that the legacy emits/registerExtraEmits paths are
+// gone.
 var descriptorEmits []coverage.TypeDecl
 
 // registerType is the unified per-type registration: it records the descriptor
@@ -110,7 +94,6 @@ func descriptorAliases() map[string]string {
 // across the GCP package. Consumed by the coverage.Provider impl.
 func CollectEmits() []coverage.TypeDecl {
 	out := make([]coverage.TypeDecl, 0, 64)
-	out = append(out, extraEmits...)
 	out = append(out, descriptorEmits...)
 	for _, s := range registeredServices {
 		out = append(out, s.emits...)

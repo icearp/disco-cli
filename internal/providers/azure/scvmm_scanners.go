@@ -4,26 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/scvmm/armscvmm"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeScVmmServer, Service: "microsoft.scvmm", Leaf: true, Redact: []redact.Rule{{Path: "properties.credentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeScVmmCloud, Service: "microsoft.scvmm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeScVmmAvailabilitySet, Service: "microsoft.scvmm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeScVmmVMTemplate, Service: "microsoft.scvmm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeScVmmVirtualNetwork, Service: "microsoft.scvmm", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.scvmm",
 		fn:   scanScVmm,
-		emits: []coverage.TypeDecl{
-			// VMM server is the Arc-SCVMM root; clouds/availability-sets/templates/
-			// networks carry an extendedLocation envelope → custom-location edge
-			// wired centrally. All ship Leaf.
-			{Service: "microsoft.scvmm", DiscoType: TypeScVmmServer, Leaf: true},
-			{Service: "microsoft.scvmm", DiscoType: TypeScVmmCloud, Leaf: true},
-			{Service: "microsoft.scvmm", DiscoType: TypeScVmmAvailabilitySet, Leaf: true},
-			{Service: "microsoft.scvmm", DiscoType: TypeScVmmVMTemplate, Leaf: true},
-			{Service: "microsoft.scvmm", DiscoType: TypeScVmmVirtualNetwork, Leaf: true},
-		},
 	})
 }
 

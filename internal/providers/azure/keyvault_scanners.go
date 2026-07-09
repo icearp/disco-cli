@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKeyVaultVault, Service: "microsoft.keyvault"})
+	registerType(restype.Descriptor{Type: TypeKeyVaultManagedHSM, Service: "microsoft.keyvault", Leaf: true})
 	registerService(serviceEntry{
 		name: "azure:microsoft.keyvault",
 		fn:   scanKeyVault,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.keyvault", DiscoType: TypeKeyVaultVault},
-			{Service: "microsoft.keyvault", DiscoType: TypeKeyVaultManagedHSM, Leaf: true},
-		},
 	})
 }
 

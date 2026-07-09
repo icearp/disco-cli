@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cloudhealth/armcloudhealth"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudHealthHealthModel, Service: "microsoft.cloudhealth"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.cloudhealth",
 		fn:   scanCloudHealth,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.cloudhealth", DiscoType: TypeCloudHealthHealthModel},
-		},
 	})
 }
 

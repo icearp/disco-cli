@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeAvailabilitySet},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeImage},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeProximityPlacementGroup},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeRestorePointCollection},
-		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeSSHPublicKey},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeAvailabilitySet, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeImage, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeProximityPlacementGroup, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRestorePointCollection, Service: "microsoft.compute"})
+	registerType(restype.Descriptor{Type: TypeComputeSSHPublicKey, Service: "microsoft.compute"})
 }
 
 func scanAvailabilitySets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
