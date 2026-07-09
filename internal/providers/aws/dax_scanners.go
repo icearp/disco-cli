@@ -5,20 +5,18 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/dax"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDAXCluster, Service: "dax", Upstream: "AWS::DAX::Cluster"})
+	registerType(restype.Descriptor{Type: TypeDAXParameterGroup, Service: "dax", Upstream: "AWS::DAX::ParameterGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDAXSubnetGroup, Service: "dax", Upstream: "AWS::DAX::SubnetGroup"})
 	registerService(serviceEntry{
 		name: "aws:dax",
 		fn:   scanDAX,
-		emits: []coverage.TypeDecl{
-			{Service: "dax", DiscoType: TypeDAXCluster},
-			{Service: "dax", DiscoType: TypeDAXParameterGroup, Leaf: true},
-			{Service: "dax", DiscoType: TypeDAXSubnetGroup},
-		},
 	})
 }
 

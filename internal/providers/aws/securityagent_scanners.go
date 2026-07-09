@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/securityagent"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSecurityAgentAgentSpace, Service: "security-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentApplication, Service: "security-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentPentest, Service: "security-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentTargetDomain, Service: "security-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentIntegration, Service: "security-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentPrivateConnection, Service: "security-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentSecurityRequirementPack, Service: "security-agent", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:security-agent",
 		fn:   scanSecurityAgent,
-		emits: []coverage.TypeDecl{
-			{Service: "security-agent", DiscoType: TypeSecurityAgentAgentSpace, Leaf: true},
-			{Service: "security-agent", DiscoType: TypeSecurityAgentApplication, Leaf: true},
-			{Service: "security-agent", DiscoType: TypeSecurityAgentPentest, Leaf: true},
-			{Service: "security-agent", DiscoType: TypeSecurityAgentTargetDomain, Leaf: true},
-			{Service: "security-agent", DiscoType: TypeSecurityAgentIntegration, Leaf: true},
-			{Service: "security-agent", DiscoType: TypeSecurityAgentPrivateConnection, Leaf: true},
-			{Service: "security-agent", DiscoType: TypeSecurityAgentSecurityRequirementPack, Leaf: true},
-		},
 	})
 }
 

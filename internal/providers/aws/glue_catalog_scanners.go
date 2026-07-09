@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueCrawler},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueConnection},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueClassifier, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeGlueCrawler, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueConnection, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueClassifier, Service: "glue", Leaf: true})
 }
 
 func scanGlueCatalog(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

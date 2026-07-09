@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/medicalimaging"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeHealthImagingDatastore, Service: "health-imaging", Upstream: "AWS::HealthImaging::Datastore"})
 	registerService(serviceEntry{
 		name: "aws:health-imaging",
 		fn:   scanHealthImaging,
-		emits: []coverage.TypeDecl{
-			{Service: "health-imaging", DiscoType: TypeHealthImagingDatastore},
-		},
 	})
 }
 

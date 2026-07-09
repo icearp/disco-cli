@@ -4,23 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/managedblockchain"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeManagedBlockchainAccessor, Service: "managed-blockchain", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedBlockchainMember, Service: "managed-blockchain", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedBlockchainNetwork, Service: "managed-blockchain", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedBlockchainNode, Service: "managed-blockchain", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedBlockchainProposal, Service: "managed-blockchain"})
 	registerService(serviceEntry{
 		name: "aws:managed-blockchain",
 		fn:   scanManagedBlockchain,
-		emits: []coverage.TypeDecl{
-			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainAccessor, Leaf: true},
-			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainMember, Leaf: true},
-			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainNetwork, Leaf: true},
-			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainNode, Leaf: true},
-			// Proposal rows resolve to their parent network (resolver), not Leaf.
-			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainProposal},
-		},
 	})
 }
 

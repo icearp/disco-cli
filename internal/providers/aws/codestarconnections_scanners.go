@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/codestarconnections"
 	"github.com/aws/aws-sdk-go-v2/service/codestarconnections/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsConnection, Service: "codestar-connections", Upstream: "AWS::CodeStarConnections::Connection", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsHost, Service: "codestar-connections", Upstream: "AWS::codestar-connections::Host"})
+	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsRepositoryLink, Service: "codestar-connections", Upstream: "AWS::CodeStarConnections::RepositoryLink"})
+	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsSyncConfiguration, Service: "codestar-connections", Upstream: "AWS::CodeStarConnections::SyncConfiguration"})
 	registerService(serviceEntry{
 		name: "aws:codestar-connections",
 		fn:   scanCodeStarConnections,
-		emits: []coverage.TypeDecl{
-			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsConnection, Leaf: true},
-			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsHost},
-			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsRepositoryLink},
-			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsSyncConfiguration},
-		},
 	})
 }
 

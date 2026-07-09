@@ -4,29 +4,27 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ivs"
 	"github.com/aws/aws-sdk-go-v2/service/ivsrealtime"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIVSAdConfiguration, Service: "ivs", Upstream: "AWS::ivs::Ad-Configuration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSChannel, Service: "ivs"})
+	registerType(restype.Descriptor{Type: TypeIVSEncoderConfiguration, Service: "ivs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSIngestConfiguration, Service: "ivs"})
+	registerType(restype.Descriptor{Type: TypeIVSPlaybackKeyPair, Service: "ivs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSPlaybackRestrictionPolicy, Service: "ivs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSPublicKey, Service: "ivs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSRecordingConfiguration, Service: "ivs"})
+	registerType(restype.Descriptor{Type: TypeIVSStage, Service: "ivs"})
+	registerType(restype.Descriptor{Type: TypeIVSStorageConfiguration, Service: "ivs"})
+	registerType(restype.Descriptor{Type: TypeIVSStreamKey, Service: "ivs"})
 	registerService(serviceEntry{
 		name: "aws:ivs",
 		fn:   scanIVS,
-		emits: []coverage.TypeDecl{
-			{Service: "ivs", DiscoType: TypeIVSAdConfiguration, Leaf: true},
-			{Service: "ivs", DiscoType: TypeIVSChannel},
-			{Service: "ivs", DiscoType: TypeIVSEncoderConfiguration, Leaf: true},
-			{Service: "ivs", DiscoType: TypeIVSIngestConfiguration},
-			{Service: "ivs", DiscoType: TypeIVSPlaybackKeyPair, Leaf: true},
-			{Service: "ivs", DiscoType: TypeIVSPlaybackRestrictionPolicy, Leaf: true},
-			{Service: "ivs", DiscoType: TypeIVSPublicKey, Leaf: true},
-			{Service: "ivs", DiscoType: TypeIVSRecordingConfiguration},
-			{Service: "ivs", DiscoType: TypeIVSStage},
-			{Service: "ivs", DiscoType: TypeIVSStorageConfiguration},
-			{Service: "ivs", DiscoType: TypeIVSStreamKey},
-		},
 	})
 }
 

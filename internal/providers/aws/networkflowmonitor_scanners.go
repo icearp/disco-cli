@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/networkflowmonitor"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNetworkFlowMonitorMonitor, Service: "networkflowmonitor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkFlowMonitorScope, Service: "networkflowmonitor", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:networkflowmonitor",
 		fn:   scanNetworkFlowMonitor,
-		emits: []coverage.TypeDecl{
-			{Service: "networkflowmonitor", DiscoType: TypeNetworkFlowMonitorMonitor, Leaf: true},
-			{Service: "networkflowmonitor", DiscoType: TypeNetworkFlowMonitorScope, Leaf: true},
-		},
 	})
 }
 

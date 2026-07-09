@@ -8,7 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 	cwlogs "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -18,27 +18,25 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLogsLogGroup, Service: "logs", Upstream: "AWS::Logs::LogGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsLogStream, Service: "logs", Upstream: "AWS::Logs::LogStream", Volatile: []string{"UploadSequenceToken"}})
+	registerType(restype.Descriptor{Type: TypeLogsMetricFilter, Service: "logs", Upstream: "AWS::Logs::MetricFilter"})
+	registerType(restype.Descriptor{Type: TypeLogsSubscriptionFilter, Service: "logs", Upstream: "AWS::Logs::SubscriptionFilter"})
+	registerType(restype.Descriptor{Type: TypeLogsQueryDefinition, Service: "logs", Upstream: "AWS::Logs::QueryDefinition"})
+	registerType(restype.Descriptor{Type: TypeLogsScheduledQuery, Service: "logs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsResourcePolicy, Service: "logs", Upstream: "AWS::Logs::ResourcePolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsAccountPolicy, Service: "logs", Upstream: "AWS::Logs::AccountPolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsDestination, Service: "logs", Upstream: "AWS::Logs::Destination"})
+	registerType(restype.Descriptor{Type: TypeLogsDelivery, Service: "logs", Upstream: "AWS::Logs::Delivery"})
+	registerType(restype.Descriptor{Type: TypeLogsDeliverySource, Service: "logs", Upstream: "AWS::Logs::DeliverySource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsDeliveryDest, Service: "logs", Upstream: "AWS::Logs::DeliveryDestination"})
+	registerType(restype.Descriptor{Type: TypeLogsLogAnomalyDetector, Service: "logs", Upstream: "AWS::Logs::LogAnomalyDetector"})
+	registerType(restype.Descriptor{Type: TypeLogsTransformer, Service: "logs", Upstream: "AWS::Logs::Transformer"})
+	registerType(restype.Descriptor{Type: TypeLogsIntegration, Service: "logs", Upstream: "AWS::Logs::Integration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsLookupTable, Service: "logs", Upstream: "AWS::logs::lookup-table", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:logs",
 		fn:   scanLogs,
-		emits: []coverage.TypeDecl{
-			{Service: "logs", DiscoType: TypeLogsLogGroup, Leaf: true},
-			{Service: "logs", DiscoType: TypeLogsLogStream},
-			{Service: "logs", DiscoType: TypeLogsMetricFilter},
-			{Service: "logs", DiscoType: TypeLogsSubscriptionFilter},
-			{Service: "logs", DiscoType: TypeLogsQueryDefinition},
-			{Service: "logs", DiscoType: TypeLogsScheduledQuery, Leaf: true},
-			{Service: "logs", DiscoType: TypeLogsResourcePolicy, Leaf: true},
-			{Service: "logs", DiscoType: TypeLogsAccountPolicy, Leaf: true},
-			{Service: "logs", DiscoType: TypeLogsDestination},
-			{Service: "logs", DiscoType: TypeLogsDelivery},
-			{Service: "logs", DiscoType: TypeLogsDeliverySource, Leaf: true},
-			{Service: "logs", DiscoType: TypeLogsDeliveryDest},
-			{Service: "logs", DiscoType: TypeLogsLogAnomalyDetector},
-			{Service: "logs", DiscoType: TypeLogsTransformer},
-			{Service: "logs", DiscoType: TypeLogsIntegration, Leaf: true},
-			{Service: "logs", DiscoType: TypeLogsLookupTable, Leaf: true},
-		},
 	})
 }
 

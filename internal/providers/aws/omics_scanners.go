@@ -4,28 +4,26 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/omics"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOmicsAnnotationStore, Service: "omics"})
+	registerType(restype.Descriptor{Type: TypeOmicsConfiguration, Service: "omics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOmicsReferenceStore, Service: "omics"})
+	registerType(restype.Descriptor{Type: TypeOmicsRunGroup, Service: "omics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOmicsSequenceStore, Service: "omics"})
+	registerType(restype.Descriptor{Type: TypeOmicsVariantStore, Service: "omics"})
+	registerType(restype.Descriptor{Type: TypeOmicsWorkflow, Service: "omics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOmicsWorkflowVersion, Service: "omics"})
+	registerType(restype.Descriptor{Type: TypeOmicsAnnotationStoreVersion, Service: "omics"})
+	registerType(restype.Descriptor{Type: TypeOmicsReference, Service: "omics"})
+	registerType(restype.Descriptor{Type: TypeOmicsRunCache, Service: "omics", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:omics",
 		fn:   scanOmics,
-		emits: []coverage.TypeDecl{
-			{Service: "omics", DiscoType: TypeOmicsAnnotationStore},
-			{Service: "omics", DiscoType: TypeOmicsConfiguration, Leaf: true},
-			{Service: "omics", DiscoType: TypeOmicsReferenceStore},
-			{Service: "omics", DiscoType: TypeOmicsRunGroup, Leaf: true},
-			{Service: "omics", DiscoType: TypeOmicsSequenceStore},
-			{Service: "omics", DiscoType: TypeOmicsVariantStore},
-			{Service: "omics", DiscoType: TypeOmicsWorkflow, Leaf: true},
-			{Service: "omics", DiscoType: TypeOmicsWorkflowVersion},
-			{Service: "omics", DiscoType: TypeOmicsAnnotationStoreVersion},
-			{Service: "omics", DiscoType: TypeOmicsReference},
-			{Service: "omics", DiscoType: TypeOmicsRunCache, Leaf: true},
-		},
 	})
 }
 

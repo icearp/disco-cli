@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
@@ -14,12 +14,10 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectInstance},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectTrafficDistributionGroup},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectPhoneNumber},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectEmailAddress},
-	)
+	registerType(restype.Descriptor{Type: TypeConnectInstance, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectTrafficDistributionGroup, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectPhoneNumber, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectEmailAddress, Service: "connect"})
 }
 
 // connectCoreAPI is the narrow surface for the Core family: top-level

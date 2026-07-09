@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/voiceid"
 )
@@ -17,12 +17,10 @@ func isVoiceIDNotEnabled(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeVoiceIDDomain, Service: "voice-id", Upstream: "AWS::VoiceID::Domain", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:voice-id",
 		fn:   scanVoiceID,
-		emits: []coverage.TypeDecl{
-			{Service: "voice-id", DiscoType: TypeVoiceIDDomain, Leaf: true},
-		},
 	})
 }
 

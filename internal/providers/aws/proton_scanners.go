@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/proton"
 	protontypes "github.com/aws/aws-sdk-go-v2/service/proton/types"
@@ -14,22 +14,20 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeProtonComponent, Service: "proton"})
+	registerType(restype.Descriptor{Type: TypeProtonDeployment, Service: "proton", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeProtonEnvironment, Service: "proton"})
+	registerType(restype.Descriptor{Type: TypeProtonEnvironmentAccountConnection, Service: "proton", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeProtonEnvironmentTemplate, Service: "proton", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeProtonEnvironmentTemplateVersion, Service: "proton", Upstream: "AWS::proton::environment-template-version"})
+	registerType(restype.Descriptor{Type: TypeProtonRepository, Service: "proton", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeProtonService, Service: "proton", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeProtonServiceInstance, Service: "proton", Upstream: "AWS::proton::service-instance"})
+	registerType(restype.Descriptor{Type: TypeProtonServiceTemplate, Service: "proton", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeProtonServiceTemplateVersion, Service: "proton", Upstream: "AWS::proton::service-template-version"})
 	registerService(serviceEntry{
 		name: "aws:proton",
 		fn:   scanProton,
-		emits: []coverage.TypeDecl{
-			{Service: "proton", DiscoType: TypeProtonComponent},
-			{Service: "proton", DiscoType: TypeProtonDeployment, Leaf: true},
-			{Service: "proton", DiscoType: TypeProtonEnvironment},
-			{Service: "proton", DiscoType: TypeProtonEnvironmentAccountConnection, Leaf: true},
-			{Service: "proton", DiscoType: TypeProtonEnvironmentTemplate, Leaf: true},
-			{Service: "proton", DiscoType: TypeProtonEnvironmentTemplateVersion},
-			{Service: "proton", DiscoType: TypeProtonRepository, Leaf: true},
-			{Service: "proton", DiscoType: TypeProtonService, Leaf: true},
-			{Service: "proton", DiscoType: TypeProtonServiceInstance},
-			{Service: "proton", DiscoType: TypeProtonServiceTemplate, Leaf: true},
-			{Service: "proton", DiscoType: TypeProtonServiceTemplateVersion},
-		},
 	})
 }
 

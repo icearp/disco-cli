@@ -3,18 +3,16 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessTrustProvider, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessInstance},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessGroup},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessEndpoint},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessTrustProvider, Service: "ec2", Upstream: "AWS::EC2::VerifiedAccessTrustProvider", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessInstance, Service: "ec2", Upstream: "AWS::EC2::VerifiedAccessInstance"})
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessGroup, Service: "ec2", Upstream: "AWS::EC2::VerifiedAccessGroup"})
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessEndpoint, Service: "ec2", Upstream: "AWS::EC2::VerifiedAccessEndpoint"})
 }
 
 // scanEC2VerifiedAccess discovers all Verified Access resources in parallel.

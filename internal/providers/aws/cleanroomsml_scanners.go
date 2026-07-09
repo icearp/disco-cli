@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/cleanrooms"
 	"github.com/aws/aws-sdk-go-v2/service/cleanroomsml"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLConfiguredModelAlgorithm, Service: "cleanrooms-ml", Upstream: "AWS::CleanRoomsML::ConfiguredModelAlgorithm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLConfiguredModelAlgorithmAssociation, Service: "cleanrooms-ml", Upstream: "AWS::CleanRoomsML::ConfiguredModelAlgorithmAssociation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLTrainingDataset, Service: "cleanrooms-ml", Upstream: "AWS::CleanRoomsML::TrainingDataset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLAudienceModel, Service: "cleanrooms-ml", Upstream: "AWS::cleanrooms-ml::audiencemodel"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLConfiguredAudienceModel, Service: "cleanrooms-ml", Upstream: "AWS::cleanrooms-ml::configuredaudiencemodel"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLMLInputChannel, Service: "cleanrooms-ml", Upstream: "AWS::cleanrooms-ml::MLInputChannel", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLTrainedModel, Service: "cleanrooms-ml", Upstream: "AWS::cleanrooms-ml::TrainedModel"})
 	registerService(serviceEntry{
 		name: "aws:cleanrooms-ml",
 		fn:   scanCleanRoomsML,
-		emits: []coverage.TypeDecl{
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLConfiguredModelAlgorithm, Leaf: true},
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLConfiguredModelAlgorithmAssociation, Leaf: true},
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLTrainingDataset, Leaf: true},
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLAudienceModel},
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLConfiguredAudienceModel},
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLMLInputChannel, Leaf: true},
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLTrainedModel},
-		},
 	})
 }
 

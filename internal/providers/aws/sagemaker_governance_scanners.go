@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
@@ -13,25 +13,23 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerAction, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerContext, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerExperiment, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerExperimentTrial},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerHub, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerHubContent},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerHumanTaskUI, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerFlowDefinition, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerLineageGroup, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerAlgorithm, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerWorkforce, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerComputeQuota},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerClusterSchedulerConfig},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerEdgeDeploymentPlan},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerAIWorkloadConfig, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerMlflowApp, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerTrainingPlan, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeSageMakerAction, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerContext, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerExperiment, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerExperimentTrial, Service: "sagemaker", Upstream: "AWS::sagemaker::experiment-trial"})
+	registerType(restype.Descriptor{Type: TypeSageMakerHub, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerHubContent, Service: "sagemaker", Upstream: "AWS::sagemaker::hub-content"})
+	registerType(restype.Descriptor{Type: TypeSageMakerHumanTaskUI, Service: "sagemaker", Upstream: "AWS::sagemaker::human-task-ui", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerFlowDefinition, Service: "sagemaker", Upstream: "AWS::sagemaker::flow-definition", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerLineageGroup, Service: "sagemaker", Upstream: "AWS::sagemaker::lineage-group", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerAlgorithm, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerWorkforce, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerComputeQuota, Service: "sagemaker", Upstream: "AWS::sagemaker::compute-quota"})
+	registerType(restype.Descriptor{Type: TypeSageMakerClusterSchedulerConfig, Service: "sagemaker", Upstream: "AWS::sagemaker::cluster-scheduler-config"})
+	registerType(restype.Descriptor{Type: TypeSageMakerEdgeDeploymentPlan, Service: "sagemaker", Upstream: "AWS::sagemaker::edge-deployment-plan"})
+	registerType(restype.Descriptor{Type: TypeSageMakerAIWorkloadConfig, Service: "sagemaker", Upstream: "AWS::sagemaker::ai-workload-config", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerMlflowApp, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerTrainingPlan, Service: "sagemaker", Upstream: "AWS::sagemaker::training-plan", Leaf: true})
 }
 
 // sagemakerGovernanceAPI is the narrow surface for the governance / lineage /

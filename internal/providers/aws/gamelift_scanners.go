@@ -4,28 +4,26 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/gamelift"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGameLiftAlias, Service: "gamelift"})
+	registerType(restype.Descriptor{Type: TypeGameLiftBuild, Service: "gamelift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGameLiftContainerFleet, Service: "gamelift"})
+	registerType(restype.Descriptor{Type: TypeGameLiftContainerGroupDefinition, Service: "gamelift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGameLiftFleet, Service: "gamelift"})
+	registerType(restype.Descriptor{Type: TypeGameLiftGameServerGroup, Service: "gamelift"})
+	registerType(restype.Descriptor{Type: TypeGameLiftGameSessionQueue, Service: "gamelift"})
+	registerType(restype.Descriptor{Type: TypeGameLiftLocation, Service: "gamelift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGameLiftMatchmakingConfiguration, Service: "gamelift"})
+	registerType(restype.Descriptor{Type: TypeGameLiftMatchmakingRuleSet, Service: "gamelift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGameLiftScript, Service: "gamelift", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:gamelift",
 		fn:   scanGameLift,
-		emits: []coverage.TypeDecl{
-			{Service: "gamelift", DiscoType: TypeGameLiftAlias},
-			{Service: "gamelift", DiscoType: TypeGameLiftBuild, Leaf: true},
-			{Service: "gamelift", DiscoType: TypeGameLiftContainerFleet},
-			{Service: "gamelift", DiscoType: TypeGameLiftContainerGroupDefinition, Leaf: true},
-			{Service: "gamelift", DiscoType: TypeGameLiftFleet},
-			{Service: "gamelift", DiscoType: TypeGameLiftGameServerGroup},
-			{Service: "gamelift", DiscoType: TypeGameLiftGameSessionQueue},
-			{Service: "gamelift", DiscoType: TypeGameLiftLocation, Leaf: true},
-			{Service: "gamelift", DiscoType: TypeGameLiftMatchmakingConfiguration},
-			{Service: "gamelift", DiscoType: TypeGameLiftMatchmakingRuleSet, Leaf: true},
-			{Service: "gamelift", DiscoType: TypeGameLiftScript, Leaf: true},
-		},
 	})
 }
 

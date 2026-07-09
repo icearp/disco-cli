@@ -4,28 +4,26 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotwireless"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIoTWirelessDestination, Service: "iotwireless"})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessDeviceProfile, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessFuotaTask, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessMulticastGroup, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessNetworkAnalyzerConfiguration, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessPartnerAccount, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessServiceProfile, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessTaskDefinition, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessWirelessDevice, Service: "iotwireless"})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessWirelessDeviceImportTask, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessWirelessGateway, Service: "iotwireless", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:iotwireless",
 		fn:   scanIoTWireless,
-		emits: []coverage.TypeDecl{
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessDestination},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessDeviceProfile, Leaf: true},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessFuotaTask, Leaf: true},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessMulticastGroup, Leaf: true},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessNetworkAnalyzerConfiguration, Leaf: true},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessPartnerAccount, Leaf: true},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessServiceProfile, Leaf: true},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessTaskDefinition, Leaf: true},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessWirelessDevice},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessWirelessDeviceImportTask, Leaf: true},
-			{Service: "iotwireless", DiscoType: TypeIoTWirelessWirelessGateway, Leaf: true},
-		},
 	})
 }
 

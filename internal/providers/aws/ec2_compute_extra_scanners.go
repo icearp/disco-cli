@@ -3,16 +3,14 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SpotInstanceRequest},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2InstanceEventWindow},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2SpotInstanceRequest, Service: "ec2", Upstream: "AWS::ec2::spot-instances-request"})
+	registerType(restype.Descriptor{Type: TypeEC2InstanceEventWindow, Service: "ec2", Upstream: "AWS::ec2::instance-event-window"})
 }
 
 // scanEC2ComputeExtra discovers Spot instance requests and instance event

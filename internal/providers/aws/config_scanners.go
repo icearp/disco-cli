@@ -4,27 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeConfigRule, Service: "config", Upstream: "AWS::Config::ConfigRule"})
+	registerType(restype.Descriptor{Type: TypeConfigRecorder, Service: "config", Upstream: "AWS::Config::ConfigurationRecorder"})
+	registerType(restype.Descriptor{Type: TypeConfigDeliveryChannel, Service: "config", Upstream: "AWS::Config::DeliveryChannel"})
+	registerType(restype.Descriptor{Type: TypeConfigAggregationAuthorization, Service: "config", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConfigConfigurationAggregator, Service: "config", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConfigConformancePack, Service: "config", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConfigOrganizationConfigRule, Service: "config", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConfigOrganizationConformancePack, Service: "config", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConfigRemediationConfiguration, Service: "config", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConfigStoredQuery, Service: "config", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:config",
 		fn:   scanConfig,
-		emits: []coverage.TypeDecl{
-			{Service: "config", DiscoType: TypeConfigRule},
-			{Service: "config", DiscoType: TypeConfigRecorder},
-			{Service: "config", DiscoType: TypeConfigDeliveryChannel},
-			{Service: "config", DiscoType: TypeConfigAggregationAuthorization, Leaf: true},
-			{Service: "config", DiscoType: TypeConfigConfigurationAggregator, Leaf: true},
-			{Service: "config", DiscoType: TypeConfigConformancePack, Leaf: true},
-			{Service: "config", DiscoType: TypeConfigOrganizationConfigRule, Leaf: true},
-			{Service: "config", DiscoType: TypeConfigOrganizationConformancePack, Leaf: true},
-			{Service: "config", DiscoType: TypeConfigRemediationConfiguration, Leaf: true},
-			{Service: "config", DiscoType: TypeConfigStoredQuery, Leaf: true},
-		},
 	})
 }
 

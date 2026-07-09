@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudTrailTrail, Service: "cloudtrail", Upstream: "AWS::CloudTrail::Trail"})
+	registerType(restype.Descriptor{Type: TypeCloudTrailEventDataStore, Service: "cloudtrail", Upstream: "AWS::CloudTrail::EventDataStore"})
+	registerType(restype.Descriptor{Type: TypeCloudTrailChannel, Service: "cloudtrail"})
+	registerType(restype.Descriptor{Type: TypeCloudTrailDashboard, Service: "cloudtrail", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudTrailResourcePolicy, Service: "cloudtrail"})
 	registerService(serviceEntry{
 		name: "aws:cloudtrail",
 		fn:   scanCloudTrail,
-		emits: []coverage.TypeDecl{
-			{Service: "cloudtrail", DiscoType: TypeCloudTrailTrail},
-			{Service: "cloudtrail", DiscoType: TypeCloudTrailEventDataStore},
-			{Service: "cloudtrail", DiscoType: TypeCloudTrailChannel},
-			{Service: "cloudtrail", DiscoType: TypeCloudTrailDashboard, Leaf: true},
-			{Service: "cloudtrail", DiscoType: TypeCloudTrailResourcePolicy},
-		},
 	})
 }
 

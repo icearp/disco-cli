@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/supportapp"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSupportAppAccountAlias, Service: "support-app", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSupportAppSlackChannelConfiguration, Service: "support-app", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSupportAppSlackWorkspaceConfiguration, Service: "support-app", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:support-app",
 		global: true,
 		fn:     scanSupportApp,
-		emits: []coverage.TypeDecl{
-			{Service: "support-app", DiscoType: TypeSupportAppAccountAlias, Leaf: true},
-			{Service: "support-app", DiscoType: TypeSupportAppSlackChannelConfiguration, Leaf: true},
-			{Service: "support-app", DiscoType: TypeSupportAppSlackWorkspaceConfiguration, Leaf: true},
-		},
 	})
 }
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
 	"golang.org/x/sync/errgroup"
@@ -14,16 +14,14 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCertificate},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCACertificate, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCertificateProvider, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTPolicy, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTPolicyPrincipalAttachment},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTRoleAlias},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTAuthorizer},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTDomainConfiguration},
-	)
+	registerType(restype.Descriptor{Type: TypeIoTCertificate, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTCACertificate, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTCertificateProvider, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTPolicy, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTPolicyPrincipalAttachment, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTRoleAlias, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTAuthorizer, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTDomainConfiguration, Service: "iot"})
 }
 
 // iotCertsAPI is the narrow surface used by the Certs/Auth family.

@@ -4,17 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerPipeline},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerProject},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerPartnerApp},
-	)
+	registerType(restype.Descriptor{Type: TypeSageMakerPipeline, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerProject, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerPartnerApp, Service: "sagemaker"})
 }
 
 // sagemakerPipelinesAPI is the narrow surface used by the Pipelines family.

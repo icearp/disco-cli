@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
 	"golang.org/x/sync/errgroup"
@@ -13,13 +13,11 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTThing},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTThingGroup},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTThingType, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTBillingGroup, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTThingPrincipalAttachment},
-	)
+	registerType(restype.Descriptor{Type: TypeIoTThing, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTThingGroup, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTThingType, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTBillingGroup, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTThingPrincipalAttachment, Service: "iot"})
 }
 
 // iotThingsAPI is the narrow surface used by the Things family.

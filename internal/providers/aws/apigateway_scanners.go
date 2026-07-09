@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/apigateway"
 	apigatewaytypes "github.com/aws/aws-sdk-go-v2/service/apigateway/types"
@@ -38,52 +38,48 @@ type apigatewayAPI interface {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAPIGatewayAccount, Service: "apigateway", Upstream: "AWS::ApiGateway::Account", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayAPIKey, Service: "apigateway", Upstream: "AWS::ApiGateway::ApiKey", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayAuthorizer, Service: "apigateway", Upstream: "AWS::ApiGateway::Authorizer"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayBasePathMapping, Service: "apigateway", Upstream: "AWS::ApiGateway::BasePathMapping"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayClientCertificate, Service: "apigateway", Upstream: "AWS::ApiGateway::ClientCertificate", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayDeployment, Service: "apigateway", Upstream: "AWS::ApiGateway::Deployment"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayDocumentationPart, Service: "apigateway", Upstream: "AWS::ApiGateway::DocumentationPart"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayDocumentationVersion, Service: "apigateway", Upstream: "AWS::ApiGateway::DocumentationVersion"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayDomainName, Service: "apigateway", Upstream: "AWS::ApiGateway::DomainName"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayDomainNameAccessAssoc, Service: "apigateway", Upstream: "AWS::ApiGateway::DomainNameAccessAssociation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayPrivateDomainName, Service: "apigateway", Upstream: "AWS::ApiGateway::DomainNameV2"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayPrivateBasePathMapping, Service: "apigateway", Upstream: "AWS::ApiGateway::BasePathMappingV2"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayGatewayResponse, Service: "apigateway", Upstream: "AWS::ApiGateway::GatewayResponse"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayMethod, Service: "apigateway", Upstream: "AWS::ApiGateway::Method"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayModel, Service: "apigateway", Upstream: "AWS::ApiGateway::Model"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayRequestValidator, Service: "apigateway", Upstream: "AWS::ApiGateway::RequestValidator"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayResource, Service: "apigateway", Upstream: "AWS::ApiGateway::Resource"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayRestAPI, Service: "apigateway", Upstream: "AWS::ApiGateway::RestApi"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayStage, Service: "apigateway", Upstream: "AWS::ApiGateway::Stage"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayUsagePlan, Service: "apigateway", Upstream: "AWS::ApiGateway::UsagePlan"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayUsagePlanKey, Service: "apigateway", Upstream: "AWS::ApiGateway::UsagePlanKey"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayVpcLink, Service: "apigateway", Upstream: "AWS::ApiGateway::VpcLink"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2API, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::Api", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2Authorizer, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::Authorizer"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayDomainNameV2, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::DomainName"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayBasePathMappingV2, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::ApiMapping"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2VpcLink, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::VpcLink"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2Deployment, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::Deployment"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2Integration, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::Integration"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2IntegrationResponse, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::IntegrationResponse"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2Model, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::Model"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2Route, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::Route"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2RouteResponse, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::RouteResponse"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2Stage, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::Stage"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayV2RoutingRule, Service: "apigatewayv2", Upstream: "AWS::ApiGatewayV2::RoutingRule"})
 	registerService(serviceEntry{
 		name: "aws:apigateway",
 		fn:   scanAPIGateway,
-		emits: []coverage.TypeDecl{
-			{Service: "apigateway", DiscoType: TypeAPIGatewayAccount, Leaf: true},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayAPIKey, Leaf: true},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayAuthorizer},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayBasePathMapping},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayClientCertificate, Leaf: true},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayDeployment},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayDocumentationPart},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayDocumentationVersion},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayDomainName},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayDomainNameAccessAssoc, Leaf: true},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayPrivateDomainName},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayPrivateBasePathMapping},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayGatewayResponse},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayMethod},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayModel},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayRequestValidator},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayResource},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayRestAPI},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayStage},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayUsagePlan},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayUsagePlanKey},
-			{Service: "apigateway", DiscoType: TypeAPIGatewayVpcLink},
-		},
 	})
 	registerService(serviceEntry{
 		name: "aws:apigatewayv2",
 		fn:   scanAPIGatewayV2,
-		emits: []coverage.TypeDecl{
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2API, Leaf: true},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Authorizer},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayDomainNameV2},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayBasePathMappingV2},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2VpcLink},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Deployment},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Integration},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2IntegrationResponse},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Model},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Route},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2RouteResponse},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Stage},
-			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2RoutingRule},
-		},
 	})
 }
 
@@ -631,9 +627,8 @@ func scanAPIGatewayAccount(ctx context.Context, acct *account, region string, st
 		Region:      &region,
 		// Per-region account-level CloudWatch role + throttle config singleton —
 		// not a user-created resource, hardcoded name "account".
-		ManagedByProvider: true,
-		AttributesJSON:    mustJSON(out),
-		DiscoveredBy:      scanID,
+		AttributesJSON: mustJSON(out),
+		DiscoveredBy:   scanID,
 	})
 	if err != nil {
 		return 0, 0, err

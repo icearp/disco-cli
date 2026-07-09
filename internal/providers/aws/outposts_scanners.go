@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/outposts"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOutpostsSite, Service: "outposts", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOutpostsOutpost, Service: "outposts"})
 	registerService(serviceEntry{
 		name: "aws:outposts",
 		fn:   scanOutposts,
-		emits: []coverage.TypeDecl{
-			{Service: "outposts", DiscoType: TypeOutpostsSite, Leaf: true},
-			{Service: "outposts", DiscoType: TypeOutpostsOutpost},
-		},
 	})
 }
 

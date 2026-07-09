@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/mgn"
 )
@@ -13,19 +13,17 @@ import (
 // leaf: they describe the migration pipeline (source servers, waves, templates)
 // and carry no outbound edges to other scanned AWS resource types.
 func init() {
+	registerType(restype.Descriptor{Type: TypeMGNSourceServer, Service: "mgn", Upstream: "AWS::mgn::SourceServerResource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMGNApplication, Service: "mgn", Upstream: "AWS::mgn::ApplicationResource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMGNWave, Service: "mgn", Upstream: "AWS::mgn::WaveResource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMGNConnector, Service: "mgn", Upstream: "AWS::mgn::ConnectorResource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMGNLaunchConfigurationTemplate, Service: "mgn", Upstream: "AWS::mgn::LaunchConfigurationTemplateResource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMGNReplicationConfigurationTemplate, Service: "mgn", Upstream: "AWS::mgn::ReplicationConfigurationTemplateResource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMGNVcenterClient, Service: "mgn", Upstream: "AWS::mgn::VcenterClientResource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMGNNetworkMigrationDefinition, Service: "mgn", Upstream: "AWS::mgn::NetworkMigrationDefinitionResource", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:mgn",
 		fn:   scanMGN,
-		emits: []coverage.TypeDecl{
-			{Service: "mgn", DiscoType: TypeMGNSourceServer, Leaf: true},
-			{Service: "mgn", DiscoType: TypeMGNApplication, Leaf: true},
-			{Service: "mgn", DiscoType: TypeMGNWave, Leaf: true},
-			{Service: "mgn", DiscoType: TypeMGNConnector, Leaf: true},
-			{Service: "mgn", DiscoType: TypeMGNLaunchConfigurationTemplate, Leaf: true},
-			{Service: "mgn", DiscoType: TypeMGNReplicationConfigurationTemplate, Leaf: true},
-			{Service: "mgn", DiscoType: TypeMGNVcenterClient, Leaf: true},
-			{Service: "mgn", DiscoType: TypeMGNNetworkMigrationDefinition, Leaf: true},
-		},
 	})
 }
 

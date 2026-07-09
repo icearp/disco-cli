@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/appintegrations"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppIntegrationsApplication, Service: "appintegrations", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppIntegrationsDataIntegration, Service: "appintegrations", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppIntegrationsEventIntegration, Service: "appintegrations"})
 	registerService(serviceEntry{
 		name: "aws:appintegrations",
 		fn:   scanAppIntegrations,
-		emits: []coverage.TypeDecl{
-			{Service: "appintegrations", DiscoType: TypeAppIntegrationsApplication, Leaf: true},
-			{Service: "appintegrations", DiscoType: TypeAppIntegrationsDataIntegration, Leaf: true},
-			{Service: "appintegrations", DiscoType: TypeAppIntegrationsEventIntegration},
-		},
 	})
 }
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
@@ -14,13 +14,11 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectQueue},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectRoutingProfile},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectHoursOfOperation},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectAgentStatus},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectQuickConnect},
-	)
+	registerType(restype.Descriptor{Type: TypeConnectQueue, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectRoutingProfile, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectHoursOfOperation, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectAgentStatus, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectQuickConnect, Service: "connect"})
 }
 
 // connectRoutingAPI is the narrow surface used by the Routing family.

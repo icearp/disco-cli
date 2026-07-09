@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/mediapackagev2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMediaPackageV2ChannelGroup, Service: "mediapackagev2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaPackageV2Channel, Service: "mediapackagev2"})
+	registerType(restype.Descriptor{Type: TypeMediaPackageV2ChannelPolicy, Service: "mediapackagev2"})
+	registerType(restype.Descriptor{Type: TypeMediaPackageV2OriginEndpoint, Service: "mediapackagev2"})
+	registerType(restype.Descriptor{Type: TypeMediaPackageV2OriginEndpointPolicy, Service: "mediapackagev2"})
 	registerService(serviceEntry{
 		name: "aws:mediapackagev2",
 		fn:   scanMediaPackageV2,
-		emits: []coverage.TypeDecl{
-			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2ChannelGroup, Leaf: true},
-			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2Channel},
-			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2ChannelPolicy},
-			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2OriginEndpoint},
-			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2OriginEndpointPolicy},
-		},
 	})
 }
 

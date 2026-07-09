@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/servicecatalog"
 	sctypes "github.com/aws/aws-sdk-go-v2/service/servicecatalog/types"
@@ -14,27 +14,25 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeServiceCatalogPortfolio, Service: "servicecatalog", Upstream: "AWS::ServiceCatalog::Portfolio"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogProduct, Service: "servicecatalog", Upstream: "AWS::ServiceCatalog::CloudFormationProduct", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogAcceptedPortfolioShare, Service: "servicecatalog", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogCloudFormationProvisionedProduct, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogServiceAction, Service: "servicecatalog", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogTagOption, Service: "servicecatalog", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogPortfolioShare, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogPortfolioPrincipalAssociation, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogTagOptionAssociation, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogLaunchRoleConstraint, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogLaunchNotificationConstraint, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogLaunchTemplateConstraint, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogResourceUpdateConstraint, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogStackSetConstraint, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogPortfolioProductAssociation, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogServiceActionAssociation, Service: "servicecatalog"})
 	registerService(serviceEntry{
 		name: "aws:servicecatalog",
 		fn:   scanServiceCatalog,
-		emits: []coverage.TypeDecl{
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogPortfolio},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogProduct, Leaf: true},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogAcceptedPortfolioShare, Leaf: true},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogCloudFormationProvisionedProduct},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogServiceAction, Leaf: true},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogTagOption, Leaf: true},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogPortfolioShare},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogPortfolioPrincipalAssociation},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogTagOptionAssociation},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogLaunchRoleConstraint},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogLaunchNotificationConstraint},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogLaunchTemplateConstraint},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogResourceUpdateConstraint},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogStackSetConstraint},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogPortfolioProductAssociation},
-			{Service: "servicecatalog", DiscoType: TypeServiceCatalogServiceActionAssociation},
-		},
 	})
 }
 

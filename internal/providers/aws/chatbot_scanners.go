@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/chatbot"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeChatbotCustomAction, Service: "chatbot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChatbotSlackChannelConfiguration, Service: "chatbot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChatbotMicrosoftTeamsChannelConfiguration, Service: "chatbot", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:chatbot",
 		global: true,
 		fn:     scanChatbot,
-		emits: []coverage.TypeDecl{
-			{Service: "chatbot", DiscoType: TypeChatbotCustomAction, Leaf: true},
-			{Service: "chatbot", DiscoType: TypeChatbotSlackChannelConfiguration, Leaf: true},
-			{Service: "chatbot", DiscoType: TypeChatbotMicrosoftTeamsChannelConfiguration, Leaf: true},
-		},
 	})
 }
 

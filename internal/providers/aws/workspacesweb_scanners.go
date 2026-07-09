@@ -4,27 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/workspacesweb"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWSWBrowserSettings, Service: "workspaces-web"})
+	registerType(restype.Descriptor{Type: TypeWSWDataProtectionSettings, Service: "workspaces-web"})
+	registerType(restype.Descriptor{Type: TypeWSWIdentityProvider, Service: "workspaces-web"})
+	registerType(restype.Descriptor{Type: TypeWSWIPAccessSettings, Service: "workspaces-web"})
+	registerType(restype.Descriptor{Type: TypeWSWNetworkSettings, Service: "workspaces-web"})
+	registerType(restype.Descriptor{Type: TypeWSWPortal, Service: "workspaces-web"})
+	registerType(restype.Descriptor{Type: TypeWSWSessionLogger, Service: "workspaces-web"})
+	registerType(restype.Descriptor{Type: TypeWSWTrustStore, Service: "workspaces-web", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWSWUserAccessLoggingSettings, Service: "workspaces-web"})
+	registerType(restype.Descriptor{Type: TypeWSWUserSettings, Service: "workspaces-web"})
 	registerService(serviceEntry{
 		name: "aws:workspaces-web",
 		fn:   scanWorkSpacesWeb,
-		emits: []coverage.TypeDecl{
-			{Service: "workspaces-web", DiscoType: TypeWSWBrowserSettings},
-			{Service: "workspaces-web", DiscoType: TypeWSWDataProtectionSettings},
-			{Service: "workspaces-web", DiscoType: TypeWSWIdentityProvider},
-			{Service: "workspaces-web", DiscoType: TypeWSWIPAccessSettings},
-			{Service: "workspaces-web", DiscoType: TypeWSWNetworkSettings},
-			{Service: "workspaces-web", DiscoType: TypeWSWPortal},
-			{Service: "workspaces-web", DiscoType: TypeWSWSessionLogger},
-			{Service: "workspaces-web", DiscoType: TypeWSWTrustStore, Leaf: true},
-			{Service: "workspaces-web", DiscoType: TypeWSWUserAccessLoggingSettings},
-			{Service: "workspaces-web", DiscoType: TypeWSWUserSettings},
-		},
 	})
 }
 

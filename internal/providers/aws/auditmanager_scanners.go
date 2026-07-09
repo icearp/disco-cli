@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/auditmanager"
 	amtypes "github.com/aws/aws-sdk-go-v2/service/auditmanager/types"
@@ -23,18 +23,12 @@ func isAuditManagerNotEnabled(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAuditManagerAssessment, Service: "auditmanager", Upstream: "AWS::AuditManager::Assessment"})
+	registerType(restype.Descriptor{Type: TypeAuditManagerControl, Service: "auditmanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAuditManagerFramework, Service: "auditmanager", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:auditmanager",
 		fn:   scanAuditManager,
-		emits: []coverage.TypeDecl{
-			{Service: "auditmanager", DiscoType: TypeAuditManagerAssessment},
-			// CFN models only AWS::AuditManager::Assessment; the Service
-			// Reference catalog also lists control + assessmentFramework, so
-			// the union covers them. Leaf: AWS-managed catalogue items, no
-			// outbound resolver.
-			{Service: "auditmanager", DiscoType: TypeAuditManagerControl, Leaf: true},
-			{Service: "auditmanager", DiscoType: TypeAuditManagerFramework, Leaf: true},
-		},
 	})
 }
 

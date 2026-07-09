@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/lookoutequipment"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentInferenceScheduler, Service: "lookout-equipment", Upstream: "AWS::LookoutEquipment::InferenceScheduler"})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentDataset, Service: "lookout-equipment", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentLabelGroup, Service: "lookout-equipment", Upstream: "AWS::lookoutequipment::label-group", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentModel, Service: "lookout-equipment", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentModelVersion, Service: "lookout-equipment", Upstream: "AWS::lookoutequipment::model-version"})
 	registerService(serviceEntry{
 		name: "aws:lookout-equipment",
 		fn:   scanLookoutEquipment,
-		emits: []coverage.TypeDecl{
-			{Service: "lookout-equipment", DiscoType: TypeLookoutEquipmentInferenceScheduler},
-			{Service: "lookout-equipment", DiscoType: TypeLookoutEquipmentDataset, Leaf: true},
-			{Service: "lookout-equipment", DiscoType: TypeLookoutEquipmentLabelGroup, Leaf: true},
-			{Service: "lookout-equipment", DiscoType: TypeLookoutEquipmentModel, Leaf: true},
-			{Service: "lookout-equipment", DiscoType: TypeLookoutEquipmentModelVersion},
-		},
 	})
 }
 

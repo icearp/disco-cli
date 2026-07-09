@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeR53RCCluster, Service: "route53-recovery-control", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53RCControlPanel, Service: "route53-recovery-control", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53RCRoutingControl, Service: "route53-recovery-control", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53RCSafetyRule, Service: "route53-recovery-control", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:route53-recovery-control",
 		global: true,
 		fn:     scanR53RecoveryControl,
-		emits: []coverage.TypeDecl{
-			{Service: "route53-recovery-control", DiscoType: TypeR53RCCluster, Leaf: true},
-			{Service: "route53-recovery-control", DiscoType: TypeR53RCControlPanel, Leaf: true},
-			{Service: "route53-recovery-control", DiscoType: TypeR53RCRoutingControl, Leaf: true},
-			{Service: "route53-recovery-control", DiscoType: TypeR53RCSafetyRule, Leaf: true},
-		},
 	})
 }
 

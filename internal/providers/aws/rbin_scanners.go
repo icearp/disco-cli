@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/rbin"
 	"github.com/aws/aws-sdk-go-v2/service/rbin/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRbinRule, Service: "rbin", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:rbin",
 		fn:   scanRbin,
-		emits: []coverage.TypeDecl{
-			{Service: "rbin", DiscoType: TypeRbinRule, Leaf: true},
-		},
 	})
 }
 

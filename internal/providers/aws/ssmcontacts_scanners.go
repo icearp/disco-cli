@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ssmcontacts"
 	sctypes "github.com/aws/aws-sdk-go-v2/service/ssmcontacts/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSSMContactsContact, Service: "ssm-contacts", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMContactsPlan, Service: "ssm-contacts", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMContactsContactChannel, Service: "ssm-contacts"})
+	registerType(restype.Descriptor{Type: TypeSSMContactsRotation, Service: "ssm-contacts"})
 	registerService(serviceEntry{
 		name: "aws:ssm-contacts",
 		fn:   scanSSMContacts,
-		emits: []coverage.TypeDecl{
-			{Service: "ssm-contacts", DiscoType: TypeSSMContactsContact, Leaf: true},
-			{Service: "ssm-contacts", DiscoType: TypeSSMContactsPlan, Leaf: true},
-			{Service: "ssm-contacts", DiscoType: TypeSSMContactsContactChannel},
-			{Service: "ssm-contacts", DiscoType: TypeSSMContactsRotation},
-		},
 	})
 }
 

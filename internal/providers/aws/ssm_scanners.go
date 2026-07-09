@@ -4,28 +4,26 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSSMDocument, Service: "ssm", Upstream: "AWS::SSM::Document"})
+	registerType(restype.Descriptor{Type: TypeSSMParameter, Service: "ssm", Upstream: "AWS::SSM::Parameter"})
+	registerType(restype.Descriptor{Type: TypeSSMPatchBaseline, Service: "ssm", Upstream: "AWS::SSM::PatchBaseline", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMAssociation, Service: "ssm"})
+	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindow, Service: "ssm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindowTarget, Service: "ssm"})
+	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindowTask, Service: "ssm"})
+	registerType(restype.Descriptor{Type: TypeSSMResourceDataSync, Service: "ssm"})
+	registerType(restype.Descriptor{Type: TypeSSMManagedInstance, Service: "ssm", Upstream: "AWS::ssm::managed-instance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMOpsMetadata, Service: "ssm", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:ssm",
 		fn:   scanSSM,
-		emits: []coverage.TypeDecl{
-			{Service: "ssm", DiscoType: TypeSSMDocument},
-			{Service: "ssm", DiscoType: TypeSSMParameter},
-			{Service: "ssm", DiscoType: TypeSSMPatchBaseline, Leaf: true},
-			{Service: "ssm", DiscoType: TypeSSMAssociation},
-			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindow, Leaf: true},
-			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindowTarget},
-			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindowTask},
-			{Service: "ssm", DiscoType: TypeSSMResourceDataSync},
-			{Service: "ssm", DiscoType: TypeSSMManagedInstance, Leaf: true},
-			{Service: "ssm", DiscoType: TypeSSMOpsMetadata, Leaf: true},
-		},
 	})
 }
 

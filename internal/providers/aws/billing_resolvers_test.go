@@ -15,16 +15,10 @@ func TestResolveBillingViews(t *testing.T) {
 }
 
 func TestBillingViewRegistrationCovered(t *testing.T) {
-	for _, s := range registeredServices {
-		if s.name != "aws:billing" {
-			continue
-		}
-		for _, e := range s.emits {
-			if e.DiscoType == TypeBillingView {
-				return
-			}
-		}
+	if !serviceRegistered("aws:billing") {
+		t.Fatalf("aws:billing service not registered")
+	}
+	if !descriptorEmitted(TypeBillingView) {
 		t.Fatalf("aws:billing emits missing %s", TypeBillingView)
 	}
-	t.Fatalf("aws:billing service not registered")
 }

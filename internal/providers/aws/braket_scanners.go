@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/braket"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBraketSpendingLimit, Service: "braket", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:braket",
 		fn:   scanBraket,
-		emits: []coverage.TypeDecl{
-			{Service: "braket", DiscoType: TypeBraketSpendingLimit, Leaf: true},
-		},
 	})
 }
 

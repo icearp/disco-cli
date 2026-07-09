@@ -4,26 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/qbusiness"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeQBusinessApplication, Service: "qbusiness", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQBusinessChatResponseConfiguration, Service: "qbusiness", Upstream: "AWS::qbusiness::chat-response-configuration"})
+	registerType(restype.Descriptor{Type: TypeQBusinessDataAccessor, Service: "qbusiness"})
+	registerType(restype.Descriptor{Type: TypeQBusinessDataSource, Service: "qbusiness"})
+	registerType(restype.Descriptor{Type: TypeQBusinessIndex, Service: "qbusiness"})
+	registerType(restype.Descriptor{Type: TypeQBusinessPlugin, Service: "qbusiness"})
+	registerType(restype.Descriptor{Type: TypeQBusinessRetriever, Service: "qbusiness"})
+	registerType(restype.Descriptor{Type: TypeQBusinessSubscription, Service: "qbusiness"})
+	registerType(restype.Descriptor{Type: TypeQBusinessWebExperience, Service: "qbusiness"})
 	registerService(serviceEntry{
 		name: "aws:qbusiness",
 		fn:   scanQBusiness,
-		emits: []coverage.TypeDecl{
-			{Service: "qbusiness", DiscoType: TypeQBusinessApplication, Leaf: true},
-			{Service: "qbusiness", DiscoType: TypeQBusinessChatResponseConfiguration},
-			{Service: "qbusiness", DiscoType: TypeQBusinessDataAccessor},
-			{Service: "qbusiness", DiscoType: TypeQBusinessDataSource},
-			{Service: "qbusiness", DiscoType: TypeQBusinessIndex},
-			{Service: "qbusiness", DiscoType: TypeQBusinessPlugin},
-			{Service: "qbusiness", DiscoType: TypeQBusinessRetriever},
-			{Service: "qbusiness", DiscoType: TypeQBusinessSubscription},
-			{Service: "qbusiness", DiscoType: TypeQBusinessWebExperience},
-		},
 	})
 }
 

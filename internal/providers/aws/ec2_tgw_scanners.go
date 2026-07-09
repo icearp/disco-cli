@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -13,22 +13,20 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGateway, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayAttachment},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayConnect},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayConnectPeer},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMulticastDomain},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMulticastDomainAssociation},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMulticastGroupMember},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMulticastGroupSource},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayPeeringAttachment},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayRoute},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayRouteTable},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayRouteTableAssociation},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayRouteTablePropagation},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayVPCAttachment},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2TransitGateway, Service: "ec2", Upstream: "AWS::EC2::TransitGateway", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayAttachment, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayAttachment"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayConnect, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayConnect"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayConnectPeer, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayConnectPeer"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayMulticastDomain, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayMulticastDomain"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayMulticastDomainAssociation, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayMulticastDomainAssociation"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayMulticastGroupMember, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayMulticastGroupMember"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayMulticastGroupSource, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayMulticastGroupSource"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayPeeringAttachment, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayPeeringAttachment"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayRoute, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayRoute"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayRouteTable, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayRouteTable"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayRouteTableAssociation, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayRouteTableAssociation"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayRouteTablePropagation, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayRouteTablePropagation"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayVPCAttachment, Service: "ec2", Upstream: "AWS::EC2::TransitGatewayVpcAttachment"})
 }
 
 // scanEC2TGW discovers all Transit Gateway resource types in parallel: core

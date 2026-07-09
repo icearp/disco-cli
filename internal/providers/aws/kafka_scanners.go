@@ -3,24 +3,22 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/kafka"
 	kafkatypes "github.com/aws/aws-sdk-go-v2/service/kafka/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMSKCluster, Service: "msk", Upstream: "AWS::MSK::Cluster"})
+	registerType(restype.Descriptor{Type: TypeMSKBatchScramSecret, Service: "msk", Upstream: "AWS::MSK::BatchScramSecret"})
+	registerType(restype.Descriptor{Type: TypeMSKClusterPolicy, Service: "msk", Upstream: "AWS::MSK::ClusterPolicy"})
+	registerType(restype.Descriptor{Type: TypeMSKConfiguration, Service: "msk", Upstream: "AWS::MSK::Configuration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMSKReplicator, Service: "msk", Upstream: "AWS::MSK::Replicator"})
+	registerType(restype.Descriptor{Type: TypeMSKVpcConnection, Service: "msk", Upstream: "AWS::MSK::VpcConnection"})
 	registerService(serviceEntry{
 		name: "aws:kafka",
 		fn:   scanKafka,
-		emits: []coverage.TypeDecl{
-			{Service: "msk", DiscoType: TypeMSKCluster},
-			{Service: "msk", DiscoType: TypeMSKBatchScramSecret},
-			{Service: "msk", DiscoType: TypeMSKClusterPolicy},
-			{Service: "msk", DiscoType: TypeMSKConfiguration, Leaf: true},
-			{Service: "msk", DiscoType: TypeMSKReplicator},
-			{Service: "msk", DiscoType: TypeMSKVpcConnection},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/textract"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeTextractAdapter, Service: "textract", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTextractAdapterVersion, Service: "textract"})
 	registerService(serviceEntry{
 		name: "aws:textract",
 		fn:   scanTextract,
-		emits: []coverage.TypeDecl{
-			{Service: "textract", DiscoType: TypeTextractAdapter, Leaf: true},
-			{Service: "textract", DiscoType: TypeTextractAdapterVersion},
-		},
 	})
 }
 

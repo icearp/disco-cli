@@ -4,32 +4,30 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/vpclattice"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeVpcLatticeService, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetwork, Service: "vpclattice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeListener, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeRule, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeTargetGroup, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeAccessLogSubscription, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeAuthPolicy, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeResourcePolicy, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeDomainVerification, Service: "vpclattice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeResourceConfiguration, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeResourceGateway, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetworkResourceAssociation, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetworkServiceAssociation, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetworkVpcAssociation, Service: "vpclattice"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeResourceEndpointAssociation, Service: "vpclattice", Upstream: "AWS::vpc-lattice::ResourceEndpointAssociation"})
 	registerService(serviceEntry{
 		name: "aws:vpclattice",
 		fn:   scanVpcLattice,
-		emits: []coverage.TypeDecl{
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeService},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeServiceNetwork, Leaf: true},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeListener},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeRule},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeTargetGroup},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeAccessLogSubscription},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeAuthPolicy},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeResourcePolicy},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeDomainVerification, Leaf: true},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeResourceConfiguration},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeResourceGateway},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeServiceNetworkResourceAssociation},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeServiceNetworkServiceAssociation},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeServiceNetworkVpcAssociation},
-			{Service: "vpclattice", DiscoType: TypeVpcLatticeResourceEndpointAssociation},
-		},
 	})
 }
 

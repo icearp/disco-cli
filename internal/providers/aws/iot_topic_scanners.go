@@ -4,16 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTTopicRule},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTTopicRuleDestination, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeIoTTopicRule, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTTopicRuleDestination, Service: "iot", Leaf: true})
 }
 
 type iotTopicAPI interface {

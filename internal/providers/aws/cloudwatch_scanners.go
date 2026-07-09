@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
@@ -14,19 +14,17 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudWatchAlarm, Service: "cloudwatch", Upstream: "AWS::CloudWatch::Alarm"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchCompositeAlarm, Service: "cloudwatch", Upstream: "AWS::CloudWatch::CompositeAlarm"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchAlarmMuteRule, Service: "cloudwatch", Upstream: "AWS::CloudWatch::AlarmMuteRule", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudWatchAnomalyDetector, Service: "cloudwatch", Upstream: "AWS::CloudWatch::AnomalyDetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudWatchDashboard, Service: "cloudwatch", Upstream: "AWS::CloudWatch::Dashboard", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudWatchInsightRule, Service: "cloudwatch", Upstream: "AWS::CloudWatch::InsightRule", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudWatchMetricStream, Service: "cloudwatch", Upstream: "AWS::CloudWatch::MetricStream"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchOTelEnrichment, Service: "cloudwatch", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:cloudwatch",
 		fn:   scanCloudWatch,
-		emits: []coverage.TypeDecl{
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchAlarm},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchCompositeAlarm},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchAlarmMuteRule, Leaf: true},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchAnomalyDetector, Leaf: true},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchDashboard, Leaf: true},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchInsightRule, Leaf: true},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchMetricStream},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchOTelEnrichment, Leaf: true},
-		},
 	})
 }
 
@@ -420,8 +418,7 @@ func scanCWOTelEnrichment(ctx context.Context, client cloudwatchAPI, acct *accou
 		Type: TypeCloudWatchOTelEnrichment, NativeID: arn,
 		Name: &name, Region: &region,
 		// Per-(acct,region) singleton account-level enrichment config — not user-created.
-		ManagedByProvider: true,
-		AttributesJSON:    mustJSON(out), DiscoveredBy: scanID,
+		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "cloudwatch otel-enrichment")
 }

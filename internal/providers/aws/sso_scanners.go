@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	istypes "github.com/aws/aws-sdk-go-v2/service/identitystore/types"
@@ -16,29 +16,20 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSSOInstance, Service: "sso", Upstream: "AWS::SSO::Instance"})
+	registerType(restype.Descriptor{Type: TypeSSOPermissionSet, Service: "sso", Upstream: "AWS::SSO::PermissionSet", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSOAccountAssignment, Service: "sso", Upstream: "AWS::SSO::Assignment"})
+	registerType(restype.Descriptor{Type: TypeSSOApplication, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOApplicationAssignment, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOInstanceAccessControlAttributeConfiguration, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOApplicationProvider, Service: "sso", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeSSOTrustedTokenIssuer, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeIdentityStoreUser, Service: "identitystore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIdentityStoreGroup, Service: "identitystore", Upstream: "AWS::IdentityStore::Group", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIdentityStoreGroupMembership, Service: "identitystore"})
 	registerService(serviceEntry{
 		name: "aws:sso-admin",
 		fn:   scanSSOAdmin,
-		emits: []coverage.TypeDecl{
-			{Service: "sso", DiscoType: TypeSSOInstance},
-			{Service: "sso", DiscoType: TypeSSOPermissionSet, Leaf: true},
-			// SSO assignments + Identity Store users/groups have AWS API
-			// surfaces but no AWS-issued ARN; disco synthesizes NativeIDs. CFN
-			// lacks AWS::IdentityStore::User, but Service Reference lists
-			// identitystore/User, so the union covers it.
-			{Service: "sso", DiscoType: TypeSSOAccountAssignment},
-			{Service: "sso", DiscoType: TypeSSOApplication},
-			{Service: "sso", DiscoType: TypeSSOApplicationAssignment},
-			{Service: "sso", DiscoType: TypeSSOInstanceAccessControlAttributeConfiguration},
-			// Application providers are the AWS-managed federation-provider
-			// catalog (ManagedByProvider); trusted-token-issuers wire to their
-			// parent instance via a resolver, so they aren't Leaf.
-			{Service: "sso", DiscoType: TypeSSOApplicationProvider, Leaf: true},
-			{Service: "sso", DiscoType: TypeSSOTrustedTokenIssuer},
-			{Service: "identitystore", DiscoType: TypeIdentityStoreUser, Leaf: true},
-			{Service: "identitystore", DiscoType: TypeIdentityStoreGroup, Leaf: true},
-			{Service: "identitystore", DiscoType: TypeIdentityStoreGroupMembership},
-		},
 	})
 }
 

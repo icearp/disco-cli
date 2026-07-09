@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectTaskTemplate},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectEvaluationForm},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectView},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectViewVersion},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectWorkspace},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectPrompt},
-	)
+	registerType(restype.Descriptor{Type: TypeConnectTaskTemplate, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectEvaluationForm, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectView, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectViewVersion, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectWorkspace, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectPrompt, Service: "connect"})
 }
 
 // connectWorkspaceAPI is the narrow surface used by the Workspace family.

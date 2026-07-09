@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessNamespace, Service: "redshift-serverless"})
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessSnapshot, Service: "redshift-serverless"})
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessWorkgroup, Service: "redshift-serverless"})
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessEndpointAccess, Service: "redshift-serverless", Upstream: "AWS::redshift-serverless::endpointAccess"})
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessRecoveryPoint, Service: "redshift-serverless", Upstream: "AWS::redshift-serverless::recoveryPoint"})
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessManagedWorkgroup, Service: "redshift-serverless", Upstream: "AWS::redshift-serverless::managed-workgroup", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:redshift-serverless",
 		fn:   scanRedshiftServerless,
-		emits: []coverage.TypeDecl{
-			{Service: "redshift-serverless", DiscoType: TypeRedshiftServerlessNamespace},
-			{Service: "redshift-serverless", DiscoType: TypeRedshiftServerlessSnapshot},
-			{Service: "redshift-serverless", DiscoType: TypeRedshiftServerlessWorkgroup},
-			{Service: "redshift-serverless", DiscoType: TypeRedshiftServerlessEndpointAccess},
-			{Service: "redshift-serverless", DiscoType: TypeRedshiftServerlessRecoveryPoint},
-			{Service: "redshift-serverless", DiscoType: TypeRedshiftServerlessManagedWorkgroup, Leaf: true},
-		},
 	})
 }
 
@@ -217,7 +215,7 @@ func scanRSSManagedWorkgroups(ctx context.Context, client redshiftServerlessAPI,
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRedshiftServerlessManagedWorkgroup, NativeID: nativeID,
 				Name: w.ManagedWorkgroupName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(w), DiscoveredBy: scanID, ManagedByProvider: true,
+				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
 			})
 		}
 	}

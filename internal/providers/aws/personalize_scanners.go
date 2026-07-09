@@ -4,27 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/personalize"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePersonalizeDataset, Service: "personalize", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePersonalizeDatasetGroup, Service: "personalize", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePersonalizeSchema, Service: "personalize", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePersonalizeSolution, Service: "personalize", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePersonalizeCampaign, Service: "personalize", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePersonalizeEventTracker, Service: "personalize", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePersonalizeFilter, Service: "personalize"})
+	registerType(restype.Descriptor{Type: TypePersonalizeMetricAttribution, Service: "personalize", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePersonalizeRecommender, Service: "personalize"})
+	registerType(restype.Descriptor{Type: TypePersonalizeRecipe, Service: "personalize", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:personalize",
 		fn:   scanPersonalize,
-		emits: []coverage.TypeDecl{
-			{Service: "personalize", DiscoType: TypePersonalizeDataset, Leaf: true},
-			{Service: "personalize", DiscoType: TypePersonalizeDatasetGroup, Leaf: true},
-			{Service: "personalize", DiscoType: TypePersonalizeSchema, Leaf: true},
-			{Service: "personalize", DiscoType: TypePersonalizeSolution, Leaf: true},
-			{Service: "personalize", DiscoType: TypePersonalizeCampaign, Leaf: true},
-			{Service: "personalize", DiscoType: TypePersonalizeEventTracker, Leaf: true},
-			{Service: "personalize", DiscoType: TypePersonalizeFilter},
-			{Service: "personalize", DiscoType: TypePersonalizeMetricAttribution, Leaf: true},
-			{Service: "personalize", DiscoType: TypePersonalizeRecommender},
-			{Service: "personalize", DiscoType: TypePersonalizeRecipe, Leaf: true},
-		},
 	})
 }
 
@@ -338,8 +336,7 @@ func scanPzRecipes(ctx context.Context, client personalizeAPI, acct *account, re
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypePersonalizeRecipe, NativeID: arn,
 				Name: r.Name, Region: &region, Status: r.Status,
-				ManagedByProvider: true,
-				AttributesJSON:    mustJSON(r), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}
 	}

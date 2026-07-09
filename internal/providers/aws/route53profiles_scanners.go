@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/route53profiles"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRoute53ProfilesProfile, Service: "route53-profiles", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ProfilesProfileAssociation, Service: "route53-profiles", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ProfilesProfileResourceAssociation, Service: "route53-profiles", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:route53-profiles",
 		fn:   scanRoute53Profiles,
-		emits: []coverage.TypeDecl{
-			{Service: "route53-profiles", DiscoType: TypeRoute53ProfilesProfile, Leaf: true},
-			{Service: "route53-profiles", DiscoType: TypeRoute53ProfilesProfileAssociation, Leaf: true},
-			{Service: "route53-profiles", DiscoType: TypeRoute53ProfilesProfileResourceAssociation, Leaf: true},
-		},
 	})
 }
 

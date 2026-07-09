@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/fms"
 )
@@ -24,17 +24,15 @@ func isFMSAdminOnlyDenial(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeFMSNotificationChannel, Service: "fms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFMSPolicy, Service: "fms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFMSResourceSet, Service: "fms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFMSAppsList, Service: "fms", Upstream: "AWS::fms::applications-list", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFMSProtocolsList, Service: "fms", Upstream: "AWS::fms::protocols-list", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:fms",
 		global: true,
 		fn:     scanFMS,
-		emits: []coverage.TypeDecl{
-			{Service: "fms", DiscoType: TypeFMSNotificationChannel, Leaf: true},
-			{Service: "fms", DiscoType: TypeFMSPolicy, Leaf: true},
-			{Service: "fms", DiscoType: TypeFMSResourceSet, Leaf: true},
-			{Service: "fms", DiscoType: TypeFMSAppsList, Leaf: true},
-			{Service: "fms", DiscoType: TypeFMSProtocolsList, Leaf: true},
-		},
 	})
 }
 

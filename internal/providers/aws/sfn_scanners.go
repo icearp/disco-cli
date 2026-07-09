@@ -5,22 +5,20 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSFNStateMachine, Service: "stepfunctions", Upstream: "AWS::StepFunctions::StateMachine"})
+	registerType(restype.Descriptor{Type: TypeSFNActivity, Service: "stepfunctions", Upstream: "AWS::StepFunctions::Activity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSFNStateMachineAlias, Service: "stepfunctions"})
+	registerType(restype.Descriptor{Type: TypeSFNStateMachineVersion, Service: "stepfunctions"})
 	registerService(serviceEntry{
 		name: "aws:sfn",
 		fn:   scanSFN,
-		emits: []coverage.TypeDecl{
-			{Service: "stepfunctions", DiscoType: TypeSFNStateMachine},
-			{Service: "stepfunctions", DiscoType: TypeSFNActivity, Leaf: true},
-			{Service: "stepfunctions", DiscoType: TypeSFNStateMachineAlias},
-			{Service: "stepfunctions", DiscoType: TypeSFNStateMachineVersion},
-		},
 	})
 }
 

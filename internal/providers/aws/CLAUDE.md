@@ -2,6 +2,35 @@
 
 AWS scanner + resolver conventions. Cross-provider rules: see `../CLAUDE.md`.
 
+## Unified per-type declaration via `registerType`
+
+`registerType(restype.Descriptor{...})` in `aws_registry.go` is the single-site
+declaration for everything disco knows about a resource type: coverage emit
+(`Service` + `Leaf`/`Uncatalogued`), upstream alias (`Upstream`, empty falls
+through to `AlgorithmicKey`), redaction rules (`Redact`), volatile fields
+(`Volatile`), and the **unconditional** `Managed` flag (the store stamps
+`ManagedByProvider` by type at the upsert boundary — see
+`store/resources_upsert.go`). It forwards field rules into the shared
+redact/volatile/managed engines via `restype.Emit` and routes the coverage
+decl through `descriptorEmits`; `Aliases()` returns `descriptorAliases()`.
+
+**AWS is fully migrated** — every type is declared via `registerType` from the
+`init()` of the file owning its upsert. `aws_redact.go`, `aws_volatile.go`, the
+literal `Aliases()` map, and `registerExtraEmits` are gone. New services declare
+their types with `registerType`; new redact/volatile/managed rules go on the
+descriptor, not a central file. `TestNoDoubleDeclaredTypes` rejects a type
+declared via both the descriptor path and a legacy emit; mirror/orphan/leaf
+tests guard naming and resolver-source correctness.
+
+**`Managed: true` is only for UNCONDITIONALLY-managed types.** A type whose
+`ManagedByProvider` is per-row conditional (`OwnerId == "AWS"`,
+`PolicyType == Managed`, name prefixes) stays scanner-set — do NOT set `Managed`
+on its descriptor (dual-natured: `TypeIAMPolicy`, `TypeLambdaLayerVersion`,
+`TypeOrganizationsOU` keep their scanner literal). A managed type that is ALSO a
+resolver source needs `IncludeManaged: true` on that resolver's `ListResources`
+or the store stamp hides it from its own resolver (precedent:
+`ecr`/`uxc`/`route53resolver`/`iot` config resolvers).
+
 ## Resolver conventions
 
 - **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silent match nothing on real scan data while tests pass on hand-rolled JSON.
@@ -120,7 +149,7 @@ Per-group fan-out inside each sub-scanner uses `fanoutMed` (10), not `fanoutLow`
 
 Errors from phase-2 sub-scanners are gathered and `errors.Join`-ed before propagating; one failed sibling does not cancel the others (matches `aws.go::scanRegion` "Errors never abort scan"). For users who don't need log-stream inventory, two existing escape hatches stand: `disco scan aws --services aws:ec2,aws:s3,...` (omit `aws:logs`) skips the service entirely; `disco resources --exclude-types aws:logs:log-stream` mutes streams from queries while keeping them in the DB (`cmd/CLAUDE.md`).
 
-**`UploadSequenceToken` is dropped as volatile.** `DescribeLogStreams` returns a fresh, deprecated `UploadSequenceToken` on every call regardless of log activity — left in `AttributesJSON` it version-splits every log stream on every scan (a 907-stream account reports `907 changed` each scan). `aws_volatile.go` registers it with `volatile.Register` so the store drops the key before the version comparison; see `internal/providers/CLAUDE.md` "Declaring volatile-field rules". `LastEventTimestamp` / `LastIngestionTime` (real ingestion) and the log-group `StoredBytes` are kept — they reflect genuine change.
+**`UploadSequenceToken` is dropped as volatile.** `DescribeLogStreams` returns a fresh, deprecated `UploadSequenceToken` on every call regardless of log activity — left in `AttributesJSON` it version-splits every log stream on every scan (a 907-stream account reports `907 changed` each scan). `TypeLogsLogStream`'s descriptor carries `Volatile: []string{"UploadSequenceToken"}` (registered via `registerType` in `logs_scanners.go`) so the store drops the key before the version comparison; see `internal/providers/CLAUDE.md` "Declaring volatile-field rules". `LastEventTimestamp` / `LastIngestionTime` (real ingestion) and the log-group `StoredBytes` are kept — they reflect genuine change.
 
 ## IAM scan uses GetAccountAuthorizationDetails (single paginated call)
 
@@ -403,11 +432,11 @@ Verify the predicate against a real account if the SDK doc is ambiguous — obse
 
 ## Adding a resolver for a previously-leaf type
 
-`TestLeafTypesNotResolverSources` (`coverage_leaves_test.go`) fails when a `coverage.TypeDecl` flagged `Leaf: true` (set inline on the scanner's `emits` decl) appears as an `EdgeDecl.Source`. Drop the `Leaf: true` flag in the same commit as the new resolver — the test is the only signal, no build error. Leaf flags live next to each `registerService` / `registerExtraEmits` site since the central `coverage_leaves.go` map was retired.
+`TestLeafTypesNotResolverSources` (`coverage_leaves_test.go`) fails when a `coverage.TypeDecl` flagged `Leaf: true` (set inline on the scanner's `emits` decl) appears as an `EdgeDecl.Source`. Drop the `Leaf: true` flag in the same commit as the new resolver — the test is the only signal, no build error. Leaf flags live on each type's `registerType(restype.Descriptor{...})` descriptor since the central `coverage_leaves.go` map was retired.
 
 ## Re-verify leaf-flag comments before trusting them
 
-Per-emit-decl `Leaf: true` flags often carry an inline reason ("refs blocked by sanitize", "refs need Describe enrichment", "no SDK list op"). These rot: redaction is now per-type and per-path (`internal/providers/aws/redact.go`); ARN-bearing fields like `CredentialsArn` / `SecretArn` / `TokenSourceArn` / `AuthorizationHeaderArn` are preserved by *omission* (no rule targets them). Before adding a sidecar workaround for what a comment says is "blocked", read `internal/providers/aws/redact.go` and confirm the field actually has a rule on it; if not, the resolver can read it directly. Same applies to "no Describe op" claims — SDK additions land between scanner-write and leaf-comment time.
+Per-emit-decl `Leaf: true` flags often carry an inline reason ("refs blocked by sanitize", "refs need Describe enrichment", "no SDK list op"). These rot: redaction is now per-type and per-path (each type's `registerType` descriptor `Redact` field); ARN-bearing fields like `CredentialsArn` / `SecretArn` / `TokenSourceArn` / `AuthorizationHeaderArn` are preserved by *omission* (no rule targets them). Before adding a sidecar workaround for what a comment says is "blocked", read the type's descriptor `Redact` and confirm the field actually has a rule on it; if not, the resolver can read it directly. Same applies to "no Describe op" claims — SDK additions land between scanner-write and leaf-comment time.
 
 ## Parent-row "leaf" ≠ no edges
 

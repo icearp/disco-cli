@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/securitylake"
 	sltypes "github.com/aws/aws-sdk-go-v2/service/securitylake/types"
@@ -27,14 +27,12 @@ func isSecurityLakeNotEnabled(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSecurityLakeDataLake, Service: "security-lake", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityLakeSubscriber, Service: "security-lake", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityLakeAwsLogSource, Service: "security-lake", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:security-lake",
 		fn:   scanSecurityLake,
-		emits: []coverage.TypeDecl{
-			{Service: "security-lake", DiscoType: TypeSecurityLakeDataLake, Leaf: true},
-			{Service: "security-lake", DiscoType: TypeSecurityLakeSubscriber, Leaf: true},
-			{Service: "security-lake", DiscoType: TypeSecurityLakeAwsLogSource, Leaf: true},
-		},
 	})
 }
 

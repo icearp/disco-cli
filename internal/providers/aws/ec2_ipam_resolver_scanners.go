@@ -3,16 +3,14 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMPrefixListResolver, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMPrefixListResolverTarget},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2IPAMPrefixListResolver, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMPrefixListResolverTarget, Service: "ec2"})
 }
 
 // scanEC2IPAMResolver discovers IPAM prefix list resolver resources.

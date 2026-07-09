@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/entityresolution"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEntityResolutionIDMappingWorkflow, Service: "entityresolution", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEntityResolutionIDNamespace, Service: "entityresolution", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEntityResolutionMatchingWorkflow, Service: "entityresolution"})
+	registerType(restype.Descriptor{Type: TypeEntityResolutionSchemaMapping, Service: "entityresolution", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEntityResolutionPolicyStatement, Service: "entityresolution"})
 	registerService(serviceEntry{
 		name: "aws:entityresolution",
 		fn:   scanEntityResolution,
-		emits: []coverage.TypeDecl{
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionIDMappingWorkflow, Leaf: true},
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionIDNamespace, Leaf: true},
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionMatchingWorkflow},
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionSchemaMapping, Leaf: true},
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionPolicyStatement},
-		},
 	})
 }
 

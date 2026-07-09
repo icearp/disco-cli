@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/databrew"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataBrewDataset, Service: "databrew"})
+	registerType(restype.Descriptor{Type: TypeDataBrewJob, Service: "databrew"})
+	registerType(restype.Descriptor{Type: TypeDataBrewProject, Service: "databrew"})
+	registerType(restype.Descriptor{Type: TypeDataBrewRecipe, Service: "databrew"})
+	registerType(restype.Descriptor{Type: TypeDataBrewRuleset, Service: "databrew"})
+	registerType(restype.Descriptor{Type: TypeDataBrewSchedule, Service: "databrew"})
 	registerService(serviceEntry{
 		name: "aws:databrew",
 		fn:   scanDataBrew,
-		emits: []coverage.TypeDecl{
-			{Service: "databrew", DiscoType: TypeDataBrewDataset},
-			{Service: "databrew", DiscoType: TypeDataBrewJob},
-			{Service: "databrew", DiscoType: TypeDataBrewProject},
-			{Service: "databrew", DiscoType: TypeDataBrewRecipe},
-			{Service: "databrew", DiscoType: TypeDataBrewRuleset},
-			{Service: "databrew", DiscoType: TypeDataBrewSchedule},
-		},
 	})
 }
 

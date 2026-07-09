@@ -4,21 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/codebuild"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCodeBuildFleet, Service: "code-build"})
+	registerType(restype.Descriptor{Type: TypeCodeBuildProject, Service: "code-build", Redact: []redact.Rule{{Path: "Environment.EnvironmentVariables[*].Value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCodeBuildReportGroup, Service: "code-build"})
+	registerType(restype.Descriptor{Type: TypeCodeBuildSourceCredential, Service: "code-build", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:code-build",
 		fn:   scanCodeBuild,
-		emits: []coverage.TypeDecl{
-			{Service: "code-build", DiscoType: TypeCodeBuildFleet},
-			{Service: "code-build", DiscoType: TypeCodeBuildProject},
-			{Service: "code-build", DiscoType: TypeCodeBuildReportGroup},
-			{Service: "code-build", DiscoType: TypeCodeBuildSourceCredential, Leaf: true},
-		},
 	})
 }
 

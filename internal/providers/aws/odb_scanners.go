@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/odb"
 )
@@ -17,19 +17,17 @@ func isOdbNotOnboarded(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeODBCloudAutonomousVMCluster, Service: "odb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeODBCloudExadataInfrastructure, Service: "odb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeODBCloudVMCluster, Service: "odb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeODBOdbNetwork, Service: "odb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeODBOdbPeeringConnection, Service: "odb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabase, Service: "odb", Upstream: "AWS::odb::autonomous-database"})
+	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabaseBackup, Service: "odb", Upstream: "AWS::odb::autonomous-database-backup"})
+	registerType(restype.Descriptor{Type: TypeODBDbNode, Service: "odb", Upstream: "AWS::odb::db-node"})
 	registerService(serviceEntry{
 		name: "aws:odb",
 		fn:   scanODB,
-		emits: []coverage.TypeDecl{
-			{Service: "odb", DiscoType: TypeODBCloudAutonomousVMCluster, Leaf: true},
-			{Service: "odb", DiscoType: TypeODBCloudExadataInfrastructure, Leaf: true},
-			{Service: "odb", DiscoType: TypeODBCloudVMCluster, Leaf: true},
-			{Service: "odb", DiscoType: TypeODBOdbNetwork, Leaf: true},
-			{Service: "odb", DiscoType: TypeODBOdbPeeringConnection, Leaf: true},
-			{Service: "odb", DiscoType: TypeODBAutonomousDatabase},
-			{Service: "odb", DiscoType: TypeODBAutonomousDatabaseBackup},
-			{Service: "odb", DiscoType: TypeODBDbNode},
-		},
 	})
 }
 

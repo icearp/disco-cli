@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/codeguruprofiler"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCodeGuruProfilerProfilingGroup, Service: "code-guru-profiler", Upstream: "AWS::CodeGuruProfiler::ProfilingGroup", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:code-guru-profiler",
 		fn:   scanCodeGuruProfiler,
-		emits: []coverage.TypeDecl{
-			{Service: "code-guru-profiler", DiscoType: TypeCodeGuruProfilerProfilingGroup, Leaf: true},
-		},
 	})
 }
 

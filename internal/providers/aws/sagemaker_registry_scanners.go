@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerModelPackage},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerModelPackageGroup},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerModelCard},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerFeatureGroup},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerMlflowTrackingServer},
-	)
+	registerType(restype.Descriptor{Type: TypeSageMakerModelPackage, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerModelPackageGroup, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerModelCard, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerFeatureGroup, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerMlflowTrackingServer, Service: "sagemaker"})
 }
 
 // sagemakerRegistryAPI is the model-registry family's narrow surface. Each

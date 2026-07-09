@@ -5,21 +5,19 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKinesisStream, Service: "kinesis", Upstream: "AWS::Kinesis::Stream"})
+	registerType(restype.Descriptor{Type: TypeKinesisStreamConsumer, Service: "kinesis"})
+	registerType(restype.Descriptor{Type: TypeKinesisResourcePolicy, Service: "kinesis", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:kinesis",
 		fn:   scanKinesis,
-		emits: []coverage.TypeDecl{
-			{Service: "kinesis", DiscoType: TypeKinesisStream},
-			{Service: "kinesis", DiscoType: TypeKinesisStreamConsumer},
-			{Service: "kinesis", DiscoType: TypeKinesisResourcePolicy, Leaf: true},
-		},
 	})
 }
 

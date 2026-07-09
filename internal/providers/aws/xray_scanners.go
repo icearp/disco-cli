@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/xray"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeXRayGroup, Service: "xray", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeXRayResourcePolicy, Service: "xray", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeXRaySamplingRule, Service: "xray", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeXRayTransactionSearchConfig, Service: "xray", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:xray",
 		fn:   scanXRay,
-		emits: []coverage.TypeDecl{
-			{Service: "xray", DiscoType: TypeXRayGroup, Leaf: true},
-			{Service: "xray", DiscoType: TypeXRayResourcePolicy, Leaf: true},
-			{Service: "xray", DiscoType: TypeXRaySamplingRule, Leaf: true},
-			{Service: "xray", DiscoType: TypeXRayTransactionSearchConfig, Leaf: true},
-		},
 	})
 }
 
@@ -168,6 +166,6 @@ func scanXRayTransactionSearchConfig(ctx context.Context, client xrayAPI, acct *
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeXRayTransactionSearchConfig, NativeID: arn,
 		Name: &label, Region: &region, Status: &status,
-		AttributesJSON: mustJSON(out), DiscoveredBy: scanID, ManagedByProvider: true,
+		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}}, "xray transaction-search-config")
 }

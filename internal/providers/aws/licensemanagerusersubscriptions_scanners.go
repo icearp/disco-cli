@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/licensemanagerusersubscriptions"
 	lmustypes "github.com/aws/aws-sdk-go-v2/service/licensemanagerusersubscriptions/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsIdentityProvider, Service: "license-manager-user-subscriptions", Upstream: "AWS::license-manager-user-subscriptions::identity-provider", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsLicenseServerEndpoint, Service: "license-manager-user-subscriptions", Upstream: "AWS::license-manager-user-subscriptions::license-server-endpoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsProductSubscription, Service: "license-manager-user-subscriptions", Upstream: "AWS::license-manager-user-subscriptions::product-subscription", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsInstanceUser, Service: "license-manager-user-subscriptions", Upstream: "AWS::license-manager-user-subscriptions::instance-user", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:license-manager-user-subscriptions",
 		fn:   scanLicenseManagerUserSubscriptions,
-		emits: []coverage.TypeDecl{
-			{Service: "license-manager-user-subscriptions", DiscoType: TypeLicenseManagerUserSubscriptionsIdentityProvider, Leaf: true},
-			{Service: "license-manager-user-subscriptions", DiscoType: TypeLicenseManagerUserSubscriptionsLicenseServerEndpoint, Leaf: true},
-			{Service: "license-manager-user-subscriptions", DiscoType: TypeLicenseManagerUserSubscriptionsProductSubscription, Leaf: true},
-			{Service: "license-manager-user-subscriptions", DiscoType: TypeLicenseManagerUserSubscriptionsInstanceUser, Leaf: true},
-		},
 	})
 }
 

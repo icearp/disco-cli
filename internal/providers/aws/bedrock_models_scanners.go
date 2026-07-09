@@ -4,20 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "bedrock", DiscoType: TypeBedrockCustomModel, Leaf: true},
-		coverage.TypeDecl{Service: "bedrock", DiscoType: TypeBedrockImportedModel, Leaf: true},
-		coverage.TypeDecl{Service: "bedrock", DiscoType: TypeBedrockMarketplaceModelEndpoint, Leaf: true},
-		// provisioned-model + custom-model-deployment reference the model they serve.
-		coverage.TypeDecl{Service: "bedrock", DiscoType: TypeBedrockProvisionedModel},
-		coverage.TypeDecl{Service: "bedrock", DiscoType: TypeBedrockCustomModelDeployment},
-	)
+	registerType(restype.Descriptor{Type: TypeBedrockCustomModel, Service: "bedrock", Upstream: "AWS::bedrock::custom-model", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockImportedModel, Service: "bedrock", Upstream: "AWS::bedrock::imported-model", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockMarketplaceModelEndpoint, Service: "bedrock", Upstream: "AWS::bedrock::bedrock-marketplace-model-endpoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockProvisionedModel, Service: "bedrock", Upstream: "AWS::bedrock::provisioned-model"})
+	registerType(restype.Descriptor{Type: TypeBedrockCustomModelDeployment, Service: "bedrock", Upstream: "AWS::bedrock::custom-model-deployment"})
 }
 
 // bedrockModelsAPI is the narrow Bedrock surface the model scanners use. All

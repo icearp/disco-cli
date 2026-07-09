@@ -4,30 +4,28 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/waf"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWAFWebACL, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRule, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRuleGroup, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRateBasedRule, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFIPSet, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFByteMatchSet, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFGeoMatchSet, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegexMatchSet, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegexPatternSet, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFSizeConstraintSet, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFSQLInjectionMatchSet, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFXSSMatchSet, Service: "waf", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:waf",
 		global: true,
 		fn:     scanWAF,
-		emits: []coverage.TypeDecl{
-			{Service: "waf", DiscoType: TypeWAFWebACL, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFRule, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFRuleGroup, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFRateBasedRule, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFIPSet, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFByteMatchSet, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFGeoMatchSet, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFRegexMatchSet, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFRegexPatternSet, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFSizeConstraintSet, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFSQLInjectionMatchSet, Leaf: true},
-			{Service: "waf", DiscoType: TypeWAFXSSMatchSet, Leaf: true},
-		},
 	})
 }
 

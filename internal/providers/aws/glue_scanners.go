@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"golang.org/x/sync/errgroup"
@@ -13,17 +13,15 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGlueDatabase, Service: "glue", Upstream: "AWS::Glue::Database"})
+	registerType(restype.Descriptor{Type: TypeGlueTable, Service: "glue", Upstream: "AWS::Glue::Table"})
+	registerType(restype.Descriptor{Type: TypeGluePartition, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueTableOptimizer, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueBlueprint, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueUserDefinedFunction, Service: "glue"})
 	registerService(serviceEntry{
 		name: "aws:glue",
 		fn:   scanGlue,
-		emits: []coverage.TypeDecl{
-			{Service: "glue", DiscoType: TypeGlueDatabase},
-			{Service: "glue", DiscoType: TypeGlueTable},
-			{Service: "glue", DiscoType: TypeGluePartition},
-			{Service: "glue", DiscoType: TypeGlueTableOptimizer},
-			{Service: "glue", DiscoType: TypeGlueBlueprint, Leaf: true},
-			{Service: "glue", DiscoType: TypeGlueUserDefinedFunction},
-		},
 	})
 }
 

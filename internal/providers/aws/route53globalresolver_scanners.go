@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/route53globalresolver"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeR53GRAccessSource, Service: "route53globalresolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53GRAccessToken, Service: "route53globalresolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53GRDNSView, Service: "route53globalresolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53GRFirewallDomainList, Service: "route53globalresolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53GRFirewallRule, Service: "route53globalresolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53GRGlobalResolver, Service: "route53globalresolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53GRHostedZoneAssociation, Service: "route53globalresolver", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:route53globalresolver",
 		global: true,
 		fn:     scanRoute53GlobalResolver,
-		emits: []coverage.TypeDecl{
-			{Service: "route53globalresolver", DiscoType: TypeR53GRAccessSource, Leaf: true},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRAccessToken, Leaf: true},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRDNSView, Leaf: true},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRFirewallDomainList, Leaf: true},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRFirewallRule, Leaf: true},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRGlobalResolver, Leaf: true},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRHostedZoneAssociation, Leaf: true},
-		},
 	})
 }
 

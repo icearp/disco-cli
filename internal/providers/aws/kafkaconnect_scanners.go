@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/kafkaconnect"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKafkaConnectConnector, Service: "kafka-connect"})
+	registerType(restype.Descriptor{Type: TypeKafkaConnectCustomPlugin, Service: "kafka-connect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKafkaConnectWorkerConfiguration, Service: "kafka-connect", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:kafka-connect",
 		fn:   scanKafkaConnect,
-		emits: []coverage.TypeDecl{
-			{Service: "kafka-connect", DiscoType: TypeKafkaConnectConnector},
-			{Service: "kafka-connect", DiscoType: TypeKafkaConnectCustomPlugin, Leaf: true},
-			{Service: "kafka-connect", DiscoType: TypeKafkaConnectWorkerConfiguration, Leaf: true},
-		},
 	})
 }
 

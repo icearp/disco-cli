@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDevOpsAgentAgentSpace, Service: "dev-ops-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDevOpsAgentAssociation, Service: "dev-ops-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDevOpsAgentService, Service: "dev-ops-agent", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:dev-ops-agent",
 		fn:   scanDevOpsAgent,
-		emits: []coverage.TypeDecl{
-			{Service: "dev-ops-agent", DiscoType: TypeDevOpsAgentAgentSpace, Leaf: true},
-			{Service: "dev-ops-agent", DiscoType: TypeDevOpsAgentAssociation, Leaf: true},
-			{Service: "dev-ops-agent", DiscoType: TypeDevOpsAgentService, Leaf: true},
-		},
 	})
 }
 

@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSNSTopic, Service: "sns", Upstream: "AWS::SNS::Topic"})
+	registerType(restype.Descriptor{Type: TypeSNSSubscription, Service: "sns"})
+	registerType(restype.Descriptor{Type: TypeSNSTopicPolicy, Service: "sns"})
 	registerService(serviceEntry{
 		name: "aws:sns",
 		fn:   scanSNS,
-		emits: []coverage.TypeDecl{
-			{Service: "sns", DiscoType: TypeSNSTopic},
-			{Service: "sns", DiscoType: TypeSNSSubscription},
-			{Service: "sns", DiscoType: TypeSNSTopicPolicy},
-		},
 	})
 }
 

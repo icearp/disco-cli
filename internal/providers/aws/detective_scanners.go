@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/detective"
 	"golang.org/x/sync/errgroup"
@@ -13,16 +13,12 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDetectiveGraph, Service: "detective", Upstream: "AWS::Detective::Graph", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDetectiveMember, Service: "detective", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeDetectiveOrganizationAdmin, Service: "detective"})
 	registerService(serviceEntry{
 		name: "aws:detective",
 		fn:   scanDetective,
-		emits: []coverage.TypeDecl{
-			{Service: "detective", DiscoType: TypeDetectiveGraph, Leaf: true},
-			// ListMembers returns real member accounts disco scans; neither CFN
-			// nor the Service Reference catalog models a detective member.
-			{Service: "detective", DiscoType: TypeDetectiveMember, Uncatalogued: true},
-			{Service: "detective", DiscoType: TypeDetectiveOrganizationAdmin},
-		},
 	})
 }
 

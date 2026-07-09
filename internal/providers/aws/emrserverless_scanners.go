@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/emrserverless"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEMRServerlessApplication, Service: "emr-serverless", Upstream: "AWS::EMRServerless::Application", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:emr-serverless",
 		fn:   scanEMRServerless,
-		emits: []coverage.TypeDecl{
-			{Service: "emr-serverless", DiscoType: TypeEMRServerlessApplication, Leaf: true},
-		},
 	})
 }
 

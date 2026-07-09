@@ -4,25 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/devicefarm"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDeviceFarmProject, Service: "devicefarm", Redact: []redact.Rule{{Path: "EnvironmentVariables[*].Value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmDevicePool, Service: "devicefarm"})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmNetworkProfile, Service: "devicefarm"})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmInstanceProfile, Service: "devicefarm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmDeviceInstance, Service: "devicefarm"})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmVPCEConfiguration, Service: "devicefarm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmTestGridProject, Service: "devicefarm", Upstream: "AWS::devicefarm::testgrid-project"})
 	registerService(serviceEntry{
 		name:   "aws:devicefarm",
 		fn:     scanDeviceFarm,
 		global: true, // Device Farm has a single regional endpoint: us-west-2.
-		emits: []coverage.TypeDecl{
-			{Service: "devicefarm", DiscoType: TypeDeviceFarmProject},
-			{Service: "devicefarm", DiscoType: TypeDeviceFarmDevicePool},
-			{Service: "devicefarm", DiscoType: TypeDeviceFarmNetworkProfile},
-			{Service: "devicefarm", DiscoType: TypeDeviceFarmInstanceProfile, Leaf: true},
-			{Service: "devicefarm", DiscoType: TypeDeviceFarmDeviceInstance},
-			{Service: "devicefarm", DiscoType: TypeDeviceFarmVPCEConfiguration, Leaf: true},
-			{Service: "devicefarm", DiscoType: TypeDeviceFarmTestGridProject},
-		},
 	})
 }
 

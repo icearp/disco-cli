@@ -4,17 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CustomerGateway, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPNGateway},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPNConnection},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2CustomerGateway, Service: "ec2", Upstream: "AWS::EC2::CustomerGateway", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VPNGateway, Service: "ec2", Upstream: "AWS::EC2::VPNGateway"})
+	registerType(restype.Descriptor{Type: TypeEC2VPNConnection, Service: "ec2", Upstream: "AWS::EC2::VPNConnection"})
 }
 
 // scanEC2VPN discovers VPN types: customer gateways, VPN gateways, and VPN connections.

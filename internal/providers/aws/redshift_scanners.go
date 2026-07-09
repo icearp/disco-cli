@@ -4,33 +4,32 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRedshiftCluster, Service: "redshift", Upstream: "AWS::Redshift::Cluster", Redact: []redact.Rule{{Path: "MasterUserPassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeRedshiftSubnetGroup, Service: "redshift", Upstream: "AWS::Redshift::ClusterSubnetGroup"})
+	registerType(restype.Descriptor{Type: TypeRedshiftClusterParameterGroup, Service: "redshift", Upstream: "AWS::Redshift::ClusterParameterGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftEndpointAccess, Service: "redshift", Upstream: "AWS::Redshift::EndpointAccess", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftEndpointAuthorization, Service: "redshift", Upstream: "AWS::Redshift::EndpointAuthorization", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftEventSubscription, Service: "redshift", Upstream: "AWS::Redshift::EventSubscription", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftIntegration, Service: "redshift", Upstream: "AWS::Redshift::Integration"})
+	registerType(restype.Descriptor{Type: TypeRedshiftScheduledAction, Service: "redshift", Upstream: "AWS::Redshift::ScheduledAction", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftSnapshot, Service: "redshift"})
+	registerType(restype.Descriptor{Type: TypeRedshiftSnapshotSchedule, Service: "redshift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftSnapshotCopyGrant, Service: "redshift"})
+	registerType(restype.Descriptor{Type: TypeRedshiftUsageLimit, Service: "redshift"})
+	registerType(restype.Descriptor{Type: TypeRedshiftHsmClientCertificate, Service: "redshift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftHsmConfiguration, Service: "redshift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftIdcApplication, Service: "redshift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftDatashare, Service: "redshift", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:redshift",
 		fn:   scanRedshift,
-		emits: []coverage.TypeDecl{
-			{Service: "redshift", DiscoType: TypeRedshiftCluster},
-			{Service: "redshift", DiscoType: TypeRedshiftSubnetGroup},
-			{Service: "redshift", DiscoType: TypeRedshiftClusterParameterGroup, Leaf: true},
-			{Service: "redshift", DiscoType: TypeRedshiftEndpointAccess, Leaf: true},
-			{Service: "redshift", DiscoType: TypeRedshiftEndpointAuthorization, Leaf: true},
-			{Service: "redshift", DiscoType: TypeRedshiftEventSubscription, Leaf: true},
-			{Service: "redshift", DiscoType: TypeRedshiftIntegration},
-			{Service: "redshift", DiscoType: TypeRedshiftScheduledAction, Leaf: true},
-			{Service: "redshift", DiscoType: TypeRedshiftSnapshot},
-			{Service: "redshift", DiscoType: TypeRedshiftSnapshotSchedule, Leaf: true},
-			{Service: "redshift", DiscoType: TypeRedshiftSnapshotCopyGrant},
-			{Service: "redshift", DiscoType: TypeRedshiftUsageLimit},
-			{Service: "redshift", DiscoType: TypeRedshiftHsmClientCertificate, Leaf: true},
-			{Service: "redshift", DiscoType: TypeRedshiftHsmConfiguration, Leaf: true},
-			{Service: "redshift", DiscoType: TypeRedshiftIdcApplication, Leaf: true},
-			{Service: "redshift", DiscoType: TypeRedshiftDatashare, Leaf: true},
-		},
 	})
 }
 

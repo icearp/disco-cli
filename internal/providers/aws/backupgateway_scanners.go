@@ -4,21 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/backupgateway"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBackupGatewayHypervisor, Service: "backupgateway", Upstream: "AWS::BackupGateway::Hypervisor"})
+	registerType(restype.Descriptor{Type: TypeBackupGatewayGateway, Service: "backupgateway", Upstream: "AWS::backup-gateway::gateway"})
+	registerType(restype.Descriptor{Type: TypeBackupGatewayVirtualMachine, Service: "backupgateway", Upstream: "AWS::backup-gateway::virtualmachine"})
 	registerService(serviceEntry{
 		name: "aws:backupgateway",
 		fn:   scanBackupGateway,
-		emits: []coverage.TypeDecl{
-			{Service: "backupgateway", DiscoType: TypeBackupGatewayHypervisor},
-			// gateway + virtual-machine reference their hypervisor.
-			{Service: "backupgateway", DiscoType: TypeBackupGatewayGateway},
-			{Service: "backupgateway", DiscoType: TypeBackupGatewayVirtualMachine},
-		},
 	})
 }
 

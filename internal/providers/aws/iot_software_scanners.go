@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
 	"golang.org/x/sync/errgroup"
@@ -13,10 +13,8 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTSoftwarePackage, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTSoftwarePackageVersion, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeIoTSoftwarePackage, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTSoftwarePackageVersion, Service: "iot", Leaf: true})
 }
 
 type iotSoftwareAPI interface {

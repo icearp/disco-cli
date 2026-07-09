@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2/types"
@@ -13,18 +13,16 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWAFv2WebACL, Service: "wafv2", Upstream: "AWS::WAFv2::WebACL"})
+	registerType(restype.Descriptor{Type: TypeWAFv2RuleGroup, Service: "wafv2", Upstream: "AWS::WAFv2::RuleGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFv2IPSet, Service: "wafv2", Upstream: "AWS::WAFv2::IPSet", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFv2LoggingConfiguration, Service: "wafv2"})
+	registerType(restype.Descriptor{Type: TypeWAFv2RegexPatternSet, Service: "wafv2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFv2WebACLAssociation, Service: "wafv2"})
+	registerType(restype.Descriptor{Type: TypeWAFv2ManagedRuleSet, Service: "wafv2", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:wafv2",
 		fn:   scanWAFv2,
-		emits: []coverage.TypeDecl{
-			{Service: "wafv2", DiscoType: TypeWAFv2WebACL},
-			{Service: "wafv2", DiscoType: TypeWAFv2RuleGroup, Leaf: true},
-			{Service: "wafv2", DiscoType: TypeWAFv2IPSet, Leaf: true},
-			{Service: "wafv2", DiscoType: TypeWAFv2LoggingConfiguration},
-			{Service: "wafv2", DiscoType: TypeWAFv2RegexPatternSet, Leaf: true},
-			{Service: "wafv2", DiscoType: TypeWAFv2WebACLAssociation},
-			{Service: "wafv2", DiscoType: TypeWAFv2ManagedRuleSet, Leaf: true},
-		},
 	})
 }
 

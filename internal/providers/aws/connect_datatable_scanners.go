@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectDataTable},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectDataTableAttribute},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectDataTableRecord},
-	)
+	registerType(restype.Descriptor{Type: TypeConnectDataTable, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectDataTableAttribute, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectDataTableRecord, Service: "connect"})
 }
 
 // connectDataTableAPI is the narrow surface for the DataTable family. SDK

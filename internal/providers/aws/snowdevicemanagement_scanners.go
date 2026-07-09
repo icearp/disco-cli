@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/snowdevicemanagement"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSnowDeviceManagementManagedDevice, Service: "snow-device-management", Upstream: "AWS::snow-device-management::managed-device", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSnowDeviceManagementTask, Service: "snow-device-management", Upstream: "AWS::snow-device-management::task", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:snow-device-management",
 		fn:   scanSnowDeviceManagement,
-		emits: []coverage.TypeDecl{
-			{Service: "snow-device-management", DiscoType: TypeSnowDeviceManagementManagedDevice, Leaf: true},
-			{Service: "snow-device-management", DiscoType: TypeSnowDeviceManagementTask, Leaf: true},
-		},
 	})
 }
 

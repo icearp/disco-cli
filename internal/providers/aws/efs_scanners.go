@@ -5,21 +5,19 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEFSFileSystem, Service: "efs", Upstream: "AWS::EFS::FileSystem"})
+	registerType(restype.Descriptor{Type: TypeEFSAccessPoint, Service: "efs", Upstream: "AWS::EFS::AccessPoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEFSMountTarget, Service: "efs", Upstream: "AWS::EFS::MountTarget"})
 	registerService(serviceEntry{
 		name: "aws:efs",
 		fn:   scanEFS,
-		emits: []coverage.TypeDecl{
-			{Service: "efs", DiscoType: TypeEFSFileSystem},
-			{Service: "efs", DiscoType: TypeEFSAccessPoint, Leaf: true},
-			{Service: "efs", DiscoType: TypeEFSMountTarget},
-		},
 	})
 }
 

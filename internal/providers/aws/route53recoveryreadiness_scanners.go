@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/route53recoveryreadiness"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeR53RRCell, Service: "route53-recovery-readiness", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53RRReadinessCheck, Service: "route53-recovery-readiness", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53RRRecoveryGroup, Service: "route53-recovery-readiness", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53RRResourceSet, Service: "route53-recovery-readiness", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:route53-recovery-readiness",
 		global: true,
 		fn:     scanR53RecoveryReadiness,
-		emits: []coverage.TypeDecl{
-			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRCell, Leaf: true},
-			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRReadinessCheck, Leaf: true},
-			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRRecoveryGroup, Leaf: true},
-			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRResourceSet, Leaf: true},
-		},
 	})
 }
 

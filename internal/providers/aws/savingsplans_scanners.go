@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/savingsplans"
@@ -14,15 +14,13 @@ import (
 const savingsPlansRegion = "us-east-1"
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSavingsPlansSavingsPlan, Service: "savingsplans", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:savingsplans",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			client := savingsplans.NewFromConfig(acct.cfg, func(o *savingsplans.Options) { o.Region = savingsPlansRegion })
 			return scanSavingsPlans(ctx, client, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			{Service: "savingsplans", DiscoType: TypeSavingsPlansSavingsPlan, Leaf: true},
 		},
 	})
 }

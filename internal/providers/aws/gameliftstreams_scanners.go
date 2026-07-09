@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/gameliftstreams"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGameLiftStreamsApplication, Service: "gameliftstreams", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGameLiftStreamsStreamGroup, Service: "gameliftstreams", Upstream: "AWS::gameliftstreams::stream group"})
 	registerService(serviceEntry{
 		name: "aws:gameliftstreams",
 		fn:   scanGameLiftStreams,
-		emits: []coverage.TypeDecl{
-			{Service: "gameliftstreams", DiscoType: TypeGameLiftStreamsApplication, Leaf: true},
-			{Service: "gameliftstreams", DiscoType: TypeGameLiftStreamsStreamGroup},
-		},
 	})
 }
 

@@ -3,17 +3,15 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SecondaryInterface},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SecondaryNetwork, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SecondarySubnet},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2SecondaryInterface, Service: "ec2", Upstream: "AWS::ec2::secondary-interface"})
+	registerType(restype.Descriptor{Type: TypeEC2SecondaryNetwork, Service: "ec2", Upstream: "AWS::ec2::secondary-network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2SecondarySubnet, Service: "ec2", Upstream: "AWS::ec2::secondary-subnet"})
 }
 
 // scanEC2Secondary discovers multi-VPC secondary networking resources:

@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/migrationhubrefactorspaces"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRefactorSpacesEnvironment, Service: "refactor-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRefactorSpacesApplication, Service: "refactor-spaces"})
+	registerType(restype.Descriptor{Type: TypeRefactorSpacesService, Service: "refactor-spaces"})
+	registerType(restype.Descriptor{Type: TypeRefactorSpacesRoute, Service: "refactor-spaces"})
 	registerService(serviceEntry{
 		name: "aws:refactor-spaces",
 		fn:   scanRefactorSpaces,
-		emits: []coverage.TypeDecl{
-			{Service: "refactor-spaces", DiscoType: TypeRefactorSpacesEnvironment, Leaf: true},
-			{Service: "refactor-spaces", DiscoType: TypeRefactorSpacesApplication},
-			{Service: "refactor-spaces", DiscoType: TypeRefactorSpacesService},
-			{Service: "refactor-spaces", DiscoType: TypeRefactorSpacesRoute},
-		},
 	})
 }
 

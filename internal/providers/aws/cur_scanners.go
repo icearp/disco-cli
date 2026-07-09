@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/costandusagereportservice"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCURReportDefinition, Service: "cur", Upstream: "AWS::CUR::ReportDefinition", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:cur",
 		global: true,
 		fn:     scanCUR,
-		emits: []coverage.TypeDecl{
-			{Service: "cur", DiscoType: TypeCURReportDefinition, Leaf: true},
-		},
 	})
 }
 

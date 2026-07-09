@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/paymentcryptography"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePaymentCryptographyKey, Service: "payment-cryptography", Upstream: "AWS::PaymentCryptography::Key", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePaymentCryptographyAlias, Service: "payment-cryptography", Upstream: "AWS::PaymentCryptography::Alias"})
 	registerService(serviceEntry{
 		name: "aws:payment-cryptography",
 		fn:   scanPaymentCryptography,
-		emits: []coverage.TypeDecl{
-			{Service: "payment-cryptography", DiscoType: TypePaymentCryptographyKey, Leaf: true},
-			{Service: "payment-cryptography", DiscoType: TypePaymentCryptographyAlias},
-		},
 	})
 }
 

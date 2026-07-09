@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTIndex, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTJob, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTOTAUpdate, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTStream, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeIoTIndex, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTJob, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTOTAUpdate, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTStream, Service: "iot", Leaf: true})
 }
 
 type iotInventoryAPI interface {

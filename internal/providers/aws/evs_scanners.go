@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/evs"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEVSEnvironment, Service: "evs", Upstream: "AWS::EVS::Environment", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:evs",
 		fn:   scanEVS,
-		emits: []coverage.TypeDecl{
-			{Service: "evs", DiscoType: TypeEVSEnvironment, Leaf: true},
-		},
 	})
 }
 

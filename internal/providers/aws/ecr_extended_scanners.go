@@ -129,7 +129,6 @@ func scanECRRegistryScanningConfig(ctx context.Context, client ecrExtAPI, acct *
 		Type: TypeECRRegistryScanningConfig, NativeID: arn,
 		Name: &label, Region: &region, AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 		// Per-(acct,region) singleton registry-level scanning config.
-		ManagedByProvider: true,
 	}}
 	return upsertBatch(st, batch, "ecr registry-scanning-configuration")
 }
@@ -153,7 +152,6 @@ func scanECRReplicationConfiguration(ctx context.Context, client ecrExtAPI, acct
 		Type: TypeECRReplicationConfiguration, NativeID: arn,
 		Name: &label, Region: &region, AttributesJSON: mustJSON(out.ReplicationConfiguration), DiscoveredBy: scanID,
 		// Per-(acct,region) singleton registry-level replication config.
-		ManagedByProvider: true,
 	}}
 	return upsertBatch(st, batch, "ecr replication-configuration")
 }

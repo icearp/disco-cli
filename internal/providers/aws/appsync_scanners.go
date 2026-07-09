@@ -4,30 +4,28 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/appsync"
 	appsynctypes "github.com/aws/aws-sdk-go-v2/service/appsync/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppSyncAPI, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncAPICache, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncAPIKey, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncChannelNamespace, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncDataSource, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncDomainName, Service: "appsync", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppSyncDomainNameAPIAssociation, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncFunctionConfiguration, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncGraphQLApi, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncGraphQLSchema, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncSourceAPIAssociation, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncResolver, Service: "appsync"})
 	registerService(serviceEntry{
 		name: "aws:appsync",
 		fn:   scanAppSync,
-		emits: []coverage.TypeDecl{
-			{Service: "appsync", DiscoType: TypeAppSyncAPI},
-			{Service: "appsync", DiscoType: TypeAppSyncAPICache},
-			{Service: "appsync", DiscoType: TypeAppSyncAPIKey},
-			{Service: "appsync", DiscoType: TypeAppSyncChannelNamespace},
-			{Service: "appsync", DiscoType: TypeAppSyncDataSource},
-			{Service: "appsync", DiscoType: TypeAppSyncDomainName, Leaf: true},
-			{Service: "appsync", DiscoType: TypeAppSyncDomainNameAPIAssociation},
-			{Service: "appsync", DiscoType: TypeAppSyncFunctionConfiguration},
-			{Service: "appsync", DiscoType: TypeAppSyncGraphQLApi},
-			{Service: "appsync", DiscoType: TypeAppSyncGraphQLSchema},
-			{Service: "appsync", DiscoType: TypeAppSyncSourceAPIAssociation},
-			{Service: "appsync", DiscoType: TypeAppSyncResolver},
-		},
 	})
 }
 

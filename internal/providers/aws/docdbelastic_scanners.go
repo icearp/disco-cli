@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/docdbelastic"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDocDBElasticCluster, Service: "doc-db-elastic", Upstream: "AWS::DocDBElastic::Cluster"})
+	registerType(restype.Descriptor{Type: TypeDocDBElasticClusterSnapshot, Service: "doc-db-elastic", Upstream: "AWS::docdb-elastic::cluster-snapshot"})
 	registerService(serviceEntry{
 		name: "aws:doc-db-elastic",
 		fn:   scanDocDBElastic,
-		emits: []coverage.TypeDecl{
-			{Service: "doc-db-elastic", DiscoType: TypeDocDBElasticCluster},
-			{Service: "doc-db-elastic", DiscoType: TypeDocDBElasticClusterSnapshot},
-		},
 	})
 }
 

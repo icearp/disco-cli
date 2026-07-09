@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/serverlessapplicationrepository"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeServerlessRepoApplication, Service: "serverlessrepo", Upstream: "AWS::serverlessrepo::applications", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:serverlessrepo",
 		fn:   scanServerlessRepo,
-		emits: []coverage.TypeDecl{
-			{Service: "serverlessrepo", DiscoType: TypeServerlessRepoApplication, Leaf: true},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/scheduler"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSchedulerSchedule, Service: "scheduler"})
+	registerType(restype.Descriptor{Type: TypeSchedulerScheduleGroup, Service: "scheduler", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:scheduler",
 		fn:   scanScheduler,
-		emits: []coverage.TypeDecl{
-			{Service: "scheduler", DiscoType: TypeSchedulerSchedule},
-			{Service: "scheduler", DiscoType: TypeSchedulerScheduleGroup, Leaf: true},
-		},
 	})
 }
 

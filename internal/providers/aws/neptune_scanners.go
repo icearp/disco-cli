@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/neptune"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNeptuneCluster, Service: "neptune", Upstream: "AWS::Neptune::DBCluster"})
+	registerType(restype.Descriptor{Type: TypeNeptuneInstance, Service: "neptune", Upstream: "AWS::Neptune::DBInstance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNeptuneDBClusterParameterGroup, Service: "neptune", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNeptuneDBParameterGroup, Service: "neptune", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNeptuneDBSubnetGroup, Service: "neptune", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNeptuneEventSubscription, Service: "neptune", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNeptuneGlobalCluster, Service: "neptune", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:neptune",
 		fn:   scanNeptune,
-		emits: []coverage.TypeDecl{
-			{Service: "neptune", DiscoType: TypeNeptuneCluster},
-			{Service: "neptune", DiscoType: TypeNeptuneInstance, Leaf: true},
-			{Service: "neptune", DiscoType: TypeNeptuneDBClusterParameterGroup, Leaf: true},
-			{Service: "neptune", DiscoType: TypeNeptuneDBParameterGroup, Leaf: true},
-			{Service: "neptune", DiscoType: TypeNeptuneDBSubnetGroup, Leaf: true},
-			{Service: "neptune", DiscoType: TypeNeptuneEventSubscription, Leaf: true},
-			{Service: "neptune", DiscoType: TypeNeptuneGlobalCluster, Leaf: true},
-		},
 	})
 }
 

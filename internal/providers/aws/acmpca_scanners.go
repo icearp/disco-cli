@@ -5,20 +5,18 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/acmpca"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeACMPrivateCA, Service: "acmpca", Upstream: "AWS::ACMPCA::CertificateAuthority"})
+	registerType(restype.Descriptor{Type: TypeACMPCAPermission, Service: "acmpca", Upstream: "AWS::ACMPCA::Permission", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:acm-pca",
 		fn:   scanACMPCA,
-		emits: []coverage.TypeDecl{
-			{Service: "acmpca", DiscoType: TypeACMPrivateCA},
-			{Service: "acmpca", DiscoType: TypeACMPCAPermission, Leaf: true},
-		},
 	})
 }
 

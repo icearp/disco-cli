@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/novaact"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNovaActWorkflowDefinition, Service: "nova-act", Upstream: "AWS::NovaAct::WorkflowDefinition", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:nova-act",
 		fn:   scanNovaAct,
-		emits: []coverage.TypeDecl{
-			{Service: "nova-act", DiscoType: TypeNovaActWorkflowDefinition, Leaf: true},
-		},
 	})
 }
 

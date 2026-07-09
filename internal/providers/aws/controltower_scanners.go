@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/controltower"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/controltower/types"
@@ -15,14 +15,12 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeControlTowerLandingZone, Service: "controltower", Upstream: "AWS::ControlTower::LandingZone", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeControlTowerEnabledBaseline, Service: "controltower", Upstream: "AWS::ControlTower::EnabledBaseline"})
+	registerType(restype.Descriptor{Type: TypeControlTowerEnabledControl, Service: "controltower", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:controltower",
 		fn:   scanControlTower,
-		emits: []coverage.TypeDecl{
-			{Service: "controltower", DiscoType: TypeControlTowerLandingZone, Leaf: true},
-			{Service: "controltower", DiscoType: TypeControlTowerEnabledBaseline},
-			{Service: "controltower", DiscoType: TypeControlTowerEnabledControl, Leaf: true},
-		},
 	})
 }
 

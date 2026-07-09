@@ -7,7 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -17,31 +18,26 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIAMAccount, Service: "iam", Uncatalogued: true, Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIAMUser, Service: "iam", Upstream: "AWS::IAM::User"})
+	registerType(restype.Descriptor{Type: TypeIAMGroup, Service: "iam", Upstream: "AWS::IAM::Group"})
+	registerType(restype.Descriptor{Type: TypeIAMRole, Service: "iam", Upstream: "AWS::IAM::Role"})
+	registerType(restype.Descriptor{Type: TypeIAMServiceLinkedRole, Service: "iam", Upstream: "AWS::IAM::ServiceLinkedRole"})
+	registerType(restype.Descriptor{Type: TypeIAMPolicy, Service: "iam", Upstream: "AWS::IAM::ManagedPolicy"})
+	registerType(restype.Descriptor{Type: TypeIAMRolePolicy, Service: "iam", Upstream: "AWS::IAM::RolePolicy"})
+	registerType(restype.Descriptor{Type: TypeIAMUserPolicy, Service: "iam", Upstream: "AWS::IAM::UserPolicy"})
+	registerType(restype.Descriptor{Type: TypeIAMGroupPolicy, Service: "iam", Upstream: "AWS::IAM::GroupPolicy"})
+	registerType(restype.Descriptor{Type: TypeIAMAccessKey, Service: "iam", Upstream: "AWS::IAM::AccessKey", Leaf: true, Redact: []redact.Rule{{Path: "SecretAccessKey", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeIAMInstanceProfile, Service: "iam", Upstream: "AWS::IAM::InstanceProfile", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIAMOIDCProvider, Service: "iam", Upstream: "AWS::IAM::OIDCProvider", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIAMSAMLProvider, Service: "iam", Upstream: "AWS::IAM::SAMLProvider", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIAMServerCertificate, Service: "iam", Upstream: "AWS::IAM::ServerCertificate", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIAMVirtualMFADevice, Service: "iam", Upstream: "AWS::IAM::VirtualMFADevice", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:iam",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			return scanIAM(ctx, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			// Account self-node. No CFN type and not an IAM "resource" in the
-			// Service Reference catalogue → Uncatalogued (auto-upgrades if a
-			// registry ever lists it). Edge-less posture row → Leaf.
-			{Service: "iam", DiscoType: TypeIAMAccount, Uncatalogued: true, Leaf: true},
-			{Service: "iam", DiscoType: TypeIAMUser},
-			{Service: "iam", DiscoType: TypeIAMGroup},
-			{Service: "iam", DiscoType: TypeIAMRole},
-			{Service: "iam", DiscoType: TypeIAMServiceLinkedRole},
-			{Service: "iam", DiscoType: TypeIAMPolicy},
-			{Service: "iam", DiscoType: TypeIAMRolePolicy},
-			{Service: "iam", DiscoType: TypeIAMUserPolicy},
-			{Service: "iam", DiscoType: TypeIAMGroupPolicy},
-			{Service: "iam", DiscoType: TypeIAMAccessKey, Leaf: true},
-			{Service: "iam", DiscoType: TypeIAMInstanceProfile, Leaf: true},
-			{Service: "iam", DiscoType: TypeIAMOIDCProvider, Leaf: true},
-			{Service: "iam", DiscoType: TypeIAMSAMLProvider, Leaf: true},
-			{Service: "iam", DiscoType: TypeIAMServerCertificate, Leaf: true},
-			{Service: "iam", DiscoType: TypeIAMVirtualMFADevice, Leaf: true},
 		},
 	})
 }

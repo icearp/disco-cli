@@ -4,27 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/imagebuilder"
 	"github.com/aws/aws-sdk-go-v2/service/imagebuilder/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeImageBuilderComponent, Service: "imagebuilder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeImageBuilderContainerRecipe, Service: "imagebuilder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeImageBuilderDistributionConfiguration, Service: "imagebuilder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeImageBuilderImage, Service: "imagebuilder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeImageBuilderImagePipeline, Service: "imagebuilder"})
+	registerType(restype.Descriptor{Type: TypeImageBuilderImageRecipe, Service: "imagebuilder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeImageBuilderInfrastructureConfig, Service: "imagebuilder"})
+	registerType(restype.Descriptor{Type: TypeImageBuilderLifecyclePolicy, Service: "imagebuilder"})
+	registerType(restype.Descriptor{Type: TypeImageBuilderWorkflow, Service: "imagebuilder", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:imagebuilder",
 		fn:   scanImageBuilder,
-		emits: []coverage.TypeDecl{
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderComponent, Leaf: true},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderContainerRecipe, Leaf: true},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderDistributionConfiguration, Leaf: true},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderImage, Leaf: true},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderImagePipeline},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderImageRecipe, Leaf: true},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderInfrastructureConfig},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderLifecyclePolicy},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderWorkflow, Leaf: true},
-		},
 	})
 }
 

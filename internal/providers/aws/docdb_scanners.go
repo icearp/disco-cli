@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/docdb"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDocDBCluster, Service: "docdb", Upstream: "AWS::DocDB::DBCluster"})
+	registerType(restype.Descriptor{Type: TypeDocDBInstance, Service: "docdb", Upstream: "AWS::DocDB::DBInstance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDocDBDBClusterParameterGroup, Service: "docdb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDocDBDBSubnetGroup, Service: "docdb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDocDBEventSubscription, Service: "docdb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDocDBGlobalCluster, Service: "docdb", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:docdb",
 		fn:   scanDocDB,
-		emits: []coverage.TypeDecl{
-			{Service: "docdb", DiscoType: TypeDocDBCluster},
-			{Service: "docdb", DiscoType: TypeDocDBInstance, Leaf: true},
-			{Service: "docdb", DiscoType: TypeDocDBDBClusterParameterGroup, Leaf: true},
-			{Service: "docdb", DiscoType: TypeDocDBDBSubnetGroup, Leaf: true},
-			{Service: "docdb", DiscoType: TypeDocDBEventSubscription, Leaf: true},
-			{Service: "docdb", DiscoType: TypeDocDBGlobalCluster, Leaf: true},
-		},
 	})
 }
 

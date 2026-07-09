@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/keyspaces"
 	keyspacestypes "github.com/aws/aws-sdk-go-v2/service/keyspaces/types"
@@ -14,14 +14,12 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCassandraKeyspace, Service: "cassandra", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCassandraTable, Service: "cassandra"})
+	registerType(restype.Descriptor{Type: TypeCassandraType, Service: "cassandra", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:cassandra",
 		fn:   scanCassandra,
-		emits: []coverage.TypeDecl{
-			{Service: "cassandra", DiscoType: TypeCassandraKeyspace, Leaf: true},
-			{Service: "cassandra", DiscoType: TypeCassandraTable},
-			{Service: "cassandra", DiscoType: TypeCassandraType, Leaf: true},
-		},
 	})
 }
 

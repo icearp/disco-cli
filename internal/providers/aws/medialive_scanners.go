@@ -5,34 +5,32 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/medialive"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMediaLiveChannel, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveChannelPlacementGroup, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveCloudWatchAlarmTemplate, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveCloudWatchAlarmTemplateGroup, Service: "medialive", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveCluster, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveEventBridgeRuleTemplate, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveEventBridgeRuleTemplateGroup, Service: "medialive", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveInput, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveInputDevice, Service: "medialive", Upstream: "AWS::medialive::input-device", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveInputSecurityGroup, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveNode, Service: "medialive", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveReservation, Service: "medialive", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveMultiplex, Service: "medialive", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveMultiplexProgram, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveNetwork, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveSdiSource, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveSignalMap, Service: "medialive", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:medialive",
 		fn:   scanMediaLive,
-		emits: []coverage.TypeDecl{
-			{Service: "medialive", DiscoType: TypeMediaLiveChannel},
-			{Service: "medialive", DiscoType: TypeMediaLiveChannelPlacementGroup},
-			{Service: "medialive", DiscoType: TypeMediaLiveCloudWatchAlarmTemplate},
-			{Service: "medialive", DiscoType: TypeMediaLiveCloudWatchAlarmTemplateGroup, Leaf: true},
-			{Service: "medialive", DiscoType: TypeMediaLiveCluster},
-			{Service: "medialive", DiscoType: TypeMediaLiveEventBridgeRuleTemplate},
-			{Service: "medialive", DiscoType: TypeMediaLiveEventBridgeRuleTemplateGroup, Leaf: true},
-			{Service: "medialive", DiscoType: TypeMediaLiveInput},
-			{Service: "medialive", DiscoType: TypeMediaLiveInputDevice, Leaf: true},
-			{Service: "medialive", DiscoType: TypeMediaLiveInputSecurityGroup},
-			{Service: "medialive", DiscoType: TypeMediaLiveNode, Leaf: true},
-			{Service: "medialive", DiscoType: TypeMediaLiveReservation, Leaf: true},
-			{Service: "medialive", DiscoType: TypeMediaLiveMultiplex, Leaf: true},
-			{Service: "medialive", DiscoType: TypeMediaLiveMultiplexProgram},
-			{Service: "medialive", DiscoType: TypeMediaLiveNetwork},
-			{Service: "medialive", DiscoType: TypeMediaLiveSdiSource},
-			{Service: "medialive", DiscoType: TypeMediaLiveSignalMap, Leaf: true},
-		},
 	})
 }
 

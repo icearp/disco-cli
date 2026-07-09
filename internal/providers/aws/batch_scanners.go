@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/batch"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBatchComputeEnvironment, Service: "batch", Upstream: "AWS::Batch::ComputeEnvironment"})
+	registerType(restype.Descriptor{Type: TypeBatchJobQueue, Service: "batch", Upstream: "AWS::Batch::JobQueue"})
+	registerType(restype.Descriptor{Type: TypeBatchJobDefinition, Service: "batch", Upstream: "AWS::Batch::JobDefinition"})
+	registerType(restype.Descriptor{Type: TypeBatchSchedulingPolicy, Service: "batch", Upstream: "AWS::Batch::SchedulingPolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBatchConsumableResource, Service: "batch", Upstream: "AWS::Batch::ConsumableResource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBatchServiceEnvironment, Service: "batch", Upstream: "AWS::Batch::ServiceEnvironment", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBatchQuotaShare, Service: "batch", Upstream: "AWS::Batch::QuotaShare"})
 	registerService(serviceEntry{
 		name: "aws:batch",
 		fn:   scanBatch,
-		emits: []coverage.TypeDecl{
-			{Service: "batch", DiscoType: TypeBatchComputeEnvironment},
-			{Service: "batch", DiscoType: TypeBatchJobQueue},
-			{Service: "batch", DiscoType: TypeBatchJobDefinition},
-			{Service: "batch", DiscoType: TypeBatchSchedulingPolicy, Leaf: true},
-			{Service: "batch", DiscoType: TypeBatchConsumableResource, Leaf: true},
-			{Service: "batch", DiscoType: TypeBatchServiceEnvironment, Leaf: true},
-			{Service: "batch", DiscoType: TypeBatchQuotaShare},
-		},
 	})
 }
 

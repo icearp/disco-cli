@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/appflow"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppFlowFlow, Service: "appflow"})
+	registerType(restype.Descriptor{Type: TypeAppFlowConnector, Service: "appflow", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppFlowConnectorProfile, Service: "appflow"})
 	registerService(serviceEntry{
 		name: "aws:appflow",
 		fn:   scanAppFlow,
-		emits: []coverage.TypeDecl{
-			{Service: "appflow", DiscoType: TypeAppFlowFlow},
-			{Service: "appflow", DiscoType: TypeAppFlowConnector, Leaf: true},
-			{Service: "appflow", DiscoType: TypeAppFlowConnectorProfile},
-		},
 	})
 }
 

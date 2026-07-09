@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/panorama"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePanoramaApplicationInstance, Service: "panorama", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePanoramaPackage, Service: "panorama", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePanoramaDevice, Service: "panorama", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:panorama",
 		fn:   scanPanorama,
-		emits: []coverage.TypeDecl{
-			{Service: "panorama", DiscoType: TypePanoramaApplicationInstance, Leaf: true},
-			{Service: "panorama", DiscoType: TypePanoramaPackage, Leaf: true},
-			{Service: "panorama", DiscoType: TypePanoramaDevice, Leaf: true},
-		},
 	})
 }
 

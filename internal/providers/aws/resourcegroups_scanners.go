@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/resourcegroups"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeResourceGroupsGroup, Service: "resource-groups", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResourceGroupsTagSyncTask, Service: "resource-groups"})
 	registerService(serviceEntry{
 		name: "aws:resource-groups",
 		fn:   scanResourceGroups,
-		emits: []coverage.TypeDecl{
-			{Service: "resource-groups", DiscoType: TypeResourceGroupsGroup, Leaf: true},
-			{Service: "resource-groups", DiscoType: TypeResourceGroupsTagSyncTask},
-		},
 	})
 }
 

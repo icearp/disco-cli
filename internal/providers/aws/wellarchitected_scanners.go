@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/wellarchitected"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWellArchitectedWorkload, Service: "wellarchitected", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWellArchitectedLens, Service: "wellarchitected", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWellArchitectedProfile, Service: "wellarchitected", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWellArchitectedReviewTemplate, Service: "wellarchitected", Upstream: "AWS::wellarchitected::review-template", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:wellarchitected",
 		fn:   scanWellArchitected,
-		emits: []coverage.TypeDecl{
-			{Service: "wellarchitected", DiscoType: TypeWellArchitectedWorkload, Leaf: true},
-			{Service: "wellarchitected", DiscoType: TypeWellArchitectedLens, Leaf: true},
-			{Service: "wellarchitected", DiscoType: TypeWellArchitectedProfile, Leaf: true},
-			{Service: "wellarchitected", DiscoType: TypeWellArchitectedReviewTemplate, Leaf: true},
-		},
 	})
 }
 

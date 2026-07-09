@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueCatalog},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueCustomEntityType, Leaf: true},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueDataCatalogEncryptionSettings},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueDataQualityRuleset},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueIdentityCenterConfiguration},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueIntegration},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueIntegrationResourceProperty, Leaf: true},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueSecurityConfiguration},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueUsageProfile, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeGlueCatalog, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueCustomEntityType, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueDataCatalogEncryptionSettings, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueDataQualityRuleset, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueIdentityCenterConfiguration, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueIntegration, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueIntegrationResourceProperty, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueSecurityConfiguration, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueUsageProfile, Service: "glue", Leaf: true})
 }
 
 func scanGlueMisc(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

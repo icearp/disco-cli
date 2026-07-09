@@ -4,31 +4,29 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/datazone"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataZoneDomain, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneDomainUnit, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneProject, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneProjectProfile, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneProjectMembership, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneGroupProfile, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneUserProfile, Service: "datazone", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataZoneEnvironment, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneEnvironmentProfile, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneEnvironmentActions, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneEnvironmentBlueprintConfiguration, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneDataSource, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneConnection, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneSubscriptionTarget, Service: "datazone"})
 	registerService(serviceEntry{
 		name: "aws:datazone",
 		fn:   scanDataZone,
-		emits: []coverage.TypeDecl{
-			{Service: "datazone", DiscoType: TypeDataZoneDomain},
-			{Service: "datazone", DiscoType: TypeDataZoneDomainUnit},
-			{Service: "datazone", DiscoType: TypeDataZoneProject},
-			{Service: "datazone", DiscoType: TypeDataZoneProjectProfile},
-			{Service: "datazone", DiscoType: TypeDataZoneProjectMembership},
-			{Service: "datazone", DiscoType: TypeDataZoneGroupProfile},
-			{Service: "datazone", DiscoType: TypeDataZoneUserProfile, Leaf: true},
-			{Service: "datazone", DiscoType: TypeDataZoneEnvironment},
-			{Service: "datazone", DiscoType: TypeDataZoneEnvironmentProfile},
-			{Service: "datazone", DiscoType: TypeDataZoneEnvironmentActions},
-			{Service: "datazone", DiscoType: TypeDataZoneEnvironmentBlueprintConfiguration},
-			{Service: "datazone", DiscoType: TypeDataZoneDataSource},
-			{Service: "datazone", DiscoType: TypeDataZoneConnection},
-			{Service: "datazone", DiscoType: TypeDataZoneSubscriptionTarget},
-		},
 	})
 }
 

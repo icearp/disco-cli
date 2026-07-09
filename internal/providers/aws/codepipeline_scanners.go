@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/codepipeline"
 	"github.com/aws/aws-sdk-go-v2/service/codepipeline/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCodePipelinePipeline, Service: "codepipeline", Upstream: "AWS::CodePipeline::Pipeline"})
+	registerType(restype.Descriptor{Type: TypeCodePipelineCustomActionType, Service: "codepipeline", Upstream: "AWS::CodePipeline::CustomActionType", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodePipelineWebhook, Service: "codepipeline", Upstream: "AWS::CodePipeline::Webhook"})
 	registerService(serviceEntry{
 		name: "aws:codepipeline",
 		fn:   scanCodePipeline,
-		emits: []coverage.TypeDecl{
-			{Service: "codepipeline", DiscoType: TypeCodePipelinePipeline},
-			{Service: "codepipeline", DiscoType: TypeCodePipelineCustomActionType, Leaf: true},
-			{Service: "codepipeline", DiscoType: TypeCodePipelineWebhook},
-		},
 	})
 }
 

@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/repostspace"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRepostspaceSpace, Service: "repostspace", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:repostspace",
 		fn:   scanRepostspace,
-		emits: []coverage.TypeDecl{
-			{Service: "repostspace", DiscoType: TypeRepostspaceSpace, Leaf: true},
-		},
 	})
 }
 

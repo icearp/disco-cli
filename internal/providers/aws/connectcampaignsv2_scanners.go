@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/connectcampaignsv2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeConnectCampaignsV2Campaign, Service: "connect-campaigns-v2", Upstream: "AWS::ConnectCampaignsV2::Campaign", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:connect-campaigns-v2",
 		fn:   scanConnectCampaignsV2,
-		emits: []coverage.TypeDecl{
-			{Service: "connect-campaigns-v2", DiscoType: TypeConnectCampaignsV2Campaign, Leaf: true},
-		},
 	})
 }
 

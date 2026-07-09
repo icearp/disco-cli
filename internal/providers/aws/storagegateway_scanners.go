@@ -5,28 +5,24 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/storagegateway"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStorageGatewayGateway, Service: "storagegateway", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageGatewayVolume, Service: "storagegateway"})
+	registerType(restype.Descriptor{Type: TypeStorageGatewayShare, Service: "storagegateway"})
+	registerType(restype.Descriptor{Type: TypeStorageGatewayTape, Service: "storagegateway"})
+	registerType(restype.Descriptor{Type: TypeStorageGatewayTapePool, Service: "storagegateway", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageGatewayFsAssociation, Service: "storagegateway", Upstream: "AWS::storagegateway::fs-association"})
+	registerType(restype.Descriptor{Type: TypeStorageGatewayCacheReport, Service: "storagegateway", Upstream: "AWS::storagegateway::cache-report", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageGatewayDevice, Service: "storagegateway"})
 	registerService(serviceEntry{
 		name: "aws:storagegateway",
 		fn:   scanStorageGateway,
-		emits: []coverage.TypeDecl{
-			{Service: "storagegateway", DiscoType: TypeStorageGatewayGateway, Leaf: true},
-			// volume/share/tape/fs-association/device each wire an outbound
-			// attached-to edge to their gateway (see storagegateway_resolvers.go).
-			{Service: "storagegateway", DiscoType: TypeStorageGatewayVolume},
-			{Service: "storagegateway", DiscoType: TypeStorageGatewayShare},
-			{Service: "storagegateway", DiscoType: TypeStorageGatewayTape},
-			{Service: "storagegateway", DiscoType: TypeStorageGatewayTapePool, Leaf: true},
-			{Service: "storagegateway", DiscoType: TypeStorageGatewayFsAssociation},
-			{Service: "storagegateway", DiscoType: TypeStorageGatewayCacheReport, Leaf: true},
-			{Service: "storagegateway", DiscoType: TypeStorageGatewayDevice},
-		},
 	})
 }
 

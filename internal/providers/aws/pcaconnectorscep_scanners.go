@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/pcaconnectorscep"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePCAConnectorSCEPConnector, Service: "pca-connector-scep", Upstream: "AWS::PCAConnectorSCEP::Connector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePCAConnectorSCEPChallenge, Service: "pca-connector-scep", Upstream: "AWS::PCAConnectorSCEP::Challenge", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:pca-connector-scep",
 		fn:   scanPCAConnectorSCEP,
-		emits: []coverage.TypeDecl{
-			{Service: "pca-connector-scep", DiscoType: TypePCAConnectorSCEPConnector, Leaf: true},
-			{Service: "pca-connector-scep", DiscoType: TypePCAConnectorSCEPChallenge, Leaf: true},
-		},
 	})
 }
 

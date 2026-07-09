@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/billing"
 	billingtypes "github.com/aws/aws-sdk-go-v2/service/billing/types"
@@ -14,15 +14,13 @@ import (
 const billingRegion = "us-east-1"
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBillingView, Service: "billing", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:billing",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			client := billing.NewFromConfig(acct.cfg, func(o *billing.Options) { o.Region = billingRegion })
 			return scanBillingViews(ctx, client, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			{Service: "billing", DiscoType: TypeBillingView, Leaf: true},
 		},
 	})
 }

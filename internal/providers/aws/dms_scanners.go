@@ -4,28 +4,26 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/databasemigrationservice"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDMSCertificate, Service: "dms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDMSDataMigration, Service: "dms"})
+	registerType(restype.Descriptor{Type: TypeDMSDataProvider, Service: "dms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDMSEndpoint, Service: "dms"})
+	registerType(restype.Descriptor{Type: TypeDMSEventSubscription, Service: "dms"})
+	registerType(restype.Descriptor{Type: TypeDMSInstanceProfile, Service: "dms"})
+	registerType(restype.Descriptor{Type: TypeDMSMigrationProject, Service: "dms"})
+	registerType(restype.Descriptor{Type: TypeDMSReplicationConfig, Service: "dms"})
+	registerType(restype.Descriptor{Type: TypeDMSReplicationInstance, Service: "dms"})
+	registerType(restype.Descriptor{Type: TypeDMSReplicationSubnetGroup, Service: "dms"})
+	registerType(restype.Descriptor{Type: TypeDMSReplicationTask, Service: "dms"})
 	registerService(serviceEntry{
 		name: "aws:dms",
 		fn:   scanDMS,
-		emits: []coverage.TypeDecl{
-			{Service: "dms", DiscoType: TypeDMSCertificate, Leaf: true},
-			{Service: "dms", DiscoType: TypeDMSDataMigration},
-			{Service: "dms", DiscoType: TypeDMSDataProvider, Leaf: true},
-			{Service: "dms", DiscoType: TypeDMSEndpoint},
-			{Service: "dms", DiscoType: TypeDMSEventSubscription},
-			{Service: "dms", DiscoType: TypeDMSInstanceProfile},
-			{Service: "dms", DiscoType: TypeDMSMigrationProject},
-			{Service: "dms", DiscoType: TypeDMSReplicationConfig},
-			{Service: "dms", DiscoType: TypeDMSReplicationInstance},
-			{Service: "dms", DiscoType: TypeDMSReplicationSubnetGroup},
-			{Service: "dms", DiscoType: TypeDMSReplicationTask},
-		},
 	})
 }
 

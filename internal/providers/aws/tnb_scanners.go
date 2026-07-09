@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/tnb"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeTnbFunctionInstance, Service: "tnb", Upstream: "AWS::tnb::function-instance"})
+	registerType(restype.Descriptor{Type: TypeTnbFunctionPackage, Service: "tnb", Upstream: "AWS::tnb::function-package", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTnbNetworkInstance, Service: "tnb", Upstream: "AWS::tnb::network-instance"})
+	registerType(restype.Descriptor{Type: TypeTnbNetworkPackage, Service: "tnb", Upstream: "AWS::tnb::network-package", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTnbNetworkOperation, Service: "tnb", Upstream: "AWS::tnb::network-operation"})
 	registerService(serviceEntry{
 		name: "aws:tnb",
 		fn:   scanTnb,
-		emits: []coverage.TypeDecl{
-			{Service: "tnb", DiscoType: TypeTnbFunctionInstance},
-			{Service: "tnb", DiscoType: TypeTnbFunctionPackage, Leaf: true},
-			{Service: "tnb", DiscoType: TypeTnbNetworkInstance},
-			{Service: "tnb", DiscoType: TypeTnbNetworkPackage, Leaf: true},
-			{Service: "tnb", DiscoType: TypeTnbNetworkOperation},
-		},
 	})
 }
 

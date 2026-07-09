@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/kinesisvideo"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKinesisVideoStream, Service: "kinesis-video", Upstream: "AWS::KinesisVideo::Stream", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKinesisVideoSignalingChannel, Service: "kinesis-video", Upstream: "AWS::KinesisVideo::SignalingChannel", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:kinesis-video",
 		fn:   scanKinesisVideo,
-		emits: []coverage.TypeDecl{
-			{Service: "kinesis-video", DiscoType: TypeKinesisVideoStream, Leaf: true},
-			{Service: "kinesis-video", DiscoType: TypeKinesisVideoSignalingChannel, Leaf: true},
-		},
 	})
 }
 

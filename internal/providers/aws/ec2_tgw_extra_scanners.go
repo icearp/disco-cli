@@ -3,16 +3,14 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayPolicyTable},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayRouteTableAnnouncement},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayPolicyTable, Service: "ec2", Upstream: "AWS::ec2::transit-gateway-policy-table"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayRouteTableAnnouncement, Service: "ec2", Upstream: "AWS::ec2::transit-gateway-route-table-announcement"})
 }
 
 // scanEC2TGWExtra discovers Transit Gateway policy tables and route-table

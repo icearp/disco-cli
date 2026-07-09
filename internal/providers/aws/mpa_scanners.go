@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/mpa"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMPAApprovalTeam, Service: "mpa", Upstream: "AWS::MPA::ApprovalTeam", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMPAIdentitySource, Service: "mpa", Upstream: "AWS::MPA::IdentitySource", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:mpa",
 		fn:   scanMPA,
-		emits: []coverage.TypeDecl{
-			{Service: "mpa", DiscoType: TypeMPAApprovalTeam, Leaf: true},
-			{Service: "mpa", DiscoType: TypeMPAIdentitySource, Leaf: true},
-		},
 	})
 }
 

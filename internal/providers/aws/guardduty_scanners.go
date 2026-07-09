@@ -4,26 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGuardDutyDetector, Service: "guardduty", Upstream: "AWS::GuardDuty::Detector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGuardDutyFilter, Service: "guardduty", Upstream: "AWS::GuardDuty::Filter"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyIPSet, Service: "guardduty", Upstream: "AWS::GuardDuty::IPSet"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyMember, Service: "guardduty"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyMalwareProtectionPlan, Service: "guardduty", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGuardDutyPublishingDestination, Service: "guardduty"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyThreatEntitySet, Service: "guardduty"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyThreatIntelSet, Service: "guardduty"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyTrustedEntitySet, Service: "guardduty"})
 	registerService(serviceEntry{
 		name: "aws:guardduty",
 		fn:   scanGuardDuty,
-		emits: []coverage.TypeDecl{
-			{Service: "guardduty", DiscoType: TypeGuardDutyDetector, Leaf: true},
-			{Service: "guardduty", DiscoType: TypeGuardDutyFilter},
-			{Service: "guardduty", DiscoType: TypeGuardDutyIPSet},
-			{Service: "guardduty", DiscoType: TypeGuardDutyMember},
-			{Service: "guardduty", DiscoType: TypeGuardDutyMalwareProtectionPlan, Leaf: true},
-			{Service: "guardduty", DiscoType: TypeGuardDutyPublishingDestination},
-			{Service: "guardduty", DiscoType: TypeGuardDutyThreatEntitySet},
-			{Service: "guardduty", DiscoType: TypeGuardDutyThreatIntelSet},
-			{Service: "guardduty", DiscoType: TypeGuardDutyTrustedEntitySet},
-		},
 	})
 }
 

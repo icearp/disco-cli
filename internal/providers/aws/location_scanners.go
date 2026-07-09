@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/location"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLocationAPIKey, Service: "location"})
+	registerType(restype.Descriptor{Type: TypeLocationGeofenceCollection, Service: "location"})
+	registerType(restype.Descriptor{Type: TypeLocationMap, Service: "location", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLocationPlaceIndex, Service: "location", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLocationRouteCalculator, Service: "location", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLocationTracker, Service: "location"})
+	registerType(restype.Descriptor{Type: TypeLocationTrackerConsumer, Service: "location"})
 	registerService(serviceEntry{
 		name: "aws:location",
 		fn:   scanLocation,
-		emits: []coverage.TypeDecl{
-			{Service: "location", DiscoType: TypeLocationAPIKey},
-			{Service: "location", DiscoType: TypeLocationGeofenceCollection},
-			{Service: "location", DiscoType: TypeLocationMap, Leaf: true},
-			{Service: "location", DiscoType: TypeLocationPlaceIndex, Leaf: true},
-			{Service: "location", DiscoType: TypeLocationRouteCalculator, Leaf: true},
-			{Service: "location", DiscoType: TypeLocationTracker},
-			{Service: "location", DiscoType: TypeLocationTrackerConsumer},
-		},
 	})
 }
 

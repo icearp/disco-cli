@@ -4,30 +4,28 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/mediaconnect"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMediaConnectBridge, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectBridgeOutput, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectBridgeSource, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectFlow, Service: "mediaconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConnectFlowEntitlement, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectFlowOutput, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectFlowSource, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectFlowVpcInterface, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectGateway, Service: "mediaconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConnectRouterInput, Service: "mediaconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConnectRouterNetworkInterface, Service: "mediaconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConnectRouterOutput, Service: "mediaconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConnectReservation, Service: "mediaconnect", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:mediaconnect",
 		fn:   scanMediaConnect,
-		emits: []coverage.TypeDecl{
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectBridge},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectBridgeOutput},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectBridgeSource},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectFlow, Leaf: true},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectFlowEntitlement},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectFlowOutput},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectFlowSource},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectFlowVpcInterface},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectGateway, Leaf: true},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectRouterInput, Leaf: true},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectRouterNetworkInterface, Leaf: true},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectRouterOutput, Leaf: true},
-			{Service: "mediaconnect", DiscoType: TypeMediaConnectReservation, Leaf: true},
-		},
 	})
 }
 

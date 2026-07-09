@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
@@ -27,6 +27,7 @@ const (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeServiceQuota, Service: "servicequotas", Leaf: true, Managed: true})
 	// global:false (default) — the harness dispatches this scanner once per
 	// enabled region; it fans out over service codes within that region.
 	// optIn:true — account quota limits are metadata, not resources, and the scan
@@ -37,13 +38,6 @@ func init() {
 		name:  "aws:servicequotas",
 		optIn: true,
 		fn:    scanServiceQuotas,
-		emits: []coverage.TypeDecl{
-			// CFN has no AWS::ServiceQuotas resource type, but the Service
-			// Reference catalog lists servicequotas/quota (ARN
-			// servicequotas:::${ServiceCode}/${QuotaCode}), so the union covers it.
-			// Leaf: quota limits are metadata — no resolver wires outbound edges.
-			{Service: "servicequotas", DiscoType: TypeServiceQuota, Leaf: true},
-		},
 	})
 }
 
@@ -206,16 +200,15 @@ func quotaRow(acct *account, region, home, scanID string, q sqtypes.ServiceQuota
 	}
 	name := sv(q.QuotaName)
 	return &store.Resource{
-		Provider:          "aws",
-		AccountID:         acct.ID,
-		AccountName:       &acct.Name,
-		Type:              TypeServiceQuota,
-		NativeID:          nativeID,
-		Name:              &name,
-		Region:            regionPtr,
-		AttributesJSON:    mustJSON(q),
-		DiscoveredBy:      scanID,
-		ManagedByProvider: true, // account limit metadata: auto-present, undeletable
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Type:           TypeServiceQuota,
+		NativeID:       nativeID,
+		Name:           &name,
+		Region:         regionPtr,
+		AttributesJSON: mustJSON(q),
+		DiscoveredBy:   scanID,
 	}, true
 }
 

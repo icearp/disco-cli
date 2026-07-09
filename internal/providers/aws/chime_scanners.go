@@ -3,7 +3,7 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	ci "github.com/aws/aws-sdk-go-v2/service/chimesdkidentity"
 	cp "github.com/aws/aws-sdk-go-v2/service/chimesdkmediapipelines"
@@ -13,22 +13,20 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeChimeAppInstance, Service: "chime", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeAppInstanceBot, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeAppInstanceUser, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeChannelFlow, Service: "chime", Upstream: "AWS::chime::channel-flow"})
+	registerType(restype.Descriptor{Type: TypeChimeMediaPipeline, Service: "chime", Upstream: "AWS::chime::media-pipeline", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeMediaInsightsPipelineConfiguration, Service: "chime", Upstream: "AWS::chime::media-insights-pipeline-configuration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeMediaPipelineKinesisVideoStreamPool, Service: "chime", Upstream: "AWS::chime::media-pipeline-kinesis-video-stream-pool", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeSipMediaApplication, Service: "chime", Upstream: "AWS::chime::sip-media-application"})
+	registerType(restype.Descriptor{Type: TypeChimeVoiceConnector, Service: "chime", Upstream: "AWS::chime::voice-connector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeVoiceProfileDomain, Service: "chime", Upstream: "AWS::chime::voice-profile-domain"})
+	registerType(restype.Descriptor{Type: TypeChimeVoiceProfile, Service: "chime", Upstream: "AWS::chime::voice-profile"})
 	registerService(serviceEntry{
 		name: "aws:chime",
 		fn:   scanChime,
-		emits: []coverage.TypeDecl{
-			{Service: "chime", DiscoType: TypeChimeAppInstance, Leaf: true},
-			{Service: "chime", DiscoType: TypeChimeAppInstanceBot},
-			{Service: "chime", DiscoType: TypeChimeAppInstanceUser},
-			{Service: "chime", DiscoType: TypeChimeChannelFlow},
-			{Service: "chime", DiscoType: TypeChimeMediaPipeline, Leaf: true},
-			{Service: "chime", DiscoType: TypeChimeMediaInsightsPipelineConfiguration, Leaf: true},
-			{Service: "chime", DiscoType: TypeChimeMediaPipelineKinesisVideoStreamPool, Leaf: true},
-			{Service: "chime", DiscoType: TypeChimeSipMediaApplication},
-			{Service: "chime", DiscoType: TypeChimeVoiceConnector, Leaf: true},
-			{Service: "chime", DiscoType: TypeChimeVoiceProfileDomain},
-			{Service: "chime", DiscoType: TypeChimeVoiceProfile},
-		},
 	})
 }
 

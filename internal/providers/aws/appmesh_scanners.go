@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/appmesh"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppMeshMesh, Service: "appmesh", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppMeshGatewayRoute, Service: "appmesh"})
+	registerType(restype.Descriptor{Type: TypeAppMeshRoute, Service: "appmesh"})
+	registerType(restype.Descriptor{Type: TypeAppMeshVirtualGateway, Service: "appmesh"})
+	registerType(restype.Descriptor{Type: TypeAppMeshVirtualNode, Service: "appmesh"})
+	registerType(restype.Descriptor{Type: TypeAppMeshVirtualRouter, Service: "appmesh"})
+	registerType(restype.Descriptor{Type: TypeAppMeshVirtualService, Service: "appmesh"})
 	registerService(serviceEntry{
 		name: "aws:appmesh",
 		fn:   scanAppMesh,
-		emits: []coverage.TypeDecl{
-			{Service: "appmesh", DiscoType: TypeAppMeshMesh, Leaf: true},
-			{Service: "appmesh", DiscoType: TypeAppMeshGatewayRoute},
-			{Service: "appmesh", DiscoType: TypeAppMeshRoute},
-			{Service: "appmesh", DiscoType: TypeAppMeshVirtualGateway},
-			{Service: "appmesh", DiscoType: TypeAppMeshVirtualNode},
-			{Service: "appmesh", DiscoType: TypeAppMeshVirtualRouter},
-			{Service: "appmesh", DiscoType: TypeAppMeshVirtualService},
-		},
 	})
 }
 

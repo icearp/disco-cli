@@ -4,36 +4,34 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/pinpoint"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePinpointApp, Service: "pinpoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePinpointApplicationSettings, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointEventStream, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointCampaign, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointSegment, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointADMChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointAPNSChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointAPNSSandboxChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointAPNSVoipChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointAPNSVoipSandboxChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointBaiduChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointEmailChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointGCMChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointSMSChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointVoiceChannel, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointEmailTemplate, Service: "pinpoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePinpointInAppTemplate, Service: "pinpoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePinpointPushTemplate, Service: "pinpoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePinpointSmsTemplate, Service: "pinpoint", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:pinpoint",
 		fn:   scanPinpoint,
-		emits: []coverage.TypeDecl{
-			{Service: "pinpoint", DiscoType: TypePinpointApp, Leaf: true},
-			{Service: "pinpoint", DiscoType: TypePinpointApplicationSettings},
-			{Service: "pinpoint", DiscoType: TypePinpointEventStream},
-			{Service: "pinpoint", DiscoType: TypePinpointCampaign},
-			{Service: "pinpoint", DiscoType: TypePinpointSegment},
-			{Service: "pinpoint", DiscoType: TypePinpointADMChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointAPNSChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointAPNSSandboxChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointAPNSVoipChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointAPNSVoipSandboxChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointBaiduChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointEmailChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointGCMChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointSMSChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointVoiceChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointEmailTemplate, Leaf: true},
-			{Service: "pinpoint", DiscoType: TypePinpointInAppTemplate, Leaf: true},
-			{Service: "pinpoint", DiscoType: TypePinpointPushTemplate, Leaf: true},
-			{Service: "pinpoint", DiscoType: TypePinpointSmsTemplate, Leaf: true},
-		},
 	})
 }
 

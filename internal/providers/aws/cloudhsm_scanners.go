@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudhsmv2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudHSMCluster, Service: "cloudhsm", Redact: []redact.Rule{{Path: "PreCoPassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudHSMBackup, Service: "cloudhsm"})
 	registerService(serviceEntry{
 		name: "aws:cloudhsm",
 		fn:   scanCloudHSM,
-		emits: []coverage.TypeDecl{
-			{Service: "cloudhsm", DiscoType: TypeCloudHSMCluster},
-			{Service: "cloudhsm", DiscoType: TypeCloudHSMBackup},
-		},
 	})
 }
 

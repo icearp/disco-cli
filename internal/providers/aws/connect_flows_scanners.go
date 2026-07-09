@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectContactFlow},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectContactFlowVersion},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectContactFlowModule},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectContactFlowModuleVersion},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectContactFlowModuleAlias},
-	)
+	registerType(restype.Descriptor{Type: TypeConnectContactFlow, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectContactFlowVersion, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectContactFlowModule, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectContactFlowModuleVersion, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectContactFlowModuleAlias, Service: "connect"})
 }
 
 // connectFlowsAPI is the narrow surface used by the Flows family.

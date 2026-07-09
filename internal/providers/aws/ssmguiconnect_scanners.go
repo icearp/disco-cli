@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ssmguiconnect"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSSMGuiConnectPreferences, Service: "ssm-gui-connect", Upstream: "AWS::SSMGuiConnect::Preferences", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:ssm-gui-connect",
 		fn:   scanSSMGuiConnect,
-		emits: []coverage.TypeDecl{
-			{Service: "ssm-gui-connect", DiscoType: TypeSSMGuiConnectPreferences, Leaf: true},
-		},
 	})
 }
 

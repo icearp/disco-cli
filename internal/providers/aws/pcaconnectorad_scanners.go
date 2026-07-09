@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/pcaconnectorad"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePCAConnectorADConnector, Service: "pca-connector-ad"})
+	registerType(restype.Descriptor{Type: TypePCAConnectorADDirectoryRegistration, Service: "pca-connector-ad"})
+	registerType(restype.Descriptor{Type: TypePCAConnectorADServicePrincipalName, Service: "pca-connector-ad", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePCAConnectorADTemplate, Service: "pca-connector-ad", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePCAConnectorADTemplateGroupACE, Service: "pca-connector-ad", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:pca-connector-ad",
 		fn:   scanPCAConnectorAD,
-		emits: []coverage.TypeDecl{
-			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADConnector},
-			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADDirectoryRegistration},
-			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADServicePrincipalName, Leaf: true},
-			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADTemplate, Leaf: true},
-			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADTemplateGroupACE, Leaf: true},
-		},
 	})
 }
 

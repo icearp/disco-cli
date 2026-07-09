@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
@@ -14,17 +14,15 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAutoScalingGroup, Service: "autoscaling", Upstream: "AWS::AutoScaling::AutoScalingGroup"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingLaunchConfiguration, Service: "autoscaling", Upstream: "AWS::AutoScaling::LaunchConfiguration"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingLifecycleHook, Service: "autoscaling", Upstream: "AWS::AutoScaling::LifecycleHook"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingScalingPolicy, Service: "autoscaling", Upstream: "AWS::AutoScaling::ScalingPolicy"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingScheduledAction, Service: "autoscaling", Upstream: "AWS::AutoScaling::ScheduledAction"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingWarmPool, Service: "autoscaling", Upstream: "AWS::AutoScaling::WarmPool"})
 	registerService(serviceEntry{
 		name: "aws:autoscaling",
 		fn:   scanAutoScaling,
-		emits: []coverage.TypeDecl{
-			{Service: "autoscaling", DiscoType: TypeAutoScalingGroup},
-			{Service: "autoscaling", DiscoType: TypeAutoScalingLaunchConfiguration},
-			{Service: "autoscaling", DiscoType: TypeAutoScalingLifecycleHook},
-			{Service: "autoscaling", DiscoType: TypeAutoScalingScalingPolicy},
-			{Service: "autoscaling", DiscoType: TypeAutoScalingScheduledAction},
-			{Service: "autoscaling", DiscoType: TypeAutoScalingWarmPool},
-		},
 	})
 }
 

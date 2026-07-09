@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/amplify"
 	"github.com/aws/aws-sdk-go-v2/service/amplifyuibuilder"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAmplifyUIBuilderComponent, Service: "amplify-ui-builder", Upstream: "AWS::AmplifyUIBuilder::Component", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAmplifyUIBuilderForm, Service: "amplify-ui-builder", Upstream: "AWS::AmplifyUIBuilder::Form", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAmplifyUIBuilderTheme, Service: "amplify-ui-builder", Upstream: "AWS::AmplifyUIBuilder::Theme", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:amplify-ui-builder",
 		fn:   scanAmplifyUIBuilder,
-		emits: []coverage.TypeDecl{
-			{Service: "amplify-ui-builder", DiscoType: TypeAmplifyUIBuilderComponent, Leaf: true},
-			{Service: "amplify-ui-builder", DiscoType: TypeAmplifyUIBuilderForm, Leaf: true},
-			{Service: "amplify-ui-builder", DiscoType: TypeAmplifyUIBuilderTheme, Leaf: true},
-		},
 	})
 }
 

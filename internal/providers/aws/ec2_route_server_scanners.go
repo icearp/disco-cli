@@ -3,17 +3,15 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2RouteServer},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2RouteServerEndpoint},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2RouteServerPeer},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2RouteServer, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2RouteServerEndpoint, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2RouteServerPeer, Service: "ec2"})
 }
 
 // scanEC2RouteServer discovers route server resources in one region: route

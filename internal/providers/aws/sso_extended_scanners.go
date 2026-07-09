@@ -88,8 +88,7 @@ func scanSSOApplicationProviders(ctx context.Context, client ssoadminAPI, acct *
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSSOApplicationProvider, NativeID: arn,
-				Name: name, Region: &region, ManagedByProvider: true,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				Name: name, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})
 		}
 	}

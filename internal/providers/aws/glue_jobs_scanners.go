@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueJob},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueTrigger},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueWorkflow},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueMLTransform},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueDevEndpoint},
-	)
+	registerType(restype.Descriptor{Type: TypeGlueJob, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueTrigger, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueWorkflow, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueMLTransform, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueDevEndpoint, Service: "glue"})
 }
 
 // scanGlueJobs runs Job/Trigger/Workflow/MLTransform/DevEndpoint phases.

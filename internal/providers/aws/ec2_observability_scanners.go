@@ -3,20 +3,18 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2FlowLog},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2PrefixList, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsPath},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAnalysis},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAccessScope, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAccessScopeAnalysis},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2FlowLog, Service: "ec2", Upstream: "AWS::EC2::FlowLog"})
+	registerType(restype.Descriptor{Type: TypeEC2PrefixList, Service: "ec2", Upstream: "AWS::EC2::PrefixList", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsPath, Service: "ec2", Upstream: "AWS::EC2::NetworkInsightsPath"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAnalysis, Service: "ec2", Upstream: "AWS::EC2::NetworkInsightsAnalysis"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAccessScope, Service: "ec2", Upstream: "AWS::EC2::NetworkInsightsAccessScope", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAccessScopeAnalysis, Service: "ec2", Upstream: "AWS::EC2::NetworkInsightsAccessScopeAnalysis"})
 }
 
 // scanEC2Observability discovers observability and policy types: flow logs,

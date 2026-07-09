@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/codeartifact"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCodeArtifactDomain, Service: "codeartifact", Upstream: "AWS::CodeArtifact::Domain"})
+	registerType(restype.Descriptor{Type: TypeCodeArtifactRepository, Service: "codeartifact", Upstream: "AWS::CodeArtifact::Repository"})
+	registerType(restype.Descriptor{Type: TypeCodeArtifactPackageGroup, Service: "codeartifact", Upstream: "AWS::CodeArtifact::PackageGroup"})
 	registerService(serviceEntry{
 		name: "aws:codeartifact",
 		fn:   scanCodeArtifact,
-		emits: []coverage.TypeDecl{
-			{Service: "codeartifact", DiscoType: TypeCodeArtifactDomain},
-			{Service: "codeartifact", DiscoType: TypeCodeArtifactRepository},
-			{Service: "codeartifact", DiscoType: TypeCodeArtifactPackageGroup},
-		},
 	})
 }
 

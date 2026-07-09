@@ -5,26 +5,24 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEventsEventBus, Service: "events", Upstream: "AWS::Events::EventBus"})
+	registerType(restype.Descriptor{Type: TypeEventsRule, Service: "events", Upstream: "AWS::Events::Rule"})
+	registerType(restype.Descriptor{Type: TypeEventsConnection, Service: "events", Upstream: "AWS::Events::Connection"})
+	registerType(restype.Descriptor{Type: TypeEventsAPIDestination, Service: "events", Upstream: "AWS::Events::ApiDestination"})
+	registerType(restype.Descriptor{Type: TypeEventsArchive, Service: "events"})
+	registerType(restype.Descriptor{Type: TypeEventsEndpoint, Service: "events"})
+	registerType(restype.Descriptor{Type: TypeEventsEventBusPolicy, Service: "events"})
+	registerType(restype.Descriptor{Type: TypeEventsEventSource, Service: "events", Upstream: "AWS::events::event-source", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:events",
 		fn:   scanEventBridge,
-		emits: []coverage.TypeDecl{
-			{Service: "events", DiscoType: TypeEventsEventBus},
-			{Service: "events", DiscoType: TypeEventsRule},
-			{Service: "events", DiscoType: TypeEventsConnection},
-			{Service: "events", DiscoType: TypeEventsAPIDestination},
-			{Service: "events", DiscoType: TypeEventsArchive},
-			{Service: "events", DiscoType: TypeEventsEndpoint},
-			{Service: "events", DiscoType: TypeEventsEventBusPolicy},
-			{Service: "events", DiscoType: TypeEventsEventSource, Leaf: true},
-		},
 	})
 }
 

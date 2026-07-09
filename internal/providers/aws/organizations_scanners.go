@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/aws/aws-sdk-go-v2/service/organizations/types"
@@ -13,19 +13,17 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOrganization, Service: "organizations", Upstream: "AWS::Organizations::Organization"})
+	registerType(restype.Descriptor{Type: TypeOrganizationsAccount, Service: "organizations", Upstream: "AWS::Organizations::Account", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOrganizationsOU, Service: "organizations", Upstream: "AWS::Organizations::OrganizationalUnit", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOrganizationsSCP, Service: "organizations", Upstream: "AWS::Organizations::Policy"})
+	registerType(restype.Descriptor{Type: TypeOrganizationsResourcePolicy, Service: "organizations", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOrganizationsRoot, Service: "organizations", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeOrganizationsResponsibilityTransfer, Service: "organizations", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:organizations",
 		global: true,
 		fn:     scanOrganizations,
-		emits: []coverage.TypeDecl{
-			{Service: "organizations", DiscoType: TypeOrganization},
-			{Service: "organizations", DiscoType: TypeOrganizationsAccount, Leaf: true},
-			{Service: "organizations", DiscoType: TypeOrganizationsOU, Leaf: true},
-			{Service: "organizations", DiscoType: TypeOrganizationsSCP},
-			{Service: "organizations", DiscoType: TypeOrganizationsResourcePolicy, Leaf: true},
-			{Service: "organizations", DiscoType: TypeOrganizationsRoot, Leaf: true},
-			{Service: "organizations", DiscoType: TypeOrganizationsResponsibilityTransfer, Leaf: true},
-		},
 	})
 }
 
@@ -135,7 +133,6 @@ func scanOrgRootResources(ctx context.Context, client organizationsAPI, acct *ac
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Region: regionGlobal, Type: TypeOrganizationsRoot, NativeID: arn,
 				Name: root.Name, AttributesJSON: mustJSON(root), DiscoveredBy: scanID,
-				ManagedByProvider: true,
 			})
 		}
 	}

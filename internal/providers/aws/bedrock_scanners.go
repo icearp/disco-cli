@@ -3,7 +3,7 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent"
@@ -11,29 +11,27 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBedrockGuardrail, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockGuardrailVersion, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockAutomatedReasoningPolicy, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAutomatedReasoningPolicyVersion, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockIntelligentPromptRouter, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockApplicationInferenceProfile, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockInferenceProfile, Service: "bedrock", Upstream: "AWS::bedrock::inference-profile", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockFoundationModel, Service: "bedrock", Upstream: "AWS::bedrock::foundation-model", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeBedrockEnforcedGuardrailConfiguration, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgent, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentAlias, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockKnowledgeBase, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockDataSource, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockFlow, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockFlowAlias, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockFlowVersion, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockPrompt, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockPromptVersion, Service: "bedrock"})
 	registerService(serviceEntry{
 		name: "aws:bedrock",
 		fn:   scanBedrock,
-		emits: []coverage.TypeDecl{
-			{Service: "bedrock", DiscoType: TypeBedrockGuardrail, Leaf: true},
-			{Service: "bedrock", DiscoType: TypeBedrockGuardrailVersion},
-			{Service: "bedrock", DiscoType: TypeBedrockAutomatedReasoningPolicy, Leaf: true},
-			{Service: "bedrock", DiscoType: TypeBedrockAutomatedReasoningPolicyVersion},
-			{Service: "bedrock", DiscoType: TypeBedrockIntelligentPromptRouter, Leaf: true},
-			{Service: "bedrock", DiscoType: TypeBedrockApplicationInferenceProfile, Leaf: true},
-			{Service: "bedrock", DiscoType: TypeBedrockInferenceProfile, Leaf: true},
-			{Service: "bedrock", DiscoType: TypeBedrockFoundationModel, Leaf: true},
-			{Service: "bedrock", DiscoType: TypeBedrockEnforcedGuardrailConfiguration, Leaf: true},
-			{Service: "bedrock", DiscoType: TypeBedrockAgent},
-			{Service: "bedrock", DiscoType: TypeBedrockAgentAlias},
-			{Service: "bedrock", DiscoType: TypeBedrockKnowledgeBase},
-			{Service: "bedrock", DiscoType: TypeBedrockDataSource},
-			{Service: "bedrock", DiscoType: TypeBedrockFlow, Leaf: true},
-			{Service: "bedrock", DiscoType: TypeBedrockFlowAlias},
-			{Service: "bedrock", DiscoType: TypeBedrockFlowVersion},
-			{Service: "bedrock", DiscoType: TypeBedrockPrompt, Leaf: true},
-			{Service: "bedrock", DiscoType: TypeBedrockPromptVersion},
-		},
 	})
 }
 

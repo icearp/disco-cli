@@ -4,26 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoicev2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSMSVoiceConfigurationSet, Service: "sms-voice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceOptOutList, Service: "sms-voice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoicePhoneNumber, Service: "sms-voice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoicePool, Service: "sms-voice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceProtectConfiguration, Service: "sms-voice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceSenderID, Service: "sms-voice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistration, Service: "sms-voice", Upstream: "AWS::sms-voice::Registration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistrationAttachment, Service: "sms-voice", Upstream: "AWS::sms-voice::RegistrationAttachment", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceVerifiedDestinationNumber, Service: "sms-voice", Upstream: "AWS::sms-voice::VerifiedDestinationNumber", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:sms-voice",
 		fn:   scanSMSVoice,
-		emits: []coverage.TypeDecl{
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceConfigurationSet, Leaf: true},
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceOptOutList, Leaf: true},
-			{Service: "sms-voice", DiscoType: TypeSMSVoicePhoneNumber, Leaf: true},
-			{Service: "sms-voice", DiscoType: TypeSMSVoicePool, Leaf: true},
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceProtectConfiguration, Leaf: true},
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceSenderID, Leaf: true},
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceRegistration, Leaf: true},
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceRegistrationAttachment, Leaf: true},
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceVerifiedDestinationNumber, Leaf: true},
-		},
 	})
 }
 

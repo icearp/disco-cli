@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/directconnect"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDirectConnectConnection, Service: "directconnect"})
+	registerType(restype.Descriptor{Type: TypeDirectConnectDirectConnectGateway, Service: "directconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDirectConnectDirectConnectGatewayAssociation, Service: "directconnect"})
+	registerType(restype.Descriptor{Type: TypeDirectConnectLag, Service: "directconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDirectConnectPrivateVirtualInterface, Service: "directconnect"})
+	registerType(restype.Descriptor{Type: TypeDirectConnectPublicVirtualInterface, Service: "directconnect"})
+	registerType(restype.Descriptor{Type: TypeDirectConnectTransitVirtualInterface, Service: "directconnect"})
 	registerService(serviceEntry{
 		name: "aws:directconnect",
 		fn:   scanDirectConnect,
-		emits: []coverage.TypeDecl{
-			{Service: "directconnect", DiscoType: TypeDirectConnectConnection},
-			{Service: "directconnect", DiscoType: TypeDirectConnectDirectConnectGateway, Leaf: true},
-			{Service: "directconnect", DiscoType: TypeDirectConnectDirectConnectGatewayAssociation},
-			{Service: "directconnect", DiscoType: TypeDirectConnectLag, Leaf: true},
-			{Service: "directconnect", DiscoType: TypeDirectConnectPrivateVirtualInterface},
-			{Service: "directconnect", DiscoType: TypeDirectConnectPublicVirtualInterface},
-			{Service: "directconnect", DiscoType: TypeDirectConnectTransitVirtualInterface},
-		},
 	})
 }
 

@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/groundstation"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGroundStationConfig, Service: "ground-station", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGroundStationDataflowEndpointGroup, Service: "ground-station", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGroundStationMissionProfile, Service: "ground-station", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:ground-station",
 		fn:   scanGroundStation,
-		emits: []coverage.TypeDecl{
-			{Service: "ground-station", DiscoType: TypeGroundStationConfig, Leaf: true},
-			{Service: "ground-station", DiscoType: TypeGroundStationDataflowEndpointGroup, Leaf: true},
-			{Service: "ground-station", DiscoType: TypeGroundStationMissionProfile, Leaf: true},
-		},
 	})
 }
 

@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ssmsap"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSSMSAPApplication, Service: "systems-manager-sap", Upstream: "AWS::SystemsManagerSAP::Application", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSystemsManagerSAPComponent, Service: "systems-manager-sap", Upstream: "AWS::ssm-sap::component"})
+	registerType(restype.Descriptor{Type: TypeSystemsManagerSAPDatabase, Service: "systems-manager-sap", Upstream: "AWS::ssm-sap::database"})
 	registerService(serviceEntry{
 		name: "aws:systems-manager-sap",
 		fn:   scanSSMSAP,
-		emits: []coverage.TypeDecl{
-			{Service: "systems-manager-sap", DiscoType: TypeSSMSAPApplication, Leaf: true},
-			{Service: "systems-manager-sap", DiscoType: TypeSystemsManagerSAPComponent},
-			{Service: "systems-manager-sap", DiscoType: TypeSystemsManagerSAPDatabase},
-		},
 	})
 }
 

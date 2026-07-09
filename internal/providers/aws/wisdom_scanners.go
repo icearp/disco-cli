@@ -4,31 +4,29 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/qconnect"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWisdomAssistant, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomAssistantAssociation, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomAIAgent, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomAIAgentVersion, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomAIGuardrail, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomAIGuardrailVersion, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomAIPrompt, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomAIPromptVersion, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomKnowledgeBase, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomMessageTemplate, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomMessageTemplateVersion, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomQuickResponse, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomContent, Service: "wisdom"})
+	registerType(restype.Descriptor{Type: TypeWisdomContentAssociation, Service: "wisdom"})
 	registerService(serviceEntry{
 		name: "aws:wisdom",
 		fn:   scanWisdom,
-		emits: []coverage.TypeDecl{
-			{Service: "wisdom", DiscoType: TypeWisdomAssistant},
-			{Service: "wisdom", DiscoType: TypeWisdomAssistantAssociation},
-			{Service: "wisdom", DiscoType: TypeWisdomAIAgent},
-			{Service: "wisdom", DiscoType: TypeWisdomAIAgentVersion},
-			{Service: "wisdom", DiscoType: TypeWisdomAIGuardrail},
-			{Service: "wisdom", DiscoType: TypeWisdomAIGuardrailVersion},
-			{Service: "wisdom", DiscoType: TypeWisdomAIPrompt},
-			{Service: "wisdom", DiscoType: TypeWisdomAIPromptVersion},
-			{Service: "wisdom", DiscoType: TypeWisdomKnowledgeBase},
-			{Service: "wisdom", DiscoType: TypeWisdomMessageTemplate},
-			{Service: "wisdom", DiscoType: TypeWisdomMessageTemplateVersion},
-			{Service: "wisdom", DiscoType: TypeWisdomQuickResponse},
-			{Service: "wisdom", DiscoType: TypeWisdomContent},
-			{Service: "wisdom", DiscoType: TypeWisdomContentAssociation},
-		},
 	})
 }
 

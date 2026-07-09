@@ -11,16 +11,10 @@ func TestResolveBraketSpendingLimits(t *testing.T) {
 }
 
 func TestBraketRegistrationCovered(t *testing.T) {
-	for _, s := range registeredServices {
-		if s.name != "aws:braket" {
-			continue
-		}
-		for _, e := range s.emits {
-			if e.DiscoType == TypeBraketSpendingLimit {
-				return
-			}
-		}
+	if !serviceRegistered("aws:braket") {
+		t.Fatalf("aws:braket service not registered")
+	}
+	if !descriptorEmitted(TypeBraketSpendingLimit) {
 		t.Fatalf("aws:braket emits missing %s", TypeBraketSpendingLimit)
 	}
-	t.Fatalf("aws:braket service not registered")
 }

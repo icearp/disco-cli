@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -14,27 +14,25 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPC, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Subnet},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2InternetGateway},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2EgressOnlyIGW, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NatGateway},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2RouteTable},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInterface},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInterfacePermission},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkACL},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2EIP},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2DHCPOptions, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CarrierGateway},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpoint},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointService, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointServicePermissions},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointConnectionNotification},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCPeeringConnection},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCBlockPublicAccessOptions, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCBlockPublicAccessExclusion, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2VPC, Service: "ec2", Upstream: "AWS::EC2::VPC", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2Subnet, Service: "ec2", Upstream: "AWS::EC2::Subnet"})
+	registerType(restype.Descriptor{Type: TypeEC2InternetGateway, Service: "ec2", Upstream: "AWS::EC2::InternetGateway"})
+	registerType(restype.Descriptor{Type: TypeEC2EgressOnlyIGW, Service: "ec2", Upstream: "AWS::EC2::EgressOnlyInternetGateway", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2NatGateway, Service: "ec2", Upstream: "AWS::EC2::NatGateway"})
+	registerType(restype.Descriptor{Type: TypeEC2RouteTable, Service: "ec2", Upstream: "AWS::EC2::RouteTable"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInterface, Service: "ec2", Upstream: "AWS::EC2::NetworkInterface"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInterfacePermission, Service: "ec2", Upstream: "AWS::EC2::NetworkInterfacePermission"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkACL, Service: "ec2", Upstream: "AWS::EC2::NetworkAcl"})
+	registerType(restype.Descriptor{Type: TypeEC2EIP, Service: "ec2", Upstream: "AWS::EC2::EIP"})
+	registerType(restype.Descriptor{Type: TypeEC2DHCPOptions, Service: "ec2", Upstream: "AWS::EC2::DHCPOptions", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2CarrierGateway, Service: "ec2", Upstream: "AWS::EC2::CarrierGateway"})
+	registerType(restype.Descriptor{Type: TypeEC2VPCEndpoint, Service: "ec2", Upstream: "AWS::EC2::VPCEndpoint"})
+	registerType(restype.Descriptor{Type: TypeEC2VPCEndpointService, Service: "ec2", Upstream: "AWS::EC2::VPCEndpointService", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VPCEndpointServicePermissions, Service: "ec2", Upstream: "AWS::EC2::VPCEndpointServicePermissions"})
+	registerType(restype.Descriptor{Type: TypeEC2VPCEndpointConnectionNotification, Service: "ec2", Upstream: "AWS::EC2::VPCEndpointConnectionNotification"})
+	registerType(restype.Descriptor{Type: TypeEC2VPCPeeringConnection, Service: "ec2", Upstream: "AWS::EC2::VPCPeeringConnection"})
+	registerType(restype.Descriptor{Type: TypeEC2VPCBlockPublicAccessOptions, Service: "ec2", Upstream: "AWS::EC2::VPCBlockPublicAccessOptions", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeEC2VPCBlockPublicAccessExclusion, Service: "ec2", Upstream: "AWS::EC2::VPCBlockPublicAccessExclusion", Leaf: true})
 }
 
 // scanEC2Networking discovers all networking resources: VPCs, subnets, internet
@@ -479,9 +477,8 @@ func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *a
 		NativeID:    nativeID,
 		Region:      &region,
 		// Per-account singleton VPC-level public-access config — not user-created.
-		ManagedByProvider: true,
-		AttributesJSON:    mustJSON(opt),
-		DiscoveredBy:      scanID,
+		AttributesJSON: mustJSON(opt),
+		DiscoveredBy:   scanID,
 	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("upsert vpc-block-public-access-options: %w", err)

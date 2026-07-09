@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	"golang.org/x/sync/errgroup"
@@ -13,12 +13,10 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerDeviceFleet},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerDevice},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerImage},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerImageVersion},
-	)
+	registerType(restype.Descriptor{Type: TypeSageMakerDeviceFleet, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerDevice, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerImage, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerImageVersion, Service: "sagemaker"})
 }
 
 // sagemakerEdgeAPI is the narrow surface used by the Edge / images family.

@@ -5,22 +5,20 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3tables"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeS3TablesTableBucket, Service: "s3tables", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3TablesNamespace, Service: "s3tables", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3TablesTable, Service: "s3tables", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3TablesTableBucketPolicy, Service: "s3tables", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3TablesTablePolicy, Service: "s3tables", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:s3tables",
 		fn:   scanS3Tables,
-		emits: []coverage.TypeDecl{
-			{Service: "s3tables", DiscoType: TypeS3TablesTableBucket, Leaf: true},
-			{Service: "s3tables", DiscoType: TypeS3TablesNamespace, Leaf: true},
-			{Service: "s3tables", DiscoType: TypeS3TablesTable, Leaf: true},
-			{Service: "s3tables", DiscoType: TypeS3TablesTableBucketPolicy, Leaf: true},
-			{Service: "s3tables", DiscoType: TypeS3TablesTablePolicy, Leaf: true},
-		},
 	})
 }
 

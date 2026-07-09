@@ -7,21 +7,18 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/applicationsignals"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeApplicationSignalsSLO, Service: "applicationsignals", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeApplicationSignalsGroupingConfiguration, Service: "applicationsignals", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudWatchService, Service: "cloudwatch", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:applicationsignals",
 		fn:   scanApplicationSignals,
-		emits: []coverage.TypeDecl{
-			{Service: "applicationsignals", DiscoType: TypeApplicationSignalsSLO, Leaf: true},
-			{Service: "applicationsignals", DiscoType: TypeApplicationSignalsGroupingConfiguration, Leaf: true},
-			// Upstream catalogs Application Signals services under "cloudwatch".
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchService, Leaf: true},
-		},
 	})
 }
 

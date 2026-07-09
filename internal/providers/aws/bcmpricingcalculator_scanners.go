@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator"
 )
@@ -33,17 +33,15 @@ func isMigrationRequiredIAMDeny(err error) bool {
 const bcmPricingCalculatorRegion = "us-east-1"
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBcmPricingCalculatorBillScenario, Service: "bcmpricingcalculator", Upstream: "AWS::BcmPricingCalculator::BillScenario", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBcmPricingCalculatorBillEstimate, Service: "bcmpricingcalculator", Upstream: "AWS::bcm-pricing-calculator::bill-estimate", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBcmPricingCalculatorWorkloadEstimate, Service: "bcmpricingcalculator", Upstream: "AWS::bcm-pricing-calculator::workload-estimate", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:bcmpricingcalculator",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
 			client := bcmpricingcalculator.NewFromConfig(acct.cfg, func(o *bcmpricingcalculator.Options) { o.Region = bcmPricingCalculatorRegion })
 			return scanBcmPricingCalculator(ctx, client, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorBillScenario, Leaf: true},
-			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorBillEstimate, Leaf: true},
-			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorWorkloadEstimate, Leaf: true},
 		},
 	})
 }

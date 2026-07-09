@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeS3ExpressDirectoryBucket, Service: "s3express", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3ExpressAccessPoint, Service: "s3express", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3ExpressBucketPolicy, Service: "s3express", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:s3express",
 		fn:   scanS3Express,
-		emits: []coverage.TypeDecl{
-			{Service: "s3express", DiscoType: TypeS3ExpressDirectoryBucket, Leaf: true},
-			{Service: "s3express", DiscoType: TypeS3ExpressAccessPoint, Leaf: true},
-			{Service: "s3express", DiscoType: TypeS3ExpressBucketPolicy, Leaf: true},
-		},
 	})
 }
 

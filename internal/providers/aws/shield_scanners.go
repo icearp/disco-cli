@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/shield"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeShieldProtection, Service: "shield", Upstream: "AWS::Shield::Protection"})
+	registerType(restype.Descriptor{Type: TypeShieldProtectionGroup, Service: "shield", Upstream: "AWS::Shield::ProtectionGroup"})
+	registerType(restype.Descriptor{Type: TypeShieldDRTAccess, Service: "shield", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeShieldProactiveEngagement, Service: "shield", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:shield",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			return scanShield(ctx, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			{Service: "shield", DiscoType: TypeShieldProtection},
-			{Service: "shield", DiscoType: TypeShieldProtectionGroup},
-			{Service: "shield", DiscoType: TypeShieldDRTAccess, Leaf: true},
-			{Service: "shield", DiscoType: TypeShieldProactiveEngagement, Leaf: true},
 		},
 	})
 }

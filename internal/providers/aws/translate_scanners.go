@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/translate"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeTranslateParallelData, Service: "translate", Upstream: "AWS::translate::parallel-data", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTranslateTerminology, Service: "translate", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:translate",
 		fn:   scanTranslate,
-		emits: []coverage.TypeDecl{
-			{Service: "translate", DiscoType: TypeTranslateParallelData, Leaf: true},
-			{Service: "translate", DiscoType: TypeTranslateTerminology, Leaf: true},
-		},
 	})
 }
 

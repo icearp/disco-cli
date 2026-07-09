@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemakergeospatial"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSageMakerGeospatialRasterDataCollection, Service: "sagemaker-geospatial", Upstream: "AWS::sagemaker-geospatial::RasterDataCollection", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:sagemaker-geospatial",
 		fn:   scanSageMakerGeospatial,
-		emits: []coverage.TypeDecl{
-			{Service: "sagemaker-geospatial", DiscoType: TypeSageMakerGeospatialRasterDataCollection, Leaf: true},
-		},
 	})
 }
 
@@ -51,16 +49,15 @@ func scanSageMakerGeospatialRasterDataCollections(ctx context.Context, client sa
 			}
 			name := sv(c.Name)
 			batch = append(batch, &store.Resource{
-				Provider:          "aws",
-				AccountID:         acct.ID,
-				AccountName:       &acct.Name,
-				Type:              TypeSageMakerGeospatialRasterDataCollection,
-				NativeID:          arn,
-				Name:              &name,
-				Region:            &region,
-				AttributesJSON:    mustJSON(c),
-				DiscoveredBy:      scanID,
-				ManagedByProvider: true,
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerGeospatialRasterDataCollection,
+				NativeID:       arn,
+				Name:           &name,
+				Region:         &region,
+				AttributesJSON: mustJSON(c),
+				DiscoveredBy:   scanID,
 			})
 		}
 	}

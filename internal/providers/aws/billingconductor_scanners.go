@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/billingconductor"
 )
@@ -22,18 +22,16 @@ func isBillingConductorPayerOnly(err error) bool {
 const billingConductorRegion = "us-east-1"
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBillingConductorBillingGroup, Service: "billingconductor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBillingConductorCustomLineItem, Service: "billingconductor"})
+	registerType(restype.Descriptor{Type: TypeBillingConductorPricingPlan, Service: "billingconductor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBillingConductorPricingRule, Service: "billingconductor", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:billingconductor",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			client := billingconductor.NewFromConfig(acct.cfg, func(o *billingconductor.Options) { o.Region = billingConductorRegion })
 			return scanBillingConductor(ctx, client, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			{Service: "billingconductor", DiscoType: TypeBillingConductorBillingGroup, Leaf: true},
-			{Service: "billingconductor", DiscoType: TypeBillingConductorCustomLineItem},
-			{Service: "billingconductor", DiscoType: TypeBillingConductorPricingPlan, Leaf: true},
-			{Service: "billingconductor", DiscoType: TypeBillingConductorPricingRule, Leaf: true},
 		},
 	})
 }

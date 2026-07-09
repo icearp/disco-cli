@@ -4,26 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/transfer"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeTransferAgreement, Service: "transfer"})
+	registerType(restype.Descriptor{Type: TypeTransferCertificate, Service: "transfer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTransferConnector, Service: "transfer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTransferHostKey, Service: "transfer", Upstream: "AWS::transfer::host-key"})
+	registerType(restype.Descriptor{Type: TypeTransferProfile, Service: "transfer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTransferServer, Service: "transfer"})
+	registerType(restype.Descriptor{Type: TypeTransferUser, Service: "transfer"})
+	registerType(restype.Descriptor{Type: TypeTransferWebApp, Service: "transfer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTransferWorkflow, Service: "transfer", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:transfer",
 		fn:   scanTransfer,
-		emits: []coverage.TypeDecl{
-			{Service: "transfer", DiscoType: TypeTransferAgreement},
-			{Service: "transfer", DiscoType: TypeTransferCertificate, Leaf: true},
-			{Service: "transfer", DiscoType: TypeTransferConnector, Leaf: true},
-			{Service: "transfer", DiscoType: TypeTransferHostKey},
-			{Service: "transfer", DiscoType: TypeTransferProfile, Leaf: true},
-			{Service: "transfer", DiscoType: TypeTransferServer},
-			{Service: "transfer", DiscoType: TypeTransferUser},
-			{Service: "transfer", DiscoType: TypeTransferWebApp, Leaf: true},
-			{Service: "transfer", DiscoType: TypeTransferWorkflow, Leaf: true},
-		},
 	})
 }
 

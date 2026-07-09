@@ -4,23 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/schemas"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEventSchemasDiscoverer, Service: "event-schemas", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventSchemasRegistry, Service: "event-schemas", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventSchemasRegistryPolicy, Service: "event-schemas", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventSchemasSchema, Service: "event-schemas"})
 	registerService(serviceEntry{
 		name: "aws:event-schemas",
 		fn:   scanEventSchemas,
-		emits: []coverage.TypeDecl{
-			{Service: "event-schemas", DiscoType: TypeEventSchemasDiscoverer, Leaf: true},
-			{Service: "event-schemas", DiscoType: TypeEventSchemasRegistry, Leaf: true},
-			{Service: "event-schemas", DiscoType: TypeEventSchemasRegistryPolicy, Leaf: true},
-			// schema wires an outbound attached-to edge to its registry (see
-			// eventschemas_resolvers.go).
-			{Service: "event-schemas", DiscoType: TypeEventSchemasSchema},
-		},
 	})
 }
 

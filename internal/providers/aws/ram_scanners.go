@@ -5,20 +5,18 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ram"
 	"github.com/aws/aws-sdk-go-v2/service/ram/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRAMResourceShare, Service: "ram", Upstream: "AWS::RAM::ResourceShare", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRAMPermission, Service: "ram", Upstream: "AWS::RAM::Permission", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:ram",
 		fn:   scanRAM,
-		emits: []coverage.TypeDecl{
-			{Service: "ram", DiscoType: TypeRAMResourceShare, Leaf: true},
-			{Service: "ram", DiscoType: TypeRAMPermission, Leaf: true},
-		},
 	})
 }
 

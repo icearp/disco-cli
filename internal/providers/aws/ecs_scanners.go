@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -13,17 +13,15 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeECSCluster, Service: "ecs", Upstream: "AWS::ECS::Cluster", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECSService, Service: "ecs", Upstream: "AWS::ECS::Service"})
+	registerType(restype.Descriptor{Type: TypeECSTaskDefinition, Service: "ecs", Upstream: "AWS::ECS::TaskDefinition"})
+	registerType(restype.Descriptor{Type: TypeECSCapacityProvider, Service: "ecs"})
+	registerType(restype.Descriptor{Type: TypeECSClusterCapacityProviderAssociations, Service: "ecs"})
+	registerType(restype.Descriptor{Type: TypeECSTaskSet, Service: "ecs"})
 	registerService(serviceEntry{
 		name: "aws:ecs",
 		fn:   scanECS,
-		emits: []coverage.TypeDecl{
-			{Service: "ecs", DiscoType: TypeECSCluster, Leaf: true},
-			{Service: "ecs", DiscoType: TypeECSService},
-			{Service: "ecs", DiscoType: TypeECSTaskDefinition},
-			{Service: "ecs", DiscoType: TypeECSCapacityProvider},
-			{Service: "ecs", DiscoType: TypeECSClusterCapacityProviderAssociations},
-			{Service: "ecs", DiscoType: TypeECSTaskSet},
-		},
 	})
 }
 

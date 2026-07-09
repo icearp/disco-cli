@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/datapipeline"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataPipelinePipeline, Service: "datapipeline", Leaf: true})
 	registerService(serviceEntry{
-		name:  "aws:datapipeline",
-		fn:    scanDataPipeline,
-		emits: []coverage.TypeDecl{{Service: "datapipeline", DiscoType: TypeDataPipelinePipeline, Leaf: true}},
+		name: "aws:datapipeline",
+		fn:   scanDataPipeline,
 	})
 }
 

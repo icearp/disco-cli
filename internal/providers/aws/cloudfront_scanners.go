@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
@@ -42,35 +42,33 @@ type cloudfrontAPI interface {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudFrontDistribution, Service: "cloudfront", Upstream: "AWS::CloudFront::Distribution"})
+	registerType(restype.Descriptor{Type: TypeCloudFrontStreamingDistribution, Service: "cloudfront", Upstream: "AWS::CloudFront::StreamingDistribution"})
+	registerType(restype.Descriptor{Type: TypeCloudFrontDistributionTenant, Service: "cloudfront", Upstream: "AWS::CloudFront::DistributionTenant"})
+	registerType(restype.Descriptor{Type: TypeCloudFrontOAI, Service: "cloudfront", Upstream: "AWS::CloudFront::CloudFrontOriginAccessIdentity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontOriginAccessControl, Service: "cloudfront", Upstream: "AWS::CloudFront::OriginAccessControl", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontConnectionFunction, Service: "cloudfront", Upstream: "AWS::CloudFront::ConnectionFunction", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontConnectionGroup, Service: "cloudfront", Upstream: "AWS::CloudFront::ConnectionGroup"})
+	registerType(restype.Descriptor{Type: TypeCloudFrontKeyValueStore, Service: "cloudfront", Upstream: "AWS::CloudFront::KeyValueStore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontPublicKey, Service: "cloudfront", Upstream: "AWS::CloudFront::PublicKey", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontTrustStore, Service: "cloudfront", Upstream: "AWS::CloudFront::TrustStore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontAnycastIPList, Service: "cloudfront", Upstream: "AWS::CloudFront::AnycastIpList", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontCachePolicy, Service: "cloudfront", Upstream: "AWS::CloudFront::CachePolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontContinuousDeploymentPolicy, Service: "cloudfront", Upstream: "AWS::CloudFront::ContinuousDeploymentPolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontFunction, Service: "cloudfront", Upstream: "AWS::CloudFront::Function", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontKeyGroup, Service: "cloudfront", Upstream: "AWS::CloudFront::KeyGroup"})
+	registerType(restype.Descriptor{Type: TypeCloudFrontOriginRequestPolicy, Service: "cloudfront", Upstream: "AWS::CloudFront::OriginRequestPolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontRealtimeLogConfig, Service: "cloudfront", Upstream: "AWS::CloudFront::RealtimeLogConfig"})
+	registerType(restype.Descriptor{Type: TypeCloudFrontResponseHeadersPolicy, Service: "cloudfront", Upstream: "AWS::CloudFront::ResponseHeadersPolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFrontVpcOrigin, Service: "cloudfront", Upstream: "AWS::CloudFront::VpcOrigin"})
+	registerType(restype.Descriptor{Type: TypeCloudFrontMonitoringSubscription, Service: "cloudfront", Upstream: "AWS::CloudFront::MonitoringSubscription"})
+	registerType(restype.Descriptor{Type: TypeCloudFrontFieldLevelEncryptionConfig, Service: "cloudfront", Upstream: "AWS::cloudfront::field-level-encryption-config"})
+	registerType(restype.Descriptor{Type: TypeCloudFrontFieldLevelEncryptionProfile, Service: "cloudfront", Upstream: "AWS::cloudfront::field-level-encryption-profile"})
 	registerService(serviceEntry{
 		name:   "aws:cloudfront",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			return scanCloudFront(ctx, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			{Service: "cloudfront", DiscoType: TypeCloudFrontDistribution},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontStreamingDistribution},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontDistributionTenant},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontOAI, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontOriginAccessControl, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontConnectionFunction, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontConnectionGroup},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontKeyValueStore, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontPublicKey, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontTrustStore, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontAnycastIPList, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontCachePolicy, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontContinuousDeploymentPolicy, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontFunction, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontKeyGroup},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontOriginRequestPolicy, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontRealtimeLogConfig},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontResponseHeadersPolicy, Leaf: true},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontVpcOrigin},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontMonitoringSubscription},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontFieldLevelEncryptionConfig},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontFieldLevelEncryptionProfile},
 		},
 	})
 }

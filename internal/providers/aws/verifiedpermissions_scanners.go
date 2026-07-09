@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/verifiedpermissions"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicyStore, Service: "verifiedpermissions", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicy, Service: "verifiedpermissions"})
+	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicyTemplate, Service: "verifiedpermissions"})
+	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsIdentitySource, Service: "verifiedpermissions"})
+	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicyStoreAlias, Service: "verifiedpermissions"})
 	registerService(serviceEntry{
 		name: "aws:verifiedpermissions",
 		fn:   scanVerifiedPermissions,
-		emits: []coverage.TypeDecl{
-			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicyStore, Leaf: true},
-			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicy},
-			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicyTemplate},
-			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsIdentitySource},
-			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicyStoreAlias},
-		},
 	})
 }
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/rekognition"
 	rekognitiontypes "github.com/aws/aws-sdk-go-v2/service/rekognition/types"
@@ -14,16 +14,14 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRekognitionCollection, Service: "rekognition", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRekognitionProject, Service: "rekognition", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRekognitionStreamProcessor, Service: "rekognition", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRekognitionProjectVersion, Service: "rekognition"})
+	registerType(restype.Descriptor{Type: TypeRekognitionDataset, Service: "rekognition"})
 	registerService(serviceEntry{
 		name: "aws:rekognition",
 		fn:   scanRekognition,
-		emits: []coverage.TypeDecl{
-			{Service: "rekognition", DiscoType: TypeRekognitionCollection, Leaf: true},
-			{Service: "rekognition", DiscoType: TypeRekognitionProject, Leaf: true},
-			{Service: "rekognition", DiscoType: TypeRekognitionStreamProcessor, Leaf: true},
-			{Service: "rekognition", DiscoType: TypeRekognitionProjectVersion},
-			{Service: "rekognition", DiscoType: TypeRekognitionDataset},
-		},
 	})
 }
 

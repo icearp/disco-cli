@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloud9"
 	cloud9types "github.com/aws/aws-sdk-go-v2/service/cloud9/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloud9EnvironmentEC2, Service: "cloud9"})
 	registerService(serviceEntry{
 		name: "aws:cloud9",
 		fn:   scanCloud9,
-		emits: []coverage.TypeDecl{
-			{Service: "cloud9", DiscoType: TypeCloud9EnvironmentEC2},
-		},
 	})
 }
 

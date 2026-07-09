@@ -5,26 +5,24 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMemoryDBACL, Service: "memorydb"})
+	registerType(restype.Descriptor{Type: TypeMemoryDBCluster, Service: "memorydb"})
+	registerType(restype.Descriptor{Type: TypeMemoryDBMultiRegionCluster, Service: "memorydb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMemoryDBMultiRegionParameterGroup, Service: "memorydb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMemoryDBParameterGroup, Service: "memorydb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMemoryDBReservedNode, Service: "memorydb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMemoryDBSnapshot, Service: "memorydb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMemoryDBSubnetGroup, Service: "memorydb"})
+	registerType(restype.Descriptor{Type: TypeMemoryDBUser, Service: "memorydb", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:memorydb",
 		fn:   scanMemoryDB,
-		emits: []coverage.TypeDecl{
-			{Service: "memorydb", DiscoType: TypeMemoryDBACL},
-			{Service: "memorydb", DiscoType: TypeMemoryDBCluster},
-			{Service: "memorydb", DiscoType: TypeMemoryDBMultiRegionCluster, Leaf: true},
-			{Service: "memorydb", DiscoType: TypeMemoryDBMultiRegionParameterGroup, Leaf: true},
-			{Service: "memorydb", DiscoType: TypeMemoryDBParameterGroup, Leaf: true},
-			{Service: "memorydb", DiscoType: TypeMemoryDBReservedNode, Leaf: true},
-			{Service: "memorydb", DiscoType: TypeMemoryDBSnapshot, Leaf: true},
-			{Service: "memorydb", DiscoType: TypeMemoryDBSubnetGroup},
-			{Service: "memorydb", DiscoType: TypeMemoryDBUser, Leaf: true},
-		},
 	})
 }
 

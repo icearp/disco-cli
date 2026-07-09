@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/amp"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAPSWorkspace, Service: "aps", Upstream: "AWS::APS::Workspace"})
+	registerType(restype.Descriptor{Type: TypeAPSScraper, Service: "aps", Upstream: "AWS::APS::Scraper"})
+	registerType(restype.Descriptor{Type: TypeAPSAnomalyDetector, Service: "aps", Upstream: "AWS::APS::AnomalyDetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPSRuleGroupsNamespace, Service: "aps", Upstream: "AWS::APS::RuleGroupsNamespace", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPSResourcePolicy, Service: "aps", Upstream: "AWS::APS::ResourcePolicy", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:aps",
 		fn:   scanAPS,
-		emits: []coverage.TypeDecl{
-			{Service: "aps", DiscoType: TypeAPSWorkspace},
-			{Service: "aps", DiscoType: TypeAPSScraper},
-			{Service: "aps", DiscoType: TypeAPSAnomalyDetector, Leaf: true},
-			{Service: "aps", DiscoType: TypeAPSRuleGroupsNamespace, Leaf: true},
-			{Service: "aps", DiscoType: TypeAPSResourcePolicy, Leaf: true},
-		},
 	})
 }
 

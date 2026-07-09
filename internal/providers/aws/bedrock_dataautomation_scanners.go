@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	bda "github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation"
 	bdatypes "github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation/types"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "bedrock", DiscoType: TypeBedrockBlueprint, Leaf: true},
-		coverage.TypeDecl{Service: "bedrock", DiscoType: TypeBedrockDataAutomationProject, Leaf: true},
-		coverage.TypeDecl{Service: "bedrock", DiscoType: TypeBedrockDataAutomationLibrary, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeBedrockBlueprint, Service: "bedrock", Upstream: "AWS::bedrock::blueprint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockDataAutomationProject, Service: "bedrock", Upstream: "AWS::bedrock::data-automation-project", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockDataAutomationLibrary, Service: "bedrock", Upstream: "AWS::bedrock::data-automation-library", Leaf: true})
 }
 
 // bedrockDataAutomationAPI is the narrow bedrockdataautomation surface used by

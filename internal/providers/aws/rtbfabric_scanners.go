@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/rtbfabric"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRTBFabricRequesterGateway, Service: "rtbfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRTBFabricResponderGateway, Service: "rtbfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRTBFabricLink, Service: "rtbfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRTBFabricLinkRoutingRule, Service: "rtbfabric"})
 	registerService(serviceEntry{
 		name: "aws:rtbfabric",
 		fn:   scanRTBFabric,
-		emits: []coverage.TypeDecl{
-			{Service: "rtbfabric", DiscoType: TypeRTBFabricRequesterGateway, Leaf: true},
-			{Service: "rtbfabric", DiscoType: TypeRTBFabricResponderGateway, Leaf: true},
-			{Service: "rtbfabric", DiscoType: TypeRTBFabricLink, Leaf: true},
-			{Service: "rtbfabric", DiscoType: TypeRTBFabricLinkRoutingRule},
-		},
 	})
 }
 

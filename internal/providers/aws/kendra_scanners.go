@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/kendra"
 )
@@ -17,19 +17,17 @@ func isKendraClosedToAccount(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKendraIndex, Service: "kendra"})
+	registerType(restype.Descriptor{Type: TypeKendraDataSource, Service: "kendra"})
+	registerType(restype.Descriptor{Type: TypeKendraFaq, Service: "kendra"})
+	registerType(restype.Descriptor{Type: TypeKendraAccessControlConfiguration, Service: "kendra", Upstream: "AWS::kendra::access-control-configuration"})
+	registerType(restype.Descriptor{Type: TypeKendraExperience, Service: "kendra"})
+	registerType(restype.Descriptor{Type: TypeKendraFeaturedResultsSet, Service: "kendra", Upstream: "AWS::kendra::featured-results-set"})
+	registerType(restype.Descriptor{Type: TypeKendraQuerySuggestionsBlockList, Service: "kendra", Upstream: "AWS::kendra::query-suggestions-block-list"})
+	registerType(restype.Descriptor{Type: TypeKendraThesaurus, Service: "kendra"})
 	registerService(serviceEntry{
 		name: "aws:kendra",
 		fn:   scanKendra,
-		emits: []coverage.TypeDecl{
-			{Service: "kendra", DiscoType: TypeKendraIndex},
-			{Service: "kendra", DiscoType: TypeKendraDataSource},
-			{Service: "kendra", DiscoType: TypeKendraFaq},
-			{Service: "kendra", DiscoType: TypeKendraAccessControlConfiguration},
-			{Service: "kendra", DiscoType: TypeKendraExperience},
-			{Service: "kendra", DiscoType: TypeKendraFeaturedResultsSet},
-			{Service: "kendra", DiscoType: TypeKendraQuerySuggestionsBlockList},
-			{Service: "kendra", DiscoType: TypeKendraThesaurus},
-		},
 	})
 }
 

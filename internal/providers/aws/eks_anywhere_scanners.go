@@ -4,15 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "eks", DiscoType: TypeEKSAnywhereSubscription, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeEKSAnywhereSubscription, Service: "eks", Upstream: "AWS::eks::eks-anywhere-subscription", Leaf: true})
 }
 
 type eksAnywhereAPI interface {

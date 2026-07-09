@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/transcribe"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeTranscribeCallAnalyticsCategory, Service: "transcribe", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTranscribeLanguageModel, Service: "transcribe", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTranscribeVocabulary, Service: "transcribe", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTranscribeVocabularyFilter, Service: "transcribe", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTranscribeMedicalVocabulary, Service: "transcribe", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:transcribe",
 		fn:   scanTranscribe,
-		emits: []coverage.TypeDecl{
-			{Service: "transcribe", DiscoType: TypeTranscribeCallAnalyticsCategory, Leaf: true},
-			{Service: "transcribe", DiscoType: TypeTranscribeLanguageModel, Leaf: true},
-			{Service: "transcribe", DiscoType: TypeTranscribeVocabulary, Leaf: true},
-			{Service: "transcribe", DiscoType: TypeTranscribeVocabularyFilter, Leaf: true},
-			{Service: "transcribe", DiscoType: TypeTranscribeMedicalVocabulary, Leaf: true},
-		},
 	})
 }
 

@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/finspace"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeFinspaceKxEnvironment, Service: "finspace"})
+	registerType(restype.Descriptor{Type: TypeFinspaceKxCluster, Service: "finspace"})
+	registerType(restype.Descriptor{Type: TypeFinspaceKxDatabase, Service: "finspace"})
+	registerType(restype.Descriptor{Type: TypeFinspaceKxDataview, Service: "finspace"})
+	registerType(restype.Descriptor{Type: TypeFinspaceKxScalingGroup, Service: "finspace"})
+	registerType(restype.Descriptor{Type: TypeFinspaceKxUser, Service: "finspace"})
+	registerType(restype.Descriptor{Type: TypeFinspaceKxVolume, Service: "finspace"})
 	registerService(serviceEntry{
 		name: "aws:finspace",
 		fn:   scanFinspaceKx,
-		emits: []coverage.TypeDecl{
-			{Service: "finspace", DiscoType: TypeFinspaceKxEnvironment},
-			{Service: "finspace", DiscoType: TypeFinspaceKxCluster},
-			{Service: "finspace", DiscoType: TypeFinspaceKxDatabase},
-			{Service: "finspace", DiscoType: TypeFinspaceKxDataview},
-			{Service: "finspace", DiscoType: TypeFinspaceKxScalingGroup},
-			{Service: "finspace", DiscoType: TypeFinspaceKxUser},
-			{Service: "finspace", DiscoType: TypeFinspaceKxVolume},
-		},
 	})
 }
 

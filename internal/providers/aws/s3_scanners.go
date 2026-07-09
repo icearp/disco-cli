@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -14,15 +14,13 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeS3Bucket, Service: "s3", Upstream: "AWS::S3::Bucket"})
+	registerType(restype.Descriptor{Type: TypeS3BucketPolicy, Service: "s3", Upstream: "AWS::S3::BucketPolicy"})
 	registerService(serviceEntry{
 		name:   "aws:s3",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			return scanS3(ctx, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			{Service: "s3", DiscoType: TypeS3Bucket},
-			{Service: "s3", DiscoType: TypeS3BucketPolicy},
 		},
 	})
 }

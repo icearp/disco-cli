@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/resourceexplorer2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2Index, Service: "resource-explorer-2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2View, Service: "resource-explorer-2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2DefaultViewAssociation, Service: "resource-explorer-2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2ManagedView, Service: "resource-explorer-2", Upstream: "AWS::resource-explorer-2::managed-view", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:resource-explorer-2",
 		fn:   scanResourceExplorer2,
-		emits: []coverage.TypeDecl{
-			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2Index, Leaf: true},
-			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2View, Leaf: true},
-			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2DefaultViewAssociation, Leaf: true},
-			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2ManagedView, Leaf: true},
-		},
 	})
 }
 
@@ -152,9 +150,8 @@ func scanRE2ManagedViews(ctx context.Context, client resourceExplorer2API, acct 
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeResourceExplorer2ManagedView, NativeID: viewArn,
 				Name: &label, Region: &region,
-				AttributesJSON:    mustJSON(map[string]string{"ManagedViewArn": viewArn}),
-				DiscoveredBy:      scanID,
-				ManagedByProvider: true,
+				AttributesJSON: mustJSON(map[string]string{"ManagedViewArn": viewArn}),
+				DiscoveredBy:   scanID,
 			})
 		}
 	}

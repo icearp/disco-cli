@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/licensemanager"
 )
@@ -18,18 +18,16 @@ func isLicenseManagerNotSetUp(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLicenseManagerLicense, Service: "license-manager", Upstream: "AWS::LicenseManager::License", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerGrant, Service: "license-manager", Upstream: "AWS::LicenseManager::Grant"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerLicenseConfiguration, Service: "license-manager", Upstream: "AWS::license-manager::license-configuration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerReportGenerator, Service: "license-manager", Upstream: "AWS::license-manager::report-generator", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerLicenseAssetGroup, Service: "license-manager", Upstream: "AWS::license-manager::license-asset-group", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerLicenseAssetRuleset, Service: "license-manager", Upstream: "AWS::license-manager::license-asset-ruleset", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:license-manager",
 		global: true,
 		fn:     scanLicenseManager,
-		emits: []coverage.TypeDecl{
-			{Service: "license-manager", DiscoType: TypeLicenseManagerLicense, Leaf: true},
-			{Service: "license-manager", DiscoType: TypeLicenseManagerGrant},
-			{Service: "license-manager", DiscoType: TypeLicenseManagerLicenseConfiguration, Leaf: true},
-			{Service: "license-manager", DiscoType: TypeLicenseManagerReportGenerator, Leaf: true},
-			{Service: "license-manager", DiscoType: TypeLicenseManagerLicenseAssetGroup, Leaf: true},
-			{Service: "license-manager", DiscoType: TypeLicenseManagerLicenseAssetRuleset, Leaf: true},
-		},
 	})
 }
 

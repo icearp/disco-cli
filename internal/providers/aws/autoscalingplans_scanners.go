@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/autoscalingplans"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAutoScalingPlansScalingPlan, Service: "autoscaling-plans", Upstream: "AWS::AutoScalingPlans::ScalingPlan"})
 	registerService(serviceEntry{
 		name: "aws:autoscaling-plans",
 		fn:   scanAutoScalingPlans,
-		emits: []coverage.TypeDecl{
-			{Service: "autoscaling-plans", DiscoType: TypeAutoScalingPlansScalingPlan},
-		},
 	})
 }
 

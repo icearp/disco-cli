@@ -4,35 +4,30 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSecurityHubHub, Service: "securityhub", Upstream: "AWS::SecurityHub::Hub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubInsight, Service: "securityhub", Upstream: "AWS::SecurityHub::Insight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubProductSubscription, Service: "securityhub", Upstream: "AWS::SecurityHub::ProductSubscription"})
+	registerType(restype.Descriptor{Type: TypeSecurityHubStandardsSubscription, Service: "securityhub", Uncatalogued: true, Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubAggregatorV2, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubAutomationRule, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubAutomationRuleV2, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubConfigurationPolicy, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubConnectorV2, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubFindingAggregator, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubHubV2, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubOrganizationConfiguration, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubPolicyAssociation, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubSecurityControl, Service: "securityhub", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubStandard, Service: "securityhub", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:securityhub",
 		fn:   scanSecurityHub,
-		emits: []coverage.TypeDecl{
-			{Service: "securityhub", DiscoType: TypeSecurityHubHub, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubInsight, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubProductSubscription},
-			// GetEnabledStandards' view appears in neither CFN (models enablement as
-			// AWS::SecurityHub::Standard) nor the Service Reference catalog —
-			// uncatalogued: real, scanned, just absent from every registry.
-			{Service: "securityhub", DiscoType: TypeSecurityHubStandardsSubscription, Leaf: true, Uncatalogued: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubAggregatorV2, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubAutomationRule, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubAutomationRuleV2, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubConfigurationPolicy, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubConnectorV2, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubFindingAggregator, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubHubV2, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubOrganizationConfiguration, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubPolicyAssociation, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubSecurityControl, Leaf: true},
-			{Service: "securityhub", DiscoType: TypeSecurityHubStandard, Leaf: true},
-		},
 	})
 }
 

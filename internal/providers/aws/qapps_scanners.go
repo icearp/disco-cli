@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/qapps"
 	"github.com/aws/aws-sdk-go-v2/service/qbusiness"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeQAppsQApp, Service: "qapps", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:qapps",
 		fn:   scanQApps,
-		emits: []coverage.TypeDecl{
-			{Service: "qapps", DiscoType: TypeQAppsQApp, Leaf: true},
-		},
 	})
 }
 

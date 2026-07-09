@@ -5,31 +5,29 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/wafregional"
 	wafregionaltypes "github.com/aws/aws-sdk-go-v2/service/wafregional/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWAFRegionalWebACL, Service: "wafregional", Upstream: "AWS::waf-regional::webacl", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalRule, Service: "wafregional", Upstream: "AWS::waf-regional::rule", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalRuleGroup, Service: "wafregional", Upstream: "AWS::waf-regional::rulegroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalRateBasedRule, Service: "wafregional", Upstream: "AWS::waf-regional::ratebasedrule", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalIPSet, Service: "wafregional", Upstream: "AWS::waf-regional::ipset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalByteMatchSet, Service: "wafregional", Upstream: "AWS::waf-regional::bytematchset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalGeoMatchSet, Service: "wafregional", Upstream: "AWS::waf-regional::geomatchset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalRegexMatchSet, Service: "wafregional", Upstream: "AWS::waf-regional::regexmatchset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalRegexPatternSet, Service: "wafregional", Upstream: "AWS::waf-regional::regexpatternset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalSizeConstraintSet, Service: "wafregional", Upstream: "AWS::waf-regional::sizeconstraintset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalSQLInjectionMatchSet, Service: "wafregional", Upstream: "AWS::waf-regional::sqlinjectionmatchset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalXSSMatchSet, Service: "wafregional", Upstream: "AWS::waf-regional::xssmatchset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegionalWebACLAssociation, Service: "wafregional"})
 	registerService(serviceEntry{
 		name: "aws:wafregional",
 		fn:   scanWAFRegional,
-		emits: []coverage.TypeDecl{
-			{Service: "wafregional", DiscoType: TypeWAFRegionalWebACL, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalRule, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalRuleGroup, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalRateBasedRule, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalIPSet, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalByteMatchSet, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalGeoMatchSet, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalRegexMatchSet, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalRegexPatternSet, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalSizeConstraintSet, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalSQLInjectionMatchSet, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalXSSMatchSet, Leaf: true},
-			{Service: "wafregional", DiscoType: TypeWAFRegionalWebACLAssociation},
-		},
 	})
 }
 

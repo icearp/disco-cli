@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerMonitoringSchedule},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerDataQualityJobDefinition},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerModelBiasJobDefinition},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerModelExplainabilityJobDefinition},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerModelQualityJobDefinition},
-	)
+	registerType(restype.Descriptor{Type: TypeSageMakerMonitoringSchedule, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerDataQualityJobDefinition, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerModelBiasJobDefinition, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerModelExplainabilityJobDefinition, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerModelQualityJobDefinition, Service: "sagemaker"})
 }
 
 // sagemakerMonitoringAPI is the narrow surface for the Monitoring family.

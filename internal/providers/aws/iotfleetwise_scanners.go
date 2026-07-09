@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotfleetwise"
 )
@@ -18,18 +18,16 @@ func isIoTFleetWiseFeatureNotAuthorized(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIoTFWCampaign, Service: "iotfleetwise"})
+	registerType(restype.Descriptor{Type: TypeIoTFWDecoderManifest, Service: "iotfleetwise"})
+	registerType(restype.Descriptor{Type: TypeIoTFWFleet, Service: "iotfleetwise"})
+	registerType(restype.Descriptor{Type: TypeIoTFWModelManifest, Service: "iotfleetwise"})
+	registerType(restype.Descriptor{Type: TypeIoTFWSignalCatalog, Service: "iotfleetwise", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTFWStateTemplate, Service: "iotfleetwise"})
+	registerType(restype.Descriptor{Type: TypeIoTFWVehicle, Service: "iotfleetwise"})
 	registerService(serviceEntry{
 		name: "aws:iotfleetwise",
 		fn:   scanIoTFleetWise,
-		emits: []coverage.TypeDecl{
-			{Service: "iotfleetwise", DiscoType: TypeIoTFWCampaign},
-			{Service: "iotfleetwise", DiscoType: TypeIoTFWDecoderManifest},
-			{Service: "iotfleetwise", DiscoType: TypeIoTFWFleet},
-			{Service: "iotfleetwise", DiscoType: TypeIoTFWModelManifest},
-			{Service: "iotfleetwise", DiscoType: TypeIoTFWSignalCatalog, Leaf: true},
-			{Service: "iotfleetwise", DiscoType: TypeIoTFWStateTemplate},
-			{Service: "iotfleetwise", DiscoType: TypeIoTFWVehicle},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/dsql"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDSQLCluster, Service: "dsql", Upstream: "AWS::DSQL::Cluster"})
+	registerType(restype.Descriptor{Type: TypeDSQLStream, Service: "dsql"})
 	registerService(serviceEntry{
 		name: "aws:dsql",
 		fn:   scanDSQL,
-		emits: []coverage.TypeDecl{
-			{Service: "dsql", DiscoType: TypeDSQLCluster},
-			{Service: "dsql", DiscoType: TypeDSQLStream},
-		},
 	})
 }
 

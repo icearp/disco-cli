@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
@@ -14,24 +14,22 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCognitoUserPool, Service: "cognito", Upstream: "AWS::Cognito::UserPool"})
+	registerType(restype.Descriptor{Type: TypeCognitoAppClient, Service: "cognito", Upstream: "AWS::Cognito::UserPoolClient"})
+	registerType(restype.Descriptor{Type: TypeCognitoIdentityPool, Service: "cognito", Upstream: "AWS::Cognito::IdentityPool"})
+	registerType(restype.Descriptor{Type: TypeCognitoUserPoolDomain, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoUserPoolGroup, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoUserPoolIdentityProvider, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoUserPoolResourceServer, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoUserPoolRiskConfigurationAttachment, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoUserPoolUICustomizationAttachment, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoLogDeliveryConfiguration, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoTerms, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoIdentityPoolRoleAttachment, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoManagedLoginBranding, Service: "cognito"})
 	registerService(serviceEntry{
 		name: "aws:cognito",
 		fn:   scanCognito,
-		emits: []coverage.TypeDecl{
-			{Service: "cognito", DiscoType: TypeCognitoUserPool},
-			{Service: "cognito", DiscoType: TypeCognitoAppClient},
-			{Service: "cognito", DiscoType: TypeCognitoIdentityPool},
-			{Service: "cognito", DiscoType: TypeCognitoUserPoolDomain},
-			{Service: "cognito", DiscoType: TypeCognitoUserPoolGroup},
-			{Service: "cognito", DiscoType: TypeCognitoUserPoolIdentityProvider},
-			{Service: "cognito", DiscoType: TypeCognitoUserPoolResourceServer},
-			{Service: "cognito", DiscoType: TypeCognitoUserPoolRiskConfigurationAttachment},
-			{Service: "cognito", DiscoType: TypeCognitoUserPoolUICustomizationAttachment},
-			{Service: "cognito", DiscoType: TypeCognitoLogDeliveryConfiguration},
-			{Service: "cognito", DiscoType: TypeCognitoTerms},
-			{Service: "cognito", DiscoType: TypeCognitoIdentityPoolRoleAttachment},
-			{Service: "cognito", DiscoType: TypeCognitoManagedLoginBranding},
-		},
 	})
 }
 

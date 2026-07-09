@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/notifications"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNotificationsChannelAssociation, Service: "notifications"})
+	registerType(restype.Descriptor{Type: TypeNotificationsEventRule, Service: "notifications"})
+	registerType(restype.Descriptor{Type: TypeNotificationsManagedNotificationAdditionalChannelAssoc, Service: "notifications", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeNotificationsNotificationConfiguration, Service: "notifications", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNotificationsNotificationHub, Service: "notifications", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNotificationsOrganizationalUnitAssociation, Service: "notifications"})
+	registerType(restype.Descriptor{Type: TypeNotificationsManagedNotificationConfiguration, Service: "notifications", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name:   "aws:notifications",
 		global: true,
 		fn:     scanNotifications,
-		emits: []coverage.TypeDecl{
-			{Service: "notifications", DiscoType: TypeNotificationsChannelAssociation},
-			{Service: "notifications", DiscoType: TypeNotificationsEventRule},
-			{Service: "notifications", DiscoType: TypeNotificationsManagedNotificationAdditionalChannelAssoc, Leaf: true},
-			{Service: "notifications", DiscoType: TypeNotificationsNotificationConfiguration, Leaf: true},
-			{Service: "notifications", DiscoType: TypeNotificationsNotificationHub, Leaf: true},
-			{Service: "notifications", DiscoType: TypeNotificationsOrganizationalUnitAssociation},
-			{Service: "notifications", DiscoType: TypeNotificationsManagedNotificationConfiguration, Leaf: true},
-		},
 	})
 }
 
@@ -269,7 +267,6 @@ func scanNotifManagedConfigs(ctx context.Context, client notifsAPI, acct *accoun
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNotificationsManagedNotificationConfiguration, NativeID: arn,
 				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-				ManagedByProvider: true,
 			})
 		}
 	}
@@ -303,7 +300,6 @@ func scanNotifManagedChannelAssocs(ctx context.Context, client notifsAPI, acct *
 				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 				// Always AWS-default — emitted only by AWS-managed
 				// notification configurations.
-				ManagedByProvider: true,
 			})
 		}
 	}

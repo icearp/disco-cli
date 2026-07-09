@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/mediaconvert"
 	mctypes "github.com/aws/aws-sdk-go-v2/service/mediaconvert/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMediaConvertJobTemplate, Service: "media-convert", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConvertPreset, Service: "media-convert", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConvertQueue, Service: "media-convert", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:media-convert",
 		fn:   scanMediaConvert,
-		emits: []coverage.TypeDecl{
-			{Service: "media-convert", DiscoType: TypeMediaConvertJobTemplate, Leaf: true},
-			{Service: "media-convert", DiscoType: TypeMediaConvertPreset, Leaf: true},
-			{Service: "media-convert", DiscoType: TypeMediaConvertQueue, Leaf: true},
-		},
 	})
 }
 

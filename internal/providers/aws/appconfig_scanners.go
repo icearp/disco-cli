@@ -5,25 +5,23 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/appconfig"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppConfigApplication, Service: "appconfig", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppConfigConfigurationProfile, Service: "appconfig"})
+	registerType(restype.Descriptor{Type: TypeAppConfigDeployment, Service: "appconfig"})
+	registerType(restype.Descriptor{Type: TypeAppConfigDeploymentStrategy, Service: "appconfig", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppConfigEnvironment, Service: "appconfig"})
+	registerType(restype.Descriptor{Type: TypeAppConfigExtension, Service: "appconfig", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppConfigExtensionAssociation, Service: "appconfig"})
+	registerType(restype.Descriptor{Type: TypeAppConfigHostedConfigurationVersion, Service: "appconfig"})
 	registerService(serviceEntry{
 		name: "aws:appconfig",
 		fn:   scanAppConfig,
-		emits: []coverage.TypeDecl{
-			{Service: "appconfig", DiscoType: TypeAppConfigApplication, Leaf: true},
-			{Service: "appconfig", DiscoType: TypeAppConfigConfigurationProfile},
-			{Service: "appconfig", DiscoType: TypeAppConfigDeployment},
-			{Service: "appconfig", DiscoType: TypeAppConfigDeploymentStrategy, Leaf: true},
-			{Service: "appconfig", DiscoType: TypeAppConfigEnvironment},
-			{Service: "appconfig", DiscoType: TypeAppConfigExtension, Leaf: true},
-			{Service: "appconfig", DiscoType: TypeAppConfigExtensionAssociation},
-			{Service: "appconfig", DiscoType: TypeAppConfigHostedConfigurationVersion},
-		},
 	})
 }
 

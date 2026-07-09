@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/emrcontainers"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEMRContainersVirtualCluster, Service: "emr-containers", Upstream: "AWS::EMRContainers::VirtualCluster"})
+	registerType(restype.Descriptor{Type: TypeEMRContainersEndpoint, Service: "emr-containers", Upstream: "AWS::EMRContainers::Endpoint"})
+	registerType(restype.Descriptor{Type: TypeEMRContainersSecurityConfig, Service: "emr-containers", Upstream: "AWS::EMRContainers::SecurityConfiguration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEMRContainersJobTemplate, Service: "emr-containers", Upstream: "AWS::emr-containers::jobTemplate"})
 	registerService(serviceEntry{
 		name: "aws:emr-containers",
 		fn:   scanEMRContainers,
-		emits: []coverage.TypeDecl{
-			{Service: "emr-containers", DiscoType: TypeEMRContainersVirtualCluster},
-			{Service: "emr-containers", DiscoType: TypeEMRContainersEndpoint},
-			{Service: "emr-containers", DiscoType: TypeEMRContainersSecurityConfig, Leaf: true},
-			{Service: "emr-containers", DiscoType: TypeEMRContainersJobTemplate},
-		},
 	})
 }
 

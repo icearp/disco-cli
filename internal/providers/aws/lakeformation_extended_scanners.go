@@ -83,7 +83,6 @@ func scanLFDataLakeSettings(ctx context.Context, client lakeformationAPI, acct *
 		Name: &label, Region: &region,
 		AttributesJSON: mustJSON(out.DataLakeSettings), DiscoveredBy: scanID,
 		// Per-(acct, region) AWS-managed singleton config row.
-		ManagedByProvider: true,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "lakeformation data-lake-settings")
 }

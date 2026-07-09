@@ -46,7 +46,10 @@ func resolveR53RFirewallConfigVPC(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeRoute53ResolverFirewallConfig},
-		Limit: util.AllResources,
+		// Per-(acct,region) config singleton is provider-managed; surface it to
+		// its own resolver (precedent: ecr/uxc config resolvers).
+		IncludeManaged: true,
+		Limit:          util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -87,7 +90,10 @@ func resolveR53RResolverConfigVPC(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeRoute53ResolverResolverConfig},
-		Limit: util.AllResources,
+		// Per-(acct,region) config singleton is provider-managed; surface it to
+		// its own resolver (precedent: ecr/uxc config resolvers).
+		IncludeManaged: true,
+		Limit:          util.AllResources,
 	})
 	if err != nil {
 		return err

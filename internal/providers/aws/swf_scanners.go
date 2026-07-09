@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/swf"
 	swftypes "github.com/aws/aws-sdk-go-v2/service/swf/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSWFDomain, Service: "swf", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:swf",
 		fn:   scanSWF,
-		emits: []coverage.TypeDecl{
-			{Service: "swf", DiscoType: TypeSWFDomain, Leaf: true},
-		},
 	})
 }
 

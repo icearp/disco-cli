@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/datasync"
 	"golang.org/x/sync/errgroup"
@@ -13,24 +13,22 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataSyncAgent, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncTask, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationEFS, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationNFS, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationSMB, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationS3, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationHDFS, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationAzureBlob, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationObjectStorage, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationFSxLustre, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationFSxONTAP, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationFSxOpenZFS, Service: "datasync"})
+	registerType(restype.Descriptor{Type: TypeDataSyncLocationFSxWindows, Service: "datasync"})
 	registerService(serviceEntry{
 		name: "aws:datasync",
 		fn:   scanDataSync,
-		emits: []coverage.TypeDecl{
-			{Service: "datasync", DiscoType: TypeDataSyncAgent},
-			{Service: "datasync", DiscoType: TypeDataSyncTask},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationEFS},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationNFS},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationSMB},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationS3},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationHDFS},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationAzureBlob},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationObjectStorage},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationFSxLustre},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationFSxONTAP},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationFSxOpenZFS},
-			{Service: "datasync", DiscoType: TypeDataSyncLocationFSxWindows},
-		},
 	})
 }
 

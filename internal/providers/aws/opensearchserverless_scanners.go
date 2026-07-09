@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/opensearchserverless"
 	"github.com/aws/aws-sdk-go-v2/service/opensearchserverless/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOSSAccessPolicy, Service: "opensearchserverless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOSSCollection, Service: "opensearchserverless"})
+	registerType(restype.Descriptor{Type: TypeOSSCollectionGroup, Service: "opensearchserverless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOSSLifecyclePolicy, Service: "opensearchserverless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOSSSecurityConfig, Service: "opensearchserverless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOSSSecurityPolicy, Service: "opensearchserverless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOSSVpcEndpoint, Service: "opensearchserverless"})
 	registerService(serviceEntry{
 		name: "aws:opensearchserverless",
 		fn:   scanOpenSearchServerless,
-		emits: []coverage.TypeDecl{
-			{Service: "opensearchserverless", DiscoType: TypeOSSAccessPolicy, Leaf: true},
-			{Service: "opensearchserverless", DiscoType: TypeOSSCollection},
-			{Service: "opensearchserverless", DiscoType: TypeOSSCollectionGroup, Leaf: true},
-			{Service: "opensearchserverless", DiscoType: TypeOSSLifecyclePolicy, Leaf: true},
-			{Service: "opensearchserverless", DiscoType: TypeOSSSecurityConfig, Leaf: true},
-			{Service: "opensearchserverless", DiscoType: TypeOSSSecurityPolicy, Leaf: true},
-			{Service: "opensearchserverless", DiscoType: TypeOSSVpcEndpoint},
-		},
 	})
 }
 

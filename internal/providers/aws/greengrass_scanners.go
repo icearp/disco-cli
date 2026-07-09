@@ -4,33 +4,31 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/greengrass"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGreengrassConnectorDefinition, Service: "greengrass", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassConnectorDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassCoreDefinition, Service: "greengrass", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassCoreDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassDeviceDefinition, Service: "greengrass", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassDeviceDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassFunctionDefinition, Service: "greengrass", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassFunctionDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassLoggerDefinition, Service: "greengrass", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassLoggerDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassResourceDefinition, Service: "greengrass", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassResourceDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassSubscriptionDefinition, Service: "greengrass", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassSubscriptionDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassGroup, Service: "greengrass", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassGroupVersion, Service: "greengrass"})
 	registerService(serviceEntry{
 		name: "aws:greengrass",
 		fn:   scanGreengrass,
-		emits: []coverage.TypeDecl{
-			{Service: "greengrass", DiscoType: TypeGreengrassConnectorDefinition, Leaf: true},
-			{Service: "greengrass", DiscoType: TypeGreengrassConnectorDefinitionVersion},
-			{Service: "greengrass", DiscoType: TypeGreengrassCoreDefinition, Leaf: true},
-			{Service: "greengrass", DiscoType: TypeGreengrassCoreDefinitionVersion},
-			{Service: "greengrass", DiscoType: TypeGreengrassDeviceDefinition, Leaf: true},
-			{Service: "greengrass", DiscoType: TypeGreengrassDeviceDefinitionVersion},
-			{Service: "greengrass", DiscoType: TypeGreengrassFunctionDefinition, Leaf: true},
-			{Service: "greengrass", DiscoType: TypeGreengrassFunctionDefinitionVersion},
-			{Service: "greengrass", DiscoType: TypeGreengrassLoggerDefinition, Leaf: true},
-			{Service: "greengrass", DiscoType: TypeGreengrassLoggerDefinitionVersion},
-			{Service: "greengrass", DiscoType: TypeGreengrassResourceDefinition, Leaf: true},
-			{Service: "greengrass", DiscoType: TypeGreengrassResourceDefinitionVersion},
-			{Service: "greengrass", DiscoType: TypeGreengrassSubscriptionDefinition, Leaf: true},
-			{Service: "greengrass", DiscoType: TypeGreengrassSubscriptionDefinitionVersion},
-			{Service: "greengrass", DiscoType: TypeGreengrassGroup, Leaf: true},
-			{Service: "greengrass", DiscoType: TypeGreengrassGroupVersion},
-		},
 	})
 }
 

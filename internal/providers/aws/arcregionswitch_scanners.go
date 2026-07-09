@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/arcregionswitch"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeARCRegionSwitchPlan, Service: "arc-region-switch", Upstream: "AWS::ARCRegionSwitch::Plan"})
 	registerService(serviceEntry{
 		name: "aws:arc-region-switch",
 		fn:   scanARCRegionSwitch,
-		emits: []coverage.TypeDecl{
-			{Service: "arc-region-switch", DiscoType: TypeARCRegionSwitchPlan},
-		},
 	})
 }
 

@@ -5,22 +5,20 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/comprehend"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeComprehendDocumentClassifier, Service: "comprehend"})
+	registerType(restype.Descriptor{Type: TypeComprehendEntityRecognizer, Service: "comprehend", Upstream: "AWS::comprehend::entity-recognizer"})
+	registerType(restype.Descriptor{Type: TypeComprehendDocumentClassifierEndpoint, Service: "comprehend", Upstream: "AWS::comprehend::document-classifier-endpoint"})
+	registerType(restype.Descriptor{Type: TypeComprehendEntityRecognizerEndpoint, Service: "comprehend", Upstream: "AWS::comprehend::entity-recognizer-endpoint"})
+	registerType(restype.Descriptor{Type: TypeComprehendFlywheel, Service: "comprehend"})
 	registerService(serviceEntry{
 		name: "aws:comprehend",
 		fn:   scanComprehend,
-		emits: []coverage.TypeDecl{
-			{Service: "comprehend", DiscoType: TypeComprehendDocumentClassifier},
-			{Service: "comprehend", DiscoType: TypeComprehendEntityRecognizer},
-			{Service: "comprehend", DiscoType: TypeComprehendDocumentClassifierEndpoint},
-			{Service: "comprehend", DiscoType: TypeComprehendEntityRecognizerEndpoint},
-			{Service: "comprehend", DiscoType: TypeComprehendFlywheel},
-		},
 	})
 }
 

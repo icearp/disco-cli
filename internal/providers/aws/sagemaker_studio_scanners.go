@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
@@ -14,14 +14,12 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerDomain},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerUserProfile},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerSpace},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerApp},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerAppImageConfig, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerStudioLifecycleConfig, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeSageMakerDomain, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerUserProfile, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerSpace, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerApp, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerAppImageConfig, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerStudioLifecycleConfig, Service: "sagemaker", Leaf: true})
 }
 
 // sagemakerStudioAPI is the narrow surface used by SageMaker Studio

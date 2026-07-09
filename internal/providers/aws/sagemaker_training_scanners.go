@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	"golang.org/x/sync/errgroup"
@@ -13,12 +13,10 @@ import (
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerNotebookInstance},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerNotebookInstanceLifecycleConfig, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerCodeRepository, Leaf: true},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerProcessingJob},
-	)
+	registerType(restype.Descriptor{Type: TypeSageMakerNotebookInstance, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerNotebookInstanceLifecycleConfig, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerCodeRepository, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerProcessingJob, Service: "sagemaker"})
 }
 
 // sagemakerTrainingAPI is the narrow surface for the Training/Notebook

@@ -4,31 +4,27 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/backup"
 	backuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBackupVault, Service: "backup", Upstream: "AWS::Backup::BackupVault"})
+	registerType(restype.Descriptor{Type: TypeBackupLogicallyAirGappedVault, Service: "backup", Upstream: "AWS::Backup::LogicallyAirGappedBackupVault"})
+	registerType(restype.Descriptor{Type: TypeBackupPlan, Service: "backup", Upstream: "AWS::Backup::BackupPlan"})
+	registerType(restype.Descriptor{Type: TypeBackupSelection, Service: "backup", Upstream: "AWS::Backup::BackupSelection"})
+	registerType(restype.Descriptor{Type: TypeBackupFramework, Service: "backup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBackupReportPlan, Service: "backup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBackupRestoreTestingPlan, Service: "backup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBackupRestoreTestingSelection, Service: "backup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBackupTieringConfiguration, Service: "backup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBackupLegalHold, Service: "backup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBackupRecoveryPoint, Service: "backup"})
 	registerService(serviceEntry{
 		name: "aws:backup",
 		fn:   scanBackup,
-		emits: []coverage.TypeDecl{
-			{Service: "backup", DiscoType: TypeBackupVault},
-			{Service: "backup", DiscoType: TypeBackupLogicallyAirGappedVault},
-			{Service: "backup", DiscoType: TypeBackupPlan},
-			{Service: "backup", DiscoType: TypeBackupSelection},
-			{Service: "backup", DiscoType: TypeBackupFramework, Leaf: true},
-			{Service: "backup", DiscoType: TypeBackupReportPlan, Leaf: true},
-			{Service: "backup", DiscoType: TypeBackupRestoreTestingPlan, Leaf: true},
-			{Service: "backup", DiscoType: TypeBackupRestoreTestingSelection, Leaf: true},
-			{Service: "backup", DiscoType: TypeBackupTieringConfiguration, Leaf: true},
-			{Service: "backup", DiscoType: TypeBackupLegalHold, Leaf: true},
-			// recovery-point references its vault, KMS key, and the role AWS Backup
-			// assumed to create it.
-			{Service: "backup", DiscoType: TypeBackupRecoveryPoint},
-		},
 	})
 }
 

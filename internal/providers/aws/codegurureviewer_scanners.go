@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/codegurureviewer"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCodeGuruReviewerRepositoryAssociation, Service: "code-guru-reviewer", Upstream: "AWS::CodeGuruReviewer::RepositoryAssociation"})
 	registerService(serviceEntry{
 		name: "aws:code-guru-reviewer",
 		fn:   scanCodeGuruReviewer,
-		emits: []coverage.TypeDecl{
-			{Service: "code-guru-reviewer", DiscoType: TypeCodeGuruReviewerRepositoryAssociation},
-		},
 	})
 }
 

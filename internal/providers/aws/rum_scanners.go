@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/rum"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRUMAppMonitor, Service: "rum", Upstream: "AWS::RUM::AppMonitor", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:rum",
 		fn:   scanRUM,
-		emits: []coverage.TypeDecl{
-			{Service: "rum", DiscoType: TypeRUMAppMonitor, Leaf: true},
-		},
 	})
 }
 

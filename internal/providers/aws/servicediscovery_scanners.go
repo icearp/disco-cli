@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 	sdtypes "github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeServiceDiscoveryHTTPNamespace, Service: "servicediscovery", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeServiceDiscoveryPrivateDNSNamespace, Service: "servicediscovery"})
+	registerType(restype.Descriptor{Type: TypeServiceDiscoveryPublicDNSNamespace, Service: "servicediscovery"})
+	registerType(restype.Descriptor{Type: TypeServiceDiscoveryService, Service: "servicediscovery"})
+	registerType(restype.Descriptor{Type: TypeServiceDiscoveryInstance, Service: "servicediscovery"})
 	registerService(serviceEntry{
 		name: "aws:servicediscovery",
 		fn:   scanServiceDiscovery,
-		emits: []coverage.TypeDecl{
-			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryHTTPNamespace, Leaf: true},
-			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryPrivateDNSNamespace},
-			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryPublicDNSNamespace},
-			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryService},
-			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryInstance},
-		},
 	})
 }
 

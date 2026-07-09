@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/synthetics"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSyntheticsCanary, Service: "synthetics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSyntheticsGroup, Service: "synthetics", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:synthetics",
 		fn:   scanSynthetics,
-		emits: []coverage.TypeDecl{
-			{Service: "synthetics", DiscoType: TypeSyntheticsCanary, Leaf: true},
-			{Service: "synthetics", DiscoType: TypeSyntheticsGroup, Leaf: true},
-		},
 	})
 }
 

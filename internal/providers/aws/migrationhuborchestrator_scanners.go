@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/migrationhuborchestrator"
 )
@@ -12,13 +12,11 @@ import (
 // AWS Migration Hub Orchestrator — migration workflows and the templates they
 // instantiate from. Both leaf: no outbound edges to other scanned AWS types.
 func init() {
+	registerType(restype.Descriptor{Type: TypeMigrationHubOrchestratorWorkflow, Service: "migrationhub-orchestrator", Upstream: "AWS::migrationhub-orchestrator::workflow", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMigrationHubOrchestratorTemplate, Service: "migrationhub-orchestrator", Upstream: "AWS::migrationhub-orchestrator::template", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:migrationhub-orchestrator",
 		fn:   scanMigrationHubOrchestrator,
-		emits: []coverage.TypeDecl{
-			{Service: "migrationhub-orchestrator", DiscoType: TypeMigrationHubOrchestratorWorkflow, Leaf: true},
-			{Service: "migrationhub-orchestrator", DiscoType: TypeMigrationHubOrchestratorTemplate, Leaf: true},
-		},
 	})
 }
 

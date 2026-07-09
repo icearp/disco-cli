@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/workspacesinstances"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWorkspacesInstancesWorkspaceInstance, Service: "workspaces-instances", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:workspaces-instances",
 		fn:   scanWorkspacesInstances,
-		emits: []coverage.TypeDecl{
-			{Service: "workspaces-instances", DiscoType: TypeWorkspacesInstancesWorkspaceInstance, Leaf: true},
-		},
 	})
 }
 

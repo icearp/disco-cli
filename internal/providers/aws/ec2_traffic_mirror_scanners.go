@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorTarget},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorFilter, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorFilterRule},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorSession},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2TrafficMirrorTarget, Service: "ec2", Upstream: "AWS::EC2::TrafficMirrorTarget"})
+	registerType(restype.Descriptor{Type: TypeEC2TrafficMirrorFilter, Service: "ec2", Upstream: "AWS::EC2::TrafficMirrorFilter", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2TrafficMirrorFilterRule, Service: "ec2", Upstream: "AWS::EC2::TrafficMirrorFilterRule"})
+	registerType(restype.Descriptor{Type: TypeEC2TrafficMirrorSession, Service: "ec2", Upstream: "AWS::EC2::TrafficMirrorSession"})
 }
 
 // scanEC2TrafficMirror discovers all Traffic Mirror resources in parallel.

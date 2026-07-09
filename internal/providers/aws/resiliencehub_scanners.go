@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/resiliencehub"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeResilienceHubApp, Service: "resilience-hub", Upstream: "AWS::ResilienceHub::App", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResilienceHubResiliencyPolicy, Service: "resilience-hub", Upstream: "AWS::ResilienceHub::ResiliencyPolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResilienceHubAppAssessment, Service: "resilience-hub", Upstream: "AWS::resiliencehub::app-assessment"})
+	registerType(restype.Descriptor{Type: TypeResilienceHubRecommendationTemplate, Service: "resilience-hub", Upstream: "AWS::resiliencehub::recommendation-template", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:resilience-hub",
 		fn:   scanResilienceHub,
-		emits: []coverage.TypeDecl{
-			{Service: "resilience-hub", DiscoType: TypeResilienceHubApp, Leaf: true},
-			{Service: "resilience-hub", DiscoType: TypeResilienceHubResiliencyPolicy, Leaf: true},
-			{Service: "resilience-hub", DiscoType: TypeResilienceHubAppAssessment},
-			{Service: "resilience-hub", DiscoType: TypeResilienceHubRecommendationTemplate, Leaf: true},
-		},
 	})
 }
 

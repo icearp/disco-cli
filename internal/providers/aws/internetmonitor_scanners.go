@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/internetmonitor"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeInternetMonitorMonitor, Service: "internet-monitor", Upstream: "AWS::InternetMonitor::Monitor", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:internet-monitor",
 		fn:   scanInternetMonitor,
-		emits: []coverage.TypeDecl{
-			{Service: "internet-monitor", DiscoType: TypeInternetMonitorMonitor, Leaf: true},
-		},
 	})
 }
 

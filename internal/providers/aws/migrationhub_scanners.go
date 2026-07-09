@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/migrationhub"
 )
@@ -14,12 +14,10 @@ import (
 // each stream are ephemeral state (skipped in aws_skips.go). Leaf: no
 // outbound edges to other scanned AWS types.
 func init() {
+	registerType(restype.Descriptor{Type: TypeMigrationHubProgressUpdateStream, Service: "migrationhub", Upstream: "AWS::mgh::progressUpdateStream", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:migrationhub",
 		fn:   scanMigrationHub,
-		emits: []coverage.TypeDecl{
-			{Service: "migrationhub", DiscoType: TypeMigrationHubProgressUpdateStream, Leaf: true},
-		},
 	})
 }
 

@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCEAnomalyMonitor, Service: "ce", Upstream: "AWS::CE::AnomalyMonitor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCEAnomalySubscription, Service: "ce", Upstream: "AWS::CE::AnomalySubscription", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCECostCategory, Service: "ce", Upstream: "AWS::CE::CostCategory", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:ce",
 		global: true,
 		fn:     scanCostExplorer,
-		emits: []coverage.TypeDecl{
-			{Service: "ce", DiscoType: TypeCEAnomalyMonitor, Leaf: true},
-			{Service: "ce", DiscoType: TypeCEAnomalySubscription, Leaf: true},
-			{Service: "ce", DiscoType: TypeCECostCategory, Leaf: true},
-		},
 	})
 }
 

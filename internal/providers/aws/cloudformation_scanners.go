@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
@@ -16,17 +16,15 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudFormationStack, Service: "cloudformation", Upstream: "AWS::CloudFormation::Stack"})
+	registerType(restype.Descriptor{Type: TypeCloudFormationStackSet, Service: "cloudformation", Upstream: "AWS::CloudFormation::StackSet"})
+	registerType(restype.Descriptor{Type: TypeCloudFormationGeneratedTemplate, Service: "cloudformation", Upstream: "AWS::cloudformation::generatedtemplate", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFormationResourceScan, Service: "cloudformation", Upstream: "AWS::cloudformation::resourcescan", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFormationType, Service: "cloudformation", Upstream: "AWS::cloudformation::type", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFormationTypeHook, Service: "cloudformation", Upstream: "AWS::cloudformation::typeHook", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:cloudformation",
 		fn:   scanCloudFormation,
-		emits: []coverage.TypeDecl{
-			{Service: "cloudformation", DiscoType: TypeCloudFormationStack},
-			{Service: "cloudformation", DiscoType: TypeCloudFormationStackSet},
-			{Service: "cloudformation", DiscoType: TypeCloudFormationGeneratedTemplate, Leaf: true},
-			{Service: "cloudformation", DiscoType: TypeCloudFormationResourceScan, Leaf: true},
-			{Service: "cloudformation", DiscoType: TypeCloudFormationType, Leaf: true},
-			{Service: "cloudformation", DiscoType: TypeCloudFormationTypeHook, Leaf: true},
-		},
 	})
 }
 

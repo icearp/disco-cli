@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/neptunegraph"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNeptuneGraphGraph, Service: "neptune-graph", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNeptuneGraphGraphSnapshot, Service: "neptune-graph"})
+	registerType(restype.Descriptor{Type: TypeNeptuneGraphPrivateGraphEndpoint, Service: "neptune-graph"})
 	registerService(serviceEntry{
 		name: "aws:neptune-graph",
 		fn:   scanNeptuneGraph,
-		emits: []coverage.TypeDecl{
-			{Service: "neptune-graph", DiscoType: TypeNeptuneGraphGraph, Leaf: true},
-			{Service: "neptune-graph", DiscoType: TypeNeptuneGraphGraphSnapshot},
-			{Service: "neptune-graph", DiscoType: TypeNeptuneGraphPrivateGraphEndpoint},
-		},
 	})
 }
 

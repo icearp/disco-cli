@@ -4,29 +4,27 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/customerprofiles"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCPDomain, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCPCalculatedAttributeDefinition, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCPEventStream, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCPEventTrigger, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCPIntegration, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCPObjectType, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCPRecommender, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCPSegmentDefinition, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCustomerProfilesLayouts, Service: "customer-profiles", Upstream: "AWS::profile::layouts"})
+	registerType(restype.Descriptor{Type: TypeCustomerProfilesDomainObjectTypes, Service: "customer-profiles", Upstream: "AWS::profile::domain-object-types"})
+	registerType(restype.Descriptor{Type: TypeCustomerProfilesRecommenderFilters, Service: "customer-profiles", Upstream: "AWS::profile::recommender-filters"})
+	registerType(restype.Descriptor{Type: TypeCustomerProfilesRecommenderSchemas, Service: "customer-profiles", Upstream: "AWS::profile::recommender-schemas"})
 	registerService(serviceEntry{
 		name: "aws:customer-profiles",
 		fn:   scanCustomerProfiles,
-		emits: []coverage.TypeDecl{
-			{Service: "customer-profiles", DiscoType: TypeCPDomain},
-			{Service: "customer-profiles", DiscoType: TypeCPCalculatedAttributeDefinition},
-			{Service: "customer-profiles", DiscoType: TypeCPEventStream},
-			{Service: "customer-profiles", DiscoType: TypeCPEventTrigger},
-			{Service: "customer-profiles", DiscoType: TypeCPIntegration},
-			{Service: "customer-profiles", DiscoType: TypeCPObjectType},
-			{Service: "customer-profiles", DiscoType: TypeCPRecommender},
-			{Service: "customer-profiles", DiscoType: TypeCPSegmentDefinition},
-			{Service: "customer-profiles", DiscoType: TypeCustomerProfilesLayouts},
-			{Service: "customer-profiles", DiscoType: TypeCustomerProfilesDomainObjectTypes},
-			{Service: "customer-profiles", DiscoType: TypeCustomerProfilesRecommenderFilters},
-			{Service: "customer-profiles", DiscoType: TypeCustomerProfilesRecommenderSchemas},
-		},
 	})
 }
 

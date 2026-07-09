@@ -4,16 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerCluster},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerWorkteam, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeSageMakerCluster, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerWorkteam, Service: "sagemaker", Leaf: true})
 }
 
 // sagemakerMiscAPI is the narrow surface for the misc family —

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -14,12 +14,10 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSQSQueue, Service: "sqs", Upstream: "AWS::SQS::Queue"})
 	registerService(serviceEntry{
 		name: "aws:sqs",
 		fn:   scanSQS,
-		emits: []coverage.TypeDecl{
-			{Service: "sqs", DiscoType: TypeSQSQueue},
-		},
 	})
 }
 

@@ -400,16 +400,15 @@ func scanBedrockFoundationModels(ctx context.Context, client bedrockAPI, acct *a
 			label = sv(m.ModelId)
 		}
 		batch = append(batch, &store.Resource{
-			Provider:          "aws",
-			AccountID:         acct.ID,
-			AccountName:       &acct.Name,
-			Type:              TypeBedrockFoundationModel,
-			NativeID:          arn,
-			Name:              &label,
-			Region:            &region,
-			ManagedByProvider: true,
-			AttributesJSON:    mustJSON(m),
-			DiscoveredBy:      scanID,
+			Provider:       "aws",
+			AccountID:      acct.ID,
+			AccountName:    &acct.Name,
+			Type:           TypeBedrockFoundationModel,
+			NativeID:       arn,
+			Name:           &label,
+			Region:         &region,
+			AttributesJSON: mustJSON(m),
+			DiscoveredBy:   scanID,
 		})
 	}
 	return upsertBatch(st, batch, "bedrock foundation-models")

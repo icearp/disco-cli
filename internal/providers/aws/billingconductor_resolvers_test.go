@@ -81,18 +81,11 @@ func TestBillingConductorRegistrationCovered(t *testing.T) {
 		TypeBillingConductorPricingPlan:    false,
 		TypeBillingConductorPricingRule:    false,
 	}
-	for _, s := range registeredServices {
-		if s.name != "aws:billingconductor" {
-			continue
-		}
-		for _, e := range s.emits {
-			if _, ok := want[e.DiscoType]; ok {
-				want[e.DiscoType] = true
-			}
-		}
+	if !serviceRegistered("aws:billingconductor") {
+		t.Fatalf("aws:billingconductor service not registered")
 	}
-	for k, v := range want {
-		if !v {
+	for k := range want {
+		if !descriptorEmitted(k) {
 			t.Errorf("aws:billingconductor missing emit %s", k)
 		}
 	}

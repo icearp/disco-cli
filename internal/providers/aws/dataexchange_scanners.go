@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dataexchange"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataExchangeDataSets, Service: "dataexchange", Upstream: "AWS::dataexchange::data-sets", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataExchangeDataGrants, Service: "dataexchange", Upstream: "AWS::dataexchange::data-grants"})
+	registerType(restype.Descriptor{Type: TypeDataExchangeEventActions, Service: "dataexchange", Upstream: "AWS::dataexchange::event-actions"})
 	registerService(serviceEntry{
 		name: "aws:dataexchange",
 		fn:   scanDataExchange,
-		emits: []coverage.TypeDecl{
-			{Service: "dataexchange", DiscoType: TypeDataExchangeDataSets, Leaf: true},
-			{Service: "dataexchange", DiscoType: TypeDataExchangeDataGrants},
-			{Service: "dataexchange", DiscoType: TypeDataExchangeEventActions},
-		},
 	})
 }
 

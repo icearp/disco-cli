@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/timestreaminfluxdb"
 	"github.com/aws/aws-sdk-go-v2/service/timestreamquery"
@@ -19,19 +19,15 @@ func isTimestreamLiveAnalyticsClosed(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeTimestreamDatabase, Service: "timestream"})
+	registerType(restype.Descriptor{Type: TypeTimestreamTable, Service: "timestream"})
+	registerType(restype.Descriptor{Type: TypeTimestreamScheduledQuery, Service: "timestream"})
+	registerType(restype.Descriptor{Type: TypeTimestreamInfluxDBCluster, Service: "timestream"})
+	registerType(restype.Descriptor{Type: TypeTimestreamInfluxDBInstance, Service: "timestream"})
+	registerType(restype.Descriptor{Type: TypeTimestreamInfluxDBParameterGroup, Service: "timestream-influxdb", Upstream: "AWS::timestream-influxdb::db-parameter-group", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:timestream",
 		fn:   scanTimestream,
-		emits: []coverage.TypeDecl{
-			{Service: "timestream", DiscoType: TypeTimestreamDatabase},
-			{Service: "timestream", DiscoType: TypeTimestreamTable},
-			{Service: "timestream", DiscoType: TypeTimestreamScheduledQuery},
-			{Service: "timestream", DiscoType: TypeTimestreamInfluxDBCluster},
-			{Service: "timestream", DiscoType: TypeTimestreamInfluxDBInstance},
-			// db-parameter-group has no CloudFormation twin, so it carries the
-			// Service Reference's "timestream-influxdb" service segment.
-			{Service: "timestream-influxdb", DiscoType: TypeTimestreamInfluxDBParameterGroup, Leaf: true},
-		},
 	})
 }
 

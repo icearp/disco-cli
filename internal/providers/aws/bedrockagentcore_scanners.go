@@ -5,45 +5,43 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	bac "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
 	bactypes "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreAPIKeyCredentialProvider, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreBrowser, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreBrowserCustom, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreBrowserProfile, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreCodeInterpreter, Service: "bedrockagentcore", Upstream: "AWS::bedrock-agentcore::code-interpreter", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreCodeInterpreterCustom, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreConfigurationBundle, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreDataset, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreEvaluator, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreHarness, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreHarnessEndpoint, Service: "bedrockagentcore", Upstream: "AWS::bedrock-agentcore::harness-endpoint"})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCorePolicyGeneration, Service: "bedrockagentcore", Upstream: "AWS::bedrock-agentcore::policy-generation"})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreRegistry, Service: "bedrockagentcore", Upstream: "AWS::bedrock-agentcore::registry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreRegistryRecord, Service: "bedrockagentcore", Upstream: "AWS::bedrock-agentcore::registry-record"})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreGateway, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreGatewayTarget, Service: "bedrockagentcore"})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreMemory, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreOAuth2CredentialProvider, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreOnlineEvaluationConfig, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCorePaymentManager, Service: "bedrockagentcore"})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCorePaymentConnector, Service: "bedrockagentcore"})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCorePaymentCredentialProvider, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCorePolicy, Service: "bedrockagentcore"})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCorePolicyEngine, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreRuntime, Service: "bedrockagentcore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreRuntimeEndpoint, Service: "bedrockagentcore"})
+	registerType(restype.Descriptor{Type: TypeBedrockAgentCoreWorkloadIdentity, Service: "bedrockagentcore", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:bedrockagentcore",
 		fn:   scanBedrockAgentCore,
-		emits: []coverage.TypeDecl{
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreAPIKeyCredentialProvider, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreBrowser, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreBrowserCustom, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreBrowserProfile, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreCodeInterpreter, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreCodeInterpreterCustom, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreConfigurationBundle, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreDataset, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreEvaluator, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreHarness, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreHarnessEndpoint},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePolicyGeneration},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreRegistry, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreRegistryRecord},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreGateway, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreGatewayTarget},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreMemory, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreOAuth2CredentialProvider, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreOnlineEvaluationConfig, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePaymentManager},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePaymentConnector},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePaymentCredentialProvider, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePolicy},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePolicyEngine, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreRuntime, Leaf: true},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreRuntimeEndpoint},
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreWorkloadIdentity, Leaf: true},
-		},
 	})
 }
 

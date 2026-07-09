@@ -4,21 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/artifact"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeArtifactCustomerAgreement, Service: "artifact", Upstream: "AWS::artifact::customer-agreement"})
+	registerType(restype.Descriptor{Type: TypeArtifactReport, Service: "artifact", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name:   "aws:artifact",
 		global: true,
 		fn:     scanArtifact,
-		emits: []coverage.TypeDecl{
-			// customer-agreement references the org it applies to.
-			{Service: "artifact", DiscoType: TypeArtifactCustomerAgreement},
-			{Service: "artifact", DiscoType: TypeArtifactReport, Leaf: true},
-		},
 	})
 }
 
@@ -103,8 +100,7 @@ func scanArtifactReports(ctx context.Context, client artifactAPI, acct *account,
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeArtifactReport, NativeID: arn,
-				Name: &label, Region: &region, ManagedByProvider: true,
-				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}
 	}

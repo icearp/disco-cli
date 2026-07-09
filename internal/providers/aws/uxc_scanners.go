@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/uxc"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeUXCAccountCustomization, Service: "uxc", Upstream: "AWS::UXC::AccountCustomization", Managed: true})
 	registerService(serviceEntry{
 		name:   "aws:uxc",
 		global: true,
 		fn:     scanUXC,
-		emits: []coverage.TypeDecl{
-			{Service: "uxc", DiscoType: TypeUXCAccountCustomization},
-		},
 	})
 }
 
@@ -41,7 +39,6 @@ func scanUXC(ctx context.Context, acct *account, _ string, st *store.Store, scan
 		Type: TypeUXCAccountCustomization, NativeID: arn,
 		Name: &label, Region: regionGlobal,
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
-		ManagedByProvider: true,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "uxc account-customization")
 }

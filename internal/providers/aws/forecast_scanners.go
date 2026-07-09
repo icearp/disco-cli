@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/forecast"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeForecastDataset, Service: "forecast"})
+	registerType(restype.Descriptor{Type: TypeForecastDatasetGroup, Service: "forecast"})
+	registerType(restype.Descriptor{Type: TypeForecastPredictor, Service: "forecast"})
+	registerType(restype.Descriptor{Type: TypeForecastForecast, Service: "forecast"})
+	registerType(restype.Descriptor{Type: TypeForecastExplainability, Service: "forecast"})
+	registerType(restype.Descriptor{Type: TypeForecastMonitor, Service: "forecast"})
+	registerType(restype.Descriptor{Type: TypeForecastWhatIfAnalysis, Service: "forecast"})
+	registerType(restype.Descriptor{Type: TypeForecastWhatIfForecast, Service: "forecast"})
 	registerService(serviceEntry{
 		name: "aws:forecast",
 		fn:   scanForecast,
-		emits: []coverage.TypeDecl{
-			{Service: "forecast", DiscoType: TypeForecastDataset},
-			{Service: "forecast", DiscoType: TypeForecastDatasetGroup},
-			{Service: "forecast", DiscoType: TypeForecastPredictor},
-			{Service: "forecast", DiscoType: TypeForecastForecast},
-			{Service: "forecast", DiscoType: TypeForecastExplainability},
-			{Service: "forecast", DiscoType: TypeForecastMonitor},
-			{Service: "forecast", DiscoType: TypeForecastWhatIfAnalysis},
-			{Service: "forecast", DiscoType: TypeForecastWhatIfForecast},
-		},
 	})
 }
 

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"golang.org/x/sync/errgroup"
@@ -14,16 +14,14 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAthenaWorkgroup, Service: "athena", Upstream: "AWS::Athena::WorkGroup"})
+	registerType(restype.Descriptor{Type: TypeAthenaDataCatalog, Service: "athena", Upstream: "AWS::Athena::DataCatalog"})
+	registerType(restype.Descriptor{Type: TypeAthenaCapacityReservation, Service: "athena", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAthenaNamedQuery, Service: "athena"})
+	registerType(restype.Descriptor{Type: TypeAthenaPreparedStatement, Service: "athena"})
 	registerService(serviceEntry{
 		name: "aws:athena",
 		fn:   scanAthena,
-		emits: []coverage.TypeDecl{
-			{Service: "athena", DiscoType: TypeAthenaWorkgroup},
-			{Service: "athena", DiscoType: TypeAthenaDataCatalog},
-			{Service: "athena", DiscoType: TypeAthenaCapacityReservation, Leaf: true},
-			{Service: "athena", DiscoType: TypeAthenaNamedQuery},
-			{Service: "athena", DiscoType: TypeAthenaPreparedStatement},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/glacier"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGlacierVault, Service: "glacier", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:glacier",
 		fn:   scanGlacier,
-		emits: []coverage.TypeDecl{
-			{Service: "glacier", DiscoType: TypeGlacierVault, Leaf: true},
-		},
 	})
 }
 

@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/workspaces"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspace, Service: "work-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesConnectionAlias, Service: "work-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspacesPool, Service: "work-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesDirectory, Service: "work-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceBundle, Service: "work-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceImage, Service: "work-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceIPGroup, Service: "work-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceApplication, Service: "work-spaces", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:work-spaces",
 		fn:   scanWorkSpaces,
-		emits: []coverage.TypeDecl{
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspace, Leaf: true},
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesConnectionAlias, Leaf: true},
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspacesPool, Leaf: true},
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesDirectory, Leaf: true},
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspaceBundle, Leaf: true},
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspaceImage, Leaf: true},
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspaceIPGroup, Leaf: true},
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspaceApplication, Leaf: true},
-		},
 	})
 }
 

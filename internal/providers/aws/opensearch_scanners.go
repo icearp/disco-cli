@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"golang.org/x/sync/errgroup"
@@ -13,14 +13,12 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOpenSearchDomain, Service: "opensearchservice", Upstream: "AWS::OpenSearchService::Domain"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchApplication, Service: "opensearchservice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOpenSearchDataSource, Service: "opensearchservice", Upstream: "AWS::es::datasource"})
 	registerService(serviceEntry{
 		name: "aws:opensearch",
 		fn:   scanOpenSearch,
-		emits: []coverage.TypeDecl{
-			{Service: "opensearchservice", DiscoType: TypeOpenSearchDomain},
-			{Service: "opensearchservice", DiscoType: TypeOpenSearchApplication, Leaf: true},
-			{Service: "opensearchservice", DiscoType: TypeOpenSearchDataSource},
-		},
 	})
 }
 

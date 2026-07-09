@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
@@ -27,23 +27,21 @@ type route53API interface {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRoute53HostedZone, Service: "route53", Upstream: "AWS::Route53::HostedZone", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53RecordSet, Service: "route53", Upstream: "AWS::Route53::RecordSet"})
+	registerType(restype.Descriptor{Type: TypeRoute53HealthCheck, Service: "route53", Upstream: "AWS::Route53::HealthCheck", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53DNSSEC, Service: "route53", Upstream: "AWS::Route53::DNSSEC"})
+	registerType(restype.Descriptor{Type: TypeRoute53KeySigningKey, Service: "route53", Upstream: "AWS::Route53::KeySigningKey"})
+	registerType(restype.Descriptor{Type: TypeRoute53CIDRCollection, Service: "route53", Upstream: "AWS::Route53::CidrCollection", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53DelegationSet, Service: "route53", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53QueryLoggingConfig, Service: "route53"})
+	registerType(restype.Descriptor{Type: TypeRoute53TrafficPolicy, Service: "route53", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53TrafficPolicyInstance, Service: "route53"})
 	registerService(serviceEntry{
 		name:   "aws:route53",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			return scanRoute53(ctx, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			{Service: "route53", DiscoType: TypeRoute53HostedZone, Leaf: true},
-			{Service: "route53", DiscoType: TypeRoute53RecordSet},
-			{Service: "route53", DiscoType: TypeRoute53HealthCheck, Leaf: true},
-			{Service: "route53", DiscoType: TypeRoute53DNSSEC},
-			{Service: "route53", DiscoType: TypeRoute53KeySigningKey},
-			{Service: "route53", DiscoType: TypeRoute53CIDRCollection, Leaf: true},
-			{Service: "route53", DiscoType: TypeRoute53DelegationSet, Leaf: true},
-			{Service: "route53", DiscoType: TypeRoute53QueryLoggingConfig},
-			{Service: "route53", DiscoType: TypeRoute53TrafficPolicy, Leaf: true},
-			{Service: "route53", DiscoType: TypeRoute53TrafficPolicyInstance},
 		},
 	})
 }

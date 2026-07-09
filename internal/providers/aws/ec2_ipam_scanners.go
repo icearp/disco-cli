@@ -5,22 +5,20 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAM, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMScope},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMPool},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMPoolCIDR},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMAllocation},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMResourceDiscovery, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMResourceDiscoveryAssociation},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2IPAM, Service: "ec2", Upstream: "AWS::EC2::IPAM", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMScope, Service: "ec2", Upstream: "AWS::EC2::IPAMScope"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMPool, Service: "ec2", Upstream: "AWS::EC2::IPAMPool"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMPoolCIDR, Service: "ec2", Upstream: "AWS::EC2::IPAMPoolCidr"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMAllocation, Service: "ec2", Upstream: "AWS::EC2::IPAMAllocation"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscovery, Service: "ec2", Upstream: "AWS::EC2::IPAMResourceDiscovery", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscoveryAssociation, Service: "ec2", Upstream: "AWS::EC2::IPAMResourceDiscoveryAssociation"})
 }
 
 // scanEC2IPAM discovers all IPAM-related EC2 resources in parallel.

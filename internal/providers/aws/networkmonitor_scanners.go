@@ -5,20 +5,18 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/networkmonitor"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNetworkMonitorMonitor, Service: "networkmonitor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkMonitorProbe, Service: "networkmonitor", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:networkmonitor",
 		fn:   scanNetworkMonitor,
-		emits: []coverage.TypeDecl{
-			{Service: "networkmonitor", DiscoType: TypeNetworkMonitorMonitor, Leaf: true},
-			{Service: "networkmonitor", DiscoType: TypeNetworkMonitorProbe, Leaf: true},
-		},
 	})
 }
 

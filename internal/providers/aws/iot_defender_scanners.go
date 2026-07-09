@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTAccountAuditConfiguration},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTScheduledAudit, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTMitigationAction},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTSecurityProfile},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCustomMetric, Leaf: true},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTDimension, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeIoTAccountAuditConfiguration, Service: "iot", Managed: true})
+	registerType(restype.Descriptor{Type: TypeIoTScheduledAudit, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTMitigationAction, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTSecurityProfile, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTCustomMetric, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTDimension, Service: "iot", Leaf: true})
 }
 
 // iotDefenderAPI is the narrow surface used by the Defender family — IoT
@@ -87,7 +85,6 @@ func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 		// Per-(acct, region) AWS-managed singleton config row.
-		ManagedByProvider: true,
 	}
 	n, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {

@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/lakeformation"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLakeFormationResource, Service: "lakeformation", Upstream: "AWS::LakeFormation::Resource"})
+	registerType(restype.Descriptor{Type: TypeLakeFormationDataCellsFilter, Service: "lakeformation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLakeFormationDataLakeSettings, Service: "lakeformation", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeLakeFormationPrincipalPermissions, Service: "lakeformation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLakeFormationTag, Service: "lakeformation", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:lakeformation",
 		fn:   scanLakeFormation,
-		emits: []coverage.TypeDecl{
-			{Service: "lakeformation", DiscoType: TypeLakeFormationResource},
-			{Service: "lakeformation", DiscoType: TypeLakeFormationDataCellsFilter, Leaf: true},
-			{Service: "lakeformation", DiscoType: TypeLakeFormationDataLakeSettings, Leaf: true},
-			{Service: "lakeformation", DiscoType: TypeLakeFormationPrincipalPermissions, Leaf: true},
-			{Service: "lakeformation", DiscoType: TypeLakeFormationTag, Leaf: true},
-		},
 	})
 }
 

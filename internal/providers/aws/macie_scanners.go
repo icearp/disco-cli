@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/macie2"
 	"golang.org/x/sync/errgroup"
@@ -23,26 +23,15 @@ func isMacieNotEnabled(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMacieSession, Service: "macie", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMacieClassificationJob, Service: "macie", Upstream: "AWS::macie2::ClassificationJob"})
+	registerType(restype.Descriptor{Type: TypeMacieAllowList, Service: "macie", Upstream: "AWS::Macie::AllowList"})
+	registerType(restype.Descriptor{Type: TypeMacieCustomDataIdentifier, Service: "macie", Upstream: "AWS::Macie::CustomDataIdentifier", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMacieFindingsFilter, Service: "macie", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMacieMember, Service: "macie", Upstream: "AWS::macie2::Member"})
 	registerService(serviceEntry{
 		name: "aws:macie",
 		fn:   scanMacie,
-		emits: []coverage.TypeDecl{
-			// Macie session is a per-(account,region) singleton config;
-			// CFN models it as AWS::Macie::Session (per-region enablement),
-			// but synth NativeID since the API exposes no ARN.
-			{Service: "macie", DiscoType: TypeMacieSession, Leaf: true},
-			// CFN models no AWS::Macie::ClassificationJob, but the Service
-			// Reference catalog lists macie2/ClassificationJob (aliased — disco's
-			// segment is "macie"), so the union covers it.
-			{Service: "macie", DiscoType: TypeMacieClassificationJob},
-			{Service: "macie", DiscoType: TypeMacieAllowList},
-			{Service: "macie", DiscoType: TypeMacieCustomDataIdentifier, Leaf: true},
-			{Service: "macie", DiscoType: TypeMacieFindingsFilter, Leaf: true},
-			// Member rows carry an outbound edge to their org account (resolver),
-			// so not Leaf. CFN models no member type; the Service Reference
-			// catalog lists macie2/Member (aliased — disco's segment is "macie").
-			{Service: "macie", DiscoType: TypeMacieMember},
-		},
 	})
 }
 

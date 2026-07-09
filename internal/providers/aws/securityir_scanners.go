@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/securityir"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSecurityIRCase, Service: "security-ir", Upstream: "AWS::security-ir::case", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityIRMembership, Service: "security-ir", Upstream: "AWS::security-ir::membership", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:security-ir",
 		fn:   scanSecurityIR,
-		emits: []coverage.TypeDecl{
-			{Service: "security-ir", DiscoType: TypeSecurityIRCase, Leaf: true},
-			{Service: "security-ir", DiscoType: TypeSecurityIRMembership, Leaf: true},
-		},
 	})
 }
 

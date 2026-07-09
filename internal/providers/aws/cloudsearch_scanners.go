@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudsearch"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudSearchDomain, Service: "cloudsearch", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:cloudsearch",
 		fn:   scanCloudSearch,
-		emits: []coverage.TypeDecl{
-			{Service: "cloudsearch", DiscoType: TypeCloudSearchDomain, Leaf: true},
-		},
 	})
 }
 

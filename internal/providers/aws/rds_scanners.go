@@ -6,7 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
@@ -14,35 +15,33 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRDSDBCluster, Service: "rds", Upstream: "AWS::RDS::DBCluster", Redact: []redact.Rule{{Path: "MasterUserPassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeRDSDBInstance, Service: "rds", Upstream: "AWS::RDS::DBInstance", Redact: []redact.Rule{{Path: "MasterUserPassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeRDSGlobalCluster, Service: "rds", Upstream: "AWS::RDS::GlobalCluster"})
+	registerType(restype.Descriptor{Type: TypeRDSDBClusterParameterGroup, Service: "rds", Upstream: "AWS::RDS::DBClusterParameterGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRDSDBParameterGroup, Service: "rds", Upstream: "AWS::RDS::DBParameterGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRDSDBSubnetGroup, Service: "rds", Upstream: "AWS::RDS::DBSubnetGroup"})
+	registerType(restype.Descriptor{Type: TypeRDSDBSecurityGroup, Service: "rds", Upstream: "AWS::RDS::DBSecurityGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRDSOptionGroup, Service: "rds", Upstream: "AWS::RDS::OptionGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRDSEventSubscription, Service: "rds", Upstream: "AWS::RDS::EventSubscription", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRDSIntegration, Service: "rds", Upstream: "AWS::RDS::Integration"})
+	registerType(restype.Descriptor{Type: TypeRDSDBProxy, Service: "rds", Upstream: "AWS::RDS::DBProxy"})
+	registerType(restype.Descriptor{Type: TypeRDSDBProxyEndpoint, Service: "rds", Upstream: "AWS::RDS::DBProxyEndpoint"})
+	registerType(restype.Descriptor{Type: TypeRDSDBProxyTargetGroup, Service: "rds", Upstream: "AWS::RDS::DBProxyTargetGroup"})
+	registerType(restype.Descriptor{Type: TypeRDSDBShardGroup, Service: "rds", Upstream: "AWS::RDS::DBShardGroup"})
+	registerType(restype.Descriptor{Type: TypeRDSCustomDBEngineVersion, Service: "rds", Upstream: "AWS::RDS::CustomDBEngineVersion", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRDSSnapshot, Service: "rds"})
+	registerType(restype.Descriptor{Type: TypeRDSClusterSnapshot, Service: "rds", Upstream: "AWS::rds::cluster-snapshot"})
+	registerType(restype.Descriptor{Type: TypeRDSClusterEndpoint, Service: "rds", Upstream: "AWS::rds::cluster-endpoint"})
+	registerType(restype.Descriptor{Type: TypeRDSReservedInstance, Service: "rds", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRDSAutoBackup, Service: "rds", Upstream: "AWS::rds::auto-backup"})
+	registerType(restype.Descriptor{Type: TypeRDSClusterAutoBackup, Service: "rds", Upstream: "AWS::rds::cluster-auto-backup"})
+	registerType(restype.Descriptor{Type: TypeRDSTenantDatabase, Service: "rds", Upstream: "AWS::rds::tenant-database"})
+	registerType(restype.Descriptor{Type: TypeRDSSnapshotTenantDatabase, Service: "rds", Upstream: "AWS::rds::snapshot-tenant-database"})
+	registerType(restype.Descriptor{Type: TypeRDSDeployment, Service: "rds", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:rds",
 		fn:   scanRDS,
-		emits: []coverage.TypeDecl{
-			{Service: "rds", DiscoType: TypeRDSDBCluster},
-			{Service: "rds", DiscoType: TypeRDSDBInstance},
-			{Service: "rds", DiscoType: TypeRDSGlobalCluster},
-			{Service: "rds", DiscoType: TypeRDSDBClusterParameterGroup, Leaf: true},
-			{Service: "rds", DiscoType: TypeRDSDBParameterGroup, Leaf: true},
-			{Service: "rds", DiscoType: TypeRDSDBSubnetGroup},
-			{Service: "rds", DiscoType: TypeRDSDBSecurityGroup, Leaf: true},
-			{Service: "rds", DiscoType: TypeRDSOptionGroup, Leaf: true},
-			{Service: "rds", DiscoType: TypeRDSEventSubscription, Leaf: true},
-			{Service: "rds", DiscoType: TypeRDSIntegration},
-			{Service: "rds", DiscoType: TypeRDSDBProxy},
-			{Service: "rds", DiscoType: TypeRDSDBProxyEndpoint},
-			{Service: "rds", DiscoType: TypeRDSDBProxyTargetGroup},
-			{Service: "rds", DiscoType: TypeRDSDBShardGroup},
-			{Service: "rds", DiscoType: TypeRDSCustomDBEngineVersion, Leaf: true},
-			{Service: "rds", DiscoType: TypeRDSSnapshot},
-			{Service: "rds", DiscoType: TypeRDSClusterSnapshot},
-			{Service: "rds", DiscoType: TypeRDSClusterEndpoint},
-			{Service: "rds", DiscoType: TypeRDSReservedInstance, Leaf: true},
-			{Service: "rds", DiscoType: TypeRDSAutoBackup},
-			{Service: "rds", DiscoType: TypeRDSClusterAutoBackup},
-			{Service: "rds", DiscoType: TypeRDSTenantDatabase},
-			{Service: "rds", DiscoType: TypeRDSSnapshotTenantDatabase},
-			{Service: "rds", DiscoType: TypeRDSDeployment, Leaf: true},
-		},
 	})
 }
 

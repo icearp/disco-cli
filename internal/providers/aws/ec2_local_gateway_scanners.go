@@ -5,21 +5,19 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayRouteTable, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayRoute},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayVirtualInterface},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayVirtualInterfaceGroup, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayRouteTableVPCAssociation},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayRouteTableVIGAssociation},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTable, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayRouteTable", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRoute, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayRoute"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayVirtualInterface, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayVirtualInterface"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayVirtualInterfaceGroup, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayVirtualInterfaceGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTableVPCAssociation, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayRouteTableVPCAssociation"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTableVIGAssociation, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayRouteTableVirtualInterfaceGroupAssociation"})
 }
 
 // scanEC2LocalGateway discovers all Local Gateway resources in parallel.

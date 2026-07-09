@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBeanstalkApplication, Service: "elasticbeanstalk", Upstream: "AWS::ElasticBeanstalk::Application"})
+	registerType(restype.Descriptor{Type: TypeBeanstalkEnvironment, Service: "elasticbeanstalk", Upstream: "AWS::ElasticBeanstalk::Environment", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBeanstalkApplicationVersion, Service: "elasticbeanstalk"})
+	registerType(restype.Descriptor{Type: TypeBeanstalkPlatform, Service: "elasticbeanstalk", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:elasticbeanstalk",
 		fn:   scanElasticBeanstalk,
-		emits: []coverage.TypeDecl{
-			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkApplication},
-			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkEnvironment, Leaf: true},
-			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkApplicationVersion},
-			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkPlatform, Leaf: true},
-		},
 	})
 }
 

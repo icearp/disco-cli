@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/mediatailor"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMediaTailorChannel, Service: "mediatailor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaTailorChannelPolicy, Service: "mediatailor"})
+	registerType(restype.Descriptor{Type: TypeMediaTailorLiveSource, Service: "mediatailor"})
+	registerType(restype.Descriptor{Type: TypeMediaTailorPlaybackConfiguration, Service: "mediatailor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaTailorPrefetchSchedule, Service: "mediatailor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaTailorProgram, Service: "mediatailor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaTailorSourceLocation, Service: "mediatailor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaTailorVodSource, Service: "mediatailor"})
 	registerService(serviceEntry{
 		name: "aws:mediatailor",
 		fn:   scanMediaTailor,
-		emits: []coverage.TypeDecl{
-			{Service: "mediatailor", DiscoType: TypeMediaTailorChannel, Leaf: true},
-			{Service: "mediatailor", DiscoType: TypeMediaTailorChannelPolicy},
-			{Service: "mediatailor", DiscoType: TypeMediaTailorLiveSource},
-			{Service: "mediatailor", DiscoType: TypeMediaTailorPlaybackConfiguration, Leaf: true},
-			{Service: "mediatailor", DiscoType: TypeMediaTailorPrefetchSchedule, Leaf: true},
-			{Service: "mediatailor", DiscoType: TypeMediaTailorProgram, Leaf: true},
-			{Service: "mediatailor", DiscoType: TypeMediaTailorSourceLocation, Leaf: true},
-			{Service: "mediatailor", DiscoType: TypeMediaTailorVodSource},
-		},
 	})
 }
 

@@ -5,20 +5,18 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/codedeploy"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCodeDeployApplication, Service: "codedeploy", Upstream: "AWS::CodeDeploy::Application", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodeDeployDeploymentGroup, Service: "codedeploy", Upstream: "AWS::CodeDeploy::DeploymentGroup"})
+	registerType(restype.Descriptor{Type: TypeCodeDeployDeploymentConfig, Service: "codedeploy", Upstream: "AWS::CodeDeploy::DeploymentConfig", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:codedeploy",
 		fn:   scanCodeDeploy,
-		emits: []coverage.TypeDecl{
-			{Service: "codedeploy", DiscoType: TypeCodeDeployApplication, Leaf: true},
-			{Service: "codedeploy", DiscoType: TypeCodeDeployDeploymentGroup},
-			{Service: "codedeploy", DiscoType: TypeCodeDeployDeploymentConfig, Leaf: true},
-		},
 	})
 }
 

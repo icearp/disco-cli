@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/connectcases"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCasesDomain, Service: "cases", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCasesCaseRule, Service: "cases"})
+	registerType(restype.Descriptor{Type: TypeCasesField, Service: "cases"})
+	registerType(restype.Descriptor{Type: TypeCasesLayout, Service: "cases"})
+	registerType(restype.Descriptor{Type: TypeCasesTemplate, Service: "cases"})
 	registerService(serviceEntry{
 		name: "aws:cases",
 		fn:   scanCases,
-		emits: []coverage.TypeDecl{
-			{Service: "cases", DiscoType: TypeCasesDomain, Leaf: true},
-			{Service: "cases", DiscoType: TypeCasesCaseRule},
-			{Service: "cases", DiscoType: TypeCasesField},
-			{Service: "cases", DiscoType: TypeCasesLayout},
-			{Service: "cases", DiscoType: TypeCasesTemplate},
-		},
 	})
 }
 

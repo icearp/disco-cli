@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/pcs"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePCSCluster, Service: "pcs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePCSComputeNodeGroup, Service: "pcs"})
+	registerType(restype.Descriptor{Type: TypePCSQueue, Service: "pcs"})
 	registerService(serviceEntry{
 		name: "aws:pcs",
 		fn:   scanPCS,
-		emits: []coverage.TypeDecl{
-			{Service: "pcs", DiscoType: TypePCSCluster, Leaf: true},
-			{Service: "pcs", DiscoType: TypePCSComputeNodeGroup},
-			{Service: "pcs", DiscoType: TypePCSQueue},
-		},
 	})
 }
 

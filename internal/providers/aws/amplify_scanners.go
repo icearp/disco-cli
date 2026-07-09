@@ -5,24 +5,21 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/amplify"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAmplifyApp, Service: "amplify"})
+	registerType(restype.Descriptor{Type: TypeAmplifyBranch, Service: "amplify"})
+	registerType(restype.Descriptor{Type: TypeAmplifyDomain, Service: "amplify", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAmplifyWebhooks, Service: "amplify", Upstream: "AWS::amplify::webhooks", Leaf: true, Redact: []redact.Rule{{Path: "WebhookUrl", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "aws:amplify",
 		fn:   scanAmplify,
-		emits: []coverage.TypeDecl{
-			{Service: "amplify", DiscoType: TypeAmplifyApp},
-			{Service: "amplify", DiscoType: TypeAmplifyBranch},
-			{Service: "amplify", DiscoType: TypeAmplifyDomain, Leaf: true},
-			// Webhook's only cross-resource ref is BranchName (no ARN); the
-			// branch edge is deferred — leaf, closure-wired to its app.
-			{Service: "amplify", DiscoType: TypeAmplifyWebhooks, Leaf: true},
-		},
 	})
 }
 

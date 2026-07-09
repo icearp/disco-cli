@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/globalaccelerator"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGlobalAcceleratorAccelerator, Service: "global-accelerator", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlobalAcceleratorCrossAccountAttachment, Service: "global-accelerator"})
+	registerType(restype.Descriptor{Type: TypeGlobalAcceleratorListener, Service: "global-accelerator"})
+	registerType(restype.Descriptor{Type: TypeGlobalAcceleratorEndpointGroup, Service: "global-accelerator"})
 	registerService(serviceEntry{
 		name:   "aws:global-accelerator",
 		global: true,
 		fn:     scanGlobalAccelerator,
-		emits: []coverage.TypeDecl{
-			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorAccelerator, Leaf: true},
-			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorCrossAccountAttachment},
-			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorListener},
-			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorEndpointGroup},
-		},
 	})
 }
 

@@ -4,36 +4,34 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/networkmanager"
 	nmtypes "github.com/aws/aws-sdk-go-v2/service/networkmanager/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNetworkManagerGlobalNetwork, Service: "networkmanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerCoreNetwork, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerSite, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerDevice, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerLink, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerLinkAssociation, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerCustomerGatewayAssociation, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerTransitGatewayRegistration, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerVpcAttachment, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerConnectAttachment, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerSiteToSiteVpnAttachment, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerDirectConnectGatewayAttachment, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerTransitGatewayRouteTableAttachment, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerTransitGatewayPeering, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerConnectPeer, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerCoreNetworkPrefixListAssociation, Service: "networkmanager"})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerConnection, Service: "networkmanager", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:networkmanager",
 		global: true,
 		fn:     scanNetworkManager,
-		emits: []coverage.TypeDecl{
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerGlobalNetwork, Leaf: true},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerCoreNetwork},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerSite},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerDevice},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerLink},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerLinkAssociation},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerCustomerGatewayAssociation},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerTransitGatewayRegistration},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerVpcAttachment},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerConnectAttachment},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerSiteToSiteVpnAttachment},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerDirectConnectGatewayAttachment},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerTransitGatewayRouteTableAttachment},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerTransitGatewayPeering},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerConnectPeer},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerCoreNetworkPrefixListAssociation},
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerConnection, Leaf: true},
-		},
 	})
 }
 

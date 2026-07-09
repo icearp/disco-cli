@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEKSCluster, Service: "eks", Upstream: "AWS::EKS::Cluster"})
+	registerType(restype.Descriptor{Type: TypeEKSAccessEntry, Service: "eks"})
+	registerType(restype.Descriptor{Type: TypeEKSAddon, Service: "eks"})
+	registerType(restype.Descriptor{Type: TypeEKSCapability, Service: "eks"})
+	registerType(restype.Descriptor{Type: TypeEKSFargateProfile, Service: "eks"})
+	registerType(restype.Descriptor{Type: TypeEKSIdentityProviderConfig, Service: "eks"})
+	registerType(restype.Descriptor{Type: TypeEKSNodegroup, Service: "eks"})
+	registerType(restype.Descriptor{Type: TypeEKSPodIdentityAssociation, Service: "eks"})
 	registerService(serviceEntry{
 		name: "aws:eks",
 		fn:   scanEKS,
-		emits: []coverage.TypeDecl{
-			{Service: "eks", DiscoType: TypeEKSCluster},
-			{Service: "eks", DiscoType: TypeEKSAccessEntry},
-			{Service: "eks", DiscoType: TypeEKSAddon},
-			{Service: "eks", DiscoType: TypeEKSCapability},
-			{Service: "eks", DiscoType: TypeEKSFargateProfile},
-			{Service: "eks", DiscoType: TypeEKSIdentityProviderConfig},
-			{Service: "eks", DiscoType: TypeEKSNodegroup},
-			{Service: "eks", DiscoType: TypeEKSPodIdentityAssociation},
-		},
 	})
 }
 

@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/codecommit"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCodeCommitRepository, Service: "codecommit"})
 	registerService(serviceEntry{
 		name: "aws:codecommit",
 		fn:   scanCodeCommit,
-		emits: []coverage.TypeDecl{
-			{Service: "codecommit", DiscoType: TypeCodeCommitRepository},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/trustedadvisor"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeTrustedAdvisorChecks, Service: "trustedadvisor", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name:   "aws:trustedadvisor",
 		global: true,
 		fn:     scanTrustedAdvisor,
-		emits: []coverage.TypeDecl{
-			{Service: "trustedadvisor", DiscoType: TypeTrustedAdvisorChecks, Leaf: true},
-		},
 	})
 }
 
@@ -61,8 +59,7 @@ func scanTrustedAdvisorChecks(ctx context.Context, client trustedAdvisorAPI, acc
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeTrustedAdvisorChecks, NativeID: arn,
 				Name: c.Name, Region: &region,
-				ManagedByProvider: true,
-				AttributesJSON:    mustJSON(c), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
 	}

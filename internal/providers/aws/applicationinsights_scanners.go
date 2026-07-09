@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/applicationinsights"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeApplicationInsightsApplication, Service: "applicationinsights"})
 	registerService(serviceEntry{
 		name: "aws:applicationinsights",
 		fn:   scanApplicationInsights,
-		emits: []coverage.TypeDecl{
-			{Service: "applicationinsights", DiscoType: TypeApplicationInsightsApplication},
-		},
 	})
 }
 

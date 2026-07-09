@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/mailmanager"
 	sesv1 "github.com/aws/aws-sdk-go-v2/service/ses"
@@ -15,32 +15,30 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSESEmailIdentity, Service: "ses", Upstream: "AWS::SES::EmailIdentity"})
+	registerType(restype.Descriptor{Type: TypeSESConfigurationSet, Service: "ses", Upstream: "AWS::SES::ConfigurationSet", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESConfigurationSetEventDestination, Service: "ses"})
+	registerType(restype.Descriptor{Type: TypeSESContactList, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESCustomVerificationEmailTemplate, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESDedicatedIPPool, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESMultiRegionEndpoint, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESTemplate, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESTenant, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESVdmAttributes, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESReceiptFilter, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESReceiptRule, Service: "ses"})
+	registerType(restype.Descriptor{Type: TypeSESReceiptRuleSet, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESMailManagerAddonInstance, Service: "ses"})
+	registerType(restype.Descriptor{Type: TypeSESMailManagerAddonSubscription, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESMailManagerAddressList, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESMailManagerArchive, Service: "ses"})
+	registerType(restype.Descriptor{Type: TypeSESMailManagerIngressPoint, Service: "ses"})
+	registerType(restype.Descriptor{Type: TypeSESMailManagerRelay, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESMailManagerRuleSet, Service: "ses", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESMailManagerTrafficPolicy, Service: "ses", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:ses",
 		fn:   scanSES,
-		emits: []coverage.TypeDecl{
-			{Service: "ses", DiscoType: TypeSESEmailIdentity},
-			{Service: "ses", DiscoType: TypeSESConfigurationSet, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESConfigurationSetEventDestination},
-			{Service: "ses", DiscoType: TypeSESContactList, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESCustomVerificationEmailTemplate, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESDedicatedIPPool, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESMultiRegionEndpoint, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESTemplate, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESTenant, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESVdmAttributes, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESReceiptFilter, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESReceiptRule},
-			{Service: "ses", DiscoType: TypeSESReceiptRuleSet, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESMailManagerAddonInstance},
-			{Service: "ses", DiscoType: TypeSESMailManagerAddonSubscription, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESMailManagerAddressList, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESMailManagerArchive},
-			{Service: "ses", DiscoType: TypeSESMailManagerIngressPoint},
-			{Service: "ses", DiscoType: TypeSESMailManagerRelay, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESMailManagerRuleSet, Leaf: true},
-			{Service: "ses", DiscoType: TypeSESMailManagerTrafficPolicy, Leaf: true},
-		},
 	})
 }
 

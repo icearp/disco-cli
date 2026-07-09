@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/kendraranking"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKendraRankingExecutionPlan, Service: "kendra-ranking", Upstream: "AWS::KendraRanking::ExecutionPlan", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:kendra-ranking",
 		fn:   scanKendraRanking,
-		emits: []coverage.TypeDecl{
-			{Service: "kendra-ranking", DiscoType: TypeKendraRankingExecutionPlan, Leaf: true},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/acm"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeACMCertificate, Service: "acm", Upstream: "AWS::CertificateManager::Certificate"})
+	registerType(restype.Descriptor{Type: TypeACMAccount, Service: "acm", Upstream: "AWS::CertificateManager::Account", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:acm",
 		fn:   scanACM,
-		emits: []coverage.TypeDecl{
-			{Service: "acm", DiscoType: TypeACMCertificate},
-			{Service: "acm", DiscoType: TypeACMAccount, Leaf: true},
-		},
 	})
 }
 

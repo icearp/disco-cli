@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
 	"github.com/aws/aws-sdk-go-v2/service/s3outposts"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeS3OutpostsEndpoint, Service: "s3outposts", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3OutpostsBucket, Service: "s3outposts", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3OutpostsAccessPoint, Service: "s3outposts", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3OutpostsBucketPolicy, Service: "s3outposts", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:s3outposts",
 		fn:   scanS3Outposts,
-		emits: []coverage.TypeDecl{
-			{Service: "s3outposts", DiscoType: TypeS3OutpostsEndpoint, Leaf: true},
-			{Service: "s3outposts", DiscoType: TypeS3OutpostsBucket, Leaf: true},
-			{Service: "s3outposts", DiscoType: TypeS3OutpostsAccessPoint, Leaf: true},
-			{Service: "s3outposts", DiscoType: TypeS3OutpostsBucketPolicy, Leaf: true},
-		},
 	})
 }
 

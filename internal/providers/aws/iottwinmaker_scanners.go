@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iottwinmaker"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIoTTwinMakerWorkspace, Service: "iottwinmaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTTwinMakerComponentType, Service: "iottwinmaker"})
+	registerType(restype.Descriptor{Type: TypeIoTTwinMakerEntity, Service: "iottwinmaker"})
+	registerType(restype.Descriptor{Type: TypeIoTTwinMakerScene, Service: "iottwinmaker"})
+	registerType(restype.Descriptor{Type: TypeIoTTwinMakerSyncJob, Service: "iottwinmaker"})
 	registerService(serviceEntry{
 		name: "aws:iottwinmaker",
 		fn:   scanIoTTwinMaker,
-		emits: []coverage.TypeDecl{
-			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerWorkspace, Leaf: true},
-			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerComponentType},
-			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerEntity},
-			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerScene},
-			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerSyncJob},
-		},
 	})
 }
 

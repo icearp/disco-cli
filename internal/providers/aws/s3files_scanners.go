@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3files"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeS3FilesFileSystem, Service: "s3files"})
+	registerType(restype.Descriptor{Type: TypeS3FilesAccessPoint, Service: "s3files"})
+	registerType(restype.Descriptor{Type: TypeS3FilesMountTarget, Service: "s3files"})
+	registerType(restype.Descriptor{Type: TypeS3FilesFileSystemPolicy, Service: "s3files"})
 	registerService(serviceEntry{
 		name: "aws:s3files",
 		fn:   scanS3Files,
-		emits: []coverage.TypeDecl{
-			{Service: "s3files", DiscoType: TypeS3FilesFileSystem},
-			{Service: "s3files", DiscoType: TypeS3FilesAccessPoint},
-			{Service: "s3files", DiscoType: TypeS3FilesMountTarget},
-			{Service: "s3files", DiscoType: TypeS3FilesFileSystemPolicy},
-		},
 	})
 }
 

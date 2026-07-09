@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CapacityManagerDataExport, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkPerformanceMetricSubscription, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMeteringPolicy},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEncryptionControl, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPNConcentrator, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2CapacityManagerDataExport, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkPerformanceMetricSubscription, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayMeteringPolicy, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2VPCEncryptionControl, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VPNConcentrator, Service: "ec2", Leaf: true})
 }
 
 // scanEC2MiscExtra discovers small EC2 families not worth their own scanner

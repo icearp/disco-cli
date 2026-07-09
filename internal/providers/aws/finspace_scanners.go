@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/finspace"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeFinSpaceEnvironment, Service: "fin-space", Upstream: "AWS::FinSpace::Environment", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:fin-space",
 		fn:   scanFinSpace,
-		emits: []coverage.TypeDecl{
-			{Service: "fin-space", DiscoType: TypeFinSpaceEnvironment, Leaf: true},
-		},
 	})
 }
 

@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/pipes"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePipesPipe, Service: "pipes"})
 	registerService(serviceEntry{
 		name: "aws:pipes",
 		fn:   scanPipes,
-		emits: []coverage.TypeDecl{
-			{Service: "pipes", DiscoType: TypePipesPipe},
-		},
 	})
 }
 

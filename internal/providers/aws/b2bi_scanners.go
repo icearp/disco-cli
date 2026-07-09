@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/b2bi"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeB2BICapability, Service: "b2bi"})
+	registerType(restype.Descriptor{Type: TypeB2BIPartnership, Service: "b2bi"})
+	registerType(restype.Descriptor{Type: TypeB2BIProfile, Service: "b2bi"})
+	registerType(restype.Descriptor{Type: TypeB2BITransformer, Service: "b2bi", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:b2bi",
 		fn:   scanB2BI,
-		emits: []coverage.TypeDecl{
-			{Service: "b2bi", DiscoType: TypeB2BICapability},
-			{Service: "b2bi", DiscoType: TypeB2BIPartnership},
-			{Service: "b2bi", DiscoType: TypeB2BIProfile},
-			{Service: "b2bi", DiscoType: TypeB2BITransformer, Leaf: true},
-		},
 	})
 }
 

@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/workspacesthinclient"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWorkSpacesThinClientEnvironment, Service: "workspaces-thin-client", Upstream: "AWS::WorkSpacesThinClient::Environment", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:workspaces-thin-client",
 		fn:   scanWorkSpacesThinClient,
-		emits: []coverage.TypeDecl{
-			{Service: "workspaces-thin-client", DiscoType: TypeWorkSpacesThinClientEnvironment, Leaf: true},
-		},
 	})
 }
 

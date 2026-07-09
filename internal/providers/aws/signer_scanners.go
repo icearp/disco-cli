@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/signer"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSignerSigningProfile, Service: "signer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSignerProfilePermission, Service: "signer"})
 	registerService(serviceEntry{
 		name: "aws:signer",
 		fn:   scanSigner,
-		emits: []coverage.TypeDecl{
-			{Service: "signer", DiscoType: TypeSignerSigningProfile, Leaf: true},
-			{Service: "signer", DiscoType: TypeSignerProfilePermission},
-		},
 	})
 }
 

@@ -4,26 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/cleanrooms"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCleanRoomsAnalysisTemplate, Service: "cleanrooms"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsCollaboration, Service: "cleanrooms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsConfiguredTable, Service: "cleanrooms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsConfiguredTableAssociation, Service: "cleanrooms"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsConfiguredAudienceModelAssociation, Service: "cleanrooms", Upstream: "AWS::cleanrooms::configuredaudiencemodelassociation"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsIDMappingTable, Service: "cleanrooms"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsIDNamespaceAssociation, Service: "cleanrooms"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMembership, Service: "cleanrooms"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsPrivacyBudgetTemplate, Service: "cleanrooms"})
 	registerService(serviceEntry{
 		name: "aws:cleanrooms",
 		fn:   scanCleanRooms,
-		emits: []coverage.TypeDecl{
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsAnalysisTemplate},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsCollaboration, Leaf: true},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredTable, Leaf: true},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredTableAssociation},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredAudienceModelAssociation},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIDMappingTable},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIDNamespaceAssociation},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsMembership},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsPrivacyBudgetTemplate},
-		},
 	})
 }
 

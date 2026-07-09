@@ -330,7 +330,6 @@ func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *ac
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSecurityHubSecurityControl, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-				ManagedByProvider: true,
 			})
 		}
 	}
@@ -363,7 +362,6 @@ func scanSHStandards(ctx context.Context, client securityhubAPI, acct *account, 
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSecurityHubStandard, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-				ManagedByProvider: true,
 			})
 		}
 	}

@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIoTDeviceAdvisorSuiteDefinition, Service: "iot-core-device-advisor", Upstream: "AWS::IoTCoreDeviceAdvisor::SuiteDefinition", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:iot-core-device-advisor",
 		fn:   scanIoTDeviceAdvisor,
-		emits: []coverage.TypeDecl{
-			{Service: "iot-core-device-advisor", DiscoType: TypeIoTDeviceAdvisorSuiteDefinition, Leaf: true},
-		},
 	})
 }
 

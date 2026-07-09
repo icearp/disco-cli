@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotmanagedintegrations"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsAccountAssociation, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::account-association", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsCredentialLocker, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::credential-locker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsManagedThing, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::managed-thing", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsOtaTask, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::ota-task", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsProvisioningProfile, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::provisioning-profile", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:iotmanagedintegrations",
 		fn:   scanIoTManagedIntegrations,
-		emits: []coverage.TypeDecl{
-			{Service: "iotmanagedintegrations", DiscoType: TypeIoTManagedIntegrationsAccountAssociation, Leaf: true},
-			{Service: "iotmanagedintegrations", DiscoType: TypeIoTManagedIntegrationsCredentialLocker, Leaf: true},
-			{Service: "iotmanagedintegrations", DiscoType: TypeIoTManagedIntegrationsManagedThing, Leaf: true},
-			{Service: "iotmanagedintegrations", DiscoType: TypeIoTManagedIntegrationsOtaTask, Leaf: true},
-			{Service: "iotmanagedintegrations", DiscoType: TypeIoTManagedIntegrationsProvisioningProfile, Leaf: true},
-		},
 	})
 }
 

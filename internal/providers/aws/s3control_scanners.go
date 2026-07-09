@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
 	s3ctypes "github.com/aws/aws-sdk-go-v2/service/s3control/types"
@@ -30,22 +30,20 @@ type s3controlAPI interface {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeS3AccessGrantsInstance, Service: "s3", Upstream: "AWS::S3::AccessGrantsInstance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3AccessGrantsLocation, Service: "s3", Upstream: "AWS::S3::AccessGrantsLocation"})
+	registerType(restype.Descriptor{Type: TypeS3AccessGrant, Service: "s3", Upstream: "AWS::S3::AccessGrant"})
+	registerType(restype.Descriptor{Type: TypeS3AccessPoint, Service: "s3", Upstream: "AWS::S3::AccessPoint"})
+	registerType(restype.Descriptor{Type: TypeS3MultiRegionAccessPoint, Service: "s3", Upstream: "AWS::S3::MultiRegionAccessPoint"})
+	registerType(restype.Descriptor{Type: TypeS3MultiRegionAccessPointPolicy, Service: "s3", Upstream: "AWS::S3::MultiRegionAccessPointPolicy"})
+	registerType(restype.Descriptor{Type: TypeS3StorageLens, Service: "s3", Upstream: "AWS::S3::StorageLens"})
+	registerType(restype.Descriptor{Type: TypeS3StorageLensGroup, Service: "s3", Upstream: "AWS::S3::StorageLensGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3ObjectLambdaAccessPoint, Service: "s3-object-lambda", Upstream: "AWS::S3ObjectLambda::AccessPoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3ObjectLambdaAccessPointPolicy, Service: "s3-object-lambda", Upstream: "AWS::S3ObjectLambda::AccessPointPolicy", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:s3control",
 		global: false,
 		fn:     scanS3Control,
-		emits: []coverage.TypeDecl{
-			{Service: "s3", DiscoType: TypeS3AccessGrantsInstance, Leaf: true},
-			{Service: "s3", DiscoType: TypeS3AccessGrantsLocation},
-			{Service: "s3", DiscoType: TypeS3AccessGrant},
-			{Service: "s3", DiscoType: TypeS3AccessPoint},
-			{Service: "s3", DiscoType: TypeS3MultiRegionAccessPoint},
-			{Service: "s3", DiscoType: TypeS3MultiRegionAccessPointPolicy},
-			{Service: "s3", DiscoType: TypeS3StorageLens},
-			{Service: "s3", DiscoType: TypeS3StorageLensGroup, Leaf: true},
-			{Service: "s3-object-lambda", DiscoType: TypeS3ObjectLambdaAccessPoint, Leaf: true},
-			{Service: "s3-object-lambda", DiscoType: TypeS3ObjectLambdaAccessPointPolicy, Leaf: true},
-		},
 	})
 }
 

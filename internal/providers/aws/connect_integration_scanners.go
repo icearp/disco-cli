@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectApprovedOrigin},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectSecurityKey},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectInstanceStorageConfig},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectIntegrationAssociation},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectNotification},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectRule},
-	)
+	registerType(restype.Descriptor{Type: TypeConnectApprovedOrigin, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectSecurityKey, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectInstanceStorageConfig, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectIntegrationAssociation, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectNotification, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectRule, Service: "connect"})
 }
 
 // connectIntegrationAPI is the narrow surface for the Integration family.

@@ -5,21 +5,19 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/clouddirectory"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudDirectoryDirectory, Service: "clouddirectory", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudDirectoryDevelopmentSchema, Service: "clouddirectory", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudDirectoryPublishedSchema, Service: "clouddirectory", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudDirectoryAppliedSchema, Service: "clouddirectory"})
 	registerService(serviceEntry{
 		name: "aws:clouddirectory",
 		fn:   scanCloudDirectory,
-		emits: []coverage.TypeDecl{
-			{Service: "clouddirectory", DiscoType: TypeCloudDirectoryDirectory, Leaf: true},
-			{Service: "clouddirectory", DiscoType: TypeCloudDirectoryDevelopmentSchema, Leaf: true},
-			{Service: "clouddirectory", DiscoType: TypeCloudDirectoryPublishedSchema, Leaf: true},
-			{Service: "clouddirectory", DiscoType: TypeCloudDirectoryAppliedSchema},
-		},
 	})
 }
 

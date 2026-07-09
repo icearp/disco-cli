@@ -6,30 +6,29 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	smithy "github.com/aws/smithy-go"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeElastiCacheCacheCluster, Service: "elasticache", Upstream: "AWS::ElastiCache::CacheCluster", Redact: []redact.Rule{{Path: "AuthToken", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeElastiCacheReplicationGroup, Service: "elasticache", Upstream: "AWS::ElastiCache::ReplicationGroup", Redact: []redact.Rule{{Path: "AuthToken", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeElastiCacheGlobalReplicationGroup, Service: "elasticache", Upstream: "AWS::ElastiCache::GlobalReplicationGroup"})
+	registerType(restype.Descriptor{Type: TypeElastiCacheServerlessCache, Service: "elasticache", Upstream: "AWS::ElastiCache::ServerlessCache"})
+	registerType(restype.Descriptor{Type: TypeElastiCacheParameterGroup, Service: "elasticache", Upstream: "AWS::ElastiCache::ParameterGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeElastiCacheSecurityGroup, Service: "elasticache", Upstream: "AWS::ElastiCache::SecurityGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeElastiCacheSubnetGroup, Service: "elasticache", Upstream: "AWS::ElastiCache::SubnetGroup"})
+	registerType(restype.Descriptor{Type: TypeElastiCacheUser, Service: "elasticache", Upstream: "AWS::ElastiCache::User", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeElastiCacheUserGroup, Service: "elasticache", Upstream: "AWS::ElastiCache::UserGroup"})
+	registerType(restype.Descriptor{Type: TypeElastiCacheReservedInstance, Service: "elasticache", Upstream: "AWS::elasticache::reserved-instance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeElastiCacheServerlessCacheSnapshot, Service: "elasticache"})
+	registerType(restype.Descriptor{Type: TypeElastiCacheSnapshot, Service: "elasticache"})
 	registerService(serviceEntry{
 		name: "aws:elasticache",
 		fn:   scanElastiCache,
-		emits: []coverage.TypeDecl{
-			{Service: "elasticache", DiscoType: TypeElastiCacheCacheCluster},
-			{Service: "elasticache", DiscoType: TypeElastiCacheReplicationGroup},
-			{Service: "elasticache", DiscoType: TypeElastiCacheGlobalReplicationGroup},
-			{Service: "elasticache", DiscoType: TypeElastiCacheServerlessCache},
-			{Service: "elasticache", DiscoType: TypeElastiCacheParameterGroup, Leaf: true},
-			{Service: "elasticache", DiscoType: TypeElastiCacheSecurityGroup, Leaf: true},
-			{Service: "elasticache", DiscoType: TypeElastiCacheSubnetGroup},
-			{Service: "elasticache", DiscoType: TypeElastiCacheUser, Leaf: true},
-			{Service: "elasticache", DiscoType: TypeElastiCacheUserGroup},
-			{Service: "elasticache", DiscoType: TypeElastiCacheReservedInstance, Leaf: true},
-			{Service: "elasticache", DiscoType: TypeElastiCacheServerlessCacheSnapshot},
-			{Service: "elasticache", DiscoType: TypeElastiCacheSnapshot},
-		},
 	})
 }
 

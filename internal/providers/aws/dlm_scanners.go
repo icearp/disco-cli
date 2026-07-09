@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/dlm"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDLMLifecyclePolicy, Service: "dlm", Upstream: "AWS::DLM::LifecyclePolicy", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:dlm",
 		fn:   scanDLM,
-		emits: []coverage.TypeDecl{
-			{Service: "dlm", DiscoType: TypeDLMLifecyclePolicy, Leaf: true},
-		},
 	})
 }
 

@@ -5,27 +5,25 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeECRRepository, Service: "ecr", Upstream: "AWS::ECR::Repository"})
+	registerType(restype.Descriptor{Type: TypeECRPublicRepository, Service: "ecr", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECRPullThroughCacheRule, Service: "ecr", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECRPullTimeUpdateExclusion, Service: "ecr", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECRRegistryPolicy, Service: "ecr", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECRRegistryScanningConfig, Service: "ecr", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeECRReplicationConfiguration, Service: "ecr", Managed: true})
+	registerType(restype.Descriptor{Type: TypeECRRepositoryCreationTemplate, Service: "ecr", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECRSigningConfiguration, Service: "ecr", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:ecr",
 		fn:   scanECR,
-		emits: []coverage.TypeDecl{
-			{Service: "ecr", DiscoType: TypeECRRepository},
-			{Service: "ecr", DiscoType: TypeECRPublicRepository, Leaf: true},
-			{Service: "ecr", DiscoType: TypeECRPullThroughCacheRule, Leaf: true},
-			{Service: "ecr", DiscoType: TypeECRPullTimeUpdateExclusion, Leaf: true},
-			{Service: "ecr", DiscoType: TypeECRRegistryPolicy, Leaf: true},
-			{Service: "ecr", DiscoType: TypeECRRegistryScanningConfig, Leaf: true},
-			{Service: "ecr", DiscoType: TypeECRReplicationConfiguration},
-			{Service: "ecr", DiscoType: TypeECRRepositoryCreationTemplate, Leaf: true},
-			{Service: "ecr", DiscoType: TypeECRSigningConfiguration, Leaf: true},
-		},
 	})
 }
 

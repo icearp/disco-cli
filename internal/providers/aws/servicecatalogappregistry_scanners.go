@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/servicecatalogappregistry"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSCARApplication, Service: "service-catalog-app-registry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSCARAttributeGroup, Service: "service-catalog-app-registry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSCARAttributeGroupAssociation, Service: "service-catalog-app-registry"})
+	registerType(restype.Descriptor{Type: TypeSCARResourceAssociation, Service: "service-catalog-app-registry"})
 	registerService(serviceEntry{
 		name: "aws:service-catalog-app-registry",
 		fn:   scanServiceCatalogAppRegistry,
-		emits: []coverage.TypeDecl{
-			{Service: "service-catalog-app-registry", DiscoType: TypeSCARApplication, Leaf: true},
-			{Service: "service-catalog-app-registry", DiscoType: TypeSCARAttributeGroup, Leaf: true},
-			{Service: "service-catalog-app-registry", DiscoType: TypeSCARAttributeGroupAssociation},
-			{Service: "service-catalog-app-registry", DiscoType: TypeSCARResourceAssociation},
-		},
 	})
 }
 

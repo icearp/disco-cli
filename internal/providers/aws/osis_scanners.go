@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/osis"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOSISPipeline, Service: "osis", Upstream: "AWS::OSIS::Pipeline", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOSISPipelineBlueprint, Service: "osis", Upstream: "AWS::osis::pipeline-blueprint", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeOSISPipelineEndpoint, Service: "osis", Upstream: "AWS::osis::pipeline-endpoint"})
 	registerService(serviceEntry{
 		name: "aws:osis",
 		fn:   scanOSIS,
-		emits: []coverage.TypeDecl{
-			{Service: "osis", DiscoType: TypeOSISPipeline, Leaf: true},
-			{Service: "osis", DiscoType: TypeOSISPipelineBlueprint, Leaf: true},
-			{Service: "osis", DiscoType: TypeOSISPipelineEndpoint},
-		},
 	})
 }
 
@@ -96,7 +94,6 @@ func scanOSISPipelineBlueprints(ctx context.Context, client *osis.Client, acct *
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 			Type: TypeOSISPipelineBlueprint, NativeID: arn,
 			Name: &label, Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-			ManagedByProvider: true,
 		})
 	}
 	return upsertBatch(st, batch, "osis pipeline-blueprints")

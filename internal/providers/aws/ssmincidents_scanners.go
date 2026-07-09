@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ssmincidents"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSSMIncidentsReplicationSet, Service: "ssm-incidents", Upstream: "AWS::SSMIncidents::ReplicationSet"})
+	registerType(restype.Descriptor{Type: TypeSSMIncidentsResponsePlan, Service: "ssm-incidents", Upstream: "AWS::SSMIncidents::ResponsePlan"})
 	registerService(serviceEntry{
 		name: "aws:ssm-incidents",
 		fn:   scanSSMIncidents,
-		emits: []coverage.TypeDecl{
-			{Service: "ssm-incidents", DiscoType: TypeSSMIncidentsReplicationSet},
-			{Service: "ssm-incidents", DiscoType: TypeSSMIncidentsResponsePlan},
-		},
 	})
 }
 

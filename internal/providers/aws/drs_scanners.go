@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/drs"
 )
@@ -14,16 +14,14 @@ import (
 // twin, so disco types mirror that spelling exactly — the algorithmic key
 // matches with no alias.
 func init() {
+	registerType(restype.Descriptor{Type: TypeDRSSourceServerResource, Service: "drs"})
+	registerType(restype.Descriptor{Type: TypeDRSRecoveryInstanceResource, Service: "drs"})
+	registerType(restype.Descriptor{Type: TypeDRSSourceNetworkResource, Service: "drs"})
+	registerType(restype.Descriptor{Type: TypeDRSReplicationConfigurationTemplateResource, Service: "drs"})
+	registerType(restype.Descriptor{Type: TypeDRSLaunchConfigurationTemplateResource, Service: "drs"})
 	registerService(serviceEntry{
 		name: "aws:drs",
 		fn:   scanDRS,
-		emits: []coverage.TypeDecl{
-			{Service: "drs", DiscoType: TypeDRSSourceServerResource},
-			{Service: "drs", DiscoType: TypeDRSRecoveryInstanceResource},
-			{Service: "drs", DiscoType: TypeDRSSourceNetworkResource},
-			{Service: "drs", DiscoType: TypeDRSReplicationConfigurationTemplateResource},
-			{Service: "drs", DiscoType: TypeDRSLaunchConfigurationTemplateResource},
-		},
 	})
 }
 

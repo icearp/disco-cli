@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/accessanalyzer"
 	aatypes "github.com/aws/aws-sdk-go-v2/service/accessanalyzer/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAccessAnalyzerAnalyzer, Service: "accessanalyzer", Upstream: "AWS::AccessAnalyzer::Analyzer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAccessAnalyzerArchiveRule, Service: "accessanalyzer", Upstream: "AWS::access-analyzer::ArchiveRule", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:accessanalyzer",
 		fn:   scanAccessAnalyzer,
-		emits: []coverage.TypeDecl{
-			{Service: "accessanalyzer", DiscoType: TypeAccessAnalyzerAnalyzer, Leaf: true},
-			{Service: "accessanalyzer", DiscoType: TypeAccessAnalyzerArchiveRule, Leaf: true},
-		},
 	})
 }
 

@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/elementalinference"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeElementalInferenceFeed, Service: "elemental-inference", Upstream: "AWS::ElementalInference::Feed", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:elemental-inference",
 		fn:   scanElementalInference,
-		emits: []coverage.TypeDecl{
-			{Service: "elemental-inference", DiscoType: TypeElementalInferenceFeed, Leaf: true},
-		},
 	})
 }
 

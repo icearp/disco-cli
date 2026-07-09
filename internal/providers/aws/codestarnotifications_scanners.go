@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/codestarnotifications"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCodeStarNotificationsNotificationRule, Service: "codestar-notifications", Upstream: "AWS::CodeStarNotifications::NotificationRule", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:codestar-notifications",
 		fn:   scanCodeStarNotifications,
-		emits: []coverage.TypeDecl{
-			{Service: "codestar-notifications", DiscoType: TypeCodeStarNotificationsNotificationRule, Leaf: true},
-		},
 	})
 }
 

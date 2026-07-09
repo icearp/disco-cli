@@ -4,17 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGateway, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CoipPool},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2OutpostLag},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2LocalGateway, Service: "ec2", Upstream: "AWS::ec2::local-gateway", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2CoipPool, Service: "ec2", Upstream: "AWS::ec2::coip-pool"})
+	registerType(restype.Descriptor{Type: TypeEC2OutpostLag, Service: "ec2", Upstream: "AWS::ec2::outpost-lag"})
 }
 
 // scanEC2LocalGatewayExtra discovers Outpost local gateways, customer-owned IP

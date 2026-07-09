@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ssmquicksetup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSSMQuickSetupConfigurationManager, Service: "ssm-quick-setup", Upstream: "AWS::SSMQuickSetup::ConfigurationManager"})
 	registerService(serviceEntry{
 		name: "aws:ssm-quick-setup",
 		fn:   scanSSMQuickSetup,
-		emits: []coverage.TypeDecl{
-			{Service: "ssm-quick-setup", DiscoType: TypeSSMQuickSetupConfigurationManager},
-		},
 	})
 }
 

@@ -5,24 +5,22 @@ import (
 	"fmt"
 	"strconv"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeELBv2LoadBalancer, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::LoadBalancer"})
+	registerType(restype.Descriptor{Type: TypeELBv2Listener, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::Listener"})
+	registerType(restype.Descriptor{Type: TypeELBv2ListenerCertificate, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::ListenerCertificate"})
+	registerType(restype.Descriptor{Type: TypeELBv2ListenerRule, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::ListenerRule"})
+	registerType(restype.Descriptor{Type: TypeELBv2TargetGroup, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::TargetGroup"})
+	registerType(restype.Descriptor{Type: TypeELBv2TrustStore, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::TrustStore", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeELBv2TrustStoreRevocation, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::TrustStoreRevocation"})
 	registerService(serviceEntry{
 		name: "aws:elasticloadbalancingv2",
 		fn:   scanELBv2,
-		emits: []coverage.TypeDecl{
-			{Service: "elasticloadbalancing", DiscoType: TypeELBv2LoadBalancer},
-			{Service: "elasticloadbalancing", DiscoType: TypeELBv2Listener},
-			{Service: "elasticloadbalancing", DiscoType: TypeELBv2ListenerCertificate},
-			{Service: "elasticloadbalancing", DiscoType: TypeELBv2ListenerRule},
-			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TargetGroup},
-			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TrustStore, Leaf: true},
-			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TrustStoreRevocation},
-		},
 	})
 }
 

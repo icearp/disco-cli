@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/workspacesthinclient"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeThinClientDevice, Service: "thinclient"})
+	registerType(restype.Descriptor{Type: TypeThinClientEnvironment, Service: "thinclient", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeThinClientSoftwareSet, Service: "thinclient", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:thinclient",
 		fn:   scanThinClient,
-		emits: []coverage.TypeDecl{
-			{Service: "thinclient", DiscoType: TypeThinClientDevice},
-			{Service: "thinclient", DiscoType: TypeThinClientEnvironment, Leaf: true},
-			{Service: "thinclient", DiscoType: TypeThinClientSoftwareSet, Leaf: true},
-		},
 	})
 }
 

@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/appfabric"
 	aftypes "github.com/aws/aws-sdk-go-v2/service/appfabric/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppFabricAppBundle, Service: "appfabric"})
+	registerType(restype.Descriptor{Type: TypeAppFabricAppAuthorization, Service: "appfabric"})
+	registerType(restype.Descriptor{Type: TypeAppFabricIngestion, Service: "appfabric"})
+	registerType(restype.Descriptor{Type: TypeAppFabricIngestionDestination, Service: "appfabric"})
 	registerService(serviceEntry{
 		name: "aws:appfabric",
 		fn:   scanAppFabric,
-		emits: []coverage.TypeDecl{
-			{Service: "appfabric", DiscoType: TypeAppFabricAppBundle},
-			{Service: "appfabric", DiscoType: TypeAppFabricAppAuthorization},
-			{Service: "appfabric", DiscoType: TypeAppFabricIngestion},
-			{Service: "appfabric", DiscoType: TypeAppFabricIngestionDestination},
-		},
 	})
 }
 

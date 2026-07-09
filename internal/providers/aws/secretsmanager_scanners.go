@@ -3,21 +3,20 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSecretsManagerSecret, Service: "secretsmanager", Upstream: "AWS::SecretsManager::Secret", Redact: []redact.Rule{{Path: "SecretString", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSecretsManagerResourcePolicy, Service: "secretsmanager"})
+	registerType(restype.Descriptor{Type: TypeSecretsManagerRotationSchedule, Service: "secretsmanager"})
 	registerService(serviceEntry{
 		name: "aws:secretsmanager",
 		fn:   scanSecretsManager,
-		emits: []coverage.TypeDecl{
-			{Service: "secretsmanager", DiscoType: TypeSecretsManagerSecret},
-			{Service: "secretsmanager", DiscoType: TypeSecretsManagerResourcePolicy},
-			{Service: "secretsmanager", DiscoType: TypeSecretsManagerRotationSchedule},
-		},
 	})
 }
 

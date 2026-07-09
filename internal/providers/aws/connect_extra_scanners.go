@@ -4,17 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectVocabulary, Leaf: true},
-		coverage.TypeDecl{Service: "connect", DiscoType: TypeConnectAuthenticationProfile, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeConnectVocabulary, Service: "connect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectAuthenticationProfile, Service: "connect", Upstream: "AWS::connect::authentication-profile", Leaf: true})
 }
 
 // connectExtraAPI is the narrow surface for the extra per-instance leaf

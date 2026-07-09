@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/invoicing"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeInvoicingInvoiceUnit, Service: "invoicing", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:invoicing",
 		global: true,
 		fn:     scanInvoicing,
-		emits: []coverage.TypeDecl{
-			{Service: "invoicing", DiscoType: TypeInvoicingInvoiceUnit, Leaf: true},
-		},
 	})
 }
 

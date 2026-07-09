@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRolesAnywhereCRL, Service: "roles-anywhere"})
+	registerType(restype.Descriptor{Type: TypeRolesAnywhereProfile, Service: "roles-anywhere"})
+	registerType(restype.Descriptor{Type: TypeRolesAnywhereTrustAnchor, Service: "roles-anywhere", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRolesAnywhereSubject, Service: "roles-anywhere", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:roles-anywhere",
 		fn:   scanRolesAnywhere,
-		emits: []coverage.TypeDecl{
-			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereCRL},
-			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereProfile},
-			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereTrustAnchor, Leaf: true},
-			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereSubject, Leaf: true},
-		},
 	})
 }
 

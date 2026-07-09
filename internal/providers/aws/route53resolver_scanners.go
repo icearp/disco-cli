@@ -5,29 +5,27 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/route53resolver"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallDomainList, Service: "route53resolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallRuleGroup, Service: "route53resolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallRuleGroupAssociation, Service: "route53resolver"})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverOutpostResolver, Service: "route53resolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverConfig, Service: "route53resolver", Managed: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverDNSSECConfig, Service: "route53resolver"})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverEndpoint, Service: "route53resolver"})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverQueryLoggingConfig, Service: "route53resolver"})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverQueryLoggingConfigAssociation, Service: "route53resolver"})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverRule, Service: "route53resolver"})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverRuleAssociation, Service: "route53resolver"})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallConfig, Service: "route53resolver", Upstream: "AWS::route53resolver::firewall-config", Managed: true})
 	registerService(serviceEntry{
 		name: "aws:route53resolver",
 		fn:   scanRoute53Resolver,
-		emits: []coverage.TypeDecl{
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallDomainList, Leaf: true},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallRuleGroup, Leaf: true},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallRuleGroupAssociation},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverOutpostResolver, Leaf: true},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverConfig},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverDNSSECConfig},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverEndpoint},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverQueryLoggingConfig},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverQueryLoggingConfigAssociation},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverRule},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverRuleAssociation},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallConfig},
-		},
 	})
 }
 
@@ -233,7 +231,6 @@ func scanR53RResolverConfigs(ctx context.Context, client route53ResolverAPI, acc
 				Type: TypeRoute53ResolverResolverConfig, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 				// Per-VPC AWS-managed config row, one per VPC by default.
-				ManagedByProvider: true,
 			})
 		}
 	}
@@ -455,7 +452,6 @@ func scanR53RFirewallConfigs(ctx context.Context, client route53ResolverAPI, acc
 				Type: TypeRoute53ResolverFirewallConfig, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 				// Per-VPC AWS-managed config row, one per VPC by default.
-				ManagedByProvider: true,
 			})
 		}
 	}

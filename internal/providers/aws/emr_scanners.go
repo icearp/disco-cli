@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/emr"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeEMRCluster, Service: "emr"})
+	registerType(restype.Descriptor{Type: TypeEMRInstanceFleet, Service: "emr", Upstream: "AWS::EMR::InstanceFleetConfig"})
+	registerType(restype.Descriptor{Type: TypeEMRInstanceGroup, Service: "emr", Upstream: "AWS::EMR::InstanceGroupConfig"})
+	registerType(restype.Descriptor{Type: TypeEMRSecurityConfig, Service: "emr", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEMRStep, Service: "emr"})
+	registerType(restype.Descriptor{Type: TypeEMRStudio, Service: "emr"})
+	registerType(restype.Descriptor{Type: TypeEMRStudioSessionMapping, Service: "emr"})
 	registerService(serviceEntry{
 		name: "aws:emr",
 		fn:   scanEMR,
-		emits: []coverage.TypeDecl{
-			{Service: "emr", DiscoType: TypeEMRCluster},
-			{Service: "emr", DiscoType: TypeEMRInstanceFleet},
-			{Service: "emr", DiscoType: TypeEMRInstanceGroup},
-			{Service: "emr", DiscoType: TypeEMRSecurityConfig, Leaf: true},
-			{Service: "emr", DiscoType: TypeEMRStep},
-			{Service: "emr", DiscoType: TypeEMRStudio},
-			{Service: "emr", DiscoType: TypeEMRStudioSessionMapping},
-		},
 	})
 }
 

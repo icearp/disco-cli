@@ -7,7 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -34,22 +35,20 @@ type lambdaFunctionCodeAttrs struct {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLambdaFunction, Service: "lambda", Upstream: "AWS::Lambda::Function", Redact: []redact.Rule{{Path: "Environment.Variables.*", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeLambdaAlias, Service: "lambda", Upstream: "AWS::Lambda::Alias"})
+	registerType(restype.Descriptor{Type: TypeLambdaVersion, Service: "lambda", Upstream: "AWS::Lambda::Version"})
+	registerType(restype.Descriptor{Type: TypeLambdaURL, Service: "lambda", Upstream: "AWS::Lambda::Url"})
+	registerType(restype.Descriptor{Type: TypeLambdaESM, Service: "lambda", Upstream: "AWS::Lambda::EventSourceMapping"})
+	registerType(restype.Descriptor{Type: TypeLambdaLayerVersion, Service: "lambda", Upstream: "AWS::Lambda::LayerVersion", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLambdaCodeSigningConfig, Service: "lambda", Upstream: "AWS::Lambda::CodeSigningConfig", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLambdaEventInvokeConfig, Service: "lambda", Upstream: "AWS::Lambda::EventInvokeConfig"})
+	registerType(restype.Descriptor{Type: TypeLambdaCapacityProvider, Service: "lambda", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLambdaPermission, Service: "lambda"})
+	registerType(restype.Descriptor{Type: TypeLambdaLayerVersionPermission, Service: "lambda"})
 	registerService(serviceEntry{
 		name: "aws:lambda",
 		fn:   scanLambda,
-		emits: []coverage.TypeDecl{
-			{Service: "lambda", DiscoType: TypeLambdaFunction},
-			{Service: "lambda", DiscoType: TypeLambdaAlias},
-			{Service: "lambda", DiscoType: TypeLambdaVersion},
-			{Service: "lambda", DiscoType: TypeLambdaURL},
-			{Service: "lambda", DiscoType: TypeLambdaESM},
-			{Service: "lambda", DiscoType: TypeLambdaLayerVersion, Leaf: true},
-			{Service: "lambda", DiscoType: TypeLambdaCodeSigningConfig, Leaf: true},
-			{Service: "lambda", DiscoType: TypeLambdaEventInvokeConfig},
-			{Service: "lambda", DiscoType: TypeLambdaCapacityProvider, Leaf: true},
-			{Service: "lambda", DiscoType: TypeLambdaPermission},
-			{Service: "lambda", DiscoType: TypeLambdaLayerVersionPermission},
-		},
 	})
 }
 

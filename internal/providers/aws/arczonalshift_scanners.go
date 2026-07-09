@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/arczonalshift"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeARCZonalShiftObserverStatus, Service: "arc-zonal-shift", Upstream: "AWS::ARCZonalShift::AutoshiftObserverNotificationStatus", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeARCZonalShiftConfiguration, Service: "arc-zonal-shift", Upstream: "AWS::ARCZonalShift::ZonalAutoshiftConfiguration"})
 	registerService(serviceEntry{
 		name: "aws:arc-zonal-shift",
 		fn:   scanARCZonalShift,
-		emits: []coverage.TypeDecl{
-			{Service: "arc-zonal-shift", DiscoType: TypeARCZonalShiftObserverStatus, Leaf: true},
-			{Service: "arc-zonal-shift", DiscoType: TypeARCZonalShiftConfiguration},
-		},
 	})
 }
 
@@ -73,9 +71,8 @@ func scanARCZonalShiftObserver(ctx context.Context, client arcZonalShiftAPI, acc
 		Region:      &region,
 		Status:      &status,
 		// Per-(acct,region) singleton notification-status config — not user-created.
-		ManagedByProvider: true,
-		AttributesJSON:    mustJSON(out),
-		DiscoveredBy:      scanID,
+		AttributesJSON: mustJSON(out),
+		DiscoveredBy:   scanID,
 	}
 	n, err := st.UpsertResources([]*store.Resource{r})
 	if err != nil {

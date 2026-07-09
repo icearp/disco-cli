@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/grafana"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGrafanaWorkspace, Service: "grafana", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:grafana",
 		fn:   scanGrafana,
-		emits: []coverage.TypeDecl{
-			{Service: "grafana", DiscoType: TypeGrafanaWorkspace, Leaf: true},
-		},
 	})
 }
 

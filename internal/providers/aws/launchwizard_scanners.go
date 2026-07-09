@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/launchwizard"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLaunchWizardDeployment, Service: "launch-wizard", Upstream: "AWS::LaunchWizard::Deployment", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:launch-wizard",
 		fn:   scanLaunchWizard,
-		emits: []coverage.TypeDecl{
-			{Service: "launch-wizard", DiscoType: TypeLaunchWizardDeployment, Leaf: true},
-		},
 	})
 }
 

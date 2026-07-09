@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/socialmessaging"
 	socialmessagingtypes "github.com/aws/aws-sdk-go-v2/service/socialmessaging/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSocialMessagingWaba, Service: "social-messaging", Upstream: "AWS::social-messaging::waba", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSocialMessagingPhoneNumberID, Service: "social-messaging", Upstream: "AWS::social-messaging::phone-number-id"})
 	registerService(serviceEntry{
 		name: "aws:social-messaging",
 		fn:   scanSocialMessaging,
-		emits: []coverage.TypeDecl{
-			{Service: "social-messaging", DiscoType: TypeSocialMessagingWaba, Leaf: true},
-			{Service: "social-messaging", DiscoType: TypeSocialMessagingPhoneNumberID},
-		},
 	})
 }
 

@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAidevopsAgentSpace, Service: "aidevops"})
+	registerType(restype.Descriptor{Type: TypeAidevopsService, Service: "aidevops"})
+	registerType(restype.Descriptor{Type: TypeAidevopsAssociations, Service: "aidevops"})
+	registerType(restype.Descriptor{Type: TypeAidevopsPrivateConnection, Service: "aidevops", Upstream: "AWS::aidevops::private-connection"})
 	registerService(serviceEntry{
 		name: "aws:aidevops",
 		fn:   scanAidevops,
-		emits: []coverage.TypeDecl{
-			{Service: "aidevops", DiscoType: TypeAidevopsAgentSpace},
-			{Service: "aidevops", DiscoType: TypeAidevopsService},
-			{Service: "aidevops", DiscoType: TypeAidevopsAssociations},
-			{Service: "aidevops", DiscoType: TypeAidevopsPrivateConnection},
-		},
 	})
 }
 

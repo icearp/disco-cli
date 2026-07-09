@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKAV2Application, Service: "kinesis-analytics-v2"})
+	registerType(restype.Descriptor{Type: TypeKAV2ApplicationCloudWatchLogOpt, Service: "kinesis-analytics-v2"})
+	registerType(restype.Descriptor{Type: TypeKAV2ApplicationOutput, Service: "kinesis-analytics-v2"})
+	registerType(restype.Descriptor{Type: TypeKAV2ApplicationReferenceData, Service: "kinesis-analytics-v2"})
 	registerService(serviceEntry{
 		name: "aws:kinesis-analytics-v2",
 		fn:   scanKinesisAnalyticsV2,
-		emits: []coverage.TypeDecl{
-			{Service: "kinesis-analytics-v2", DiscoType: TypeKAV2Application},
-			{Service: "kinesis-analytics-v2", DiscoType: TypeKAV2ApplicationCloudWatchLogOpt},
-			{Service: "kinesis-analytics-v2", DiscoType: TypeKAV2ApplicationOutput},
-			{Service: "kinesis-analytics-v2", DiscoType: TypeKAV2ApplicationReferenceData},
-		},
 	})
 }
 

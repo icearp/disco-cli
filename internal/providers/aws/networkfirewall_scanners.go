@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/networkfirewall"
 	"golang.org/x/sync/errgroup"
@@ -13,19 +13,17 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallFirewall, Service: "networkfirewall", Upstream: "AWS::NetworkFirewall::Firewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallFirewallPolicy, Service: "networkfirewall", Upstream: "AWS::NetworkFirewall::FirewallPolicy"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallRuleGroup, Service: "networkfirewall", Upstream: "AWS::NetworkFirewall::RuleGroup"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallLoggingConfiguration, Service: "networkfirewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallTLSInspectionConfiguration, Service: "networkfirewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallVpcEndpointAssociation, Service: "networkfirewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyConfiguration, Service: "networkfirewall", Upstream: "AWS::network-firewall::ProxyConfiguration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyRuleGroup, Service: "networkfirewall", Upstream: "AWS::network-firewall::ProxyRuleGroup", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:network-firewall",
 		fn:   scanNetworkFirewall,
-		emits: []coverage.TypeDecl{
-			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallFirewall},
-			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallFirewallPolicy},
-			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallRuleGroup},
-			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallLoggingConfiguration},
-			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallTLSInspectionConfiguration},
-			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallVpcEndpointAssociation},
-			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallProxyConfiguration, Leaf: true},
-			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallProxyRuleGroup, Leaf: true},
-		},
 	})
 }
 

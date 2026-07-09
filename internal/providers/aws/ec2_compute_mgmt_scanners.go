@@ -4,30 +4,29 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Instance},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SecurityGroup},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SecurityGroupVPCAssociation},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Volume},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2KeyPair, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LaunchTemplate},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2PlacementGroup, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Image},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Snapshot},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Host, Leaf: true},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SpotFleet},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Fleet},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CapacityReservation},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CapacityReservationFleet},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2InstanceConnectEndpoint},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SnapshotBlockPublicAccess, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2Instance, Service: "ec2", Upstream: "AWS::EC2::Instance", Redact: []redact.Rule{{Path: "UserData", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeEC2SecurityGroup, Service: "ec2", Upstream: "AWS::EC2::SecurityGroup"})
+	registerType(restype.Descriptor{Type: TypeEC2SecurityGroupVPCAssociation, Service: "ec2", Upstream: "AWS::EC2::SecurityGroupVpcAssociation"})
+	registerType(restype.Descriptor{Type: TypeEC2Volume, Service: "ec2", Upstream: "AWS::EC2::Volume"})
+	registerType(restype.Descriptor{Type: TypeEC2KeyPair, Service: "ec2", Upstream: "AWS::EC2::KeyPair", Leaf: true, Redact: []redact.Rule{{Path: "KeyMaterial", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeEC2LaunchTemplate, Service: "ec2", Upstream: "AWS::EC2::LaunchTemplate", Redact: []redact.Rule{{Path: "LaunchTemplateData.UserData", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeEC2PlacementGroup, Service: "ec2", Upstream: "AWS::EC2::PlacementGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2Image, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2Snapshot, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2Host, Service: "ec2", Upstream: "AWS::EC2::Host", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2SpotFleet, Service: "ec2", Upstream: "AWS::EC2::SpotFleet"})
+	registerType(restype.Descriptor{Type: TypeEC2Fleet, Service: "ec2", Upstream: "AWS::EC2::EC2Fleet"})
+	registerType(restype.Descriptor{Type: TypeEC2CapacityReservation, Service: "ec2", Upstream: "AWS::EC2::CapacityReservation"})
+	registerType(restype.Descriptor{Type: TypeEC2CapacityReservationFleet, Service: "ec2", Upstream: "AWS::EC2::CapacityReservationFleet"})
+	registerType(restype.Descriptor{Type: TypeEC2InstanceConnectEndpoint, Service: "ec2", Upstream: "AWS::EC2::InstanceConnectEndpoint"})
+	registerType(restype.Descriptor{Type: TypeEC2SnapshotBlockPublicAccess, Service: "ec2", Upstream: "AWS::EC2::SnapshotBlockPublicAccess", Leaf: true, Managed: true})
 }
 
 // scanEC2ComputeMgmt discovers all compute resources: instances, security groups,
@@ -565,9 +564,8 @@ func scanSnapshotBlockPublicAccess(ctx context.Context, client ec2API, acct *acc
 		Region:      &region,
 		Status:      &state,
 		// Per-(acct,region) singleton account-level snapshot public-access config.
-		ManagedByProvider: true,
-		AttributesJSON:    mustJSON(map[string]string{"state": state}),
-		DiscoveredBy:      scanID,
+		AttributesJSON: mustJSON(map[string]string{"state": state}),
+		DiscoveredBy:   scanID,
 	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("upsert snapshot-block-public-access: %w", err)

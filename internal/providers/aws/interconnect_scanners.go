@@ -6,20 +6,18 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/interconnect"
 	smithy "github.com/aws/smithy-go"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeInterconnectConnection, Service: "interconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeInterconnectEnvironment, Service: "interconnect", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:interconnect",
 		fn:   scanInterconnect,
-		emits: []coverage.TypeDecl{
-			{Service: "interconnect", DiscoType: TypeInterconnectConnection, Leaf: true},
-			{Service: "interconnect", DiscoType: TypeInterconnectEnvironment, Leaf: true},
-		},
 	})
 }
 

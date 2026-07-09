@@ -5,19 +5,17 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2ClientVPNEndpoint},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2ClientVPNAuthorizationRule},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2ClientVPNRoute},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2ClientVPNTargetNetworkAssociation},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2ClientVPNEndpoint, Service: "ec2", Upstream: "AWS::EC2::ClientVpnEndpoint"})
+	registerType(restype.Descriptor{Type: TypeEC2ClientVPNAuthorizationRule, Service: "ec2", Upstream: "AWS::EC2::ClientVpnAuthorizationRule"})
+	registerType(restype.Descriptor{Type: TypeEC2ClientVPNRoute, Service: "ec2", Upstream: "AWS::EC2::ClientVpnRoute"})
+	registerType(restype.Descriptor{Type: TypeEC2ClientVPNTargetNetworkAssociation, Service: "ec2", Upstream: "AWS::EC2::ClientVpnTargetNetworkAssociation"})
 }
 
 // scanEC2ClientVPN discovers all Client VPN resources in parallel.

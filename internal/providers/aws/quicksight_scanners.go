@@ -4,41 +4,39 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/quicksight"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeQuickSightAccount, Service: "quicksight", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightActionConnector, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightAgent, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightAnalysis, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightAssignment, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightBrand, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightCustomization, Service: "quicksight", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightCustomPermissions, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightDashboard, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightDataSet, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightDataSource, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightFlow, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightFolder, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightGroup, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightKnowledgeBase, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightNamespace, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightOAuthClientApplication, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightRefreshSchedule, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightSpace, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightTemplate, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightTheme, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightTopic, Service: "quicksight", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightUser, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightVPCConnection, Service: "quicksight"})
 	registerService(serviceEntry{
 		name: "aws:quicksight",
 		fn:   scanQuickSight,
-		emits: []coverage.TypeDecl{
-			{Service: "quicksight", DiscoType: TypeQuickSightAccount, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightActionConnector, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightAgent, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightAnalysis, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightAssignment},
-			{Service: "quicksight", DiscoType: TypeQuickSightBrand, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightCustomization, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightCustomPermissions, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightDashboard, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightDataSet, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightDataSource},
-			{Service: "quicksight", DiscoType: TypeQuickSightFlow, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightFolder, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightGroup},
-			{Service: "quicksight", DiscoType: TypeQuickSightKnowledgeBase, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightNamespace, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightOAuthClientApplication, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightRefreshSchedule},
-			{Service: "quicksight", DiscoType: TypeQuickSightSpace, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightTemplate, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightTheme, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightTopic, Leaf: true},
-			{Service: "quicksight", DiscoType: TypeQuickSightUser},
-			{Service: "quicksight", DiscoType: TypeQuickSightVPCConnection},
-		},
 	})
 }
 
@@ -783,7 +781,7 @@ func scanQSAccountSettings(ctx context.Context, client quickSightAPI, acct *acco
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeQuickSightAccount, NativeID: arn,
 		Name: &label, Region: &region, AttributesJSON: mustJSON(out.AccountSettings),
-		ManagedByProvider: true, DiscoveredBy: scanID,
+		DiscoveredBy: scanID,
 	}}
 	return upsertBatch(st, batch, "quicksight account-settings")
 }
@@ -811,7 +809,7 @@ func scanQSAccountCustomization(ctx context.Context, client quickSightAPI, acct 
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeQuickSightCustomization, NativeID: arn,
 		Name: &label, Region: &region, AttributesJSON: mustJSON(out.AccountCustomization),
-		ManagedByProvider: true, DiscoveredBy: scanID,
+		DiscoveredBy: scanID,
 	}}
 	return upsertBatch(st, batch, "quicksight account-customization")
 }

@@ -4,27 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/frauddetector"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeFraudDetectorDetector, Service: "frauddetector"})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorEntityType, Service: "frauddetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorEventType, Service: "frauddetector"})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorLabel, Service: "frauddetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorList, Service: "frauddetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorOutcome, Service: "frauddetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorVariable, Service: "frauddetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorModel, Service: "frauddetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorExternalModel, Service: "frauddetector", Upstream: "AWS::frauddetector::external-model", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorRule, Service: "frauddetector"})
 	registerService(serviceEntry{
 		name: "aws:frauddetector",
 		fn:   scanFraudDetector,
-		emits: []coverage.TypeDecl{
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorDetector},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorEntityType, Leaf: true},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorEventType},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorLabel, Leaf: true},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorList, Leaf: true},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorOutcome, Leaf: true},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorVariable, Leaf: true},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorModel, Leaf: true},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorExternalModel, Leaf: true},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorRule},
-		},
 	})
 }
 

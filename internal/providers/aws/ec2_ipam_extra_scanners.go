@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IpamPolicy},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IpamExternalResourceVerificationToken},
-	)
+	registerType(restype.Descriptor{Type: TypeEC2IpamPolicy, Service: "ec2", Upstream: "AWS::ec2::ipam-policy"})
+	registerType(restype.Descriptor{Type: TypeEC2IpamExternalResourceVerificationToken, Service: "ec2", Upstream: "AWS::ec2::ipam-external-resource-verification-token", Redact: []redact.Rule{{Path: "TokenValue", Mode: redact.RedactScalar}}})
 }
 
 // scanEC2IPAMExtra discovers IPAM policies and external-resource verification

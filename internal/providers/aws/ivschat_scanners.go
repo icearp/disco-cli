@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ivschat"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIVSChatRoom, Service: "ivs-chat", Upstream: "AWS::IVSChat::Room", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSChatLoggingConfiguration, Service: "ivs-chat", Upstream: "AWS::IVSChat::LoggingConfiguration", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:ivs-chat",
 		fn:   scanIVSChat,
-		emits: []coverage.TypeDecl{
-			{Service: "ivs-chat", DiscoType: TypeIVSChatRoom, Leaf: true},
-			{Service: "ivs-chat", DiscoType: TypeIVSChatLoggingConfiguration, Leaf: true},
-		},
 	})
 }
 

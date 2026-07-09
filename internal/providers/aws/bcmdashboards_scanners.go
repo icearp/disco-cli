@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/bcmdashboards"
 )
@@ -13,17 +13,14 @@ import (
 const bcmDashboardsRegion = "us-east-1"
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBCMDashboardsDashboard, Service: "bcmdashboards", Upstream: "AWS::bcm-dashboards::dashboard", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBCMDashboardsScheduledReport, Service: "bcmdashboards", Upstream: "AWS::bcm-dashboards::scheduled-report"})
 	registerService(serviceEntry{
 		name:   "aws:bcmdashboards",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
 			client := bcmdashboards.NewFromConfig(acct.cfg, func(o *bcmdashboards.Options) { o.Region = bcmDashboardsRegion })
 			return scanBCMDashboards(ctx, client, acct, st, scanID)
-		},
-		emits: []coverage.TypeDecl{
-			{Service: "bcmdashboards", DiscoType: TypeBCMDashboardsDashboard, Leaf: true},
-			// scheduled-report references its dashboard.
-			{Service: "bcmdashboards", DiscoType: TypeBCMDashboardsScheduledReport},
 		},
 	})
 }

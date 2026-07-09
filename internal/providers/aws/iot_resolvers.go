@@ -949,7 +949,10 @@ func resolveIoTJobTemplateRole(acct *account, st *store.Store) error {
 func resolveIoTAccountAuditConfigurationRefs(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTAccountAuditConfiguration},
-		Limit: util.AllResources,
+		// Account-level audit config is provider-managed; surface it to its own
+		// resolver (precedent: ecr/uxc/route53resolver config resolvers).
+		IncludeManaged: true,
+		Limit:          util.AllResources,
 	})
 	if err != nil {
 		return err

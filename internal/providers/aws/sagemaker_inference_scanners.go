@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerEndpoint},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerEndpointConfig},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerModel},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerInferenceComponent},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerInferenceExperiment},
-	)
+	registerType(restype.Descriptor{Type: TypeSageMakerEndpoint, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerEndpointConfig, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerModel, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerInferenceComponent, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerInferenceExperiment, Service: "sagemaker"})
 }
 
 // sagemakerInferenceAPI is the narrow surface used by the Inference family.

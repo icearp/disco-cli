@@ -4,20 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/m2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeM2Application, Service: "m2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeM2Environment, Service: "m2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeM2Deployment, Service: "m2"})
 	registerService(serviceEntry{
 		name: "aws:m2",
 		fn:   scanM2,
-		emits: []coverage.TypeDecl{
-			{Service: "m2", DiscoType: TypeM2Application, Leaf: true},
-			{Service: "m2", DiscoType: TypeM2Environment, Leaf: true},
-			{Service: "m2", DiscoType: TypeM2Deployment},
-		},
 	})
 }
 

@@ -4,24 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/inspector2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeInspector2Filter, Service: "inspectorv2", Upstream: "AWS::InspectorV2::Filter", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeInspector2Member, Service: "inspectorv2", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeInspector2CisScanConfiguration, Service: "inspectorv2", Upstream: "AWS::InspectorV2::CisScanConfiguration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityIntegration, Service: "inspectorv2", Upstream: "AWS::InspectorV2::CodeSecurityIntegration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityScanConfiguration, Service: "inspectorv2", Upstream: "AWS::InspectorV2::CodeSecurityScanConfiguration", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:inspector2",
 		fn:   scanInspector2,
-		emits: []coverage.TypeDecl{
-			{Service: "inspectorv2", DiscoType: TypeInspector2Filter, Leaf: true},
-			// ListMembers returns real delegated-admin member accounts disco
-			// scans; neither CFN nor the Service Reference catalog models them.
-			{Service: "inspectorv2", DiscoType: TypeInspector2Member, Uncatalogued: true},
-			{Service: "inspectorv2", DiscoType: TypeInspector2CisScanConfiguration, Leaf: true},
-			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityIntegration, Leaf: true},
-			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityScanConfiguration, Leaf: true},
-		},
 	})
 }
 

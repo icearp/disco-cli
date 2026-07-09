@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
@@ -13,19 +13,13 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDynamoDBTable, Service: "dynamodb", Upstream: "AWS::DynamoDB::Table"})
+	registerType(restype.Descriptor{Type: TypeDynamoDBGlobalTable, Service: "dynamodb", Upstream: "AWS::DynamoDB::GlobalTable"})
+	registerType(restype.Descriptor{Type: TypeDynamoDBStream, Service: "dynamodb"})
+	registerType(restype.Descriptor{Type: TypeDynamoDBBackup, Service: "dynamodb"})
 	registerService(serviceEntry{
 		name: "aws:dynamodb",
 		fn:   scanDynamoDB,
-		emits: []coverage.TypeDecl{
-			{Service: "dynamodb", DiscoType: TypeDynamoDBTable},
-			{Service: "dynamodb", DiscoType: TypeDynamoDBGlobalTable},
-			// CFN has no AWS::DynamoDB::Stream (stream is a Table property
-			// there), but Service Reference catalog lists dynamodb/stream, so
-			// the union covers it. "dynamodb" segment is canonical per IAM/SR
-			// despite the dynamodbstreams client.
-			{Service: "dynamodb", DiscoType: TypeDynamoDBStream},
-			{Service: "dynamodb", DiscoType: TypeDynamoDBBackup},
-		},
 	})
 }
 

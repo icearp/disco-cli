@@ -4,34 +4,32 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/lightsail"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLightsailInstance, Service: "lightsail", Upstream: "AWS::Lightsail::Instance"})
+	registerType(restype.Descriptor{Type: TypeLightsailDatabase, Service: "lightsail", Upstream: "AWS::Lightsail::Database", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailContainerService, Service: "lightsail", Upstream: "AWS::Lightsail::Container", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailAlarm, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailBucket, Service: "lightsail", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailCertificate, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailDatabaseSnapshot, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailDisk, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailDiskSnapshot, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailDistribution, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailDomain, Service: "lightsail", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailInstanceSnapshot, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailLoadBalancer, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailLoadBalancerTLSCertificate, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailStaticIP, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailKeyPair, Service: "lightsail", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailContactMethod, Service: "lightsail", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:lightsail",
 		fn:   scanLightsail,
-		emits: []coverage.TypeDecl{
-			{Service: "lightsail", DiscoType: TypeLightsailInstance},
-			{Service: "lightsail", DiscoType: TypeLightsailDatabase, Leaf: true},
-			{Service: "lightsail", DiscoType: TypeLightsailContainerService, Leaf: true},
-			{Service: "lightsail", DiscoType: TypeLightsailAlarm},
-			{Service: "lightsail", DiscoType: TypeLightsailBucket, Leaf: true},
-			{Service: "lightsail", DiscoType: TypeLightsailCertificate},
-			{Service: "lightsail", DiscoType: TypeLightsailDatabaseSnapshot},
-			{Service: "lightsail", DiscoType: TypeLightsailDisk},
-			{Service: "lightsail", DiscoType: TypeLightsailDiskSnapshot},
-			{Service: "lightsail", DiscoType: TypeLightsailDistribution},
-			{Service: "lightsail", DiscoType: TypeLightsailDomain, Leaf: true},
-			{Service: "lightsail", DiscoType: TypeLightsailInstanceSnapshot},
-			{Service: "lightsail", DiscoType: TypeLightsailLoadBalancer},
-			{Service: "lightsail", DiscoType: TypeLightsailLoadBalancerTLSCertificate},
-			{Service: "lightsail", DiscoType: TypeLightsailStaticIP},
-			{Service: "lightsail", DiscoType: TypeLightsailKeyPair, Leaf: true},
-			{Service: "lightsail", DiscoType: TypeLightsailContactMethod, Leaf: true},
-		},
 	})
 }
 

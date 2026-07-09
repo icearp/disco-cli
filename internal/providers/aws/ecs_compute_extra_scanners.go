@@ -5,18 +5,16 @@ import (
 	"fmt"
 	"slices"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "ecs", DiscoType: TypeECSContainerInstance},
-		coverage.TypeDecl{Service: "ecs", DiscoType: TypeECSTask},
-		coverage.TypeDecl{Service: "ecs", DiscoType: TypeECSDaemon, Leaf: true},
-		coverage.TypeDecl{Service: "ecs", DiscoType: TypeECSDaemonTaskDefinition, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeECSContainerInstance, Service: "ecs", Upstream: "AWS::ecs::container-instance"})
+	registerType(restype.Descriptor{Type: TypeECSTask, Service: "ecs"})
+	registerType(restype.Descriptor{Type: TypeECSDaemon, Service: "ecs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECSDaemonTaskDefinition, Service: "ecs", Leaf: true})
 }
 
 type ecsComputeExtAPI interface {

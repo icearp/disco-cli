@@ -4,36 +4,30 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/appstream"
 	astypes "github.com/aws/aws-sdk-go-v2/service/appstream/types"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAppStreamAppBlock, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamAppBlockBuilder, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamApplication, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamApplicationEntitlementAssociation, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamApplicationFleetAssociation, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamDirectoryConfig, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamEntitlement, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamFleet, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamImageBuilder, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamImage, Service: "appstream", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppStreamStack, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamStackFleetAssociation, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamStackUserAssociation, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamUser, Service: "appstream", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:appstream",
 		fn:   scanAppStream,
-		emits: []coverage.TypeDecl{
-			{Service: "appstream", DiscoType: TypeAppStreamAppBlock},
-			{Service: "appstream", DiscoType: TypeAppStreamAppBlockBuilder},
-			{Service: "appstream", DiscoType: TypeAppStreamApplication},
-			{Service: "appstream", DiscoType: TypeAppStreamApplicationEntitlementAssociation},
-			{Service: "appstream", DiscoType: TypeAppStreamApplicationFleetAssociation},
-			{Service: "appstream", DiscoType: TypeAppStreamDirectoryConfig},
-			{Service: "appstream", DiscoType: TypeAppStreamEntitlement},
-			{Service: "appstream", DiscoType: TypeAppStreamFleet},
-			{Service: "appstream", DiscoType: TypeAppStreamImageBuilder},
-			// Image is a resolver target (fleet / image-builder → image). Its own
-			// outbound refs (BaseImageArn / ImageBuilderName) point at an
-			// AWS-managed PUBLIC base or an often-deleted builder — provenance
-			// deliberately left unwired, so image is leaf, not a resolver source.
-			{Service: "appstream", DiscoType: TypeAppStreamImage, Leaf: true},
-			{Service: "appstream", DiscoType: TypeAppStreamStack},
-			{Service: "appstream", DiscoType: TypeAppStreamStackFleetAssociation},
-			{Service: "appstream", DiscoType: TypeAppStreamStackUserAssociation},
-			{Service: "appstream", DiscoType: TypeAppStreamUser, Leaf: true},
-		},
 	})
 }
 

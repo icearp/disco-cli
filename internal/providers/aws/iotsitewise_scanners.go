@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotsitewise"
 	"github.com/aws/aws-sdk-go-v2/service/iotsitewise/types"
@@ -20,20 +20,18 @@ func isIoTSiteWiseFeatureUnsupported(err error) bool {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIoTSWAccessPolicy, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWAsset, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWAssetModel, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWComputationModel, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWDashboard, Service: "iotsitewise", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTSWDataset, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWGateway, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWPortal, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWProject, Service: "iotsitewise"})
 	registerService(serviceEntry{
 		name: "aws:iotsitewise",
 		fn:   scanIoTSiteWise,
-		emits: []coverage.TypeDecl{
-			{Service: "iotsitewise", DiscoType: TypeIoTSWAccessPolicy},
-			{Service: "iotsitewise", DiscoType: TypeIoTSWAsset},
-			{Service: "iotsitewise", DiscoType: TypeIoTSWAssetModel},
-			{Service: "iotsitewise", DiscoType: TypeIoTSWComputationModel},
-			{Service: "iotsitewise", DiscoType: TypeIoTSWDashboard, Leaf: true},
-			{Service: "iotsitewise", DiscoType: TypeIoTSWDataset},
-			{Service: "iotsitewise", DiscoType: TypeIoTSWGateway},
-			{Service: "iotsitewise", DiscoType: TypeIoTSWPortal},
-			{Service: "iotsitewise", DiscoType: TypeIoTSWProject},
-		},
 	})
 }
 

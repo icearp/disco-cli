@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/mwaaserverless"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeMWAAServerlessWorkflow, Service: "mwaa-serverless", Upstream: "AWS::MWAAServerless::Workflow", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:mwaa-serverless",
 		fn:   scanMWAAServerless,
-		emits: []coverage.TypeDecl{
-			{Service: "mwaa-serverless", DiscoType: TypeMWAAServerlessWorkflow, Leaf: true},
-		},
 	})
 }
 

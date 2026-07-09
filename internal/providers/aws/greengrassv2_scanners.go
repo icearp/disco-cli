@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/greengrassv2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGreengrassV2ComponentVersion, Service: "greengrass-v2", Upstream: "AWS::GreengrassV2::ComponentVersion", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassV2Deployment, Service: "greengrass-v2", Upstream: "AWS::GreengrassV2::Deployment"})
+	registerType(restype.Descriptor{Type: TypeGreengrassV2Component, Service: "greengrass-v2", Upstream: "AWS::greengrass::component", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassV2CoreDevice, Service: "greengrass-v2", Upstream: "AWS::greengrass::coreDevice", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:greengrass-v2",
 		fn:   scanGreengrassV2,
-		emits: []coverage.TypeDecl{
-			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2ComponentVersion, Leaf: true},
-			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2Deployment},
-			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2Component, Leaf: true},
-			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2CoreDevice, Leaf: true},
-		},
 	})
 }
 

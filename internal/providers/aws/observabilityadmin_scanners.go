@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/observabilityadmin"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminOrganizationCentralizationRule, Service: "observabilityadmin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminOrganizationTelemetryRule, Service: "observabilityadmin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminS3TableIntegration, Service: "observabilityadmin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminTelemetryEnrichment, Service: "observabilityadmin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminTelemetryPipelines, Service: "observabilityadmin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminTelemetryRule, Service: "observabilityadmin", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:observabilityadmin",
 		fn:   scanObservabilityAdmin,
-		emits: []coverage.TypeDecl{
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminOrganizationCentralizationRule, Leaf: true},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminOrganizationTelemetryRule, Leaf: true},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminS3TableIntegration, Leaf: true},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminTelemetryEnrichment, Leaf: true},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminTelemetryPipelines, Leaf: true},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminTelemetryRule, Leaf: true},
-		},
 	})
 }
 

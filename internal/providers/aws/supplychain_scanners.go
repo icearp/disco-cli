@@ -4,23 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/supplychain"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSupplyChainInstance, Service: "scn", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSupplyChainDataIntegrationFlow, Service: "scn", Upstream: "AWS::scn::data-integration-flow"})
+	registerType(restype.Descriptor{Type: TypeSupplyChainDataset, Service: "scn"})
+	registerType(restype.Descriptor{Type: TypeSupplyChainNamespace, Service: "scn"})
 	registerService(serviceEntry{
 		name: "aws:scn",
 		fn:   scanSupplyChain,
-		emits: []coverage.TypeDecl{
-			{Service: "scn", DiscoType: TypeSupplyChainInstance, Leaf: true},
-			// flow/dataset/namespace each wire an outbound attached-to edge to
-			// their instance (see supplychain_resolvers.go).
-			{Service: "scn", DiscoType: TypeSupplyChainDataIntegrationFlow},
-			{Service: "scn", DiscoType: TypeSupplyChainDataset},
-			{Service: "scn", DiscoType: TypeSupplyChainNamespace},
-		},
 	})
 }
 

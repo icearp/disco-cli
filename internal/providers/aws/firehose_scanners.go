@@ -5,19 +5,17 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/firehose"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeFirehoseDeliveryStream, Service: "kinesisfirehose", Upstream: "AWS::KinesisFirehose::DeliveryStream"})
 	registerService(serviceEntry{
 		name: "aws:firehose",
 		fn:   scanFirehose,
-		emits: []coverage.TypeDecl{
-			{Service: "kinesisfirehose", DiscoType: TypeFirehoseDeliveryStream},
-		},
 	})
 }
 

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 )
 
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueRegistry, Leaf: true},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueSchema},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueSchemaVersion},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueSchemaVersionMetadata, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeGlueRegistry, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueSchema, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueSchemaVersion, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueSchemaVersionMetadata, Service: "glue", Leaf: true})
 }
 
 // scanGlueSchema runs all Schema-family phases — Glue Schema Registry

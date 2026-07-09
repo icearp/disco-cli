@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/fsx"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeFSxFileSystem, Service: "fsx"})
+	registerType(restype.Descriptor{Type: TypeFSxDataRepositoryAssociation, Service: "fsx"})
+	registerType(restype.Descriptor{Type: TypeFSxSnapshot, Service: "fsx"})
+	registerType(restype.Descriptor{Type: TypeFSxStorageVirtualMachine, Service: "fsx"})
+	registerType(restype.Descriptor{Type: TypeFSxVolume, Service: "fsx"})
+	registerType(restype.Descriptor{Type: TypeFSxS3AccessPointAttachment, Service: "fsx", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFSxBackup, Service: "fsx"})
+	registerType(restype.Descriptor{Type: TypeFSxFileCache, Service: "fsx", Upstream: "AWS::fsx::file-cache"})
 	registerService(serviceEntry{
 		name: "aws:fsx",
 		fn:   scanFSx,
-		emits: []coverage.TypeDecl{
-			{Service: "fsx", DiscoType: TypeFSxFileSystem},
-			{Service: "fsx", DiscoType: TypeFSxDataRepositoryAssociation},
-			{Service: "fsx", DiscoType: TypeFSxSnapshot},
-			{Service: "fsx", DiscoType: TypeFSxStorageVirtualMachine},
-			{Service: "fsx", DiscoType: TypeFSxVolume},
-			{Service: "fsx", DiscoType: TypeFSxS3AccessPointAttachment, Leaf: true},
-			{Service: "fsx", DiscoType: TypeFSxBackup},
-			{Service: "fsx", DiscoType: TypeFSxFileCache},
-		},
 	})
 }
 

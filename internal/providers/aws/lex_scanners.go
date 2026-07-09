@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/lexmodelsv2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLexBot, Service: "lex"})
+	registerType(restype.Descriptor{Type: TypeLexBotAlias, Service: "lex"})
+	registerType(restype.Descriptor{Type: TypeLexBotVersion, Service: "lex"})
+	registerType(restype.Descriptor{Type: TypeLexResourcePolicy, Service: "lex"})
+	registerType(restype.Descriptor{Type: TypeLexTestSet, Service: "lex", Upstream: "AWS::lex::test set", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:lex",
 		fn:   scanLex,
-		emits: []coverage.TypeDecl{
-			{Service: "lex", DiscoType: TypeLexBot},
-			{Service: "lex", DiscoType: TypeLexBotAlias},
-			{Service: "lex", DiscoType: TypeLexBotVersion},
-			{Service: "lex", DiscoType: TypeLexResourcePolicy},
-			{Service: "lex", DiscoType: TypeLexTestSet, Leaf: true},
-		},
 	})
 }
 

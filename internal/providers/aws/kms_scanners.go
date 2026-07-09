@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
@@ -14,16 +14,12 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKMSKey, Service: "kms", Upstream: "AWS::KMS::Key"})
+	registerType(restype.Descriptor{Type: TypeKMSAlias, Service: "kms", Upstream: "AWS::KMS::Alias"})
+	registerType(restype.Descriptor{Type: TypeKMSGrant, Service: "kms", Uncatalogued: true})
 	registerService(serviceEntry{
 		name: "aws:kms",
 		fn:   scanKMS,
-		emits: []coverage.TypeDecl{
-			{Service: "kms", DiscoType: TypeKMSKey},
-			{Service: "kms", DiscoType: TypeKMSAlias},
-			// KMS grants are real resources disco scans via ListGrants, but
-			// neither CFN nor the Service Reference catalog models them.
-			{Service: "kms", DiscoType: TypeKMSGrant, Uncatalogued: true},
-		},
 	})
 }
 

@@ -4,30 +4,28 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/deadline"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDeadlineFarm, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineBudget, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineVolume, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineFleet, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineLicenseEndpoint, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineLimit, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineMeteredProduct, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineMonitor, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineQueue, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineQueueEnvironment, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineQueueFleetAssociation, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineQueueLimitAssociation, Service: "deadline"})
+	registerType(restype.Descriptor{Type: TypeDeadlineStorageProfile, Service: "deadline"})
 	registerService(serviceEntry{
 		name: "aws:deadline",
 		fn:   scanDeadline,
-		emits: []coverage.TypeDecl{
-			{Service: "deadline", DiscoType: TypeDeadlineFarm},
-			{Service: "deadline", DiscoType: TypeDeadlineBudget},
-			{Service: "deadline", DiscoType: TypeDeadlineVolume},
-			{Service: "deadline", DiscoType: TypeDeadlineFleet},
-			{Service: "deadline", DiscoType: TypeDeadlineLicenseEndpoint},
-			{Service: "deadline", DiscoType: TypeDeadlineLimit},
-			{Service: "deadline", DiscoType: TypeDeadlineMeteredProduct},
-			{Service: "deadline", DiscoType: TypeDeadlineMonitor},
-			{Service: "deadline", DiscoType: TypeDeadlineQueue},
-			{Service: "deadline", DiscoType: TypeDeadlineQueueEnvironment},
-			{Service: "deadline", DiscoType: TypeDeadlineQueueFleetAssociation},
-			{Service: "deadline", DiscoType: TypeDeadlineQueueLimitAssociation},
-			{Service: "deadline", DiscoType: TypeDeadlineStorageProfile},
-		},
 	})
 }
 
