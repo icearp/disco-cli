@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"codeberg.org/icearp/disco/internal/managed"
 	"codeberg.org/icearp/disco/internal/redact"
 	"codeberg.org/icearp/disco/internal/volatile"
 )
@@ -48,6 +49,11 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		// rotates every read — left in, they'd version-split an unchanged resource
 		// every scan. Runs before the jsonEqual comparison below.
 		r.AttributesJSON = volatile.Apply(r.Type, r.AttributesJSON)
+		// Unconditionally-managed types stamp ManagedByProvider by type (mirrors
+		// redact/volatile). Conditional/per-row managed status stays scanner-set.
+		if managed.Is(r.Type) {
+			r.ManagedByProvider = true
+		}
 	}
 
 	tx, err := s.db.Beginx()
@@ -215,6 +221,9 @@ func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, er
 		}
 		r.AttributesJSON = redact.Apply(r.Type, r.AttributesJSON)
 		r.AttributesJSON = volatile.Apply(r.Type, r.AttributesJSON)
+		if managed.Is(r.Type) {
+			r.ManagedByProvider = true
+		}
 	}
 
 	tx, err := s.db.Beginx()
