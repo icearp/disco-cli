@@ -4,64 +4,63 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 )
 
-// pgTestEnv spins up an ephemeral postgres:16-alpine container and returns a
-// DSN once the server accepts connections. Callers SHOULD defer purge. If
-// Docker/Podman is unreachable the test skips, not fails — CI gates
-// dockertest on its own job.
+// pgTestEnv spins up an ephemeral postgres:16-alpine container via the
+// `docker` CLI and returns a DSN once the server accepts connections.
+// Callers SHOULD defer purge. If Docker/Podman is unreachable the test
+// skips, not fails — CI gates this on its own job.
 func pgTestEnv(t *testing.T) (dsn string, purge func()) {
 	t.Helper()
 	if os.Getenv("DISCO_SKIP_DOCKERTEST") != "" {
 		t.Skip("DISCO_SKIP_DOCKERTEST set")
 	}
-	pool, err := dockertest.NewPool("")
-	if err != nil {
-		t.Skipf("dockertest pool unavailable: %v", err)
-	}
-	pool.MaxWait = 60 * time.Second
-	if err := pool.Client.Ping(); err != nil {
+	if err := exec.Command("docker", "version").Run(); err != nil {
 		t.Skipf("docker daemon unreachable: %v", err)
 	}
-	res, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "postgres",
-		Tag:        "16-alpine",
-		Env: []string{
-			"POSTGRES_PASSWORD=disco",
-			"POSTGRES_USER=disco",
-			"POSTGRES_DB=disco",
-			"listen_addresses='*'",
-		},
-	}, func(c *docker.HostConfig) {
-		c.AutoRemove = true
-		c.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
-	if err != nil {
-		t.Skipf("dockertest run: %v", err)
-	}
-	purge = func() { _ = pool.Purge(res) }
 
-	hostPort := res.GetHostPort("5432/tcp")
+	out, err := exec.Command("docker", "run", "-d", "--rm",
+		"-e", "POSTGRES_PASSWORD=disco",
+		"-e", "POSTGRES_USER=disco",
+		"-e", "POSTGRES_DB=disco",
+		"-p", "127.0.0.1::5432",
+		"postgres:16-alpine",
+	).Output()
+	if err != nil {
+		t.Skipf("docker run: %v", err)
+	}
+	id := strings.TrimSpace(string(out))
+	purge = func() { _ = exec.Command("docker", "rm", "-f", id).Run() }
+
+	portOut, err := exec.Command("docker", "port", id, "5432/tcp").Output()
+	if err != nil {
+		purge()
+		t.Skipf("docker port: %v", err)
+	}
+	// "docker port" prints e.g. "127.0.0.1:54321" (one line for the single mapping).
+	hostPort := strings.TrimSpace(string(portOut))
 	dsn = fmt.Sprintf("postgres://disco:disco@%s/disco?sslmode=disable", hostPort)
 
-	if err := pool.Retry(func() error {
+	deadline := time.Now().Add(60 * time.Second)
+	for {
 		s, err := OpenPostgres(context.Background(), dsn)
-		if err != nil {
-			return err
+		if err == nil {
+			_ = s.Close()
+			break
 		}
-		_ = s.Close()
-		return nil
-	}); err != nil {
-		purge()
-		t.Skipf("pg never became ready: %v", err)
+		if time.Now().After(deadline) {
+			purge()
+			t.Skipf("pg never became ready: %v", err)
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 	return dsn, purge
 }
