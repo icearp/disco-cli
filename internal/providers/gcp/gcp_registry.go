@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 )
 
@@ -74,11 +75,43 @@ func registerExtraEmits(decls ...coverage.TypeDecl) {
 	extraEmits = append(extraEmits, decls...)
 }
 
+// registeredDescriptors holds every type declared via the unified registerType
+// path. Source of truth for descriptor-derived aliases and the
+// TestNoDoubleDeclaredTypes guard.
+var registeredDescriptors []restype.Descriptor
+
+// descriptorEmits accumulates the coverage decls produced by registerType,
+// kept separate from extraEmits so the migration guard can tell descriptor-
+// declared types apart from legacy-declared ones.
+var descriptorEmits []coverage.TypeDecl
+
+// registerType is the unified per-type registration: it records the descriptor
+// and forwards its field rules into the shared redact/volatile/managed engines
+// via restype.Emit, whose coverage decl joins descriptorEmits so CollectEmits
+// surfaces it. Call from the init() of the file owning the type's upsert.
+func registerType(d restype.Descriptor) {
+	registeredDescriptors = append(registeredDescriptors, d)
+	descriptorEmits = append(descriptorEmits, restype.Emit(d))
+}
+
+// descriptorAliases returns the disco-type -> upstream-key overrides declared
+// via registerType (empty Upstream falls through to AlgorithmicKey).
+func descriptorAliases() map[string]string {
+	out := make(map[string]string, len(registeredDescriptors))
+	for _, d := range registeredDescriptors {
+		if d.Upstream != "" {
+			out[d.Type] = d.Upstream
+		}
+	}
+	return out
+}
+
 // CollectEmits returns the deduped union of every emits decl registered
 // across the GCP package. Consumed by the coverage.Provider impl.
 func CollectEmits() []coverage.TypeDecl {
 	out := make([]coverage.TypeDecl, 0, 64)
 	out = append(out, extraEmits...)
+	out = append(out, descriptorEmits...)
 	for _, s := range registeredServices {
 		out = append(out, s.emits...)
 	}

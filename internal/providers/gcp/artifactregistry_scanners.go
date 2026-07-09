@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/artifactregistry/v1"
 )
@@ -14,14 +14,12 @@ func init() {
 	registerService(serviceEntry{
 		name: "gcp:artifactregistry",
 		fn:   scanArtifactRegistry,
-		emits: []coverage.TypeDecl{
-			{Service: "artifactregistry", DiscoType: TypeArtifactRepository},
-			{Service: "artifactregistry", DiscoType: TypeArtifactPackage, Leaf: true},
-			{Service: "artifactregistry", DiscoType: TypeArtifactTag, Leaf: true},
-			{Service: "artifactregistry", DiscoType: TypeArtifactRule},
-			{Service: "artifactregistry", DiscoType: TypeArtifactAttachment},
-		},
 	})
+	registerType(restype.Descriptor{Type: TypeArtifactRepository, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Repository"})
+	registerType(restype.Descriptor{Type: TypeArtifactPackage, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Package", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeArtifactTag, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Tag", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeArtifactRule, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Rule"})
+	registerType(restype.Descriptor{Type: TypeArtifactAttachment, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Attachment"})
 }
 
 // maxConcurrentArtifactFanout caps the per-Repository (Packages/Rules/

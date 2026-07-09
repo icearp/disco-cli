@@ -1,0 +1,1629 @@
+{
+  "emits": [
+    {
+      "Service": "accesscontextmanager",
+      "DiscoType": "gcp:accesscontextmanager:access-level",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "accesscontextmanager",
+      "DiscoType": "gcp:accesscontextmanager:access-policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "accesscontextmanager",
+      "DiscoType": "gcp:accesscontextmanager:authorized-orgs-desc",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "accesscontextmanager",
+      "DiscoType": "gcp:accesscontextmanager:gcp-user-access-binding",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "accesscontextmanager",
+      "DiscoType": "gcp:accesscontextmanager:service-perimeter",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "admin",
+      "DiscoType": "gcp:admin:user",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "artifactregistry",
+      "DiscoType": "gcp:artifactregistry:attachment",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "artifactregistry",
+      "DiscoType": "gcp:artifactregistry:package",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "artifactregistry",
+      "DiscoType": "gcp:artifactregistry:repository",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "artifactregistry",
+      "DiscoType": "gcp:artifactregistry:rule",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "artifactregistry",
+      "DiscoType": "gcp:artifactregistry:tag",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "batch",
+      "DiscoType": "gcp:batch:job",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "bigquery",
+      "DiscoType": "gcp:bigquery:dataset",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "bigquery",
+      "DiscoType": "gcp:bigquery:model",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "bigquery",
+      "DiscoType": "gcp:bigquery:routine",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "bigquery",
+      "DiscoType": "gcp:bigquery:row-access-policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "bigquery",
+      "DiscoType": "gcp:bigquery:table",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "bigqueryconnection",
+      "DiscoType": "gcp:bigqueryconnection:connection",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:app-profile",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:authorized-view",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:backup",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:cluster",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:hot-tablet",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:instance",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:logical-view",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:materialized-view",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:memory-layer",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:schema-bundle",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "bigtableadmin",
+      "DiscoType": "gcp:bigtableadmin:table",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "binaryauthorization",
+      "DiscoType": "gcp:binaryauthorization:attestor",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "binaryauthorization",
+      "DiscoType": "gcp:binaryauthorization:policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "certificatemanager",
+      "DiscoType": "gcp:certificatemanager:certificate",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "certificatemanager",
+      "DiscoType": "gcp:certificatemanager:certificate-issuance-config",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "certificatemanager",
+      "DiscoType": "gcp:certificatemanager:certificate-map",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "certificatemanager",
+      "DiscoType": "gcp:certificatemanager:certificate-map-entry",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "certificatemanager",
+      "DiscoType": "gcp:certificatemanager:dns-authorization",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "certificatemanager",
+      "DiscoType": "gcp:certificatemanager:trust-config",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudbuild",
+      "DiscoType": "gcp:cloudbuild:connection",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudbuild",
+      "DiscoType": "gcp:cloudbuild:github-enterprise-config",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudbuild",
+      "DiscoType": "gcp:cloudbuild:repository",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudbuild",
+      "DiscoType": "gcp:cloudbuild:trigger",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudbuild",
+      "DiscoType": "gcp:cloudbuild:worker-pool",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudfunctions",
+      "DiscoType": "gcp:cloudfunctions:function",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:client-state",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:device",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:device-user",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:group",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:idp-credential",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:inbound-oidc-sso-profile",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:inbound-saml-sso-profile",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:inbound-sso-assignment",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:membership",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudidentity",
+      "DiscoType": "gcp:cloudidentity:userinvitation",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudkms",
+      "DiscoType": "gcp:cloudkms:crypto-key",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudkms",
+      "DiscoType": "gcp:cloudkms:crypto-key-version",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudkms",
+      "DiscoType": "gcp:cloudkms:ekm-connection",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudkms",
+      "DiscoType": "gcp:cloudkms:import-job",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudkms",
+      "DiscoType": "gcp:cloudkms:key-handle",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudkms",
+      "DiscoType": "gcp:cloudkms:key-ring",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudkms",
+      "DiscoType": "gcp:cloudkms:single-tenant-hsm-instance",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudresourcemanager",
+      "DiscoType": "gcp:cloudresourcemanager:effective-tag",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudresourcemanager",
+      "DiscoType": "gcp:cloudresourcemanager:folder",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudresourcemanager",
+      "DiscoType": "gcp:cloudresourcemanager:lien",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudresourcemanager",
+      "DiscoType": "gcp:cloudresourcemanager:organization",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudresourcemanager",
+      "DiscoType": "gcp:cloudresourcemanager:project",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudresourcemanager",
+      "DiscoType": "gcp:cloudresourcemanager:tag-binding",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "cloudresourcemanager",
+      "DiscoType": "gcp:cloudresourcemanager:tag-hold",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudresourcemanager",
+      "DiscoType": "gcp:cloudresourcemanager:tag-key",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "cloudresourcemanager",
+      "DiscoType": "gcp:cloudresourcemanager:tag-value",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "composer",
+      "DiscoType": "gcp:composer:environment",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "composer",
+      "DiscoType": "gcp:composer:user-workloads-config-map",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:address",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:autoscaler",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:backend-bucket",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:backend-service",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:cross-site-network",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:disk",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:external-vpn-gateway",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:firewall",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:forwarding-rule",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:future-reservation",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:global-address",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:global-forwarding-rule",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:global-network-endpoint-group",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:global-public-delegated-prefix",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:health-check",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:http-health-check",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:https-health-check",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:image",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:instance",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:instance-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:instance-group-manager",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:instance-group-manager-resize-request",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:instance-template",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:instant-snapshot",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:instant-snapshot-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:interconnect",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:interconnect-attachment",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:interconnect-attachment-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:interconnect-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:machine-image",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:network",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:network-attachment",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:network-edge-security-service",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:network-endpoint-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:network-firewall-policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:network-profile",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:node-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:node-template",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:packet-mirroring",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:public-advertised-prefix",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:public-delegated-prefix",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-autoscaler",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-backend-bucket",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-backend-service",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-commitment",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-composite-health-check",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-disk",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-health-aggregation-policy",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-health-check",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-health-check-service",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-health-source",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-instance-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-instance-group-manager",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-instance-group-manager-resize-request",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-instance-template",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-instant-snapshot",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-instant-snapshot-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-network-endpoint-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-network-firewall-policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-notification-endpoint",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-security-policy",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-snapshot",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-ssl-certificate",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-ssl-policy",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-target-http-proxy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-target-https-proxy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-target-tcp-proxy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:region-url-map",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:reservation",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:reservation-block",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:reservation-sub-block",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:resource-policy",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:route",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:router",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:security-policy",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:service-attachment",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:snapshot",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:ssl-certificate",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:ssl-policy",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:storage-pool",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:subnetwork",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:target-grpc-proxy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:target-http-proxy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:target-https-proxy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:target-instance",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:target-pool",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:target-ssl-proxy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:target-tcp-proxy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:target-vpn-gateway",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:url-map",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:vpn-gateway",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:vpn-tunnel",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "compute",
+      "DiscoType": "gcp:compute:wire-group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "container",
+      "DiscoType": "gcp:container:cluster",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "container",
+      "DiscoType": "gcp:container:node-pool",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dataflow",
+      "DiscoType": "gcp:dataflow:job",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dataflow",
+      "DiscoType": "gcp:dataflow:snapshot",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dataproc",
+      "DiscoType": "gcp:dataproc:autoscaling-policy",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "dataproc",
+      "DiscoType": "gcp:dataproc:batch",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dataproc",
+      "DiscoType": "gcp:dataproc:cluster",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dataproc",
+      "DiscoType": "gcp:dataproc:job",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dataproc",
+      "DiscoType": "gcp:dataproc:session",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dataproc",
+      "DiscoType": "gcp:dataproc:session-template",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dataproc",
+      "DiscoType": "gcp:dataproc:workflow-template",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dns",
+      "DiscoType": "gcp:dns:dns-key",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "dns",
+      "DiscoType": "gcp:dns:managed-zone",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dns",
+      "DiscoType": "gcp:dns:policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dns",
+      "DiscoType": "gcp:dns:resource-record-set",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dns",
+      "DiscoType": "gcp:dns:response-policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "dns",
+      "DiscoType": "gcp:dns:response-policy-rule",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "firestore",
+      "DiscoType": "gcp:firestore:backup",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "firestore",
+      "DiscoType": "gcp:firestore:backup-schedule",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "firestore",
+      "DiscoType": "gcp:firestore:database",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "firestore",
+      "DiscoType": "gcp:firestore:user-cred",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:credential",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:key",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:managed-identity",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:namespace",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:oauth-client",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:provider",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:role",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:scim-tenant",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:service-account",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:workforce-pool",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "iam",
+      "DiscoType": "gcp:iam:workload-identity-pool",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "logging",
+      "DiscoType": "gcp:logging:bucket",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "logging",
+      "DiscoType": "gcp:logging:exclusion",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "logging",
+      "DiscoType": "gcp:logging:link",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "logging",
+      "DiscoType": "gcp:logging:log-scope",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "logging",
+      "DiscoType": "gcp:logging:metric",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "logging",
+      "DiscoType": "gcp:logging:saved-query",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "logging",
+      "DiscoType": "gcp:logging:sink",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "logging",
+      "DiscoType": "gcp:logging:view",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "monitoring",
+      "DiscoType": "gcp:monitoring:alert-policy",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "monitoring",
+      "DiscoType": "gcp:monitoring:dashboard",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "monitoring",
+      "DiscoType": "gcp:monitoring:group",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "monitoring",
+      "DiscoType": "gcp:monitoring:notification-channel",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "monitoring",
+      "DiscoType": "gcp:monitoring:service",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "monitoring",
+      "DiscoType": "gcp:monitoring:service-level-objective",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "monitoring",
+      "DiscoType": "gcp:monitoring:snooze",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "monitoring",
+      "DiscoType": "gcp:monitoring:uptime-check-config",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "pubsub",
+      "DiscoType": "gcp:pubsub:schema",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "pubsub",
+      "DiscoType": "gcp:pubsub:snapshot",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "pubsub",
+      "DiscoType": "gcp:pubsub:subscription",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "pubsub",
+      "DiscoType": "gcp:pubsub:topic",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "run",
+      "DiscoType": "gcp:run:authorizeddomain",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "run",
+      "DiscoType": "gcp:run:domainmapping",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "run",
+      "DiscoType": "gcp:run:execution",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "run",
+      "DiscoType": "gcp:run:instance",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "run",
+      "DiscoType": "gcp:run:job",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "run",
+      "DiscoType": "gcp:run:revision",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "run",
+      "DiscoType": "gcp:run:service",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "run",
+      "DiscoType": "gcp:run:worker-pool",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "secretmanager",
+      "DiscoType": "gcp:secretmanager:secret",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "secretmanager",
+      "DiscoType": "gcp:secretmanager:version",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "spanner",
+      "DiscoType": "gcp:spanner:backup",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "spanner",
+      "DiscoType": "gcp:spanner:backup-schedule",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "spanner",
+      "DiscoType": "gcp:spanner:database",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "spanner",
+      "DiscoType": "gcp:spanner:database-role",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "spanner",
+      "DiscoType": "gcp:spanner:instance",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "spanner",
+      "DiscoType": "gcp:spanner:instance-config",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "spanner",
+      "DiscoType": "gcp:spanner:instance-partition",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "sqladmin",
+      "DiscoType": "gcp:sqladmin:backup-run",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "sqladmin",
+      "DiscoType": "gcp:sqladmin:database",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "sqladmin",
+      "DiscoType": "gcp:sqladmin:instance",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "sqladmin",
+      "DiscoType": "gcp:sqladmin:ssl-cert",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "sqladmin",
+      "DiscoType": "gcp:sqladmin:user",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "storage",
+      "DiscoType": "gcp:storage:anywhere-cache",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "storage",
+      "DiscoType": "gcp:storage:bucket",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "storage",
+      "DiscoType": "gcp:storage:bucket-access-control",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "storage",
+      "DiscoType": "gcp:storage:default-object-access-control",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "storage",
+      "DiscoType": "gcp:storage:folder",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "storage",
+      "DiscoType": "gcp:storage:hmac-key",
+      "Uncatalogued": false,
+      "Leaf": false
+    },
+    {
+      "Service": "storage",
+      "DiscoType": "gcp:storage:managed-folder",
+      "Uncatalogued": false,
+      "Leaf": true
+    },
+    {
+      "Service": "storage",
+      "DiscoType": "gcp:storage:notification",
+      "Uncatalogued": false,
+      "Leaf": false
+    }
+  ],
+  "aliases": {
+    "gcp:accesscontextmanager:access-policy": "accesscontextmanager.googleapis.com/AccessPolicy",
+    "gcp:accesscontextmanager:service-perimeter": "accesscontextmanager.googleapis.com/ServicePerimeter",
+    "gcp:admin:user": "admin.googleapis.com/User",
+    "gcp:artifactregistry:attachment": "artifactregistry.googleapis.com/Attachment",
+    "gcp:artifactregistry:package": "artifactregistry.googleapis.com/Package",
+    "gcp:artifactregistry:repository": "artifactregistry.googleapis.com/Repository",
+    "gcp:artifactregistry:rule": "artifactregistry.googleapis.com/Rule",
+    "gcp:artifactregistry:tag": "artifactregistry.googleapis.com/Tag",
+    "gcp:batch:job": "batch.googleapis.com/Job",
+    "gcp:bigquery:dataset": "bigquery.googleapis.com/Dataset",
+    "gcp:bigquery:model": "bigquery.googleapis.com/Model",
+    "gcp:bigquery:routine": "bigquery.googleapis.com/Routine",
+    "gcp:bigquery:row-access-policy": "bigquery.googleapis.com/RowAccessPolicy",
+    "gcp:bigquery:table": "bigquery.googleapis.com/Table",
+    "gcp:bigqueryconnection:connection": "bigqueryconnection.googleapis.com/Connection",
+    "gcp:bigtableadmin:app-profile": "bigtableadmin.googleapis.com/AppProfile",
+    "gcp:bigtableadmin:authorized-view": "bigtableadmin.googleapis.com/AuthorizedView",
+    "gcp:bigtableadmin:backup": "bigtableadmin.googleapis.com/Backup",
+    "gcp:bigtableadmin:cluster": "bigtableadmin.googleapis.com/Cluster",
+    "gcp:bigtableadmin:hot-tablet": "bigtableadmin.googleapis.com/HotTablet",
+    "gcp:bigtableadmin:instance": "bigtableadmin.googleapis.com/Instance",
+    "gcp:bigtableadmin:logical-view": "bigtableadmin.googleapis.com/LogicalView",
+    "gcp:bigtableadmin:materialized-view": "bigtableadmin.googleapis.com/MaterializedView",
+    "gcp:bigtableadmin:memory-layer": "bigtableadmin.googleapis.com/MemoryLayer",
+    "gcp:bigtableadmin:schema-bundle": "bigtableadmin.googleapis.com/SchemaBundle",
+    "gcp:bigtableadmin:table": "bigtableadmin.googleapis.com/Table",
+    "gcp:binaryauthorization:attestor": "binaryauthorization.googleapis.com/Attestor",
+    "gcp:binaryauthorization:policy": "binaryauthorization.googleapis.com/Policy",
+    "gcp:certificatemanager:certificate": "certificatemanager.googleapis.com/Certificate",
+    "gcp:certificatemanager:certificate-issuance-config": "certificatemanager.googleapis.com/CertificateIssuanceConfig",
+    "gcp:certificatemanager:certificate-map": "certificatemanager.googleapis.com/CertificateMap",
+    "gcp:certificatemanager:certificate-map-entry": "certificatemanager.googleapis.com/CertificateMapEntry",
+    "gcp:certificatemanager:dns-authorization": "certificatemanager.googleapis.com/DnsAuthorization",
+    "gcp:certificatemanager:trust-config": "certificatemanager.googleapis.com/TrustConfig",
+    "gcp:cloudbuild:connection": "cloudbuild.googleapis.com/Connection",
+    "gcp:cloudbuild:github-enterprise-config": "cloudbuild.googleapis.com/GithubEnterpriseConfig",
+    "gcp:cloudbuild:repository": "cloudbuild.googleapis.com/Repository",
+    "gcp:cloudbuild:trigger": "cloudbuild.googleapis.com/Trigger",
+    "gcp:cloudbuild:worker-pool": "cloudbuild.googleapis.com/WorkerPool",
+    "gcp:cloudfunctions:function": "cloudfunctions.googleapis.com/Function",
+    "gcp:cloudidentity:group": "cloudidentity.googleapis.com/Group",
+    "gcp:cloudkms:crypto-key": "cloudkms.googleapis.com/CryptoKey",
+    "gcp:cloudkms:key-ring": "cloudkms.googleapis.com/KeyRing",
+    "gcp:cloudresourcemanager:folder": "cloudresourcemanager.googleapis.com/Folder",
+    "gcp:cloudresourcemanager:organization": "cloudresourcemanager.googleapis.com/Organization",
+    "gcp:cloudresourcemanager:project": "cloudresourcemanager.googleapis.com/Project",
+    "gcp:composer:environment": "composer.googleapis.com/Environment",
+    "gcp:composer:user-workloads-config-map": "composer.googleapis.com/UserWorkloadsConfigMap",
+    "gcp:compute:backend-bucket": "compute.googleapis.com/BackendBucket",
+    "gcp:compute:backend-service": "compute.googleapis.com/BackendService",
+    "gcp:compute:disk": "compute.googleapis.com/Disk",
+    "gcp:compute:firewall": "compute.googleapis.com/Firewall",
+    "gcp:compute:forwarding-rule": "compute.googleapis.com/ForwardingRule",
+    "gcp:compute:image": "compute.googleapis.com/Image",
+    "gcp:compute:instance": "compute.googleapis.com/Instance",
+    "gcp:compute:instant-snapshot": "compute.googleapis.com/InstantSnapshot",
+    "gcp:compute:instant-snapshot-group": "compute.googleapis.com/InstantSnapshotGroup",
+    "gcp:compute:machine-image": "compute.googleapis.com/MachineImage",
+    "gcp:compute:network": "compute.googleapis.com/Network",
+    "gcp:compute:region-disk": "compute.googleapis.com/RegionDisk",
+    "gcp:compute:region-instant-snapshot": "compute.googleapis.com/RegionInstantSnapshot",
+    "gcp:compute:region-instant-snapshot-group": "compute.googleapis.com/RegionInstantSnapshotGroup",
+    "gcp:compute:region-snapshot": "compute.googleapis.com/RegionSnapshot",
+    "gcp:compute:security-policy": "compute.googleapis.com/SecurityPolicy",
+    "gcp:compute:snapshot": "compute.googleapis.com/Snapshot",
+    "gcp:compute:storage-pool": "compute.googleapis.com/StoragePool",
+    "gcp:compute:subnetwork": "compute.googleapis.com/Subnetwork",
+    "gcp:compute:target-http-proxy": "compute.googleapis.com/TargetHttpProxy",
+    "gcp:compute:target-https-proxy": "compute.googleapis.com/TargetHttpsProxy",
+    "gcp:compute:url-map": "compute.googleapis.com/UrlMap",
+    "gcp:container:cluster": "container.googleapis.com/Cluster",
+    "gcp:container:node-pool": "container.googleapis.com/NodePool",
+    "gcp:dataflow:job": "dataflow.googleapis.com/Job",
+    "gcp:dataflow:snapshot": "dataflow.googleapis.com/Snapshot",
+    "gcp:dataproc:autoscaling-policy": "dataproc.googleapis.com/AutoscalingPolicy",
+    "gcp:dataproc:batch": "dataproc.googleapis.com/Batch",
+    "gcp:dataproc:cluster": "dataproc.googleapis.com/Cluster",
+    "gcp:dataproc:job": "dataproc.googleapis.com/Job",
+    "gcp:dataproc:session": "dataproc.googleapis.com/Session",
+    "gcp:dataproc:session-template": "dataproc.googleapis.com/SessionTemplate",
+    "gcp:dataproc:workflow-template": "dataproc.googleapis.com/WorkflowTemplate",
+    "gcp:dns:managed-zone": "dns.googleapis.com/ManagedZone",
+    "gcp:dns:resource-record-set": "dns.googleapis.com/ResourceRecordSet",
+    "gcp:firestore:backup": "firestore.googleapis.com/Backup",
+    "gcp:firestore:backup-schedule": "firestore.googleapis.com/BackupSchedule",
+    "gcp:firestore:database": "firestore.googleapis.com/Database",
+    "gcp:firestore:user-cred": "firestore.googleapis.com/UserCred",
+    "gcp:iam:key": "iam.googleapis.com/Key",
+    "gcp:iam:service-account": "iam.googleapis.com/ServiceAccount",
+    "gcp:logging:bucket": "logging.googleapis.com/Bucket",
+    "gcp:logging:exclusion": "logging.googleapis.com/Exclusion",
+    "gcp:logging:link": "logging.googleapis.com/Link",
+    "gcp:logging:log-scope": "logging.googleapis.com/LogScope",
+    "gcp:logging:metric": "logging.googleapis.com/Metric",
+    "gcp:logging:saved-query": "logging.googleapis.com/SavedQuery",
+    "gcp:logging:sink": "logging.googleapis.com/Sink",
+    "gcp:logging:view": "logging.googleapis.com/View",
+    "gcp:monitoring:alert-policy": "monitoring.googleapis.com/AlertPolicy",
+    "gcp:monitoring:dashboard": "monitoring.googleapis.com/Dashboard",
+    "gcp:monitoring:group": "monitoring.googleapis.com/Group",
+    "gcp:monitoring:notification-channel": "monitoring.googleapis.com/NotificationChannel",
+    "gcp:monitoring:service": "monitoring.googleapis.com/Service",
+    "gcp:monitoring:service-level-objective": "monitoring.googleapis.com/ServiceLevelObjective",
+    "gcp:monitoring:snooze": "monitoring.googleapis.com/Snooze",
+    "gcp:monitoring:uptime-check-config": "monitoring.googleapis.com/UptimeCheckConfig",
+    "gcp:pubsub:schema": "pubsub.googleapis.com/Schema",
+    "gcp:pubsub:snapshot": "pubsub.googleapis.com/Snapshot",
+    "gcp:pubsub:subscription": "pubsub.googleapis.com/Subscription",
+    "gcp:pubsub:topic": "pubsub.googleapis.com/Topic",
+    "gcp:run:authorizeddomain": "run.googleapis.com/Authorizeddomain",
+    "gcp:run:domainmapping": "run.googleapis.com/Domainmapping",
+    "gcp:run:execution": "run.googleapis.com/Execution",
+    "gcp:run:instance": "run.googleapis.com/Instance",
+    "gcp:run:job": "run.googleapis.com/Job",
+    "gcp:run:revision": "run.googleapis.com/Revision",
+    "gcp:run:service": "run.googleapis.com/Service",
+    "gcp:run:worker-pool": "run.googleapis.com/WorkerPool",
+    "gcp:secretmanager:secret": "secretmanager.googleapis.com/Secret",
+    "gcp:secretmanager:version": "secretmanager.googleapis.com/Version",
+    "gcp:spanner:backup": "spanner.googleapis.com/Backup",
+    "gcp:spanner:backup-schedule": "spanner.googleapis.com/BackupSchedule",
+    "gcp:spanner:database": "spanner.googleapis.com/Database",
+    "gcp:spanner:database-role": "spanner.googleapis.com/DatabaseRole",
+    "gcp:spanner:instance": "spanner.googleapis.com/Instance",
+    "gcp:spanner:instance-config": "spanner.googleapis.com/InstanceConfig",
+    "gcp:spanner:instance-partition": "spanner.googleapis.com/InstancePartition",
+    "gcp:sqladmin:instance": "sqladmin.googleapis.com/Instance",
+    "gcp:storage:anywhere-cache": "storage.googleapis.com/AnywhereCache",
+    "gcp:storage:bucket": "storage.googleapis.com/Bucket",
+    "gcp:storage:bucket-access-control": "storage.googleapis.com/BucketAccessControl",
+    "gcp:storage:default-object-access-control": "storage.googleapis.com/DefaultObjectAccessControl",
+    "gcp:storage:folder": "storage.googleapis.com/Folder",
+    "gcp:storage:hmac-key": "storage.googleapis.com/HmacKey",
+    "gcp:storage:managed-folder": "storage.googleapis.com/ManagedFolder",
+    "gcp:storage:notification": "storage.googleapis.com/Notification"
+  }
+}

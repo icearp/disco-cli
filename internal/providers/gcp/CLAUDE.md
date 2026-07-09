@@ -5,6 +5,24 @@ GCP scanner/resolver conventions. Cross-provider rules: `internal/providers/CLAU
 ## GCP-specific registration quirks
 
 - New `Type*` const lives in `gcp_types.go` const block. `KnownTypes()` is gone — coverage truth is `emits []coverage.TypeDecl` on the scanner's `registerService` / `registerOrgService`. Hierarchy scanners use `registerExtraEmits` in `gcp_hierarchy.go`. `CollectEmits()` in `gcp_registry.go` unions all sources for the `coverage.Provider` impl in `gcp_coverage.go`. Add the disco-type → Discovery-key entry in `gcp_coverage.go` `Aliases()` too.
+
+### Unified per-type declaration via `registerType` (migration in progress)
+
+`registerType(restype.Descriptor{...})` in `gcp_registry.go` is the single-site
+replacement for the four scattered per-type declarations: coverage emit +
+`Aliases()` entry + `redact.Register` + `volatile.Register`, plus the
+unconditional `Managed` flag (the store stamps `ManagedByProvider` by type). It
+forwards field rules into the shared engines and routes the coverage decl
+through `descriptorEmits` so `CollectEmits` still surfaces it; `Upstream`
+becomes the alias (empty falls through to `AlgorithmicKey`). A type is declared
+EITHER the legacy way OR via `registerType`, never both —
+`TestNoDoubleDeclaredTypes` guards it, and `TestCoverageSnapshotStable`
+(`testdata/coverage_snapshot.json`) proves each migration leaves `Emits()` /
+`Aliases()` byte-identical. **`artifactregistry` is migrated as the proof; the
+rest still use the legacy sites.** New services should be born via `registerType`.
+When migrating a service, move its emit/alias/redact/volatile decls into
+per-type `registerType` calls in the file owning the upsert and delete the
+originals, then rerun the snapshot test.
 - `gcp_scanner_test.go` carries TWO expectation lists: `expectedGCPServices` (project-scope) and `expectedGCPOrgServices` (org-scope, via `registerOrgService`). New scanner updates whichever list matches its registration call — getting it wrong only fails at test time, not build time.
 
 ## Discover what's not yet covered

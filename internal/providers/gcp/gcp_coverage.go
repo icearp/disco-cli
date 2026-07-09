@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"maps"
+
 	"codeberg.org/icearp/disco/internal/coverage"
 	"golang.org/x/sync/semaphore"
 )
@@ -39,6 +41,12 @@ func (coverageProvider) ResolverEdgeSources() []string          { return Resolve
 // produced by Fetch below. Empty map allowed; algorithmic fallback handles
 // the rest.
 func (coverageProvider) Aliases() map[string]string {
+	m := staticAliases()
+	maps.Copy(m, descriptorAliases())
+	return m
+}
+
+func staticAliases() map[string]string {
 	return map[string]string{
 		// Cloud Resource Manager hierarchy.
 		TypeOrganization: "cloudresourcemanager.googleapis.com/Organization",
@@ -126,12 +134,8 @@ func (coverageProvider) Aliases() map[string]string {
 		// Composer.
 		TypeComposerEnv:                    "composer.googleapis.com/Environment",
 		TypeComposerUserWorkloadsConfigMap: "composer.googleapis.com/UserWorkloadsConfigMap",
-		// Artifact Registry.
-		TypeArtifactRepository: "artifactregistry.googleapis.com/Repository",
-		TypeArtifactPackage:    "artifactregistry.googleapis.com/Package",
-		TypeArtifactTag:        "artifactregistry.googleapis.com/Tag",
-		TypeArtifactRule:       "artifactregistry.googleapis.com/Rule",
-		TypeArtifactAttachment: "artifactregistry.googleapis.com/Attachment",
+		// Artifact Registry aliases now declared via registerType descriptors
+		// (artifactregistry_scanners.go).
 		// Logging / Monitoring.
 		TypeLoggingSink:                   "logging.googleapis.com/Sink",
 		TypeLoggingBucket:                 "logging.googleapis.com/Bucket",
