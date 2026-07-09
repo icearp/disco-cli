@@ -6,7 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/bigtableadmin/v2"
 	"google.golang.org/api/firestore/v1"
@@ -14,45 +15,39 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBigtableInstance, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/Instance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBigtableCluster, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/Cluster"})
+	registerType(restype.Descriptor{Type: TypeBigtableBackup, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/Backup"})
+	registerType(restype.Descriptor{Type: TypeBigtableAppProfile, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/AppProfile"})
+	registerType(restype.Descriptor{Type: TypeBigtableTable, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/Table"})
+	registerType(restype.Descriptor{Type: TypeBigtableAuthorizedView, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/AuthorizedView", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBigtableLogicalView, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/LogicalView", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBigtableMaterializedView, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/MaterializedView", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBigtableSchemaBundle, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/SchemaBundle", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBigtableHotTablet, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/HotTablet"})
+	registerType(restype.Descriptor{Type: TypeBigtableMemoryLayer, Service: "bigtableadmin", Upstream: "bigtableadmin.googleapis.com/MemoryLayer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFirestoreDB, Service: "firestore", Upstream: "firestore.googleapis.com/Database"})
+	registerType(restype.Descriptor{Type: TypeFirestoreBackup, Service: "firestore", Upstream: "firestore.googleapis.com/Backup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFirestoreBackupSchedule, Service: "firestore", Upstream: "firestore.googleapis.com/BackupSchedule", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFirestoreUserCred, Service: "firestore", Upstream: "firestore.googleapis.com/UserCred", Leaf: true, Redact: []redact.Rule{{Path: "securePassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSpannerInstance, Service: "spanner", Upstream: "spanner.googleapis.com/Instance"})
+	registerType(restype.Descriptor{Type: TypeSpannerDatabase, Service: "spanner", Upstream: "spanner.googleapis.com/Database"})
+	registerType(restype.Descriptor{Type: TypeSpannerInstanceConfig, Service: "spanner", Upstream: "spanner.googleapis.com/InstanceConfig"})
+	registerType(restype.Descriptor{Type: TypeSpannerInstancePartition, Service: "spanner", Upstream: "spanner.googleapis.com/InstancePartition"})
+	registerType(restype.Descriptor{Type: TypeSpannerBackup, Service: "spanner", Upstream: "spanner.googleapis.com/Backup"})
+	registerType(restype.Descriptor{Type: TypeSpannerBackupSchedule, Service: "spanner", Upstream: "spanner.googleapis.com/BackupSchedule"})
+	registerType(restype.Descriptor{Type: TypeSpannerDatabaseRole, Service: "spanner", Upstream: "spanner.googleapis.com/DatabaseRole", Leaf: true})
 	registerService(serviceEntry{
 		name: "gcp:bigtable",
 		fn:   scanBigtable,
-		emits: []coverage.TypeDecl{
-			{Service: "bigtableadmin", DiscoType: TypeBigtableInstance, Leaf: true},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableCluster},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableBackup},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableAppProfile},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableTable},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableAuthorizedView, Leaf: true},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableLogicalView, Leaf: true},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableMaterializedView, Leaf: true},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableSchemaBundle, Leaf: true},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableHotTablet},
-			{Service: "bigtableadmin", DiscoType: TypeBigtableMemoryLayer, Leaf: true},
-		},
 	})
 	registerService(serviceEntry{
 		name: "gcp:firestore",
 		fn:   scanFirestore,
-		emits: []coverage.TypeDecl{
-			{Service: "firestore", DiscoType: TypeFirestoreDB},
-			{Service: "firestore", DiscoType: TypeFirestoreBackup, Leaf: true},
-			{Service: "firestore", DiscoType: TypeFirestoreBackupSchedule, Leaf: true},
-			{Service: "firestore", DiscoType: TypeFirestoreUserCred, Leaf: true},
-		},
 	})
 	registerService(serviceEntry{
 		name: "gcp:spanner",
 		fn:   scanSpanner,
-		emits: []coverage.TypeDecl{
-			{Service: "spanner", DiscoType: TypeSpannerInstance},
-			{Service: "spanner", DiscoType: TypeSpannerDatabase},
-			{Service: "spanner", DiscoType: TypeSpannerInstanceConfig},
-			{Service: "spanner", DiscoType: TypeSpannerInstancePartition},
-			{Service: "spanner", DiscoType: TypeSpannerBackup},
-			{Service: "spanner", DiscoType: TypeSpannerBackupSchedule},
-			{Service: "spanner", DiscoType: TypeSpannerDatabaseRole, Leaf: true},
-		},
 	})
 }
 

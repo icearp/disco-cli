@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/binaryauthorization/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBinAuthPolicy, Service: "binaryauthorization", Upstream: "binaryauthorization.googleapis.com/Policy"})
+	registerType(restype.Descriptor{Type: TypeBinAuthAttestor, Service: "binaryauthorization", Upstream: "binaryauthorization.googleapis.com/Attestor"})
 	registerService(serviceEntry{
 		name: "gcp:binaryauthorization",
 		fn:   scanBinaryAuthorization,
-		emits: []coverage.TypeDecl{
-			{Service: "binaryauthorization", DiscoType: TypeBinAuthPolicy},
-			{Service: "binaryauthorization", DiscoType: TypeBinAuthAttestor},
-		},
 	})
 }
 

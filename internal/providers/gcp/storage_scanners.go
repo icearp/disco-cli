@@ -7,26 +7,24 @@ import (
 	"net/http"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/storage/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeStorageBucket, Service: "storage", Upstream: "storage.googleapis.com/Bucket"})
+	registerType(restype.Descriptor{Type: TypeStorageHmacKey, Service: "storage", Upstream: "storage.googleapis.com/HmacKey"})
+	registerType(restype.Descriptor{Type: TypeStorageNotification, Service: "storage", Upstream: "storage.googleapis.com/Notification"})
+	registerType(restype.Descriptor{Type: TypeStorageManagedFolder, Service: "storage", Upstream: "storage.googleapis.com/ManagedFolder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageAnywhereCache, Service: "storage", Upstream: "storage.googleapis.com/AnywhereCache", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageFolder, Service: "storage", Upstream: "storage.googleapis.com/Folder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageBucketAccessControl, Service: "storage", Upstream: "storage.googleapis.com/BucketAccessControl"})
+	registerType(restype.Descriptor{Type: TypeStorageDefaultObjectAccessControl, Service: "storage", Upstream: "storage.googleapis.com/DefaultObjectAccessControl"})
 	registerService(serviceEntry{
 		name: "gcp:storage",
 		fn:   scanStorage,
-		emits: []coverage.TypeDecl{
-			{Service: "storage", DiscoType: TypeStorageBucket},
-			{Service: "storage", DiscoType: TypeStorageHmacKey},
-			{Service: "storage", DiscoType: TypeStorageNotification},
-			{Service: "storage", DiscoType: TypeStorageManagedFolder, Leaf: true},
-			{Service: "storage", DiscoType: TypeStorageAnywhereCache, Leaf: true},
-			{Service: "storage", DiscoType: TypeStorageFolder, Leaf: true},
-			{Service: "storage", DiscoType: TypeStorageBucketAccessControl},
-			{Service: "storage", DiscoType: TypeStorageDefaultObjectAccessControl},
-		},
 	})
 }
 

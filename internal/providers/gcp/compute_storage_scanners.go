@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
@@ -15,19 +15,17 @@ import (
 // compute_scanners.go) — not a new service registration, so emits go through
 // registerExtraEmits rather than a second registerService call.
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeDisk},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionDisk},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeImage},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeMachineImage},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeSnapshot},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionSnapshot},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstantSnapshot},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstantSnapshot},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstantSnapshotGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstantSnapshotGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeStoragePool, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeDisk, Service: "compute", Upstream: "compute.googleapis.com/Disk"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionDisk, Service: "compute", Upstream: "compute.googleapis.com/RegionDisk"})
+	registerType(restype.Descriptor{Type: TypeComputeImage, Service: "compute", Upstream: "compute.googleapis.com/Image"})
+	registerType(restype.Descriptor{Type: TypeComputeMachineImage, Service: "compute", Upstream: "compute.googleapis.com/MachineImage"})
+	registerType(restype.Descriptor{Type: TypeComputeSnapshot, Service: "compute", Upstream: "compute.googleapis.com/Snapshot"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionSnapshot, Service: "compute", Upstream: "compute.googleapis.com/RegionSnapshot"})
+	registerType(restype.Descriptor{Type: TypeComputeInstantSnapshot, Service: "compute", Upstream: "compute.googleapis.com/InstantSnapshot"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionInstantSnapshot, Service: "compute", Upstream: "compute.googleapis.com/RegionInstantSnapshot"})
+	registerType(restype.Descriptor{Type: TypeComputeInstantSnapshotGroup, Service: "compute", Upstream: "compute.googleapis.com/InstantSnapshotGroup"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionInstantSnapshotGroup, Service: "compute", Upstream: "compute.googleapis.com/RegionInstantSnapshotGroup"})
+	registerType(restype.Descriptor{Type: TypeComputeStoragePool, Service: "compute", Upstream: "compute.googleapis.com/StoragePool", Leaf: true})
 }
 
 func scanComputeDisks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {

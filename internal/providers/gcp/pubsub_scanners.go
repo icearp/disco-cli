@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/pubsub/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypePubSubTopic, Service: "pubsub", Upstream: "pubsub.googleapis.com/Topic"})
+	registerType(restype.Descriptor{Type: TypePubSubSubscription, Service: "pubsub", Upstream: "pubsub.googleapis.com/Subscription"})
+	registerType(restype.Descriptor{Type: TypePubSubSchema, Service: "pubsub", Upstream: "pubsub.googleapis.com/Schema", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePubSubSnapshot, Service: "pubsub", Upstream: "pubsub.googleapis.com/Snapshot"})
 	registerService(serviceEntry{
 		name: "gcp:pubsub",
 		fn:   scanPubSub,
-		emits: []coverage.TypeDecl{
-			{Service: "pubsub", DiscoType: TypePubSubTopic},
-			{Service: "pubsub", DiscoType: TypePubSubSubscription},
-			{Service: "pubsub", DiscoType: TypePubSubSchema, Leaf: true},
-			{Service: "pubsub", DiscoType: TypePubSubSnapshot},
-		},
 	})
 }
 

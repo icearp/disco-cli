@@ -3,7 +3,7 @@ package gcp
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
@@ -15,32 +15,30 @@ import (
 // resolver this wave — same networking-domain resolver follow-up noted in
 // compute_networking_scanners.go.
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeGlobalForwardingRule},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeHealthCheck, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionHealthCheck, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionCompositeHealthCheck},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionHealthAggregationPolicy, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionHealthCheckService},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionHealthSource},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionNotificationEndpoint, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeHttpHealthCheck, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeHttpsHealthCheck, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeSslCertificate, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionSslCertificate, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeSslPolicy, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionSslPolicy, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeTargetSslProxy},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeTargetTcpProxy},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionTargetTcpProxy},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeTargetGrpcProxy},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionTargetHTTPProxy},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionTargetHTTPSProxy},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionURLMap},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionBackendBucket},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeTargetInstance},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeTargetPool},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeGlobalForwardingRule, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeHealthCheck, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeRegionHealthCheck, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeRegionCompositeHealthCheck, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionHealthAggregationPolicy, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeRegionHealthCheckService, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionHealthSource, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionNotificationEndpoint, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeHttpHealthCheck, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeHttpsHealthCheck, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeSslCertificate, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeRegionSslCertificate, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeSslPolicy, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeRegionSslPolicy, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeTargetSslProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeTargetTcpProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionTargetTcpProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeTargetGrpcProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionTargetHTTPProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionTargetHTTPSProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionURLMap, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionBackendBucket, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeTargetInstance, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeTargetPool, Service: "compute"})
 }
 
 // scanComputeGlobalForwardingRules reuses the shared compute.ForwardingRule /

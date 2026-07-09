@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/iam/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIAMServiceAccount, Service: "iam", Upstream: "iam.googleapis.com/ServiceAccount", Leaf: true})
 	registerService(serviceEntry{
 		name: "gcp:iam",
 		fn:   scanIAMServiceAccounts,
-		emits: []coverage.TypeDecl{
-			{Service: "iam", DiscoType: TypeIAMServiceAccount, Leaf: true},
-		},
 	})
 }
 

@@ -7,24 +7,22 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/cloudkms/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeKMSKeyRing, Service: "cloudkms", Upstream: "cloudkms.googleapis.com/KeyRing", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKMSCryptoKey, Service: "cloudkms", Upstream: "cloudkms.googleapis.com/CryptoKey"})
+	registerType(restype.Descriptor{Type: TypeKMSCryptoKeyVersion, Service: "cloudkms"})
+	registerType(restype.Descriptor{Type: TypeKMSEkmConnection, Service: "cloudkms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKMSImportJob, Service: "cloudkms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKMSKeyHandle, Service: "cloudkms"})
+	registerType(restype.Descriptor{Type: TypeKMSSingleTenantHsmInstance, Service: "cloudkms", Leaf: true})
 	registerService(serviceEntry{
 		name: "gcp:cloudkms",
 		fn:   scanCloudKMS,
-		emits: []coverage.TypeDecl{
-			{Service: "cloudkms", DiscoType: TypeKMSKeyRing, Leaf: true},
-			{Service: "cloudkms", DiscoType: TypeKMSCryptoKey},
-			{Service: "cloudkms", DiscoType: TypeKMSCryptoKeyVersion},
-			{Service: "cloudkms", DiscoType: TypeKMSEkmConnection, Leaf: true},
-			{Service: "cloudkms", DiscoType: TypeKMSImportJob, Leaf: true},
-			{Service: "cloudkms", DiscoType: TypeKMSKeyHandle},
-			{Service: "cloudkms", DiscoType: TypeKMSSingleTenantHsmInstance, Leaf: true},
-		},
 	})
 }
 

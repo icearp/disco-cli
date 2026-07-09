@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/cloudresourcemanager/v3"
 )
@@ -21,28 +21,22 @@ import (
 // lacked org-level tag permissions). Lien/TagBinding/EffectiveTag are
 // project-scoped only — GCP has no org-level Lien/TagBinding endpoint.
 func init() {
+	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLien, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTagBinding, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeEffectiveTag, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager", Leaf: true})
 	registerOrgService(orgServiceEntry{
 		name: "gcp:cloudresourcemanager-tags",
 		fn:   scanCRMTags,
-		emits: []coverage.TypeDecl{
-			{Service: "cloudresourcemanager", DiscoType: TypeTagKey, Leaf: true},
-			{Service: "cloudresourcemanager", DiscoType: TypeTagValue, Leaf: true},
-			{Service: "cloudresourcemanager", DiscoType: TypeTagHold, Leaf: true},
-		},
 	})
 	registerService(serviceEntry{
 		name: "gcp:cloudresourcemanager-liens",
 		fn:   scanCRMLiensAndBindings,
-		emits: []coverage.TypeDecl{
-			{Service: "cloudresourcemanager", DiscoType: TypeLien, Leaf: true},
-			{Service: "cloudresourcemanager", DiscoType: TypeTagBinding},
-			{Service: "cloudresourcemanager", DiscoType: TypeEffectiveTag},
-			// Also declared on the org-service above — a project-parented
-			// TagKey tree (see package doc comment) surfaces the same types.
-			{Service: "cloudresourcemanager", DiscoType: TypeTagKey, Leaf: true},
-			{Service: "cloudresourcemanager", DiscoType: TypeTagValue, Leaf: true},
-			{Service: "cloudresourcemanager", DiscoType: TypeTagHold, Leaf: true},
-		},
 	})
 }
 

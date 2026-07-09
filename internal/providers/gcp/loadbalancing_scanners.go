@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeComputeForwardingRule, Service: "compute", Upstream: "compute.googleapis.com/ForwardingRule"})
+	registerType(restype.Descriptor{Type: TypeComputeTargetHTTPProxy, Service: "compute", Upstream: "compute.googleapis.com/TargetHttpProxy"})
+	registerType(restype.Descriptor{Type: TypeComputeTargetHTTPSProxy, Service: "compute", Upstream: "compute.googleapis.com/TargetHttpsProxy"})
+	registerType(restype.Descriptor{Type: TypeComputeURLMap, Service: "compute", Upstream: "compute.googleapis.com/UrlMap"})
+	registerType(restype.Descriptor{Type: TypeComputeBackendService, Service: "compute", Upstream: "compute.googleapis.com/BackendService"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionBackendService, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeBackendBucket, Service: "compute", Upstream: "compute.googleapis.com/BackendBucket"})
 	registerService(serviceEntry{
 		name: "gcp:loadbalancing",
 		fn:   scanLoadBalancing,
-		emits: []coverage.TypeDecl{
-			{Service: "compute", DiscoType: TypeComputeForwardingRule},
-			{Service: "compute", DiscoType: TypeComputeTargetHTTPProxy},
-			{Service: "compute", DiscoType: TypeComputeTargetHTTPSProxy},
-			{Service: "compute", DiscoType: TypeComputeURLMap},
-			{Service: "compute", DiscoType: TypeComputeBackendService},
-			{Service: "compute", DiscoType: TypeComputeRegionBackendService},
-			{Service: "compute", DiscoType: TypeComputeBackendBucket},
-		},
 	})
 }
 

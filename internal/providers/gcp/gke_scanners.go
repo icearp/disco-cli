@@ -5,19 +5,17 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/container/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGKECluster, Service: "container", Upstream: "container.googleapis.com/Cluster"})
+	registerType(restype.Descriptor{Type: TypeGKENodePool, Service: "container", Upstream: "container.googleapis.com/NodePool"})
 	registerService(serviceEntry{
 		name: "gcp:gke",
 		fn:   scanGKE,
-		emits: []coverage.TypeDecl{
-			{Service: "container", DiscoType: TypeGKECluster},
-			{Service: "container", DiscoType: TypeGKENodePool},
-		},
 	})
 }
 

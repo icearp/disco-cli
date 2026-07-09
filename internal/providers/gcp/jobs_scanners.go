@@ -5,27 +5,24 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/batch/v1"
 	"google.golang.org/api/run/v2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudRunJob, Service: "run", Upstream: "run.googleapis.com/Job", Redact: []redact.Rule{{Path: "template.template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudRunExecution, Service: "run", Upstream: "run.googleapis.com/Execution", Redact: []redact.Rule{{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeBatchJob, Service: "batch", Upstream: "batch.googleapis.com/Job"})
 	registerService(serviceEntry{
 		name: "gcp:cloudrunjobs",
 		fn:   scanCloudRunJobs,
-		emits: []coverage.TypeDecl{
-			{Service: "run", DiscoType: TypeCloudRunJob},
-			{Service: "run", DiscoType: TypeCloudRunExecution},
-		},
 	})
 	registerService(serviceEntry{
 		name: "gcp:batch",
 		fn:   scanBatchJobs,
-		emits: []coverage.TypeDecl{
-			{Service: "batch", DiscoType: TypeBatchJob},
-		},
 	})
 }
 

@@ -6,30 +6,29 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	directory "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/cloudidentity/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeWorkspaceUser, Service: "admin", Upstream: "admin.googleapis.com/User", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityGroup, Service: "cloudidentity", Upstream: "cloudidentity.googleapis.com/Group", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityDevice, Service: "cloudidentity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityDeviceUser, Service: "cloudidentity"})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityClientState, Service: "cloudidentity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityMembership, Service: "cloudidentity"})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityInboundOidcSsoProfile, Service: "cloudidentity", Leaf: true, Redact: []redact.Rule{{Path: "rpConfig.clientSecret", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityInboundSamlSsoProfile, Service: "cloudidentity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityIdpCredential, Service: "cloudidentity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityInboundSsoAssignment, Service: "cloudidentity"})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityPolicy, Service: "cloudidentity"})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityUserinvitation, Service: "cloudidentity", Leaf: true})
 	registerOrgService(orgServiceEntry{
 		name: "gcp:cloudidentity",
 		fn:   scanCloudIdentity,
-		emits: []coverage.TypeDecl{
-			{Service: "admin", DiscoType: TypeWorkspaceUser, Leaf: true},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityGroup, Leaf: true},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityDevice, Leaf: true},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityDeviceUser},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityClientState, Leaf: true},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityMembership},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityInboundOidcSsoProfile, Leaf: true},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityInboundSamlSsoProfile, Leaf: true},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityIdpCredential, Leaf: true},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityInboundSsoAssignment},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityPolicy},
-			{Service: "cloudidentity", DiscoType: TypeCloudIdentityUserinvitation, Leaf: true},
-		},
 	})
 }
 

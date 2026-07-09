@@ -3,7 +3,7 @@ package gcp
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
@@ -16,13 +16,11 @@ import (
 // consumer kind (instance, forwarding rule, ...); left as a follow-up rather
 // than guessing.
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeAddress},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeGlobalAddress},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputePublicAdvertisedPrefix, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputePublicDelegatedPrefix},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeGlobalPublicDelegatedPrefix},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeAddress, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeGlobalAddress, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputePublicAdvertisedPrefix, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputePublicDelegatedPrefix, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeGlobalPublicDelegatedPrefix, Service: "compute"})
 }
 
 func scanComputeAddresses(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {

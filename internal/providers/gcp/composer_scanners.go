@@ -5,19 +5,18 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/composer/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeComposerEnv, Service: "composer", Upstream: "composer.googleapis.com/Environment", Redact: []redact.Rule{{Path: "config.softwareConfig.envVariables.*", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeComposerUserWorkloadsConfigMap, Service: "composer", Upstream: "composer.googleapis.com/UserWorkloadsConfigMap", Leaf: true})
 	registerService(serviceEntry{
 		name: "gcp:composer",
 		fn:   scanComposer,
-		emits: []coverage.TypeDecl{
-			{Service: "composer", DiscoType: TypeComposerEnv},
-			{Service: "composer", DiscoType: TypeComposerUserWorkloadsConfigMap, Leaf: true},
-		},
 	})
 }
 

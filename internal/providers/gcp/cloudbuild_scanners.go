@@ -5,23 +5,22 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	cloudbuild "google.golang.org/api/cloudbuild/v1"
 	cloudbuildv2 "google.golang.org/api/cloudbuild/v2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCloudBuildTrigger, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/Trigger", Redact: []redact.Rule{{Path: "substitutions.*", Mode: redact.RedactScalar}, {Path: "build.steps[*].env[*]", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudBuildWorkerPool, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/WorkerPool"})
+	registerType(restype.Descriptor{Type: TypeCloudBuildConnection, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/Connection"})
+	registerType(restype.Descriptor{Type: TypeCloudBuildRepository, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/Repository", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudBuildGithubEnterpriseConfig, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/GithubEnterpriseConfig"})
 	registerService(serviceEntry{
 		name: "gcp:cloudbuild",
 		fn:   scanCloudBuildTriggers,
-		emits: []coverage.TypeDecl{
-			{Service: "cloudbuild", DiscoType: TypeCloudBuildTrigger},
-			{Service: "cloudbuild", DiscoType: TypeCloudBuildWorkerPool},
-			{Service: "cloudbuild", DiscoType: TypeCloudBuildConnection},
-			{Service: "cloudbuild", DiscoType: TypeCloudBuildRepository, Leaf: true},
-			{Service: "cloudbuild", DiscoType: TypeCloudBuildGithubEnterpriseConfig},
-		},
 	})
 }
 

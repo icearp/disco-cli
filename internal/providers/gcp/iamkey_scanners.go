@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/iam/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIAMSAKey, Service: "iam", Upstream: "iam.googleapis.com/Key", Redact: []redact.Rule{{Path: "privateKeyData", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "gcp:iam-key",
 		fn:   scanIAMServiceAccountKeys,
-		emits: []coverage.TypeDecl{
-			{Service: "iam", DiscoType: TypeIAMSAKey},
-		},
 	})
 }
 

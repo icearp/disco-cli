@@ -5,19 +5,17 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	dataflow "google.golang.org/api/dataflow/v1b3"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataflowJob, Service: "dataflow", Upstream: "dataflow.googleapis.com/Job"})
+	registerType(restype.Descriptor{Type: TypeDataflowSnapshot, Service: "dataflow", Upstream: "dataflow.googleapis.com/Snapshot"})
 	registerService(serviceEntry{
 		name: "gcp:dataflow",
 		fn:   scanDataflow,
-		emits: []coverage.TypeDecl{
-			{Service: "dataflow", DiscoType: TypeDataflowJob},
-			{Service: "dataflow", DiscoType: TypeDataflowSnapshot},
-		},
 	})
 }
 

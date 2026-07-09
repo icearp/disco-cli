@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/bigqueryconnection/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBQConnection, Service: "bigqueryconnection", Upstream: "bigqueryconnection.googleapis.com/Connection"})
 	registerService(serviceEntry{
 		name: "gcp:bigqueryconnection",
 		fn:   scanBQConnections,
-		emits: []coverage.TypeDecl{
-			{Service: "bigqueryconnection", DiscoType: TypeBQConnection},
-		},
 	})
 }
 

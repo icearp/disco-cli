@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/dataproc/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDataprocCluster, Service: "dataproc", Upstream: "dataproc.googleapis.com/Cluster"})
+	registerType(restype.Descriptor{Type: TypeDataprocAutoscalingPolicy, Service: "dataproc", Upstream: "dataproc.googleapis.com/AutoscalingPolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataprocBatch, Service: "dataproc", Upstream: "dataproc.googleapis.com/Batch"})
+	registerType(restype.Descriptor{Type: TypeDataprocSession, Service: "dataproc", Upstream: "dataproc.googleapis.com/Session"})
+	registerType(restype.Descriptor{Type: TypeDataprocSessionTemplate, Service: "dataproc", Upstream: "dataproc.googleapis.com/SessionTemplate"})
+	registerType(restype.Descriptor{Type: TypeDataprocWorkflowTemplate, Service: "dataproc", Upstream: "dataproc.googleapis.com/WorkflowTemplate"})
+	registerType(restype.Descriptor{Type: TypeDataprocJob, Service: "dataproc", Upstream: "dataproc.googleapis.com/Job"})
 	registerService(serviceEntry{
 		name: "gcp:dataproc",
 		fn:   scanDataproc,
-		emits: []coverage.TypeDecl{
-			{Service: "dataproc", DiscoType: TypeDataprocCluster},
-			{Service: "dataproc", DiscoType: TypeDataprocAutoscalingPolicy, Leaf: true},
-			{Service: "dataproc", DiscoType: TypeDataprocBatch},
-			{Service: "dataproc", DiscoType: TypeDataprocSession},
-			{Service: "dataproc", DiscoType: TypeDataprocSessionTemplate},
-			{Service: "dataproc", DiscoType: TypeDataprocWorkflowTemplate},
-			{Service: "dataproc", DiscoType: TypeDataprocJob},
-		},
 	})
 }
 

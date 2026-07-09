@@ -3,7 +3,7 @@ package gcp
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
@@ -13,17 +13,10 @@ import (
 // "gcp:compute" service. Resolved by compute_vpn_interconnect_resolvers.go
 // (Resolver Wave R5).
 func init() {
-	registerExtraEmits(
-		// Interconnect.Location/EffectiveLocation/RemoteLocation are genuine
-		// outbound refs (InterconnectLocation/InterconnectRemoteLocation),
-		// but disco doesn't scan those types, so no resolver-eligible target
-		// exists today. Leaf reflects current scan scope, not schema shape —
-		// revisit if InterconnectLocation is ever added.
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInterconnect, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInterconnectAttachment},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInterconnectGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInterconnectAttachmentGroup},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeInterconnect, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeInterconnectAttachment, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeInterconnectGroup, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeInterconnectAttachmentGroup, Service: "compute"})
 }
 
 func scanComputeInterconnects(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {

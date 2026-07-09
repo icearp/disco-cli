@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/logging/v2"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLoggingSink, Service: "logging", Upstream: "logging.googleapis.com/Sink"})
 	registerOrgService(orgServiceEntry{
 		name: "gcp:logging-org",
 		fn:   scanLoggingSinksOrg,
-		emits: []coverage.TypeDecl{
-			{Service: "logging", DiscoType: TypeLoggingSink},
-		},
 	})
 }
 

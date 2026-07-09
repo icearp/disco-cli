@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/bigquery/v2"
 )
@@ -24,16 +24,14 @@ func msToRFC3339(ms int64) *string {
 }
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeBQDataset, Service: "bigquery", Upstream: "bigquery.googleapis.com/Dataset"})
+	registerType(restype.Descriptor{Type: TypeBQTable, Service: "bigquery", Upstream: "bigquery.googleapis.com/Table", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBQModel, Service: "bigquery", Upstream: "bigquery.googleapis.com/Model", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBQRoutine, Service: "bigquery", Upstream: "bigquery.googleapis.com/Routine"})
+	registerType(restype.Descriptor{Type: TypeBQRowAccessPolicy, Service: "bigquery", Upstream: "bigquery.googleapis.com/RowAccessPolicy"})
 	registerService(serviceEntry{
 		name: "gcp:bigquery",
 		fn:   scanBigQuery,
-		emits: []coverage.TypeDecl{
-			{Service: "bigquery", DiscoType: TypeBQDataset},
-			{Service: "bigquery", DiscoType: TypeBQTable, Leaf: true},
-			{Service: "bigquery", DiscoType: TypeBQModel, Leaf: true},
-			{Service: "bigquery", DiscoType: TypeBQRoutine},
-			{Service: "bigquery", DiscoType: TypeBQRowAccessPolicy},
-		},
 	})
 }
 

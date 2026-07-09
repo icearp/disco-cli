@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/certificatemanager/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeCertManagerCertificate, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/Certificate"})
+	registerType(restype.Descriptor{Type: TypeCertManagerMap, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/CertificateMap", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCertManagerMapEntry, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/CertificateMapEntry"})
+	registerType(restype.Descriptor{Type: TypeCertManagerDNSAuth, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/DnsAuthorization", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCertManagerIssuanceConfig, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/CertificateIssuanceConfig", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCertManagerTrustConfig, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/TrustConfig", Leaf: true})
 	registerService(serviceEntry{
 		name: "gcp:certificatemanager",
 		fn:   scanCertificateManager,
-		emits: []coverage.TypeDecl{
-			{Service: "certificatemanager", DiscoType: TypeCertManagerCertificate},
-			{Service: "certificatemanager", DiscoType: TypeCertManagerMap, Leaf: true},
-			{Service: "certificatemanager", DiscoType: TypeCertManagerMapEntry},
-			{Service: "certificatemanager", DiscoType: TypeCertManagerDNSAuth, Leaf: true},
-			{Service: "certificatemanager", DiscoType: TypeCertManagerIssuanceConfig, Leaf: true},
-			{Service: "certificatemanager", DiscoType: TypeCertManagerTrustConfig, Leaf: true},
-		},
 	})
 }
 

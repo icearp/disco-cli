@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
@@ -21,17 +21,15 @@ import (
 // into the thousands for large ML/TPU reservations) — see
 // docs/gcp-type-coverage.md for the DEFER note.
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeAutoscaler},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionAutoscaler},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeReservation},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeReservationBlock, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeReservationSubBlock, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeFutureReservation},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionCommitment},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeResourcePolicy, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionSecurityPolicy, Leaf: true},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeAutoscaler, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionAutoscaler, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeReservation, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeReservationBlock, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeReservationSubBlock, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeFutureReservation, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionCommitment, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeResourcePolicy, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeRegionSecurityPolicy, Service: "compute", Leaf: true})
 }
 
 // scanComputeAutoscalers covers both Autoscaler (zonal) and RegionAutoscaler

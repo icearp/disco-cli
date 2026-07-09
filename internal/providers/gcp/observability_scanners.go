@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/logging/v2"
 	monitoringv1 "google.golang.org/api/monitoring/v1"
@@ -14,33 +15,29 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeLoggingSink, Service: "logging", Upstream: "logging.googleapis.com/Sink"})
+	registerType(restype.Descriptor{Type: TypeLoggingBucket, Service: "logging", Upstream: "logging.googleapis.com/Bucket"})
+	registerType(restype.Descriptor{Type: TypeLoggingExclusion, Service: "logging", Upstream: "logging.googleapis.com/Exclusion", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLoggingMetric, Service: "logging", Upstream: "logging.googleapis.com/Metric"})
+	registerType(restype.Descriptor{Type: TypeLoggingLink, Service: "logging", Upstream: "logging.googleapis.com/Link"})
+	registerType(restype.Descriptor{Type: TypeLoggingView, Service: "logging", Upstream: "logging.googleapis.com/View", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLoggingLogScope, Service: "logging", Upstream: "logging.googleapis.com/LogScope"})
+	registerType(restype.Descriptor{Type: TypeLoggingSavedQuery, Service: "logging", Upstream: "logging.googleapis.com/SavedQuery", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMonitoringAlertPol, Service: "monitoring", Upstream: "monitoring.googleapis.com/AlertPolicy"})
+	registerType(restype.Descriptor{Type: TypeMonitoringDashboard, Service: "monitoring", Upstream: "monitoring.googleapis.com/Dashboard"})
+	registerType(restype.Descriptor{Type: TypeMonitoringGroup, Service: "monitoring", Upstream: "monitoring.googleapis.com/Group"})
+	registerType(restype.Descriptor{Type: TypeMonitoringNotificationChannel, Service: "monitoring", Upstream: "monitoring.googleapis.com/NotificationChannel", Leaf: true, Redact: []redact.Rule{{Path: "labels.*", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeMonitoringService, Service: "monitoring", Upstream: "monitoring.googleapis.com/Service"})
+	registerType(restype.Descriptor{Type: TypeMonitoringSLO, Service: "monitoring", Upstream: "monitoring.googleapis.com/ServiceLevelObjective", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMonitoringSnooze, Service: "monitoring", Upstream: "monitoring.googleapis.com/Snooze"})
+	registerType(restype.Descriptor{Type: TypeMonitoringUptimeCheckConfig, Service: "monitoring", Upstream: "monitoring.googleapis.com/UptimeCheckConfig"})
 	registerService(serviceEntry{
 		name: "gcp:logging",
 		fn:   scanLogging,
-		emits: []coverage.TypeDecl{
-			{Service: "logging", DiscoType: TypeLoggingSink},
-			{Service: "logging", DiscoType: TypeLoggingBucket},
-			{Service: "logging", DiscoType: TypeLoggingExclusion, Leaf: true},
-			{Service: "logging", DiscoType: TypeLoggingMetric},
-			{Service: "logging", DiscoType: TypeLoggingLink},
-			{Service: "logging", DiscoType: TypeLoggingView, Leaf: true},
-			{Service: "logging", DiscoType: TypeLoggingLogScope},
-			{Service: "logging", DiscoType: TypeLoggingSavedQuery, Leaf: true},
-		},
 	})
 	registerService(serviceEntry{
 		name: "gcp:monitoring",
 		fn:   scanMonitoring,
-		emits: []coverage.TypeDecl{
-			{Service: "monitoring", DiscoType: TypeMonitoringAlertPol},
-			{Service: "monitoring", DiscoType: TypeMonitoringDashboard},
-			{Service: "monitoring", DiscoType: TypeMonitoringGroup},
-			{Service: "monitoring", DiscoType: TypeMonitoringNotificationChannel, Leaf: true},
-			{Service: "monitoring", DiscoType: TypeMonitoringService},
-			{Service: "monitoring", DiscoType: TypeMonitoringSLO, Leaf: true},
-			{Service: "monitoring", DiscoType: TypeMonitoringSnooze},
-			{Service: "monitoring", DiscoType: TypeMonitoringUptimeCheckConfig},
-		},
 	})
 }
 

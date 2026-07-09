@@ -5,21 +5,19 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeComputeInstance, Service: "compute", Upstream: "compute.googleapis.com/Instance"})
+	registerType(restype.Descriptor{Type: TypeComputeNetwork, Service: "compute", Upstream: "compute.googleapis.com/Network"})
+	registerType(restype.Descriptor{Type: TypeComputeSubnet, Service: "compute", Upstream: "compute.googleapis.com/Subnetwork"})
+	registerType(restype.Descriptor{Type: TypeComputeFirewall, Service: "compute", Upstream: "compute.googleapis.com/Firewall"})
 	registerService(serviceEntry{
 		name: "gcp:compute",
 		fn:   scanCompute,
-		emits: []coverage.TypeDecl{
-			{Service: "compute", DiscoType: TypeComputeInstance},
-			{Service: "compute", DiscoType: TypeComputeNetwork},
-			{Service: "compute", DiscoType: TypeComputeSubnet},
-			{Service: "compute", DiscoType: TypeComputeFirewall},
-		},
 	})
 }
 

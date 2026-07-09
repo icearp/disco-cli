@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
@@ -16,28 +16,26 @@ import (
 // many different field shapes per type; wiring all of them is a larger,
 // separate pass rather than something to guess at per-type here.
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRoute},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRouter},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeVpnGateway},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeExternalVpnGateway, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeTargetVpnGateway},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeVpnTunnel},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNetworkAttachment},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNetworkEndpointGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionNetworkEndpointGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeGlobalNetworkEndpointGroup, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNetworkFirewallPolicy},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionNetworkFirewallPolicy},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNetworkProfile, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNodeGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNodeTemplate, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputePacketMirroring},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeServiceAttachment},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeNetworkEdgeSecurityService},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeCrossSiteNetwork, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeWireGroup},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeRoute, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRouter, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeVpnGateway, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeExternalVpnGateway, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeTargetVpnGateway, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeVpnTunnel, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeNetworkAttachment, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeNetworkEndpointGroup, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionNetworkEndpointGroup, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeGlobalNetworkEndpointGroup, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeNetworkFirewallPolicy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionNetworkFirewallPolicy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeNetworkProfile, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeNodeGroup, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeNodeTemplate, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputePacketMirroring, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeServiceAttachment, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeNetworkEdgeSecurityService, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeCrossSiteNetwork, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeWireGroup, Service: "compute"})
 }
 
 func scanComputeRoutes(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {

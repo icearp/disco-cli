@@ -5,22 +5,21 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/sqladmin/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSQLInstance, Service: "sqladmin", Upstream: "sqladmin.googleapis.com/Instance", Redact: []redact.Rule{{Path: "rootPassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSQLBackupRun, Service: "sqladmin"})
+	registerType(restype.Descriptor{Type: TypeSQLDatabase, Service: "sqladmin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSQLSslCert, Service: "sqladmin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSQLUser, Service: "sqladmin", Redact: []redact.Rule{{Path: "password", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "gcp:sql",
 		fn:   scanCloudSQL,
-		emits: []coverage.TypeDecl{
-			{Service: "sqladmin", DiscoType: TypeSQLInstance},
-			{Service: "sqladmin", DiscoType: TypeSQLBackupRun},
-			{Service: "sqladmin", DiscoType: TypeSQLDatabase, Leaf: true},
-			{Service: "sqladmin", DiscoType: TypeSQLSslCert, Leaf: true},
-			{Service: "sqladmin", DiscoType: TypeSQLUser},
-		},
 	})
 }
 

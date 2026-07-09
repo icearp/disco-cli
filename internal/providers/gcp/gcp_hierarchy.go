@@ -5,28 +5,19 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/cloudresourcemanager/v3"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeOrganization, Service: "cloudresourcemanager", Upstream: "cloudresourcemanager.googleapis.com/Organization", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFolder, Service: "cloudresourcemanager", Upstream: "cloudresourcemanager.googleapis.com/Folder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeProject, Service: "cloudresourcemanager", Upstream: "cloudresourcemanager.googleapis.com/Project", Leaf: true})
 	// scanHierarchy runs direct from gcp.go (not via registerService) — it
 	// fires once before per-project fan-out and emits the project/folder/
 	// organization rows resolvers anchor against. Declared via
 	// registerExtraEmits so the coverage matrix still picks up its emits.
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeOrganization, Leaf: true},
-		// Folder's only outbound reference is `Parent`, already wired via
-		// RecordHierarchy above (a hierarchy_closure/contains edge, not a
-		// registerResolver edge) — mirrors Organization/Project's Leaf flag.
-		// `ManagementProject` (rare app-management-capability field,
-		// referencing an arbitrary project outside any predictable scope)
-		// is deliberately not resolved — not worth the cross-project
-		// placeholder machinery for a niche, often-empty field.
-		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeFolder, Leaf: true},
-		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeProject, Leaf: true},
-	)
 }
 
 // scanHierarchy discovers the GCP org → folder → project tree and populates

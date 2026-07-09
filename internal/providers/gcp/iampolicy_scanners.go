@@ -4,20 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/cloudresourcemanager/v3"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeIAMPolicy, Service: "iam"})
 	registerService(serviceEntry{
 		name: "gcp:iam-policy",
 		fn:   scanIAMPolicies,
-		emits: []coverage.TypeDecl{
-			// Discovery lists iam.googleapis.com/Policy, which the algorithmic
-			// key matches — covered, no flag needed.
-			{Service: "iam", DiscoType: TypeIAMPolicy},
-		},
 	})
 }
 

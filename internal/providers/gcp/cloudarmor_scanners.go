@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeComputeSecurityPolicy, Service: "compute", Upstream: "compute.googleapis.com/SecurityPolicy", Leaf: true})
 	registerService(serviceEntry{
 		name: "gcp:cloudarmor",
 		fn:   scanCloudArmor,
-		emits: []coverage.TypeDecl{
-			{Service: "compute", DiscoType: TypeComputeSecurityPolicy, Leaf: true},
-		},
 	})
 }
 

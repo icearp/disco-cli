@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/accesscontextmanager/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeAccessPolicy, Service: "accesscontextmanager", Upstream: "accesscontextmanager.googleapis.com/AccessPolicy"})
+	registerType(restype.Descriptor{Type: TypeServicePerimeter, Service: "accesscontextmanager", Upstream: "accesscontextmanager.googleapis.com/ServicePerimeter"})
+	registerType(restype.Descriptor{Type: TypeAccessLevel, Service: "accesscontextmanager"})
+	registerType(restype.Descriptor{Type: TypeAuthorizedOrgsDesc, Service: "accesscontextmanager"})
+	registerType(restype.Descriptor{Type: TypeGcpUserAccessBinding, Service: "accesscontextmanager"})
 	registerOrgService(orgServiceEntry{
 		name: "gcp:vpcsc",
 		fn:   scanVPCSC,
-		emits: []coverage.TypeDecl{
-			{Service: "accesscontextmanager", DiscoType: TypeAccessPolicy},
-			{Service: "accesscontextmanager", DiscoType: TypeServicePerimeter},
-			{Service: "accesscontextmanager", DiscoType: TypeAccessLevel},
-			{Service: "accesscontextmanager", DiscoType: TypeAuthorizedOrgsDesc},
-			{Service: "accesscontextmanager", DiscoType: TypeGcpUserAccessBinding},
-		},
 	})
 }
 

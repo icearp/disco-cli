@@ -5,23 +5,21 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/dns/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeDNSManagedZone, Service: "dns", Upstream: "dns.googleapis.com/ManagedZone"})
+	registerType(restype.Descriptor{Type: TypeDNSRecordSet, Service: "dns", Upstream: "dns.googleapis.com/ResourceRecordSet"})
+	registerType(restype.Descriptor{Type: TypeDNSKey, Service: "dns", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDNSPolicy, Service: "dns"})
+	registerType(restype.Descriptor{Type: TypeDNSResponsePolicy, Service: "dns"})
+	registerType(restype.Descriptor{Type: TypeDNSResponsePolicyRule, Service: "dns", Leaf: true})
 	registerService(serviceEntry{
 		name: "gcp:clouddns",
 		fn:   scanCloudDNS,
-		emits: []coverage.TypeDecl{
-			{Service: "dns", DiscoType: TypeDNSManagedZone},
-			{Service: "dns", DiscoType: TypeDNSRecordSet},
-			{Service: "dns", DiscoType: TypeDNSKey, Leaf: true},
-			{Service: "dns", DiscoType: TypeDNSPolicy},
-			{Service: "dns", DiscoType: TypeDNSResponsePolicy},
-			{Service: "dns", DiscoType: TypeDNSResponsePolicyRule, Leaf: true},
-		},
 	})
 }
 

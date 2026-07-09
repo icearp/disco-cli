@@ -5,19 +5,18 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/secretmanager/v1"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeSecret, Service: "secretmanager", Upstream: "secretmanager.googleapis.com/Secret", Redact: []redact.Rule{{Path: "payload.data", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSecretVersion, Service: "secretmanager", Upstream: "secretmanager.googleapis.com/Version"})
 	registerService(serviceEntry{
 		name: "gcp:secretmanager",
 		fn:   scanSecrets,
-		emits: []coverage.TypeDecl{
-			{Service: "secretmanager", DiscoType: TypeSecret},
-			{Service: "secretmanager", DiscoType: TypeSecretVersion},
-		},
 	})
 }
 

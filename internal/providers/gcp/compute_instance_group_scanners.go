@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/compute/v1"
 )
@@ -14,16 +14,14 @@ import (
 // existing "gcp:compute" service (wired into scanCompute's fan-out list in
 // compute_scanners.go).
 func init() {
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstanceGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstanceGroup},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstanceGroupManager},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstanceGroupManager},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstanceGroupManagerResizeRequest, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstanceGroupManagerResizeRequest, Leaf: true},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeInstanceTemplate},
-		coverage.TypeDecl{Service: "compute", DiscoType: TypeComputeRegionInstanceTemplate},
-	)
+	registerType(restype.Descriptor{Type: TypeComputeInstanceGroup, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceGroup, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeInstanceGroupManager, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceGroupManager, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeInstanceGroupManagerResizeRequest, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceGroupManagerResizeRequest, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeInstanceTemplate, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceTemplate, Service: "compute"})
 }
 
 func scanComputeInstanceGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
