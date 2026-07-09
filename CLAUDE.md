@@ -66,18 +66,32 @@ Rule: **never make `text/template`/`html/template` reachable from disco's own co
 label/format templating over a fixed field set, use `strings.NewReplacer` / `fmt.Sprintf`
 instead (precedent: `cmd/graph.go:nodeLabel`, `--label-template`).
 
-Two known reachable call sites existed:
+Three known reachable call sites — **all now closed**:
 1. `cmd/graph.go:nodeLabel` (`--label-template`) — **fixed** (plain substitution).
 2. OPA's vendored `internal/gojsonschema.formatErrorDescription`, reachable via
-   `policy.NewEngine → ast.Compiler.Compile → Compiler.init → loadSchema` — **outstanding**.
-   Not fixable from disco (no OPA API removes the static edge; `WithCapabilities`/`WithSchemas`
-   don't cut it). Requires a minimal OPA delta-fork of the schema-error formatter (paired with
-   an upstream PR to opa#7903) or link-unit isolation (companion binary). Until then, removing
-   #1 alone does **not** shrink the binary — both sites must go for DCE to re-engage.
+   `policy.NewEngine → ast.Compiler.Compile → Compiler.init → loadSchema` — **fixed upstream**.
+   OPA merged a self-vendored methodless copy of `text/template` (`internal/methodlesstemplate`)
+   for the schema-error formatter. `go.mod` currently pins OPA to that unreleased main-branch
+   commit (see the pin comment on the `open-policy-agent/opa` require line) until OPA cuts a
+   tagged release containing it — drop the pin then.
+3. `google.golang.org/grpc` (pulled in transitively by the GCP SDK) imports
+   `golang.org/x/net/trace`, whose `init()` unconditionally calls
+   `http.HandleFunc("/debug/requests", Traces)` / `http.HandleFunc("/debug/events", Events)` —
+   reachable regardless of the runtime `grpc.EnableTracing` bool, and `trace.Events` →
+   `RenderEvents` → `html/template.Execute` → `text/template.execute`. This is **independent**
+   of #2 and was masked by it: fixing #2 alone only dropped the default build from ~942MB to
+   ~899MB, because #3 alone is enough to keep DCE dead. grpc ships exactly the build tag needed:
+   `-tags grpcnotrace` (`trace_notrace.go`, `//go:build grpcnotrace`) strips the `x/net/trace`
+   wiring entirely. Baked into `Makefile`'s `TAGFLAG` (always on, on top of any `TAGS=`) and into
+   every `dist` target. Fixing #2 and #3 together took the default build from ~942MB to ~294MB,
+   and `slim aws` from ~780MB (broken) to ~232MB.
 
-Guard when investigating: `go build -ldflags=-dumpdep 2>deps.txt` then
-`grep ' -> text/template.(*Template).execute$' deps.txt` lists the reachable callers;
-`go tool nm <binary> | grep -c evalField` is 0 only when DCE is healthy.
+Guard when investigating: `go build -tags grpcnotrace -ldflags=-dumpdep 2>deps.txt` then
+`grep -c ' -> text/template.(\*Template).execute$' deps.txt` — must be `0`. `go tool nm <binary> |
+grep -c evalField` is **not** a reliable health check on its own anymore: OPA's
+`internal/methodlesstemplate` package reuses the same method names (`evalField`,
+`evalFieldChain`) in its non-reflect copy, so a nonzero count there is expected and harmless —
+only a nonzero `dumpdep` hit on `text/template.(*Template).execute` means DCE is actually dead.
 
 ### Data flow
 

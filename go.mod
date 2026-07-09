@@ -443,7 +443,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/jmoiron/sqlx v1.4.0
-	github.com/open-policy-agent/opa v1.18.0
+	github.com/open-policy-agent/opa v1.18.2-0.20260709130937-d051c7e41a70 // pinned to OPA main@d051c7e (unreleased): self-vendored methodless text/template in internal/gojsonschema fixes the linker DCE trap (see CLAUDE.md). Drop this pseudo-version pin and go back to the latest tagged release once OPA cuts a release containing this commit.
 	github.com/ory/dockertest/v3 v3.12.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
