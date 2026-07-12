@@ -268,15 +268,23 @@ func resolveRouteTableRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	// Raw subnet id → store resource ID (FK-safe: index holds only scanned rows), and
+	// raw VPC id → its subnets, so the main route table can reach subnets that carry no
+	// explicit association (AWS routes those via the VPC's main table).
+	subnetByID, subnetsByVPC, err := loadSubnetVPCIndex(acct, st)
 	if err != nil {
 		return err
 	}
+
+	explicit := map[string]bool{} // subnet ids bound to any route table across the account
+	var mainRTs []struct{ rtID, vpc string }
+
 	for _, r := range rts {
 		var attrs struct {
 			VpcID        *string `json:"VpcID"`
 			Associations []struct {
 				SubnetID *string `json:"SubnetID"`
+				Main     bool    `json:"Main"`
 			} `json:"Associations"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -289,20 +297,68 @@ func resolveRouteTableRelationships(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert route-table→vpc relationship: %w", err)
 			}
 		}
+		isMain := false
 		for _, assoc := range attrs.Associations {
+			if assoc.Main {
+				isMain = true
+			}
 			if assoc.SubnetID == nil || *assoc.SubnetID == "" {
 				continue
 			}
-			subID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *assoc.SubnetID))
-			if !subnetSet[subID] {
+			explicit[*assoc.SubnetID] = true
+			subID, ok := subnetByID[*assoc.SubnetID]
+			if !ok {
 				continue
 			}
 			if err := st.UpsertRelationship(r.ID, subID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert route-table→subnet relationship: %w", err)
 			}
 		}
+		if isMain && attrs.VpcID != nil {
+			mainRTs = append(mainRTs, struct{ rtID, vpc string }{r.ID, *attrs.VpcID})
+		}
+	}
+
+	// Main table implicitly routes every subnet in its VPC with no explicit association.
+	for _, m := range mainRTs {
+		for _, rawSub := range subnetsByVPC[m.vpc] {
+			if explicit[rawSub] {
+				continue
+			}
+			if err := st.UpsertRelationship(m.rtID, subnetByID[rawSub], store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert main-route-table→subnet relationship: %w", err)
+			}
+		}
 	}
 	return nil
+}
+
+// loadSubnetVPCIndex maps each scanned subnet's raw id to its store resource ID and groups
+// raw subnet ids by their raw VPC id.
+func loadSubnetVPCIndex(acct *account, st *store.Store) (byID map[string]string, byVPC map[string][]string, err error) {
+	subs, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Subnet},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	byID = make(map[string]string, len(subs))
+	byVPC = map[string][]string{}
+	for _, s := range subs {
+		var a struct {
+			SubnetID string `json:"SubnetId"`
+			VpcID    string `json:"VpcId"`
+		}
+		if err := json.Unmarshal([]byte(s.AttributesJSON), &a); err != nil || a.SubnetID == "" {
+			continue
+		}
+		byID[a.SubnetID] = s.ID
+		if a.VpcID != "" {
+			byVPC[a.VpcID] = append(byVPC[a.VpcID], a.SubnetID)
+		}
+	}
+	return byID, byVPC, nil
 }
 
 func resolveNatGatewayRelationships(acct *account, st *store.Store) error {

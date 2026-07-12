@@ -1,10 +1,23 @@
 package aws
 
 import (
+	"encoding/json"
 	"testing"
+
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	"codeberg.org/icearp/disco/store"
 )
+
+func subnetAttrs(t *testing.T, subnetID, vpcID string) string {
+	t.Helper()
+	b, err := json.Marshal(ec2types.Subnet{SubnetId: sdkaws.String(subnetID), VpcId: sdkaws.String(vpcID)})
+	if err != nil {
+		t.Fatalf("marshal subnet attrs: %v", err)
+	}
+	return string(b)
+}
 
 func TestResolveSubnetVPCRelationships(t *testing.T) {
 	st := newTestStore(t)
@@ -60,7 +73,7 @@ func TestResolveRouteTableRelationships(t *testing.T) {
 	attrs := `{"VpcId":"vpc-001","Associations":[{"SubnetId":"subnet-001"},{"Main":true},{"SubnetId":"subnet-unscanned"}]}`
 	rtID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable, rtARN, testRegion, attrs)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
-	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-001"), testRegion, "{}")
+	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-001"), testRegion, subnetAttrs(t, "subnet-001", "vpc-001"))
 
 	if err := resolveRouteTableRelationships(acct, st); err != nil {
 		t.Fatalf("resolveRouteTableRelationships: %v", err)
@@ -87,6 +100,55 @@ func TestResolveRouteTableRelationships_EmptyAttrs(t *testing.T) {
 	if len(rels) != 0 {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
+}
+
+func TestResolveRouteTableRelationships_MainTableImplicitSubnets(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	mainARN := ec2ARN(testRegion, acct.ID, "route-table", "rtb-main")
+	mainID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable, mainARN, testRegion,
+		`{"VpcId":"vpc-001","Associations":[{"Main":true}]}`)
+	assocARN := ec2ARN(testRegion, acct.ID, "route-table", "rtb-assoc")
+	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable, assocARN, testRegion,
+		`{"VpcId":"vpc-001","Associations":[{"SubnetId":"subnet-explicit"}]}`)
+
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
+		ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
+
+	implicitID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet,
+		ec2ARN(testRegion, acct.ID, "subnet", "subnet-implicit"), testRegion, subnetAttrs(t, "subnet-implicit", "vpc-001"))
+	explicitID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet,
+		ec2ARN(testRegion, acct.ID, "subnet", "subnet-explicit"), testRegion, subnetAttrs(t, "subnet-explicit", "vpc-001"))
+	// Subnet in a different VPC — the main table must not reach it.
+	upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet,
+		ec2ARN(testRegion, acct.ID, "subnet", "subnet-other"), testRegion, subnetAttrs(t, "subnet-other", "vpc-999"))
+
+	if err := resolveRouteTableRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRouteTableRelationships: %v", err)
+	}
+
+	// Main table: VPC + implicitly-served subnet only (not the explicitly-bound one, not the other VPC's).
+	mainRels, err := st.RelationshipsFrom(mainID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom(main): %v", err)
+	}
+	if len(mainRels) != 2 {
+		t.Fatalf("main table: expected 2 relationships, got %d", len(mainRels))
+	}
+	assertRelationship(t, mainRels, mainID, vpcID, store.RelAttachedTo)
+	assertRelationship(t, mainRels, mainID, implicitID, store.RelAttachedTo)
+
+	// Non-main table: VPC + its own explicit subnet, no implicit edges.
+	assocRels, err := st.RelationshipsFrom(assocID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom(assoc): %v", err)
+	}
+	if len(assocRels) != 2 {
+		t.Fatalf("assoc table: expected 2 relationships, got %d", len(assocRels))
+	}
+	assertRelationship(t, assocRels, assocID, vpcID, store.RelAttachedTo)
+	assertRelationship(t, assocRels, assocID, explicitID, store.RelAttachedTo)
 }
 
 func TestResolveRouteTableRoutes(t *testing.T) {
