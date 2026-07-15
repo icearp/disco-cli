@@ -21,6 +21,8 @@ func TestResource_NoVersioningFields(t *testing.T) {
 		"previous_version_id": {},
 		"superseded_by":       {},
 		"version_row_id":      {},
+		"deleted_at":          {},
+		"deleted_by":          {},
 	}
 	rt := reflect.TypeOf(Resource{})
 	for i := 0; i < rt.NumField(); i++ {

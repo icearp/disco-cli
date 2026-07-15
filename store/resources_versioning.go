@@ -22,6 +22,9 @@ import (
 //     (NULL on the root row).
 //   - SupersededBy points at the successor that replaced this version (NULL
 //     on the current row of every chain).
+//   - DeletedAt / DeletedBy carry the archival tombstone (see
+//     [Store.ArchiveResource]); NULL on a live row. A tombstone is the current
+//     row (SupersededBy NULL) with DeletedAt set.
 type ResourceVersion struct {
 	Resource
 	VerifiedAt        *string `db:"verified_at"          json:"verified_at"`
@@ -30,6 +33,8 @@ type ResourceVersion struct {
 	PreviousVersionID *string `db:"previous_version_id"  json:"previous_version_id"`
 	SupersededBy      *string `db:"superseded_by"        json:"superseded_by"`
 	VersionRowID      string  `db:"version_row_id"       json:"version_row_id"`
+	DeletedAt         *string `db:"deleted_at"           json:"deleted_at"`
+	DeletedBy         *string `db:"deleted_by"           json:"deleted_by"`
 }
 
 // resourceVersionColumns lists the SELECT projection for paid reads
@@ -58,6 +63,8 @@ func resourceVersionColumns() []string {
 		"verified_by",
 		"previous_version_id",
 		"superseded_by",
+		"deleted_at",
+		"deleted_by",
 	}
 }
 

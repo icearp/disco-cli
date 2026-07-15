@@ -168,6 +168,11 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 			// update in place so renames / status flaps propagate.
 			// A type change is NOT unchanged — it falls to the split
 			// path so the new type takes the current-version slot.
+			// deleted_at / deleted_by are cleared unconditionally: if this
+			// row was an archival tombstone (see ArchiveResource), re-seeing
+			// the resource in a scan resurrects it — the resource still
+			// exists, so the tombstone must lift. A live row's columns are
+			// already NULL, so the clear is a no-op there.
 			if _, err := tx.Exec(tx.Rebind(`
 				UPDATE resources
 				   SET verified_at         = $1,
@@ -177,7 +182,9 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 				       zone                = $5,
 				       status              = $6,
 				       account_name        = $7,
-				       managed_by_provider = $8
+				       managed_by_provider = $8,
+				       deleted_at          = NULL,
+				       deleted_by          = NULL
 				 WHERE id = $9`),
 				now, r.DiscoveredBy,
 				r.Name, r.Region, r.Zone, r.Status, r.AccountName, r.ManagedByProvider,
