@@ -243,16 +243,19 @@ func scanBucketManagedFolders(ctx context.Context, svc *storage.Service, st *sto
 	err = svc.ManagedFolders.List(bucket).Pages(ctx, func(page *storage.ManagedFolders) error {
 		batch := make([]*store.Resource, 0, len(page.Items))
 		for _, mf := range page.Items {
-			if mf == nil || mf.Id == "" {
+			if mf == nil || mf.SelfLink == "" {
 				continue
 			}
 			name := mf.Name
 			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeStorageManagedFolder,
-				NativeID:       mf.Id,
+				Provider:    "gcp",
+				AccountID:   p.ID,
+				AccountName: &p.Name,
+				Type:        TypeStorageManagedFolder,
+				// SelfLink (not Id): a managed folder and an HNS folder both report
+				// Id as {bucket}/{name}; only SelfLink's collection segment
+				// (managedFolders/ vs folders/) keeps the two identities distinct.
+				NativeID:       mf.SelfLink,
 				Name:           &name,
 				CreatedAt:      strp(mf.CreateTime),
 				AttributesJSON: mustJSON(mf),
@@ -316,16 +319,18 @@ func scanBucketFolders(ctx context.Context, svc *storage.Service, st *store.Stor
 	err = svc.Folders.List(bucket).Pages(ctx, func(page *storage.Folders) error {
 		batch := make([]*store.Resource, 0, len(page.Items))
 		for _, f := range page.Items {
-			if f == nil || f.Id == "" {
+			if f == nil || f.SelfLink == "" {
 				continue
 			}
 			name := f.Name
 			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeStorageFolder,
-				NativeID:       f.Id,
+				Provider:    "gcp",
+				AccountID:   p.ID,
+				AccountName: &p.Name,
+				Type:        TypeStorageFolder,
+				// SelfLink (not Id): shares Id namespace {bucket}/{name} with
+				// managed folders — see scanBucketManagedFolders.
+				NativeID:       f.SelfLink,
 				Name:           &name,
 				CreatedAt:      strp(f.CreateTime),
 				AttributesJSON: mustJSON(f),
