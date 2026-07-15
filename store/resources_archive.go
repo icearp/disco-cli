@@ -34,12 +34,30 @@ import (
 func (s *Store) ArchiveResource(rootID, deletedBy string) (bool, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
+	// The split is two statements that must be atomic. When the store already
+	// wraps a caller-owned transaction (WrapTx — the multi-tenant request
+	// path), run on that tx directly; the caller commits. Otherwise open and
+	// own a transaction here.
+	if s.tx != nil {
+		return s.archiveOnTx(rootID, deletedBy, now)
+	}
 	tx, err := s.db.Beginx()
 	if err != nil {
 		return false, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	ok, err := WrapTx(tx, Driver(s.driver)).archiveOnTx(rootID, deletedBy, now)
+	if err != nil || !ok {
+		return ok, err
+	}
+	return true, tx.Commit()
+}
 
+// archiveOnTx performs the version-split tombstone on the store's active
+// query target (s.ext(): the caller-owned tx under WrapTx, else the pool).
+// It assumes it runs inside a transaction — [Store.ArchiveResource] provides
+// one on the pool path.
+func (s *Store) archiveOnTx(rootID, deletedBy, now string) (bool, error) {
 	// Load the live current row of the chain, skipping an already-archived
 	// tombstone (deleted_at IS NOT NULL).
 	const lookupSQL = `
@@ -71,7 +89,7 @@ func (s *Store) ArchiveResource(rootID, deletedBy string) (bool, error) {
 		VerifiedBy        *string `db:"verified_by"`
 		ManagedByProvider bool    `db:"managed_by_provider"`
 	}
-	switch lookupErr := tx.Get(&cur, tx.Rebind(lookupSQL), rootID); {
+	switch lookupErr := s.get(&cur, lookupSQL, rootID); {
 	case errors.Is(lookupErr, sql.ErrNoRows):
 		return false, nil
 	case lookupErr != nil:
@@ -82,20 +100,20 @@ func (s *Store) ArchiveResource(rootID, deletedBy string) (bool, error) {
 	// insert so the current-by-natural-key partial unique index never sees two
 	// live rows for the natural key (mirrors UpsertResources' split ordering).
 	newRowID := uuid.Must(uuid.NewV7()).String()
-	if _, err := tx.Exec(tx.Rebind(
-		`UPDATE resources SET superseded_by = $1 WHERE id = $2`),
+	if _, err := s.exec(
+		`UPDATE resources SET superseded_by = $1 WHERE id = $2`,
 		newRowID, cur.VersionRowID,
 	); err != nil {
 		return false, fmt.Errorf("mark superseded for %s: %w", rootID, err)
 	}
-	if _, err := tx.Exec(tx.Rebind(`
+	if _, err := s.exec(`
 		INSERT INTO resources
 			(id, root_id, previous_version_id, provider, account_id, account_name, type, native_id,
 			 name, region, zone, status, tags, attributes,
 			 created_at, discovered_at, discovered_by,
 			 verified_at, verified_by, managed_by_provider, deleted_at, deleted_by)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-		        $15, $16, $17, $18, $19, $20, $21, $22)`),
+		        $15, $16, $17, $18, $19, $20, $21, $22)`,
 		newRowID, cur.RootID, cur.VersionRowID,
 		cur.Provider, cur.AccountID, cur.AccountName, cur.Type, cur.NativeID,
 		cur.Name, cur.Region, cur.Zone, cur.Status, cur.TagsJSON, cur.AttributesJSON,
@@ -104,7 +122,7 @@ func (s *Store) ArchiveResource(rootID, deletedBy string) (bool, error) {
 	); err != nil {
 		return false, fmt.Errorf("insert tombstone for %s: %w", rootID, err)
 	}
-	return true, tx.Commit()
+	return true, nil
 }
 
 // RestoreResource lifts the archival tombstone on the current version of the
@@ -119,10 +137,10 @@ func (s *Store) ArchiveResource(rootID, deletedBy string) (bool, error) {
 // the chain does not exist, or its current row is already live. The operation
 // is therefore idempotent.
 func (s *Store) RestoreResource(rootID string) (bool, error) {
-	res, err := s.db.Exec(s.db.Rebind(`
+	res, err := s.exec(`
 		UPDATE resources
 		   SET deleted_at = NULL, deleted_by = NULL
-		 WHERE root_id = $1 AND superseded_by IS NULL AND deleted_at IS NOT NULL`),
+		 WHERE root_id = $1 AND superseded_by IS NULL AND deleted_at IS NOT NULL`,
 		rootID)
 	if err != nil {
 		return false, fmt.Errorf("restore resource %s: %w", rootID, err)
