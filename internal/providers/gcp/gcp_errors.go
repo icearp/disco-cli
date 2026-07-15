@@ -26,6 +26,37 @@ func markServiceDisabled(err error) error {
 	return fmt.Errorf("%w: %s", errServiceDisabled, err.Error())
 }
 
+// errBillingDisabled is a sentinel returned when the calling project has
+// billing disabled (free trial ended / no billing account). scanProject
+// detects it via errors.Is and surfaces "(project: billing disabled)" on the
+// per-service progress line — no warning, no error. Billing is self-enableable
+// (associate a billing account), so it sits in the annotation family alongside
+// errServiceDisabled rather than the warnings block. GCP is inconsistent about
+// the HTTP code: some services return 403 "...has billing disabled...", others
+// 400 failedPrecondition "Billing is disabled for project ..." — isBillingDisabled
+// matches on message, so both flavours land here.
+var errBillingDisabled = errors.New("gcp project billing disabled")
+
+// markBillingDisabled wraps the upstream billing error so the dispatch loop can
+// identify it via errors.Is(err, errBillingDisabled). skipIfDenied returns this
+// when isBillingDisabled matches.
+func markBillingDisabled(err error) error {
+	return fmt.Errorf("%w: %s", errBillingDisabled, err.Error())
+}
+
+// isBillingDisabled reports whether err is a GCP "billing disabled" precondition.
+// Matches on message (code-agnostic) because GCP returns it as both 403
+// ("Project ... has billing disabled.") and 400 failedPrecondition
+// ("Billing is disabled for project ...").
+func isBillingDisabled(err error) bool {
+	var gerr *googleapi.Error
+	if !errors.As(err, &gerr) {
+		return false
+	}
+	msg := strings.ToLower(gerr.Message)
+	return strings.Contains(msg, "billing is disabled") || strings.Contains(msg, "has billing disabled")
+}
+
 // isAPINotEnabled is a narrow predicate that matches the three known shapes
 // GCP uses to signal "this API is not enabled in the project":
 //   - 403 with message "...has not been used in project..." (most APIs)
@@ -71,6 +102,13 @@ func isPermissionDenied(err error) bool {
 			return true
 		}
 	}
+	// Billing-disabled arrives as 400 failedPrecondition on some services, which
+	// no code check above catches. Fold it in so the single skipIfDenied gate
+	// (~130 call sites all keyed on isPermissionDenied) routes it non-fatally;
+	// skipIfDenied then re-classifies to the billing sentinel.
+	if isBillingDisabled(err) {
+		return true
+	}
 	return false
 }
 
@@ -79,6 +117,9 @@ func isPermissionDenied(err error) bool {
 // a ScanWarning and returns nil. The sentinel path keeps the disabled-API
 // case off the warnings block; only real permission denials warn.
 func skipIfDenied(st *store.Store, service, projectID string, err error) error {
+	if isBillingDisabled(err) {
+		return markBillingDisabled(err)
+	}
 	if isAPINotEnabled(err) {
 		return markServiceDisabled(err)
 	}

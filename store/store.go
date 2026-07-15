@@ -70,7 +70,10 @@ const (
 // Advisor API), a service closed to new customers (Migration Hub), or an
 // account AWS hasn't made eligible (CloudSearch) → "(<tenant>: not
 // entitled)". Distinct from ServiceDisabled because there's no toggle the
-// user controls.
+// user controls. ServiceBillingDisabled: the project/account has billing
+// disabled (self-enableable — associate a billing account) → "(<tenant>:
+// billing disabled)". Sits beside ServiceDisabled (both self-enableable
+// preconditions) rather than the warnings block.
 type ServiceStatus uint8
 
 const (
@@ -78,6 +81,7 @@ const (
 	ServiceDisabled
 	ServiceUnavailable
 	ServiceNotEntitled
+	ServiceBillingDisabled
 )
 
 type Store struct {
@@ -86,7 +90,7 @@ type Store struct {
 	driver            driver
 	readOnly          bool                                                                                      // true iff opened via OpenReadOnly; skips the Close-time WAL checkpoint+cleanup on a RO DB.
 	path              string                                                                                    // SQLite file path; set by Open. Names the DB in the WAL-cleanup-deferred diagnostic.
-	OnServiceComplete func(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", status surfaces "(<tenant>: disabled)" / "(region: unavailable)" / "(<tenant>: not entitled)"
+	OnServiceComplete func(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", status surfaces "(<tenant>: disabled)" / "(region: unavailable)" / "(<tenant>: not entitled)" / "(<tenant>: billing disabled)"
 	OnResolveStart    func(provider string)                                                                     // just before phase-2 resolvers run
 	OnResolveComplete func(provider string, edges int)                                                          // after all resolvers finish
 	OnWarn            func(ScanWarning)                                                                         // skip-worthy error handled (transient, access-denied)

@@ -207,6 +207,12 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 					st.ReportService(svc.name, p.ID, 0, 0, 0, 0, store.ServiceDisabled)
 					return nil
 				}
+				if errors.Is(err, errBillingDisabled) {
+					// Project billing off (self-enableable) — surface as
+					// "(project: billing disabled)" instead of a warning/error.
+					st.ReportService(svc.name, p.ID, 0, 0, 0, 0, store.ServiceBillingDisabled)
+					return nil
+				}
 				return err
 			}
 			st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)

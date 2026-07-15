@@ -346,7 +346,8 @@ func tenantNoun(service string) string {
 // "(region: unavailable)" (service not deployed in this AWS region),
 // ServiceDisabled → "(<tenant>: disabled)" (account/project/subscription
 // hasn't enabled it but could), ServiceNotEntitled → "(<tenant>: not
-// entitled)" (exists but the tenant can't self-enable it). All three are
+// entitled)" (exists but the tenant can't self-enable it), ServiceBillingDisabled
+// → "(<tenant>: billing disabled)" (billing off but self-enableable). All are
 // mutually exclusive with the error suffix, since a skipped service produces
 // no errors. tenantNoun derives the tenant noun from service's provider prefix.
 func serviceStatusSuffix(service string, status store.ServiceStatus, errCount int) string {
@@ -357,6 +358,8 @@ func serviceStatusSuffix(service string, status store.ServiceStatus, errCount in
 		return fmt.Sprintf("  (%s: disabled)", tenantNoun(service))
 	case status == store.ServiceNotEntitled:
 		return fmt.Sprintf("  (%s: not entitled)", tenantNoun(service))
+	case status == store.ServiceBillingDisabled:
+		return fmt.Sprintf("  (%s: billing disabled)", tenantNoun(service))
 	case errCount > 0:
 		return "  (with errors)"
 	}
