@@ -112,23 +112,31 @@ an account now silently **merge** into one version chain, not coexist. Two desig
 
 1. **Never mutate a value the API returned.** `attributes` stays the verbatim SDK
    response. Never fix a collision by string-mangling a returned id (`ac.Id + "/x"`) —
-   that corrupts a value the API owns. If a returned id is non-unique across types (the
-   cloud's own overlap, e.g. GCS bucket-ACL vs default-object-ACL both `{bucket}/{entity}`),
-   pick a **different, unique** API-provided field for that type (`ac.SelfLink`) — don't
-   rewrite the non-unique one.
+   that corrupts a value the API owns. When a returned id is non-unique across types (the
+   cloud's own overlap, e.g. GCS bucket-ACL vs default-object-ACL both report Id
+   `{bucket}/{entity}`), synthesize a **new** id from real parts (below) rather than
+   rewriting the returned one.
 2. **One fixed native_id source per type, applied 100% unconditionally** — never a
    per-row runtime fallback ("SelfLink if present, else Name, else synthesize"), which
    makes one type emit different-shaped ids depending on which fields a response populates.
-   A missing chosen field is a **presence skip** (drop the row, like a `SelfLink == ""`
+   A missing chosen field is a **presence skip** (drop the row, like an `Entity == ""`
    guard), never a substitution.
+3. **Prefer a shape consistent with the type's siblings.** native_id shows in disco
+   output/DBs; a full `https://…` SelfLink URL is a jarring shape next to short path ids.
+   GCS bucket children key on a synthesized relative path `{bucket}/{collection}/{name}`
+   (`storage:notification` = `{bucket}/notificationConfigs/{id}`, and the ACL / managed-
+   folder / folder collision fixes follow it: `{bucket}/acl/{entity}`,
+   `{bucket}/managedFolders/{name}`, `{bucket}/folders/{name}`). The collection segment is
+   the disambiguator the raw Id lacked — same effect as SelfLink, without the URL shape.
 
-Per-type source, in order: (1) the API's own unique value — selfLink / ARN / canonical
-resource name; (2) synthesize from real id parts only when the API issues no unique id at
-all (precedent: `aws_arn.go`; disco's `{parentARN}/<kind>` children). For a config-of-parent
-singleton that the API returns keyed to its parent's ARN (WAFv2 logging-config, CloudFront
-monitoring-subscription — both carry the parent's ARN), append a `/<kind>` suffix so it
-doesn't share identity with the parent; the resolver strips the suffix to recover the
-parent ARN. **GCP caveat:** the unique field must be the form other resources *reference it
+Per-type source, in order: (1) the API's own unique value — canonical resource name / ARN
+/ selfLink where that IS the type's natural id (Compute `inst.SelfLink`, `sa.Name`);
+(2) synthesize from real id parts when the API's id is absent OR non-unique across types
+(precedent: `aws_arn.go`; disco's `{parentARN}/<kind>` and `{bucket}/{collection}/{name}`
+children). For a config-of-parent singleton the API returns keyed to its parent's ARN
+(WAFv2 logging-config, CloudFront monitoring-subscription — both carry the parent's ARN),
+append a `/<kind>` suffix so it doesn't share identity with the parent; the resolver strips
+the suffix to recover the parent ARN. **GCP caveat:** the unique field must be the form other resources *reference it
 by* (resolvers recompute a target's ResourceID from the ref-string) — `.SelfLink` only when
 that IS the cross-referenced form (Compute) or the type is never an edge Target; types
 referenced by relative name (`.Name` / `projects/...`) keep that form. See

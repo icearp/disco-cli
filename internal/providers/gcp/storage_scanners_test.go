@@ -44,19 +44,19 @@ func TestScanStorage_BucketsHmacKeysAndPerBucketSecondaryChain(t *testing.T) {
 			Items: []*storage.Notification{{Id: "notif1", Topic: "//pubsub.googleapis.com/projects/proj1/topics/t1"}},
 		}),
 		"/b/bucket1/managedFolders": marshalAttrs(t, storage.ManagedFolders{
-			Items: []*storage.ManagedFolder{{Id: "bucket1/mf1/", Name: "mf1/", Bucket: "bucket1", SelfLink: "https://www.googleapis.com/storage/v1/b/bucket1/managedFolders/mf1/"}},
+			Items: []*storage.ManagedFolder{{Id: "bucket1/mf1/", Name: "mf1/", Bucket: "bucket1"}},
 		}),
 		"/b/bucket1/anywhereCaches": marshalAttrs(t, storage.AnywhereCaches{
 			Items: []*storage.AnywhereCache{{Id: "bucket1/ac1", AnywhereCacheId: "ac1", State: "RUNNING"}},
 		}),
 		"/b/bucket1/folders": marshalAttrs(t, storage.Folders{
-			Items: []*storage.Folder{{Id: "bucket1/f1/", Name: "f1/", Bucket: "bucket1", SelfLink: "https://www.googleapis.com/storage/v1/b/bucket1/folders/f1/"}},
+			Items: []*storage.Folder{{Id: "bucket1/f1/", Name: "f1/", Bucket: "bucket1"}},
 		}),
 		"/b/bucket1/acl": marshalAttrs(t, storage.BucketAccessControls{
-			Items: []*storage.BucketAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers", SelfLink: "https://www.googleapis.com/storage/v1/b/bucket1/acl/allUsers"}},
+			Items: []*storage.BucketAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers", Bucket: "bucket1"}},
 		}),
 		"/b/bucket1/defaultObjectAcl": marshalAttrs(t, storage.ObjectAccessControls{
-			Items: []*storage.ObjectAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers", SelfLink: "https://www.googleapis.com/storage/v1/b/bucket1/defaultObjectAcl/allUsers"}},
+			Items: []*storage.ObjectAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers", Bucket: "bucket1"}},
 		}),
 	}
 	srv := fakeGCPServer(t, routes)
@@ -78,11 +78,11 @@ func TestScanStorage_BucketsHmacKeysAndPerBucketSecondaryChain(t *testing.T) {
 		nativeID string
 	}{
 		{TypeStorageNotification, "bucket1/notificationConfigs/notif1"},
-		{TypeStorageManagedFolder, "https://www.googleapis.com/storage/v1/b/bucket1/managedFolders/mf1/"},
+		{TypeStorageManagedFolder, "bucket1/managedFolders/mf1/"},
 		{TypeStorageAnywhereCache, "bucket1/ac1"},
-		{TypeStorageFolder, "https://www.googleapis.com/storage/v1/b/bucket1/folders/f1/"},
-		{TypeStorageBucketAccessControl, "https://www.googleapis.com/storage/v1/b/bucket1/acl/allUsers"},
-		{TypeStorageDefaultObjectAccessControl, "https://www.googleapis.com/storage/v1/b/bucket1/defaultObjectAcl/allUsers"},
+		{TypeStorageFolder, "bucket1/folders/f1/"},
+		{TypeStorageBucketAccessControl, "bucket1/acl/allUsers"},
+		{TypeStorageDefaultObjectAccessControl, "bucket1/defaultObjectAcl/allUsers"},
 	} {
 		id := store.ResourceID("gcp", p.ID, tc.nativeID)
 		res, err := st.GetResource(id)
@@ -136,7 +136,7 @@ func TestScanStorage_ManagedFolderNotApplicableContinues(t *testing.T) {
 			_, _ = w.Write([]byte(`{}`))
 		case "/b/bucket1/acl":
 			_, _ = w.Write([]byte(marshalAttrs(t, storage.BucketAccessControls{
-				Items: []*storage.BucketAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers", SelfLink: "https://www.googleapis.com/storage/v1/b/bucket1/acl/allUsers"}},
+				Items: []*storage.BucketAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers", Bucket: "bucket1"}},
 			})))
 		case "/b/bucket1/defaultObjectAcl":
 			_, _ = w.Write([]byte(`{}`))

@@ -243,19 +243,20 @@ func scanBucketManagedFolders(ctx context.Context, svc *storage.Service, st *sto
 	err = svc.ManagedFolders.List(bucket).Pages(ctx, func(page *storage.ManagedFolders) error {
 		batch := make([]*store.Resource, 0, len(page.Items))
 		for _, mf := range page.Items {
-			if mf == nil || mf.SelfLink == "" {
+			if mf == nil || mf.Name == "" {
 				continue
 			}
 			name := mf.Name
+			// {bucket}/managedFolders/{name}: a managed folder and an HNS folder
+			// both report Id as {bucket}/{name}; the collection segment keeps the
+			// two identities distinct. Mirrors the storage:notification shape.
+			nativeID := fmt.Sprintf("%s/managedFolders/%s", bucket, mf.Name)
 			batch = append(batch, &store.Resource{
-				Provider:    "gcp",
-				AccountID:   p.ID,
-				AccountName: &p.Name,
-				Type:        TypeStorageManagedFolder,
-				// SelfLink (not Id): a managed folder and an HNS folder both report
-				// Id as {bucket}/{name}; only SelfLink's collection segment
-				// (managedFolders/ vs folders/) keeps the two identities distinct.
-				NativeID:       mf.SelfLink,
+				Provider:       "gcp",
+				AccountID:      p.ID,
+				AccountName:    &p.Name,
+				Type:           TypeStorageManagedFolder,
+				NativeID:       nativeID,
 				Name:           &name,
 				CreatedAt:      strp(mf.CreateTime),
 				AttributesJSON: mustJSON(mf),
@@ -319,18 +320,20 @@ func scanBucketFolders(ctx context.Context, svc *storage.Service, st *store.Stor
 	err = svc.Folders.List(bucket).Pages(ctx, func(page *storage.Folders) error {
 		batch := make([]*store.Resource, 0, len(page.Items))
 		for _, f := range page.Items {
-			if f == nil || f.SelfLink == "" {
+			if f == nil || f.Name == "" {
 				continue
 			}
 			name := f.Name
+			// {bucket}/folders/{name}: shares Id namespace {bucket}/{name} with
+			// managed folders — the collection segment disambiguates. See
+			// scanBucketManagedFolders.
+			nativeID := fmt.Sprintf("%s/folders/%s", bucket, f.Name)
 			batch = append(batch, &store.Resource{
-				Provider:    "gcp",
-				AccountID:   p.ID,
-				AccountName: &p.Name,
-				Type:        TypeStorageFolder,
-				// SelfLink (not Id): shares Id namespace {bucket}/{name} with
-				// managed folders — see scanBucketManagedFolders.
-				NativeID:       f.SelfLink,
+				Provider:       "gcp",
+				AccountID:      p.ID,
+				AccountName:    &p.Name,
+				Type:           TypeStorageFolder,
+				NativeID:       nativeID,
 				Name:           &name,
 				CreatedAt:      strp(f.CreateTime),
 				AttributesJSON: mustJSON(f),
@@ -364,17 +367,19 @@ func scanBucketAccessControls(ctx context.Context, svc *storage.Service, st *sto
 	}
 	batch := make([]*store.Resource, 0, len(resp.Items))
 	for _, ac := range resp.Items {
-		if ac == nil || ac.SelfLink == "" {
+		if ac == nil || ac.Entity == "" {
 			continue
 		}
+		// {bucket}/acl/{entity}: GCS returns the same Id ({bucket}/{entity}) for
+		// both bucket and default-object ACLs; the collection segment keeps them
+		// distinct. Mirrors the storage:notification shape.
+		nativeID := fmt.Sprintf("%s/acl/%s", bucket, ac.Entity)
 		batch = append(batch, &store.Resource{
-			Provider:    "gcp",
-			AccountID:   p.ID,
-			AccountName: &p.Name,
-			Type:        TypeStorageBucketAccessControl,
-			// SelfLink (not Id): GCS returns the same Id ({bucket}/{entity}) for both
-			// bucket and default-object ACLs; only SelfLink differs by collection.
-			NativeID:       ac.SelfLink,
+			Provider:       "gcp",
+			AccountID:      p.ID,
+			AccountName:    &p.Name,
+			Type:           TypeStorageBucketAccessControl,
+			NativeID:       nativeID,
 			Name:           &ac.Entity,
 			AttributesJSON: mustJSON(ac),
 			DiscoveredBy:   scanID,
@@ -396,17 +401,18 @@ func scanDefaultObjectAccessControls(ctx context.Context, svc *storage.Service, 
 	}
 	batch := make([]*store.Resource, 0, len(resp.Items))
 	for _, ac := range resp.Items {
-		if ac == nil || ac.SelfLink == "" {
+		if ac == nil || ac.Entity == "" {
 			continue
 		}
+		// {bucket}/defaultObjectAcl/{entity}: shares Id namespace with bucket
+		// ACLs — the collection segment disambiguates. See scanBucketAccessControls.
+		nativeID := fmt.Sprintf("%s/defaultObjectAcl/%s", bucket, ac.Entity)
 		batch = append(batch, &store.Resource{
-			Provider:    "gcp",
-			AccountID:   p.ID,
-			AccountName: &p.Name,
-			Type:        TypeStorageDefaultObjectAccessControl,
-			// SelfLink (not Id): shares Id namespace with bucket ACLs — see
-			// scanBucketAccessControls.
-			NativeID:       ac.SelfLink,
+			Provider:       "gcp",
+			AccountID:      p.ID,
+			AccountName:    &p.Name,
+			Type:           TypeStorageDefaultObjectAccessControl,
+			NativeID:       nativeID,
 			Name:           &ac.Entity,
 			AttributesJSON: mustJSON(ac),
 			DiscoveredBy:   scanID,
