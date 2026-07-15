@@ -66,8 +66,9 @@ const (
 // project hasn't enabled the service but could → "(<tenant>: disabled)".
 // ServiceUnavailable: service not deployed in this AWS region, nothing the
 // user can do → "(region: unavailable)". ServiceNotEntitled: service exists
-// but the tenant can't self-enable it — a paid support-tier gate (Trusted
-// Advisor API), a service closed to new customers (Migration Hub), or an
+// but the tenant can't self-enable it — a support-tier gate (Trusted
+// Advisor API needs Business/Enterprise AWS Support), a service closed to
+// new customers (Migration Hub), or an
 // account AWS hasn't made eligible (CloudSearch) → "(<tenant>: not
 // entitled)". Distinct from ServiceDisabled because there's no toggle the
 // user controls. ServiceBillingDisabled: the project/account has billing

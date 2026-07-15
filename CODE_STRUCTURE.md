@@ -18,7 +18,7 @@ cmd/           →  internal/providers/<name>/  →  store/  →  sqlite ($XDG_D
 
 Edge kinds + relationship semantics: `store/CLAUDE.md` "Edge kinds".
 
-CLI subcommand surface (`scan`, `resources`, `diff`, `graph`, `check`, `coverage`) + flags: `cmd/CLAUDE.md`. `check` ships in OSS (engine + BYO `--rules`); curated compliance packs are paid.
+CLI subcommand surface (`scan`, `resources`, `diff`, `graph`, `check`, `coverage`) + flags: `cmd/CLAUDE.md`. `check` ships the engine + BYO `--rules`; curated compliance packs (CIS / NIST 800-53 / PCI-DSS / Well-Architected) are not yet bundled.
 
 ---
 

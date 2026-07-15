@@ -25,8 +25,8 @@ type Scan struct {
 	ResourceCount *int    `db:"resource_count"`
 	MetaJSON      *string `db:"meta"`
 	// WorkspaceID is the per-workspace RLS discriminator. Omitted from the read
-	// projection (scanColumns) like Resource.WorkspaceID — no OSS consumer reads
-	// it and disco-saas's RLS layer filters per-workspace, so it stays nil.
+	// projection (scanColumns) like Resource.WorkspaceID — the single-tenant store
+	// never reads it and disco-saas's RLS layer filters per-workspace, so it stays nil.
 	// Kept as a field so the type still documents the column.
 	WorkspaceID *string `db:"workspace_id" json:"-"`
 }
@@ -216,7 +216,7 @@ type ScanErrorEntry struct {
 }
 
 // AppendScanError appends one structured entry to scans.errors. PG path
-// uses jsonb_insert; the SQLite fallback (OSS) JSON-encodes the array
+// uses jsonb_insert; the SQLite fallback JSON-encodes the array
 // once and rewrites. Both are concurrency-safe under the existing
 // per-scan write pattern (one scanner mutates one scan).
 func (s *Store) AppendScanError(id string, e ScanErrorEntry) error {
@@ -231,7 +231,7 @@ func (s *Store) AppendScanError(id string, e ScanErrorEntry) error {
 			 WHERE id = $2`, string(b), id)
 		return err
 	}
-	// SQLite path: read-modify-write. Acceptable for OSS dev usage.
+	// SQLite path: read-modify-write. Acceptable for single-tenant CLI usage.
 	var raw string
 	if err := s.get(&raw, `SELECT COALESCE(errors, '[]') FROM scans WHERE id = ?`, id); err != nil {
 		return err

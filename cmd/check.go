@@ -43,11 +43,11 @@ data.disco.deny set with finding objects shaped:
   {"id": "...", "severity": "low|medium|high|critical", "message": "...",
    "tags": {...}, "remediation": "...", "ref_url": "..."}
 
-The engine ships in OSS. Two ways to feed it rules:
+Two ways to feed the check engine rules:
 
   --rules <file|dir>   Bring your own policies (Conftest AWS, regula,
                        in-house bundles). Repeatable.
-  --packs <name,...>   Load bundled OSS packs. Available:
+  --packs <name,...>   Load bundled packs. Available:
                          aws-waf — 5-rule AWS Well-Architected sample pack
                                    (one or two rules per pillar)
 
@@ -370,7 +370,7 @@ func renderCheckMarkdown(findings []policy.Finding) error {
 
 func init() {
 	checkCmd.Flags().StringSliceVar(&checkRulePaths, "rules", nil, "Rego policy file or directory (repeatable; directories walked for *.rego)")
-	checkCmd.Flags().StringSliceVar(&checkPacks, "packs", nil, "Comma-separated bundled OSS packs (available: aws-waf)")
+	checkCmd.Flags().StringSliceVar(&checkPacks, "packs", nil, "Comma-separated bundled packs (available: aws-waf)")
 	_ = checkCmd.RegisterFlagCompletionFunc("packs", staticCompletion(policy.AvailablePacks()...))
 	checkCmd.Flags().StringVar(&checkSeverity, "severity", "", "Minimum severity to report: low|medium|high|critical")
 	_ = checkCmd.RegisterFlagCompletionFunc("severity", staticCompletion("low", "medium", "high", "critical"))

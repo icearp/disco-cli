@@ -128,9 +128,8 @@ type ResourceFilter struct {
 	Regions      []string
 	Status       string
 	// DiscoveredBy, when set, restricts results to rows inserted by the named
-	// scan id (matches `discovered_by`). The paid build adds a verified_by
-	// branch via ResourceFilterPaid + ListResourcesPaid; the OSS-shared filter
-	// only knows about discovery.
+	// scan id (matches `discovered_by`). The verified_by axis is selected
+	// separately via ScanAs (see the --scan-as flag).
 	DiscoveredBy string
 	// DiscoveredSince filters rows whose discovered_at >= this RFC3339
 	// timestamp. Stored timestamps sort lexicographically same as
@@ -255,8 +254,8 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 }
 
 // GetResource retrieves a single resource by its caller-facing ID (the
-// deterministic ResourceID hash). Under paid, resolves to the current
-// version row of the chain whose root_id matches.
+// deterministic ResourceID hash). Resolves to the current version row of
+// the chain whose root_id matches.
 func (s *Store) GetResource(id string) (*Resource, error) {
 	q := applyCurrentVersionPredicate(
 		sq.Select(resourceSelectColumns()...).From("resources").
@@ -436,8 +435,7 @@ func resolveFilterSuffix(provider, rtype, account string) string {
 
 // DescendantsOf returns all resources descended from parentID (any depth).
 // Caller passes a deterministic ResourceID hash; hierarchy_closure stores
-// hashes, so the join key on r is resourceIDColumn() — `id` in OSS, `root_id`
-// in paid.
+// hashes, so the join key on r is resourceIDColumn() (`root_id`).
 func (s *Store) DescendantsOf(parentID string, f ResourceFilter) ([]Resource, error) {
 	q := applyCurrentVersionPredicate(
 		sq.Select(resourceSelectColumnsPrefixed("r")...).

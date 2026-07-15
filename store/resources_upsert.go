@@ -13,7 +13,7 @@ import (
 	"codeberg.org/icearp/disco/internal/volatile"
 )
 
-// UpsertResources bulk-upserts resources under the paid version-chain
+// UpsertResources bulk-upserts resources under the version-chain
 // model. Caller-facing signature unchanged. Per-resource logic:
 //
 //   - First discovery (no row with this natural key has superseded_by

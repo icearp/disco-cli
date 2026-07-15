@@ -112,7 +112,7 @@ func TestPG_RoundTripParity(t *testing.T) {
 	}
 }
 
-// Tenant isolation (RLS) is no longer part of the OSS schema — disco-saas
+// Tenant isolation (RLS) is no longer part of the single-tenant schema — disco-saas
 // layers tenant_id + row-level security onto these tables via its own
 // migration set, and the RLS isolation test lives there. This suite proves
 // the public extension point those layers ride on: TestPG_WithAfterConnect

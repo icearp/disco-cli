@@ -8,8 +8,8 @@ import (
 	sq "github.com/Masterminds/squirrel"
 )
 
-// ResourceVersion is the paid-build wire shape that carries verification
-// and version-chain metadata. Embeds Resource, so new Resource fields
+// ResourceVersion is the wire shape that carries verification and
+// version-chain metadata. Embeds Resource, so new Resource fields
 // cascade here automatically — no parallel edit needed.
 //
 // Identity model:
@@ -17,7 +17,7 @@ import (
 //   - RootID is the deterministic ResourceID hash shared across every row in
 //     this resource's version chain. Resource.ID (embedded) also carries
 //     this hash — the resourceSelectColumns hook aliases `root_id AS id` on
-//     read so OSS-shape projections stay consistent.
+//     read so Resource projections stay consistent.
 //   - PreviousVersionID points at the immediate predecessor in the chain
 //     (NULL on the root row).
 //   - SupersededBy points at the successor that replaced this version (NULL
@@ -37,7 +37,7 @@ type ResourceVersion struct {
 	DeletedBy         *string `db:"deleted_by"           json:"deleted_by"`
 }
 
-// resourceVersionColumns lists the SELECT projection for paid reads
+// resourceVersionColumns lists the SELECT projection for reads
 // targeting *ResourceVersion. Includes both `id AS version_row_id`
 // and `root_id` so the chain metadata is fully populated.
 func resourceVersionColumns() []string {
@@ -69,7 +69,7 @@ func resourceVersionColumns() []string {
 }
 
 // GetResourceVersions walks the full version chain for a resource and
-// returns every row in chronological order (root first). Surfaced in OSS via
+// returns every row in chronological order (root first). Surfaced via
 // `disco history`.
 func (s *Store) GetResourceVersions(rootID string) ([]ResourceVersion, error) {
 	q := sq.Select(resourceVersionColumns()...).From("resources").

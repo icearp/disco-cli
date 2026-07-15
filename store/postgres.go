@@ -1,5 +1,5 @@
 // Postgres backend for *Store: single struct, driver-branched dialect bits;
-// the SQLite path is untouched. The OSS backend is single-tenant — a plain
+// the SQLite path is untouched. The backend is single-tenant — a plain
 // pool against one schema. Module consumers needing multi-tenancy
 // (disco-saas) inject a per-connection hook via WithAfterConnect (below) to
 // pin search_path and set the app.* GUCs their row-level-security layer
@@ -33,7 +33,7 @@ type pgConfig struct {
 // before any handle reaches database/sql. It is the multi-tenant extension
 // point: disco-saas passes a hook that SETs search_path to a per-tenant
 // schema and set_config's app.tenant_id / app.workspace_id for its RLS
-// policies. The OSS CLI passes no options and gets a plain single-tenant
+// policies. The CLI passes no options and gets a plain single-tenant
 // pool.
 //
 // Composes with RDS IAM auth (pgx's separate BeforeConnect phase) — both can
@@ -43,7 +43,7 @@ func WithAfterConnect(h func(context.Context, *pgconn.PgConn) error) PGOption {
 }
 
 // OpenPostgres opens a Postgres-backed Store at dsn. With no options it's the
-// OSS CLI's single-tenant PG backend; pass WithAfterConnect to layer
+// single-tenant PG backend the CLI uses; pass WithAfterConnect to layer
 // multi-tenancy onto every connection.
 //
 // The same *Store satisfies every read/write method the SQLite path

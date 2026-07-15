@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// packsFS holds every OSS-bundled OPA Rego pack, embedded at build time.
+// packsFS holds every bundled OPA Rego pack, embedded at build time.
 // Each pack lives under its own subdirectory (e.g. aws-waf/) and is named
 // <provider>-<framework>. Add a new //go:embed line per new pack and one
 // entry to AvailablePacks; everything else flows from filesystem walk.
@@ -23,7 +23,7 @@ func AvailablePacks() []string {
 	return []string{"aws-waf"}
 }
 
-// LoadPacks reads the named OSS packs and returns merged module sources
+// LoadPacks reads the named packs and returns merged module sources
 // keyed by "<pack>/<filename>" so compile errors point to the original
 // .rego file. Unknown pack names error with the available-packs list.
 func LoadPacks(names []string) (map[string]string, error) {

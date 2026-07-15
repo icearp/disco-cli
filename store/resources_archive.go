@@ -35,9 +35,8 @@ func (s *Store) ArchiveResource(rootID, deletedBy string) (bool, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	// The split is two statements that must be atomic. When the store already
-	// wraps a caller-owned transaction (WrapTx — the multi-tenant request
-	// path), run on that tx directly; the caller commits. Otherwise open and
-	// own a transaction here.
+	// wraps a caller-owned transaction (WrapTx), run on that tx directly and
+	// let the caller commit. Otherwise open and own a transaction here.
 	if s.tx != nil {
 		return s.archiveOnTx(rootID, deletedBy, now)
 	}

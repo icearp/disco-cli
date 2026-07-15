@@ -6,7 +6,7 @@
 # breaks `disco serve` against PG once code references the new column.
 #
 # Approach: extract `(table, column)` pairs from each migration set's
-# CREATE TABLE / ALTER TABLE ADD COLUMN statements, sort, diff. The OSS
+# CREATE TABLE / ALTER TABLE ADD COLUMN statements, sort, diff. The
 # schema is single-tenant, so the two sets must match exactly — the SaaS
 # multi-tenant columns (tenant_id, RLS plumbing) live in disco-saas's own
 # migration set, not here.

@@ -62,19 +62,19 @@ func resourceSelectColumnsPrefixed(prefix string) []string {
 }
 
 // resourceIDColumn redirects caller-facing "id" lookups to root_id: the
-// paid schema's `id` column carries a per-version UUID, while the
-// deterministic hash callers pass lives in `root_id`.
+// per-row `id` column carries a per-version UUID, while the deterministic
+// hash callers pass lives in `root_id`.
 func resourceIDColumn() string { return "root_id" }
 
 // applyCurrentVersionPredicate scopes a SELECT to the current row of
-// each version chain. Pair with resourceSelectColumns to read the OSS-
-// shape Resource projection for paid rows.
+// each version chain. Pair with resourceSelectColumns to read the
+// Resource projection for the current version of each chain.
 func applyCurrentVersionPredicate(q sq.SelectBuilder) sq.SelectBuilder {
 	return q.Where(sq.Eq{"superseded_by": nil})
 }
 
-// currentVersionWhereSQL is the raw-SQL fragment the paid build appends to
-// hand-written WHERE clauses to scope reads to the current row. Always
+// currentVersionWhereSQL is the raw-SQL fragment appended to hand-written
+// WHERE clauses to scope reads to the current row. Always
 // begins with " AND " so it concatenates cleanly onto the caller's existing
 // WHERE clause.
 func currentVersionWhereSQL() string { return " AND superseded_by IS NULL" }

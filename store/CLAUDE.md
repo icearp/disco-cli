@@ -226,9 +226,9 @@ Other portability rules baked in:
 - `INSERT OR IGNORE` was replaced with `INSERT ... ON CONFLICT (cols) DO NOTHING`. SQLite supports this since 3.24; Postgres requires the explicit conflict target. New writes follow the same shape.
 - `recordHierarchyTx` and friends accept `*sql.Tx` but pass through `s.rebind(...)` first because tx itself is unaware of the driver.
 
-### Single-tenant OSS backend + `WithAfterConnect` extension point
+### Single-tenant backend + `WithAfterConnect` extension point
 
-The OSS PG backend is **single-tenant**: a plain pool against one schema, migrations carry no `tenant_id` column and no RLS. `OpenPostgres(ctx, dsn)` with no options is what the OSS CLI uses (`cmd/helpers.go`, gated on `DISCO_PG_DSN`).
+The PG backend is **single-tenant**: a plain pool against one schema, migrations carry no `tenant_id` column and no RLS. `OpenPostgres(ctx, dsn)` with no options is what the CLI uses (`cmd/helpers.go`, gated on `DISCO_PG_DSN`).
 
 Multi-tenancy is the disco-saas control plane's job — it consumes disco as a module and layers `tenant_id`, per-table RLS policies, `FORCE ROW LEVEL SECURITY`, the per-tenant scan-notify trigger, and schema-per-tenant (`CREATE SCHEMA` + `search_path` pinning) via its **own** migration set and connection plumbing. The single seam disco exposes for that is:
 
@@ -242,7 +242,7 @@ store.OpenPostgres(ctx, dsn, store.WithAfterConnect(func(ctx, c *pgconn.PgConn) 
 
 `WithAfterConnect` registers a hook run once per physical connection, before any handle is returned to database/sql, so anything it sets (search_path, session GUCs) is sticky for every query through that conn. It composes with RDS IAM auth, which lives on pgx's separate `BeforeConnect` phase. disco keeps no tenant/schema/quoting logic — schema-name validation, identifier quoting, and `CREATE SCHEMA` bootstrap all live in disco-saas's hook. `TestPG_WithAfterConnect` (`postgres_test.go`) pins that the hook fires.
 
-**Reads project explicit columns, never `SELECT *`.** disco-saas overlays its RLS columns (`tenant_id`, `workspace_id`) onto the shared `resources` / `scans` / `relationships` / `check_runs` / `findings` tables, so a `SELECT *` from the OSS store would scan a column the OSS struct has no field for (`missing destination name`). Every shared-table read therefore selects an explicit list that **omits** the RLS columns — `resourceSelectColumns()` (`resources_hooks.go`), `scanColumns` (`scans.go`), `relationshipColumns` (`relationships.go`), `checkRunColumns` / `findingColumns` (`findings.go`). The `WorkspaceID` struct fields stay for documentation but are unprojected (always nil); there is no `TenantID` field. New shared-table reads must follow the same pattern — add a column to the projection const when you add one to the struct, and never reintroduce `SELECT *`.
+**Reads project explicit columns, never `SELECT *`.** disco-saas overlays its RLS columns (`tenant_id`, `workspace_id`) onto the shared `resources` / `scans` / `relationships` / `check_runs` / `findings` tables, so a `SELECT *` from the single-tenant store would scan a column the store struct has no field for (`missing destination name`). Every shared-table read therefore selects an explicit list that **omits** the RLS columns — `resourceSelectColumns()` (`resources_hooks.go`), `scanColumns` (`scans.go`), `relationshipColumns` (`relationships.go`), `checkRunColumns` / `findingColumns` (`findings.go`). The `WorkspaceID` struct fields stay for documentation but are unprojected (always nil); there is no `TenantID` field. New shared-table reads must follow the same pattern — add a column to the projection const when you add one to the struct, and never reintroduce `SELECT *`.
 
 ### `WrapTx` — tx-bound `*Store`
 
@@ -258,7 +258,7 @@ st := store.WrapTx(tx, store.DriverPostgres)
 COMMIT
 ```
 
-`SET LOCAL` is reset at COMMIT, so RDS Proxy still multiplexes the underlying conn. Intended for read-only use — write methods that call `s.db.Begin*` directly (`UpsertResources`, `UpsertRelationships`, `RecordHierarchyBatch`, finalise calls) panic on a nil pool. That panic is intentional; the request path runs reads only, scan workers run a real `OpenPostgres` pool.
+`SET LOCAL` is reset at COMMIT, so RDS Proxy still multiplexes the underlying conn. Intended primarily for reads — write methods that call `s.db.Begin*` directly (`UpsertResources`, `UpsertRelationships`, `RecordHierarchyBatch`, finalise calls) panic on a nil pool. That panic is intentional; scan workers run a real `OpenPostgres` pool. The one sanctioned write on the wrapped-tx path is archival: `ArchiveResource` / `RestoreResource` branch on `s.tx` (`resources_archive.go`) and run their tombstone / restore write on the caller-owned transaction when wrapped, so a request path may archive/restore under its RLS tx even though the bulk writers stay pool-only.
 
 `*Store` holds both `db *sqlx.DB` and `tx *sqlx.Tx`. `s.ext()` returns whichever is non-nil; dialect helpers route through it. Driver tag is set by the constructor (`store.DriverPostgres` / `store.DriverSQLite`) — without it, placeholder format and JSON-extract dialect can't be selected.
 
@@ -268,7 +268,7 @@ A `WithAfterConnect` hook that issues session-scoped `SET`/`set_config` (`is_loc
 
 ### Migration parity
 
-`store/migrations/*.sql` (SQLite) and `store/migrations/pg/*.sql` (Postgres) must converge on **identical** `(table, column)` sets — the OSS schema is single-tenant, so there are no allowed PG-only columns. `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them. Add a column on one side, the script fails. CI gates this; reviewers also. (The SaaS multi-tenant columns — `tenant_id` + RLS plumbing — live in disco-saas's own migration set, not here.) Column **types** may diverge by design where PG has a richer native type: `tags`/`resources.attributes`/`relationships.attributes` are JSONB on PG but TEXT on SQLite, and `scans.errors` likewise — the parity check is column-presence, not type, and the Go fields are `string`/`*string` either way (pgx round-trips JSONB ↔ string).
+`store/migrations/*.sql` (SQLite) and `store/migrations/pg/*.sql` (Postgres) must converge on **identical** `(table, column)` sets — the schema is single-tenant, so there are no allowed PG-only columns. `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them. Add a column on one side, the script fails. CI gates this; reviewers also. (The SaaS multi-tenant columns — `tenant_id` + RLS plumbing — live in disco-saas's own migration set, not here.) Column **types** may diverge by design where PG has a richer native type: `tags`/`resources.attributes`/`relationships.attributes` are JSONB on PG but TEXT on SQLite, and `scans.errors` likewise — the parity check is column-presence, not type, and the Go fields are `string`/`*string` either way (pgx round-trips JSONB ↔ string).
 
 PG migration runner is hand-rolled in `migrate_pg.go`, mirroring `migrate.go:14–111` shape: same `schema_migrations` bookkeeping, same `splitStatements` semicolon split, same NNN_name.sql convention. Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state.
 

@@ -24,8 +24,8 @@ type CheckRun struct {
 	ResourceCount  *int     `db:"resource_count"`
 	FindingCount   *int     `db:"finding_count"`
 	// WorkspaceID is the per-workspace RLS discriminator. Omitted from the read
-	// projection (checkRunColumns) like Resource.WorkspaceID — no OSS consumer
-	// reads it and the disco-saas RLS layer filters by workspace — so it stays
+	// projection (checkRunColumns) like Resource.WorkspaceID — the single-tenant
+	// store never reads it and the disco-saas RLS layer filters by workspace — so it stays
 	// nil. Kept as a field so the type still documents the column.
 	WorkspaceID *string `db:"workspace_id"`
 }

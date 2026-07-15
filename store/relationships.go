@@ -29,10 +29,10 @@ type Relationship struct {
 	Attributes   *string `db:"attributes"` // JSON
 	DiscoveredAt string  `db:"discovered_at"`
 	// WorkspaceID is the per-workspace RLS discriminator. Omitted from the read
-	// projection (relationshipColumns), like Resource.WorkspaceID — no OSS
-	// consumer reads it and disco-saas's RLS layer filters by workspace — so it
-	// stays nil. (No TenantID field: OSS has no tenant_id column; the
-	// disco-saas overlay column simply isn't selected.)
+	// projection (relationshipColumns), like Resource.WorkspaceID — the
+	// single-tenant store never reads it and disco-saas's RLS layer filters by
+	// workspace — so it stays nil. (No TenantID field: the single-tenant schema
+	// has no tenant_id column; the disco-saas overlay column simply isn't selected.)
 	WorkspaceID *string `db:"workspace_id" json:"-"`
 }
 
@@ -301,9 +301,9 @@ func (s *Store) recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing
 }
 
 func (s *Store) resourceExistsTx(tx *sql.Tx, id string) (bool, error) {
-	// Caller-facing id is the deterministic ResourceID hash: under paid it's
-	// resources.root_id with a current-version filter; under OSS it's
-	// resources.id directly. Hooks resolve the difference.
+	// Caller-facing id is the deterministic ResourceID hash: it maps to
+	// resources.root_id with a current-version filter, resolved via the
+	// resourceIDColumn / currentVersionWhereSQL hooks.
 	sqlText := "SELECT 1 FROM resources WHERE " + resourceIDColumn() + " = ?" + currentVersionWhereSQL() + " LIMIT 1"
 	var n int
 	if err := tx.QueryRow(s.rebind(sqlText), id).Scan(&n); err != nil {

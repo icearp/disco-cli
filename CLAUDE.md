@@ -33,7 +33,7 @@ CGO_ENABLED=0 go test ./store/... -run TestFoo -v
 go vet ./...
 golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 
-# Guard SQLite ↔ Postgres migration parity (single-tenant OSS schema: the two
+# Guard SQLite ↔ Postgres migration parity (single-tenant schema: the two
 # dialects' column sets must match exactly — no PG-only allowlist; the SaaS
 # multi-tenant columns live in disco-saas's own migration set)
 make check-migrations

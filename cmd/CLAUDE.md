@@ -68,7 +68,7 @@ Cobra also persists flag-attached values across tests when commands read via `cm
 ## `disco history <id>` surfaces the resource version chain
 
 `history` renders every version of a resource oldest→newest —
-the OSS read surface for change-over-time (e.g. Azure quota-limit grants). The arg
+the read surface for change-over-time (e.g. Azure quota-limit grants). The arg
 resolves through `store.ResolveResource` (same exact-id / name / native-id / short-id
 lookup as `graph`); the resolved current row's `.ID` (= `root_id`) keys
 `store.GetResourceVersions`. Output uses a purpose-built `historyEntry` struct, NOT
@@ -133,7 +133,7 @@ When a producer writes a single output file consumed downstream by a verifier (e
 
 Friendly-error wrapping lives in `friendlyArchiveErr(err)` (cmd/verify.go): collapses raw xz/gzip decoder messages into `verify failed: archive corrupt or truncated`. The original is preserved when `--verbose`. Format-detection errors are intentionally returned BEFORE the friendly wrap so unsupported extensions surface clearly.
 
-## `disco snapshot --signing-payload <file>` is the OSS signing primitive
+## `disco snapshot --signing-payload <file>` is the signing primitive
 
 `internal/snapshot.CanonicalManifestBytes(m)` returns deterministic JCS-style bytes (`json.Marshal(m)` — struct field declaration order, no whitespace). Sign externally (`openssl pkeyutl -sign -inkey priv.pem -rawin -in payload -out sig`, `minisign`, `ssh-keygen -Y sign`, cosign blob-attest) and ship the detached signature alongside the archive. `disco verify --signature <sig> --pubkey <key>` re-derives the canonical bytes from the embedded `manifest.json` and validates with `crypto/ed25519` — stdlib only, no x/crypto dep.
 
@@ -187,7 +187,7 @@ The unprefixed `pillar` key is intentionally reserved for a future cross-framewo
 
 Some scanners wrap the SDK response under a key (CloudTrail: `{"Trail": ..., "Status": ...}`; ELBv2 LB: `{"lb": ..., "type": ...}`; EventBridge rule: `{"rule": ..., "Targets": [...]}`; Lambda function: SDK type embedded with `Code` sibling). Rego rules reading these resources must match the wrapped path: `input.attributes.Trail.IsMultiRegionTrail`, not `input.attributes.IsMultiRegionTrail`. The wrapping is documented in `internal/providers/aws/CLAUDE.md` — grep for the resource type before authoring a rule. Wrong path silently matches nothing.
 
-## `--packs <name,...>` loads bundled OSS Rego packs
+## `--packs <name,...>` loads bundled Rego packs
 
 `disco check --packs aws-waf` loads `internal/policy/aws-waf/*.rego` via `//go:embed`. Pack names follow `<provider>-<framework>` convention. `policy.LoadPacks([]string)` walks the embed.FS, returns `map[name]source`; `policy.NewEngine(ctx, paths, modules)` accepts both `--rules <dir>` paths AND module map in one call so `--rules ./mine --packs aws-waf` composes. Adding a new pack = one `//go:embed` line + one entry to `AvailablePacks()`. Bare `disco check` errors with "--rules or --packs is required (e.g. --packs aws-waf)" — never default to one or the other silently.
 

@@ -268,7 +268,7 @@ func renderCheckRuns(runs []store.CheckRun, format string) error {
 }
 
 // storedFindingToFinding maps a store row back to the wire shape so the
-// existing OSS renderers (`renderCheckSARIF`, JSON encoders) consume it
+// existing renderers (`renderCheckSARIF`, JSON encoders) consume it
 // unchanged. Pointer-to-empty-string fields collapse to empty strings.
 func storedFindingToFinding(s store.StoredFinding) policy.Finding {
 	out := policy.Finding{
@@ -351,7 +351,7 @@ func findingToStored(f policy.Finding) store.StoredFinding {
 }
 
 // intPtrOrDashI is the *int variant of the *int rendering helper used by
-// disco scans. Local copy avoids an OSS-side rename of intPtrOrDash.
+// disco scans. Local copy avoids a rename of intPtrOrDash.
 func intPtrOrDashI(p *int) string {
 	if p == nil {
 		return "-"

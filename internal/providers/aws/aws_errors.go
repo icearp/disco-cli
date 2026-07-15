@@ -129,8 +129,9 @@ func markServiceDisabled(err error) error {
 
 // errServiceNotEntitled is a sentinel returned by per-service scanners when the
 // service exists but the calling account is not entitled to it and the user
-// cannot self-enable it — a paid support-tier gate (Trusted Advisor API needs
-// Business+), a service closed to new customers (Migration Hub), or an account
+// cannot self-enable it — a support-tier gate (Trusted Advisor API needs
+// Business/Enterprise AWS Support), a service closed to new customers (Migration
+// Hub), or an account
 // AWS has not made eligible (CloudSearch, "contact AWS Support"). The dispatch
 // loop detects it via errors.Is and surfaces "(account: not entitled)"
 // on the progress line — no warning, no error report. Distinct from
