@@ -128,7 +128,7 @@ func resolveAPIGatewayV2APIChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2API, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !apiSet[tgtID] {
 				continue
 			}
@@ -166,7 +166,7 @@ func resolveAPIGatewayV2GrandparentOne(acct *account, st *store.Store, childType
 		if parent == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, parentType, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !parentSet[tgtID] {
 			continue
 		}
@@ -195,7 +195,7 @@ func resolveAPIGatewayV2DomainChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayDomainNameV2, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !domSet[tgtID] {
 				continue
 			}
@@ -242,7 +242,7 @@ func resolveAPIGatewayV2BasePathMappingTargets(acct *account, st *store.Store) e
 		}
 		region := sv(r.Region)
 		apiARN := apigatewayARN(region, "apis", apiID)
-		apiTgt := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2API, apiARN)
+		apiTgt := store.ResourceID("aws", acct.ID, apiARN)
 		if apiSet[apiTgt] {
 			if err := st.UpsertRelationship(r.ID, apiTgt, store.RelRoutesTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert apigatewayv2 mapping→api: %w", err)
@@ -253,7 +253,7 @@ func resolveAPIGatewayV2BasePathMappingTargets(acct *account, st *store.Store) e
 			continue
 		}
 		stageARN := apigatewayARN(region, "apis", apiID, "stages", stage)
-		stageTgt := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2Stage, stageARN)
+		stageTgt := store.ResourceID("aws", acct.ID, stageARN)
 		if !stageSet[stageTgt] {
 			continue
 		}
@@ -302,7 +302,7 @@ func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 		apiID := apiARN[strings.LastIndexByte(apiARN, '/')+1:]
 		if aid := sv(attrs.AuthorizerID); aid != "" {
 			authARN := apigatewayARN(region, "apis", apiID, "authorizers", aid)
-			tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2Authorizer, authARN)
+			tgtID := store.ResourceID("aws", acct.ID, authARN)
 			if authSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert apigatewayv2 route→authorizer: %w", err)
@@ -312,7 +312,7 @@ func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 		if target := sv(attrs.Target); strings.HasPrefix(target, "integrations/") {
 			intID := strings.TrimPrefix(target, "integrations/")
 			intARN := apigatewayARN(region, "apis", apiID, "integrations", intID)
-			tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2Integration, intARN)
+			tgtID := store.ResourceID("aws", acct.ID, intARN)
 			if intSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert apigatewayv2 route→integration: %w", err)
@@ -357,7 +357,7 @@ func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error
 		if sv(attrs.ConnectionType) == "VPC_LINK" {
 			if cid := sv(attrs.ConnectionID); cid != "" {
 				vlARN := apigatewayARN(region, "vpclinks", cid)
-				tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2VpcLink, vlARN)
+				tgtID := store.ResourceID("aws", acct.ID, vlARN)
 				if vlSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert apigatewayv2 integ→vpc-link: %w", err)
@@ -366,7 +366,7 @@ func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error
 			}
 		}
 		if role := sv(attrs.CredentialsArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert apigatewayv2 integ→role: %w", err)
@@ -411,7 +411,7 @@ func resolveAPIGatewayV2StageRefs(acct *account, st *store.Store) error {
 		}
 		apiID := apiARN[strings.LastIndexByte(apiARN, '/')+1:]
 		depARN := apigatewayARN(region, "apis", apiID, "deployments", dep)
-		tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2Deployment, depARN)
+		tgtID := store.ResourceID("aws", acct.ID, depARN)
 		if !depSet[tgtID] {
 			continue
 		}

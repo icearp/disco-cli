@@ -60,7 +60,7 @@ func resolveFSxBackupRelationships(acct *account, st *store.Store) error {
 		}
 		if attrs.FileSystem != nil {
 			if arn := sv(attrs.FileSystem.ResourceARN); arn != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeFSxFileSystem, arn)
+				tgt := store.ResourceID("aws", acct.ID, arn)
 				if fsSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert fsx backup→file-system: %w", err)
@@ -70,7 +70,7 @@ func resolveFSxBackupRelationships(acct *account, st *store.Store) error {
 		}
 		if attrs.Volume != nil {
 			if arn := sv(attrs.Volume.ResourceARN); arn != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeFSxVolume, arn)
+				tgt := store.ResourceID("aws", acct.ID, arn)
 				if volSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert fsx backup→volume: %w", err)

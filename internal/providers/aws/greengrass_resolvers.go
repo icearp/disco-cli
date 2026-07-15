@@ -61,7 +61,7 @@ func resolveGGV2DeploymentTarget(acct *account, st *store.Store) error {
 		if targetType == "" {
 			continue
 		}
-		targetID := store.ResourceID("aws", acct.ID, targetType, *attrs.TargetArn)
+		targetID := store.ResourceID("aws", acct.ID, *attrs.TargetArn)
 		switch targetType {
 		case TypeIoTThing:
 			if !thingSet[targetID] {

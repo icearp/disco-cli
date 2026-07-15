@@ -44,7 +44,7 @@ func resolveGameLiftStreamsStreamGroupApplication(acct *account, st *store.Store
 			continue
 		}
 		if appARN := sv(attrs.DefaultApplication.Arn); appARN != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeGameLiftStreamsApplication, appARN)
+			tgtID := store.ResourceID("aws", acct.ID, appARN)
 			if appSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gameliftstreams stream-group→application: %w", err)

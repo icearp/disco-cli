@@ -35,7 +35,7 @@ func seedVersionChain(t *testing.T, st *store.Store) string {
 	if _, err := st.UpsertResource(&changed); err != nil {
 		t.Fatalf("UpsertResource v2: %v", err)
 	}
-	return store.ResourceID(base.Provider, base.AccountID, base.Type, base.NativeID)
+	return store.ResourceID(base.Provider, base.AccountID, base.NativeID)
 }
 
 // attrLimit decodes the "limit" field from a version's attributes (the encoder
@@ -101,7 +101,7 @@ func TestHistoryCmd_JSON(t *testing.T) {
 func TestHistoryCmd_SingleVersion(t *testing.T) {
 	_ = seedTestDB(t)
 	// seedTestDB's aws:ec2:instance i-1, never re-scanned with changed attrs.
-	rootID := store.ResourceID("aws", "111", "aws:ec2:instance", "i-1")
+	rootID := store.ResourceID("aws", "111", "i-1")
 
 	historyOutputFmt = "table"
 	out, err := captureStdout(t, func() error {

@@ -465,7 +465,7 @@ func TestResolveCloudFrontMonitoringSubscriptionParent(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	distARN := fmt.Sprintf("arn:aws:cloudfront::%s:distribution/E1ABC", acct.ID)
 	distID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontDistribution, distARN, "", "{}")
-	subID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontMonitoringSubscription, distARN, "", "{}")
+	subID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontMonitoringSubscription, distARN+"/monitoring-subscription", "", "{}")
 
 	if err := resolveCloudFrontMonitoringSubscriptionParent(acct, st); err != nil {
 		t.Fatalf("resolveCloudFrontMonitoringSubscriptionParent: %v", err)

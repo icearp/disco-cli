@@ -51,7 +51,7 @@ func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, regi
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
-			parentID := store.ResourceID("aws", acct.ID, TypeGlueTable, glueTableARN(region, acct.ID, ref.db, ref.table))
+			parentID := store.ResourceID("aws", acct.ID, glueTableARN(region, acct.ID, ref.db, ref.table))
 			pager := glue.NewGetPartitionsPaginator(client, &glue.GetPartitionsInput{
 				DatabaseName: &ref.db,
 				TableName:    &ref.table,
@@ -83,7 +83,7 @@ func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, regi
 					}
 					mu.Lock()
 					batch = append(batch, r)
-					pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, TypeGluePartition, arn), parentID})
+					pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, arn), parentID})
 					mu.Unlock()
 				}
 			}
@@ -170,7 +170,7 @@ func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account,
 				}
 				arn := glueTableOptimizerARN(region, acct.ID, ref.db, ref.table, string(optType))
 				name := fmt.Sprintf("%s/%s/%s", ref.db, ref.table, optType)
-				parentID := store.ResourceID("aws", acct.ID, TypeGlueTable, glueTableARN(region, acct.ID, ref.db, ref.table))
+				parentID := store.ResourceID("aws", acct.ID, glueTableARN(region, acct.ID, ref.db, ref.table))
 				r := &store.Resource{
 					Provider:       "aws",
 					AccountID:      acct.ID,
@@ -184,7 +184,7 @@ func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account,
 				}
 				mu.Lock()
 				batch = append(batch, r)
-				pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, TypeGlueTableOptimizer, arn), parentID})
+				pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, arn), parentID})
 				mu.Unlock()
 				return nil
 			})

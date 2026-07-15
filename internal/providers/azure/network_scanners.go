@@ -234,7 +234,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 			name := sv(vnet.Name)
 			location := sv(vnet.Location)
 			vnetID := sv(vnet.ID)
-			vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+			vnetResourceID := store.ResourceID("azure", sub.ID, vnetID)
 
 			r := &store.Resource{
 				Provider:       "azure",
@@ -270,7 +270,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 						DiscoveredBy:   scanID,
 					}
 					subnetBatch = append(subnetBatch, snResource)
-					snResourceID := store.ResourceID("azure", sub.ID, TypeNetworkSubnet, snID)
+					snResourceID := store.ResourceID("azure", sub.ID, snID)
 					subnetPairs = append(subnetPairs, [2]string{snResourceID, vnetResourceID})
 				}
 			}

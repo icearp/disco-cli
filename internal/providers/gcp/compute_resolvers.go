@@ -54,13 +54,13 @@ func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
 		}
 		for _, nic := range attrs.NetworkInterfaces {
 			if nic.Network != "" {
-				netID := store.ResourceID("gcp", p.ID, TypeComputeNetwork, nic.Network)
+				netID := store.ResourceID("gcp", p.ID, nic.Network)
 				if err := st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→network relationship: %w", err)
 				}
 			}
 			if nic.Subnetwork != "" {
-				snID := store.ResourceID("gcp", p.ID, TypeComputeSubnet, nic.Subnetwork)
+				snID := store.ResourceID("gcp", p.ID, nic.Subnetwork)
 				if err := st.UpsertRelationship(r.ID, snID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→subnetwork relationship: %w", err)
 				}
@@ -70,7 +70,7 @@ func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
 			if disk.Source == "" {
 				continue
 			}
-			diskID := store.ResourceID("gcp", p.ID, computeDiskTypeForSelfLink(disk.Source), disk.Source)
+			diskID := store.ResourceID("gcp", p.ID, disk.Source)
 			if err := st.UpsertRelationship(r.ID, diskID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert instance→disk relationship: %w", err)
 			}
@@ -119,21 +119,13 @@ func resolveInstanceGroupManagerRelationships(p *project, st *store.Store) error
 			continue
 		}
 		if attrs.InstanceTemplate != "" {
-			tplType := TypeComputeInstanceTemplate
-			if selfLinkIsRegional(attrs.InstanceTemplate) {
-				tplType = TypeComputeRegionInstanceTemplate
-			}
-			tplID := store.ResourceID("gcp", p.ID, tplType, attrs.InstanceTemplate)
+			tplID := store.ResourceID("gcp", p.ID, attrs.InstanceTemplate)
 			if err := st.UpsertRelationship(r.ID, tplID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert igm→instance-template relationship: %w", err)
 			}
 		}
 		if attrs.InstanceGroup != "" {
-			igType := TypeComputeInstanceGroup
-			if selfLinkIsRegional(attrs.InstanceGroup) {
-				igType = TypeComputeRegionInstanceGroup
-			}
-			igID := store.ResourceID("gcp", p.ID, igType, attrs.InstanceGroup)
+			igID := store.ResourceID("gcp", p.ID, attrs.InstanceGroup)
 			if err := st.UpsertRelationship(r.ID, igID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert igm→instance-group relationship: %w", err)
 			}
@@ -158,7 +150,7 @@ func resolveSubnetworkRelationships(p *project, st *store.Store) error {
 			continue
 		}
 		if attrs.Network != "" {
-			netID := store.ResourceID("gcp", p.ID, TypeComputeNetwork, attrs.Network)
+			netID := store.ResourceID("gcp", p.ID, attrs.Network)
 			if err := st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert subnetwork→network relationship: %w", err)
 			}

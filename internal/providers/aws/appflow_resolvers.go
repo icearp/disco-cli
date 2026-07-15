@@ -49,7 +49,7 @@ func resolveAppFlowConnectorProfileRelationships(acct *account, st *store.Store)
 		if ca == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, ca)
+		tgt := store.ResourceID("aws", acct.ID, ca)
 		if !secretSet[tgt] {
 			continue
 		}

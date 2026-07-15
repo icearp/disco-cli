@@ -132,7 +132,7 @@ func TestResolveCompositeAlarmChildren_ByName(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("UpsertResource child: %v", err)
 	}
-	childID := store.ResourceID("aws", acct.ID, TypeCloudWatchAlarm, childARN)
+	childID := store.ResourceID("aws", acct.ID, childARN)
 	compositeID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudWatchCompositeAlarm, compositeARN, testCWRegion, compositeAttrs)
 
 	if err := resolveCompositeAlarmChildren(acct, st); err != nil {
@@ -192,7 +192,7 @@ func upsertNamedTestResource(t *testing.T, st *store.Store, rtype, nativeID, nam
 	}); err != nil {
 		t.Fatalf("UpsertResource %s/%s: %v", rtype, nativeID, err)
 	}
-	return store.ResourceID("aws", testAccountID, rtype, nativeID)
+	return store.ResourceID("aws", testAccountID, nativeID)
 }
 
 func TestResolveAlarmDimension_EC2Instance(t *testing.T) {

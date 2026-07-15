@@ -42,7 +42,7 @@ func resolveLicenseManagerGrantToLicense(acct *account, st *store.Store) error {
 		if l == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeLicenseManagerLicense, l)
+		tgtID := store.ResourceID("aws", acct.ID, l)
 		if !licSet[tgtID] {
 			continue
 		}

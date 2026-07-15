@@ -49,7 +49,7 @@ func resolveConfigRecorders(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.RoleARN); role != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			roleID := store.ResourceID("aws", acct.ID, role)
 			if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert config-recorder→iam: %w", err)
 			}
@@ -80,7 +80,7 @@ func resolveConfigDeliveryChannels(acct *account, st *store.Store) error {
 			continue
 		}
 		if bucket := sv(attrs.S3BucketName); bucket != "" {
-			bid := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucket)
+			bid := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+bucket)
 			if err := st.UpsertRelationship(r.ID, bid, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert config-dc→s3: %w", err)
 			}
@@ -91,7 +91,7 @@ func resolveConfigDeliveryChannels(acct *account, st *store.Store) error {
 			}
 		}
 		if sns := sv(attrs.SnsTopicARN); sns != "" {
-			sid := store.ResourceID("aws", acct.ID, TypeSNSTopic, sns)
+			sid := store.ResourceID("aws", acct.ID, sns)
 			if err := st.UpsertRelationship(r.ID, sid, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert config-dc→sns: %w", err)
 			}
@@ -125,7 +125,7 @@ func resolveConfigRules(acct *account, st *store.Store) error {
 		if !strings.HasPrefix(arn, "arn:aws:lambda:") {
 			continue
 		}
-		lid := store.ResourceID("aws", acct.ID, TypeLambdaFunction, arn)
+		lid := store.ResourceID("aws", acct.ID, arn)
 		if err := st.UpsertRelationship(r.ID, lid, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert config-rule→lambda: %w", err)
 		}

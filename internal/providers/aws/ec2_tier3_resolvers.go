@@ -102,7 +102,7 @@ func resolveEC2TGWRouteParent(acct *account, st *store.Store) error {
 			continue
 		}
 		rtARN := ec2ARN(sv(r.Region), acct.ID, "transit-gateway-route-table", parts[0])
-		tgtID := store.ResourceID("aws", acct.ID, TypeEC2TransitGatewayRouteTable, rtARN)
+		tgtID := store.ResourceID("aws", acct.ID, rtARN)
 		if !rtSet[tgtID] {
 			continue
 		}
@@ -148,13 +148,13 @@ func resolveEC2TGWRTBJoin(acct *account, st *store.Store, sourceType, kind strin
 		}
 		region := sv(r.Region)
 		rtARN := ec2ARN(region, acct.ID, "transit-gateway-route-table", parts[0])
-		if rtID := store.ResourceID("aws", acct.ID, TypeEC2TransitGatewayRouteTable, rtARN); rtSet[rtID] {
+		if rtID := store.ResourceID("aws", acct.ID, rtARN); rtSet[rtID] {
 			if err := st.UpsertRelationship(r.ID, rtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ec2 %s→rtb: %w", kind, err)
 			}
 		}
 		attARN := ec2ARN(region, acct.ID, "transit-gateway-attachment", parts[1])
-		if attID := store.ResourceID("aws", acct.ID, TypeEC2TransitGatewayAttachment, attARN); attSet[attID] {
+		if attID := store.ResourceID("aws", acct.ID, attARN); attSet[attID] {
 			if err := st.UpsertRelationship(r.ID, attID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ec2 %s→att: %w", kind, err)
 			}
@@ -192,13 +192,13 @@ func resolveEC2TGWMulticastDomainAssoc(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		domARN := ec2ARN(region, acct.ID, "transit-gateway-multicast-domain", parts[0])
-		if domID := store.ResourceID("aws", acct.ID, TypeEC2TransitGatewayMulticastDomain, domARN); domSet[domID] {
+		if domID := store.ResourceID("aws", acct.ID, domARN); domSet[domID] {
 			if err := st.UpsertRelationship(r.ID, domID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ec2 mcast-assoc→domain: %w", err)
 			}
 		}
 		subARN := ec2ARN(region, acct.ID, "subnet", parts[2])
-		if subID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, subARN); subSet[subID] {
+		if subID := store.ResourceID("aws", acct.ID, subARN); subSet[subID] {
 			if err := st.UpsertRelationship(r.ID, subID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ec2 mcast-assoc→subnet: %w", err)
 			}
@@ -250,13 +250,13 @@ func resolveEC2TGWMulticastGroupOne(acct *account, st *store.Store, sourceType, 
 		}
 		region := sv(r.Region)
 		domARN := ec2ARN(region, acct.ID, "transit-gateway-multicast-domain", parts[0])
-		if domID := store.ResourceID("aws", acct.ID, TypeEC2TransitGatewayMulticastDomain, domARN); domSet[domID] {
+		if domID := store.ResourceID("aws", acct.ID, domARN); domSet[domID] {
 			if err := st.UpsertRelationship(r.ID, domID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ec2 %s→domain: %w", kind, err)
 			}
 		}
 		eniARN := ec2ARN(region, acct.ID, "network-interface", parts[2])
-		if eniID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInterface, eniARN); eniSet[eniID] {
+		if eniID := store.ResourceID("aws", acct.ID, eniARN); eniSet[eniID] {
 			if err := st.UpsertRelationship(r.ID, eniID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ec2 %s→eni: %w", kind, err)
 			}
@@ -287,7 +287,7 @@ func resolveEC2LocalGatewayRouteParent(acct *account, st *store.Store) error {
 			continue
 		}
 		rtARN := ec2ARN(sv(r.Region), acct.ID, "local-gateway-route-table", parts[0])
-		tgtID := store.ResourceID("aws", acct.ID, TypeEC2LocalGatewayRouteTable, rtARN)
+		tgtID := store.ResourceID("aws", acct.ID, rtARN)
 		if !rtSet[tgtID] {
 			continue
 		}
@@ -327,7 +327,7 @@ func resolveEC2LocalGatewayVIToVIG(acct *account, st *store.Store) error {
 			continue
 		}
 		gARN := ec2ARN(sv(r.Region), acct.ID, "local-gateway-virtual-interface-group", gid)
-		tgtID := store.ResourceID("aws", acct.ID, TypeEC2LocalGatewayVirtualInterfaceGroup, gARN)
+		tgtID := store.ResourceID("aws", acct.ID, gARN)
 		if !vigSet[tgtID] {
 			continue
 		}
@@ -370,7 +370,7 @@ func resolveEC2IPAMChildToPool(acct *account, st *store.Store, sourceType, kind 
 			continue
 		}
 		pARN := ec2ARN(sv(r.Region), acct.ID, "ipam-pool", parts[0])
-		tgtID := store.ResourceID("aws", acct.ID, TypeEC2IPAMPool, pARN)
+		tgtID := store.ResourceID("aws", acct.ID, pARN)
 		if !poolSet[tgtID] {
 			continue
 		}
@@ -410,7 +410,7 @@ func resolveEC2IPAMPLRTargetToResolver(acct *account, st *store.Store) error {
 			continue
 		}
 		pARN := ec2ARN(sv(r.Region), acct.ID, "ipam-prefix-list-resolver", id)
-		tgtID := store.ResourceID("aws", acct.ID, TypeEC2IPAMPrefixListResolver, pARN)
+		tgtID := store.ResourceID("aws", acct.ID, pARN)
 		if !plrSet[tgtID] {
 			continue
 		}
@@ -465,7 +465,7 @@ func resolveEC2RouteServerAttrEdge(acct *account, st *store.Store, sourceType, f
 			continue
 		}
 		pARN := ec2ARN(sv(r.Region), acct.ID, parentKind, v)
-		tgtID := store.ResourceID("aws", acct.ID, parentType, pARN)
+		tgtID := store.ResourceID("aws", acct.ID, pARN)
 		if !parentSet[tgtID] {
 			continue
 		}

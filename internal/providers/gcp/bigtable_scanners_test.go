@@ -59,10 +59,10 @@ func TestScanBigtableAppProfiles_MultiParentDerivedFromName(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	ap1ID := store.ResourceID("gcp", p.ID, TypeBigtableAppProfile, ap1Native)
-	ap2ID := store.ResourceID("gcp", p.ID, TypeBigtableAppProfile, ap2Native)
-	inst1ID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst1Native)
-	inst2ID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst2Native)
+	ap1ID := store.ResourceID("gcp", p.ID, ap1Native)
+	ap2ID := store.ResourceID("gcp", p.ID, ap2Native)
+	inst1ID := store.ResourceID("gcp", p.ID, inst1Native)
+	inst2ID := store.ResourceID("gcp", p.ID, inst2Native)
 
 	assertChild := func(childID, parentID string) {
 		t.Helper()
@@ -135,7 +135,7 @@ func TestScanBigtableBackups_PartialDenyContinues(t *testing.T) {
 	}
 
 	backupNative := cluster2Native + "/backups/b1"
-	backupID := store.ResourceID("gcp", p.ID, TypeBigtableBackup, backupNative)
+	backupID := store.ResourceID("gcp", p.ID, backupNative)
 	res, err := st.GetResource(backupID)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -144,7 +144,7 @@ func TestScanBigtableBackups_PartialDenyContinues(t *testing.T) {
 		t.Fatalf("backup not stored after inst1 denied")
 	}
 
-	cluster2ID := store.ResourceID("gcp", p.ID, TypeBigtableCluster, cluster2Native)
+	cluster2ID := store.ResourceID("gcp", p.ID, cluster2Native)
 	rels, err := st.RelationshipsFrom(cluster2ID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(cluster2): %v", err)
@@ -192,9 +192,9 @@ func TestScanBigtableMemoryLayers_MultiParentDerivedFromName(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	ml1ID := store.ResourceID("gcp", p.ID, TypeBigtableMemoryLayer, ml1Native)
-	cluster1ID := store.ResourceID("gcp", p.ID, TypeBigtableCluster, cluster1Native)
-	cluster2ID := store.ResourceID("gcp", p.ID, TypeBigtableCluster, cluster2Native)
+	ml1ID := store.ResourceID("gcp", p.ID, ml1Native)
+	cluster1ID := store.ResourceID("gcp", p.ID, cluster1Native)
+	cluster2ID := store.ResourceID("gcp", p.ID, cluster2Native)
 
 	rels, err := st.RelationshipsFrom(cluster1ID, store.RelContains)
 	if err != nil {
@@ -275,9 +275,9 @@ func TestScanBigtableTables_FanoutAndAuthorizedViewSchemaBundleChain(t *testing.
 		t.Fatalf("schemaBundles counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	tableID := store.ResourceID("gcp", p.ID, TypeBigtableTable, tableNative)
-	avID := store.ResourceID("gcp", p.ID, TypeBigtableAuthorizedView, avNative)
-	sbID := store.ResourceID("gcp", p.ID, TypeBigtableSchemaBundle, sbNative)
+	tableID := store.ResourceID("gcp", p.ID, tableNative)
+	avID := store.ResourceID("gcp", p.ID, avNative)
+	sbID := store.ResourceID("gcp", p.ID, sbNative)
 	rels, err := st.RelationshipsFrom(tableID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(table): %v", err)
@@ -324,7 +324,7 @@ func TestScanBigtableHotTablets_FanoutPerCluster(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	htID := store.ResourceID("gcp", p.ID, TypeBigtableHotTablet, htNative)
+	htID := store.ResourceID("gcp", p.ID, htNative)
 	res, err := st.GetResource(htID)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -371,9 +371,9 @@ func TestScanBigtableLogicalAndMaterializedViews_Basic(t *testing.T) {
 		t.Fatalf("materializedViews counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	instID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, instNative)
-	lvID := store.ResourceID("gcp", p.ID, TypeBigtableLogicalView, lvNative)
-	mvID := store.ResourceID("gcp", p.ID, TypeBigtableMaterializedView, mvNative)
+	instID := store.ResourceID("gcp", p.ID, instNative)
+	lvID := store.ResourceID("gcp", p.ID, lvNative)
+	mvID := store.ResourceID("gcp", p.ID, mvNative)
 	rels, err := st.RelationshipsFrom(instID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(instance): %v", err)

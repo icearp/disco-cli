@@ -53,10 +53,10 @@ func TestScanStorage_BucketsHmacKeysAndPerBucketSecondaryChain(t *testing.T) {
 			Items: []*storage.Folder{{Id: "bucket1/f1/", Name: "f1/", Bucket: "bucket1"}},
 		}),
 		"/b/bucket1/acl": marshalAttrs(t, storage.BucketAccessControls{
-			Items: []*storage.BucketAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers"}},
+			Items: []*storage.BucketAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers", SelfLink: "https://www.googleapis.com/storage/v1/b/bucket1/acl/allUsers"}},
 		}),
 		"/b/bucket1/defaultObjectAcl": marshalAttrs(t, storage.ObjectAccessControls{
-			Items: []*storage.ObjectAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers"}},
+			Items: []*storage.ObjectAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers", SelfLink: "https://www.googleapis.com/storage/v1/b/bucket1/defaultObjectAcl/allUsers"}},
 		}),
 	}
 	srv := fakeGCPServer(t, routes)
@@ -72,7 +72,7 @@ func TestScanStorage_BucketsHmacKeysAndPerBucketSecondaryChain(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 8/8", total, inserted)
 	}
 
-	bucketID := store.ResourceID("gcp", p.ID, TypeStorageBucket, bucketSelfLink)
+	bucketID := store.ResourceID("gcp", p.ID, bucketSelfLink)
 	for _, tc := range []struct {
 		typ      string
 		nativeID string
@@ -81,10 +81,10 @@ func TestScanStorage_BucketsHmacKeysAndPerBucketSecondaryChain(t *testing.T) {
 		{TypeStorageManagedFolder, "bucket1/mf1/"},
 		{TypeStorageAnywhereCache, "bucket1/ac1"},
 		{TypeStorageFolder, "bucket1/f1/"},
-		{TypeStorageBucketAccessControl, "bucket1/allUsers"},
-		{TypeStorageDefaultObjectAccessControl, "bucket1/allUsers"},
+		{TypeStorageBucketAccessControl, "https://www.googleapis.com/storage/v1/b/bucket1/acl/allUsers"},
+		{TypeStorageDefaultObjectAccessControl, "https://www.googleapis.com/storage/v1/b/bucket1/defaultObjectAcl/allUsers"},
 	} {
-		id := store.ResourceID("gcp", p.ID, tc.typ, tc.nativeID)
+		id := store.ResourceID("gcp", p.ID, tc.nativeID)
 		res, err := st.GetResource(id)
 		if err != nil {
 			t.Fatalf("GetResource(%s): %v", tc.typ, err)
@@ -94,7 +94,7 @@ func TestScanStorage_BucketsHmacKeysAndPerBucketSecondaryChain(t *testing.T) {
 		}
 	}
 
-	hmacID := store.ResourceID("gcp", p.ID, TypeStorageHmacKey, "proj1/access1")
+	hmacID := store.ResourceID("gcp", p.ID, "proj1/access1")
 	hmacRes, err := st.GetResource(hmacID)
 	if err != nil {
 		t.Fatalf("GetResource(hmac key): %v", err)
@@ -136,7 +136,7 @@ func TestScanStorage_ManagedFolderNotApplicableContinues(t *testing.T) {
 			_, _ = w.Write([]byte(`{}`))
 		case "/b/bucket1/acl":
 			_, _ = w.Write([]byte(marshalAttrs(t, storage.BucketAccessControls{
-				Items: []*storage.BucketAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers"}},
+				Items: []*storage.BucketAccessControl{{Id: "bucket1/allUsers", Entity: "allUsers", SelfLink: "https://www.googleapis.com/storage/v1/b/bucket1/acl/allUsers"}},
 			})))
 		case "/b/bucket1/defaultObjectAcl":
 			_, _ = w.Write([]byte(`{}`))

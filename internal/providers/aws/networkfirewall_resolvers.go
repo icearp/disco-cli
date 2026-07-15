@@ -136,7 +136,7 @@ func resolveNetworkFirewallTLSInspectionRefs(acct *account, st *store.Store) err
 			if ca == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeACMCertificate, ca)
+			tgt := store.ResourceID("aws", acct.ID, ca)
 			if !acmSet[tgt] {
 				continue
 			}
@@ -206,7 +206,7 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 		region := sv(f.Region)
 
 		if arn := sv(attrs.Firewall.FirewallPolicyArn); arn != "" {
-			polID := store.ResourceID("aws", acct.ID, TypeNetworkFirewallFirewallPolicy, arn)
+			polID := store.ResourceID("aws", acct.ID, arn)
 			if known[polID] {
 				if err := st.UpsertRelationship(f.ID, polID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert network-firewall firewall→policy: %w", err)
@@ -216,7 +216,7 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 
 		if vpc := sv(attrs.Firewall.VpcID); vpc != "" {
 			vpcARN := ec2ARN(region, acct.ID, "vpc", vpc)
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
+			vpcID := store.ResourceID("aws", acct.ID, vpcARN)
 			if known[vpcID] {
 				if err := st.UpsertRelationship(f.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert network-firewall firewall→vpc: %w", err)
@@ -230,7 +230,7 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 				continue
 			}
 			snARN := ec2ARN(region, acct.ID, "subnet", sn)
-			snID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, snARN)
+			snID := store.ResourceID("aws", acct.ID, snARN)
 			if !known[snID] {
 				continue
 			}
@@ -283,7 +283,7 @@ func resolveNetworkFirewallPolicyRelationships(acct *account, st *store.Store) e
 			if arn == "" {
 				continue
 			}
-			rgID := store.ResourceID("aws", acct.ID, TypeNetworkFirewallRuleGroup, arn)
+			rgID := store.ResourceID("aws", acct.ID, arn)
 			if !rgSet[rgID] {
 				continue
 			}

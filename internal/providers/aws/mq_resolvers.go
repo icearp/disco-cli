@@ -84,7 +84,7 @@ func resolveMQRelationships(acct *account, st *store.Store) error {
 				continue
 			}
 			sgARN := ec2ARN(region, acct.ID, "security-group", sgID)
-			id := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+			id := store.ResourceID("aws", acct.ID, sgARN)
 			if _, ok := sgIDs[id]; ok {
 				if err := st.UpsertRelationship(b.ID, id, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mq-broker→sg: %w", err)
@@ -96,7 +96,7 @@ func resolveMQRelationships(acct *account, st *store.Store) error {
 				continue
 			}
 			subnetARN := ec2ARN(region, acct.ID, "subnet", subnetID)
-			id := store.ResourceID("aws", acct.ID, TypeEC2Subnet, subnetARN)
+			id := store.ResourceID("aws", acct.ID, subnetARN)
 			if _, ok := subnetIDs[id]; ok {
 				if err := st.UpsertRelationship(b.ID, id, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mq-broker→subnet: %w", err)
@@ -106,7 +106,7 @@ func resolveMQRelationships(acct *account, st *store.Store) error {
 		if a.Configurations != nil && a.Configurations.Current != nil {
 			cfgID := sv(a.Configurations.Current.ID)
 			if cfgARN, ok := configIdxByID[cfgID]; ok {
-				targetID := store.ResourceID("aws", acct.ID, TypeMQConfiguration, cfgARN)
+				targetID := store.ResourceID("aws", acct.ID, cfgARN)
 				if err := st.UpsertRelationship(b.ID, targetID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mq-broker→config: %w", err)
 				}

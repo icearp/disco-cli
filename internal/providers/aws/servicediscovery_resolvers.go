@@ -75,7 +75,7 @@ func resolveServiceDiscoveryServiceNamespace(acct *account, st *store.Store) err
 		}
 		nsARN := sdNamespaceARN(sv(r.Region), acct.ID, nsID)
 		for _, t := range nsTypes {
-			tgt := store.ResourceID("aws", acct.ID, t, nsARN)
+			tgt := store.ResourceID("aws", acct.ID, nsARN)
 			if !nsSets[t][tgt] {
 				continue
 			}
@@ -124,7 +124,7 @@ func resolveServiceDiscoveryNamespaceHostedZone(acct *account, st *store.Store) 
 			// HostedZoneId may carry `/hostedzone/` prefix; strip.
 			hz = strings.TrimPrefix(hz, "/hostedzone/")
 			hzARN := "arn:aws:route53:::hostedzone/" + hz
-			tgt := store.ResourceID("aws", acct.ID, TypeRoute53HostedZone, hzARN)
+			tgt := store.ResourceID("aws", acct.ID, hzARN)
 			if !hzSet[tgt] {
 				continue
 			}
@@ -160,7 +160,7 @@ func resolveServiceDiscoveryInstanceService(acct *account, st *store.Store) erro
 			continue
 		}
 		parent := r.NativeID[:i]
-		tgt := store.ResourceID("aws", acct.ID, TypeServiceDiscoveryService, parent)
+		tgt := store.ResourceID("aws", acct.ID, parent)
 		if !svcSet[tgt] {
 			continue
 		}

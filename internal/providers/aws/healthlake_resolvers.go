@@ -63,7 +63,7 @@ func resolveHealthLakeDatastoreRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.IdentityProviderConfiguration != nil {
 			if larn := sv(attrs.IdentityProviderConfiguration.IdpLambdaArn); strings.Contains(larn, ":lambda:") {
-				tgt := store.ResourceID("aws", acct.ID, TypeLambdaFunction, larn)
+				tgt := store.ResourceID("aws", acct.ID, larn)
 				if lambdaSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert health-lake→lambda: %w", err)

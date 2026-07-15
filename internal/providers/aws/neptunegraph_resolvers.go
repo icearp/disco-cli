@@ -56,7 +56,7 @@ func resolveNeptuneGraphSnapshotRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if gid := sv(attrs.SourceGraphID); gid != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeNeptuneGraphGraph, neptuneGraphARN(region, acct.ID, gid))
+			tgtID := store.ResourceID("aws", acct.ID, neptuneGraphARN(region, acct.ID, gid))
 			if gSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ng-snapshot→graph: %w", err)
@@ -102,7 +102,7 @@ func resolveNeptuneGraphPrivateEndpointRefs(acct *account, st *store.Store) erro
 			continue
 		}
 		graphARN := r.NativeID[:i]
-		tgtID := store.ResourceID("aws", acct.ID, TypeNeptuneGraphGraph, graphARN)
+		tgtID := store.ResourceID("aws", acct.ID, graphARN)
 		if gSet[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ng-priv-ep→graph: %w", err)
@@ -116,7 +116,7 @@ func resolveNeptuneGraphPrivateEndpointRefs(acct *account, st *store.Store) erro
 		}
 		if vid := sv(attrs.VpcID); vid != "" {
 			vpcARN := ec2ARN(sv(r.Region), acct.ID, "vpc", vid)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
+			tgtID := store.ResourceID("aws", acct.ID, vpcARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ng-priv-ep→vpc: %w", err)

@@ -97,18 +97,18 @@ func TestScanCloudKMS_FullNestedFanout(t *testing.T) {
 		{TypeKMSKeyHandle, khName},
 		{TypeKMSSingleTenantHsmInstance, hsmName},
 	} {
-		if _, err := st.GetResource(store.ResourceID("gcp", p.ID, tc.typ, tc.native)); err != nil {
+		if _, err := st.GetResource(store.ResourceID("gcp", p.ID, tc.native)); err != nil {
 			t.Errorf("GetResource(%s): %v", tc.typ, err)
 		}
 	}
 
-	projID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
-	krID := store.ResourceID("gcp", p.ID, TypeKMSKeyRing, krName)
-	ckID := store.ResourceID("gcp", p.ID, TypeKMSCryptoKey, ckName)
+	projID := store.ResourceID("gcp", p.ID, p.ID)
+	krID := store.ResourceID("gcp", p.ID, krName)
+	ckID := store.ResourceID("gcp", p.ID, ckName)
 
 	assertParent := func(childType, childNative, wantParentID string) {
 		t.Helper()
-		childID := store.ResourceID("gcp", p.ID, childType, childNative)
+		childID := store.ResourceID("gcp", p.ID, childNative)
 		rels, err := st.RelationshipsFrom(wantParentID, store.RelContains)
 		if err != nil {
 			t.Fatalf("RelationshipsFrom(%s): %v", wantParentID, err)
@@ -200,7 +200,7 @@ func TestScanCloudKMS_PartialDenyContinues(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (keyring only — ekm denied, everything else empty)", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeKMSKeyRing, krName)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, krName)); err != nil {
 		t.Errorf("GetResource(keyring): %v — keyRings.List should still run after ekmConnections.list is denied", err)
 	}
 }

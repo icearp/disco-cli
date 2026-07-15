@@ -48,7 +48,7 @@ func TestScanDataflow_JobsAndSnapshotsChain(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypeDataflowSnapshot, "projects/proj1/locations/us-central1/snapshots/snap1")
+	id := store.ResourceID("gcp", p.ID, "projects/proj1/locations/us-central1/snapshots/snap1")
 	res, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource(snapshot): %v", err)

@@ -80,7 +80,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			return nil, err
 		}
 		// Organizations are roots; add self-entry to closure table.
-		orgResourceID := store.ResourceID("gcp", id, TypeOrganization, id)
+		orgResourceID := store.ResourceID("gcp", id, id)
 		if err := st.RecordHierarchy(orgResourceID, orgResourceID); err != nil {
 			return nil, err
 		}
@@ -110,7 +110,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			return nil, err
 		}
-		folderResourceID := store.ResourceID("gcp", id, TypeFolder, id)
+		folderResourceID := store.ResourceID("gcp", id, id)
 		if folder.Parent != "" {
 			parentResourceID := gcpParentResourceID(folder.Parent)
 			if err := st.RecordHierarchy(folderResourceID, parentResourceID); err != nil {
@@ -131,7 +131,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		p.Name = proj.DisplayName
 		p.Number = projectNumber(proj.Name)
 
-		projResourceID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
+		projResourceID := store.ResourceID("gcp", p.ID, p.ID)
 		r := &store.Resource{
 			Provider:       "gcp",
 			AccountID:      p.ID,
@@ -160,10 +160,10 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 // "organizations/456") to a disco resource ID.
 func gcpParentResourceID(parent string) string {
 	if strings.HasPrefix(parent, "organizations/") {
-		return store.ResourceID("gcp", parent, TypeOrganization, parent)
+		return store.ResourceID("gcp", parent, parent)
 	}
 	if strings.HasPrefix(parent, "folders/") {
-		return store.ResourceID("gcp", parent, TypeFolder, parent)
+		return store.ResourceID("gcp", parent, parent)
 	}
 	return ""
 }

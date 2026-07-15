@@ -61,7 +61,7 @@ func TestResolveDocDBInstanceCluster(t *testing.T) {
 	if _, err := st.UpsertResource(cR); err != nil {
 		t.Fatalf("upsert cluster: %v", err)
 	}
-	clusterID := store.ResourceID("aws", acct.ID, TypeDocDBCluster, clusterARN)
+	clusterID := store.ResourceID("aws", acct.ID, clusterARN)
 
 	instARN := fmt.Sprintf("arn:aws:rds:%s:%s:db:%s", testRegion, testAccountID, testDocDBInst)
 	instAttrs := fmt.Sprintf(`{"DBInstanceIdentifier":%q,"DBClusterIdentifier":%q,"Engine":"docdb"}`,

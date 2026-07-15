@@ -189,7 +189,7 @@ func scanCloudBuildWithClient(ctx context.Context, svc *cloudbuild.Service, svc2
 				}
 				localConnRefs = append(localConnRefs, connRef{
 					name: c.Name,
-					id:   store.ResourceID("gcp", p.ID, TypeCloudBuildConnection, c.Name),
+					id:   store.ResourceID("gcp", p.ID, c.Name),
 				})
 				name := lastSegment(c.Name)
 				batch = append(batch, &store.Resource{

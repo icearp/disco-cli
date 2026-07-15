@@ -56,7 +56,7 @@ func resolveBCMDataExportsRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		bARN := fmt.Sprintf("arn:aws:s3:::%s", bucket)
-		bID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bARN)
+		bID := store.ResourceID("aws", acct.ID, bARN)
 		if _, ok := bucketIDs[bID]; !ok {
 			continue
 		}

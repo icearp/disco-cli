@@ -192,7 +192,7 @@ func scanACMPCAPermissions(ctx context.Context, client acmpcaAPI, acct *account,
 	}
 	pairs := make([][2]string, len(pending))
 	for i, pp := range pending {
-		parentID := store.ResourceID("aws", acct.ID, TypeACMPrivateCA, pp.caARN)
+		parentID := store.ResourceID("aws", acct.ID, pp.caARN)
 		pairs[i] = [2]string{pp.res.ID, parentID}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {

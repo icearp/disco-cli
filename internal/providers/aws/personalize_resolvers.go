@@ -45,7 +45,7 @@ func resolvePersonalizeChildrenToDatasetGroup(acct *account, st *store.Store) er
 			if dg == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypePersonalizeDatasetGroup, dg)
+			tgt := store.ResourceID("aws", acct.ID, dg)
 			if !dgSet[tgt] {
 				continue
 			}

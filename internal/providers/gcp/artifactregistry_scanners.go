@@ -78,7 +78,7 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 				}
 				repoRefs = append(repoRefs, repoRef{
 					name: r.Name,
-					id:   store.ResourceID("gcp", p.ID, TypeArtifactRepository, r.Name),
+					id:   store.ResourceID("gcp", p.ID, r.Name),
 				})
 				name := lastSegment(r.Name)
 				region := locationFromResourceName(r.Name)
@@ -121,7 +121,7 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 				}
 				localPkgRefs = append(localPkgRefs, pkgRef{
 					name: pkg.Name,
-					id:   store.ResourceID("gcp", p.ID, TypeArtifactPackage, pkg.Name),
+					id:   store.ResourceID("gcp", p.ID, pkg.Name),
 				})
 				name := lastSegment(pkg.Name)
 				batch = append(batch, &store.Resource{

@@ -52,14 +52,14 @@ func resolveCloudTrailRelationships(acct *account, st *store.Store) error {
 		// Trail → S3 bucket
 		if bucket := sv(t.S3BucketName); bucket != "" {
 			bucketARN := "arn:aws:s3:::" + bucket
-			bucketID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bucketARN)
+			bucketID := store.ResourceID("aws", acct.ID, bucketARN)
 			if err := st.UpsertRelationship(r.ID, bucketID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert cloudtrail→s3: %w", err)
 			}
 		}
 		// Trail → KMS key
 		if sv(t.KMSKeyID) != "" {
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *t.KMSKeyID)
+			keyID := store.ResourceID("aws", acct.ID, *t.KMSKeyID)
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert cloudtrail→kms: %w", err)
 			}
@@ -69,7 +69,7 @@ func resolveCloudTrailRelationships(acct *account, st *store.Store) error {
 		if lgARN := sv(t.CloudWatchLogsLogGroupArn); lgARN != "" {
 			// Strip trailing ":*" appended by the SDK.
 			lgARN = strings.TrimSuffix(lgARN, ":*")
-			lgID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, lgARN)
+			lgID := store.ResourceID("aws", acct.ID, lgARN)
 			if err := st.UpsertRelationship(r.ID, lgID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert cloudtrail→log-group: %w", err)
 			}
@@ -125,7 +125,7 @@ func resolveCloudTrailEventDataStoreRelationships(acct *account, st *store.Store
 		}
 		// EDS → federation IAM role
 		if roleARN := sv(a.FederationRoleArn); roleARN != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			roleID := store.ResourceID("aws", acct.ID, roleARN)
 			if _, ok := roleIDs[roleID]; ok {
 				if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert cloudtrail-eds→role: %w", err)

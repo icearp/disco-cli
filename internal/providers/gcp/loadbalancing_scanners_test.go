@@ -46,7 +46,7 @@ func TestScanForwardingRules_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypeComputeForwardingRule, frSelfLink)
+	id := store.ResourceID("gcp", p.ID, frSelfLink)
 	got, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -129,14 +129,14 @@ func TestScanBackendServices_Fake(t *testing.T) {
 	if total != 2 || inserted != 2 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
-	g, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeBackendService, globalLink))
+	g, err := st.GetResource(store.ResourceID("gcp", p.ID, globalLink))
 	if err != nil {
 		t.Fatalf("GetResource(global): %v", err)
 	}
 	if g.Region != nil {
 		t.Errorf("global backend service region: got %q, want nil", *g.Region)
 	}
-	r, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionBackendService, regionLink))
+	r, err := st.GetResource(store.ResourceID("gcp", p.ID, regionLink))
 	if err != nil {
 		t.Fatalf("GetResource(region): %v", err)
 	}

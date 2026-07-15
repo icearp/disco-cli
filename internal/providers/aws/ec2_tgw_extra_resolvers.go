@@ -45,7 +45,7 @@ func resolveTGWPolicyTableRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if id := sv(attrs.TransitGatewayID); id != "" {
-			tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway, ec2ARN(sv(r.Region), acct.ID, "transit-gateway", id))
+			tgwID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "transit-gateway", id))
 			if tgwSet[tgwID] {
 				if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert tgw policy-table→tgw: %w", err)
@@ -92,7 +92,7 @@ func resolveTGWRouteTableAnnouncementRelationships(acct *account, st *store.Stor
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.TransitGatewayID); id != "" {
-			tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway, ec2ARN(region, acct.ID, "transit-gateway", id))
+			tgwID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "transit-gateway", id))
 			if tgwSet[tgwID] {
 				if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert tgw announcement→tgw: %w", err)
@@ -100,7 +100,7 @@ func resolveTGWRouteTableAnnouncementRelationships(acct *account, st *store.Stor
 			}
 		}
 		if id := sv(attrs.TransitGatewayRouteTableID); id != "" {
-			rtID := store.ResourceID("aws", acct.ID, TypeEC2TransitGatewayRouteTable, ec2ARN(region, acct.ID, "transit-gateway-route-table", id))
+			rtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "transit-gateway-route-table", id))
 			if rtSet[rtID] {
 				if err := st.UpsertRelationship(r.ID, rtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert tgw announcement→route-table: %w", err)
@@ -108,7 +108,7 @@ func resolveTGWRouteTableAnnouncementRelationships(acct *account, st *store.Stor
 			}
 		}
 		if id := sv(attrs.PeeringAttachmentID); id != "" {
-			pID := store.ResourceID("aws", acct.ID, TypeEC2TransitGatewayPeeringAttachment, ec2ARN(region, acct.ID, "transit-gateway-peering-attachment", id))
+			pID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "transit-gateway-peering-attachment", id))
 			if peerSet[pID] {
 				if err := st.UpsertRelationship(r.ID, pID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert tgw announcement→peering-attachment: %w", err)

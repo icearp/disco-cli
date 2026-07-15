@@ -47,7 +47,7 @@ func resolveKinesisStreamConsumerToStream(acct *account, st *store.Store) error 
 			continue
 		}
 		streamARN := r.NativeID[:i]
-		tgt := store.ResourceID("aws", acct.ID, TypeKinesisStream, streamARN)
+		tgt := store.ResourceID("aws", acct.ID, streamARN)
 		if !streamSet[tgt] {
 			continue
 		}

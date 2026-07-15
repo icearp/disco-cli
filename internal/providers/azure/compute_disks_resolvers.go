@@ -52,17 +52,10 @@ func resolveSnapshotSourceRelationships(sub *subscription, st *store.Store) erro
 			continue
 		}
 		sourceNativeID := *attrs.Properties.CreationData.SourceResourceID
-		// Source may be a managed disk or another snapshot; try both, skip if
-		// neither is in the store (external or unscanned resource).
-		var sourceID string
-		for _, rtype := range []string{TypeComputeManagedDisk, TypeComputeSnapshot} {
-			candidate := store.ResourceID("azure", sub.ID, rtype, sourceNativeID)
-			if _, err := st.GetResource(candidate); err == nil {
-				sourceID = candidate
-				break
-			}
-		}
-		if sourceID == "" {
+		// Source may be a managed disk or another snapshot; one lookup by
+		// native id finds it regardless of type (skip if not in the store).
+		sourceID := store.ResourceID("azure", sub.ID, sourceNativeID)
+		if _, err := st.GetResource(sourceID); err != nil {
 			continue
 		}
 		if err := st.UpsertRelationship(r.ID, sourceID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -101,7 +94,7 @@ func resolveDiskEncryptionSetRelationships(sub *subscription, st *store.Store) e
 		if attrs.Properties == nil || attrs.Properties.Encryption == nil || attrs.Properties.Encryption.DiskEncryptionSetID == nil {
 			continue
 		}
-		desID := store.ResourceID("azure", sub.ID, TypeComputeDiskEncryptionSet, *attrs.Properties.Encryption.DiskEncryptionSetID)
+		desID := store.ResourceID("azure", sub.ID, *attrs.Properties.Encryption.DiskEncryptionSetID)
 		// DES may be in another subscription or not yet scanned; skip if not in store.
 		if _, err := st.GetResource(desID); err != nil {
 			continue
@@ -143,16 +136,10 @@ func resolveDiskSourceRelationships(sub *subscription, st *store.Store) error {
 			continue
 		}
 		sourceNativeID := *attrs.Properties.CreationData.SourceResourceID
-		// Source may be a managed disk or a snapshot; try both, skip if neither is in the store.
-		var sourceID string
-		for _, rtype := range []string{TypeComputeManagedDisk, TypeComputeSnapshot} {
-			candidate := store.ResourceID("azure", sub.ID, rtype, sourceNativeID)
-			if _, err := st.GetResource(candidate); err == nil {
-				sourceID = candidate
-				break
-			}
-		}
-		if sourceID == "" {
+		// Source may be a managed disk or a snapshot; one lookup by native
+		// id finds it regardless of type (skip if not in the store).
+		sourceID := store.ResourceID("azure", sub.ID, sourceNativeID)
+		if _, err := st.GetResource(sourceID); err != nil {
 			continue
 		}
 		if err := st.UpsertRelationship(r.ID, sourceID, store.RelAttachedTo, "directed", nil); err != nil {

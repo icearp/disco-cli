@@ -60,10 +60,10 @@ func TestScanFirestoreBackups_ParentedByOwnDatabaseField(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	backup1ID := store.ResourceID("gcp", p.ID, TypeFirestoreBackup, backup1Native)
-	backup2ID := store.ResourceID("gcp", p.ID, TypeFirestoreBackup, backup2Native)
-	db1ID := store.ResourceID("gcp", p.ID, TypeFirestoreDB, db1Native)
-	db2ID := store.ResourceID("gcp", p.ID, TypeFirestoreDB, db2Native)
+	backup1ID := store.ResourceID("gcp", p.ID, backup1Native)
+	backup2ID := store.ResourceID("gcp", p.ID, backup2Native)
+	db1ID := store.ResourceID("gcp", p.ID, db1Native)
+	db2ID := store.ResourceID("gcp", p.ID, db2Native)
 
 	assertChild := func(childID, parentID string) {
 		t.Helper()
@@ -134,7 +134,7 @@ func TestScanFirestoreBackupSchedules_PartialDenyContinues(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (db1 denied, db2 succeeds)", total, inserted)
 	}
 
-	scheduleID := store.ResourceID("gcp", p.ID, TypeFirestoreBackupSchedule, db2Native+"/backupSchedules/s1")
+	scheduleID := store.ResourceID("gcp", p.ID, db2Native+"/backupSchedules/s1")
 	res, err := st.GetResource(scheduleID)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -170,7 +170,7 @@ func TestScanFirestoreUserCreds_SecurePasswordRedacted(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	ucID := store.ResourceID("gcp", p.ID, TypeFirestoreUserCred, ucNative)
+	ucID := store.ResourceID("gcp", p.ID, ucNative)
 	res, err := st.GetResource(ucID)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -185,7 +185,7 @@ func TestScanFirestoreUserCreds_SecurePasswordRedacted(t *testing.T) {
 		t.Errorf("securePassword not redacted: %s", res.AttributesJSON)
 	}
 
-	dbID := store.ResourceID("gcp", p.ID, TypeFirestoreDB, dbNative)
+	dbID := store.ResourceID("gcp", p.ID, dbNative)
 	rels, err := st.RelationshipsFrom(dbID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)

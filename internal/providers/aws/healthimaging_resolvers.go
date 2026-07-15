@@ -54,7 +54,7 @@ func resolveHealthImagingDatastoreRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if larn := sv(attrs.LambdaAuthorizerArn); strings.Contains(larn, ":lambda:") {
-			tgt := store.ResourceID("aws", acct.ID, TypeLambdaFunction, larn)
+			tgt := store.ResourceID("aws", acct.ID, larn)
 			if lambdaSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert health-imaging→lambda: %w", err)

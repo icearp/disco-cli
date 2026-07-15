@@ -69,7 +69,7 @@ func resolveBackupRecoveryPointRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.IamRoleArn); role != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgt := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(rp.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return err

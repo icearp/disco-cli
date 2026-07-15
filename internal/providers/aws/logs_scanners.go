@@ -542,8 +542,9 @@ func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account,
 			pairs := make([][2]string, 0, len(batch))
 			for i, r := range batch {
 				lgName := sv(page.MetricFilters[i].LogGroupName)
-				parentID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup,
+				parentID := store.ResourceID("aws", acct.ID,
 					logGroupNativeIDFromName(acct.ID, region, lgName))
+
 				pairs = append(pairs, [2]string{r.ID, parentID})
 			}
 			if err := st.RecordHierarchyBatch(pairs); err != nil {
@@ -619,12 +620,15 @@ func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *accou
 		var batch []*store.Resource
 		for _, p := range out.ResourcePolicies {
 			name := sv(p.PolicyName)
+			// Region+account-qualified synthetic ARN: the bare policy name is unique
+			// only per (account, region), so it must carry region to be a global id.
+			nativeID := fmt.Sprintf("arn:aws:logs:%s:%s:resource-policy:%s", region, acct.ID, name)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeLogsResourcePolicy,
-				NativeID:       name,
+				NativeID:       nativeID,
 				Name:           &name,
 				Region:         &region,
 				AttributesJSON: mustJSON(p),
@@ -974,7 +978,7 @@ func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, 
 				DiscoveredBy:   scanID,
 			}
 			// Pre-compute ID so the closure pair is correct before UpsertResources.
-			r.ID = store.ResourceID("aws", acct.ID, TypeLogsTransformer, nativeID)
+			r.ID = store.ResourceID("aws", acct.ID, nativeID)
 			mu.Lock()
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{r.ID, grp.ID})

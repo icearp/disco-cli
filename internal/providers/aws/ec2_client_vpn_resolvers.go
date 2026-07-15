@@ -37,8 +37,9 @@ func resolveClientVPNEndpointRelationships(acct *account, st *store.Store) error
 			continue
 		}
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+			vpcID := store.ResourceID("aws", acct.ID,
 				ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert client-vpn-endpoint→vpc relationship: %w", err)
 			}
@@ -67,15 +68,17 @@ func resolveClientVPNTargetNetworkAssociationRelationships(acct *account, st *st
 		}
 		region := sv(r.Region)
 		if attrs.ClientVpnEndpointID != nil {
-			epID := store.ResourceID("aws", acct.ID, TypeEC2ClientVPNEndpoint,
+			epID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "client-vpn-endpoint", *attrs.ClientVpnEndpointID))
+
 			if err := st.UpsertRelationship(r.ID, epID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert client-vpn-target-assoc→endpoint relationship: %w", err)
 			}
 		}
 		if attrs.TargetNetworkID != nil {
-			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet,
+			subnetID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "subnet", *attrs.TargetNetworkID))
+
 			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert client-vpn-target-assoc→subnet relationship: %w", err)
 			}

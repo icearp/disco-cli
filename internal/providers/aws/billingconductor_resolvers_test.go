@@ -23,8 +23,8 @@ func TestResolveBillingConductorCustomLineItemToBillingGroup(t *testing.T) {
 		t.Fatalf("resolve: %v", err)
 	}
 
-	cliID := store.ResourceID("aws", acct.ID, TypeBillingConductorCustomLineItem, cliArn)
-	bgID := store.ResourceID("aws", acct.ID, TypeBillingConductorBillingGroup, bgArn)
+	cliID := store.ResourceID("aws", acct.ID, cliArn)
+	bgID := store.ResourceID("aws", acct.ID, bgArn)
 	rels, err := st.RelationshipsFrom(cliID)
 	if err != nil {
 		t.Fatalf("relationships: %v", err)
@@ -64,7 +64,7 @@ func TestResolveBillingConductorSkipsUnscannedTarget(t *testing.T) {
 	if err := resolveBillingConductor(acct, st); err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	cliID := store.ResourceID("aws", acct.ID, TypeBillingConductorCustomLineItem, cliArn)
+	cliID := store.ResourceID("aws", acct.ID, cliArn)
 	rels, err := st.RelationshipsFrom(cliID)
 	if err != nil {
 		t.Fatalf("relationships: %v", err)

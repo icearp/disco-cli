@@ -103,7 +103,7 @@ func resolveMediaLiveClusterRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.InstanceRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert medialive cluster→role: %w", err)

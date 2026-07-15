@@ -50,7 +50,7 @@ func resolveLexBotRole(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+		tgt := store.ResourceID("aws", acct.ID, arn)
 		if !roleSet[tgt] {
 			continue
 		}
@@ -102,7 +102,7 @@ func resolveLexChildrenToBot(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeLexBot, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !botSet[tgtID] {
 				continue
 			}

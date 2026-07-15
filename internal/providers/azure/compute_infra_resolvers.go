@@ -54,7 +54,7 @@ func resolveVMAvailabilitySetRelationships(sub *subscription, st *store.Store) e
 		if attrs.Properties == nil || attrs.Properties.AvailabilitySet == nil || attrs.Properties.AvailabilitySet.ID == nil {
 			continue
 		}
-		availID := store.ResourceID("azure", sub.ID, TypeComputeAvailabilitySet, *attrs.Properties.AvailabilitySet.ID)
+		availID := store.ResourceID("azure", sub.ID, *attrs.Properties.AvailabilitySet.ID)
 		if err := st.UpsertRelationship(r.ID, availID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert vm→availabilitySet relationship: %w", err)
 		}
@@ -90,7 +90,7 @@ func resolveVMProximityGroupRelationships(sub *subscription, st *store.Store) er
 		if attrs.Properties == nil || attrs.Properties.ProximityPlacementGroup == nil || attrs.Properties.ProximityPlacementGroup.ID == nil {
 			continue
 		}
-		ppgID := store.ResourceID("azure", sub.ID, TypeComputeProximityPlacementGroup, *attrs.Properties.ProximityPlacementGroup.ID)
+		ppgID := store.ResourceID("azure", sub.ID, *attrs.Properties.ProximityPlacementGroup.ID)
 		if err := st.UpsertRelationship(r.ID, ppgID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert vm→proximityPlacementGroup relationship: %w", err)
 		}
@@ -115,7 +115,7 @@ func resolveVMExtensionRelationships(sub *subscription, st *store.Store) error {
 		if vmNativeID == "" {
 			continue
 		}
-		vmID := store.ResourceID("azure", sub.ID, TypeComputeVirtualMachine, vmNativeID)
+		vmID := store.ResourceID("azure", sub.ID, vmNativeID)
 		if err := st.UpsertRelationship(r.ID, vmID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert vmExtension→vm relationship: %w", err)
 		}
@@ -151,7 +151,7 @@ func resolveImageSourceVMRelationships(sub *subscription, st *store.Store) error
 		if attrs.Properties == nil || attrs.Properties.SourceVirtualMachine == nil || attrs.Properties.SourceVirtualMachine.ID == nil {
 			continue
 		}
-		vmID := store.ResourceID("azure", sub.ID, TypeComputeVirtualMachine, *attrs.Properties.SourceVirtualMachine.ID)
+		vmID := store.ResourceID("azure", sub.ID, *attrs.Properties.SourceVirtualMachine.ID)
 		// Source VM may have been deleted after image capture; skip if not in store.
 		if _, err := st.GetResource(vmID); err != nil {
 			continue
@@ -191,7 +191,7 @@ func resolveRestorePointCollectionSourceRelationships(sub *subscription, st *sto
 		if attrs.Properties == nil || attrs.Properties.Source == nil || attrs.Properties.Source.ID == nil {
 			continue
 		}
-		vmID := store.ResourceID("azure", sub.ID, TypeComputeVirtualMachine, *attrs.Properties.Source.ID)
+		vmID := store.ResourceID("azure", sub.ID, *attrs.Properties.Source.ID)
 		// Source VM may have been deleted; skip if not in store.
 		if _, err := st.GetResource(vmID); err != nil {
 			continue

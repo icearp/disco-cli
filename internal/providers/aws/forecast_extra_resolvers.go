@@ -59,7 +59,7 @@ func forecastEdge(acct *account, st *store.Store, srcType, attrKey, tgtType stri
 		if ref == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, tgtType, ref)
+		tgt := store.ResourceID("aws", acct.ID, ref)
 		if tgtSet[tgt] {
 			if err := st.UpsertRelationship(r.ID, tgt, kind, "directed", nil); err != nil {
 				return fmt.Errorf("upsert %s→%s: %w", srcType, tgtType, err)

@@ -43,7 +43,7 @@ func resolveManagedBlockchainProposalNetwork(acct *account, st *store.Store) err
 			continue
 		}
 		netARN := p.NativeID[:i]
-		netID := store.ResourceID("aws", acct.ID, TypeManagedBlockchainNetwork, netARN)
+		netID := store.ResourceID("aws", acct.ID, netARN)
 		if !networks[netID] {
 			continue
 		}

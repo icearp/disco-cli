@@ -48,7 +48,7 @@ func resolveEBArchiveBus(acct *account, st *store.Store) error {
 			continue
 		}
 		if b := sv(attrs.EventSourceArn); b != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEventsEventBus, b)
+			tgtID := store.ResourceID("aws", acct.ID, b)
 			if busSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert eb archive→bus: %w", err)
@@ -94,7 +94,7 @@ func resolveEBEndpointBuses(acct *account, st *store.Store) error {
 			if b == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEventsEventBus, b)
+			tgtID := store.ResourceID("aws", acct.ID, b)
 			if busSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert eb endpoint→bus: %w", err)
@@ -102,7 +102,7 @@ func resolveEBEndpointBuses(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.RoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert eb endpoint→role: %w", err)
@@ -134,7 +134,7 @@ func resolveEBEventBusPolicyToBus(acct *account, st *store.Store) error {
 		if parent == r.NativeID {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeEventsEventBus, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !busSet[tgtID] {
 			continue
 		}

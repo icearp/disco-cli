@@ -39,7 +39,7 @@ func TestResolveBeanstalkEnvironmentTargets(t *testing.T) {
 	if _, err := st.UpsertResource(appR); err != nil {
 		t.Fatalf("upsert app: %v", err)
 	}
-	appID := store.ResourceID("aws", acct.ID, TypeBeanstalkApplication, ebApplicationARN())
+	appID := store.ResourceID("aws", acct.ID, ebApplicationARN())
 
 	envAttrs := fmt.Sprintf(`{"EnvironmentArn":%q,"EnvironmentName":%q,"ApplicationName":%q,"Status":"Ready"}`,
 		ebEnvironmentARN(), testEBEnvName, testEBAppName)

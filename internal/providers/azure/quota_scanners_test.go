@@ -92,7 +92,7 @@ func TestScanQuotaLimits_FakeTransport(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2 (westus denied, contributes nothing)", total, inserted)
 	}
 
-	id := store.ResourceID("azure", sub.ID, TypeQuotaLimit, eastScope+"/providers/Microsoft.Quota/quotas/standardDDv4Family")
+	id := store.ResourceID("azure", sub.ID, eastScope+"/providers/Microsoft.Quota/quotas/standardDDv4Family")
 	got, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -171,7 +171,7 @@ func TestScanQuotaLimits_SynthesizedNativeID(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total: got %d, want 1", total)
 	}
-	wantID := store.ResourceID("azure", sub.ID, TypeQuotaLimit, eastScope+"/providers/Microsoft.Quota/quotas/standardDDv4Family")
+	wantID := store.ResourceID("azure", sub.ID, eastScope+"/providers/Microsoft.Quota/quotas/standardDDv4Family")
 	if _, err := st.GetResource(wantID); err != nil {
 		t.Fatalf("expected resource keyed on synthesized NativeID (RP name): %v", err)
 	}
@@ -229,7 +229,7 @@ func TestScanQuotaLimits_LimitOnlyChurnFree(t *testing.T) {
 			t.Fatalf("scan: %v", err)
 		}
 	}
-	rootID := store.ResourceID("azure", sub.ID, TypeQuotaLimit, eastScope+"/providers/Microsoft.Quota/quotas/standardDDv4Family")
+	rootID := store.ResourceID("azure", sub.ID, eastScope+"/providers/Microsoft.Quota/quotas/standardDDv4Family")
 	versionCount := func() int {
 		t.Helper()
 		v, err := st.GetResourceVersions(rootID)

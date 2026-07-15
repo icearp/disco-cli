@@ -153,7 +153,7 @@ func TestResolveLoggingLogScopeRelationships_ForeignProjectPlaceholder(t *testin
 	}
 
 	rels, _ := st.RelationshipsFrom(scopeID)
-	wantID := store.ResourceID("gcp", "other-project", TypeProject, "other-project")
+	wantID := store.ResourceID("gcp", "other-project", "other-project")
 	if len(rels) != 1 || rels[0].ToID != wantID || rels[0].Kind != store.RelUses {
 		t.Errorf("foreign project ref: got %+v, want →%s uses", rels, wantID)
 	}

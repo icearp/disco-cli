@@ -59,7 +59,7 @@ func TestScanBCMDataExportsExports(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total=%d want 1", total)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBCMDataExportsExport, arn)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, arn)); err != nil {
 		t.Errorf("export missing: %v", err)
 	}
 }

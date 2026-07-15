@@ -74,7 +74,7 @@ func resolveSESEmailIdentityConfigSet(acct *account, st *store.Store) error {
 			continue
 		}
 		cfgARN := sesConfigurationSetARN(*ident.Region, acct.ID, cfgName)
-		cfgID := store.ResourceID("aws", acct.ID, TypeSESConfigurationSet, cfgARN)
+		cfgID := store.ResourceID("aws", acct.ID, cfgARN)
 		if _, ok := cfgIDs[cfgID]; !ok {
 			continue
 		}
@@ -152,8 +152,9 @@ func resolveSESEventDestinationTargets(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		// Parent config-set edge (synth from NativeID).
 		if name := sesEventDestinationConfigSetName(r.NativeID); name != "" {
-			cfgID := store.ResourceID("aws", acct.ID, TypeSESConfigurationSet,
+			cfgID := store.ResourceID("aws", acct.ID,
 				sesConfigurationSetARN(region, acct.ID, name))
+
 			if cfgSet[cfgID] {
 				if err := st.UpsertRelationship(r.ID, cfgID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses event-destination→config-set: %w", err)
@@ -165,7 +166,7 @@ func resolveSESEventDestinationTargets(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.SnsDestination != nil && sv(attrs.SnsDestination.TopicArn) != "" {
-			topicID := store.ResourceID("aws", acct.ID, TypeSNSTopic, *attrs.SnsDestination.TopicArn)
+			topicID := store.ResourceID("aws", acct.ID, *attrs.SnsDestination.TopicArn)
 			if snsSet[topicID] {
 				if err := st.UpsertRelationship(r.ID, topicID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses event-destination→sns: %w", err)
@@ -173,7 +174,7 @@ func resolveSESEventDestinationTargets(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.KinesisFirehoseDestination != nil && sv(attrs.KinesisFirehoseDestination.DeliveryStreamArn) != "" {
-			fhID := store.ResourceID("aws", acct.ID, TypeFirehoseDeliveryStream, *attrs.KinesisFirehoseDestination.DeliveryStreamArn)
+			fhID := store.ResourceID("aws", acct.ID, *attrs.KinesisFirehoseDestination.DeliveryStreamArn)
 			if fhSet[fhID] {
 				if err := st.UpsertRelationship(r.ID, fhID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses event-destination→firehose: %w", err)
@@ -181,7 +182,7 @@ func resolveSESEventDestinationTargets(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.PinpointDestination != nil && sv(attrs.PinpointDestination.ApplicationArn) != "" {
-			appID := store.ResourceID("aws", acct.ID, TypePinpointApp, *attrs.PinpointDestination.ApplicationArn)
+			appID := store.ResourceID("aws", acct.ID, *attrs.PinpointDestination.ApplicationArn)
 			if appSet[appID] {
 				if err := st.UpsertRelationship(r.ID, appID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses event-destination→pinpoint-app: %w", err)
@@ -269,7 +270,7 @@ func resolveSESReceiptRuleTargets(acct *account, st *store.Store) error {
 		// Parent rule-set.
 		if name := sesReceiptRuleSetName(r.NativeID); name != "" {
 			rsARN := fmt.Sprintf("arn:aws:ses:%s:%s:receipt-rule-set/%s", region, acct.ID, name)
-			rsID := store.ResourceID("aws", acct.ID, TypeSESReceiptRuleSet, rsARN)
+			rsID := store.ResourceID("aws", acct.ID, rsARN)
 			if rsSet[rsID] {
 				if err := st.UpsertRelationship(r.ID, rsID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses receipt-rule→rule-set: %w", err)
@@ -294,7 +295,7 @@ func resolveSESReceiptRuleTargets(acct *account, st *store.Store) error {
 func emitReceiptRuleAction(st *store.Store, ruleID, region, acctID string, a sesReceiptAction, bucketSet, snsSet, lambdaSet map[string]bool, kmsIdx *kmsResolveIndex) error {
 	if a.S3Action != nil {
 		if b := sv(a.S3Action.BucketName); b != "" {
-			bID := store.ResourceID("aws", acctID, TypeS3Bucket, "arn:aws:s3:::"+b)
+			bID := store.ResourceID("aws", acctID, "arn:aws:s3:::"+b)
 			if bucketSet[bID] {
 				if err := st.UpsertRelationship(ruleID, bID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses receipt-rule→s3: %w", err)
@@ -302,7 +303,7 @@ func emitReceiptRuleAction(st *store.Store, ruleID, region, acctID string, a ses
 			}
 		}
 		if t := sv(a.S3Action.TopicArn); t != "" {
-			tID := store.ResourceID("aws", acctID, TypeSNSTopic, t)
+			tID := store.ResourceID("aws", acctID, t)
 			if snsSet[tID] {
 				if err := st.UpsertRelationship(ruleID, tID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses receipt-rule→sns(s3): %w", err)
@@ -319,7 +320,7 @@ func emitReceiptRuleAction(st *store.Store, ruleID, region, acctID string, a ses
 	}
 	if a.SNSAction != nil {
 		if t := sv(a.SNSAction.TopicArn); t != "" {
-			tID := store.ResourceID("aws", acctID, TypeSNSTopic, t)
+			tID := store.ResourceID("aws", acctID, t)
 			if snsSet[tID] {
 				if err := st.UpsertRelationship(ruleID, tID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses receipt-rule→sns: %w", err)
@@ -329,7 +330,7 @@ func emitReceiptRuleAction(st *store.Store, ruleID, region, acctID string, a ses
 	}
 	if a.LambdaAction != nil {
 		if f := sv(a.LambdaAction.FunctionArn); f != "" {
-			fID := store.ResourceID("aws", acctID, TypeLambdaFunction, f)
+			fID := store.ResourceID("aws", acctID, f)
 			if lambdaSet[fID] {
 				if err := st.UpsertRelationship(ruleID, fID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses receipt-rule→lambda: %w", err)

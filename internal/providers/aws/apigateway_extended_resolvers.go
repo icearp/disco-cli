@@ -73,7 +73,7 @@ func resolveAPIGatewayRestAPIChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayRestAPI, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !apiSet[tgtID] {
 				continue
 			}
@@ -113,7 +113,7 @@ func resolveAPIGatewayVpcLinkTargets(acct *account, st *store.Store) error {
 			if arn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeELBv2LoadBalancer, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !nlbSet[tgtID] {
 				continue
 			}

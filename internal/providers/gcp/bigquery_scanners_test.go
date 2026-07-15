@@ -86,11 +86,11 @@ func TestScanBigQuery_ModelsRoutinesRowAccessPoliciesChain(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 5/5", total, inserted)
 	}
 
-	dsResID := store.ResourceID("gcp", p.ID, TypeBQDataset, dsNative)
-	tableResID := store.ResourceID("gcp", p.ID, TypeBQTable, tableNative)
-	rapResID := store.ResourceID("gcp", p.ID, TypeBQRowAccessPolicy, "projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies/rap1")
-	modelResID := store.ResourceID("gcp", p.ID, TypeBQModel, "projects/proj1/datasets/ds1/models/m1")
-	routineResID := store.ResourceID("gcp", p.ID, TypeBQRoutine, "projects/proj1/datasets/ds1/routines/r1")
+	dsResID := store.ResourceID("gcp", p.ID, dsNative)
+	tableResID := store.ResourceID("gcp", p.ID, tableNative)
+	rapResID := store.ResourceID("gcp", p.ID, "projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies/rap1")
+	modelResID := store.ResourceID("gcp", p.ID, "projects/proj1/datasets/ds1/models/m1")
+	routineResID := store.ResourceID("gcp", p.ID, "projects/proj1/datasets/ds1/routines/r1")
 
 	assertChild := func(parentID, childID, label string) {
 		t.Helper()
@@ -196,7 +196,7 @@ func TestScanBigQuery_RowAccessPolicyGetIamPolicyDeniedStillStoresPolicy(t *test
 		t.Fatalf("counts: got total=%d inserted=%d, want 4/4", total, inserted)
 	}
 
-	rapResID := store.ResourceID("gcp", p.ID, TypeBQRowAccessPolicy, "projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies/rap1")
+	rapResID := store.ResourceID("gcp", p.ID, "projects/proj1/datasets/ds1/tables/t1/rowAccessPolicies/rap1")
 	rapRes, err := st.GetResource(rapResID)
 	if err != nil {
 		t.Fatalf("GetResource(rap): %v", err)
@@ -325,7 +325,7 @@ func TestScanBigQuery_RowAccessPoliciesPermissionDeniedContinuesToModels(t *test
 		t.Fatalf("counts: got total=%d inserted=%d, want 3/3 (row access policies denied, models/routines still scanned)", total, inserted)
 	}
 
-	modelResID := store.ResourceID("gcp", p.ID, TypeBQModel, "projects/proj1/datasets/ds1/models/m1")
+	modelResID := store.ResourceID("gcp", p.ID, "projects/proj1/datasets/ds1/models/m1")
 	res, err := st.GetResource(modelResID)
 	if err != nil {
 		t.Fatalf("GetResource(model): %v", err)
@@ -398,7 +398,7 @@ func TestScanBigQuery_RowAccessPoliciesAPINotEnabledShapeDoesNotDisableWholeServ
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2 (dataset+table survive despite row access policy API-not-enabled shape)", total, inserted)
 	}
 
-	tableResID := store.ResourceID("gcp", p.ID, TypeBQTable, tableNative)
+	tableResID := store.ResourceID("gcp", p.ID, tableNative)
 	res, err := st.GetResource(tableResID)
 	if err != nil {
 		t.Fatalf("GetResource(table): %v", err)

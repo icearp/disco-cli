@@ -114,7 +114,7 @@ func resolveBACPaymentManagerRole(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !roleSet[tgtID] {
 			continue
 		}

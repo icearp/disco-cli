@@ -47,7 +47,7 @@ func resolveNotifChildrenToConfig(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeNotificationsNotificationConfiguration, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !configSet[tgtID] {
 				continue
 			}

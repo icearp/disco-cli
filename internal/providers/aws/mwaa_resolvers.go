@@ -73,7 +73,7 @@ func resolveMWAAEnvironmentRefs(acct *account, st *store.Store) error {
 			if !strings.Contains(rarn, ":role/") {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			tgt := store.ResourceID("aws", acct.ID, rarn)
 			if !roleSet[tgt] {
 				continue
 			}
@@ -89,7 +89,7 @@ func resolveMWAAEnvironmentRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if barn := sv(attrs.SourceBucketArn); strings.HasPrefix(barn, "arn:aws:s3:::") {
-			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+			tgt := store.ResourceID("aws", acct.ID, barn)
 			if bucketSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mwaa-env→s3: %w", err)
@@ -98,7 +98,7 @@ func resolveMWAAEnvironmentRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.NetworkConfiguration != nil {
 			for _, sn := range attrs.NetworkConfiguration.SubnetIDs {
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
 				if !subnetSet[tgt] {
 					continue
 				}
@@ -107,7 +107,7 @@ func resolveMWAAEnvironmentRefs(acct *account, st *store.Store) error {
 				}
 			}
 			for _, sg := range attrs.NetworkConfiguration.SecurityGroupIDs {
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 				if !sgSet[tgt] {
 					continue
 				}

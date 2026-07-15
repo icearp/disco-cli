@@ -48,7 +48,7 @@ func TestScanBcmPricingCalculatorBillScenarios(t *testing.T) {
 		t.Fatalf("total=%d want 1", total)
 	}
 	expectedARN := bcmPricingCalculatorNativeID(acct.ID, "bill-scenario", id)
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBcmPricingCalculatorBillScenario, expectedARN)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, expectedARN)); err != nil {
 		t.Errorf("bill-scenario missing: %v", err)
 	}
 }
@@ -78,11 +78,11 @@ func TestScanBcmPricingCalculatorEstimates(t *testing.T) {
 		t.Errorf("workload-estimate total=%d want 1", weTotal)
 	}
 	beARN := bcmPricingCalculatorNativeID(acct.ID, "bill-estimate", beID)
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBcmPricingCalculatorBillEstimate, beARN)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, beARN)); err != nil {
 		t.Errorf("bill-estimate missing: %v", err)
 	}
 	weARN := bcmPricingCalculatorNativeID(acct.ID, "workload-estimate", weID)
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBcmPricingCalculatorWorkloadEstimate, weARN)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, weARN)); err != nil {
 		t.Errorf("workload-estimate missing: %v", err)
 	}
 }

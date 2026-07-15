@@ -178,7 +178,7 @@ func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *proje
 		}
 
 		// Tables for the dataset, plus per-table row access policies.
-		dsResourceID := store.ResourceID("gcp", p.ID, TypeBQDataset, nativeID)
+		dsResourceID := store.ResourceID("gcp", p.ID, nativeID)
 		if err := svc.Tables.List(d.projectID, d.datasetID).Pages(gctx, func(page *bigquery.TableList) error {
 			var batch []*store.Resource
 			for _, tb := range page.Tables {
@@ -215,7 +215,7 @@ func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *proje
 					continue
 				}
 				tableID := tb.TableReference.TableId
-				tableResID := store.ResourceID("gcp", p.ID, TypeBQTable, tb.Id)
+				tableResID := store.ResourceID("gcp", p.ID, tb.Id)
 				rerr := svc.RowAccessPolicies.List(d.projectID, d.datasetID, tableID).Pages(gctx, func(rpage *bigquery.ListRowAccessPoliciesResponse) error {
 					var rbatch []*store.Resource
 					for _, rap := range rpage.RowAccessPolicies {

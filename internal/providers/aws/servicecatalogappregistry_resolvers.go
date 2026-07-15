@@ -64,7 +64,7 @@ func resolveSCARAttributeGroupAssocRefs(acct *account, st *store.Store) error {
 		i := strings.Index(r.NativeID, "/attribute-group-association/")
 		if i >= 0 {
 			parent := r.NativeID[:i]
-			tgt := store.ResourceID("aws", acct.ID, TypeSCARApplication, parent)
+			tgt := store.ResourceID("aws", acct.ID, parent)
 			if appSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appregistry ag-assoc→application: %w", err)
@@ -108,7 +108,7 @@ func resolveSCARResourceAssocApplication(acct *account, st *store.Store) error {
 			continue
 		}
 		parent := r.NativeID[:i]
-		tgt := store.ResourceID("aws", acct.ID, TypeSCARApplication, parent)
+		tgt := store.ResourceID("aws", acct.ID, parent)
 		if !appSet[tgt] {
 			continue
 		}

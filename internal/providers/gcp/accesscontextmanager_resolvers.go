@@ -340,7 +340,7 @@ func emitAuthorizedOrgsDescOrgs(st *store.Store, orgsDescs []store.Resource) err
 	}
 
 	for _, e := range pending {
-		toID := store.ResourceID("gcp", e.orgName, TypeOrganization, e.orgName)
+		toID := store.ResourceID("gcp", e.orgName, e.orgName)
 		if err := st.UpsertRelationship(e.fromID, toID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert authorizedOrgsDesc→organization: %w", err)
 		}

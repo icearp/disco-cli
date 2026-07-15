@@ -71,8 +71,9 @@ func resolveR53RFirewallConfigVPC(acct *account, st *store.Store) error {
 		if attrs.ResourceID == nil || *attrs.ResourceID == "" {
 			continue
 		}
-		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+		vpcID := store.ResourceID("aws", acct.ID,
 			ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.ResourceID))
+
 		if !vpcSet[vpcID] {
 			continue
 		}
@@ -112,8 +113,9 @@ func resolveR53RResolverConfigVPC(acct *account, st *store.Store) error {
 		if attrs.ResourceID == nil || *attrs.ResourceID == "" {
 			continue
 		}
-		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+		vpcID := store.ResourceID("aws", acct.ID,
 			ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.ResourceID))
+
 		if !vpcSet[vpcID] {
 			continue
 		}
@@ -153,8 +155,9 @@ func resolveR53RResolverRuleAssoc(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.VPCID != nil && *attrs.VPCID != "" {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+			vpcID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "vpc", *attrs.VPCID))
+
 			if vpcSet[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert resolver-rule-assoc→vpc: %w", err)
@@ -163,7 +166,7 @@ func resolveR53RResolverRuleAssoc(acct *account, st *store.Store) error {
 		}
 		if attrs.ResolverRuleID != nil && *attrs.ResolverRuleID != "" {
 			ruleARN := r53rARN(region, acct.ID, "resolver-rule", *attrs.ResolverRuleID)
-			ruleID := store.ResourceID("aws", acct.ID, TypeRoute53ResolverResolverRule, ruleARN)
+			ruleID := store.ResourceID("aws", acct.ID, ruleARN)
 			if ruleSet[ruleID] {
 				if err := st.UpsertRelationship(r.ID, ruleID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert resolver-rule-assoc→rule: %w", err)
@@ -200,7 +203,7 @@ func resolveR53RResolverRuleEndpoint(acct *account, st *store.Store) error {
 			continue
 		}
 		epARN := r53rARN(sv(r.Region), acct.ID, "resolver-endpoint", *attrs.ResolverEndpointID)
-		epID := store.ResourceID("aws", acct.ID, TypeRoute53ResolverResolverEndpoint, epARN)
+		epID := store.ResourceID("aws", acct.ID, epARN)
 		if !epSet[epID] {
 			continue
 		}
@@ -264,7 +267,7 @@ func resolveR53RQueryLogConfigDestination(acct *account, st *store.Store) error 
 		default:
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, dest)
+		tgtID := store.ResourceID("aws", acct.ID, dest)
 		if !tgtSet[tgtID] {
 			continue
 		}
@@ -300,8 +303,9 @@ func resolveR53RFirewallRuleGroupAssoc(acct *account, st *store.Store) error {
 		if attrs.VpcID == nil || *attrs.VpcID == "" {
 			continue
 		}
-		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+		vpcID := store.ResourceID("aws", acct.ID,
 			ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+
 		if !vpcSet[vpcID] {
 			continue
 		}

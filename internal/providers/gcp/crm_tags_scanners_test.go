@@ -35,7 +35,7 @@ func fakeCRMService(t *testing.T, srv *httptest.Server) *cloudresourcemanager.Se
 func TestScanCRMTagsUnder_OrgNestedFanout(t *testing.T) {
 	st := newTestStore(t)
 	orgName := "organizations/123"
-	orgResourceID := store.ResourceID("gcp", orgName, TypeOrganization, orgName)
+	orgResourceID := store.ResourceID("gcp", orgName, orgName)
 	upsertTestResource(t, st, "gcp", orgName, TypeOrganization, orgName, "", "{}")
 
 	routes := map[string]string{
@@ -61,8 +61,8 @@ func TestScanCRMTagsUnder_OrgNestedFanout(t *testing.T) {
 	}
 
 	orgID := orgResourceID
-	tkID := store.ResourceID("gcp", orgName, TypeTagKey, "tagKeys/1")
-	tvID := store.ResourceID("gcp", orgName, TypeTagValue, "tagValues/1")
+	tkID := store.ResourceID("gcp", orgName, "tagKeys/1")
+	tvID := store.ResourceID("gcp", orgName, "tagValues/1")
 
 	assertParent := func(childID, wantParentID string) {
 		t.Helper()
@@ -80,7 +80,7 @@ func TestScanCRMTagsUnder_OrgNestedFanout(t *testing.T) {
 
 	assertParent(tkID, orgID)
 	assertParent(tvID, tkID)
-	assertParent(store.ResourceID("gcp", orgName, TypeTagHold, "tagValues/1/tagHolds/1"), tvID)
+	assertParent(store.ResourceID("gcp", orgName, "tagValues/1/tagHolds/1"), tvID)
 }
 
 // TestScanCRMTagsUnder_ProjectParented guards the coverage gap an adversarial
@@ -91,7 +91,7 @@ func TestScanCRMTagsUnder_OrgNestedFanout(t *testing.T) {
 func TestScanCRMTagsUnder_ProjectParented(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")
-	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
+	projParentID := store.ResourceID("gcp", p.ID, p.ID)
 	upsertTestResource(t, st, "gcp", p.ID, TypeProject, p.ID, "", "{}")
 
 	routes := map[string]string{
@@ -111,7 +111,7 @@ func TestScanCRMTagsUnder_ProjectParented(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (project-parented tagkey)", total, inserted)
 	}
-	tkID := store.ResourceID("gcp", p.ID, TypeTagKey, "tagKeys/9")
+	tkID := store.ResourceID("gcp", p.ID, "tagKeys/9")
 	rels, err := st.RelationshipsFrom(projParentID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(project): %v", err)
@@ -145,7 +145,7 @@ func TestScanCRMLiensAndBindings_ProjectScoped(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCRMService(t, srv)
 
-	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
+	projParentID := store.ResourceID("gcp", p.ID, p.ID)
 	t1, n1, err := scanCRMLiens(t.Context(), svc, p, projParentID, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanCRMLiens: %v", err)
@@ -163,7 +163,7 @@ func TestScanCRMLiensAndBindings_ProjectScoped(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 3/3 (lien+tagbinding+effectivetag)", total, inserted)
 	}
 
-	etID := store.ResourceID("gcp", p.ID, TypeEffectiveTag, fullResourceName+"/effectiveTags/1")
+	etID := store.ResourceID("gcp", p.ID, fullResourceName+"/effectiveTags/1")
 	if _, err := st.GetResource(etID); err != nil {
 		t.Errorf("GetResource(effective tag): %v", err)
 	}
@@ -173,8 +173,8 @@ func TestScanCRMLiensAndBindings_ProjectScoped(t *testing.T) {
 		t.Fatalf("RelationshipsFrom(project): %v", err)
 	}
 	wantChildren := []string{
-		store.ResourceID("gcp", p.ID, TypeLien, "liens/1"),
-		store.ResourceID("gcp", p.ID, TypeTagBinding, "tagBindings/x"),
+		store.ResourceID("gcp", p.ID, "liens/1"),
+		store.ResourceID("gcp", p.ID, "tagBindings/x"),
 		etID,
 	}
 	for _, want := range wantChildren {

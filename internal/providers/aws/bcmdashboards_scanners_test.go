@@ -41,10 +41,10 @@ func TestScanBCMDashboards(t *testing.T) {
 	if total != 2 {
 		t.Fatalf("total=%d want 2", total)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBCMDashboardsDashboard, dArn)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, dArn)); err != nil {
 		t.Errorf("dashboard missing: %v", err)
 	}
-	rep, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBCMDashboardsScheduledReport, rArn))
+	rep, err := st.GetResource(store.ResourceID("aws", acct.ID, rArn))
 	if err != nil {
 		t.Fatalf("scheduled-report missing: %v", err)
 	}

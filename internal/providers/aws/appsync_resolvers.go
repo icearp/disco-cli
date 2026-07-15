@@ -104,8 +104,8 @@ func resolveAppSyncAPIChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			gqlID := store.ResourceID("aws", acct.ID, TypeAppSyncGraphQLApi, parent)
-			apiID := store.ResourceID("aws", acct.ID, TypeAppSyncAPI, parent)
+			gqlID := store.ResourceID("aws", acct.ID, parent)
+			apiID := store.ResourceID("aws", acct.ID, parent)
 			switch {
 			case graphqlSet[gqlID]:
 				if err := st.UpsertRelationship(r.ID, gqlID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -175,7 +175,7 @@ func resolveAppSyncDataSourceTargets(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if arn := sv(attrs.ServiceRoleArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appsync-ds→role: %w", err)
@@ -184,7 +184,7 @@ func resolveAppSyncDataSourceTargets(acct *account, st *store.Store) error {
 		}
 		if attrs.DynamodbConfig != nil {
 			if name := sv(attrs.DynamodbConfig.TableName); name != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeDynamoDBTable, dynamoTableARN(region, acct.ID, name))
+				tgtID := store.ResourceID("aws", acct.ID, dynamoTableARN(region, acct.ID, name))
 				if tableSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert appsync-ds→ddb: %w", err)
@@ -194,7 +194,7 @@ func resolveAppSyncDataSourceTargets(acct *account, st *store.Store) error {
 		}
 		if attrs.LambdaConfig != nil {
 			if arn := sv(attrs.LambdaConfig.LambdaFunctionArn); arn != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, arn)
+				tgtID := store.ResourceID("aws", acct.ID, arn)
 				if lambdaSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert appsync-ds→lambda: %w", err)
@@ -204,7 +204,7 @@ func resolveAppSyncDataSourceTargets(acct *account, st *store.Store) error {
 		}
 		if attrs.EventBridgeConfig != nil {
 			if arn := sv(attrs.EventBridgeConfig.EventBusArn); arn != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeEventsEventBus, arn)
+				tgtID := store.ResourceID("aws", acct.ID, arn)
 				if busSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert appsync-ds→eventbus: %w", err)
@@ -298,7 +298,7 @@ func resolveAppSyncResolverDataSource(acct *account, st *store.Store) error {
 					continue
 				}
 				fnARN := apiARN + "/functions/" + fnID
-				tgtID := store.ResourceID("aws", acct.ID, TypeAppSyncFunctionConfiguration, fnARN)
+				tgtID := store.ResourceID("aws", acct.ID, fnARN)
 				if !fnSet[tgtID] {
 					continue
 				}
@@ -381,7 +381,7 @@ func resolveAppSyncSourceAPIAssoc(acct *account, st *store.Store) error {
 			if arn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeAppSyncGraphQLApi, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !graphqlSet[tgtID] {
 				continue
 			}
@@ -421,7 +421,7 @@ func resolveAppSyncDomainNameAPIAssoc(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		// Domain-name parent: strip trailing "/apiassociation".
 		if dnARN := strings.TrimSuffix(r.NativeID, "/apiassociation"); dnARN != r.NativeID {
-			tgtID := store.ResourceID("aws", acct.ID, TypeAppSyncDomainName, dnARN)
+			tgtID := store.ResourceID("aws", acct.ID, dnARN)
 			if dnSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appsync-dn-assoc→domain-name: %w", err)
@@ -440,8 +440,8 @@ func resolveAppSyncDomainNameAPIAssoc(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		apiARN := fmt.Sprintf("arn:aws:appsync:%s:%s:apis/%s", region, acct.ID, apiID)
-		gqlID := store.ResourceID("aws", acct.ID, TypeAppSyncGraphQLApi, apiARN)
-		evtID := store.ResourceID("aws", acct.ID, TypeAppSyncAPI, apiARN)
+		gqlID := store.ResourceID("aws", acct.ID, apiARN)
+		evtID := store.ResourceID("aws", acct.ID, apiARN)
 		switch {
 		case graphqlSet[gqlID]:
 			if err := st.UpsertRelationship(r.ID, gqlID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -512,7 +512,7 @@ func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
 			if !strings.Contains(rarn, ":role/") {
 				return nil
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			tgt := store.ResourceID("aws", acct.ID, rarn)
 			if !roleSet[tgt] {
 				return nil
 			}
@@ -536,7 +536,7 @@ func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
 						larn = larn[:i+len(":function:")+j]
 					}
 				}
-				tgt := store.ResourceID("aws", acct.ID, TypeLambdaFunction, larn)
+				tgt := store.ResourceID("aws", acct.ID, larn)
 				if lambdaSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert appsync→lambda: %w", err)
@@ -549,7 +549,7 @@ func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
 			upRegion := sv(attrs.UserPoolConfig.AwsRegion)
 			if upID != "" && upRegion != "" {
 				upARN := "arn:aws:cognito-idp:" + upRegion + ":" + acct.ID + ":userpool/" + upID
-				tgt := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, upARN)
+				tgt := store.ResourceID("aws", acct.ID, upARN)
 				if upSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert appsync→user-pool: %w", err)
@@ -622,7 +622,7 @@ func resolveAppSyncEventAPIRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if wa := sv(attrs.WafWebACLArn); strings.Contains(wa, ":wafv2:") {
-			tgt := store.ResourceID("aws", acct.ID, TypeWAFv2WebACL, wa)
+			tgt := store.ResourceID("aws", acct.ID, wa)
 			if waclSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appsync-api→waf: %w", err)
@@ -635,7 +635,7 @@ func resolveAppSyncEventAPIRefs(acct *account, st *store.Store) error {
 		if attrs.EventConfig.LogConfig != nil {
 			rarn := sv(attrs.EventConfig.LogConfig.CloudWatchLogsRoleArn)
 			if strings.Contains(rarn, ":role/") {
-				tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+				tgt := store.ResourceID("aws", acct.ID, rarn)
 				if roleSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 						return fmt.Errorf("upsert appsync-api→logs-role: %w", err)
@@ -653,7 +653,7 @@ func resolveAppSyncEventAPIRefs(acct *account, st *store.Store) error {
 							larn = larn[:i+len(":function:")+j]
 						}
 					}
-					tgt := store.ResourceID("aws", acct.ID, TypeLambdaFunction, larn)
+					tgt := store.ResourceID("aws", acct.ID, larn)
 					if lambdaSet[tgt] {
 						if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 							return fmt.Errorf("upsert appsync-api→lambda: %w", err)
@@ -666,7 +666,7 @@ func resolveAppSyncEventAPIRefs(acct *account, st *store.Store) error {
 				upRegion := sv(ap.CognitoConfig.AwsRegion)
 				if upID != "" && upRegion != "" {
 					upARN := "arn:aws:cognito-idp:" + upRegion + ":" + acct.ID + ":userpool/" + upID
-					tgt := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, upARN)
+					tgt := store.ResourceID("aws", acct.ID, upARN)
 					if upSet[tgt] {
 						if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 							return fmt.Errorf("upsert appsync-api→user-pool: %w", err)

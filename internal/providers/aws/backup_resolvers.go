@@ -80,7 +80,7 @@ func resolveBackupSelections(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.IamRoleArn); role != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			roleID := store.ResourceID("aws", acct.ID, role)
 			if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert backup-selection→iam: %w", err)
 			}
@@ -136,7 +136,7 @@ func resolveBackupPlanVaultRefs(acct *account, st *store.Store) error {
 			}
 			seen[n] = true
 			vARN := fmt.Sprintf("arn:aws:backup:%s:%s:backup-vault:%s", region, acct.ID, n)
-			tgt := store.ResourceID("aws", acct.ID, TypeBackupVault, vARN)
+			tgt := store.ResourceID("aws", acct.ID, vARN)
 			if !vaultSet[tgt] {
 				continue
 			}

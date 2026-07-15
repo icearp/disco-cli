@@ -44,7 +44,7 @@ func resolveSpotInstanceRequestRelationships(acct *account, st *store.Store) err
 			continue
 		}
 		if id := sv(attrs.InstanceID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Instance, ec2ARN(sv(r.Region), acct.ID, "instance", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "instance", id))
 			if instSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert spot-request→instance: %w", err)
@@ -91,7 +91,7 @@ func resolveInstanceEventWindowRelationships(acct *account, st *store.Store) err
 		}
 		region := sv(r.Region)
 		for _, id := range attrs.AssociationTarget.InstanceIDs {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Instance, ec2ARN(region, acct.ID, "instance", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "instance", id))
 			if instSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert event-window→instance: %w", err)
@@ -99,7 +99,7 @@ func resolveInstanceEventWindowRelationships(acct *account, st *store.Store) err
 			}
 		}
 		for _, id := range attrs.AssociationTarget.DedicatedHostIDs {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Host, ec2ARN(region, acct.ID, "dedicated-host", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "dedicated-host", id))
 			if hostSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert event-window→host: %w", err)

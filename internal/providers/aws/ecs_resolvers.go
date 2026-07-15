@@ -64,14 +64,14 @@ func resolveECSRelationships(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		// Service is attached to its cluster.
 		if attrs.ClusterArn != nil {
-			clusterID := store.ResourceID("aws", acct.ID, TypeECSCluster, *attrs.ClusterArn)
+			clusterID := store.ResourceID("aws", acct.ID, *attrs.ClusterArn)
 			if err := st.UpsertRelationship(r.ID, clusterID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ecs-service→cluster relationship: %w", err)
 			}
 		}
 		// Service uses a specific task definition revision.
 		if attrs.TaskDefinition != nil {
-			tdID := store.ResourceID("aws", acct.ID, TypeECSTaskDefinition, *attrs.TaskDefinition)
+			tdID := store.ResourceID("aws", acct.ID, *attrs.TaskDefinition)
 			if err := st.UpsertRelationship(r.ID, tdID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ecs-service→task-definition relationship: %w", err)
 			}
@@ -83,7 +83,7 @@ func resolveECSRelationships(acct *account, st *store.Store) error {
 				if sn == "" {
 					continue
 				}
-				subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+				subnetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
 				if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs-service→subnet relationship: %w", err)
 				}
@@ -92,7 +92,7 @@ func resolveECSRelationships(acct *account, st *store.Store) error {
 				if sg == "" {
 					continue
 				}
-				sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+				sgID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs-service→security-group relationship: %w", err)
 				}
@@ -121,13 +121,13 @@ func resolveECSTaskDefinitionRelationships(acct *account, st *store.Store) error
 			continue
 		}
 		if sv(attrs.TaskRoleArn) != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, *attrs.TaskRoleArn)
+			roleID := store.ResourceID("aws", acct.ID, *attrs.TaskRoleArn)
 			if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ecs-td→task-role relationship: %w", err)
 			}
 		}
 		if sv(attrs.ExecutionRoleArn) != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, *attrs.ExecutionRoleArn)
+			roleID := store.ResourceID("aws", acct.ID, *attrs.ExecutionRoleArn)
 			if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ecs-td→execution-role relationship: %w", err)
 			}
@@ -166,7 +166,7 @@ func resolveECSContainerRelationships(acct *account, st *store.Store) error {
 			if nativeID == "" {
 				return nil
 			}
-			targetID := store.ResourceID("aws", acct.ID, targetType, nativeID)
+			targetID := store.ResourceID("aws", acct.ID, nativeID)
 			if seen[targetID] {
 				return nil
 			}
@@ -236,11 +236,11 @@ func resolveECSTaskDefinitionSecrets(acct *account, st *store.Store) error {
 				if vf == "" {
 					continue
 				}
-				targetType, nativeID := ecsSecretTarget(vf, region, acct.ID)
+				_, nativeID := ecsSecretTarget(vf, region, acct.ID)
 				if nativeID == "" {
 					continue
 				}
-				targetID := store.ResourceID("aws", acct.ID, targetType, nativeID)
+				targetID := store.ResourceID("aws", acct.ID, nativeID)
 				if seen[targetID] {
 					continue
 				}

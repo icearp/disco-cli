@@ -149,7 +149,7 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 		if id := sv(attrs.Queue.HoursOfOperationID); id != "" {
 			tgtARN := connectInstanceChildARN(r.NativeID, "hours-of-operation", id)
 			if tgtARN != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeConnectHoursOfOperation, tgtARN)
+				tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 				if hopSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert connect-queue→hours: %w", err)
@@ -163,7 +163,7 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 		// PhoneNumber is account-scoped, not instance-nested.
 		if id := sv(attrs.Queue.OutboundCallerConfig.OutboundCallerIDNumberID); id != "" {
 			tgtARN := connectAccountResourceARN(region, acct.ID, "phone-number", id)
-			tgtID := store.ResourceID("aws", acct.ID, TypeConnectPhoneNumber, tgtARN)
+			tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 			if phoneSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert connect-queue→phone: %w", err)
@@ -174,7 +174,7 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 		if id := sv(attrs.Queue.OutboundCallerConfig.OutboundFlowID); id != "" {
 			tgtARN := connectInstanceChildARN(r.NativeID, "contact-flow", id)
 			if tgtARN != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeConnectContactFlow, tgtARN)
+				tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 				if flowSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert connect-queue→flow: %w", err)
@@ -228,7 +228,7 @@ func resolveConnectRoutingProfileRefs(acct *account, st *store.Store) error {
 			if tgtARN == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeConnectQueue, tgtARN)
+			tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 			if !queueSet[tgtID] {
 				continue
 			}
@@ -289,7 +289,7 @@ func resolveConnectIntegrationAssociationTarget(acct *account, st *store.Store) 
 		default:
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, ref)
+		tgtID := store.ResourceID("aws", acct.ID, ref)
 		if !set[tgtID] {
 			continue
 		}
@@ -358,7 +358,7 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 		if attrs.S3Config != nil {
 			if name := sv(attrs.S3Config.BucketName); name != "" {
 				tgtARN := s3BucketARNFromName(name)
-				tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, tgtARN)
+				tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 				if bucketSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert connect-storage→s3: %w", err)
@@ -375,7 +375,7 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 		}
 		if attrs.KinesisStreamConfig != nil {
 			if arn := sv(attrs.KinesisStreamConfig.StreamArn); arn != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeKinesisStream, arn)
+				tgtID := store.ResourceID("aws", acct.ID, arn)
 				if streamSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert connect-storage→kinesis: %w", err)
@@ -385,7 +385,7 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 		}
 		if attrs.KinesisFirehoseConfig != nil {
 			if arn := sv(attrs.KinesisFirehoseConfig.FirehoseDeliveryStreamArn); arn != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeFirehoseDeliveryStream, arn)
+				tgtID := store.ResourceID("aws", acct.ID, arn)
 				if firehoseSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert connect-storage→firehose: %w", err)
@@ -446,7 +446,7 @@ func resolveConnectUserRefs(acct *account, st *store.Store) error {
 			if tgtARN == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeConnectSecurityProfile, tgtARN)
+			tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 			if !spSet[tgtID] {
 				continue
 			}
@@ -457,7 +457,7 @@ func resolveConnectUserRefs(acct *account, st *store.Store) error {
 		if id := sv(attrs.User.RoutingProfileID); id != "" {
 			tgtARN := connectInstanceChildARN(r.NativeID, "routing-profile", id)
 			if tgtARN != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeConnectRoutingProfile, tgtARN)
+				tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 				if rpSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert connect-user→routing-profile: %w", err)
@@ -468,7 +468,7 @@ func resolveConnectUserRefs(acct *account, st *store.Store) error {
 		if id := sv(attrs.User.HierarchyGroupID); id != "" {
 			tgtARN := connectInstanceChildARN(r.NativeID, "agent-group", id)
 			if tgtARN != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeConnectUserHierarchyGroup, tgtARN)
+				tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 				if hgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert connect-user→hierarchy-group: %w", err)
@@ -528,7 +528,7 @@ func resolveConnectQuickConnectRefs(acct *account, st *store.Store) error {
 			if tgtARN == "" {
 				return nil
 			}
-			tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+			tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 			if !set[tgtID] {
 				return nil
 			}
@@ -582,7 +582,7 @@ func resolveConnectTrafficDistributionGroupInstance(acct *account, st *store.Sto
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeConnectInstance, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !instSet[tgtID] {
 			continue
 		}
@@ -634,7 +634,7 @@ func resolveConnectContactFlowVersionParent(acct *account, st *store.Store) erro
 		if parent == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeConnectContactFlow, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !flowSet[tgtID] {
 			continue
 		}
@@ -666,7 +666,7 @@ func resolveConnectContactFlowModuleVersionAndAliasParent(acct *account, st *sto
 		if parent == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeConnectContactFlowModule, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !moduleSet[tgtID] {
 			continue
 		}
@@ -698,7 +698,7 @@ func resolveConnectContactFlowModuleVersionAndAliasParent(acct *account, st *sto
 		if tgtARN == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeConnectContactFlowModule, tgtARN)
+		tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 		if !moduleSet[tgtID] {
 			continue
 		}
@@ -755,7 +755,7 @@ func resolveConnectPhoneNumberTarget(acct *account, st *store.Store) error {
 		default:
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !set[tgtID] {
 			continue
 		}

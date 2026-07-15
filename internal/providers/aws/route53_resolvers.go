@@ -83,7 +83,7 @@ func resolveRoute53QueryLoggingConfig(acct *account, st *store.Store) error {
 			continue
 		}
 		if z := sv(attrs.HostedZoneID); z != "" {
-			zoneID := store.ResourceID("aws", acct.ID, TypeRoute53HostedZone, fmt.Sprintf("arn:aws:route53:::hostedzone/%s", z))
+			zoneID := store.ResourceID("aws", acct.ID, fmt.Sprintf("arn:aws:route53:::hostedzone/%s", z))
 			if zoneSet[zoneID] {
 				if err := st.UpsertRelationship(r.ID, zoneID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert query-logging-config→zone: %w", err)
@@ -91,7 +91,7 @@ func resolveRoute53QueryLoggingConfig(acct *account, st *store.Store) error {
 			}
 		}
 		if lg := strings.TrimSuffix(sv(attrs.CloudWatchLogsLogGroupArn), ":*"); lg != "" {
-			lgID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, lg)
+			lgID := store.ResourceID("aws", acct.ID, lg)
 			if lgSet[lgID] {
 				if err := st.UpsertRelationship(r.ID, lgID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert query-logging-config→log-group: %w", err)
@@ -133,7 +133,7 @@ func resolveRoute53TrafficPolicyInstance(acct *account, st *store.Store) error {
 			continue
 		}
 		if z := sv(attrs.HostedZoneID); z != "" {
-			zoneID := store.ResourceID("aws", acct.ID, TypeRoute53HostedZone, fmt.Sprintf("arn:aws:route53:::hostedzone/%s", z))
+			zoneID := store.ResourceID("aws", acct.ID, fmt.Sprintf("arn:aws:route53:::hostedzone/%s", z))
 			if zoneSet[zoneID] {
 				if err := st.UpsertRelationship(r.ID, zoneID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert traffic-policy-instance→zone: %w", err)
@@ -141,7 +141,7 @@ func resolveRoute53TrafficPolicyInstance(acct *account, st *store.Store) error {
 			}
 		}
 		if tp := sv(attrs.TrafficPolicyID); tp != "" {
-			tpID := store.ResourceID("aws", acct.ID, TypeRoute53TrafficPolicy, fmt.Sprintf("arn:aws:route53:::trafficpolicy/%s", tp))
+			tpID := store.ResourceID("aws", acct.ID, fmt.Sprintf("arn:aws:route53:::trafficpolicy/%s", tp))
 			if tpSet[tpID] {
 				if err := st.UpsertRelationship(r.ID, tpID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert traffic-policy-instance→policy: %w", err)
@@ -385,7 +385,7 @@ func resolveRoute53Relationships(acct *account, st *store.Store) error {
 		if zoneARN == "" {
 			continue
 		}
-		zoneID := store.ResourceID("aws", acct.ID, TypeRoute53HostedZone, zoneARN)
+		zoneID := store.ResourceID("aws", acct.ID, zoneARN)
 		if err := st.UpsertRelationship(r.ID, zoneID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert route53 record-set→hosted-zone: %w", err)
 		}
@@ -427,7 +427,7 @@ func resolveRoute53DNSSECRelationships(acct *account, st *store.Store) error {
 		if zoneARN == "" {
 			continue
 		}
-		zoneID := store.ResourceID("aws", acct.ID, TypeRoute53HostedZone, zoneARN)
+		zoneID := store.ResourceID("aws", acct.ID, zoneARN)
 		if err := st.UpsertRelationship(r.ID, zoneID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert route53 dnssec→hosted-zone: %w", err)
 		}
@@ -470,7 +470,7 @@ func resolveRoute53KSKRelationships(acct *account, st *store.Store) error {
 		if dnssecNativeID == "" {
 			continue
 		}
-		dnssecID := store.ResourceID("aws", acct.ID, TypeRoute53DNSSEC, dnssecNativeID)
+		dnssecID := store.ResourceID("aws", acct.ID, dnssecNativeID)
 		if err := st.UpsertRelationship(r.ID, dnssecID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert route53 ksk→dnssec: %w", err)
 		}
@@ -522,7 +522,7 @@ func resolveRoute53HealthCheckRelationships(acct *account, st *store.Store) erro
 			continue
 		}
 		hcNativeID := fmt.Sprintf("arn:aws:route53:::healthcheck/%s", hcID)
-		hcResID := store.ResourceID("aws", acct.ID, TypeRoute53HealthCheck, hcNativeID)
+		hcResID := store.ResourceID("aws", acct.ID, hcNativeID)
 		if err := st.UpsertRelationship(r.ID, hcResID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert route53 record-set→health-check: %w", err)
 		}

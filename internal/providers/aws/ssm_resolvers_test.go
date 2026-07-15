@@ -77,7 +77,7 @@ func TestResolveSSMAssociationDocument(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert document: %v", err)
 	}
-	docID := store.ResourceID("aws", acct.ID, TypeSSMDocument, docARN)
+	docID := store.ResourceID("aws", acct.ID, docARN)
 	asARN := fmt.Sprintf("arn:aws:ssm:%s:%s:association/asoc-1", testRegion, acct.ID)
 	asAttrs := fmt.Sprintf(`{"Name":%q}`, docName)
 	asID := upsertTestResource(t, st, "aws", acct.ID, TypeSSMAssociation, asARN, testRegion, asAttrs)
@@ -111,8 +111,8 @@ func TestResolveSSMDocumentRequires(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert parent: %v", err)
 	}
-	parentID := store.ResourceID("aws", acct.ID, TypeSSMDocument, parentARN)
-	childID := store.ResourceID("aws", acct.ID, TypeSSMDocument, childARN)
+	parentID := store.ResourceID("aws", acct.ID, parentARN)
+	childID := store.ResourceID("aws", acct.ID, childARN)
 	if err := resolveSSMDocumentRequires(acct, st); err != nil {
 		t.Fatalf("resolveSSMDocumentRequires: %v", err)
 	}

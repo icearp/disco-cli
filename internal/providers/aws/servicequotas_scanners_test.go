@@ -366,7 +366,7 @@ func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
 			t.Fatalf("scan: %v", err)
 		}
 	}
-	rootID := store.ResourceID("aws", acct.ID, TypeServiceQuota, arn)
+	rootID := store.ResourceID("aws", acct.ID, arn)
 	versionCount := func() int {
 		t.Helper()
 		v, err := st.GetResourceVersions(rootID)

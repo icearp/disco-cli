@@ -75,7 +75,7 @@ func emitDataBrewEdge(st *store.Store, acct *account, srcID, tgtType, tgtARN str
 	if tgtARN == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+	tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 	if !set[tgtID] {
 		return nil
 	}
@@ -251,7 +251,7 @@ func resolveDataBrewDatasetRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		barn := "arn:aws:s3:::" + b
-		tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+		tgt := store.ResourceID("aws", acct.ID, barn)
 		if !bucketSet[tgt] {
 			continue
 		}
@@ -289,7 +289,7 @@ func resolveDataBrewRulesetTarget(acct *account, st *store.Store) error {
 		if ta == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeDataBrewDataset, ta)
+		tgt := store.ResourceID("aws", acct.ID, ta)
 		if !dsSet[tgt] {
 			continue
 		}

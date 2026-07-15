@@ -28,7 +28,7 @@ func fakeACMService(t *testing.T, srv *httptest.Server) *accesscontextmanager.Se
 
 func TestScanVPCSCForOrg_NestedFanout(t *testing.T) {
 	st := newTestStore(t)
-	sc := orgScope{Kind: "organization", Name: "organizations/123", Resource: store.ResourceID("gcp", "organizations/123", TypeOrganization, "organizations/123")}
+	sc := orgScope{Kind: "organization", Name: "organizations/123", Resource: store.ResourceID("gcp", "organizations/123", "organizations/123")}
 	upsertTestResource(t, st, "gcp", sc.Name, TypeOrganization, sc.Name, "", "{}")
 
 	policyName := "accessPolicies/1"
@@ -57,10 +57,10 @@ func TestScanVPCSCForOrg_NestedFanout(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 4/4 (policy+perimeter+accesslevel+authorizedorgsdesc)", total, inserted)
 	}
 
-	policyID := store.ResourceID("gcp", sc.Name, TypeAccessPolicy, policyName)
+	policyID := store.ResourceID("gcp", sc.Name, policyName)
 	assertParent := func(childType, childNative string) {
 		t.Helper()
-		childID := store.ResourceID("gcp", sc.Name, childType, childNative)
+		childID := store.ResourceID("gcp", sc.Name, childNative)
 		rels, err := st.RelationshipsFrom(policyID, store.RelContains)
 		if err != nil {
 			t.Fatalf("RelationshipsFrom(policy): %v", err)
@@ -93,7 +93,7 @@ func TestScanVPCSCForOrg_NestedFanout(t *testing.T) {
 
 func TestScanGcpUserAccessBindingsForOrg(t *testing.T) {
 	st := newTestStore(t)
-	sc := orgScope{Kind: "organization", Name: "organizations/456", Resource: store.ResourceID("gcp", "organizations/456", TypeOrganization, "organizations/456")}
+	sc := orgScope{Kind: "organization", Name: "organizations/456", Resource: store.ResourceID("gcp", "organizations/456", "organizations/456")}
 	upsertTestResource(t, st, "gcp", sc.Name, TypeOrganization, sc.Name, "", "{}")
 
 	bindingName := "organizations/456/gcpUserAccessBindings/b1"
@@ -113,7 +113,7 @@ func TestScanGcpUserAccessBindingsForOrg(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	bindingID := store.ResourceID("gcp", sc.Name, TypeGcpUserAccessBinding, bindingName)
+	bindingID := store.ResourceID("gcp", sc.Name, bindingName)
 	rels, err := st.RelationshipsFrom(sc.Resource, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(org): %v", err)
@@ -128,7 +128,7 @@ func TestScanGcpUserAccessBindingsForOrg(t *testing.T) {
 
 func TestScanVPCSCForOrg_PermissionDenied(t *testing.T) {
 	st := newTestStore(t)
-	sc := orgScope{Kind: "organization", Name: "organizations/789", Resource: store.ResourceID("gcp", "organizations/789", TypeOrganization, "organizations/789")}
+	sc := orgScope{Kind: "organization", Name: "organizations/789", Resource: store.ResourceID("gcp", "organizations/789", "organizations/789")}
 
 	body := `{"error":{"code":403,"message":"caller is missing accesscontextmanager permission","errors":[{"reason":"forbidden"}]}}`
 	srv := fakeGCPServerStatus(t, 403, body)

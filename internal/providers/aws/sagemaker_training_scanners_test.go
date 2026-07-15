@@ -100,7 +100,7 @@ func TestScanSageMakerTraining(t *testing.T) {
 		{TypeSageMakerCodeRepository, repoARN},
 		{TypeSageMakerProcessingJob, pjARN},
 	} {
-		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, want.typ, want.id)); err != nil {
+		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, want.id)); err != nil {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}

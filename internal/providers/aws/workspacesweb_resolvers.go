@@ -113,7 +113,7 @@ func resolveWSWPortalRefs(acct *account, st *store.Store) error {
 			if p.arn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, p.ttyp, p.arn)
+			tgtID := store.ResourceID("aws", acct.ID, p.arn)
 			if !p.set[tgtID] {
 				continue
 			}
@@ -161,7 +161,7 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if vpc := sv(attrs.VpcID); vpc != "" {
 			vARN := ec2ARN(region, acct.ID, "vpc", vpc)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vARN)
+			tgtID := store.ResourceID("aws", acct.ID, vARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert wsw ns→vpc: %w", err)
@@ -170,7 +170,7 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 		}
 		for _, sid := range attrs.SubnetIDs {
 			sARN := ec2ARN(region, acct.ID, "subnet", sid)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
+			tgtID := store.ResourceID("aws", acct.ID, sARN)
 			if subnetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert wsw ns→subnet: %w", err)
@@ -179,7 +179,7 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 		}
 		for _, sg := range attrs.SecurityGroupIDs {
 			sgARN := ec2ARN(region, acct.ID, "security-group", sg)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+			tgtID := store.ResourceID("aws", acct.ID, sgARN)
 			if sgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert wsw ns→sg: %w", err)
@@ -218,7 +218,7 @@ func resolveWSWUserAccessLoggingKinesis(acct *account, st *store.Store) error {
 		if ks == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeKinesisStream, ks)
+		tgtID := store.ResourceID("aws", acct.ID, ks)
 		if !ksSet[tgtID] {
 			continue
 		}
@@ -261,7 +261,7 @@ func resolveWSWIdentityProviderPortal(acct *account, st *store.Store) error {
 			continue
 		}
 		portalARN := r.NativeID[:i] + "portal/" + tail[:end]
-		tgtID := store.ResourceID("aws", acct.ID, TypeWSWPortal, portalARN)
+		tgtID := store.ResourceID("aws", acct.ID, portalARN)
 		if !portalSet[tgtID] {
 			continue
 		}

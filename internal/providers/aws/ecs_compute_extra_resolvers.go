@@ -45,7 +45,7 @@ func resolveECSContainerInstanceRelationships(acct *account, st *store.Store) er
 			continue
 		}
 		if id := sv(attrs.Ec2InstanceID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Instance, ec2ARN(sv(r.Region), acct.ID, "instance", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "instance", id))
 			if instSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs container-instance→ec2 instance: %w", err)
@@ -90,7 +90,7 @@ func resolveECSTaskRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if arn := sv(attrs.ClusterArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeECSCluster, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if clusterSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs task→cluster: %w", err)
@@ -98,7 +98,7 @@ func resolveECSTaskRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		if arn := sv(attrs.TaskDefinitionArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeECSTaskDefinition, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if tdSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs task→task-definition: %w", err)
@@ -106,7 +106,7 @@ func resolveECSTaskRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		if arn := sv(attrs.ContainerInstanceArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeECSContainerInstance, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if ciSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs task→container-instance: %w", err)

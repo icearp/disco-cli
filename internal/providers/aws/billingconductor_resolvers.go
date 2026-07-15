@@ -56,7 +56,7 @@ func resolveBillingConductor(acct *account, st *store.Store) error {
 		if bgArn == "" {
 			continue
 		}
-		bgID := store.ResourceID("aws", acct.ID, TypeBillingConductorBillingGroup, bgArn)
+		bgID := store.ResourceID("aws", acct.ID, bgArn)
 		if !bgIDs[bgID] {
 			continue
 		}

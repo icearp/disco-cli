@@ -89,7 +89,7 @@ func resolveMediaLiveChannelRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if arn := sv(attrs.RoleArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert medialive-channel→role: %w", err)

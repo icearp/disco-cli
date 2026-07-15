@@ -173,7 +173,7 @@ func resolveLogsDeliveryDestTarget(acct *account, st *store.Store) error {
 		default:
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+		tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 		var present bool
 		switch tgtType {
 		case TypeLogsLogGroup:

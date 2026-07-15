@@ -62,7 +62,7 @@ func resolveGlueTableToDatabase(acct *account, st *store.Store) error {
 		}
 		db := tail[:end]
 		dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", sv(r.Region), acct.ID, db)
-		tgtID := store.ResourceID("aws", acct.ID, TypeGlueDatabase, dbARN)
+		tgtID := store.ResourceID("aws", acct.ID, dbARN)
 		if !dbSet[tgtID] {
 			continue
 		}
@@ -111,7 +111,7 @@ func resolveGlueTableSubchild(acct *account, st *store.Store, sourceType, kind s
 		}
 		db, tbl := parts[0], parts[1]
 		tblARN := fmt.Sprintf("arn:aws:glue:%s:%s:table/%s/%s", sv(r.Region), acct.ID, db, tbl)
-		tgtID := store.ResourceID("aws", acct.ID, TypeGlueTable, tblARN)
+		tgtID := store.ResourceID("aws", acct.ID, tblARN)
 		if !tblSet[tgtID] {
 			continue
 		}
@@ -145,7 +145,7 @@ func resolveGlueSchemaVersionToSchema(acct *account, st *store.Store) error {
 			continue
 		}
 		schARN := r.NativeID[:i]
-		tgtID := store.ResourceID("aws", acct.ID, TypeGlueSchema, schARN)
+		tgtID := store.ResourceID("aws", acct.ID, schARN)
 		if !schSet[tgtID] {
 			continue
 		}
@@ -193,7 +193,7 @@ func resolveGlueDataQualityRulesetTargets(acct *account, st *store.Store) error 
 		db := sv(attrs.TargetTable.DatabaseName)
 		if db != "" {
 			dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", region, acct.ID, db)
-			if dbID := store.ResourceID("aws", acct.ID, TypeGlueDatabase, dbARN); dbSet[dbID] {
+			if dbID := store.ResourceID("aws", acct.ID, dbARN); dbSet[dbID] {
 				if err := st.UpsertRelationship(r.ID, dbID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue dq→db: %w", err)
 				}
@@ -201,7 +201,7 @@ func resolveGlueDataQualityRulesetTargets(acct *account, st *store.Store) error 
 		}
 		if tbl := sv(attrs.TargetTable.TableName); tbl != "" && db != "" {
 			tblARN := fmt.Sprintf("arn:aws:glue:%s:%s:table/%s/%s", region, acct.ID, db, tbl)
-			if tblID := store.ResourceID("aws", acct.ID, TypeGlueTable, tblARN); tblSet[tblID] {
+			if tblID := store.ResourceID("aws", acct.ID, tblARN); tblSet[tblID] {
 				if err := st.UpsertRelationship(r.ID, tblID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue dq→table: %w", err)
 				}

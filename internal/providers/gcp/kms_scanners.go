@@ -305,10 +305,10 @@ func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *proje
 
 	// Closure: keyring/ekm-connection/key-handle/hsm-instance → project;
 	// crypto-key/import-job → keyring; crypto-key-version → crypto-key.
-	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
+	projParentID := store.ResourceID("gcp", p.ID, p.ID)
 	var pairs [][2]string
 	for _, r := range batch {
-		id := store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
+		id := store.ResourceID(r.Provider, r.AccountID, r.NativeID)
 		switch r.Type {
 		case TypeKMSKeyRing, TypeKMSEkmConnection, TypeKMSKeyHandle, TypeKMSSingleTenantHsmInstance:
 			pairs = append(pairs, [2]string{id, projParentID})
@@ -321,7 +321,7 @@ func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *proje
 			} else if i := strings.Index(parentName, "/importJobs/"); i >= 0 {
 				parentName = parentName[:i]
 			}
-			parentID := store.ResourceID(r.Provider, r.AccountID, TypeKMSKeyRing, parentName)
+			parentID := store.ResourceID(r.Provider, r.AccountID, parentName)
 			pairs = append(pairs, [2]string{id, parentID})
 		case TypeKMSCryptoKeyVersion:
 			// Parent crypto-key NativeID = strip "/cryptoKeyVersions/{name}" suffix.
@@ -329,7 +329,7 @@ func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *proje
 			if i := strings.Index(parentName, "/cryptoKeyVersions/"); i >= 0 {
 				parentName = parentName[:i]
 			}
-			parentID := store.ResourceID(r.Provider, r.AccountID, TypeKMSCryptoKey, parentName)
+			parentID := store.ResourceID(r.Provider, r.AccountID, parentName)
 			pairs = append(pairs, [2]string{id, parentID})
 		}
 	}

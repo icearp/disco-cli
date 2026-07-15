@@ -54,7 +54,7 @@ func TestScanIAMAccount_PopulatesSelfNode(t *testing.T) {
 		t.Fatalf("scanIAMAccount: %v", err)
 	}
 
-	wantID := store.ResourceID("aws", testAccountID, TypeIAMAccount, "arn:aws:iam::"+testAccountID+":root")
+	wantID := store.ResourceID("aws", testAccountID, "arn:aws:iam::"+testAccountID+":root")
 	r, err := st.GetResource(wantID)
 	if err != nil {
 		t.Fatalf("GetResource self-node: %v", err)
@@ -88,7 +88,7 @@ func TestScanIAMAccount_NoPasswordPolicy(t *testing.T) {
 		t.Fatalf("scanIAMAccount: %v", err)
 	}
 
-	wantID := store.ResourceID("aws", testAccountID, TypeIAMAccount, "arn:aws:iam::"+testAccountID+":root")
+	wantID := store.ResourceID("aws", testAccountID, "arn:aws:iam::"+testAccountID+":root")
 	r, err := st.GetResource(wantID)
 	if err != nil {
 		t.Fatalf("GetResource self-node: %v", err)

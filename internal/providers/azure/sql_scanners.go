@@ -101,7 +101,7 @@ func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred azco
 			r.TagsJSON = azTagsJSON(srv.Tags)
 			batch = append(batch, r)
 			servers = append(servers, sqlServer{
-				resourceID: store.ResourceID("azure", sub.ID, TypeSQLServer, sv(srv.ID)),
+				resourceID: store.ResourceID("azure", sub.ID, sv(srv.ID)),
 				name:       sv(srv.Name),
 				rgName:     rgFromID(sv(srv.ID)),
 			})
@@ -233,7 +233,7 @@ func scanDatabases(ctx context.Context, sub *subscription, cred azcore.TokenCred
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(db.Tags)
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLDatabase, sv(db.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(db.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, srv.resourceID})
 			dbs = append(dbs, sqlDatabase{

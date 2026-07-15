@@ -60,7 +60,7 @@ func resolveDatabaseToElasticPool(sub *subscription, st *store.Store) error {
 		if attrs.Properties == nil || attrs.Properties.ElasticPoolID == nil {
 			continue
 		}
-		poolID := store.ResourceID("azure", sub.ID, TypeSQLElasticPool, *attrs.Properties.ElasticPoolID)
+		poolID := store.ResourceID("azure", sub.ID, *attrs.Properties.ElasticPoolID)
 		if err := st.UpsertRelationship(r.ID, poolID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert database→elasticPool relationship: %w", err)
 		}
@@ -104,7 +104,7 @@ func resolveReplicationLinkToPartner(sub *subscription, st *store.Store) error {
 		if partnerNativeID == "" {
 			continue
 		}
-		partnerID := store.ResourceID("azure", sub.ID, TypeSQLDatabase, partnerNativeID)
+		partnerID := store.ResourceID("azure", sub.ID, partnerNativeID)
 		if err := st.UpsertRelationship(r.ID, partnerID, store.RelPeer, "undirected", nil); err != nil {
 			return fmt.Errorf("upsert replicationLink→partnerDatabase relationship: %w", err)
 		}
@@ -145,7 +145,7 @@ func resolveFailoverGroupToPartnerServer(sub *subscription, st *store.Store) err
 			if ps.ID == nil {
 				continue
 			}
-			partnerServerID := store.ResourceID("azure", sub.ID, TypeSQLServer, *ps.ID)
+			partnerServerID := store.ResourceID("azure", sub.ID, *ps.ID)
 			if err := st.UpsertRelationship(r.ID, partnerServerID, store.RelPeer, "undirected", nil); err != nil {
 				return fmt.Errorf("upsert failoverGroup→partnerServer relationship: %w", err)
 			}
@@ -180,7 +180,7 @@ func resolveSyncGroupToSyncAgent(sub *subscription, st *store.Store) error {
 		if attrs.Properties == nil || attrs.Properties.SyncAgentID == nil {
 			continue
 		}
-		agentID := store.ResourceID("azure", sub.ID, TypeSQLSyncAgent, *attrs.Properties.SyncAgentID)
+		agentID := store.ResourceID("azure", sub.ID, *attrs.Properties.SyncAgentID)
 		if err := st.UpsertRelationship(r.ID, agentID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert syncGroup→syncAgent relationship: %w", err)
 		}

@@ -156,7 +156,7 @@ func resolveAPSScraperTargets(acct *account, st *store.Store) error {
 
 func emitAPSScraperRoleAndWorkspace(st *store.Store, acct *account, srcID string, a apsScraperAttrs, idx *apsScraperIDs) error {
 	if roleARN := sv(a.RoleArn); roleARN != "" {
-		roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+		roleID := store.ResourceID("aws", acct.ID, roleARN)
 		if _, ok := idx.roles[roleID]; ok {
 			if err := st.UpsertRelationship(srcID, roleID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert aps-scraper→iam-role: %w", err)
@@ -165,7 +165,7 @@ func emitAPSScraperRoleAndWorkspace(st *store.Store, acct *account, srcID string
 	}
 	if a.Destination != nil && a.Destination.AmpConfiguration != nil {
 		if wsARN := sv(a.Destination.AmpConfiguration.WorkspaceArn); wsARN != "" {
-			wsID := store.ResourceID("aws", acct.ID, TypeAPSWorkspace, wsARN)
+			wsID := store.ResourceID("aws", acct.ID, wsARN)
 			if _, ok := idx.ws[wsID]; ok {
 				if err := st.UpsertRelationship(srcID, wsID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert aps-scraper→workspace: %w", err)
@@ -183,7 +183,7 @@ func emitAPSScraperVPCEdges(st *store.Store, acct *account, srcID, region string
 	var sgList, subnetList []string
 	if eks := src.EksConfiguration; eks != nil {
 		if clusterARN := sv(eks.ClusterArn); clusterARN != "" {
-			eksID := store.ResourceID("aws", acct.ID, TypeEKSCluster, clusterARN)
+			eksID := store.ResourceID("aws", acct.ID, clusterARN)
 			if _, ok := idx.eks[eksID]; ok {
 				if err := st.UpsertRelationship(srcID, eksID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert aps-scraper→eks: %w", err)
@@ -201,7 +201,7 @@ func emitAPSScraperVPCEdges(st *store.Store, acct *account, srcID, region string
 		if sgID == "" {
 			continue
 		}
-		id := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sgID))
+		id := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sgID))
 		if _, ok := idx.sg[id]; ok {
 			if err := st.UpsertRelationship(srcID, id, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert aps-scraper→sg: %w", err)
@@ -212,7 +212,7 @@ func emitAPSScraperVPCEdges(st *store.Store, acct *account, srcID, region string
 		if subnetID == "" {
 			continue
 		}
-		id := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", subnetID))
+		id := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", subnetID))
 		if _, ok := idx.subnet[id]; ok {
 			if err := st.UpsertRelationship(srcID, id, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert aps-scraper→subnet: %w", err)

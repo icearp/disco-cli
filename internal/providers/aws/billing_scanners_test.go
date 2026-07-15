@@ -37,7 +37,7 @@ func TestScanBillingViews(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("total=%d inserted=%d want 1/1", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBillingView, arn)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, arn)); err != nil {
 		t.Errorf("billing view missing: %v", err)
 	}
 }

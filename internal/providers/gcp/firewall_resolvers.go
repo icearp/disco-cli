@@ -55,7 +55,7 @@ func resolveFirewallRelationships(p *project, st *store.Store) error {
 			continue
 		}
 		if a.Network != "" {
-			netID := store.ResourceID("gcp", p.ID, TypeComputeNetwork, a.Network)
+			netID := store.ResourceID("gcp", p.ID, a.Network)
 			if err := st.UpsertRelationship(fw.ID, netID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert firewall→network: %w", err)
 			}

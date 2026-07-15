@@ -78,7 +78,7 @@ func TestScanMonitoringGroups_MembersEmbedded(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	g1ID := store.ResourceID("gcp", p.ID, TypeMonitoringGroup, g1Name)
+	g1ID := store.ResourceID("gcp", p.ID, g1Name)
 	res, err := st.GetResource(g1ID)
 	if err != nil {
 		t.Fatalf("GetResource(g1): %v", err)
@@ -101,7 +101,7 @@ func TestScanMonitoringGroups_MembersEmbedded(t *testing.T) {
 
 	// g2 has no members — the "members" key must be absent (omitempty), not
 	// present-but-empty, and definitely not populated with g1's members.
-	g2ID := store.ResourceID("gcp", p.ID, TypeMonitoringGroup, g2Name)
+	g2ID := store.ResourceID("gcp", p.ID, g2Name)
 	res2, err := st.GetResource(g2ID)
 	if err != nil {
 		t.Fatalf("GetResource(g2): %v", err)
@@ -201,7 +201,7 @@ func TestScanMonitoringGroups_OneGroupErrorDoesNotDropSiblings(t *testing.T) {
 		t.Fatalf("scanMonitoringGroups: expected a real (non-permission-denied) error to propagate, got nil (total=%d inserted=%d)", total, inserted)
 	}
 
-	g2ID := store.ResourceID("gcp", p.ID, TypeMonitoringGroup, g2Name)
+	g2ID := store.ResourceID("gcp", p.ID, g2Name)
 	res, getErr := st.GetResource(g2ID)
 	if getErr != nil {
 		t.Fatalf("GetResource(g2): %v", getErr)
@@ -255,8 +255,8 @@ func TestScanMonitoringSLOs_PartialDenyContinues(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (svc1 denied, svc2 succeeds)", total, inserted)
 	}
 
-	sloID := store.ResourceID("gcp", p.ID, TypeMonitoringSLO, svc2Name+"/serviceLevelObjectives/slo1")
-	svc2ID := store.ResourceID("gcp", p.ID, TypeMonitoringService, svc2Name)
+	sloID := store.ResourceID("gcp", p.ID, svc2Name+"/serviceLevelObjectives/slo1")
+	svc2ID := store.ResourceID("gcp", p.ID, svc2Name)
 	rels, err := st.RelationshipsFrom(svc2ID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
@@ -272,7 +272,7 @@ func TestScanMonitoringSLOs_PartialDenyContinues(t *testing.T) {
 	}
 
 	// svc1 has no children — must not appear as a parent of anything.
-	svc1ID := store.ResourceID("gcp", p.ID, TypeMonitoringService, svc1Name)
+	svc1ID := store.ResourceID("gcp", p.ID, svc1Name)
 	rels1, err := st.RelationshipsFrom(svc1ID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(svc1): %v", err)

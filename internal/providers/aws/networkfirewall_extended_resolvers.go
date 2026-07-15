@@ -43,7 +43,7 @@ func resolveNFLoggingConfigToFirewall(acct *account, st *store.Store) error {
 		if fwARN == r.NativeID {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeNetworkFirewallFirewall, fwARN)
+		tgtID := store.ResourceID("aws", acct.ID, fwARN)
 		if !fwSet[tgtID] {
 			continue
 		}
@@ -91,7 +91,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if fa := sv(attrs.FirewallArn); fa != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeNetworkFirewallFirewall, fa)
+			tgtID := store.ResourceID("aws", acct.ID, fa)
 			if fwSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nfw vea→firewall: %w", err)
@@ -99,7 +99,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if v := sv(attrs.VpcID); v != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", v))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nfw vea→vpc: %w", err)
@@ -108,7 +108,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.SubnetMapping != nil {
 			if s := sv(attrs.SubnetMapping.SubnetID); s != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", s))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", s))
 				if subnetSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert nfw vea→subnet: %w", err)

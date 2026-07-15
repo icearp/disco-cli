@@ -68,7 +68,7 @@ func resolveCodePipelinePipelineRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if rarn := sv(attrs.Pipeline.RoleArn); rarn != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			tgt := store.ResourceID("aws", acct.ID, rarn)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert codepipeline→role: %w", err)
@@ -85,7 +85,7 @@ func resolveCodePipelinePipelineRefs(acct *account, st *store.Store) error {
 		for _, as := range stores {
 			if loc := sv(as.Location); loc != "" {
 				barn := "arn:aws:s3:::" + loc
-				tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+				tgt := store.ResourceID("aws", acct.ID, barn)
 				if bucketSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert codepipeline→s3: %w", err)
@@ -139,7 +139,7 @@ func resolveCodePipelineWebhookToPipeline(acct *account, st *store.Store) error 
 			continue
 		}
 		pARN := fmt.Sprintf("arn:aws:codepipeline:%s:%s:%s", sv(r.Region), acct.ID, n)
-		tgtID := store.ResourceID("aws", acct.ID, TypeCodePipelinePipeline, pARN)
+		tgtID := store.ResourceID("aws", acct.ID, pARN)
 		if !pSet[tgtID] {
 			continue
 		}

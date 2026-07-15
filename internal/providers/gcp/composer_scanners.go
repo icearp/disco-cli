@@ -60,7 +60,7 @@ func scanComposerWithClient(ctx context.Context, svc *composer.Service, p *proje
 				}
 				envRefs = append(envRefs, envRef{
 					name: e.Name,
-					id:   store.ResourceID("gcp", p.ID, TypeComposerEnv, e.Name),
+					id:   store.ResourceID("gcp", p.ID, e.Name),
 				})
 				name := lastSegment(e.Name)
 				region := locationFromResourceName(e.Name)

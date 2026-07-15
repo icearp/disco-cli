@@ -102,8 +102,9 @@ func resolvePinpointChannelApps(acct *account, st *store.Store) error {
 		if appID == "" {
 			continue
 		}
-		appResID := store.ResourceID("aws", acct.ID, TypePinpointApp,
+		appResID := store.ResourceID("aws", acct.ID,
 			pinpointAppARN(sv(r.Region), acct.ID, appID))
+
 		if !appSet[appResID] {
 			continue
 		}
@@ -196,7 +197,7 @@ func resolvePinpointCampaigns(acct *account, st *store.Store) error {
 		region := sv(c.Region)
 		appID := sv(attrs.ApplicationID)
 		if appID != "" {
-			ar := store.ResourceID("aws", acct.ID, TypePinpointApp, pinpointAppARN(region, acct.ID, appID))
+			ar := store.ResourceID("aws", acct.ID, pinpointAppARN(region, acct.ID, appID))
 			if appSet[ar] {
 				if err := st.UpsertRelationship(c.ID, ar, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert pinpoint campaign→app: %w", err)
@@ -205,7 +206,7 @@ func resolvePinpointCampaigns(acct *account, st *store.Store) error {
 		}
 		if seg := sv(attrs.SegmentID); seg != "" && appID != "" {
 			segARN := pinpointARN(region, acct.ID, "segments/"+seg, appID)
-			segID := store.ResourceID("aws", acct.ID, TypePinpointSegment, segARN)
+			segID := store.ResourceID("aws", acct.ID, segARN)
 			if segSet[segID] {
 				if err := st.UpsertRelationship(c.ID, segID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert pinpoint campaign→segment: %w", err)
@@ -263,8 +264,9 @@ func resolvePinpointSegments(acct *account, st *store.Store) error {
 		if appID == "" {
 			continue
 		}
-		appResID := store.ResourceID("aws", acct.ID, TypePinpointApp,
+		appResID := store.ResourceID("aws", acct.ID,
 			pinpointAppARN(sv(s.Region), acct.ID, appID))
+
 		if !appSet[appResID] {
 			continue
 		}
@@ -319,7 +321,7 @@ func resolvePinpointEventStreams(acct *account, st *store.Store) error {
 		}
 		region := sv(s.Region)
 		if appID := sv(attrs.ApplicationID); appID != "" {
-			ar := store.ResourceID("aws", acct.ID, TypePinpointApp, pinpointAppARN(region, acct.ID, appID))
+			ar := store.ResourceID("aws", acct.ID, pinpointAppARN(region, acct.ID, appID))
 			if appSet[ar] {
 				if err := st.UpsertRelationship(s.ID, ar, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert pinpoint event-stream→app: %w", err)
@@ -336,7 +338,7 @@ func resolvePinpointEventStreams(acct *account, st *store.Store) error {
 				targetType = TypeFirehoseDeliveryStream
 			}
 			if targetType != "" {
-				dID := store.ResourceID("aws", acct.ID, targetType, dest)
+				dID := store.ResourceID("aws", acct.ID, dest)
 				ok := false
 				switch targetType {
 				case TypeKinesisStream:
@@ -352,7 +354,7 @@ func resolvePinpointEventStreams(acct *account, st *store.Store) error {
 			}
 		}
 		if roleArn := sv(attrs.RoleArn); roleArn != "" {
-			rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleArn)
+			rID := store.ResourceID("aws", acct.ID, roleArn)
 			if roleSet[rID] {
 				if err := st.UpsertRelationship(s.ID, rID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert pinpoint event-stream→role: %w", err)

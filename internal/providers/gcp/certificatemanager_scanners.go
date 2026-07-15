@@ -129,7 +129,7 @@ func scanCertificateManagerWithClient(ctx context.Context, svc *certificatemanag
 						DiscoveredBy:   scanID,
 					})
 				}
-				et, en, eerr := upsertWithParent(st, ebatch, store.ResourceID("gcp", p.ID, TypeCertManagerMap, mn))
+				et, en, eerr := upsertWithParent(st, ebatch, store.ResourceID("gcp", p.ID, mn))
 				total += et
 				inserted += en
 				return eerr

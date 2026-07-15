@@ -37,7 +37,7 @@ func resolveSubnetVNetRelationships(sub *subscription, st *store.Store) error {
 		// is the parent path up to /subnets/.
 		vnetID := vnetIDFromSubnetID(r.NativeID)
 		if vnetID != "" {
-			vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+			vnetResourceID := store.ResourceID("azure", sub.ID, vnetID)
 			if err := st.UpsertRelationship(r.ID, vnetResourceID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert subnet→vnet relationship: %w", err)
 			}
@@ -151,7 +151,7 @@ func emitAGWVNetEdges(st *store.Store, sub *subscription, g store.Resource, attr
 			continue
 		}
 		seen[vnetID] = true
-		vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+		vnetResourceID := store.ResourceID("azure", sub.ID, vnetID)
 		if _, err := st.GetResource(vnetResourceID); err != nil {
 			continue
 		}

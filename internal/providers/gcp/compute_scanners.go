@@ -116,7 +116,7 @@ func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string
 }
 
 func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
-	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
+	projParentID := store.ResourceID("gcp", p.ID, p.ID)
 	return runPaginated(ctx, st, p, "compute:instances.aggregatedList",
 		svc.Instances.AggregatedList(p.ID),
 		func(page *compute.InstanceAggregatedList) (int, int, error) {
@@ -155,7 +155,7 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 			pairs := make([][2]string, 0, len(batch))
 			for _, r := range batch {
 				pairs = append(pairs, [2]string{
-					store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
+					store.ResourceID(r.Provider, r.AccountID, r.NativeID),
 					projParentID,
 				})
 			}

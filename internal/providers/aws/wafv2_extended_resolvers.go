@@ -24,9 +24,9 @@ func init() {
 }
 
 // resolveWAFv2LoggingConfigToWebACL wires each logging-configuration to its
-// target web-acl. Scanner stores the WebACL ARN as the LoggingConfiguration
-// NativeID (API uses ResourceArn = WebACL ARN), so lookup is a same-ARN
-// identity match into the web-acl set.
+// target web-acl. The LoggingConfiguration NativeID is {WebACL ARN}/logging-
+// configuration (ResourceArn = WebACL ARN); strip the suffix to recover the
+// WebACL ARN and match into the web-acl set.
 func resolveWAFv2LoggingConfigToWebACL(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWAFv2LoggingConfiguration}, Limit: util.AllResources,
@@ -42,7 +42,8 @@ func resolveWAFv2LoggingConfigToWebACL(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range rows {
-		tgtID := store.ResourceID("aws", acct.ID, TypeWAFv2WebACL, r.NativeID)
+		waARN := strings.TrimSuffix(r.NativeID, "/logging-configuration")
+		tgtID := store.ResourceID("aws", acct.ID, waARN)
 		if !waSet[tgtID] {
 			continue
 		}
@@ -106,7 +107,7 @@ func resolveWAFv2WebACLAssociationRefs(acct *account, st *store.Store) error {
 		resourceArn := r.NativeID[i+len(seg):]
 
 		// → web-acl
-		tgtID := store.ResourceID("aws", acct.ID, TypeWAFv2WebACL, webACLArn)
+		tgtID := store.ResourceID("aws", acct.ID, webACLArn)
 		if waSet[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert wafv2 assoc→web-acl: %w", err)
@@ -118,7 +119,7 @@ func resolveWAFv2WebACLAssociationRefs(acct *account, st *store.Store) error {
 			if !strings.Contains(resourceArn, d.match) {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, d.typ, resourceArn)
+			tgtID := store.ResourceID("aws", acct.ID, resourceArn)
 			if !d.set[tgtID] {
 				continue
 			}

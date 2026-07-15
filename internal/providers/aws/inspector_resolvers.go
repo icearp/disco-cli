@@ -61,7 +61,7 @@ func resolveInspector2MemberOrgAccount(acct *account, st *store.Store) error {
 		if !ok {
 			continue
 		}
-		orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
+		orgID := store.ResourceID("aws", acct.ID, orgARN)
 		if err := st.UpsertRelationship(m.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert inspector2 member→org account: %w", err)
 		}

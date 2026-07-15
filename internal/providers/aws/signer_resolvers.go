@@ -37,7 +37,7 @@ func resolveSignerProfilePermissionToProfile(acct *account, st *store.Store) err
 			continue
 		}
 		parent := r.NativeID[:idx]
-		tgtID := store.ResourceID("aws", acct.ID, TypeSignerSigningProfile, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !profileSet[tgtID] {
 			continue
 		}

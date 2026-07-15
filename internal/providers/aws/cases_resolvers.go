@@ -52,7 +52,7 @@ func resolveCasesChildrenToDomain(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeCasesDomain, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !dSet[tgtID] {
 				continue
 			}

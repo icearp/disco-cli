@@ -83,7 +83,7 @@ func TestResolveEMRClusterRefs(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert keypair: %v", err)
 	}
-	kpID := store.ResourceID("aws", acct.ID, TypeEC2KeyPair, kpARN)
+	kpID := store.ResourceID("aws", acct.ID, kpARN)
 
 	if err := resolveEMRClusterRefs(acct, st); err != nil {
 		t.Fatalf("resolveEMRClusterRefs: %v", err)

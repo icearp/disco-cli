@@ -44,7 +44,7 @@ func resolveOSISPipelineEndpointPipeline(acct *account, st *store.Store) error {
 		if pipeARN == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeOSISPipeline, pipeARN)
+		tgtID := store.ResourceID("aws", acct.ID, pipeARN)
 		if !pipeSet[tgtID] {
 			continue
 		}

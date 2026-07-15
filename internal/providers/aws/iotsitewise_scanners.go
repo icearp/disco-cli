@@ -420,10 +420,10 @@ func scanIoTSWProjects(ctx context.Context, client iotSWAPI, acct *account, regi
 	}
 	t, i, err := upsertBatch(st, batch, "iotsitewise projects")
 	if err == nil && len(ids) > 0 {
-		portalRowID := store.ResourceID("aws", acct.ID, TypeIoTSWPortal, iotSWARN(region, acct.ID, "portal", pid))
+		portalRowID := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "portal", pid))
 		pairs := make([][2]string, 0, len(ids))
 		for _, projID := range ids {
-			childID := store.ResourceID("aws", acct.ID, TypeIoTSWProject, iotSWARN(region, acct.ID, "project", projID))
+			childID := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "project", projID))
 			pairs = append(pairs, [2]string{childID, portalRowID})
 		}
 		if herr := st.RecordHierarchyBatch(pairs); herr != nil {
@@ -465,10 +465,10 @@ func scanIoTSWDashboards(ctx context.Context, client iotSWAPI, acct *account, re
 	}
 	t, i, err := upsertBatch(st, batch, "iotsitewise dashboards")
 	if err == nil && len(batch) > 0 {
-		projectRowID := store.ResourceID("aws", acct.ID, TypeIoTSWProject, iotSWARN(region, acct.ID, "project", pid))
+		projectRowID := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "project", pid))
 		pairs := make([][2]string, 0, len(batch))
 		for _, b := range batch {
-			pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, TypeIoTSWDashboard, b.NativeID), projectRowID})
+			pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, b.NativeID), projectRowID})
 		}
 		if herr := st.RecordHierarchyBatch(pairs); herr != nil {
 			return t, i, fmt.Errorf("record project→dashboard hierarchy: %w", herr)

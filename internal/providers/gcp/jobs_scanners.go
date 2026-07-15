@@ -62,7 +62,7 @@ func scanCloudRunJobsWithClient(ctx context.Context, svc *run.Service, p *projec
 				}
 				jobRefs = append(jobRefs, jobRef{
 					name: j.Name,
-					id:   store.ResourceID("gcp", p.ID, TypeCloudRunJob, j.Name),
+					id:   store.ResourceID("gcp", p.ID, j.Name),
 				})
 				name := lastSegment(j.Name)
 				region := locationFromResourceName(j.Name)

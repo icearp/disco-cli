@@ -181,7 +181,7 @@ func describeKMSKey(ctx context.Context, client kmsAPI, acct *account, region, s
 		// aliases) present in every account.
 		ManagedByProvider: md.KeyManager == types.KeyManagerTypeAws,
 	}
-	keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, keyARN)
+	keyID := store.ResourceID("aws", acct.ID, keyARN)
 	grants, pairs, gerr := listKMSGrants(ctx, client, acct, region, scanID, sv(md.KeyId), keyARN, keyID)
 	if gerr != nil {
 		return nil, nil, nil, gerr
@@ -228,7 +228,7 @@ func listKMSGrants(ctx context.Context, client kmsAPI, acct *account, region, sc
 				AttributesJSON: mustJSON(ge),
 				DiscoveredBy:   scanID,
 			}
-			grantID := store.ResourceID("aws", acct.ID, TypeKMSGrant, arn)
+			grantID := store.ResourceID("aws", acct.ID, arn)
 			grants = append(grants, gr)
 			pairs = append(pairs, [2]string{grantID, keyResourceID})
 		}

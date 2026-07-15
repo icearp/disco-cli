@@ -47,7 +47,7 @@ func resolveAPIManagementRelationships(sub *subscription, st *store.Store) error
 		if vnetID == "" {
 			continue
 		}
-		vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+		vnetResourceID := store.ResourceID("azure", sub.ID, vnetID)
 		if _, err := st.GetResource(vnetResourceID); err != nil {
 			continue
 		}

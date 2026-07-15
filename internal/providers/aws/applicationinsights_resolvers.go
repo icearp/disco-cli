@@ -41,7 +41,7 @@ func resolveApplicationInsightsRelationships(acct *account, st *store.Store) err
 		if topicARN == "" {
 			return nil
 		}
-		topicID := store.ResourceID("aws", acct.ID, TypeSNSTopic, topicARN)
+		topicID := store.ResourceID("aws", acct.ID, topicARN)
 		if _, ok := topicIDs[topicID]; !ok {
 			return nil
 		}

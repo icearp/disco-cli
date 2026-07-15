@@ -96,7 +96,7 @@ func scanAmplifyAll(ctx context.Context, client amplifyAPI, acct *account, regio
 	g, gctx := errgroup.WithContext(ctx)
 	for _, app := range apps {
 		g.Go(func() error {
-			parentID := store.ResourceID("aws", acct.ID, TypeAmplifyApp, app.arn)
+			parentID := store.ResourceID("aws", acct.ID, app.arn)
 			pBranches := amplify.NewListBranchesPaginator(client, &amplify.ListBranchesInput{AppId: &app.id})
 			for pBranches.HasMorePages() {
 				bp, berr := pBranches.NextPage(gctx)

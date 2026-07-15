@@ -57,7 +57,7 @@ func resolveCodeDeployDGRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if n := sv(attrs.ApplicationName); n != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeCodeDeployApplication, codeDeployARN(region, acct.ID, "application", n))
+			tgtID := store.ResourceID("aws", acct.ID, codeDeployARN(region, acct.ID, "application", n))
 			if appSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert codedeploy dg→app: %w", err)
@@ -65,7 +65,7 @@ func resolveCodeDeployDGRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if n := sv(attrs.DeploymentConfigName); n != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeCodeDeployDeploymentConfig, codeDeployARN(region, acct.ID, "deploymentconfig", n))
+			tgtID := store.ResourceID("aws", acct.ID, codeDeployARN(region, acct.ID, "deploymentconfig", n))
 			if dcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert codedeploy dg→dc: %w", err)
@@ -73,7 +73,7 @@ func resolveCodeDeployDGRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.ServiceRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert codedeploy dg→role: %w", err)

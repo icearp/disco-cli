@@ -44,7 +44,7 @@ func resolveMSKChildrenToCluster(acct *account, st *store.Store) error {
 		if tgtARN == "" {
 			return nil
 		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+		tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 		if !set[tgtID] {
 			return nil
 		}
@@ -125,7 +125,7 @@ func resolveMSKVpcConnectionRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if c := sv(attrs.TargetClusterArn); c != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeMSKCluster, c)
+			tgtID := store.ResourceID("aws", acct.ID, c)
 			if clSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert msk vpc-conn→cluster: %w", err)
@@ -134,7 +134,7 @@ func resolveMSKVpcConnectionRefs(acct *account, st *store.Store) error {
 		}
 		if vid := sv(attrs.VpcID); vid != "" {
 			vpcARN := ec2ARN(sv(r.Region), acct.ID, "vpc", vid)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
+			tgtID := store.ResourceID("aws", acct.ID, vpcARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert msk vpc-conn→vpc: %w", err)
@@ -180,7 +180,7 @@ func resolveMSKReplicatorRefs(acct *account, st *store.Store) error {
 			if arn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeMSKCluster, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !clSet[tgtID] {
 				continue
 			}

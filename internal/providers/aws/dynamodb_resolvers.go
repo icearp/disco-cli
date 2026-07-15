@@ -57,7 +57,7 @@ func resolveDynamoDBBackupRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if t := sv(attrs.TableArn); t != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDynamoDBTable, t)
+			tgtID := store.ResourceID("aws", acct.ID, t)
 			if tableSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dynamodb backup→table: %w", err)
@@ -93,7 +93,7 @@ func resolveDynamoDBTableRelationships(acct *account, st *store.Store) error {
 		if attrs.SSEDescription == nil || sv(attrs.SSEDescription.KMSMasterKeyArn) == "" {
 			continue
 		}
-		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.SSEDescription.KMSMasterKeyArn)
+		keyID := store.ResourceID("aws", acct.ID, *attrs.SSEDescription.KMSMasterKeyArn)
 		if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert dynamodb table→kms: %w", err)
 		}
@@ -124,7 +124,7 @@ func resolveDynamoDBStreamRelationships(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		streamID := store.ResourceID("aws", acct.ID, TypeDynamoDBStream, arn)
+		streamID := store.ResourceID("aws", acct.ID, arn)
 		if err := st.UpsertRelationship(r.ID, streamID, store.RelContains, "directed", nil); err != nil {
 			return fmt.Errorf("upsert dynamodb table→stream: %w", err)
 		}
@@ -160,7 +160,7 @@ func resolveDynamoDBGlobalTableRelationships(acct *account, st *store.Store) err
 			if arn == "" {
 				continue
 			}
-			tableID := store.ResourceID("aws", acct.ID, TypeDynamoDBTable, arn)
+			tableID := store.ResourceID("aws", acct.ID, arn)
 			if err := st.UpsertRelationship(r.ID, tableID, store.RelContains, "directed", nil); err != nil {
 				return fmt.Errorf("upsert dynamodb global-table→table: %w", err)
 			}

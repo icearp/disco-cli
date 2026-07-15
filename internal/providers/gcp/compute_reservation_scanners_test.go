@@ -39,7 +39,7 @@ func TestScanComputeAutoscalers_Fake(t *testing.T) {
 	if total != 2 || inserted != 2 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
-	z, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeAutoscaler, zonalLink))
+	z, err := st.GetResource(store.ResourceID("gcp", p.ID, zonalLink))
 	if err != nil {
 		t.Fatalf("GetResource(zonal): %v", err)
 	}
@@ -49,7 +49,7 @@ func TestScanComputeAutoscalers_Fake(t *testing.T) {
 	if z.Region == nil || *z.Region != "us-central1" {
 		t.Errorf("zonal autoscaler region: got %v, want us-central1", z.Region)
 	}
-	r, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionAutoscaler, regionLink))
+	r, err := st.GetResource(store.ResourceID("gcp", p.ID, regionLink))
 	if err != nil {
 		t.Fatalf("GetResource(region): %v", err)
 	}
@@ -132,19 +132,19 @@ func TestScanComputeReservations_NestedFanout(t *testing.T) {
 	if total != 3 || inserted != 3 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 3/3 (reservation+block+subblock)", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeReservation, resSelfLink)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, resSelfLink)); err != nil {
 		t.Errorf("GetResource(reservation): %v", err)
 	}
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeReservationBlock, blockSelfLink)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, blockSelfLink)); err != nil {
 		t.Errorf("GetResource(block): %v", err)
 	}
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeReservationSubBlock, subBlockSelfLink)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, subBlockSelfLink)); err != nil {
 		t.Errorf("GetResource(subblock): %v", err)
 	}
 
-	resID := store.ResourceID("gcp", p.ID, TypeComputeReservation, resSelfLink)
-	blockID := store.ResourceID("gcp", p.ID, TypeComputeReservationBlock, blockSelfLink)
-	subBlockID := store.ResourceID("gcp", p.ID, TypeComputeReservationSubBlock, subBlockSelfLink)
+	resID := store.ResourceID("gcp", p.ID, resSelfLink)
+	blockID := store.ResourceID("gcp", p.ID, blockSelfLink)
+	subBlockID := store.ResourceID("gcp", p.ID, subBlockSelfLink)
 
 	resRels, err := st.RelationshipsFrom(resID, store.RelContains)
 	if err != nil {
@@ -207,7 +207,7 @@ func TestScanComputeFutureReservations_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeFutureReservation, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestScanComputeRegionCommitments_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionCommitment, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -269,7 +269,7 @@ func TestScanComputeResourcePolicies_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeResourcePolicy, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}

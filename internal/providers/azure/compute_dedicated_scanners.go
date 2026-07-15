@@ -121,7 +121,7 @@ func scanHostGroupChain(ctx context.Context, sub *subscription, cred azcore.Toke
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(hg.Tags)
-			discoID := store.ResourceID("azure", sub.ID, TypeComputeHostGroup, nativeID)
+			discoID := store.ResourceID("azure", sub.ID, nativeID)
 			hgBatch = append(hgBatch, r)
 			hgPairs = append(hgPairs, rgHierarchyPair(sub, TypeComputeHostGroup, nativeID))
 			hgEntries = append(hgEntries, hostGroupEntry{
@@ -214,7 +214,7 @@ func scanDedicatedHosts(ctx context.Context, sub *subscription, client *armcompu
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(h.Tags)
-			hostID := store.ResourceID("azure", sub.ID, TypeComputeDedicatedHost, nativeID)
+			hostID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{hostID, hg.discoID})
 		}
@@ -273,7 +273,7 @@ func scanCRGChain(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(crg.Tags)
-			discoID := store.ResourceID("azure", sub.ID, TypeComputeCapacityReservationGroup, nativeID)
+			discoID := store.ResourceID("azure", sub.ID, nativeID)
 			crgBatch = append(crgBatch, r)
 			crgPairs = append(crgPairs, rgHierarchyPair(sub, TypeComputeCapacityReservationGroup, nativeID))
 			crgEntries = append(crgEntries, crgEntry{
@@ -366,7 +366,7 @@ func scanCapacityReservations(ctx context.Context, sub *subscription, client *ar
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(cr.Tags)
-			crID := store.ResourceID("azure", sub.ID, TypeComputeCapacityReservation, nativeID)
+			crID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{crID, crg.discoID})
 		}

@@ -60,7 +60,7 @@ func resolveAthenaSavedQueryWorkgroup(acct *account, st *store.Store) error {
 				continue
 			}
 			wgARN := r.NativeID[:i]
-			tgtID := store.ResourceID("aws", acct.ID, TypeAthenaWorkgroup, wgARN)
+			tgtID := store.ResourceID("aws", acct.ID, wgARN)
 			if !wgSet[tgtID] {
 				continue
 			}
@@ -127,7 +127,7 @@ func resolveAthenaWorkgroupTargets(acct *account, st *store.Store) error {
 		rc := attrs.Configuration.ResultConfiguration
 
 		if bucketARN := s3BucketARNFromS3URL(sv(rc.OutputLocation)); bucketARN != "" {
-			bID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bucketARN)
+			bID := store.ResourceID("aws", acct.ID, bucketARN)
 			if _, ok := bucketIDs[bID]; ok {
 				if err := st.UpsertRelationship(wg.ID, bID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert athena workgroup→s3 bucket: %w", err)
@@ -199,7 +199,7 @@ func resolveAthenaDataCatalogLambda(acct *account, st *store.Store) error {
 				continue
 			}
 			seen[arn] = struct{}{}
-			lID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, arn)
+			lID := store.ResourceID("aws", acct.ID, arn)
 			if _, ok := lambdaIDs[lID]; !ok {
 				continue
 			}

@@ -155,8 +155,9 @@ func resolveIoTThingRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if name := sv(attrs.ThingTypeName); name != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIoTThingType,
+			tgtID := store.ResourceID("aws", acct.ID,
 				iotARN(region, acct.ID, "thingtype", name))
+
 			if typeSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert iot-thing→thing-type: %w", err)
@@ -165,8 +166,9 @@ func resolveIoTThingRefs(acct *account, st *store.Store) error {
 		}
 		if name := sv(attrs.BillingGroupName); name != "" {
 			// BillingGroup ARN: arn:aws:iot:{r}:{a}:billinggroup/{name}.
-			tgtID := store.ResourceID("aws", acct.ID, TypeIoTBillingGroup,
+			tgtID := store.ResourceID("aws", acct.ID,
 				iotARN(region, acct.ID, "billinggroup", name))
+
 			if bgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert iot-thing→billing-group: %w", err)
@@ -216,7 +218,7 @@ func resolveIoTThingGroupParent(acct *account, st *store.Store) error {
 		if parentARN == "" {
 			continue
 		}
-		parentID := store.ResourceID("aws", acct.ID, TypeIoTThingGroup, parentARN)
+		parentID := store.ResourceID("aws", acct.ID, parentARN)
 		if !groupSet[parentID] {
 			continue
 		}
@@ -271,7 +273,7 @@ func resolveIoTAuthorizerLambda(acct *account, st *store.Store) error {
 		if parts := strings.Split(fnARN, ":"); len(parts) == 8 {
 			fnARN = strings.Join(parts[:7], ":")
 		}
-		fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
+		fnID := store.ResourceID("aws", acct.ID, fnARN)
 		if !fnSet[fnID] {
 			continue
 		}
@@ -313,7 +315,7 @@ func resolveIoTRoleAliasRole(acct *account, st *store.Store) error {
 		if roleARN == "" {
 			continue
 		}
-		roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+		roleID := store.ResourceID("aws", acct.ID, roleARN)
 		if !roleSet[roleID] {
 			continue
 		}
@@ -349,7 +351,7 @@ func resolveIoTProvisioningTemplateRole(acct *account, st *store.Store) error {
 		if roleARN == "" {
 			continue
 		}
-		roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+		roleID := store.ResourceID("aws", acct.ID, roleARN)
 		if !roleSet[roleID] {
 			continue
 		}
@@ -393,7 +395,7 @@ func resolveIoTDomainConfigAuthorizer(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		authARN := iotARN(region, acct.ID, "authorizer", name)
-		authID := store.ResourceID("aws", acct.ID, TypeIoTAuthorizer, authARN)
+		authID := store.ResourceID("aws", acct.ID, authARN)
 		if !authSet[authID] {
 			continue
 		}
@@ -435,7 +437,7 @@ func resolveIoTPolicyPrincipalAttachmentRefs(acct *account, st *store.Store) err
 		region := sv(r.Region)
 		if attrs.PolicyName != "" {
 			polARN := iotARN(region, acct.ID, "policy", attrs.PolicyName)
-			polID := store.ResourceID("aws", acct.ID, TypeIoTPolicy, polARN)
+			polID := store.ResourceID("aws", acct.ID, polARN)
 			if policySet[polID] {
 				if err := st.UpsertRelationship(r.ID, polID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert iot-policy-principal→policy: %w", err)
@@ -445,7 +447,7 @@ func resolveIoTPolicyPrincipalAttachmentRefs(acct *account, st *store.Store) err
 		// IoT certificate principal ARN shape:
 		//   arn:aws:iot:{r}:{a}:cert/{certId}
 		if strings.Contains(attrs.Principal, ":cert/") {
-			certID := store.ResourceID("aws", acct.ID, TypeIoTCertificate, attrs.Principal)
+			certID := store.ResourceID("aws", acct.ID, attrs.Principal)
 			if certSet[certID] {
 				if err := st.UpsertRelationship(r.ID, certID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert iot-policy-principal→cert: %w", err)
@@ -486,7 +488,7 @@ func resolveIoTThingPrincipalAttachmentRefs(acct *account, st *store.Store) erro
 		region := sv(r.Region)
 		if attrs.ThingName != "" {
 			thingARN := iotARN(region, acct.ID, "thing", attrs.ThingName)
-			thingID := store.ResourceID("aws", acct.ID, TypeIoTThing, thingARN)
+			thingID := store.ResourceID("aws", acct.ID, thingARN)
 			if thingSet[thingID] {
 				if err := st.UpsertRelationship(r.ID, thingID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert iot-thing-principal→thing: %w", err)
@@ -494,7 +496,7 @@ func resolveIoTThingPrincipalAttachmentRefs(acct *account, st *store.Store) erro
 			}
 		}
 		if strings.Contains(attrs.Principal, ":cert/") {
-			certID := store.ResourceID("aws", acct.ID, TypeIoTCertificate, attrs.Principal)
+			certID := store.ResourceID("aws", acct.ID, attrs.Principal)
 			if certSet[certID] {
 				if err := st.UpsertRelationship(r.ID, certID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert iot-thing-principal→cert: %w", err)
@@ -664,7 +666,7 @@ func emitIoTTopicRuleActionEdges(st *store.Store, r *store.Resource, a iotTopicR
 		if ra == "" {
 			continue
 		}
-		rid := store.ResourceID("aws", acctID, TypeIAMRole, ra)
+		rid := store.ResourceID("aws", acctID, ra)
 		if !sets.role[rid] {
 			continue
 		}
@@ -727,7 +729,7 @@ func emitIoTTopicRuleActionEdges(st *store.Store, r *store.Resource, a iotTopicR
 		if !e.ok || e.arn == "" {
 			continue
 		}
-		tid := store.ResourceID("aws", acctID, e.typ, e.arn)
+		tid := store.ResourceID("aws", acctID, e.arn)
 		if !e.set[tid] {
 			continue
 		}
@@ -852,7 +854,7 @@ func resolveIoTMitigationActionRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		// Action RoleArn — applied by IoT to perform the mitigation.
 		if roleARN := sv(attrs.RoleArn); roleARN != "" {
-			rid := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			rid := store.ResourceID("aws", acct.ID, roleARN)
 			if roleSet[rid] {
 				if err := st.UpsertRelationship(r.ID, rid, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert iot-mitigation-action→iam-role: %w", err)
@@ -864,7 +866,7 @@ func resolveIoTMitigationActionRefs(acct *account, st *store.Store) error {
 		}
 		if p := attrs.ActionParams.EnableIoTLoggingParams; p != nil {
 			if roleARN := sv(p.RoleArnForLogging); roleARN != "" {
-				rid := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+				rid := store.ResourceID("aws", acct.ID, roleARN)
 				if roleSet[rid] {
 					if err := st.UpsertRelationship(r.ID, rid, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert iot-mitigation-action→logging-role: %w", err)
@@ -874,7 +876,7 @@ func resolveIoTMitigationActionRefs(acct *account, st *store.Store) error {
 		}
 		if p := attrs.ActionParams.PublishFindingToSnsParams; p != nil {
 			if topicARN := sv(p.TopicArn); topicARN != "" {
-				tid := store.ResourceID("aws", acct.ID, TypeSNSTopic, topicARN)
+				tid := store.ResourceID("aws", acct.ID, topicARN)
 				if snsSet[tid] {
 					if err := st.UpsertRelationship(r.ID, tid, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert iot-mitigation-action→sns: %w", err)
@@ -888,7 +890,7 @@ func resolveIoTMitigationActionRefs(acct *account, st *store.Store) error {
 					continue
 				}
 				tgARN := iotARN(region, acct.ID, "thinggroup", gn)
-				tid := store.ResourceID("aws", acct.ID, TypeIoTThingGroup, tgARN)
+				tid := store.ResourceID("aws", acct.ID, tgARN)
 				if !tgSet[tid] {
 					continue
 				}
@@ -931,7 +933,7 @@ func resolveIoTJobTemplateRole(acct *account, st *store.Store) error {
 		if roleARN == "" {
 			continue
 		}
-		rid := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+		rid := store.ResourceID("aws", acct.ID, roleARN)
 		if !roleSet[rid] {
 			continue
 		}
@@ -981,7 +983,7 @@ func resolveIoTAccountAuditConfigurationRefs(acct *account, st *store.Store) err
 			if roleARN == "" {
 				return nil
 			}
-			rid := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			rid := store.ResourceID("aws", acct.ID, roleARN)
 			if !roleSet[rid] {
 				return nil
 			}
@@ -998,7 +1000,7 @@ func resolveIoTAccountAuditConfigurationRefs(acct *account, st *store.Store) err
 				return err
 			}
 			if topicARN := sv(t.TargetArn); topicARN != "" && strings.HasPrefix(topicARN, "arn:aws:sns:") {
-				tid := store.ResourceID("aws", acct.ID, TypeSNSTopic, topicARN)
+				tid := store.ResourceID("aws", acct.ID, topicARN)
 				if !snsSet[tid] {
 					continue
 				}

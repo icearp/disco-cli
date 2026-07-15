@@ -44,7 +44,7 @@ func resolveArtifactCustomerAgreementOrg(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeOrganization, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !orgSet[tgtID] {
 			continue
 		}

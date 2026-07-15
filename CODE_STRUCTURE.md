@@ -72,7 +72,7 @@ Store hook methods called by orchestrator:
 
 ## Resource construction
 
-Every `*store.Resource`: `Provider`, `AccountID`, `Type` (e.g. `"aws:ec2:instance"`), `NativeID` (ARN preferred), `Name`, `Region`, `Status`, `TagsJSON` (`*string`, nilable), `AttributesJSON` (full SDK struct marshalled), `DiscoveredBy = scanID`. Leave `ID` empty — `UpsertResources` fills it via `ResourceID(provider, accountID, type, nativeID)`.
+Every `*store.Resource`: `Provider`, `AccountID`, `Type` (e.g. `"aws:ec2:instance"`), `NativeID` (ARN preferred), `Name`, `Region`, `Status`, `TagsJSON` (`*string`, nilable), `AttributesJSON` (full SDK struct marshalled), `DiscoveredBy = scanID`. Leave `ID` empty — `UpsertResources` fills it via `ResourceID(provider, accountID, nativeID)`.
 
 ON CONFLICT update scope and FK constraints: `store/CLAUDE.md` "UpsertResources ON CONFLICT scope".
 

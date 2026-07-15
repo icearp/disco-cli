@@ -305,12 +305,15 @@ func scanCWInsightRules(ctx context.Context, client cloudwatchAPI, acct *account
 		var batch []*store.Resource
 		for _, rule := range page.InsightRules {
 			name := sv(rule.Name)
+			// Region+account-qualified synthetic ARN: the bare rule name is unique
+			// only per (account, region), so it must carry region to be a global id.
+			nativeID := fmt.Sprintf("arn:aws:cloudwatch:%s:%s:insight-rule/%s", region, acct.ID, name)
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeCloudWatchInsightRule,
-				NativeID:       name,
+				NativeID:       nativeID,
 				Name:           &name,
 				Region:         &region,
 				AttributesJSON: mustJSON(rule),

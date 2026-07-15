@@ -33,7 +33,7 @@ func TestScanLoggingBuckets_BucketLinkViewFanout(t *testing.T) {
 
 	b1Native := "projects/proj1/locations/global/buckets/b1"
 	b2Native := "projects/proj1/locations/us-central1/buckets/b2"
-	b1ID := store.ResourceID("gcp", p.ID, TypeLoggingBucket, b1Native)
+	b1ID := store.ResourceID("gcp", p.ID, b1Native)
 
 	routes := map[string]string{
 		"/v2/projects/proj1/locations/-/buckets": marshalAttrs(t, logging.ListBucketsResponse{
@@ -77,8 +77,8 @@ func TestScanLoggingBuckets_BucketLinkViewFanout(t *testing.T) {
 		t.Fatalf("view counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	linkID := store.ResourceID("gcp", p.ID, TypeLoggingLink, b1Native+"/links/l1")
-	viewID := store.ResourceID("gcp", p.ID, TypeLoggingView, b1Native+"/views/v1")
+	linkID := store.ResourceID("gcp", p.ID, b1Native+"/links/l1")
+	viewID := store.ResourceID("gcp", p.ID, b1Native+"/views/v1")
 	rels, err := st.RelationshipsFrom(b1ID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
@@ -100,7 +100,7 @@ func TestScanLoggingBuckets_BucketLinkViewFanout(t *testing.T) {
 	}
 
 	// b2 has no children — must not appear as a parent of anything.
-	b2ID := store.ResourceID("gcp", p.ID, TypeLoggingBucket, b2Native)
+	b2ID := store.ResourceID("gcp", p.ID, b2Native)
 	rels2, err := st.RelationshipsFrom(b2ID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(b2): %v", err)
@@ -156,8 +156,8 @@ func TestScanLoggingBucketLinks_PartialDenyContinues(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (b1 denied, b2 succeeds)", total, inserted)
 	}
-	linkID := store.ResourceID("gcp", p.ID, TypeLoggingLink, b2Native+"/links/l1")
-	b2ID := store.ResourceID("gcp", p.ID, TypeLoggingBucket, b2Native)
+	linkID := store.ResourceID("gcp", p.ID, b2Native+"/links/l1")
+	b2ID := store.ResourceID("gcp", p.ID, b2Native)
 	rels, err := st.RelationshipsFrom(b2ID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
@@ -219,7 +219,7 @@ func TestScanLoggingFlatPhases_Basic(t *testing.T) {
 	// Metric.Name may contain "/" (SDK example: "nginx/requests") — NativeID
 	// must come from the SDK-populated, already-URL-encoded ResourceName,
 	// not a naive fmt.Sprintf join that would mis-nest the extra segment.
-	metricID := store.ResourceID("gcp", p.ID, TypeLoggingMetric, "projects/proj1/metrics/nginx%2Frequests")
+	metricID := store.ResourceID("gcp", p.ID, "projects/proj1/metrics/nginx%2Frequests")
 	res, err := st.GetResource(metricID)
 	if err != nil {
 		t.Fatalf("GetResource(metric): %v", err)

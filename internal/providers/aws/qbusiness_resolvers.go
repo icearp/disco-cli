@@ -74,7 +74,7 @@ func resolveQBusinessChildrenToApp(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeQBusinessApplication, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !appSet[tgtID] {
 				continue
 			}
@@ -115,7 +115,7 @@ func resolveQBusinessDataAccessorRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if p := sv(attrs.Principal); p != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, p)
+			tgtID := store.ResourceID("aws", acct.ID, p)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert qb da→role: %w", err)
@@ -123,7 +123,7 @@ func resolveQBusinessDataAccessorRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if a := sv(attrs.IdcApplicationArn); a != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeSSOApplication, a)
+			tgtID := store.ResourceID("aws", acct.ID, a)
 			if idcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert qb da→sso-app: %w", err)
@@ -157,7 +157,7 @@ func resolveQBusinessDataSourceToIndex(acct *account, st *store.Store) error {
 			continue
 		}
 		idxARN := r.NativeID[:i]
-		tgtID := store.ResourceID("aws", acct.ID, TypeQBusinessIndex, idxARN)
+		tgtID := store.ResourceID("aws", acct.ID, idxARN)
 		if !idxSet[tgtID] {
 			continue
 		}

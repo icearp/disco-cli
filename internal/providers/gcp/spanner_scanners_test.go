@@ -59,10 +59,10 @@ func TestScanSpannerInstancePartitions_MultiParentDerivedFromName(t *testing.T) 
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	part1ID := store.ResourceID("gcp", p.ID, TypeSpannerInstancePartition, part1Native)
-	part2ID := store.ResourceID("gcp", p.ID, TypeSpannerInstancePartition, part2Native)
-	inst1ID := store.ResourceID("gcp", p.ID, TypeSpannerInstance, inst1Native)
-	inst2ID := store.ResourceID("gcp", p.ID, TypeSpannerInstance, inst2Native)
+	part1ID := store.ResourceID("gcp", p.ID, part1Native)
+	part2ID := store.ResourceID("gcp", p.ID, part2Native)
+	inst1ID := store.ResourceID("gcp", p.ID, inst1Native)
+	inst2ID := store.ResourceID("gcp", p.ID, inst2Native)
 
 	assertChild := func(childID, parentID string) {
 		t.Helper()
@@ -130,7 +130,7 @@ func TestScanSpannerBackups_PartialDenyContinues(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (inst1 denied, inst2 succeeds)", total, inserted)
 	}
 
-	backupID := store.ResourceID("gcp", p.ID, TypeSpannerBackup, inst2Native+"/backups/b1")
+	backupID := store.ResourceID("gcp", p.ID, inst2Native+"/backups/b1")
 	res, err := st.GetResource(backupID)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -188,9 +188,9 @@ func TestScanSpannerFlatAndFanoutPhases_Basic(t *testing.T) {
 		t.Fatalf("databaseRoles counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	dbID := store.ResourceID("gcp", p.ID, TypeSpannerDatabase, dbNative)
-	scheduleID := store.ResourceID("gcp", p.ID, TypeSpannerBackupSchedule, dbNative+"/backupSchedules/s1")
-	roleID := store.ResourceID("gcp", p.ID, TypeSpannerDatabaseRole, dbNative+"/databaseRoles/r1")
+	dbID := store.ResourceID("gcp", p.ID, dbNative)
+	scheduleID := store.ResourceID("gcp", p.ID, dbNative+"/backupSchedules/s1")
+	roleID := store.ResourceID("gcp", p.ID, dbNative+"/databaseRoles/r1")
 	rels, err := st.RelationshipsFrom(dbID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
@@ -259,7 +259,7 @@ func TestScanSpannerInstanceConfigs_GoogleManagedFlagged(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	googleID := store.ResourceID("gcp", p.ID, TypeSpannerInstanceConfig, "projects/proj1/instanceConfigs/regional-us-east1")
+	googleID := store.ResourceID("gcp", p.ID, "projects/proj1/instanceConfigs/regional-us-east1")
 	googleRes, err := st.GetResource(googleID)
 	if err != nil {
 		t.Fatalf("GetResource(google): %v", err)
@@ -268,7 +268,7 @@ func TestScanSpannerInstanceConfigs_GoogleManagedFlagged(t *testing.T) {
 		t.Errorf("Google-managed instance config not flagged ManagedByProvider: %+v", googleRes)
 	}
 
-	customID := store.ResourceID("gcp", p.ID, TypeSpannerInstanceConfig, "projects/proj1/instanceConfigs/custom-config")
+	customID := store.ResourceID("gcp", p.ID, "projects/proj1/instanceConfigs/custom-config")
 	customRes, err := st.GetResource(customID)
 	if err != nil {
 		t.Fatalf("GetResource(custom): %v", err)
@@ -325,8 +325,8 @@ func TestScanSpannerDatabases_AccumulatesAcrossInstancesAndContinuesPastDenial(t
 		t.Fatalf("databaseNames: got %v, want [%s]", databaseNames, db2Native)
 	}
 
-	db2ID := store.ResourceID("gcp", p.ID, TypeSpannerDatabase, db2Native)
-	inst2ID := store.ResourceID("gcp", p.ID, TypeSpannerInstance, inst2Native)
+	db2ID := store.ResourceID("gcp", p.ID, db2Native)
+	inst2ID := store.ResourceID("gcp", p.ID, inst2Native)
 	rels, err := st.RelationshipsFrom(inst2ID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)

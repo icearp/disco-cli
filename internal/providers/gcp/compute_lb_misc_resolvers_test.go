@@ -21,7 +21,7 @@ func TestResolveBackendBucketRelationships_ByName(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert bucket: %v", err)
 	}
-	bucketID := store.ResourceID("gcp", p.ID, TypeStorageBucket, bucketNativeID)
+	bucketID := store.ResourceID("gcp", p.ID, bucketNativeID)
 
 	bbID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeBackendBucket, "projects/proj-1/global/backendBuckets/bb-1", "",
 		marshalAttrs(t, &compute.BackendBucket{SelfLink: "projects/proj-1/global/backendBuckets/bb-1", Name: "bb-1", BucketName: "my-bucket"}))

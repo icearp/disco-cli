@@ -96,7 +96,7 @@ func resolveVPCLatticeSNVA(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.ServiceNetworkArn != nil && *attrs.ServiceNetworkArn != "" {
-			netID := store.ResourceID("aws", acct.ID, TypeVpcLatticeServiceNetwork, *attrs.ServiceNetworkArn)
+			netID := store.ResourceID("aws", acct.ID, *attrs.ServiceNetworkArn)
 			if netSet[netID] {
 				if err := st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert snva→service-network: %w", err)
@@ -104,8 +104,9 @@ func resolveVPCLatticeSNVA(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.VpcID != nil && *attrs.VpcID != "" {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+			vpcID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
+
 			if vpcSet[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert snva→vpc: %w", err)
@@ -144,7 +145,7 @@ func resolveVPCLatticeSNSA(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.ServiceNetworkArn != nil && *attrs.ServiceNetworkArn != "" {
-			netID := store.ResourceID("aws", acct.ID, TypeVpcLatticeServiceNetwork, *attrs.ServiceNetworkArn)
+			netID := store.ResourceID("aws", acct.ID, *attrs.ServiceNetworkArn)
 			if netSet[netID] {
 				if err := st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert snsa→service-network: %w", err)
@@ -152,7 +153,7 @@ func resolveVPCLatticeSNSA(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.ServiceArn != nil && *attrs.ServiceArn != "" {
-			svcID := store.ResourceID("aws", acct.ID, TypeVpcLatticeService, *attrs.ServiceArn)
+			svcID := store.ResourceID("aws", acct.ID, *attrs.ServiceArn)
 			if svcSet[svcID] {
 				if err := st.UpsertRelationship(r.ID, svcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert snsa→service: %w", err)
@@ -191,7 +192,7 @@ func resolveVPCLatticeSNRA(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.ServiceNetworkArn != nil && *attrs.ServiceNetworkArn != "" {
-			netID := store.ResourceID("aws", acct.ID, TypeVpcLatticeServiceNetwork, *attrs.ServiceNetworkArn)
+			netID := store.ResourceID("aws", acct.ID, *attrs.ServiceNetworkArn)
 			if netSet[netID] {
 				if err := st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert snra→service-network: %w", err)
@@ -199,7 +200,7 @@ func resolveVPCLatticeSNRA(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.ResourceConfigurationArn != nil && *attrs.ResourceConfigurationArn != "" {
-			rcID := store.ResourceID("aws", acct.ID, TypeVpcLatticeResourceConfiguration, *attrs.ResourceConfigurationArn)
+			rcID := store.ResourceID("aws", acct.ID, *attrs.ResourceConfigurationArn)
 			if rcSet[rcID] {
 				if err := st.UpsertRelationship(r.ID, rcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert snra→resource-configuration: %w", err)
@@ -241,8 +242,9 @@ func resolveVPCLatticeTargetGroup(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.VpcIdentifier != nil && *attrs.VpcIdentifier != "" {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+			vpcID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "vpc", *attrs.VpcIdentifier))
+
 			if vpcSet[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert target-group→vpc: %w", err)
@@ -253,7 +255,7 @@ func resolveVPCLatticeTargetGroup(acct *account, st *store.Store) error {
 			if sa == "" {
 				continue
 			}
-			svcID := store.ResourceID("aws", acct.ID, TypeVpcLatticeService, sa)
+			svcID := store.ResourceID("aws", acct.ID, sa)
 			if !svcSet[svcID] {
 				continue
 			}
@@ -287,7 +289,7 @@ func resolveVPCLatticeListenerService(acct *account, st *store.Store) error {
 		if !ok {
 			continue
 		}
-		svcID := store.ResourceID("aws", acct.ID, TypeVpcLatticeService, svcARN)
+		svcID := store.ResourceID("aws", acct.ID, svcARN)
 		if !svcSet[svcID] {
 			continue
 		}
@@ -320,7 +322,7 @@ func resolveVPCLatticeRuleListener(acct *account, st *store.Store) error {
 		if !ok {
 			continue
 		}
-		lstID := store.ResourceID("aws", acct.ID, TypeVpcLatticeListener, lstARN)
+		lstID := store.ResourceID("aws", acct.ID, lstARN)
 		if !lstSet[lstID] {
 			continue
 		}
@@ -381,7 +383,7 @@ func resolveVPCLatticePolicyParent(acct *account, st *store.Store, rtype, suffix
 		default:
 			continue
 		}
-		pID := store.ResourceID("aws", acct.ID, ptype, parentARN)
+		pID := store.ResourceID("aws", acct.ID, parentARN)
 		var ok bool
 		if ptype == TypeVpcLatticeService {
 			ok = svcSet[pID]
@@ -433,8 +435,9 @@ func resolveVPCLatticeResourceGateway(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.VpcIdentifier != nil && *attrs.VpcIdentifier != "" {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+			vpcID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "vpc", *attrs.VpcIdentifier))
+
 			if vpcSet[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert resource-gateway→vpc: %w", err)
@@ -445,8 +448,9 @@ func resolveVPCLatticeResourceGateway(acct *account, st *store.Store) error {
 			if sn == "" {
 				continue
 			}
-			snID := store.ResourceID("aws", acct.ID, TypeEC2Subnet,
+			snID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "subnet", sn))
+
 			if !subnetSet[snID] {
 				continue
 			}
@@ -458,8 +462,9 @@ func resolveVPCLatticeResourceGateway(acct *account, st *store.Store) error {
 			if sg == "" {
 				continue
 			}
-			sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup,
+			sgID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "security-group", sg))
+
 			if !sgSet[sgID] {
 				continue
 			}
@@ -593,7 +598,7 @@ func resolveVPCLatticeServiceCert(acct *account, st *store.Store) error {
 		if ca == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeACMCertificate, ca)
+		tgt := store.ResourceID("aws", acct.ID, ca)
 		if !acmSet[tgt] {
 			continue
 		}

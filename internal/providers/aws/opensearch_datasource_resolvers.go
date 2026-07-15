@@ -36,7 +36,7 @@ func resolveOpenSearchDataSourceRelationships(acct *account, st *store.Store) er
 		if i < 0 {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeOpenSearchDomain, r.NativeID[:i])
+		tgtID := store.ResourceID("aws", acct.ID, r.NativeID[:i])
 		if domainSet[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert opensearch data-source→domain: %w", err)

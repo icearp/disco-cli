@@ -62,7 +62,7 @@ func resolveCWMetricStreamRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if f := sv(attrs.FirehoseArn); f != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeFirehoseDeliveryStream, f)
+			tgtID := store.ResourceID("aws", acct.ID, f)
 			if fhSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert cw ms→firehose: %w", err)
@@ -70,7 +70,7 @@ func resolveCWMetricStreamRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.RoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert cw ms→role: %w", err)
@@ -121,7 +121,7 @@ func resolveAlarmSNSActions(acct *account, st *store.Store) error {
 				continue
 			}
 			seen[arn] = true
-			topicID := store.ResourceID("aws", acct.ID, TypeSNSTopic, arn)
+			topicID := store.ResourceID("aws", acct.ID, arn)
 			if err := st.UpsertRelationship(r.ID, topicID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert alarm→sns relationship: %w", err)
 			}

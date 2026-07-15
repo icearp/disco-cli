@@ -57,7 +57,7 @@ func resolveCloudTrailChannelDestinations(acct *account, st *store.Store) error 
 			if loc == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeCloudTrailEventDataStore, loc)
+			tgt := store.ResourceID("aws", acct.ID, loc)
 			if !edsSet[tgt] {
 				continue
 			}
@@ -104,20 +104,20 @@ func resolveCloudTrailResourcePolicyToParent(acct *account, st *store.Store) err
 		switch {
 		case strings.Contains(parent, ":trail/"):
 			tgtType = TypeCloudTrailTrail
-			present = trailSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
+			present = trailSet[store.ResourceID("aws", acct.ID, parent)]
 		case strings.Contains(parent, ":eventdatastore/"):
 			tgtType = TypeCloudTrailEventDataStore
-			present = edsSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
+			present = edsSet[store.ResourceID("aws", acct.ID, parent)]
 		case strings.Contains(parent, ":channel/"):
 			tgtType = TypeCloudTrailChannel
-			present = chSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
+			present = chSet[store.ResourceID("aws", acct.ID, parent)]
 		default:
 			continue
 		}
 		if !present {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cloudtrail rp→%s: %w", tgtType, err)
 		}

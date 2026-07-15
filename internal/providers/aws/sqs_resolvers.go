@@ -44,7 +44,7 @@ func resolveSQSQueueRelationships(acct *account, st *store.Store) error {
 		// Queue → DLQ via RedrivePolicy.
 		if rp := attrs["RedrivePolicy"]; rp != "" {
 			if dlqARN := redrivePolicyDLQ(rp); dlqARN != "" {
-				dlqID := store.ResourceID("aws", acct.ID, TypeSQSQueue, dlqARN)
+				dlqID := store.ResourceID("aws", acct.ID, dlqARN)
 				if err := st.UpsertRelationship(r.ID, dlqID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sqs-queue→dlq: %w", err)
 				}

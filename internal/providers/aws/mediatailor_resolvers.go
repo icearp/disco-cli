@@ -47,7 +47,7 @@ func resolveMediaTailorChannelPolicyToChannel(acct *account, st *store.Store) er
 		if parent == r.NativeID {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeMediaTailorChannel, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !chSet[tgtID] {
 			continue
 		}
@@ -83,7 +83,7 @@ func resolveMediaTailorSourcesToSourceLocation(acct *account, st *store.Store) e
 			if n == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeMediaTailorSourceLocation, mtSourceLocationARN(sv(r.Region), acct.ID, n))
+			tgtID := store.ResourceID("aws", acct.ID, mtSourceLocationARN(sv(r.Region), acct.ID, n))
 			if !slSet[tgtID] {
 				continue
 			}

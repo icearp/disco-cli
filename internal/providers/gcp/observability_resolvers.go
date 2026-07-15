@@ -307,7 +307,7 @@ func resolveLoggingLogScopeRelationships(p *project, st *store.Store) error {
 	}
 
 	for _, e := range pendingProjects {
-		toID := store.ResourceID("gcp", e.projectID, TypeProject, e.projectID)
+		toID := store.ResourceID("gcp", e.projectID, e.projectID)
 		if err := st.UpsertRelationship(e.fromID, toID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert logScope→project: %w", err)
 		}

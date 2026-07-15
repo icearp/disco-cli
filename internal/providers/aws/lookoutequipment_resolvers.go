@@ -50,7 +50,7 @@ func resolveLookoutEquipmentModelVersionRefs(acct *account, st *store.Store) err
 		if marn == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeLookoutEquipmentModel, marn)
+		tgt := store.ResourceID("aws", acct.ID, marn)
 		if !modelSet[tgt] {
 			continue
 		}
@@ -108,7 +108,7 @@ func resolveLookoutEquipmentSchedulerRefs(acct *account, st *store.Store) error 
 		}
 		region := sv(r.Region)
 		if ra := sv(attrs.RoleArn); ra != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			tgt := store.ResourceID("aws", acct.ID, ra)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert le scheduler→role: %w", err)
@@ -147,7 +147,7 @@ func resolveLookoutEquipmentSchedulerRefs(acct *account, st *store.Store) error 
 			}
 			seen[b] = struct{}{}
 			bARN := "arn:aws:s3:::" + b
-			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, bARN)
+			tgt := store.ResourceID("aws", acct.ID, bARN)
 			if !bucketSet[tgt] {
 				continue
 			}

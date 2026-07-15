@@ -45,7 +45,7 @@ func resolveFISExperimentTemplateRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.RoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert fis et→role: %w", err)
@@ -80,7 +80,7 @@ func resolveFISTargetAccountConfigRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		if idx := strings.LastIndex(r.NativeID, "/target-account-configuration/"); idx > 0 {
 			parent := r.NativeID[:idx]
-			tgtID := store.ResourceID("aws", acct.ID, TypeFISExperimentTemplate, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if tplSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert fis tac→tpl: %w", err)
@@ -94,7 +94,7 @@ func resolveFISTargetAccountConfigRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.RoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert fis tac→role: %w", err)

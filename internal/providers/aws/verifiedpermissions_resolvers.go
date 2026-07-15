@@ -100,7 +100,7 @@ func resolveVPChildToPolicyStore(acct *account, st *store.Store) error {
 				continue
 			}
 			parent := r.NativeID[:i]
-			tgtID := store.ResourceID("aws", acct.ID, TypeVerifiedPermissionsPolicyStore, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !psSet[tgtID] {
 				continue
 			}

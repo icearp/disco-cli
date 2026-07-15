@@ -34,7 +34,7 @@ func TestScanComputeAddresses_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypeComputeAddress, addrSelfLink)
+	id := store.ResourceID("gcp", p.ID, addrSelfLink)
 	got, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -144,7 +144,7 @@ func TestScanComputePublicDelegatedPrefixes_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	globalID := store.ResourceID("gcp", p.ID, TypeComputeGlobalPublicDelegatedPrefix, globalSelfLink)
+	globalID := store.ResourceID("gcp", p.ID, globalSelfLink)
 	got, err := st.GetResource(globalID)
 	if err != nil {
 		t.Fatalf("GetResource(global): %v", err)
@@ -153,7 +153,7 @@ func TestScanComputePublicDelegatedPrefixes_Fake(t *testing.T) {
 		t.Errorf("global prefix should have no region, got %v", got.Region)
 	}
 
-	regionalID := store.ResourceID("gcp", p.ID, TypeComputePublicDelegatedPrefix, regionalSelfLink)
+	regionalID := store.ResourceID("gcp", p.ID, regionalSelfLink)
 	got2, err := st.GetResource(regionalID)
 	if err != nil {
 		t.Fatalf("GetResource(regional): %v", err)

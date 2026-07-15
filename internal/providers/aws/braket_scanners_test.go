@@ -40,7 +40,7 @@ func TestScanBraketSpendingLimits(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("total=%d inserted=%d want 1/1", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBraketSpendingLimit, arn)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, arn)); err != nil {
 		t.Errorf("spending limit missing: %v", err)
 	}
 }

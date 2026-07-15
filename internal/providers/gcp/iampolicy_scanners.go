@@ -42,7 +42,9 @@ func scanIAMPolicies(ctx context.Context, p *project, st *store.Store, scanID st
 		return 0, 0, err
 	}
 
-	nativeID := resource + "/policy"
+	// "/iamPolicy" (not "/policy") so this synthetic id can't collide with the
+	// BinaryAuthorization policy singleton, whose real name is projects/<p>/policy.
+	nativeID := resource + "/iamPolicy"
 	name := nativeID
 	r := &store.Resource{
 		Provider:       "gcp",
@@ -63,8 +65,8 @@ func scanIAMPolicies(ctx context.Context, p *project, st *store.Store, scanID st
 	inserted = n
 
 	// Closure: policy → project parent.
-	policyID := store.ResourceID("gcp", p.ID, TypeIAMPolicy, nativeID)
-	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
+	policyID := store.ResourceID("gcp", p.ID, nativeID)
+	projParentID := store.ResourceID("gcp", p.ID, p.ID)
 	if err := st.RecordHierarchy(policyID, projParentID); err != nil {
 		return total, inserted, fmt.Errorf("closure IAM policy: %w", err)
 	}

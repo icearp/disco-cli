@@ -216,7 +216,7 @@ func resolveServiceCatalogServiceActionAssociations(acct *account, st *store.Sto
 		}
 		// Service-action NativeID is `arn:aws:servicecatalog:{r}:{a}:service-action/{saID}`.
 		saARN := scARN(sv(a.Region), acct.ID, "service-action", saID)
-		saRID := store.ResourceID("aws", acct.ID, TypeServiceCatalogServiceAction, saARN)
+		saRID := store.ResourceID("aws", acct.ID, saARN)
 		if saIDs[saRID] {
 			if err := st.UpsertRelationship(a.ID, saRID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert servicecatalog saa→service-action: %w", err)
@@ -374,7 +374,7 @@ func resolveServiceCatalogPortfolioPrincipals(acct *account, st *store.Store) er
 			{TypeIAMUser, userIDs},
 			{TypeIAMGroup, groupIDs},
 		} {
-			rid := store.ResourceID("aws", acct.ID, t.rtype, attrs.PrincipalARN)
+			rid := store.ResourceID("aws", acct.ID, attrs.PrincipalARN)
 			if _, ok := t.ids[rid]; !ok {
 				continue
 			}
@@ -414,7 +414,7 @@ func resolveServiceCatalogTagOptionAssociations(acct *account, st *store.Store) 
 		}
 		toID := parts[0]
 		toARN := scARN(sv(a.Region), acct.ID, "tag-option", toID)
-		toRID := store.ResourceID("aws", acct.ID, TypeServiceCatalogTagOption, toARN)
+		toRID := store.ResourceID("aws", acct.ID, toARN)
 		if !toIDs[toRID] {
 			continue
 		}
@@ -531,7 +531,7 @@ func resolveServiceCatalogPortfolioProducts(acct *account, st *store.Store) erro
 				continue
 			}
 			seen[prodARN] = struct{}{}
-			pID := store.ResourceID("aws", acct.ID, TypeServiceCatalogProduct, prodARN)
+			pID := store.ResourceID("aws", acct.ID, prodARN)
 			if _, ok := productIDs[pID]; !ok {
 				continue
 			}

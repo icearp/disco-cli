@@ -91,7 +91,7 @@ func TestScanCloudBuild_FullChain(t *testing.T) {
 		{TypeCloudBuildRepository, repoName},
 		{TypeCloudBuildGithubEnterpriseConfig, ghecName},
 	} {
-		id := store.ResourceID("gcp", p.ID, tc.typ, tc.nativeID)
+		id := store.ResourceID("gcp", p.ID, tc.nativeID)
 		res, err := st.GetResource(id)
 		if err != nil {
 			t.Fatalf("GetResource(%s): %v", tc.typ, err)
@@ -101,7 +101,7 @@ func TestScanCloudBuild_FullChain(t *testing.T) {
 		}
 	}
 
-	wpID := store.ResourceID("gcp", p.ID, TypeCloudBuildWorkerPool, wpName)
+	wpID := store.ResourceID("gcp", p.ID, wpName)
 	wpRes, err := st.GetResource(wpID)
 	if err != nil {
 		t.Fatalf("GetResource(worker pool): %v", err)
@@ -113,7 +113,7 @@ func TestScanCloudBuild_FullChain(t *testing.T) {
 		t.Errorf("worker pool status: got %+v, want RUNNING", wpRes.Status)
 	}
 
-	connID := store.ResourceID("gcp", p.ID, TypeCloudBuildConnection, connName)
+	connID := store.ResourceID("gcp", p.ID, connName)
 	rels, err := st.RelationshipsFrom(connID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(connection): %v", err)
@@ -247,7 +247,7 @@ func TestScanCloudBuild_GHEConfigFoundOnlyAtLocationScope(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (regional GHE config must be found via the per-location parent, not just the global one)", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypeCloudBuildGithubEnterpriseConfig, ghecName)
+	id := store.ResourceID("gcp", p.ID, ghecName)
 	res, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)

@@ -70,7 +70,7 @@ func resolveQuickSightNamespaceMembers(acct *account, st *store.Store) error {
 			if nsARN == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeQuickSightNamespace, nsARN)
+			tgtID := store.ResourceID("aws", acct.ID, nsARN)
 			if !nsSet[tgtID] {
 				continue
 			}
@@ -126,7 +126,7 @@ func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if vpc := sv(attrs.VPCId); vpc != "" {
 			vARN := ec2ARN(region, acct.ID, "vpc", vpc)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vARN)
+			tgtID := store.ResourceID("aws", acct.ID, vARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert qs vpc-conn→vpc: %w", err)
@@ -139,7 +139,7 @@ func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 				continue
 			}
 			sARN := ec2ARN(region, acct.ID, "subnet", sid)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
+			tgtID := store.ResourceID("aws", acct.ID, sARN)
 			if subnetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert qs vpc-conn→subnet: %w", err)
@@ -148,7 +148,7 @@ func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 		}
 		for _, sg := range attrs.SecurityGroupIDs {
 			sgARN := ec2ARN(region, acct.ID, "security-group", sg)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+			tgtID := store.ResourceID("aws", acct.ID, sgARN)
 			if sgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert qs vpc-conn→sg: %w", err)
@@ -156,7 +156,7 @@ func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.RoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert qs vpc-conn→role: %w", err)
@@ -192,7 +192,7 @@ func resolveQuickSightRefreshScheduleParent(acct *account, st *store.Store) erro
 			continue
 		}
 		dsARN := r.NativeID[:i]
-		tgtID := store.ResourceID("aws", acct.ID, TypeQuickSightDataSet, dsARN)
+		tgtID := store.ResourceID("aws", acct.ID, dsARN)
 		if !dsSet[tgtID] {
 			continue
 		}
@@ -244,7 +244,7 @@ func resolveQSDataSourceRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if sa := sv(attrs.SecretArn); strings.Contains(sa, ":secretsmanager:") {
-			tgt := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, sa)
+			tgt := store.ResourceID("aws", acct.ID, sa)
 			if secretSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert qs-data-source→secret: %w", err)
@@ -253,7 +253,7 @@ func resolveQSDataSourceRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.VpcConnectionProperties != nil {
 			if va := sv(attrs.VpcConnectionProperties.VpcConnectionArn); va != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeQuickSightVPCConnection, va)
+				tgt := store.ResourceID("aws", acct.ID, va)
 				if vpcConnSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert qs-data-source→vpc-conn: %w", err)

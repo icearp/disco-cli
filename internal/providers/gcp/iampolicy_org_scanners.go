@@ -47,7 +47,7 @@ func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store,
 			}
 			return total, inserted, getErr
 		}
-		nativeID := sc.Name + "/policy"
+		nativeID := sc.Name + "/iamPolicy" // synthetic; mirrors project-scope iam:policy id
 		name := nativeID
 		// AccountName is the scope name itself; no display name without an extra Get call.
 		acctName := sc.Name
@@ -70,7 +70,7 @@ func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store,
 		total++
 		inserted += n
 
-		policyID := store.ResourceID("gcp", sc.Name, TypeIAMPolicy, nativeID)
+		policyID := store.ResourceID("gcp", sc.Name, nativeID)
 		if cErr := st.RecordHierarchy(policyID, sc.Resource); cErr != nil {
 			return total, inserted, fmt.Errorf("closure org IAM policy %s: %w", sc.Name, cErr)
 		}

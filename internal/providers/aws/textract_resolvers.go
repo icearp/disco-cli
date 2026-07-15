@@ -42,7 +42,7 @@ func resolveTextractAdapterVersion(acct *account, st *store.Store) error {
 		if aid == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeTextractAdapter, textractAdapterNativeID(sv(r.Region), acct.ID, aid))
+		tgt := store.ResourceID("aws", acct.ID, textractAdapterNativeID(sv(r.Region), acct.ID, aid))
 		if !adapterSet[tgt] {
 			continue
 		}

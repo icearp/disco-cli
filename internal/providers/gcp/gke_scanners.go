@@ -62,7 +62,7 @@ func scanGKEWithClient(ctx context.Context, svc *container.Service, p *project, 
 		clusterRefs = append(clusterRefs, clusterRef{
 			location: c.Location,
 			name:     c.Name,
-			id:       store.ResourceID("gcp", p.ID, TypeGKECluster, c.SelfLink),
+			id:       store.ResourceID("gcp", p.ID, c.SelfLink),
 		})
 		r := &store.Resource{
 			Provider:       "gcp",

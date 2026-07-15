@@ -60,7 +60,7 @@ func resolveB2BICapabilityS3(acct *account, st *store.Store) error {
 			}
 			seen[b] = struct{}{}
 			bARN := "arn:aws:s3:::" + b
-			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, bARN)
+			tgt := store.ResourceID("aws", acct.ID, bARN)
 			if !bucketSet[tgt] {
 				continue
 			}
@@ -105,7 +105,7 @@ func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if pid := sv(attrs.ProfileID); pid != "" {
 			pARN := fmt.Sprintf("arn:aws:b2bi:%s:%s:profile/%s", region, acct.ID, pid)
-			tgt := store.ResourceID("aws", acct.ID, TypeB2BIProfile, pARN)
+			tgt := store.ResourceID("aws", acct.ID, pARN)
 			if profSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert b2bi partnership→profile: %w", err)
@@ -117,7 +117,7 @@ func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
 				continue
 			}
 			cARN := fmt.Sprintf("arn:aws:b2bi:%s:%s:capability/%s", region, acct.ID, cid)
-			tgt := store.ResourceID("aws", acct.ID, TypeB2BICapability, cARN)
+			tgt := store.ResourceID("aws", acct.ID, cARN)
 			if !capSet[tgt] {
 				continue
 			}
@@ -158,7 +158,7 @@ func resolveB2BIProfileLogGroup(acct *account, st *store.Store) error {
 			continue
 		}
 		lgARN := logGroupNativeIDFromName(acct.ID, sv(r.Region), name)
-		tgt := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, lgARN)
+		tgt := store.ResourceID("aws", acct.ID, lgARN)
 		if !lgSet[tgt] {
 			continue
 		}

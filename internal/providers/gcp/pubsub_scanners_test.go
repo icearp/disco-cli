@@ -58,7 +58,7 @@ func TestScanPubSub_FullChain(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 4/4", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypePubSubSnapshot, snapName)
+	id := store.ResourceID("gcp", p.ID, snapName)
 	res, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource(snapshot): %v", err)

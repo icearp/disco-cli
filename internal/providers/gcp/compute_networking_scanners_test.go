@@ -32,7 +32,7 @@ func TestScanComputeRoutes_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRoute, selfLink)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink)); err != nil {
 		t.Errorf("GetResource: %v", err)
 	}
 }
@@ -90,7 +90,7 @@ func TestScanComputeRouters_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRouter, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -216,14 +216,14 @@ func TestScanComputeNetworkAttachments_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	regional, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeNetworkAttachment, regionalSelfLink))
+	regional, err := st.GetResource(store.ResourceID("gcp", p.ID, regionalSelfLink))
 	if err != nil {
 		t.Fatalf("GetResource(regional): %v", err)
 	}
 	if regional.Region == nil || *regional.Region != "us-central1" {
 		t.Errorf("regional network attachment region: got %v, want us-central1", regional.Region)
 	}
-	global, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeNetworkAttachment, globalSelfLink))
+	global, err := st.GetResource(store.ResourceID("gcp", p.ID, globalSelfLink))
 	if err != nil {
 		t.Fatalf("GetResource(global): %v", err)
 	}
@@ -254,7 +254,7 @@ func TestScanComputeNetworkEndpointGroups_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeNetworkEndpointGroup, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -308,14 +308,14 @@ func TestScanComputeNetworkFirewallPolicies_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	global, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeNetworkFirewallPolicy, globalSelfLink))
+	global, err := st.GetResource(store.ResourceID("gcp", p.ID, globalSelfLink))
 	if err != nil {
 		t.Fatalf("GetResource(global): %v", err)
 	}
 	if global.Region != nil {
 		t.Errorf("global firewall policy should have nil region, got %v", global.Region)
 	}
-	regional, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionNetworkFirewallPolicy, regionalSelfLink))
+	regional, err := st.GetResource(store.ResourceID("gcp", p.ID, regionalSelfLink))
 	if err != nil {
 		t.Fatalf("GetResource(regional): %v", err)
 	}
@@ -366,7 +366,7 @@ func TestScanComputeNodeGroups_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeNodeGroup, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -493,10 +493,10 @@ func TestScanComputeCrossSiteNetworks_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2 (network + wire group)", total, inserted)
 	}
 
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeCrossSiteNetwork, xsnSelfLink)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, xsnSelfLink)); err != nil {
 		t.Errorf("GetResource(network): %v", err)
 	}
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeWireGroup, wgSelfLink)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, wgSelfLink)); err != nil {
 		t.Errorf("GetResource(wire group): %v", err)
 	}
 }

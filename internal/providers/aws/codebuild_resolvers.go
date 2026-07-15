@@ -76,7 +76,7 @@ func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if rarn := sv(attrs.FleetServiceRole); strings.Contains(rarn, ":role/") {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			tgt := store.ResourceID("aws", acct.ID, rarn)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert cb-fleet→role: %w", err)
@@ -85,7 +85,7 @@ func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.VpcConfig != nil {
 			if v := sv(attrs.VpcConfig.VpcID); v != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", v))
+				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
 				if vpcSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert cb-fleet→vpc: %w", err)
@@ -93,7 +93,7 @@ func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
 				}
 			}
 			for _, sn := range attrs.VpcConfig.Subnets {
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
 				if !subnetSet[tgt] {
 					continue
 				}
@@ -102,7 +102,7 @@ func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
 				}
 			}
 			for _, sg := range attrs.VpcConfig.SecurityGroupIDs {
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 				if !sgSet[tgt] {
 					continue
 				}
@@ -161,7 +161,7 @@ func resolveCodeBuildReportGroupRefs(acct *account, st *store.Store) error {
 		}
 		if b := sv(s3.Bucket); b != "" {
 			barn := "arn:aws:s3:::" + b
-			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+			tgt := store.ResourceID("aws", acct.ID, barn)
 			if bucketSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert cb-rg→s3: %w", err)
@@ -300,7 +300,7 @@ func emitCodeBuildRoleEdges(st *store.Store, acct *account, r store.Resource, at
 		if pair.arn == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, pair.arn)
+		tgt := store.ResourceID("aws", acct.ID, pair.arn)
 		if !sets.roleSet[tgt] {
 			continue
 		}
@@ -332,7 +332,7 @@ func emitCodeBuildVPCEdges(st *store.Store, acct *account, r store.Resource, reg
 		return nil
 	}
 	if vpc := sv(vc.VpcID); vpc != "" {
-		tgt := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", vpc))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", vpc))
 		if sets.vpcSet[tgt] {
 			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert codebuild project→vpc: %w", err)
@@ -343,7 +343,7 @@ func emitCodeBuildVPCEdges(st *store.Store, acct *account, r store.Resource, reg
 		if sn == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
 		if !sets.subnetSet[tgt] {
 			continue
 		}
@@ -355,7 +355,7 @@ func emitCodeBuildVPCEdges(st *store.Store, acct *account, r store.Resource, reg
 		if sg == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 		if !sets.sgSet[tgt] {
 			continue
 		}
@@ -384,7 +384,7 @@ func emitCodeBuildBucketEdge(st *store.Store, acct *account, r store.Resource, s
 	if i := strings.IndexByte(bucketName, '/'); i >= 0 {
 		bucketName = bucketName[:i]
 	}
-	tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucketName)
+	tgt := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+bucketName)
 	if !sets.bucketSet[tgt] {
 		return nil
 	}
@@ -413,7 +413,7 @@ func emitCodeBuildLogsEdges(st *store.Store, acct *account, r store.Resource, re
 	}
 	if lc.CloudWatchLogs != nil && sv(lc.CloudWatchLogs.Status) != "DISABLED" {
 		if name := sv(lc.CloudWatchLogs.GroupName); name != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, logGroupNativeIDFromName(acct.ID, region, name))
+			tgt := store.ResourceID("aws", acct.ID, logGroupNativeIDFromName(acct.ID, region, name))
 			if sets.lgSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert codebuild project→log-group: %w", err)

@@ -86,7 +86,7 @@ func resolveDRSRecoveryInstanceRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if id := sv(attrs.Ec2InstanceID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Instance, ec2ARN(sv(r.Region), acct.ID, "instance", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "instance", id))
 			if ec2Set[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert drs recovery-instance→ec2: %w", err)
@@ -163,7 +163,7 @@ func resolveDRSSourceNetworkRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if id := sv(attrs.LaunchedVpcID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", id))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert drs source-network→vpc: %w", err)
@@ -217,7 +217,7 @@ func resolveDRSReplicationTemplateRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if sn := sv(attrs.StagingAreaSubnetID); sn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
 			if subSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert drs replication-template→subnet: %w", err)
@@ -228,7 +228,7 @@ func resolveDRSReplicationTemplateRefs(acct *account, st *store.Store) error {
 			if sg == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 			if sgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert drs replication-template→sg: %w", err)
@@ -263,7 +263,7 @@ func resolveDRSLaunchTemplateRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if b := sv(attrs.ExportBucketArn); b != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, b)
+			tgtID := store.ResourceID("aws", acct.ID, b)
 			if bucketSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert drs launch-template→s3: %w", err)

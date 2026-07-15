@@ -52,7 +52,7 @@ func resolveDocDBElasticSnapshotRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if c := sv(attrs.ClusterArn); c != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDocDBElasticCluster, c)
+			tgtID := store.ResourceID("aws", acct.ID, c)
 			if clusterSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert docdb-elastic snapshot→cluster: %w", err)
@@ -113,7 +113,7 @@ func resolveDocDBElasticClusterRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, sn := range attrs.SubnetIDs {
-			tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
 			if !subnetSet[tgt] {
 				continue
 			}
@@ -122,7 +122,7 @@ func resolveDocDBElasticClusterRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, sg := range attrs.VpcSecurityGroupIDs {
-			tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 			if !sgSet[tgt] {
 				continue
 			}

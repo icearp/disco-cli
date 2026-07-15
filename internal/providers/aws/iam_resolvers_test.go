@@ -242,7 +242,7 @@ func TestResolveManagedPolicyAttachments_IncludesAWSManaged(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("upsert managed %s: %v", nativeID, err)
 		}
-		return store.ResourceID("aws", acct.ID, rtype, nativeID)
+		return store.ResourceID("aws", acct.ID, nativeID)
 	}
 	roleAttrs := func(arn string, policyARNs ...string) string {
 		amp := make([]iamtypes.AttachedPolicy, len(policyARNs))
@@ -314,7 +314,7 @@ func TestResolveUserGroupMemberships_FromGroupList(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("upsert group %s: %v", name, err)
 		}
-		return store.ResourceID("aws", acct.ID, TypeIAMGroup, arn)
+		return store.ResourceID("aws", acct.ID, arn)
 	}
 	adminsID := upsertGroup(adminsARN, "Admins")
 	devsID := upsertGroup(devsARN, "Devs")
@@ -948,7 +948,7 @@ func TestResolveIAMRoleCrossAccountTrust(t *testing.T) {
 	// Each referenced account exists as an empty-attribute aws:iam:account
 	// placeholder at its self-node natural key, and the edge points at it.
 	for _, other := range []string{"222222222222", "333333333333"} {
-		wantID := store.ResourceID("aws", other, TypeIAMAccount, "arn:aws:iam::"+other+":root")
+		wantID := store.ResourceID("aws", other, "arn:aws:iam::"+other+":root")
 		r, err := st.GetResource(wantID)
 		if err != nil {
 			t.Errorf("missing account placeholder for %s: %v", other, err)

@@ -379,7 +379,7 @@ func resolveCloudFormationStackResources(acct *account, st *store.Store) error {
 			if nativeID == "" {
 				continue
 			}
-			tID := store.ResourceID("aws", acct.ID, binding.discoType, nativeID)
+			tID := store.ResourceID("aws", acct.ID, nativeID)
 			if !known[tID] {
 				continue
 			}
@@ -425,7 +425,7 @@ func resolveCloudFormationStackSetInstances(acct *account, st *store.Store) erro
 			if arn == "" || instAcct == "" {
 				continue
 			}
-			tID := store.ResourceID("aws", instAcct, TypeCloudFormationStack, arn)
+			tID := store.ResourceID("aws", instAcct, arn)
 			if !stackIDs[tID] {
 				continue
 			}

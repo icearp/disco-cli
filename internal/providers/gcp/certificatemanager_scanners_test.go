@@ -74,7 +74,7 @@ func TestScanCertificateManager_FullChain(t *testing.T) {
 		{TypeCertManagerIssuanceConfig, issuanceName},
 		{TypeCertManagerTrustConfig, trustName},
 	} {
-		id := store.ResourceID("gcp", p.ID, tc.typ, tc.nativeID)
+		id := store.ResourceID("gcp", p.ID, tc.nativeID)
 		res, err := st.GetResource(id)
 		if err != nil {
 			t.Fatalf("GetResource(%s): %v", tc.typ, err)

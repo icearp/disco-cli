@@ -68,7 +68,7 @@ func TestScanBuiltinRoleDefsInto_NormalizesUnderTenant(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (built-in only, custom filtered)", total, inserted)
 	}
 	// Built-in stored under tenant account with the normalized, scope-free ID.
-	if _, err := st.GetResource(store.ResourceID("azure", tenantID, TypeAuthorizationRoleDefinition, builtinRoleGUID)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("azure", tenantID, builtinRoleGUID)); err != nil {
 		t.Errorf("built-in role not stored under tenant with normalized NativeID: %v", err)
 	}
 }
@@ -87,7 +87,7 @@ func TestScanRoleDefinitionsInto_SkipsBuiltinsWhenTenantSet(t *testing.T) {
 		if total != 1 {
 			t.Errorf("got %d stored, want 1 (custom only; built-in skipped)", total)
 		}
-		if _, err := st.GetResource(store.ResourceID("azure", sub.ID, TypeAuthorizationRoleDefinition, customRoleNativeID)); err != nil {
+		if _, err := st.GetResource(store.ResourceID("azure", sub.ID, customRoleNativeID)); err != nil {
 			t.Errorf("custom role should persist per-sub: %v", err)
 		}
 	})
@@ -139,7 +139,7 @@ func TestScanBuiltinPolicyDefsInto(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("azure", tenantID, TypePolicyDefinition, policyID))
+	got, err := st.GetResource(store.ResourceID("azure", tenantID, policyID))
 	if err != nil {
 		t.Fatalf("built-in policy def not stored under tenant: %v", err)
 	}

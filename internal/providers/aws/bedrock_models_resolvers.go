@@ -50,7 +50,7 @@ func resolveBedrockModelServes(acct *account, st *store.Store) error {
 			if modelArn == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeBedrockCustomModel, modelArn)
+			tgt := store.ResourceID("aws", acct.ID, modelArn)
 			if !customModels[tgt] {
 				continue
 			}

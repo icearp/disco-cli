@@ -92,7 +92,7 @@ func resolveAidevopsAssociations(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.AgentSpaceID); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeAidevopsAgentSpace, aidevopsARN(region, acct.ID, "agent-space", id))
+			tgt := store.ResourceID("aws", acct.ID, aidevopsARN(region, acct.ID, "agent-space", id))
 			if spaceSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert aidevops-assoc→agent-space: %w", err)
@@ -100,7 +100,7 @@ func resolveAidevopsAssociations(acct *account, st *store.Store) error {
 			}
 		}
 		if id := sv(attrs.ServiceID); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeAidevopsService, aidevopsARN(region, acct.ID, "service", id))
+			tgt := store.ResourceID("aws", acct.ID, aidevopsARN(region, acct.ID, "service", id))
 			if svcSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert aidevops-assoc→service: %w", err)
@@ -132,7 +132,7 @@ func resolveAidevopsPrivateConnVPC(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || sv(attrs.VpcID) == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", sv(attrs.VpcID)))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", sv(attrs.VpcID)))
 		if !vpcSet[tgt] {
 			continue
 		}

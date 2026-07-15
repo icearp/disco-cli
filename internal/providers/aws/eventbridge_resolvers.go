@@ -63,7 +63,7 @@ func resolveEventBridgeRelationships(acct *account, st *store.Store) error {
 			busARN = fmt.Sprintf("arn:aws:events:%s:%s:event-bus/%s", region, acct.ID, sv(a.Rule.EventBusName))
 		}
 		if busARN != "" {
-			busID := store.ResourceID("aws", acct.ID, TypeEventsEventBus, busARN)
+			busID := store.ResourceID("aws", acct.ID, busARN)
 			if err := st.UpsertRelationship(r.ID, busID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert events-rule→bus: %w", err)
 			}
@@ -78,7 +78,7 @@ func resolveEventBridgeRelationships(acct *account, st *store.Store) error {
 			if targetType == "" {
 				continue
 			}
-			targetID := store.ResourceID("aws", acct.ID, targetType, arn)
+			targetID := store.ResourceID("aws", acct.ID, arn)
 			if err := st.UpsertRelationship(r.ID, targetID, store.RelRoutesTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert events-rule→target: %w", err)
 			}
@@ -148,7 +148,7 @@ func resolveEventBridgeAPIDestinationConnection(acct *account, st *store.Store) 
 		if connARN == "" {
 			continue
 		}
-		connID := store.ResourceID("aws", acct.ID, TypeEventsConnection, connARN)
+		connID := store.ResourceID("aws", acct.ID, connARN)
 		if _, ok := connIDs[connID]; !ok {
 			continue
 		}
@@ -211,7 +211,7 @@ func resolveEventBridgeBusRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.DeadLetterConfig != nil {
 			if dlqARN := sv(attrs.DeadLetterConfig.Arn); strings.Contains(dlqARN, ":sqs:") {
-				tgt := store.ResourceID("aws", acct.ID, TypeSQSQueue, dlqARN)
+				tgt := store.ResourceID("aws", acct.ID, dlqARN)
 				if sqsSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert event-bus→sqs-dlq: %w", err)
@@ -259,7 +259,7 @@ func resolveEventBridgeConnectionRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if sa := sv(attrs.SecretArn); strings.Contains(sa, ":secretsmanager:") {
-			tgt := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, sa)
+			tgt := store.ResourceID("aws", acct.ID, sa)
 			if secretSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert connection→secret: %w", err)

@@ -203,7 +203,7 @@ func upsertIfScanned(st *store.Store, scanned map[string]bool, fromID, provider,
 	if selfLink == "" {
 		return nil
 	}
-	toID := store.ResourceID(provider, projectID, rtype, selfLink)
+	toID := store.ResourceID(provider, projectID, selfLink)
 	if !scanned[toID] {
 		return nil
 	}
@@ -223,13 +223,10 @@ func upsertIfScannedAny(st *store.Store, scanned map[string]bool, fromID, provid
 	if selfLink == "" {
 		return nil
 	}
-	for _, rtype := range rtypes {
-		toID := store.ResourceID(provider, projectID, rtype, selfLink)
-		if scanned[toID] {
-			if err := st.UpsertRelationship(fromID, toID, kind, "directed", nil); err != nil {
-				return fmt.Errorf("upsert %s -[%s]-> %s: %w", fromID, kind, toID, err)
-			}
-			return nil
+	toID := store.ResourceID(provider, projectID, selfLink)
+	if scanned[toID] {
+		if err := st.UpsertRelationship(fromID, toID, kind, "directed", nil); err != nil {
+			return fmt.Errorf("upsert %s -[%s]-> %s: %w", fromID, kind, toID, err)
 		}
 	}
 	return nil

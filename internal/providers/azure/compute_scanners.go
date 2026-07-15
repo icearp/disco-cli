@@ -57,7 +57,8 @@ func scanCompute(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 // resource at nativeID.
 func rgHierarchyPair(sub *subscription, rtype, nativeID string) [2]string {
 	rgName := rgFromID(nativeID)
-	rgID := store.ResourceID("azure", sub.ID, TypeResourcesResourceGroup,
+	rgID := store.ResourceID("azure", sub.ID,
 		fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", sub.ID, rgName))
-	return [2]string{store.ResourceID("azure", sub.ID, rtype, nativeID), rgID}
+
+	return [2]string{store.ResourceID("azure", sub.ID, nativeID), rgID}
 }

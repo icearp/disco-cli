@@ -138,7 +138,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 			region := sv(r.Region)
 			for _, sub := range attrs.VpcSubnetIDs {
 				sARN := ec2ARN(region, acct.ID, "subnet", sub)
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
+				tgt := store.ResourceID("aws", acct.ID, sARN)
 				if !subnetSet[tgt] {
 					continue
 				}
@@ -148,7 +148,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 			}
 			for _, sg := range attrs.VpcSecurityGroupIDs {
 				gARN := ec2ARN(region, acct.ID, "security-group", sg)
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, gARN)
+				tgt := store.ResourceID("aws", acct.ID, gARN)
 				if !sgSet[tgt] {
 					continue
 				}
@@ -157,7 +157,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 				}
 			}
 			if sa := sv(attrs.InfluxAuthParametersSecretArn); sa != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, sa)
+				tgt := store.ResourceID("aws", acct.ID, sa)
 				if secretSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert ts-influx→secret: %w", err)
@@ -166,7 +166,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 			}
 			if attrs.LogDeliveryConfiguration != nil && attrs.LogDeliveryConfiguration.S3Configuration != nil {
 				if b := sv(attrs.LogDeliveryConfiguration.S3Configuration.BucketName); b != "" {
-					tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+b)
+					tgt := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+b)
 					if bucketSet[tgt] {
 						if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 							return fmt.Errorf("upsert ts-influx→s3: %w", err)
@@ -257,7 +257,7 @@ func resolveTSTableMagneticS3(acct *account, st *store.Store) error {
 		}
 		s3c := attrs.MagneticStoreWriteProperties.MagneticStoreRejectedDataLocation.S3Configuration
 		if b := sv(s3c.BucketName); b != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+b)
+			tgt := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+b)
 			if bucketSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert timestream table→s3: %w", err)
@@ -323,7 +323,7 @@ func resolveTSScheduledQueryRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if ra := sv(attrs.ScheduledQueryExecutionRoleArn); ra != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			tgt := store.ResourceID("aws", acct.ID, ra)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert timestream sq→role: %w", err)
@@ -339,7 +339,7 @@ func resolveTSScheduledQueryRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.NotificationConfiguration != nil && attrs.NotificationConfiguration.SnsConfiguration != nil {
 			if ta := sv(attrs.NotificationConfiguration.SnsConfiguration.TopicArn); ta != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeSNSTopic, ta)
+				tgt := store.ResourceID("aws", acct.ID, ta)
 				if topicSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert timestream sq→sns: %w", err)
@@ -349,7 +349,7 @@ func resolveTSScheduledQueryRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.ErrorReportConfiguration != nil && attrs.ErrorReportConfiguration.S3Configuration != nil {
 			if b := sv(attrs.ErrorReportConfiguration.S3Configuration.BucketName); b != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+b)
+				tgt := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+b)
 				if bucketSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert timestream sq→s3: %w", err)

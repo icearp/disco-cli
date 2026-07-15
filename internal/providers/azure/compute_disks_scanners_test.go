@@ -50,7 +50,7 @@ func TestScanDisks_FakeTransport(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	id := store.ResourceID("azure", sub.ID, TypeComputeManagedDisk, diskNativeID)
+	id := store.ResourceID("azure", sub.ID, diskNativeID)
 	got, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)

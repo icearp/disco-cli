@@ -206,7 +206,7 @@ func resolveIAMPolicyBindings(st *store.Store, policies []store.Resource, saByEm
 	for _, e := range pending {
 		toID := e.targetSAID
 		if toID == "" {
-			toID = store.ResourceID("gcp", e.projectID, TypeProject, e.projectID)
+			toID = store.ResourceID("gcp", e.projectID, e.projectID)
 		}
 		attrs := mustJSON(map[string]string{
 			"role":           e.role,

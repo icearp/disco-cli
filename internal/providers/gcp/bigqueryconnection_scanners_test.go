@@ -55,7 +55,7 @@ func TestScanBQConnections_HappyPath(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	resID := store.ResourceID("gcp", p.ID, TypeBQConnection, connName)
+	resID := store.ResourceID("gcp", p.ID, connName)
 	res, err := st.GetResource(resID)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)

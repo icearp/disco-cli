@@ -70,7 +70,7 @@ func dfWireVPCConfig(st *store.Store, acctID string, r store.Resource, cfg *dfVP
 	}
 	region := sv(r.Region)
 	if v := sv(cfg.VpcID); v != "" {
-		tgtID := store.ResourceID("aws", acctID, TypeEC2VPC, ec2ARN(region, acctID, "vpc", v))
+		tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "vpc", v))
 		if sets.vpc[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert devicefarm %s→vpc: %w", label, err)
@@ -81,7 +81,7 @@ func dfWireVPCConfig(st *store.Store, acctID string, r store.Resource, cfg *dfVP
 		if sid == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acctID, TypeEC2Subnet, ec2ARN(region, acctID, "subnet", sid))
+		tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "subnet", sid))
 		if sets.sub[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert devicefarm %s→subnet: %w", label, err)
@@ -92,7 +92,7 @@ func dfWireVPCConfig(st *store.Store, acctID string, r store.Resource, cfg *dfVP
 		if gid == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acctID, TypeEC2SecurityGroup, ec2ARN(region, acctID, "security-group", gid))
+		tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "security-group", gid))
 		if sets.sg[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert devicefarm %s→sg: %w", label, err)
@@ -137,7 +137,7 @@ func resolveDeviceFarmProjectChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeDeviceFarmProject, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !projSet[tgtID] {
 				continue
 			}
@@ -178,7 +178,7 @@ func resolveDeviceFarmDeviceInstanceProfile(acct *account, st *store.Store) erro
 			continue
 		}
 		if p := sv(attrs.InstanceProfile.Arn); p != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDeviceFarmInstanceProfile, p)
+			tgtID := store.ResourceID("aws", acct.ID, p)
 			if profSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert devicefarm device-instance→instance-profile: %w", err)
@@ -248,7 +248,7 @@ func resolveDeviceFarmProjectRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.ExecutionRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert devicefarm project→role: %w", err)

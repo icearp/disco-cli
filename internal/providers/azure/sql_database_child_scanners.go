@@ -70,7 +70,7 @@ func scanDBTransparentDataEnc(ctx context.Context, sub *subscription, cred azcor
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLDBTransparentDataEnc, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -109,7 +109,7 @@ func scanDBSecurityAlertPolicies(ctx context.Context, sub *subscription, cred az
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLDBSecurityAlert, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -148,7 +148,7 @@ func scanDBAdvancedThreatProtection(ctx context.Context, sub *subscription, cred
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLDBAdvancedThreatProt, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -187,7 +187,7 @@ func scanDBAuditingSettings(ctx context.Context, sub *subscription, cred azcore.
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLDBAuditingSettings, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -226,7 +226,7 @@ func scanDBVulnAssessments(ctx context.Context, sub *subscription, cred azcore.T
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLDBVulnAssessment, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -265,7 +265,7 @@ func scanSyncGroups(ctx context.Context, sub *subscription, cred azcore.TokenCre
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLSyncGroup, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -304,7 +304,7 @@ func scanReplicationLinks(ctx context.Context, sub *subscription, cred azcore.To
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLReplicationLink, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -343,7 +343,7 @@ func scanWorkloadGroups(ctx context.Context, sub *subscription, cred azcore.Toke
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLWorkloadGroup, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -382,7 +382,7 @@ func scanGeoBackupPolicies(ctx context.Context, sub *subscription, cred azcore.T
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLGeoBackupPolicy, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -421,7 +421,7 @@ func scanLedgerDigestUploads(ctx context.Context, sub *subscription, cred azcore
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLLedgerDigestUpload, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}

@@ -66,7 +66,7 @@ func resolveMacieMemberOrgAccount(acct *account, st *store.Store) error {
 		if !ok {
 			continue
 		}
-		orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
+		orgID := store.ResourceID("aws", acct.ID, orgARN)
 		if err := st.UpsertRelationship(m.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert macie member→org account: %w", err)
 		}
@@ -131,7 +131,7 @@ func resolveMacieClassificationJobBuckets(acct *account, st *store.Store) error 
 				if name == "" {
 					continue
 				}
-				bucketID := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+name)
+				bucketID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+name)
 				if !buckets[bucketID] {
 					continue
 				}
@@ -177,7 +177,7 @@ func resolveMacieAllowListBucket(acct *account, st *store.Store) error {
 		if name == "" {
 			continue
 		}
-		bucketID := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+name)
+		bucketID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+name)
 		if !buckets[bucketID] {
 			continue
 		}

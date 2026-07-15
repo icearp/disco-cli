@@ -109,7 +109,7 @@ func emitGlueTriggerWorkflowEdge(st *store.Store, acct *account, r store.Resourc
 	if name == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, TypeGlueWorkflow, glueResourceARN(region, acct.ID, "workflow", name))
+	tgtID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, "workflow", name))
 	if !wfSet[tgtID] {
 		return nil
 	}
@@ -135,7 +135,7 @@ func emitGlueTriggerActionEdge(st *store.Store, acct *account, r store.Resource,
 	if name == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, rtype, glueResourceARN(region, acct.ID, arnKind, name))
+	tgtID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, arnKind, name))
 	if !set[tgtID] {
 		return nil
 	}
@@ -217,7 +217,7 @@ func emitGlueDevEndpointRoleEdge(st *store.Store, acct *account, r store.Resourc
 	if arn == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+	tgtID := store.ResourceID("aws", acct.ID, arn)
 	if !sets.roleSet[tgtID] {
 		return nil
 	}
@@ -232,7 +232,7 @@ func emitGlueDevEndpointSubnetEdge(st *store.Store, acct *account, r store.Resou
 	if id == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", id))
+	tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", id))
 	if !sets.subnetSet[tgtID] {
 		return nil
 	}
@@ -247,7 +247,7 @@ func emitGlueDevEndpointSGEdges(st *store.Store, acct *account, r store.Resource
 		if sg == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 		if !sets.sgSet[tgtID] {
 			continue
 		}
@@ -263,7 +263,7 @@ func emitGlueDevEndpointSecConfigEdge(st *store.Store, acct *account, r store.Re
 	if name == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, TypeGlueSecurityConfiguration, glueResourceARN(region, acct.ID, "securityConfiguration", name))
+	tgtID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, "securityConfiguration", name))
 	if !sets.scSet[tgtID] {
 		return nil
 	}
@@ -325,7 +325,7 @@ func emitGlueMLTRoleEdge(st *store.Store, acct *account, r store.Resource, attrs
 	if arn == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+	tgtID := store.ResourceID("aws", acct.ID, arn)
 	if !roleSet[tgtID] {
 		return nil
 	}
@@ -342,7 +342,7 @@ func emitGlueMLTTableEdges(st *store.Store, acct *account, r store.Resource, reg
 		if db == "" {
 			continue
 		}
-		dbID := store.ResourceID("aws", acct.ID, TypeGlueDatabase, glueResourceARN(region, acct.ID, "database", db))
+		dbID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, "database", db))
 		if dbSet[dbID] {
 			if err := st.UpsertRelationship(r.ID, dbID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert glue-mlt→database: %w", err)
@@ -351,7 +351,7 @@ func emitGlueMLTTableEdges(st *store.Store, acct *account, r store.Resource, reg
 		if tbl == "" {
 			continue
 		}
-		tblID := store.ResourceID("aws", acct.ID, TypeGlueTable, glueResourceARN(region, acct.ID, "table", db+"/"+tbl))
+		tblID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, "table", db+"/"+tbl))
 		if !tblSet[tblID] {
 			continue
 		}
@@ -398,7 +398,7 @@ func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.PhysicalConnectionRequirements.SubnetID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", id))
 			if subnetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue-conn→subnet: %w", err)
@@ -409,7 +409,7 @@ func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 			if sg == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 			if !sgSet[tgtID] {
 				continue
 			}
@@ -461,7 +461,7 @@ func resolveGlueSchemaRegistry(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeGlueRegistry, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !regSet[tgtID] {
 			continue
 		}
@@ -665,7 +665,7 @@ func resolveGlueWorkflowGraphNodes(acct *account, st *store.Store) error {
 			if name == "" || !ok {
 				continue
 			}
-			childID := store.ResourceID("aws", acct.ID, kind.rtype, glueResourceARN(region, acct.ID, kind.arnKind, name))
+			childID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, kind.arnKind, name))
 			if !kind.set[childID] || seen[childID] {
 				continue
 			}
@@ -707,7 +707,7 @@ func resolveGlueIdentityCenterRefs(acct *account, st *store.Store) error {
 		if ia == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeSSOInstance, ia)
+		tgtID := store.ResourceID("aws", acct.ID, ia)
 		if !ssoSet[tgtID] {
 			continue
 		}

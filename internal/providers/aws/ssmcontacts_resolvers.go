@@ -52,8 +52,8 @@ func resolveSSMContactsChannelToContact(acct *account, st *store.Store) error {
 		if c == "" {
 			continue
 		}
-		cID := store.ResourceID("aws", acct.ID, TypeSSMContactsContact, c)
-		pID := store.ResourceID("aws", acct.ID, TypeSSMContactsPlan, c)
+		cID := store.ResourceID("aws", acct.ID, c)
+		pID := store.ResourceID("aws", acct.ID, c)
 		if contactSet[cID] {
 			if err := st.UpsertRelationship(r.ID, cID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert sc cc→contact: %w", err)
@@ -98,8 +98,8 @@ func resolveSSMContactsRotationContacts(acct *account, st *store.Store) error {
 			if c == "" {
 				continue
 			}
-			cID := store.ResourceID("aws", acct.ID, TypeSSMContactsContact, c)
-			pID := store.ResourceID("aws", acct.ID, TypeSSMContactsPlan, c)
+			cID := store.ResourceID("aws", acct.ID, c)
+			pID := store.ResourceID("aws", acct.ID, c)
 			if contactSet[cID] {
 				if err := st.UpsertRelationship(r.ID, cID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sc rot→contact: %w", err)

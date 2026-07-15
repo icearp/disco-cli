@@ -51,7 +51,7 @@ func dsEmitAgents(srcID string, agentARNs []string, set map[string]bool, st *sto
 		if a == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acctID, TypeDataSyncAgent, a)
+		tgtID := store.ResourceID("aws", acctID, a)
 		if !set[tgtID] {
 			continue
 		}
@@ -97,7 +97,7 @@ func resolveDataSyncLocationS3(acct *account, st *store.Store) error {
 			continue
 		}
 		if b := sv(attrs.S3BucketArn); b != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, b)
+			tgtID := store.ResourceID("aws", acct.ID, b)
 			if s3Set[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ds s3→bucket: %w", err)
@@ -106,7 +106,7 @@ func resolveDataSyncLocationS3(acct *account, st *store.Store) error {
 		}
 		if attrs.S3Config != nil {
 			if role := sv(attrs.S3Config.BucketAccessRoleArn); role != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+				tgtID := store.ResourceID("aws", acct.ID, role)
 				if roleSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert ds s3→role: %w", err)
@@ -167,7 +167,7 @@ func resolveDataSyncLocationEFS(acct *account, st *store.Store) error {
 			continue
 		}
 		if f := sv(attrs.EfsFilesystemArn); f != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEFSFileSystem, f)
+			tgtID := store.ResourceID("aws", acct.ID, f)
 			if efsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ds efs→fs: %w", err)
@@ -175,7 +175,7 @@ func resolveDataSyncLocationEFS(acct *account, st *store.Store) error {
 			}
 		}
 		if a := sv(attrs.AccessPointArn); a != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEFSAccessPoint, a)
+			tgtID := store.ResourceID("aws", acct.ID, a)
 			if apSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ds efs→ap: %w", err)
@@ -183,7 +183,7 @@ func resolveDataSyncLocationEFS(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.FileSystemAccessRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ds efs→role: %w", err)
@@ -192,7 +192,7 @@ func resolveDataSyncLocationEFS(acct *account, st *store.Store) error {
 		}
 		if attrs.Ec2Config != nil {
 			if s := sv(attrs.Ec2Config.SubnetArn); s != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, s)
+				tgtID := store.ResourceID("aws", acct.ID, s)
 				if subSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert ds efs→subnet: %w", err)
@@ -203,7 +203,7 @@ func resolveDataSyncLocationEFS(acct *account, st *store.Store) error {
 				if sg == "" {
 					continue
 				}
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sg)
+				tgtID := store.ResourceID("aws", acct.ID, sg)
 				if sgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert ds efs→sg: %w", err)
@@ -248,7 +248,7 @@ func resolveDataSyncLocationFSxOntap(acct *account, st *store.Store) error {
 			continue
 		}
 		if f := sv(attrs.FsxFilesystemArn); f != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeFSxFileSystem, f)
+			tgtID := store.ResourceID("aws", acct.ID, f)
 			if fsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ds fsx-ontap→fs: %w", err)
@@ -256,7 +256,7 @@ func resolveDataSyncLocationFSxOntap(acct *account, st *store.Store) error {
 			}
 		}
 		if s := sv(attrs.StorageVirtualMachineArn); s != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeFSxStorageVirtualMachine, s)
+			tgtID := store.ResourceID("aws", acct.ID, s)
 			if svmSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ds fsx-ontap→svm: %w", err)
@@ -267,7 +267,7 @@ func resolveDataSyncLocationFSxOntap(acct *account, st *store.Store) error {
 			if sg == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sg)
+			tgtID := store.ResourceID("aws", acct.ID, sg)
 			if sgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ds fsx-ontap→sg: %w", err)
@@ -307,7 +307,7 @@ func resolveDataSyncFSxSGs(acct *account, st *store.Store) error {
 				if sg == "" {
 					continue
 				}
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sg)
+				tgtID := store.ResourceID("aws", acct.ID, sg)
 				if sgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert ds %s→sg: %w", ltype, err)
@@ -414,7 +414,7 @@ func resolveDataSyncAgentRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if vid := sv(attrs.PrivateLinkConfig.VpcEndpointID); vid != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(region, acct.ID, "vpc-endpoint", vid))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc-endpoint", vid))
 			if vpceSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert datasync-agent→vpce: %w", err)
@@ -425,7 +425,7 @@ func resolveDataSyncAgentRefs(acct *account, st *store.Store) error {
 			if sa == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sa)
+			tgt := store.ResourceID("aws", acct.ID, sa)
 			if !subnetSet[tgt] {
 				continue
 			}
@@ -437,7 +437,7 @@ func resolveDataSyncAgentRefs(acct *account, st *store.Store) error {
 			if sg == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sg)
+			tgt := store.ResourceID("aws", acct.ID, sg)
 			if !sgSet[tgt] {
 				continue
 			}
@@ -483,7 +483,7 @@ func resolveDataSyncTaskRefs(acct *account, st *store.Store) error {
 		if len(lg) > len(tail) && lg[len(lg)-len(tail):] == tail {
 			lg = lg[:len(lg)-len(tail)]
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, lg)
+		tgt := store.ResourceID("aws", acct.ID, lg)
 		if !lgSet[tgt] {
 			continue
 		}

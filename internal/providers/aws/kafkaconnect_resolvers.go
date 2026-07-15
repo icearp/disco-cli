@@ -64,7 +64,7 @@ func resolveKafkaConnectConnectorRefs(acct *account, st *store.Store) error {
 			if arn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeKafkaConnectCustomPlugin, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !pluginSet[tgtID] {
 				continue
 			}
@@ -74,7 +74,7 @@ func resolveKafkaConnectConnectorRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.WorkerConfiguration != nil {
 			if arn := sv(attrs.WorkerConfiguration.WorkerConfigurationArn); arn != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeKafkaConnectWorkerConfiguration, arn)
+				tgtID := store.ResourceID("aws", acct.ID, arn)
 				if wcSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert kafka-connect connector→worker-config: %w", err)
@@ -83,7 +83,7 @@ func resolveKafkaConnectConnectorRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.ServiceExecutionRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert kafka-connect connector→role: %w", err)

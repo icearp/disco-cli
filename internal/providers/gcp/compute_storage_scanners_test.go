@@ -42,7 +42,7 @@ func TestScanComputeDisks_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypeComputeDisk, diskSelfLink)
+	id := store.ResourceID("gcp", p.ID, diskSelfLink)
 	got, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -105,7 +105,7 @@ func TestScanComputeImages_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypeComputeImage, imgSelfLink)
+	id := store.ResourceID("gcp", p.ID, imgSelfLink)
 	got, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -180,7 +180,7 @@ func TestScanComputeInstantSnapshots_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypeComputeInstantSnapshot, isSelfLink)
+	id := store.ResourceID("gcp", p.ID, isSelfLink)
 	got, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -215,7 +215,7 @@ func TestScanComputeStoragePools_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypeComputeStoragePool, spSelfLink)
+	id := store.ResourceID("gcp", p.ID, spSelfLink)
 	got, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)

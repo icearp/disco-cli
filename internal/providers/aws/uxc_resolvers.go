@@ -42,7 +42,7 @@ func resolveUXCAccountCustomizationToOrgAccount(acct *account, st *store.Store) 
 	if !ok {
 		return nil
 	}
-	toID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, acctARN)
+	toID := store.ResourceID("aws", acct.ID, acctARN)
 	for _, r := range rows {
 		if err := st.UpsertRelationship(r.ID, toID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert uxc→org-account relationship: %w", err)

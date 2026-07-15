@@ -64,8 +64,9 @@ func resolveSageMakerEndpointConfig(acct *account, st *store.Store) error {
 		if attrs.EndpointConfigName == nil || *attrs.EndpointConfigName == "" {
 			continue
 		}
-		cfgID := store.ResourceID("aws", acct.ID, TypeSageMakerEndpointConfig,
+		cfgID := store.ResourceID("aws", acct.ID,
 			sagemakerEndpointConfigARN(sv(r.Region), acct.ID, *attrs.EndpointConfigName))
+
 		if !configSet[cfgID] {
 			continue
 		}
@@ -105,8 +106,9 @@ func resolveSageMakerEndpointConfigModels(acct *account, st *store.Store) error 
 			if v.ModelName == nil || *v.ModelName == "" {
 				continue
 			}
-			modelID := store.ResourceID("aws", acct.ID, TypeSageMakerModel,
+			modelID := store.ResourceID("aws", acct.ID,
 				sagemakerModelARN(region, acct.ID, *v.ModelName))
+
 			if !modelSet[modelID] {
 				continue
 			}
@@ -167,7 +169,7 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		// IAM execution role
 		if attrs.ExecutionRoleArn != nil && *attrs.ExecutionRoleArn != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, *attrs.ExecutionRoleArn)
+			roleID := store.ResourceID("aws", acct.ID, *attrs.ExecutionRoleArn)
 			if roleSet[roleID] {
 				if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sagemaker-model→role: %w", err)
@@ -189,7 +191,7 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 			if repoARN == "" {
 				continue
 			}
-			repoID := store.ResourceID("aws", acct.ID, TypeECRRepository, repoARN)
+			repoID := store.ResourceID("aws", acct.ID, repoARN)
 			if !repoSet[repoID] {
 				continue
 			}
@@ -207,8 +209,9 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 			if sn == "" {
 				continue
 			}
-			snID := store.ResourceID("aws", acct.ID, TypeEC2Subnet,
+			snID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "subnet", sn))
+
 			if !subnetSet[snID] {
 				continue
 			}
@@ -220,8 +223,9 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 			if sg == "" {
 				continue
 			}
-			sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup,
+			sgID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "security-group", sg))
+
 			if !sgSet[sgID] {
 				continue
 			}

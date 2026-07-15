@@ -79,7 +79,7 @@ func resolveDataZoneChildrenToDomain(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeDataZoneDomain, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !domSet[tgtID] {
 				continue
 			}
@@ -131,7 +131,7 @@ func resolveDataZoneEnvActionsToEnvironment(acct *account, st *store.Store) erro
 				continue
 			}
 			envARN := domARN + "/environment/" + envID
-			tgtID := store.ResourceID("aws", acct.ID, TypeDataZoneEnvironment, envARN)
+			tgtID := store.ResourceID("aws", acct.ID, envARN)
 			if !envSet[tgtID] {
 				continue
 			}
@@ -192,7 +192,7 @@ func resolveDataZoneDomainRefs(acct *account, st *store.Store) error {
 			if !strings.Contains(rarn, ":role/") {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			tgt := store.ResourceID("aws", acct.ID, rarn)
 			if !roleSet[tgt] {
 				continue
 			}

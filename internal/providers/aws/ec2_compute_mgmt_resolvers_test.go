@@ -105,7 +105,7 @@ func TestResolveInstanceRelationships_KeyPair(t *testing.T) {
 	if _, err := st.UpsertResource(kpResource); err != nil {
 		t.Fatalf("upsert key pair: %v", err)
 	}
-	kpID := store.ResourceID("aws", acct.ID, TypeEC2KeyPair, kpARN)
+	kpID := store.ResourceID("aws", acct.ID, kpARN)
 
 	if err := resolveInstanceRelationships(acct, st); err != nil {
 		t.Fatalf("resolveInstanceRelationships: %v", err)

@@ -84,7 +84,7 @@ func scanCRMTagsUnder(ctx context.Context, svc *cloudresourcemanager.Service, ac
 				CreatedAt: strp(tk.CreateTime), AttributesJSON: mustJSON(tk),
 				DiscoveredBy: scanID,
 			})
-			tkID := store.ResourceID("gcp", accountID, TypeTagKey, tk.Name)
+			tkID := store.ResourceID("gcp", accountID, tk.Name)
 			pairs = append(pairs, [2]string{tkID, closureParentID})
 		}
 		if len(batch) == 0 {
@@ -119,7 +119,7 @@ func scanCRMTagsUnder(ctx context.Context, svc *cloudresourcemanager.Service, ac
 }
 
 func scanCRMTagValuesUnder(ctx context.Context, svc *cloudresourcemanager.Service, accountID string, tk *cloudresourcemanager.TagKey, st *store.Store, scanID string) (total, inserted int, err error) {
-	tkID := store.ResourceID("gcp", accountID, TypeTagKey, tk.Name)
+	tkID := store.ResourceID("gcp", accountID, tk.Name)
 	err = svc.TagValues.List().Parent(tk.Name).Pages(ctx, func(page *cloudresourcemanager.ListTagValuesResponse) error {
 		var batch []*store.Resource
 		var pairs [][2]string
@@ -131,7 +131,7 @@ func scanCRMTagValuesUnder(ctx context.Context, svc *cloudresourcemanager.Servic
 				CreatedAt: strp(tv.CreateTime), AttributesJSON: mustJSON(tv),
 				DiscoveredBy: scanID,
 			})
-			tvID := store.ResourceID("gcp", accountID, TypeTagValue, tv.Name)
+			tvID := store.ResourceID("gcp", accountID, tv.Name)
 			pairs = append(pairs, [2]string{tvID, tkID})
 		}
 		if len(batch) == 0 {
@@ -166,7 +166,7 @@ func scanCRMTagValuesUnder(ctx context.Context, svc *cloudresourcemanager.Servic
 }
 
 func scanCRMTagHoldsUnder(ctx context.Context, svc *cloudresourcemanager.Service, accountID string, tv *cloudresourcemanager.TagValue, st *store.Store, scanID string) (total, inserted int, err error) {
-	tvID := store.ResourceID("gcp", accountID, TypeTagValue, tv.Name)
+	tvID := store.ResourceID("gcp", accountID, tv.Name)
 	err = svc.TagValues.TagHolds.List(tv.Name).Pages(ctx, func(page *cloudresourcemanager.ListTagHoldsResponse) error {
 		var batch []*store.Resource
 		var pairs [][2]string
@@ -177,7 +177,7 @@ func scanCRMTagHoldsUnder(ctx context.Context, svc *cloudresourcemanager.Service
 				CreatedAt: strp(th.CreateTime), AttributesJSON: mustJSON(th),
 				DiscoveredBy: scanID,
 			})
-			thID := store.ResourceID("gcp", accountID, TypeTagHold, th.Name)
+			thID := store.ResourceID("gcp", accountID, th.Name)
 			pairs = append(pairs, [2]string{thID, tvID})
 		}
 		if len(batch) == 0 {
@@ -233,7 +233,7 @@ func scanCRMLiensAndBindings(ctx context.Context, p *project, st *store.Store, s
 	if err != nil {
 		return 0, 0, fmt.Errorf("cloudresourcemanager client: %w", err)
 	}
-	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
+	projParentID := store.ResourceID("gcp", p.ID, p.ID)
 
 	t, n, err := scanCRMLiens(ctx, svc, p, projParentID, st, scanID)
 	total += t
@@ -284,7 +284,7 @@ func scanCRMLiens(ctx context.Context, svc *cloudresourcemanager.Service, p *pro
 				CreatedAt: strp(l.CreateTime), AttributesJSON: mustJSON(l),
 				DiscoveredBy: scanID,
 			})
-			lID := store.ResourceID("gcp", p.ID, TypeLien, l.Name)
+			lID := store.ResourceID("gcp", p.ID, l.Name)
 			pairs = append(pairs, [2]string{lID, projParentID})
 		}
 		if len(batch) == 0 {
@@ -321,7 +321,7 @@ func scanCRMTagBindings(ctx context.Context, svc *cloudresourcemanager.Service, 
 				AttributesJSON: mustJSON(tb),
 				DiscoveredBy:   scanID,
 			})
-			tbID := store.ResourceID("gcp", p.ID, TypeTagBinding, tb.Name)
+			tbID := store.ResourceID("gcp", p.ID, tb.Name)
 			pairs = append(pairs, [2]string{tbID, projParentID})
 		}
 		if len(batch) == 0 {
@@ -366,7 +366,7 @@ func scanCRMEffectiveTags(ctx context.Context, svc *cloudresourcemanager.Service
 				AttributesJSON: mustJSON(et),
 				DiscoveredBy:   scanID,
 			})
-			etID := store.ResourceID("gcp", p.ID, TypeEffectiveTag, nativeID)
+			etID := store.ResourceID("gcp", p.ID, nativeID)
 			pairs = append(pairs, [2]string{etID, projParentID})
 		}
 		if len(batch) == 0 {

@@ -58,7 +58,7 @@ func scanSecretsWithClient(ctx context.Context, svc *secretmanager.Service, p *p
 				}
 				secretRefs = append(secretRefs, secretRef{
 					name: s.Name,
-					id:   store.ResourceID("gcp", p.ID, TypeSecret, s.Name),
+					id:   store.ResourceID("gcp", p.ID, s.Name),
 				})
 				name := lastSegment(s.Name)
 				r := &store.Resource{

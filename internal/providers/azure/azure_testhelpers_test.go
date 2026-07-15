@@ -59,7 +59,7 @@ func upsertTestResource(t *testing.T, st *store.Store, provider, accountID, rtyp
 	if _, err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertTestResource %s/%s: %v", rtype, nativeID, err)
 	}
-	return store.ResourceID(provider, accountID, rtype, nativeID)
+	return store.ResourceID(provider, accountID, nativeID)
 }
 
 // newTestSubscription returns a minimal subscription struct for resolver tests.

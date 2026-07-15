@@ -36,7 +36,7 @@ func resolveELBClassicRelationships(acct *account, st *store.Store) error {
 		if attrs.VPCId == nil || *attrs.VPCId == "" {
 			continue
 		}
-		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VPCId))
+		vpcID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VPCId))
 		if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert classic-lb→vpc relationship: %w", err)
 		}

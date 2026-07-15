@@ -53,7 +53,7 @@ func resolveS3BucketEncryptionRelationships(acct *account, st *store.Store) erro
 			continue
 		}
 		bucketARN := fmt.Sprintf("arn:aws:s3:::%s", bucket)
-		bucketID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bucketARN)
+		bucketID := store.ResourceID("aws", acct.ID, bucketARN)
 		for _, rule := range entry.Config.Rules {
 			if rule.ApplyServerSideEncryptionByDefault == nil {
 				continue
@@ -89,7 +89,7 @@ func resolveS3BucketPolicyRelationships(acct *account, st *store.Store) error {
 	for _, r := range policies {
 		// NativeID = arn:aws:s3:::{bucket}/policy → strip "/policy" suffix.
 		bucketARN := strings.TrimSuffix(r.NativeID, "/policy")
-		bucketID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bucketARN)
+		bucketID := store.ResourceID("aws", acct.ID, bucketARN)
 		if err := st.UpsertRelationship(r.ID, bucketID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert bucket-policy→bucket relationship: %w", err)
 		}
@@ -199,7 +199,7 @@ func resolveS3AccessPointRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		bucketARN := fmt.Sprintf("arn:aws:s3:::%s", *attrs.Bucket)
-		bucketID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bucketARN)
+		bucketID := store.ResourceID("aws", acct.ID, bucketARN)
 		if err := st.UpsertRelationship(r.ID, bucketID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert access-point→bucket relationship: %w", err)
 		}
@@ -220,7 +220,7 @@ func resolveS3MRAPPolicyRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range policies {
 		mrapARN := strings.TrimSuffix(r.NativeID, "/policy")
-		mrapID := store.ResourceID("aws", acct.ID, TypeS3MultiRegionAccessPoint, mrapARN)
+		mrapID := store.ResourceID("aws", acct.ID, mrapARN)
 		if err := st.UpsertRelationship(r.ID, mrapID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert mrap-policy→mrap relationship: %w", err)
 		}

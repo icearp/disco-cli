@@ -86,7 +86,7 @@ func resolveGameLiftAliasFleet(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		fARN := gameliftFleetARN(region, acct.ID, fid)
-		tgtID := store.ResourceID("aws", acct.ID, TypeGameLiftFleet, fARN)
+		tgtID := store.ResourceID("aws", acct.ID, fARN)
 		if !fleetSet[tgtID] {
 			continue
 		}
@@ -131,7 +131,7 @@ func resolveGameLiftFleetRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if b := sv(attrs.BuildArn); b != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeGameLiftBuild, b)
+			tgtID := store.ResourceID("aws", acct.ID, b)
 			if buildSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift fleet→build: %w", err)
@@ -139,7 +139,7 @@ func resolveGameLiftFleetRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if s := sv(attrs.ScriptArn); s != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeGameLiftScript, s)
+			tgtID := store.ResourceID("aws", acct.ID, s)
 			if scriptSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift fleet→script: %w", err)
@@ -147,7 +147,7 @@ func resolveGameLiftFleetRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.InstanceRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift fleet→role: %w", err)
@@ -188,7 +188,7 @@ func resolveGameLiftContainerFleetRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.FleetRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift container-fleet→role: %w", err)
@@ -196,7 +196,7 @@ func resolveGameLiftContainerFleetRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if cgd := sv(attrs.GameServerContainerGroupDefinitionArn); cgd != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeGameLiftContainerGroupDefinition, cgd)
+			tgtID := store.ResourceID("aws", acct.ID, cgd)
 			if cgdSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift container-fleet→cgd: %w", err)
@@ -237,7 +237,7 @@ func resolveGameLiftGameServerGroupRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.RoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift gsg→role: %w", err)
@@ -245,7 +245,7 @@ func resolveGameLiftGameServerGroupRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if asg := sv(attrs.AutoScalingGroupArn); asg != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeAutoScalingGroup, asg)
+			tgtID := store.ResourceID("aws", acct.ID, asg)
 			if asgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift gsg→asg: %w", err)
@@ -305,7 +305,7 @@ func resolveGameLiftGameSessionQueueRefs(acct *account, st *store.Store) error {
 			default:
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, tgtType, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			set := fleetSet
 			if tgtType == TypeGameLiftAlias {
 				set = aliasSet
@@ -318,7 +318,7 @@ func resolveGameLiftGameSessionQueueRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if nt := sv(attrs.NotificationTarget); strings.HasPrefix(nt, "arn:aws") && strings.Contains(nt, ":sns:") {
-			tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, nt)
+			tgtID := store.ResourceID("aws", acct.ID, nt)
 			if snsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift queue→sns: %w", err)
@@ -364,7 +364,7 @@ func resolveGameLiftMatchmakingConfigRefs(acct *account, st *store.Store) error 
 			continue
 		}
 		for _, q := range attrs.GameSessionQueueArns {
-			tgtID := store.ResourceID("aws", acct.ID, TypeGameLiftGameSessionQueue, q)
+			tgtID := store.ResourceID("aws", acct.ID, q)
 			if queueSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift mm→queue: %w", err)
@@ -372,7 +372,7 @@ func resolveGameLiftMatchmakingConfigRefs(acct *account, st *store.Store) error 
 			}
 		}
 		if rs := sv(attrs.RuleSetArn); rs != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeGameLiftMatchmakingRuleSet, rs)
+			tgtID := store.ResourceID("aws", acct.ID, rs)
 			if rsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift mm→rs: %w", err)
@@ -380,7 +380,7 @@ func resolveGameLiftMatchmakingConfigRefs(acct *account, st *store.Store) error 
 			}
 		}
 		if nt := sv(attrs.NotificationTarget); strings.HasPrefix(nt, "arn:aws") && strings.Contains(nt, ":sns:") {
-			tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, nt)
+			tgtID := store.ResourceID("aws", acct.ID, nt)
 			if snsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert gamelift mm→sns: %w", err)

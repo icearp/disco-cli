@@ -40,7 +40,7 @@ func TestResolveEC2LaunchTemplateRefs(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert keypair: %v", err)
 	}
-	kpID := store.ResourceID("aws", acct.ID, TypeEC2KeyPair, kpARN)
+	kpID := store.ResourceID("aws", acct.ID, kpARN)
 
 	if err := resolveEC2LaunchTemplateRefs(acct, st); err != nil {
 		t.Fatalf("resolveEC2LaunchTemplateRefs: %v", err)

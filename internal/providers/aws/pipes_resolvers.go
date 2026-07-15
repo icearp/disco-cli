@@ -88,7 +88,7 @@ func resolvePipesPipeRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if rarn := sv(attrs.RoleArn); strings.Contains(rarn, ":role/") {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			tgt := store.ResourceID("aws", acct.ID, rarn)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert pipe→role: %w", err)
@@ -118,7 +118,7 @@ func resolvePipesPipeRefs(acct *account, st *store.Store) error {
 				continue
 			}
 			set := tgtSets[ttype]
-			tgt := store.ResourceID("aws", acct.ID, ttype, ep.arn)
+			tgt := store.ResourceID("aws", acct.ID, ep.arn)
 			if !set[tgt] {
 				continue
 			}

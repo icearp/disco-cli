@@ -152,7 +152,7 @@ func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenC
 					DiscoveredBy:   scanID,
 				}
 				localBatch = append(localBatch, r)
-				extID := store.ResourceID("azure", sub.ID, TypeComputeVMExtension, sv(ext.ID))
+				extID := store.ResourceID("azure", sub.ID, sv(ext.ID))
 				localPairs = append(localPairs, [2]string{extID, vmDiscoID})
 			}
 			if len(localBatch) > 0 {

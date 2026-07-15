@@ -87,7 +87,7 @@ func cscHostNetEdge(st *store.Store, acctID, srcID string, tgtSet map[string]boo
 	if rawID == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acctID, tgtType, ec2ARN(region, acctID, kind, rawID))
+	tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, kind, rawID))
 	if !tgtSet[tgtID] {
 		return nil
 	}
@@ -127,7 +127,7 @@ func resolveCSCRepositoryLinkRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if c := sv(attrs.ConnectionArn); c != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeCodeStarConnectionsConnection, c)
+			tgtID := store.ResourceID("aws", acct.ID, c)
 			if connSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert csc rl→conn: %w", err)
@@ -196,7 +196,7 @@ func resolveCSCSyncConfigurationRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.RoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert csc sc→role: %w", err)

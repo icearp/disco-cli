@@ -66,7 +66,7 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred azcore.Toke
 			// resource row exists.
 			pairs := make([][2]string, len(batch))
 			for i, r := range batch {
-				rgID := store.ResourceID("azure", sub.ID, TypeResourcesResourceGroup, r.NativeID)
+				rgID := store.ResourceID("azure", sub.ID, r.NativeID)
 				pairs[i] = [2]string{rgID, rgID}
 			}
 			if err := st.RecordHierarchyBatch(pairs); err != nil {

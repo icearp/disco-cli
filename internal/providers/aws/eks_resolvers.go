@@ -33,7 +33,7 @@ func resolveEKSRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.ResourcesVpcConfig != nil && attrs.ResourcesVpcConfig.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.ResourcesVpcConfig.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.ResourcesVpcConfig.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert eks→vpc relationship: %w", err)
 			}

@@ -46,7 +46,7 @@ func resolveOrganizationsSCPTargets(acct *account, st *store.Store) error {
 		return nil
 	}
 
-	arnByID, typeByID, err := loadOrgTargetIndex(acct, st)
+	arnByID, _, err := loadOrgTargetIndex(acct, st)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func resolveOrganizationsSCPTargets(acct *account, st *store.Store) error {
 				if !ok {
 					continue
 				}
-				targetResID := store.ResourceID("aws", acct.ID, typeByID[id], arn)
+				targetResID := store.ResourceID("aws", acct.ID, arn)
 				if err := st.UpsertRelationship(scp.ID, targetResID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert scp→target: %w", err)
 				}
@@ -185,7 +185,7 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 		if !ok {
 			continue
 		}
-		acctResID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, acctARN)
+		acctResID := store.ResourceID("aws", acct.ID, acctARN)
 		attrJSON := mustJSON(map[string]any{"DelegatedServices": services})
 		if err := st.UpsertRelationship(org.ID, acctResID, store.RelAttachedTo, "directed", &attrJSON); err != nil {
 			return fmt.Errorf("upsert org→delegated-admin: %w", err)
@@ -270,9 +270,9 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 	for _, p := range pendings {
 		var toID string
 		if p.realAccount {
-			toID = store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, arnByID[p.masterAcctID])
+			toID = store.ResourceID("aws", acct.ID, arnByID[p.masterAcctID])
 		} else {
-			toID = store.ResourceID("aws", p.masterAcctID, TypeIAMAccount,
+			toID = store.ResourceID("aws", p.masterAcctID,
 				fmt.Sprintf("arn:aws:iam::%s:root", p.masterAcctID))
 		}
 		if err := st.UpsertRelationship(p.fromID, toID, store.RelAttachedTo, "directed", &edgeAttrs); err != nil {

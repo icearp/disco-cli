@@ -43,7 +43,7 @@ func resolveSocialMessagingPhoneNumberWABA(acct *account, st *store.Store) error
 		if attrs.WabaArn == "" {
 			continue
 		}
-		wabaID := store.ResourceID("aws", acct.ID, TypeSocialMessagingWaba, attrs.WabaArn)
+		wabaID := store.ResourceID("aws", acct.ID, attrs.WabaArn)
 		if !wabaSet[wabaID] {
 			continue
 		}

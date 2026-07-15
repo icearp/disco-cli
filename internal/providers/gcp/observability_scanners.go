@@ -185,7 +185,7 @@ func scanLoggingBuckets(ctx context.Context, svc *logging.Service, p *project, s
 func scanLoggingBucketLinks(ctx context.Context, svc *logging.Service, p *project, bucketIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentLoggingFanout, bucketIDs, func(gctx context.Context, bucketName string) error {
-		bucketResID := store.ResourceID("gcp", p.ID, TypeLoggingBucket, bucketName)
+		bucketResID := store.ResourceID("gcp", p.ID, bucketName)
 		var batch []*store.Resource
 		listErr := svc.Projects.Locations.Buckets.Links.List(bucketName).Pages(gctx, func(page *logging.ListLinksResponse) error {
 			for _, l := range page.Links {
@@ -230,7 +230,7 @@ func scanLoggingBucketLinks(ctx context.Context, svc *logging.Service, p *projec
 func scanLoggingBucketViews(ctx context.Context, svc *logging.Service, p *project, bucketIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentLoggingFanout, bucketIDs, func(gctx context.Context, bucketName string) error {
-		bucketResID := store.ResourceID("gcp", p.ID, TypeLoggingBucket, bucketName)
+		bucketResID := store.ResourceID("gcp", p.ID, bucketName)
 		var batch []*store.Resource
 		listErr := svc.Projects.Locations.Buckets.Views.List(bucketName).Pages(gctx, func(page *logging.ListViewsResponse) error {
 			for _, v := range page.Views {
@@ -678,7 +678,7 @@ func scanMonitoringServices(ctx context.Context, svc *monitoring.Service, p *pro
 func scanMonitoringSLOs(ctx context.Context, svc *monitoring.Service, p *project, serviceIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentMonitoringFanout, serviceIDs, func(gctx context.Context, serviceName string) error {
-		serviceResID := store.ResourceID("gcp", p.ID, TypeMonitoringService, serviceName)
+		serviceResID := store.ResourceID("gcp", p.ID, serviceName)
 		var batch []*store.Resource
 		listErr := svc.Services.ServiceLevelObjectives.List(serviceName).Pages(gctx, func(page *monitoring.ListServiceLevelObjectivesResponse) error {
 			for _, o := range page.ServiceLevelObjectives {

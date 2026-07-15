@@ -81,7 +81,7 @@ func resolvePrivateEndpointRelationships(sub *subscription, st *store.Store) err
 		// PE → VNet (via subnet path).
 		if attrs.Properties.Subnet != nil && attrs.Properties.Subnet.ID != nil {
 			if vnetID := vnetIDFromSubnetID(*attrs.Properties.Subnet.ID); vnetID != "" {
-				vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+				vnetResourceID := store.ResourceID("azure", sub.ID, vnetID)
 				if _, err := st.GetResource(vnetResourceID); err == nil {
 					if err := st.UpsertRelationship(pe.ID, vnetResourceID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert pe→vnet: %w", err)

@@ -57,7 +57,7 @@ func resolveSFNRelationships(acct *account, st *store.Store) error {
 		}
 		// State machine → IAM role (execution role)
 		if sv(a.RoleArn) != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, *a.RoleArn)
+			roleID := store.ResourceID("aws", acct.ID, *a.RoleArn)
 			if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert sfn→role: %w", err)
 			}
@@ -73,7 +73,7 @@ func resolveSFNRelationships(acct *account, st *store.Store) error {
 					continue
 				}
 				lgARN = strings.TrimSuffix(lgARN, ":*")
-				lgID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, lgARN)
+				lgID := store.ResourceID("aws", acct.ID, lgARN)
 				if err := st.UpsertRelationship(r.ID, lgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sfn→log-group: %w", err)
 				}
@@ -87,7 +87,7 @@ func resolveSFNRelationships(acct *account, st *store.Store) error {
 				if targetType == "" {
 					continue
 				}
-				tid := store.ResourceID("aws", acct.ID, targetType, arn)
+				tid := store.ResourceID("aws", acct.ID, arn)
 				if seen[tid] {
 					continue
 				}

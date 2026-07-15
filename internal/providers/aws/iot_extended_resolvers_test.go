@@ -19,7 +19,7 @@ func TestResolveIoTSecurityProfileRefs(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert cm: %v", err)
 	}
-	cmID := store.ResourceID("aws", acct.ID, TypeIoTCustomMetric, cmARN)
+	cmID := store.ResourceID("aws", acct.ID, cmARN)
 	dARN := fmt.Sprintf("arn:aws:iot:%s:%s:dimension/myDim", testRegion, acct.ID)
 	dName := "myDim"
 	if _, err := st.UpsertResource(&store.Resource{
@@ -29,7 +29,7 @@ func TestResolveIoTSecurityProfileRefs(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert dim: %v", err)
 	}
-	dID := store.ResourceID("aws", acct.ID, TypeIoTDimension, dARN)
+	dID := store.ResourceID("aws", acct.ID, dARN)
 	spARN := fmt.Sprintf("arn:aws:iot:%s:%s:securityprofile/sp-1", testRegion, acct.ID)
 	attrs := `{"Behaviors":[{"Name":"b1","Metric":"myMetric","MetricDimension":{"DimensionName":"myDim"}},{"Metric":"aws:num-disconnects"}],"AdditionalMetricsToRetainV2":[{"MetricDimension":{"DimensionName":"myDim"}}]}`
 	spID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSecurityProfile, spARN, testRegion, attrs)

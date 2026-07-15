@@ -42,7 +42,7 @@ func resolveSecretsManagerResourcePolicyToSecret(acct *account, st *store.Store)
 		if parent == r.NativeID {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !secretSet[tgtID] {
 			continue
 		}
@@ -82,7 +82,7 @@ func resolveSecretsManagerRotationScheduleRefs(acct *account, st *store.Store) e
 			continue
 		}
 		if s := sv(attrs.SecretID); s != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, s)
+			tgtID := store.ResourceID("aws", acct.ID, s)
 			if secretSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sm rs→secret: %w", err)
@@ -90,7 +90,7 @@ func resolveSecretsManagerRotationScheduleRefs(acct *account, st *store.Store) e
 			}
 		}
 		if l := sv(attrs.RotationLambdaARN); l != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, l)
+			tgtID := store.ResourceID("aws", acct.ID, l)
 			if fnSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sm rs→lambda: %w", err)

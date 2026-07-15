@@ -106,7 +106,7 @@ func resolveAppStreamDirectoryConfigCA(acct *account, st *store.Store) error {
 		if ca == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeACMPrivateCA, ca)
+		tgt := store.ResourceID("aws", acct.ID, ca)
 		if !caSet[tgt] {
 			continue
 		}
@@ -149,7 +149,7 @@ func resolveAppStreamStackAccessEndpoints(acct *account, st *store.Store) error 
 			if id == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(region, acct.ID, "vpc-endpoint", id))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc-endpoint", id))
 			if !vpceSet[tgt] {
 				continue
 			}
@@ -222,7 +222,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 		if attrs.VpcConfig != nil {
 			for _, sid := range attrs.VpcConfig.SubnetIDs {
 				sARN := ec2ARN(region, acct.ID, "subnet", sid)
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
+				tgtID := store.ResourceID("aws", acct.ID, sARN)
 				if subnetSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert appstream %s→subnet: %w", rtype, err)
@@ -231,7 +231,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 			}
 			for _, sg := range attrs.VpcConfig.SecurityGroupIDs {
 				sgARN := ec2ARN(region, acct.ID, "security-group", sg)
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+				tgtID := store.ResourceID("aws", acct.ID, sgARN)
 				if sgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert appstream %s→sg: %w", rtype, err)
@@ -240,7 +240,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 			}
 		}
 		if role := sv(attrs.IamRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appstream %s→role: %w", rtype, err)
@@ -250,7 +250,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 		if attrs.DomainJoinInfo != nil {
 			if dn := sv(attrs.DomainJoinInfo.DirectoryName); dn != "" {
 				dARN := fmt.Sprintf("arn:aws:appstream:%s:%s:directory-config/%s", region, acct.ID, dn)
-				tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamDirectoryConfig, dARN)
+				tgtID := store.ResourceID("aws", acct.ID, dARN)
 				if dirSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert appstream %s→directory: %w", rtype, err)
@@ -289,7 +289,7 @@ func resolveAppStreamApplicationAppBlock(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamAppBlock, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !abSet[tgtID] {
 			continue
 		}
@@ -330,7 +330,7 @@ func resolveAppStreamImageRefs(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamImage, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !imgSet[tgtID] {
 			continue
 		}
@@ -381,7 +381,7 @@ func resolveAppStreamApplicationFleetAssoc(acct *account, st *store.Store) error
 		region := sv(r.Region)
 		if fn := sv(attrs.FleetName); fn != "" {
 			fARN := appstreamFleetARN(region, acct.ID, fn)
-			tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamFleet, fARN)
+			tgtID := store.ResourceID("aws", acct.ID, fARN)
 			if fleetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appstream app-fleet→fleet: %w", err)
@@ -389,7 +389,7 @@ func resolveAppStreamApplicationFleetAssoc(acct *account, st *store.Store) error
 			}
 		}
 		if appARN := sv(attrs.ApplicationArn); appARN != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamApplication, appARN)
+			tgtID := store.ResourceID("aws", acct.ID, appARN)
 			if appSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appstream app-fleet→app: %w", err)
@@ -429,7 +429,7 @@ func resolveAppStreamEntitlementStack(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		sARN := appstreamStackARN(region, acct.ID, sn)
-		tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamStack, sARN)
+		tgtID := store.ResourceID("aws", acct.ID, sARN)
 		if !stackSet[tgtID] {
 			continue
 		}
@@ -471,7 +471,7 @@ func resolveAppStreamStackFleetAssoc(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if sn := sv(attrs.StackName); sn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamStack, appstreamStackARN(region, acct.ID, sn))
+			tgtID := store.ResourceID("aws", acct.ID, appstreamStackARN(region, acct.ID, sn))
 			if stackSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appstream stack-fleet→stack: %w", err)
@@ -479,7 +479,7 @@ func resolveAppStreamStackFleetAssoc(acct *account, st *store.Store) error {
 			}
 		}
 		if fn := sv(attrs.FleetName); fn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamFleet, appstreamFleetARN(region, acct.ID, fn))
+			tgtID := store.ResourceID("aws", acct.ID, appstreamFleetARN(region, acct.ID, fn))
 			if fleetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appstream stack-fleet→fleet: %w", err)
@@ -521,7 +521,7 @@ func resolveAppStreamStackUserAssoc(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamStack, appstreamStackARN(region, acct.ID, sn))
+		tgtID := store.ResourceID("aws", acct.ID, appstreamStackARN(region, acct.ID, sn))
 		if !stackSet[tgtID] {
 			continue
 		}
@@ -566,14 +566,14 @@ func resolveAppStreamApplicationEntitlementAssoc(acct *account, st *store.Store)
 		}
 		stack, entitlement := parts[0], parts[1]
 		region := sv(r.Region)
-		stackTgt := store.ResourceID("aws", acct.ID, TypeAppStreamStack, appstreamStackARN(region, acct.ID, stack))
+		stackTgt := store.ResourceID("aws", acct.ID, appstreamStackARN(region, acct.ID, stack))
 		if stackSet[stackTgt] {
 			if err := st.UpsertRelationship(r.ID, stackTgt, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert appstream app-ent→stack: %w", err)
 			}
 		}
 		entARN := fmt.Sprintf("arn:aws:appstream:%s:%s:entitlement/%s/%s", region, acct.ID, stack, entitlement)
-		entTgt := store.ResourceID("aws", acct.ID, TypeAppStreamEntitlement, entARN)
+		entTgt := store.ResourceID("aws", acct.ID, entARN)
 		if entSet[entTgt] {
 			if err := st.UpsertRelationship(r.ID, entTgt, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert appstream app-ent→entitlement: %w", err)
@@ -624,7 +624,7 @@ func resolveAppStreamAppBlockS3(acct *account, st *store.Store) error {
 			continue
 		}
 		barn := "arn:aws:s3:::" + b
-		tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+		tgt := store.ResourceID("aws", acct.ID, barn)
 		if !bucketSet[tgt] {
 			continue
 		}

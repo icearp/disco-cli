@@ -37,12 +37,43 @@ import (
 // Idempotency: calling UpsertResources twice with the same payload
 // produces one INSERT on the first call and one verified-only UPDATE
 // on the second.
+type nativeIDSighting struct {
+	scanID string
+	typ    string
+}
+
+// noteNativeIDType records the type first seen for a resource identity within a
+// scan run and warns if a later upsert in the SAME run gives that identity a
+// different type. Identity is (provider, account, native_id) — type is excluded
+// (see ResourceID), so two distinct types sharing one native_id would merge into
+// a single version chain that ping-pongs every scan. The unique index makes a
+// second CURRENT row impossible but cannot catch this merge; this surfaces it
+// loudly. Keyed on r.ID (= hash(provider|account|native_id)); a legitimate type
+// rename never presents both types in one run, so there are no false positives.
+func (s *Store) noteNativeIDType(r *Resource) {
+	if s.nativeIDSeen == nil {
+		return
+	}
+	if v, ok := s.nativeIDSeen.Load(r.ID); ok {
+		if prev := v.(nativeIDSighting); prev.scanID == r.DiscoveredBy && prev.typ != r.Type {
+			s.ReportWarning(ScanWarning{
+				Provider: r.Provider,
+				Service:  r.Type,
+				Scope:    r.AccountID,
+				Message: fmt.Sprintf("native_id %q maps to both types %q and %q; identity excludes type, so one will supersede the other — give them distinct native_ids",
+					r.NativeID, prev.typ, r.Type),
+			})
+		}
+	}
+	s.nativeIDSeen.Store(r.ID, nativeIDSighting{scanID: r.DiscoveredBy, typ: r.Type})
+}
+
 func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	for _, r := range resources {
 		if r.ID == "" {
-			r.ID = ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
+			r.ID = ResourceID(r.Provider, r.AccountID, r.NativeID)
 		}
 		r.AttributesJSON = redact.Apply(r.Type, r.AttributesJSON)
 		// Drop volatile fields (e.g. CloudWatch Logs UploadSequenceToken) that AWS
@@ -54,6 +85,7 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		if managed.Is(r.Type) {
 			r.ManagedByProvider = true
 		}
+		s.noteNativeIDType(r)
 	}
 
 	tx, err := s.db.Beginx()
@@ -67,22 +99,23 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		// unique index idx_resources_current_by_natural_key makes
 		// this O(1).
 		const lookupSQL = `
-			SELECT id AS version_row_id, root_id, attributes, tags,
+			SELECT id AS version_row_id, root_id, type, attributes, tags,
 			       discovered_at, discovered_by
 			  FROM resources
-			 WHERE provider=$1 AND account_id=$2 AND type=$3 AND native_id=$4
+			 WHERE provider=$1 AND account_id=$2 AND native_id=$3
 			   AND superseded_by IS NULL`
 
 		var existing struct {
 			VersionRowID   string  `db:"version_row_id"`
 			RootID         string  `db:"root_id"`
+			Type           string  `db:"type"`
 			AttributesJSON string  `db:"attributes"`
 			TagsJSON       *string `db:"tags"`
 			DiscoveredAt   string  `db:"discovered_at"`
 			DiscoveredBy   string  `db:"discovered_by"`
 		}
 		lookupErr := tx.Get(&existing, tx.Rebind(lookupSQL),
-			r.Provider, r.AccountID, r.Type, r.NativeID)
+			r.Provider, r.AccountID, r.NativeID)
 
 		switch {
 		case errors.Is(lookupErr, sql.ErrNoRows):
@@ -107,7 +140,7 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 					 verified_at, verified_by, managed_by_provider)
 				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
 				        $14, $15, $16, $17, $18, $19)
-				ON CONFLICT (provider, account_id, type, native_id)
+				ON CONFLICT (provider, account_id, native_id)
 				    WHERE superseded_by IS NULL
 				DO NOTHING`),
 				rowID, r.ID, r.Provider, r.AccountID, r.AccountName, r.Type, r.NativeID,
@@ -128,10 +161,13 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		case lookupErr != nil:
 			return 0, fmt.Errorf("lookup current version for %s: %w", r.ID, lookupErr)
 
-		case jsonEqual(existing.AttributesJSON, r.AttributesJSON) &&
+		case existing.Type == r.Type &&
+			jsonEqual(existing.AttributesJSON, r.AttributesJSON) &&
 			jsonEqual(derefStr(existing.TagsJSON), derefStr(r.TagsJSON)):
 			// Unchanged. Verify-only update; top-level columns still
 			// update in place so renames / status flaps propagate.
+			// A type change is NOT unchanged — it falls to the split
+			// path so the new type takes the current-version slot.
 			if _, err := tx.Exec(tx.Rebind(`
 				UPDATE resources
 				   SET verified_at         = $1,
@@ -151,7 +187,7 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 			}
 
 		default:
-			// Attributes or tags changed → version split. The new row inherits
+			// Attributes, tags, or type changed → version split. The new row inherits
 			// discovered_at / discovered_by from the chain root so "when was this
 			// resource first seen" stays stable across splits.
 			//
@@ -217,7 +253,7 @@ func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, er
 
 	for _, r := range resources {
 		if r.ID == "" {
-			r.ID = ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
+			r.ID = ResourceID(r.Provider, r.AccountID, r.NativeID)
 		}
 		r.AttributesJSON = redact.Apply(r.Type, r.AttributesJSON)
 		r.AttributesJSON = volatile.Apply(r.Type, r.AttributesJSON)
@@ -249,7 +285,7 @@ func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, er
 				 verified_at, verified_by, managed_by_provider)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
 			        $14, $15, $16, $17, $18, $19)
-			ON CONFLICT (provider, account_id, type, native_id)
+			ON CONFLICT (provider, account_id, native_id)
 			    WHERE superseded_by IS NULL
 			DO NOTHING`),
 			rowID, r.ID, r.Provider, r.AccountID, r.AccountName, r.Type, r.NativeID,

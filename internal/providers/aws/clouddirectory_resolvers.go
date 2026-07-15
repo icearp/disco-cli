@@ -42,7 +42,7 @@ func resolveCloudDirectoryAppliedSchema(acct *account, st *store.Store) error {
 		if attrs.DirectoryArn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeCloudDirectoryDirectory, attrs.DirectoryArn)
+		tgtID := store.ResourceID("aws", acct.ID, attrs.DirectoryArn)
 		if !dirSet[tgtID] {
 			continue
 		}

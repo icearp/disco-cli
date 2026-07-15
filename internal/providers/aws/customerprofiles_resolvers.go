@@ -68,7 +68,7 @@ func resolveCPDomainRefs(acct *account, st *store.Store) error {
 		}
 		if dlq := sv(attrs.DeadLetterQueueURL); dlq != "" {
 			if qarn := sqsQueueARNFromURL(dlq); qarn != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeSQSQueue, qarn)
+				tgt := store.ResourceID("aws", acct.ID, qarn)
 				if sqsSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert cp-domain→sqs-dlq: %w", err)
@@ -126,7 +126,7 @@ func resolveCustomerProfilesChildrenToDomain(acct *account, st *store.Store) err
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeCPDomain, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !domSet[tgtID] {
 				continue
 			}

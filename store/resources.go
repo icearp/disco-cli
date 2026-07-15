@@ -105,9 +105,11 @@ func (r *Resource) UnmarshalJSON(data []byte) error {
 // collisions within one account are vanishingly rare.
 const idHashBytes = 16
 
-// ResourceID computes a stable deterministic ID for a resource.
-func ResourceID(provider, accountID, resourceType, nativeID string) string {
-	h := sha256.Sum256([]byte(provider + "|" + accountID + "|" + resourceType + "|" + nativeID))
+// ResourceID computes a stable deterministic ID for a resource. type is
+// deliberately excluded — a resource's identity is (provider, account, native_id);
+// its type is a versioned attribute (a type change supersedes, it does not fork).
+func ResourceID(provider, accountID, nativeID string) string {
+	h := sha256.Sum256([]byte(provider + "|" + accountID + "|" + nativeID))
 	return fmt.Sprintf("%x", h[:idHashBytes])
 }
 

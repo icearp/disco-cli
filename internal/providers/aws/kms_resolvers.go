@@ -67,16 +67,10 @@ func resolveKMSGrants(acct *account, st *store.Store) error {
 			if arn == "" || !strings.HasPrefix(arn, "arn:aws:iam::") {
 				continue
 			}
-			var ptype string
-			switch {
-			case strings.Contains(arn, ":role/"):
-				ptype = TypeIAMRole
-			case strings.Contains(arn, ":user/"):
-				ptype = TypeIAMUser
-			default:
+			if !strings.Contains(arn, ":role/") && !strings.Contains(arn, ":user/") {
 				continue
 			}
-			pid := store.ResourceID("aws", acct.ID, ptype, arn)
+			pid := store.ResourceID("aws", acct.ID, arn)
 			if !known[pid] {
 				continue
 			}
@@ -149,7 +143,7 @@ func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 					continue
 				}
 				if k == "aws:ebs:id" {
-					volID := store.ResourceID("aws", acct.ID, TypeEC2Volume, ec2ARN(region, acct.ID, "volume", v))
+					volID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "volume", v))
 					if !volSet[volID] {
 						continue
 					}
@@ -162,7 +156,7 @@ func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 				if !ok {
 					continue
 				}
-				tgtID := store.ResourceID("aws", acct.ID, dtype, v)
+				tgtID := store.ResourceID("aws", acct.ID, v)
 				if !idSets[dtype][tgtID] {
 					continue
 				}
@@ -212,7 +206,7 @@ func resolveKMSAliases(acct *account, st *store.Store) error {
 		if !strings.HasPrefix(target, "arn:") {
 			target = fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", sv(a.Region), acct.ID, target)
 		}
-		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, target)
+		keyID := store.ResourceID("aws", acct.ID, target)
 		if !knownKey[keyID] {
 			continue
 		}

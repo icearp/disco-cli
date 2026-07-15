@@ -297,12 +297,14 @@ func scanCloudFrontMonitoringSubscriptions(ctx context.Context, acct *account, c
 				return nil
 			}
 			res := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Region:         regionGlobal,
-				Type:           TypeCloudFrontMonitoringSubscription,
-				NativeID:       r.arn, // keyed to parent distribution ARN
+				Provider:    "aws",
+				AccountID:   acct.ID,
+				AccountName: &acct.Name,
+				Region:      regionGlobal,
+				Type:        TypeCloudFrontMonitoringSubscription,
+				// Suffix keeps this distinct from the distribution (same ARN) while
+				// staying parent-derivable.
+				NativeID:       r.arn + "/monitoring-subscription",
 				Name:           sp(r.id),
 				AttributesJSON: mustJSON(out.MonitoringSubscription),
 				DiscoveredBy:   scanID,

@@ -56,7 +56,7 @@ func TestBacListSkip_PreservesAccumulatedRows(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("total=%d inserted=%d; want 1/1 — accumulated row must survive the skip", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", testAccountID, TypeBedrockAgentCoreRegistry, arn)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", testAccountID, arn)); err != nil {
 		t.Errorf("accumulated row not persisted: %v", err)
 	}
 }

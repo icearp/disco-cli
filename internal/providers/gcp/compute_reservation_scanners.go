@@ -236,8 +236,8 @@ func upsertWithSuffixParent(st *store.Store, batch []*store.Resource, parentType
 			parentNative = parentNative[:i]
 		}
 		pairs = append(pairs, [2]string{
-			store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-			store.ResourceID(r.Provider, r.AccountID, parentType, parentNative),
+			store.ResourceID(r.Provider, r.AccountID, r.NativeID),
+			store.ResourceID(r.Provider, r.AccountID, parentNative),
 		})
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {

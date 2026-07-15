@@ -84,7 +84,7 @@ func scanDNSPublicZones(ctx context.Context, sub *subscription, cred azcore.Toke
 			if rg := rgNameFromID(b.id); rg != "" {
 				pubZones = append(pubZones, dnsZoneRef{
 					rg: rg, name: b.name,
-					discoID: store.ResourceID("azure", sub.ID, TypeDNSZone, b.id),
+					discoID: store.ResourceID("azure", sub.ID, b.id),
 				})
 			}
 			return b
@@ -106,7 +106,7 @@ func scanDNSPrivateZones(ctx context.Context, sub *subscription, cred azcore.Tok
 			if rg := rgNameFromID(b.id); rg != "" {
 				privZones = append(privZones, dnsZoneRef{
 					rg: rg, name: b.name,
-					discoID: store.ResourceID("azure", sub.ID, TypeDNSPrivateZone, b.id),
+					discoID: store.ResourceID("azure", sub.ID, b.id),
 				})
 			}
 			return b
@@ -191,7 +191,7 @@ func collectDNSPrivateZoneVNetLinks(ctx context.Context, linkClient *armprivated
 				TagsJSON: azTagsJSON(l.Tags), AttributesJSON: mustJSON(l),
 				DiscoveredBy: scanID,
 			})
-			linkID := store.ResourceID("azure", sub.ID, TypeDNSPrivateZoneVNetLink, nativeID)
+			linkID := store.ResourceID("azure", sub.ID, nativeID)
 			pairs = append(pairs, [2]string{linkID, pz.discoID})
 		}
 	}
@@ -343,7 +343,7 @@ func dnsRecordSetFanout(ctx context.Context, st *store.Store, sub *subscription,
 						AttributesJSON: row.attrsJSON,
 						DiscoveredBy:   scanID,
 					})
-					pairs = append(pairs, [2]string{store.ResourceID("azure", sub.ID, rtype, row.id), z.parentDiscoID})
+					pairs = append(pairs, [2]string{store.ResourceID("azure", sub.ID, row.id), z.parentDiscoID})
 				}
 			}
 			results[i] = zoneResult{batch: batch, pairs: pairs}

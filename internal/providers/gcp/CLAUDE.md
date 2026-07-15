@@ -72,7 +72,7 @@ Per-project service entries can't reach folder/org scopes — need either (a) si
 
 ## IAM policy resource shape
 
-`gcp:iam:policy` synthesized — IAM policies not first-class GCP resources, JSON blobs returned by `GetIamPolicy` on protected scope. NativeID `projects/{id}/policy` (and `folders/{id}/policy` / `organizations/{id}/policy` when land). Bindings stored verbatim under resource's `attributes` JSON; resolvers parse `bindings[].members[]`, emit edges typed `RelUses` with `{role: roles/...}` in edge attrs.
+`gcp:iam:policy` synthesized — IAM policies not first-class GCP resources, JSON blobs returned by `GetIamPolicy` on protected scope. NativeID `projects/{id}/iamPolicy` (and `folders/{id}/iamPolicy` / `organizations/{id}/iamPolicy`) — the `/iamPolicy` suffix disambiguates from BinAuth's real `{scope}/policy` (see Synthetic NativeIDs). Bindings stored verbatim under resource's `attributes` JSON; resolvers parse `bindings[].members[]`, emit edges typed `RelUses` with `{role: roles/...}` in edge attrs.
 
 Member matching: only `serviceAccount:{email}` members FK-safe today. Email parsed from existing `gcp:iam:service-account` NativeIDs (`projects/{id}/serviceAccounts/{email}`); cross-project SA emails won't match in-store index, edge skipped. Non-SA member kinds (user, group, domain, allUsers, allAuthenticatedUsers) need Entra-equivalent identity scanner — defer until lands rather than synthesizing principal resources.
 
@@ -112,7 +112,7 @@ For per-location APIs supporting it (`cloudfunctions/v2`, `run/v2`, future Pub/S
 
 Some GCP resources have no API-issued canonical name. Synthesize from parent resource path + natural key:
 - `gcp:dns:resource-record-set` → `{zoneNativeID}/rrsets/{type}/{name}` — `(name, type)` is natural key (one zone can have A + AAAA for same hostname).
-- `gcp:iam:policy` → `{scope}/policy` — IAM policy is JSON returned by `GetIamPolicy`, not real resource.
+- `gcp:iam:policy` → `{scope}/iamPolicy` — IAM policy is JSON returned by `GetIamPolicy`, not real resource. The `/iamPolicy` suffix (not `/policy`) keeps it distinct from `gcp:binaryauthorization:policy`, whose **real** API name is `{scope}/policy`; both live in account `{scope}` so a shared suffix would collide identity now that `type` is out of the hash. IAM's is the synthesized side, so it's the one that moves.
 Stable across rescans; matches synthetic-NativeID precedent in `store/CLAUDE.md`.
 
 ## Shared upsert+closure helpers
@@ -139,4 +139,4 @@ For permission-denied test bodies, mirror the exact `googleapi.Error` JSON shape
 
 ## Resource ID conventions
 
-NativeID = full resource name where GCP returns one (`sa.Name`, `inst.SelfLink`, `projects/{id}` for projects, `organizations/{id}` for orgs). Compute uses self-link URLs verbatim — include project/region/zone, so same instance scanned in two projects produces two distinct rows. For hierarchy parent of any project-scoped resource use `store.ResourceID("gcp", p.ID, TypeProject, p.ID)` — project's NativeID is bare ID, not `projects/{id}` form.
+NativeID = full resource name where GCP returns one (`sa.Name`, `inst.SelfLink`, `projects/{id}` for projects, `organizations/{id}` for orgs). Compute uses self-link URLs verbatim — include project/region/zone, so same instance scanned in two projects produces two distinct rows. For hierarchy parent of any project-scoped resource use `store.ResourceID("gcp", p.ID, p.ID)` — project's NativeID is bare ID, not `projects/{id}` form.

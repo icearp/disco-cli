@@ -90,7 +90,7 @@ func resolveAppConfigChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeAppConfigApplication, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !appSet[tgtID] {
 				continue
 			}
@@ -117,7 +117,7 @@ func resolveAppConfigGrandparent(acct *account, st *store.Store, childType, pare
 		if parent == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, parentType, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !parentSet[tgtID] {
 			continue
 		}
@@ -158,7 +158,7 @@ func resolveAppConfigExtensionAssociation(acct *account, st *store.Store) error 
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeAppConfigExtension, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !extSet[tgtID] {
 			continue
 		}

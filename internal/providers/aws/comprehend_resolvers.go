@@ -86,7 +86,7 @@ func resolveComprehendEntityRecognizerRefs(acct *account, st *store.Store) error
 		}
 		region := sv(r.Region)
 		if role := sv(attrs.DataAccessRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert comprehend er→role: %w", err)
@@ -117,7 +117,7 @@ func resolveComprehendEntityRecognizerRefs(acct *account, st *store.Store) error
 			}
 		}
 		if fw := sv(attrs.FlywheelArn); fw != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeComprehendFlywheel, fw)
+			tgtID := store.ResourceID("aws", acct.ID, fw)
 			if fwSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert comprehend er→flywheel: %w", err)
@@ -133,7 +133,7 @@ func comprehendEC2Edge(st *store.Store, acctID, srcID string, tgtSet map[string]
 	if rawID == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acctID, tgtType, ec2ARN(region, acctID, kind, rawID))
+	tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, kind, rawID))
 	if !tgtSet[tgtID] {
 		return nil
 	}
@@ -181,7 +181,7 @@ func resolveComprehendEndpointRefs(acct *account, st *store.Store) error {
 				continue
 			}
 			if m := sv(attrs.ModelArn); m != "" {
-				tgtID := store.ResourceID("aws", acct.ID, pair.modelType, m)
+				tgtID := store.ResourceID("aws", acct.ID, m)
 				if pair.modelSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert comprehend ep→model: %w", err)
@@ -189,7 +189,7 @@ func resolveComprehendEndpointRefs(acct *account, st *store.Store) error {
 				}
 			}
 			if role := sv(attrs.DataAccessRoleArn); role != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+				tgtID := store.ResourceID("aws", acct.ID, role)
 				if roleSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert comprehend ep→role: %w", err)
@@ -244,7 +244,7 @@ func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) err
 		}
 		region := sv(r.Region)
 		if role := sv(attrs.DataAccessRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert comprehend dc→role: %w", err)
@@ -267,7 +267,7 @@ func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) err
 				if sid == "" {
 					continue
 				}
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sid))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sid))
 				if !subSet[tgtID] {
 					continue
 				}
@@ -279,7 +279,7 @@ func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) err
 				if gid == "" {
 					continue
 				}
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", gid))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", gid))
 				if !sgSet[tgtID] {
 					continue
 				}
@@ -321,7 +321,7 @@ func resolveComprehendFlywheelRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.DataAccessRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert comprehend fw→role: %w", err)
@@ -329,7 +329,7 @@ func resolveComprehendFlywheelRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if m := sv(attrs.ActiveModelArn); m != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeComprehendDocumentClassifier, m)
+			tgtID := store.ResourceID("aws", acct.ID, m)
 			if dcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert comprehend fw→dc: %w", err)

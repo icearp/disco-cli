@@ -40,7 +40,7 @@ func resolveCognitoAppClientRelationships(acct *account, st *store.Store) error 
 			continue
 		}
 		poolARN := r.NativeID[:idx]
-		poolID := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, poolARN)
+		poolID := store.ResourceID("aws", acct.ID, poolARN)
 		if err := st.UpsertRelationship(r.ID, poolID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cognito-client→user-pool: %w", err)
 		}
@@ -83,7 +83,7 @@ func resolveCognitoIdentityPoolRelationships(acct *account, st *store.Store) err
 			if roleARN == "" {
 				continue
 			}
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			roleID := store.ResourceID("aws", acct.ID, roleARN)
 			if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert cognito-identity-pool→role: %w", err)
 			}
@@ -101,13 +101,13 @@ func resolveCognitoIdentityPoolRelationships(acct *account, st *store.Store) err
 				if len(parts) >= 3 && poolNative != "" {
 					upRegion := parts[1]
 					upARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", upRegion, acct.ID, poolNative)
-					upID := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, upARN)
+					upID := store.ResourceID("aws", acct.ID, upARN)
 					if err := st.UpsertRelationship(r.ID, upID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert cognito-identity-pool→user-pool: %w", err)
 					}
 					if clientID := sv(p.ClientID); clientID != "" {
 						acARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/client/%s", upRegion, acct.ID, poolNative, clientID)
-						acID := store.ResourceID("aws", acct.ID, TypeCognitoAppClient, acARN)
+						acID := store.ResourceID("aws", acct.ID, acARN)
 						if err := st.UpsertRelationship(r.ID, acID, store.RelUses, "directed", nil); err != nil {
 							return fmt.Errorf("upsert cognito-identity-pool→app-client: %w", err)
 						}

@@ -52,7 +52,7 @@ func resolveKendraExtraChildToIndex(acct *account, st *store.Store) error {
 				continue
 			}
 			parent := r.NativeID[:i]
-			tgtID := store.ResourceID("aws", acct.ID, TypeKendraIndex, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !idxSet[tgtID] {
 				continue
 			}

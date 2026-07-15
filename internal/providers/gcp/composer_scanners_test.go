@@ -50,7 +50,7 @@ func TestScanComposer_EnvironmentConfigMapChain(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	envID := store.ResourceID("gcp", p.ID, TypeComposerEnv, envName)
+	envID := store.ResourceID("gcp", p.ID, envName)
 	rels, err := st.RelationshipsFrom(envID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(env): %v", err)

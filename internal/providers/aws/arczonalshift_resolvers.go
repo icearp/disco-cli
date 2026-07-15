@@ -56,8 +56,8 @@ func resolveARCZonalShiftRelationships(acct *account, st *store.Store) error {
 		if mARN == "" {
 			continue
 		}
-		for t, ids := range idsByType {
-			id := store.ResourceID("aws", acct.ID, t, mARN)
+		id := store.ResourceID("aws", acct.ID, mARN)
+		for _, ids := range idsByType {
 			if _, ok := ids[id]; !ok {
 				continue
 			}

@@ -79,7 +79,7 @@ func resolveIdentityStoreGroupMembershipRefs(acct *account, st *store.Store) err
 		}
 		if g := sv(attrs.GroupID); g != "" {
 			gARN := identityStoreGroupNativeID(owner, idStore, g)
-			tgt := store.ResourceID("aws", acct.ID, TypeIdentityStoreGroup, gARN)
+			tgt := store.ResourceID("aws", acct.ID, gARN)
 			if groupSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert idstore membership→group: %w", err)
@@ -89,7 +89,7 @@ func resolveIdentityStoreGroupMembershipRefs(acct *account, st *store.Store) err
 		if attrs.MemberID != nil {
 			if u := sv(attrs.MemberID.Value); u != "" {
 				uARN := identityStoreUserNativeID(owner, idStore, u)
-				tgt := store.ResourceID("aws", acct.ID, TypeIdentityStoreUser, uARN)
+				tgt := store.ResourceID("aws", acct.ID, uARN)
 				if userSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert idstore membership→user: %w", err)

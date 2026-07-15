@@ -87,7 +87,7 @@ func resolveLocationAPIKeyResources(acct *account, st *store.Store) error {
 			if tt == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, tt, a)
+			tgt := store.ResourceID("aws", acct.ID, a)
 			if !sets[tt][tgt] {
 				continue
 			}
@@ -171,7 +171,7 @@ func resolveLocationTrackerConsumerRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if name := sv(attrs.TrackerName); name != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeLocationTracker, locARN(region, acct.ID, "tracker", name))
+			tgtID := store.ResourceID("aws", acct.ID, locARN(region, acct.ID, "tracker", name))
 			if trackerSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert location tracker-consumer→tracker: %w", err)
@@ -179,7 +179,7 @@ func resolveLocationTrackerConsumerRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if arn := sv(attrs.ConsumerArn); arn != "" && strings.Contains(arn, ":geofence-collection/") {
-			tgtID := store.ResourceID("aws", acct.ID, TypeLocationGeofenceCollection, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if gcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert location tracker-consumer→geofence-collection: %w", err)

@@ -70,7 +70,7 @@ func resolveGlueDatabaseTargets(acct *account, st *store.Store) error {
 		region := sv(d.Region)
 		if attrs.TargetDatabase != nil && sv(attrs.TargetDatabase.CatalogID) != "" {
 			catARN := glueResourceARN(region, acct.ID, "catalog", *attrs.TargetDatabase.CatalogID)
-			catID := store.ResourceID("aws", acct.ID, TypeGlueCatalog, catARN)
+			catID := store.ResourceID("aws", acct.ID, catARN)
 			if catalogSet[catID] {
 				if err := st.UpsertRelationship(d.ID, catID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue database→catalog: %w", err)
@@ -79,7 +79,7 @@ func resolveGlueDatabaseTargets(acct *account, st *store.Store) error {
 		}
 		if attrs.FederatedDatabase != nil && sv(attrs.FederatedDatabase.ConnectionName) != "" {
 			connARN := glueResourceARN(region, acct.ID, "connection", *attrs.FederatedDatabase.ConnectionName)
-			connID := store.ResourceID("aws", acct.ID, TypeGlueConnection, connARN)
+			connID := store.ResourceID("aws", acct.ID, connARN)
 			if connSet[connID] {
 				if err := st.UpsertRelationship(d.ID, connID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue database→connection: %w", err)
@@ -159,11 +159,11 @@ func resolveGlueIntegrationRefs(acct *account, st *store.Store) error {
 				set := idSets[ttyp]
 				// RDS source/target may name a cluster OR an instance;
 				// fall through to instance set on miss.
-				tgtID := store.ResourceID("aws", acct.ID, ttyp, arn)
+				tgtID := store.ResourceID("aws", acct.ID, arn)
 				if !set[tgtID] && d.match == ":rds:" {
-					if rdsInstSet[store.ResourceID("aws", acct.ID, TypeRDSDBInstance, arn)] {
+					if rdsInstSet[store.ResourceID("aws", acct.ID, arn)] {
 						ttyp = TypeRDSDBInstance
-						tgtID = store.ResourceID("aws", acct.ID, TypeRDSDBInstance, arn)
+						tgtID = store.ResourceID("aws", acct.ID, arn)
 						set = rdsInstSet
 					}
 				}
@@ -213,7 +213,7 @@ func resolveGlueCatalogTargets(acct *account, st *store.Store) error {
 		if arn == "" || !strings.Contains(arn, ":redshift:") {
 			continue
 		}
-		rsID := store.ResourceID("aws", acct.ID, TypeRedshiftCluster, arn)
+		rsID := store.ResourceID("aws", acct.ID, arn)
 		if !rsSet[rsID] {
 			continue
 		}

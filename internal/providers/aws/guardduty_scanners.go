@@ -299,7 +299,7 @@ func upsertGuardDutyChildren(st *store.Store, acct *account, kind string, batch 
 	}
 	pairs := make([][2]string, len(batch))
 	for i, c := range batch {
-		pid := store.ResourceID("aws", acct.ID, TypeGuardDutyDetector, c.parentARN)
+		pid := store.ResourceID("aws", acct.ID, c.parentARN)
 		pairs[i] = [2]string{c.r.ID, pid}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {

@@ -56,7 +56,7 @@ Rule of thumb for "advisory" failures (skip happens, but operator should know): 
 
 ## Resource IDs
 
-`ResourceID(provider, accountID, type, nativeID)` — `resources.go` — produces 32-hex-char SHA-256 prefix. Stable across rescans; primary key.
+`ResourceID(provider, accountID, nativeID)` — `resources.go` — produces 32-hex-char SHA-256 prefix. Stable across rescans; primary key. `type` is deliberately **excluded** — identity is `(provider, account_id, native_id)`; `type` is a versioned attribute (a type change supersedes the row, it does not fork a new chain). native_id already encodes the type in every provider (ARNs / resource paths), so folding type into the hash was redundant.
 
 Scan IDs: `crypto/rand` + `encoding/hex` (same 32-char hex). No `uuid` dep.
 
@@ -91,7 +91,7 @@ Reads filter to the current row of each chain via
 Writes order matters: a version split UPDATEs the old row's
 `superseded_by` BEFORE inserting the new row, so the partial unique
 index `idx_resources_current_by_natural_key` (over
-`(provider, account_id, type, native_id) WHERE superseded_by IS
+`(provider, account_id, native_id) WHERE superseded_by IS
 NULL`) never sees two current rows simultaneously.
 
 **Changed-detection canonicalizes embedded JSON.** `jsonEqual`
@@ -146,7 +146,7 @@ ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`,
 ## Reference-discovered placeholders (`InsertResourcesIfAbsent`)
 
 `InsertResourcesIfAbsent(resources)` runs **only** the first-discovery
-`INSERT … ON CONFLICT (provider,account_id,type,native_id) WHERE superseded_by
+`INSERT … ON CONFLICT (provider,account_id,native_id) WHERE superseded_by
 IS NULL DO NOTHING` path — never the verify or version-split paths. It is the
 reference-discovery primitive: when a resolver sees a cross-tenant edge into an
 account/subscription/project outside scan scope, it inserts an empty-attribute

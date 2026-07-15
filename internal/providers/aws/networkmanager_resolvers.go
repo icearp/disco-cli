@@ -107,7 +107,7 @@ func resolveNMCorePLAssocRefs(acct *account, st *store.Store) error {
 		i := strings.Index(r.NativeID, seg)
 		if i > 0 {
 			parent := r.NativeID[:i]
-			tgtID := store.ResourceID("aws", acct.ID, TypeNetworkManagerCoreNetwork, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if cnSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm pla→cn: %w", err)
@@ -121,7 +121,7 @@ func resolveNMCorePLAssocRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if pl := sv(attrs.PrefixListArn); pl != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2PrefixList, pl)
+			tgtID := store.ResourceID("aws", acct.ID, pl)
 			if plSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm pla→pl: %w", err)
@@ -190,8 +190,9 @@ func resolveNMSiteRefs(acct *account, st *store.Store) error {
 		if attrs.GlobalNetworkID == nil || *attrs.GlobalNetworkID == "" {
 			continue
 		}
-		gnID := store.ResourceID("aws", acct.ID, TypeNetworkManagerGlobalNetwork,
+		gnID := store.ResourceID("aws", acct.ID,
 			nmGlobalNetworkID(acct.ID, *attrs.GlobalNetworkID))
+
 		if !gnSet[gnID] {
 			continue
 		}
@@ -229,16 +230,18 @@ func resolveNMDeviceRefs(acct *account, st *store.Store) error {
 		if gn == "" {
 			continue
 		}
-		gnID := store.ResourceID("aws", acct.ID, TypeNetworkManagerGlobalNetwork,
+		gnID := store.ResourceID("aws", acct.ID,
 			nmGlobalNetworkID(acct.ID, gn))
+
 		if gnSet[gnID] {
 			if err := st.UpsertRelationship(r.ID, gnID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert nm-device→global-network: %w", err)
 			}
 		}
 		if attrs.SiteID != nil && *attrs.SiteID != "" {
-			siteID := store.ResourceID("aws", acct.ID, TypeNetworkManagerSite,
+			siteID := store.ResourceID("aws", acct.ID,
 				nmSiteID(acct.ID, gn, *attrs.SiteID))
+
 			if siteSet[siteID] {
 				if err := st.UpsertRelationship(r.ID, siteID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm-device→site: %w", err)
@@ -275,16 +278,18 @@ func resolveNMLinkRefs(acct *account, st *store.Store) error {
 		if gn == "" {
 			continue
 		}
-		gnID := store.ResourceID("aws", acct.ID, TypeNetworkManagerGlobalNetwork,
+		gnID := store.ResourceID("aws", acct.ID,
 			nmGlobalNetworkID(acct.ID, gn))
+
 		if gnSet[gnID] {
 			if err := st.UpsertRelationship(r.ID, gnID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert nm-link→global-network: %w", err)
 			}
 		}
 		if attrs.SiteID != nil && *attrs.SiteID != "" {
-			siteID := store.ResourceID("aws", acct.ID, TypeNetworkManagerSite,
+			siteID := store.ResourceID("aws", acct.ID,
 				nmSiteID(acct.ID, gn, *attrs.SiteID))
+
 			if siteSet[siteID] {
 				if err := st.UpsertRelationship(r.ID, siteID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm-link→site: %w", err)
@@ -325,8 +330,9 @@ func resolveNMLinkAssociationRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.DeviceID != nil && *attrs.DeviceID != "" {
-			devID := store.ResourceID("aws", acct.ID, TypeNetworkManagerDevice,
+			devID := store.ResourceID("aws", acct.ID,
 				nmDeviceID(acct.ID, gn, *attrs.DeviceID))
+
 			if devSet[devID] {
 				if err := st.UpsertRelationship(r.ID, devID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm-link-association→device: %w", err)
@@ -334,8 +340,9 @@ func resolveNMLinkAssociationRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.LinkID != nil && *attrs.LinkID != "" {
-			linkID := store.ResourceID("aws", acct.ID, TypeNetworkManagerLink,
+			linkID := store.ResourceID("aws", acct.ID,
 				nmLinkID(acct.ID, gn, *attrs.LinkID))
+
 			if linkSet[linkID] {
 				if err := st.UpsertRelationship(r.ID, linkID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm-link-association→link: %w", err)
@@ -366,8 +373,9 @@ func resolveNMCoreNetworkRefs(acct *account, st *store.Store) error {
 		if attrs.GlobalNetworkID == nil || *attrs.GlobalNetworkID == "" {
 			continue
 		}
-		gnID := store.ResourceID("aws", acct.ID, TypeNetworkManagerGlobalNetwork,
+		gnID := store.ResourceID("aws", acct.ID,
 			nmGlobalNetworkID(acct.ID, *attrs.GlobalNetworkID))
+
 		if !gnSet[gnID] {
 			continue
 		}
@@ -404,8 +412,9 @@ func resolveNMTGWRegistrationRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.GlobalNetworkID != nil && *attrs.GlobalNetworkID != "" {
-			gnID := store.ResourceID("aws", acct.ID, TypeNetworkManagerGlobalNetwork,
+			gnID := store.ResourceID("aws", acct.ID,
 				nmGlobalNetworkID(acct.ID, *attrs.GlobalNetworkID))
+
 			if gnSet[gnID] {
 				if err := st.UpsertRelationship(r.ID, gnID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm-tgw-registration→global-network: %w", err)
@@ -413,7 +422,7 @@ func resolveNMTGWRegistrationRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.TransitGatewayArn != nil && *attrs.TransitGatewayArn != "" {
-			tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway, *attrs.TransitGatewayArn)
+			tgwID := store.ResourceID("aws", acct.ID, *attrs.TransitGatewayArn)
 			if tgwSet[tgwID] {
 				if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm-tgw-registration→tgw: %w", err)
@@ -449,8 +458,9 @@ func resolveNMCGWAssociationRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.GlobalNetworkID != nil && *attrs.GlobalNetworkID != "" {
-			gnID := store.ResourceID("aws", acct.ID, TypeNetworkManagerGlobalNetwork,
+			gnID := store.ResourceID("aws", acct.ID,
 				nmGlobalNetworkID(acct.ID, *attrs.GlobalNetworkID))
+
 			if gnSet[gnID] {
 				if err := st.UpsertRelationship(r.ID, gnID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm-cgw-association→global-network: %w", err)
@@ -458,7 +468,7 @@ func resolveNMCGWAssociationRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.CustomerGatewayArn != nil && *attrs.CustomerGatewayArn != "" {
-			cgwID := store.ResourceID("aws", acct.ID, TypeEC2CustomerGateway, *attrs.CustomerGatewayArn)
+			cgwID := store.ResourceID("aws", acct.ID, *attrs.CustomerGatewayArn)
 			if cgwSet[cgwID] {
 				if err := st.UpsertRelationship(r.ID, cgwID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm-cgw-association→cgw: %w", err)
@@ -486,8 +496,9 @@ func nmAttachmentCoreNetworkEdge(acct *account, st *store.Store, r store.Resourc
 	if cn == "" {
 		return nil
 	}
-	cnID := store.ResourceID("aws", acct.ID, TypeNetworkManagerCoreNetwork,
+	cnID := store.ResourceID("aws", acct.ID,
 		nmCoreNetworkID(acct.ID, cn))
+
 	if !coreSet[cnID] {
 		return nil
 	}
@@ -531,7 +542,7 @@ func resolveNMVpcAttachmentRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.ResourceArn != nil && *attrs.ResourceArn != "" {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, *attrs.ResourceArn)
+			vpcID := store.ResourceID("aws", acct.ID, *attrs.ResourceArn)
 			if vpcSet[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nm-vpc-attachment→vpc: %w", err)
@@ -542,7 +553,7 @@ func resolveNMVpcAttachmentRefs(acct *account, st *store.Store) error {
 			if subARN == "" {
 				continue
 			}
-			subID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, subARN)
+			subID := store.ResourceID("aws", acct.ID, subARN)
 			if !subnetSet[subID] {
 				continue
 			}
@@ -632,7 +643,7 @@ func resolveNMTransitGatewayPeeringRefs(acct *account, st *store.Store) error {
 		if attrs.ResourceArn == nil || *attrs.ResourceArn == "" {
 			continue
 		}
-		tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway, *attrs.ResourceArn)
+		tgwID := store.ResourceID("aws", acct.ID, *attrs.ResourceArn)
 		if !tgwSet[tgwID] {
 			continue
 		}

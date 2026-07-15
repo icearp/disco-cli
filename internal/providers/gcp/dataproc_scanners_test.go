@@ -61,7 +61,7 @@ func TestScanDataprocIn_AllSixSecondaryTypesBasic(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 7/7", total, inserted)
 	}
 
-	apID := store.ResourceID("gcp", p.ID, TypeDataprocAutoscalingPolicy, apNative)
+	apID := store.ResourceID("gcp", p.ID, apNative)
 	res, err := st.GetResource(apID)
 	if err != nil {
 		t.Fatalf("GetResource(autoscaling policy): %v", err)
@@ -70,7 +70,7 @@ func TestScanDataprocIn_AllSixSecondaryTypesBasic(t *testing.T) {
 		t.Errorf("autoscaling policy region: got %+v, want Region=us-central1", res)
 	}
 
-	jobID := store.ResourceID("gcp", p.ID, TypeDataprocJob, "projects/proj1/regions/us-central1/jobs/j1")
+	jobID := store.ResourceID("gcp", p.ID, "projects/proj1/regions/us-central1/jobs/j1")
 	jobRes, err := st.GetResource(jobID)
 	if err != nil {
 		t.Fatalf("GetResource(job): %v", err)
@@ -82,7 +82,7 @@ func TestScanDataprocIn_AllSixSecondaryTypesBasic(t *testing.T) {
 		t.Errorf("job status: got %+v, want DONE", jobRes.Status)
 	}
 
-	batchID := store.ResourceID("gcp", p.ID, TypeDataprocBatch, batchNative)
+	batchID := store.ResourceID("gcp", p.ID, batchNative)
 	batchRes, err := st.GetResource(batchID)
 	if err != nil {
 		t.Fatalf("GetResource(batch): %v", err)
@@ -167,7 +167,7 @@ func TestScanDataprocIn_PartialRegionDenyContinues(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (us-central1 clusters denied, us-east1 succeeds)", total, inserted)
 	}
 
-	c2ID := store.ResourceID("gcp", p.ID, TypeDataprocCluster, "projects/proj1/regions/us-east1/clusters/"+c2Native)
+	c2ID := store.ResourceID("gcp", p.ID, "projects/proj1/regions/us-east1/clusters/"+c2Native)
 	res, err := st.GetResource(c2ID)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)

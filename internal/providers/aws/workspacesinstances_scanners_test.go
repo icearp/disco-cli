@@ -50,7 +50,7 @@ func TestScanWorkspacesInstancesIn_EnabledRegionScans(t *testing.T) {
 		t.Fatalf("ListWorkspaceInstances calls = %d, want 1", stub.listInstCalls)
 	}
 	arn := "arn:aws:workspaces-instances:us-east-1:" + acct.ID + ":workspace-instance/" + instID
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeWorkspacesInstancesWorkspaceInstance, arn)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, arn)); err != nil {
 		t.Errorf("instance row missing: %v", err)
 	}
 }

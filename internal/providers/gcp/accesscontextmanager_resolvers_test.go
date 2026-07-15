@@ -65,7 +65,7 @@ func TestResolveAccessContextManagerRelationships(t *testing.T) {
 	if len(orgsDescRels) != 1 || orgsDescRels[0].Kind != store.RelUses {
 		t.Fatalf("authorizedOrgsDesc edge: got %+v, want 1 →organization uses", orgsDescRels)
 	}
-	placeholderID := store.ResourceID("gcp", "organizations/999", TypeOrganization, "organizations/999")
+	placeholderID := store.ResourceID("gcp", "organizations/999", "organizations/999")
 	if orgsDescRels[0].ToID != placeholderID {
 		t.Errorf("authorizedOrgsDesc edge target: got %s, want placeholder %s", orgsDescRels[0].ToID, placeholderID)
 	}

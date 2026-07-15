@@ -87,7 +87,7 @@ func resolveEKSChildrenToCluster(acct *account, st *store.Store) error {
 				continue
 			}
 			cARN := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", sv(r.Region), acct.ID, name)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEKSCluster, cARN)
+			tgtID := store.ResourceID("aws", acct.ID, cARN)
 			if !clusterSet[tgtID] {
 				continue
 			}

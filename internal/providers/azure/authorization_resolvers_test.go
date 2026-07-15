@@ -191,7 +191,7 @@ func TestResolveAuthorizationRelationships_CrossSubScope(t *testing.T) {
 	if cross == nil {
 		t.Fatalf("missing cross-sub-rbac edge, got: %+v", rels)
 	}
-	wantID := store.ResourceID("azure", "other-sub", TypeSubscription, "/subscriptions/other-sub")
+	wantID := store.ResourceID("azure", "other-sub", "/subscriptions/other-sub")
 	if cross.ToID != wantID {
 		t.Errorf("cross-sub-rbac target: got %q want %q", cross.ToID, wantID)
 	}

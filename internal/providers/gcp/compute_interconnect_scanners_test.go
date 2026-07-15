@@ -27,7 +27,7 @@ func TestScanComputeInterconnects_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeInterconnect, selfLink)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink)); err != nil {
 		t.Errorf("GetResource: %v", err)
 	}
 }
@@ -85,7 +85,7 @@ func TestScanComputeInterconnectAttachments_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeInterconnectAttachment, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}

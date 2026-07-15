@@ -82,7 +82,7 @@ func resolveLogsChildToGroup(acct *account, st *store.Store, ctype, label string
 		if parent == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !groupSet[tgtID] {
 			continue
 		}
@@ -130,7 +130,7 @@ func resolveLogsSubscriptionFilterRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		if parent := logGroupARNFromChild(r.NativeID); parent != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if groupSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert logs-sub→log-group: %w", err)
@@ -157,7 +157,7 @@ func resolveLogsSubscriptionFilterRefs(acct *account, st *store.Store) error {
 				tgtType, set = TypeFirehoseDeliveryStream, firehoseSet
 			}
 			if tgtType != "" {
-				tgtID := store.ResourceID("aws", acct.ID, tgtType, dest)
+				tgtID := store.ResourceID("aws", acct.ID, dest)
 				if set[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert logs-sub→%s: %w", tgtType, err)
@@ -166,7 +166,7 @@ func resolveLogsSubscriptionFilterRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if arn := sv(attrs.RoleArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert logs-sub→role: %w", err)
@@ -220,7 +220,7 @@ func resolveLogsDestinationTargets(acct *account, st *store.Store) error {
 				tgtType, set = TypeFirehoseDeliveryStream, firehoseSet
 			}
 			if tgtType != "" {
-				tgtID := store.ResourceID("aws", acct.ID, tgtType, arn)
+				tgtID := store.ResourceID("aws", acct.ID, arn)
 				if set[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert logs-dest→%s: %w", tgtType, err)
@@ -229,7 +229,7 @@ func resolveLogsDestinationTargets(acct *account, st *store.Store) error {
 			}
 		}
 		if arn := sv(attrs.RoleArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert logs-dest→role: %w", err)
@@ -258,7 +258,7 @@ func resolveLogsTransformerParent(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range rows {
-		tgtID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, r.NativeID)
+		tgtID := store.ResourceID("aws", acct.ID, r.NativeID)
 		if !groupSet[tgtID] {
 			continue
 		}
@@ -299,7 +299,7 @@ func resolveLogsQueryDefinitionLogGroups(acct *account, st *store.Store) error {
 				continue
 			}
 			arn := logGroupNativeIDFromName(acct.ID, region, name)
-			tgtID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !groupSet[tgtID] {
 				continue
 			}

@@ -58,7 +58,7 @@ func resolveSchedulerScheduleTargets(acct *account, st *store.Store) error {
 		region := sv(s.Region)
 		if name := sv(a.GroupName); name != "" {
 			groupARN := fmt.Sprintf("arn:aws:scheduler:%s:%s:schedule-group/%s", region, acct.ID, name)
-			groupID := store.ResourceID("aws", acct.ID, TypeSchedulerScheduleGroup, groupARN)
+			groupID := store.ResourceID("aws", acct.ID, groupARN)
 			if groupSet[groupID] {
 				if err := st.UpsertRelationship(s.ID, groupID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert scheduler-schedule→group: %w", err)
@@ -76,7 +76,7 @@ func resolveSchedulerScheduleTargets(acct *account, st *store.Store) error {
 		if targetType == "" {
 			continue
 		}
-		targetID := store.ResourceID("aws", acct.ID, targetType, arn)
+		targetID := store.ResourceID("aws", acct.ID, arn)
 		if err := st.UpsertRelationship(s.ID, targetID, store.RelRoutesTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert scheduler-schedule→target: %w", err)
 		}

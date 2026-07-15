@@ -64,7 +64,7 @@ func upsertTestResource(t *testing.T, st *store.Store, provider, accountID, rtyp
 	if _, err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertTestResource %s/%s: %v", rtype, nativeID, err)
 	}
-	return store.ResourceID(provider, accountID, rtype, nativeID)
+	return store.ResourceID(provider, accountID, nativeID)
 }
 
 // upsertTestResourceNamed is upsertTestResource with an explicit Name set, for
@@ -86,7 +86,7 @@ func upsertTestResourceNamed(t *testing.T, st *store.Store, rtype, nativeID, reg
 	if _, err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertTestResourceNamed %s/%s: %v", rtype, nativeID, err)
 	}
-	return store.ResourceID("aws", testAccountID, rtype, nativeID)
+	return store.ResourceID("aws", testAccountID, nativeID)
 }
 
 // newTestAccount returns a minimal account struct for use in resolver tests.

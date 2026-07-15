@@ -57,13 +57,13 @@ func resolveSSMIResponsePlanRefs(acct *account, st *store.Store) error {
 			// Both contact and escalation-plan ARNs share the `:contact/` segment;
 			// disco splits them by ContactType at scan time. Try plan then
 			// contact — whichever id-set has the row wins.
-			if pID := store.ResourceID("aws", acct.ID, TypeSSMContactsPlan, e); planSet[pID] {
+			if pID := store.ResourceID("aws", acct.ID, e); planSet[pID] {
 				if err := st.UpsertRelationship(r.ID, pID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ssmi response-plan→escalation-plan: %w", err)
 				}
 				continue
 			}
-			if cID := store.ResourceID("aws", acct.ID, TypeSSMContactsContact, e); contactSet[cID] {
+			if cID := store.ResourceID("aws", acct.ID, e); contactSet[cID] {
 				if err := st.UpsertRelationship(r.ID, cID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ssmi response-plan→contact: %w", err)
 				}

@@ -63,7 +63,7 @@ func resolveGuardDutyChildrenToDetector(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeGuardDutyDetector, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !detSet[tgtID] {
 				continue
 			}

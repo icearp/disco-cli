@@ -63,7 +63,7 @@ func TestResolveShieldProtectionTargets(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		pID := store.ResourceID("aws", acct.ID, TypeShieldProtection, shieldProtectionARN(acct.ID, c.name))
+		pID := store.ResourceID("aws", acct.ID, shieldProtectionARN(acct.ID, c.name))
 		rels, err := st.RelationshipsFrom(pID)
 		if err != nil {
 			t.Fatalf("RelationshipsFrom %s: %v", c.name, err)

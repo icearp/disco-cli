@@ -185,7 +185,7 @@ func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 		}
 		psArn := sv(attrs.PermissionSetArn)
 		if psArn != "" {
-			psID := store.ResourceID("aws", acct.ID, TypeSSOPermissionSet, psArn)
+			psID := store.ResourceID("aws", acct.ID, psArn)
 			if _, ok := psIDs[psID]; ok {
 				if err := st.UpsertRelationship(a.ID, psID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sso assignment→permission-set: %w", err)
@@ -203,14 +203,14 @@ func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 		if identityStoreID != "" && principalID != "" {
 			switch attrs.PrincipalType {
 			case "USER":
-				uID := store.ResourceID("aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(ownerAcct, identityStoreID, principalID))
+				uID := store.ResourceID("aws", acct.ID, identityStoreUserNativeID(ownerAcct, identityStoreID, principalID))
 				if _, ok := userIDs[uID]; ok {
 					if err := st.UpsertRelationship(a.ID, uID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert sso assignment→identitystore user: %w", err)
 					}
 				}
 			case "GROUP":
-				gID := store.ResourceID("aws", acct.ID, TypeIdentityStoreGroup, identityStoreGroupNativeID(ownerAcct, identityStoreID, principalID))
+				gID := store.ResourceID("aws", acct.ID, identityStoreGroupNativeID(ownerAcct, identityStoreID, principalID))
 				if _, ok := groupIDs[gID]; ok {
 					if err := st.UpsertRelationship(a.ID, gID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert sso assignment→identitystore group: %w", err)
@@ -221,7 +221,7 @@ func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 
 		if accountID := sv(attrs.AccountID); accountID != "" {
 			if orgARN, ok := orgArnByID[accountID]; ok {
-				orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
+				orgID := store.ResourceID("aws", acct.ID, orgARN)
 				if err := st.UpsertRelationship(a.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sso assignment→org account: %w", err)
 				}
@@ -349,14 +349,14 @@ func resolveSSOApplicationAssignmentRefs(acct *account, st *store.Store) error {
 		}
 		switch attrs.PrincipalType {
 		case "USER":
-			uID := store.ResourceID("aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(ownerAcct, identityStoreID, pid))
+			uID := store.ResourceID("aws", acct.ID, identityStoreUserNativeID(ownerAcct, identityStoreID, pid))
 			if _, ok := userIDs[uID]; ok {
 				if err := st.UpsertRelationship(a.ID, uID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sso app-assignment→identity-store user: %w", err)
 				}
 			}
 		case "GROUP":
-			gID := store.ResourceID("aws", acct.ID, TypeIdentityStoreGroup, identityStoreGroupNativeID(ownerAcct, identityStoreID, pid))
+			gID := store.ResourceID("aws", acct.ID, identityStoreGroupNativeID(ownerAcct, identityStoreID, pid))
 			if _, ok := groupIDs[gID]; ok {
 				if err := st.UpsertRelationship(a.ID, gID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sso app-assignment→identity-store group: %w", err)

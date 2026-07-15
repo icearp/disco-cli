@@ -326,14 +326,17 @@ func TestGraphWalk_MaxNodes(t *testing.T) {
 func TestResolveResource(t *testing.T) {
 	st := openTestStore(t)
 
-	// Two resources share native_id "shared" across different types.
+	// Two resources share the NAME "shared" (distinct native_ids / types). The
+	// re-key makes two rows sharing a native_id impossible, but a shared Name is
+	// still a legitimate ambiguity source for ResolveResource.
+	shared := "shared"
 	r1 := &Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
-		NativeID: "shared", AttributesJSON: "{}", DiscoveredBy: testScanID,
+		NativeID: "i-shared", Name: &shared, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}
 	r2 := &Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
-		NativeID: "shared", AttributesJSON: "{}", DiscoveredBy: testScanID,
+		NativeID: "b-shared", Name: &shared, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}
 	for _, r := range []*Resource{r1, r2} {
 		if _, err := st.UpsertResource(r); err != nil {
@@ -347,7 +350,7 @@ func TestResolveResource(t *testing.T) {
 		t.Errorf("hex passthrough: got %+v err=%v", got, err)
 	}
 
-	// 2. Ambiguous native ID → error lists candidates.
+	// 2. Ambiguous name → error lists candidates.
 	_, err = st.ResolveResource("shared", "", "", "")
 	if err == nil || !strings.Contains(err.Error(), "ambiguous") {
 		t.Errorf("ambiguous: want error, got %v", err)

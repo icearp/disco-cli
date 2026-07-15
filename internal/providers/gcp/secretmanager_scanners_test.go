@@ -50,7 +50,7 @@ func TestScanSecrets_SecretVersionChain(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	secretID := store.ResourceID("gcp", p.ID, TypeSecret, secretName)
+	secretID := store.ResourceID("gcp", p.ID, secretName)
 	rels, err := st.RelationshipsFrom(secretID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(secret): %v", err)

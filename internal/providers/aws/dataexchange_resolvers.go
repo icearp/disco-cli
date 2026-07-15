@@ -138,7 +138,7 @@ func resolveDataExchangeEventActionRefs(acct *account, st *store.Store) error {
 		export := attrs.Action.ExportRevisionToS3
 		if export.RevisionDestination != nil {
 			if b := sv(export.RevisionDestination.Bucket); b != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+b)
+				tgtID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+b)
 				if bucketSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dataexchange event-action→s3: %w", err)

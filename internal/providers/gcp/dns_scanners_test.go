@@ -34,11 +34,11 @@ func TestScanCloudDNS_FullFanout(t *testing.T) {
 
 	zoneName := "zone1"
 	zoneNativeID := "projects/my-project/managedZones/zone1"
-	zoneID := store.ResourceID("gcp", p.ID, TypeDNSManagedZone, zoneNativeID)
+	zoneID := store.ResourceID("gcp", p.ID, zoneNativeID)
 
 	rpName := "rp1"
 	rpNativeID := "projects/my-project/responsePolicies/rp1"
-	rpID := store.ResourceID("gcp", p.ID, TypeDNSResponsePolicy, rpNativeID)
+	rpID := store.ResourceID("gcp", p.ID, rpNativeID)
 
 	routes := map[string]string{
 		"/dns/v1/projects/my-project/managedZones": marshalAttrs(t, dns.ManagedZonesListResponse{
@@ -71,9 +71,9 @@ func TestScanCloudDNS_FullFanout(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 6/6 (zone+rrset+dnskey+policy+responsepolicy+rule)", total, inserted)
 	}
 
-	rrsetID := store.ResourceID("gcp", p.ID, TypeDNSRecordSet, zoneNativeID+"/rrsets/A/www.example.com.")
-	dnsKeyID := store.ResourceID("gcp", p.ID, TypeDNSKey, zoneNativeID+"/dnsKeys/1")
-	ruleID := store.ResourceID("gcp", p.ID, TypeDNSResponsePolicyRule, rpNativeID+"/rules/rule1")
+	rrsetID := store.ResourceID("gcp", p.ID, zoneNativeID+"/rrsets/A/www.example.com.")
+	dnsKeyID := store.ResourceID("gcp", p.ID, zoneNativeID+"/dnsKeys/1")
+	ruleID := store.ResourceID("gcp", p.ID, rpNativeID+"/rules/rule1")
 
 	assertParent := func(childID, wantParentID string) {
 		t.Helper()
@@ -103,7 +103,7 @@ func TestScanCloudDNS_ZonePartialDenyContinues(t *testing.T) {
 	p := newTestProject("my-project")
 
 	zoneNativeID := "projects/my-project/managedZones/zone1"
-	zoneID := store.ResourceID("gcp", p.ID, TypeDNSManagedZone, zoneNativeID)
+	zoneID := store.ResourceID("gcp", p.ID, zoneNativeID)
 
 	base := "/dns/v1/projects/my-project/managedZones/zone1"
 	deniedBody := `{"error":{"code":403,"message":"caller is missing dns.resourceRecordSets.list","errors":[{"reason":"forbidden"}]}}`
@@ -145,7 +145,7 @@ func TestScanCloudDNS_ZonePartialDenyContinues(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2 (zone+dnskey — rrsets denied)", total, inserted)
 	}
 
-	dnsKeyID := store.ResourceID("gcp", p.ID, TypeDNSKey, zoneNativeID+"/dnsKeys/1")
+	dnsKeyID := store.ResourceID("gcp", p.ID, zoneNativeID+"/dnsKeys/1")
 	rels, err := st.RelationshipsFrom(zoneID, store.RelContains)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)

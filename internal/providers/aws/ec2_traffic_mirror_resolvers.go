@@ -35,15 +35,17 @@ func resolveTrafficMirrorSessionRelationships(acct *account, st *store.Store) er
 		}
 		region := sv(r.Region)
 		if attrs.TrafficMirrorFilterID != nil {
-			filterID := store.ResourceID("aws", acct.ID, TypeEC2TrafficMirrorFilter,
+			filterID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "traffic-mirror-filter", *attrs.TrafficMirrorFilterID))
+
 			if err := st.UpsertRelationship(r.ID, filterID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert traffic-mirror-session→filter relationship: %w", err)
 			}
 		}
 		if attrs.TrafficMirrorTargetID != nil {
-			targetID := store.ResourceID("aws", acct.ID, TypeEC2TrafficMirrorTarget,
+			targetID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "traffic-mirror-target", *attrs.TrafficMirrorTargetID))
+
 			if err := st.UpsertRelationship(r.ID, targetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert traffic-mirror-session→target relationship: %w", err)
 			}

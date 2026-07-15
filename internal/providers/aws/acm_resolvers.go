@@ -33,7 +33,7 @@ func resolveACMCertificateRelationships(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || sv(attrs.CertificateAuthorityArn) == "" {
 			continue
 		}
-		caID := store.ResourceID("aws", acct.ID, TypeACMPrivateCA, *attrs.CertificateAuthorityArn)
+		caID := store.ResourceID("aws", acct.ID, *attrs.CertificateAuthorityArn)
 		if err := st.UpsertRelationship(r.ID, caID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert acm-cert→private-ca: %w", err)
 		}

@@ -71,11 +71,11 @@ func resolveShieldProtectionTargets(acct *account, st *store.Store) error {
 		if ref == "" {
 			continue
 		}
-		targetType, targetNativeID, ok := classifyShieldProtectedResource(ref)
+		_, targetNativeID, ok := classifyShieldProtectedResource(ref)
 		if !ok {
 			continue
 		}
-		targetID := store.ResourceID("aws", acct.ID, targetType, targetNativeID)
+		targetID := store.ResourceID("aws", acct.ID, targetNativeID)
 		if !known[targetID] {
 			continue
 		}
@@ -121,7 +121,7 @@ func resolveShieldProtectionGroupMembers(acct *account, st *store.Store) error {
 			if m == "" {
 				continue
 			}
-			memberID := store.ResourceID("aws", acct.ID, TypeShieldProtection, m)
+			memberID := store.ResourceID("aws", acct.ID, m)
 			if !protSet[memberID] {
 				continue
 			}

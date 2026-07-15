@@ -89,7 +89,7 @@ func wireFinspaceKxParent(acct *account, st *store.Store, childType, segment, pa
 		if i < 0 {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, parentType, r.NativeID[:i])
+		tgtID := store.ResourceID("aws", acct.ID, r.NativeID[:i])
 		if !parentSet[tgtID] {
 			continue
 		}

@@ -125,7 +125,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 		}
 		region := sv(g.Region)
 		if roleARN := sv(a.ServiceLinkedRoleARN); roleARN != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			roleID := store.ResourceID("aws", acct.ID, roleARN)
 			if roleIDs[roleID] {
 				if err := st.UpsertRelationship(g.ID, roleID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert asg→iam-role: %w", err)
@@ -134,7 +134,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 		}
 		if lcName := sv(a.LaunchConfigurationName); lcName != "" {
 			lcARN := fmt.Sprintf("arn:aws:autoscaling:%s:%s:launchConfiguration:*:launchConfigurationName/%s", region, acct.ID, lcName)
-			lcID := store.ResourceID("aws", acct.ID, TypeAutoScalingLaunchConfiguration, lcARN)
+			lcID := store.ResourceID("aws", acct.ID, lcARN)
 			if lcIDs[lcID] {
 				if err := st.UpsertRelationship(g.ID, lcID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert asg→launch-config: %w", err)
@@ -144,7 +144,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 		if a.LaunchTemplate != nil {
 			if ltID := sv(a.LaunchTemplate.LaunchTemplateID); ltID != "" {
 				ltARN := ec2ARN(region, acct.ID, "launch-template", ltID)
-				ltResID := store.ResourceID("aws", acct.ID, TypeEC2LaunchTemplate, ltARN)
+				ltResID := store.ResourceID("aws", acct.ID, ltARN)
 				if ltIDs[ltResID] {
 					if err := st.UpsertRelationship(g.ID, ltResID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert asg→launch-template: %w", err)
@@ -153,7 +153,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 			}
 		}
 		for _, tgARN := range a.TargetGroupARNs {
-			tgID := store.ResourceID("aws", acct.ID, TypeELBv2TargetGroup, tgARN)
+			tgID := store.ResourceID("aws", acct.ID, tgARN)
 			if tgIDs[tgID] {
 				if err := st.UpsertRelationship(g.ID, tgID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert asg→target-group: %w", err)
@@ -166,7 +166,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 				continue
 			}
 			instARN := ec2ARN(region, acct.ID, "instance", id)
-			instResID := store.ResourceID("aws", acct.ID, TypeEC2Instance, instARN)
+			instResID := store.ResourceID("aws", acct.ID, instARN)
 			if instanceIDs[instResID] {
 				if err := st.UpsertRelationship(g.ID, instResID, store.RelContains, "directed", nil); err != nil {
 					return fmt.Errorf("upsert asg→ec2-instance: %w", err)
@@ -180,7 +180,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 					continue
 				}
 				snARN := ec2ARN(region, acct.ID, "subnet", sn)
-				snResID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, snARN)
+				snResID := store.ResourceID("aws", acct.ID, snARN)
 				if subnetIDs[snResID] {
 					if err := st.UpsertRelationship(g.ID, snResID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert asg→subnet: %w", err)
@@ -217,7 +217,7 @@ func resolveAutoScalingLaunchConfigEdges(acct *account, st *store.Store, instPro
 			if !strings.HasPrefix(ip, "arn:") {
 				ipARN = fmt.Sprintf("arn:aws:iam::%s:instance-profile/%s", acct.ID, ip)
 			}
-			ipID := store.ResourceID("aws", acct.ID, TypeIAMInstanceProfile, ipARN)
+			ipID := store.ResourceID("aws", acct.ID, ipARN)
 			if instProfileIDs[ipID] {
 				if err := st.UpsertRelationship(lc.ID, ipID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lc→iam-instance-profile: %w", err)
@@ -229,7 +229,7 @@ func resolveAutoScalingLaunchConfigEdges(acct *account, st *store.Store, instPro
 				continue
 			}
 			sgARN := ec2ARN(region, acct.ID, "security-group", sg)
-			sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+			sgID := store.ResourceID("aws", acct.ID, sgARN)
 			if sgIDs[sgID] {
 				if err := st.UpsertRelationship(lc.ID, sgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lc→security-group: %w", err)
@@ -275,7 +275,7 @@ func resolveAutoScalingChildEdges(acct *account, st *store.Store, asgIDByName ma
 				continue
 			}
 			if roleARN := sv(a.RoleARN); roleARN != "" {
-				roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+				roleID := store.ResourceID("aws", acct.ID, roleARN)
 				if roleIDs[roleID] {
 					if err := st.UpsertRelationship(r.ID, roleID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert lifecycle-hook→iam-role: %w", err)
@@ -285,14 +285,14 @@ func resolveAutoScalingChildEdges(acct *account, st *store.Store, asgIDByName ma
 			if tgt := sv(a.NotificationTargetARN); tgt != "" {
 				switch {
 				case strings.HasPrefix(tgt, "arn:aws:sns:"):
-					tID := store.ResourceID("aws", acct.ID, TypeSNSTopic, tgt)
+					tID := store.ResourceID("aws", acct.ID, tgt)
 					if topicIDs[tID] {
 						if err := st.UpsertRelationship(r.ID, tID, store.RelUses, "directed", nil); err != nil {
 							return fmt.Errorf("upsert lifecycle-hook→sns: %w", err)
 						}
 					}
 				case strings.HasPrefix(tgt, "arn:aws:sqs:"):
-					qID := store.ResourceID("aws", acct.ID, TypeSQSQueue, tgt)
+					qID := store.ResourceID("aws", acct.ID, tgt)
 					if queueIDs[qID] {
 						if err := st.UpsertRelationship(r.ID, qID, store.RelUses, "directed", nil); err != nil {
 							return fmt.Errorf("upsert lifecycle-hook→sqs: %w", err)

@@ -62,7 +62,7 @@ func resolveGlobalAcceleratorListenerParent(acct *account, st *store.Store) erro
 		if parent == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeGlobalAcceleratorAccelerator, parent)
+		tgt := store.ResourceID("aws", acct.ID, parent)
 		if !accSet[tgt] {
 			continue
 		}
@@ -120,7 +120,7 @@ func resolveGlobalAcceleratorEndpointGroupRefs(acct *account, st *store.Store) e
 	}
 	for _, r := range rows {
 		if parent := gaParentARN(r.NativeID, "endpoint-group"); parent != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeGlobalAcceleratorListener, parent)
+			tgt := store.ResourceID("aws", acct.ID, parent)
 			if listenerSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert globalaccelerator endpoint-group→listener: %w", err)
@@ -145,7 +145,7 @@ func resolveGlobalAcceleratorEndpointGroupRefs(acct *account, st *store.Store) e
 			if ttyp == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, ttyp, native)
+			tgt := store.ResourceID("aws", acct.ID, native)
 			if !sets[ttyp][tgt] {
 				continue
 			}
@@ -195,7 +195,7 @@ func resolveGlobalAcceleratorCrossAccountAttachmentRefs(acct *account, st *store
 			if ttyp == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, ttyp, native)
+			tgt := store.ResourceID("aws", acct.ID, native)
 			if !sets[ttyp][tgt] {
 				continue
 			}

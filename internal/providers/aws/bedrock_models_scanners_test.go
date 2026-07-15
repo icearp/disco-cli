@@ -72,7 +72,7 @@ func TestScanBedrockModels(t *testing.T) {
 		{TypeBedrockCustomModelDeployment, dpArn},
 		{TypeBedrockMarketplaceModelEndpoint, epArn},
 	} {
-		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, tc.rtype, tc.arn)); err != nil {
+		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, tc.arn)); err != nil {
 			t.Errorf("%s missing: %v", tc.rtype, err)
 		}
 	}

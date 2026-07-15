@@ -85,7 +85,7 @@ func resolveCodeArtifactChildrenToDomain(acct *account, st *store.Store) error {
 			if n == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeCodeArtifactDomain, codeArtifactDomainARN(sv(r.Region), acct.ID, n))
+			tgtID := store.ResourceID("aws", acct.ID, codeArtifactDomainARN(sv(r.Region), acct.ID, n))
 			if !domainSet[tgtID] {
 				continue
 			}

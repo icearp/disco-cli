@@ -29,7 +29,7 @@ func fakeIAMService(t *testing.T, srv *httptest.Server) *iam.Service {
 
 func TestScanIAMWorkforceTree_FullFanout(t *testing.T) {
 	st := newTestStore(t)
-	sc := orgScope{Kind: "organization", Name: "organizations/123", Resource: store.ResourceID("gcp", "organizations/123", TypeOrganization, "organizations/123")}
+	sc := orgScope{Kind: "organization", Name: "organizations/123", Resource: store.ResourceID("gcp", "organizations/123", "organizations/123")}
 	upsertTestResource(t, st, "gcp", sc.Name, TypeOrganization, sc.Name, "", "{}")
 
 	poolName := "locations/global/workforcePools/pool1"
@@ -85,11 +85,11 @@ func TestScanIAMWorkforceTree_FullFanout(t *testing.T) {
 		t.Fatalf("org roles: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	orgID := store.ResourceID("gcp", sc.Name, TypeOrganization, sc.Name)
-	poolID := store.ResourceID("gcp", sc.Name, TypeIAMWorkforcePool, poolName)
-	providerID := store.ResourceID("gcp", sc.Name, TypeIAMProvider, providerName)
-	tenantID := store.ResourceID("gcp", sc.Name, TypeIAMScimTenant, tenantName)
-	roleID := store.ResourceID("gcp", sc.Name, TypeIAMRole, "organizations/123/roles/custom1")
+	orgID := store.ResourceID("gcp", sc.Name, sc.Name)
+	poolID := store.ResourceID("gcp", sc.Name, poolName)
+	providerID := store.ResourceID("gcp", sc.Name, providerName)
+	tenantID := store.ResourceID("gcp", sc.Name, tenantName)
+	roleID := store.ResourceID("gcp", sc.Name, "organizations/123/roles/custom1")
 
 	assertChildOf(t, st, poolID, orgID)
 	assertChildOf(t, st, providerID, poolID)
@@ -196,12 +196,12 @@ func TestScanIAMWorkloadTree_FullFanout(t *testing.T) {
 	// `contains` row when the parent endpoint doesn't exist in `resources`
 	// (see store/CLAUDE.md — same behavior observed in the DNS Wave 8e and
 	// SQL Wave 8d tests, which don't assert project-level parentage either).
-	poolID := store.ResourceID("gcp", p.ID, TypeIAMWorkloadIdentityPool, poolName)
-	providerID := store.ResourceID("gcp", p.ID, TypeIAMProvider, providerName)
-	nsID := store.ResourceID("gcp", p.ID, TypeIAMNamespace, nsName)
-	miID := store.ResourceID("gcp", p.ID, TypeIAMManagedIdentity, miName)
-	clientID := store.ResourceID("gcp", p.ID, TypeIAMOauthClient, oauthClientName)
-	credID := store.ResourceID("gcp", p.ID, TypeIAMCredential, credName)
+	poolID := store.ResourceID("gcp", p.ID, poolName)
+	providerID := store.ResourceID("gcp", p.ID, providerName)
+	nsID := store.ResourceID("gcp", p.ID, nsName)
+	miID := store.ResourceID("gcp", p.ID, miName)
+	clientID := store.ResourceID("gcp", p.ID, oauthClientName)
+	credID := store.ResourceID("gcp", p.ID, credName)
 
 	assertChildOf(t, st, providerID, poolID)
 	assertChildOf(t, st, nsID, poolID)
@@ -215,7 +215,7 @@ func TestScanIAMWorkloadTree_FullFanout(t *testing.T) {
 // instead of just skipping that pool.
 func TestScanIAMWorkforceProviders_PartialDenyContinues(t *testing.T) {
 	st := newTestStore(t)
-	sc := orgScope{Kind: "organization", Name: "organizations/123", Resource: store.ResourceID("gcp", "organizations/123", TypeOrganization, "organizations/123")}
+	sc := orgScope{Kind: "organization", Name: "organizations/123", Resource: store.ResourceID("gcp", "organizations/123", "organizations/123")}
 	upsertTestResource(t, st, "gcp", sc.Name, TypeOrganization, sc.Name, "", "{}")
 
 	pool1 := "locations/global/workforcePools/pool1"
@@ -252,14 +252,14 @@ func TestScanIAMWorkforceProviders_PartialDenyContinues(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d providerIDs=%v, want 1/1/[%s] (pool1 denied, pool2 has one provider)", total, inserted, providerIDs, provider2)
 	}
 
-	pool2ID := store.ResourceID("gcp", sc.Name, TypeIAMWorkforcePool, pool2)
-	provider2ID := store.ResourceID("gcp", sc.Name, TypeIAMProvider, provider2)
+	pool2ID := store.ResourceID("gcp", sc.Name, pool2)
+	provider2ID := store.ResourceID("gcp", sc.Name, provider2)
 	assertChildOf(t, st, provider2ID, pool2ID)
 }
 
 func TestScanIAMWorkforcePools_PermissionDenied(t *testing.T) {
 	st := newTestStore(t)
-	sc := orgScope{Kind: "organization", Name: "organizations/123", Resource: store.ResourceID("gcp", "organizations/123", TypeOrganization, "organizations/123")}
+	sc := orgScope{Kind: "organization", Name: "organizations/123", Resource: store.ResourceID("gcp", "organizations/123", "organizations/123")}
 
 	body := `{"error":{"code":403,"message":"caller is missing iam.workforcePools.list","errors":[{"reason":"forbidden"}]}}`
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)

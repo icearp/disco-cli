@@ -43,7 +43,7 @@ func resolvePCSChildrenToCluster(acct *account, st *store.Store) error {
 				continue
 			}
 			cARN := fmt.Sprintf("arn:aws:pcs:%s:%s:cluster/%s", sv(r.Region), acct.ID, cid)
-			tgt := store.ResourceID("aws", acct.ID, TypePCSCluster, cARN)
+			tgt := store.ResourceID("aws", acct.ID, cARN)
 			if !clusterSet[tgt] {
 				continue
 			}

@@ -49,7 +49,7 @@ func resolveSFNChildrenToStateMachine(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeSFNStateMachine, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !smSet[tgtID] {
 				continue
 			}

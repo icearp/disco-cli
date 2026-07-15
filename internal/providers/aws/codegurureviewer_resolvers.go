@@ -44,7 +44,7 @@ func resolveCodeGuruReviewerAssociationRefs(acct *account, st *store.Store) erro
 		if !strings.Contains(ca, ":codestar-connections:") {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeCodeStarConnectionsConnection, ca)
+		tgt := store.ResourceID("aws", acct.ID, ca)
 		if !connSet[tgt] {
 			continue
 		}

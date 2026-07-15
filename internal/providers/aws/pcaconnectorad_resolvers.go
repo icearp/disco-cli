@@ -81,7 +81,7 @@ func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if c := sv(attrs.CertificateAuthorityArn); c != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeACMPrivateCA, c)
+			tgtID := store.ResourceID("aws", acct.ID, c)
 			if caSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert pca-ad conn→ca: %w", err)
@@ -103,7 +103,7 @@ func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 					continue
 				}
 				sgARN := ec2ARN(region, acct.ID, "security-group", sg)
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+				tgtID := store.ResourceID("aws", acct.ID, sgARN)
 				if sgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert pca-ad conn→sg: %w", err)

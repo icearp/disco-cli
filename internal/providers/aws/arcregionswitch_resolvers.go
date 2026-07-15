@@ -44,7 +44,7 @@ func resolveARCRegionSwitchRelationships(acct *account, st *store.Store) error {
 		if !strings.Contains(rarn, ":role/") {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+		tgt := store.ResourceID("aws", acct.ID, rarn)
 		if !roleSet[tgt] {
 			continue
 		}

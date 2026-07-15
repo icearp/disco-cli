@@ -59,7 +59,7 @@ func resolveStorageGatewayChildren(acct *account, st *store.Store) error {
 			if gwARN == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeStorageGatewayGateway, gwARN)
+			tgt := store.ResourceID("aws", acct.ID, gwARN)
 			if !gwSet[tgt] {
 				continue
 			}
@@ -96,7 +96,7 @@ func resolveStorageGatewayDevices(acct *account, st *store.Store) error {
 			continue
 		}
 		gwARN := r.NativeID[:i]
-		tgt := store.ResourceID("aws", acct.ID, TypeStorageGatewayGateway, gwARN)
+		tgt := store.ResourceID("aws", acct.ID, gwARN)
 		if !gwSet[tgt] {
 			continue
 		}

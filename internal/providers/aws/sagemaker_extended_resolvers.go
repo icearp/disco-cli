@@ -278,7 +278,7 @@ func emitIAMRole(st *store.Store, srcID, roleARN, acctID string, sets *sagemaker
 	if roleARN == "" {
 		return nil
 	}
-	roleID := store.ResourceID("aws", acctID, TypeIAMRole, roleARN)
+	roleID := store.ResourceID("aws", acctID, roleARN)
 	if !sets.roles[roleID] {
 		return nil
 	}
@@ -304,7 +304,7 @@ func emitS3Bucket(st *store.Store, srcID, s3url, acctID string, sets *sagemakerE
 	if bucketARN == "" {
 		return nil
 	}
-	bID := store.ResourceID("aws", acctID, TypeS3Bucket, bucketARN)
+	bID := store.ResourceID("aws", acctID, bucketARN)
 	if !sets.buckets[bID] {
 		return nil
 	}
@@ -317,7 +317,7 @@ func emitSubnetEdges(st *store.Store, srcID, region, acctID string, ids []string
 		if sn == "" {
 			continue
 		}
-		snID := store.ResourceID("aws", acctID, TypeEC2Subnet, ec2ARN(region, acctID, "subnet", sn))
+		snID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "subnet", sn))
 		if !sets.subnets[snID] {
 			continue
 		}
@@ -334,7 +334,7 @@ func emitSGEdges(st *store.Store, srcID, region, acctID string, ids []string, se
 		if sg == "" {
 			continue
 		}
-		sgID := store.ResourceID("aws", acctID, TypeEC2SecurityGroup, ec2ARN(region, acctID, "security-group", sg))
+		sgID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "security-group", sg))
 		if !sets.sgs[sgID] {
 			continue
 		}
@@ -351,7 +351,7 @@ func emitEndpointByName(st *store.Store, srcID, region, acctID, name string, set
 	if name == "" {
 		return nil
 	}
-	epID := store.ResourceID("aws", acctID, TypeSageMakerEndpoint, sagemakerARN(region, acctID, "endpoint", name))
+	epID := store.ResourceID("aws", acctID, sagemakerARN(region, acctID, "endpoint", name))
 	if !sets.endpts[epID] {
 		return nil
 	}
@@ -413,8 +413,9 @@ func emitNotebookLCConfig(st *store.Store, srcID, region, acctID, name string, s
 	if name == "" {
 		return nil
 	}
-	cfgID := store.ResourceID("aws", acctID, TypeSageMakerNotebookInstanceLifecycleConfig,
+	cfgID := store.ResourceID("aws", acctID,
 		sagemakerARN(region, acctID, "notebook-instance-lifecycle-config", name))
+
 	if !sets.lcconfs[cfgID] {
 		return nil
 	}
@@ -429,8 +430,9 @@ func emitNotebookCodeRepos(st *store.Store, srcID, region, acctID string, names 
 		if n == "" {
 			continue
 		}
-		repoID := store.ResourceID("aws", acctID, TypeSageMakerCodeRepository,
+		repoID := store.ResourceID("aws", acctID,
 			sagemakerARN(region, acctID, "code-repository", n))
+
 		if !sets.coderepo[repoID] {
 			continue
 		}
@@ -463,7 +465,7 @@ func resolveSageMakerDomain(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if vpc := sv(a.VpcID); vpc != "" {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", vpc))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", vpc))
 			if sets.vpcs[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("domain→vpc: %w", err)
@@ -477,7 +479,7 @@ func resolveSageMakerDomain(acct *account, st *store.Store) error {
 			return fmt.Errorf("domain→kms: %w", err)
 		}
 		if fs := sv(a.HomeEfsFileSystemID); fs != "" {
-			fsID := store.ResourceID("aws", acct.ID, TypeEFSFileSystem, efsFileSystemARN(region, acct.ID, fs))
+			fsID := store.ResourceID("aws", acct.ID, efsFileSystemARN(region, acct.ID, fs))
 			if sets.efs[fsID] {
 				if err := st.UpsertRelationship(r.ID, fsID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("domain→efs: %w", err)
@@ -522,8 +524,9 @@ func resolveSagemakerDomainParent(acct *account, st *store.Store, srcType string
 			continue
 		}
 		region := sv(r.Region)
-		domID := store.ResourceID("aws", acct.ID, TypeSageMakerDomain,
+		domID := store.ResourceID("aws", acct.ID,
 			sagemakerARN(region, acct.ID, "domain", id))
+
 		if !sets.domains[domID] {
 			continue
 		}
@@ -560,8 +563,9 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		dom := sv(a.DomainID)
 		if dom != "" {
-			domID := store.ResourceID("aws", acct.ID, TypeSageMakerDomain,
+			domID := store.ResourceID("aws", acct.ID,
 				sagemakerARN(region, acct.ID, "domain", dom))
+
 			if sets.domains[domID] {
 				if err := st.UpsertRelationship(r.ID, domID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("app→domain: %w", err)
@@ -570,7 +574,7 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 		}
 		if up := sv(a.UserProfileName); dom != "" && up != "" {
 			upARN := sagemakerARN(region, acct.ID, "user-profile", dom+"/"+up)
-			upID := store.ResourceID("aws", acct.ID, TypeSageMakerUserProfile, upARN)
+			upID := store.ResourceID("aws", acct.ID, upARN)
 			if sets.users[upID] {
 				if err := st.UpsertRelationship(r.ID, upID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("app→user-profile: %w", err)
@@ -579,7 +583,7 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 		}
 		if sp := sv(a.SpaceName); dom != "" && sp != "" {
 			spARN := sagemakerARN(region, acct.ID, "space", dom+"/"+sp)
-			spID := store.ResourceID("aws", acct.ID, TypeSageMakerSpace, spARN)
+			spID := store.ResourceID("aws", acct.ID, spARN)
 			if sets.spaces[spID] {
 				if err := st.UpsertRelationship(r.ID, spID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("app→space: %w", err)
@@ -588,7 +592,7 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 		}
 		if a.ResourceSpec != nil {
 			if iv := sv(a.ResourceSpec.SageMakerImageVersionArn); iv != "" {
-				ivID := store.ResourceID("aws", acct.ID, TypeSageMakerImageVersion, iv)
+				ivID := store.ResourceID("aws", acct.ID, iv)
 				if sets.imgvers[ivID] {
 					if err := st.UpsertRelationship(r.ID, ivID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("app→image-version: %w", err)
@@ -622,7 +626,7 @@ func resolveSageMakerImageVersionParent(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		imgID := store.ResourceID("aws", acct.ID, TypeSageMakerImage, arn)
+		imgID := store.ResourceID("aws", acct.ID, arn)
 		if !sets.imgs[imgID] {
 			continue
 		}
@@ -746,8 +750,9 @@ func resolveSageMakerModelPackage(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if g := sv(a.ModelPackageGroupName); g != "" {
-			gID := store.ResourceID("aws", acct.ID, TypeSageMakerModelPackageGroup,
+			gID := store.ResourceID("aws", acct.ID,
 				sagemakerARN(region, acct.ID, "model-package-group", g))
+
 			if sets.mpgroups[gID] {
 				if err := st.UpsertRelationship(r.ID, gID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("model-package→group: %w", err)
@@ -760,7 +765,7 @@ func resolveSageMakerModelPackage(acct *account, st *store.Store) error {
 				if repoARN == "" {
 					continue
 				}
-				rID := store.ResourceID("aws", acct.ID, TypeECRRepository, repoARN)
+				rID := store.ResourceID("aws", acct.ID, repoARN)
 				if !sets.repos[rID] {
 					continue
 				}
@@ -1194,8 +1199,9 @@ func resolveSageMakerDevice(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		fID := store.ResourceID("aws", acct.ID, TypeSageMakerDeviceFleet,
+		fID := store.ResourceID("aws", acct.ID,
 			sagemakerARN(region, acct.ID, "device-fleet", name))
+
 		if !sets.fleets[fID] {
 			continue
 		}
@@ -1228,7 +1234,7 @@ func resolveSageMakerInferenceComponent(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		epID := store.ResourceID("aws", acct.ID, TypeSageMakerEndpoint, arn)
+		epID := store.ResourceID("aws", acct.ID, arn)
 		if !sets.endpts[epID] {
 			continue
 		}
@@ -1274,8 +1280,9 @@ func resolveSageMakerInferenceExperiment(acct *account, st *store.Store) error {
 			if name == "" {
 				continue
 			}
-			mID := store.ResourceID("aws", acct.ID, TypeSageMakerModel,
+			mID := store.ResourceID("aws", acct.ID,
 				sagemakerModelARN(region, acct.ID, name))
+
 			if !sets.models[mID] {
 				continue
 			}

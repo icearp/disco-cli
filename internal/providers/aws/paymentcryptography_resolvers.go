@@ -38,7 +38,7 @@ func resolvePaymentCryptographyAliasToKey(acct *account, st *store.Store) error 
 			continue
 		}
 		if k := sv(attrs.KeyArn); k != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypePaymentCryptographyKey, k)
+			tgtID := store.ResourceID("aws", acct.ID, k)
 			if keySet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert pc alias→key: %w", err)

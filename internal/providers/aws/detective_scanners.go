@@ -136,7 +136,7 @@ func scanDetectiveMembers(ctx context.Context, client detectiveAPI, acct *accoun
 		g.Go(func() error {
 			defer sem.Release(1)
 			pager := detective.NewListMembersPaginator(client, &detective.ListMembersInput{GraphArn: &graphArn})
-			parentID := store.ResourceID("aws", acct.ID, TypeDetectiveGraph, graphArn)
+			parentID := store.ResourceID("aws", acct.ID, graphArn)
 			for pager.HasMorePages() {
 				out, perr := pager.NextPage(gctx)
 				if perr != nil {
@@ -165,7 +165,7 @@ func scanDetectiveMembers(ctx context.Context, client detectiveAPI, acct *accoun
 					}
 					mu.Lock()
 					batch = append(batch, r)
-					pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, TypeDetectiveMember, nativeID), parentID})
+					pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, nativeID), parentID})
 					mu.Unlock()
 				}
 			}

@@ -79,7 +79,7 @@ func resolveCloudFrontVpcOriginEndpoint(acct *account, st *store.Store) error {
 		default:
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, ttyp, arn)
+		tgt := store.ResourceID("aws", acct.ID, arn)
 		if !set[tgt] {
 			continue
 		}
@@ -142,7 +142,7 @@ func resolveDistributionCertificates(acct *account, st *store.Store) error {
 		if attrs.ViewerCertificate == nil || sv(attrs.ViewerCertificate.ACMCertificateArn) == "" {
 			continue
 		}
-		certID := store.ResourceID("aws", acct.ID, TypeACMCertificate, *attrs.ViewerCertificate.ACMCertificateArn)
+		certID := store.ResourceID("aws", acct.ID, *attrs.ViewerCertificate.ACMCertificateArn)
 		if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cloudfront-distribution→acm-cert: %w", err)
 		}
@@ -215,7 +215,7 @@ func resolveDistributionPolicies(acct *account, st *store.Store) error {
 			if nativeID == "" {
 				return nil
 			}
-			targetID := store.ResourceID("aws", acct.ID, targetType, nativeID)
+			targetID := store.ResourceID("aws", acct.ID, nativeID)
 			if seen[targetID] {
 				return nil
 			}
@@ -306,7 +306,7 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 			if nativeID == "" {
 				return nil
 			}
-			targetID := store.ResourceID("aws", acct.ID, targetType, nativeID)
+			targetID := store.ResourceID("aws", acct.ID, nativeID)
 			if seen[targetID] {
 				return nil
 			}
@@ -368,7 +368,7 @@ func resolveDistributionTenants(acct *account, st *store.Store) error {
 		}
 		// Construct the distribution ARN from the distribution ID.
 		distARN := fmt.Sprintf("arn:aws:cloudfront::%s:distribution/%s", acct.ID, distID)
-		targetID := store.ResourceID("aws", acct.ID, TypeCloudFrontDistribution, distARN)
+		targetID := store.ResourceID("aws", acct.ID, distARN)
 		if err := st.UpsertRelationship(t.ID, targetID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cloudfront tenant→distribution relationship: %w", err)
 		}
@@ -409,7 +409,7 @@ func resolveCloudFrontKeyGroupPublicKeys(acct *account, st *store.Store) error {
 			continue
 		}
 		for _, pkID := range attrs.KeyGroup.KeyGroupConfig.Items {
-			targetID := store.ResourceID("aws", acct.ID, TypeCloudFrontPublicKey, pkID)
+			targetID := store.ResourceID("aws", acct.ID, pkID)
 			if !pkSet[targetID] {
 				continue
 			}
@@ -461,7 +461,7 @@ func resolveCloudFrontRealtimeLogConfigTargets(acct *account, st *store.Store) e
 				continue
 			}
 			if streamARN := sv(ep.KinesisStreamConfig.StreamARN); streamARN != "" {
-				targetID := store.ResourceID("aws", acct.ID, TypeKinesisStream, streamARN)
+				targetID := store.ResourceID("aws", acct.ID, streamARN)
 				if streamSet[targetID] {
 					if err := st.UpsertRelationship(c.ID, targetID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert cloudfront realtime-log→kinesis: %w", err)
@@ -469,7 +469,7 @@ func resolveCloudFrontRealtimeLogConfigTargets(acct *account, st *store.Store) e
 				}
 			}
 			if roleARN := sv(ep.KinesisStreamConfig.RoleARN); roleARN != "" {
-				targetID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+				targetID := store.ResourceID("aws", acct.ID, roleARN)
 				if roleSet[targetID] {
 					if err := st.UpsertRelationship(c.ID, targetID, store.RelAssumes, "directed", nil); err != nil {
 						return fmt.Errorf("upsert cloudfront realtime-log→iam-role: %w", err)
@@ -514,7 +514,7 @@ func resolveCloudFrontStreamingDistributionOrigins(acct *account, st *store.Stor
 		if bucket == "" {
 			continue
 		}
-		targetID := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucket)
+		targetID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+bucket)
 		if !bucketSet[targetID] {
 			continue
 		}
@@ -527,7 +527,8 @@ func resolveCloudFrontStreamingDistributionOrigins(acct *account, st *store.Stor
 
 // resolveCloudFrontMonitoringSubscriptionParent emits "attached-to" edges from
 // each monitoring subscription to its parent distribution. The subscription's
-// NativeID is the parent distribution ARN (see scanCloudFrontMonitoringSubscriptions).
+// NativeID is {distribution ARN}/monitoring-subscription; strip the suffix to
+// recover the distribution ARN (see scanCloudFrontMonitoringSubscriptions).
 func resolveCloudFrontMonitoringSubscriptionParent(acct *account, st *store.Store) error {
 	subs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontMonitoringSubscription},
@@ -544,7 +545,8 @@ func resolveCloudFrontMonitoringSubscriptionParent(acct *account, st *store.Stor
 		return err
 	}
 	for _, s := range subs {
-		targetID := store.ResourceID("aws", acct.ID, TypeCloudFrontDistribution, s.NativeID)
+		distARN := strings.TrimSuffix(s.NativeID, "/monitoring-subscription")
+		targetID := store.ResourceID("aws", acct.ID, distARN)
 		if !distSet[targetID] {
 			continue
 		}

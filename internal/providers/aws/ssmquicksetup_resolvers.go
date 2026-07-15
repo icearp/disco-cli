@@ -53,7 +53,7 @@ func resolveSSMQuickSetupConfigManagerRoles(acct *account, st *store.Store) erro
 				continue
 			}
 			seen[ra] = struct{}{}
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			tgt := store.ResourceID("aws", acct.ID, ra)
 			if !roleSet[tgt] {
 				continue
 			}

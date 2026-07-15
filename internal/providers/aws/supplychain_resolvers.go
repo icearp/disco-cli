@@ -52,7 +52,7 @@ func resolveSupplyChainInstanceChildren(acct *account, st *store.Store) error {
 				continue
 			}
 			instARN := scnInstanceARN(sv(r.Region), acct.ID, instID)
-			tgt := store.ResourceID("aws", acct.ID, TypeSupplyChainInstance, instARN)
+			tgt := store.ResourceID("aws", acct.ID, instARN)
 			if !instSet[tgt] {
 				continue
 			}

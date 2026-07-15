@@ -297,7 +297,7 @@ func upsertSecurityHubChildren(st *store.Store, hubARN string, acct *account, ba
 	if err != nil {
 		return 0, fmt.Errorf("upsert securityhub %s: %w", kind, err)
 	}
-	parentID := store.ResourceID("aws", acct.ID, TypeSecurityHubHub, hubARN)
+	parentID := store.ResourceID("aws", acct.ID, hubARN)
 	pairs := make([][2]string, len(batch))
 	for i, c := range batch {
 		pairs[i] = [2]string{c.ID, parentID}

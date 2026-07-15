@@ -48,7 +48,7 @@ func resolveEFSFileSystemRelationships(acct *account, st *store.Store) error {
 		if sv(attrs.KmsKeyID) == "" {
 			continue
 		}
-		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KmsKeyID)
+		keyID := store.ResourceID("aws", acct.ID, *attrs.KmsKeyID)
 		if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert efs-fs→kms: %w", err)
 		}
@@ -77,13 +77,13 @@ func resolveEFSMountTargetRelationships(acct *account, st *store.Store) error {
 		}
 		if fsID := sv(attrs.FileSystemID); fsID != "" {
 			fsARN := fmt.Sprintf("arn:aws:elasticfilesystem:%s:%s:file-system/%s", region, acct.ID, fsID)
-			fsResID := store.ResourceID("aws", acct.ID, TypeEFSFileSystem, fsARN)
+			fsResID := store.ResourceID("aws", acct.ID, fsARN)
 			if err := st.UpsertRelationship(fsResID, r.ID, store.RelContains, "directed", nil); err != nil {
 				return fmt.Errorf("upsert efs-fs→mt: %w", err)
 			}
 		}
 		if snID := sv(attrs.SubnetID); snID != "" {
-			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", snID))
+			subnetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", snID))
 			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert efs-mt→subnet: %w", err)
 			}
@@ -116,7 +116,7 @@ func resolveEFSAccessPointRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		fsARN := fmt.Sprintf("arn:aws:elasticfilesystem:%s:%s:file-system/%s", region, acct.ID, fsID)
-		fsResID := store.ResourceID("aws", acct.ID, TypeEFSFileSystem, fsARN)
+		fsResID := store.ResourceID("aws", acct.ID, fsARN)
 		if err := st.UpsertRelationship(fsResID, r.ID, store.RelContains, "directed", nil); err != nil {
 			return fmt.Errorf("upsert efs-fs→ap: %w", err)
 		}

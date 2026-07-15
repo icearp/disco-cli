@@ -61,14 +61,14 @@ func TestScanBedrockInferenceProfiles_SystemDefinedManaged(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	app, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBedrockApplicationInferenceProfile, appArn))
+	app, err := st.GetResource(store.ResourceID("aws", acct.ID, appArn))
 	if err != nil {
 		t.Fatalf("application profile missing: %v", err)
 	}
 	if app.ManagedByProvider {
 		t.Error("application inference-profile should not be ManagedByProvider")
 	}
-	sys, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBedrockInferenceProfile, sysArn))
+	sys, err := st.GetResource(store.ResourceID("aws", acct.ID, sysArn))
 	if err != nil {
 		t.Fatalf("system-defined profile missing: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestScanBedrockFoundationModels(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total=%d want 1", total)
 	}
-	r, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBedrockFoundationModel, fmArn))
+	r, err := st.GetResource(store.ResourceID("aws", acct.ID, fmArn))
 	if err != nil {
 		t.Fatalf("foundation model missing: %v", err)
 	}

@@ -61,7 +61,7 @@ func resolveAppRunnerVpcIngressConnectionTargets(acct *account, st *store.Store)
 		if svcARN == "" {
 			continue
 		}
-		svcID := store.ResourceID("aws", acct.ID, TypeAppRunnerService, svcARN)
+		svcID := store.ResourceID("aws", acct.ID, svcARN)
 		if _, ok := svcIDs[svcID]; ok {
 			if err := st.UpsertRelationship(c.ID, svcID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert apprunner-vpc-ingress→service: %w", err)
@@ -171,7 +171,7 @@ func emitAppRunnerConnectionEdge(st *store.Store, acct *account, s store.Resourc
 	if connArn == "" {
 		return nil
 	}
-	cID := store.ResourceID("aws", acct.ID, TypeAppRunnerConnection, connArn)
+	cID := store.ResourceID("aws", acct.ID, connArn)
 	if _, ok := sets.connectionIDs[cID]; !ok {
 		return nil
 	}
@@ -210,7 +210,7 @@ func emitAppRunnerVPCConnectorEdge(st *store.Store, acct *account, s store.Resou
 	if vcArn == "" {
 		return nil
 	}
-	cID := store.ResourceID("aws", acct.ID, TypeAppRunnerVPCConnector, vcArn)
+	cID := store.ResourceID("aws", acct.ID, vcArn)
 	if _, ok := sets.connectorIDs[cID]; !ok {
 		return nil
 	}
@@ -232,7 +232,7 @@ func emitAppRunnerRoleEdges(st *store.Store, acct *account, s store.Resource, at
 		if roleARN == "" {
 			continue
 		}
-		rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+		rID := store.ResourceID("aws", acct.ID, roleARN)
 		if _, ok := sets.roleIDs[rID]; !ok {
 			continue
 		}
@@ -251,7 +251,7 @@ func emitAppRunnerECRRepoEdge(st *store.Store, acct *account, s store.Resource, 
 	if repoARN == "" {
 		return nil
 	}
-	rID := store.ResourceID("aws", acct.ID, TypeECRRepository, repoARN)
+	rID := store.ResourceID("aws", acct.ID, repoARN)
 	if _, ok := sets.repoIDs[rID]; !ok {
 		return nil
 	}
@@ -365,7 +365,7 @@ func resolveAppRunnerVPCConnectorTargets(acct *account, st *store.Store) error {
 				continue
 			}
 			snARN := ec2ARN(region, acct.ID, "subnet", snID)
-			sID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, snARN)
+			sID := store.ResourceID("aws", acct.ID, snARN)
 			if _, ok := subnetIDs[sID]; ok {
 				if err := st.UpsertRelationship(c.ID, sID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert apprunner vpc-connector→subnet: %w", err)
@@ -377,7 +377,7 @@ func resolveAppRunnerVPCConnectorTargets(acct *account, st *store.Store) error {
 				continue
 			}
 			sgARN := ec2ARN(region, acct.ID, "security-group", sgID)
-			rID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+			rID := store.ResourceID("aws", acct.ID, sgARN)
 			if _, ok := sgIDs[rID]; ok {
 				if err := st.UpsertRelationship(c.ID, rID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert apprunner vpc-connector→sg: %w", err)

@@ -93,8 +93,8 @@ func TestScanBackup_VaultVariantSplit(t *testing.T) {
 		t.Fatalf("total=%d want 2", total)
 	}
 
-	stdID := store.ResourceID("aws", acct.ID, TypeBackupVault, stdARN)
-	airID := store.ResourceID("aws", acct.ID, TypeBackupLogicallyAirGappedVault, airARN)
+	stdID := store.ResourceID("aws", acct.ID, stdARN)
+	airID := store.ResourceID("aws", acct.ID, airARN)
 	if _, err := st.GetResource(stdID); err != nil {
 		t.Errorf("standard vault missing: %v", err)
 	}

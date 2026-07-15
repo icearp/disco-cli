@@ -152,7 +152,7 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 		// of scope). Same-sub assignments fall through to the per-resource scope
 		// match below.
 		if other, ok := subscriptionFromScope(scope); ok && !strings.EqualFold(other, sub.ID) {
-			toID := store.ResourceID("azure", other, TypeSubscription, "/subscriptions/"+other)
+			toID := store.ResourceID("azure", other, "/subscriptions/"+other)
 			edgeAttrs := mustJSON(map[string]string{
 				"scope":              scope,
 				"scope-subscription": other,

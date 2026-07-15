@@ -161,7 +161,7 @@ func emitOpenSearchVPCEdges(st *store.Store, acct *account, d store.Resource, re
 	}
 	if vpcID := sv(attrs.VPCOptions.VPCId); vpcID != "" {
 		vpcARN := ec2ARN(region, acct.ID, "vpc", vpcID)
-		vID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
+		vID := store.ResourceID("aws", acct.ID, vpcARN)
 		if _, ok := sets.vpcIDs[vID]; ok {
 			if err := st.UpsertRelationship(d.ID, vID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert opensearch domain→vpc: %w", err)
@@ -173,7 +173,7 @@ func emitOpenSearchVPCEdges(st *store.Store, acct *account, d store.Resource, re
 			continue
 		}
 		sARN := ec2ARN(region, acct.ID, "subnet", sn)
-		sID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
+		sID := store.ResourceID("aws", acct.ID, sARN)
 		if _, ok := sets.subnetIDs[sID]; ok {
 			if err := st.UpsertRelationship(d.ID, sID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert opensearch domain→subnet: %w", err)
@@ -185,7 +185,7 @@ func emitOpenSearchVPCEdges(st *store.Store, acct *account, d store.Resource, re
 			continue
 		}
 		sgARN := ec2ARN(region, acct.ID, "security-group", sg)
-		sID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+		sID := store.ResourceID("aws", acct.ID, sgARN)
 		if _, ok := sets.sgIDs[sID]; ok {
 			if err := st.UpsertRelationship(d.ID, sID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert opensearch domain→sg: %w", err)
@@ -219,7 +219,7 @@ func emitOpenSearchCognitoEdges(st *store.Store, acct *account, d store.Resource
 	}
 	if upID := sv(attrs.CognitoOptions.UserPoolID); upID != "" {
 		upARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, upID)
-		uID := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, upARN)
+		uID := store.ResourceID("aws", acct.ID, upARN)
 		if _, ok := sets.userPoolIDs[uID]; ok {
 			if err := st.UpsertRelationship(d.ID, uID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert opensearch domain→user-pool: %w", err)
@@ -228,7 +228,7 @@ func emitOpenSearchCognitoEdges(st *store.Store, acct *account, d store.Resource
 	}
 	if ipID := sv(attrs.CognitoOptions.IdentityPoolID); ipID != "" {
 		ipARN := fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s", region, acct.ID, ipID)
-		iID := store.ResourceID("aws", acct.ID, TypeCognitoIdentityPool, ipARN)
+		iID := store.ResourceID("aws", acct.ID, ipARN)
 		if _, ok := sets.identityPoolIDs[iID]; ok {
 			if err := st.UpsertRelationship(d.ID, iID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert opensearch domain→identity-pool: %w", err)
@@ -236,7 +236,7 @@ func emitOpenSearchCognitoEdges(st *store.Store, acct *account, d store.Resource
 		}
 	}
 	if roleARN := sv(attrs.CognitoOptions.RoleArn); roleARN != "" {
-		rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+		rID := store.ResourceID("aws", acct.ID, roleARN)
 		if _, ok := sets.roleIDs[rID]; ok {
 			if err := st.UpsertRelationship(d.ID, rID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert opensearch domain→iam role: %w", err)
@@ -252,7 +252,7 @@ func emitOpenSearchLogGroupEdges(st *store.Store, acct *account, d store.Resourc
 		if arn == "" {
 			continue
 		}
-		lID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, arn)
+		lID := store.ResourceID("aws", acct.ID, arn)
 		if _, ok := sets.logGroupIDs[lID]; ok {
 			if err := st.UpsertRelationship(d.ID, lID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert opensearch domain→log-group: %w", err)

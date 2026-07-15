@@ -63,7 +63,7 @@ func resolveLakeFormationResourceTargets(acct *account, st *store.Store) error {
 			continue
 		}
 		if bucketARN := s3BucketARNFromLocation(sv(attrs.ResourceArn)); bucketARN != "" {
-			bID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bucketARN)
+			bID := store.ResourceID("aws", acct.ID, bucketARN)
 			if _, ok := bucketIDs[bID]; ok {
 				if err := st.UpsertRelationship(r.ID, bID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lakeformation resource→s3 bucket: %w", err)
@@ -71,7 +71,7 @@ func resolveLakeFormationResourceTargets(acct *account, st *store.Store) error {
 			}
 		}
 		if roleARN := sv(attrs.RoleArn); roleARN != "" {
-			rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			rID := store.ResourceID("aws", acct.ID, roleARN)
 			if _, ok := roleIDs[rID]; ok {
 				if err := st.UpsertRelationship(r.ID, rID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lakeformation resource→iam role: %w", err)

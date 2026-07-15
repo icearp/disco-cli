@@ -73,7 +73,7 @@ func scanLoggingSinksForScope(ctx context.Context, svc *logging.Service, sc orgS
 				AttributesJSON: mustJSON(s),
 				DiscoveredBy:   scanID,
 			})
-			sinkID := store.ResourceID("gcp", sc.Name, TypeLoggingSink, nativeID)
+			sinkID := store.ResourceID("gcp", sc.Name, nativeID)
 			pairs = append(pairs, [2]string{sinkID, sc.Resource})
 		}
 		if len(batch) == 0 {

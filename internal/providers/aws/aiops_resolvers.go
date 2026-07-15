@@ -68,7 +68,7 @@ func resolveAIOpsRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		if roleArn := sv(a.RoleArn); roleArn != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleArn)
+			roleID := store.ResourceID("aws", acct.ID, roleArn)
 			if _, ok := roleIDs[roleID]; ok {
 				if err := st.UpsertRelationship(g.ID, roleID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert aiops→iam-role: %w", err)
@@ -79,7 +79,7 @@ func resolveAIOpsRelationships(acct *account, st *store.Store) error {
 			if !strings.HasPrefix(topicARN, "arn:aws:sns:") {
 				continue
 			}
-			topicID := store.ResourceID("aws", acct.ID, TypeSNSTopic, topicARN)
+			topicID := store.ResourceID("aws", acct.ID, topicARN)
 			if _, ok := topicIDs[topicID]; ok {
 				if err := st.UpsertRelationship(g.ID, topicID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert aiops→sns: %w", err)

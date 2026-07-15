@@ -48,7 +48,7 @@ func resolveEventSchemasSchemaRegistry(acct *account, st *store.Store) error {
 			continue
 		}
 		regARN := prefix + ":registry/" + registryName
-		tgt := store.ResourceID("aws", acct.ID, TypeEventSchemasRegistry, regARN)
+		tgt := store.ResourceID("aws", acct.ID, regARN)
 		if !regSet[tgt] {
 			continue
 		}

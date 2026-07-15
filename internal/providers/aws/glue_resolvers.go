@@ -57,7 +57,7 @@ func resolveGlueTableDatabase(acct *account, st *store.Store) error {
 			continue
 		}
 		dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", sv(r.Region), acct.ID, *attrs.DatabaseName)
-		dbID := store.ResourceID("aws", acct.ID, TypeGlueDatabase, dbARN)
+		dbID := store.ResourceID("aws", acct.ID, dbARN)
 		if !dbSet[dbID] {
 			continue
 		}
@@ -111,7 +111,7 @@ func resolveGlueJobRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if roleARN := glueRoleARN(acct.ID, sv(attrs.Role)); roleARN != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			roleID := store.ResourceID("aws", acct.ID, roleARN)
 			if roleSet[roleID] {
 				if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue-job→role: %w", err)
@@ -120,7 +120,7 @@ func resolveGlueJobRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.Command != nil {
 			if bARN := s3BucketARNFromS3URL(sv(attrs.Command.ScriptLocation)); bARN != "" {
-				bID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bARN)
+				bID := store.ResourceID("aws", acct.ID, bARN)
 				if bucketSet[bID] {
 					if err := st.UpsertRelationship(r.ID, bID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert glue-job→bucket: %w", err)
@@ -168,7 +168,7 @@ func resolveGlueCrawlerRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if roleARN := glueRoleARN(acct.ID, sv(attrs.Role)); roleARN != "" {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			roleID := store.ResourceID("aws", acct.ID, roleARN)
 			if roleSet[roleID] {
 				if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue-crawler→role: %w", err)
@@ -177,7 +177,7 @@ func resolveGlueCrawlerRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.DatabaseName != nil && *attrs.DatabaseName != "" {
 			dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", sv(r.Region), acct.ID, *attrs.DatabaseName)
-			dbID := store.ResourceID("aws", acct.ID, TypeGlueDatabase, dbARN)
+			dbID := store.ResourceID("aws", acct.ID, dbARN)
 			if dbSet[dbID] {
 				if err := st.UpsertRelationship(r.ID, dbID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue-crawler→database: %w", err)
@@ -192,7 +192,7 @@ func resolveGlueCrawlerRefs(acct *account, st *store.Store) error {
 					continue
 				}
 				seen[bARN] = true
-				bID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bARN)
+				bID := store.ResourceID("aws", acct.ID, bARN)
 				if !bucketSet[bID] {
 					continue
 				}
@@ -250,7 +250,7 @@ func resolveGlueTableS3Location(acct *account, st *store.Store) error {
 		if bucketARN == "" {
 			continue
 		}
-		bID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bucketARN)
+		bID := store.ResourceID("aws", acct.ID, bucketARN)
 		if _, ok := bucketIDs[bID]; !ok {
 			continue
 		}

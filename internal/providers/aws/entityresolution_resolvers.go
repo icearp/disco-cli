@@ -73,7 +73,7 @@ func resolveEntityResolutionMatchingWorkflowRefs(acct *account, st *store.Store)
 		}
 		region := sv(r.Region)
 		if ra := sv(attrs.RoleArn); ra != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			tgt := store.ResourceID("aws", acct.ID, ra)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert er-mw→role: %w", err)
@@ -82,7 +82,7 @@ func resolveEntityResolutionMatchingWorkflowRefs(acct *account, st *store.Store)
 		}
 		for _, in := range attrs.InputSourceConfig {
 			if a := sv(in.InputSourceARN); a != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeGlueTable, a)
+				tgt := store.ResourceID("aws", acct.ID, a)
 				if tableSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert er-mw→glue-table: %w", err)
@@ -109,7 +109,7 @@ func resolveEntityResolutionMatchingWorkflowRefs(acct *account, st *store.Store)
 				}
 				seenBucket[bucket] = struct{}{}
 				bARN := "arn:aws:s3:::" + bucket
-				tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, bARN)
+				tgt := store.ResourceID("aws", acct.ID, bARN)
 				if !bucketSet[tgt] {
 					continue
 				}
@@ -176,23 +176,23 @@ func resolveEntityResolutionPolicyStatementToParent(acct *account, st *store.Sto
 		switch {
 		case strings.Contains(parent, "/matchingworkflow/"), strings.Contains(parent, ":matchingworkflow/"):
 			tgtType = TypeEntityResolutionMatchingWorkflow
-			present = mwSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
+			present = mwSet[store.ResourceID("aws", acct.ID, parent)]
 		case strings.Contains(parent, "/idmappingworkflow/"), strings.Contains(parent, ":idmappingworkflow/"):
 			tgtType = TypeEntityResolutionIDMappingWorkflow
-			present = imwSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
+			present = imwSet[store.ResourceID("aws", acct.ID, parent)]
 		case strings.Contains(parent, "/idnamespace/"), strings.Contains(parent, ":idnamespace/"):
 			tgtType = TypeEntityResolutionIDNamespace
-			present = insSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
+			present = insSet[store.ResourceID("aws", acct.ID, parent)]
 		case strings.Contains(parent, "/schemamapping/"), strings.Contains(parent, ":schemamapping/"):
 			tgtType = TypeEntityResolutionSchemaMapping
-			present = smSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
+			present = smSet[store.ResourceID("aws", acct.ID, parent)]
 		default:
 			continue
 		}
 		if !present {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert er policy-statement→%s: %w", tgtType, err)
 		}

@@ -56,7 +56,7 @@ func resolveIoTTwinMakerChildrenToWorkspace(acct *account, st *store.Store) erro
 			if ws == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeIoTTwinMakerWorkspace, ws)
+			tgtID := store.ResourceID("aws", acct.ID, ws)
 			if !wsSet[tgtID] {
 				continue
 			}

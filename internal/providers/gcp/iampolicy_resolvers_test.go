@@ -54,7 +54,7 @@ func TestResolveIAMPolicyRelationships(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing cross-project-iam edge, got kinds: %v", byKind)
 	}
-	wantID := store.ResourceID("gcp", "other", TypeProject, "other")
+	wantID := store.ResourceID("gcp", "other", "other")
 	if crossEdge.ToID != wantID {
 		t.Errorf("cross-project-iam target: got %q want %q", crossEdge.ToID, wantID)
 	}
@@ -345,7 +345,7 @@ func TestResolveIAMPolicyOrgRelationships_UnscannedSAPlaceholder(t *testing.T) {
 	if len(rels) != 1 || rels[0].Kind != store.RelOrgIAM {
 		t.Fatalf("expected 1 org-iam placeholder edge, got %+v", rels)
 	}
-	wantID := store.ResourceID("gcp", "unscanned-project", TypeProject, "unscanned-project")
+	wantID := store.ResourceID("gcp", "unscanned-project", "unscanned-project")
 	if rels[0].ToID != wantID {
 		t.Errorf("placeholder target: got %q want %q", rels[0].ToID, wantID)
 	}

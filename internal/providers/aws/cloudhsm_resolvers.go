@@ -82,7 +82,7 @@ func cloudHSMNetEdge(st *store.Store, acctID, srcID string, tgtSet map[string]bo
 	if rawID == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acctID, tgtType, ec2ARN(region, acctID, kind, rawID))
+	tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, kind, rawID))
 	if !tgtSet[tgtID] {
 		return nil
 	}
@@ -121,7 +121,7 @@ func resolveCloudHSMBackupCluster(acct *account, st *store.Store) error {
 			continue
 		}
 		clusterARN := fmt.Sprintf("arn:aws:cloudhsm:%s:%s:cluster/%s", sv(r.Region), acct.ID, cid)
-		tgtID := store.ResourceID("aws", acct.ID, TypeCloudHSMCluster, clusterARN)
+		tgtID := store.ResourceID("aws", acct.ID, clusterARN)
 		if !clusterSet[tgtID] {
 			continue
 		}

@@ -90,7 +90,7 @@ func resolveAppMeshChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeAppMeshMesh, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !meshSet[tgtID] {
 				continue
 			}
@@ -134,7 +134,7 @@ func resolveAppMeshGrandparent(acct *account, st *store.Store, childType, parent
 		if parent == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, parentType, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !parentSet[tgtID] {
 			continue
 		}

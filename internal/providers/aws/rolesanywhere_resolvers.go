@@ -44,7 +44,7 @@ func resolveRACRLToTrustAnchor(acct *account, st *store.Store) error {
 			continue
 		}
 		if a := sv(attrs.TrustAnchorArn); a != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeRolesAnywhereTrustAnchor, a)
+			tgtID := store.ResourceID("aws", acct.ID, a)
 			if taSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ra crl→ta: %w", err)
@@ -87,7 +87,7 @@ func resolveRAProfileRefs(acct *account, st *store.Store) error {
 			if ra == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			tgtID := store.ResourceID("aws", acct.ID, ra)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ra profile→role: %w", err)
@@ -98,7 +98,7 @@ func resolveRAProfileRefs(acct *account, st *store.Store) error {
 			if pa == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMPolicy, pa)
+			tgtID := store.ResourceID("aws", acct.ID, pa)
 			if polSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ra profile→policy: %w", err)

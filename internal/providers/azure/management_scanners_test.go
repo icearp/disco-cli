@@ -47,11 +47,11 @@ func TestScanManagementInto_StoresUnderTenant(t *testing.T) {
 	}
 
 	// Stored under the tenant account, not a subscription.
-	if _, err := st.GetResource(store.ResourceID("azure", tenantID, TypeManagementGroup, mgID)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("azure", tenantID, mgID)); err != nil {
 		t.Errorf("management group not stored under tenant account: %v", err)
 	}
 	// And NOT under the subscription account (the old per-sub behavior).
-	if _, err := st.GetResource(store.ResourceID("azure", testSubID, TypeManagementGroup, mgID)); err == nil {
+	if _, err := st.GetResource(store.ResourceID("azure", testSubID, mgID)); err == nil {
 		t.Error("management group unexpectedly stored under subscription account")
 	}
 }

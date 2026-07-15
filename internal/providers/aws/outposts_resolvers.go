@@ -43,7 +43,7 @@ func resolveOutpostSite(acct *account, st *store.Store) error {
 		if siteARN == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeOutpostsSite, siteARN)
+		tgtID := store.ResourceID("aws", acct.ID, siteARN)
 		if !siteSet[tgtID] {
 			continue
 		}

@@ -52,7 +52,7 @@ func resolveVpcLatticeREARefs(acct *account, st *store.Store) error {
 		if rcARN == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeVpcLatticeResourceConfiguration, rcARN)
+		tgtID := store.ResourceID("aws", acct.ID, rcARN)
 		if !rcSet[tgtID] {
 			continue
 		}
@@ -107,14 +107,14 @@ func resolveVpcLatticeALSRefs(acct *account, st *store.Store) error {
 		if src := sv(attrs.ResourceArn); src != "" {
 			switch {
 			case strings.Contains(src, ":service/"):
-				tgtID := store.ResourceID("aws", acct.ID, TypeVpcLatticeService, src)
+				tgtID := store.ResourceID("aws", acct.ID, src)
 				if svcSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert vpcl als→svc: %w", err)
 					}
 				}
 			case strings.Contains(src, ":servicenetwork/"):
-				tgtID := store.ResourceID("aws", acct.ID, TypeVpcLatticeServiceNetwork, src)
+				tgtID := store.ResourceID("aws", acct.ID, src)
 				if snSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert vpcl als→sn: %w", err)
@@ -123,28 +123,25 @@ func resolveVpcLatticeALSRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if dest := sv(attrs.DestinationArn); dest != "" {
-			var tgtType, tgtARN string
+			var tgtARN string
 			var present bool
 			switch {
 			case strings.HasPrefix(dest, "arn:aws:logs:"):
-				tgtType = TypeLogsLogGroup
 				tgtARN = strings.TrimSuffix(dest, ":*")
-				present = lgSet[store.ResourceID("aws", acct.ID, tgtType, tgtARN)]
+				present = lgSet[store.ResourceID("aws", acct.ID, tgtARN)]
 			case strings.HasPrefix(dest, "arn:aws:s3:"):
-				tgtType = TypeS3Bucket
 				tgtARN = dest
-				present = bktSet[store.ResourceID("aws", acct.ID, tgtType, tgtARN)]
+				present = bktSet[store.ResourceID("aws", acct.ID, tgtARN)]
 			case strings.HasPrefix(dest, "arn:aws:firehose:"):
-				tgtType = TypeFirehoseDeliveryStream
 				tgtARN = dest
-				present = fhSet[store.ResourceID("aws", acct.ID, tgtType, tgtARN)]
+				present = fhSet[store.ResourceID("aws", acct.ID, tgtARN)]
 			default:
 				continue
 			}
 			if !present {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+			tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert vpcl als→destination: %w", err)
 			}

@@ -53,7 +53,7 @@ func resolveWAFv2Relationships(acct *account, st *store.Store) error {
 			if arn == "" {
 				return nil
 			}
-			targetID := store.ResourceID("aws", acct.ID, targetType, arn)
+			targetID := store.ResourceID("aws", acct.ID, arn)
 			if seen[targetID] {
 				return nil
 			}

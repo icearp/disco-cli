@@ -116,7 +116,7 @@ func appFabricBundleEdge(st *store.Store, acctID, srcID string, bundleSet map[st
 	if bundleARN == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acctID, TypeAppFabricAppBundle, bundleARN)
+	tgtID := store.ResourceID("aws", acctID, bundleARN)
 	if !bundleSet[tgtID] {
 		return nil
 	}
@@ -156,7 +156,7 @@ func resolveAppFabricDestination(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		ingARN := appFabricParentARN(r.NativeID, "/ingestiondestination/")
 		if ingARN != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeAppFabricIngestion, ingARN)
+			tgtID := store.ResourceID("aws", acct.ID, ingARN)
 			if ingestionSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appfabric dest→ingestion: %w", err)
@@ -173,7 +173,7 @@ func resolveAppFabricDestination(acct *account, st *store.Store) error {
 			continue
 		}
 		if name := sv(attrs.S3BucketName); name != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+name)
+			tgtID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+name)
 			if bucketSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appfabric dest→s3: %w", err)
@@ -182,7 +182,7 @@ func resolveAppFabricDestination(acct *account, st *store.Store) error {
 		}
 		if name := sv(attrs.FirehoseStreamName); name != "" {
 			streamARN := fmt.Sprintf("arn:aws:firehose:%s:%s:deliverystream/%s", region, acct.ID, name)
-			tgtID := store.ResourceID("aws", acct.ID, TypeFirehoseDeliveryStream, streamARN)
+			tgtID := store.ResourceID("aws", acct.ID, streamARN)
 			if streamSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appfabric dest→firehose: %w", err)

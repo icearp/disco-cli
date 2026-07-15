@@ -50,8 +50,8 @@ func TestScanGKE_ClusterNodePoolChain(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	clusterID := store.ResourceID("gcp", p.ID, TypeGKECluster, clusterSelfLink)
-	npID := store.ResourceID("gcp", p.ID, TypeGKENodePool, npSelfLink)
+	clusterID := store.ResourceID("gcp", p.ID, clusterSelfLink)
+	npID := store.ResourceID("gcp", p.ID, npSelfLink)
 	if res, err := st.GetResource(npID); err != nil || res == nil {
 		t.Fatalf("GetResource(nodepool): res=%v err=%v", res, err)
 	}

@@ -72,7 +72,9 @@ func scanWAFv2LoggingConfigs(ctx context.Context, client wafv2API, acct *account
 			label := arn
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWAFv2LoggingConfiguration, NativeID: arn,
+				// NativeID must differ from the WebACL ARN (== ResourceArn) or the two
+				// would share one identity; suffix keeps it distinct + parent-derivable.
+				Type: TypeWAFv2LoggingConfiguration, NativeID: arn + "/logging-configuration",
 				Name: &label, Region: &region,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})

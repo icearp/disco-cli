@@ -65,7 +65,7 @@ func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project
 				}
 				bucketRefs = append(bucketRefs, bucketRef{
 					name: b.Name,
-					id:   store.ResourceID("gcp", p.ID, TypeStorageBucket, b.SelfLink),
+					id:   store.ResourceID("gcp", p.ID, b.SelfLink),
 				})
 				name := b.Name
 				region := b.Location
@@ -359,15 +359,17 @@ func scanBucketAccessControls(ctx context.Context, svc *storage.Service, st *sto
 	}
 	batch := make([]*store.Resource, 0, len(resp.Items))
 	for _, ac := range resp.Items {
-		if ac == nil || ac.Id == "" {
+		if ac == nil || ac.SelfLink == "" {
 			continue
 		}
 		batch = append(batch, &store.Resource{
-			Provider:       "gcp",
-			AccountID:      p.ID,
-			AccountName:    &p.Name,
-			Type:           TypeStorageBucketAccessControl,
-			NativeID:       ac.Id,
+			Provider:    "gcp",
+			AccountID:   p.ID,
+			AccountName: &p.Name,
+			Type:        TypeStorageBucketAccessControl,
+			// SelfLink (not Id): GCS returns the same Id ({bucket}/{entity}) for both
+			// bucket and default-object ACLs; only SelfLink differs by collection.
+			NativeID:       ac.SelfLink,
 			Name:           &ac.Entity,
 			AttributesJSON: mustJSON(ac),
 			DiscoveredBy:   scanID,
@@ -389,15 +391,17 @@ func scanDefaultObjectAccessControls(ctx context.Context, svc *storage.Service, 
 	}
 	batch := make([]*store.Resource, 0, len(resp.Items))
 	for _, ac := range resp.Items {
-		if ac == nil || ac.Id == "" {
+		if ac == nil || ac.SelfLink == "" {
 			continue
 		}
 		batch = append(batch, &store.Resource{
-			Provider:       "gcp",
-			AccountID:      p.ID,
-			AccountName:    &p.Name,
-			Type:           TypeStorageDefaultObjectAccessControl,
-			NativeID:       ac.Id,
+			Provider:    "gcp",
+			AccountID:   p.ID,
+			AccountName: &p.Name,
+			Type:        TypeStorageDefaultObjectAccessControl,
+			// SelfLink (not Id): shares Id namespace with bucket ACLs — see
+			// scanBucketAccessControls.
+			NativeID:       ac.SelfLink,
 			Name:           &ac.Entity,
 			AttributesJSON: mustJSON(ac),
 			DiscoveredBy:   scanID,

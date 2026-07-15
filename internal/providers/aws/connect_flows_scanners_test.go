@@ -112,7 +112,7 @@ func TestScanConnectFlows(t *testing.T) {
 		{TypeConnectContactFlowModuleVersion, mvARN},
 		{TypeConnectContactFlowModuleAlias, aARN},
 	} {
-		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, want.typ, want.id)); err != nil {
+		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, want.id)); err != nil {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}

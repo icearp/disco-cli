@@ -113,7 +113,7 @@ func resolveWisdomChildToParentByArnField(acct *account, st *store.Store, ctype,
 		if err := json.Unmarshal(raw, &arn); err != nil || arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, parentType, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !parentSet[tgtID] {
 			continue
 		}
@@ -205,7 +205,7 @@ func resolveWisdomVersionParent(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, p.ptype, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !parentSet[tgtID] {
 				continue
 			}
@@ -253,7 +253,7 @@ func resolveWisdomAssistantAssociationKnowledgeBase(acct *account, st *store.Sto
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeWisdomKnowledgeBase, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !kbSet[tgtID] {
 			continue
 		}

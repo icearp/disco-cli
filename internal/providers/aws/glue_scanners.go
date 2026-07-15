@@ -242,7 +242,7 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 		g.Go(func() error {
 			defer sem.Release(1)
 			pager := glue.NewGetTablesPaginator(client, &glue.GetTablesInput{DatabaseName: &dbName})
-			parentID := store.ResourceID("aws", acct.ID, TypeGlueDatabase, glueDatabaseARN(region, acct.ID, dbName))
+			parentID := store.ResourceID("aws", acct.ID, glueDatabaseARN(region, acct.ID, dbName))
 			for pager.HasMorePages() {
 				out, perr := pager.NextPage(gctx)
 				if perr != nil {
@@ -276,7 +276,7 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 					}
 					mu.Lock()
 					batch = append(batch, r)
-					pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, TypeGlueTable, arn), parentID})
+					pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, arn), parentID})
 					refs = append(refs, ref)
 					mu.Unlock()
 				}

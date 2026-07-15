@@ -75,7 +75,7 @@ func TestScanBatchSchedulingPolicies(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total=%d want 1", total)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBatchSchedulingPolicy, arn)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, arn)); err != nil {
 		t.Errorf("scheduling-policy missing: %v", err)
 	}
 }
@@ -98,7 +98,7 @@ func TestScanBatchConsumableResources(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total=%d want 1", total)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBatchConsumableResource, arn)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, arn)); err != nil {
 		t.Errorf("consumable resource missing: %v", err)
 	}
 }
@@ -126,7 +126,7 @@ func TestScanBatchServiceEnvironments(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total=%d want 1", total)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBatchServiceEnvironment, arn)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, arn)); err != nil {
 		t.Errorf("service environment missing: %v", err)
 	}
 }
@@ -157,7 +157,7 @@ func TestScanBatchQuotaShares(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total=%d want 1", total)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBatchQuotaShare, sARN)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, sARN)); err != nil {
 		t.Errorf("quota share missing: %v", err)
 	}
 }

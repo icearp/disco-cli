@@ -158,14 +158,14 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.Role != nil {
-			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, *attrs.Role)
+			roleID := store.ResourceID("aws", acct.ID, *attrs.Role)
 			if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lambda→role relationship: %w", err)
 			}
 		}
 		// Function → KMS (customer-managed env-var encryption)
 		if sv(attrs.KMSKeyArn) != "" {
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KMSKeyArn)
+			keyID := store.ResourceID("aws", acct.ID, *attrs.KMSKeyArn)
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lambda→kms relationship: %w", err)
 			}
@@ -175,7 +175,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 				if sn == "" {
 					continue
 				}
-				subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+				subnetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
 				if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lambda→subnet relationship: %w", err)
 				}
@@ -184,7 +184,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 				if sg == "" {
 					continue
 				}
-				sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+				sgID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lambda→security-group relationship: %w", err)
 				}
@@ -195,7 +195,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 			if sv(fs.Arn) == "" {
 				continue
 			}
-			apID := store.ResourceID("aws", acct.ID, TypeEFSAccessPoint, *fs.Arn)
+			apID := store.ResourceID("aws", acct.ID, *fs.Arn)
 			if err := st.UpsertRelationship(r.ID, apID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lambda→efs-access-point relationship: %w", err)
 			}
@@ -209,7 +209,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 		// Function → ECR repository for image-package functions.
 		if attrs.Code != nil && sv(attrs.Code.ImageURI) != "" {
 			if repoARN := apprunnerImageToRepoARN(*attrs.Code.ImageURI); repoARN != "" {
-				repoID := store.ResourceID("aws", acct.ID, TypeECRRepository, repoARN)
+				repoID := store.ResourceID("aws", acct.ID, repoARN)
 				if ecrSet[repoID] {
 					if err := st.UpsertRelationship(r.ID, repoID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert lambda→ecr-repository relationship: %w", err)
@@ -232,12 +232,12 @@ func emitLambdaSQSOrSNSEdge(st *store.Store, srcID, targetARN, acctID string, sq
 	var tgtID string
 	switch parts[2] {
 	case "sqs":
-		tgtID = store.ResourceID("aws", acctID, TypeSQSQueue, targetARN)
+		tgtID = store.ResourceID("aws", acctID, targetARN)
 		if !sqsSet[tgtID] {
 			return nil
 		}
 	case "sns":
-		tgtID = store.ResourceID("aws", acctID, TypeSNSTopic, targetARN)
+		tgtID = store.ResourceID("aws", acctID, targetARN)
 		if !snsSet[tgtID] {
 			return nil
 		}
@@ -263,7 +263,7 @@ func resolveLambdaAliasRelationships(acct *account, st *store.Store) error {
 		if fnARN == r.NativeID {
 			continue // no qualifier to strip; skip
 		}
-		fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
+		fnID := store.ResourceID("aws", acct.ID, fnARN)
 		if err := st.UpsertRelationship(r.ID, fnID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert lambda alias→function: %w", err)
 		}
@@ -286,7 +286,7 @@ func resolveLambdaVersionRelationships(acct *account, st *store.Store) error {
 		if fnARN == r.NativeID {
 			continue
 		}
-		fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
+		fnID := store.ResourceID("aws", acct.ID, fnARN)
 		if err := st.UpsertRelationship(r.ID, fnID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert lambda version→function: %w", err)
 		}
@@ -315,7 +315,7 @@ func resolveLambdaESMRelationships(acct *account, st *store.Store) error {
 		}
 		fnARN := lambdaStripQualifier(sv(attrs.FunctionArn))
 		if fnARN != "" {
-			fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
+			fnID := store.ResourceID("aws", acct.ID, fnARN)
 			if err := st.UpsertRelationship(r.ID, fnID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lambda ESM→function: %w", err)
 			}
@@ -330,7 +330,7 @@ func resolveLambdaESMRelationships(acct *account, st *store.Store) error {
 		if srcType == "" {
 			continue // unsupported/unknown source (e.g. self-managed Kafka bootstrap server, DocumentDB)
 		}
-		srcID := store.ResourceID("aws", acct.ID, srcType, srcARN)
+		srcID := store.ResourceID("aws", acct.ID, srcARN)
 		if err := st.UpsertRelationship(r.ID, srcID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert lambda ESM→source relationship: %w", err)
 		}
@@ -406,7 +406,7 @@ func resolveLambdaEventInvokeConfigRelationships(acct *account, st *store.Store)
 	for _, r := range resources {
 		fnARN := lambdaStripQualifier(r.NativeID)
 		if fnARN != r.NativeID {
-			fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
+			fnID := store.ResourceID("aws", acct.ID, fnARN)
 			if err := st.UpsertRelationship(r.ID, fnID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lambda event-invoke-config→function: %w", err)
 			}
@@ -454,23 +454,22 @@ func emitLambdaDestinationEdge(st *store.Store, srcID, destARN, acctID string, s
 	if len(parts) < 6 {
 		return nil
 	}
-	var tgtType string
 	var set map[string]bool
 	switch parts[2] {
 	case "sqs":
-		tgtType, set = TypeSQSQueue, sqsSet
+		set = sqsSet
 	case "sns":
-		tgtType, set = TypeSNSTopic, snsSet
+		set = snsSet
 	case "events":
-		tgtType, set = TypeEventsEventBus, busSet
+		set = busSet
 	case "lambda":
 		// Strip alias / version qualifier from function ARN before lookup.
 		destARN = lambdaStripQualifier(destARN)
-		tgtType, set = TypeLambdaFunction, fnSet
+		set = fnSet
 	default:
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acctID, tgtType, destARN)
+	tgtID := store.ResourceID("aws", acctID, destARN)
 	if !set[tgtID] {
 		return nil
 	}
@@ -492,7 +491,7 @@ func resolveLambdaFunctionURLRelationships(acct *account, st *store.Store) error
 		if fnARN == r.NativeID {
 			continue
 		}
-		fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
+		fnID := store.ResourceID("aws", acct.ID, fnARN)
 		if err := st.UpsertRelationship(r.ID, fnID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert lambda url→function: %w", err)
 		}
@@ -522,7 +521,7 @@ func resolveLambdaCodeSigningConfigRelationships(acct *account, st *store.Store)
 		if cscARN == "" {
 			continue
 		}
-		cscID := store.ResourceID("aws", acct.ID, TypeLambdaCodeSigningConfig, cscARN)
+		cscID := store.ResourceID("aws", acct.ID, cscARN)
 		if err := st.UpsertRelationship(r.ID, cscID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert lambda function→code-signing-config: %w", err)
 		}
@@ -562,7 +561,7 @@ func resolveLambdaLayerRelationships(acct *account, st *store.Store) error {
 			if layerARN == "" {
 				continue
 			}
-			layerID := store.ResourceID("aws", acct.ID, TypeLambdaLayerVersion, layerARN)
+			layerID := store.ResourceID("aws", acct.ID, layerARN)
 			if !layerSet[layerID] {
 				continue
 			}
@@ -600,7 +599,7 @@ func resolveLambdaPermissionRelationships(acct *account, st *store.Store) error 
 		// recover the parent function ARN; emit AttachedTo edge.
 		fnARN := strings.TrimSuffix(p.NativeID, "/policy")
 		if fnARN != p.NativeID {
-			fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
+			fnID := store.ResourceID("aws", acct.ID, fnARN)
 			if err := st.UpsertRelationship(p.ID, fnID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lambda permission→function: %w", err)
 			}
@@ -728,7 +727,7 @@ func resolveLambdaLayerVersionPermissionRelationships(acct *account, st *store.S
 		if layerARN == p.NativeID {
 			continue
 		}
-		layerID := store.ResourceID("aws", acct.ID, TypeLambdaLayerVersion, layerARN)
+		layerID := store.ResourceID("aws", acct.ID, layerARN)
 		if err := st.UpsertRelationship(p.ID, layerID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert lambda layer-version-permission→layer-version: %w", err)
 		}

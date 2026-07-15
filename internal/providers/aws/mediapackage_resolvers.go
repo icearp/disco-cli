@@ -64,7 +64,7 @@ func resolveMPV1OriginEndpointToChannel(acct *account, st *store.Store) error {
 		if cid == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeMediaPackageChannel, mediapackageARN(sv(r.Region), acct.ID, "channels", cid))
+		tgtID := store.ResourceID("aws", acct.ID, mediapackageARN(sv(r.Region), acct.ID, "channels", cid))
 		if !chSet[tgtID] {
 			continue
 		}
@@ -110,7 +110,7 @@ func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if pg := sv(attrs.PackagingGroupID); pg != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeMediaPackagePackagingGroup, mediapackageARN(region, acct.ID, "packaging-groups", pg))
+			tgtID := store.ResourceID("aws", acct.ID, mediapackageARN(region, acct.ID, "packaging-groups", pg))
 			if pgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mp asset→pg: %w", err)
@@ -123,7 +123,7 @@ func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 			if i := strings.Index(src, "/"); i >= 0 && strings.HasPrefix(src, "arn:aws:s3:::") {
 				bktARN = src[:i]
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bktARN)
+			tgtID := store.ResourceID("aws", acct.ID, bktARN)
 			if bktSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mp asset→s3: %w", err)
@@ -131,7 +131,7 @@ func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.SourceRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mp asset→role: %w", err)
@@ -169,7 +169,7 @@ func resolveMPV1PackagingConfigToGroup(acct *account, st *store.Store) error {
 		if pg == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeMediaPackagePackagingGroup, mediapackageARN(sv(r.Region), acct.ID, "packaging-groups", pg))
+		tgtID := store.ResourceID("aws", acct.ID, mediapackageARN(sv(r.Region), acct.ID, "packaging-groups", pg))
 		if !pgSet[tgtID] {
 			continue
 		}
@@ -202,7 +202,7 @@ func resolveMPV2ChildrenToChannelGroup(acct *account, st *store.Store) error {
 		return err
 	}
 	emit := func(srcID, tgtType, tgtARN string, set map[string]bool) error {
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+		tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 		if !set[tgtID] {
 			return nil
 		}

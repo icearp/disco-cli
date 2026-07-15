@@ -165,7 +165,7 @@ func resolveInstanceProfileRoles(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || len(attrs.Roles) == 0 || attrs.Roles[0].Arn == nil {
 			continue
 		}
-		roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, *attrs.Roles[0].Arn)
+		roleID := store.ResourceID("aws", acct.ID, *attrs.Roles[0].Arn)
 		if err := st.UpsertRelationship(roleID, r.ID, store.RelContains, "directed", nil); err != nil {
 			return fmt.Errorf("upsert role→instance-profile: %w", err)
 		}
@@ -194,12 +194,7 @@ func resolveInlinePolicyParents(acct *account, st *store.Store) error {
 			continue
 		}
 		parentARN := r.NativeID[:idx]
-		// Determine role type from ARN: service-linked roles have /aws-service-role/ in the path.
-		pt := TypeIAMRole
-		if strings.Contains(parentARN, "/aws-service-role/") {
-			pt = TypeIAMServiceLinkedRole
-		}
-		parentID := store.ResourceID("aws", acct.ID, pt, parentARN)
+		parentID := store.ResourceID("aws", acct.ID, parentARN)
 		if err := st.UpsertRelationship(parentID, r.ID, store.RelContains, "directed", nil); err != nil {
 			return fmt.Errorf("upsert role-policy parent: %w", err)
 		}
@@ -228,7 +223,7 @@ func resolveInlinePolicyParents(acct *account, st *store.Store) error {
 			if idx < 0 {
 				continue
 			}
-			parentID := store.ResourceID("aws", acct.ID, e.parentType, r.NativeID[:idx])
+			parentID := store.ResourceID("aws", acct.ID, r.NativeID[:idx])
 			if err := st.UpsertRelationship(parentID, r.ID, store.RelContains, "directed", nil); err != nil {
 				return fmt.Errorf("upsert %s parent: %w", e.policyType, err)
 			}
@@ -254,7 +249,7 @@ func resolveAccessKeyUsers(acct *account, st *store.Store) error {
 		if idx < 0 {
 			continue
 		}
-		userID := store.ResourceID("aws", acct.ID, TypeIAMUser, r.NativeID[:idx])
+		userID := store.ResourceID("aws", acct.ID, r.NativeID[:idx])
 		if err := st.UpsertRelationship(userID, r.ID, store.RelContains, "directed", nil); err != nil {
 			return fmt.Errorf("upsert user→access-key: %w", err)
 		}
@@ -306,7 +301,7 @@ func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 		if attrs.User == nil || attrs.User.Arn == nil {
 			continue // unassigned device
 		}
-		userID := store.ResourceID("aws", acct.ID, TypeIAMUser, *attrs.User.Arn)
+		userID := store.ResourceID("aws", acct.ID, *attrs.User.Arn)
 		if _, ok := userByID[userID]; !ok {
 			continue // root or unscanned user — no IAM-user resource to link to
 		}
@@ -443,16 +438,10 @@ func resolveIAMRoleFederatedTrust(acct *account, st *store.Store) error {
 		}
 		for _, stmt := range policy.Statement {
 			for _, arn := range stmt.Principal.Federated {
-				var providerType string
-				switch {
-				case strings.Contains(arn, ":saml-provider/"):
-					providerType = TypeIAMSAMLProvider
-				case strings.Contains(arn, ":oidc-provider/"):
-					providerType = TypeIAMOIDCProvider
-				default:
+				if !strings.Contains(arn, ":saml-provider/") && !strings.Contains(arn, ":oidc-provider/") {
 					continue
 				}
-				targetID := store.ResourceID("aws", acct.ID, providerType, arn)
+				targetID := store.ResourceID("aws", acct.ID, arn)
 				if err := st.UpsertRelationship(r.ID, targetID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert role→federated-provider: %w", err)
 				}
@@ -682,7 +671,7 @@ func lookupTargetID(ref, rtype, acctID string, set map[string]struct{}) (string,
 	if strings.ContainsAny(ref, "*?") {
 		return "", false
 	}
-	id := store.ResourceID("aws", acctID, rtype, ref)
+	id := store.ResourceID("aws", acctID, ref)
 	if _, ok := set[id]; ok {
 		return id, true
 	}
@@ -1122,7 +1111,7 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 	}
 
 	for _, e := range edges {
-		toID := store.ResourceID("aws", e.acctID, TypeIAMAccount, fmt.Sprintf("arn:aws:iam::%s:root", e.acctID))
+		toID := store.ResourceID("aws", e.acctID, fmt.Sprintf("arn:aws:iam::%s:root", e.acctID))
 		attrs := mustJSON(map[string]string{"principal": e.principal, "trust-account": e.acctID})
 		if err := st.UpsertRelationship(e.fromID, toID, store.RelCrossAccountTrust, "directed", &attrs); err != nil {
 			return fmt.Errorf("upsert cross-account-trust: %w", err)
@@ -1250,7 +1239,7 @@ func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
 			continue
 		}
 		boundaryARN := sv(attrs.PermissionsBoundary.PermissionsBoundaryArn)
-		toID := store.ResourceID("aws", acct.ID, TypeIAMPolicy, boundaryARN)
+		toID := store.ResourceID("aws", acct.ID, boundaryARN)
 		if _, ok := policyIDSet[toID]; !ok {
 			continue
 		}

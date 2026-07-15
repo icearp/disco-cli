@@ -59,7 +59,7 @@ func TestScanRAMPermissions_ManagedCatalogueDedup(t *testing.T) {
 	}
 
 	// Managed row exists exactly once and is tagged global.
-	mgr, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeRAMPermission, managedARN))
+	mgr, err := st.GetResource(store.ResourceID("aws", acct.ID, managedARN))
 	if err != nil {
 		t.Fatalf("managed permission row missing: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestScanRAMPermissions_ManagedCatalogueDedup(t *testing.T) {
 		{custEastARN, "us-east-1"},
 		{custWestARN, "us-west-2"},
 	} {
-		r, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeRAMPermission, c.arn))
+		r, err := st.GetResource(store.ResourceID("aws", acct.ID, c.arn))
 		if err != nil {
 			t.Errorf("customer permission %s missing: %v", c.arn, err)
 			continue

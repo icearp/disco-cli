@@ -126,7 +126,7 @@ func resolveRSSRecoveryPointRefs(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeRedshiftServerlessNamespace, arn)
+		tgt := store.ResourceID("aws", acct.ID, arn)
 		if nsSet[tgt] {
 			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert rss recovery-point→namespace: %w", err)
@@ -179,7 +179,7 @@ func resolveRSSNamespaceRefs(acct *account, st *store.Store) error {
 			if role == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if !roleSet[tgtID] {
 				continue
 			}
@@ -226,7 +226,7 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if n := sv(attrs.NamespaceName); n != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeRedshiftServerlessNamespace, rssNamespaceARN(region, acct.ID, n))
+			tgtID := store.ResourceID("aws", acct.ID, rssNamespaceARN(region, acct.ID, n))
 			if nsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rss wg→ns: %w", err)
@@ -237,7 +237,7 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 			if sid == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sid))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sid))
 			if !subSet[tgtID] {
 				continue
 			}
@@ -249,7 +249,7 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 			if gid == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", gid))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", gid))
 			if !sgSet[tgtID] {
 				continue
 			}
@@ -291,7 +291,7 @@ func resolveRSSSnapshotRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if n := sv(attrs.NamespaceName); n != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeRedshiftServerlessNamespace, rssNamespaceARN(region, acct.ID, n))
+			tgtID := store.ResourceID("aws", acct.ID, rssNamespaceARN(region, acct.ID, n))
 			if nsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rss snap→ns: %w", err)

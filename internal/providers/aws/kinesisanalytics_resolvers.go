@@ -65,7 +65,7 @@ func resolveKAV2AppRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if ra := sv(attrs.ServiceExecutionRole); ra != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			tgt := store.ResourceID("aws", acct.ID, ra)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ka v2 app→role: %w", err)
@@ -75,7 +75,7 @@ func resolveKAV2AppRefs(acct *account, st *store.Store) error {
 		for _, lo := range attrs.CloudWatchLoggingOptionDescriptions {
 			if ls := sv(lo.LogStreamARN); ls != "" {
 				lg := kaLogStreamARNToGroupARN(ls)
-				tgt := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, lg)
+				tgt := store.ResourceID("aws", acct.ID, lg)
 				if lgSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert ka v2 app→log-group: %w", err)
@@ -114,7 +114,7 @@ func wireKAChildren(acct *account, st *store.Store, parentType string, kids []st
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, parentType, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !parentSet[tgtID] {
 				continue
 			}

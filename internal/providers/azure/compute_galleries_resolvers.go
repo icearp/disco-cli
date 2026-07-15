@@ -45,7 +45,7 @@ func resolveGalleryImageRelationships(sub *subscription, st *store.Store) error 
 		if galleryNativeID == "" {
 			continue
 		}
-		galleryID := store.ResourceID("azure", sub.ID, TypeComputeGallery, galleryNativeID)
+		galleryID := store.ResourceID("azure", sub.ID, galleryNativeID)
 		if err := st.UpsertRelationship(r.ID, galleryID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert galleryImage→gallery relationship: %w", err)
 		}
@@ -70,7 +70,7 @@ func resolveGalleryImageVersionRelationships(sub *subscription, st *store.Store)
 		if imageNativeID == "" {
 			continue
 		}
-		imageID := store.ResourceID("azure", sub.ID, TypeComputeGalleryImage, imageNativeID)
+		imageID := store.ResourceID("azure", sub.ID, imageNativeID)
 		if err := st.UpsertRelationship(r.ID, imageID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert galleryImageVersion→galleryImage relationship: %w", err)
 		}
@@ -95,7 +95,7 @@ func resolveGalleryApplicationRelationships(sub *subscription, st *store.Store) 
 		if galleryNativeID == "" {
 			continue
 		}
-		galleryID := store.ResourceID("azure", sub.ID, TypeComputeGallery, galleryNativeID)
+		galleryID := store.ResourceID("azure", sub.ID, galleryNativeID)
 		if err := st.UpsertRelationship(r.ID, galleryID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert galleryApplication→gallery relationship: %w", err)
 		}
@@ -120,7 +120,7 @@ func resolveGalleryApplicationVersionRelationships(sub *subscription, st *store.
 		if appNativeID == "" {
 			continue
 		}
-		appID := store.ResourceID("azure", sub.ID, TypeComputeGalleryApplication, appNativeID)
+		appID := store.ResourceID("azure", sub.ID, appNativeID)
 		if err := st.UpsertRelationship(r.ID, appID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert galleryApplicationVersion→galleryApplication relationship: %w", err)
 		}
@@ -146,7 +146,7 @@ func resolveGalleryInVMACPRelationships(sub *subscription, st *store.Store) erro
 		if galleryNativeID == "" {
 			continue
 		}
-		galleryID := store.ResourceID("azure", sub.ID, TypeComputeGallery, galleryNativeID)
+		galleryID := store.ResourceID("azure", sub.ID, galleryNativeID)
 		if err := st.UpsertRelationship(r.ID, galleryID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert galleryInVMACP→gallery relationship: %w", err)
 		}
@@ -172,7 +172,7 @@ func resolveGalleryInVMACPVersionRelationships(sub *subscription, st *store.Stor
 		if profileNativeID == "" {
 			continue
 		}
-		profileID := store.ResourceID("azure", sub.ID, TypeComputeGalleryInVMACP, profileNativeID)
+		profileID := store.ResourceID("azure", sub.ID, profileNativeID)
 		if err := st.UpsertRelationship(r.ID, profileID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert galleryInVMACPVersion→galleryInVMACP relationship: %w", err)
 		}

@@ -65,12 +65,12 @@ func resolveControlTowerBaselineTarget(acct *account, st *store.Store) error {
 		var targetID string
 		switch {
 		case strings.Contains(target, ":account/"):
-			targetID = store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, target)
+			targetID = store.ResourceID("aws", acct.ID, target)
 			if _, ok := acctIDs[targetID]; !ok {
 				continue
 			}
 		case strings.Contains(target, ":ou/"):
-			targetID = store.ResourceID("aws", acct.ID, TypeOrganizationsOU, target)
+			targetID = store.ResourceID("aws", acct.ID, target)
 			if _, ok := ouIDs[targetID]; !ok {
 				continue
 			}

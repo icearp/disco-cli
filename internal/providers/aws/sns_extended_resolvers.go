@@ -57,7 +57,7 @@ func resolveSNSSubscriptionRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if t := sv(attrs.TopicArn); t != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, t)
+			tgtID := store.ResourceID("aws", acct.ID, t)
 			if topicSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sns sub→topic: %w", err)
@@ -70,14 +70,14 @@ func resolveSNSSubscriptionRefs(acct *account, st *store.Store) error {
 		}
 		switch sv(attrs.Protocol) {
 		case "lambda":
-			tgtID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, ep)
+			tgtID := store.ResourceID("aws", acct.ID, ep)
 			if fnSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sns sub→lambda: %w", err)
 				}
 			}
 		case "sqs":
-			tgtID := store.ResourceID("aws", acct.ID, TypeSQSQueue, ep)
+			tgtID := store.ResourceID("aws", acct.ID, ep)
 			if qSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sns sub→sqs: %w", err)
@@ -109,7 +109,7 @@ func resolveSNSTopicPolicyToTopic(acct *account, st *store.Store) error {
 		if parent == r.NativeID {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !topicSet[tgtID] {
 			continue
 		}

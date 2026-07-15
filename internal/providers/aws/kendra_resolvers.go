@@ -53,7 +53,7 @@ func resolveKendraIndexRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if rarn := sv(attrs.RoleArn); strings.Contains(rarn, ":role/") {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			tgt := store.ResourceID("aws", acct.ID, rarn)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert kendra-index→role: %w", err)
@@ -98,7 +98,7 @@ func resolveKendraChildToIndex(acct *account, st *store.Store) error {
 				continue
 			}
 			parent := r.NativeID[:i]
-			tgtID := store.ResourceID("aws", acct.ID, TypeKendraIndex, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !idxSet[tgtID] {
 				continue
 			}

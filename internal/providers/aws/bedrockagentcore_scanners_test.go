@@ -169,7 +169,7 @@ func TestScanBACBrowsersAndCodeInterpreters_SystemVsCustom(t *testing.T) {
 		{TypeBedrockAgentCoreCodeInterpreterCustom, custCIArn, false},
 		{TypeBedrockAgentCoreCodeInterpreter, sysCIArn, true},
 	} {
-		r, err := st.GetResource(store.ResourceID("aws", acct.ID, tc.rtype, tc.arn))
+		r, err := st.GetResource(store.ResourceID("aws", acct.ID, tc.arn))
 		if err != nil {
 			t.Errorf("%s missing: %v", tc.rtype, err)
 			continue

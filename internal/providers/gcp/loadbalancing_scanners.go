@@ -65,7 +65,7 @@ func scanLoadBalancing(ctx context.Context, p *project, st *store.Store, scanID 
 // to the project parent — centralizes boilerplate shared by the LB
 // sub-phases. Equivalent to upsertWithParent with the project's resource ID.
 func upsertWithProjClosure(p *project, st *store.Store, batch []*store.Resource) (int, int, error) {
-	return upsertWithParent(st, batch, store.ResourceID("gcp", p.ID, TypeProject, p.ID))
+	return upsertWithParent(st, batch, store.ResourceID("gcp", p.ID, p.ID))
 }
 
 // upsertWithParent upserts a batch and fans out hierarchy_closure pairs to a
@@ -83,7 +83,7 @@ func upsertWithParent(st *store.Store, batch []*store.Resource, parentID string)
 	pairs := make([][2]string, 0, len(batch))
 	for _, r := range batch {
 		pairs = append(pairs, [2]string{
-			store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
+			store.ResourceID(r.Provider, r.AccountID, r.NativeID),
 			parentID,
 		})
 	}

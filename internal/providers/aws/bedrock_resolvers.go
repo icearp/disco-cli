@@ -104,7 +104,7 @@ func resolveBedrockKBStorageRefs(acct *account, st *store.Store) error {
 		if tgtARN == "" {
 			return nil
 		}
-		tgtID := store.ResourceID("aws", acct.ID, ttype, tgtARN)
+		tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 		if !set[tgtID] {
 			return nil
 		}
@@ -214,7 +214,7 @@ func resolveBedrockDataSourceRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.DataSourceConfiguration != nil && attrs.DataSourceConfiguration.S3Configuration != nil {
 			if b := sv(attrs.DataSourceConfiguration.S3Configuration.BucketArn); b != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, b)
+				tgtID := store.ResourceID("aws", acct.ID, b)
 				if s3Set[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert bedrock ds→s3: %w", err)
@@ -257,7 +257,7 @@ func resolveBedrockARPolicyVersion(acct *account, st *store.Store) error {
 			continue
 		}
 		parent := r.NativeID[:i]
-		tgtID := store.ResourceID("aws", acct.ID, TypeBedrockAutomatedReasoningPolicy, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !pSet[tgtID] {
 			continue
 		}
@@ -307,7 +307,7 @@ func resolveBedrockAgentRefs(acct *account, st *store.Store) error {
 		if !strings.HasPrefix(ref, "arn:") {
 			gARN = bedrockGuardrailARN(sv(r.Region), acct.ID, ref)
 		}
-		gID := store.ResourceID("aws", acct.ID, TypeBedrockGuardrail, gARN)
+		gID := store.ResourceID("aws", acct.ID, gARN)
 		if !guardSet[gID] {
 			continue
 		}
@@ -342,7 +342,7 @@ func resolveBedrockAgentAlias(acct *account, st *store.Store) error {
 		}
 		head := r.NativeID[:idx] // arn:...:agent-alias/{agentID}
 		agentARN := strings.Replace(head, ":agent-alias/", ":agent/", 1)
-		agentID := store.ResourceID("aws", acct.ID, TypeBedrockAgent, agentARN)
+		agentID := store.ResourceID("aws", acct.ID, agentARN)
 		if !agentSet[agentID] {
 			continue
 		}
@@ -378,8 +378,9 @@ func resolveBedrockDataSourceKB(acct *account, st *store.Store) error {
 		if kb == "" {
 			continue
 		}
-		kbID := store.ResourceID("aws", acct.ID, TypeBedrockKnowledgeBase,
+		kbID := store.ResourceID("aws", acct.ID,
 			bedrockKBARN(sv(r.Region), acct.ID, kb))
+
 		if !kbSet[kbID] {
 			continue
 		}
@@ -428,7 +429,7 @@ func resolveBedrockVersionParent(acct *account, st *store.Store, childType, pare
 			continue
 		}
 		parentARN := r.NativeID[:idx]
-		parentID := store.ResourceID("aws", acct.ID, parentType, parentARN)
+		parentID := store.ResourceID("aws", acct.ID, parentARN)
 		if !parentSet[parentID] {
 			continue
 		}

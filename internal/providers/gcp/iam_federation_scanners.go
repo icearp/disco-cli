@@ -138,7 +138,7 @@ func scanIAMWorkforcePools(ctx context.Context, svc *iam.Service, sc orgScope, s
 func scanIAMWorkforceProviders(ctx context.Context, svc *iam.Service, sc orgScope, poolNativeIDs []string, st *store.Store, scanID string) (total, inserted int, providerNativeIDs []string, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, poolNativeIDs, func(gctx context.Context, poolNativeID string) error {
-		poolID := store.ResourceID("gcp", sc.Name, TypeIAMWorkforcePool, poolNativeID)
+		poolID := store.ResourceID("gcp", sc.Name, poolNativeID)
 		var batch []*store.Resource
 		var provNativeIDs []string
 		listErr := svc.Locations.WorkforcePools.Providers.List(poolNativeID).Pages(gctx, func(page *iam.ListWorkforcePoolProvidersResponse) error {
@@ -185,7 +185,7 @@ func scanIAMWorkforceProviders(ctx context.Context, svc *iam.Service, sc orgScop
 func scanIAMWorkforceScimTenants(ctx context.Context, svc *iam.Service, sc orgScope, providerNativeIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, providerNativeIDs, func(gctx context.Context, providerNativeID string) error {
-		providerID := store.ResourceID("gcp", sc.Name, TypeIAMProvider, providerNativeID)
+		providerID := store.ResourceID("gcp", sc.Name, providerNativeID)
 		var batch []*store.Resource
 		listErr := svc.Locations.WorkforcePools.Providers.ScimTenants.List(providerNativeID).Pages(gctx, func(page *iam.ListWorkforcePoolProviderScimTenantsResponse) error {
 			for _, tenant := range page.WorkforcePoolProviderScimTenants {
@@ -370,7 +370,7 @@ func scanIAMWorkloadIdentityPools(ctx context.Context, svc *iam.Service, p *proj
 func scanIAMWorkloadIdentityProviders(ctx context.Context, svc *iam.Service, p *project, poolNativeIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, poolNativeIDs, func(gctx context.Context, poolNativeID string) error {
-		poolID := store.ResourceID("gcp", p.ID, TypeIAMWorkloadIdentityPool, poolNativeID)
+		poolID := store.ResourceID("gcp", p.ID, poolNativeID)
 		var batch []*store.Resource
 		listErr := svc.Projects.Locations.WorkloadIdentityPools.Providers.List(poolNativeID).Pages(gctx, func(page *iam.ListWorkloadIdentityPoolProvidersResponse) error {
 			for _, wipp := range page.WorkloadIdentityPoolProviders {
@@ -416,7 +416,7 @@ func scanIAMWorkloadIdentityProviders(ctx context.Context, svc *iam.Service, p *
 func scanIAMWorkloadIdentityNamespaces(ctx context.Context, svc *iam.Service, p *project, poolNativeIDs []string, st *store.Store, scanID string) (total, inserted int, namespaceNativeIDs []string, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, poolNativeIDs, func(gctx context.Context, poolNativeID string) error {
-		poolID := store.ResourceID("gcp", p.ID, TypeIAMWorkloadIdentityPool, poolNativeID)
+		poolID := store.ResourceID("gcp", p.ID, poolNativeID)
 		var batch []*store.Resource
 		var nsNativeIDs []string
 		listErr := svc.Projects.Locations.WorkloadIdentityPools.Namespaces.List(poolNativeID).Pages(gctx, func(page *iam.ListWorkloadIdentityPoolNamespacesResponse) error {
@@ -464,7 +464,7 @@ func scanIAMWorkloadIdentityNamespaces(ctx context.Context, svc *iam.Service, p 
 func scanIAMWorkloadIdentityManagedIdentities(ctx context.Context, svc *iam.Service, p *project, namespaceNativeIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, namespaceNativeIDs, func(gctx context.Context, nsNativeID string) error {
-		nsID := store.ResourceID("gcp", p.ID, TypeIAMNamespace, nsNativeID)
+		nsID := store.ResourceID("gcp", p.ID, nsNativeID)
 		var batch []*store.Resource
 		listErr := svc.Projects.Locations.WorkloadIdentityPools.Namespaces.ManagedIdentities.List(nsNativeID).Pages(gctx, func(page *iam.ListWorkloadIdentityPoolManagedIdentitiesResponse) error {
 			for _, mi := range page.WorkloadIdentityPoolManagedIdentities {
@@ -555,7 +555,7 @@ func scanIAMOauthClients(ctx context.Context, svc *iam.Service, p *project, st *
 func scanIAMOauthClientCredentials(ctx context.Context, svc *iam.Service, p *project, clientNativeIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, clientNativeIDs, func(gctx context.Context, clientNativeID string) error {
-		clientID := store.ResourceID("gcp", p.ID, TypeIAMOauthClient, clientNativeID)
+		clientID := store.ResourceID("gcp", p.ID, clientNativeID)
 		resp, listErr := svc.Projects.Locations.OauthClients.Credentials.List(clientNativeID).Context(gctx).Do()
 		if listErr != nil {
 			if isPermissionDenied(listErr) {

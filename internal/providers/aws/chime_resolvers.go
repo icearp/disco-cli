@@ -42,7 +42,7 @@ func resolveChimeAppInstanceChildren(acct *account, st *store.Store) error {
 		if aiARN == "" {
 			return nil
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeChimeAppInstance, aiARN)
+		tgtID := store.ResourceID("aws", acct.ID, aiARN)
 		if !aiSet[tgtID] {
 			return nil
 		}
@@ -190,7 +190,7 @@ func resolveChimeSipMediaApplicationLambda(acct *account, st *store.Store) error
 				continue
 			}
 			seen[arn] = true
-			tgtID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !lambdaSet[tgtID] {
 				continue
 			}

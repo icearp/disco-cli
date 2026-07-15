@@ -62,7 +62,7 @@ func resolveForecastDatasetRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if ra := sv(attrs.EncryptionConfig.RoleArn); ra != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			tgt := store.ResourceID("aws", acct.ID, ra)
 			if roleSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert forecast dataset→role: %w", err)
@@ -101,7 +101,7 @@ func resolveForecastDatasetGroupMembers(acct *account, st *store.Store) error {
 			if arn == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeForecastDataset, arn)
+			tgt := store.ResourceID("aws", acct.ID, arn)
 			if !dsSet[tgt] {
 				continue
 			}

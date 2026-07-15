@@ -44,7 +44,7 @@ func resolveBCMDashboardsScheduledReports(acct *account, st *store.Store) error 
 		if arn == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeBCMDashboardsDashboard, arn)
+		tgt := store.ResourceID("aws", acct.ID, arn)
 		if !dashboards[tgt] {
 			continue
 		}

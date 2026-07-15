@@ -212,7 +212,7 @@ func resolveSSMMaintenanceWindowTargetParent(acct *account, st *store.Store) err
 		}
 		region := sv(r.Region)
 		mwARN := fmt.Sprintf("arn:aws:ssm:%s:%s:maintenancewindow/%s", region, acct.ID, wid)
-		tgtID := store.ResourceID("aws", acct.ID, TypeSSMMaintenanceWindow, mwARN)
+		tgtID := store.ResourceID("aws", acct.ID, mwARN)
 		if !mwSet[tgtID] {
 			continue
 		}
@@ -266,7 +266,7 @@ func resolveSSMMaintenanceWindowTaskRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if wid := sv(attrs.WindowID); wid != "" {
 			mwARN := fmt.Sprintf("arn:aws:ssm:%s:%s:maintenancewindow/%s", region, acct.ID, wid)
-			tgtID := store.ResourceID("aws", acct.ID, TypeSSMMaintenanceWindow, mwARN)
+			tgtID := store.ResourceID("aws", acct.ID, mwARN)
 			if mwSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ssm mw-task→mw: %w", err)
@@ -274,7 +274,7 @@ func resolveSSMMaintenanceWindowTaskRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if ra := sv(attrs.ServiceRoleArn); ra != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			tgtID := store.ResourceID("aws", acct.ID, ra)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ssm mw-task→role: %w", err)
@@ -287,14 +287,14 @@ func resolveSSMMaintenanceWindowTaskRefs(acct *account, st *store.Store) error {
 		}
 		switch attrs.Type {
 		case "LAMBDA":
-			tgtID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, taskARN)
+			tgtID := store.ResourceID("aws", acct.ID, taskARN)
 			if lambdaSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ssm mw-task→lambda: %w", err)
 				}
 			}
 		case "STEP_FUNCTIONS":
-			tgtID := store.ResourceID("aws", acct.ID, TypeSFNStateMachine, taskARN)
+			tgtID := store.ResourceID("aws", acct.ID, taskARN)
 			if sfnSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ssm mw-task→sfn: %w", err)
@@ -341,7 +341,7 @@ func resolveSSMResourceDataSyncRefs(acct *account, st *store.Store) error {
 		}
 		if name := sv(attrs.S3Destination.BucketName); name != "" {
 			bArn := "arn:aws:s3:::" + name
-			tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bArn)
+			tgtID := store.ResourceID("aws", acct.ID, bArn)
 			if bucketSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ssm rds→s3: %w", err)

@@ -40,7 +40,7 @@ func resolveRHAppAssessmentToApp(acct *account, st *store.Store) error {
 			continue
 		}
 		if a := sv(attrs.AppArn); a != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeResilienceHubApp, a)
+			tgtID := store.ResourceID("aws", acct.ID, a)
 			if appSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rh app-assessment→app: %w", err)

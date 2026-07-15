@@ -50,8 +50,8 @@ func TestScanCloudRunJobs_JobExecutionChain(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	jobID := store.ResourceID("gcp", p.ID, TypeCloudRunJob, jobName)
-	execID := store.ResourceID("gcp", p.ID, TypeCloudRunExecution, execName)
+	jobID := store.ResourceID("gcp", p.ID, jobName)
+	execID := store.ResourceID("gcp", p.ID, execName)
 	if res, err := st.GetResource(execID); err != nil || res == nil {
 		t.Fatalf("GetResource(execution): res=%v err=%v", res, err)
 	}

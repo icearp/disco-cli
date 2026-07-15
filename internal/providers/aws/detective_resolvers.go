@@ -50,7 +50,7 @@ func resolveDetectiveOrgAdminRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if g := sv(attrs.GraphArn); g != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDetectiveGraph, g)
+			tgtID := store.ResourceID("aws", acct.ID, g)
 			if graphSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert detective oa→graph: %w", err)
@@ -59,7 +59,7 @@ func resolveDetectiveOrgAdminRefs(acct *account, st *store.Store) error {
 		}
 		if a := sv(attrs.AccountID); a != "" && len(orgArnByID) > 0 {
 			if orgARN, ok := orgArnByID[a]; ok {
-				orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
+				orgID := store.ResourceID("aws", acct.ID, orgARN)
 				if err := st.UpsertRelationship(r.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert detective oa→org account: %w", err)
 				}
@@ -115,7 +115,7 @@ func resolveDetectiveMemberOrgAccount(acct *account, st *store.Store) error {
 		if !ok {
 			continue
 		}
-		orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
+		orgID := store.ResourceID("aws", acct.ID, orgARN)
 		if err := st.UpsertRelationship(m.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert detective member→org account: %w", err)
 		}

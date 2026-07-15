@@ -150,7 +150,7 @@ func scanMQConfigurationAssociations(acct *account, region string, st *store.Sto
 	}
 	pairs := make([][2]string, len(batch))
 	for i, r := range batch {
-		parentID := store.ResourceID("aws", acct.ID, TypeMQBroker, assocs[i].brokerARN)
+		parentID := store.ResourceID("aws", acct.ID, assocs[i].brokerARN)
 		pairs[i] = [2]string{r.ID, parentID}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {

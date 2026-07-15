@@ -48,7 +48,7 @@ func resolveMIToSubnet(sub *subscription, st *store.Store) error {
 		if attrs.Properties == nil || attrs.Properties.SubnetID == nil {
 			continue
 		}
-		subnetID := store.ResourceID("azure", sub.ID, TypeNetworkSubnet, *attrs.Properties.SubnetID)
+		subnetID := store.ResourceID("azure", sub.ID, *attrs.Properties.SubnetID)
 		if err := st.UpsertRelationship(r.ID, subnetID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert managedInstance→subnet relationship: %w", err)
 		}
@@ -91,7 +91,7 @@ func resolveManagedDatabaseToSource(sub *subscription, st *store.Store) error {
 		if attrs.Properties == nil || attrs.Properties.SourceDatabaseID == nil {
 			continue
 		}
-		srcID := store.ResourceID("azure", sub.ID, TypeSQLManagedDatabase, *attrs.Properties.SourceDatabaseID)
+		srcID := store.ResourceID("azure", sub.ID, *attrs.Properties.SourceDatabaseID)
 		if err := st.UpsertRelationship(r.ID, srcID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert managedDatabase→sourceDatabase relationship: %w", err)
 		}
@@ -134,7 +134,7 @@ func resolveEPToKey(sub *subscription, st *store.Store, epType, keyType, label s
 		if keyNativeID == "" {
 			continue
 		}
-		keyID := store.ResourceID("azure", sub.ID, keyType, keyNativeID)
+		keyID := store.ResourceID("azure", sub.ID, keyNativeID)
 		if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert %s encryptionProtector→key relationship: %w", label, err)
 		}

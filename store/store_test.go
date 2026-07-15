@@ -254,14 +254,15 @@ func TestListScans_Providers(t *testing.T) {
 // causes an immediate failure — a breaking change that would orphan all stored
 // relationships in production databases.
 func TestResourceID_Algorithm(t *testing.T) {
-	provider, accountID, rtype, nativeID := "aws", "123456789012", "aws:ec2:instance", "i-abc123"
+	provider, accountID, nativeID := "aws", "123456789012", "i-abc123"
 
-	// Re-implement the algorithm independently to lock it in.
-	input := provider + "|" + accountID + "|" + rtype + "|" + nativeID
+	// Re-implement the algorithm independently to lock it in. type is deliberately
+	// NOT part of identity — see ResourceID.
+	input := provider + "|" + accountID + "|" + nativeID
 	h := sha256.Sum256([]byte(input))
 	want := fmt.Sprintf("%x", h[:16])
 
-	got := ResourceID(provider, accountID, rtype, nativeID)
+	got := ResourceID(provider, accountID, nativeID)
 	if got != want {
 		t.Errorf("ResourceID algorithm changed:\n  got:  %s\n  want: %s\nWARNING: this breaks all existing databases", got, want)
 	}
@@ -271,20 +272,21 @@ func TestResourceID_Algorithm(t *testing.T) {
 }
 
 // TestResourceID_Uniqueness verifies that different inputs produce different IDs.
+// type is not an input — a type change keeps the same ID and supersedes (see
+// TestVersioning_TypeChange_SupersedesNotForks).
 func TestResourceID_Uniqueness(t *testing.T) {
-	base := ResourceID("aws", "acct", "aws:ec2:instance", "i-1")
+	base := ResourceID("aws", "acct", "i-1")
 
 	cases := []struct {
-		name                           string
-		provider, account, typ, native string
+		name                      string
+		provider, account, native string
 	}{
-		{"different provider", "gcp", "acct", "aws:ec2:instance", "i-1"},
-		{"different account", "aws", "other", "aws:ec2:instance", "i-1"},
-		{"different type", "aws", "acct", "aws:ec2:vpc", "i-1"},
-		{"different native", "aws", "acct", "aws:ec2:instance", "i-2"},
+		{"different provider", "gcp", "acct", "i-1"},
+		{"different account", "aws", "other", "i-1"},
+		{"different native", "aws", "acct", "i-2"},
 	}
 	for _, tc := range cases {
-		got := ResourceID(tc.provider, tc.account, tc.typ, tc.native)
+		got := ResourceID(tc.provider, tc.account, tc.native)
 		if got == base {
 			t.Errorf("%s: ResourceID collision — different inputs produced the same ID %s", tc.name, got)
 		}
@@ -294,8 +296,8 @@ func TestResourceID_Uniqueness(t *testing.T) {
 // TestResourceID_Deterministic verifies the same inputs always produce the same ID.
 func TestResourceID_Deterministic(t *testing.T) {
 	for range 10 {
-		got := ResourceID("aws", "acct", "aws:ec2:instance", "i-abc")
-		want := ResourceID("aws", "acct", "aws:ec2:instance", "i-abc")
+		got := ResourceID("aws", "acct", "i-abc")
+		want := ResourceID("aws", "acct", "i-abc")
 		if got != want {
 			t.Fatalf("ResourceID is non-deterministic: %s != %s", got, want)
 		}
@@ -378,7 +380,7 @@ func TestUpsertResources_IDAutoComputed(t *testing.T) {
 		t.Fatalf("UpsertResource: %v", err)
 	}
 
-	want := ResourceID("aws", "acct", "aws:ec2:instance", "i-123")
+	want := ResourceID("aws", "acct", "i-123")
 	if r.ID != want {
 		t.Errorf("ID: got %q, want %q", r.ID, want)
 	}

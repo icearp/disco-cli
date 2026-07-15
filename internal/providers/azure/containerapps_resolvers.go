@@ -89,7 +89,7 @@ func resolveContainerAppEnvironments(sub *subscription, st *store.Store) error {
 				continue
 			}
 			seen[vnetID] = true
-			vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+			vnetResourceID := store.ResourceID("azure", sub.ID, vnetID)
 			if _, err := st.GetResource(vnetResourceID); err != nil {
 				continue
 			}
@@ -204,7 +204,7 @@ func resolveContainerInstanceVNets(sub *subscription, st *store.Store) error {
 				continue
 			}
 			seen[vnetID] = true
-			vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+			vnetResourceID := store.ResourceID("azure", sub.ID, vnetID)
 			if _, err := st.GetResource(vnetResourceID); err != nil {
 				continue
 			}

@@ -77,7 +77,7 @@ func resolveSecurityHubProductSubscriptions(acct *account, st *store.Store) erro
 		case "config":
 			targets = recorderByRegion[region]
 		case "macie":
-			tid := store.ResourceID("aws", acct.ID, TypeMacieSession, macieSessionNativeID(acct.ID, region))
+			tid := store.ResourceID("aws", acct.ID, macieSessionNativeID(acct.ID, region))
 			if macieSet[tid] {
 				targets = []string{tid}
 			}

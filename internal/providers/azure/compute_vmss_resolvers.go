@@ -52,7 +52,7 @@ func resolveVMSSProximityGroupRelationships(sub *subscription, st *store.Store) 
 		if attrs.Properties == nil || attrs.Properties.ProximityPlacementGroup == nil || attrs.Properties.ProximityPlacementGroup.ID == nil {
 			continue
 		}
-		ppgID := store.ResourceID("azure", sub.ID, TypeComputeProximityPlacementGroup, *attrs.Properties.ProximityPlacementGroup.ID)
+		ppgID := store.ResourceID("azure", sub.ID, *attrs.Properties.ProximityPlacementGroup.ID)
 		if err := st.UpsertRelationship(r.ID, ppgID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert vmss→proximityPlacementGroup relationship: %w", err)
 		}
@@ -78,7 +78,7 @@ func resolveVMSSExtensionRelationships(sub *subscription, st *store.Store) error
 		if vmssNativeID == "" {
 			continue
 		}
-		vmssID := store.ResourceID("azure", sub.ID, TypeComputeVMSS, vmssNativeID)
+		vmssID := store.ResourceID("azure", sub.ID, vmssNativeID)
 		if err := st.UpsertRelationship(r.ID, vmssID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert vmssExtension→vmss relationship: %w", err)
 		}
@@ -104,7 +104,7 @@ func resolveVMSSVMRelationships(sub *subscription, st *store.Store) error {
 		if vmssNativeID == "" {
 			continue
 		}
-		vmssID := store.ResourceID("azure", sub.ID, TypeComputeVMSS, vmssNativeID)
+		vmssID := store.ResourceID("azure", sub.ID, vmssNativeID)
 		if err := st.UpsertRelationship(r.ID, vmssID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert vmssVM→vmss relationship: %w", err)
 		}
@@ -130,7 +130,7 @@ func resolveVMSSVMExtensionRelationships(sub *subscription, st *store.Store) err
 		if vmNativeID == "" {
 			continue
 		}
-		vmID := store.ResourceID("azure", sub.ID, TypeComputeVMSSVM, vmNativeID)
+		vmID := store.ResourceID("azure", sub.ID, vmNativeID)
 		if err := st.UpsertRelationship(r.ID, vmID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert vmssVMExtension→vmssVM relationship: %w", err)
 		}

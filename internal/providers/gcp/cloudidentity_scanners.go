@@ -357,8 +357,8 @@ func scanCloudIdentityDeviceUsers(ctx context.Context, svc *cloudidentity.Servic
 				DiscoveredBy:   scanID,
 			}
 			batch = append(batch, r)
-			childID := store.ResourceID("gcp", customerID, TypeCloudIdentityDeviceUser, du.Name)
-			parentID := store.ResourceID("gcp", customerID, TypeCloudIdentityDevice, deviceNativeID)
+			childID := store.ResourceID("gcp", customerID, du.Name)
+			parentID := store.ResourceID("gcp", customerID, deviceNativeID)
 			pairs = append(pairs, [2]string{childID, parentID})
 		}
 		return nil
@@ -414,8 +414,8 @@ func scanCloudIdentityClientStates(ctx context.Context, svc *cloudidentity.Servi
 				DiscoveredBy:   scanID,
 			}
 			batch = append(batch, r)
-			childID := store.ResourceID("gcp", customerID, TypeCloudIdentityClientState, cs.Name)
-			parentID := store.ResourceID("gcp", customerID, TypeCloudIdentityDeviceUser, deviceUserNativeID)
+			childID := store.ResourceID("gcp", customerID, cs.Name)
+			parentID := store.ResourceID("gcp", customerID, deviceUserNativeID)
 			pairs = append(pairs, [2]string{childID, parentID})
 		}
 		return nil
@@ -443,7 +443,7 @@ func scanCloudIdentityClientStates(ctx context.Context, svc *cloudidentity.Servi
 func scanCloudIdentityMemberships(ctx context.Context, svc *cloudidentity.Service, customerID string, groupNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentCloudIdentityFanout, groupNames, func(gctx context.Context, groupName string) error {
-		groupID := store.ResourceID("gcp", customerID, TypeCloudIdentityGroup, groupName)
+		groupID := store.ResourceID("gcp", customerID, groupName)
 		var batch []*store.Resource
 		listErr := svc.Groups.Memberships.List(groupName).PageSize(200).Pages(gctx, func(page *cloudidentity.ListMembershipsResponse) error {
 			for _, m := range page.Memberships {
@@ -575,7 +575,7 @@ func scanCloudIdentityInboundSamlSsoProfiles(ctx context.Context, svc *cloudiden
 func scanCloudIdentityIdpCredentials(ctx context.Context, svc *cloudidentity.Service, customerID string, profileNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentCloudIdentityFanout, profileNames, func(gctx context.Context, profileName string) error {
-		profileID := store.ResourceID("gcp", customerID, TypeCloudIdentityInboundSamlSsoProfile, profileName)
+		profileID := store.ResourceID("gcp", customerID, profileName)
 		var batch []*store.Resource
 		listErr := svc.InboundSamlSsoProfiles.IdpCredentials.List(profileName).Pages(gctx, func(page *cloudidentity.ListIdpCredentialsResponse) error {
 			for _, c := range page.IdpCredentials {

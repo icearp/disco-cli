@@ -12,7 +12,7 @@ func TestResolveWAFv2LoggingConfigToWebACL(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	waARN := fmt.Sprintf("arn:aws:wafv2:%s:%s:regional/webacl/wa-1/uuid", testRegion, acct.ID)
 	waID := upsertTestResource(t, st, "aws", acct.ID, TypeWAFv2WebACL, waARN, testRegion, "{}")
-	lcID := upsertTestResource(t, st, "aws", acct.ID, TypeWAFv2LoggingConfiguration, waARN, testRegion, "{}")
+	lcID := upsertTestResource(t, st, "aws", acct.ID, TypeWAFv2LoggingConfiguration, waARN+"/logging-configuration", testRegion, "{}")
 	if err := resolveWAFv2LoggingConfigToWebACL(acct, st); err != nil {
 		t.Fatalf("resolveWAFv2LoggingConfigToWebACL: %v", err)
 	}

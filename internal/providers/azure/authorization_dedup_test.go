@@ -47,7 +47,7 @@ func upsertManagedTestResource(t *testing.T, st *store.Store, accountID, rtype, 
 	if _, err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertManagedTestResource %s/%s: %v", rtype, nativeID, err)
 	}
-	return store.ResourceID("azure", accountID, rtype, nativeID)
+	return store.ResourceID("azure", accountID, nativeID)
 }
 
 // TestNormalizeRoleDefKey pins the scope-independent role-definition identity:

@@ -61,7 +61,7 @@ func resolveELBv2LBRelationships(acct *account, st *store.Store) error {
 		if attrs.Lb == nil || attrs.Lb.VpcID == nil {
 			continue
 		}
-		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.Lb.VpcID))
+		vpcID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.Lb.VpcID))
 		if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert lb→vpc relationship: %w", err)
 		}
@@ -90,7 +90,7 @@ func resolveELBv2ListenerRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.LoadBalancerArn != nil {
-			lbID := store.ResourceID("aws", acct.ID, TypeELBv2LoadBalancer, *attrs.LoadBalancerArn)
+			lbID := store.ResourceID("aws", acct.ID, *attrs.LoadBalancerArn)
 			if err := st.UpsertRelationship(r.ID, lbID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert listener→lb relationship: %w", err)
 			}
@@ -102,7 +102,7 @@ func resolveELBv2ListenerRelationships(acct *account, st *store.Store) error {
 			if !strings.HasPrefix(arn, "arn:aws:acm:") {
 				continue
 			}
-			certID := store.ResourceID("aws", acct.ID, TypeACMCertificate, arn)
+			certID := store.ResourceID("aws", acct.ID, arn)
 			if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert listener→acm-cert relationship: %w", err)
 			}
@@ -131,7 +131,7 @@ func resolveELBv2RuleRelationships(acct *account, st *store.Store) error {
 		if attrs.ListenerArn == "" {
 			continue
 		}
-		listenerID := store.ResourceID("aws", acct.ID, TypeELBv2Listener, attrs.ListenerArn)
+		listenerID := store.ResourceID("aws", acct.ID, attrs.ListenerArn)
 		if err := st.UpsertRelationship(r.ID, listenerID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert rule→listener relationship: %w", err)
 		}
@@ -159,7 +159,7 @@ func resolveELBv2CertRelationships(acct *account, st *store.Store) error {
 		if attrs.ListenerArn == "" {
 			continue
 		}
-		listenerID := store.ResourceID("aws", acct.ID, TypeELBv2Listener, attrs.ListenerArn)
+		listenerID := store.ResourceID("aws", acct.ID, attrs.ListenerArn)
 		if err := st.UpsertRelationship(r.ID, listenerID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cert→listener relationship: %w", err)
 		}
@@ -193,7 +193,7 @@ func resolveELBv2TGRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.TargetGroup.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.TargetGroup.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", *attrs.TargetGroup.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert target-group→vpc relationship: %w", err)
 			}
@@ -207,13 +207,13 @@ func resolveELBv2TGRelationships(acct *account, st *store.Store) error {
 			}
 			switch tType {
 			case "lambda":
-				fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, id)
+				fnID := store.ResourceID("aws", acct.ID, id)
 				if err := st.UpsertRelationship(r.ID, fnID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert target-group→lambda relationship: %w", err)
 				}
 			case "instance":
 				instARN := ec2ARN(region, acct.ID, "instance", id)
-				instID := store.ResourceID("aws", acct.ID, TypeEC2Instance, instARN)
+				instID := store.ResourceID("aws", acct.ID, instARN)
 				if err := st.UpsertRelationship(r.ID, instID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert target-group→instance relationship: %w", err)
 				}
@@ -243,7 +243,7 @@ func resolveELBv2RevocationRelationships(acct *account, st *store.Store) error {
 		if attrs.TrustStoreArn == nil {
 			continue
 		}
-		tsID := store.ResourceID("aws", acct.ID, TypeELBv2TrustStore, *attrs.TrustStoreArn)
+		tsID := store.ResourceID("aws", acct.ID, *attrs.TrustStoreArn)
 		if err := st.UpsertRelationship(r.ID, tsID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert revocation→trust-store relationship: %w", err)
 		}

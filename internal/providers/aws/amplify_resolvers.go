@@ -50,7 +50,7 @@ func resolveAmplifyRelationships(acct *account, st *store.Store) error {
 		if roleArn == "" {
 			return nil
 		}
-		roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleArn)
+		roleID := store.ResourceID("aws", acct.ID, roleArn)
 		if _, ok := roleIDs[roleID]; !ok {
 			return nil
 		}

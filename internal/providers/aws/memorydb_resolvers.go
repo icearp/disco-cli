@@ -186,7 +186,7 @@ func emitMemDBSNSEdge(st *store.Store, acct *account, r store.Resource, attrs me
 	if topic == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, topic)
+	tgtID := store.ResourceID("aws", acct.ID, topic)
 	if !sets.snsSet[tgtID] {
 		return nil
 	}
@@ -199,7 +199,7 @@ func emitMemDBSGEdges(st *store.Store, acct *account, r store.Resource, region s
 		if id == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", id))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", id))
 		if !sets.ec2SGSet[tgtID] {
 			continue
 		}
@@ -241,7 +241,7 @@ func resolveMemoryDBSubnetGroupRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.VpcID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", id))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert memorydb subnet-group→vpc: %w", err)
@@ -253,7 +253,7 @@ func resolveMemoryDBSubnetGroupRefs(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", id))
 			if !subnetSet[tgtID] {
 				continue
 			}

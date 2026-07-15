@@ -58,7 +58,7 @@ func resolveEMRCJobTemplateRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.JobTemplateData != nil {
 			if role := sv(attrs.JobTemplateData.ExecutionRoleArn); role != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+				tgtID := store.ResourceID("aws", acct.ID, role)
 				if roleSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert emr-c job-template→role: %w", err)
@@ -101,7 +101,7 @@ func resolveEMRCEndpointRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		if i := strings.Index(r.NativeID, "/endpoints/"); i >= 0 {
 			parent := r.NativeID[:i]
-			tgtID := store.ResourceID("aws", acct.ID, TypeEMRContainersVirtualCluster, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if vcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert emr-c endpoint→vc: %w", err)
@@ -115,7 +115,7 @@ func resolveEMRCEndpointRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.ExecutionRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert emr-c endpoint→role: %w", err)

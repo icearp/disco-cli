@@ -31,7 +31,7 @@ func TestScanCloudSQLInstanceChildren_FullFanout(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")
 	instName := "inst1"
-	instID := store.ResourceID("gcp", p.ID, TypeSQLInstance, "projects/my-project/instances/inst1")
+	instID := store.ResourceID("gcp", p.ID, "projects/my-project/instances/inst1")
 	upsertTestResource(t, st, "gcp", p.ID, TypeSQLInstance, "projects/my-project/instances/inst1", "", "{}")
 
 	base := "/v1/projects/my-project/instances/inst1"
@@ -61,10 +61,10 @@ func TestScanCloudSQLInstanceChildren_FullFanout(t *testing.T) {
 	}
 
 	wantChildren := []string{
-		store.ResourceID("gcp", p.ID, TypeSQLBackupRun, "projects/my-project/instances/inst1/backupRuns/42"),
-		store.ResourceID("gcp", p.ID, TypeSQLDatabase, "projects/my-project/instances/inst1/databases/appdb"),
-		store.ResourceID("gcp", p.ID, TypeSQLSslCert, "projects/my-project/instances/inst1/sslCerts/abc123"),
-		store.ResourceID("gcp", p.ID, TypeSQLUser, "projects/my-project/instances/inst1/users/appuser@%"),
+		store.ResourceID("gcp", p.ID, "projects/my-project/instances/inst1/backupRuns/42"),
+		store.ResourceID("gcp", p.ID, "projects/my-project/instances/inst1/databases/appdb"),
+		store.ResourceID("gcp", p.ID, "projects/my-project/instances/inst1/sslCerts/abc123"),
+		store.ResourceID("gcp", p.ID, "projects/my-project/instances/inst1/users/appuser@%"),
 	}
 	rels, err := st.RelationshipsFrom(instID, store.RelContains)
 	if err != nil {
@@ -87,7 +87,7 @@ func TestScanCloudSQLInstanceChildren_FullFanout(t *testing.T) {
 func TestScanCloudSQLInstanceChildren_PermissionDenied(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")
-	instID := store.ResourceID("gcp", p.ID, TypeSQLInstance, "projects/my-project/instances/inst1")
+	instID := store.ResourceID("gcp", p.ID, "projects/my-project/instances/inst1")
 
 	body := `{"error":{"code":403,"message":"caller is missing permission","errors":[{"reason":"forbidden"}]}}`
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
@@ -110,7 +110,7 @@ func TestScanCloudSQLInstanceChildren_PartialDenyContinues(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")
 	instName := "inst1"
-	instID := store.ResourceID("gcp", p.ID, TypeSQLInstance, "projects/my-project/instances/inst1")
+	instID := store.ResourceID("gcp", p.ID, "projects/my-project/instances/inst1")
 
 	base := "/v1/projects/my-project/instances/inst1"
 	deniedBody := `{"error":{"code":403,"message":"caller is missing cloudsql.backupRuns.list","errors":[{"reason":"forbidden"}]}}`
@@ -147,7 +147,7 @@ func TestScanCloudSQLInstanceChildren_PartialDenyContinues(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1 (database only — backupRuns denied, sslcerts/users empty)", total, inserted)
 	}
-	dbID := store.ResourceID("gcp", p.ID, TypeSQLDatabase, "projects/my-project/instances/inst1/databases/appdb")
+	dbID := store.ResourceID("gcp", p.ID, "projects/my-project/instances/inst1/databases/appdb")
 	if _, err := st.GetResource(dbID); err != nil {
 		t.Errorf("GetResource(database): %v — databases.list should still run after backupRuns.list is denied", err)
 	}

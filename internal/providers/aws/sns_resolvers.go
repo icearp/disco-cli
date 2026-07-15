@@ -47,7 +47,7 @@ func resolveSNSTopicRelationships(acct *account, st *store.Store) error {
 		if rp := attrs["RedrivePolicy"]; rp != "" {
 			dlqARN := redrivePolicyDLQ(rp)
 			if dlqARN != "" {
-				dlqID := store.ResourceID("aws", acct.ID, TypeSQSQueue, dlqARN)
+				dlqID := store.ResourceID("aws", acct.ID, dlqARN)
 				if err := st.UpsertRelationship(r.ID, dlqID, store.RelRoutesTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sns-topic→dlq: %w", err)
 				}

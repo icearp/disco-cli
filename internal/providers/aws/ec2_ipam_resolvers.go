@@ -49,7 +49,7 @@ func resolveIPAMScopeRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.IpamArn != nil {
-			ipamID := store.ResourceID("aws", acct.ID, TypeEC2IPAM, *attrs.IpamArn)
+			ipamID := store.ResourceID("aws", acct.ID, *attrs.IpamArn)
 			if err := st.UpsertRelationship(r.ID, ipamID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ipam-scope→ipam relationship: %w", err)
 			}
@@ -75,7 +75,7 @@ func resolveIPAMPoolRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.IpamScopeArn != nil {
-			scopeID := store.ResourceID("aws", acct.ID, TypeEC2IPAMScope, *attrs.IpamScopeArn)
+			scopeID := store.ResourceID("aws", acct.ID, *attrs.IpamScopeArn)
 			if err := st.UpsertRelationship(r.ID, scopeID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ipam-pool→ipam-scope relationship: %w", err)
 			}
@@ -103,13 +103,13 @@ func resolveIPAMResourceDiscoveryAssociationRelationships(acct *account, st *sto
 			continue
 		}
 		if attrs.IpamArn != nil {
-			ipamID := store.ResourceID("aws", acct.ID, TypeEC2IPAM, *attrs.IpamArn)
+			ipamID := store.ResourceID("aws", acct.ID, *attrs.IpamArn)
 			if err := st.UpsertRelationship(r.ID, ipamID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ipam-rda→ipam relationship: %w", err)
 			}
 		}
 		if attrs.IpamResourceDiscoveryArn != nil {
-			rdID := store.ResourceID("aws", acct.ID, TypeEC2IPAMResourceDiscovery, *attrs.IpamResourceDiscoveryArn)
+			rdID := store.ResourceID("aws", acct.ID, *attrs.IpamResourceDiscoveryArn)
 			if err := st.UpsertRelationship(r.ID, rdID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ipam-rda→resource-discovery relationship: %w", err)
 			}

@@ -43,8 +43,9 @@ func resolveNetworkInsightsAnalysisRelationships(acct *account, st *store.Store)
 		}
 		if attrs.NetworkInsightsPathID != nil {
 			// Path NativeID is its ARN; ec2ARN reconstructs it from the path ID.
-			pathID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInsightsPath,
+			pathID := store.ResourceID("aws", acct.ID,
 				ec2ARN(sv(r.Region), acct.ID, "network-insights-path", *attrs.NetworkInsightsPathID))
+
 			if err := st.UpsertRelationship(r.ID, pathID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert network-insights-analysis→path relationship: %w", err)
 			}
@@ -72,8 +73,9 @@ func resolveNetworkInsightsAccessScopeAnalysisRelationships(acct *account, st *s
 		}
 		if attrs.NetworkInsightsAccessScopeID != nil {
 			// Scope NativeID is its ARN; ec2ARN reconstructs it from the scope ID.
-			scopeID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInsightsAccessScope,
+			scopeID := store.ResourceID("aws", acct.ID,
 				ec2ARN(sv(r.Region), acct.ID, "network-insights-access-scope", *attrs.NetworkInsightsAccessScopeID))
+
 			if err := st.UpsertRelationship(r.ID, scopeID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert network-insights-scope-analysis→scope relationship: %w", err)
 			}
@@ -102,18 +104,18 @@ func resolveFlowLogRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		var targetType, arnResourceType string
+		var arnResourceType string
 		switch *attrs.ResourceType {
 		case "VPC":
-			targetType, arnResourceType = TypeEC2VPC, "vpc"
+			arnResourceType = "vpc"
 		case "Subnet":
-			targetType, arnResourceType = TypeEC2Subnet, "subnet"
+			arnResourceType = "subnet"
 		case "NetworkInterface":
-			targetType, arnResourceType = TypeEC2NetworkInterface, "network-interface"
+			arnResourceType = "network-interface"
 		default:
 			continue
 		}
-		targetID := store.ResourceID("aws", acct.ID, targetType, ec2ARN(region, acct.ID, arnResourceType, *attrs.ResourceID))
+		targetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, arnResourceType, *attrs.ResourceID))
 		if err := st.UpsertRelationship(r.ID, targetID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert flow-log→resource relationship: %w", err)
 		}

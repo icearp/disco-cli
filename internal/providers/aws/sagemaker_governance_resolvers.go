@@ -52,8 +52,9 @@ func resolveSageMakerExperimentTrial(acct *account, st *store.Store) error {
 		if name == "" {
 			continue
 		}
-		expID := store.ResourceID("aws", acct.ID, TypeSageMakerExperiment,
+		expID := store.ResourceID("aws", acct.ID,
 			sagemakerARN(sv(r.Region), acct.ID, "experiment", name))
+
 		if !expSet[expID] {
 			continue
 		}
@@ -86,8 +87,9 @@ func resolveSageMakerHubContent(acct *account, st *store.Store) error {
 		if name == "" {
 			continue
 		}
-		hubID := store.ResourceID("aws", acct.ID, TypeSageMakerHub,
+		hubID := store.ResourceID("aws", acct.ID,
 			sagemakerARN(sv(r.Region), acct.ID, "hub", name))
+
 		if !hubSet[hubID] {
 			continue
 		}
@@ -133,7 +135,7 @@ func resolveSagemakerClusterArnParent(acct *account, st *store.Store, srcType, l
 		if arn == "" {
 			continue
 		}
-		clusterID := store.ResourceID("aws", acct.ID, TypeSageMakerCluster, arn)
+		clusterID := store.ResourceID("aws", acct.ID, arn)
 		if !clusterSet[clusterID] {
 			continue
 		}
@@ -166,8 +168,9 @@ func resolveSageMakerEdgeDeploymentPlan(acct *account, st *store.Store) error {
 		if name == "" {
 			continue
 		}
-		fleetID := store.ResourceID("aws", acct.ID, TypeSageMakerDeviceFleet,
+		fleetID := store.ResourceID("aws", acct.ID,
 			sagemakerARN(sv(r.Region), acct.ID, "device-fleet", name))
+
 		if !fleetSet[fleetID] {
 			continue
 		}

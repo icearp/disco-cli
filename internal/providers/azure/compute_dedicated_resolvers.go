@@ -33,7 +33,7 @@ func resolveDedicatedHostRelationships(sub *subscription, st *store.Store) error
 		if hgNativeID == "" {
 			continue
 		}
-		hgID := store.ResourceID("azure", sub.ID, TypeComputeHostGroup, hgNativeID)
+		hgID := store.ResourceID("azure", sub.ID, hgNativeID)
 		if err := st.UpsertRelationship(r.ID, hgID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert dedicatedHost→hostGroup relationship: %w", err)
 		}
@@ -58,7 +58,7 @@ func resolveCapacityReservationRelationships(sub *subscription, st *store.Store)
 		if crgNativeID == "" {
 			continue
 		}
-		crgID := store.ResourceID("azure", sub.ID, TypeComputeCapacityReservationGroup, crgNativeID)
+		crgID := store.ResourceID("azure", sub.ID, crgNativeID)
 		if err := st.UpsertRelationship(r.ID, crgID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert capacityReservation→CRG relationship: %w", err)
 		}

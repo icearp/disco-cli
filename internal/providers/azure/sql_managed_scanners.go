@@ -86,7 +86,7 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 			r.TagsJSON = azTagsJSON(mi.Tags)
 			batch = append(batch, r)
 			instances = append(instances, sqlManagedInstance{
-				resourceID: store.ResourceID("azure", sub.ID, TypeSQLManagedInstance, sv(mi.ID)),
+				resourceID: store.ResourceID("azure", sub.ID, sv(mi.ID)),
 				name:       sv(mi.Name),
 				rgName:     rgFromID(sv(mi.ID)),
 			})
@@ -277,7 +277,7 @@ func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred azcore
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedInstanceKey, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, mi.resourceID})
 		}
@@ -316,7 +316,7 @@ func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscript
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedInstanceEP, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, mi.resourceID})
 		}
@@ -355,7 +355,7 @@ func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *sub
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedInstancePEC, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, mi.resourceID})
 		}
@@ -394,7 +394,7 @@ func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscripti
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedServerSecurityAlert, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, mi.resourceID})
 		}
@@ -433,7 +433,7 @@ func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred azcore.
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedDatabaseTDE, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -472,7 +472,7 @@ func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscrip
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedDatabaseSecAlert, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}
@@ -515,7 +515,7 @@ func scanManagedDatabases(ctx context.Context, sub *subscription, cred azcore.To
 				AttributesJSON: mustJSON(db),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedDatabase, sv(db.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(db.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, mi.resourceID})
 			dbs = append(dbs, sqlManagedDatabase{
@@ -571,7 +571,7 @@ func scanManagedInstanceAdmins(ctx context.Context, sub *subscription, cred azco
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedInstanceAdmin, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, mi.resourceID})
 		}
@@ -610,7 +610,7 @@ func scanManagedInstanceVulnAssessments(ctx context.Context, sub *subscription, 
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedInstanceVA, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, mi.resourceID})
 		}
@@ -649,7 +649,7 @@ func scanManagedDatabaseVulnAssessments(ctx context.Context, sub *subscription, 
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedDatabaseVA, sv(item.ID))
+			discoID := store.ResourceID("azure", sub.ID, sv(item.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, db.resourceID})
 		}

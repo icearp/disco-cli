@@ -37,8 +37,9 @@ func resolveVerifiedAccessGroupRelationships(acct *account, st *store.Store) err
 		}
 		region := sv(r.Region)
 		if attrs.VerifiedAccessInstanceID != nil {
-			instID := store.ResourceID("aws", acct.ID, TypeEC2VerifiedAccessInstance,
+			instID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "verified-access-instance", *attrs.VerifiedAccessInstanceID))
+
 			if err := st.UpsertRelationship(r.ID, instID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert verified-access-group→instance relationship: %w", err)
 			}
@@ -65,8 +66,9 @@ func resolveVerifiedAccessEndpointRelationships(acct *account, st *store.Store) 
 		}
 		region := sv(r.Region)
 		if attrs.VerifiedAccessGroupID != nil {
-			groupID := store.ResourceID("aws", acct.ID, TypeEC2VerifiedAccessGroup,
+			groupID := store.ResourceID("aws", acct.ID,
 				ec2ARN(region, acct.ID, "verified-access-group", *attrs.VerifiedAccessGroupID))
+
 			if err := st.UpsertRelationship(r.ID, groupID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert verified-access-endpoint→group relationship: %w", err)
 			}

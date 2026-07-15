@@ -99,7 +99,7 @@ func resolveCloudFrontFLEProfilePublicKey(acct *account, st *store.Store) error 
 				continue
 			}
 			seen[pk] = true
-			tgtID := store.ResourceID("aws", acct.ID, TypeCloudFrontPublicKey, pk)
+			tgtID := store.ResourceID("aws", acct.ID, pk)
 			if !keySet[tgtID] {
 				continue
 			}
@@ -139,7 +139,7 @@ func resolveCloudFrontFLEConfigProfile(acct *account, st *store.Store) error {
 				continue
 			}
 			seen[pid] = true
-			tgtID := store.ResourceID("aws", acct.ID, TypeCloudFrontFieldLevelEncryptionProfile, pid)
+			tgtID := store.ResourceID("aws", acct.ID, pid)
 			if !profSet[tgtID] {
 				continue
 			}

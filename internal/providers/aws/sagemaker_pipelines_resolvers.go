@@ -49,7 +49,7 @@ func resolveSageMakerProjectProduct(acct *account, st *store.Store) error {
 			continue
 		}
 		pARN := fmt.Sprintf("arn:aws:catalog:%s:%s:product/%s", sv(r.Region), acct.ID, pid)
-		tgt := store.ResourceID("aws", acct.ID, TypeServiceCatalogProduct, pARN)
+		tgt := store.ResourceID("aws", acct.ID, pARN)
 		if !prodSet[tgt] {
 			continue
 		}

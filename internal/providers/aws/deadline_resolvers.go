@@ -116,7 +116,7 @@ func resolveDeadlineLicenseEndpointVPC(acct *account, st *store.Store) error {
 		}
 		if v := sv(attrs.VpcID); v != "" {
 			vpcARN := ec2ARN(sv(r.Region), acct.ID, "vpc", v)
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
+			tgtID := store.ResourceID("aws", acct.ID, vpcARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert deadline le→vpc: %w", err)
@@ -161,7 +161,7 @@ func resolveDeadlineMonitorRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if role := sv(attrs.RoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert deadline monitor→role: %w", err)
@@ -169,7 +169,7 @@ func resolveDeadlineMonitorRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if i := sv(attrs.IdentityCenterInstanceArn); i != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeSSOInstance, i)
+			tgtID := store.ResourceID("aws", acct.ID, i)
 			if insSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert deadline monitor→sso-instance: %w", err)
@@ -177,7 +177,7 @@ func resolveDeadlineMonitorRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if a := sv(attrs.IdentityCenterApplicationArn); a != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeSSOApplication, a)
+			tgtID := store.ResourceID("aws", acct.ID, a)
 			if appSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert deadline monitor→sso-app: %w", err)
@@ -236,7 +236,7 @@ func resolveDeadlineFarmChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeDeadlineFarm, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !farmSet[tgtID] {
 				continue
 			}
@@ -276,7 +276,7 @@ func resolveDeadlineVolumeFleet(acct *account, st *store.Store) error {
 		if fleetID == "" || farmARN == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeDeadlineFleet, farmARN+"/fleet/"+fleetID)
+		tgtID := store.ResourceID("aws", acct.ID, farmARN+"/fleet/"+fleetID)
 		if !fleetSet[tgtID] {
 			continue
 		}
@@ -310,7 +310,7 @@ func resolveDeadlineQueueEnvParent(acct *account, st *store.Store) error {
 			continue
 		}
 		parent := r.NativeID[:i]
-		tgtID := store.ResourceID("aws", acct.ID, TypeDeadlineQueue, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !queueSet[tgtID] {
 			continue
 		}
@@ -345,7 +345,7 @@ func resolveDeadlineMeteredProductParent(acct *account, st *store.Store) error {
 			continue
 		}
 		parent := r.NativeID[:i]
-		tgtID := store.ResourceID("aws", acct.ID, TypeDeadlineLicenseEndpoint, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !leSet[tgtID] {
 			continue
 		}
@@ -401,13 +401,13 @@ func resolveDeadlineQueueFleetAssoc(acct *account, st *store.Store) error {
 		if queueARN == "" {
 			continue
 		}
-		qID := store.ResourceID("aws", acct.ID, TypeDeadlineQueue, queueARN)
+		qID := store.ResourceID("aws", acct.ID, queueARN)
 		if queueSet[qID] {
 			if err := st.UpsertRelationship(r.ID, qID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert deadline-qfa→queue: %w", err)
 			}
 		}
-		fID := store.ResourceID("aws", acct.ID, TypeDeadlineFleet, fleetARN)
+		fID := store.ResourceID("aws", acct.ID, fleetARN)
 		if fleetSet[fID] {
 			if err := st.UpsertRelationship(r.ID, fID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert deadline-qfa→fleet: %w", err)
@@ -443,13 +443,13 @@ func resolveDeadlineQueueLimitAssoc(acct *account, st *store.Store) error {
 		if queueARN == "" {
 			continue
 		}
-		qID := store.ResourceID("aws", acct.ID, TypeDeadlineQueue, queueARN)
+		qID := store.ResourceID("aws", acct.ID, queueARN)
 		if queueSet[qID] {
 			if err := st.UpsertRelationship(r.ID, qID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert deadline-qla→queue: %w", err)
 			}
 		}
-		lID := store.ResourceID("aws", acct.ID, TypeDeadlineLimit, limitARN)
+		lID := store.ResourceID("aws", acct.ID, limitARN)
 		if limitSet[lID] {
 			if err := st.UpsertRelationship(r.ID, lID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert deadline-qla→limit: %w", err)

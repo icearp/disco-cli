@@ -73,7 +73,7 @@ func scanCloudSQL(ctx context.Context, p *project, st *store.Store, scanID strin
 
 			var mu sync.Mutex
 			fanErr := forEachItem(ctx, fanoutMed, page.Items, func(gctx context.Context, inst *sqladmin.DatabaseInstance) error {
-				instID := store.ResourceID("gcp", p.ID, TypeSQLInstance, fmt.Sprintf("projects/%s/instances/%s", p.ID, inst.Name))
+				instID := store.ResourceID("gcp", p.ID, fmt.Sprintf("projects/%s/instances/%s", p.ID, inst.Name))
 				t, ins, cErr := scanCloudSQLInstanceChildren(gctx, svc, p, inst.Name, instID, st, scanID)
 				mu.Lock()
 				total += t

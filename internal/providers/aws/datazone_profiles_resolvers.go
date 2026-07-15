@@ -43,7 +43,7 @@ func resolveDataZoneGroupProfileRefs(acct *account, st *store.Store) error {
 		if role == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+		tgtID := store.ResourceID("aws", acct.ID, role)
 		if roleSet[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert datazone group-profile→role: %w", err)

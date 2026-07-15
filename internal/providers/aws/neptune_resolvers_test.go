@@ -59,7 +59,7 @@ func TestResolveNeptuneInstanceCluster(t *testing.T) {
 	if _, err := st.UpsertResource(cR); err != nil {
 		t.Fatalf("upsert cluster: %v", err)
 	}
-	clusterID := store.ResourceID("aws", acct.ID, TypeNeptuneCluster, clusterARN)
+	clusterID := store.ResourceID("aws", acct.ID, clusterARN)
 
 	instARN := fmt.Sprintf("arn:aws:rds:%s:%s:db:%s", testRegion, testAccountID, testNeptuneInst)
 	instAttrs := fmt.Sprintf(`{"DBInstanceIdentifier":%q,"DBClusterIdentifier":%q,"Engine":"neptune"}`,

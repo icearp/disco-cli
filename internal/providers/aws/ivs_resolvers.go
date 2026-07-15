@@ -68,7 +68,7 @@ func resolveIVSStageStorageConfig(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeIVSStorageConfiguration, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !scSet[tgtID] {
 			continue
 		}
@@ -137,7 +137,7 @@ func resolveIVSS3Bucket(acct *account, st *store.Store, sourceType string, extra
 			continue
 		}
 		bArn := "arn:aws:s3:::" + bucket
-		tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bArn)
+		tgtID := store.ResourceID("aws", acct.ID, bArn)
 		if !bucketSet[tgtID] {
 			continue
 		}
@@ -175,7 +175,7 @@ func resolveIVSChannelRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if rc := sv(attrs.RecordingConfigurationArn); rc != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIVSRecordingConfiguration, rc)
+			tgtID := store.ResourceID("aws", acct.ID, rc)
 			if rcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ivs channel→rec: %w", err)
@@ -183,7 +183,7 @@ func resolveIVSChannelRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if pr := sv(attrs.PlaybackRestrictionPolicyArn); pr != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIVSPlaybackRestrictionPolicy, pr)
+			tgtID := store.ResourceID("aws", acct.ID, pr)
 			if prSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ivs channel→prp: %w", err)
@@ -227,7 +227,7 @@ func resolveIVSAttrEdge(acct *account, st *store.Store, sourceType, targetType, 
 		if !ok || v == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, targetType, v)
+		tgtID := store.ResourceID("aws", acct.ID, v)
 		if !tgtSet[tgtID] {
 			continue
 		}

@@ -60,7 +60,7 @@ func resolveStorageLensRelationships(acct *account, st *store.Store) error {
 			if bucketARN == "" {
 				return nil
 			}
-			id := store.ResourceID("aws", acct.ID, TypeS3Bucket, bucketARN)
+			id := store.ResourceID("aws", acct.ID, bucketARN)
 			if _, ok := bucketSet[id]; !ok {
 				return nil
 			}
@@ -121,7 +121,7 @@ func resolveS3MRAPRegionBuckets(acct *account, st *store.Store) error {
 				continue
 			}
 			barn := "arn:aws:s3:::" + b
-			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+			tgt := store.ResourceID("aws", acct.ID, barn)
 			if !bucketSet[tgt] {
 				continue
 			}

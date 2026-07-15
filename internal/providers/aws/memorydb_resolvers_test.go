@@ -18,7 +18,7 @@ func upsertMemDBNamed(t *testing.T, st *store.Store, acct *account, rtype, arn, 
 	if _, err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsert %s: %v", rtype, err)
 	}
-	return store.ResourceID("aws", acct.ID, rtype, arn)
+	return store.ResourceID("aws", acct.ID, arn)
 }
 
 func TestResolveMemoryDBClusterRefs(t *testing.T) {

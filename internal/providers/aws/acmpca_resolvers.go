@@ -46,7 +46,7 @@ func resolveACMPCARelationships(acct *account, st *store.Store) error {
 		if bucket == "" {
 			continue
 		}
-		bucketID := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucket)
+		bucketID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+bucket)
 		if err := st.UpsertRelationship(r.ID, bucketID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert acm-pca→s3 crl: %w", err)
 		}

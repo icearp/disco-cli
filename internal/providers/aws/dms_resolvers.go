@@ -84,7 +84,7 @@ func resolveDMSEndpointRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if arn := sv(attrs.CertificateArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDMSCertificate, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if certSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dms-endpoint→cert: %w", err)
@@ -151,7 +151,7 @@ func resolveDMSReplicationInstanceRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.ReplicationSubnetGroup != nil {
 			if name := sv(attrs.ReplicationSubnetGroup.ReplicationSubnetGroupIdentifier); name != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeDMSReplicationSubnetGroup, dmsReplicationSubnetGroupARNFromName(region, acct.ID, name))
+				tgtID := store.ResourceID("aws", acct.ID, dmsReplicationSubnetGroupARNFromName(region, acct.ID, name))
 				if rsgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dms-ri→rsg: %w", err)
@@ -164,7 +164,7 @@ func resolveDMSReplicationInstanceRefs(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", id))
 			if !sgSet[tgtID] {
 				continue
 			}
@@ -207,7 +207,7 @@ func resolveDMSReplicationSubnetGroupRefs(acct *account, st *store.Store) error 
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.VpcID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", id))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dms-rsg→vpc: %w", err)
@@ -219,7 +219,7 @@ func resolveDMSReplicationSubnetGroupRefs(acct *account, st *store.Store) error 
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", id))
 			if !subnetSet[tgtID] {
 				continue
 			}
@@ -260,7 +260,7 @@ func resolveDMSReplicationTaskRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if arn := sv(attrs.ReplicationInstanceArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDMSReplicationInstance, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if riSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dms-rt→ri: %w", err)
@@ -271,7 +271,7 @@ func resolveDMSReplicationTaskRefs(acct *account, st *store.Store) error {
 			if arn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeDMSEndpoint, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !epSet[tgtID] {
 				continue
 			}
@@ -310,7 +310,7 @@ func resolveDMSReplicationConfigRefs(acct *account, st *store.Store) error {
 			if arn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeDMSEndpoint, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !epSet[tgtID] {
 				continue
 			}
@@ -350,7 +350,7 @@ func resolveDMSDataMigrationRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if arn := sv(attrs.ServiceAccessRoleArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dms-dm→role: %w", err)
@@ -358,7 +358,7 @@ func resolveDMSDataMigrationRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if arn := sv(attrs.MigrationProjectArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDMSMigrationProject, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if mpSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dms-dm→mp: %w", err)
@@ -402,7 +402,7 @@ func resolveDMSMigrationProjectRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if arn := sv(attrs.InstanceProfileArn); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDMSInstanceProfile, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if ipSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dms-mp→ip: %w", err)
@@ -414,7 +414,7 @@ func resolveDMSMigrationProjectRefs(acct *account, st *store.Store) error {
 			if arn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeDMSDataProvider, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !dpSet[tgtID] {
 				continue
 			}
@@ -468,7 +468,7 @@ func resolveDMSInstanceProfileRefs(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", id))
 			if !sgSet[tgtID] {
 				continue
 			}
@@ -506,7 +506,7 @@ func resolveDMSEventSubscriptionTopic(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !topicSet[tgtID] {
 			continue
 		}

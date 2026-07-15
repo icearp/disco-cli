@@ -67,7 +67,7 @@ func resolveGreengrassVersionsToParent(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, p.parent, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !parentSet[tgtID] {
 				continue
 			}

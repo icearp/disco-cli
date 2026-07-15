@@ -52,7 +52,7 @@ func resolveSiteToServerFarm(sub *subscription, st *store.Store) error {
 		if attrs.Properties == nil || attrs.Properties.ServerFarmID == nil {
 			continue
 		}
-		planID := store.ResourceID("azure", sub.ID, TypeAppServiceServerFarm, *attrs.Properties.ServerFarmID)
+		planID := store.ResourceID("azure", sub.ID, *attrs.Properties.ServerFarmID)
 		if err := st.UpsertRelationship(r.ID, planID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert site→serverFarm relationship: %w", err)
 		}
@@ -87,7 +87,7 @@ func resolveSiteToHostingEnv(sub *subscription, st *store.Store) error {
 		if attrs.Properties == nil || attrs.Properties.HostingEnvironmentProfile == nil || attrs.Properties.HostingEnvironmentProfile.ID == nil {
 			continue
 		}
-		aseID := store.ResourceID("azure", sub.ID, TypeAppServiceEnvironment, *attrs.Properties.HostingEnvironmentProfile.ID)
+		aseID := store.ResourceID("azure", sub.ID, *attrs.Properties.HostingEnvironmentProfile.ID)
 		if err := st.UpsertRelationship(r.ID, aseID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert site→hostingEnvironment relationship: %w", err)
 		}
@@ -112,7 +112,7 @@ func resolveSlotToSite(sub *subscription, st *store.Store) error {
 		if siteNativeID == "" {
 			continue
 		}
-		siteID := store.ResourceID("azure", sub.ID, TypeAppServiceSite, siteNativeID)
+		siteID := store.ResourceID("azure", sub.ID, siteNativeID)
 		if err := st.UpsertRelationship(r.ID, siteID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert slot→site relationship: %w", err)
 		}
@@ -145,7 +145,7 @@ func resolveSlotToServerFarm(sub *subscription, st *store.Store) error {
 		if attrs.Properties == nil || attrs.Properties.ServerFarmID == nil {
 			continue
 		}
-		planID := store.ResourceID("azure", sub.ID, TypeAppServiceServerFarm, *attrs.Properties.ServerFarmID)
+		planID := store.ResourceID("azure", sub.ID, *attrs.Properties.ServerFarmID)
 		if err := st.UpsertRelationship(r.ID, planID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert slot→serverFarm relationship: %w", err)
 		}
@@ -181,7 +181,7 @@ func resolveServerFarmToHostingEnv(sub *subscription, st *store.Store) error {
 		if attrs.Properties == nil || attrs.Properties.HostingEnvironmentProfile == nil || attrs.Properties.HostingEnvironmentProfile.ID == nil {
 			continue
 		}
-		aseID := store.ResourceID("azure", sub.ID, TypeAppServiceEnvironment, *attrs.Properties.HostingEnvironmentProfile.ID)
+		aseID := store.ResourceID("azure", sub.ID, *attrs.Properties.HostingEnvironmentProfile.ID)
 		if err := st.UpsertRelationship(r.ID, aseID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert serverFarm→hostingEnvironment relationship: %w", err)
 		}

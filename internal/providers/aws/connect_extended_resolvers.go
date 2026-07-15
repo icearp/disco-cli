@@ -78,7 +78,7 @@ func resolveConnectInstanceServiceRole(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+		tgt := store.ResourceID("aws", acct.ID, arn)
 		if !roleSet[tgt] {
 			continue
 		}
@@ -145,7 +145,7 @@ func resolveConnectChildrenToInstance(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeConnectInstance, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !instSet[tgtID] {
 				continue
 			}
@@ -182,7 +182,7 @@ func resolveConnectViewVersionToView(acct *account, st *store.Store) error {
 		}
 		viewVerARN := r.NativeID[:last] // …:instance/{i}/view-version/{viewID}
 		viewARN := strings.Replace(viewVerARN, "/view-version/", "/view/", 1)
-		tgtID := store.ResourceID("aws", acct.ID, TypeConnectView, viewARN)
+		tgtID := store.ResourceID("aws", acct.ID, viewARN)
 		if !viewSet[tgtID] {
 			continue
 		}
@@ -226,7 +226,7 @@ func resolveConnectDataTableChildrenToTable(acct *account, st *store.Store) erro
 			}
 			tableID := tail[:end]
 			tableARN := r.NativeID[:i] + "/data-table/" + tableID
-			tgtID := store.ResourceID("aws", acct.ID, TypeConnectDataTable, tableARN)
+			tgtID := store.ResourceID("aws", acct.ID, tableARN)
 			if !tableSet[tgtID] {
 				continue
 			}

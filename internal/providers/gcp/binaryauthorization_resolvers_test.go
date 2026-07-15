@@ -42,7 +42,7 @@ func upsertNamedTestResource(t *testing.T, st *store.Store, provider, accountID,
 	if _, err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertNamedTestResource %s/%s: %v", rtype, nativeID, err)
 	}
-	return store.ResourceID(provider, accountID, rtype, nativeID)
+	return store.ResourceID(provider, accountID, nativeID)
 }
 
 func TestResolveBinaryAuthorizationPolicyRelationships_AttestorsAndCluster(t *testing.T) {

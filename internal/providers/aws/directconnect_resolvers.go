@@ -72,7 +72,7 @@ func resolveDXConnectionToLag(acct *account, st *store.Store) error {
 		if lagID == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeDirectConnectLag, dxLagARN(sv(r.Region), acct.ID, lagID))
+		tgtID := store.ResourceID("aws", acct.ID, dxLagARN(sv(r.Region), acct.ID, lagID))
 		if !lagSet[tgtID] {
 			continue
 		}
@@ -129,14 +129,14 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 			if cid := sv(attrs.ConnectionID); cid != "" {
 				// VI's ConnectionID may point to a Connection (`dxcon-...`) or LAG (`dxlag-...`).
 				if strings.HasPrefix(cid, "dxlag") {
-					tgtID := store.ResourceID("aws", acct.ID, TypeDirectConnectLag, dxLagARN(region, acct.ID, cid))
+					tgtID := store.ResourceID("aws", acct.ID, dxLagARN(region, acct.ID, cid))
 					if lagSet[tgtID] {
 						if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 							return fmt.Errorf("upsert dx vi→lag: %w", err)
 						}
 					}
 				} else {
-					tgtID := store.ResourceID("aws", acct.ID, TypeDirectConnectConnection, dxConnectionARN(region, acct.ID, cid))
+					tgtID := store.ResourceID("aws", acct.ID, dxConnectionARN(region, acct.ID, cid))
 					if connSet[tgtID] {
 						if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 							return fmt.Errorf("upsert dx vi→connection: %w", err)
@@ -145,7 +145,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 				}
 			}
 			if gw := sv(attrs.DirectConnectGatewayID); gw != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeDirectConnectDirectConnectGateway, dxGatewayARN(acct.ID, gw))
+				tgtID := store.ResourceID("aws", acct.ID, dxGatewayARN(acct.ID, gw))
 				if dxgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dx vi→dxgw: %w", err)
@@ -153,7 +153,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 				}
 			}
 			if vgw := sv(attrs.VirtualGatewayID); vgw != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPNGateway, ec2ARN(region, acct.ID, "vpn-gateway", vgw))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpn-gateway", vgw))
 				if vgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dx vi→vgw: %w", err)
@@ -204,7 +204,7 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if gw := sv(attrs.DirectConnectGatewayID); gw != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDirectConnectDirectConnectGateway, dxGatewayARN(acct.ID, gw))
+			tgtID := store.ResourceID("aws", acct.ID, dxGatewayARN(acct.ID, gw))
 			if dxgwSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dx assoc→dxgw: %w", err)
@@ -224,14 +224,14 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 			}
 			switch ag.Type {
 			case "virtualPrivateGateway":
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPNGateway, ec2ARN(gwRegion, gwAcct, "vpn-gateway", gid))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(gwRegion, gwAcct, "vpn-gateway", gid))
 				if vgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dx assoc→vgw: %w", err)
 					}
 				}
 			case "transitGateway":
-				tgtID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway, ec2ARN(gwRegion, gwAcct, "transit-gateway", gid))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(gwRegion, gwAcct, "transit-gateway", gid))
 				if tgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dx assoc→tgw: %w", err)

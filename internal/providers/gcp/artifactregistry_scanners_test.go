@@ -77,7 +77,7 @@ func TestScanArtifactRegistry_RepoPackageTagRuleAttachmentChain(t *testing.T) {
 		{TypeArtifactAttachment, attName},
 		{TypeArtifactTag, tagName},
 	} {
-		id := store.ResourceID("gcp", p.ID, tc.typ, tc.nativeID)
+		id := store.ResourceID("gcp", p.ID, tc.nativeID)
 		res, err := st.GetResource(id)
 		if err != nil {
 			t.Fatalf("GetResource(%s): %v", tc.typ, err)
@@ -90,7 +90,7 @@ func TestScanArtifactRegistry_RepoPackageTagRuleAttachmentChain(t *testing.T) {
 		}
 	}
 
-	repoID := store.ResourceID("gcp", p.ID, TypeArtifactRepository, repoName)
+	repoID := store.ResourceID("gcp", p.ID, repoName)
 	rels, err := st.RelationshipsFrom(repoID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(repo): %v", err)
@@ -99,7 +99,7 @@ func TestScanArtifactRegistry_RepoPackageTagRuleAttachmentChain(t *testing.T) {
 		t.Errorf("expected repository to contain child rows via hierarchy closure, got none")
 	}
 
-	pkgID := store.ResourceID("gcp", p.ID, TypeArtifactPackage, pkgName)
+	pkgID := store.ResourceID("gcp", p.ID, pkgName)
 	pkgRels, err := st.RelationshipsFrom(pkgID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(package): %v", err)

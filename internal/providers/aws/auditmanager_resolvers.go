@@ -76,7 +76,7 @@ func resolveAuditManagerAssessmentTargets(acct *account, st *store.Store) error 
 
 		if attrs.Framework != nil {
 			if fwARN := sv(attrs.Framework.Arn); fwARN != "" {
-				fID := store.ResourceID("aws", acct.ID, TypeAuditManagerFramework, fwARN)
+				fID := store.ResourceID("aws", acct.ID, fwARN)
 				if _, ok := frameworkIDs[fID]; ok {
 					if err := st.UpsertRelationship(a.ID, fID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert auditmanager assessment→framework: %w", err)
@@ -91,7 +91,7 @@ func resolveAuditManagerAssessmentTargets(acct *account, st *store.Store) error 
 				if roleARN == "" {
 					continue
 				}
-				rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+				rID := store.ResourceID("aws", acct.ID, roleARN)
 				if _, ok := roleIDs[rID]; ok {
 					if err := st.UpsertRelationship(a.ID, rID, store.RelAssumes, "directed", nil); err != nil {
 						return fmt.Errorf("upsert auditmanager assessment→iam role: %w", err)
@@ -102,7 +102,7 @@ func resolveAuditManagerAssessmentTargets(acct *account, st *store.Store) error 
 				dest := attrs.Metadata.AssessmentReportsDestination
 				if sv(dest.DestinationType) == "S3" {
 					if bucketARN := s3BucketARNFromS3URL(sv(dest.Destination)); bucketARN != "" {
-						bID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bucketARN)
+						bID := store.ResourceID("aws", acct.ID, bucketARN)
 						if _, ok := bucketIDs[bID]; ok {
 							if err := st.UpsertRelationship(a.ID, bID, store.RelUses, "directed", nil); err != nil {
 								return fmt.Errorf("upsert auditmanager assessment→s3 bucket: %w", err)

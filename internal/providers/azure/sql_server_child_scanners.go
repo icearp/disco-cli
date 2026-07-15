@@ -82,7 +82,7 @@ func sqlChildScan[C any, T any](
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			discoID := store.ResourceID("azure", sub.ID, rtype, e.id)
+			discoID := store.ResourceID("azure", sub.ID, e.id)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, srv.resourceID})
 		}

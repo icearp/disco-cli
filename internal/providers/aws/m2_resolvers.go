@@ -52,7 +52,7 @@ func resolveM2DeploymentRefs(acct *account, st *store.Store) error {
 		// → app via NativeID strip
 		if i := strings.Index(r.NativeID, "/deployment/"); i >= 0 {
 			parent := r.NativeID[:i]
-			tgtID := store.ResourceID("aws", acct.ID, TypeM2Application, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if appSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert m2 dep→app: %w", err)

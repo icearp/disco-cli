@@ -91,7 +91,7 @@ func resolveCognitoUserPoolChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !poolSet[tgtID] {
 				continue
 			}
@@ -131,7 +131,7 @@ func resolveCognitoUserPoolGroupRole(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !roleSet[tgtID] {
 			continue
 		}
@@ -262,7 +262,7 @@ func emitCogLambdaConfigEdges(st *store.Store, acct *account, p store.Resource, 
 			return nil
 		}
 		seen[arn] = true
-		tgt := store.ResourceID("aws", acct.ID, TypeLambdaFunction, arn)
+		tgt := store.ResourceID("aws", acct.ID, arn)
 		if !sets.lamSet[tgt] {
 			return nil
 		}
@@ -307,7 +307,7 @@ func emitCogEmailEdge(st *store.Store, acct *account, p store.Resource, attrs co
 	if arn == "" {
 		return nil
 	}
-	tgt := store.ResourceID("aws", acct.ID, TypeSESEmailIdentity, arn)
+	tgt := store.ResourceID("aws", acct.ID, arn)
 	if !sets.sesSet[tgt] {
 		return nil
 	}
@@ -325,7 +325,7 @@ func emitCogSmsEdge(st *store.Store, acct *account, p store.Resource, attrs cogU
 	if arn == "" {
 		return nil
 	}
-	tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+	tgt := store.ResourceID("aws", acct.ID, arn)
 	if !sets.roleSet[tgt] {
 		return nil
 	}
@@ -343,7 +343,7 @@ func emitCogCustomDomainEdge(st *store.Store, acct *account, p store.Resource, a
 	if arn == "" {
 		return nil
 	}
-	tgt := store.ResourceID("aws", acct.ID, TypeACMCertificate, arn)
+	tgt := store.ResourceID("aws", acct.ID, arn)
 	if !sets.acmSet[tgt] {
 		return nil
 	}
@@ -379,7 +379,7 @@ func resolveCognitoIdentityPoolRoleAttachment(acct *account, st *store.Store) er
 		// Parent identity-pool: strip trailing "/roleattachment".
 		parent := strings.TrimSuffix(r.NativeID, "/roleattachment")
 		if parent != r.NativeID {
-			tgtID := store.ResourceID("aws", acct.ID, TypeCognitoIdentityPool, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if poolSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert cognito-id-role-attach→identity-pool: %w", err)
@@ -398,7 +398,7 @@ func resolveCognitoIdentityPoolRoleAttachment(acct *account, st *store.Store) er
 				continue
 			}
 			seen[roleARN] = true
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			tgtID := store.ResourceID("aws", acct.ID, roleARN)
 			if !roleSet[tgtID] {
 				continue
 			}

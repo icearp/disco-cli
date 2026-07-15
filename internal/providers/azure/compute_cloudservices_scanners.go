@@ -70,7 +70,7 @@ func scanCloudServiceChain(ctx context.Context, sub *subscription, cred azcore.T
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(cs.Tags)
-			discoID := store.ResourceID("azure", sub.ID, TypeComputeCloudService, nativeID)
+			discoID := store.ResourceID("azure", sub.ID, nativeID)
 			csBatch = append(csBatch, r)
 			csPairs = append(csPairs, rgHierarchyPair(sub, TypeComputeCloudService, nativeID))
 			csEntries = append(csEntries, cloudServiceEntry{
@@ -169,7 +169,7 @@ func scanCloudServiceRoles(ctx context.Context, sub *subscription, client *armco
 				AttributesJSON: mustJSON(role),
 				DiscoveredBy:   scanID,
 			}
-			roleID := store.ResourceID("azure", sub.ID, TypeComputeCloudServiceRole, nativeID)
+			roleID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{roleID, cs.discoID})
 		}
@@ -216,7 +216,7 @@ func scanCloudServiceRoleInstances(ctx context.Context, sub *subscription, clien
 				AttributesJSON: mustJSON(ri),
 				DiscoveredBy:   scanID,
 			}
-			riID := store.ResourceID("azure", sub.ID, TypeComputeCloudServiceRoleInstance, nativeID)
+			riID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{riID, cs.discoID})
 		}

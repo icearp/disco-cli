@@ -41,7 +41,7 @@ func resolveRekProjectChildren(acct *account, st *store.Store) error {
 			if attrs.ProjectArn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeRekognitionProject, attrs.ProjectArn)
+			tgtID := store.ResourceID("aws", acct.ID, attrs.ProjectArn)
 			if !projSet[tgtID] {
 				continue
 			}

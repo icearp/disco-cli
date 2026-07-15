@@ -244,7 +244,7 @@ func resolveTransferRoleEdge(acct *account, st *store.Store, sourceType, fieldNa
 		if !ok || v == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, v)
+		tgtID := store.ResourceID("aws", acct.ID, v)
 		if !roleSet[tgtID] {
 			continue
 		}

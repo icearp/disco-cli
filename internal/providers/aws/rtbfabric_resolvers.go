@@ -38,7 +38,7 @@ func resolveRTBLinkRoutingRuleToLink(acct *account, st *store.Store) error {
 		if !ok {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeRTBFabricLink, linkARN)
+		tgtID := store.ResourceID("aws", acct.ID, linkARN)
 		if !linkSet[tgtID] {
 			continue
 		}

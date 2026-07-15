@@ -220,7 +220,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 		inserted += n
 		pairs := make([][2]string, len(selectionPair))
 		for i, p := range selectionPair {
-			parentID := store.ResourceID("aws", acct.ID, TypeBackupPlan, p.parentARN)
+			parentID := store.ResourceID("aws", acct.ID, p.parentARN)
 			pairs[i] = [2]string{p.r.ID, parentID}
 		}
 		if err := st.RecordHierarchyBatch(pairs); err != nil {

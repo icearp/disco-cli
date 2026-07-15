@@ -101,7 +101,39 @@ Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaning
 
 ## Embedded child → row: when to promote
 
-Embedded child data gets promoted to its own resource row only when ALL hold: (1) the child is an **edge endpoint** (resolver targets the child as `to_id`, not just walks it to emit edges from parent); (2) per-child state matters operationally (diff/check value — blackhole flips, propagation toggles); (3) cardinality bounded (≲ 100 / parent typical). Otherwise keep embedded — adding rows for CIDR-keyed entries (route-table routes, NACL entries, VPN static routes) trades scan-time + DB size for nothing the resolver couldn't already extract from the parent walk. Promotion uses **composite NativeID** `{parentARN}/<kind>/{childId}` and a new child resource type `aws:<svc>:<parent>-<child>` — never invent a 4-part disco-id format. ResourceID stays 3-part (provider/account/type/native); hierarchy lives in NativeID. Precedent: `aws:ec2:transit-gateway-route` (`{rtbARN}/{cidr}`), `aws:ec2:tgw-rtb-prop` (`{rtbARN}/{attId}`) in `aws/ec2_tgw_scanners.go`.
+Embedded child data gets promoted to its own resource row only when ALL hold: (1) the child is an **edge endpoint** (resolver targets the child as `to_id`, not just walks it to emit edges from parent); (2) per-child state matters operationally (diff/check value — blackhole flips, propagation toggles); (3) cardinality bounded (≲ 100 / parent typical). Otherwise keep embedded — adding rows for CIDR-keyed entries (route-table routes, NACL entries, VPN static routes) trades scan-time + DB size for nothing the resolver couldn't already extract from the parent walk. Promotion uses **composite NativeID** `{parentARN}/<kind>/{childId}` and a new child resource type `aws:<svc>:<parent>-<child>` — never invent a 4-part disco-id format. ResourceID is 3-part (provider/account/native) — `type` is NOT in the identity hash; hierarchy lives in NativeID. Precedent: `aws:ec2:transit-gateway-route` (`{rtbARN}/{cidr}`), `aws:ec2:tgw-rtb-prop` (`{rtbARN}/{attId}`) in `aws/ec2_tgw_scanners.go`.
+
+## NativeID is the identity handle — must be a real, unique id
+
+Resource identity is `ResourceID(provider, account_id, native_id)` — `type` is **not**
+in the hash (it's a versioned attribute). So `native_id` must uniquely identify the
+resource within `(provider, account_id)` on its own; two types sharing one native_id in
+an account now silently **merge** into one version chain, not coexist. Two design rules:
+
+1. **Never mutate a value the API returned.** `attributes` stays the verbatim SDK
+   response. Never fix a collision by string-mangling a returned id (`ac.Id + "/x"`) —
+   that corrupts a value the API owns. If a returned id is non-unique across types (the
+   cloud's own overlap, e.g. GCS bucket-ACL vs default-object-ACL both `{bucket}/{entity}`),
+   pick a **different, unique** API-provided field for that type (`ac.SelfLink`) — don't
+   rewrite the non-unique one.
+2. **One fixed native_id source per type, applied 100% unconditionally** — never a
+   per-row runtime fallback ("SelfLink if present, else Name, else synthesize"), which
+   makes one type emit different-shaped ids depending on which fields a response populates.
+   A missing chosen field is a **presence skip** (drop the row, like a `SelfLink == ""`
+   guard), never a substitution.
+
+Per-type source, in order: (1) the API's own unique value — selfLink / ARN / canonical
+resource name; (2) synthesize from real id parts only when the API issues no unique id at
+all (precedent: `aws_arn.go`; disco's `{parentARN}/<kind>` children). For a config-of-parent
+singleton that the API returns keyed to its parent's ARN (WAFv2 logging-config, CloudFront
+monitoring-subscription — both carry the parent's ARN), append a `/<kind>` suffix so it
+doesn't share identity with the parent; the resolver strips the suffix to recover the
+parent ARN. **GCP caveat:** the unique field must be the form other resources *reference it
+by* (resolvers recompute a target's ResourceID from the ref-string) — `.SelfLink` only when
+that IS the cross-referenced form (Compute) or the type is never an edge Target; types
+referenced by relative name (`.Name` / `projects/...`) keep that form. See
+`project_gcp_cross_api_selflink_mismatch`. A scan-time detector
+(`store.UpsertResources`) warns if two types map to one native_id in a single run.
 
 ## Non-resource config fetches → sidecar on `account`
 

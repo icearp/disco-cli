@@ -88,7 +88,7 @@ func (idx *kmsResolveIndex) resolveKMSKeyID(ref, region, acctID string) (string,
 	// Alias name shape: "alias/foo" — look up via index first.
 	if strings.HasPrefix(ref, "alias/") {
 		if keyARN, ok := idx.aliasToKeyARN[ref]; ok {
-			id := store.ResourceID("aws", acctID, TypeKMSKey, keyARN)
+			id := store.ResourceID("aws", acctID, keyARN)
 			_, present := idx.keyIDs[id]
 			return id, present
 		}
@@ -99,7 +99,7 @@ func (idx *kmsResolveIndex) resolveKMSKeyID(ref, region, acctID string) (string,
 	// Alias ARN shape: arn:aws:kms:{r}:{a}:alias/foo
 	if strings.HasPrefix(ref, "arn:") && strings.Contains(ref, ":alias/") {
 		if keyARN, ok := idx.aliasToKeyARN[ref]; ok {
-			id := store.ResourceID("aws", acctID, TypeKMSKey, keyARN)
+			id := store.ResourceID("aws", acctID, keyARN)
 			_, present := idx.keyIDs[id]
 			return id, present
 		}
@@ -107,7 +107,7 @@ func (idx *kmsResolveIndex) resolveKMSKeyID(ref, region, acctID string) (string,
 	}
 	// Already a key ARN, or bare key UUID — normalize via kmsKeyTargetARN.
 	target := kmsKeyTargetARN(ref, region, acctID)
-	id := store.ResourceID("aws", acctID, TypeKMSKey, target)
+	id := store.ResourceID("aws", acctID, target)
 	_, present := idx.keyIDs[id]
 	return id, present
 }

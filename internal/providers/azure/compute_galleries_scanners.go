@@ -83,7 +83,7 @@ func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCred
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(g.Tags)
-			discoID := store.ResourceID("azure", sub.ID, TypeComputeGallery, nativeID)
+			discoID := store.ResourceID("azure", sub.ID, nativeID)
 			galBatch = append(galBatch, r)
 			galPairs = append(galPairs, rgHierarchyPair(sub, TypeComputeGallery, nativeID))
 			galleries = append(galleries, galleryEntry{
@@ -263,7 +263,7 @@ func scanGalleryImages(ctx context.Context, sub *subscription, cred azcore.Token
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(img.Tags)
-			imgDiscoID := store.ResourceID("azure", sub.ID, TypeComputeGalleryImage, nativeID)
+			imgDiscoID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{imgDiscoID, gal.discoID})
 			entries = append(entries, galleryChildEntry{
@@ -325,7 +325,7 @@ func scanGalleryApplications(ctx context.Context, sub *subscription, cred azcore
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(app.Tags)
-			appDiscoID := store.ResourceID("azure", sub.ID, TypeComputeGalleryApplication, nativeID)
+			appDiscoID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{appDiscoID, gal.discoID})
 			entries = append(entries, galleryChildEntry{
@@ -387,7 +387,7 @@ func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred azcore.Tok
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(prof.Tags)
-			profDiscoID := store.ResourceID("azure", sub.ID, TypeComputeGalleryInVMACP, nativeID)
+			profDiscoID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{profDiscoID, gal.discoID})
 			entries = append(entries, galleryProfileEntry{
@@ -449,7 +449,7 @@ func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred azcor
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(v.Tags)
-			vID := store.ResourceID("azure", sub.ID, TypeComputeGalleryImageVersion, nativeID)
+			vID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{vID, img.discoID})
 		}
@@ -504,7 +504,7 @@ func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(v.Tags)
-			vID := store.ResourceID("azure", sub.ID, TypeComputeGalleryApplicationVersion, nativeID)
+			vID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{vID, app.discoID})
 		}
@@ -559,7 +559,7 @@ func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred azc
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(v.Tags)
-			vID := store.ResourceID("azure", sub.ID, TypeComputeGalleryInVMACPVersion, nativeID)
+			vID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{vID, prof.discoID})
 		}

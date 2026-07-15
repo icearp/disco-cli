@@ -80,7 +80,7 @@ func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if attrs.ParameterGroup != nil {
 			if n := sv(attrs.ParameterGroup.ParameterGroupName); n != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeDAXParameterGroup, daxARN(region, acct.ID, "parameter-group", n))
+				tgtID := store.ResourceID("aws", acct.ID, daxARN(region, acct.ID, "parameter-group", n))
 				if pgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dax cl→pg: %w", err)
@@ -89,7 +89,7 @@ func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if n := sv(attrs.SubnetGroup); n != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeDAXSubnetGroup, daxARN(region, acct.ID, "subnet-group", n))
+			tgtID := store.ResourceID("aws", acct.ID, daxARN(region, acct.ID, "subnet-group", n))
 			if sgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dax cl→sg: %w", err)
@@ -104,7 +104,7 @@ func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", id))
 			if !ec2SgSet[tgtID] {
 				continue
 			}
@@ -113,7 +113,7 @@ func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if role := sv(attrs.IamRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			tgtID := store.ResourceID("aws", acct.ID, role)
 			if roleSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dax cl→role: %w", err)
@@ -122,7 +122,7 @@ func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.NotificationConfiguration != nil {
 			if topic := sv(attrs.NotificationConfiguration.TopicArn); topic != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, topic)
+				tgtID := store.ResourceID("aws", acct.ID, topic)
 				if topicSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dax cl→topic: %w", err)
@@ -166,7 +166,7 @@ func resolveDAXSubnetGroupRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if v := sv(attrs.VpcID); v != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", v))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dax sg→vpc: %w", err)
@@ -181,7 +181,7 @@ func resolveDAXSubnetGroupRefs(acct *account, st *store.Store) error {
 			if sid == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sid))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sid))
 			if !subSet[tgtID] {
 				continue
 			}

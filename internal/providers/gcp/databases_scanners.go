@@ -219,7 +219,7 @@ func scanBigtableClusters(ctx context.Context, svc *bigtableadmin.Service, p *pr
 				DiscoveredBy:   scanID,
 			})
 		}
-		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
+		instResID := store.ResourceID("gcp", p.ID, inst.Name)
 		ct, cn, uerr := upsertWithParent(st, cbatch, instResID)
 		total += ct
 		inserted += cn
@@ -261,8 +261,8 @@ func scanBigtableAppProfiles(ctx context.Context, svc *bigtableadmin.Service, p 
 					AttributesJSON: mustJSON(ap),
 					DiscoveredBy:   scanID,
 				})
-				instID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, instanceNative)
-				apID := store.ResourceID("gcp", p.ID, TypeBigtableAppProfile, ap.Name)
+				instID := store.ResourceID("gcp", p.ID, instanceNative)
+				apID := store.ResourceID("gcp", p.ID, ap.Name)
 				pairs = append(pairs, [2]string{apID, instID})
 			}
 			n, upErr := st.UpsertResources(batch)
@@ -285,7 +285,7 @@ func scanBigtableTables(ctx context.Context, svc *bigtableadmin.Service, p *proj
 		if inst == nil || inst.Name == "" {
 			return nil
 		}
-		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
+		instResID := store.ResourceID("gcp", p.ID, inst.Name)
 		var batch []*store.Resource
 		var names []string
 		listErr := svc.Projects.Instances.Tables.List(inst.Name).Pages(gctx, func(page *bigtableadmin.ListTablesResponse) error {
@@ -335,7 +335,7 @@ func scanBigtableLogicalViews(ctx context.Context, svc *bigtableadmin.Service, p
 		if inst == nil || inst.Name == "" {
 			return nil
 		}
-		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
+		instResID := store.ResourceID("gcp", p.ID, inst.Name)
 		var batch []*store.Resource
 		listErr := svc.Projects.Instances.LogicalViews.List(inst.Name).Pages(gctx, func(page *bigtableadmin.ListLogicalViewsResponse) error {
 			for _, lv := range page.LogicalViews {
@@ -382,7 +382,7 @@ func scanBigtableMaterializedViews(ctx context.Context, svc *bigtableadmin.Servi
 		if inst == nil || inst.Name == "" {
 			return nil
 		}
-		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
+		instResID := store.ResourceID("gcp", p.ID, inst.Name)
 		var batch []*store.Resource
 		listErr := svc.Projects.Instances.MaterializedViews.List(inst.Name).Pages(gctx, func(page *bigtableadmin.ListMaterializedViewsResponse) error {
 			for _, mv := range page.MaterializedViews {
@@ -426,7 +426,7 @@ func scanBigtableMaterializedViews(ctx context.Context, svc *bigtableadmin.Servi
 func scanBigtableAuthorizedViews(ctx context.Context, svc *bigtableadmin.Service, p *project, tableNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, tableNames, func(gctx context.Context, tableName string) error {
-		tableResID := store.ResourceID("gcp", p.ID, TypeBigtableTable, tableName)
+		tableResID := store.ResourceID("gcp", p.ID, tableName)
 		var batch []*store.Resource
 		listErr := svc.Projects.Instances.Tables.AuthorizedViews.List(tableName).Pages(gctx, func(page *bigtableadmin.ListAuthorizedViewsResponse) error {
 			for _, av := range page.AuthorizedViews {
@@ -470,7 +470,7 @@ func scanBigtableAuthorizedViews(ctx context.Context, svc *bigtableadmin.Service
 func scanBigtableSchemaBundles(ctx context.Context, svc *bigtableadmin.Service, p *project, tableNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, tableNames, func(gctx context.Context, tableName string) error {
-		tableResID := store.ResourceID("gcp", p.ID, TypeBigtableTable, tableName)
+		tableResID := store.ResourceID("gcp", p.ID, tableName)
 		var batch []*store.Resource
 		listErr := svc.Projects.Instances.Tables.SchemaBundles.List(tableName).Pages(gctx, func(page *bigtableadmin.ListSchemaBundlesResponse) error {
 			for _, sb := range page.SchemaBundles {
@@ -544,8 +544,8 @@ func scanBigtableBackups(ctx context.Context, svc *bigtableadmin.Service, p *pro
 					AttributesJSON: mustJSON(b),
 					DiscoveredBy:   scanID,
 				})
-				clusterID := store.ResourceID("gcp", p.ID, TypeBigtableCluster, clusterNative)
-				backupID := store.ResourceID("gcp", p.ID, TypeBigtableBackup, b.Name)
+				clusterID := store.ResourceID("gcp", p.ID, clusterNative)
+				backupID := store.ResourceID("gcp", p.ID, b.Name)
 				pairs = append(pairs, [2]string{backupID, clusterID})
 			}
 			return nil
@@ -583,7 +583,7 @@ func scanBigtableHotTablets(ctx context.Context, svc *bigtableadmin.Service, p *
 		if c == nil || c.Name == "" {
 			return nil
 		}
-		clusterResID := store.ResourceID("gcp", p.ID, TypeBigtableCluster, c.Name)
+		clusterResID := store.ResourceID("gcp", p.ID, c.Name)
 		var batch []*store.Resource
 		listErr := svc.Projects.Instances.Clusters.HotTablets.List(c.Name).Pages(gctx, func(page *bigtableadmin.ListHotTabletsResponse) error {
 			for _, ht := range page.HotTablets {
@@ -658,8 +658,8 @@ func scanBigtableMemoryLayers(ctx context.Context, svc *bigtableadmin.Service, p
 					AttributesJSON: mustJSON(ml),
 					DiscoveredBy:   scanID,
 				})
-				clusterID := store.ResourceID("gcp", p.ID, TypeBigtableCluster, clusterNative)
-				mlID := store.ResourceID("gcp", p.ID, TypeBigtableMemoryLayer, ml.Name)
+				clusterID := store.ResourceID("gcp", p.ID, clusterNative)
+				mlID := store.ResourceID("gcp", p.ID, ml.Name)
 				pairs = append(pairs, [2]string{mlID, clusterID})
 			}
 			return nil
@@ -796,8 +796,8 @@ func scanFirestoreBackups(ctx context.Context, svc *firestore.Service, p *projec
 			AttributesJSON: mustJSON(b),
 			DiscoveredBy:   scanID,
 		})
-		dbID := store.ResourceID("gcp", p.ID, TypeFirestoreDB, b.Database)
-		backupID := store.ResourceID("gcp", p.ID, TypeFirestoreBackup, b.Name)
+		dbID := store.ResourceID("gcp", p.ID, b.Database)
+		backupID := store.ResourceID("gcp", p.ID, b.Name)
 		pairs = append(pairs, [2]string{backupID, dbID})
 	}
 	n, upErr := st.UpsertResources(batch)
@@ -816,7 +816,7 @@ func scanFirestoreBackups(ctx context.Context, svc *firestore.Service, p *projec
 func scanFirestoreBackupSchedules(ctx context.Context, svc *firestore.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentFirestoreFanout, databaseNames, func(gctx context.Context, dbName string) error {
-		dbResID := store.ResourceID("gcp", p.ID, TypeFirestoreDB, dbName)
+		dbResID := store.ResourceID("gcp", p.ID, dbName)
 		resp, listErr := svc.Projects.Databases.BackupSchedules.List(dbName).Context(gctx).Do()
 		if listErr != nil {
 			if isPermissionDenied(listErr) {
@@ -863,7 +863,7 @@ func scanFirestoreBackupSchedules(ctx context.Context, svc *firestore.Service, p
 func scanFirestoreUserCreds(ctx context.Context, svc *firestore.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentFirestoreFanout, databaseNames, func(gctx context.Context, dbName string) error {
-		dbResID := store.ResourceID("gcp", p.ID, TypeFirestoreDB, dbName)
+		dbResID := store.ResourceID("gcp", p.ID, dbName)
 		resp, listErr := svc.Projects.Databases.UserCreds.List(dbName).Context(gctx).Do()
 		if listErr != nil {
 			if isPermissionDenied(listErr) {
@@ -1054,8 +1054,8 @@ func scanSpannerInstancePartitions(ctx context.Context, svc *spanner.Service, p 
 					AttributesJSON: mustJSON(ip),
 					DiscoveredBy:   scanID,
 				})
-				instID := store.ResourceID("gcp", p.ID, TypeSpannerInstance, instanceNative)
-				partID := store.ResourceID("gcp", p.ID, TypeSpannerInstancePartition, ip.Name)
+				instID := store.ResourceID("gcp", p.ID, instanceNative)
+				partID := store.ResourceID("gcp", p.ID, ip.Name)
 				pairs = append(pairs, [2]string{partID, instID})
 			}
 			n, upErr := st.UpsertResources(batch)
@@ -1104,7 +1104,7 @@ func scanSpannerDatabases(ctx context.Context, svc *spanner.Service, p *project,
 			}
 			return databaseNames, total, inserted, listErr
 		}
-		instResID := store.ResourceID("gcp", p.ID, TypeSpannerInstance, inst.Name)
+		instResID := store.ResourceID("gcp", p.ID, inst.Name)
 		dt, dn, derr := upsertWithParent(st, dbatch, instResID)
 		total += dt
 		inserted += dn
@@ -1123,7 +1123,7 @@ func scanSpannerBackups(ctx context.Context, svc *spanner.Service, p *project, i
 		if inst == nil || inst.Name == "" {
 			return nil
 		}
-		instResID := store.ResourceID("gcp", p.ID, TypeSpannerInstance, inst.Name)
+		instResID := store.ResourceID("gcp", p.ID, inst.Name)
 		var batch []*store.Resource
 		listErr := svc.Projects.Instances.Backups.List(inst.Name).Pages(gctx, func(page *spanner.ListBackupsResponse) error {
 			for _, b := range page.Backups {
@@ -1169,7 +1169,7 @@ func scanSpannerBackups(ctx context.Context, svc *spanner.Service, p *project, i
 func scanSpannerBackupSchedules(ctx context.Context, svc *spanner.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentSpannerFanout, databaseNames, func(gctx context.Context, dbName string) error {
-		dbResID := store.ResourceID("gcp", p.ID, TypeSpannerDatabase, dbName)
+		dbResID := store.ResourceID("gcp", p.ID, dbName)
 		var batch []*store.Resource
 		listErr := svc.Projects.Instances.Databases.BackupSchedules.List(dbName).Pages(gctx, func(page *spanner.ListBackupSchedulesResponse) error {
 			for _, bs := range page.BackupSchedules {
@@ -1213,7 +1213,7 @@ func scanSpannerBackupSchedules(ctx context.Context, svc *spanner.Service, p *pr
 func scanSpannerDatabaseRoles(ctx context.Context, svc *spanner.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentSpannerFanout, databaseNames, func(gctx context.Context, dbName string) error {
-		dbResID := store.ResourceID("gcp", p.ID, TypeSpannerDatabase, dbName)
+		dbResID := store.ResourceID("gcp", p.ID, dbName)
 		var batch []*store.Resource
 		listErr := svc.Projects.Instances.Databases.DatabaseRoles.List(dbName).Pages(gctx, func(page *spanner.ListDatabaseRolesResponse) error {
 			for _, r := range page.DatabaseRoles {

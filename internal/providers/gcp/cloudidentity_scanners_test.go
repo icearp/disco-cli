@@ -58,8 +58,8 @@ func TestScanCloudIdentityGroups_ReturnsGroupNames(t *testing.T) {
 func TestScanCloudIdentityDeviceTree_FullFanout(t *testing.T) {
 	st := newTestStore(t)
 
-	deviceID := store.ResourceID("gcp", testCustomerID, TypeCloudIdentityDevice, "devices/d1")
-	deviceUserID := store.ResourceID("gcp", testCustomerID, TypeCloudIdentityDeviceUser, "devices/d1/deviceUsers/u1")
+	deviceID := store.ResourceID("gcp", testCustomerID, "devices/d1")
+	deviceUserID := store.ResourceID("gcp", testCustomerID, "devices/d1/deviceUsers/u1")
 
 	routes := map[string]string{
 		"/v1/devices": marshalAttrs(t, cloudidentity.GoogleAppsCloudidentityDevicesV1ListDevicesResponse{
@@ -105,7 +105,7 @@ func TestScanCloudIdentityDeviceTree_FullFanout(t *testing.T) {
 		t.Fatalf("client states counts: got %d/%d, want 1/1", total, inserted)
 	}
 
-	clientStateID := store.ResourceID("gcp", testCustomerID, TypeCloudIdentityClientState, "devices/d1/deviceUsers/u1/clientStates/c1")
+	clientStateID := store.ResourceID("gcp", testCustomerID, "devices/d1/deviceUsers/u1/clientStates/c1")
 
 	assertChildOf(t, st, deviceUserID, deviceID)
 	assertChildOf(t, st, clientStateID, deviceUserID)
@@ -134,7 +134,7 @@ func TestScanCloudIdentityMemberships_PartialDenyContinues(t *testing.T) {
 	// production scanCloudIdentityGroups phase would have inserted first.
 	group1ID := upsertTestResource(t, st, "gcp", testCustomerID, TypeCloudIdentityGroup, "groups/g1", "", "{}")
 	group2ID := upsertTestResource(t, st, "gcp", testCustomerID, TypeCloudIdentityGroup, "groups/g2", "", "{}")
-	membershipID := store.ResourceID("gcp", testCustomerID, TypeCloudIdentityMembership, "groups/g2/memberships/m1")
+	membershipID := store.ResourceID("gcp", testCustomerID, "groups/g2/memberships/m1")
 
 	deniedBody := `{"error":{"code":403,"message":"caller is missing cloudidentity.groups.memberships.list","errors":[{"reason":"forbidden"}]}}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -180,8 +180,8 @@ func TestScanCloudIdentityMemberships_PartialDenyContinues(t *testing.T) {
 func TestScanCloudIdentitySSO_FullFanout(t *testing.T) {
 	st := newTestStore(t)
 
-	profileID := store.ResourceID("gcp", testCustomerID, TypeCloudIdentityInboundSamlSsoProfile, "inboundSamlSsoProfiles/p1")
-	credID := store.ResourceID("gcp", testCustomerID, TypeCloudIdentityIdpCredential, "inboundSamlSsoProfiles/p1/idpCredentials/cred1")
+	profileID := store.ResourceID("gcp", testCustomerID, "inboundSamlSsoProfiles/p1")
+	credID := store.ResourceID("gcp", testCustomerID, "inboundSamlSsoProfiles/p1/idpCredentials/cred1")
 
 	routes := map[string]string{
 		"/v1/inboundOidcSsoProfiles": marshalAttrs(t, cloudidentity.ListInboundOidcSsoProfilesResponse{

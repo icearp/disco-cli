@@ -59,7 +59,7 @@ func resolveMySQLRelationships(sub *subscription, st *store.Store) error {
 		}
 		if attrs.Properties.Network != nil && attrs.Properties.Network.DelegatedSubnetResourceID != nil {
 			if vnetID := vnetIDFromSubnetID(*attrs.Properties.Network.DelegatedSubnetResourceID); vnetID != "" {
-				vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+				vnetResourceID := store.ResourceID("azure", sub.ID, vnetID)
 				if _, err := st.GetResource(vnetResourceID); err == nil {
 					if err := st.UpsertRelationship(r.ID, vnetResourceID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert mysql→vnet: %w", err)

@@ -63,7 +63,7 @@ func resolveECSCapacityProviderToASG(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeAutoScalingGroup, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !asgSet[tgtID] {
 			continue
 		}
@@ -98,7 +98,7 @@ func resolveECSCCPARefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		clusterARN := strings.TrimSuffix(r.NativeID, "/capacity-provider-associations")
 		if clusterARN != r.NativeID {
-			tgtID := store.ResourceID("aws", acct.ID, TypeECSCluster, clusterARN)
+			tgtID := store.ResourceID("aws", acct.ID, clusterARN)
 			if clSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs ccpa→cluster: %w", err)
@@ -120,7 +120,7 @@ func resolveECSCCPARefs(acct *account, st *store.Store) error {
 			if !strings.HasPrefix(cpName, "arn:") {
 				cpARN = ecsCapacityProviderARN(region, acct.ID, cpName)
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeECSCapacityProvider, cpARN)
+			tgtID := store.ResourceID("aws", acct.ID, cpARN)
 			if !cpSet[tgtID] {
 				continue
 			}
@@ -166,7 +166,7 @@ func resolveECSTaskSetRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if c := sv(attrs.ClusterArn); c != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeECSCluster, c)
+			tgtID := store.ResourceID("aws", acct.ID, c)
 			if clSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs ts→cluster: %w", err)
@@ -174,7 +174,7 @@ func resolveECSTaskSetRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if s := sv(attrs.ServiceArn); s != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeECSService, s)
+			tgtID := store.ResourceID("aws", acct.ID, s)
 			if svcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs ts→service: %w", err)
@@ -182,7 +182,7 @@ func resolveECSTaskSetRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if td := sv(attrs.TaskDefinition); td != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeECSTaskDefinition, td)
+			tgtID := store.ResourceID("aws", acct.ID, td)
 			if tdSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs ts→td: %w", err)

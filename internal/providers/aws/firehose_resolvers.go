@@ -68,7 +68,7 @@ func resolveFirehoseDeliveryStreamRelationships(acct *account, st *store.Store) 
 		// Source → Kinesis stream
 		if attrs.Source != nil && attrs.Source.KinesisStreamSourceDescription != nil {
 			if arn := sv(attrs.Source.KinesisStreamSourceDescription.KinesisStreamARN); arn != "" {
-				srcID := store.ResourceID("aws", acct.ID, TypeKinesisStream, arn)
+				srcID := store.ResourceID("aws", acct.ID, arn)
 				if err := st.UpsertRelationship(r.ID, srcID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert firehose→kinesis source: %w", err)
 				}
@@ -91,7 +91,7 @@ func firehoseEmitS3AndKMS(st *store.Store, fromID, acctID, region string, kmsIdx
 		if bucketARN == "" {
 			return nil
 		}
-		bucketID := store.ResourceID("aws", acctID, TypeS3Bucket, bucketARN)
+		bucketID := store.ResourceID("aws", acctID, bucketARN)
 		if err := st.UpsertRelationship(fromID, bucketID, store.RelRoutesTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert firehose→s3 bucket: %w", err)
 		}

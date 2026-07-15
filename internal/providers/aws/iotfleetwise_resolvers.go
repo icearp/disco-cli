@@ -42,7 +42,7 @@ func resolveIoTFWRefs(acct *account, st *store.Store) error {
 		if tgtARN == "" {
 			return nil
 		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+		tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 		if !set[tgtID] {
 			return nil
 		}

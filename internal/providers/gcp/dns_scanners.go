@@ -86,7 +86,7 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 	// Phase 2: per-zone record sets + DNSSEC keys.
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentDNSZones, zones, func(gctx context.Context, z zoneRef) error {
-		zoneID := store.ResourceID("gcp", p.ID, TypeDNSManagedZone, z.nativeID)
+		zoneID := store.ResourceID("gcp", p.ID, z.nativeID)
 
 		err := svc.ResourceRecordSets.List(p.ID, z.name).Pages(gctx, func(page *dns.ResourceRecordSetsListResponse) error {
 			var batch []*store.Resource
@@ -215,7 +215,7 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 	}
 
 	if err := forEachItem(ctx, maxConcurrentDNSZones, responsePolicies, func(gctx context.Context, rp rpRef) error {
-		rpID := store.ResourceID("gcp", p.ID, TypeDNSResponsePolicy, rp.nativeID)
+		rpID := store.ResourceID("gcp", p.ID, rp.nativeID)
 		err := svc.ResponsePolicyRules.List(p.ID, rp.name).Pages(gctx, func(page *dns.ResponsePolicyRulesListResponse) error {
 			var batch []*store.Resource
 			for _, rule := range page.ResponsePolicyRules {

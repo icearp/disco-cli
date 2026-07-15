@@ -122,7 +122,7 @@ func resolveOSSVpcEndpointRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if v := sv(attrs.VpcID); v != "" {
-			tgt := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", v))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
 			if vpcSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert oss-vpce→vpc: %w", err)
@@ -130,7 +130,7 @@ func resolveOSSVpcEndpointRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, sn := range attrs.SubnetIDs {
-			tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
 			if !subnetSet[tgt] {
 				continue
 			}
@@ -139,7 +139,7 @@ func resolveOSSVpcEndpointRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, sg := range attrs.SecurityGroupIDs {
-			tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 			if !sgSet[tgt] {
 				continue
 			}

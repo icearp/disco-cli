@@ -65,7 +65,7 @@ func resolveCleanRoomsMembershipCollaboration(acct *account, st *store.Store) er
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeCleanRoomsCollaboration, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !colSet[tgtID] {
 			continue
 		}
@@ -114,7 +114,7 @@ func resolveCleanRoomsChildToMembership(acct *account, st *store.Store) error {
 				continue
 			}
 			if m := sv(attrs.MembershipArn); m != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeCleanRoomsMembership, m)
+				tgtID := store.ResourceID("aws", acct.ID, m)
 				if memSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert cr %s→membership: %w", ctype, err)
@@ -122,7 +122,7 @@ func resolveCleanRoomsChildToMembership(acct *account, st *store.Store) error {
 				}
 			}
 			if c := sv(attrs.CollaborationArn); c != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeCleanRoomsCollaboration, c)
+				tgtID := store.ResourceID("aws", acct.ID, c)
 				if colSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert cr %s→collab: %w", ctype, err)
@@ -162,7 +162,7 @@ func resolveCleanRoomsConfiguredTableAssocToTable(acct *account, st *store.Store
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeCleanRoomsConfiguredTable, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !tblSet[tgtID] {
 			continue
 		}
@@ -202,7 +202,7 @@ func resolveCleanRoomsConfiguredAudienceModelAssocToModel(acct *account, st *sto
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeCleanRoomsMLConfiguredAudienceModel, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !modelSet[tgtID] {
 			continue
 		}

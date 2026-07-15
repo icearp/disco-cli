@@ -27,7 +27,7 @@ func TestScanComputeGlobalForwardingRules_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeGlobalForwardingRule, selfLink)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink)); err != nil {
 		t.Errorf("GetResource: %v", err)
 	}
 }
@@ -56,14 +56,14 @@ func TestScanComputeHealthChecks_Fake(t *testing.T) {
 	if total != 2 || inserted != 2 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
-	g, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeHealthCheck, globalLink))
+	g, err := st.GetResource(store.ResourceID("gcp", p.ID, globalLink))
 	if err != nil {
 		t.Fatalf("GetResource(global): %v", err)
 	}
 	if g.Region != nil {
 		t.Errorf("global health check region: got %v, want nil", *g.Region)
 	}
-	r, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionHealthCheck, regionLink))
+	r, err := st.GetResource(store.ResourceID("gcp", p.ID, regionLink))
 	if err != nil {
 		t.Fatalf("GetResource(region): %v", err)
 	}
@@ -125,7 +125,7 @@ func TestScanComputeRegionCompositeHealthChecks_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionCompositeHealthCheck, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestScanComputeRegionHealthAggregationPolicies_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionHealthAggregationPolicy, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestScanComputeRegionHealthCheckServices_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionHealthCheckService, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestScanComputeRegionHealthSources_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionHealthSource, selfLink)); err != nil {
+	if _, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink)); err != nil {
 		t.Errorf("GetResource: %v", err)
 	}
 }
@@ -268,7 +268,7 @@ func TestScanComputeRegionNotificationEndpoints_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionNotificationEndpoint, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -341,14 +341,14 @@ func TestScanComputeSslCertificates_Fake(t *testing.T) {
 	if total != 2 || inserted != 2 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
-	g, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeSslCertificate, globalLink))
+	g, err := st.GetResource(store.ResourceID("gcp", p.ID, globalLink))
 	if err != nil {
 		t.Fatalf("GetResource(global): %v", err)
 	}
 	if g.Region != nil {
 		t.Errorf("global ssl certificate region: got %v, want nil", *g.Region)
 	}
-	r, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionSslCertificate, regionLink))
+	r, err := st.GetResource(store.ResourceID("gcp", p.ID, regionLink))
 	if err != nil {
 		t.Fatalf("GetResource(region): %v", err)
 	}
@@ -381,14 +381,14 @@ func TestScanComputeSslPolicies_Fake(t *testing.T) {
 	if total != 2 || inserted != 2 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
-	g, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeSslPolicy, globalLink))
+	g, err := st.GetResource(store.ResourceID("gcp", p.ID, globalLink))
 	if err != nil {
 		t.Fatalf("GetResource(global): %v", err)
 	}
 	if g.Region != nil {
 		t.Errorf("global ssl policy region: got %v, want nil", *g.Region)
 	}
-	r, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionSslPolicy, regionLink))
+	r, err := st.GetResource(store.ResourceID("gcp", p.ID, regionLink))
 	if err != nil {
 		t.Fatalf("GetResource(region): %v", err)
 	}
@@ -441,14 +441,14 @@ func TestScanComputeTargetTcpProxies_Fake(t *testing.T) {
 	if total != 2 || inserted != 2 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
-	g, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeTargetTcpProxy, globalLink))
+	g, err := st.GetResource(store.ResourceID("gcp", p.ID, globalLink))
 	if err != nil {
 		t.Fatalf("GetResource(global): %v", err)
 	}
 	if g.Region != nil {
 		t.Errorf("global target tcp proxy region: got %v, want nil", *g.Region)
 	}
-	r, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionTargetTcpProxy, regionLink))
+	r, err := st.GetResource(store.ResourceID("gcp", p.ID, regionLink))
 	if err != nil {
 		t.Fatalf("GetResource(region): %v", err)
 	}
@@ -505,7 +505,7 @@ func TestScanComputeTargetInstances_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeTargetInstance, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}
@@ -539,7 +539,7 @@ func TestScanComputeTargetPools_Fake(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	got, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeTargetPool, selfLink))
+	got, err := st.GetResource(store.ResourceID("gcp", p.ID, selfLink))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}

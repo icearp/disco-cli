@@ -53,7 +53,7 @@ func resolveFDDetectorEventType(acct *account, st *store.Store) error {
 			continue
 		}
 		arn := fdARN(sv(r.Region), acct.ID, "event-type", name)
-		tgtID := store.ResourceID("aws", acct.ID, TypeFraudDetectorEventType, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !etSet[tgtID] {
 			continue
 		}
@@ -104,7 +104,7 @@ func resolveFDEventTypeRefs(acct *account, st *store.Store) error {
 					continue
 				}
 				arn := fdARN(region, acct.ID, kind, n)
-				tgtID := store.ResourceID("aws", acct.ID, ttyp, arn)
+				tgtID := store.ResourceID("aws", acct.ID, arn)
 				if !set[tgtID] {
 					continue
 				}

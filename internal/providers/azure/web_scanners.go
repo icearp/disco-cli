@@ -204,7 +204,7 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenC
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(s.Tags)
-			discoID := store.ResourceID("azure", sub.ID, TypeAppServiceSite, nativeID)
+			discoID := store.ResourceID("azure", sub.ID, nativeID)
 			kind := sv(s.Kind)
 			batch = append(batch, r)
 			pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceSite, nativeID))
@@ -333,7 +333,7 @@ func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservi
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(s.Tags)
-			slotID := store.ResourceID("azure", sub.ID, TypeAppServiceSiteSlot, nativeID)
+			slotID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			// slot → parent site hierarchy
 			pairs = append(pairs, [2]string{slotID, site.discoID})
@@ -395,7 +395,7 @@ func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred azcore.T
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(e.Tags)
-			discoID := store.ResourceID("azure", sub.ID, TypeAppServiceEnvironment, nativeID)
+			discoID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceEnvironment, nativeID))
 			entries = append(entries, aseEntry{
@@ -484,7 +484,7 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 				AttributesJSON: mustJSON(wp),
 				DiscoveredBy:   scanID,
 			}
-			wpID := store.ResourceID("azure", sub.ID, TypeAppServiceEnvironmentWorkerPool, nativeID)
+			wpID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{wpID, ase.discoID})
 		}
@@ -516,7 +516,7 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 				AttributesJSON: mustJSON(mrp),
 				DiscoveredBy:   scanID,
 			}
-			mrpID := store.ResourceID("azure", sub.ID, TypeAppServiceEnvironmentMultiRolePool, nativeID)
+			mrpID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{mrpID, ase.discoID})
 		}
@@ -607,7 +607,7 @@ func scanStaticSitesChain(ctx context.Context, sub *subscription, cred azcore.To
 				DiscoveredBy:   scanID,
 			}
 			r.TagsJSON = azTagsJSON(ss.Tags)
-			discoID := store.ResourceID("azure", sub.ID, TypeAppServiceStaticSite, nativeID)
+			discoID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceStaticSite, nativeID))
 			entries = append(entries, staticSiteEntry{
@@ -694,7 +694,7 @@ func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armapp
 				AttributesJSON: mustJSON(b),
 				DiscoveredBy:   scanID,
 			}
-			buildID := store.ResourceID("azure", sub.ID, TypeAppServiceStaticSiteBuild, nativeID)
+			buildID := store.ResourceID("azure", sub.ID, nativeID)
 			batch = append(batch, r)
 			// build → parent static site hierarchy
 			pairs = append(pairs, [2]string{buildID, ss.discoID})

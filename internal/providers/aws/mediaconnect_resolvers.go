@@ -52,7 +52,7 @@ func resolveMediaConnectBridgeChildren(acct *account, st *store.Store) error {
 			if parent == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeMediaConnectBridge, parent)
+			tgtID := store.ResourceID("aws", acct.ID, parent)
 			if !bridgeSet[tgtID] {
 				continue
 			}
@@ -98,7 +98,7 @@ func resolveMediaConnectFlowVpcInterface(acct *account, st *store.Store) error {
 			continue
 		}
 		parent := r.NativeID[:i]
-		tgtID := store.ResourceID("aws", acct.ID, TypeMediaConnectFlow, parent)
+		tgtID := store.ResourceID("aws", acct.ID, parent)
 		if !flowSet[tgtID] {
 			continue
 		}
@@ -156,7 +156,7 @@ func resolveMediaConnectFlowChildren(acct *account, st *store.Store) error {
 			if arn == "" {
 				return nil
 			}
-			cID := store.ResourceID("aws", acct.ID, ctype, arn)
+			cID := store.ResourceID("aws", acct.ID, arn)
 			if !set[cID] {
 				return nil
 			}
@@ -209,7 +209,7 @@ func resolveMediaConnectBridgePlacement(acct *account, st *store.Store) error {
 		if ga == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeMediaConnectGateway, ga)
+		tgt := store.ResourceID("aws", acct.ID, ga)
 		if !gwSet[tgt] {
 			continue
 		}

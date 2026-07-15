@@ -101,7 +101,7 @@ func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error
 			if roleARN == "" {
 				continue
 			}
-			rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			rID := store.ResourceID("aws", acct.ID, roleARN)
 			if _, ok := roleIDs[rID]; ok {
 				if err := st.UpsertRelationship(e.ID, rID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert batch compute-env→iam role: %w", err)
@@ -115,7 +115,7 @@ func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error
 					continue
 				}
 				snARN := ec2ARN(region, acct.ID, "subnet", sn)
-				sID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, snARN)
+				sID := store.ResourceID("aws", acct.ID, snARN)
 				if _, ok := subnetIDs[sID]; ok {
 					if err := st.UpsertRelationship(e.ID, sID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert batch compute-env→subnet: %w", err)
@@ -127,7 +127,7 @@ func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error
 					continue
 				}
 				sgARN := ec2ARN(region, acct.ID, "security-group", sg)
-				rID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+				rID := store.ResourceID("aws", acct.ID, sgARN)
 				if _, ok := sgIDs[rID]; ok {
 					if err := st.UpsertRelationship(e.ID, rID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert batch compute-env→sg: %w", err)
@@ -182,7 +182,7 @@ func resolveBatchJobQueueComputeEnvs(acct *account, st *store.Store) error {
 			if ceARN == "" {
 				continue
 			}
-			eID := store.ResourceID("aws", acct.ID, TypeBatchComputeEnvironment, ceARN)
+			eID := store.ResourceID("aws", acct.ID, ceARN)
 			if _, ok := envIDs[eID]; !ok {
 				continue
 			}
@@ -255,7 +255,7 @@ func resolveBatchJobDefinitionTargets(acct *account, st *store.Store) error {
 			if roleARN == "" {
 				continue
 			}
-			rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+			rID := store.ResourceID("aws", acct.ID, roleARN)
 			if _, ok := roleIDs[rID]; ok {
 				if err := st.UpsertRelationship(d.ID, rID, store.RelAssumes, "directed", nil); err != nil {
 					return fmt.Errorf("upsert batch job-def→iam role: %w", err)
@@ -264,7 +264,7 @@ func resolveBatchJobDefinitionTargets(acct *account, st *store.Store) error {
 		}
 
 		if repoARN := apprunnerImageToRepoARN(sv(cp.Image)); repoARN != "" {
-			rID := store.ResourceID("aws", acct.ID, TypeECRRepository, repoARN)
+			rID := store.ResourceID("aws", acct.ID, repoARN)
 			if _, ok := repoIDs[rID]; ok {
 				if err := st.UpsertRelationship(d.ID, rID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert batch job-def→ecr repo: %w", err)
@@ -309,7 +309,7 @@ func resolveBatchQuotaShareJobQueue(acct *account, st *store.Store) error {
 		if qARN == "" {
 			continue
 		}
-		qID := store.ResourceID("aws", acct.ID, TypeBatchJobQueue, qARN)
+		qID := store.ResourceID("aws", acct.ID, qARN)
 		if _, ok := queueIDs[qID]; !ok {
 			continue
 		}

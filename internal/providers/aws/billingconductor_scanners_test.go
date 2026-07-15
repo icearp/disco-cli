@@ -65,7 +65,7 @@ func TestScanBillingConductor(t *testing.T) {
 		{TypeBillingConductorPricingPlan, ppArn},
 		{TypeBillingConductorPricingRule, prArn},
 	} {
-		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, want.rtype, want.native)); err != nil {
+		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, want.native)); err != nil {
 			t.Errorf("%s missing: %v", want.rtype, err)
 		}
 	}

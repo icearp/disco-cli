@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -87,7 +88,7 @@ func OpenPostgres(ctx context.Context, dsn string, opts ...PGOption) (*Store, er
 		return nil, fmt.Errorf("ping pg: %w", err)
 	}
 
-	s := &Store{db: db, driver: driverPostgres}
+	s := &Store{db: db, driver: driverPostgres, nativeIDSeen: &sync.Map{}}
 	if err := s.migratePG(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("pg migrate: %w", err)

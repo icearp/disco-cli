@@ -40,7 +40,7 @@ func TestScanComputeInstanceGroups_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	id := store.ResourceID("gcp", p.ID, TypeComputeInstanceGroup, igSelfLink)
+	id := store.ResourceID("gcp", p.ID, igSelfLink)
 	got, err := st.GetResource(id)
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
@@ -80,11 +80,11 @@ func TestScanComputeInstanceGroupManagers_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2 (igm + resize request)", total, inserted)
 	}
 
-	igmID := store.ResourceID("gcp", p.ID, TypeComputeInstanceGroupManager, igmSelfLink)
+	igmID := store.ResourceID("gcp", p.ID, igmSelfLink)
 	if _, err := st.GetResource(igmID); err != nil {
 		t.Errorf("GetResource(igm): %v", err)
 	}
-	rrID := store.ResourceID("gcp", p.ID, TypeComputeInstanceGroupManagerResizeRequest, rrSelfLink)
+	rrID := store.ResourceID("gcp", p.ID, rrSelfLink)
 	got, err := st.GetResource(rrID)
 	if err != nil {
 		t.Fatalf("GetResource(resize request): %v", err)
@@ -154,7 +154,7 @@ func TestScanComputeInstanceTemplates_Fake(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
 	}
 
-	globalID := store.ResourceID("gcp", p.ID, TypeComputeInstanceTemplate, globalSelfLink)
+	globalID := store.ResourceID("gcp", p.ID, globalSelfLink)
 	got, err := st.GetResource(globalID)
 	if err != nil {
 		t.Fatalf("GetResource(global): %v", err)
@@ -163,7 +163,7 @@ func TestScanComputeInstanceTemplates_Fake(t *testing.T) {
 		t.Errorf("global instance template should have no region, got %v", got.Region)
 	}
 
-	regionalID := store.ResourceID("gcp", p.ID, TypeComputeRegionInstanceTemplate, regionalSelfLink)
+	regionalID := store.ResourceID("gcp", p.ID, regionalSelfLink)
 	got2, err := st.GetResource(regionalID)
 	if err != nil {
 		t.Fatalf("GetResource(regional): %v", err)

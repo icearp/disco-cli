@@ -81,7 +81,7 @@ func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc 
 				DiscoveredBy:   scanID,
 			}
 			batch = append(batch, r)
-			policyID := store.ResourceID("gcp", sc.Name, TypeAccessPolicy, ap.Name)
+			policyID := store.ResourceID("gcp", sc.Name, ap.Name)
 			pairs = append(pairs, [2]string{policyID, sc.Resource})
 		}
 		if len(batch) == 0 {
@@ -136,7 +136,7 @@ func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc 
 // access policy and persists each as its child in the closure table.
 // Permission errors per policy degrade to a warning.
 func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total, inserted int, err error) {
-	policyID := store.ResourceID("gcp", sc.Name, TypeAccessPolicy, policyName)
+	policyID := store.ResourceID("gcp", sc.Name, policyName)
 	err = svc.AccessPolicies.ServicePerimeters.List(policyName).Context(ctx).Pages(ctx,
 		func(page *accesscontextmanager.ListServicePerimetersResponse) error {
 			var batch []*store.Resource
@@ -157,7 +157,7 @@ func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanag
 					DiscoveredBy:   scanID,
 				}
 				batch = append(batch, r)
-				perimeterID := store.ResourceID("gcp", sc.Name, TypeServicePerimeter, sp.Name)
+				perimeterID := store.ResourceID("gcp", sc.Name, sp.Name)
 				pairs = append(pairs, [2]string{perimeterID, policyID})
 			}
 			if len(batch) == 0 {
@@ -187,7 +187,7 @@ func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanag
 // and persists each as its child in the closure table. Permission errors per
 // policy degrade to a warning.
 func scanAccessLevelsForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total, inserted int, err error) {
-	policyID := store.ResourceID("gcp", sc.Name, TypeAccessPolicy, policyName)
+	policyID := store.ResourceID("gcp", sc.Name, policyName)
 	err = svc.AccessPolicies.AccessLevels.List(policyName).Context(ctx).Pages(ctx,
 		func(page *accesscontextmanager.ListAccessLevelsResponse) error {
 			var batch []*store.Resource
@@ -208,7 +208,7 @@ func scanAccessLevelsForPolicy(ctx context.Context, svc *accesscontextmanager.Se
 					DiscoveredBy:   scanID,
 				}
 				batch = append(batch, r)
-				levelID := store.ResourceID("gcp", sc.Name, TypeAccessLevel, al.Name)
+				levelID := store.ResourceID("gcp", sc.Name, al.Name)
 				pairs = append(pairs, [2]string{levelID, policyID})
 			}
 			if len(batch) == 0 {
@@ -238,7 +238,7 @@ func scanAccessLevelsForPolicy(ctx context.Context, svc *accesscontextmanager.Se
 // access policy and persists each as its child in the closure table.
 // Permission errors per policy degrade to a warning.
 func scanAuthorizedOrgsDescsForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total, inserted int, err error) {
-	policyID := store.ResourceID("gcp", sc.Name, TypeAccessPolicy, policyName)
+	policyID := store.ResourceID("gcp", sc.Name, policyName)
 	err = svc.AccessPolicies.AuthorizedOrgsDescs.List(policyName).Context(ctx).Pages(ctx,
 		func(page *accesscontextmanager.ListAuthorizedOrgsDescsResponse) error {
 			var batch []*store.Resource
@@ -257,7 +257,7 @@ func scanAuthorizedOrgsDescsForPolicy(ctx context.Context, svc *accesscontextman
 					DiscoveredBy:   scanID,
 				}
 				batch = append(batch, r)
-				descID := store.ResourceID("gcp", sc.Name, TypeAuthorizedOrgsDesc, aod.Name)
+				descID := store.ResourceID("gcp", sc.Name, aod.Name)
 				pairs = append(pairs, [2]string{descID, policyID})
 			}
 			if len(batch) == 0 {
@@ -306,7 +306,7 @@ func scanGcpUserAccessBindingsForOrg(ctx context.Context, svc *accesscontextmana
 					DiscoveredBy:   scanID,
 				}
 				batch = append(batch, r)
-				bindingID := store.ResourceID("gcp", sc.Name, TypeGcpUserAccessBinding, b.Name)
+				bindingID := store.ResourceID("gcp", sc.Name, b.Name)
 				pairs = append(pairs, [2]string{bindingID, sc.Resource})
 			}
 			if len(batch) == 0 {

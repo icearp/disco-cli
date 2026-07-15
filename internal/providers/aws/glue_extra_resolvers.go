@@ -36,7 +36,7 @@ func resolveGlueUserDefinedFunctionRelationships(acct *account, st *store.Store)
 		if i < 0 {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, TypeGlueDatabase, r.NativeID[:i])
+		tgt := store.ResourceID("aws", acct.ID, r.NativeID[:i])
 		if dbSet[tgt] {
 			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert glue udf→database: %w", err)

@@ -46,7 +46,7 @@ func resolveECRRepositoryRelationships(acct *account, st *store.Store) error {
 		if attrs.EncryptionConfiguration == nil || sv(attrs.EncryptionConfiguration.KmsKey) == "" {
 			continue
 		}
-		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.EncryptionConfiguration.KmsKey)
+		keyID := store.ResourceID("aws", acct.ID, *attrs.EncryptionConfiguration.KmsKey)
 		if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert ecr→kms relationship: %w", err)
 		}

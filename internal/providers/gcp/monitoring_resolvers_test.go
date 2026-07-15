@@ -252,7 +252,7 @@ func TestResolveMonitoringDashboardRelationships_ForeignProjectPlaceholder(t *te
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
-	wantID := store.ResourceID("gcp", "other-proj", TypeProject, "other-proj")
+	wantID := store.ResourceID("gcp", "other-proj", "other-proj")
 	if len(rels) != 1 || rels[0].ToID != wantID || rels[0].Kind != "uses" {
 		t.Errorf("want dashboard->project edge to placeholder, got %+v", rels)
 	}

@@ -56,7 +56,7 @@ func resolveSecretsManagerReplication(acct *account, st *store.Store) error {
 		}
 		parts[3] = primary
 		primaryARN := strings.Join(parts, ":")
-		primaryID := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, primaryARN)
+		primaryID := store.ResourceID("aws", acct.ID, primaryARN)
 		if err := st.UpsertRelationship(s.ID, primaryID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert secret→primary-secret: %w", err)
 		}
@@ -83,7 +83,7 @@ func resolveSecretsManagerRotation(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil || sv(attrs.RotationLambdaARN) == "" {
 			continue
 		}
-		fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, *attrs.RotationLambdaARN)
+		fnID := store.ResourceID("aws", acct.ID, *attrs.RotationLambdaARN)
 		if err := st.UpsertRelationship(s.ID, fnID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert secret→rotation-lambda: %w", err)
 		}
@@ -124,7 +124,7 @@ func resolveSecretsManagerKMS(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil || attrs.KmsKeyID == nil || *attrs.KmsKeyID == "" {
 			continue
 		}
-		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KmsKeyID)
+		keyID := store.ResourceID("aws", acct.ID, *attrs.KmsKeyID)
 		if !knownKey[keyID] {
 			continue
 		}

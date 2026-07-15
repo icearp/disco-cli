@@ -57,14 +57,14 @@ func TestScanBedrockDataAutomation(t *testing.T) {
 
 	// Account-owned blueprint is a normal resource; SERVICE-owned is the AWS
 	// sample catalog (ManagedByProvider).
-	acctRow, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBedrockBlueprint, acctBpArn))
+	acctRow, err := st.GetResource(store.ResourceID("aws", acct.ID, acctBpArn))
 	if err != nil {
 		t.Fatalf("account blueprint missing: %v", err)
 	}
 	if acctRow.ManagedByProvider {
 		t.Error("account-owned blueprint should not be ManagedByProvider")
 	}
-	svcRow, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBedrockBlueprint, svcBpArn))
+	svcRow, err := st.GetResource(store.ResourceID("aws", acct.ID, svcBpArn))
 	if err != nil {
 		t.Fatalf("service blueprint missing: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestScanBedrockDataAutomation(t *testing.T) {
 		{TypeBedrockDataAutomationProject, projArn},
 		{TypeBedrockDataAutomationLibrary, libArn},
 	} {
-		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, tc.rtype, tc.arn)); err != nil {
+		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, tc.arn)); err != nil {
 			t.Errorf("%s missing: %v", tc.rtype, err)
 		}
 	}
@@ -118,7 +118,7 @@ func TestScanBedrockBlueprints_Paginates(t *testing.T) {
 		t.Fatalf("total=%d want 2 (both pages)", total)
 	}
 	for _, arn := range []string{a1, a2} {
-		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, TypeBedrockBlueprint, arn)); err != nil {
+		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, arn)); err != nil {
 			t.Errorf("blueprint %s missing: %v", arn, err)
 		}
 	}

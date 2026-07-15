@@ -95,7 +95,7 @@ func resolveKafkaRelationships(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", id))
+			subnetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", id))
 			if !known[subnetID] {
 				continue
 			}
@@ -107,7 +107,7 @@ func resolveKafkaRelationships(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", id))
+			sgID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", id))
 			if !known[sgID] {
 				continue
 			}

@@ -74,7 +74,7 @@ func resolveMediaLiveISGRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		for _, c := range attrs.Channels {
 			arn := listOrARN(c, region, acct.ID, "channel")
-			tgtID := store.ResourceID("aws", acct.ID, TypeMediaLiveChannel, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !chSet[tgtID] {
 				continue
 			}
@@ -84,7 +84,7 @@ func resolveMediaLiveISGRefs(acct *account, st *store.Store) error {
 		}
 		for _, i := range attrs.Inputs {
 			arn := listOrARN(i, region, acct.ID, "input")
-			tgtID := store.ResourceID("aws", acct.ID, TypeMediaLiveInput, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !inSet[tgtID] {
 				continue
 			}
@@ -122,7 +122,7 @@ func resolveMediaLiveSdiSourceRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		for _, i := range attrs.Inputs {
 			arn := listOrARN(i, region, acct.ID, "input")
-			tgtID := store.ResourceID("aws", acct.ID, TypeMediaLiveInput, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !inSet[tgtID] {
 				continue
 			}
@@ -160,7 +160,7 @@ func resolveMediaLiveNetworkRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		for _, c := range attrs.AssociatedClusterIDs {
 			arn := listOrARN(c, region, acct.ID, "cluster")
-			tgtID := store.ResourceID("aws", acct.ID, TypeMediaLiveCluster, arn)
+			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !clSet[tgtID] {
 				continue
 			}

@@ -87,7 +87,7 @@ func resolveImageBuilderPipelineRefs(acct *account, st *store.Store) error {
 			if p.arn == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, p.ttyp, p.arn)
+			tgtID := store.ResourceID("aws", acct.ID, p.arn)
 			if !p.set[tgtID] {
 				continue
 			}
@@ -128,7 +128,7 @@ func resolveImageBuilderInfraInstanceProfile(acct *account, st *store.Store) err
 			continue
 		}
 		ipARN := fmt.Sprintf("arn:aws:iam::%s:instance-profile/%s", acct.ID, name)
-		tgtID := store.ResourceID("aws", acct.ID, TypeIAMInstanceProfile, ipARN)
+		tgtID := store.ResourceID("aws", acct.ID, ipARN)
 		if !ipSet[tgtID] {
 			continue
 		}
@@ -167,7 +167,7 @@ func resolveImageBuilderLifecycleRole(acct *account, st *store.Store) error {
 		if role == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+		tgtID := store.ResourceID("aws", acct.ID, role)
 		if !roleSet[tgtID] {
 			continue
 		}

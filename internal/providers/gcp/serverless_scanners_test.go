@@ -88,7 +88,7 @@ func TestScanCloudRun_FullChain(t *testing.T) {
 		{TypeCloudRunWorkerPool, wpName},
 		{TypeCloudRunInstance, instName},
 	} {
-		id := store.ResourceID("gcp", p.ID, tc.typ, tc.nativeID)
+		id := store.ResourceID("gcp", p.ID, tc.nativeID)
 		res, err := st.GetResource(id)
 		if err != nil {
 			t.Fatalf("GetResource(%s): %v", tc.typ, err)
@@ -98,7 +98,7 @@ func TestScanCloudRun_FullChain(t *testing.T) {
 		}
 	}
 
-	svcID := store.ResourceID("gcp", p.ID, TypeCloudRunSvc, svcName)
+	svcID := store.ResourceID("gcp", p.ID, svcName)
 	rels, err := st.RelationshipsFrom(svcID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom(service): %v", err)

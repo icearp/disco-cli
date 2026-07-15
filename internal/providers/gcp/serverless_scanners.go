@@ -128,7 +128,7 @@ func scanCloudRunWithClient(ctx context.Context, svc *run.Service, svc1 *runv1.A
 				}
 				svcRefs = append(svcRefs, serviceRef{
 					name: s.Name,
-					id:   store.ResourceID("gcp", p.ID, TypeCloudRunSvc, s.Name),
+					id:   store.ResourceID("gcp", p.ID, s.Name),
 				})
 				name := lastSegment(s.Name)
 				region := locationFromResourceName(s.Name)

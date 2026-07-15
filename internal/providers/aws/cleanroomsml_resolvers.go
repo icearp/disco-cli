@@ -45,7 +45,7 @@ func crmlArnEdge(acct *account, st *store.Store, srcType, tgtType string, arnOf 
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !tgtSet[tgtID] {
 			continue
 		}

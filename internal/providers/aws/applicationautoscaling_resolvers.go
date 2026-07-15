@@ -57,7 +57,7 @@ func resolveApplicationAutoScalingRelationships(acct *account, st *store.Store) 
 		}
 		region := sv(p.Region)
 		targetNativeID := applicationAutoScalingScalableTargetNativeID(region, acct.ID, ns, rid, dim)
-		targetID := store.ResourceID("aws", acct.ID, TypeApplicationAutoScalingScalableTarget, targetNativeID)
+		targetID := store.ResourceID("aws", acct.ID, targetNativeID)
 		if _, ok := targetIDs[targetID]; !ok {
 			continue
 		}

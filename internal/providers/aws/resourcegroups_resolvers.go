@@ -42,7 +42,7 @@ func resolveResourceGroupsTagSyncTaskToGroup(acct *account, st *store.Store) err
 		if g == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeResourceGroupsGroup, g)
+		tgtID := store.ResourceID("aws", acct.ID, g)
 		if !gSet[tgtID] {
 			continue
 		}

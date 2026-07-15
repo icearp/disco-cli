@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -309,5 +310,101 @@ func TestVersioning_ListReturnsCurrentRowOnly(t *testing.T) {
 	}
 	if results[0].AttributesJSON != `{"a":3}` {
 		t.Errorf("want latest attributes, got %q", results[0].AttributesJSON)
+	}
+}
+
+// TestVersioning_TypeChange_SupersedesNotForks locks the re-key invariant: a
+// resource whose type string changes between scans (same provider/account/
+// native_id, even with identical attributes) supersedes its prior row instead
+// of forking a second current row. Before the re-key, type was part of the
+// identity hash, so a scanner rename orphaned the old current row — two live
+// rows for one ARN, the bug this fixes.
+func TestVersioning_TypeChange_SupersedesNotForks(t *testing.T) {
+	st := openTestStore(t)
+	ensureTestScan(t, st, "scan-A")
+	r1 := &Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-rekey-1",
+		AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-A",
+	}
+	if _, err := st.UpsertResource(r1); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+	rootID := r1.ID
+
+	// Same native_id + identical attrs, but a renamed type.
+	ensureTestScan(t, st, "scan-B")
+	r2 := &Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:vpc", NativeID: "i-rekey-1",
+		AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-B",
+	}
+	if _, err := st.UpsertResource(r2); err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+	if r2.ID != rootID {
+		t.Errorf("root_id must be type-independent: got %q want %q", r2.ID, rootID)
+	}
+
+	// Exactly one current row, carrying the new type — supersede, not fork.
+	current, err := st.ListResources(ResourceFilter{Limit: 100})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if len(current) != 1 {
+		t.Fatalf("want exactly 1 current row (supersede), got %d", len(current))
+	}
+	if current[0].Type != "aws:ec2:vpc" {
+		t.Errorf("current row type: got %q want aws:ec2:vpc", current[0].Type)
+	}
+
+	// The chain has 2 rows; the old (original-type) row is superseded.
+	versions, err := st.GetResourceVersions(rootID)
+	if err != nil {
+		t.Fatalf("GetResourceVersions: %v", err)
+	}
+	if len(versions) != 2 {
+		t.Fatalf("want 2-row chain, got %d", len(versions))
+	}
+	if versions[0].SupersededBy == nil {
+		t.Error("old row must be superseded")
+	}
+	if versions[0].Type != "aws:ec2:instance" {
+		t.Errorf("old row keeps original type: got %q", versions[0].Type)
+	}
+	if versions[1].Type != "aws:ec2:vpc" {
+		t.Errorf("current chain row type: got %q want aws:ec2:vpc", versions[1].Type)
+	}
+}
+
+// TestNativeIDCollisionDetector_WarnsOnTwoTypesOneNativeID exercises the scan-
+// time safety net: two distinct types upserted at one (provider, account,
+// native_id) in the same scan run fire exactly one ScanWarning (they would
+// otherwise silently share a version chain). Mirrors the real GCP
+// iam:policy vs binaryauthorization:policy collision the re-key surfaced.
+func TestNativeIDCollisionDetector_WarnsOnTwoTypesOneNativeID(t *testing.T) {
+	st := openTestStore(t)
+	var warns []ScanWarning
+	st.OnWarn = func(w ScanWarning) { warns = append(warns, w) }
+	ensureTestScan(t, st, "scan-A")
+
+	mk := func(typ string) *Resource {
+		return &Resource{
+			Provider: "gcp", AccountID: "proj", Type: typ,
+			NativeID: "projects/proj/policy", AttributesJSON: `{}`, DiscoveredBy: "scan-A",
+		}
+	}
+	if _, err := st.UpsertResource(mk("gcp:iam:policy")); err != nil {
+		t.Fatalf("upsert a: %v", err)
+	}
+	if len(warns) != 0 {
+		t.Fatalf("first upsert must not warn, got %v", warns)
+	}
+	if _, err := st.UpsertResource(mk("gcp:binaryauthorization:policy")); err != nil {
+		t.Fatalf("upsert b: %v", err)
+	}
+	if len(warns) != 1 {
+		t.Fatalf("collision must warn exactly once, got %d: %v", len(warns), warns)
+	}
+	if !strings.Contains(warns[0].Message, "projects/proj/policy") {
+		t.Errorf("warning should name the colliding native_id, got %q", warns[0].Message)
 	}
 }

@@ -34,7 +34,7 @@ func resolveCloudServiceRoleRelationships(sub *subscription, st *store.Store) er
 		if csNativeID == "" {
 			continue
 		}
-		csID := store.ResourceID("azure", sub.ID, TypeComputeCloudService, csNativeID)
+		csID := store.ResourceID("azure", sub.ID, csNativeID)
 		if err := st.UpsertRelationship(r.ID, csID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cloudServiceRole→cloudService relationship: %w", err)
 		}
@@ -60,7 +60,7 @@ func resolveCloudServiceRoleInstanceRelationships(sub *subscription, st *store.S
 		if csNativeID == "" {
 			continue
 		}
-		csID := store.ResourceID("azure", sub.ID, TypeComputeCloudService, csNativeID)
+		csID := store.ResourceID("azure", sub.ID, csNativeID)
 		if err := st.UpsertRelationship(r.ID, csID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cloudServiceRoleInstance→cloudService relationship: %w", err)
 		}

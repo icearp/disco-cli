@@ -83,7 +83,7 @@ func scanAccessAnalyzerArchiveRules(ctx context.Context, client accessAnalyzerAP
 		pairs [][2]string
 	)
 	for _, az := range analyzers {
-		parentID := store.ResourceID("aws", acct.ID, TypeAccessAnalyzerAnalyzer, az.arn)
+		parentID := store.ResourceID("aws", acct.ID, az.arn)
 		p := accessanalyzer.NewListArchiveRulesPaginator(client, &accessanalyzer.ListArchiveRulesInput{AnalyzerName: &az.name})
 		for p.HasMorePages() {
 			page, perr := p.NextPage(ctx)

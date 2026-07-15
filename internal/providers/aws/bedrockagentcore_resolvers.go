@@ -166,7 +166,7 @@ func resolveBACRegistryRecordParent(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeBedrockAgentCoreRegistry, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !rgSet[tgtID] {
 			continue
 		}
@@ -209,7 +209,7 @@ func resolveBACGatewayTargetParent(acct *account, st *store.Store) error {
 		}
 		gid := tail[:end]
 		gwARN := r.NativeID[:i] + ":gateway/" + gid
-		tgtID := store.ResourceID("aws", acct.ID, TypeBedrockAgentCoreGateway, gwARN)
+		tgtID := store.ResourceID("aws", acct.ID, gwARN)
 		if !gwSet[tgtID] {
 			continue
 		}
@@ -248,7 +248,7 @@ func resolveBACRuntimeEndpointParent(acct *account, st *store.Store) error {
 		if arn == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeBedrockAgentCoreRuntime, arn)
+		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !rtSet[tgtID] {
 			continue
 		}

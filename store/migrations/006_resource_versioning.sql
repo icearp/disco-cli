@@ -27,7 +27,7 @@ UPDATE resources SET root_id = id WHERE root_id IS NULL;
 
 -- Hot ingest path index: "find current row for this natural key".
 CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_current_by_natural_key
-    ON resources(provider, account_id, type, native_id)
+    ON resources(provider, account_id, native_id)
     WHERE superseded_by IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_resources_root_id          ON resources(root_id);

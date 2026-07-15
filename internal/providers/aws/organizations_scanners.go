@@ -59,7 +59,7 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	if mgmt := sv(org.MasterAccountId); mgmt != "" && mgmt != acct.ID {
 		return total, inserted, nil
 	}
-	orgID := store.ResourceID("aws", acct.ID, TypeOrganization, sv(org.Arn))
+	orgID := store.ResourceID("aws", acct.ID, sv(org.Arn))
 	closurePairs := [][2]string{{orgID, orgID}}
 
 	rootIDs, ouARNByNativeID, t, i, ferr := scanOrgRoots(ctx, client, acct, st, scanID, orgID, &closurePairs)
@@ -278,7 +278,7 @@ func scanOrgRoots(ctx context.Context, client *organizations.Client, acct *accou
 				DiscoveredBy:      scanID,
 				ManagedByProvider: true, // r-xxxx is AWS-default container.
 			})
-			rid := store.ResourceID("aws", acct.ID, TypeOrganizationsOU, arn)
+			rid := store.ResourceID("aws", acct.ID, arn)
 			rootIDs = append(rootIDs, id)
 			ouARNByNativeID[id] = arn
 			*closurePairs = append(*closurePairs, [2]string{rid, orgID})
@@ -327,8 +327,8 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 				return total, inserted, err
 			}
 			if parentARN != "" {
-				pid := store.ResourceID("aws", acct.ID, TypeOrganizationsOU, parentARN)
-				accID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, arn)
+				pid := store.ResourceID("aws", acct.ID, parentARN)
+				accID := store.ResourceID("aws", acct.ID, arn)
 				*closurePairs = append(*closurePairs, [2]string{accID, pid})
 			}
 			status := string(a.Status)
@@ -468,7 +468,7 @@ func walkOUs(
 		}
 		children = append(children, page.OrganizationalUnits...)
 	}
-	parentResID := store.ResourceID("aws", acct.ID, TypeOrganizationsOU, parentARN)
+	parentResID := store.ResourceID("aws", acct.ID, parentARN)
 
 	var batch []*store.Resource
 	for _, ou := range children {
@@ -486,7 +486,7 @@ func walkOUs(
 			DiscoveredBy:   scanID,
 		}
 		batch = append(batch, r)
-		childResID := store.ResourceID("aws", acct.ID, TypeOrganizationsOU, arn)
+		childResID := store.ResourceID("aws", acct.ID, arn)
 		*closurePairs = append(*closurePairs, [2]string{childResID, parentResID})
 	}
 	if len(batch) > 0 {

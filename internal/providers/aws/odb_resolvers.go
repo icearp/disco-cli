@@ -52,7 +52,7 @@ func resolveODBAutonomousDatabaseNetwork(acct *account, st *store.Store) error {
 		if netARN == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, TypeODBOdbNetwork, netARN)
+		tgtID := store.ResourceID("aws", acct.ID, netARN)
 		if !netSet[tgtID] {
 			continue
 		}
@@ -150,7 +150,7 @@ func resolveODBDbNodeCluster(acct *account, st *store.Store) error {
 			continue
 		}
 		clusterARN := r.NativeID[:idx]
-		tgtID := store.ResourceID("aws", acct.ID, TypeODBCloudVMCluster, clusterARN)
+		tgtID := store.ResourceID("aws", acct.ID, clusterARN)
 		if !clusterSet[tgtID] {
 			continue
 		}

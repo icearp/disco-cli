@@ -72,7 +72,7 @@ func TestResolveIoTSWGatewayThing(t *testing.T) {
 	if _, err := st.UpsertResource(thingRow); err != nil {
 		t.Fatalf("upsert thing: %v", err)
 	}
-	thingID := store.ResourceID("aws", acct.ID, TypeIoTThing, thingARN)
+	thingID := store.ResourceID("aws", acct.ID, thingARN)
 	gARN := iotSWARN(testRegion, acct.ID, "gateway", "gw-1")
 	gAttrs := fmt.Sprintf(`{"GatewayPlatform":{"GreengrassV2":{"CoreDeviceThingName":%q}}}`, thingName)
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWGateway, gARN, testRegion, gAttrs)

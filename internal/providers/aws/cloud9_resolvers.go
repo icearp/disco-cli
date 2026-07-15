@@ -52,13 +52,13 @@ func resolveCloud9EnvOwner(acct *account, st *store.Store) error {
 		var tgt string
 		switch {
 		case strings.Contains(oa, ":role/") || strings.Contains(oa, ":assumed-role/"):
-			t := store.ResourceID("aws", acct.ID, TypeIAMRole, oa)
+			t := store.ResourceID("aws", acct.ID, oa)
 			if !roleSet[t] {
 				continue
 			}
 			tgt = t
 		case strings.Contains(oa, ":user/"):
-			t := store.ResourceID("aws", acct.ID, TypeIAMUser, oa)
+			t := store.ResourceID("aws", acct.ID, oa)
 			if !userSet[t] {
 				continue
 			}
