@@ -17,7 +17,7 @@ var hexResourceIDRE = regexp.MustCompile(`^[0-9a-f]{32}$`)
 //
 // Wire shape ≠ storage shape: AttributesJSON / TagsJSON live as JSON strings
 // in the DB but MarshalJSON / UnmarshalJSON surface them as nested
-// `attributes` / `tags` objects on the wire, with snake_case keys matching
+// `attributes` / `tags` objects on the wire, with camelCase keys matching
 // policy.Finding and coverage.Row.
 //
 // Contract: every key documented under `disco check --help` is always
@@ -29,20 +29,20 @@ var hexResourceIDRE = regexp.MustCompile(`^[0-9a-f]{32}$`)
 type Resource struct {
 	ID                string  `db:"id"                  json:"id"`
 	Provider          string  `db:"provider"            json:"provider"`
-	AccountID         string  `db:"account_id"          json:"account_id"`
-	AccountName       *string `db:"account_name"        json:"account_name"`
+	AccountID         string  `db:"account_id"          json:"accountId"`
+	AccountName       *string `db:"account_name"        json:"accountName"`
 	Type              string  `db:"type"                json:"type"`
-	NativeID          string  `db:"native_id"           json:"native_id"`
+	NativeID          string  `db:"native_id"           json:"nativeId"`
 	Name              *string `db:"name"                json:"name"`
 	Region            *string `db:"region"              json:"region"`
 	Zone              *string `db:"zone"                json:"zone"`
 	Status            *string `db:"status"              json:"status"`
 	TagsJSON          *string `db:"tags"                json:"-"` // surfaced as `tags` via MarshalJSON
 	AttributesJSON    string  `db:"attributes"          json:"-"` // surfaced as `attributes` via MarshalJSON
-	CreatedAt         *string `db:"created_at"          json:"created_at"`
-	DiscoveredAt      string  `db:"discovered_at"       json:"discovered_at"`
-	DiscoveredBy      string  `db:"discovered_by"       json:"discovered_by"`
-	ManagedByProvider bool    `db:"managed_by_provider" json:"managed_by_provider"`
+	CreatedAt         *string `db:"created_at"          json:"createdAt"`
+	DiscoveredAt      string  `db:"discovered_at"       json:"discoveredAt"`
+	DiscoveredBy      string  `db:"discovered_by"       json:"discoveredBy"`
+	ManagedByProvider bool    `db:"managed_by_provider" json:"managedByProvider"`
 	WorkspaceID       *string `db:"workspace_id"        json:"-"` // per-workspace RLS discriminator; nil when the disco-saas app.workspace_id GUC was unset
 
 	// Verification + version-chain metadata live on ResourceVersion
@@ -61,7 +61,7 @@ type resourceWire struct {
 // resourceAlias avoids infinite recursion in MarshalJSON / UnmarshalJSON.
 type resourceAlias Resource
 
-// MarshalJSON emits Resource with snake_case keys and nested
+// MarshalJSON emits Resource with camelCase keys and nested
 // `attributes` / `tags` rather than stringified JSON blobs. Empty / missing /
 // malformed blobs render as `{}` so consumers can always traverse
 // `input.attributes.X` without a presence check.

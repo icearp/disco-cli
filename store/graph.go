@@ -28,8 +28,8 @@ type GraphNode struct {
 
 // GraphEdge is a directed relationship between two resource IDs.
 type GraphEdge struct {
-	FromID string `json:"from_id"`
-	ToID   string `json:"to_id"`
+	FromID string `json:"fromId"`
+	ToID   string `json:"toId"`
 	Kind   string `json:"kind"`
 }
 
@@ -37,13 +37,13 @@ type GraphEdge struct {
 // Truncated{Nodes,Edges} count candidates dropped by the caller's
 // MaxNodes/MaxEdges caps; zero when no cap or no truncation.
 type GraphResult struct {
-	SeedID          string      `json:"seed_id"`
+	SeedID          string      `json:"seedId"`
 	Nodes           []GraphNode `json:"nodes"`
 	Edges           []GraphEdge `json:"edges"`
-	TruncatedNodes  int         `json:"truncated_nodes,omitempty"`
-	TruncatedEdges  int         `json:"truncated_edges,omitempty"`
-	ExcludedTypes   int         `json:"excluded_types,omitempty"`   // dropped by ExcludeTypes
-	ExcludedRegions int         `json:"excluded_regions,omitempty"` // dropped by ExcludeRegions
+	TruncatedNodes  int         `json:"truncatedNodes,omitempty"`
+	TruncatedEdges  int         `json:"truncatedEdges,omitempty"`
+	ExcludedTypes   int         `json:"excludedTypes,omitempty"`   // dropped by ExcludeTypes
+	ExcludedRegions int         `json:"excludedRegions,omitempty"` // dropped by ExcludeRegions
 }
 
 // GraphWalkOpts configures GraphWalk traversal.

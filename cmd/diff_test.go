@@ -113,7 +113,7 @@ func TestDiffCmd_ResolvesShortIDAndLatest(t *testing.T) {
 
 // TestDiffCmd_EmptyDelta_JSONShape pins the wire contract for a zero-delta
 // diff: added/stale render as `[]` (not `null`) and the envelope uses
-// snake_case keys, matching every other -o json command.
+// camelCase keys, matching every other -o json command.
 func TestDiffCmd_EmptyDelta_JSONShape(t *testing.T) {
 	resetDiffFlags()
 	dbPath := filepath.Join(t.TempDir(), "disco.db")
@@ -142,9 +142,9 @@ func TestDiffCmd_EmptyDelta_JSONShape(t *testing.T) {
 	if jerr := json.Unmarshal([]byte(out), &raw); jerr != nil {
 		t.Fatalf("output is not valid JSON: %v\n%s", jerr, out)
 	}
-	for _, key := range []string{"from_scan_id", "to_scan_id", "added", "stale"} {
+	for _, key := range []string{"fromScanId", "toScanId", "added", "stale"} {
 		if _, ok := raw[key]; !ok {
-			t.Errorf("missing snake_case key %q in %s", key, out)
+			t.Errorf("missing camelCase key %q in %s", key, out)
 		}
 	}
 	if got := string(raw["added"]); got != "[]" {

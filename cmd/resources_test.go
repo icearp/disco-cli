@@ -118,10 +118,10 @@ func TestResourcesCmd_JSON(t *testing.T) {
 	}
 }
 
-// TestResourcesCmd_JSON_SnakeCase guards the F3 unification: keys must be
-// snake_case and attributes/tags must be nested objects on the wire, not
+// TestResourcesCmd_JSON_CamelCase guards the F3 unification: keys must be
+// camelCase and attributes/tags must be nested objects on the wire, not
 // stringified JSON blobs as in the legacy PascalCase shape.
-func TestResourcesCmd_JSON_SnakeCase(t *testing.T) {
+func TestResourcesCmd_JSON_CamelCase(t *testing.T) {
 	st := seedTestDB(t)
 	resetResourcesFlags()
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
@@ -158,8 +158,11 @@ func TestResourcesCmd_JSON_SnakeCase(t *testing.T) {
 	if _, ok := r["NativeID"]; ok {
 		t.Errorf("PascalCase NativeID leaked: %v", r)
 	}
-	if r["native_id"] != "vol-x" {
-		t.Errorf("native_id: got %v", r["native_id"])
+	if _, ok := r["native_id"]; ok {
+		t.Errorf("legacy snake_case native_id still emitted: %v", r)
+	}
+	if r["nativeId"] != "vol-x" {
+		t.Errorf("nativeId: got %v", r["nativeId"])
 	}
 	attrs, ok := r["attributes"].(map[string]any)
 	if !ok {
@@ -395,8 +398,8 @@ func TestResourcesShow(t *testing.T) {
 	}
 
 	r := show(t, "i-1", "-o", "json")
-	if r["native_id"] != "i-1" {
-		t.Errorf("native_id: got %v, want i-1", r["native_id"])
+	if r["nativeId"] != "i-1" {
+		t.Errorf("nativeId: got %v, want i-1", r["nativeId"])
 	}
 	if r["type"] != "aws:ec2:instance" {
 		t.Errorf("type: got %v, want aws:ec2:instance", r["type"])

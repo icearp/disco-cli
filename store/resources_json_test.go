@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestResource_MarshalJSON_SnakeAndNested(t *testing.T) {
+func TestResource_MarshalJSON_CamelAndNested(t *testing.T) {
 	tags := `{"env":"prod"}`
 	name := "web"
 	r := Resource{
@@ -27,8 +27,11 @@ func TestResource_MarshalJSON_SnakeAndNested(t *testing.T) {
 	if _, ok := m["NativeID"]; ok {
 		t.Errorf("PascalCase NativeID leaked: %s", b)
 	}
-	if m["native_id"] != "vol-1" {
-		t.Errorf("want native_id=vol-1, got %v", m["native_id"])
+	if _, ok := m["native_id"]; ok {
+		t.Errorf("legacy snake_case native_id still emitted: %s", b)
+	}
+	if m["nativeId"] != "vol-1" {
+		t.Errorf("want nativeId=vol-1, got %v", m["nativeId"])
 	}
 	attrs, ok := m["attributes"].(map[string]any)
 	if !ok {
@@ -59,7 +62,7 @@ func TestResource_MarshalJSON_AlwaysPresent(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 	s := string(b)
-	for _, key := range []string{`"attributes":{}`, `"tags":{}`, `"name":null`, `"status":null`, `"managed_by_provider":false`} {
+	for _, key := range []string{`"attributes":{}`, `"tags":{}`, `"name":null`, `"status":null`, `"managedByProvider":false`} {
 		if !strings.Contains(s, key) {
 			t.Errorf("expected %q in output, got %s", key, s)
 		}

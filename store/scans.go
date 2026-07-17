@@ -39,22 +39,22 @@ type Scan struct {
 const scanColumns = "id, started_at, finished_at, status, providers, scope, " +
 	"error, errors, resource_count, meta"
 
-// scanWire is the on-the-wire JSON shape for Scan: snake_case keys, parsed
+// scanWire is the on-the-wire JSON shape for Scan: camelCase keys, parsed
 // providers/scope/meta objects, RFC3339 timestamps. The raw `*JSON` SQLite
 // column strings stay internal.
 type scanWire struct {
 	ID            string         `json:"id"`
-	StartedAt     string         `json:"started_at"`
-	FinishedAt    *string        `json:"finished_at"`
+	StartedAt     string         `json:"startedAt"`
+	FinishedAt    *string        `json:"finishedAt"`
 	Status        string         `json:"status"`
 	Providers     []string       `json:"providers"`
 	Scope         map[string]any `json:"scope"`
 	Error         *string        `json:"error"`
-	ResourceCount *int           `json:"resource_count"`
+	ResourceCount *int           `json:"resourceCount"`
 	Meta          map[string]any `json:"meta"`
 }
 
-// MarshalJSON renders a Scan with snake_case keys, parsed providers / scope /
+// MarshalJSON renders a Scan with camelCase keys, parsed providers / scope /
 // meta objects, and RFC3339 timestamps. The SQLite `datetime('now')` shape
 // (`YYYY-MM-DD HH:MM:SS`) is normalised so consumers can use a single
 // `time.Parse(time.RFC3339, ...)` regardless of row source.

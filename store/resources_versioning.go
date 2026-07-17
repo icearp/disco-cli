@@ -27,14 +27,14 @@ import (
 //     row (SupersededBy NULL) with DeletedAt set.
 type ResourceVersion struct {
 	Resource
-	VerifiedAt        *string `db:"verified_at"          json:"verified_at"`
-	VerifiedBy        *string `db:"verified_by"          json:"verified_by"`
-	RootID            string  `db:"root_id"              json:"root_id"`
-	PreviousVersionID *string `db:"previous_version_id"  json:"previous_version_id"`
-	SupersededBy      *string `db:"superseded_by"        json:"superseded_by"`
-	VersionRowID      string  `db:"version_row_id"       json:"version_row_id"`
-	DeletedAt         *string `db:"deleted_at"           json:"deleted_at"`
-	DeletedBy         *string `db:"deleted_by"           json:"deleted_by"`
+	VerifiedAt        *string `db:"verified_at"          json:"verifiedAt"`
+	VerifiedBy        *string `db:"verified_by"          json:"verifiedBy"`
+	RootID            string  `db:"root_id"              json:"rootId"`
+	PreviousVersionID *string `db:"previous_version_id"  json:"previousVersionId"`
+	SupersededBy      *string `db:"superseded_by"        json:"supersededBy"`
+	VersionRowID      string  `db:"version_row_id"       json:"versionRowId"`
+	DeletedAt         *string `db:"deleted_at"           json:"deletedAt"`
+	DeletedBy         *string `db:"deleted_by"           json:"deletedBy"`
 }
 
 // resourceVersionColumns lists the SELECT projection for reads
