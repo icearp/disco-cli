@@ -14,9 +14,9 @@ deny contains f if {
 		"id": "waf-sec-ebs-encryption-at-rest",
 		"severity": "high",
 		"category": "aws-waf",
-		"message": sprintf("EBS volume %q (%s) is not encrypted at rest", [input.name, input.native_id]),
+		"message": sprintf("EBS volume %q (%s) is not encrypted at rest", [input.name, input.nativeId]),
 		"remediation": "Snapshot the volume, restore as encrypted with a CMK, swap the attachment.",
-		"ref_url": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_encrypt.html",
+		"refUrl": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_encrypt.html",
 		"tags": {
 			"waf_pillar": "security",
 			"waf_qid": "SEC 8",

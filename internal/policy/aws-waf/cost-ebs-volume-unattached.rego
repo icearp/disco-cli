@@ -14,9 +14,9 @@ deny contains f if {
 		"id": "waf-cost-ebs-volume-unattached",
 		"severity": "low",
 		"category": "aws-waf",
-		"message": sprintf("EBS volume %q is unattached (state=available); accruing storage charges", [input.native_id]),
+		"message": sprintf("EBS volume %q is unattached (state=available); accruing storage charges", [input.nativeId]),
 		"remediation": "Snapshot if needed for forensics, then delete; or attach to a running instance.",
-		"ref_url": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomission_resources.html",
+		"refUrl": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomission_resources.html",
 		"tags": {
 			"waf_pillar": "cost",
 			"waf_qid": "COST 4",

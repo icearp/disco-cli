@@ -16,7 +16,7 @@ deny contains f if {
 		"category": "aws-waf",
 		"message": sprintf("RDS instance %q is publicly accessible", [input.name]),
 		"remediation": "Set PubliclyAccessible=false; reach the database through a bastion or VPN.",
-		"ref_url": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_layered.html",
+		"refUrl": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_layered.html",
 		"tags": {
 			"waf_pillar": "security",
 			"waf_qid": "SEC 5",

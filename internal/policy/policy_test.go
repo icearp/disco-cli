@@ -75,8 +75,8 @@ func TestResourceToInput_FreshnessFields(t *testing.T) {
 		t.Fatalf("resourceToInput: %v", err)
 	}
 	for _, k := range []string{
-		"discovered_at", "discovered_by",
-		"created_at", "account_name", "zone", "managed_by_provider", "tags",
+		"discoveredAt", "discoveredBy",
+		"createdAt", "accountName", "zone", "managedByProvider", "tags",
 	} {
 		if _, ok := in[k]; !ok {
 			t.Errorf("missing key: %s", k)
@@ -86,8 +86,8 @@ func TestResourceToInput_FreshnessFields(t *testing.T) {
 	if !ok || tagsOut["env"] != "prod" {
 		t.Errorf("tags not parsed: %v", in["tags"])
 	}
-	if in["managed_by_provider"] != false {
-		t.Errorf("managed_by_provider: %v", in["managed_by_provider"])
+	if in["managedByProvider"] != false {
+		t.Errorf("managedByProvider: %v", in["managedByProvider"])
 	}
 }
 

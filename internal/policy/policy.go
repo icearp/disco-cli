@@ -34,7 +34,7 @@ const queryBinding = "deny"
 
 // InputContractVersion identifies the input.* document shape handed to
 // Rego policies. Bump on any breaking field-name/type change so BYO rules
-// can pin against a known contract via `input.contract_version == "1"`
+// can pin against a known contract via `input.contractVersion == "1"`
 // instead of failing silently on rename. Stamped into every resource input.
 const InputContractVersion = "1"
 
@@ -44,7 +44,7 @@ type Finding struct {
 	ID          string            `json:"id"`
 	Severity    string            `json:"severity"`
 	Message     string            `json:"message"`
-	ResourceID  string            `json:"resource_id"`
+	ResourceID  string            `json:"resourceId"`
 	Provider    string            `json:"provider,omitempty"`
 	Type        string            `json:"type,omitempty"`
 	Name        string            `json:"name,omitempty"`
@@ -52,7 +52,7 @@ type Finding struct {
 	Tags        map[string]string `json:"tags,omitempty"`
 	Category    string            `json:"category,omitempty"`
 	Remediation string            `json:"remediation,omitempty"`
-	RefURL      string            `json:"ref_url,omitempty"`
+	RefURL      string            `json:"refUrl,omitempty"`
 }
 
 // Engine wraps a compiled Rego module set and the parsed deny-query body.
@@ -173,7 +173,7 @@ func (e *Engine) Evaluate(ctx context.Context, resources []store.Resource) ([]Fi
 // resourceToInput builds the Rego input document. AttributesJSON / TagsJSON
 // decode into nested objects so policies can write `input.attributes.Encrypted`
 // or `input.tags.env`. Custody timestamps + scan-run IDs surface so policies
-// can express freshness-bound controls (`time.parse_rfc3339_ns(input.verified_at)`).
+// can express freshness-bound controls (`time.parse_rfc3339_ns(input.discoveredAt)`).
 func resourceToInput(r *store.Resource) (map[string]any, error) {
 	// Fall back to an empty object (not the raw string) on malformed JSON so
 	// object-shaped policies (`input.attributes.Encrypted`) fail closed instead
@@ -194,23 +194,23 @@ func resourceToInput(r *store.Resource) (map[string]any, error) {
 		}
 	}
 	return map[string]any{
-		"contract_version":    InputContractVersion,
-		"id":                  r.ID,
-		"provider":            r.Provider,
-		"account_id":          r.AccountID,
-		"account_name":        derefOrEmpty(r.AccountName),
-		"type":                r.Type,
-		"native_id":           r.NativeID,
-		"name":                derefOrEmpty(r.Name),
-		"region":              derefOrEmpty(r.Region),
-		"zone":                derefOrEmpty(r.Zone),
-		"status":              derefOrEmpty(r.Status),
-		"tags":                tags,
-		"attributes":          attrs,
-		"created_at":          derefOrEmpty(r.CreatedAt),
-		"discovered_at":       r.DiscoveredAt,
-		"discovered_by":       r.DiscoveredBy,
-		"managed_by_provider": r.ManagedByProvider,
+		"contractVersion":   InputContractVersion,
+		"id":                r.ID,
+		"provider":          r.Provider,
+		"accountId":         r.AccountID,
+		"accountName":       derefOrEmpty(r.AccountName),
+		"type":              r.Type,
+		"nativeId":          r.NativeID,
+		"name":              derefOrEmpty(r.Name),
+		"region":            derefOrEmpty(r.Region),
+		"zone":              derefOrEmpty(r.Zone),
+		"status":            derefOrEmpty(r.Status),
+		"tags":              tags,
+		"attributes":        attrs,
+		"createdAt":         derefOrEmpty(r.CreatedAt),
+		"discoveredAt":      r.DiscoveredAt,
+		"discoveredBy":      r.DiscoveredBy,
+		"managedByProvider": r.ManagedByProvider,
 	}, nil
 }
 

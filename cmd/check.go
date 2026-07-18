@@ -41,7 +41,7 @@ are walked recursively for *.rego). Each module must populate the
 data.disco.deny set with finding objects shaped:
 
   {"id": "...", "severity": "low|medium|high|critical", "message": "...",
-   "tags": {...}, "remediation": "...", "ref_url": "..."}
+   "tags": {...}, "remediation": "...", "refUrl": "..."}
 
 Two ways to feed the check engine rules:
 
@@ -62,14 +62,14 @@ The resource count is printed to stderr; -o json|jsonl|sarif stdout stays
 clean for piping.
 
 Input contract: each policy is evaluated once per resource. The input
-document carries snake_case keys:
-  contract_version (currently "1"), id, provider, account_id,
-  account_name, type, native_id, name, region, zone, status,
-  tags (object), attributes (parsed object), created_at, discovered_at,
-  discovered_by, verified_at, verified_by, managed_by_provider.
-Pin BYO rules against contract_version (input.contract_version == "1")
+document carries these keys:
+  contractVersion (currently "1"), id, provider, accountId,
+  accountName, type, nativeId, name, region, zone, status,
+  tags (object), attributes (parsed object), createdAt, discoveredAt,
+  discoveredBy, managedByProvider.
+Pin BYO rules against contractVersion (input.contractVersion == "1")
 so future input-shape changes fail loud rather than silently misfiring.
-Timestamps are RFC3339; parse via time.parse_rfc3339_ns(input.verified_at)
+Timestamps are RFC3339; parse via time.parse_rfc3339_ns(input.discoveredAt)
 for freshness-bound controls.
 
 SARIF taxonomy keys: tags carrying any of waf_pillar, waf_qid, soc2,
