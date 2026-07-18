@@ -49,265 +49,258 @@ func scanCloudKMS(ctx context.Context, p *project, st *store.Store, scanID strin
 	return scanCloudKMSWithClient(ctx, svc, p, st, scanID)
 }
 
-// scanCloudKMSWithClient is the testable core of scanCloudKMS — same body,
-// but takes a pre-built client so tests can point it at a fake server
-// (mirrors gcpRegionFanoutScan / gcpRegionFanoutScanIn's split).
-func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
-	// Phase 1: locations.
-	parent := fmt.Sprintf("projects/%s", p.ID)
-	var locations []string
-	if _, _, err := runPaginated(ctx, st, p, "cloudkms:projects.locations.list",
-		svc.Projects.Locations.List(parent),
-		func(page *cloudkms.ListLocationsResponse) (int, int, error) {
-			for _, loc := range page.Locations {
-				locations = append(locations, loc.Name)
-			}
-			return 0, 0, nil
-		}); err != nil {
-		return 0, 0, err
-	}
+// kmsScan holds the shared state threaded through a single Cloud KMS scan:
+// the SDK client, store, project, scan ID, the mutex-guarded resource batch,
+// and the per-list-call "disabled" latches. The latches are atomic.Bool so
+// the bounded per-location fan-out (forEachItem) can trip them once and skip
+// siblings without a data race. Methods take a pointer receiver so the
+// atomics are never copied. Not safe for concurrent use across scans — one
+// kmsScan value is scoped to one scanCloudKMSWithClient call.
+type kmsScan struct {
+	svc    *cloudkms.Service
+	st     *store.Store
+	p      *project
+	scanID string
 
-	// Phase 2 + 3: keyrings + crypto keys per location, bounded fan-out.
-	// Locations.List returns the global location catalog even when the KMS
-	// API isn't enabled in the project — per-location keyRings.List is what
-	// gates on enablement and surfaces the 403. To avoid logging the same
-	// "API not enabled" warning per location (~30+ noisy lines), trip a
-	// shared flag on the first 403 and skip remaining locations for this scan.
-	// Each sibling List call added alongside KeyRings gets its own flag since
-	// a caller can lack one permission (e.g. cloudkms.ekmConnections.list)
-	// while still holding the others — one shared flag would either mute a
-	// real warning or spam the same warning per location/keyring/crypto-key.
-	var (
-		apiDisabled       atomic.Bool
-		ekmDisabled       atomic.Bool
-		keyHandleDisabled atomic.Bool
-		hsmDisabled       atomic.Bool
-		importJobDisabled atomic.Bool
-		cryptoVerDisabled atomic.Bool
-	)
-	var mu sync.Mutex
-	var batch []*store.Resource
-	if err := forEachItem(ctx, maxConcurrentKMSLocations, locations, func(gctx context.Context, locName string) error {
-		if apiDisabled.Load() {
+	mu    sync.Mutex
+	batch []*store.Resource
+
+	// Each sibling List call gets its own latch since a caller can lack one
+	// permission (e.g. cloudkms.ekmConnections.list) while still holding the
+	// others — one shared flag would either mute a real warning or spam the
+	// same warning per location/keyring/crypto-key.
+	apiDisabled       atomic.Bool
+	ekmDisabled       atomic.Bool
+	keyHandleDisabled atomic.Bool
+	hsmDisabled       atomic.Bool
+	importJobDisabled atomic.Bool
+	cryptoVerDisabled atomic.Bool
+}
+
+// guarded runs a leaf list call under its disabled latch: it skips entirely
+// when the latch is already set, trips the latch once on the first
+// permission-denied (recording the skip warning via skipIfDenied) so siblings
+// continue, and propagates any other error. It returns nil on success or on a
+// skipped/latched permission denial. Only safe for LEAF list calls whose
+// error return does not need to abort an enclosing loop early — callers that
+// must stop sibling processing on denial keep their List call inline.
+func (s *kmsScan) guarded(flag *atomic.Bool, op string, list func() error) error {
+	if flag.Load() {
+		return nil
+	}
+	if err := list(); err != nil {
+		if isPermissionDenied(err) {
+			if !flag.Swap(true) {
+				return skipIfDenied(s.st, op, s.p.ID, err)
+			}
 			return nil
 		}
-		region := lastSegment(locName) // "projects/{p}/locations/us-central1" → "us-central1"
+		return err
+	}
+	return nil
+}
 
-		if !ekmDisabled.Load() {
-			if err := svc.Projects.Locations.EkmConnections.List(locName).Pages(gctx, func(ekmPage *cloudkms.ListEkmConnectionsResponse) error {
-				for _, ekm := range ekmPage.EkmConnections {
-					mu.Lock()
-					name := lastSegment(ekm.Name)
-					batch = append(batch, &store.Resource{
-						Provider: "gcp", AccountID: p.ID, AccountName: &p.Name,
-						Type: TypeKMSEkmConnection, NativeID: ekm.Name, Name: &name,
-						Region:         &region,
-						CreatedAt:      strp(ekm.CreateTime),
-						AttributesJSON: mustJSON(ekm),
-						DiscoveredBy:   scanID,
-					})
-					mu.Unlock()
-				}
-				return nil
-			}); err != nil {
-				if isPermissionDenied(err) {
-					if !ekmDisabled.Swap(true) {
-						if err := skipIfDenied(st, "cloudkms:ekmConnections.list", p.ID, err); err != nil {
-							return err
-						}
-					}
-				} else {
-					return err
-				}
+func (s *kmsScan) ekmConnections(ctx context.Context, locName, region string) error {
+	return s.guarded(&s.ekmDisabled, "cloudkms:ekmConnections.list", func() error {
+		return s.svc.Projects.Locations.EkmConnections.List(locName).Pages(ctx, func(ekmPage *cloudkms.ListEkmConnectionsResponse) error {
+			for _, ekm := range ekmPage.EkmConnections {
+				s.mu.Lock()
+				name := lastSegment(ekm.Name)
+				s.batch = append(s.batch, &store.Resource{
+					Provider: "gcp", AccountID: s.p.ID, AccountName: &s.p.Name,
+					Type: TypeKMSEkmConnection, NativeID: ekm.Name, Name: &name,
+					Region:         &region,
+					CreatedAt:      strp(ekm.CreateTime),
+					AttributesJSON: mustJSON(ekm),
+					DiscoveredBy:   s.scanID,
+				})
+				s.mu.Unlock()
 			}
-		}
+			return nil
+		})
+	})
+}
 
-		if !keyHandleDisabled.Load() {
-			if err := svc.Projects.Locations.KeyHandles.List(locName).Pages(gctx, func(khPage *cloudkms.ListKeyHandlesResponse) error {
-				for _, kh := range khPage.KeyHandles {
-					mu.Lock()
-					name := lastSegment(kh.Name)
-					batch = append(batch, &store.Resource{
-						Provider: "gcp", AccountID: p.ID, AccountName: &p.Name,
-						Type: TypeKMSKeyHandle, NativeID: kh.Name, Name: &name,
-						Region:         &region,
-						AttributesJSON: mustJSON(kh),
-						DiscoveredBy:   scanID,
-					})
-					mu.Unlock()
-				}
-				return nil
-			}); err != nil {
-				if isPermissionDenied(err) {
-					if !keyHandleDisabled.Swap(true) {
-						if err := skipIfDenied(st, "cloudkms:keyHandles.list", p.ID, err); err != nil {
-							return err
-						}
-					}
-				} else {
-					return err
-				}
+func (s *kmsScan) keyHandles(ctx context.Context, locName, region string) error {
+	return s.guarded(&s.keyHandleDisabled, "cloudkms:keyHandles.list", func() error {
+		return s.svc.Projects.Locations.KeyHandles.List(locName).Pages(ctx, func(khPage *cloudkms.ListKeyHandlesResponse) error {
+			for _, kh := range khPage.KeyHandles {
+				s.mu.Lock()
+				name := lastSegment(kh.Name)
+				s.batch = append(s.batch, &store.Resource{
+					Provider: "gcp", AccountID: s.p.ID, AccountName: &s.p.Name,
+					Type: TypeKMSKeyHandle, NativeID: kh.Name, Name: &name,
+					Region:         &region,
+					AttributesJSON: mustJSON(kh),
+					DiscoveredBy:   s.scanID,
+				})
+				s.mu.Unlock()
 			}
-		}
+			return nil
+		})
+	})
+}
 
-		if !hsmDisabled.Load() {
-			if err := svc.Projects.Locations.SingleTenantHsmInstances.List(locName).Pages(gctx, func(hsmPage *cloudkms.ListSingleTenantHsmInstancesResponse) error {
-				for _, hsm := range hsmPage.SingleTenantHsmInstances {
-					mu.Lock()
-					name := lastSegment(hsm.Name)
-					batch = append(batch, &store.Resource{
-						Provider: "gcp", AccountID: p.ID, AccountName: &p.Name,
-						Type: TypeKMSSingleTenantHsmInstance, NativeID: hsm.Name, Name: &name,
-						Region:         &region,
-						CreatedAt:      strp(hsm.CreateTime),
-						AttributesJSON: mustJSON(hsm),
-						DiscoveredBy:   scanID,
-					})
-					mu.Unlock()
-				}
-				return nil
-			}); err != nil {
-				if isPermissionDenied(err) {
-					if !hsmDisabled.Swap(true) {
-						if err := skipIfDenied(st, "cloudkms:singleTenantHsmInstances.list", p.ID, err); err != nil {
-							return err
-						}
-					}
-				} else {
-					return err
-				}
+func (s *kmsScan) singleTenantHsmInstances(ctx context.Context, locName, region string) error {
+	return s.guarded(&s.hsmDisabled, "cloudkms:singleTenantHsmInstances.list", func() error {
+		return s.svc.Projects.Locations.SingleTenantHsmInstances.List(locName).Pages(ctx, func(hsmPage *cloudkms.ListSingleTenantHsmInstancesResponse) error {
+			for _, hsm := range hsmPage.SingleTenantHsmInstances {
+				s.mu.Lock()
+				name := lastSegment(hsm.Name)
+				s.batch = append(s.batch, &store.Resource{
+					Provider: "gcp", AccountID: s.p.ID, AccountName: &s.p.Name,
+					Type: TypeKMSSingleTenantHsmInstance, NativeID: hsm.Name, Name: &name,
+					Region:         &region,
+					CreatedAt:      strp(hsm.CreateTime),
+					AttributesJSON: mustJSON(hsm),
+					DiscoveredBy:   s.scanID,
+				})
+				s.mu.Unlock()
 			}
-		}
+			return nil
+		})
+	})
+}
 
-		if err := svc.Projects.Locations.KeyRings.List(locName).Pages(gctx, func(krPage *cloudkms.ListKeyRingsResponse) error {
+func (s *kmsScan) importJobs(ctx context.Context, keyRingName, region string) error {
+	return s.guarded(&s.importJobDisabled, "cloudkms:importJobs.list", func() error {
+		return s.svc.Projects.Locations.KeyRings.ImportJobs.List(keyRingName).Pages(ctx, func(ijPage *cloudkms.ListImportJobsResponse) error {
+			for _, ij := range ijPage.ImportJobs {
+				s.mu.Lock()
+				ijName := lastSegment(ij.Name)
+				s.batch = append(s.batch, &store.Resource{
+					Provider: "gcp", AccountID: s.p.ID, AccountName: &s.p.Name,
+					Type: TypeKMSImportJob, NativeID: ij.Name, Name: &ijName,
+					Region:         &region,
+					CreatedAt:      strp(ij.CreateTime),
+					AttributesJSON: mustJSON(ij),
+					DiscoveredBy:   s.scanID,
+				})
+				s.mu.Unlock()
+			}
+			return nil
+		})
+	})
+}
+
+func (s *kmsScan) cryptoKeyVersions(ctx context.Context, cryptoKeyName, region string) error {
+	return s.guarded(&s.cryptoVerDisabled, "cloudkms:cryptoKeyVersions.list", func() error {
+		return s.svc.Projects.Locations.KeyRings.CryptoKeys.CryptoKeyVersions.List(cryptoKeyName).Pages(ctx, func(cvPage *cloudkms.ListCryptoKeyVersionsResponse) error {
+			for _, cv := range cvPage.CryptoKeyVersions {
+				s.mu.Lock()
+				cvName := lastSegment(cv.Name)
+				s.batch = append(s.batch, &store.Resource{
+					Provider: "gcp", AccountID: s.p.ID, AccountName: &s.p.Name,
+					Type: TypeKMSCryptoKeyVersion, NativeID: cv.Name, Name: &cvName,
+					Region:         &region,
+					CreatedAt:      strp(cv.CreateTime),
+					AttributesJSON: mustJSON(cv),
+					DiscoveredBy:   s.scanID,
+				})
+				s.mu.Unlock()
+			}
+			return nil
+		})
+	})
+}
+
+// keyRings lists keyrings for a location and, per keyring, its import jobs and
+// crypto keys (and per crypto key its versions). The keyRings-list +
+// cryptoKeys-list nesting stays inline here — NOT extracted into a guarded
+// leaf — because a cryptoKeys permission denial does `return skipIfDenied(...)`
+// from the keyrings page callback, which exits the keyrings loop and skips the
+// remaining keyrings on that page. Routing that through guarded (which returns
+// nil to continue) would silently process the remaining keyrings.
+func (s *kmsScan) keyRings(ctx context.Context, locName, region string) error {
+	return s.guarded(&s.apiDisabled, "cloudkms:keyRings.list", func() error {
+		return s.svc.Projects.Locations.KeyRings.List(locName).Pages(ctx, func(krPage *cloudkms.ListKeyRingsResponse) error {
 			for _, kr := range krPage.KeyRings {
-				mu.Lock()
+				s.mu.Lock()
 				name := lastSegment(kr.Name)
-				batch = append(batch, &store.Resource{
+				s.batch = append(s.batch, &store.Resource{
 					Provider:       "gcp",
-					AccountID:      p.ID,
-					AccountName:    &p.Name,
+					AccountID:      s.p.ID,
+					AccountName:    &s.p.Name,
 					Type:           TypeKMSKeyRing,
 					NativeID:       kr.Name,
 					Name:           &name,
 					Region:         &region,
 					CreatedAt:      strp(kr.CreateTime),
 					AttributesJSON: mustJSON(kr),
-					DiscoveredBy:   scanID,
+					DiscoveredBy:   s.scanID,
 				})
-				mu.Unlock()
+				s.mu.Unlock()
 
-				if !importJobDisabled.Load() {
-					if err := svc.Projects.Locations.KeyRings.ImportJobs.List(kr.Name).Pages(gctx, func(ijPage *cloudkms.ListImportJobsResponse) error {
-						for _, ij := range ijPage.ImportJobs {
-							mu.Lock()
-							ijName := lastSegment(ij.Name)
-							batch = append(batch, &store.Resource{
-								Provider: "gcp", AccountID: p.ID, AccountName: &p.Name,
-								Type: TypeKMSImportJob, NativeID: ij.Name, Name: &ijName,
-								Region:         &region,
-								CreatedAt:      strp(ij.CreateTime),
-								AttributesJSON: mustJSON(ij),
-								DiscoveredBy:   scanID,
-							})
-							mu.Unlock()
-						}
-						return nil
-					}); err != nil {
-						if isPermissionDenied(err) {
-							if !importJobDisabled.Swap(true) {
-								if err := skipIfDenied(st, "cloudkms:importJobs.list", p.ID, err); err != nil {
-									return err
-								}
-							}
-						} else {
-							return err
-						}
-					}
+				if err := s.importJobs(ctx, kr.Name, region); err != nil {
+					return err
 				}
 
-				if err := svc.Projects.Locations.KeyRings.CryptoKeys.List(kr.Name).Pages(gctx, func(ckPage *cloudkms.ListCryptoKeysResponse) error {
+				if err := s.svc.Projects.Locations.KeyRings.CryptoKeys.List(kr.Name).Pages(ctx, func(ckPage *cloudkms.ListCryptoKeysResponse) error {
 					for _, ck := range ckPage.CryptoKeys {
-						mu.Lock()
+						s.mu.Lock()
 						ckName := lastSegment(ck.Name)
-						batch = append(batch, &store.Resource{
+						s.batch = append(s.batch, &store.Resource{
 							Provider:       "gcp",
-							AccountID:      p.ID,
-							AccountName:    &p.Name,
+							AccountID:      s.p.ID,
+							AccountName:    &s.p.Name,
 							Type:           TypeKMSCryptoKey,
 							NativeID:       ck.Name,
 							Name:           &ckName,
 							Region:         &region,
 							CreatedAt:      strp(ck.CreateTime),
 							AttributesJSON: mustJSON(ck),
-							DiscoveredBy:   scanID,
+							DiscoveredBy:   s.scanID,
 						})
-						mu.Unlock()
+						s.mu.Unlock()
 
-						if !cryptoVerDisabled.Load() {
-							if err := svc.Projects.Locations.KeyRings.CryptoKeys.CryptoKeyVersions.List(ck.Name).Pages(gctx, func(cvPage *cloudkms.ListCryptoKeyVersionsResponse) error {
-								for _, cv := range cvPage.CryptoKeyVersions {
-									mu.Lock()
-									cvName := lastSegment(cv.Name)
-									batch = append(batch, &store.Resource{
-										Provider: "gcp", AccountID: p.ID, AccountName: &p.Name,
-										Type: TypeKMSCryptoKeyVersion, NativeID: cv.Name, Name: &cvName,
-										Region:         &region,
-										CreatedAt:      strp(cv.CreateTime),
-										AttributesJSON: mustJSON(cv),
-										DiscoveredBy:   scanID,
-									})
-									mu.Unlock()
-								}
-								return nil
-							}); err != nil {
-								if isPermissionDenied(err) {
-									if !cryptoVerDisabled.Swap(true) {
-										if err := skipIfDenied(st, "cloudkms:cryptoKeyVersions.list", p.ID, err); err != nil {
-											return err
-										}
-									}
-								} else {
-									return err
-								}
-							}
+						if err := s.cryptoKeyVersions(ctx, ck.Name, region); err != nil {
+							return err
 						}
 					}
 					return nil
 				}); err != nil {
 					if isPermissionDenied(err) {
-						return skipIfDenied(st, "cloudkms:cryptoKeys.list", p.ID, err)
+						return skipIfDenied(s.st, "cloudkms:cryptoKeys.list", s.p.ID, err)
 					}
 					return err
 				}
 			}
 			return nil
-		}); err != nil {
-			if isPermissionDenied(err) {
-				if !apiDisabled.Swap(true) {
-					return skipIfDenied(st, "cloudkms:keyRings.list", p.ID, err)
-				}
-				return nil
-			}
-			return err
-		}
-		return nil
-	}); err != nil {
-		return 0, 0, err
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, e := st.UpsertResources(batch)
-	if e != nil {
-		return 0, 0, fmt.Errorf("upsert KMS resources: %w", e)
-	}
+		})
+	})
+}
 
-	// Closure: keyring/ekm-connection/key-handle/hsm-instance → project;
-	// crypto-key/import-job → keyring; crypto-key-version → crypto-key.
-	projParentID := store.ResourceID("gcp", p.ID, p.ID)
+// scanLocation runs the per-location sub-scans. apiDisabled (tripped by a
+// keyRings.list denial) gates the entire location — including the ekm/
+// keyHandle/hsm sibling lists — so once one location's keyRings is denied the
+// remaining locations skip entirely, matching the original single top-of-loop
+// check.
+func (s *kmsScan) scanLocation(ctx context.Context, locName string) error {
+	if s.apiDisabled.Load() {
+		return nil
+	}
+	region := lastSegment(locName) // "projects/{p}/locations/us-central1" → "us-central1"
+	if err := s.ekmConnections(ctx, locName, region); err != nil {
+		return err
+	}
+	if err := s.keyHandles(ctx, locName, region); err != nil {
+		return err
+	}
+	if err := s.singleTenantHsmInstances(ctx, locName, region); err != nil {
+		return err
+	}
+	return s.keyRings(ctx, locName, region)
+}
+
+// recordKMSHierarchy builds and records the parent/child closure for the
+// scanned batch: keyring/ekm-connection/key-handle/hsm-instance → project;
+// crypto-key/import-job → keyring; crypto-key-version → crypto-key. n is the
+// UpsertResources inserted count, threaded through to the (total, inserted)
+// return.
+func (s *kmsScan) recordKMSHierarchy(n int) (total, inserted int, err error) {
+	projParentID := store.ResourceID("gcp", s.p.ID, s.p.ID)
 	var pairs [][2]string
-	for _, r := range batch {
+	for _, r := range s.batch {
 		id := store.ResourceID(r.Provider, r.AccountID, r.NativeID)
 		switch r.Type {
 		case TypeKMSKeyRing, TypeKMSEkmConnection, TypeKMSKeyHandle, TypeKMSSingleTenantHsmInstance:
@@ -333,8 +326,46 @@ func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *proje
 			pairs = append(pairs, [2]string{id, parentID})
 		}
 	}
-	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return len(batch), n, fmt.Errorf("closure KMS: %w", err)
+	if err := s.st.RecordHierarchyBatch(pairs); err != nil {
+		return len(s.batch), n, fmt.Errorf("closure KMS: %w", err)
 	}
-	return len(batch), n, nil
+	return len(s.batch), n, nil
+}
+
+// scanCloudKMSWithClient is the testable core of scanCloudKMS — same body,
+// but takes a pre-built client so tests can point it at a fake server
+// (mirrors gcpRegionFanoutScan / gcpRegionFanoutScanIn's split).
+func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+	// Phase 1: locations.
+	parent := fmt.Sprintf("projects/%s", p.ID)
+	var locations []string
+	if _, _, err := runPaginated(ctx, st, p, "cloudkms:projects.locations.list",
+		svc.Projects.Locations.List(parent),
+		func(page *cloudkms.ListLocationsResponse) (int, int, error) {
+			for _, loc := range page.Locations {
+				locations = append(locations, loc.Name)
+			}
+			return 0, 0, nil
+		}); err != nil {
+		return 0, 0, err
+	}
+
+	// Phase 2 + 3: keyrings + crypto keys per location, bounded fan-out.
+	// Locations.List returns the global location catalog even when the KMS
+	// API isn't enabled in the project — per-location keyRings.List is what
+	// gates on enablement and surfaces the 403. To avoid logging the same
+	// "API not enabled" warning per location (~30+ noisy lines), trip a
+	// shared flag on the first 403 and skip remaining locations for this scan.
+	s := &kmsScan{svc: svc, st: st, p: p, scanID: scanID}
+	if err := forEachItem(ctx, maxConcurrentKMSLocations, locations, s.scanLocation); err != nil {
+		return 0, 0, err
+	}
+	if len(s.batch) == 0 {
+		return 0, 0, nil
+	}
+	n, e := st.UpsertResources(s.batch)
+	if e != nil {
+		return 0, 0, fmt.Errorf("upsert KMS resources: %w", e)
+	}
+	return s.recordKMSHierarchy(n)
 }

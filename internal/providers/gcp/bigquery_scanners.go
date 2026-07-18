@@ -115,15 +115,277 @@ func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID strin
 	return scanBigQueryWithClient(ctx, svc, p, st, scanID)
 }
 
+// bqDatasetRef is a phase-1 dataset stub: the dataset ID (last segment) and
+// its owning project, enough to drive the phase-2 per-dataset deep get + child
+// list fan-out.
+type bqDatasetRef struct {
+	datasetID string // BigQuery dataset ID (last segment)
+	projectID string
+}
+
+// bigQueryScan holds the shared state threaded through a single BigQuery scan:
+// the SDK client, project, store, scan ID, and the mutex-guarded running
+// (total, inserted) upsert counters. The mutex guards the counters across the
+// bounded per-dataset fan-out. Scoped to one scanBigQueryWithClient call; not
+// safe for concurrent use across scans.
+type bigQueryScan struct {
+	svc    *bigquery.Service
+	p      *project
+	st     *store.Store
+	scanID string
+
+	mu       sync.Mutex
+	total    int
+	inserted int
+}
+
+// scanDataset runs the per-dataset phase-2 work: Datasets.Get for the full
+// proto, upsert the dataset, then its tables (with row access policies),
+// models, and routines.
+func (s *bigQueryScan) scanDataset(ctx context.Context, d bqDatasetRef) error {
+	full, err := s.svc.Datasets.Get(d.projectID, d.datasetID).Context(ctx).Do()
+	if err != nil {
+		if isPermissionDenied(err) {
+			return skipIfDenied(s.st, "bigquery:datasets.get", s.p.ID, err)
+		}
+		return err
+	}
+	// Native ID: opaque "{project}:{dataset}" ID from List/Get — matches
+	// BigQuery's own canonical reference.
+	nativeID := full.Id
+	name := d.datasetID
+	region := full.Location
+	dsResource := &store.Resource{
+		Provider:       "gcp",
+		AccountID:      s.p.ID,
+		AccountName:    &s.p.Name,
+		Type:           TypeBQDataset,
+		NativeID:       nativeID,
+		Name:           &name,
+		Region:         strp(region),
+		CreatedAt:      msToRFC3339(full.CreationTime),
+		AttributesJSON: mustJSON(full),
+		DiscoveredBy:   s.scanID,
+	}
+	s.mu.Lock()
+	tt, nn, uerr := upsertWithProjClosure(s.p, s.st, []*store.Resource{dsResource})
+	s.total += tt
+	s.inserted += nn
+	s.mu.Unlock()
+	if uerr != nil {
+		return uerr
+	}
+
+	dsResourceID := store.ResourceID("gcp", s.p.ID, nativeID)
+	if err := s.scanTables(ctx, d, region, dsResourceID); err != nil {
+		return err
+	}
+	if err := s.scanModels(ctx, d, region, dsResourceID); err != nil {
+		return err
+	}
+	return s.scanRoutines(ctx, d, region, dsResourceID)
+}
+
+// scanTables lists a dataset's tables (parented under the dataset) and then
+// their row access policies. A permission denial on the list is skip-logged
+// (never escalated to the whole-service disabled sentinel).
+func (s *bigQueryScan) scanTables(ctx context.Context, d bqDatasetRef, region, dsResourceID string) error {
+	if err := s.svc.Tables.List(d.projectID, d.datasetID).Pages(ctx, func(page *bigquery.TableList) error {
+		var batch []*store.Resource
+		for _, tb := range page.Tables {
+			tname := ""
+			if tb.TableReference != nil {
+				tname = tb.TableReference.TableId
+			}
+			batch = append(batch, &store.Resource{
+				Provider:       "gcp",
+				AccountID:      s.p.ID,
+				AccountName:    &s.p.Name,
+				Type:           TypeBQTable,
+				NativeID:       tb.Id,
+				Name:           &tname,
+				Region:         strp(region),
+				CreatedAt:      msToRFC3339(tb.CreationTime),
+				AttributesJSON: mustJSON(tb),
+				DiscoveredBy:   s.scanID,
+			})
+		}
+		s.mu.Lock()
+		bt, bn, berr := upsertWithParent(s.st, batch, dsResourceID)
+		s.total += bt
+		s.inserted += bn
+		s.mu.Unlock()
+		if berr != nil {
+			return berr
+		}
+		// Row access policies must be fetched after the table row itself is
+		// committed above — upsertWithParent's closure write silently no-ops if
+		// the parent doesn't already exist.
+		return s.scanRowAccessPolicies(ctx, d, page.Tables)
+	}); err != nil {
+		if isPermissionDenied(err) {
+			return skipIfDenied(s.st, "bigquery:tables.list", s.p.ID, err)
+		}
+		return err
+	}
+	return nil
+}
+
+// scanRowAccessPolicies fetches each table's row access policies, embedding
+// per-policy real IAM policy data. A per-table list denial is skip-logged and
+// the loop continues to the next table (a single table's denial must never
+// abort the dataset's remaining tables); a GetIamPolicy denial is skip-logged
+// and leaves that policy's iamPolicy nil. Any other error aborts.
+func (s *bigQueryScan) scanRowAccessPolicies(ctx context.Context, d bqDatasetRef, tables []*bigquery.TableListTables) error {
+	for _, tb := range tables {
+		if tb.TableReference == nil || tb.TableReference.TableId == "" {
+			continue
+		}
+		tableID := tb.TableReference.TableId
+		tableResID := store.ResourceID("gcp", s.p.ID, tb.Id)
+		rerr := s.svc.RowAccessPolicies.List(d.projectID, d.datasetID, tableID).Pages(ctx, func(rpage *bigquery.ListRowAccessPoliciesResponse) error {
+			var rbatch []*store.Resource
+			for _, rap := range rpage.RowAccessPolicies {
+				if rap == nil || rap.RowAccessPolicyReference == nil || rap.RowAccessPolicyReference.PolicyId == "" {
+					continue
+				}
+				ref := rap.RowAccessPolicyReference
+				rapNative := fmt.Sprintf("projects/%s/datasets/%s/tables/%s/rowAccessPolicies/%s", ref.ProjectId, ref.DatasetId, ref.TableId, ref.PolicyId)
+				var iamPolicy *bigquery.Policy
+				pol, perr := s.svc.RowAccessPolicies.GetIamPolicy(rapNative, &bigquery.GetIamPolicyRequest{}).Context(ctx).Do()
+				if perr != nil {
+					if isPermissionDenied(perr) {
+						_ = skipIfDenied(s.st, "bigquery:rowAccessPolicies.getIamPolicy", s.p.ID, perr)
+					} else {
+						return perr
+					}
+				} else {
+					iamPolicy = pol
+				}
+				rbatch = append(rbatch, &store.Resource{
+					Provider:    "gcp",
+					AccountID:   s.p.ID,
+					AccountName: &s.p.Name,
+					Type:        TypeBQRowAccessPolicy,
+					NativeID:    rapNative,
+					Name:        &ref.PolicyId,
+					AttributesJSON: mustJSON(rowAccessPolicyAttrs{
+						RowAccessPolicy: rap,
+						IamPolicy:       iamPolicy,
+					}),
+					DiscoveredBy: s.scanID,
+				})
+			}
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			rt, rn, rerr := upsertWithParent(s.st, rbatch, tableResID)
+			s.total += rt
+			s.inserted += rn
+			return rerr
+		})
+		if rerr != nil {
+			if isPermissionDenied(rerr) {
+				// Row access policies are a per-table security feature, not a
+				// service-enablement signal — Datasets.List (phase 1) already
+				// owns "is BigQuery enabled at all" detection and would have
+				// aborted before reaching here if not. Never let a single
+				// table's denial escalate to the whole-service disabled
+				// sentinel; always warn and move on to the next table.
+				_ = skipIfDenied(s.st, "bigquery:rowAccessPolicies.list", s.p.ID, rerr)
+				continue
+			}
+			return rerr
+		}
+	}
+	return nil
+}
+
+// scanModels lists a dataset's ML models, parented under the dataset.
+func (s *bigQueryScan) scanModels(ctx context.Context, d bqDatasetRef, region, dsResourceID string) error {
+	if _, _, err := runPaginated(ctx, s.st, s.p, "bigquery:models.list",
+		s.svc.Models.List(d.projectID, d.datasetID),
+		func(page *bigquery.ListModelsResponse) (int, int, error) {
+			var batch []*store.Resource
+			for _, m := range page.Models {
+				if m == nil || m.ModelReference == nil || m.ModelReference.ModelId == "" {
+					continue
+				}
+				ref := m.ModelReference
+				mNative := fmt.Sprintf("projects/%s/datasets/%s/models/%s", ref.ProjectId, ref.DatasetId, ref.ModelId)
+				mRegion := m.Location
+				if mRegion == "" {
+					mRegion = region
+				}
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      s.p.ID,
+					AccountName:    &s.p.Name,
+					Type:           TypeBQModel,
+					NativeID:       mNative,
+					Name:           &ref.ModelId,
+					Region:         strp(mRegion),
+					CreatedAt:      msToRFC3339(m.CreationTime),
+					AttributesJSON: mustJSON(m),
+					DiscoveredBy:   s.scanID,
+				})
+			}
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			mt, mn, merr := upsertWithParent(s.st, batch, dsResourceID)
+			s.total += mt
+			s.inserted += mn
+			return mt, mn, merr
+		}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// scanRoutines lists a dataset's routines, parented under the dataset.
+// ReadMask additionally populates SparkOptions (bare List omits it) — see the
+// SparkOptions.Connection resolver note above.
+func (s *bigQueryScan) scanRoutines(ctx context.Context, d bqDatasetRef, region, dsResourceID string) error {
+	if _, _, err := runPaginated(ctx, s.st, s.p, "bigquery:routines.list",
+		s.svc.Routines.List(d.projectID, d.datasetID).ReadMask(
+			"etag,routineReference,routineType,creationTime,lastModifiedTime,language,definitionBody,importedLibraries,sparkOptions,remoteFunctionOptions"),
+		func(page *bigquery.ListRoutinesResponse) (int, int, error) {
+			var batch []*store.Resource
+			for _, rt := range page.Routines {
+				if rt == nil || rt.RoutineReference == nil || rt.RoutineReference.RoutineId == "" {
+					continue
+				}
+				ref := rt.RoutineReference
+				rtNative := fmt.Sprintf("projects/%s/datasets/%s/routines/%s", ref.ProjectId, ref.DatasetId, ref.RoutineId)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      s.p.ID,
+					AccountName:    &s.p.Name,
+					Type:           TypeBQRoutine,
+					NativeID:       rtNative,
+					Name:           &ref.RoutineId,
+					Region:         strp(region),
+					CreatedAt:      msToRFC3339(rt.CreationTime),
+					AttributesJSON: mustJSON(rt),
+					DiscoveredBy:   s.scanID,
+				})
+			}
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			rtt, rtn, rterr := upsertWithParent(s.st, batch, dsResourceID)
+			s.total += rtt
+			s.inserted += rtn
+			return rtt, rtn, rterr
+		}); err != nil {
+		return err
+	}
+	return nil
+}
+
 // scanBigQueryWithClient is the test seam for scanBigQuery — takes the
 // pre-built client directly so tests can point it at a fake server.
-func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
+func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Phase 1: list datasets (cheap stub) so we know which IDs to deep-get.
-	type dsRef struct {
-		datasetID string // BigQuery dataset ID (last segment)
-		projectID string
-	}
-	var datasets []dsRef
+	var datasets []bqDatasetRef
 	if _, _, err := runPaginated(ctx, st, p, "bigquery:datasets.list",
 		svc.Datasets.List(p.ID),
 		func(page *bigquery.DatasetList) (int, int, error) {
@@ -131,7 +393,7 @@ func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *proje
 				if d.DatasetReference == nil {
 					continue
 				}
-				datasets = append(datasets, dsRef{
+				datasets = append(datasets, bqDatasetRef{
 					datasetID: d.DatasetReference.DatasetId,
 					projectID: d.DatasetReference.ProjectId,
 				})
@@ -141,222 +403,10 @@ func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *proje
 		return 0, 0, err
 	}
 
-	// Phase 2: per-dataset Get + Tables.List.
-	var mu sync.Mutex
-	if err := forEachItem(ctx, maxConcurrentBQDatasets, datasets, func(gctx context.Context, d dsRef) error {
-		full, err := svc.Datasets.Get(d.projectID, d.datasetID).Context(gctx).Do()
-		if err != nil {
-			if isPermissionDenied(err) {
-				return skipIfDenied(st, "bigquery:datasets.get", p.ID, err)
-			}
-			return err
-		}
-		// Native ID: opaque "{project}:{dataset}" ID from List/Get — matches
-		// BigQuery's own canonical reference.
-		nativeID := full.Id
-		name := d.datasetID
-		region := full.Location
-		dsResource := &store.Resource{
-			Provider:       "gcp",
-			AccountID:      p.ID,
-			AccountName:    &p.Name,
-			Type:           TypeBQDataset,
-			NativeID:       nativeID,
-			Name:           &name,
-			Region:         strp(region),
-			CreatedAt:      msToRFC3339(full.CreationTime),
-			AttributesJSON: mustJSON(full),
-			DiscoveredBy:   scanID,
-		}
-		mu.Lock()
-		tt, nn, uerr := upsertWithProjClosure(p, st, []*store.Resource{dsResource})
-		total += tt
-		inserted += nn
-		mu.Unlock()
-		if uerr != nil {
-			return uerr
-		}
-
-		// Tables for the dataset, plus per-table row access policies.
-		dsResourceID := store.ResourceID("gcp", p.ID, nativeID)
-		if err := svc.Tables.List(d.projectID, d.datasetID).Pages(gctx, func(page *bigquery.TableList) error {
-			var batch []*store.Resource
-			for _, tb := range page.Tables {
-				tname := ""
-				if tb.TableReference != nil {
-					tname = tb.TableReference.TableId
-				}
-				batch = append(batch, &store.Resource{
-					Provider:       "gcp",
-					AccountID:      p.ID,
-					AccountName:    &p.Name,
-					Type:           TypeBQTable,
-					NativeID:       tb.Id,
-					Name:           &tname,
-					Region:         strp(region),
-					CreatedAt:      msToRFC3339(tb.CreationTime),
-					AttributesJSON: mustJSON(tb),
-					DiscoveredBy:   scanID,
-				})
-			}
-			mu.Lock()
-			bt, bn, berr := upsertWithParent(st, batch, dsResourceID)
-			total += bt
-			inserted += bn
-			mu.Unlock()
-			if berr != nil {
-				return berr
-			}
-			// Row access policies must be fetched after the table row itself
-			// is committed above — upsertWithParent's closure write silently
-			// no-ops if the parent doesn't already exist.
-			for _, tb := range page.Tables {
-				if tb.TableReference == nil || tb.TableReference.TableId == "" {
-					continue
-				}
-				tableID := tb.TableReference.TableId
-				tableResID := store.ResourceID("gcp", p.ID, tb.Id)
-				rerr := svc.RowAccessPolicies.List(d.projectID, d.datasetID, tableID).Pages(gctx, func(rpage *bigquery.ListRowAccessPoliciesResponse) error {
-					var rbatch []*store.Resource
-					for _, rap := range rpage.RowAccessPolicies {
-						if rap == nil || rap.RowAccessPolicyReference == nil || rap.RowAccessPolicyReference.PolicyId == "" {
-							continue
-						}
-						ref := rap.RowAccessPolicyReference
-						rapNative := fmt.Sprintf("projects/%s/datasets/%s/tables/%s/rowAccessPolicies/%s", ref.ProjectId, ref.DatasetId, ref.TableId, ref.PolicyId)
-						var iamPolicy *bigquery.Policy
-						pol, perr := svc.RowAccessPolicies.GetIamPolicy(rapNative, &bigquery.GetIamPolicyRequest{}).Context(gctx).Do()
-						if perr != nil {
-							if isPermissionDenied(perr) {
-								_ = skipIfDenied(st, "bigquery:rowAccessPolicies.getIamPolicy", p.ID, perr)
-							} else {
-								return perr
-							}
-						} else {
-							iamPolicy = pol
-						}
-						rbatch = append(rbatch, &store.Resource{
-							Provider:    "gcp",
-							AccountID:   p.ID,
-							AccountName: &p.Name,
-							Type:        TypeBQRowAccessPolicy,
-							NativeID:    rapNative,
-							Name:        &ref.PolicyId,
-							AttributesJSON: mustJSON(rowAccessPolicyAttrs{
-								RowAccessPolicy: rap,
-								IamPolicy:       iamPolicy,
-							}),
-							DiscoveredBy: scanID,
-						})
-					}
-					mu.Lock()
-					defer mu.Unlock()
-					rt, rn, rerr := upsertWithParent(st, rbatch, tableResID)
-					total += rt
-					inserted += rn
-					return rerr
-				})
-				if rerr != nil {
-					if isPermissionDenied(rerr) {
-						// Row access policies are a per-table security feature,
-						// not a service-enablement signal — Datasets.List
-						// (phase 1) already owns "is BigQuery enabled at all"
-						// detection and would have aborted before reaching
-						// here if not. Never let a single table's denial
-						// escalate to the whole-service disabled sentinel;
-						// always warn and move on to the next table.
-						_ = skipIfDenied(st, "bigquery:rowAccessPolicies.list", p.ID, rerr)
-						continue
-					}
-					return rerr
-				}
-			}
-			return nil
-		}); err != nil {
-			if isPermissionDenied(err) {
-				return skipIfDenied(st, "bigquery:tables.list", p.ID, err)
-			}
-			return err
-		}
-
-		// Models for the dataset.
-		if _, _, err := runPaginated(gctx, st, p, "bigquery:models.list",
-			svc.Models.List(d.projectID, d.datasetID),
-			func(page *bigquery.ListModelsResponse) (int, int, error) {
-				var batch []*store.Resource
-				for _, m := range page.Models {
-					if m == nil || m.ModelReference == nil || m.ModelReference.ModelId == "" {
-						continue
-					}
-					ref := m.ModelReference
-					mNative := fmt.Sprintf("projects/%s/datasets/%s/models/%s", ref.ProjectId, ref.DatasetId, ref.ModelId)
-					mRegion := m.Location
-					if mRegion == "" {
-						mRegion = region
-					}
-					batch = append(batch, &store.Resource{
-						Provider:       "gcp",
-						AccountID:      p.ID,
-						AccountName:    &p.Name,
-						Type:           TypeBQModel,
-						NativeID:       mNative,
-						Name:           &ref.ModelId,
-						Region:         strp(mRegion),
-						CreatedAt:      msToRFC3339(m.CreationTime),
-						AttributesJSON: mustJSON(m),
-						DiscoveredBy:   scanID,
-					})
-				}
-				mu.Lock()
-				defer mu.Unlock()
-				mt, mn, merr := upsertWithParent(st, batch, dsResourceID)
-				total += mt
-				inserted += mn
-				return mt, mn, merr
-			}); err != nil {
-			return err
-		}
-
-		// Routines for the dataset. ReadMask additionally populates
-		// SparkOptions (bare List omits it) — see the SparkOptions.Connection
-		// resolver note above.
-		if _, _, err := runPaginated(gctx, st, p, "bigquery:routines.list",
-			svc.Routines.List(d.projectID, d.datasetID).ReadMask(
-				"etag,routineReference,routineType,creationTime,lastModifiedTime,language,definitionBody,importedLibraries,sparkOptions,remoteFunctionOptions"),
-			func(page *bigquery.ListRoutinesResponse) (int, int, error) {
-				var batch []*store.Resource
-				for _, rt := range page.Routines {
-					if rt == nil || rt.RoutineReference == nil || rt.RoutineReference.RoutineId == "" {
-						continue
-					}
-					ref := rt.RoutineReference
-					rtNative := fmt.Sprintf("projects/%s/datasets/%s/routines/%s", ref.ProjectId, ref.DatasetId, ref.RoutineId)
-					batch = append(batch, &store.Resource{
-						Provider:       "gcp",
-						AccountID:      p.ID,
-						AccountName:    &p.Name,
-						Type:           TypeBQRoutine,
-						NativeID:       rtNative,
-						Name:           &ref.RoutineId,
-						Region:         strp(region),
-						CreatedAt:      msToRFC3339(rt.CreationTime),
-						AttributesJSON: mustJSON(rt),
-						DiscoveredBy:   scanID,
-					})
-				}
-				mu.Lock()
-				defer mu.Unlock()
-				rtt, rtn, rterr := upsertWithParent(st, batch, dsResourceID)
-				total += rtt
-				inserted += rtn
-				return rtt, rtn, rterr
-			}); err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
-		return total, inserted, err
+	// Phase 2: per-dataset Get + Tables.List, bounded fan-out.
+	s := &bigQueryScan{svc: svc, p: p, st: st, scanID: scanID}
+	if err := forEachItem(ctx, maxConcurrentBQDatasets, datasets, s.scanDataset); err != nil {
+		return s.total, s.inserted, err
 	}
-	return total, inserted, nil
+	return s.total, s.inserted, nil
 }

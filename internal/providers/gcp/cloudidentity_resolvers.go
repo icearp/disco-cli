@@ -39,7 +39,7 @@ func init() {
 //   - policy -[uses]-> group via `policyQuery.group` (full `groups/{id}`
 //     name, same direct-NativeID-match shape as inboundSsoAssignment).
 //     `policyQuery.orgUnit` likewise has no scanned OrgUnit type.
-func resolveCloudIdentityOrgRelationships(st *store.Store) error { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
+func resolveCloudIdentityOrgRelationships(st *store.Store) error {
 	deviceUsers, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, Types: []string{TypeCloudIdentityDeviceUser}, Limit: util.AllResources,
 	})
@@ -73,28 +73,60 @@ func resolveCloudIdentityOrgRelationships(st *store.Store) error { //nolint:gocy
 		return err
 	}
 
-	var userByEmail, groupByEmail map[string]string
-	lazyUserByEmail := func() (map[string]string, error) {
-		if userByEmail == nil {
-			idx, err := buildWorkspaceUserEmailIndex(st)
-			if err != nil {
-				return nil, err
-			}
-			userByEmail = idx
-		}
-		return userByEmail, nil
+	r := &cloudIdentityResolver{st: st, groupIDByNative: groupIDByNative}
+	if err := r.resolveDeviceUsers(deviceUsers); err != nil {
+		return err
 	}
-	lazyGroupByEmail := func() (map[string]string, error) {
-		if groupByEmail == nil {
-			idx, err := buildCloudIdentityGroupEmailIndex(st)
-			if err != nil {
-				return nil, err
-			}
-			groupByEmail = idx
-		}
-		return groupByEmail, nil
+	if err := r.resolveSsoAssignments(ssoAssignments); err != nil {
+		return err
 	}
+	if err := r.resolveMemberships(memberships); err != nil {
+		return err
+	}
+	return r.resolvePolicies(policies)
+}
 
+// cloudIdentityResolver holds the store, the group-by-native-name index, and
+// the two lazily-built email indexes (workspace users, cloudidentity groups)
+// shared across the cloudidentity edge passes. The email indexes are built at
+// most once, on first use. Scoped to one
+// resolveCloudIdentityOrgRelationships call; not safe for concurrent use.
+type cloudIdentityResolver struct {
+	st              *store.Store
+	groupIDByNative map[string]string
+	userByEmail     map[string]string
+	groupByEmail    map[string]string
+}
+
+// lazyUserByEmail returns the workspace-user email index, building it on first
+// call and caching it for the rest of the resolve.
+func (r *cloudIdentityResolver) lazyUserByEmail() (map[string]string, error) {
+	if r.userByEmail == nil {
+		idx, err := buildWorkspaceUserEmailIndex(r.st)
+		if err != nil {
+			return nil, err
+		}
+		r.userByEmail = idx
+	}
+	return r.userByEmail, nil
+}
+
+// lazyGroupByEmail returns the cloudidentity-group email index, building it on
+// first call and caching it for the rest of the resolve.
+func (r *cloudIdentityResolver) lazyGroupByEmail() (map[string]string, error) {
+	if r.groupByEmail == nil {
+		idx, err := buildCloudIdentityGroupEmailIndex(r.st)
+		if err != nil {
+			return nil, err
+		}
+		r.groupByEmail = idx
+	}
+	return r.groupByEmail, nil
+}
+
+// resolveDeviceUsers emits deviceUser -[uses]-> workspaceUser edges via each
+// device user's userEmail.
+func (r *cloudIdentityResolver) resolveDeviceUsers(deviceUsers []store.Resource) error {
 	for _, du := range deviceUsers {
 		var a struct {
 			UserEmail string `json:"userEmail"`
@@ -102,7 +134,7 @@ func resolveCloudIdentityOrgRelationships(st *store.Store) error { //nolint:gocy
 		if err := json.Unmarshal([]byte(du.AttributesJSON), &a); err != nil || a.UserEmail == "" {
 			continue
 		}
-		idx, err := lazyUserByEmail()
+		idx, err := r.lazyUserByEmail()
 		if err != nil {
 			return err
 		}
@@ -110,11 +142,16 @@ func resolveCloudIdentityOrgRelationships(st *store.Store) error { //nolint:gocy
 		if !ok {
 			continue
 		}
-		if err := st.UpsertRelationship(du.ID, toID, store.RelUses, "directed", nil); err != nil {
+		if err := r.st.UpsertRelationship(du.ID, toID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert deviceUser→workspaceUser: %w", err)
 		}
 	}
+	return nil
+}
 
+// resolveSsoAssignments emits inboundSsoAssignment -[uses]-> group edges via
+// each assignment's targetGroup full resource name.
+func (r *cloudIdentityResolver) resolveSsoAssignments(ssoAssignments []store.Resource) error {
 	for _, sa := range ssoAssignments {
 		var a struct {
 			TargetGroup string `json:"targetGroup"`
@@ -122,15 +159,21 @@ func resolveCloudIdentityOrgRelationships(st *store.Store) error { //nolint:gocy
 		if err := json.Unmarshal([]byte(sa.AttributesJSON), &a); err != nil || a.TargetGroup == "" {
 			continue
 		}
-		toID, ok := groupIDByNative[a.TargetGroup]
+		toID, ok := r.groupIDByNative[a.TargetGroup]
 		if !ok {
 			continue
 		}
-		if err := st.UpsertRelationship(sa.ID, toID, store.RelUses, "directed", nil); err != nil {
+		if err := r.st.UpsertRelationship(sa.ID, toID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert inboundSsoAssignment→group: %w", err)
 		}
 	}
+	return nil
+}
 
+// resolveMemberships emits membership -[uses]-> group/workspaceUser edges,
+// discriminated by member type, via each membership's preferredMemberKey.id
+// email.
+func (r *cloudIdentityResolver) resolveMemberships(memberships []store.Resource) error {
 	for _, m := range memberships {
 		var a struct {
 			Type               string `json:"type"`
@@ -146,13 +189,13 @@ func resolveCloudIdentityOrgRelationships(st *store.Store) error { //nolint:gocy
 		var ok bool
 		switch a.Type {
 		case "GROUP":
-			idx, err := lazyGroupByEmail()
+			idx, err := r.lazyGroupByEmail()
 			if err != nil {
 				return err
 			}
 			toID, ok = idx[email]
 		case "USER":
-			idx, err := lazyUserByEmail()
+			idx, err := r.lazyUserByEmail()
 			if err != nil {
 				return err
 			}
@@ -163,11 +206,16 @@ func resolveCloudIdentityOrgRelationships(st *store.Store) error { //nolint:gocy
 		if !ok {
 			continue
 		}
-		if err := st.UpsertRelationship(m.ID, toID, store.RelUses, "directed", nil); err != nil {
+		if err := r.st.UpsertRelationship(m.ID, toID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert membership→%s: %w", strings.ToLower(a.Type), err)
 		}
 	}
+	return nil
+}
 
+// resolvePolicies emits policy -[uses]-> group edges via each policy's
+// policyQuery.group full resource name.
+func (r *cloudIdentityResolver) resolvePolicies(policies []store.Resource) error {
 	for _, pol := range policies {
 		var a struct {
 			PolicyQuery *struct {
@@ -177,11 +225,11 @@ func resolveCloudIdentityOrgRelationships(st *store.Store) error { //nolint:gocy
 		if err := json.Unmarshal([]byte(pol.AttributesJSON), &a); err != nil || a.PolicyQuery == nil || a.PolicyQuery.Group == "" {
 			continue
 		}
-		toID, ok := groupIDByNative[a.PolicyQuery.Group]
+		toID, ok := r.groupIDByNative[a.PolicyQuery.Group]
 		if !ok {
 			continue
 		}
-		if err := st.UpsertRelationship(pol.ID, toID, store.RelUses, "directed", nil); err != nil {
+		if err := r.st.UpsertRelationship(pol.ID, toID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert policy→group: %w", err)
 		}
 	}

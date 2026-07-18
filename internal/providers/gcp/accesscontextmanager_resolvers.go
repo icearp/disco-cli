@@ -56,7 +56,7 @@ func init() {
 //     cross-tenant, so unresolved orgs get an empty-attribute placeholder
 //     self-node (mirrors resolveIAMPolicyRelationships's cross-project-IAM
 //     placeholder pattern) rather than being silently dropped.
-func resolveAccessContextManagerRelationships(st *store.Store) error { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
+func resolveAccessContextManagerRelationships(st *store.Store) error {
 	perimeters, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, Types: []string{TypeServicePerimeter}, Limit: util.AllResources,
 	})
@@ -104,19 +104,59 @@ func resolveAccessContextManagerRelationships(st *store.Store) error { //nolint:
 		return err
 	}
 
-	emitAccessLevels := func(fromID string, levelNames []string) error {
-		for _, name := range levelNames {
-			toID, ok := accessLevelIDByNative[name]
-			if !ok {
-				continue
-			}
-			if err := st.UpsertRelationship(fromID, toID, store.RelUses, "directed", nil); err != nil {
-				return fmt.Errorf("upsert →accessLevel: %w", err)
-			}
-		}
-		return nil
+	r := &accessContextResolver{
+		st:                    st,
+		accessLevelIDByNative: accessLevelIDByNative,
+		projectIDByNumber:     projectIDByNumber,
+		folderIDByNative:      folderIDByNative,
 	}
+	if err := r.resolvePerimeters(perimeters); err != nil {
+		return err
+	}
+	if err := r.resolvePolicies(policies); err != nil {
+		return err
+	}
+	if err := r.resolveBindings(bindings); err != nil {
+		return err
+	}
+	if len(orgsDescs) > 0 {
+		if err := emitAuthorizedOrgsDescOrgs(st, orgsDescs); err != nil {
+			return err
+		}
+	}
+	return r.resolveAccessLevels(accessLevels)
+}
 
+// accessContextResolver holds the store plus the three lookup indexes shared
+// across the Access Context Manager edge passes (accessLevel/project/folder).
+// Scoped to one resolveAccessContextManagerRelationships call; not safe for
+// concurrent use.
+type accessContextResolver struct {
+	st                    *store.Store
+	accessLevelIDByNative map[string]string
+	projectIDByNumber     map[string]string
+	folderIDByNative      map[string]string
+}
+
+// emitAccessLevels wires fromID -[uses]-> each resolvable accessLevel in
+// levelNames (unresolved names are skipped).
+func (r *accessContextResolver) emitAccessLevels(fromID string, levelNames []string) error {
+	for _, name := range levelNames {
+		toID, ok := r.accessLevelIDByNative[name]
+		if !ok {
+			continue
+		}
+		if err := r.st.UpsertRelationship(fromID, toID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert →accessLevel: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolvePerimeters emits servicePerimeter -[uses]-> accessLevel and
+// servicePerimeter -[attached-to]-> project edges from each perimeter's
+// status/spec ServicePerimeterConfig.
+func (r *accessContextResolver) resolvePerimeters(perimeters []store.Resource) error {
 	for _, sp := range perimeters {
 		var a struct {
 			Status *accessContextPerimeterConfig `json:"status"`
@@ -136,7 +176,7 @@ func resolveAccessContextManagerRelationships(st *store.Store) error { //nolint:
 					continue
 				}
 				seenLevels[name] = true
-				if err := emitAccessLevels(sp.ID, []string{name}); err != nil {
+				if err := r.emitAccessLevels(sp.ID, []string{name}); err != nil {
 					return err
 				}
 			}
@@ -146,17 +186,22 @@ func resolveAccessContextManagerRelationships(st *store.Store) error { //nolint:
 					continue
 				}
 				seenProjects[num] = true
-				projID, ok := projectIDByNumber[num]
+				projID, ok := r.projectIDByNumber[num]
 				if !ok {
 					continue
 				}
-				if err := st.UpsertRelationship(sp.ID, projID, store.RelAttachedTo, "directed", nil); err != nil {
+				if err := r.st.UpsertRelationship(sp.ID, projID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert servicePerimeter→project: %w", err)
 				}
 			}
 		}
 	}
+	return nil
+}
 
+// resolvePolicies emits accessPolicy -[attached-to]-> folder/project edges
+// from each policy's scopes[] subtree restrictions.
+func (r *accessContextResolver) resolvePolicies(policies []store.Resource) error {
 	for _, pol := range policies {
 		var a struct {
 			Scopes []string `json:"scopes"`
@@ -167,26 +212,31 @@ func resolveAccessContextManagerRelationships(st *store.Store) error { //nolint:
 		for _, scope := range a.Scopes {
 			switch {
 			case strings.HasPrefix(scope, "folders/"):
-				toID, ok := folderIDByNative[scope]
+				toID, ok := r.folderIDByNative[scope]
 				if !ok {
 					continue
 				}
-				if err := st.UpsertRelationship(pol.ID, toID, store.RelAttachedTo, "directed", nil); err != nil {
+				if err := r.st.UpsertRelationship(pol.ID, toID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert accessPolicy→folder: %w", err)
 				}
 			case strings.HasPrefix(scope, "projects/"):
 				num := strings.TrimPrefix(scope, "projects/")
-				toID, ok := projectIDByNumber[num]
+				toID, ok := r.projectIDByNumber[num]
 				if !ok {
 					continue
 				}
-				if err := st.UpsertRelationship(pol.ID, toID, store.RelAttachedTo, "directed", nil); err != nil {
+				if err := r.st.UpsertRelationship(pol.ID, toID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert accessPolicy→project: %w", err)
 				}
 			}
 		}
 	}
+	return nil
+}
 
+// resolveBindings emits gcpUserAccessBinding -[uses]-> accessLevel edges from
+// each binding's accessLevels[] and dryRunAccessLevels[].
+func (r *accessContextResolver) resolveBindings(bindings []store.Resource) error {
 	for _, b := range bindings {
 		var a struct {
 			AccessLevels       []string `json:"accessLevels"`
@@ -195,20 +245,19 @@ func resolveAccessContextManagerRelationships(st *store.Store) error { //nolint:
 		if err := json.Unmarshal([]byte(b.AttributesJSON), &a); err != nil {
 			continue
 		}
-		if err := emitAccessLevels(b.ID, a.AccessLevels); err != nil {
+		if err := r.emitAccessLevels(b.ID, a.AccessLevels); err != nil {
 			return err
 		}
-		if err := emitAccessLevels(b.ID, a.DryRunAccessLevels); err != nil {
-			return err
-		}
-	}
-
-	if len(orgsDescs) > 0 {
-		if err := emitAuthorizedOrgsDescOrgs(st, orgsDescs); err != nil {
+		if err := r.emitAccessLevels(b.ID, a.DryRunAccessLevels); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
+// resolveAccessLevels emits accessLevel -[uses]-> accessLevel self-references
+// from each Basic level's Conditions[].RequiredAccessLevels[].
+func (r *accessContextResolver) resolveAccessLevels(accessLevels []store.Resource) error {
 	for _, al := range accessLevels {
 		var a struct {
 			Basic *struct {
@@ -227,7 +276,7 @@ func resolveAccessContextManagerRelationships(st *store.Store) error { //nolint:
 					continue
 				}
 				seen[name] = true
-				if err := emitAccessLevels(al.ID, []string{name}); err != nil {
+				if err := r.emitAccessLevels(al.ID, []string{name}); err != nil {
 					return err
 				}
 			}
