@@ -55,7 +55,7 @@ func archiveRoundTrip(t *testing.T, path string) {
 		t.Errorf("format: %q", m.Format)
 	}
 	if m.ToolVersion != Version {
-		t.Errorf("tool_version: %q want %q", m.ToolVersion, Version)
+		t.Errorf("toolVersion: %q want %q", m.ToolVersion, Version)
 	}
 	if computed != m.DBSHA256 {
 		t.Errorf("manifest hash drift: %s vs %s", m.DBSHA256, computed)

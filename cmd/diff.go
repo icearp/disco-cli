@@ -152,7 +152,7 @@ func renderDiffMarkdown(d *store.ScanDiff) error {
 func renderDiffJSONL(d *store.ScanDiff) error {
 	enc := json.NewEncoder(os.Stdout)
 	type entry struct {
-		ChangeType string         `json:"change_type"`
+		ChangeType string         `json:"changeType"`
 		Resource   store.Resource `json:"resource"`
 	}
 	for _, r := range d.Added {

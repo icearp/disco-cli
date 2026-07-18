@@ -573,7 +573,7 @@ func runResolversMissing(w io.Writer, auditors []auditorPair, services []string,
 	allowed := lowerSet(services)
 	type row struct {
 		Provider  string `json:"provider"`
-		DiscoType string `json:"disco_type"`
+		DiscoType string `json:"discoType"`
 		Service   string `json:"service"`
 	}
 	var rows []row

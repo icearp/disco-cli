@@ -24,9 +24,9 @@ const FormatV1 = "disco-snapshot/v1"
 // machines as long as the producer used WriteManifest (sorted-key indent).
 type Manifest struct {
 	Format      string    `json:"format"`
-	ToolVersion string    `json:"tool_version"`
-	GeneratedAt string    `json:"generated_at"`
-	DBSHA256    string    `json:"db_sha256"`
+	ToolVersion string    `json:"toolVersion"`
+	GeneratedAt string    `json:"generatedAt"`
+	DBSHA256    string    `json:"dbSha256"`
 	Scans       []ScanRef `json:"scans"`
 }
 
@@ -37,8 +37,8 @@ type Manifest struct {
 // scanned?" from the signed envelope alone, no live DB round-trip needed.
 type ScanRef struct {
 	ID         string         `json:"id"`
-	StartedAt  string         `json:"started_at,omitempty"`
-	FinishedAt string         `json:"finished_at,omitempty"`
+	StartedAt  string         `json:"startedAt,omitempty"`
+	FinishedAt string         `json:"finishedAt,omitempty"`
 	Scope      map[string]any `json:"scope,omitempty"`
 }
 

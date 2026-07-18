@@ -141,8 +141,8 @@ type typeBucket struct {
 }
 
 type accountBucket struct {
-	AccountID   string `json:"account_id"`
-	AccountName string `json:"account_name,omitempty"`
+	AccountID   string `json:"accountId"`
+	AccountName string `json:"accountName,omitempty"`
 	Count       int    `json:"count"`
 }
 
@@ -152,14 +152,14 @@ type accountBucket struct {
 // so consumers can disambiguate customer-only vs customer+managed totals
 // without inspecting the invocation (F5 fix).
 type summaryReport struct {
-	AsOf             string           `json:"as_of"`
+	AsOf             string           `json:"asOf"`
 	Total            int              `json:"total"`
-	ManagedIncluded  bool             `json:"managed_included"`
-	ByProvider       []providerBucket `json:"by_provider"`
-	ByAccount        []accountBucket  `json:"by_account"`
-	ByRegion         []regionBucket   `json:"by_region"`
-	ByType           []typeBucket     `json:"by_type"`
-	TypeBucketsTotal int              `json:"type_buckets_total"`
+	ManagedIncluded  bool             `json:"managedIncluded"`
+	ByProvider       []providerBucket `json:"byProvider"`
+	ByAccount        []accountBucket  `json:"byAccount"`
+	ByRegion         []regionBucket   `json:"byRegion"`
+	ByType           []typeBucket     `json:"byType"`
+	TypeBucketsTotal int              `json:"typeBucketsTotal"`
 }
 
 func buildSummary(rows []store.Resource, asOf string, topTypes int, managedIncluded bool) summaryReport {

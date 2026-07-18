@@ -78,7 +78,7 @@ type RegionLister interface {
 // EdgeCount==0 marks an unannotated (intentional no-op or pending) resolver.
 type ResolverInfo struct {
 	Name      string   `json:"name"`
-	EdgeCount int      `json:"edge_count"`
+	EdgeCount int      `json:"edgeCount"`
 	Services  []string `json:"services,omitempty"`
 }
 
@@ -150,8 +150,8 @@ const (
 type Row struct {
 	Provider    string `json:"provider"`
 	Service     string `json:"service"`
-	DiscoType   string `json:"disco_type,omitempty"`   // empty when row is upstream-only (uncovered/not-scannable)
-	UpstreamKey string `json:"upstream_key,omitempty"` // empty when row is uncatalogued
+	DiscoType   string `json:"discoType,omitempty"`   // empty when row is upstream-only (uncovered/not-scannable)
+	UpstreamKey string `json:"upstreamKey,omitempty"` // empty when row is uncatalogued
 	Bucket      Bucket `json:"bucket"`
 	Reason      string `json:"reason,omitempty"` // not-scannable rationale, or "duplicate of <key>" on a cross-catalog twin
 }

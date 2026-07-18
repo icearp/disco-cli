@@ -128,7 +128,7 @@ func TestSummary_ExcludeTypes(t *testing.T) {
 	}
 	for _, b := range rep.ByType {
 		if b.Type == "aws:logs:log-stream" {
-			t.Errorf("excluded type leaked into by_type: %+v", b)
+			t.Errorf("excluded type leaked into byType: %+v", b)
 		}
 	}
 	// seedTestDB rows (2) + seedSummaryDB non-log rows (3) = 5 expected.
@@ -154,13 +154,13 @@ func TestSummary_JSON(t *testing.T) {
 		t.Fatalf("decode: %v\n%s", jerr, out)
 	}
 	if rep.AsOf == "" {
-		t.Errorf("as_of empty (expected non-empty from CreateScan)")
+		t.Errorf("asOf empty (expected non-empty from CreateScan)")
 	}
 	if rep.Total != 8 {
 		t.Errorf("total: got %d, want 8", rep.Total)
 	}
 	if len(rep.ByProvider) == 0 || rep.ByProvider[0].Provider != "aws" {
-		t.Errorf("by_provider top: %+v", rep.ByProvider)
+		t.Errorf("byProvider top: %+v", rep.ByProvider)
 	}
 	// log-stream should be tied for top with count 3 (ec2:instance also has 3
 	// because seedTestDB seeds one). Sort breaks ties by name ascending.
@@ -174,7 +174,7 @@ func TestSummary_JSON(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("log-stream missing from by_type: %+v", rep.ByType)
+		t.Errorf("log-stream missing from byType: %+v", rep.ByType)
 	}
 }
 

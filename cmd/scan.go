@@ -484,7 +484,7 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 // machine-readable path to it (a live scan re-queries via 'disco scans').
 type dryRunDecision struct {
 	Provider  string `json:"provider"`
-	WouldScan bool   `json:"would_scan"`
+	WouldScan bool   `json:"wouldScan"`
 	Detail    string `json:"detail"`
 }
 

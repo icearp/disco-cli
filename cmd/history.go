@@ -27,9 +27,9 @@ type historyEntry struct {
 	ID           string          `json:"id"`
 	Type         string          `json:"type"`
 	Name         *string         `json:"name"`
-	DiscoveredAt string          `json:"discovered_at"`
-	VerifiedAt   *string         `json:"verified_at"`
-	VerifiedBy   *string         `json:"verified_by"`
+	DiscoveredAt string          `json:"discoveredAt"`
+	VerifiedAt   *string         `json:"verifiedAt"`
+	VerifiedBy   *string         `json:"verifiedBy"`
 	Current      bool            `json:"current"`
 	Attributes   json.RawMessage `json:"attributes"`
 }
