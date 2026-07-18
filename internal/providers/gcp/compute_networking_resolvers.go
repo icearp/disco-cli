@@ -36,8 +36,8 @@ import (
 // three types generically (harmless no-op on the scope-impossible fields);
 // only the coverage-facing EdgeDecl list is scoped to what can really fire.
 //
-// PacketMirroring.Network.Url / MirroredResources.Instances[].Url /
-// MirroredResources.Subnetworks[].Url / CollectorIlb.Url are all full
+// PacketMirroring.Network.URL / MirroredResources.Instances[].URL /
+// MirroredResources.Subnetworks[].URL / CollectorIlb.URL are all full
 // self-link URLs (same-API fields), exact-matched the same way.
 func init() {
 	registerResolver(resolveNetworkEndpointGroupRelationships,
@@ -154,25 +154,25 @@ func resolvePacketMirroringRelationships(p *project, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			Network *struct {
-				Url string `json:"url"`
+				URL string `json:"url"`
 			} `json:"network"`
 			MirroredResources *struct {
 				Instances []*struct {
-					Url string `json:"url"`
+					URL string `json:"url"`
 				} `json:"instances"`
 				Subnetworks []*struct {
-					Url string `json:"url"`
+					URL string `json:"url"`
 				} `json:"subnetworks"`
 			} `json:"mirroredResources"`
 			CollectorIlb *struct {
-				Url string `json:"url"`
+				URL string `json:"url"`
 			} `json:"collectorIlb"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		if attrs.Network != nil {
-			if err := upsertIfScanned(st, scannedNets, r.ID, "gcp", p.ID, TypeComputeNetwork, attrs.Network.Url, store.RelAttachedTo); err != nil {
+			if err := upsertIfScanned(st, scannedNets, r.ID, "gcp", p.ID, TypeComputeNetwork, attrs.Network.URL, store.RelAttachedTo); err != nil {
 				return fmt.Errorf("upsert packetMirroring→network: %w", err)
 			}
 		}
@@ -181,7 +181,7 @@ func resolvePacketMirroringRelationships(p *project, st *store.Store) error {
 				if inst == nil {
 					continue
 				}
-				if err := upsertIfScanned(st, scannedInstances, r.ID, "gcp", p.ID, TypeComputeInstance, inst.Url, store.RelUses); err != nil {
+				if err := upsertIfScanned(st, scannedInstances, r.ID, "gcp", p.ID, TypeComputeInstance, inst.URL, store.RelUses); err != nil {
 					return fmt.Errorf("upsert packetMirroring→instance: %w", err)
 				}
 			}
@@ -189,13 +189,13 @@ func resolvePacketMirroringRelationships(p *project, st *store.Store) error {
 				if sn == nil {
 					continue
 				}
-				if err := upsertIfScanned(st, scannedSubnets, r.ID, "gcp", p.ID, TypeComputeSubnet, sn.Url, store.RelUses); err != nil {
+				if err := upsertIfScanned(st, scannedSubnets, r.ID, "gcp", p.ID, TypeComputeSubnet, sn.URL, store.RelUses); err != nil {
 					return fmt.Errorf("upsert packetMirroring→subnetwork: %w", err)
 				}
 			}
 		}
 		if attrs.CollectorIlb != nil {
-			if err := upsertIfScanned(st, scannedFwdRules, r.ID, "gcp", p.ID, TypeComputeForwardingRule, attrs.CollectorIlb.Url, store.RelUses); err != nil {
+			if err := upsertIfScanned(st, scannedFwdRules, r.ID, "gcp", p.ID, TypeComputeForwardingRule, attrs.CollectorIlb.URL, store.RelUses); err != nil {
 				return fmt.Errorf("upsert packetMirroring→forwardingRule: %w", err)
 			}
 		}

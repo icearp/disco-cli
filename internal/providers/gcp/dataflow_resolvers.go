@@ -152,7 +152,7 @@ func resolveDataflowSnapshotRelationships(p *project, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			SourceJobId    string `json:"sourceJobId"`
+			SourceJobID    string `json:"sourceJobId"`
 			PubsubMetadata []*struct {
 				TopicName string `json:"topicName"`
 			} `json:"pubsubMetadata"`
@@ -160,8 +160,8 @@ func resolveDataflowSnapshotRelationships(p *project, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.SourceJobId != "" && r.Region != nil && len(scannedJobs) > 0 {
-			jobNativeID := fmt.Sprintf("projects/%s/locations/%s/jobs/%s", p.ID, *r.Region, attrs.SourceJobId)
+		if attrs.SourceJobID != "" && r.Region != nil && len(scannedJobs) > 0 {
+			jobNativeID := fmt.Sprintf("projects/%s/locations/%s/jobs/%s", p.ID, *r.Region, attrs.SourceJobID)
 			if err := upsertIfScanned(st, scannedJobs, r.ID, "gcp", p.ID, TypeDataflowJob, jobNativeID, store.RelUses); err != nil {
 				return fmt.Errorf("upsert snapshot→job: %w", err)
 			}

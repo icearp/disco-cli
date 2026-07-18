@@ -56,7 +56,7 @@ func init() {
 //     cross-tenant, so unresolved orgs get an empty-attribute placeholder
 //     self-node (mirrors resolveIAMPolicyRelationships's cross-project-IAM
 //     placeholder pattern) rather than being silently dropped.
-func resolveAccessContextManagerRelationships(st *store.Store) error {
+func resolveAccessContextManagerRelationships(st *store.Store) error { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
 	perimeters, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, Types: []string{TypeServicePerimeter}, Limit: util.AllResources,
 	})

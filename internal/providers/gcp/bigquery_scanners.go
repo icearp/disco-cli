@@ -117,7 +117,7 @@ func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID strin
 
 // scanBigQueryWithClient is the test seam for scanBigQuery — takes the
 // pre-built client directly so tests can point it at a fake server.
-func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
 	// Phase 1: list datasets (cheap stub) so we know which IDs to deep-get.
 	type dsRef struct {
 		datasetID string // BigQuery dataset ID (last segment)

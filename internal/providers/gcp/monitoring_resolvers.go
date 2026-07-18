@@ -15,7 +15,7 @@ import (
 // full resource-name string (same API family, so an exact-string match is
 // reliable per this backlog's established rule — see
 // project_gcp_cross_api_selflink_mismatch memory). UptimeCheckConfig's
-// ResourceGroup.GroupId is the one exception: the API docs explicitly call
+// ResourceGroup.GroupID is the one exception: the API docs explicitly call
 // out that it's the bare [GROUP_ID], not the full path, so it needs a
 // bare-name index instead of the exact-match helper. Dashboard's
 // annotations.defaultResourceNames / eventAnnotations[].resourceNames name
@@ -181,16 +181,16 @@ func resolveMonitoringUptimeCheckConfigRelationships(p *project, st *store.Store
 	for _, r := range rows {
 		var attrs struct {
 			ResourceGroup struct {
-				GroupId string `json:"groupId"`
+				GroupID string `json:"groupId"`
 			} `json:"resourceGroup"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.ResourceGroup.GroupId == "" {
+		if attrs.ResourceGroup.GroupID == "" {
 			continue
 		}
-		groupID, ok := groupByName[attrs.ResourceGroup.GroupId]
+		groupID, ok := groupByName[attrs.ResourceGroup.GroupID]
 		if !ok {
 			continue
 		}

@@ -42,8 +42,8 @@ func init() {
 // too (Wave R19), WorkflowTemplate's managed-cluster config.
 type dataprocClusterConfigAttrs struct {
 	GceClusterConfig *struct {
-		NetworkUri     string `json:"networkUri"`
-		SubnetworkUri  string `json:"subnetworkUri"`
+		NetworkURI     string `json:"networkUri"`
+		SubnetworkURI  string `json:"subnetworkUri"`
 		ServiceAccount string `json:"serviceAccount"`
 	} `json:"gceClusterConfig"`
 	EncryptionConfig *struct {
@@ -94,12 +94,12 @@ func wireDataprocClusterConfig(st *store.Store, fromID string, cfg *dataprocClus
 		return nil
 	}
 	if gc := cfg.GceClusterConfig; gc != nil {
-		if toID, ok := idx.netByName[lastSegment(gc.NetworkUri)]; ok && gc.NetworkUri != "" {
+		if toID, ok := idx.netByName[lastSegment(gc.NetworkURI)]; ok && gc.NetworkURI != "" {
 			if err := st.UpsertRelationship(fromID, toID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert →network: %w", err)
 			}
 		}
-		if toID, ok := idx.subnetByName[lastSegment(gc.SubnetworkUri)]; ok && gc.SubnetworkUri != "" {
+		if toID, ok := idx.subnetByName[lastSegment(gc.SubnetworkURI)]; ok && gc.SubnetworkURI != "" {
 			if err := st.UpsertRelationship(fromID, toID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert →subnetwork: %w", err)
 			}
@@ -243,8 +243,8 @@ func dataprocFamilyEdges(from string) []EdgeDecl {
 // dataprocExecutionConfigAttrs mirrors dataproc.ExecutionConfig's flat JSON
 // shape, shared by Batch/Session/SessionTemplate's environmentConfig.
 type dataprocExecutionConfigAttrs struct {
-	NetworkUri     string `json:"networkUri"`
-	SubnetworkUri  string `json:"subnetworkUri"`
+	NetworkURI     string `json:"networkUri"`
+	SubnetworkURI  string `json:"subnetworkUri"`
 	ServiceAccount string `json:"serviceAccount"`
 	KmsKey         string `json:"kmsKey"`
 	StagingBucket  string `json:"stagingBucket"`
@@ -256,12 +256,12 @@ func wireDataprocExecutionConfig(st *store.Store, fromID string, ec *dataprocExe
 	if ec == nil {
 		return nil
 	}
-	if toID, ok := idx.netByName[lastSegment(ec.NetworkUri)]; ok && ec.NetworkUri != "" {
+	if toID, ok := idx.netByName[lastSegment(ec.NetworkURI)]; ok && ec.NetworkURI != "" {
 		if err := st.UpsertRelationship(fromID, toID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert →network: %w", err)
 		}
 	}
-	if toID, ok := idx.subnetByName[lastSegment(ec.SubnetworkUri)]; ok && ec.SubnetworkUri != "" {
+	if toID, ok := idx.subnetByName[lastSegment(ec.SubnetworkURI)]; ok && ec.SubnetworkURI != "" {
 		if err := st.UpsertRelationship(fromID, toID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert →subnetwork: %w", err)
 		}

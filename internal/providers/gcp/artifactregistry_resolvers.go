@@ -118,19 +118,19 @@ func resolveArtifactRuleRelationships(p *project, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			PackageId string `json:"packageId"`
+			PackageID string `json:"packageId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.PackageId == "" {
+		if attrs.PackageID == "" {
 			continue
 		}
 		repoPrefix, _, ok := strings.Cut(r.NativeID, "/rules/")
 		if !ok {
 			continue
 		}
-		pkgNativeID := repoPrefix + "/packages/" + attrs.PackageId
+		pkgNativeID := repoPrefix + "/packages/" + attrs.PackageID
 		if err := upsertIfScanned(st, scannedPkgs, r.ID, "gcp", p.ID, TypeArtifactPackage, pkgNativeID, store.RelUses); err != nil {
 			return fmt.Errorf("upsert rule→package: %w", err)
 		}

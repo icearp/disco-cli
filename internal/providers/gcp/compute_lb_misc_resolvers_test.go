@@ -76,7 +76,7 @@ func TestResolveTargetPoolRelationships_FullChain(t *testing.T) {
 	// TargetPool.HealthChecks only ever holds legacy HttpHealthCheck
 	// self-links ("Only legacy HttpHealthChecks are supported" per the SDK
 	// doc comment) — not the modern HealthCheck type.
-	hcID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeHttpHealthCheck, "projects/proj-1/global/httpHealthChecks/hc-1", "",
+	hcID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeHTTPHealthCheck, "projects/proj-1/global/httpHealthChecks/hc-1", "",
 		marshalAttrs(t, &compute.HttpHealthCheck{SelfLink: "projects/proj-1/global/httpHealthChecks/hc-1", Name: "hc-1"}))
 	backupID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeTargetPool, "projects/proj-1/regions/us-central1/targetPools/tp-backup", "us-central1",
 		marshalAttrs(t, &compute.TargetPool{SelfLink: "projects/proj-1/regions/us-central1/targetPools/tp-backup", Name: "tp-backup"}))

@@ -109,7 +109,7 @@ func scanCloudRun(ctx context.Context, p *project, st *store.Store, scanID strin
 // pre-built v2 and v1 clients plus a pre-resolved region list directly, so
 // tests can point the clients at a fake server and inject regions without a
 // real compute.Regions.List dependency.
-func scanCloudRunWithClient(ctx context.Context, svc *run.Service, svc1 *runv1.APIService, regions []string, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudRunWithClient(ctx context.Context, svc *run.Service, svc1 *runv1.APIService, regions []string, p *project, st *store.Store, scanID string) (total, inserted int, err error) { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
 	// Phase 1: Services — capture (name, resourceID) pairs for the
 	// per-service Revisions fan-out below.
 	type serviceRef struct {

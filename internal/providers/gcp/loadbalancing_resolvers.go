@@ -14,14 +14,14 @@ func init() {
 		EdgeDecl{TypeComputeForwardingRule, TypeComputeTargetHTTPSProxy, store.RelRoutesTo},
 		EdgeDecl{TypeComputeForwardingRule, TypeComputeTargetGrpcProxy, store.RelRoutesTo},
 		EdgeDecl{TypeComputeForwardingRule, TypeComputeTargetSslProxy, store.RelRoutesTo},
-		EdgeDecl{TypeComputeForwardingRule, TypeComputeTargetTcpProxy, store.RelRoutesTo},
-		EdgeDecl{TypeComputeForwardingRule, TypeComputeRegionTargetTcpProxy, store.RelRoutesTo},
+		EdgeDecl{TypeComputeForwardingRule, TypeComputeTargetTCPProxy, store.RelRoutesTo},
+		EdgeDecl{TypeComputeForwardingRule, TypeComputeRegionTargetTCPProxy, store.RelRoutesTo},
 		EdgeDecl{TypeComputeForwardingRule, TypeComputeBackendService, store.RelRoutesTo},
 		EdgeDecl{TypeComputeGlobalForwardingRule, TypeComputeTargetHTTPProxy, store.RelRoutesTo},
 		EdgeDecl{TypeComputeGlobalForwardingRule, TypeComputeTargetHTTPSProxy, store.RelRoutesTo},
 		EdgeDecl{TypeComputeGlobalForwardingRule, TypeComputeTargetGrpcProxy, store.RelRoutesTo},
 		EdgeDecl{TypeComputeGlobalForwardingRule, TypeComputeTargetSslProxy, store.RelRoutesTo},
-		EdgeDecl{TypeComputeGlobalForwardingRule, TypeComputeTargetTcpProxy, store.RelRoutesTo},
+		EdgeDecl{TypeComputeGlobalForwardingRule, TypeComputeTargetTCPProxy, store.RelRoutesTo},
 		EdgeDecl{TypeComputeGlobalForwardingRule, TypeComputeBackendService, store.RelRoutesTo},
 		EdgeDecl{TypeComputeTargetHTTPProxy, TypeComputeURLMap, store.RelRoutesTo},
 		EdgeDecl{TypeComputeTargetHTTPSProxy, TypeComputeURLMap, store.RelRoutesTo},
@@ -29,8 +29,8 @@ func init() {
 		EdgeDecl{TypeComputeRegionTargetHTTPSProxy, TypeComputeRegionURLMap, store.RelRoutesTo},
 		EdgeDecl{TypeComputeTargetGrpcProxy, TypeComputeURLMap, store.RelRoutesTo},
 		EdgeDecl{TypeComputeTargetSslProxy, TypeComputeBackendService, store.RelRoutesTo},
-		EdgeDecl{TypeComputeTargetTcpProxy, TypeComputeBackendService, store.RelRoutesTo},
-		EdgeDecl{TypeComputeRegionTargetTcpProxy, TypeComputeRegionBackendService, store.RelRoutesTo},
+		EdgeDecl{TypeComputeTargetTCPProxy, TypeComputeBackendService, store.RelRoutesTo},
+		EdgeDecl{TypeComputeRegionTargetTCPProxy, TypeComputeRegionBackendService, store.RelRoutesTo},
 		EdgeDecl{TypeComputeURLMap, TypeComputeBackendService, store.RelRoutesTo},
 		EdgeDecl{TypeComputeURLMap, TypeComputeBackendBucket, store.RelRoutesTo},
 		EdgeDecl{TypeComputeRegionURLMap, TypeComputeRegionBackendService, store.RelRoutesTo},
@@ -76,7 +76,7 @@ func resolveLoadBalancingRelationships(p *project, st *store.Store) error {
 		TypeComputeTargetHTTPSProxy, TypeComputeRegionTargetHTTPSProxy,
 		TypeComputeTargetGrpcProxy,
 		TypeComputeTargetSslProxy,
-		TypeComputeTargetTcpProxy, TypeComputeRegionTargetTcpProxy,
+		TypeComputeTargetTCPProxy, TypeComputeRegionTargetTCPProxy,
 		TypeComputeURLMap, TypeComputeRegionURLMap,
 		TypeComputeBackendService, TypeComputeRegionBackendService,
 		TypeComputeBackendBucket, TypeComputeRegionBackendBucket,
@@ -163,7 +163,7 @@ func resolveLoadBalancingRelationships(p *project, st *store.Store) error {
 
 	// Target SSL / TCP proxies → backendService directly (no urlMap hop —
 	// these terminate raw TCP/SSL, not HTTP routing).
-	for _, t := range []string{TypeComputeTargetSslProxy, TypeComputeTargetTcpProxy, TypeComputeRegionTargetTcpProxy} {
+	for _, t := range []string{TypeComputeTargetSslProxy, TypeComputeTargetTCPProxy, TypeComputeRegionTargetTCPProxy} {
 		ps, err := st.ListResources(store.ResourceFilter{
 			Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{t},
 			Limit: util.AllResources,

@@ -288,9 +288,9 @@ func TestScanComputeHttpHealthChecks_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeHttpHealthChecks(t.Context(), svc, p, st, testScanID)
+	total, inserted, err := scanComputeHTTPHealthChecks(t.Context(), svc, p, st, testScanID)
 	if err != nil {
-		t.Fatalf("scanComputeHttpHealthChecks: %v", err)
+		t.Fatalf("scanComputeHTTPHealthChecks: %v", err)
 	}
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
@@ -308,9 +308,9 @@ func TestScanComputeHttpsHealthChecks_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeHttpsHealthChecks(t.Context(), svc, p, st, testScanID)
+	total, inserted, err := scanComputeHTTPSHealthChecks(t.Context(), svc, p, st, testScanID)
 	if err != nil {
-		t.Fatalf("scanComputeHttpsHealthChecks: %v", err)
+		t.Fatalf("scanComputeHTTPSHealthChecks: %v", err)
 	}
 	if total != 1 || inserted != 1 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 1/1", total, inserted)
@@ -434,9 +434,9 @@ func TestScanComputeTargetTcpProxies_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeTargetTcpProxies(t.Context(), svc, p, st, testScanID)
+	total, inserted, err := scanComputeTargetTCPProxies(t.Context(), svc, p, st, testScanID)
 	if err != nil {
-		t.Fatalf("scanComputeTargetTcpProxies: %v", err)
+		t.Fatalf("scanComputeTargetTCPProxies: %v", err)
 	}
 	if total != 2 || inserted != 2 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)

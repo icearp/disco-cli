@@ -52,7 +52,7 @@ func scanCloudKMS(ctx context.Context, p *project, st *store.Store, scanID strin
 // scanCloudKMSWithClient is the testable core of scanCloudKMS — same body,
 // but takes a pre-built client so tests can point it at a fake server
 // (mirrors gcpRegionFanoutScan / gcpRegionFanoutScanIn's split).
-func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
 	// Phase 1: locations.
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	var locations []string

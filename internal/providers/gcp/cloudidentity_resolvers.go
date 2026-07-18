@@ -39,7 +39,7 @@ func init() {
 //   - policy -[uses]-> group via `policyQuery.group` (full `groups/{id}`
 //     name, same direct-NativeID-match shape as inboundSsoAssignment).
 //     `policyQuery.orgUnit` likewise has no scanned OrgUnit type.
-func resolveCloudIdentityOrgRelationships(st *store.Store) error {
+func resolveCloudIdentityOrgRelationships(st *store.Store) error { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
 	deviceUsers, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"gcp"}, Types: []string{TypeCloudIdentityDeviceUser}, Limit: util.AllResources,
 	})

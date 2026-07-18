@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
-	"github.com/aws/aws-sdk-go-v2/service/panorama"
+	"github.com/aws/aws-sdk-go-v2/service/panorama" //nolint:staticcheck // AWS deprecated the Panorama service (EOL, no longer available); scanner retained pending removal
 )
 
 func init() {
@@ -57,7 +57,7 @@ func scanPanoramaAppInstances(ctx context.Context, client panoramaAPI, acct *acc
 			}
 			return 0, 0, fmt.Errorf("panorama:ListApplicationInstances: %w", err)
 		}
-		for _, a := range out.ApplicationInstances {
+		for _, a := range out.ApplicationInstances { //nolint:staticcheck // AWS deprecated the Panorama service (EOL, no longer available); scanner retained pending removal
 			arn := sv(a.Arn)
 			if arn == "" {
 				continue
@@ -85,7 +85,7 @@ func scanPanoramaPackages(ctx context.Context, client panoramaAPI, acct *account
 			}
 			return 0, 0, fmt.Errorf("panorama:ListPackages: %w", err)
 		}
-		for _, p := range out.Packages {
+		for _, p := range out.Packages { //nolint:staticcheck // AWS deprecated the Panorama service (EOL, no longer available); scanner retained pending removal
 			arn := sv(p.Arn)
 			if arn == "" {
 				continue
@@ -115,7 +115,7 @@ func scanPanoramaDevices(ctx context.Context, client panoramaAPI, acct *account,
 			}
 			return 0, 0, fmt.Errorf("panorama:ListDevices: %w", err)
 		}
-		for _, d := range out.Devices {
+		for _, d := range out.Devices { //nolint:staticcheck // AWS deprecated the Panorama service (EOL, no longer available); scanner retained pending removal
 			id := sv(d.DeviceId)
 			if id == "" {
 				continue

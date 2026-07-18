@@ -127,7 +127,7 @@ func TestResolveLoadBalancing_TargetTcpProxyToBackendService(t *testing.T) {
 	tpURL := base + "/targetTcpProxies/tp-1"
 
 	bsID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeBackendService, bsURL, "", "{}")
-	tpID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeTargetTcpProxy, tpURL, "",
+	tpID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeTargetTCPProxy, tpURL, "",
 		`{"service": "`+bsURL+`"}`)
 
 	if err := resolveLoadBalancingRelationships(p, st); err != nil {

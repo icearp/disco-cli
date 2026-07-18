@@ -73,7 +73,7 @@ func scanCloudBuildTriggers(ctx context.Context, p *project, st *store.Store, sc
 // scanCloudBuildWithClient is the test seam for scanCloudBuildTriggers —
 // takes the pre-built v1 and v2 clients directly so tests can point both at
 // a fake server.
-func scanCloudBuildWithClient(ctx context.Context, svc *cloudbuild.Service, svc2 *cloudbuildv2.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudBuildWithClient(ctx context.Context, svc *cloudbuild.Service, svc2 *cloudbuildv2.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) { //nolint:gocyclo // branchy SDK scan/resolve dispatch; cyclomatic count tracks resource/relationship subtypes, not tangled logic
 	// Phase 1: triggers — unchanged.
 	t, n, err := runPaginated(ctx, st, p, "cloudbuild:triggers.list",
 		svc.Projects.Triggers.List(p.ID),

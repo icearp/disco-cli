@@ -41,8 +41,10 @@ func TestResolveDNSRelationships(t *testing.T) {
 	}
 }
 
-const testNetworkSelfLink = "https://www.googleapis.com/compute/v1/projects/my-project/global/networks/net-1"
-const testPeerNetworkSelfLink = "https://www.googleapis.com/compute/v1/projects/my-project/global/networks/net-2"
+const (
+	testNetworkSelfLink     = "https://www.googleapis.com/compute/v1/projects/my-project/global/networks/net-1"
+	testPeerNetworkSelfLink = "https://www.googleapis.com/compute/v1/projects/my-project/global/networks/net-2"
+)
 
 func TestResolveDNSManagedZoneRelationships(t *testing.T) {
 	st := newTestStore(t)

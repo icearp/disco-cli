@@ -19,8 +19,8 @@ func init() {
 		EdgeDecl{TypeComputeBackendService, TypeComputeNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeComputeRegionBackendService, TypeComputeNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeComputeBackendService, TypeComputeHealthCheck, store.RelUses},
-		EdgeDecl{TypeComputeBackendService, TypeComputeHttpHealthCheck, store.RelUses},
-		EdgeDecl{TypeComputeBackendService, TypeComputeHttpsHealthCheck, store.RelUses},
+		EdgeDecl{TypeComputeBackendService, TypeComputeHTTPHealthCheck, store.RelUses},
+		EdgeDecl{TypeComputeBackendService, TypeComputeHTTPSHealthCheck, store.RelUses},
 		EdgeDecl{TypeComputeRegionBackendService, TypeComputeRegionHealthCheck, store.RelUses},
 		EdgeDecl{TypeComputeBackendService, TypeComputeInstanceGroup, store.RelUses},
 		EdgeDecl{TypeComputeBackendService, TypeComputeRegionInstanceGroup, store.RelUses},
@@ -74,7 +74,7 @@ func resolveBackendServiceRelationships(p *project, st *store.Store) error {
 		return nil
 	}
 	scanned, err := scannedIDSet(p, st,
-		TypeComputeNetwork, TypeComputeHealthCheck, TypeComputeHttpHealthCheck, TypeComputeHttpsHealthCheck,
+		TypeComputeNetwork, TypeComputeHealthCheck, TypeComputeHTTPHealthCheck, TypeComputeHTTPSHealthCheck,
 		TypeComputeRegionHealthCheck, TypeComputeInstanceGroup, TypeComputeRegionInstanceGroup,
 		TypeComputeNetworkEndpointGroup, TypeComputeRegionNetworkEndpointGroup, TypeComputeGlobalNetworkEndpointGroup,
 	)
@@ -95,7 +95,7 @@ func resolveBackendServiceRelationships(p *project, st *store.Store) error {
 		if err := upsertIfScanned(st, scanned, r.ID, "gcp", p.ID, TypeComputeNetwork, attrs.Network, store.RelAttachedTo); err != nil {
 			return err
 		}
-		healthCheckCandidates := []string{TypeComputeHealthCheck, TypeComputeHttpHealthCheck, TypeComputeHttpsHealthCheck}
+		healthCheckCandidates := []string{TypeComputeHealthCheck, TypeComputeHTTPHealthCheck, TypeComputeHTTPSHealthCheck}
 		if r.Type == TypeComputeRegionBackendService {
 			healthCheckCandidates = []string{TypeComputeRegionHealthCheck}
 		}

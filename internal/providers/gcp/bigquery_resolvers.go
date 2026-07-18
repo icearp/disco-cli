@@ -32,19 +32,19 @@ func init() {
 // references, and aren't resolved here).
 type datasetAccessEntry struct {
 	View *struct {
-		ProjectId string `json:"projectId"`
-		DatasetId string `json:"datasetId"`
-		TableId   string `json:"tableId"`
+		ProjectID string `json:"projectId"`
+		DatasetID string `json:"datasetId"`
+		TableID   string `json:"tableId"`
 	} `json:"view"`
 	Routine *struct {
-		ProjectId string `json:"projectId"`
-		DatasetId string `json:"datasetId"`
-		RoutineId string `json:"routineId"`
+		ProjectID string `json:"projectId"`
+		DatasetID string `json:"datasetId"`
+		RoutineID string `json:"routineId"`
 	} `json:"routine"`
 	Dataset *struct {
 		Dataset *struct {
-			ProjectId string `json:"projectId"`
-			DatasetId string `json:"datasetId"`
+			ProjectID string `json:"projectId"`
+			DatasetID string `json:"datasetId"`
 		} `json:"dataset"`
 		TargetTypes []string `json:"targetTypes"`
 	} `json:"dataset"`
@@ -78,28 +78,28 @@ func bqRefIndex(st *store.Store, accountID, rtype string, refKey func(attrsJSON 
 func bqTableRefKey(attrsJSON string) (string, bool) {
 	var a struct {
 		TableReference *struct {
-			ProjectId string `json:"projectId"`
-			DatasetId string `json:"datasetId"`
-			TableId   string `json:"tableId"`
+			ProjectID string `json:"projectId"`
+			DatasetID string `json:"datasetId"`
+			TableID   string `json:"tableId"`
 		} `json:"tableReference"`
 	}
 	if err := json.Unmarshal([]byte(attrsJSON), &a); err != nil || a.TableReference == nil {
 		return "", false
 	}
-	return a.TableReference.ProjectId + "/" + a.TableReference.DatasetId + "/" + a.TableReference.TableId, true
+	return a.TableReference.ProjectID + "/" + a.TableReference.DatasetID + "/" + a.TableReference.TableID, true
 }
 
 func bqDatasetRefKey(attrsJSON string) (string, bool) {
 	var a struct {
 		DatasetReference *struct {
-			ProjectId string `json:"projectId"`
-			DatasetId string `json:"datasetId"`
+			ProjectID string `json:"projectId"`
+			DatasetID string `json:"datasetId"`
 		} `json:"datasetReference"`
 	}
 	if err := json.Unmarshal([]byte(attrsJSON), &a); err != nil || a.DatasetReference == nil {
 		return "", false
 	}
-	return a.DatasetReference.ProjectId + "/" + a.DatasetReference.DatasetId, true
+	return a.DatasetReference.ProjectID + "/" + a.DatasetReference.DatasetID, true
 }
 
 // resolveBigQueryRelationships derives dataset -[uses]-> cryptoKey CMEK
@@ -170,37 +170,37 @@ func resolveBigQueryRelationships(p *project, st *store.Store) error {
 
 		for _, ac := range a.Access {
 			switch {
-			case ac.View != nil && ac.View.ProjectId == p.ID:
+			case ac.View != nil && ac.View.ProjectID == p.ID:
 				if tableIDByRef == nil {
 					if tableIDByRef, err = bqRefIndex(st, p.ID, TypeBQTable, bqTableRefKey); err != nil {
 						return err
 					}
 				}
-				refKey := ac.View.ProjectId + "/" + ac.View.DatasetId + "/" + ac.View.TableId
+				refKey := ac.View.ProjectID + "/" + ac.View.DatasetID + "/" + ac.View.TableID
 				if toID, ok := tableIDByRef[refKey]; ok {
 					if err := st.UpsertRelationship(d.ID, toID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dataset→authorized view: %w", err)
 					}
 				}
-			case ac.Routine != nil && ac.Routine.ProjectId == p.ID:
+			case ac.Routine != nil && ac.Routine.ProjectID == p.ID:
 				if routineIDByRef == nil {
 					if routineIDByRef, err = bqRefIndex(st, p.ID, TypeBQRoutine, bqRoutineRefKey); err != nil {
 						return err
 					}
 				}
-				refKey := ac.Routine.ProjectId + "/" + ac.Routine.DatasetId + "/" + ac.Routine.RoutineId
+				refKey := ac.Routine.ProjectID + "/" + ac.Routine.DatasetID + "/" + ac.Routine.RoutineID
 				if toID, ok := routineIDByRef[refKey]; ok {
 					if err := st.UpsertRelationship(d.ID, toID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dataset→authorized routine: %w", err)
 					}
 				}
-			case ac.Dataset != nil && ac.Dataset.Dataset != nil && ac.Dataset.Dataset.ProjectId == p.ID:
+			case ac.Dataset != nil && ac.Dataset.Dataset != nil && ac.Dataset.Dataset.ProjectID == p.ID:
 				if datasetIDByRef == nil {
 					if datasetIDByRef, err = bqRefIndex(st, p.ID, TypeBQDataset, bqDatasetRefKey); err != nil {
 						return err
 					}
 				}
-				refKey := ac.Dataset.Dataset.ProjectId + "/" + ac.Dataset.Dataset.DatasetId
+				refKey := ac.Dataset.Dataset.ProjectID + "/" + ac.Dataset.Dataset.DatasetID
 				toID, ok := datasetIDByRef[refKey]
 				if !ok || toID == d.ID {
 					continue
@@ -218,15 +218,15 @@ func resolveBigQueryRelationships(p *project, st *store.Store) error {
 func bqRoutineRefKey(attrsJSON string) (string, bool) {
 	var a struct {
 		RoutineReference *struct {
-			ProjectId string `json:"projectId"`
-			DatasetId string `json:"datasetId"`
-			RoutineId string `json:"routineId"`
+			ProjectID string `json:"projectId"`
+			DatasetID string `json:"datasetId"`
+			RoutineID string `json:"routineId"`
 		} `json:"routineReference"`
 	}
 	if err := json.Unmarshal([]byte(attrsJSON), &a); err != nil || a.RoutineReference == nil {
 		return "", false
 	}
-	return a.RoutineReference.ProjectId + "/" + a.RoutineReference.DatasetId + "/" + a.RoutineReference.RoutineId, true
+	return a.RoutineReference.ProjectID + "/" + a.RoutineReference.DatasetID + "/" + a.RoutineReference.RoutineID, true
 }
 
 // resolveBigQueryRowAccessPolicyRelationships wires the real grantees the

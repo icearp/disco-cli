@@ -298,8 +298,8 @@ func resolveCloudBuildGithubEnterpriseConfigRelationships(p *project, st *store.
 		var attrs struct {
 			PeeredNetwork string `json:"peeredNetwork"`
 			Secrets       *struct {
-				OauthClientIdName        string `json:"oauthClientIdName"`
-				OauthClientIdVersionName string `json:"oauthClientIdVersionName"`
+				OAuthClientIDName        string `json:"oauthClientIdName"`
+				OAuthClientIDVersionName string `json:"oauthClientIdVersionName"`
 				OauthSecretName          string `json:"oauthSecretName"`
 				OauthSecretVersionName   string `json:"oauthSecretVersionName"`
 				PrivateKeyName           string `json:"privateKeyName"`
@@ -323,7 +323,7 @@ func resolveCloudBuildGithubEnterpriseConfigRelationships(p *project, st *store.
 			continue
 		}
 		if len(scannedSecrets) > 0 {
-			for _, name := range []string{s.OauthClientIdName, s.OauthSecretName, s.PrivateKeyName, s.WebhookSecretName} {
+			for _, name := range []string{s.OAuthClientIDName, s.OauthSecretName, s.PrivateKeyName, s.WebhookSecretName} {
 				if name == "" {
 					continue
 				}
@@ -333,7 +333,7 @@ func resolveCloudBuildGithubEnterpriseConfigRelationships(p *project, st *store.
 			}
 		}
 		if len(scannedVersions) > 0 {
-			for _, name := range []string{s.OauthClientIdVersionName, s.OauthSecretVersionName, s.PrivateKeyVersionName, s.WebhookSecretVersionName} {
+			for _, name := range []string{s.OAuthClientIDVersionName, s.OauthSecretVersionName, s.PrivateKeyVersionName, s.WebhookSecretVersionName} {
 				if name == "" {
 					continue
 				}

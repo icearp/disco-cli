@@ -120,7 +120,7 @@ func resolveCertificateManagerRelationships(p *project, st *store.Store) error {
 }
 
 // resolveCertificateRelationships derives certificate -[uses]-> dnsAuthorization
-// (one edge per Managed.DnsAuthorizations[] entry) and certificate
+// (one edge per Managed.DNSAuthorizations[] entry) and certificate
 // -[uses]-> certificateIssuanceConfig (Managed.IssuanceConfig, private-PKI
 // certs only). Both fields store the full resource name verbatim, matched
 // directly against the target's NativeID.
@@ -148,14 +148,14 @@ func resolveCertificateRelationships(p *project, st *store.Store) error {
 	for _, c := range certs {
 		var a struct {
 			Managed *struct {
-				DnsAuthorizations []string `json:"dnsAuthorizations"`
+				DNSAuthorizations []string `json:"dnsAuthorizations"`
 				IssuanceConfig    string   `json:"issuanceConfig"`
 			} `json:"managed"`
 		}
 		if err := json.Unmarshal([]byte(c.AttributesJSON), &a); err != nil || a.Managed == nil {
 			continue
 		}
-		for _, dnsAuthName := range a.Managed.DnsAuthorizations {
+		for _, dnsAuthName := range a.Managed.DNSAuthorizations {
 			if err := upsertIfScanned(st, dnsAuths, c.ID, "gcp", p.ID, TypeCertManagerDNSAuth, dnsAuthName, store.RelUses); err != nil {
 				return fmt.Errorf("upsert certificate→dnsAuthorization: %w", err)
 			}

@@ -23,15 +23,15 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeRegionHealthCheckService, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionHealthSource, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionNotificationEndpoint, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeHttpHealthCheck, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeHttpsHealthCheck, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeHTTPHealthCheck, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeHTTPSHealthCheck, Service: "compute", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeComputeSslCertificate, Service: "compute", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeComputeRegionSslCertificate, Service: "compute", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeComputeSslPolicy, Service: "compute", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeComputeRegionSslPolicy, Service: "compute", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeComputeTargetSslProxy, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeTargetTcpProxy, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeRegionTargetTcpProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeTargetTCPProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionTargetTCPProxy, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeTargetGrpcProxy, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionTargetHTTPProxy, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionTargetHTTPSProxy, Service: "compute"})
@@ -229,7 +229,7 @@ func scanComputeRegionNotificationEndpoints(ctx context.Context, svc *compute.Se
 		})
 }
 
-func scanComputeHttpHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeHTTPHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
 	return runPaginated(ctx, st, p, "compute:httpHealthChecks.list",
 		svc.HttpHealthChecks.List(p.ID),
 		func(page *compute.HttpHealthCheckList) (int, int, error) {
@@ -237,7 +237,7 @@ func scanComputeHttpHealthChecks(ctx context.Context, svc *compute.Service, p *p
 			for _, hc := range page.Items {
 				batch = append(batch, &store.Resource{
 					Provider: "gcp", AccountID: p.ID, AccountName: &p.Name,
-					Type: TypeComputeHttpHealthCheck, NativeID: hc.SelfLink, Name: &hc.Name,
+					Type: TypeComputeHTTPHealthCheck, NativeID: hc.SelfLink, Name: &hc.Name,
 					CreatedAt: strp(hc.CreationTimestamp), AttributesJSON: mustJSON(hc),
 					DiscoveredBy: scanID,
 				})
@@ -246,7 +246,7 @@ func scanComputeHttpHealthChecks(ctx context.Context, svc *compute.Service, p *p
 		})
 }
 
-func scanComputeHttpsHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeHTTPSHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
 	return runPaginated(ctx, st, p, "compute:httpsHealthChecks.list",
 		svc.HttpsHealthChecks.List(p.ID),
 		func(page *compute.HttpsHealthCheckList) (int, int, error) {
@@ -254,7 +254,7 @@ func scanComputeHttpsHealthChecks(ctx context.Context, svc *compute.Service, p *
 			for _, hc := range page.Items {
 				batch = append(batch, &store.Resource{
 					Provider: "gcp", AccountID: p.ID, AccountName: &p.Name,
-					Type: TypeComputeHttpsHealthCheck, NativeID: hc.SelfLink, Name: &hc.Name,
+					Type: TypeComputeHTTPSHealthCheck, NativeID: hc.SelfLink, Name: &hc.Name,
 					CreatedAt: strp(hc.CreationTimestamp), AttributesJSON: mustJSON(hc),
 					DiscoveredBy: scanID,
 				})
@@ -338,18 +338,18 @@ func scanComputeTargetSslProxies(ctx context.Context, svc *compute.Service, p *p
 		})
 }
 
-// scanComputeTargetTcpProxies covers both TargetTcpProxy (global) and
+// scanComputeTargetTCPProxies covers both TargetTcpProxy (global) and
 // RegionTargetTcpProxy (regional) via one combined-scope AggregatedList call.
-func scanComputeTargetTcpProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeTargetTCPProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
 	return runPaginated(ctx, st, p, "compute:targetTcpProxies.aggregatedList",
 		svc.TargetTcpProxies.AggregatedList(p.ID),
 		func(page *compute.TargetTcpProxyAggregatedList) (int, int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
-				discoType := TypeComputeTargetTcpProxy
+				discoType := TypeComputeTargetTCPProxy
 				var region *string
 				if region0 := scopedListRegion(scope); region0 != "" {
-					discoType = TypeComputeRegionTargetTcpProxy
+					discoType = TypeComputeRegionTargetTCPProxy
 					region = &region0
 				}
 				for _, tp := range items.TargetTcpProxies {

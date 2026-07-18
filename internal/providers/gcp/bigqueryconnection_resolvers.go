@@ -53,8 +53,8 @@ func resolveBQConnectionRelationships(p *project, st *store.Store) error {
 	for _, c := range conns {
 		var a struct {
 			KmsKeyName string `json:"kmsKeyName"`
-			CloudSql   *struct {
-				InstanceId string `json:"instanceId"`
+			CloudSQL   *struct {
+				InstanceID string `json:"instanceId"`
 			} `json:"cloudSql"`
 			CloudSpanner *struct {
 				Database string `json:"database"`
@@ -77,8 +77,8 @@ func resolveBQConnectionRelationships(p *project, st *store.Store) error {
 			}
 		}
 
-		if a.CloudSql != nil && a.CloudSql.InstanceId != "" {
-			if native, ok := sqlInstanceNativeFromColonID(a.CloudSql.InstanceId); ok {
+		if a.CloudSQL != nil && a.CloudSQL.InstanceID != "" {
+			if native, ok := sqlInstanceNativeFromColonID(a.CloudSQL.InstanceID); ok {
 				if sqlIDByNative == nil {
 					if sqlIDByNative, err = nativeIDIndex(p, st, TypeSQLInstance); err != nil {
 						return err
@@ -108,7 +108,7 @@ func resolveBQConnectionRelationships(p *project, st *store.Store) error {
 	return nil
 }
 
-// sqlInstanceNativeFromColonID reformats CloudSqlProperties.InstanceId
+// sqlInstanceNativeFromColonID reformats CloudSqlProperties.InstanceID
 // (`project:region:instance`) into SQLInstance's own NativeID shape
 // (`projects/{project}/instances/{instance}` — see sql_scanners.go). Region
 // is discarded; SQLInstance's NativeID doesn't carry it.

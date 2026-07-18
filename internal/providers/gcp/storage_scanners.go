@@ -138,61 +138,32 @@ func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project
 		bucket := ref.name
 		bucketResID := ref.id
 
-		if t, n, e := scanBucketNotifications(gctx, svc, st, p, scanID, bucket, bucketResID); e != nil {
-			return e
-		} else {
+		accumulate := func(t, n int, e error) error {
+			if e != nil {
+				return e
+			}
 			mu.Lock()
 			total += t
 			inserted += n
 			mu.Unlock()
+			return nil
 		}
-
-		if t, n, e := scanBucketManagedFolders(gctx, svc, st, p, scanID, bucket, bucketResID); e != nil {
-			return e
-		} else {
-			mu.Lock()
-			total += t
-			inserted += n
-			mu.Unlock()
+		if err := accumulate(scanBucketNotifications(gctx, svc, st, p, scanID, bucket, bucketResID)); err != nil {
+			return err
 		}
-
-		if t, n, e := scanBucketAnywhereCaches(gctx, svc, st, p, scanID, bucket, bucketResID); e != nil {
-			return e
-		} else {
-			mu.Lock()
-			total += t
-			inserted += n
-			mu.Unlock()
+		if err := accumulate(scanBucketManagedFolders(gctx, svc, st, p, scanID, bucket, bucketResID)); err != nil {
+			return err
 		}
-
-		if t, n, e := scanBucketFolders(gctx, svc, st, p, scanID, bucket, bucketResID); e != nil {
-			return e
-		} else {
-			mu.Lock()
-			total += t
-			inserted += n
-			mu.Unlock()
+		if err := accumulate(scanBucketAnywhereCaches(gctx, svc, st, p, scanID, bucket, bucketResID)); err != nil {
+			return err
 		}
-
-		if t, n, e := scanBucketAccessControls(gctx, svc, st, p, scanID, bucket, bucketResID); e != nil {
-			return e
-		} else {
-			mu.Lock()
-			total += t
-			inserted += n
-			mu.Unlock()
+		if err := accumulate(scanBucketFolders(gctx, svc, st, p, scanID, bucket, bucketResID)); err != nil {
+			return err
 		}
-
-		if t, n, e := scanDefaultObjectAccessControls(gctx, svc, st, p, scanID, bucket, bucketResID); e != nil {
-			return e
-		} else {
-			mu.Lock()
-			total += t
-			inserted += n
-			mu.Unlock()
+		if err := accumulate(scanBucketAccessControls(gctx, svc, st, p, scanID, bucket, bucketResID)); err != nil {
+			return err
 		}
-
-		return nil
+		return accumulate(scanDefaultObjectAccessControls(gctx, svc, st, p, scanID, bucket, bucketResID))
 	})
 	if err != nil {
 		return total, inserted, err

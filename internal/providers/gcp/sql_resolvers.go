@@ -78,7 +78,7 @@ func resolveSQLInstanceRelationships(p *project, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			Settings struct {
-				IpConfiguration struct {
+				IPConfiguration struct {
 					PrivateNetwork string `json:"privateNetwork"`
 				} `json:"ipConfiguration"`
 			} `json:"settings"`
@@ -91,7 +91,7 @@ func resolveSQLInstanceRelationships(p *project, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if netName := attrs.Settings.IpConfiguration.PrivateNetwork; netName != "" {
+		if netName := attrs.Settings.IPConfiguration.PrivateNetwork; netName != "" {
 			if netID, ok := netByName[lastSegment(netName)]; ok {
 				if err := st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sqlInstance→network: %w", err)

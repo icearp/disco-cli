@@ -20,7 +20,7 @@ func init() {
 	)
 	registerResolver(resolveTargetPoolRelationships,
 		EdgeDecl{TypeComputeTargetPool, TypeComputeInstance, store.RelAttachedTo},
-		EdgeDecl{TypeComputeTargetPool, TypeComputeHttpHealthCheck, store.RelUses},
+		EdgeDecl{TypeComputeTargetPool, TypeComputeHTTPHealthCheck, store.RelUses},
 		EdgeDecl{TypeComputeTargetPool, TypeComputeTargetPool, store.RelAttachedTo},
 	)
 	registerResolver(resolveTargetInstanceRelationships,
@@ -90,7 +90,7 @@ func resolveTargetPoolRelationships(p *project, st *store.Store) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	scanned, err := scannedIDSet(p, st, TypeComputeInstance, TypeComputeHttpHealthCheck, TypeComputeTargetPool)
+	scanned, err := scannedIDSet(p, st, TypeComputeInstance, TypeComputeHTTPHealthCheck, TypeComputeTargetPool)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func resolveTargetPoolRelationships(p *project, st *store.Store) error {
 			}
 		}
 		for _, hc := range attrs.HealthChecks {
-			if err := upsertIfScanned(st, scanned, r.ID, "gcp", p.ID, TypeComputeHttpHealthCheck, hc, store.RelUses); err != nil {
+			if err := upsertIfScanned(st, scanned, r.ID, "gcp", p.ID, TypeComputeHTTPHealthCheck, hc, store.RelUses); err != nil {
 				return err
 			}
 		}
