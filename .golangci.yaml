@@ -46,7 +46,6 @@ linters:
     tagliatelle:
       case:
         rules:
-          dynamodbav: camel
           json: camel
   exclusions:
     generated: lax
@@ -56,14 +55,11 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      # Provider scanner/resolver structs use PascalCase JSON tags to match SDK marshal output.
+      # Provider scanner/resolver structs use PascalCase JSON tags to match SDK
+      # marshal output. This is the only tagliatelle exception: every other JSON
+      # surface (store rows, CLI -o json envelopes, snapshot manifest, Rego input,
+      # policy findings) is camelCase as of the v0.18.0 wire migration.
       - path: internal/providers/.*\.go
-        linters: [tagliatelle]
-      # disco JSON contracts use snake_case: store rows, snapshot manifest, Rego input,
-      # `disco resources/summary/coverage -o json` output, persisted policy findings.
-      - path: cmd/(summary|coverage|diff|findings|history|scan)\.go
-        linters: [tagliatelle]
-      - path: (internal/(coverage|policy|snapshot|serve)|store)/.*\.go
         linters: [tagliatelle]
       # Test funcs walk fixture branches linearly; gocyclo counts every fixture
       # path as branch complexity. Production logic, not test shape, is what
