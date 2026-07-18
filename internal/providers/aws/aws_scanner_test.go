@@ -288,7 +288,6 @@ var expectedAWSServices = []string{
 	"aws:redshift-serverless",
 	"aws:proton",
 	"aws:pcs",
-	"aws:panorama",
 	"aws:polly",
 	"aws:neptune-graph",
 	"aws:media-convert",

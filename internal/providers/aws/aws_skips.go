@@ -1303,10 +1303,6 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::organizations::handshake": "ephemeral: an organizations handshake (invitation), not a persistent resource",
 		"AWS::organizations::awspolicy": "duplicate: AWS-managed policies are returned by ListPolicies, scanned as aws:organizations:policy",
 
-		// panorama — package versions have no list op (fetched per-package via
-		// DescribePackageVersion); the packages themselves are scanned.
-		"AWS::Panorama::PackageVersion": "no SDK list op: package versions are fetched per-package via DescribePackageVersion",
-
 		// partnercentral (AWS Partner Central Selling) — APN co-sell pipeline CRM
 		// (opportunities, engagements, benefits, revenue), not cloud infrastructure
 		// resources in the scanned account. Out of disco's discovery scope.

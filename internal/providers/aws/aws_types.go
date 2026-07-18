@@ -1876,10 +1876,6 @@ const (
 	TypeNeptuneGraphGraph                = "aws:neptune-graph:graph"
 	TypeNeptuneGraphGraphSnapshot        = "aws:neptune-graph:graph-snapshot"
 	TypeNeptuneGraphPrivateGraphEndpoint = "aws:neptune-graph:private-graph-endpoint"
-	// Panorama (panorama_scanners.go).
-	TypePanoramaApplicationInstance = "aws:panorama:application-instance"
-	TypePanoramaPackage             = "aws:panorama:package"
-	TypePanoramaDevice              = "aws:panorama:device"
 	// Proton (proton_scanners.go).
 	TypeProtonComponent                    = "aws:proton:component"
 	TypeProtonDeployment                   = "aws:proton:deployment"
