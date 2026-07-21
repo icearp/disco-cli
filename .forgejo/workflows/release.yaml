@@ -13,6 +13,9 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-go-latest
+    env:
+      # Keep in sync with SYFT_VERSION in the Makefile.
+      SYFT_VERSION: v1.49.0
     strategy:
       fail-fast: true
       matrix:
@@ -53,6 +56,20 @@ jobs:
             -ldflags "-w -s -X codeberg.org/icearp/disco/cmd.Version=${version}" \
             -trimpath -o "$out" .
           echo "ARTIFACT=$out" >> "$GITHUB_ENV"
+          # SBOM_BASE tracks the RAW binary name; ARTIFACT is later rewritten to
+          # the .tar.xz name by the XZ step, but the SBOM describes the binary.
+          echo "SBOM_BASE=$out" >> "$GITHUB_ENV"
+
+      - name: Generate SBOM
+        # Run on the RAW binary, before the upx/xz steps below, so the SBOM
+        # derives straight from the Go build rather than relying on syft seeing
+        # through compression. Emits CycloneDX + SPDX sidecars keyed off the raw
+        # binary name.
+        run: |
+          set -euo pipefail
+          go run github.com/anchore/syft/cmd/syft@"${SYFT_VERSION}" scan "$SBOM_BASE" \
+            -o cyclonedx-json@1.7="${SBOM_BASE}.cdx.json" \
+            -o spdx-json@2.3="${SBOM_BASE}.spdx.json"
 
       - name: UPX compress
         if: ${{ matrix.upx }}
@@ -79,6 +96,8 @@ jobs:
           path: |
             ${{ env.ARTIFACT }}
             ${{ env.ARTIFACT }}.sha256
+            ${{ env.SBOM_BASE }}.cdx.json
+            ${{ env.SBOM_BASE }}.spdx.json
 
   release:
     needs: build
