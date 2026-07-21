@@ -5,10 +5,36 @@ on:
 jobs:
   test:
     runs-on: ubuntu-go-latest
+    env:
+      # Keep in sync with GOVULNCHECK_VERSION in the Makefile.
+      GOVULNCHECK_VERSION: v1.6.0
     steps:
       - uses: actions/checkout@v4
       - name: Unit tests
         run: CGO_ENABLED=0 go test ./...
+      - name: Vulnerability scan
+        # Binary-mode symbol reachability against the SAME build config disco
+        # ships (grpcnotrace tag, CGO off). Source mode is not usable here:
+        # whole-program SSA over disco's ~496-module graph (three full cloud
+        # SDKs) needs >23GB and OOMs. Build WITHOUT -w -s — `-s` strips the
+        # symbol table (see the guard below for why that matters).
+        # Live vuln DB (vuln.go.dev). Non-zero exit on a REACHABLE vuln fails
+        # the job and blocks the draft release.
+        run: |
+          set -euo pipefail
+          # No -w -s here, unlike the release build in the `build` job.
+          CGO_ENABLED=0 go build -tags grpcnotrace -o vulnscan-target .
+          # Assert the symbol table survived. A stripped binary does NOT make
+          # govulncheck fail loudly — it falls back to module-granularity and
+          # reports whole modules as reachable (still under a "Symbol Results"
+          # header), turning the gate into a spurious-red generator. Fail here
+          # with a legible reason instead.
+          go tool nm vulnscan-target >/dev/null 2>&1 || {
+            echo "vulnscan-target has no symbol table — did -s/-w reach this build?" >&2
+            exit 1
+          }
+          go run golang.org/x/vuln/cmd/govulncheck@"${GOVULNCHECK_VERSION}" \
+            -mode binary vulnscan-target
 
   build:
     needs: test

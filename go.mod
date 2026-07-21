@@ -1,6 +1,6 @@
 module codeberg.org/icearp/disco
 
-go 1.25.8
+go 1.25.12
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
@@ -385,7 +385,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/osis v1.23.0
 	github.com/aws/aws-sdk-go-v2/service/outposts v1.64.0
-	github.com/aws/aws-sdk-go-v2/service/panorama v1.29.0
 	github.com/aws/aws-sdk-go-v2/service/paymentcryptography v1.32.0
 	github.com/aws/aws-sdk-go-v2/service/pcaconnectorad v1.17.0
 	github.com/aws/aws-sdk-go-v2/service/pcaconnectorscep v1.13.0

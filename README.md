@@ -161,6 +161,19 @@ from the binary's Go buildinfo (before compression), so they list exactly the mo
 into that binary. Feed the CycloneDX doc to Dependency-Track / Grype, or the SPDX doc to
 license/compliance tooling. Generate the same locally with `make sbom` (writes to `dist/`).
 
+### Vulnerability gating on release
+
+Tagged releases are gated on [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck):
+the CI `test` job runs a symbol-level reachability scan against the same build config disco ships
+(`-tags grpcnotrace`, `CGO_ENABLED=0`), and a **reachable** known vulnerability fails the job so
+no draft release is cut. The vulnerability DB ([vuln.go.dev](https://vuln.go.dev)) is queried
+live at scan time. Run the same check locally with `make vulncheck`.
+
+The scan uses `-mode binary` over a freshly built binary rather than source mode — source mode
+builds whole-program SSA across disco's ~496-module dependency graph (three full cloud SDKs) and
+needs more than 23GB of RAM. Binary mode reads the symbol table instead, keeping the same
+symbol-level precision under 8GB.
+
 ### Coverage drift gating in CI
 
 `coverage --check-strict` exits non-zero whenever the scanner-declared type list disagrees with the live cloud-provider registry (CloudFormation `ListTypes` / Azure ARM `Providers/List` / GCP Discovery API). Pair with `--resolvers --only-unannotated` to surface resolvers with zero declared `EdgeDecl` — the candidate sweep targets for closing graph gaps.

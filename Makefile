@@ -21,8 +21,13 @@ LDFLAGS  := -X 'codeberg.org/icearp/disco/cmd.Version=$(VERSION)'
 # SYFT_VERSION in .forgejo/workflows/release.yaml. Invoked via `go run …@version`
 # so it never enters disco's go.mod/go.sum.
 SYFT_VERSION ?= v1.49.0
+# govulncheck gates releases on known-vulnerable, reachable deps. Pinned; keep in
+# sync with GOVULNCHECK_VERSION in .forgejo/workflows/release.yaml. Invoked via
+# `go run …@version` so it never enters disco's go.mod/go.sum. The vuln DB
+# (vuln.go.dev) is queried live at run time — the pin fixes the tool, not the data.
+GOVULNCHECK_VERSION ?= v1.6.0
 
-.PHONY: all deps fmt lint vet test build check-migrations clean dist sbom
+.PHONY: all deps fmt lint vet test build check-migrations clean dist sbom vulncheck
 
 check-migrations:
 	./scripts/check-migrations.sh
@@ -58,6 +63,29 @@ sbom: build
 	go run github.com/anchore/syft/cmd/syft@$(SYFT_VERSION) scan $(BINARY) \
 	  -o cyclonedx-json@1.7=$(DIST_DIR)/$(BINARY)-$(VERSION).cdx.json \
 	  -o spdx-json@2.3=$(DIST_DIR)/$(BINARY)-$(VERSION).spdx.json
+
+# vulncheck runs govulncheck binary-mode symbol reachability over the binary the
+# `build` target just produced — same config disco ships ($(TAGFLAG) carries
+# grpcnotrace, $(GO) sets CGO off). Exits non-zero on a reachable vuln; mirrors
+# the release-gate step in CI.
+#
+# Source mode (`govulncheck ./...`) is NOT an option: it builds whole-program SSA
+# over disco's ~496-module graph (three full cloud SDKs) and needs >23GB, OOMing
+# a 31GB workstation. Binary mode reads the symbol table instead — still
+# symbol-level, not module-level, and fits in <8GB.
+#
+# Depends on `build`, not `dist`: $(LDFLAGS) deliberately omits -w -s, and `-s`
+# would strip the symbol table that binary mode needs. The dist/CI release builds
+# do strip; that only removes debug data, not code, so reachability computed on
+# the unstripped binary holds for the shipped one.
+#
+# The `go tool nm` guard is not paranoia: govulncheck does NOT error on a
+# stripped binary. It silently drops to module granularity and reports whole
+# modules as reachable — still under a "Symbol Results" header — so a stripped
+# scan yields spurious failures rather than an obvious one. Fail legibly instead.
+vulncheck: build
+	@go tool nm $(BINARY) >/dev/null 2>&1 || { echo "$(BINARY) has no symbol table — did -s/-w reach LDFLAGS?" >&2; exit 1; }
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -mode binary $(BINARY)
 
 dist:
 	$(GO) GOAMD64=v3 GOOS=linux   GOARCH=amd64  go build -tags grpcnotrace -ldflags "$(LDFLAGS) -w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-$(VERSION)-linux-amd64 . && upx --best --lzma $(DIST_DIR)/$(BINARY)-$(VERSION)-linux-amd64
