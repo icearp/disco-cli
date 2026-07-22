@@ -1,0 +1,29 @@
+-- 010_resources_fillfactor.sql
+--
+-- Lowers the resources fillfactor from the 85 set by migration 009 to 70,
+-- because 85 was a guess and the measurement disagreed with it.
+--
+-- 009 dropped idx_resources_verified_by so that the verify-only rescan path
+-- (UpsertResources rewriting verified_at / verified_by on an unchanged
+-- resource) could take the heap-only tuple path. Dropping the index only
+-- restores the first HOT condition; the second is that the new row version
+-- must fit on the SAME page, which is what fillfactor governs. Measured on a
+-- 716-row table of 834-byte average rows, repeating the exact update the
+-- rescan issues until the ratio settled:
+--
+--   fillfactor 85 -> 61% of updates HOT, table 2424 kB
+--   fillfactor 70 -> 90% of updates HOT, table 1864 kB
+--
+-- The table being SMALLER at the lower fillfactor is the counter-intuitive
+-- part, and it is the whole argument: a non-HOT update writes its new version
+-- on some other page, so packing pages tighter does not save space, it just
+-- converts reserved free space into bloat plus an insertion into every index.
+-- Reserving the room costs less than not reserving it.
+--
+-- fillfactor governs how future page fills are packed, so existing pages keep
+-- their current density until rewritten. Verify with the ratio
+-- n_tup_hot_upd / n_tup_upd in pg_stat_user_tables, and note it needs a few
+-- rounds of updates to settle -- on a freshly packed table the first pass has
+-- no prunable dead tuples to reclaim and reads far lower than steady state.
+
+ALTER TABLE resources SET (fillfactor = 70);

@@ -1,0 +1,8 @@
+-- 010_resources_fillfactor.sql
+--
+-- SQLite mirror of pg/010_resources_fillfactor.sql, which lowers the resources
+-- fillfactor to 70 after measuring that 85 left too little in-page room for
+-- heap-only tuple updates. SQLite has no fillfactor and no heap-only tuple
+-- optimization, so there is nothing to mirror -- this file exists only to keep
+-- the per-dialect version ceilings equal, which scripts/check-migrations.sh
+-- enforces. Deliberately a no-op rather than an approximation.
