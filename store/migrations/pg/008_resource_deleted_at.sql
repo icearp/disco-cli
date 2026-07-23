@@ -22,5 +22,5 @@ CREATE INDEX IF NOT EXISTS idx_resources_deleted_at
     ON resources(deleted_at)
     WHERE deleted_at IS NOT NULL;
 
-COMMENT ON COLUMN resources.deleted_at IS 'archival tombstone time (RFC3339 UTC); NULL on a live row. Current row (superseded_by NULL) + deleted_at set = archived; cleared on the next re-sight';
+COMMENT ON COLUMN resources.deleted_at IS 'archival tombstone time (RFC3339 UTC). NULL on a live row. Current row (superseded_by NULL) + deleted_at set = archived. cleared on the next re-sight';
 COMMENT ON COLUMN resources.deleted_by IS 'who archived it: caller/user id for a manual archive, or a scan id for the coverage reaper';

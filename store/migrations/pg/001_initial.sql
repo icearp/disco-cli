@@ -108,62 +108,62 @@ CREATE INDEX IF NOT EXISTS idx_scan_checkpoints_scan ON scan_checkpoints(scan_id
 -- nullable single-tenant mirror; disco-saas layers NOT NULL + RLS on top.
 -- ---------------------------------------------------------------------------
 
-COMMENT ON TABLE schema_migrations IS 'Applied-migration ledger; the runner skips any version already recorded here, so re-running is a no-op.';
+COMMENT ON TABLE schema_migrations IS 'Applied-migration ledger. the runner skips any version already recorded here, so re-running is a no-op.';
 COMMENT ON COLUMN schema_migrations.version    IS 'migration version number, unique and monotonic';
 COMMENT ON COLUMN schema_migrations.applied_at IS 'when the runner applied this version';
 
 COMMENT ON TABLE scans IS 'One scan run — a single disco scan invocation over a provider set and scope. Terminal rows drive notify + webhook dispatch downstream.';
-COMMENT ON COLUMN scans.id             IS 'scan id; the discovered_by / verified_by target on resources';
+COMMENT ON COLUMN scans.id             IS 'scan id. the discovered_by / verified_by target on resources';
 COMMENT ON COLUMN scans.started_at     IS 'RFC3339 UTC, scan start (TEXT, not timestamptz, for SQLite parity)';
-COMMENT ON COLUMN scans.finished_at    IS 'RFC3339 UTC, terminal transition time; NULL while running';
-COMMENT ON COLUMN scans.status         IS 'lifecycle: running|pending|completed|partial|failed; the last three are terminal';
+COMMENT ON COLUMN scans.finished_at    IS 'RFC3339 UTC, terminal transition time. NULL while running';
+COMMENT ON COLUMN scans.status         IS 'lifecycle: running|pending|completed|partial|failed. the last three are terminal';
 COMMENT ON COLUMN scans.providers      IS 'comma-joined providers this scan covered';
 COMMENT ON COLUMN scans.scope          IS 'serialized scan scope (regions/services/accounts)';
-COMMENT ON COLUMN scans.error          IS 'legacy prose blob concatenating every per-service failure; superseded by errors JSONB, kept for old rows + external consumers';
+COMMENT ON COLUMN scans.error          IS 'legacy prose blob concatenating every per-service failure. superseded by errors JSONB, kept for old rows + external consumers';
 COMMENT ON COLUMN scans.resource_count IS 'resources upserted by this scan';
 COMMENT ON COLUMN scans.meta           IS 'free-form JSON scan metadata (scanner version, timing)';
-COMMENT ON COLUMN scans.workspace_id   IS 'nullable single-tenant mirror; disco-saas sets NOT NULL + a GUC default and enforces RLS';
+COMMENT ON COLUMN scans.workspace_id   IS 'nullable single-tenant mirror. disco-saas sets NOT NULL + a GUC default and enforces RLS';
 
 COMMENT ON TABLE resources IS 'Cloud resource inventory, version-chained: a scan writes a new row only when a resource changes and keeps superseded versions, so the table is the full change history keyed by root_id.';
-COMMENT ON COLUMN resources.id                  IS 'per-version row PK (UUID text); reads alias root_id AS id for Resource projections';
+COMMENT ON COLUMN resources.id                  IS 'per-version row PK (UUID text). reads alias root_id AS id for Resource projections';
 COMMENT ON COLUMN resources.provider            IS 'cloud provider (aws|azure|gcp)';
 COMMENT ON COLUMN resources.account_id          IS 'cloud account / subscription / project id';
-COMMENT ON COLUMN resources.account_name        IS 'human label for account_id; NULL if unknown';
+COMMENT ON COLUMN resources.account_name        IS 'human label for account_id. NULL if unknown';
 COMMENT ON COLUMN resources.type                IS 'resource type in the provider taxonomy';
-COMMENT ON COLUMN resources.native_id           IS 'provider-native id / ARN; unique per (provider, account_id) and the FOCUS cost-match key';
-COMMENT ON COLUMN resources.name                IS 'display name; NULL when the provider gives none';
-COMMENT ON COLUMN resources.region              IS 'cloud region; NULL for global resources';
-COMMENT ON COLUMN resources.zone                IS 'availability zone; NULL when not applicable';
-COMMENT ON COLUMN resources.status              IS 'provider lifecycle status; NULL if unreported';
+COMMENT ON COLUMN resources.native_id           IS 'provider-native id / ARN. unique per (provider, account_id) and the FOCUS cost-match key';
+COMMENT ON COLUMN resources.name                IS 'display name. NULL when the provider gives none';
+COMMENT ON COLUMN resources.region              IS 'cloud region. NULL for global resources';
+COMMENT ON COLUMN resources.zone                IS 'availability zone. NULL when not applicable';
+COMMENT ON COLUMN resources.status              IS 'provider lifecycle status. NULL if unreported';
 COMMENT ON COLUMN resources.tags                IS 'resource tags as a JSON object';
-COMMENT ON COLUMN resources.attributes          IS 'full scanned attribute blob (redact.Apply output); JSONB since migration 007';
+COMMENT ON COLUMN resources.attributes          IS 'full scanned attribute blob (redact.Apply output). JSONB since migration 007';
 COMMENT ON COLUMN resources.managed_by_provider IS 'true when provider-managed rather than user-created';
-COMMENT ON COLUMN resources.created_at          IS 'provider-reported resource creation time (RFC3339); NULL if unknown';
+COMMENT ON COLUMN resources.created_at          IS 'provider-reported resource creation time (RFC3339). NULL if unknown';
 COMMENT ON COLUMN resources.discovered_at       IS 'RFC3339 UTC, first time any scan saw this row';
 COMMENT ON COLUMN resources.discovered_by       IS 'scans.id that first observed this row';
-COMMENT ON COLUMN resources.workspace_id        IS 'nullable single-tenant mirror; disco-saas sets NOT NULL + a GUC default and enforces RLS';
+COMMENT ON COLUMN resources.workspace_id        IS 'nullable single-tenant mirror. disco-saas sets NOT NULL + a GUC default and enforces RLS';
 
-COMMENT ON TABLE relationships IS 'Edges between resources (keyed by root_id, not per-version id), e.g. contains / uses; edge-target validity is an application invariant, not an FK.';
+COMMENT ON TABLE relationships IS 'Edges between resources (keyed by root_id, not per-version id), e.g. contains / uses. edge-target validity is an application invariant, not an FK.';
 COMMENT ON COLUMN relationships.id            IS 'edge PK';
 COMMENT ON COLUMN relationships.from_id       IS 'source resource root_id';
 COMMENT ON COLUMN relationships.to_id         IS 'target resource root_id';
 COMMENT ON COLUMN relationships.kind          IS 'edge type (e.g. contains, uses)';
 COMMENT ON COLUMN relationships.direction     IS 'directed | undirected';
-COMMENT ON COLUMN relationships.attributes    IS 'edge attributes as JSON; NULL if none (JSONB since migration 007)';
+COMMENT ON COLUMN relationships.attributes    IS 'edge attributes as JSON. NULL if none (JSONB since migration 007)';
 COMMENT ON COLUMN relationships.discovered_at IS 'RFC3339 UTC, first time this edge was seen';
-COMMENT ON COLUMN relationships.workspace_id  IS 'nullable single-tenant mirror; disco-saas sets NOT NULL + a GUC default and enforces RLS';
+COMMENT ON COLUMN relationships.workspace_id  IS 'nullable single-tenant mirror. disco-saas sets NOT NULL + a GUC default and enforces RLS';
 
 COMMENT ON TABLE hierarchy_closure IS 'Transitive ancestor->descendant closure over containment edges, one row per reachable pair, so subtree queries are a single indexed lookup.';
 COMMENT ON COLUMN hierarchy_closure.ancestor_id   IS 'ancestor resource root_id';
 COMMENT ON COLUMN hierarchy_closure.descendant_id IS 'descendant resource root_id';
 COMMENT ON COLUMN hierarchy_closure.depth         IS 'edge count between the pair (0 = the resource itself)';
-COMMENT ON COLUMN hierarchy_closure.workspace_id  IS 'nullable single-tenant mirror; disco-saas sets NOT NULL + a GUC default and enforces RLS';
+COMMENT ON COLUMN hierarchy_closure.workspace_id  IS 'nullable single-tenant mirror. disco-saas sets NOT NULL + a GUC default and enforces RLS';
 
 COMMENT ON TABLE scan_checkpoints IS 'Per-(scan, provider, service, scope) pagination cursor so an interrupted scan resumes mid-service instead of restarting.';
 COMMENT ON COLUMN scan_checkpoints.scan_id      IS 'owning scans.id';
 COMMENT ON COLUMN scan_checkpoints.provider     IS 'cloud provider being paginated';
 COMMENT ON COLUMN scan_checkpoints.service      IS 'provider service being paginated';
 COMMENT ON COLUMN scan_checkpoints.scope        IS 'scope key within the service';
-COMMENT ON COLUMN scan_checkpoints.last_token   IS 'opaque provider pagination token; NULL before the first page';
+COMMENT ON COLUMN scan_checkpoints.last_token   IS 'opaque provider pagination token. NULL before the first page';
 COMMENT ON COLUMN scan_checkpoints.updated_at   IS 'RFC3339 UTC, last checkpoint write';
-COMMENT ON COLUMN scan_checkpoints.workspace_id IS 'nullable single-tenant mirror; disco-saas sets NOT NULL + a GUC default and enforces RLS';
+COMMENT ON COLUMN scan_checkpoints.workspace_id IS 'nullable single-tenant mirror. disco-saas sets NOT NULL + a GUC default and enforces RLS';
