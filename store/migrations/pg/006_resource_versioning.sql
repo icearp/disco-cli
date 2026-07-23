@@ -30,3 +30,9 @@ ALTER TABLE relationships     DROP CONSTRAINT IF EXISTS relationships_from_id_fk
 ALTER TABLE relationships     DROP CONSTRAINT IF EXISTS relationships_to_id_fkey;
 ALTER TABLE hierarchy_closure DROP CONSTRAINT IF EXISTS hierarchy_closure_ancestor_id_fkey;
 ALTER TABLE hierarchy_closure DROP CONSTRAINT IF EXISTS hierarchy_closure_descendant_id_fkey;
+
+COMMENT ON COLUMN resources.root_id             IS 'deterministic ResourceID hash shared by every row in this resource''s version chain; the stable cross-version identity';
+COMMENT ON COLUMN resources.previous_version_id IS 'immediate predecessor row in the chain; NULL on the root';
+COMMENT ON COLUMN resources.superseded_by       IS 'successor row that replaced this version; NULL on the current row of every chain (so superseded_by IS NULL selects live state)';
+COMMENT ON COLUMN resources.verified_at         IS 'RFC3339 UTC, last scan that re-saw this version unchanged (verify-only path)';
+COMMENT ON COLUMN resources.verified_by         IS 'scans.id of that last verifying scan';

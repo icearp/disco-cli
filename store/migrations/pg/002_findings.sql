@@ -38,3 +38,31 @@ CREATE TABLE IF NOT EXISTS findings (
 CREATE INDEX IF NOT EXISTS idx_findings_check_run_id ON findings(check_run_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity     ON findings(severity);
 CREATE INDEX IF NOT EXISTS idx_findings_finding_id   ON findings(finding_id);
+
+COMMENT ON TABLE check_runs IS 'One disco check --persist run: a historical compliance evaluation over the inventory, so past runs stay queryable.';
+COMMENT ON COLUMN check_runs.id              IS 'check-run id; the findings.check_run_id target';
+COMMENT ON COLUMN check_runs.started_at      IS 'RFC3339 UTC, run start';
+COMMENT ON COLUMN check_runs.finished_at     IS 'RFC3339 UTC, run end; NULL while running';
+COMMENT ON COLUMN check_runs.rules_paths     IS 'rule source paths evaluated';
+COMMENT ON COLUMN check_runs.packs           IS 'rule packs applied';
+COMMENT ON COLUMN check_runs.severity_filter IS 'minimum severity retained; NULL = no filter';
+COMMENT ON COLUMN check_runs.resource_count  IS 'resources evaluated';
+COMMENT ON COLUMN check_runs.finding_count   IS 'findings produced';
+COMMENT ON COLUMN check_runs.workspace_id    IS 'nullable single-tenant mirror; disco-saas sets NOT NULL + a GUC default and enforces RLS';
+
+COMMENT ON TABLE findings IS 'Individual policy findings from a check_run, one row per (rule, resource) hit; cascades away with its run.';
+COMMENT ON COLUMN findings.id           IS 'finding PK';
+COMMENT ON COLUMN findings.check_run_id IS 'owning check_runs.id; ON DELETE CASCADE';
+COMMENT ON COLUMN findings.finding_id   IS 'rule/finding identifier that fired';
+COMMENT ON COLUMN findings.resource_id  IS 'offending resource root_id';
+COMMENT ON COLUMN findings.severity     IS 'finding severity';
+COMMENT ON COLUMN findings.message      IS 'human-readable finding text';
+COMMENT ON COLUMN findings.provider     IS 'denormalized resource provider for filtering; NULL if absent';
+COMMENT ON COLUMN findings.type         IS 'denormalized resource type for filtering; NULL if absent';
+COMMENT ON COLUMN findings.name         IS 'denormalized resource name for display; NULL if absent';
+COMMENT ON COLUMN findings.region       IS 'denormalized resource region for filtering; NULL if absent';
+COMMENT ON COLUMN findings.category     IS 'rule category; NULL if unset';
+COMMENT ON COLUMN findings.remediation  IS 'remediation guidance; NULL if none';
+COMMENT ON COLUMN findings.ref_url      IS 'reference / documentation URL; NULL if none';
+COMMENT ON COLUMN findings.tags         IS 'finding tags as JSON text; NULL if none';
+COMMENT ON COLUMN findings.workspace_id IS 'nullable single-tenant mirror; disco-saas sets NOT NULL + a GUC default and enforces RLS';

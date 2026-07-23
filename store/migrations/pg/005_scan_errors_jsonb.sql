@@ -14,3 +14,5 @@
 
 ALTER TABLE scans
     ADD COLUMN IF NOT EXISTS errors JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+COMMENT ON COLUMN scans.errors IS 'structured per-service failures: array of {service, region, code, message}; [] not NULL, so readers never branch on missing';
