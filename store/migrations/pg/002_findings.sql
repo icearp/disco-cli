@@ -39,7 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_findings_check_run_id ON findings(check_run_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity     ON findings(severity);
 CREATE INDEX IF NOT EXISTS idx_findings_finding_id   ON findings(finding_id);
 
-COMMENT ON TABLE check_runs IS 'One disco check --persist run: a historical compliance evaluation over the inventory, so past runs stay queryable.';
+COMMENT ON TABLE check_runs IS 'One persisted disco check run: a historical compliance evaluation over the inventory, so past runs stay queryable.';
 COMMENT ON COLUMN check_runs.id              IS 'check-run id. the findings.check_run_id target';
 COMMENT ON COLUMN check_runs.started_at      IS 'RFC3339 UTC, run start';
 COMMENT ON COLUMN check_runs.finished_at     IS 'RFC3339 UTC, run end. NULL while running';
