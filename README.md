@@ -6,7 +6,7 @@
 
 - `scan` walks an AWS account, Azure subscription, or GCP org and writes every resource it finds.
 - `scan` also runs a resolve phase that connects resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`, `bounded-by`, plus `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam` / `org-iam`).
-- `resources`, `diff`, `graph`, `check`, `coverage`, `summary`, `tag-coverage`, `scans`, `snapshot`, and `verify` query the local DB without going back to the cloud.
+- `resources`, `diff`, `graph`, `check`, `findings`, `history`, `coverage`, `summary`, `tag-coverage`, `scans`, `snapshot`, and `verify` query the local DB without going back to the cloud.
 
 ## Why not Resource Explorer, Resource Graph, or Cloud Asset Inventory?
 
@@ -45,11 +45,16 @@ disco
 │   └── gcp                   per-project fan-out across reachable projects
 ├── resources                 filter by --type, --providers, --regions, --discovered-since
 │   └── show <id|name>        full record for one resolved resource
+├── diff <from> <to>          resources added / gone stale between two scan runs
+├── history <id|name>         every recorded version of one resource, oldest→newest
 ├── graph
 │   ├── blast <id>            reachability from a seed
 │   ├── path <A> <B>          shortest path between two resources
 │   └── complete              full graph (every resource + edges)
-├── check                     OPA Rego policy eval; --packs, --rules, --output sarif
+├── check                     OPA Rego policy eval; --packs, --rules, --output sarif, --persist
+├── findings                  query findings recorded by `check --persist`
+│   ├── list                  persisted findings (defaults to latest run)
+│   └── runs                  recorded check-run history
 ├── coverage                  scanner-declared types vs cloud registry; --check-strict
 ├── summary                   portfolio rollup
 ├── tag-coverage              per-tag coverage rate
@@ -208,13 +213,27 @@ Per-subdirectory `CLAUDE.md` files document local conventions; `CODE_STRUCTURE.m
 
 ## Coverage
 
-All three clouds are covered broadly. `disco coverage services --providers <aws|azure|gcp>` prints the scanner-declared list from the running binary.
+All three clouds are covered broadly — hundreds of services scanned via each cloud's
+per-service SDK, spanning compute, storage, networking, identity, data, security, and
+governance. Approximate breadth (distinct resource types the running binary declares):
 
-- **AWS**: EC2, IAM, S3, Lambda, RDS, EKS, ECS, KMS, Route53, ELBv2, CloudFront, CloudFormation, GuardDuty, Detective, Inspector v2, Macie, Backup, CloudTrail, Identity Center, Organizations, EventBridge, Step Functions, Secrets Manager, DynamoDB, SNS, SQS, EFS, WAFv2, ACM, Cognito, Kinesis, Firehose, Glue, Athena, App Runner, AppSync, MQ, AppFlow, Application Auto Scaling, AccessAnalyzer, Managed Prometheus, plus more.
-- **Azure**: compute (VMs/VMSS/disks), networking (vNet, NSG, AGW, Front Door, ER, vWAN, VPN, Traffic Manager, Private Endpoints, DNS), storage, Key Vault, SQL, App Service, AKS, Container Apps, ACR, Cosmos, Redis, EventHub, ServiceBus, Logic Apps, Synapse, APIM, Policy, RBAC, Log Analytics, ManagedIdentity, ResourceGroups, Subscriptions/MgmtGroups, Entra ID, and more. Run `disco coverage services --providers azure` for the live list.
-- **GCP**: Compute, Storage, IAM (incl. service accounts + key bindings), Cloud DNS, KMS, Pub/Sub, BigQuery, Bigtable, Firestore, Spanner, Cloud Functions Gen2, Cloud Run (services + jobs), Batch, Composer, Artifact Registry, Cert Manager, Cloud Build, Cloud Armor, Load Balancing, Logging sinks, Monitoring alert policies, Secret Manager, Binary Authorization, VPC Service Controls, project/folder/org hierarchy.
+| Provider | Services | Resource types |
+|----------|---------:|---------------:|
+| AWS      |    ~300  |         ~1,800 |
+| Azure    |    ~150  |           ~420 |
+| GCP      |     ~40  |           ~250 |
 
-`disco coverage services --filter uncovered` shows what each cloud's registry exposes that disco does not yet scan. `FEATURES.md` lists shipped capabilities; `ROADMAP.md` tracks planned work.
+These lists move as services ship, so the README does not hand-maintain them. For the live,
+authoritative list from the binary you built, run:
+
+```bash
+disco coverage services --providers aws        # or azure, gcp
+disco coverage services --filter uncovered     # what each registry exposes that disco doesn't yet scan
+```
+
+Detecting drift between disco's scanners and the upstream cloud registries is exactly what the
+`coverage` command exists for (see the coverage-gating use case above). `FEATURES.md` lists
+shipped capabilities in prose.
 
 ## Development
 
