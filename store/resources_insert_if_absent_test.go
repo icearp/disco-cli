@@ -30,6 +30,9 @@ func TestInsertResourcesIfAbsent_InsertsWhenAbsent(t *testing.T) {
 	if got.AttributesJSON != "{}" {
 		t.Errorf("attributes = %q, want empty {}", got.AttributesJSON)
 	}
+	if !got.ReferenceOnly {
+		t.Errorf("ReferenceOnly = false, want true (placeholder is reference-only)")
+	}
 }
 
 // TestInsertResourcesIfAbsent_NoClobber verifies the primitive no-ops when a
@@ -132,6 +135,11 @@ func TestInsertResourcesIfAbsent_PlaceholderThenScanned(t *testing.T) {
 	}
 	if got.AttributesJSON != `{"SummaryMap":{"Users":5}}` {
 		t.Errorf("current row not populated: attributes = %q", got.AttributesJSON)
+	}
+	// The version-split to a real scan clears reference_only: once the target is
+	// enumerated in its own right it is no longer a mere reference endpoint.
+	if got.ReferenceOnly {
+		t.Errorf("ReferenceOnly = true after real scan, want false (populated row is not a placeholder)")
 	}
 	versions, err := st.GetResourceVersions(rootID)
 	if err != nil {

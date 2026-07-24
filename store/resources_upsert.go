@@ -289,9 +289,9 @@ func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, er
 				(id, root_id, provider, account_id, account_name, type, native_id,
 				 name, region, zone, status, tags, attributes,
 				 created_at, discovered_at, discovered_by,
-				 verified_at, verified_by, managed_by_provider)
+				 verified_at, verified_by, managed_by_provider, reference_only)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-			        $14, $15, $16, $17, $18, $19)
+			        $14, $15, $16, $17, $18, $19, TRUE)
 			ON CONFLICT (provider, account_id, native_id)
 			    WHERE superseded_by IS NULL
 			DO NOTHING`),
