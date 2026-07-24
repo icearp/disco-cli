@@ -4,12 +4,15 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-go-latest
+    runs-on: ubuntu-latest
     env:
       # Keep in sync with GOVULNCHECK_VERSION in the Makefile.
       GOVULNCHECK_VERSION: v1.6.0
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - name: Unit tests
         run: CGO_ENABLED=0 go test ./...
       - name: Vulnerability scan
@@ -38,7 +41,7 @@ jobs:
 
   build:
     needs: test
-    runs-on: ubuntu-go-latest
+    runs-on: ubuntu-latest
     env:
       # Keep in sync with SYFT_VERSION in the Makefile.
       SYFT_VERSION: v1.49.0
@@ -68,6 +71,9 @@ jobs:
             ext: '.exe'
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
 
       - name: Build
         env:
@@ -79,7 +85,7 @@ jobs:
           version="${GITHUB_REF_NAME}"
           out="disco-${version}-${GOOS}-${GOARCH}${{ matrix.ext }}"
           go build \
-            -ldflags "-w -s -X codeberg.org/icearp/disco/cmd.Version=${version}" \
+            -ldflags "-w -s -X github.com/icearp/disco-cli/cmd.Version=${version}" \
             -trimpath -o "$out" .
           echo "ARTIFACT=$out" >> "$GITHUB_ENV"
           # SBOM_BASE tracks the RAW binary name; ARTIFACT is later rewritten to
@@ -100,8 +106,8 @@ jobs:
       - name: UPX compress
         if: ${{ matrix.upx }}
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends upx-ucl
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends upx-ucl
           upx --best --lzma "$ARTIFACT"
 
       - name: XZ compress
@@ -116,9 +122,11 @@ jobs:
         run: sha256sum "$ARTIFACT" | awk '{print $1}' > "${ARTIFACT}.sha256"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}
+          # upload-artifact@v4 requires unique names across the matrix — key on
+          # the target, not $ARTIFACT (rewritten to the .tar.xz name for darwin).
+          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
             ${{ env.ARTIFACT }}
             ${{ env.ARTIFACT }}.sha256
@@ -127,7 +135,9 @@ jobs:
 
   release:
     needs: build
-    runs-on: ubuntu-go-latest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -137,9 +147,11 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: dist-tmp
+          pattern: dist-*
+          merge-multiple: true
 
       - name: Flatten artifacts
         run: |
@@ -164,15 +176,10 @@ jobs:
           } > release-notes.md
 
       - name: Publish draft release
-        uses: actions/forgejo-release@v2
+        uses: softprops/action-gh-release@v2
         with:
-          direction: upload
-          url: https://codeberg.org
-          repo: ${{ github.repository }}
-          tag: ${{ env.VERSION }}
-          release-dir: dist
-          release-notes-file: release-notes.md
-          token: ${{ secrets.GITHUB_TOKEN }}
-          override: true
-          prerelease: false
+          tag_name: ${{ env.VERSION }}
+          files: dist/*
+          body_path: release-notes.md
           draft: true
+          prerelease: false

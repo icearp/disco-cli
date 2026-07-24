@@ -1,7 +1,7 @@
 # Disco Features
 
 Shipped, in-tree capabilities — everything here is implemented and queryable on a
-current `dev` build. Companion to [`ROADMAP.md`](ROADMAP.md), which tracks planned
+current `main` build. Companion to [`ROADMAP.md`](ROADMAP.md), which tracks planned
 and partially-implemented work.
 
 For the authoritative, live list of scanned resource types, run

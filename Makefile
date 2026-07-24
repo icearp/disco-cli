@@ -18,11 +18,11 @@ TAGFLAG  := -tags "grpcnotrace$(if $(TAGS), $(TAGS),)"
 VERSION  ?= $(shell git describe --tags --always --dirty=+dirty 2>/dev/null || echo dev)
 LDFLAGS  := -X 'github.com/icearp/disco-cli/cmd.Version=$(VERSION)'
 # syft generates the release SBOMs (CycloneDX + SPDX). Pinned; keep in sync with
-# SYFT_VERSION in .forgejo/workflows/release.yaml. Invoked via `go run …@version`
+# SYFT_VERSION in .github/workflows/release.yaml. Invoked via `go run …@version`
 # so it never enters disco's go.mod/go.sum.
 SYFT_VERSION ?= v1.49.0
 # govulncheck gates releases on known-vulnerable, reachable deps. Pinned; keep in
-# sync with GOVULNCHECK_VERSION in .forgejo/workflows/release.yaml. Invoked via
+# sync with GOVULNCHECK_VERSION in .github/workflows/release.yaml. Invoked via
 # `go run …@version` so it never enters disco's go.mod/go.sum. The vuln DB
 # (vuln.go.dev) is queried live at run time — the pin fixes the tool, not the data.
 GOVULNCHECK_VERSION ?= v1.6.0

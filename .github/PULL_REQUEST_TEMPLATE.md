@@ -4,7 +4,7 @@ A short description of the change and why.
 
 ## Checklist
 
-- [ ] Branched from `dev` and targeting `dev`
+- [ ] Branched from `main` and targeting `main`
 - [ ] `CGO_ENABLED=0 go test ./...` passes
 - [ ] `go vet ./...` and `golangci-lint run` are clean
 - [ ] `gofmt -w .` run (no formatting diff)

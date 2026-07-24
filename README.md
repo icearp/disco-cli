@@ -243,11 +243,11 @@ CGO_ENABLED=0 go test ./internal/providers/aws/... -run TestSomething -v
 go vet ./...
 ```
 
-The primary branch is `dev`. Feature branches fork from `dev` and merge back into it.
+The primary branch is `main`. Feature branches fork from `main` and merge back into it.
 
 ## Releases
 
-Tagged `v*` pushes trigger the `.forgejo` release workflow, which cross-compiles and
+Tagged `v*` pushes trigger the GitHub Actions release workflow (`.github/workflows/release.yaml`), which cross-compiles and
 publishes binaries for linux/darwin/windows on amd64+arm64. Builds are version-stamped
 from the tag. You can always build from source with `make build`.
 

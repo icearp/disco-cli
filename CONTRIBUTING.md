@@ -39,8 +39,8 @@ Postgres-backed tests self-skip when Docker is unreachable, so the default
 
 ## Branch model
 
-The primary branch is **`dev`** (there is no `main`). Fork your feature branch
-from `dev` and open your PR back into `dev`.
+The primary branch is **`main`**. Fork your feature branch
+from `main` and open your PR back into `main`.
 
 ## Conventions
 

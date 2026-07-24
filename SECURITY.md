@@ -16,8 +16,8 @@ confirmed and a fix is available, we'll coordinate disclosure timing with you.
 
 ## Supported versions
 
-Fixes land on the `dev` branch and ship in the next tagged release. The latest
-tagged release and the current `dev` tip are the supported targets; there is no
+Fixes land on the `main` branch and ship in the next tagged release. The latest
+tagged release and the current `main` tip are the supported targets; there is no
 back-porting to older tags.
 
 ## Scope notes
