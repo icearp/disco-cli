@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
@@ -14,7 +15,6 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeNeptuneInstance, Service: "neptune", Upstream: "AWS::Neptune::DBInstance", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeNeptuneDBClusterParameterGroup, Service: "neptune", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeNeptuneDBParameterGroup, Service: "neptune", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNeptuneDBSubnetGroup, Service: "neptune", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeNeptuneEventSubscription, Service: "neptune", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeNeptuneGlobalCluster, Service: "neptune", Leaf: true})
 	registerService(serviceEntry{
@@ -30,7 +30,6 @@ type neptuneAPI interface {
 	DescribeDBInstances(context.Context, *neptune.DescribeDBInstancesInput, ...func(*neptune.Options)) (*neptune.DescribeDBInstancesOutput, error)
 	DescribeDBClusterParameterGroups(context.Context, *neptune.DescribeDBClusterParameterGroupsInput, ...func(*neptune.Options)) (*neptune.DescribeDBClusterParameterGroupsOutput, error)
 	DescribeDBParameterGroups(context.Context, *neptune.DescribeDBParameterGroupsInput, ...func(*neptune.Options)) (*neptune.DescribeDBParameterGroupsOutput, error)
-	DescribeDBSubnetGroups(context.Context, *neptune.DescribeDBSubnetGroupsInput, ...func(*neptune.Options)) (*neptune.DescribeDBSubnetGroupsOutput, error)
 	DescribeEventSubscriptions(context.Context, *neptune.DescribeEventSubscriptionsInput, ...func(*neptune.Options)) (*neptune.DescribeEventSubscriptionsOutput, error)
 	DescribeGlobalClusters(context.Context, *neptune.DescribeGlobalClustersInput, ...func(*neptune.Options)) (*neptune.DescribeGlobalClustersOutput, error)
 }
@@ -137,6 +136,14 @@ func scanNeptuneInstances(ctx context.Context, client neptuneAPI, acct *account,
 			return 0, 0, fmt.Errorf("neptune:DescribeDBInstances: %w", perr)
 		}
 		for _, i := range out.DBInstances {
+			// DescribeDBInstances on the Neptune endpoint returns every RDS-family
+			// instance in the account (RDS, Neptune, DocDB share the ARN
+			// namespace). Resource identity excludes type, so re-reporting a
+			// plain-Postgres RDS instance under aws:neptune:instance collides with
+			// its aws:rds:instance row. Emit only genuine Neptune engines.
+			if !strings.HasPrefix(sv(i.Engine), "neptune") {
+				continue
+			}
 			arn := sv(i.DBInstanceArn)
 			if arn == "" {
 				continue

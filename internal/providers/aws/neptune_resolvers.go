@@ -34,8 +34,9 @@ type neptuneClusterAttrs struct {
 //   - cluster → security group (uses) per VpcSecurityGroups[]
 //
 // FK-safe via scanned-SG id set + KMS resolve index. Cluster → subnet
-// group + → VPC + → IAM role deferred (no aws:neptune:subnet-group
-// type yet, mirroring DocumentDB choice).
+// group + → VPC + → IAM role deferred. Subnet groups are shared RDS-family
+// infra inventoried once under aws:rds:db-subnet-group (neptune/docdb don't
+// re-report them — identity excludes type, so a duplicate would collide).
 func resolveNeptuneClusterTargets(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

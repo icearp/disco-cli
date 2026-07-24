@@ -34,9 +34,10 @@ type docdbClusterAttrs struct {
 //   - cluster → security group (uses) per VpcSecurityGroups[]
 //
 // FK-safe via scanned-SG id set + KMS resolve index. Cluster → subnet
-// group/VPC/IAM role deferred until subnet groups are scanned as their
-// own type (RDS scanner doesn't model `aws:rds:subnet-group` either;
-// pattern can be lifted from there later).
+// group/VPC/IAM role edges deferred. Subnet groups are shared RDS-family
+// infra inventoried once under aws:rds:db-subnet-group (docdb/neptune don't
+// re-report them — identity excludes type, so a duplicate would collide);
+// the cluster → aws:rds:db-subnet-group edge can be added later.
 func resolveDocDBClusterTargets(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},

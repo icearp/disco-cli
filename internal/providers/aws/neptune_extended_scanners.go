@@ -3,19 +3,22 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/neptune"
 )
 
-// scanNeptuneExtended discovers four additional Neptune resource types:
-// DB cluster parameter groups, DB parameter groups, DB subnet groups, and
-// event subscriptions. All four carry native ARNs.
+// scanNeptuneExtended discovers additional Neptune resource types: DB cluster
+// parameter groups, DB parameter groups, event subscriptions, and global
+// clusters. All carry native ARNs. DB subnet groups are intentionally not
+// scanned here — they are shared RDS-family infra with an rds ARN and no engine
+// field, so aws:rds:db-subnet-group owns them (re-reporting under
+// aws:neptune:db-subnet-group would collide on identity, which excludes type).
 func scanNeptuneExtended(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanNeptuneDBClusterPGs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanNeptuneDBPGs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanNeptuneDBSubnetGroups(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanNeptuneEventSubs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanNeptuneGlobalClusters(ctx, client, acct, region, st, scanID) },
 	} {
@@ -68,6 +71,14 @@ func scanNeptuneDBPGs(ctx context.Context, client neptuneAPI, acct *account, reg
 			return 0, 0, fmt.Errorf("neptune:DescribeDBParameterGroups: %w", err)
 		}
 		for _, g := range out.DBParameterGroups {
+			// DescribeDBParameterGroups on the Neptune endpoint returns every
+			// RDS-family parameter group (shared ARN namespace). Identity excludes
+			// type, so a plain-Postgres group re-reported under
+			// aws:neptune:db-parameter-group collides with its aws:rds row. Emit
+			// only genuine Neptune families (e.g. "neptune1.3").
+			if !strings.HasPrefix(sv(g.DBParameterGroupFamily), "neptune") {
+				continue
+			}
 			arn := sv(g.DBParameterGroupArn)
 			if arn == "" {
 				continue
@@ -81,34 +92,6 @@ func scanNeptuneDBPGs(ctx context.Context, client neptuneAPI, acct *account, reg
 		}
 	}
 	return upsertBatch(st, batch, "neptune db-parameter-groups")
-}
-
-func scanNeptuneDBSubnetGroups(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := neptune.NewDescribeDBSubnetGroupsPaginator(client, &neptune.DescribeDBSubnetGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "neptune:DescribeDBSubnetGroups", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("neptune:DescribeDBSubnetGroups: %w", err)
-		}
-		for _, g := range out.DBSubnetGroups {
-			arn := sv(g.DBSubnetGroupArn)
-			if arn == "" {
-				continue
-			}
-			status := sv(g.SubnetGroupStatus)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNeptuneDBSubnetGroup, NativeID: arn,
-				Name: g.DBSubnetGroupName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "neptune db-subnet-groups")
 }
 
 // scanNeptuneGlobalClusters discovers Neptune global database clusters via the

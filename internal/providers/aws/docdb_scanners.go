@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
@@ -13,7 +14,6 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeDocDBCluster, Service: "docdb", Upstream: "AWS::DocDB::DBCluster"})
 	registerType(restype.Descriptor{Type: TypeDocDBInstance, Service: "docdb", Upstream: "AWS::DocDB::DBInstance", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeDocDBDBClusterParameterGroup, Service: "docdb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDocDBDBSubnetGroup, Service: "docdb", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeDocDBEventSubscription, Service: "docdb", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeDocDBGlobalCluster, Service: "docdb", Leaf: true})
 	registerService(serviceEntry{
@@ -28,7 +28,6 @@ type docdbAPI interface {
 	DescribeDBClusters(context.Context, *docdb.DescribeDBClustersInput, ...func(*docdb.Options)) (*docdb.DescribeDBClustersOutput, error)
 	DescribeDBInstances(context.Context, *docdb.DescribeDBInstancesInput, ...func(*docdb.Options)) (*docdb.DescribeDBInstancesOutput, error)
 	DescribeDBClusterParameterGroups(context.Context, *docdb.DescribeDBClusterParameterGroupsInput, ...func(*docdb.Options)) (*docdb.DescribeDBClusterParameterGroupsOutput, error)
-	DescribeDBSubnetGroups(context.Context, *docdb.DescribeDBSubnetGroupsInput, ...func(*docdb.Options)) (*docdb.DescribeDBSubnetGroupsOutput, error)
 	DescribeEventSubscriptions(context.Context, *docdb.DescribeEventSubscriptionsInput, ...func(*docdb.Options)) (*docdb.DescribeEventSubscriptionsOutput, error)
 	DescribeGlobalClusters(context.Context, *docdb.DescribeGlobalClustersInput, ...func(*docdb.Options)) (*docdb.DescribeGlobalClustersOutput, error)
 }
@@ -129,6 +128,14 @@ func scanDocDBInstances(ctx context.Context, client docdbAPI, acct *account, reg
 			return 0, 0, fmt.Errorf("docdb:DescribeDBInstances: %w", perr)
 		}
 		for _, i := range out.DBInstances {
+			// DescribeDBInstances on the DocDB endpoint returns every RDS-family
+			// instance in the account (RDS, Neptune, DocDB share the ARN
+			// namespace). Resource identity excludes type, so re-reporting a
+			// plain-Postgres RDS instance under aws:docdb:instance collides with
+			// its aws:rds:instance row. Emit only genuine DocumentDB engines.
+			if !strings.HasPrefix(sv(i.Engine), "docdb") {
+				continue
+			}
 			arn := sv(i.DBInstanceArn)
 			if arn == "" {
 				continue

@@ -1655,7 +1655,6 @@ const (
 	TypeDocDBCluster                 = "aws:docdb:db-cluster"
 	TypeDocDBInstance                = "aws:docdb:db-instance"
 	TypeDocDBDBClusterParameterGroup = "aws:docdb:db-cluster-parameter-group"
-	TypeDocDBDBSubnetGroup           = "aws:docdb:db-subnet-group"
 	TypeDocDBEventSubscription       = "aws:docdb:event-subscription"
 	TypeDocDBGlobalCluster           = "aws:docdb:global-cluster"
 	// Neptune (neptune_scanners.go, neptune_resolvers.go)
@@ -1663,7 +1662,6 @@ const (
 	TypeNeptuneInstance                = "aws:neptune:db-instance"
 	TypeNeptuneDBClusterParameterGroup = "aws:neptune:db-cluster-parameter-group"
 	TypeNeptuneDBParameterGroup        = "aws:neptune:db-parameter-group"
-	TypeNeptuneDBSubnetGroup           = "aws:neptune:db-subnet-group"
 	TypeNeptuneEventSubscription       = "aws:neptune:event-subscription"
 	TypeNeptuneGlobalCluster           = "aws:neptune:global-cluster"
 	// Service Catalog (servicecatalog_scanners.go, servicecatalog_resolvers.go)

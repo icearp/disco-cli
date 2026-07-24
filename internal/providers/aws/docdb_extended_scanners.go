@@ -9,14 +9,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/docdb"
 )
 
-// scanDocDBExtended discovers four additional DocumentDB resource types: DB
-// cluster parameter groups, DB subnet groups, event subscriptions, global
-// clusters. ARNs native on every type. DescribeGlobalClusters has no
-// paginator — manual Marker loop.
+// scanDocDBExtended discovers additional DocumentDB resource types: DB cluster
+// parameter groups, event subscriptions, global clusters. ARNs native on every
+// type. DescribeGlobalClusters has no paginator — manual Marker loop. DB subnet
+// groups are intentionally not scanned here — they are shared RDS-family infra
+// with an rds ARN and no engine field, so aws:rds:db-subnet-group owns them
+// (re-reporting under aws:docdb:db-subnet-group would collide on identity, which
+// excludes type).
 func scanDocDBExtended(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanDocDBClusterPGs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDocDBSubnetGroups(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanDocDBEventSubs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanDocDBGlobalClusters(ctx, client, acct, region, st, scanID) },
 	} {
@@ -58,34 +60,6 @@ func scanDocDBClusterPGs(ctx context.Context, client docdbAPI, acct *account, re
 		}
 	}
 	return upsertBatch(st, batch, "docdb db-cluster-parameter-groups")
-}
-
-func scanDocDBSubnetGroups(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := docdb.NewDescribeDBSubnetGroupsPaginator(client, &docdb.DescribeDBSubnetGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "docdb:DescribeDBSubnetGroups", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("docdb:DescribeDBSubnetGroups: %w", err)
-		}
-		for _, g := range out.DBSubnetGroups {
-			arn := sv(g.DBSubnetGroupArn)
-			if arn == "" {
-				continue
-			}
-			status := sv(g.SubnetGroupStatus)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDocDBDBSubnetGroup, NativeID: arn,
-				Name: g.DBSubnetGroupName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "docdb db-subnet-groups")
 }
 
 func scanDocDBEventSubs(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
