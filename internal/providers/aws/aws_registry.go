@@ -192,7 +192,7 @@ func serviceSegment(discoType string) string {
 }
 
 // resolverName returns the unqualified function name from runtime reflection,
-// e.g. "resolveBackupVaults" for codeberg.org/.../aws.resolveBackupVaults.
+// e.g. "resolveBackupVaults" for github.com/.../aws.resolveBackupVaults.
 //
 // Anonymous closures registered via `registerResolver(func(...) {...})`
 // reflect as `pkg.init.funcN` — the trimmed suffix would be the meaningless

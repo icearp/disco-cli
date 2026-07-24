@@ -38,7 +38,7 @@ ARG TARGETARCH=arm64
 ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath \
-      -ldflags "-s -w -X codeberg.org/icearp/disco/cmd.Version=${VERSION}" \
+      -ldflags "-s -w -X github.com/icearp/disco-cli/cmd.Version=${VERSION}" \
       -o /out/disco .
 
 FROM gcr.io/distroless/static-debian12:nonroot

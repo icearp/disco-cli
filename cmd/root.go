@@ -54,7 +54,7 @@ func resolveVersion() string {
 		}
 		return rev
 	}
-	// `go install codeberg.org/...@<tag>` from a versioned module records
+	// `go install github.com/...@<tag>` from a versioned module records
 	// the tag here; useful when no VCS info is embedded.
 	if v := bi.Main.Version; v != "" && v != "(devel)" {
 		return v

@@ -9,7 +9,7 @@
 // Registration is triggered by importing the leaf packages: the disco binary
 // gets it for free (each provider package imports its own <p>regions leaf, and
 // cmd pulls the providers in via internal/providers/all). A standalone consumer
-// that does not import the providers should blank-import codeberg.org/icearp/
+// that does not import the providers should blank-import github.com/icearp/
 // disco/regions/all, the build-tag-gated aggregator that wires the leaf packages
 // in (and honours the same `slim` tags as internal/providers/all).
 //
