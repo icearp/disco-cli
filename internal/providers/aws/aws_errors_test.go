@@ -7,11 +7,73 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
 
 	"codeberg.org/icearp/disco/store"
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	smithy "github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
+
+// alwaysRetryV2 is a stub RetryerV2 that reports every error retryable, so a test
+// can observe exactly which errors withNonRetryableCodes overrides to false.
+type alwaysRetryV2 struct{}
+
+func (alwaysRetryV2) IsErrorRetryable(error) bool                  { return true }
+func (alwaysRetryV2) MaxAttempts() int                             { return 3 }
+func (alwaysRetryV2) RetryDelay(int, error) (time.Duration, error) { return 0, nil }
+func (alwaysRetryV2) GetRetryToken(context.Context, error) (func(error) error, error) {
+	return func(error) error { return nil }, nil
+}
+func (alwaysRetryV2) GetInitialToken() func(error) error { return func(error) error { return nil } }
+func (alwaysRetryV2) GetAttemptToken(context.Context) (func(error) error, error) {
+	return func(error) error { return nil }, nil
+}
+
+// v1OnlyRetryer implements the deprecated Retryer interface but NOT RetryerV2, to
+// prove withNonRetryableCodes returns it unchanged rather than dropping retries.
+type v1OnlyRetryer struct{}
+
+func (v1OnlyRetryer) IsErrorRetryable(error) bool                  { return true }
+func (v1OnlyRetryer) MaxAttempts() int                             { return 3 }
+func (v1OnlyRetryer) RetryDelay(int, error) (time.Duration, error) { return 0, nil }
+func (v1OnlyRetryer) GetRetryToken(context.Context, error) (func(error) error, error) {
+	return func(error) error { return nil }, nil
+}
+func (v1OnlyRetryer) GetInitialToken() func(error) error { return func(error) error { return nil } }
+
+func TestWithNonRetryableCodes(t *testing.T) {
+	r := withNonRetryableCodes(alwaysRetryV2{}, "AuthorizerConfigurationException")
+
+	if r.IsErrorRetryable(apiErr("AuthorizerConfigurationException", "Internal server error")) {
+		t.Error("AuthorizerConfigurationException must be non-retryable")
+	}
+	// Every other error keeps the underlying (here: always-retry) behaviour, so a
+	// genuine transient on the same client is not starved of retries.
+	if !r.IsErrorRetryable(apiErr("ThrottlingException", "slow down")) {
+		t.Error("ThrottlingException must still delegate to the wrapped retryer (retryable)")
+	}
+	if !r.IsErrorRetryable(errors.New("plain non-API error")) {
+		t.Error("non-API error must delegate to the wrapped retryer (retryable)")
+	}
+	// The V2 attempt-token interface the adaptive rate limiter needs must survive.
+	if _, ok := r.(sdkaws.RetryerV2); !ok {
+		t.Error("wrapped retryer must still satisfy RetryerV2")
+	}
+}
+
+func TestWithNonRetryableCodes_NonV2Unchanged(t *testing.T) {
+	v1 := v1OnlyRetryer{}
+	got := withNonRetryableCodes(v1, "AuthorizerConfigurationException")
+	// A retryer that is not a RetryerV2 is returned as-is: better to keep its full
+	// retry behaviour than to silently drop retries by failing to wrap.
+	if _, wrapped := got.(nonRetryable); wrapped {
+		t.Error("non-RetryerV2 input must be returned unwrapped")
+	}
+	if !got.IsErrorRetryable(apiErr("AuthorizerConfigurationException", "x")) {
+		t.Error("unwrapped v1 retryer keeps its own (retryable) behaviour")
+	}
+}
 
 func apiErr(code, msg string) error {
 	return &smithy.GenericAPIError{Code: code, Message: msg}

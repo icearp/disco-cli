@@ -9,9 +9,51 @@ import (
 	"strings"
 
 	"codeberg.org/icearp/disco/store"
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	smithy "github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
+
+// nonRetryable wraps a [sdkaws.RetryerV2] to force the given API error codes to
+// be treated as non-retryable, preserving every other retry behaviour (adaptive
+// backoff, throttling, transient 5xx) and the V2 attempt-token interface the
+// adaptive rate limiter depends on. It exists for permanent per-region gaps that
+// AWS signals with a retryable status — e.g. AgentCore Control's HTTP 500
+// AuthorizerConfigurationException in regions where the service front-end
+// resolves but is not provisioned — so one structural gap cannot burn a
+// service's whole retry budget on doomed attempts.
+type nonRetryable struct {
+	sdkaws.RetryerV2
+	codes map[string]struct{}
+}
+
+// IsErrorRetryable reports whether err should be retried, returning false for any
+// of the wrapped codes and otherwise deferring to the embedded retryer.
+func (r nonRetryable) IsErrorRetryable(err error) bool {
+	var ae smithy.APIError
+	if errors.As(err, &ae) {
+		if _, ok := r.codes[ae.ErrorCode()]; ok {
+			return false
+		}
+	}
+	return r.RetryerV2.IsErrorRetryable(err)
+}
+
+// withNonRetryableCodes wraps r so the named API error codes are treated as
+// non-retryable. It returns r unchanged if r is not a [sdkaws.RetryerV2] (the
+// standard and adaptive retry modes both are), so an unexpected retryer type
+// degrades to the default behaviour rather than dropping retries entirely.
+func withNonRetryableCodes(r sdkaws.Retryer, codes ...string) sdkaws.Retryer {
+	rv2, ok := r.(sdkaws.RetryerV2)
+	if !ok {
+		return r
+	}
+	m := make(map[string]struct{}, len(codes))
+	for _, c := range codes {
+		m[c] = struct{}{}
+	}
+	return nonRetryable{RetryerV2: rv2, codes: m}
+}
 
 // isAPIErrorCode reports whether err is a Smithy APIError whose ErrorCode()
 // matches any of the given codes. Single choke point for AWS error-code

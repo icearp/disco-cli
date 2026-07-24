@@ -7,11 +7,14 @@ import (
 )
 
 // TestBacListSkip covers the bedrockagentcore choke point: access-denied and the
-// UnknownOperationException region gap (newer ops like
-// ListPaymentCredentialProviders 404 where not deployed) are swallowed to nil,
-// while an unrelated error propagates. The 500 AuthorizerConfigurationException
-// is intentionally NOT swallowed here — it propagates and the dispatcher's
-// isTransientNetworkError downgrades it to a warning.
+// two region-gap codes are swallowed to nil, while an unrelated error propagates.
+// AuthorizerConfigurationException (a 500 returned where the AgentCore front-end
+// resolves but is not provisioned) is now swallowed alongside
+// UnknownOperationException: propagating it aborted the sequential
+// scanBedrockAgentCore before its later ops (payments, the parallel batch) ran,
+// and the retryable 500 also burned the per-service retry budget. The retry burn
+// is cut separately by marking the code non-retryable on the client; here we pin
+// that it no longer propagates as a scan error.
 func TestBacListSkip(t *testing.T) {
 	st := newTestStore(t)
 	cases := []struct {
@@ -21,7 +24,7 @@ func TestBacListSkip(t *testing.T) {
 	}{
 		{"access denied swallowed", apiErr("AccessDeniedException", "denied"), true},
 		{"UnknownOperationException region gap", apiErr("UnknownOperationException", "UnknownError"), true},
-		{"AuthorizerConfigurationException propagates", apiErr("AuthorizerConfigurationException", "Internal server error"), false},
+		{"AuthorizerConfigurationException region gap", apiErr("AuthorizerConfigurationException", "Internal server error"), true},
 		{"unrelated code propagates", apiErr("ValidationException", "bad input"), false},
 	}
 	for _, tc := range cases {

@@ -74,7 +74,16 @@ type bedrockAgentCoreAPI interface {
 }
 
 func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := bac.NewFromConfig(acct.cfg, func(o *bac.Options) { o.Region = region })
+	client := bac.NewFromConfig(acct.cfg, func(o *bac.Options) {
+		o.Region = region
+		// AgentCore Control returns a *retryable* HTTP 500
+		// (AuthorizerConfigurationException) in regions where it isn't
+		// provisioned; the default adaptive retry would burn ~2 min of the
+		// per-service budget on that permanent gap. Mark only that code
+		// non-retryable — every genuine transient error on this newer service
+		// keeps the full adaptive retry, so we don't miss resources to blips.
+		o.Retryer = withNonRetryableCodes(o.Retryer, "AuthorizerConfigurationException")
+	})
 
 	gwIDs, t, i, ferr := scanBACGateways(ctx, client, acct, region, st, scanID)
 	if ferr != nil {

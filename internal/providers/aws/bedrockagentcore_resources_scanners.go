@@ -264,10 +264,17 @@ func bacListSkip(st *store.Store, batch []*store.Resource, op, label, acctID, re
 		_ = skipIfAccessDenied(st, op, acctID, region, perr)
 		return upsertBatch(st, batch, "bedrockagentcore "+label)
 	}
-	// Newer AgentCore ops (payment-credential providers) aren't deployed in every
-	// region and 404 with UnknownOperationException — a region gap; keep
-	// accumulated rows and move on.
-	if isAPIErrorCode(perr, "UnknownOperationException") {
+	// Newer AgentCore ops aren't deployed in every region. Some 404 with
+	// UnknownOperationException; others (e.g. ListRegistries) reach a front-end
+	// that resolves but is not provisioned, which returns a 500
+	// AuthorizerConfigurationException. Both are region gaps, not real failures —
+	// keep accumulated rows and move on without a warning. Swallowing to nil is
+	// what lets the sequential scanBedrockAgentCore continue to the later ops
+	// (payments, the parallel batch) instead of aborting the whole service on the
+	// first such gap. The retry burn this 500 would otherwise cause is cut
+	// separately by marking the code non-retryable on the client (see
+	// scanBedrockAgentCore / withNonRetryableCodes).
+	if isAPIErrorCode(perr, "UnknownOperationException", "AuthorizerConfigurationException") {
 		return upsertBatch(st, batch, "bedrockagentcore "+label)
 	}
 	return 0, 0, fmt.Errorf("%s: %w", op, perr)
