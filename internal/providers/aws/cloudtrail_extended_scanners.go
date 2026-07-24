@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
@@ -68,7 +69,8 @@ func scanCTChannels(ctx context.Context, client cloudtrailAPI, acct *account, re
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCloudTrailChannel, NativeID: arn,
 				Name: c.Name, Region: &region,
-				AttributesJSON: mustJSON(attrs), DiscoveredBy: scanID,
+				ManagedByProvider: strings.HasPrefix(sv(c.Name), "aws-service-channel/"),
+				AttributesJSON:    mustJSON(attrs), DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

@@ -96,7 +96,8 @@ func scanWALenses(ctx context.Context, client wellArchitectedAPI, acct *account,
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeWellArchitectedLens, NativeID: arn,
 				Name: l.LensName, Region: &region,
-				AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
+				ManagedByProvider: sv(l.Owner) == "AWS",
+				AttributesJSON:    mustJSON(l), DiscoveredBy: scanID,
 			})
 		}
 	}

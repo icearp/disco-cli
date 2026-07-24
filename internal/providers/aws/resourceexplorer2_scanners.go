@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/restype"
 	"codeberg.org/icearp/disco/store"
@@ -10,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeResourceExplorer2Index, Service: "resource-explorer-2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2Index, Service: "resource-explorer-2", Leaf: true, Managed: true})
 	registerType(restype.Descriptor{Type: TypeResourceExplorer2View, Service: "resource-explorer-2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeResourceExplorer2DefaultViewAssociation, Service: "resource-explorer-2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2DefaultViewAssociation, Service: "resource-explorer-2", Leaf: true, Managed: true})
 	registerType(restype.Descriptor{Type: TypeResourceExplorer2ManagedView, Service: "resource-explorer-2", Upstream: "AWS::resource-explorer-2::managed-view", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:resource-explorer-2",
@@ -92,16 +93,33 @@ func scanRE2Views(ctx context.Context, client resourceExplorer2API, acct *accoun
 			if viewArn == "" {
 				continue
 			}
-			label := viewArn
+			name := re2ViewName(viewArn)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeResourceExplorer2View, NativeID: viewArn,
-				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(map[string]string{"ViewArn": viewArn}), DiscoveredBy: scanID,
+				Name: &name, Region: &region,
+				// Default views are named after their region (view/{region}/{uuid}); a
+				// customer view carries a chosen name (view/{name}/{uuid}).
+				ManagedByProvider: name == region,
+				AttributesJSON:    mustJSON(map[string]string{"ViewArn": viewArn}), DiscoveredBy: scanID,
 			})
 		}
 	}
 	return upsertBatch(st, batch, "resource-explorer-2 views")
+}
+
+// re2ViewName extracts a view's name from its ARN suffix view/{name}/{uuid}.
+// The trailing segment is the generated UUID; the name is everything between
+// "view/" and that final slash. Falls back to the full ARN on an unexpected shape.
+func re2ViewName(arn string) string {
+	_, suffix, ok := strings.Cut(arn, ":view/")
+	if !ok {
+		return arn
+	}
+	if i := strings.LastIndexByte(suffix, '/'); i >= 0 {
+		return suffix[:i]
+	}
+	return suffix
 }
 
 // scanRE2DefaultView captures the per-(account, region) default-view

@@ -267,7 +267,8 @@ func scanMemDBMultiRegionParameterGroups(ctx context.Context, client memorydbAPI
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeMemoryDBMultiRegionParameterGroup, NativeID: arn,
 				Name: p.Name, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				ManagedByProvider: strings.HasPrefix(sv(p.Name), "default."),
+				AttributesJSON:    mustJSON(p), DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

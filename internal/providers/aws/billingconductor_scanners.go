@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/restype"
@@ -191,16 +192,20 @@ func scanBillingConductorPricingPlans(ctx context.Context, client billingConduct
 			}
 			name := sv(pp.Name)
 			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBillingConductorPricingPlan,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         regionGlobal,
-				CreatedAt:      tp(epochMillisToTime(pp.CreationTime)),
-				AttributesJSON: mustJSON(pp),
-				DiscoveredBy:   scanID,
+				Provider:    "aws",
+				AccountID:   acct.ID,
+				AccountName: &acct.Name,
+				Type:        TypeBillingConductorPricingPlan,
+				NativeID:    arn,
+				Name:        &name,
+				Region:      regionGlobal,
+				// AWS-managed default plans (BasicPricingPlan, Passthrough) carry the
+				// "aws" account segment (arn:aws:billingconductor::aws:pricingplan/...);
+				// customer plans carry a 12-digit account id.
+				ManagedByProvider: strings.Contains(arn, "::aws:pricingplan/"),
+				CreatedAt:         tp(epochMillisToTime(pp.CreationTime)),
+				AttributesJSON:    mustJSON(pp),
+				DiscoveredBy:      scanID,
 			})
 		}
 		if len(batch) > 0 {

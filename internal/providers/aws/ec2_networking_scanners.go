@@ -105,17 +105,18 @@ func scanVPCs(ctx context.Context, client ec2API, acct *account, region string, 
 			for _, vpc := range page.Vpcs {
 				status := string(vpc.State)
 				out = append(out, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeEC2VPC,
-					NativeID:       ec2ARN(region, acct.ID, "vpc", sv(vpc.VpcId)),
-					Name:           ec2TagName(vpc.Tags),
-					Region:         &region,
-					Status:         &status,
-					TagsJSON:       awsTagsJSON(vpc.Tags),
-					AttributesJSON: mustJSON(vpc),
-					DiscoveredBy:   scanID,
+					Provider:          "aws",
+					AccountID:         acct.ID,
+					AccountName:       &acct.Name,
+					Type:              TypeEC2VPC,
+					NativeID:          ec2ARN(region, acct.ID, "vpc", sv(vpc.VpcId)),
+					Name:              ec2TagName(vpc.Tags),
+					Region:            &region,
+					Status:            &status,
+					ManagedByProvider: vpc.IsDefault != nil && *vpc.IsDefault,
+					TagsJSON:          awsTagsJSON(vpc.Tags),
+					AttributesJSON:    mustJSON(vpc),
+					DiscoveredBy:      scanID,
 				})
 			}
 			return out
@@ -132,18 +133,19 @@ func scanSubnets(ctx context.Context, client ec2API, acct *account, region strin
 			for _, sn := range page.Subnets {
 				status := string(sn.State)
 				out = append(out, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeEC2Subnet,
-					NativeID:       ec2ARN(region, acct.ID, "subnet", sv(sn.SubnetId)),
-					Name:           ec2TagName(sn.Tags),
-					Region:         &region,
-					Zone:           sn.AvailabilityZoneId,
-					Status:         &status,
-					TagsJSON:       awsTagsJSON(sn.Tags),
-					AttributesJSON: mustJSON(sn),
-					DiscoveredBy:   scanID,
+					Provider:          "aws",
+					AccountID:         acct.ID,
+					AccountName:       &acct.Name,
+					Type:              TypeEC2Subnet,
+					NativeID:          ec2ARN(region, acct.ID, "subnet", sv(sn.SubnetId)),
+					Name:              ec2TagName(sn.Tags),
+					Region:            &region,
+					Zone:              sn.AvailabilityZoneId,
+					Status:            &status,
+					ManagedByProvider: sn.DefaultForAz != nil && *sn.DefaultForAz,
+					TagsJSON:          awsTagsJSON(sn.Tags),
+					AttributesJSON:    mustJSON(sn),
+					DiscoveredBy:      scanID,
 				})
 			}
 			return out
@@ -299,16 +301,17 @@ func scanNetworkACLs(ctx context.Context, client ec2API, acct *account, region s
 			var out []*store.Resource
 			for _, nacl := range page.NetworkAcls {
 				out = append(out, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeEC2NetworkACL,
-					NativeID:       ec2ARN(region, acct.ID, "network-acl", sv(nacl.NetworkAclId)),
-					Name:           ec2TagName(nacl.Tags),
-					Region:         &region,
-					TagsJSON:       awsTagsJSON(nacl.Tags),
-					AttributesJSON: mustJSON(nacl),
-					DiscoveredBy:   scanID,
+					Provider:          "aws",
+					AccountID:         acct.ID,
+					AccountName:       &acct.Name,
+					Type:              TypeEC2NetworkACL,
+					NativeID:          ec2ARN(region, acct.ID, "network-acl", sv(nacl.NetworkAclId)),
+					Name:              ec2TagName(nacl.Tags),
+					Region:            &region,
+					ManagedByProvider: nacl.IsDefault != nil && *nacl.IsDefault,
+					TagsJSON:          awsTagsJSON(nacl.Tags),
+					AttributesJSON:    mustJSON(nacl),
+					DiscoveredBy:      scanID,
 				})
 			}
 			return out
