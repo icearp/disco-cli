@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	"google.golang.org/api/option"
 	"google.golang.org/api/secretmanager/v1"
 )

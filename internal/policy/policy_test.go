@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestEngine_Smoke compiles a trivial v1 Rego module that flags

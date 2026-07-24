@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/redact"
+	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appcontainers/armappcontainers/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/avs/armavs"

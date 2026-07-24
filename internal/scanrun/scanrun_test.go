@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/providers"
+	"github.com/icearp/disco-cli/store"
 )
 
 // newFinalizeStore opens a temp SQLite store and creates a scan row, returning

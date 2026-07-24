@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	cloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
 )
 

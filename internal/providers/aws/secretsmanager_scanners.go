@@ -3,9 +3,9 @@ package aws
 import (
 	"context"
 
-	"codeberg.org/icearp/disco/internal/redact"
-	"codeberg.org/icearp/disco/internal/restype"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 )

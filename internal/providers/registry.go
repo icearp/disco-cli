@@ -7,7 +7,7 @@ import (
 	"context"
 	"sort"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 // Scanner is the interface every cloud provider must implement.

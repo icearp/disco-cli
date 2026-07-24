@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/providers/aws/awsregions"
+	"github.com/icearp/disco-cli/internal/providers/aws/awsregions"
 )
 
 func TestExpandAllRegions(t *testing.T) {

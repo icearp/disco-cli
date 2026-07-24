@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	eventstypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 )

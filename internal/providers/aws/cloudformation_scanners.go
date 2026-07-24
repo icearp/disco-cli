@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/restype"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/smithy-go"

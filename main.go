@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"codeberg.org/icearp/disco/cmd"
+	"github.com/icearp/disco-cli/cmd"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestBacListSkip covers the bedrockagentcore choke point: access-denied and the

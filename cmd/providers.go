@@ -6,5 +6,5 @@ import (
 	// via init(). cmd names no provider directly — compiled providers are
 	// controlled entirely under internal/providers/<provider> (default = all;
 	// `-tags 'slim aws'` = aws only; see internal/providers/all).
-	_ "codeberg.org/icearp/disco/internal/providers/all"
+	_ "github.com/icearp/disco-cli/internal/providers/all"
 )

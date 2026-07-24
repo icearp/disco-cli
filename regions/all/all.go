@@ -1,5 +1,5 @@
 // Package all is the single wiring point that registers every provider's
-// supported-region list into the codeberg.org/icearp/disco/regions registry for
+// supported-region list into the github.com/icearp/disco-cli/regions registry for
 // standalone consumers (e.g. the SaaS control plane) that do not import the
 // providers themselves.
 //

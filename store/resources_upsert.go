@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"codeberg.org/icearp/disco/internal/managed"
-	"codeberg.org/icearp/disco/internal/redact"
-	"codeberg.org/icearp/disco/internal/volatile"
+	"github.com/icearp/disco-cli/internal/managed"
+	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/volatile"
 )
 
 // UpsertResources bulk-upserts resources under the version-chain

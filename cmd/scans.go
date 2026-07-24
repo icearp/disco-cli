@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	"github.com/spf13/cobra"
 )
 

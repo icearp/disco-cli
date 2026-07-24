@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	cloudbuild "google.golang.org/api/cloudbuild/v1"
 	cloudbuildv2 "google.golang.org/api/cloudbuild/v2"
 	"google.golang.org/api/option"

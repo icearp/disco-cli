@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/managed"
-	"codeberg.org/icearp/disco/internal/redact"
-	"codeberg.org/icearp/disco/internal/volatile"
+	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/managed"
+	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/volatile"
 )
 
 func TestEmitReturnsCoverageDecl(t *testing.T) {

@@ -3,7 +3,7 @@ package azure
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestResolveDNSRelationships verifies a private-DNS-zone vnet-link derives

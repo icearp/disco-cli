@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"github.com/icearp/disco-cli/internal/coverage"
 )
 
 // fakeCoverageProvider scopes coverage tests to a synthetic provider so real

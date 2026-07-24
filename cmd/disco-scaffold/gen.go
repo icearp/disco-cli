@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"github.com/icearp/disco-cli/internal/coverage"
 )
 
 // scannerSig maps a provider to the (imports, serviceEntry-fn signature) its
@@ -20,17 +20,17 @@ type scannerSig struct {
 
 var scannerSigs = map[string]scannerSig{
 	"aws": {
-		imports: []string{"context", "codeberg.org/icearp/disco/internal/restype", "codeberg.org/icearp/disco/store"},
+		imports: []string{"context", "github.com/icearp/disco-cli/internal/restype", "github.com/icearp/disco-cli/store"},
 		sig:     "(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error)",
 		body:    "build the SDK client (svc.NewFromConfig(acct.cfg, ...)), paginate the\n\t// List/Describe ops, map each item to *store.Resource, then st.UpsertResources(batch).\n\t// Split out scan%[1]sWithClient(ctx, client, ...) for a fake-transport test seam.",
 	},
 	"gcp": {
-		imports: []string{"context", "codeberg.org/icearp/disco/internal/restype", "codeberg.org/icearp/disco/store"},
+		imports: []string{"context", "github.com/icearp/disco-cli/internal/restype", "github.com/icearp/disco-cli/store"},
 		sig:     "(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error)",
 		body:    "build the google.golang.org/api service client, paginate the list ops via\n\t// runPaginated, map each item to *store.Resource, then upsertWithProjClosure(p, st, batch).\n\t// Add a scan%[1]sWithClient seam for a fake-server test.",
 	},
 	"azure": {
-		imports: []string{"context", "github.com/Azure/azure-sdk-for-go/sdk/azcore", "codeberg.org/icearp/disco/internal/restype", "codeberg.org/icearp/disco/store"},
+		imports: []string{"context", "github.com/Azure/azure-sdk-for-go/sdk/azcore", "github.com/icearp/disco-cli/internal/restype", "github.com/icearp/disco-cli/store"},
 		sig:     "(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error)",
 		body:    "build the arm* client with cred, page via azPageScan, map each item to\n\t// *store.Resource, then st.UpsertResources(batch). Add a scan%[1]sWithClient seam.",
 	},
@@ -45,7 +45,7 @@ func genScaffold(provName, service string, rows []coverage.Row, prov coverage.Pr
 	sig, ok := scannerSigs[provName]
 	if !ok {
 		// Unknown provider signature: emit descriptors only, no scanner skeleton.
-		sig = scannerSig{imports: []string{"codeberg.org/icearp/disco/internal/restype"}}
+		sig = scannerSig{imports: []string{"github.com/icearp/disco-cli/internal/restype"}}
 	}
 	svcFn := pascal(service)
 

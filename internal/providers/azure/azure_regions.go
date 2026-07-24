@@ -3,7 +3,7 @@ package azure
 import (
 	"slices"
 
-	"codeberg.org/icearp/disco/internal/providers/azure/azureregions"
+	"github.com/icearp/disco-cli/internal/providers/azure/azureregions"
 )
 
 // RegionNames implements providers.RegionNamer. Returns a clone so callers

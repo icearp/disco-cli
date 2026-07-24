@@ -3,7 +3,7 @@ package gcp
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/storage/v1"
 )

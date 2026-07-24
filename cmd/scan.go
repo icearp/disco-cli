@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/internal/scanrun"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/providers"
+	"github.com/icearp/disco-cli/internal/scanrun"
+	"github.com/icearp/disco-cli/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

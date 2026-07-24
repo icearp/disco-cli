@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/coverage"
-	_ "codeberg.org/icearp/disco/internal/providers/all" // register providers + coverage impls
+	"github.com/icearp/disco-cli/internal/coverage"
+	_ "github.com/icearp/disco-cli/internal/providers/all" // register providers + coverage impls
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }

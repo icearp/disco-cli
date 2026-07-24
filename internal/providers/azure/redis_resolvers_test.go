@@ -3,7 +3,7 @@ package azure
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestResolveRedisRelationships verifies a VNet-injected Redis cache derives

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	monitoringv1 "google.golang.org/api/monitoring/v1"
 	"google.golang.org/api/monitoring/v3"
 	"google.golang.org/api/option"

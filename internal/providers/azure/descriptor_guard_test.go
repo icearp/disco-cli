@@ -3,7 +3,7 @@ package azure
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/managed"
+	"github.com/icearp/disco-cli/internal/managed"
 )
 
 // TestRackSKUStampedManaged proves the descriptor's Managed:true flag reached

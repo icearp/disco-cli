@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 // nmRegion is NetworkManager's home region (us-west-2, per the scanner's

@@ -1,7 +1,7 @@
 package aws
 
 import (
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() { registerResolver(resolveApplicationSignalsRelationships) }

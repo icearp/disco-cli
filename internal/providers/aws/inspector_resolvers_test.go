@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 const testInspector2Member = "444444444444"

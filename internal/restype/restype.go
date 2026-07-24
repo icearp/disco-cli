@@ -16,10 +16,10 @@
 package restype
 
 import (
-	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/managed"
-	"codeberg.org/icearp/disco/internal/redact"
-	"codeberg.org/icearp/disco/internal/volatile"
+	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/managed"
+	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/volatile"
 )
 
 // Descriptor is the single source of truth for one disco resource type.

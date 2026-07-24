@@ -1,6 +1,6 @@
 // Package azureregions is disco's static list of Azure ARM public-cloud
 // locations. Deliberately SDK-free (stdlib only) so external callers —
-// the public codeberg.org/icearp/disco/regions package and, through it, the
+// the public github.com/icearp/disco-cli/regions package and, through it, the
 // SaaS control plane — can import the list without linking the Azure SDK.
 //
 // Excludes sovereign clouds (USGov, China, Germany) — those need separate
@@ -10,7 +10,7 @@
 // `az account list-locations --query "[].name"`.
 package azureregions
 
-import "codeberg.org/icearp/disco/regions"
+import "github.com/icearp/disco-cli/regions"
 
 func init() { regions.Register("azure", Regions) }
 

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/restype"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"

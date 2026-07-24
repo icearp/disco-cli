@@ -4,10 +4,10 @@ import (
 	"slices"
 	"testing"
 
-	"codeberg.org/icearp/disco/regions"
+	"github.com/icearp/disco-cli/regions"
 	// Blank-import the aggregator so every provider's leaf package registers its
 	// region list — the same wiring a standalone consumer relies on.
-	_ "codeberg.org/icearp/disco/regions/all"
+	_ "github.com/icearp/disco-cli/regions/all"
 )
 
 func TestFor(t *testing.T) {

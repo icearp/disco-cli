@@ -14,8 +14,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/providers"
+	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/providers"
 	"github.com/spf13/cobra"
 )
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"github.com/icearp/disco-cli/internal/coverage"
 )
 
 func TestSplitWordsKebabPascal(t *testing.T) {

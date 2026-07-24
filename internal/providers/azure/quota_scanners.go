@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/providers/azure/azureregions"
-	"codeberg.org/icearp/disco/internal/restype"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/providers/azure/azureregions"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/quota/armquota"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/restype"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 	"google.golang.org/api/certificatemanager/v1"
 )
 

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"

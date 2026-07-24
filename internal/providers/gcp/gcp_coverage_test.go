@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"github.com/icearp/disco-cli/internal/coverage"
 )
 
 // discoveryFake serves a Discovery API list whose per-API doc URLs point back

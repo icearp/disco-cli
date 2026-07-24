@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/redact"
+	"github.com/icearp/disco-cli/internal/redact"
 )
 
 func applyAndDecode(t *testing.T, resourceType string, v any) map[string]any {

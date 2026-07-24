@@ -4,12 +4,12 @@ import (
 	"slices"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/providers"
+	"github.com/icearp/disco-cli/internal/providers"
 
 	// Blank-import every provider so registry is populated for the test.
-	_ "codeberg.org/icearp/disco/internal/providers/aws"
-	_ "codeberg.org/icearp/disco/internal/providers/azure"
-	_ "codeberg.org/icearp/disco/internal/providers/gcp"
+	_ "github.com/icearp/disco-cli/internal/providers/aws"
+	_ "github.com/icearp/disco-cli/internal/providers/azure"
+	_ "github.com/icearp/disco-cli/internal/providers/gcp"
 )
 
 // Every registered provider must satisfy ServiceNamer and RegionNamer, and

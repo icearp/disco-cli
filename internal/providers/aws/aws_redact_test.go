@@ -13,7 +13,7 @@ import (
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 
-	"codeberg.org/icearp/disco/internal/redact"
+	"github.com/icearp/disco-cli/internal/redact"
 )
 
 // applyAndDecode marshals v as the scanner would, runs redact.Apply for the

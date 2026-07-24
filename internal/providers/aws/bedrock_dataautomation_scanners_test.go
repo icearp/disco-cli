@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	bda "github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation"
 	bdatypes "github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation/types"
 )

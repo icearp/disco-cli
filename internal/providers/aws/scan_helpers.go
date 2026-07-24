@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
 )
 

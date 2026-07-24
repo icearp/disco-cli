@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/providers/aws/awsregions"
+	"github.com/icearp/disco-cli/internal/providers/aws/awsregions"
 )
 
 // RegionNames implements providers.RegionNamer. Returns a clone so callers

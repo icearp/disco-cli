@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	dataflow "google.golang.org/api/dataflow/v1b3"
 	"google.golang.org/api/option"
 )

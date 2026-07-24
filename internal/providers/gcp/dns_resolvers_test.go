@@ -3,7 +3,7 @@ package gcp
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestResolveDNSRelationships verifies A-record → forwarding-rule via IP

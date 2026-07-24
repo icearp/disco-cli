@@ -7,7 +7,7 @@ import (
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 func subnetAttrs(t *testing.T, subnetID, vpcID string) string {

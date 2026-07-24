@@ -1,4 +1,4 @@
-module codeberg.org/icearp/disco
+module github.com/icearp/disco-cli
 
 go 1.25.12
 

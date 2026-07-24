@@ -21,8 +21,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/providers"
+	"github.com/icearp/disco-cli/store"
 )
 
 // Request describes a scan to launch. The CLI builds one from cobra flags;

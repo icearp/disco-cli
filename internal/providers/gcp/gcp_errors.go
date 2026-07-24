@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	"google.golang.org/api/googleapi"
 )
 

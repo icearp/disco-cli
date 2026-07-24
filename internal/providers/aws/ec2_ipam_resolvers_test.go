@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveIPAMScopeRelationships(t *testing.T) {

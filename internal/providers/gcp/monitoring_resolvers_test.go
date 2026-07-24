@@ -6,7 +6,7 @@ import (
 	monitoringv1 "google.golang.org/api/monitoring/v1"
 	monitoring "google.golang.org/api/monitoring/v3"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveMonitoringAlertPolicyRelationships_ToNotificationChannel(t *testing.T) {

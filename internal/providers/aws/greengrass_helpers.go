@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	ggtypes "github.com/aws/aws-sdk-go-v2/service/greengrass/types"
 )
 

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/restype"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 	dataflow "google.golang.org/api/dataflow/v1b3"
 )
 

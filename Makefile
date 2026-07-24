@@ -16,7 +16,7 @@ GO       := CGO_ENABLED=0
 TAGS     ?=
 TAGFLAG  := -tags "grpcnotrace$(if $(TAGS), $(TAGS),)"
 VERSION  ?= $(shell git describe --tags --always --dirty=+dirty 2>/dev/null || echo dev)
-LDFLAGS  := -X 'codeberg.org/icearp/disco/cmd.Version=$(VERSION)'
+LDFLAGS  := -X 'github.com/icearp/disco-cli/cmd.Version=$(VERSION)'
 # syft generates the release SBOMs (CycloneDX + SPDX). Pinned; keep in sync with
 # SYFT_VERSION in .forgejo/workflows/release.yaml. Invoked via `go run …@version`
 # so it never enters disco's go.mod/go.sum.

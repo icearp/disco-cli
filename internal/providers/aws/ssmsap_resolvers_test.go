@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	ssmsaptypes "github.com/aws/aws-sdk-go-v2/service/ssmsap/types"
 )
 

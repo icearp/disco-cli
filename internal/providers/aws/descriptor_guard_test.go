@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/managed"
+	"github.com/icearp/disco-cli/internal/managed"
 )
 
 // TestNoDoubleDeclaredTypes ensures a disco type is declared EITHER the legacy

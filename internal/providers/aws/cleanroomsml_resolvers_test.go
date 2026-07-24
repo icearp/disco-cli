@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	crmltypes "github.com/aws/aws-sdk-go-v2/service/cleanroomsml/types"
 )
 

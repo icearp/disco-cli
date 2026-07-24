@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	"google.golang.org/api/firestore/v1"
 	"google.golang.org/api/option"
 )

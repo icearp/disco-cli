@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"codeberg.org/icearp/disco/internal/coverage"
+	"github.com/icearp/disco-cli/internal/coverage"
 	"golang.org/x/sync/errgroup"
 )
 

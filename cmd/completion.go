@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"codeberg.org/icearp/disco/internal/providers"
+	"github.com/icearp/disco-cli/internal/providers"
 	"github.com/spf13/cobra"
 )
 

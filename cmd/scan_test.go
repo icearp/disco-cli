@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/providers"
+	"github.com/icearp/disco-cli/store"
 	"github.com/spf13/cobra"
 )
 

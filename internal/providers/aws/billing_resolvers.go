@@ -1,6 +1,6 @@
 package aws
 
-import "codeberg.org/icearp/disco/store"
+import "github.com/icearp/disco-cli/store"
 
 func init() {
 	registerResolver(resolveBillingViews)

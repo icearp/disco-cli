@@ -3,7 +3,7 @@ package gcp
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	kms "google.golang.org/api/cloudkms/v1"
 	compute "google.golang.org/api/compute/v1"
 	dataflow "google.golang.org/api/dataflow/v1b3"

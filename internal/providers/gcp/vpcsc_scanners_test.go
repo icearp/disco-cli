@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	"google.golang.org/api/accesscontextmanager/v1"
 	"google.golang.org/api/option"
 )

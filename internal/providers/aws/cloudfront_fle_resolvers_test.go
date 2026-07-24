@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
 )

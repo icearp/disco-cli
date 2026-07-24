@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/util"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/util"
+	"github.com/icearp/disco-cli/store"
 )
 
 // resolveRoute53All runs every Route53 sub-resolver in sequence, stopping

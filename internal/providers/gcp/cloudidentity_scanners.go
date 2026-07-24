@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/redact"
-	"codeberg.org/icearp/disco/internal/restype"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 	directory "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/cloudidentity/v1"
 )

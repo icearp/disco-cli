@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	smithymw "github.com/aws/smithy-go/middleware"

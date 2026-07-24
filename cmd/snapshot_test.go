@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/snapshot"
+	"github.com/icearp/disco-cli/internal/snapshot"
 )
 
 func resetSnapshotFlags() {

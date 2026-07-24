@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/policy"
+	"github.com/icearp/disco-cli/internal/policy"
 )
 
 // SARIF v2.1.0 — minimal subset sufficient for GitHub / GitLab code-scanning
@@ -156,7 +156,7 @@ func renderCheckSARIF(findings []policy.Finding, w io.Writer, evidence sarifEvid
 	invocations[0].Properties = invProps
 	driver := sarifDriver{
 		Name:           "disco",
-		InformationURI: "https://codeberg.org/icearp/disco",
+		InformationURI: "https://github.com/icearp/disco-cli",
 		Version:        discoVersion(),
 		Rules:          rules,
 	}

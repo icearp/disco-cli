@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	"golang.org/x/time/rate"
 )
 

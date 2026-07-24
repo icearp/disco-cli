@@ -6,7 +6,7 @@ import (
 
 	logsTypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 
-	"codeberg.org/icearp/disco/internal/volatile"
+	"github.com/icearp/disco-cli/internal/volatile"
 )
 
 func ptrI64(v int64) *int64 { return &v }

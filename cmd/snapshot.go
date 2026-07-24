@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/snapshot"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/snapshot"
+	"github.com/icearp/disco-cli/store"
 	"github.com/spf13/cobra"
 )
 

@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/util"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/util"
+	"github.com/icearp/disco-cli/store"
 )
 
 // ecrImageRe matches ECR image URIs:

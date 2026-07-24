@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/redact"
-	"codeberg.org/icearp/disco/internal/restype"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 	"google.golang.org/api/batch/v1"
 	"google.golang.org/api/run/v2"
 )

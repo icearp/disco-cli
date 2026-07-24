@@ -8,9 +8,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/restype"
-	"codeberg.org/icearp/disco/internal/util"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/internal/util"
+	"github.com/icearp/disco-cli/store"
 	cwlogs "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	logsTypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"golang.org/x/sync/errgroup"

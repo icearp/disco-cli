@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 // dotTheme drives all DOT styling. One *dotTheme per --dot-theme value;

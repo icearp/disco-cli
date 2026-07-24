@@ -3,7 +3,7 @@ package gcp
 import (
 	"slices"
 
-	"codeberg.org/icearp/disco/internal/providers/gcp/gcpregions"
+	"github.com/icearp/disco-cli/internal/providers/gcp/gcpregions"
 )
 
 // RegionNames implements providers.RegionNamer. Returns a clone so callers

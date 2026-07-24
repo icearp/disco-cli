@@ -3,7 +3,7 @@ package aws
 import (
 	"encoding/json"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() {

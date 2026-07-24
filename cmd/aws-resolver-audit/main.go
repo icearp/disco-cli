@@ -19,9 +19,9 @@ import (
 	"sort"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
-	awsprov "codeberg.org/icearp/disco/internal/providers/aws"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/coverage"
+	awsprov "github.com/icearp/disco-cli/internal/providers/aws"
+	"github.com/icearp/disco-cli/store"
 )
 
 func main() {

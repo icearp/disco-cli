@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/snapshot"
+	"github.com/icearp/disco-cli/internal/snapshot"
 	"github.com/spf13/cobra"
 )
 

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/internal/providers"
+	"github.com/icearp/disco-cli/store"
 )
 
 // providerListHint renders the registered provider names for flag help (e.g.

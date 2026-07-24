@@ -11,7 +11,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"codeberg.org/icearp/disco/store"
+	"github.com/icearp/disco-cli/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -22,7 +22,7 @@ var (
 	dbReadOnly bool
 )
 
-// Version is set at build time via -ldflags "-X codeberg.org/icearp/disco/cmd.Version=<tag>".
+// Version is set at build time via -ldflags "-X github.com/icearp/disco-cli/cmd.Version=<tag>".
 // Defaults to "dev" for local builds, but `go build .` inside a git checkout
 // substitutes the VCS revision via build-info, so the stamp propagated to
 // snapshot manifests + SARIF tool.driver.version stays traceable. Falls back
