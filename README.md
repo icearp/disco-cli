@@ -10,13 +10,13 @@
 
 ## Why not Resource Explorer, Resource Graph, or Cloud Asset Inventory?
 
-Those services are convenient but incomplete. `disco` calls each cloud's per-service SDK directly, so the things unified APIs skip — KMS grants, EFS mount targets, CloudFormation-managed resources, IAM Identity Center assignments, Entra ID identities, GCP VPC Service Controls perimeters, and others — show up in the graph.
+Those services are convenient but incomplete. `disco` calls each cloud's per-service SDK directly, so the things unified APIs skip still show up in the graph: KMS grants, EFS mount targets, CloudFormation-managed resources, IAM Identity Center assignments, Entra ID identities, GCP VPC Service Controls perimeters, and plenty more.
 
 ## Why disco
 
-Scans take minutes; queries are sub-second against a few-thousand-resource DB. Cloud APIs only get hit at scan time, so `resources` / `graph` / `check` work the same on a plane as on the office network.
+A scan takes a few minutes. After that, queries run sub-second against a few-thousand-resource DB, and cloud APIs only get hit at scan time, so `resources`, `graph`, and `check` work the same on a plane as they do on the office network.
 
-JSON, JSONL, CSV, SARIF, DOT, and Mermaid output are available for the queryable verbs. `resources -o json`, `graph complete -o json`, and `check -o json` produce identical bytes across runs (same SHA-256), which makes them safe to commit, diff, and feed into CI. `disco check --output sarif` drops straight into GitHub code scanning. `disco snapshot` packs the DB into a single file with a manifest and inner-DB hash for handoff. `disco coverage services --check-strict` flags new cloud resource types disco doesn't yet scan.
+The queryable verbs speak JSON, JSONL, CSV, SARIF, DOT, and Mermaid. `resources -o json`, `graph complete -o json`, and `check -o json` produce identical bytes across runs (same SHA-256), so they're safe to commit, diff, and feed into CI. `disco check --output sarif` drops straight into GitHub code scanning. `disco snapshot` packs the DB into a single file with a manifest and inner-DB hash for handoff, and `disco coverage services --check-strict` flags new cloud resource types disco doesn't yet scan.
 
 ## Install
 
@@ -108,7 +108,7 @@ disco summary -o json | jq '.by_account, .by_provider'
 
 ### Tag-hygiene scorecard for cost-allocation
 
-Coverage rate per tag key — the precondition for chargeback / showback. Zero-coverage keys still appear so dashboards see the absent-tag signal. Tag KEYS shaped like AWS access-key IDs are flagged `[suspicious:aws-access-key-id]` so credential paste-into-tag mistakes don't render as legitimate scorecard rows.
+Coverage rate per tag key, which is the precondition for chargeback and showback. Zero-coverage keys still appear so dashboards see the absent-tag signal. Tag KEYS shaped like AWS access-key IDs are flagged `[suspicious:aws-access-key-id]` so credential paste-into-tag mistakes don't render as legitimate scorecard rows.
 
 ```bash
 disco tag-coverage owner cost-center environment --case-insensitive
@@ -117,7 +117,7 @@ disco tag-coverage --type aws:ec2:instance -o json | jq '.[] | select(.coverage<
 
 ### CI policy gate (SARIF → GitHub code-scanning)
 
-OPA Rego evaluation against the local resource DB; SARIF 2.1.0 output drops straight into GitHub / GitLab / Sonar code-scanning ingest. Any reported finding gates the exit code at 1 by default — wiring `disco check` straight into a CI step needs no extra flag. `--exit-zero` opts out for inventory-only runs that should publish findings without breaking the pipeline. `partialFingerprints` keeps repeat findings de-duped across runs. BYO Rego via `--rules ./policies/`; bundled `aws-waf` is a 5-rule sample pack.
+OPA Rego evaluation against the local resource DB. SARIF 2.1.0 output feeds directly into GitHub, GitLab, or Sonar code-scanning ingest. Any reported finding gates the exit code at 1 by default, so wiring `disco check` into a CI step needs no extra flag. `--exit-zero` opts out for inventory-only runs that should publish findings without breaking the pipeline. `partialFingerprints` keeps repeat findings de-duped across runs. BYO Rego via `--rules ./policies/`; bundled `aws-waf` is a 5-rule sample pack.
 
 ```bash
 disco check --packs aws-waf --severity high -o sarif > findings.sarif
@@ -136,7 +136,7 @@ disco graph blast my-role --provider aws --type aws:iam:role --depth 4 -o dot | 
 
 ### Drift detection between scans
 
-Every `disco scan` records a row in `scans`. `--scan-id latest` resolves to the most-recent scan that touched rows. `--scan-as discovered|verified|any` picks which scan-FK column the filter targets — `discovered` for "what's new this run", `verified` for "what this run re-verified."
+Every `disco scan` records a row in `scans`. `--scan-id latest` resolves to the most-recent scan that touched rows. `--scan-as discovered|verified|any` picks which scan-FK column the filter targets: `discovered` for "what's new this run", `verified` for "what this run re-verified."
 
 ```bash
 disco scans
@@ -181,7 +181,7 @@ symbol-level precision under 8GB.
 
 ### Coverage drift gating in CI
 
-`coverage --check-strict` exits non-zero whenever the scanner-declared type list disagrees with the live cloud-provider registry (CloudFormation `ListTypes` / Azure ARM `Providers/List` / GCP Discovery API). Pair with `--resolvers --only-unannotated` to surface resolvers with zero declared `EdgeDecl` — the candidate sweep targets for closing graph gaps.
+`coverage --check-strict` exits non-zero whenever the scanner-declared type list disagrees with the live cloud-provider registry (CloudFormation `ListTypes` / Azure ARM `Providers/List` / GCP Discovery API). Pair with `--resolvers --only-unannotated` to surface resolvers with zero declared `EdgeDecl`. Those are the candidate sweep targets for closing graph gaps.
 
 ```bash
 disco coverage services --check-strict --providers aws
@@ -190,7 +190,7 @@ disco coverage resolvers --only-unannotated --providers aws -o json | jq '.[].re
 
 ### Find dangling resources mid-incident
 
-`graph complete --orphans-only` keeps only nodes with zero in/out edges in the returned set — surfaces unattached EBS volumes, key-pairs no instance uses, IAM principals with no group/policy attachments.
+`graph complete --orphans-only` keeps only nodes with zero in/out edges in the returned set. That surfaces unattached EBS volumes, key-pairs no instance uses, and IAM principals with no group or policy attachments.
 
 ```bash
 disco graph complete --orphans-only -o json | jq -r '.nodes[].resource | [.type, .name, .native_id] | @tsv'
@@ -213,7 +213,7 @@ Per-subdirectory `CLAUDE.md` files document local conventions; `CODE_STRUCTURE.m
 
 ## Coverage
 
-All three clouds are covered broadly — hundreds of services scanned via each cloud's
+All three clouds are covered broadly: hundreds of services scanned via each cloud's
 per-service SDK, spanning compute, storage, networking, identity, data, security, and
 governance. Approximate breadth (distinct resource types the running binary declares):
 
@@ -253,7 +253,7 @@ from the tag. You can always build from source with `make build`.
 
 ## Contributing
 
-Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for build, test,
+Contributions are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for build, test,
 and branch conventions, and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community
 expectations. Found a security issue? Please report it privately per
 [`SECURITY.md`](SECURITY.md) rather than opening a public issue.
