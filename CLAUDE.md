@@ -169,9 +169,9 @@ Single build, no feature gating — everything ships in this one binary.
 
 ## Go lint conventions
 
-### gocognit threshold = 80
+### gocyclo threshold = 30 (gocognit is NOT enabled)
 
-`.golangci.yaml` enables `gocognit` at `min-complexity: 80`. Most resolver/scanner funcs are linear "for each resource → check field A, field B, ..." walks — complexity scales with edge-kind count, not nesting. Splitting them into per-branch helpers hides the walk. Refactor only outliers above the bar. Precedents: `store.GraphWalk`, `aws.classifyPolicyResource`, `aws.resolveOpenSearchDomainTargets`, `gcp.resolveIAMPolicyRelationships`, `azure.resolveDiagnosticSettings`.
+`.golangci.yaml` enables `gocyclo` at `min-complexity: 30`; `_test.go` files are excluded (fixture branches are test shape, not production logic). Most resolver/scanner funcs are linear "for each resource → check field A, field B, ..." walks — complexity scales with edge-kind count, not nesting. Splitting them into per-branch helpers hides the walk. Refactor only outliers above the bar. Precedents: `store.GraphWalk`, `aws.classifyPolicyResource`, `aws.resolveOpenSearchDomainTargets`, `gcp.resolveIAMPolicyRelationships`, `azure.resolveDiagnosticSettings`.
 
 ### golangci-lint flags
 
@@ -192,11 +192,17 @@ Linter `waitgroup` flags `wg.Add(1); go func() { defer wg.Done(); ... }`. Use `w
 
 ### `tagliatelle` is path-scoped
 
-Enabled globally with the camelCase rule, but excluded under `linters.exclusions.rules` for convention zones where camelCase JSON would silently break unmarshalling. Current zones:
-- PascalCase to match SDK marshal output: `internal/providers/.*\.go`.
-- snake_case for disco wire contracts: `cmd/(summary|coverage|diff|findings)\.go`, `(internal/(coverage|policy|snapshot|serve)|store)/.*\.go`.
+Enabled globally with the camelCase rule. There is exactly **one** exclusion under
+`linters.exclusions.rules`: `internal/providers/.*\.go`, where scanner/resolver structs carry
+PascalCase tags to match SDK marshal output (see `internal/providers/aws/CLAUDE.md`).
 
-New packages emitting snake_case JSON extend the snake_case path pattern; provider scanners extend the PascalCase one. Otherwise the linter demands camelCase that breaks the wire format.
+Every other JSON surface — store rows, CLI `-o json` envelopes, snapshot manifest, Rego input,
+policy findings — is **camelCase** as of the v0.18.0 wire migration (`json:"nativeId"`,
+`json:"accountId"`, `json:"startedAt"`, `json:"fromScanId"`). A new package emitting JSON needs
+no config change; just use camelCase tags. Only provider scanners extend the PascalCase pattern.
+
+(CSV column names are a separate surface and remain snake_case — e.g. `resourcesColumns` in
+`cmd/resources.go`. tagliatelle doesn't see those.)
 
 ### Bulk `revive` var-naming sweeps
 

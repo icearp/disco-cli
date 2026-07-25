@@ -75,21 +75,20 @@ lookup as `graph`); the resolved current row's `.ID` (= `root_id`) keys
 `store.ResourceVersion` directly: `store.Resource` has a value-receiver `MarshalJSON`
 that would be promoted onto the embedding struct and silently drop the version-only
 fields (`verified_at`, `superseded_by`, …) in JSON. New version-chain output paths
-must follow the same explicit-struct pattern, not encode `ResourceVersion`. The
-`historyEntry` snake_case JSON tags require `cmd/history.go` in the tagliatelle
-snake_case exclusion zone (`.golangci.yaml`).
+must follow the same explicit-struct pattern, not encode `ResourceVersion`. `historyEntry` uses camelCase JSON tags like every other CLI envelope, so it
+needs no tagliatelle exclusion.
 
 ## Silent exit codes for query-absence
 
 When "no result" is a valid query outcome (e.g. `graph path` between unreachable resources), return a sentinel error from the store layer (`store.ErrNoPath`) and let `cmd/root.go` `Execute()` map it to `os.Exit(1)` without printing. Keeps `RunE` testable — `os.Exit` inside `RunE` bypasses in-process test assertions.
 
-## JSON dialect: snake_case + nested attrs/tags
+## JSON dialect: camelCase + nested attrs/tags
 
-`store.Resource.MarshalJSON` is the single source of truth — emits snake_case keys with nested `attributes` / `tags` objects, not stringified `AttributesJSON` / `TagsJSON`. Matches `policy.Finding` and `coverage.Row` shape. New JSON output paths must encode `[]store.Resource` (or struct embedding it) directly; do not reach for raw field access. Empty / missing / malformed `attributes`/`tags` always render as `{}` (never absent); optional fields render as `null` (never omitted).
+`store.Resource.MarshalJSON` is the single source of truth — emits camelCase keys with nested `attributes` / `tags` objects, not stringified `AttributesJSON` / `TagsJSON`. Matches `policy.Finding` and `coverage.Row` shape. New JSON output paths must encode `[]store.Resource` (or struct embedding it) directly; do not reach for raw field access. Empty / missing / malformed `attributes`/`tags` always render as `{}` (never absent); optional fields render as `null` (never omitted).
 
 `disco resources -o json` initialises the result slice as `[]store.Resource{}` not `nil` so a zero-row query emits `[]` instead of `null` — fix for F6. Mirror the pattern in any new top-level array command.
 
-`disco scans -o json` / `disco scans show -o json` use `store.Scan.MarshalJSON` (F5 fix): snake_case keys, RFC3339 timestamps, parsed `providers` / `scope` / `meta`, no PascalCase or `*JSON` SQLite-column leak. `disco summary.as_of` is normalised at population time via `store.ToRFC3339`.
+`disco scans -o json` / `disco scans show -o json` use `store.Scan.MarshalJSON` (F5 fix): camelCase keys, RFC3339 timestamps, parsed `providers` / `scope` / `meta`, no PascalCase or `*JSON` SQLite-column leak. `disco summary.asOf` is normalised at population time via `store.ToRFC3339`.
 
 `coverage --resolvers -o json` / `coverage --missing-resolvers -o json` honour the `-o json` flag (F8 fix); previously they always emitted TSV.
 
@@ -241,7 +240,7 @@ A consistency pass aligned several edges with the conventions above. When touchi
 
 - **`diff` resolves scan IDs like every other consumer.** `diff <from> <to>` routes both args through `resolveScanID` (`helpers.go`), so 8–31-char prefixes (as `disco scans` prints) and `latest` work — not just full 32-hex IDs. Any new scan-id-taking command must do the same.
 
-- **Empty-result JSON is `[]`, never `null`.** `renderScans` / `renderCheckRuns` force a non-nil slice before encoding; `diff` forces non-nil `Added`/`Stale`; `store.ScanDiff` carries snake_case json tags. Mirror the non-nil-before-encode pattern in any new array command (precedent: `resources`).
+- **Empty-result JSON is `[]`, never `null`.** `renderScans` / `renderCheckRuns` force a non-nil slice before encoding; `diff` forces non-nil `Added`/`Stale`; `store.ScanDiff` carries camelCase json tags. Mirror the non-nil-before-encode pattern in any new array command (precedent: `resources`).
 
 - **Collection grammar.** The resource collection is the canonical noun `resources` (consistent with the other collections `scans` / `findings`). Scan runs are top-level (`disco scans`); check runs stay nested (`disco findings runs`) — they are subordinate to the findings they produce, and a top-level `disco checks` would overload the `disco check` verb. This asymmetry is deliberate.
 
