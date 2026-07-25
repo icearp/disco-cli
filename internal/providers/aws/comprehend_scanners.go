@@ -22,6 +22,20 @@ func init() {
 	})
 }
 
+// isComprehendNotEnabled reports the NotAuthorizedException Comprehend returns
+// for an account not subscribed to its custom-model surface in this region
+// ("Your account is not authorized to make this call."). NotAuthorizedException
+// is in accessDeniedCodes, so without this the phase records an IAM-style
+// warning on every scan of every such region.
+//
+// Per-phase and not markServiceUnavailable: ListFlywheels succeeds in the same
+// regions where the three custom-model ops fail, so Comprehend itself IS served
+// there — marking the whole service region-unavailable would blank a working
+// scanner.
+func isComprehendNotEnabled(err error) bool {
+	return isAPIErrorWithMessage(err, "NotAuthorizedException", "account is not authorized to make this call")
+}
+
 type comprehendAPI interface {
 	ListDocumentClassifiers(context.Context, *comprehend.ListDocumentClassifiersInput, ...func(*comprehend.Options)) (*comprehend.ListDocumentClassifiersOutput, error)
 	ListEntityRecognizers(context.Context, *comprehend.ListEntityRecognizersInput, ...func(*comprehend.Options)) (*comprehend.ListEntityRecognizersOutput, error)
@@ -74,6 +88,9 @@ func scanComprehendDocumentClassifiers(ctx context.Context, client comprehendAPI
 			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
 				return 0, 0, nil
 			}
+			if isComprehendNotEnabled(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "comprehend:ListDocumentClassifiers", acct.ID, region, err)
 			}
@@ -108,6 +125,9 @@ func scanComprehendEntityRecognizers(ctx context.Context, client comprehendAPI, 
 		out, err := client.ListEntityRecognizers(ctx, &comprehend.ListEntityRecognizersInput{NextToken: nextToken})
 		if err != nil {
 			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
+				return 0, 0, nil
+			}
+			if isComprehendNotEnabled(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -149,6 +169,9 @@ func scanComprehendEndpoints(ctx context.Context, client comprehendAPI, acct *ac
 			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
 				return 0, 0, nil
 			}
+			if isComprehendNotEnabled(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "comprehend:ListEndpoints", acct.ID, region, err)
 			}
@@ -188,6 +211,9 @@ func scanComprehendFlywheels(ctx context.Context, client comprehendAPI, acct *ac
 		if err != nil {
 			// Per-region feature gap shape Comprehend uses.
 			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
+				return 0, 0, nil
+			}
+			if isComprehendNotEnabled(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {

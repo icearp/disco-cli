@@ -111,6 +111,14 @@ One resource type, not two. Flavor lives as sibling sub-structs (`Provisioned *.
 
 Predicates needing **code + message-substring** match use `isAPIErrorWithMessage(err, code, needle)` (single code) or `isAccessDeniedWithMessage(err, needle)` (any of the six access-denied codes). Both read `ae.ErrorMessage()` directly via `errors.As(&smithy.APIError)`, never `err.Error()` — the match is decoupled from the Smithy `"api error CODE: MSG"` wrapper format and the outer SDK `"operation error <Op>: ..."` wrapping. Use these for AWS exception codes reused across semantically-distinct cases (`AccessDeniedException` for closed-to-customers vs real IAM deny; `ValidationException` for per-region feature gap vs malformed input). Do NOT add new sites that match against `err.Error()` substrings — every site in this package routes through one of these two helpers.
 
+## Not-enabled predicates sharing an access-denied code must be checked FIRST
+
+When a service signals "not enabled / not subscribed" with a code that is in `accessDeniedCodes` (Comprehend's `NotAuthorizedException`, Macie's `AccessDeniedException`), its message-disambiguated predicate MUST run **before** the `isAccessDenied` branch. `isAccessDenied` matches on code alone, so it swallows the error first and records an IAM-style warning that no policy change could ever fix. Precedent: `isComprehendNotEnabled` sits above `isAccessDenied` in all four comprehend phases.
+
+## Region-entitlement denials silent-skip globally
+
+`skipIfAccessDenied` silent-skips `isNotAuthorizedForRegion` — AWS's `Account: <id> is not authorized for region: <region>` (CloudDirectory in every region the account was never enabled for). The account cannot self-enable it and no IAM change helps, so warning on every scan is noise. This sits inside `skipIfAccessDenied`, so it applies to **all ~1430 call sites**, not one service — deliberate, since any service using that phrasing states the same fact. Real per-action denials say "is not authorized **to perform**: `<action>`" and still warn; `TestSkipIfAccessDenied_RealDenialStillWarns` pins the distinction.
+
 ## `skipIfAccessDenied` always returns nil
 
 Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanners (e.g. `scanEventBridge` running buses + rules + connections + api-destinations in one call) cannot early-return — use `_ = skipIfAccessDenied(...); break` to skip denied phase while preserving totals from prior phases. Precedent: `scanEventBridge` phases 3/4.

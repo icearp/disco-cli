@@ -126,6 +126,20 @@ func isServiceNotAvailableInRegion(err error) bool {
 		isAPIErrorWithMessage(err, "NotFoundException", "Unable to determine service/operation name")
 }
 
+// isNotAuthorizedForRegion reports whether err is the account/region-level
+// entitlement gap AWS phrases as "Account: <id> is not authorized for region:
+// <region>" (CloudDirectory in every region this account has not been enabled
+// for). The account cannot self-enable it and no IAM policy change would help,
+// so it is a per-region availability fact rather than a permission problem:
+// silent-skip instead of recording a warning on every scan.
+//
+// Distinct from a real IAM denial, which names the action and principal
+// ("User: arn:... is not authorized to perform: <action>") — that phrasing does
+// not contain "authorized for region" and still warns.
+func isNotAuthorizedForRegion(err error) bool {
+	return isAccessDeniedWithMessage(err, "is not authorized for region")
+}
+
 // isPayerAccountOnly reports whether err is the restriction AWS returns when a
 // payer/management-account-only billing API (BCM Pricing Calculator, BCM Data
 // Exports, Invoicing) is called from an organisation member account. It
@@ -242,6 +256,12 @@ func skipIfAccessDenied(st *store.Store, service, accountID, region string, err 
 	// the op isn't routed in this region — a region gap, never a real IAM denial.
 	// The caller already gated on isAccessDenied; silent-skip without a warning.
 	if isServiceNotAvailableInRegion(err) {
+		return nil
+	}
+	// "Account: <id> is not authorized for region: <region>" is the same class of
+	// signal one level up: the account is not entitled to the service in this
+	// region. No IAM change fixes it, so warning on every scan is pure noise.
+	if isNotAuthorizedForRegion(err) {
 		return nil
 	}
 	scope := accountID

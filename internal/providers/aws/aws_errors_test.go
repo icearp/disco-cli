@@ -343,6 +343,61 @@ func TestSkipIfAccessDenied_RecordsWarningReturnsNil(t *testing.T) {
 	}
 }
 
+// CloudDirectory answers "Account: <id> is not authorized for region: <region>"
+// in every region the account was never enabled for — an availability fact no
+// IAM change fixes, so it must silent-skip rather than warn on every scan.
+func TestSkipIfAccessDenied_NotAuthorizedForRegionIsSilent(t *testing.T) {
+	st := newTestStore(t)
+	warned := false
+	st.OnWarn = func(store.ScanWarning) { warned = true }
+
+	regionGap := apiErr("AccessDeniedException", "Account: 123456789012 is not authorized for region: ap-northeast-1.")
+	if err := skipIfAccessDenied(st, "clouddirectory:ListDirectories", "123456789012", "ap-northeast-1", regionGap); err != nil {
+		t.Errorf("skipIfAccessDenied returned %v, want nil", err)
+	}
+	if warned {
+		t.Error("region-entitlement gap must not record a scan warning")
+	}
+}
+
+// The silent-skip must not swallow a genuine IAM denial. A real deny names the
+// principal and action ("is not authorized to perform: <action>") and carries no
+// "authorized for region" phrasing, so it still warns.
+func TestSkipIfAccessDenied_RealDenialStillWarns(t *testing.T) {
+	st := newTestStore(t)
+	warned := false
+	st.OnWarn = func(store.ScanWarning) { warned = true }
+
+	realDeny := apiErr("AccessDeniedException",
+		"User: arn:aws:sts::123456789012:assumed-role/DiscoScanner/x is not authorized to perform: lex:ListTestSets on resource: arn:aws:lex:us-east-1:123456789012:*")
+	if err := skipIfAccessDenied(st, "lexmodelsv2:ListTestSets", "123456789012", "us-east-1", realDeny); err != nil {
+		t.Errorf("skipIfAccessDenied returned %v, want nil", err)
+	}
+	if !warned {
+		t.Error("a real IAM denial must still record a scan warning")
+	}
+}
+
+func TestIsNotAuthorizedForRegion(t *testing.T) {
+	if !isNotAuthorizedForRegion(apiErr("AccessDeniedException", "Account: 123456789012 is not authorized for region: eu-north-1.")) {
+		t.Error("region-entitlement message should match")
+	}
+	// Real per-action denial: same code, different phrasing — must not match.
+	if isNotAuthorizedForRegion(apiErr("AccessDeniedException", "User: arn:... is not authorized to perform: lex:ListTestSets")) {
+		t.Error("real IAM denial must not match")
+	}
+	// Right message, wrong code class.
+	if isNotAuthorizedForRegion(apiErr("ValidationException", "is not authorized for region: eu-north-1")) {
+		t.Error("non-access-denied code must not match")
+	}
+	if isNotAuthorizedForRegion(errors.New("plain")) {
+		t.Error("plain error must not match")
+	}
+	if isNotAuthorizedForRegion(nil) {
+		t.Error("nil must not match")
+	}
+}
+
 func TestSkipIfAccessDenied_GlobalScope(t *testing.T) {
 	st := newTestStore(t)
 	var got store.ScanWarning
