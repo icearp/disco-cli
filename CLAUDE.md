@@ -2,6 +2,29 @@
 
 Guide Claude Code (claude.ai/code) in repo.
 
+## Plans ship in phases; every phase ends reviewed, documented, committed
+
+**Plan structure.** Every plan groups work into logical, distinct phases that build on each
+other. A phase is a coherent unit that leaves the tree buildable and green — not an
+arbitrary slice of the file list. Order phases so later ones depend on earlier ones, and
+state that dependency in the plan.
+
+**Per-phase exit sequence.** On completing a phase, run these in order — do not skip ahead
+and do not batch phases together:
+
+1. **Adversarial review** the phase's changes *and any code they impact* — not just the
+   diff. Hunt for the failure the change enables, not confirmation it looks right.
+2. **Fix every finding** from that review. A finding is closed by a fix or by an explicit,
+   recorded reason it is not a defect — never by silence.
+3. **Update `CLAUDE.md`** via the `claude-md-management:revise-claude-md` skill, recording
+   what the phase taught (invariants discovered, footguns hit, conventions established).
+4. **Commit** the reviewed, finalized work.
+5. **Pause.** Surface the phase result and wait — the next phase is the user's call, not an
+   automatic continuation.
+
+**After the final phase.** Run the `claude-md-management:claude-md-improver` skill across
+the repo's `CLAUDE.md` files to optimize them, then commit that pass separately.
+
 ## ROADMAP.md is historical, not authoritative
 
 Open-section bullets and per-session COMPLETED notes describe state at time of writing. Before treating an item as "deferred", grep for the named files / type constants — items often ship without the open-section bullet getting flipped.
