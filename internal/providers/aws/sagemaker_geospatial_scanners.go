@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/service/sagemakergeospatial"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"github.com/aws/aws-sdk-go-v2/service/sagemakergeospatial"
 )
 
 func init() {

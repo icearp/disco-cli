@@ -3,9 +3,9 @@ package azure
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/recoveryservices/armrecoveryservices"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestResolveRecoveryServicesRelationships verifies a CMK-encrypted vault

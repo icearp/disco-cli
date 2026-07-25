@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	bgwtypes "github.com/aws/aws-sdk-go-v2/service/backupgateway/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func bgwAttrs(t *testing.T, v any) string {

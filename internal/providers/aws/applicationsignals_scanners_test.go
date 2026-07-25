@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/applicationsignals"
 	applicationsignalstypes "github.com/aws/aws-sdk-go-v2/service/applicationsignals/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubApplicationSignals is a deterministic in-memory replacement for

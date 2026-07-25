@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanCloudTrailExtended discovers Lake channels, dashboards, and

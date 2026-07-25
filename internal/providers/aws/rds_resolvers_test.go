@@ -3,8 +3,8 @@ package aws
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 const rdsTestRegion = "us-east-1"

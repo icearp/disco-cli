@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	"github.com/icearp/disco-cli/store"
 )
 
 func ecTags(ctx context.Context, client elasticacheAPI, arn string) *string {

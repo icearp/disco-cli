@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/internal/restype"
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotsitewise"
 	"github.com/aws/aws-sdk-go-v2/service/iotsitewise/types"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 )
 
 // isIoTSiteWiseFeatureUnsupported reports whether err is the per-region

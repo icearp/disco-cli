@@ -4,9 +4,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // --- resolveInstanceProfileRoles ---

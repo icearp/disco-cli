@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	outpoststypes "github.com/aws/aws-sdk-go-v2/service/outposts/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveOutpostSite(t *testing.T) {

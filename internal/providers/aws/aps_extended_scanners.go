@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/amp"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanAPSExtended discovers anomaly detectors, rule-groups namespaces, and

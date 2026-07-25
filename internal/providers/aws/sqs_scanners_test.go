@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubSQS is an in-memory sqsAPI for unit tests. It pages QueueUrls in

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	sesv1 "github.com/aws/aws-sdk-go-v2/service/ses"
+	"github.com/icearp/disco-cli/store"
 )
 
 // sesV1API — narrow set of classic SES (v1) ops needed for the Receipt

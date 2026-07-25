@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/internal/util"
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/devicefarm"
 	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
+	"github.com/icearp/disco-cli/internal/util"
+	"github.com/icearp/disco-cli/store"
 )
 
 type stubDeviceFarm struct {

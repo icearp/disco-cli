@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/icearp/disco-cli/store"
 )
 
 // errServiceNotRegistered is a sentinel returned (instead of a scan warning)

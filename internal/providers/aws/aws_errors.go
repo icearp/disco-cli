@@ -9,10 +9,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	smithy "github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"github.com/icearp/disco-cli/store"
 )
 
 // nonRetryable wraps a [sdkaws.RetryerV2] to force the given API error codes to

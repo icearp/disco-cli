@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanNetworkSweep discovers the remaining sub/RG-listable Microsoft.Network

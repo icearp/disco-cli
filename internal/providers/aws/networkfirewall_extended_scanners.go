@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/networkfirewall"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanNetworkFirewallExtended discovers per-firewall logging configurations,

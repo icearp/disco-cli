@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	ggtypes "github.com/aws/aws-sdk-go-v2/service/greengrass/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // versOut — uniform shape returned by all 7 ListXxxDefinitionVersions

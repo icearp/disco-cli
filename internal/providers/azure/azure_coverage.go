@@ -6,11 +6,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
+	"github.com/icearp/disco-cli/internal/coverage"
 )
 
 func init() { coverage.Register(&coverageProvider{}) }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanS3ObjectLambdaAccessPoints discovers S3 Object Lambda access points

@@ -3,9 +3,9 @@ package azure
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/automation/armautomation"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestResolveAutomationRelationships verifies a CMK-encrypted automation

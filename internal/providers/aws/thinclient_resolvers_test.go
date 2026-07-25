@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	thinclienttypes "github.com/aws/aws-sdk-go-v2/service/workspacesthinclient/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveThinClientDeviceEnvironment(t *testing.T) {

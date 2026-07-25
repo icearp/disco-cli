@@ -6,10 +6,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/icearp/disco-cli/internal/restype"
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
 )
 

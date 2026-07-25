@@ -3,8 +3,8 @@ package aws
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	socialmessagingtypes "github.com/aws/aws-sdk-go-v2/service/socialmessaging/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveSocialMessagingPhoneNumberWABA(t *testing.T) {

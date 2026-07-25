@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/fms"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanFMSAppsLists discovers customer-defined Firewall Manager applications lists

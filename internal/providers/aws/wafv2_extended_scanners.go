@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanWAFv2ScopeExtended discovers per-scope logging configurations, regex

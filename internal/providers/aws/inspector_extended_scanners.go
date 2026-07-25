@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/inspector2"
+	"github.com/icearp/disco-cli/store"
 )
 
 // isInspector2FeatureNotEnabled disambiguates the "Invoking account is not

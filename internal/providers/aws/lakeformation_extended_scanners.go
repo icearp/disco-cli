@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/lakeformation"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanLakeFormationExtended discovers four additional LakeFormation resource

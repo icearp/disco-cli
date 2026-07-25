@@ -3,11 +3,11 @@ package aws
 import (
 	"context"
 
-	"github.com/icearp/disco-cli/internal/restype"
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent"
 	bda "github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() {

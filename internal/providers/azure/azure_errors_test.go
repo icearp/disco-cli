@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestFormatAzureError covers the three branches of formatAzureError:

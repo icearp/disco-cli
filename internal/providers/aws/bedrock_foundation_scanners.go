@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
+	"github.com/icearp/disco-cli/store"
 )
 
 func scanBedrockFoundation(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

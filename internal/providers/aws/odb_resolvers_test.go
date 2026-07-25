@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	odbtypes "github.com/aws/aws-sdk-go-v2/service/odb/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveODBAutonomousDatabaseNetwork(t *testing.T) {

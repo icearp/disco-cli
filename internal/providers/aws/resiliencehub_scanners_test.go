@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/resiliencehub"
 	resiliencehubtypes "github.com/aws/aws-sdk-go-v2/service/resiliencehub/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubResilienceHub feeds one assessment and records whether

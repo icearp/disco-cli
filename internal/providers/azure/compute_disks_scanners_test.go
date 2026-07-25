@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	armcomputefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestScanDisks_FakeTransport exercises the disk scanner against a

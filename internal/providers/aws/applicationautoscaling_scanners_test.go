@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
 	aastypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubApplicationAutoScaling is a deterministic in-memory replacement for

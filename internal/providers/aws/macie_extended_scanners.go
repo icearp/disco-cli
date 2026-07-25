@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/macie2"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanMacieFindingsFilters discovers Macie findings filters in one region.

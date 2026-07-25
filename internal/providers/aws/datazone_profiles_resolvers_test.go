@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	dztypes "github.com/aws/aws-sdk-go-v2/service/datazone/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveDataZoneGroupProfileRefs(t *testing.T) {

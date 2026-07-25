@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/internal/util"
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/datazone"
 	dztypes "github.com/aws/aws-sdk-go-v2/service/datazone/types"
+	"github.com/icearp/disco-cli/internal/util"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubDZProfiles embeds dataZoneAPI so only the two Search ops the profile

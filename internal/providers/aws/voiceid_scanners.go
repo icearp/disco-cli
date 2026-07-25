@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/service/voiceid"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"github.com/aws/aws-sdk-go-v2/service/voiceid"
 )
 
 // isVoiceIDNotEnabled disambiguates the "no longer accepting new customers"

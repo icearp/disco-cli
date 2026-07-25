@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	protontypes "github.com/aws/aws-sdk-go-v2/service/proton/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func protonEnvTemplateARN(name string) string {

@@ -3,9 +3,9 @@ package aws
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveCloudFrontFLEConfigProfile(t *testing.T) {

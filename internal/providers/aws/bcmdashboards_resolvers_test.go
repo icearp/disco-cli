@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	bcmdtypes "github.com/aws/aws-sdk-go-v2/service/bcmdashboards/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func bcmDashScheduledReportAttrs(t *testing.T, r bcmdtypes.ScheduledReportSummary) string {

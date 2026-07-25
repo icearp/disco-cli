@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/service/migrationhub"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"github.com/aws/aws-sdk-go-v2/service/migrationhub"
 )
 
 // AWS Migration Hub — migration tracking. Only progress-update-streams are

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/service/storagegateway"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"github.com/aws/aws-sdk-go-v2/service/storagegateway"
 	"golang.org/x/sync/errgroup"
 )
 

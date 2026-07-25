@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/internal/restype"
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/ssmcontacts"
 	sctypes "github.com/aws/aws-sdk-go-v2/service/ssmcontacts/types"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() {

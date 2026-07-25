@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanGlueBlueprints discovers Glue blueprints (workflow templates). The list

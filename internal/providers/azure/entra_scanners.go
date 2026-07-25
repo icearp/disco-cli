@@ -10,10 +10,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/icearp/disco-cli/internal/restype"
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() {

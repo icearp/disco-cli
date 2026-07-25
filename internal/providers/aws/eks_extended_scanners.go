@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // eksExtAPI lists ops for the seven per-cluster EKS resource types. ARNs

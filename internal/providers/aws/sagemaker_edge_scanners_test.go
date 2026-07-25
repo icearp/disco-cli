@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 type stubSageMakerEdge struct {

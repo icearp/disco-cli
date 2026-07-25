@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/workspacesinstances"
 	wsitypes "github.com/aws/aws-sdk-go-v2/service/workspacesinstances/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 type stubWorkspacesInstances struct {

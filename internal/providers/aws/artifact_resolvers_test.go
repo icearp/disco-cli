@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	artifacttypes "github.com/aws/aws-sdk-go-v2/service/artifact/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveArtifactCustomerAgreementOrg(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/dax"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubDAX returns a canned error from every Describe op. Each scanner phase

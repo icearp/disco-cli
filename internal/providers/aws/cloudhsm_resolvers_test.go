@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	cloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func cloudHSMClusterAttrs(t *testing.T, c cloudhsmv2types.Cluster) string {

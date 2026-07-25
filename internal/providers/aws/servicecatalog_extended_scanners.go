@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/servicecatalog"
 	sctypes "github.com/aws/aws-sdk-go-v2/service/servicecatalog/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func scanServiceCatalogExtended(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) (total, inserted int, err error) {

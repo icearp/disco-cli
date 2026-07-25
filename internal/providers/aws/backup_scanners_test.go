@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/backup"
 	backuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubBackup is an in-memory backupAPI used to verify variant vault dispatch.

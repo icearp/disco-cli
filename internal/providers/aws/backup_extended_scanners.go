@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/backup"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanBackupExtended discovers five additional Backup resource types:

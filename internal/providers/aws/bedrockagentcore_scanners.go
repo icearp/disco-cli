@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/icearp/disco-cli/internal/restype"
-	"github.com/icearp/disco-cli/store"
 	bac "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
 	bactypes "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol/types"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() {

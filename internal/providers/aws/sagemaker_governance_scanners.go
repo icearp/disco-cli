@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
+	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
-	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
-	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 )
 
 func init() {

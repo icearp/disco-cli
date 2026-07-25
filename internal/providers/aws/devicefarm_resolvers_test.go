@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestDFProjectARNFromChild(t *testing.T) {

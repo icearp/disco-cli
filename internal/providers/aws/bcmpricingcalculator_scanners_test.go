@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator"
 	bcmpctypes "github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator/types"
 	"github.com/aws/smithy-go"
+	"github.com/icearp/disco-cli/store"
 )
 
 type stubBcmPricingCalculator struct {

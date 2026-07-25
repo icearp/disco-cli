@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/internal/util"
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/datapipeline"
 	dptypes "github.com/aws/aws-sdk-go-v2/service/datapipeline/types"
+	"github.com/icearp/disco-cli/internal/util"
+	"github.com/icearp/disco-cli/store"
 )
 
 type stubDataPipeline struct {

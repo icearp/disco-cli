@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
 )
 

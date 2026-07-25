@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync/atomic"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/icearp/disco-cli/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
 // tenantServiceEntry describes a tenant-scope Azure service (API surface

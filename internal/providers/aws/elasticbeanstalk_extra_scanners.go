@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk"
 	ebtypes "github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanBeanstalkApplicationVersions discovers all application versions in the

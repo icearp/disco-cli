@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	bac "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
 	bactypes "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubBAC implements bedrockAgentCoreAPI; only the fields a test populates

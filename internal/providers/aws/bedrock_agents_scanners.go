@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanBedrockAgents covers Agent/AgentAlias, KnowledgeBase/DataSource,

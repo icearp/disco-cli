@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/billingconductor"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"github.com/aws/aws-sdk-go-v2/service/billingconductor"
 )
 
 // isBillingConductorPayerOnly disambiguates the "Only payer account is

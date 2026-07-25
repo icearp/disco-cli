@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
 	cognitoidp "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanCognitoExtended adds 9 user-pool / identity-pool sub-resource types

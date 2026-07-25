@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	backuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func backupRecoveryPointAttrs(t *testing.T, rp backuptypes.RecoveryPointByBackupVault) string {

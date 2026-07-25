@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	omicstypes "github.com/aws/aws-sdk-go-v2/service/omics/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveOmicsAnnotationStoreVersionParent(t *testing.T) {

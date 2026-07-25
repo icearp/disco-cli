@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanSecurityHubExtended adds 11 disco types: V2 hub config, automation

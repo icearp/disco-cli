@@ -3,9 +3,9 @@ package aws
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // ── Load Balancer → VPC ───────────────────────────────────────────────────────

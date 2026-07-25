@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/icearp/disco-cli/internal/coverage"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/icearp/disco-cli/internal/coverage"
 )
 
 func init() { coverage.Register(&coverageProvider{}) }

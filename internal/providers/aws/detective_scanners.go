@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/service/detective"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"github.com/aws/aws-sdk-go-v2/service/detective"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )

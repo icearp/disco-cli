@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	cmtypes "github.com/aws/aws-sdk-go-v2/service/chimesdkmessaging/types"
 	cvtypes "github.com/aws/aws-sdk-go-v2/service/chimesdkvoice/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveChimeAppInstanceChildren(t *testing.T) {

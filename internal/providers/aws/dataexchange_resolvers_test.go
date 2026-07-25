@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	dxtypes "github.com/aws/aws-sdk-go-v2/service/dataexchange/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func dxDataSetID(t *testing.T, st *store.Store, acct *account, id, arn string) string {

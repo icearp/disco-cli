@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/apigatewayv2"
+	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
 )
 

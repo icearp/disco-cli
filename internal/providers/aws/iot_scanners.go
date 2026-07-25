@@ -3,8 +3,8 @@ package aws
 import (
 	"context"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() {

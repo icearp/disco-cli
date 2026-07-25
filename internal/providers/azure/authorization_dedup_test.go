@@ -3,9 +3,9 @@ package azure
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armpolicy"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestIsTenantDedupedPolicyType pins the per-sub skip boundary: BuiltIn and

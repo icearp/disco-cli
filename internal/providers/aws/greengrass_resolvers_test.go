@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/greengrassv2/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // ggv2DeploymentAttrs marshals the real SDK Deployment struct so the

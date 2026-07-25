@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/braket"
 	braketTypes "github.com/aws/aws-sdk-go-v2/service/braket/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 type stubBraket struct {

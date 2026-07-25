@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	comprehendtypes "github.com/aws/aws-sdk-go-v2/service/comprehend/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveComprehendDocumentClassifierRefs(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/batch/armbatch"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestResolveBatchRelationships verifies a Batch account derives -[uses]->

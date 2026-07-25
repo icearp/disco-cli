@@ -3,9 +3,9 @@ package azure
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestResolveNetAppRelationships verifies a CMK-encrypted NetApp account derives

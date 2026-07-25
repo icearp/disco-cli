@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	smithy "github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"github.com/icearp/disco-cli/store"
 )
 
 // alwaysRetryV2 is a stub RetryerV2 that reports every error retryable, so a test

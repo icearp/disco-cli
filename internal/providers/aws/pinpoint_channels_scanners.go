@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/pinpoint"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanPinpointChannels fans out per-app across all 10 Pinpoint channel

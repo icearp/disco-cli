@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	smithy "github.com/aws/smithy-go"
 	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"github.com/aws/aws-sdk-go-v2/service/elasticache"
-	smithy "github.com/aws/smithy-go"
 )
 
 func init() {

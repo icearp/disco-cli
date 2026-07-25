@@ -7,10 +7,10 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
 // registeredDescriptors holds every type declared via the unified registerType

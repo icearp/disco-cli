@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/shield"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanShieldDRTAccess captures the SRT (DDoS Response Team) access config

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/icearp/disco-cli/store"
 )
 
 // isNoTaskSets reports whether err is the InvalidParameterException DescribeTaskSets

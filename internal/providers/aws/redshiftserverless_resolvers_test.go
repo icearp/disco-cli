@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveRSSNamespaceRefs(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestReportPanic_RecoversAndReports is the contract behind the per-goroutine

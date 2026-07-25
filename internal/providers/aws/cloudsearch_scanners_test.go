@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudsearch"
 	smithy "github.com/aws/smithy-go"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubCloudSearch returns a fixed error from ListDomainNames.

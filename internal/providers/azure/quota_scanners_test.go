@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/quota/armquota"
 	armquotafake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/quota/armquota/fake"
+	"github.com/icearp/disco-cli/store"
 )
 
 func quotaScope(subID, ns, region string) string {

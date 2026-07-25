@@ -3,8 +3,8 @@ package aws
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	ssmsaptypes "github.com/aws/aws-sdk-go-v2/service/ssmsap/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveSSMSAPComponentApplication(t *testing.T) {

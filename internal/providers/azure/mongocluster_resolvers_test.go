@@ -3,9 +3,9 @@ package azure
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mongocluster/armmongocluster"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestResolveMongoClusterRelationships verifies a mongo (vCore) cluster derives

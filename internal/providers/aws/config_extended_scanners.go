@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanConfigExtended discovers seven additional AWS Config resource types:

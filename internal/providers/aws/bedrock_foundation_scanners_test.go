@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrock/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubBedrockCatalog implements bedrockAPI; only the catalog ops under test

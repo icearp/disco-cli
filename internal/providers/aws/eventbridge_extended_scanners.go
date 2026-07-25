@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanEventBridgeExtended discovers archives, endpoints (global event-bus

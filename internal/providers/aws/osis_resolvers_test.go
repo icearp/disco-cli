@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	osistypes "github.com/aws/aws-sdk-go-v2/service/osis/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveOSISPipelineEndpointPipeline(t *testing.T) {

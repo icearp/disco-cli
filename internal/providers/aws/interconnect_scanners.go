@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/icearp/disco-cli/internal/restype"
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/interconnect"
 	smithy "github.com/aws/smithy-go"
+	"github.com/icearp/disco-cli/internal/restype"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() {

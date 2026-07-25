@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrock/types"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"github.com/icearp/disco-cli/store"
 )
 
 type stubBedrockModels struct {

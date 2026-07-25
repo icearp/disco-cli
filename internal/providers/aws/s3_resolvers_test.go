@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // --- Bucket Policy ---

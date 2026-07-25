@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 const (

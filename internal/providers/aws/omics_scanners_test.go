@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/omics"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubOmics returns annErr from ListAnnotationStores; the other omicsAPI methods

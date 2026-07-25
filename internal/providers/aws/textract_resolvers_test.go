@@ -3,9 +3,9 @@ package aws
 import (
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	textracttypes "github.com/aws/aws-sdk-go-v2/service/textract/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveTextractAdapterVersion(t *testing.T) {

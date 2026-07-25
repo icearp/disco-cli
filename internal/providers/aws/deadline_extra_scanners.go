@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/deadline"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanDeadlineBudgets lists the per-farm spending budgets. The budget attaches

@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/internal/util"
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/deadline"
 	dltypes "github.com/aws/aws-sdk-go-v2/service/deadline/types"
+	"github.com/icearp/disco-cli/internal/util"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubDeadlineExtra embeds deadlineAPI so only the two ops the budget/volume

@@ -3,9 +3,9 @@ package aws
 import (
 	"context"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() {

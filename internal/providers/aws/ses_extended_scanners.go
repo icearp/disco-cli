@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanSESExtended covers ContactList, CustomVerificationEmailTemplate,

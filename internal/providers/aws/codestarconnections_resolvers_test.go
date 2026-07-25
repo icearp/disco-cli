@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	csctypes "github.com/aws/aws-sdk-go-v2/service/codestarconnections/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveCSCRepositoryLinkRefs(t *testing.T) {

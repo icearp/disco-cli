@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	bac "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
+	"github.com/icearp/disco-cli/store"
 )
 
 // AgentCore payments scanners. List ops return summaries only — secret-bearing

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	cleanroomstypes "github.com/aws/aws-sdk-go-v2/service/cleanrooms/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveCleanRoomsMembershipCollaboration(t *testing.T) {

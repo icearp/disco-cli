@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/docdb"
 	docdbtypes "github.com/aws/aws-sdk-go-v2/service/docdb/types"
 	"github.com/aws/aws-sdk-go-v2/service/neptune"
 	neptunetypes "github.com/aws/aws-sdk-go-v2/service/neptune/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // The DocDB and Neptune control-plane endpoints share the RDS ARN namespace, so

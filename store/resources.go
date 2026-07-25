@@ -44,7 +44,7 @@ type Resource struct {
 	DiscoveredBy      string  `db:"discovered_by"       json:"discoveredBy"`
 	ManagedByProvider bool    `db:"managed_by_provider" json:"managedByProvider"`
 	ReferenceOnly     bool    `db:"reference_only"      json:"referenceOnly"` // true when the row is a reference-only placeholder (a trust/graph-edge endpoint), not a scanner-enumerated resource
-	WorkspaceID       *string `db:"workspace_id"        json:"-"` // per-workspace RLS discriminator; nil when the disco-saas app.workspace_id GUC was unset
+	WorkspaceID       *string `db:"workspace_id"        json:"-"`             // per-workspace RLS discriminator; nil when the disco-saas app.workspace_id GUC was unset
 
 	// Verification + version-chain metadata live on ResourceVersion
 	// (resources_versioning.go), not here. Resource is the base type — any

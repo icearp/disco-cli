@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/datazone"
 	dztypes "github.com/aws/aws-sdk-go-v2/service/datazone/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // DataZone group/user profiles are the SSO/IAM principals in a domain. They

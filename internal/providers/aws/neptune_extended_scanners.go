@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/neptune"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanNeptuneExtended discovers additional Neptune resource types: DB cluster

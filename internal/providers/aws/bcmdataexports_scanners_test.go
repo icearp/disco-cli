@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/bcmdataexports"
 	bcmtypes "github.com/aws/aws-sdk-go-v2/service/bcmdataexports/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 type stubBCM struct {

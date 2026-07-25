@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	aftypes "github.com/aws/aws-sdk-go-v2/service/appfabric/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveAppFabricChildToBundle(t *testing.T) {

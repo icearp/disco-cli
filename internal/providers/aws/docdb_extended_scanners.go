@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/docdb"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanDocDBExtended discovers additional DocumentDB resource types: DB cluster

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
+	"github.com/icearp/disco-cli/store"
 )
 
 // isGuardDutyMemberRestricted matches the BadRequestException a member

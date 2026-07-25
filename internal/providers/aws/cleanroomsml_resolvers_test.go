@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	crmltypes "github.com/aws/aws-sdk-go-v2/service/cleanroomsml/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func crmlAttrs(t *testing.T, v any) string {

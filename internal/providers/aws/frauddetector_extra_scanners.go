@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/frauddetector"
+	"github.com/icearp/disco-cli/store"
 )
 
 // fdSoftError tolerates the closed-to-new-customers + AccessDenied shapes the

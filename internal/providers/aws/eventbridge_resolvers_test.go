@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	eventstypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 func TestResolveEventBridgeRelationships(t *testing.T) {

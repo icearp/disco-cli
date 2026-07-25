@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/appflow"
 	appflowtypes "github.com/aws/aws-sdk-go-v2/service/appflow/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // stubAppFlow is a deterministic in-memory replacement for appflowAPI used

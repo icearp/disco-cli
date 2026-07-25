@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/icearp/disco-cli/store"
 )
 
 // scanLambdaPermissions emits one row per function with a non-empty

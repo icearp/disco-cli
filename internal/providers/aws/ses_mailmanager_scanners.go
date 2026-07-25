@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/icearp/disco-cli/store"
 	"github.com/aws/aws-sdk-go-v2/service/mailmanager"
+	"github.com/icearp/disco-cli/store"
 )
 
 // mailManagerAPI — narrow set of MailManager ops. MailManager is a

@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icearp/disco-cli/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	smithymw "github.com/aws/smithy-go/middleware"
+	"github.com/icearp/disco-cli/store"
 )
 
 func newSQSClientWithStub(stub func(*smithymw.Stack) error, region string) *sqs.Client {
