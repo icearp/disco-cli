@@ -206,7 +206,32 @@ func pruneDanglingEdges(edges []GraphEdge, admitted map[string]int) []GraphEdge 
 
 // collectFrontierEdges walks each frontier node in the requested direction(s)
 // and returns the candidate edges plus the set of unvisited endpoint IDs.
+//
+// The whole frontier is read in one query per relIDBatchSize ids per
+// direction rather than two queries per node, so a depth level costs
+// 2*ceil(N/relIDBatchSize) round trips instead of 2N. The results are then
+// bucketed by endpoint and replayed in the original per-node order, because
+// the candidate order decides which edges survive GraphWalk's MaxEdges cap —
+// batching is a round-trip change only, not a change to what a truncated walk
+// returns. That equivalence rests on both the singular and batched readers
+// ordering totally; see [Store.RelationshipsFrom].
 func (s *Store) collectFrontierEdges(frontier []string, dir string, kinds []string, visited map[string]int) ([]GraphEdge, map[string]struct{}, error) {
+	var outByFrom, inByTo map[string][]Relationship
+	if dir == DirOut || dir == DirBoth {
+		rels, err := s.RelationshipsFromMany(frontier, kinds...)
+		if err != nil {
+			return nil, nil, err
+		}
+		outByFrom = groupRelationships(rels, func(r Relationship) string { return r.FromID })
+	}
+	if dir == DirIn || dir == DirBoth {
+		rels, err := s.RelationshipsToMany(frontier, kinds...)
+		if err != nil {
+			return nil, nil, err
+		}
+		inByTo = groupRelationships(rels, func(r Relationship) string { return r.ToID })
+	}
+
 	var candidates []GraphEdge
 	next := map[string]struct{}{}
 	addRels := func(rels []Relationship, endpointKey func(Relationship) string) {
@@ -220,20 +245,8 @@ func (s *Store) collectFrontierEdges(frontier []string, dir string, kinds []stri
 		}
 	}
 	for _, id := range frontier {
-		if dir == DirOut || dir == DirBoth {
-			rels, err := s.RelationshipsFrom(id, kinds...)
-			if err != nil {
-				return nil, nil, err
-			}
-			addRels(rels, func(r Relationship) string { return r.ToID })
-		}
-		if dir == DirIn || dir == DirBoth {
-			rels, err := s.RelationshipsTo(id, kinds...)
-			if err != nil {
-				return nil, nil, err
-			}
-			addRels(rels, func(r Relationship) string { return r.FromID })
-		}
+		addRels(outByFrom[id], func(r Relationship) string { return r.ToID })
+		addRels(inByTo[id], func(r Relationship) string { return r.FromID })
 	}
 	return candidates, next, nil
 }
@@ -326,10 +339,8 @@ func (s *Store) GraphPath(fromID, toID string, opts GraphPathOpts) (*GraphResult
 // layer's expandable ids.
 func graphPathExpandStep(s *Store, fromID, toID string, frontier []string, parent map[string]bfsEdge, dir string, opts GraphPathOpts, fromRes Resource) ([]string, *GraphResult, error) {
 	next := map[string]struct{}{}
-	for _, id := range frontier {
-		if err := graphPathRecordNeighbors(s, id, dir, opts.Kinds, parent, next); err != nil {
-			return nil, nil, err
-		}
+	if err := graphPathRecordFrontier(s, frontier, dir, opts.Kinds, parent, next); err != nil {
+		return nil, nil, err
 	}
 	if len(next) == 0 {
 		return nil, nil, nil
@@ -373,35 +384,47 @@ func graphPathExpandStep(s *Store, fromID, toID string, frontier []string, paren
 	return nextIDs, nil, nil
 }
 
-// graphPathRecordNeighbors fans `id` out in the requested direction and
-// records each previously-unseen neighbor's parent-pointer into `parent`
-// + adds it to `next` for the upcoming layer.
-func graphPathRecordNeighbors(s *Store, id, dir string, kinds []string, parent map[string]bfsEdge, next map[string]struct{}) error {
+// graphPathRecordFrontier fans the whole frontier out in the requested
+// direction and records each previously-unseen neighbor's parent-pointer into
+// `parent` + adds it to `next` for the upcoming layer.
+//
+// Batched and replayed per node for the same reason as
+// [Store.collectFrontierEdges], and the stakes are higher here: `parent` is
+// first-wins, so the visit order chooses which predecessor a node keeps and
+// therefore which route GraphPath reconstructs when several shortest paths
+// exist. GraphPath is also the looser walk of the two — maxDepth defaults to
+// 64 and there is no node cap — so the per-node reads it replaces were the
+// larger N+1.
+func graphPathRecordFrontier(s *Store, frontier []string, dir string, kinds []string, parent map[string]bfsEdge, next map[string]struct{}) error {
+	var outByFrom, inByTo map[string][]Relationship
 	if dir == DirOut || dir == DirBoth {
-		rels, err := s.RelationshipsFrom(id, kinds...)
+		rels, err := s.RelationshipsFromMany(frontier, kinds...)
 		if err != nil {
 			return err
 		}
-		for _, r := range rels {
-			if _, ok := parent[r.ToID]; ok {
-				continue
-			}
-			parent[r.ToID] = bfsEdge{parent: id, kind: r.Kind, eFrom: r.FromID, eTo: r.ToID}
-			next[r.ToID] = struct{}{}
-		}
+		outByFrom = groupRelationships(rels, func(r Relationship) string { return r.FromID })
 	}
 	if dir == DirIn || dir == DirBoth {
-		rels, err := s.RelationshipsTo(id, kinds...)
+		rels, err := s.RelationshipsToMany(frontier, kinds...)
 		if err != nil {
 			return err
 		}
+		inByTo = groupRelationships(rels, func(r Relationship) string { return r.ToID })
+	}
+
+	record := func(id string, rels []Relationship, endpoint func(Relationship) string) {
 		for _, r := range rels {
-			if _, ok := parent[r.FromID]; ok {
+			nb := endpoint(r)
+			if _, ok := parent[nb]; ok {
 				continue
 			}
-			parent[r.FromID] = bfsEdge{parent: id, kind: r.Kind, eFrom: r.FromID, eTo: r.ToID}
-			next[r.FromID] = struct{}{}
+			parent[nb] = bfsEdge{parent: id, kind: r.Kind, eFrom: r.FromID, eTo: r.ToID}
+			next[nb] = struct{}{}
 		}
+	}
+	for _, id := range frontier {
+		record(id, outByFrom[id], func(r Relationship) string { return r.ToID })
+		record(id, inByTo[id], func(r Relationship) string { return r.FromID })
 	}
 	return nil
 }

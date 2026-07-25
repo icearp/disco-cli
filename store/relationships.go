@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -192,15 +193,22 @@ func (s *Store) ListRelationships() ([]Relationship, error) {
 	return rs, nil
 }
 
-// RelationshipsFrom returns all edges originating from a resource.
+// RelationshipsFrom returns all edges originating from a resource, ordered by
+// kind then to_id. The to_id tiebreaker is load-bearing: without it, two edges
+// sharing a from_id and a kind are tied, and SQL leaves tied rows in whatever
+// order the plan happens to produce — which differs between SQLite and
+// Postgres, and between this query and the batched
+// [Store.RelationshipsFromMany]. GraphWalk truncates its candidate list
+// positionally against MaxEdges, so an unspecified order there decides which
+// edges a capped walk drops.
 func (s *Store) RelationshipsFrom(fromID string, kinds ...string) ([]Relationship, error) {
 	if len(kinds) == 0 {
 		var rels []Relationship
 		return rels, s.selectAll(&rels,
-			"SELECT "+relationshipColumns+" FROM relationships WHERE from_id = ? ORDER BY kind", fromID)
+			"SELECT "+relationshipColumns+" FROM relationships WHERE from_id = ? ORDER BY kind, to_id", fromID)
 	}
 	query, args, err := s.sqlxIn(
-		"SELECT "+relationshipColumns+" FROM relationships WHERE from_id = ? AND kind IN (?) ORDER BY kind",
+		"SELECT "+relationshipColumns+" FROM relationships WHERE from_id = ? AND kind IN (?) ORDER BY kind, to_id",
 		fromID, kinds,
 	)
 	if err != nil {
@@ -210,15 +218,16 @@ func (s *Store) RelationshipsFrom(fromID string, kinds ...string) ([]Relationshi
 	return rels, s.selectAll(&rels, query, args...)
 }
 
-// RelationshipsTo returns all edges pointing to a resource.
+// RelationshipsTo returns all edges pointing to a resource, ordered by kind
+// then from_id. See [Store.RelationshipsFrom] for why the tiebreaker matters.
 func (s *Store) RelationshipsTo(toID string, kinds ...string) ([]Relationship, error) {
 	if len(kinds) == 0 {
 		var rels []Relationship
 		return rels, s.selectAll(&rels,
-			"SELECT "+relationshipColumns+" FROM relationships WHERE to_id = ? ORDER BY kind", toID)
+			"SELECT "+relationshipColumns+" FROM relationships WHERE to_id = ? ORDER BY kind, from_id", toID)
 	}
 	query, args, err := s.sqlxIn(
-		"SELECT "+relationshipColumns+" FROM relationships WHERE to_id = ? AND kind IN (?) ORDER BY kind",
+		"SELECT "+relationshipColumns+" FROM relationships WHERE to_id = ? AND kind IN (?) ORDER BY kind, from_id",
 		toID, kinds,
 	)
 	if err != nil {
@@ -226,6 +235,79 @@ func (s *Store) RelationshipsTo(toID string, kinds ...string) ([]Relationship, e
 	}
 	var rels []Relationship
 	return rels, s.selectAll(&rels, query, args...)
+}
+
+// relIDBatchSize bounds how many endpoint ids one batched relationship query
+// binds, so a wide frontier is split across several queries instead of one
+// oversized statement. The real ceiling is per-driver and counts EVERY bound
+// value, ids plus kinds together: modernc.org/sqlite rejects a statement past
+// 32766 parameters, Postgres past 65535. 500 sits far enough under both that
+// no plausible kinds list can breach either.
+const relIDBatchSize = 500
+
+// RelationshipsFromMany returns all edges originating from any of fromIDs. It
+// is the batched form of [Store.RelationshipsFrom]: a graph walk that would
+// otherwise issue one query per frontier node issues one per [relIDBatchSize]
+// ids instead. Duplicate ids yield no duplicate rows.
+//
+// Rows are ordered by from_id, then kind, then to_id — the same key
+// [Store.RelationshipsFrom] uses within one id, so bucketing this result by
+// from_id reproduces that reader's output exactly. Both orderings are total,
+// which is what makes that equivalence a contract rather than a plan artifact.
+//
+// Returns no rows when fromIDs is empty, without querying.
+func (s *Store) RelationshipsFromMany(fromIDs []string, kinds ...string) ([]Relationship, error) {
+	return s.relationshipsByEndpoint("from_id", "to_id", fromIDs, kinds)
+}
+
+// RelationshipsToMany returns all edges pointing to any of toIDs. It is the
+// batched form of [Store.RelationshipsTo]; see [Store.RelationshipsFromMany]
+// for the batching, ordering, and empty-input contract.
+func (s *Store) RelationshipsToMany(toIDs []string, kinds ...string) ([]Relationship, error) {
+	return s.relationshipsByEndpoint("to_id", "from_id", toIDs, kinds)
+}
+
+// relationshipsByEndpoint backs the two batched readers. col is the endpoint
+// column to match on and other is the opposite endpoint, used as the ordering
+// tiebreaker; both are internal constants, never caller input, so interpolating
+// them is safe. Every value is bound.
+func (s *Store) relationshipsByEndpoint(col, other string, ids []string, kinds []string) ([]Relationship, error) {
+	// Sorted+compacted rather than sorted in place: GraphWalk replays its
+	// frontier in the caller's order, so mutating ids here would reorder the
+	// walk this batching exists to leave untouched.
+	unique := slices.Compact(slices.Sorted(slices.Values(ids)))
+	var out []Relationship
+	for batch := range slices.Chunk(unique, relIDBatchSize) {
+		q := "SELECT " + relationshipColumns + " FROM relationships WHERE " + col + " IN (?)"
+		args := []any{batch}
+		if len(kinds) > 0 {
+			q += " AND kind IN (?)"
+			args = append(args, kinds)
+		}
+		q += " ORDER BY " + col + ", kind, " + other
+		query, a, err := s.sqlxIn(q, args...)
+		if err != nil {
+			return nil, err
+		}
+		var rels []Relationship
+		if err := s.selectAll(&rels, query, a...); err != nil {
+			return nil, err
+		}
+		out = append(out, rels...)
+	}
+	return out, nil
+}
+
+// groupRelationships buckets rels by the endpoint key each caller walks on, so
+// a batched read can be replayed in per-id order. Preserves the relative order
+// of rows within a bucket.
+func groupRelationships(rels []Relationship, key func(Relationship) string) map[string][]Relationship {
+	out := make(map[string][]Relationship)
+	for _, r := range rels {
+		k := key(r)
+		out[k] = append(out[k], r)
+	}
+	return out
 }
 
 // RecordHierarchy writes both halves of a parent/child relationship in one
