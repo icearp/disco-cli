@@ -93,6 +93,12 @@ func scanDAXParameterGroups(ctx context.Context, client daxAPI, acct *account, r
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "dax:DescribeParameterGroups", acct.ID, region, err)
 			}
+			// Same DAX V3 control-plane gap DescribeClusters guards above — the
+			// region rejects the call with InvalidParameterValueException rather
+			// than an access-denied code. Silent-skip, don't fail the scan.
+			if isAPIErrorWithMessage(err, "InvalidParameterValueException", "Access Denied to API Version") {
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("dax:DescribeParameterGroups: %w", err)
 		}
 		for _, p := range out.ParameterGroups {
@@ -127,6 +133,10 @@ func scanDAXSubnetGroups(ctx context.Context, client daxAPI, acct *account, regi
 		if err != nil {
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "dax:DescribeSubnetGroups", acct.ID, region, err)
+			}
+			// Same DAX V3 control-plane gap DescribeClusters guards above.
+			if isAPIErrorWithMessage(err, "InvalidParameterValueException", "Access Denied to API Version") {
+				return 0, 0, nil
 			}
 			return 0, 0, fmt.Errorf("dax:DescribeSubnetGroups: %w", err)
 		}

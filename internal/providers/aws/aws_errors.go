@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"slices"
 	"strings"
@@ -295,6 +296,19 @@ func isTransientNetworkError(err error) bool {
 	}
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	// Transport-level send failure: the connection dropped mid-request rather
+	// than the server answering. Smithy surfaces it as *RequestSendError wrapping
+	// a bare io.EOF ("request send failed, Post ...: EOF") — neither a net.* type
+	// nor an APIError, so none of the checks above or below match it. Observed
+	// post-retry on transcribe:ListCallAnalyticsCategories; a dropped connection
+	// is a momentary glitch, so warn-skip like any other transient.
+	var sendErr *smithyhttp.RequestSendError
+	if errors.As(err, &sendErr) {
+		return true
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 		return true
 	}
 	return isAPIErrorCode(err,

@@ -119,6 +119,8 @@ Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanne
 
 `aws.go` `scanRegion` + phase-1a wrap each `svc.fn` return with `isTransientNetworkError` → `skipIfTransient` (warn + nil). Scanners do NOT need inline handling for DNS (`net.DNSError`), dial/read/write (`net.OpError`), `net.Error` timeouts, or Smithy `RequestTimeout`/`ServiceUnavailable`/`InternalFailure` variants — those warn-skip automatically. Only `AccessDenied` still needs per-scanner `return 0, 0, skipIfAccessDenied(...)` (not wrapped at dispatch because SDK surfaces it mid-paginator, not as top-level svc.fn error).
 
+`isTransientNetworkError` also matches transport send failures — `*smithyhttp.RequestSendError` and bare `io.EOF` / `io.ErrUnexpectedEOF` (observed post-retry on `transcribe:ListCallAnalyticsCategories`: "request send failed, Post ...: EOF"). **Consequence for store-write errors:** pgconn reports a dropped Postgres connection as `unexpected EOF`, so any wrapper around a store-write failure MUST break the `errors.Is` chain (format the cause with `%s`, not `%w`). Otherwise a dead DB is reclassified as a transient AWS warning and the scan reports success while silently dropping rows.
+
 ## ROADMAP vs source drift
 
 Before implementing `ROADMAP.md` NOW item, grep for target `Type*` constants + resolver fn names — items get implemented without roadmap sweep (R1.3 Lambda layers + R1.4 SQS KMS both listed TODO while already shipped). Audit first; move DONE items into COMPLETED section same pass.
@@ -527,6 +529,9 @@ AWS surfaces "this sub-feature is not deployed in this region" under different c
 - `ValidationException` + "Member must satisfy enum value set" (App Auto Scaling per-region namespace enum)
 - `AccessDeniedException` + canned message linking docs URL (workspaces:DescribeWorkspacesPools)
 - `InternalFailure` 500 post-retry (quicksight ListActionConnectors)
+- `InvalidParameterValueException` + "Access Denied to API Version" (DAX V3 control plane)
+
+Guard **every phase** of a multi-phase scanner, not just the first. The DAX V3 gap rejects `DescribeClusters` / `DescribeParameterGroups` / `DescribeSubnetGroups` alike, but only the clusters phase carried the guard — the other two surfaced as hard scan errors in every non-V3 region.
 
 Empty-message `AccessDeniedException` is a separate signal (closed-to-new-customers — see iotfleetwise / interconnect precedents).
 

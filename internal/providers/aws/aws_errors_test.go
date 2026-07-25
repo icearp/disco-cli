@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -391,6 +392,13 @@ func TestIsTransientNetworkError(t *testing.T) {
 	accessDenied := &smithy.GenericAPIError{Code: "AccessDenied", Message: "denied"}
 	validation := &smithy.GenericAPIError{Code: "ValidationException", Message: "bad input"}
 
+	// Transport send failure: connection dropped mid-request. Smithy wraps a bare
+	// io.EOF, which is neither a net.* type nor an APIError. Observed post-retry on
+	// transcribe:ListCallAnalyticsCategories.
+	sendEOF := &smithyhttp.RequestSendError{Err: io.EOF}
+	wrappedSendEOF := fmt.Errorf(
+		"operation error Transcribe: ListCallAnalyticsCategories, exceeded maximum number of attempts, 10, %w", sendEOF)
+
 	cases := []struct {
 		name string
 		err  error
@@ -412,6 +420,10 @@ func TestIsTransientNetworkError(t *testing.T) {
 		{"smithy ValidationException not transient", validation, false},
 		{"context canceled not transient", context.Canceled, false},
 		{"plain errors.New not transient", errors.New("some unrelated failure"), false},
+		{"request send error direct", sendEOF, true},
+		{"request send error wrapped (transcribe shape)", wrappedSendEOF, true},
+		{"bare io.EOF", io.EOF, true},
+		{"io.ErrUnexpectedEOF", io.ErrUnexpectedEOF, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
