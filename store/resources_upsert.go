@@ -88,9 +88,40 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		s.noteNativeIDType(r)
 	}
 
-	tx, err := s.db.Beginx()
+	// Only the transaction retries. The preprocessing above must not: it is
+	// idempotent except for noteNativeIDType, which reports a ScanWarning on a
+	// native_id collision and would repeat that warning once per attempt.
+	//
+	// newC/changedC accumulate per attempt and are published to the shared
+	// counters only after a commit succeeds — an attempt that fails midway
+	// through the row loop has already counted some rows, so publishing as we
+	// go would inflate the scan's "new"/"changed" columns on every retry.
+	var newC, changedC int
+	err = s.withWriteRetry("upsert resources", func() error {
+		var txErr error
+		inserted, newC, changedC, txErr = s.upsertResourcesTx(resources, now)
+		return txErr
+	})
 	if err != nil {
 		return 0, err
+	}
+	if s.upsertNew != nil {
+		s.upsertNew.Add(int64(newC))
+	}
+	if s.upsertChanged != nil {
+		s.upsertChanged.Add(int64(changedC))
+	}
+	return inserted, nil
+}
+
+// upsertResourcesTx is one transactional attempt of UpsertResources. It counts
+// first-discoveries into newC and version splits into changedC rather than
+// touching the Store's shared atomics, so a retried attempt starts from zero
+// instead of compounding the previous one's partial work.
+func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, newC, changedC int, err error) {
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return 0, 0, 0, err
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -149,17 +180,15 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 				now, r.DiscoveredBy, r.ManagedByProvider,
 			)
 			if err != nil {
-				return 0, fmt.Errorf("insert resource %s: %w", r.ID, err)
+				return 0, 0, 0, fmt.Errorf("insert resource %s: %w", r.ID, err)
 			}
 			if n, _ := res.RowsAffected(); n > 0 {
 				inserted++
-				if s.upsertNew != nil {
-					s.upsertNew.Add(1)
-				}
+				newC++
 			}
 
 		case lookupErr != nil:
-			return 0, fmt.Errorf("lookup current version for %s: %w", r.ID, lookupErr)
+			return 0, 0, 0, fmt.Errorf("lookup current version for %s: %w", r.ID, lookupErr)
 
 		case existing.Type == r.Type &&
 			jsonEqual(existing.AttributesJSON, r.AttributesJSON) &&
@@ -190,7 +219,7 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 				r.Name, r.Region, r.Zone, r.Status, r.AccountName, r.ManagedByProvider,
 				existing.VersionRowID,
 			); err != nil {
-				return 0, fmt.Errorf("verify resource %s: %w", r.ID, err)
+				return 0, 0, 0, fmt.Errorf("verify resource %s: %w", r.ID, err)
 			}
 
 		default:
@@ -209,7 +238,7 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 				`UPDATE resources SET superseded_by = $1 WHERE id = $2`),
 				newRowID, existing.VersionRowID,
 			); err != nil {
-				return 0, fmt.Errorf("mark superseded for %s: %w", r.ID, err)
+				return 0, 0, 0, fmt.Errorf("mark superseded for %s: %w", r.ID, err)
 			}
 			if _, err := tx.Exec(tx.Rebind(`
 				INSERT INTO resources
@@ -225,16 +254,14 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 				r.CreatedAt, existing.DiscoveredAt, existing.DiscoveredBy,
 				now, r.DiscoveredBy, r.ManagedByProvider,
 			); err != nil {
-				return 0, fmt.Errorf("insert new version of %s: %w", r.ID, err)
+				return 0, 0, 0, fmt.Errorf("insert new version of %s: %w", r.ID, err)
 			}
 			inserted++
-			if s.upsertChanged != nil {
-				s.upsertChanged.Add(1)
-			}
+			changedC++
 		}
 	}
 
-	return inserted, tx.Commit()
+	return inserted, newC, changedC, tx.Commit()
 }
 
 // InsertResourcesIfAbsent inserts each resource only when no current-version
@@ -269,6 +296,26 @@ func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, er
 		}
 	}
 
+	err = s.withWriteRetry("insert resources if absent", func() error {
+		var txErr error
+		inserted, txErr = s.insertResourcesIfAbsentTx(resources, now)
+		return txErr
+	})
+	if err != nil {
+		return 0, err
+	}
+	// Publish after the commit, not inside the tx: a rolled-back attempt would
+	// otherwise leave its rows counted and the retry would count them again.
+	if s.upsertNew != nil {
+		s.upsertNew.Add(int64(inserted))
+	}
+	return inserted, nil
+}
+
+// insertResourcesIfAbsentTx is one transactional attempt of
+// InsertResourcesIfAbsent. Returns its own count so a retried attempt restarts
+// from zero rather than compounding the previous attempt's partial work.
+func (s *Store) insertResourcesIfAbsentTx(resources []*Resource, now string) (inserted int, err error) {
 	tx, err := s.db.Beginx()
 	if err != nil {
 		return 0, err
@@ -305,9 +352,6 @@ func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, er
 		}
 		if n, _ := res.RowsAffected(); n > 0 {
 			inserted++
-			if s.upsertNew != nil {
-				s.upsertNew.Add(1)
-			}
 		}
 	}
 

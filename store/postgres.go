@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -88,7 +89,7 @@ func OpenPostgres(ctx context.Context, dsn string, opts ...PGOption) (*Store, er
 		return nil, fmt.Errorf("ping pg: %w", err)
 	}
 
-	s := &Store{db: db, driver: driverPostgres, nativeIDSeen: &sync.Map{}}
+	s := &Store{db: db, driver: driverPostgres, nativeIDSeen: &sync.Map{}, writeFailStreak: &atomic.Int64{}}
 	if err := s.migratePG(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("pg migrate: %w", err)

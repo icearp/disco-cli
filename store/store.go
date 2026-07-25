@@ -101,6 +101,7 @@ type Store struct {
 	upsertChanged     *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithUpsertCounters; bumped on version split
 	relBuf            *relBuffer                                                                                // non-nil only in scoped copies returned by BeginRelBuffer
 	nativeIDSeen      *sync.Map                                                                                 // key r.ID → nativeIDSighting; per-writable-pool collision detector (see noteNativeIDType). Shared across scoped copies.
+	writeFailStreak   *atomic.Int64                                                                             // consecutive connection-level write failures; opens the withWriteRetry circuit at writeCircuitTrip. Pointer so scoped copies share one breaker.
 }
 
 // ReportService invokes OnServiceComplete if set, called after each service
@@ -242,7 +243,7 @@ func Open(path string) (*Store, error) {
 	// clean-exit Close path (checkpoint + journal_mode=DELETE) removes them.
 	_, _ = db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 
-	s := &Store{db: db, driver: driverSQLite, path: path, nativeIDSeen: &sync.Map{}}
+	s := &Store{db: db, driver: driverSQLite, path: path, nativeIDSeen: &sync.Map{}, writeFailStreak: &atomic.Int64{}}
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)

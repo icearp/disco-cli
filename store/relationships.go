@@ -104,9 +104,14 @@ func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *
 		return nil
 	}
 	discoveredAt := time.Now().UTC().Format(time.RFC3339)
-	_, err := s.exec(upsertRelationshipSQL, fromID, toID, kind, direction, attrs, discoveredAt)
-	if err != nil {
-		return fmt.Errorf("upsert relationship %s -[%s]-> %s: %w", fromID, kind, toID, err)
+	if err := s.withWriteRetry("upsert relationship", func() error {
+		_, err := s.exec(upsertRelationshipSQL, fromID, toID, kind, direction, attrs, discoveredAt)
+		if err != nil {
+			return fmt.Errorf("%s -[%s]-> %s: %w", fromID, kind, toID, err)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	if s.activeCounter != nil {
 		s.activeCounter.Add(1)
@@ -122,6 +127,13 @@ func (s *Store) UpsertRelationships(edges []RelEdge) error {
 	if len(edges) == 0 {
 		return nil
 	}
+	return s.withWriteRetry("upsert relationships", func() error {
+		return s.upsertRelationshipsTx(edges)
+	})
+}
+
+// upsertRelationshipsTx is one transactional attempt of UpsertRelationships.
+func (s *Store) upsertRelationshipsTx(edges []RelEdge) error {
 	tx, err := s.db.Beginx()
 	if err != nil {
 		return err
@@ -234,6 +246,13 @@ func (s *Store) RelationshipsTo(toID string, kinds ...string) ([]Relationship, e
 // ReportWarning — operators see the drift, callers stay simple. Closure rows
 // always go down regardless.
 func (s *Store) RecordHierarchy(childID, parentID string) error {
+	return s.withWriteRetry("record hierarchy", func() error {
+		return s.recordHierarchyOnce(childID, parentID)
+	})
+}
+
+// recordHierarchyOnce is one transactional attempt of RecordHierarchy.
+func (s *Store) recordHierarchyOnce(childID, parentID string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -323,6 +342,13 @@ func (s *Store) RecordHierarchyBatch(pairs [][2]string) error {
 	if len(pairs) == 0 {
 		return nil
 	}
+	return s.withWriteRetry("record hierarchy batch", func() error {
+		return s.recordHierarchyBatchOnce(pairs)
+	})
+}
+
+// recordHierarchyBatchOnce is one transactional attempt of RecordHierarchyBatch.
+func (s *Store) recordHierarchyBatchOnce(pairs [][2]string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err

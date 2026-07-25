@@ -272,6 +272,46 @@ A `WithAfterConnect` hook that issues session-scoped `SET`/`set_config` (`is_loc
 
 PG migration runner is hand-rolled in `migrate_pg.go`, mirroring `migrate.go:14–111` shape: same `schema_migrations` bookkeeping, same `splitStatements` semicolon split, same NNN_name.sql convention. Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state.
 
+## Scan-path writes: `withWriteRetry` + the `ErrStoreWrite` sentinel
+
+Every scan-path writer runs its transaction inside `s.withWriteRetry(op, fn)` (`retry.go`):
+`UpsertResources`, `InsertResourcesIfAbsent`, `UpsertRelationship`, `UpsertRelationships`,
+`RecordHierarchy`, `RecordHierarchyBatch`. Outcomes — first try OK: silent. Recovered after a
+retry: nil error plus a `ScanWarning{Provider:"store", Service:"write", Scope:op}` (the data
+IS persisted). Exhausted or non-retryable: an error satisfying `errors.Is(err, ErrStoreWrite)`,
+which provider dispatchers report as a hard scan error. A new scan-path writer must be wrapped
+too — an unwrapped one leaks a bare DB error and gets masked (see next paragraph).
+
+**`storeWriteError` formats the cause with `%s`, never `%w` — this is load-bearing.** The AWS
+dispatcher's `isTransientNetworkError` matches `net.Error` timeouts, `io.EOF` and
+`io.ErrUnexpectedEOF`, and pgconn reports a dead Postgres connection as exactly those. If the
+cause stayed in the `errors.Is`/`errors.As` chain, a DB outage would be reclassified as a benign
+transient cloud warning while every row silently vanished. Don't "tidy" it to `%w`.
+(Mirrored in `internal/providers/aws/CLAUDE.md`.)
+
+**The retried unit must publish no shared state.** An atomic bumped inside a transaction cannot
+be un-bumped by the rollback, so a retry double-counts. `upsertResourcesTx` /
+`insertResourcesIfAbsentTx` therefore *return* their new/changed counts and the exported wrapper
+publishes to `s.upsertNew` / `s.upsertChanged` only after the commit; `activeCounter` is likewise
+bumped outside the retry. Same rule for warnings: `UpsertResources`' preprocessing loop
+(`redact.Apply` / `volatile.Apply` / `managed.Is` / `noteNativeIDType`) stays *outside*
+`withWriteRetry` because `noteNativeIDType` emits the duplicate-native_id `ScanWarning`.
+Guarded by `TestResourceWriteTxHelpersPublishNoSharedCounters`.
+
+**`WrapTx` stores get exactly one attempt.** The transaction belongs to the caller; on Postgres
+the first failed statement aborts it and every later command returns 25P02, so a retry could only
+bury the real cause. Retry is a pool-backed-store behavior.
+
+`isRetryableDBError` classifies **connection** failures only — PG SQLSTATE `08*`/`57P01-03`/`53300`,
+SQLite `SQLITE_BUSY`/`SQLITE_LOCKED` (compare `Code() & 0xff`; extended codes carry detail in the
+high bits), `driver.ErrBadConn`, EOFs, `net.Error` timeouts. Constraint/syntax errors and
+`context.Canceled` are **not** retryable: they can never succeed, and burning the budget just
+delays the report. A circuit breaker (`writeFailStreak`, 5 consecutive connection failures) drops
+to single-attempt so a genuinely dead DB fails fast instead of paying backoff on every one of a
+scan's thousands of writes; any success closes it. The field is a `*atomic.Int64` so
+`WithUpsertCounters`-style shallow copies share one breaker — and it is nil-guarded, because
+`OpenReadOnly` and `WrapTx` don't set it.
+
 ## Denylist filters via `sq.NotEq`
 
 `squirrel.NotEq{"col": []string{...}}` emits `col NOT IN (?, ?, ...)`. Mirror of `sq.Eq` allowlist; use for any new exclude-X filter on `ResourceFilter` rather than hand-rolled OR-NOT chains. Precedent: `ExcludeTypes` (resources.go).
