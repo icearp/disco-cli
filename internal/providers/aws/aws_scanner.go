@@ -5,7 +5,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -213,30 +212,22 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 			var newC, changedC atomic.Int64
 			total, _, err := svc.fn(svcCtx, acct, "", st.WithUpsertCounters(&newC, &changedC), scanID)
 			if err != nil {
-				if errors.Is(err, errServiceDisabled) {
+				switch classifyServiceError(err) {
+				case outcomeDisabled:
 					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceDisabled)
-					return
-				}
-				if errors.Is(err, errServiceNotEntitled) {
+				case outcomeNotEntitled:
 					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceNotEntitled)
-					return
-				}
-				// NXDOMAIN or a scanner-returned unavailable sentinel = service
-				// not deployed in this scope. Silent-skip (no warning) —
-				// distinct from a transient DNS outage.
-				if isDNSNotFound(err) || errors.Is(err, errServiceUnavailable) {
+				case outcomeUnavailable:
 					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceUnavailable)
-					return
-				}
-				if isTransientNetworkError(err) {
+				case outcomeTransient:
 					_ = skipIfTransient(st, svc.name, acct.ID, "", err)
 					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceOK)
-					return
+				case outcomeStoreWrite, outcomeError:
+					st.ReportError(store.ScanError{
+						Provider: "aws", Service: svc.name, Scope: acct.ID, Message: err.Error(),
+					})
+					st.ReportService(svc.name, "global", total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 				}
-				st.ReportError(store.ScanError{
-					Provider: "aws", Service: svc.name, Scope: acct.ID, Message: err.Error(),
-				})
-				st.ReportService(svc.name, "global", total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 				return
 			}
 			st.ReportService(svc.name, "global", total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
@@ -368,30 +359,22 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			var newC, changedC atomic.Int64
 			total, _, err := svc.fn(svcCtx, acct, region, st.WithUpsertCounters(&newC, &changedC), scanID)
 			if err != nil {
-				if errors.Is(err, errServiceDisabled) {
+				switch classifyServiceError(err) {
+				case outcomeDisabled:
 					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceDisabled)
-					return
-				}
-				if errors.Is(err, errServiceNotEntitled) {
+				case outcomeNotEntitled:
 					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceNotEntitled)
-					return
-				}
-				// NXDOMAIN or a scanner-returned unavailable sentinel = service
-				// not deployed in this region. Silent-skip (no warning) —
-				// distinct from a transient DNS outage.
-				if isDNSNotFound(err) || errors.Is(err, errServiceUnavailable) {
+				case outcomeUnavailable:
 					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceUnavailable)
-					return
-				}
-				if isTransientNetworkError(err) {
+				case outcomeTransient:
 					_ = skipIfTransient(st, svc.name, acct.ID, region, err)
 					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceOK)
-					return
+				case outcomeStoreWrite, outcomeError:
+					st.ReportError(store.ScanError{
+						Provider: "aws", Service: svc.name, Scope: acct.ID + "/" + region, Message: err.Error(),
+					})
+					st.ReportService(svc.name, region, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 				}
-				st.ReportError(store.ScanError{
-					Provider: "aws", Service: svc.name, Scope: acct.ID + "/" + region, Message: err.Error(),
-				})
-				st.ReportService(svc.name, region, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 				return
 			}
 			st.ReportService(svc.name, region, total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)

@@ -302,6 +302,14 @@ Guarded by `TestResourceWriteTxHelpersPublishNoSharedCounters`.
 the first failed statement aborts it and every later command returns 25P02, so a retry could only
 bury the real cause. Retry is a pool-backed-store behavior.
 
+**Reproducing a write failure locally.** `applyPragmas` sets no `busy_timeout`, so SQLite returns
+`SQLITE_BUSY` immediately rather than waiting — hold an exclusive lock from another process
+(`sqlite3` connection, `BEGIN EXCLUSIVE`) against the scan's DB and every concurrent write fails
+at once. A lock held past the retry budget (~300ms) produces the hard-error path; a ~200ms lock
+produces `store write … recovered after 2 attempts` with the data still persisted. Start the lock
+*after* the scan begins: `CreateScan` and `PartialScan` are startup/finalize writes outside
+`withWriteRetry`, so locking first just fails the run at `create scan record`.
+
 `isRetryableDBError` classifies **connection** failures only — PG SQLSTATE `08*`/`57P01-03`/`53300`,
 SQLite `SQLITE_BUSY`/`SQLITE_LOCKED` (compare `Code() & 0xff`; extended codes carry detail in the
 high bits), `driver.ErrBadConn`, EOFs, `net.Error` timeouts. Constraint/syntax errors and

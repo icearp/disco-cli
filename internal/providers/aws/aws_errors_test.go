@@ -7,12 +7,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	smithy "github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -680,3 +682,127 @@ func TestBedrockDAListErr(t *testing.T) {
 		t.Error("unrelated error must propagate")
 	}
 }
+
+// A real store-write failure must carry store.ErrStoreWrite (so the dispatcher's
+// first rung can identify it) and must satisfy none of the ladder's skip
+// predicates below that rung — each of which would suppress or downgrade the
+// error and let the scan report success having persisted nothing.
+//
+// Goes through the real write path rather than a hand-built sentinel, so it
+// still holds if store's wrapping changes shape. It does NOT prove the
+// errors.Is chain is severed: this store's failure ("database is closed") is
+// not EOF-shaped to begin with. That property is guarded where the wrapping
+// lives, by store.TestStoreWriteError_BreaksTheCauseChain.
+func TestStoreWriteErrorMatchesNoAWSSkipPredicate(t *testing.T) {
+	// Not newTestStore: its cleanup queries the DB, which a deliberately closed
+	// store can't serve.
+	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	_, err = st.UpsertResources([]*store.Resource{{
+		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
+		NativeID: "arn:aws:s3:::b", AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}})
+	if err == nil {
+		t.Fatal("want a write error against a closed store, got nil")
+	}
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("want store.ErrStoreWrite so the dispatcher can identify it, got %v", err)
+	}
+
+	if isTransientNetworkError(err) {
+		t.Error("classified as a transient AWS network error: the dispatcher would warn-and-continue and the scan would report success having stored nothing")
+	}
+	if isDNSNotFound(err) {
+		t.Error("classified as NXDOMAIN: the dispatcher would silently mark the service region-unavailable")
+	}
+	if isAccessDenied(err) {
+		t.Error("classified as an IAM denial: the dispatcher would record a permissions warning no policy change could fix")
+	}
+	for _, s := range []struct {
+		name string
+		err  error
+	}{
+		{"errServiceDisabled", errServiceDisabled},
+		{"errServiceNotEntitled", errServiceNotEntitled},
+		{"errServiceUnavailable", errServiceUnavailable},
+	} {
+		if errors.Is(err, s.err) {
+			t.Errorf("matched %s: the dispatcher would suppress the error entirely", s.name)
+		}
+	}
+}
+
+// classifyServiceError's rung order is the whole point of the ladder, and the
+// dangerous case is an error that matches MORE than one rung: a store-write
+// failure whose cause looks transient. pgconn reports a dropped Postgres
+// connection as an EOF, so if outcomeStoreWrite were not checked first, a dead
+// database would be classified transient — warn, continue, and report success
+// having stored nothing.
+func TestClassifyServiceError_StoreWriteBeatsEveryOtherRung(t *testing.T) {
+	// Each cause independently matches a lower rung; carrying the sentinel must
+	// override all of them.
+	causes := []struct {
+		name string
+		err  error
+	}{
+		{"transient EOF", io.ErrUnexpectedEOF},
+		{"transient timeout", &net.OpError{Op: "dial", Err: errTimeout{}}},
+		{"NXDOMAIN", &net.DNSError{Err: "no such host", IsNotFound: true}},
+		{"service disabled", errServiceDisabled},
+		{"service not entitled", errServiceNotEntitled},
+		{"service unavailable", errServiceUnavailable},
+	}
+	for _, c := range causes {
+		t.Run(c.name, func(t *testing.T) {
+			// Sanity: the cause alone really does hit a non-error rung, so this
+			// test would be vacuous if it didn't.
+			if got := classifyServiceError(c.err); got == outcomeError {
+				t.Fatalf("fixture no longer matches a skip rung: classify(%v) = outcomeError", c.err)
+			}
+			wrapped := fmt.Errorf("%w: upsert resources: %w", store.ErrStoreWrite, c.err)
+			if got := classifyServiceError(wrapped); got != outcomeStoreWrite {
+				t.Errorf("classify(ErrStoreWrite over %s) = %v, want outcomeStoreWrite; "+
+					"a database outage would be reported as an AWS-side condition", c.name, got)
+			}
+		})
+	}
+}
+
+// The rungs below outcomeStoreWrite must keep working — the guard is a
+// prepended rung, not a replacement for the ladder.
+func TestClassifyServiceError_Rungs(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want serviceOutcome
+	}{
+		{"disabled", errServiceDisabled, outcomeDisabled},
+		{"not entitled", errServiceNotEntitled, outcomeNotEntitled},
+		{"unavailable sentinel", errServiceUnavailable, outcomeUnavailable},
+		{"NXDOMAIN", &net.DNSError{Err: "no such host", IsNotFound: true}, outcomeUnavailable},
+		{"transient EOF", io.ErrUnexpectedEOF, outcomeTransient},
+		{"throttling", apiErr("ThrottlingException", "slow down"), outcomeTransient},
+		{"real IAM denial", apiErr("AccessDeniedException", "is not authorized to perform: s3:ListBuckets"), outcomeError},
+		{"plain error", errors.New("boom"), outcomeError},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := classifyServiceError(c.err); got != c.want {
+				t.Errorf("classifyServiceError(%v) = %v, want %v", c.err, got, c.want)
+			}
+		})
+	}
+}
+
+// errTimeout is a net.Error reporting Timeout()==true.
+type errTimeout struct{}
+
+func (errTimeout) Error() string   { return "i/o timeout" }
+func (errTimeout) Timeout() bool   { return true }
+func (errTimeout) Temporary() bool { return true }

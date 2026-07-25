@@ -201,6 +201,16 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 			var newC, changedC atomic.Int64
 			total, _, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC), scanID)
 			if err != nil {
+				// First rung, ahead of every skip: a failed store write is not a
+				// GCP-side condition and must never be reported as one. Mirrors
+				// the AWS and Azure dispatchers.
+				if errors.Is(err, store.ErrStoreWrite) {
+					st.ReportError(store.ScanError{
+						Provider: "gcp", Service: svc.name, Scope: p.ID, Message: err.Error(),
+					})
+					st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
+					return nil
+				}
 				if errors.Is(err, errServiceDisabled) {
 					// GCP API not enabled in this project — surface as
 					// "(project: disabled)" suffix instead of a warning.

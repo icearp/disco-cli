@@ -280,6 +280,16 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 			switch {
 			case err == nil:
 				st.ReportService(svc.name, sub.scopeLabel(), total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
+			case errors.Is(err, store.ErrStoreWrite):
+				// Ahead of every skip arm: a failed store write is not an
+				// Azure-side condition. Without this, a database outage would
+				// match a skip arm below and the scan would report success
+				// having persisted nothing. Mirrors the AWS dispatcher.
+				st.ReportError(store.ScanError{
+					Provider: "azure", Service: svc.name, Scope: sub.scopeLabel(),
+					Message: formatAzureError(err),
+				})
+				st.ReportService(svc.name, sub.scopeLabel(), total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 			case errors.Is(err, errServiceNotRegistered) && total == 0:
 				// Service not available in this subscription (RP unregistered or
 				// resource type absent) and nothing was scanned — mark the

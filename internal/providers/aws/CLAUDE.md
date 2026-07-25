@@ -517,6 +517,22 @@ Capability: `providers.RegionScopeToggler`.
 
 `isDNSNotFound` (`aws.go`) matches `*net.DNSError` with `IsNotFound=true` — AWS endpoint host has no DNS record. Permanent fact about region availability, not transient outage. `scanRegion` / `scanAccount` silent-skip BEFORE `isTransientNetworkError` warn-skip; service progress line shows `(region: unavailable)`. Real DNS server problems surface as timeouts / SERVFAIL, not NXDOMAIN, and still warn. Replaces N per-region "transient: dial tcp: lookup …: no such host" warnings for services not yet deployed in scanned region.
 
+## Dispatch ladder lives in `classifyServiceError`, and its order is load-bearing
+
+`scanAccount`'s global lane and `scanRegion`'s per-region lane classify a failed `svc.fn`
+identically and differ only in the scope label they report, so the decision is one function in
+`aws_errors.go` returning a `serviceOutcome` (`outcomeStoreWrite` / `Disabled` / `NotEntitled` /
+`Unavailable` / `Transient` / `Error`); both dispatchers just `switch` on it. Add a new rung
+there, not inline in a dispatcher — and add a case to `TestClassifyServiceError_Rungs`.
+
+**`outcomeStoreWrite` is checked first, deliberately.** A store-write failure matches rungs
+below it: pgconn reports a dropped Postgres connection as an EOF and a dial timeout as a
+`net.Error`, both of which `isTransientNetworkError` treats as a momentary cloud glitch. Demote
+that rung and a database outage becomes a benign per-service warning while every row it should
+have persisted vanishes — and the scan still reports success.
+`TestClassifyServiceError_StoreWriteBeatsEveryOtherRung` pins it by wrapping the sentinel over
+each lower rung's own trigger. Azure and GCP carry the same first-rung guard.
+
 ## `(account: disabled)` vs `(account: not entitled)` vs `(region: unavailable)` — three distinct dispatch states
 
 The per-service progress suffix distinguishes account-level self-enableable from account-level not-entitled from region-not-deployed (`store.ServiceStatus`: `ServiceOK` / `ServiceDisabled` / `ServiceNotEntitled` / `ServiceUnavailable`, rendered in `cmd/scan.go::serviceStatusSuffix`):

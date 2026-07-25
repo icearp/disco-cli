@@ -28,6 +28,20 @@ Go evaluates return-list expressions left-to-right. `return total, inserted, g.W
 
 Account-level / region-level singleton config types (e.g. data-lake-settings, account-audit-configuration, encryption-configuration, replication-configuration, resolver-config) represent cloud state, not user-created resources. Set `ManagedByProvider: true` at upsert time so they hide from default `disco resources` / `disco graph`. Precedents under `internal/providers/aws/`: ECR replication-configuration, ECR registry-scanning-configuration, IoT encryption-configuration, IoT account-audit-configuration, LakeFormation data-lake-settings, Route53Resolver resolver-config.
 
+## `store.ErrStoreWrite` is the first rung of every dispatcher
+
+All three dispatchers (`aws_scanner.go` via `classifyServiceError`, `azure_scanner.go`'s switch,
+`gcp_scanner.go::scanProject`) check `errors.Is(err, store.ErrStoreWrite)` **before** any skip or
+transient rung, and route it to `ReportError`. A failed database write is not a cloud-side
+condition, and the rungs below would happily claim it — pgconn surfaces a dead Postgres
+connection as an EOF, which the transient classifier reads as a momentary glitch. The result
+would be a benign per-service warning while the scan reported success having stored nothing.
+
+Keep it a report-and-continue (`ReportError`, don't propagate): `ReportError` already drives
+`res.Partial` → `errScanPartial` under `--fail-on-error`, so the exit code is non-zero without
+aborting sibling services. GCP's default arm propagates via errgroup; the store-write arm
+deliberately does not, matching AWS/Azure.
+
 ## Errors never abort scan
 
 Provider scanners must NOT propagate per-service / per-region / per-resolver errors. Instead:

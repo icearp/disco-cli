@@ -386,3 +386,53 @@ func skipIfTransient(st *store.Store, service, accountID, region string, err err
 	})
 	return nil
 }
+
+// serviceOutcome is the dispatch ladder's verdict on an error returned by a
+// service scanner. Both dispatchers (scanAccount's global lane and scanRegion's
+// per-region lane) classify identically and differ only in the scope label they
+// report, so the decision lives here — and can be tested without a dispatcher.
+type serviceOutcome int
+
+const (
+	// outcomeStoreWrite: persistence failed. Hard error, never a skip.
+	outcomeStoreWrite serviceOutcome = iota
+	// outcomeDisabled: account hasn't enabled the service but could.
+	outcomeDisabled
+	// outcomeNotEntitled: service exists, account cannot self-enable it.
+	outcomeNotEntitled
+	// outcomeUnavailable: service is not deployed in this scope. Silent.
+	outcomeUnavailable
+	// outcomeTransient: momentary cloud-side glitch. Warn and continue.
+	outcomeTransient
+	// outcomeError: anything else. Hard error.
+	outcomeError
+)
+
+// classifyServiceError walks the dispatch ladder for err.
+//
+// Order is load-bearing, and outcomeStoreWrite comes first for a specific
+// reason: a store-write failure would otherwise match rungs below it. pgconn
+// reports a dropped Postgres connection as an EOF and a dial timeout as a
+// net.Error, both of which isTransientNetworkError treats as a momentary cloud
+// glitch — so a database outage would be reported as a benign per-service
+// warning while every row it should have persisted vanished, and the scan would
+// still report success. Do not reorder.
+func classifyServiceError(err error) serviceOutcome {
+	switch {
+	case errors.Is(err, store.ErrStoreWrite):
+		return outcomeStoreWrite
+	case errors.Is(err, errServiceDisabled):
+		return outcomeDisabled
+	case errors.Is(err, errServiceNotEntitled):
+		return outcomeNotEntitled
+	// NXDOMAIN or a scanner-returned unavailable sentinel = service not
+	// deployed in this scope. Silent-skip — distinct from a transient DNS
+	// outage, which still warns below.
+	case isDNSNotFound(err), errors.Is(err, errServiceUnavailable):
+		return outcomeUnavailable
+	case isTransientNetworkError(err):
+		return outcomeTransient
+	default:
+		return outcomeError
+	}
+}
