@@ -262,6 +262,33 @@ COMMIT
 
 `*Store` holds both `db *sqlx.DB` and `tx *sqlx.Tx`. `s.ext()` returns whichever is non-nil; dialect helpers route through it. Driver tag is set by the constructor (`store.DriverPostgres` / `store.DriverSQLite`) — without it, placeholder format and JSON-extract dialect can't be selected.
 
+### Connection pool is always bounded
+
+`OpenPostgres` always calls `boundPool` — there is no unbounded path. Size resolves by
+precedence: `WithMaxConns(n)` → `DISCO_PG_MAX_CONNS` → `pgDefaultMaxConns` (10). Malformed or
+non-positive values at either layer fall through to the next rather than erroring; a typo in
+deployment config must not stop a scan, and the fallback is still bounded.
+
+**Why a default exists at all.** `database/sql`'s zero value is *unlimited*, and disco is a very
+concurrent writer: the AWS scanner alone fans out `maxConcurrentServices × maxConcurrentRegions`
+(10 × 5 = 50) service goroutines, each batch-upserting. Unbounded, one scan can demand ~50
+simultaneous cold connections — TLS handshake each, plus an IAM token mint per dial under
+`DISCO_PG_IAM_AUTH` — enough to exhaust a modest RDS `max_connections` or queue past the write
+deadline. That was a real production failure, and it surfaced as store-write timeouts.
+
+**`MaxIdleConns` tracks `MaxOpenConns`** (changed from the old `min(n, 2)`). Holding idle far
+below open makes a bursty writer re-dial constantly — return 10, keep 2, re-handshake 8 on the
+next batch — and re-dialing is the expensive operation. The cost is that a task holds up to `n`
+idle conns after finishing instead of 2, which matters behind RDS Proxy where a pinned connection
+maps 1:1 onto a backend one. `pgConnMaxIdleTime` is the release valve and is deliberately short
+(90s, down from 5m): mid-scan the conns are hot and never idle that long, so reuse is unaffected,
+but a finished task drains fast. Neither lifetime constant may be zero — 0 means "no bound".
+`TestPGLifetimeBoundsAreNeverUnbounded` pins all of that.
+
+**disco owns the floor; the deployment owns the number.** disco can't know RDS `max_connections`
+divided across concurrent scanner tasks, so a multi-task deployment (disco-saas) should pass an
+explicit `WithMaxConns` rather than inherit the default.
+
 ### RDS Proxy session-pinning trade-off
 
 A `WithAfterConnect` hook that issues session-scoped `SET`/`set_config` (`is_local=false`) at conn open is treated by RDS Proxy as session pinning — that conn stops participating in multiplexing for its lifetime. For one-shot single-tenant containers this is fine (every conn serves the same tenant; pinning is the same as not pinning). A deploy sharing a Proxy across tenants should instead set GUCs as `SET LOCAL` inside a per-query transaction (the `WrapTx` request-path shape above) and skip the AfterConnect hook.

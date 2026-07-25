@@ -28,6 +28,47 @@ type PGOption func(*pgConfig)
 // pgConfig accumulates optional OpenPostgres settings.
 type pgConfig struct {
 	afterConnect func(context.Context, *pgconn.PgConn) error
+	maxConns     int // 0 = not set by the caller; fall through to env, then default
+}
+
+// pgDefaultMaxConns bounds the pool when neither WithMaxConns nor
+// DISCO_PG_MAX_CONNS is set.
+//
+// This is a safety floor, not a tuned throughput figure. database/sql's own
+// default is *unlimited*, and a provider scan fans out far wider than a
+// database wants to be dialed: the AWS scanner alone runs up to
+// maxConcurrentServices × maxConcurrentRegions (10 × 5 = 50) service
+// goroutines, each batch-upserting. Unbounded, that is up to 50 simultaneous
+// cold connections — TCP + TLS handshake apiece, plus an IAM token mint per
+// dial when DISCO_PG_IAM_AUTH is on — which is enough to exhaust a modest RDS
+// max_connections or simply queue past the write deadline.
+//
+// 10 keeps write throughput ample (batch upserts are fast, and a scan is
+// dominated by cloud API latency, not by the store) while capping the dial
+// burst well below the goroutine count. A deployment that knows its own RDS
+// budget and task count should set an explicit value rather than rely on this.
+//
+// The value is not derived from the provider constants programmatically: store
+// must not import internal/providers (see store/CLAUDE.md — it would create a
+// cmd → policy → store → providers cycle). If those constants move materially,
+// revisit this comment.
+const pgDefaultMaxConns = 10
+
+// WithMaxConns caps the connection pool at n. It is the programmatic form of
+// DISCO_PG_MAX_CONNS and takes precedence over it, so a module consumer
+// (disco-saas) can size the pool from its own deployment topology — RDS
+// max_connections divided across concurrent scanner tasks — without reaching
+// through the process environment.
+//
+// n <= 0 is ignored, leaving the env var (then pgDefaultMaxConns) to decide.
+//
+// Sizing note for RDS Proxy deployments: a WithAfterConnect hook that sets
+// session-scoped GUCs pins each connection, so the Proxy stops multiplexing it
+// and pool size maps 1:1 onto real backend connections. Size as if there were
+// no multiplexing benefit. See store/CLAUDE.md "RDS Proxy session-pinning
+// trade-off".
+func WithMaxConns(n int) PGOption {
+	return func(c *pgConfig) { c.maxConns = n }
 }
 
 // WithAfterConnect registers a hook that runs once per physical connection,
@@ -83,7 +124,7 @@ func OpenPostgres(ctx context.Context, dsn string, opts ...PGOption) (*Store, er
 		std = stdlib.OpenDB(*cfg)
 	}
 	db := sqlx.NewDb(std, "pgx")
-	boundPoolFromEnv(db)
+	boundPool(db, resolvePoolSize(pc.maxConns))
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping pg: %w", err)
@@ -97,27 +138,61 @@ func OpenPostgres(ctx context.Context, dsn string, opts ...PGOption) (*Store, er
 	return s, nil
 }
 
-// boundPoolFromEnv caps the connection pool when DISCO_PG_MAX_CONNS holds a
-// positive integer; otherwise it keeps database/sql defaults (unbounded open
-// conns, no lifetime), so a standalone CLI is unaffected. A deployment
-// running many scanner tasks against a shared RDS sets it to keep each
-// task's footprint small. MaxIdleConns caps at min(n, 2); lifetime/idle-time
-// bounds let idle conns drain back to the server.
-func boundPoolFromEnv(db *sqlx.DB) {
-	v := os.Getenv("DISCO_PG_MAX_CONNS")
-	if v == "" {
-		return
+// resolvePoolSize picks the pool cap: an explicit WithMaxConns wins, then
+// DISCO_PG_MAX_CONNS, then pgDefaultMaxConns. Unparseable or non-positive
+// values at either layer fall through to the next rather than erroring — a
+// malformed env var must not stop a scan from running, and the fallback is
+// still bounded.
+//
+// The pool is never left unbounded. database/sql's zero value means unlimited,
+// which is the wrong default for a writer this concurrent (see
+// pgDefaultMaxConns).
+func resolvePoolSize(opt int) int {
+	if opt > 0 {
+		return opt
 	}
-	n, err := strconv.Atoi(v)
-	if err != nil || n <= 0 {
-		return
+	if n, err := strconv.Atoi(os.Getenv("DISCO_PG_MAX_CONNS")); err == nil && n > 0 {
+		return n
 	}
+	return pgDefaultMaxConns
+}
+
+const (
+	// pgConnMaxLifetime recycles a connection regardless of use, so a long-lived
+	// task doesn't pin one backend process forever.
+	pgConnMaxLifetime = 30 * time.Minute
+	// pgConnMaxIdleTime is how long an unused connection lingers before being
+	// returned to the server. It is the release valve that makes idle==open
+	// safe (see boundPool): deliberately short, because it is the only thing
+	// bounding a finished task's footprint.
+	//
+	// Neither may be zero — database/sql reads 0 as "no bound", which is what
+	// left connections accumulating for the life of a process.
+	pgConnMaxIdleTime = 90 * time.Second
+)
+
+// boundPool applies the resolved cap plus lifetime bounds. Unlike the previous
+// env-gated version this always runs, so an unconfigured pool gets bounds too.
+//
+// MaxIdleConns tracks MaxOpenConns deliberately, and it is a change from the
+// old min(n, 2). Holding idle far below open makes the pool re-dial constantly
+// under bursty write load — return 10 connections, keep 2, re-handshake 8 on
+// the next batch — and re-dialing is the expensive part here: TLS plus, under
+// DISCO_PG_IAM_AUTH, a fresh token mint every time. That churn is the suspected
+// source of the RDS write timeouts this bounding was added for.
+//
+// The trade-off that buys: a task now holds up to n idle connections instead of
+// 2 after its writes finish, which matters for the case DISCO_PG_MAX_CONNS was
+// created for — many scanner tasks against one RDS — and matters more behind
+// RDS Proxy, where a session-pinned connection maps 1:1 onto a backend one
+// (see store/CLAUDE.md "RDS Proxy session-pinning trade-off"). pgConnMaxIdleTime
+// is therefore cut to 90s from the old 5m: during a scan the connections are
+// hot and never idle that long, so reuse is unaffected, but a finished task
+// drops back to zero in well under two minutes rather than five. Deployments
+// running many concurrent tasks should still set an explicit WithMaxConns.
+func boundPool(db *sqlx.DB, n int) {
 	db.SetMaxOpenConns(n)
-	idle := n
-	if idle > 2 {
-		idle = 2
-	}
-	db.SetMaxIdleConns(idle)
-	db.SetConnMaxLifetime(30 * time.Minute)
-	db.SetConnMaxIdleTime(5 * time.Minute)
+	db.SetMaxIdleConns(n)
+	db.SetConnMaxLifetime(pgConnMaxLifetime)
+	db.SetConnMaxIdleTime(pgConnMaxIdleTime)
 }
