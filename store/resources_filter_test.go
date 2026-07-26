@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 // mkAccountNode seeds one current resource in the named account. native is the
 // account-local native id, so callers can produce ties across accounts.
@@ -91,4 +94,103 @@ func TestListResources_AccountIDs(t *testing.T) {
 			}
 		})
 	})
+}
+
+// TestListResources_OrderSurvivesARescan pins that the ORDER BY resolves ties
+// rather than leaving them to the physical row order. Every seeded row shares
+// provider, type and name, so those three order none of them.
+//
+// The disturbance is a rescan, because that is the one this store performs
+// constantly: re-upserting a resource with changed attributes supersedes it and
+// writes the new current row somewhere else, without touching a single sort
+// key. A partial ORDER BY lets that relocation reorder the result. Measured on
+// this fixture with the tiebreaker removed: 59 of 60 rows change position on
+// SQLite. Postgres happens to hold its order at this size — which is precisely
+// why the assertion runs on both dialects and trusts neither.
+//
+// Two consumers depend on this. Under a LIMIT, tie order decides WHICH rows a
+// truncated read returns at all; and the disco-saas evidence bundle documents
+// its resource file as byte-identical across pulls, a claim a rescan between
+// two pulls would otherwise break.
+func TestListResources_OrderSurvivesARescan(t *testing.T) {
+	withDialects(t, func(t *testing.T, st *Store) {
+		const n = 60
+		native := func(i int) string { return fmt.Sprintf("i-tie-%04d", i) }
+		// Inserted in reverse so physical order never coincides with sorted
+		// order: an implementation returning rows in heap order diverges here
+		// rather than passing by luck.
+		for i := n - 1; i >= 0; i-- {
+			mkAccountNode(t, st, "111", native(i))
+		}
+
+		ids := func(t *testing.T, limit uint64) []string {
+			t.Helper()
+			rows, err := st.ListResources(ResourceFilter{Limit: limit})
+			if err != nil {
+				t.Fatalf("ListResources(limit=%d): %v", limit, err)
+			}
+			var got []string
+			for _, r := range rows {
+				got = append(got, r.ID)
+			}
+			return got
+		}
+
+		before := ids(t, n)
+		if len(before) != n {
+			t.Fatalf("full read = %d rows; want %d", len(before), n)
+		}
+		// Taken on BOTH sides of the rescan on purpose. Compared only against
+		// the full read from the same instant, this assertion passes against
+		// the very bug it describes — two back-to-back reads with nothing
+		// disturbing them agree even under a partial order. The truncated read
+		// has to survive the disturbance to mean anything.
+		halfBefore := ids(t, n/2)
+		if !equalIDs(halfBefore, before[:n/2]) {
+			t.Errorf("LIMIT %d = %v; want the prefix %v", n/2, halfBefore, before[:n/2])
+		}
+
+		// Rescan every other resource with changed attributes. Each supersedes,
+		// relocating its current row; no sort key changes.
+		for i := 0; i < n; i += 2 {
+			r := &Resource{
+				Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
+				NativeID: native(i), AttributesJSON: `{"v":2}`, DiscoveredBy: testScanID,
+			}
+			if _, err := st.UpsertResource(r); err != nil {
+				t.Fatalf("rescan upsert %s: %v", native(i), err)
+			}
+		}
+
+		after := ids(t, n)
+		if !equalIDs(before, after) {
+			moved := 0
+			for i := range before {
+				if i >= len(after) || before[i] != after[i] {
+					moved++
+				}
+			}
+			t.Errorf("a rescan reordered %d of %d rows; the sort keys did not change, so the order must not either",
+				moved, len(before))
+		}
+		// The consequence that actually costs a caller data: under a LIMIT, the
+		// tie group straddling the cutoff decides which rows exist at all, so a
+		// rescan can change the CONTENTS of a truncated read, not just its order.
+		if halfAfter := ids(t, n/2); !equalIDs(halfBefore, halfAfter) {
+			t.Errorf("a rescan changed which rows a LIMIT %d read returns:\n before %v\n after  %v",
+				n/2, halfBefore, halfAfter)
+		}
+	})
+}
+
+func equalIDs(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

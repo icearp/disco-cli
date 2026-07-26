@@ -256,7 +256,15 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	if limit == 0 {
 		limit = 500
 	}
-	q = q.Limit(limit).Offset(f.Offset).OrderBy("provider", "type", "name")
+	// root_id breaks ties. provider/type/name alone is a PARTIAL order —
+	// resources routinely share all three — and the relative position of tied
+	// rows is then a plan artifact, which differs between the dialects and
+	// between plans on one dialect. That decides real output here, because the
+	// ORDER BY runs under a LIMIT: for a result that truncates, the tie group
+	// straddling the cutoff determines WHICH rows the caller ever sees. root_id
+	// is unique among current rows (one per version chain), so the order is
+	// total. Same defect, and same fix, as the relationship readers.
+	q = q.Limit(limit).Offset(f.Offset).OrderBy("provider", "type", "name", "root_id")
 
 	query, args, err := q.PlaceholderFormat(s.placeholder()).ToSql()
 	if err != nil {
