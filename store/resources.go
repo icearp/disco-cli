@@ -122,8 +122,21 @@ func (s *Store) UpsertResource(r *Resource) (int, error) {
 
 // ResourceFilter defines optional filters for ListResources.
 type ResourceFilter struct {
-	Providers    []string
-	AccountID    string
+	Providers []string
+	AccountID string
+	// AccountIDs restricts results to any of the named accounts. It is the
+	// plural sibling of AccountID, for a caller holding a list rather than a
+	// single account, and it composes with AccountID (both apply).
+	//
+	// Empty or nil means "not filtering by account", exactly like Providers and
+	// Types. It is therefore a FILTER, not an authorization boundary: a caller
+	// deriving this list from a permission grant must decide separately whether
+	// an empty list means "everything" or "nothing", because this field cannot
+	// tell those apart and defaults to the former. disco-saas carries that
+	// decision in the companion `scoped` boolean its scope resolver returns
+	// alongside the ids, and short-circuits to an empty result before it ever
+	// builds a filter.
+	AccountIDs   []string
 	Types        []string
 	ExcludeTypes []string
 	Regions      []string
@@ -176,6 +189,9 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	}
 	if f.AccountID != "" {
 		q = q.Where(sq.Eq{"account_id": f.AccountID})
+	}
+	if len(f.AccountIDs) > 0 {
+		q = q.Where(sq.Eq{"account_id": f.AccountIDs})
 	}
 	if len(f.Types) > 0 {
 		q = q.Where(sq.Eq{"type": f.Types})
@@ -437,6 +453,10 @@ func resolveFilterSuffix(provider, rtype, account string) string {
 // DescendantsOf returns all resources descended from parentID (any depth).
 // Caller passes a deterministic ResourceID hash; hierarchy_closure stores
 // hashes, so the join key on r is resourceIDColumn() (`root_id`).
+//
+// It honours only the Providers, Types and Status fields of f. AccountID and
+// AccountIDs in particular are IGNORED, so a caller narrowing results by
+// account must not reach for this method and assume the narrowing happened.
 func (s *Store) DescendantsOf(parentID string, f ResourceFilter) ([]Resource, error) {
 	q := applyCurrentVersionPredicate(
 		sq.Select(resourceSelectColumnsPrefixed("r")...).
