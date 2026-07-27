@@ -456,8 +456,16 @@ func scanCarrierGateways(ctx context.Context, client ec2API, acct *account, regi
 	return total, inserted, err
 }
 
-// scanVPCBlockPublicAccessOptions retrieves the account-level VPC block public
-// access setting (one per account); NativeID omits region for cross-scan stability.
+// scanVPCBlockPublicAccessOptions retrieves the VPC block public access
+// setting, which is configured PER REGION — DescribeVpcBlockPublicAccessOptions
+// is a regional call and its payload carries AwsRegion.
+//
+// The NativeID therefore carries the region. It used to omit it, on the premise
+// that the setting was one-per-account, and that cost more than a wrong count:
+// every region upserted the same natural key, so each region's scanner
+// version-split the previous one and the surviving current row was whichever
+// region committed last. An account blocking public access in one region and
+// allowing it in another reported only one of the two, nondeterministically.
 func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.DescribeVpcBlockPublicAccessOptions(ctx, &ec2.DescribeVpcBlockPublicAccessOptionsInput{})
 	if err != nil {
@@ -470,8 +478,7 @@ func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *a
 		return
 	}
 	opt := out.VpcBlockPublicAccessOptions
-	// Account-level NativeID (no region) so every region upserts the same row.
-	nativeID := ec2ARN("", acct.ID, "vpc-block-public-access-options", acct.ID)
+	nativeID := ec2ARN(region, acct.ID, "vpc-block-public-access-options", acct.ID)
 	n, err := st.UpsertResource(&store.Resource{
 		Provider:    "aws",
 		AccountID:   acct.ID,
