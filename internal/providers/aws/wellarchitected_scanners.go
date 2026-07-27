@@ -11,7 +11,12 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeWellArchitectedWorkload, Service: "wellarchitected", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWellArchitectedLens, Service: "wellarchitected", Leaf: true})
+	// CreatedAt/UpdatedAt are volatile only for AWS-owned lenses, whose ARNs
+	// carry no region (arn:aws:wellarchitected::aws:lens/...) so every region
+	// reports the same natural key with that region's rollout timestamps. A
+	// customer-owned lens is region-qualified and never collides, so dropping
+	// these costs it nothing an unshared key would have kept.
+	registerType(restype.Descriptor{Type: TypeWellArchitectedLens, Service: "wellarchitected", Leaf: true, Volatile: []string{"CreatedAt", "UpdatedAt"}})
 	registerType(restype.Descriptor{Type: TypeWellArchitectedProfile, Service: "wellarchitected", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeWellArchitectedReviewTemplate, Service: "wellarchitected", Upstream: "AWS::wellarchitected::review-template", Leaf: true})
 	registerService(serviceEntry{

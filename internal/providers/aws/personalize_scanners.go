@@ -19,7 +19,13 @@ func init() {
 	registerType(restype.Descriptor{Type: TypePersonalizeFilter, Service: "personalize"})
 	registerType(restype.Descriptor{Type: TypePersonalizeMetricAttribution, Service: "personalize", Leaf: true})
 	registerType(restype.Descriptor{Type: TypePersonalizeRecommender, Service: "personalize"})
-	registerType(restype.Descriptor{Type: TypePersonalizeRecipe, Service: "personalize", Leaf: true, Managed: true})
+	// LastUpdatedDateTime is volatile for an unusual reason: an AWS-provided
+	// recipe ARN carries no region (arn:aws:personalize:::recipe/...), so every
+	// region reports the same natural key, and AWS rolled the recipe out to each
+	// region on a different date. The value is stable per region rather than per
+	// read, but under a shared key that is indistinguishable from the resource
+	// changing -- each region would version-split the last.
+	registerType(restype.Descriptor{Type: TypePersonalizeRecipe, Service: "personalize", Leaf: true, Managed: true, Volatile: []string{"LastUpdatedDateTime"}})
 	registerService(serviceEntry{
 		name: "aws:personalize",
 		fn:   scanPersonalize,
