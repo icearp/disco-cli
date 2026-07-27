@@ -265,7 +265,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// cancellation, so an interrupted scan unwinds (scanners honor ctx on SDK
 	// calls) and the deferred db.Close() still runs the WAL checkpoint+cleanup.
 	ctx := cmd.Context()
-	warnings, scanErrors, totalSeen, totalNew, totalChanged := scanrun.RunScanners(ctx, db, scanID, scanners)
+	warnings, scanErrors, totalNew, totalChanged := scanrun.RunScanners(ctx, db, scanID, scanners)
 
 	// Stop the spinner and clear its transient line before any other writer
 	// touches stderr (warnings/errors below, summary on stdout).
@@ -287,7 +287,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// Finalize owns the Complete/Partial dispatch + structured-error
 	// persistence, shared with the scanrun.Execute API driver. A cancelled ctx
 	// (SIGINT/SIGTERM) forces partial even if no per-service error was reported.
-	res, ferr := scanrun.Finalize(db, scanID, totalSeen, scanErrors, ctx.Err() != nil)
+	res, ferr := scanrun.Finalize(db, scanID, scanErrors, ctx.Err() != nil)
 	if ferr != nil {
 		return ferr
 	}
@@ -298,20 +298,20 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	if res.Interrupted {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"Scan interrupted: %d resources (%d new, %d changed) in %s%s%s\n",
-			totalSeen, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
+			res.ResourceCount, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
 		return errScanInterrupted
 	}
 	if res.Partial {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"Scan partial: %d resources (%d new, %d changed) in %s%s%s\n",
-			totalSeen, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
+			res.ResourceCount, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
 		if failOnError, _ := cmd.Flags().GetBool("fail-on-error"); failOnError {
 			return errScanPartial
 		}
 		return nil
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new, %d changed) in %s%s\n",
-		totalSeen, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix)
+		res.ResourceCount, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix)
 	return nil
 }
 

@@ -96,14 +96,15 @@ type Allocation struct {
 // errors are persisted as PartialScan; the call returns nil so the
 // caller can exit cleanly.
 func Execute(ctx context.Context, st *store.Store, a *Allocation) error {
-	_, scanErrors, totalSeen, _, _ := RunScanners(ctx, st, a.ScanID, a.scanners)
-	// totalSeen (rows visited this scan, the canonical scans.resource_count) is
-	// accumulated by RunScanners so this path and cmd/scan.go record the same
-	// count. Finalize owns the Complete/Partial dispatch and structured-error
+	_, scanErrors, _, _ := RunScanners(ctx, st, a.ScanID, a.scanners)
+	// The per-service totals RunScanners accumulates drive progress output only;
+	// scans.resource_count is derived from the rows themselves inside the store,
+	// so this path and cmd/scan.go cannot disagree about it. Finalize owns the
+	// Complete/Partial dispatch and structured-error
 	// persistence shared with the CLI. ctx.Err() != nil means the scan was
 	// interrupted (signal/deadline) before finishing — finalize it partial even
 	// if no per-service error was reported.
-	if _, err := Finalize(st, a.ScanID, totalSeen, scanErrors, ctx.Err() != nil); err != nil {
+	if _, err := Finalize(st, a.ScanID, scanErrors, ctx.Err() != nil); err != nil {
 		return err
 	}
 	return nil
@@ -116,9 +117,12 @@ func Execute(ctx context.Context, st *store.Store, a *Allocation) error {
 // rather than because a service failed — the CLI uses it to print a distinct
 // "interrupted" summary.
 type FinalizeResult struct {
-	Partial      bool
-	Interrupted  bool
-	AppendErrors []error
+	// ResourceCount is the figure the store recorded on the scan row. Reported
+	// so a caller's summary line cannot disagree with the persisted row.
+	ResourceCount int
+	Partial       bool
+	Interrupted   bool
+	AppendErrors  []error
 }
 
 // interruptedReason is the synthetic failure recorded when a scan is finalised
@@ -133,16 +137,22 @@ const interruptedReason = "scan interrupted before completion (signal)"
 // partial path persists one structured ScanErrorEntry per failure alongside the
 // concatenated legacy `error` blob. Single source of truth shared by Execute and
 // cmd/scan.go so a scan is finalised identically regardless of entry point.
-// count is the canonical rows-visited total. interrupted reflects ctx.Err() at
+// The resource count is no longer passed in: the store derives it from the rows
+// the scan stamped, because a caller-side tally double-counts an identity that
+// more than one concurrent scope emitted. interrupted reflects ctx.Err() at
 // the call site — a cancelled scan is always partial, regardless of whether any
 // provider reported a context-canceled error (the silent semaphore-gate path
 // reports none), so the status can't depend on timing.
-func Finalize(st *store.Store, scanID string, count int, scanErrors []store.ScanError, interrupted bool) (FinalizeResult, error) {
+func Finalize(st *store.Store, scanID string, scanErrors []store.ScanError, interrupted bool) (FinalizeResult, error) {
 	if len(scanErrors) == 0 && !interrupted {
-		if err := st.CompleteScan(scanID, count); err != nil {
+		if err := st.CompleteScan(scanID); err != nil {
 			return FinalizeResult{}, fmt.Errorf("complete scan: %w", err)
 		}
-		return FinalizeResult{}, nil
+		count, cerr := st.ScanResourceCount(scanID)
+		if cerr != nil {
+			return FinalizeResult{}, cerr
+		}
+		return FinalizeResult{ResourceCount: count}, nil
 	}
 
 	// Any errors or an interruption → partial scan. We no longer distinguish
@@ -155,11 +165,15 @@ func Finalize(st *store.Store, scanID string, count int, scanErrors []store.Scan
 	for _, e := range scanErrors {
 		msgs = append(msgs, fmt.Sprintf("%s/%s: %s", e.Provider, e.Service, e.Message))
 	}
-	if err := st.PartialScan(scanID, count, strings.Join(msgs, "; ")); err != nil {
+	if err := st.PartialScan(scanID, strings.Join(msgs, "; ")); err != nil {
 		return FinalizeResult{Partial: true, Interrupted: interrupted}, fmt.Errorf("mark partial scan: %w", err)
 	}
 
-	res := FinalizeResult{Partial: true, Interrupted: interrupted}
+	count, cerr := st.ScanResourceCount(scanID)
+	if cerr != nil {
+		return FinalizeResult{Partial: true, Interrupted: interrupted}, cerr
+	}
+	res := FinalizeResult{ResourceCount: count, Partial: true, Interrupted: interrupted}
 	// Record the interruption as a structured entry too, so scans.errors carries
 	// it queryably even when scanErrors is empty.
 	if interrupted {
@@ -225,14 +239,13 @@ func Run(ctx context.Context, st *store.Store, req Request) (string, error) {
 
 // RunScanners is the parallel fan-out core: invokes Scan() on each scanner
 // concurrently, capturing warnings + errors and accumulating the rows-visited
-// (totalSeen) / newly-inserted (totalNew) totals via the Store's callbacks.
+// newly-inserted (totalNew) / changed (totalChanged) totals via the Store's callbacks.
 // The caller owns the scan row lifecycle (CreateScan + Finalize) — RunScanners
 // only writes resources via the scanners themselves.
 //
 // Captured warnings/errors are returned for the caller to render (cmd/scan.go
 // renders to stderr; the scan row's `error` column also carries the summary for
-// later inspection); the totals feed Finalize so every entry point records the
-// same scans.resource_count. Existing OnWarn / OnError / OnServiceComplete
+// later inspection). Existing OnWarn / OnError / OnServiceComplete
 // callbacks set by the caller still fire — RunScanners chains onto them so
 // wiring stays additive for the CLI, and restores them before returning.
 func RunScanners(
@@ -240,11 +253,10 @@ func RunScanners(
 	st *store.Store,
 	scanID string,
 	scanners []providers.Scanner,
-) (warnings []store.ScanWarning, scanErrors []store.ScanError, totalSeen, totalNew, totalChanged int) {
+) (warnings []store.ScanWarning, scanErrors []store.ScanError, totalNew, totalChanged int) {
 	var (
 		warnMu  sync.Mutex
 		errMu   sync.Mutex
-		seen    atomic.Int64
 		fresh   atomic.Int64
 		changed atomic.Int64
 	)
@@ -278,12 +290,13 @@ func RunScanners(
 			prevErr(e)
 		}
 	}
-	// Accumulate the canonical totals here so both entry points (CLI and the
-	// Allocate/Execute API driver) derive scans.resource_count identically:
-	// totalSeen = rows visited (incl. pre-existing), totalNew = first-discoveries,
-	// totalChanged = version splits (existing rows whose attrs/tags changed).
+	// Accumulate the write-outcome totals. A scan-wide sum of each service's
+	// self-reported `total` is deliberately NOT accumulated: scanners run
+	// concurrently over independent scopes and nothing dedupes across them, so
+	// that sum counts an identity once per emitting scope. scans.resource_count
+	// is derived from the rows instead (see store.CompleteScan). `total` remains
+	// meaningful per service, which is what the progress line renders.
 	st.OnServiceComplete = func(service, scope string, total, newCount, changedCount, errCount int, status store.ServiceStatus) {
-		seen.Add(int64(total))
 		fresh.Add(int64(newCount))
 		changed.Add(int64(changedCount))
 		if prevSvc != nil {
@@ -304,7 +317,7 @@ func RunScanners(
 		})
 	}
 	wg.Wait()
-	return warnings, scanErrors, int(seen.Load()), int(fresh.Load()), int(changed.Load())
+	return warnings, scanErrors, int(fresh.Load()), int(changed.Load())
 }
 
 func resolveScanners(req Request) ([]providers.Scanner, error) {

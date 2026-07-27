@@ -58,7 +58,7 @@ func TestRunScanners_RestoresCallbacks(t *testing.T) {
 	st := &store.Store{}
 	scanners := []providers.Scanner{fakeScanner{name: "aws"}}
 
-	_, errs1, _, _, _ := RunScanners(context.Background(), st, "scan-1", scanners)
+	_, errs1, _, _ := RunScanners(context.Background(), st, "scan-1", scanners)
 	if len(errs1) != 1 {
 		t.Fatalf("run 1: want 1 error, got %d", len(errs1))
 	}
@@ -68,7 +68,7 @@ func TestRunScanners_RestoresCallbacks(t *testing.T) {
 
 	// Second run on the same store must capture exactly its own error, proving
 	// it did not chain onto run 1's leaked closure.
-	_, errs2, _, _, _ := RunScanners(context.Background(), st, "scan-2", scanners)
+	_, errs2, _, _ := RunScanners(context.Background(), st, "scan-2", scanners)
 	if len(errs2) != 1 {
 		t.Fatalf("run 2: want 1 error (no chaining), got %d", len(errs2))
 	}
@@ -78,15 +78,18 @@ func TestRunScanners_RestoresCallbacks(t *testing.T) {
 }
 
 // TestRunScanners_AccumulatesTotals pins that RunScanners sums the per-service
-// totals so both entry points derive the same scans.resource_count.
+// write outcomes.
+//
+// It deliberately does NOT sum each service's self-reported `total`. Scanners
+// run concurrently over independent scopes and nothing dedupes across them, so
+// that sum counts an identity once per emitting scope; scans.resource_count is
+// derived from the rows instead (store.CompleteScan). Returning the sum anyway
+// would leave a wrong number in reach of the next caller who needs one.
 func TestRunScanners_AccumulatesTotals(t *testing.T) {
 	st := &store.Store{}
 	scanners := []providers.Scanner{fakeScanner{name: "aws"}, fakeScanner{name: "gcp"}}
 
-	_, _, totalSeen, totalNew, totalChanged := RunScanners(context.Background(), st, "scan-1", scanners)
-	if totalSeen != 10 { // 2 scanners × 5 seen
-		t.Errorf("totalSeen = %d, want 10", totalSeen)
-	}
+	_, _, totalNew, totalChanged := RunScanners(context.Background(), st, "scan-1", scanners)
 	if totalNew != 6 { // 2 scanners × 3 new
 		t.Errorf("totalNew = %d, want 6", totalNew)
 	}
@@ -128,7 +131,7 @@ func TestExecute_CancelledCtxMarksPartial(t *testing.T) {
 func TestFinalize_InterruptedMarksPartial(t *testing.T) {
 	st, scanID := newFinalizeStore(t)
 
-	res, err := Finalize(st, scanID, 42, nil, true)
+	res, err := Finalize(st, scanID, nil, true)
 	if err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
@@ -148,7 +151,7 @@ func TestFinalize_InterruptedMarksPartial(t *testing.T) {
 func TestFinalize_CleanMarksComplete(t *testing.T) {
 	st, scanID := newFinalizeStore(t)
 
-	res, err := Finalize(st, scanID, 100, nil, false)
+	res, err := Finalize(st, scanID, nil, false)
 	if err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
@@ -166,7 +169,7 @@ func TestFinalize_ErrorsMarkPartial(t *testing.T) {
 	st, scanID := newFinalizeStore(t)
 
 	errs := []store.ScanError{{Provider: "aws", Service: "ec2", Message: "boom"}}
-	res, err := Finalize(st, scanID, 7, errs, false)
+	res, err := Finalize(st, scanID, errs, false)
 	if err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}

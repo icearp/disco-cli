@@ -115,7 +115,7 @@ func TestEvaluateIfOlderThan_SkipsOnRecentCompleteScan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateScan: %v", err)
 	}
-	if err := st.CompleteScan(scanID, 1); err != nil {
+	if err := st.CompleteScan(scanID); err != nil {
 		t.Fatalf("CompleteScan: %v", err)
 	}
 

@@ -98,8 +98,10 @@ func TestOpenReadOnly_RejectsWrite(t *testing.T) {
 
 // --- Scan lifecycle tests ---
 
-// TestPartialScan verifies that PartialScan sets the 'partial' status, records
-// the resource count, and persists the combined error message.
+// TestPartialScan verifies that PartialScan sets the 'partial' status, derives
+// the resource count, and persists the combined error message. The count is no
+// longer supplied by the caller, so with no resources upserted it is 0;
+// TestTerminalScanCountsCurrentResources covers the derivation itself.
 func TestPartialScan(t *testing.T) {
 	st := openTestStore(t)
 
@@ -107,7 +109,7 @@ func TestPartialScan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateScan: %v", err)
 	}
-	if err := st.PartialScan(id, 42, "gcp: permission denied"); err != nil {
+	if err := st.PartialScan(id, "gcp: permission denied"); err != nil {
 		t.Fatalf("PartialScan: %v", err)
 	}
 
@@ -118,8 +120,8 @@ func TestPartialScan(t *testing.T) {
 	if sc.Status != "partial" {
 		t.Errorf("Status: got %q, want partial", sc.Status)
 	}
-	if sc.ResourceCount == nil || *sc.ResourceCount != 42 {
-		t.Errorf("ResourceCount: got %v, want 42", sc.ResourceCount)
+	if sc.ResourceCount == nil || *sc.ResourceCount != 0 {
+		t.Errorf("ResourceCount: got %v, want 0 (derived; this scan upserted nothing)", sc.ResourceCount)
 	}
 	if sc.Error == nil || *sc.Error != "gcp: permission denied" {
 		t.Errorf("Error: got %v, want %q", sc.Error, "gcp: permission denied")

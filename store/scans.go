@@ -166,16 +166,53 @@ func (s *Store) CreateScanWithID(id string, providers []string, scope map[string
 	return id, nil
 }
 
-// CompleteScan marks a scan as completed and records the resource count.
-func (s *Store) CompleteScan(id string, resourceCount int) error {
+// scanResourceCountExpr counts the resources a scan saw, for use as a scalar
+// subquery in the terminal-status UPDATEs.
+//
+// The count is derived here rather than accepted from the caller because the
+// caller cannot compute it correctly. A scan's per-service totals are
+// self-reported by scanners running concurrently over independent scopes, and
+// nothing dedupes across them, so an identity emitted by two scopes was counted
+// twice. Counting rows makes the number self-correcting: a duplicate emitter
+// writes the same row twice and inflates nothing.
+//
+// superseded_by IS NULL is load-bearing. An intra-scan version split leaves the
+// earlier row behind as history, and counting every row the scan stamped would
+// report more resources than exist.
+//
+// This is one unindexed count per scan finalisation. Do NOT add an index on
+// verified_by to speed it up: that column is rewritten for every unchanged
+// resource on every scan, so indexing it taxes every write on the table --
+// which is why the index was removed.
+const scanResourceCountExpr = `(SELECT count(*) FROM resources
+	                                WHERE verified_by = scans.id
+	                                  AND superseded_by IS NULL)`
+
+// CompleteScan marks a scan as completed and records the resources it saw.
+func (s *Store) CompleteScan(id string) error {
 	_, err := s.exec(
 		`
 		UPDATE scans
-		SET status = 'completed', finished_at = `+s.nowExpr()+`, resource_count = ?
+		SET status = 'completed', finished_at = `+s.nowExpr()+`,
+		    resource_count = `+scanResourceCountExpr+`
 		WHERE id = ?`,
-		resourceCount, id,
+		id,
 	)
 	return err
+}
+
+// ScanResourceCount reads back the resource_count recorded for a scan, so a
+// caller can report the same figure the row carries. Returns 0 when the scan
+// has not reached a terminal status and the column is still NULL.
+func (s *Store) ScanResourceCount(id string) (int, error) {
+	var n *int
+	if err := s.get(&n, `SELECT resource_count FROM scans WHERE id = ?`, id); err != nil {
+		return 0, fmt.Errorf("scan resource count %s: %w", id, err)
+	}
+	if n == nil {
+		return 0, nil
+	}
+	return *n, nil
 }
 
 // FailScan marks a scan as failed with an error message.
@@ -193,13 +230,14 @@ func (s *Store) FailScan(id string, scanErr string) error {
 // PartialScan marks a scan as partially completed: at least one provider
 // succeeded while others failed. The error message should summarize which
 // providers failed and why.
-func (s *Store) PartialScan(id string, resourceCount int, scanErr string) error {
+func (s *Store) PartialScan(id string, scanErr string) error {
 	_, err := s.exec(
 		`
 		UPDATE scans
-		SET status = 'partial', finished_at = `+s.nowExpr()+`, resource_count = ?, error = ?
+		SET status = 'partial', finished_at = `+s.nowExpr()+`,
+		    resource_count = `+scanResourceCountExpr+`, error = ?
 		WHERE id = ?`,
-		resourceCount, scanErr, id,
+		scanErr, id,
 	)
 	return err
 }
