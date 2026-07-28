@@ -31,6 +31,28 @@ type ScanWarning struct {
 	Message  string // err.Error()
 }
 
+// ScanNotice is a by-design decision a scan made that the operator should see
+// but that indicates nothing wrong — the scanner working as intended, not
+// degrading. Pruning regions an account has not enabled is the canonical case.
+//
+// It exists to keep [ScanWarning] meaningful. A warning that fires on every
+// healthy scan trains people to ignore the block it appears in, and a
+// by-design skip reported as a warning also inflates the "N warnings" summary
+// count, so a genuinely clean run never reads as clean. Notices are collected
+// and rendered exactly like warnings, under their own heading and outside that
+// count.
+//
+// A skip is only a notice when the scan reached the right answer. If the
+// scanner could not determine something and fell back — a preflight probe that
+// failed, an optimisation switched off because a lookup was denied — that is a
+// warning, because coverage or cost silently changed.
+type ScanNotice struct {
+	Provider string // "aws", "azure", "gcp"
+	Service  string // e.g. "preflight:regions"
+	Scope    string // accountID[/region] or subscriptionID or projectID
+	Message  string // what was decided, and why
+}
+
 // ScanError is a per-service / per-resolver failure captured during a scan.
 // Errors never abort the scan; they are accumulated and rendered as a grouped
 // block at the end so the user sees each failure exactly once.
@@ -95,6 +117,7 @@ type Store struct {
 	OnResolveStart    func(provider string)                                                                     // just before phase-2 resolvers run
 	OnResolveComplete func(provider string, edges int)                                                          // after all resolvers finish
 	OnWarn            func(ScanWarning)                                                                         // skip-worthy error handled (transient, access-denied)
+	OnNotice          func(ScanNotice)                                                                          // by-design decision worth showing; nothing is wrong
 	OnError           func(ScanError)                                                                           // service or resolver failure; never aborts the scan
 	activeCounter     *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithRelCounter
 	upsertNew         *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithUpsertCounters; bumped on first-discovery
@@ -200,6 +223,15 @@ func (s *Store) ReportResolveComplete(provider string, edges int) {
 func (s *Store) ReportWarning(w ScanWarning) {
 	if s.OnWarn != nil {
 		s.OnWarn(w)
+	}
+}
+
+// ReportNotice fires OnNotice if set. Providers call this instead of
+// ReportWarning when a skip or narrowing is the intended behaviour rather than
+// a problem — see [ScanNotice] for where the line falls.
+func (s *Store) ReportNotice(n ScanNotice) {
+	if s.OnNotice != nil {
+		s.OnNotice(n)
 	}
 }
 

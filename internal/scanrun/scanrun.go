@@ -96,7 +96,7 @@ type Allocation struct {
 // errors are persisted as PartialScan; the call returns nil so the
 // caller can exit cleanly.
 func Execute(ctx context.Context, st *store.Store, a *Allocation) error {
-	_, scanErrors, _, _ := RunScanners(ctx, st, a.ScanID, a.scanners)
+	_, _, scanErrors, _, _ := RunScanners(ctx, st, a.ScanID, a.scanners)
 	// The per-service totals RunScanners accumulates drive progress output only;
 	// scans.resource_count is derived from the rows themselves inside the store,
 	// so this path and cmd/scan.go cannot disagree about it. Finalize owns the
@@ -243,22 +243,24 @@ func Run(ctx context.Context, st *store.Store, req Request) (string, error) {
 // The caller owns the scan row lifecycle (CreateScan + Finalize) — RunScanners
 // only writes resources via the scanners themselves.
 //
-// Captured warnings/errors are returned for the caller to render (cmd/scan.go
-// renders to stderr; the scan row's `error` column also carries the summary for
-// later inspection). Existing OnWarn / OnError / OnServiceComplete
-// callbacks set by the caller still fire — RunScanners chains onto them so
-// wiring stays additive for the CLI, and restores them before returning.
+// Captured notices/warnings/errors are returned for the caller to render
+// (cmd/scan.go renders to stderr; the scan row's `error` column also carries the
+// error summary for later inspection). Existing OnNotice / OnWarn / OnError /
+// OnServiceComplete callbacks set by the caller still fire — RunScanners chains
+// onto them so wiring stays additive for the CLI, and restores them before
+// returning.
 func RunScanners(
 	ctx context.Context,
 	st *store.Store,
 	scanID string,
 	scanners []providers.Scanner,
-) (warnings []store.ScanWarning, scanErrors []store.ScanError, totalNew, totalChanged int) {
+) (notices []store.ScanNotice, warnings []store.ScanWarning, scanErrors []store.ScanError, totalNew, totalChanged int) {
 	var (
-		warnMu  sync.Mutex
-		errMu   sync.Mutex
-		fresh   atomic.Int64
-		changed atomic.Int64
+		noticeMu sync.Mutex
+		warnMu   sync.Mutex
+		errMu    sync.Mutex
+		fresh    atomic.Int64
+		changed  atomic.Int64
 	)
 	// Capture and restore the caller's callbacks: this chains onto any existing
 	// OnWarn/OnError/OnServiceComplete so wiring (CLI progress lines) stays
@@ -266,14 +268,24 @@ func RunScanners(
 	// Allocate/Execute multi-scan API driver reuses one store), so leaving our
 	// closures installed would make scan #2 append to scan #1's dangling slices
 	// and grow the chain unbounded.
+	prevNotice := st.OnNotice
 	prevWarn := st.OnWarn
 	prevErr := st.OnError
 	prevSvc := st.OnServiceComplete
 	defer func() {
+		st.OnNotice = prevNotice
 		st.OnWarn = prevWarn
 		st.OnError = prevErr
 		st.OnServiceComplete = prevSvc
 	}()
+	st.OnNotice = func(n store.ScanNotice) {
+		noticeMu.Lock()
+		notices = append(notices, n)
+		noticeMu.Unlock()
+		if prevNotice != nil {
+			prevNotice(n)
+		}
+	}
 	st.OnWarn = func(w store.ScanWarning) {
 		warnMu.Lock()
 		warnings = append(warnings, w)
@@ -317,7 +329,7 @@ func RunScanners(
 		})
 	}
 	wg.Wait()
-	return warnings, scanErrors, int(fresh.Load()), int(changed.Load())
+	return notices, warnings, scanErrors, int(fresh.Load()), int(changed.Load())
 }
 
 func resolveScanners(req Request) ([]providers.Scanner, error) {

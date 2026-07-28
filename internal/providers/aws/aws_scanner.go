@@ -331,7 +331,11 @@ func enabledScanRegions(ctx context.Context, acct *account, st *store.Store) []s
 	}
 	kept, skipped := filterToEnabled(acct.Regions, enabled)
 	if len(skipped) > 0 {
-		st.ReportWarning(store.ScanWarning{
+		// A notice, not a warning: the probe answered, and pruning regions the
+		// account has not opted into is the whole point of running it. Nothing
+		// is degraded and there is nothing for the operator to fix. Reported so
+		// an empty region is still explained rather than silently absent.
+		st.ReportNotice(store.ScanNotice{
 			Provider: "aws", Service: "preflight:regions", Scope: acct.ID,
 			Message: "skipping region(s) not enabled for this account: " + strings.Join(skipped, ", "),
 		})

@@ -265,13 +265,18 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// cancellation, so an interrupted scan unwinds (scanners honor ctx on SDK
 	// calls) and the deferred db.Close() still runs the WAL checkpoint+cleanup.
 	ctx := cmd.Context()
-	warnings, scanErrors, totalNew, totalChanged := scanrun.RunScanners(ctx, db, scanID, scanners)
+	notices, warnings, scanErrors, totalNew, totalChanged := scanrun.RunScanners(ctx, db, scanID, scanners)
 
 	// Stop the spinner and clear its transient line before any other writer
 	// touches stderr (warnings/errors below, summary on stdout).
 	p.stop()
 
-	// Render grouped warnings + errors blocks before the final summary line.
+	// Render grouped notices + warnings + errors blocks before the final summary
+	// line, in ascending severity so the last thing above the summary is the
+	// most serious. Notices are deliberately absent from the counts below: they
+	// report the scanner working as designed, and folding them in would mean no
+	// healthy scan ever reports zero.
+	renderNotices(progressW, notices, quiet)
 	renderWarnings(progressW, warnings, quiet)
 	renderErrors(progressW, scanErrors, quiet)
 
@@ -611,6 +616,17 @@ func renderErrors(w io.Writer, errs []store.ScanError, quiet bool) {
 		rows[i] = messageRow{e.Provider, e.Service, e.Scope, e.Message}
 	}
 	renderMessages(w, "Errors", rows, quiet)
+}
+
+// renderNotices prints a grouped, column-aligned block of by-design scan
+// decisions. Kept separate from warnings so the warning block stays a list of
+// things that might need attention.
+func renderNotices(w io.Writer, notices []store.ScanNotice, quiet bool) {
+	rows := make([]messageRow, len(notices))
+	for i, n := range notices {
+		rows[i] = messageRow{n.Provider, n.Service, n.Scope, n.Message}
+	}
+	renderMessages(w, "Notes", rows, quiet)
 }
 
 // renderWarnings prints a grouped, column-aligned block of scan warnings.

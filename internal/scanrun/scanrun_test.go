@@ -58,22 +58,61 @@ func TestRunScanners_RestoresCallbacks(t *testing.T) {
 	st := &store.Store{}
 	scanners := []providers.Scanner{fakeScanner{name: "aws"}}
 
-	_, errs1, _, _ := RunScanners(context.Background(), st, "scan-1", scanners)
+	_, _, errs1, _, _ := RunScanners(context.Background(), st, "scan-1", scanners)
 	if len(errs1) != 1 {
 		t.Fatalf("run 1: want 1 error, got %d", len(errs1))
 	}
-	if st.OnWarn != nil || st.OnError != nil {
-		t.Fatalf("callbacks not restored after run 1: OnWarn=%v OnError=%v", st.OnWarn != nil, st.OnError != nil)
+	if st.OnWarn != nil || st.OnError != nil || st.OnNotice != nil {
+		t.Fatalf("callbacks not restored after run 1: OnNotice=%v OnWarn=%v OnError=%v",
+			st.OnNotice != nil, st.OnWarn != nil, st.OnError != nil)
 	}
 
 	// Second run on the same store must capture exactly its own error, proving
 	// it did not chain onto run 1's leaked closure.
-	_, errs2, _, _ := RunScanners(context.Background(), st, "scan-2", scanners)
+	_, _, errs2, _, _ := RunScanners(context.Background(), st, "scan-2", scanners)
 	if len(errs2) != 1 {
 		t.Fatalf("run 2: want 1 error (no chaining), got %d", len(errs2))
 	}
-	if st.OnWarn != nil || st.OnError != nil || st.OnServiceComplete != nil {
+	if st.OnWarn != nil || st.OnError != nil || st.OnServiceComplete != nil || st.OnNotice != nil {
 		t.Fatalf("callbacks not restored after run 2")
+	}
+}
+
+// noticingScanner emits one of each severity so a test can prove they land in
+// separate buckets.
+type noticingScanner struct{}
+
+func (noticingScanner) Name() string { return "aws" }
+
+func (noticingScanner) Scan(_ context.Context, st *store.Store, _ string) error {
+	st.ReportNotice(store.ScanNotice{Provider: "aws", Service: "preflight:regions", Message: "skipping region(s) not enabled for this account: af-south-1"})
+	st.ReportWarning(store.ScanWarning{Provider: "aws", Service: "kms:ListKeys", Message: "denied"})
+	return nil
+}
+
+// TestRunScanners_NoticesAreNotWarnings pins the separation that motivates the
+// notice channel. Pruning regions an account never opted into happens on every
+// healthy scan, so counting it as a warning meant no scan could ever report
+// zero warnings — and a block that is never empty is a block people stop
+// reading. The assertion that matters is the warning count, not the notice
+// count: a mutant routing ReportNotice to OnWarn still delivers the message,
+// just under the heading that makes it noise.
+func TestRunScanners_NoticesAreNotWarnings(t *testing.T) {
+	st := &store.Store{}
+
+	notices, warnings, _, _, _ := RunScanners(context.Background(), st, "scan-1", []providers.Scanner{noticingScanner{}})
+
+	if len(warnings) != 1 {
+		t.Errorf("warnings = %d, want exactly 1 (the access denial); a by-design region skip must not land here", len(warnings))
+	}
+	if len(notices) != 1 {
+		t.Errorf("notices = %d, want 1", len(notices))
+	}
+	if len(warnings) == 1 && !strings.Contains(warnings[0].Message, "denied") {
+		t.Errorf("warnings[0] = %q; want the access denial, not the region skip", warnings[0].Message)
+	}
+	if len(notices) == 1 && !strings.Contains(notices[0].Message, "not enabled for this account") {
+		t.Errorf("notices[0] = %q; want the region-skip notice", notices[0].Message)
 	}
 }
 
@@ -89,7 +128,7 @@ func TestRunScanners_AccumulatesTotals(t *testing.T) {
 	st := &store.Store{}
 	scanners := []providers.Scanner{fakeScanner{name: "aws"}, fakeScanner{name: "gcp"}}
 
-	_, _, totalNew, totalChanged := RunScanners(context.Background(), st, "scan-1", scanners)
+	_, _, _, totalNew, totalChanged := RunScanners(context.Background(), st, "scan-1", scanners)
 	if totalNew != 6 { // 2 scanners × 3 new
 		t.Errorf("totalNew = %d, want 6", totalNew)
 	}
