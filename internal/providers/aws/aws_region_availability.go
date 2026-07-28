@@ -6,19 +6,28 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/icearp/disco-cli/regions"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
 )
 
 // Region scoping pre-filters each regional service to the regions AWS actually
-// offers it in, so dormant (service × region) cells are never dispatched. Source
-// of truth: AWS's own SSM global-infrastructure catalog — a public parameter tree
-// under /aws/service/global-infrastructure. Since it's AWS's authoritative
-// availability data, a region it omits for a service genuinely isn't reachable
-// (we'd NXDOMAIN / error anyway), so trusting it can't lose coverage. The only
-// failure mode is a wrong service-code mapping, contained by the fail-open design
-// (an unknown/divergent code is scanned everywhere) plus regionAvailabilityCode's
-// unique endpoint-prefix convention.
+// offers it in, so dormant (service × region) cells are never dispatched. Two
+// independent sources answer that question, and serviceAvailableInRegion
+// combines them:
+//
+//   - The SDK region table, via the regions package. Generated from the endpoint
+//     table aws-sdk-go-v2 embeds in each service package, so it is keyed by the
+//     SDK PACKAGE a scanner imports and needs no name-to-code mapping at all. It
+//     ships with the binary: free to consult, but it can lag a region launch.
+//   - The SSM global-infrastructure catalog below, a public parameter tree under
+//     /aws/service/global-infrastructure. Live, so it reflects a launch
+//     immediately, but reaching it costs a paged API call per service code and
+//     depends on the scanned account granting ssm:GetParametersByPath.
+//
+// Both are AWS's own data, so a region either one lists is genuinely served. The
+// design is fail-open throughout: a service neither source has an opinion on is
+// scanned everywhere, and a stale shipped table is corrected by the live one.
 
 // ssmRegionAvailabilityAPI is the test seam for the global-infrastructure lookup.
 // *ssm.Client satisfies it; tests inject a stub.
@@ -30,12 +39,14 @@ type ssmRegionAvailabilityAPI interface {
 // "name" field) to its AWS global-infrastructure service code, for services whose
 // code diverges from the derived default (name minus the "aws:" prefix — e.g.
 // "aws:code-build" derives "code-build" but the catalog code is "codebuild",
-// "aws:directory-service" → "ds"). Empty by default: pure derivation already
-// covers every service whose name matches its code, and a divergent name simply
-// isn't found in the catalog (→ fail-open, scanned everywhere). Populating an
-// entry here UNLOCKS scoping for that service — only add a mapping verified
-// against the live catalog (see the validation step in plans/), since a wrong
-// override is the one way to skip a region the service actually serves.
+// "aws:directory-service" → "ds"). Empty, and expected to stay that way: the SDK
+// region table covers the divergent-name services without any mapping (it joins
+// on the imported SDK package, not the name), which is why 83 of 297 services
+// being unreachable by derived code no longer costs them their scoping.
+//
+// Populating an entry here UNLOCKS the catalog for that service. Only add a
+// mapping verified against the live catalog — a wrong override is the one way to
+// skip a region the service actually serves.
 var regionAvailabilityCodeOverrides = map[string]string{}
 
 // regionAvailabilityCode returns the AWS global-infrastructure service code for a
@@ -49,16 +60,32 @@ func regionAvailabilityCode(name string) string {
 }
 
 // serviceAvailableInRegion reports whether a service should be scanned in a
-// region. This is the load-bearing fail-open decision: scan (true) unless the
-// code is KNOWN to the catalog (present with ≥1 region) AND region is absent from
-// its set. A nil map, an unknown/divergent code, or an empty set all yield true,
-// so any gap in the data degrades to "scan it anyway".
-func serviceAvailableInRegion(availByCode map[string]map[string]bool, code, region string) bool {
-	regions, known := availByCode[code]
-	if !known || len(regions) == 0 {
+// region, combining the shipped SDK table with the live SSM catalog. name is the
+// disco service name ("aws:cassandra"); code is its global-infrastructure code.
+//
+// The rule: scan when EITHER source affirmatively lists the region. Skip only
+// when at least one source has an opinion and none of them lists it. When
+// neither has an opinion — a nil catalog map, an unknown or divergent code, a
+// service whose scanner imports no SDK package — scan.
+//
+// Taking the union rather than either source alone is what makes a stale shipped
+// table safe: a region AWS launched after the pinned SDK release is missing from
+// the generated table but present in the catalog the moment it opens, and the
+// disagreement resolves toward scanning. The reverse — the catalog omitting
+// something the SDK ships — resolves the same way.
+func serviceAvailableInRegion(availByCode map[string]map[string]bool, name, code, region string) bool {
+	sdkKnown, sdkAvail := regions.ServiceAvailable(name, region)
+	if sdkKnown && sdkAvail {
 		return true
 	}
-	return regions[region]
+	catalog, catalogKnown := availByCode[code]
+	if len(catalog) == 0 {
+		catalogKnown = false
+	}
+	if catalogKnown && catalog[region] {
+		return true
+	}
+	return !sdkKnown && !catalogKnown
 }
 
 // loadServiceRegionAvailability resolves the region set where AWS offers each

@@ -222,6 +222,11 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 				case outcomeTransient:
 					_ = skipIfTransient(st, svc.name, acct.ID, "", err)
 					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceOK)
+				case outcomeDeadline:
+					st.ReportError(store.ScanError{
+						Provider: "aws", Service: svc.name, Scope: acct.ID, Message: serviceDeadlineMessage(err),
+					})
+					st.ReportService(svc.name, "global", total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 				case outcomeStoreWrite, outcomeError:
 					st.ReportError(store.ScanError{
 						Provider: "aws", Service: svc.name, Scope: acct.ID, Message: err.Error(),
@@ -235,9 +240,12 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 	}
 
 	kept := enabledScanRegions(ctx, acct, st)
-	// Pre-scopes per-service regions from the SSM global-infrastructure catalog
-	// so services AWS doesn't offer in a region are never dispatched there.
-	// Fail-open; skipped entirely for single-region scans (nothing to scope).
+	// Loads the live SSM global-infrastructure catalog, the second-opinion half
+	// of region scoping, so services AWS doesn't offer in a region are never
+	// dispatched there. Fail-open, and skipped for single-region scans — but
+	// note that skips only the CATALOG: the shipped SDK table still scopes those
+	// scans, which is what keeps a one-region run from stalling on a service
+	// that region doesn't host.
 	//
 	// Runs on this goroutine while the global scanners launched above are still
 	// in flight (on wg, no wait between) — the preflight overlaps them for free.
@@ -341,11 +349,14 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 		if svc.global {
 			continue
 		}
-		// AWS doesn't offer this service in this region (per the SSM global-infra
-		// catalog) — don't dispatch. Fail-open: serviceAvailableInRegion returns
-		// true whenever the availability data is missing/unknown for this code.
+		// AWS doesn't offer this service in this region (per the shipped SDK
+		// table or the SSM global-infra catalog) — don't dispatch. Fail-open:
+		// serviceAvailableInRegion returns true whenever neither source has an
+		// opinion. Note the SDK half applies even for a single-region scan,
+		// where buildRegionAvailability skips the catalog lookup entirely;
+		// --no-scope-regions is what turns both off.
 		if !acct.regionScopeDisabled &&
-			!serviceAvailableInRegion(acct.availByCode, regionAvailabilityCode(svc.name), region) {
+			!serviceAvailableInRegion(acct.availByCode, svc.name, regionAvailabilityCode(svc.name), region) {
 			st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceUnavailable)
 			continue
 		}
@@ -369,6 +380,11 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 				case outcomeTransient:
 					_ = skipIfTransient(st, svc.name, acct.ID, region, err)
 					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceOK)
+				case outcomeDeadline:
+					st.ReportError(store.ScanError{
+						Provider: "aws", Service: svc.name, Scope: acct.ID + "/" + region, Message: serviceDeadlineMessage(err),
+					})
+					st.ReportService(svc.name, region, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 				case outcomeStoreWrite, outcomeError:
 					st.ReportError(store.ScanError{
 						Provider: "aws", Service: svc.name, Scope: acct.ID + "/" + region, Message: err.Error(),
@@ -437,8 +453,10 @@ type account struct {
 
 	// availByCode maps an AWS global-infrastructure service code to the set of
 	// regions where AWS offers it, built once per account from the SSM catalog
-	// (see aws_region_availability.go). nil = no scoping data → scan every region
-	// (fail-open). regionScopeDisabled mirrors --scope-regions=false.
+	// (see aws_region_availability.go). nil means the catalog contributed no
+	// opinion — NOT that scoping is off: the shipped SDK table is a second,
+	// independent source and still applies. Only regionScopeDisabled
+	// (--scope-regions=false) turns scoping off outright.
 	availByCode         map[string]map[string]bool
 	regionScopeDisabled bool
 

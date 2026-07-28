@@ -298,12 +298,16 @@ func isDNSNotFound(err error) bool {
 // a single hiccup aborts the whole scan.
 //
 // Context cancellation (Ctrl-C, parent timeout) is deliberately NOT treated
-// as transient: those indicate the scan should stop.
+// as transient: those indicate the scan should stop. Nor is a deadline: the
+// only deadline in play is the per-service budget (serviceTimeout), and
+// exhausting it means the scanner produced nothing at all — see outcomeDeadline.
+// Without this exclusion it would satisfy the net.Error.Timeout() rung below
+// and be reported as a momentary glitch.
 func isTransientNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, context.Canceled) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 	var dnsErr *net.DNSError
@@ -404,9 +408,25 @@ const (
 	outcomeUnavailable
 	// outcomeTransient: momentary cloud-side glitch. Warn and continue.
 	outcomeTransient
+	// outcomeDeadline: the service burned its whole per-service budget
+	// (serviceTimeout) and returned nothing. Hard error, deliberately: it is not
+	// a cloud-side glitch but a defect on our side — a scanner dispatched
+	// somewhere the service is not offered, or one whose paging does not
+	// terminate. The scan finishing "completed" while a service silently
+	// contributed zero rows is exactly the failure this classification exists to
+	// make visible.
+	outcomeDeadline
 	// outcomeError: anything else. Hard error.
 	outcomeError
 )
+
+// serviceDeadlineMessage renders the scan-error text for outcomeDeadline. It
+// names the budget rather than echoing the SDK's phrasing alone, because
+// "canceled, context deadline exceeded" reads like a cloud-side failure when it
+// is in fact our own dispatcher giving up on a call that never came back.
+func serviceDeadlineMessage(err error) string {
+	return fmt.Sprintf("returned no data: exceeded the %s per-service time budget (%v)", serviceTimeout, err)
+}
 
 // classifyServiceError walks the dispatch ladder for err.
 //
@@ -430,6 +450,12 @@ func classifyServiceError(err error) serviceOutcome {
 	// outage, which still warns below.
 	case isDNSNotFound(err), errors.Is(err, errServiceUnavailable):
 		return outcomeUnavailable
+	// Must precede the transient rung: a deadline satisfies net.Error.Timeout(),
+	// so isTransientNetworkError would otherwise downgrade budget exhaustion to
+	// a warning. The only deadline in the scan is the per-service budget — there
+	// is no scan-wide one — so this cannot fire for an unrelated timeout.
+	case errors.Is(err, context.DeadlineExceeded):
+		return outcomeDeadline
 	case isTransientNetworkError(err):
 		return outcomeTransient
 	default:

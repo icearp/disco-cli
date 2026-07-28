@@ -23,27 +23,53 @@ func TestRegionAvailabilityCode(t *testing.T) {
 	}
 }
 
+// Service names carrying a real SDK-table opinion, so these cases exercise the
+// registry the scanner actually consults rather than a stand-in. Both are
+// pinned independently by TestGeneratedServiceRegionsAnchors; if the generated
+// table ever stops covering aws:cassandra, that test fails first and says so.
+const (
+	sdkListedService   = "aws:cassandra"    // SDK table lists it in sdkListedRegion
+	sdkListedRegion    = "us-east-1"        //
+	sdkOmittedRegion   = "ap-northeast-3"   // ...and omits it here
+	sdkUnknownService  = "aws:zzz-not-real" // absent from the table entirely
+	unknownServiceCode = "zzz-not-real"
+)
+
+// TestServiceAvailableInRegion walks the four-state matrix of the two
+// availability sources. The load-bearing row is "SDK says no, catalog says yes":
+// the shipped table can lag a region launch by an SDK release, and if that
+// disagreement ever resolved toward skipping, the scanner would silently stop
+// covering a brand-new region. Nothing else in the system would notice — the
+// pair reports zero resources, exactly like a genuinely empty region.
 func TestServiceAvailableInRegion(t *testing.T) {
-	avail := map[string]map[string]bool{
-		"dax": {"us-east-1": true, "eu-west-1": true},
-	}
+	const code = "cassandra"
+	listed := map[string]map[string]bool{code: {sdkListedRegion: true}}
+	omitted := map[string]map[string]bool{code: {"eu-west-1": true}}
+
 	cases := []struct {
-		name   string
-		m      map[string]map[string]bool
-		code   string
-		region string
-		want   bool
+		name    string
+		avail   map[string]map[string]bool
+		service string
+		code    string
+		region  string
+		want    bool
 	}{
-		{"nil map fails open", nil, "dax", "ap-south-1", true},
-		{"unknown code fails open", avail, "memorydb", "ap-south-1", true},
-		{"known code present in region", avail, "dax", "us-east-1", true},
-		{"known code absent from region skips", avail, "dax", "ap-south-1", false},
-		{"empty region set fails open", map[string]map[string]bool{"x": {}}, "x", "us-east-1", true},
+		{"sdk lists it, catalog silent", nil, sdkListedService, code, sdkListedRegion, true},
+		{"sdk omits it, catalog silent", nil, sdkListedService, code, sdkOmittedRegion, false},
+		{"sdk silent, catalog lists it", listed, sdkUnknownService, code, sdkListedRegion, true},
+		{"sdk silent, catalog omits it", omitted, sdkUnknownService, code, sdkListedRegion, false},
+		{"both list it", listed, sdkListedService, code, sdkListedRegion, true},
+		{"both omit it", omitted, sdkListedService, code, sdkOmittedRegion, false},
+		{"sdk omits it, catalog lists it", map[string]map[string]bool{code: {sdkOmittedRegion: true}}, sdkListedService, code, sdkOmittedRegion, true},
+		{"sdk lists it, catalog omits it", omitted, sdkListedService, code, sdkListedRegion, true},
+		{"neither has an opinion", nil, sdkUnknownService, unknownServiceCode, sdkListedRegion, true},
+		{"catalog known but empty is no opinion", map[string]map[string]bool{unknownServiceCode: {}}, sdkUnknownService, unknownServiceCode, sdkListedRegion, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := serviceAvailableInRegion(c.m, c.code, c.region); got != c.want {
-				t.Errorf("serviceAvailableInRegion(%q,%q) = %v, want %v", c.code, c.region, got, c.want)
+			if got := serviceAvailableInRegion(c.avail, c.service, c.code, c.region); got != c.want {
+				t.Errorf("serviceAvailableInRegion(%v, %q, %q, %q) = %v, want %v",
+					c.avail, c.service, c.code, c.region, got, c.want)
 			}
 		})
 	}

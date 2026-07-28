@@ -476,6 +476,11 @@ func TestIsTransientNetworkError(t *testing.T) {
 		{"smithy AccessDenied not transient", accessDenied, false},
 		{"smithy ValidationException not transient", validation, false},
 		{"context canceled not transient", context.Canceled, false},
+		// A deadline satisfies net.Error.Timeout(), so without an explicit
+		// exclusion it would match the "net timeout" rung above and a service
+		// that burned its entire budget would be filed as a momentary blip.
+		{"context deadline not transient", context.DeadlineExceeded, false},
+		{"wrapped context deadline not transient", fmt.Errorf("operation error Keyspaces: ListKeyspaces, canceled, %w", context.DeadlineExceeded), false},
 		{"plain errors.New not transient", errors.New("some unrelated failure"), false},
 		{"request send error direct", sendEOF, true},
 		{"request send error wrapped (transcribe shape)", wrappedSendEOF, true},
@@ -788,6 +793,18 @@ func TestClassifyServiceError_Rungs(t *testing.T) {
 		{"NXDOMAIN", &net.DNSError{Err: "no such host", IsNotFound: true}, outcomeUnavailable},
 		{"transient EOF", io.ErrUnexpectedEOF, outcomeTransient},
 		{"throttling", apiErr("ThrottlingException", "slow down"), outcomeTransient},
+		// Budget exhaustion is a hard error, not a warning: the only deadline in
+		// the scan is the per-service one, so reaching it means the scanner
+		// returned nothing and something on our side is wrong. Ordering is what
+		// this pins — the deadline rung must win over the transient rung it sits
+		// above, or the outcome silently downgrades to a warning and the scan
+		// still reports completed.
+		{"per-service budget exhausted", context.DeadlineExceeded, outcomeDeadline},
+		{"wrapped budget exhaustion", fmt.Errorf("operation error Keyspaces: ListKeyspaces, canceled, %w", context.DeadlineExceeded), outcomeDeadline},
+		// ...but a store write that failed with a deadline is still a store
+		// write. outcomeStoreWrite sits above the deadline rung for the same
+		// reason it sits above the transient one.
+		{"store write beats deadline", fmt.Errorf("%w: %w", store.ErrStoreWrite, context.DeadlineExceeded), outcomeStoreWrite},
 		{"real IAM denial", apiErr("AccessDeniedException", "is not authorized to perform: s3:ListBuckets"), outcomeError},
 		{"plain error", errors.New("boom"), outcomeError},
 	}

@@ -11,6 +11,8 @@
 // `aws ec2 describe-regions --all-regions` against a recent SDK.
 package awsregions
 
+//go:generate go run github.com/icearp/disco-cli/tools/genregions -out services_generated.go
+
 import "github.com/icearp/disco-cli/regions"
 
 func init() { regions.Register("aws", Regions) }
