@@ -670,7 +670,7 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 	}
 	if _, ok := s.(providers.RegionScopeToggler); ok {
 		subcmd.Flags().Bool("scope-regions", true,
-			"Skip services in regions where the cloud doesn't offer them (via the SSM global-infrastructure catalog); fail-open. Disable with --no-scope-regions")
+			"Skip services in regions where the cloud doesn't offer them (via the SDK region tables and the SSM global-infrastructure catalog); fail-open. Disable with --no-scope-regions")
 		subcmd.Flags().Bool("no-scope-regions", false,
 			"Disable region scoping (negative alias for --scope-regions=false; mirrors --no-progress)")
 	}
