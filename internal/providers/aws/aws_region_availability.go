@@ -39,15 +39,27 @@ type ssmRegionAvailabilityAPI interface {
 // "name" field) to its AWS global-infrastructure service code, for services whose
 // code diverges from the derived default (name minus the "aws:" prefix — e.g.
 // "aws:code-build" derives "code-build" but the catalog code is "codebuild",
-// "aws:directory-service" → "ds"). Empty, and expected to stay that way: the SDK
-// region table covers the divergent-name services without any mapping (it joins
-// on the imported SDK package, not the name), which is why 83 of 297 services
-// being unreachable by derived code no longer costs them their scoping.
+// "aws:directory-service" → "ds"). Expected to stay near-empty: the SDK region
+// table covers the divergent-name services without any mapping (it joins on the
+// imported SDK package, not the name), which is why 83 of 297 services being
+// unreachable by derived code no longer costs them their scoping.
+//
+// An entry earns its place only when the SDK table cannot answer either — a
+// service whose SDK package ships an EMPTY endpoint table has no opinion from
+// that source, so the catalog is the only source left, and reaching the catalog
+// requires the code.
 //
 // Populating an entry here UNLOCKS the catalog for that service. Only add a
 // mapping verified against the live catalog — a wrong override is the one way to
 // skip a region the service actually serves.
-var regionAvailabilityCodeOverrides = map[string]string{}
+var regionAvailabilityCodeOverrides = map[string]string{
+	// AWS files Bedrock AgentCore under the hyphenated "bedrock-agentcore"; the
+	// derived code "bedrockagentcore" is not a catalog path. Its SDK package
+	// (bedrockagentcorecontrol) enumerates no regions, so without this the
+	// service has no opinion from either source and is probed in every enabled
+	// region — warning on each one AWS does not serve it in.
+	"aws:bedrockagentcore": "bedrock-agentcore",
+}
 
 // regionAvailabilityCode returns the AWS global-infrastructure service code for a
 // disco service name: an explicit override if present, else the name minus its

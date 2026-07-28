@@ -34,7 +34,7 @@ type s3ExpressControlAPI interface {
 // SDK; access points come from s3control's ListAccessPointsForDirectoryBuckets.
 func scanS3Express(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	s3c := s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
-	ctlc := s3control.NewFromConfig(acct.cfg, func(o *s3control.Options) { o.Region = region })
+	ctlc := newS3ControlClient(acct.cfg, region)
 
 	bucketNames, t, i, ferr := scanS3EDirectoryBuckets(ctx, s3c, acct, region, st, scanID)
 	if ferr != nil {

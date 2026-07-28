@@ -140,6 +140,33 @@ func isNotAuthorizedForRegion(err error) bool {
 	return isAccessDeniedWithMessage(err, "is not authorized for region")
 }
 
+// isStorageLensHomeRegionGap reports whether err is S3 Storage Lens rejecting a
+// region that is not a supported home region for the account. AWS phrases the
+// same fact two ways and cases "region" inconsistently between them:
+//
+//	ListStorageLensConfigurations: "Region is not supported as home region for S3 Storage Lens"
+//	ListStorageLensGroups:         "This Region isn't a supported home Region for S3 Storage Lens groups."
+//
+// so this folds case rather than stacking substrings. Like
+// isNotAuthorizedForRegion, it is a per-region availability fact no IAM change
+// fixes — callers silent-skip instead of warning on every scan.
+//
+// A genuine IAM denial for these operations names the principal and action
+// ("User: arn:... is not authorized to perform: s3:ListStorageLensConfigurations")
+// and does not mention a home region, so it still warns. Reaching this predicate
+// at all depends on rewrapBareXMLError repairing the response envelope — without
+// it the Configurations variant arrives as an unreadable "UnknownError".
+func isStorageLensHomeRegionGap(err error) bool {
+	if !isAccessDenied(err) {
+		return false
+	}
+	var ae smithy.APIError
+	if !errors.As(err, &ae) {
+		return false
+	}
+	return strings.Contains(strings.ToLower(ae.ErrorMessage()), "home region")
+}
+
 // isPayerAccountOnly reports whether err is the restriction AWS returns when a
 // payer/management-account-only billing API (BCM Pricing Calculator, BCM Data
 // Exports, Invoicing) is called from an organisation member account. It

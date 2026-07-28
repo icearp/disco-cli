@@ -52,7 +52,7 @@ func init() {
 // every region; global resources (Multi-Region Access Points) scan only in
 // us-east-1.
 func scanS3Control(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := s3control.NewFromConfig(acct.cfg, func(o *s3control.Options) { o.Region = region })
+	client := newS3ControlClient(acct.cfg, region)
 	// Regional resources: scan in every region.
 	for _, scan := range []func(context.Context, *account, string, s3controlAPI, *store.Store, string) (int, int, error){
 		scanAccessGrantsInstances,
@@ -73,7 +73,7 @@ func scanS3Control(ctx context.Context, acct *account, region string, st *store.
 	// MRAPs are a global resource but the API endpoint is only available in
 	// us-west-2 — scan once with a client pinned to that region.
 	if region == "us-west-2" {
-		mrapClient := s3control.NewFromConfig(acct.cfg, func(o *s3control.Options) { o.Region = "us-west-2" })
+		mrapClient := newS3ControlClient(acct.cfg, "us-west-2")
 		tt, nn, e := scanMultiRegionAccessPoints(ctx, acct, mrapClient, st, scanID)
 		if e != nil {
 			return total, inserted, e
@@ -372,12 +372,18 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client s
 	for p.HasMorePages() {
 		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
+			// Storage Lens configurations live only in the account's supported
+			// home Regions; other regions reject with this message — region gap,
+			// not denial, so silent-skip.
+			if isStorageLensHomeRegionGap(apiErr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(apiErr) {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
 			}
-			// S3 Control returns an untyped XML error body that smithy maps to the
-			// generic UnknownError code; a 403 here is a permission signal — warn
-			// rather than abort the region.
+			// Backstop: a 403 whose body smithy still could not map to a code
+			// (generic UnknownError) is a permission signal — warn rather than
+			// abort the region.
 			if c, ok := httpStatusCode(apiErr); ok && c == 403 {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
 			}
@@ -458,10 +464,10 @@ func scanStorageLensGroups(ctx context.Context, acct *account, region string, cl
 	for p.HasMorePages() {
 		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
-			// Storage Lens groups live only in the account's supported home Region;
-			// other regions reject with this message — region gap, not denial, so
-			// silent-skip.
-			if isAccessDeniedWithMessage(apiErr, "supported home Region") {
+			// Storage Lens groups live only in the account's supported home
+			// Regions; other regions reject with this message — region gap, not
+			// denial, so silent-skip.
+			if isStorageLensHomeRegionGap(apiErr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(apiErr) {

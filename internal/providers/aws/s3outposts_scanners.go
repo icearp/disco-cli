@@ -95,7 +95,7 @@ func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, a
 		return 0, 0, nil
 	}
 
-	cclient := s3control.NewFromConfig(acct.cfg, func(o *s3control.Options) { o.Region = region })
+	cclient := newS3ControlClient(acct.cfg, region)
 
 	var buckets []*store.Resource
 	var aps []*store.Resource

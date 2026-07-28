@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	smithy "github.com/aws/smithy-go"
+	"github.com/icearp/disco-cli/regions"
 )
 
 func TestRegionAvailabilityCode(t *testing.T) {
@@ -175,5 +176,43 @@ func TestDistinctRegionAvailabilityCodes(t *testing.T) {
 	got := map[string]bool{codes[0]: true, codes[1]: true}
 	if !got["dynamodb"] || !got["dax"] || got["iam"] {
 		t.Errorf("unexpected codes %v", codes)
+	}
+}
+
+// TestBedrockAgentCoreOverride pins the one populated override and the reason it
+// is populated. The service is the case the SDK table cannot cover: its SDK
+// package (bedrockagentcorecontrol) ships an empty endpoint table, so the
+// catalog is the only source with an opinion, and the catalog is only reachable
+// through the hyphenated code AWS files it under.
+//
+// Both halves are asserted because either alone passes while the scan still
+// warns: a correct code with an SDK opinion would never consult the catalog, and
+// an SDK-silent service with the derived code hits a path that does not exist.
+func TestBedrockAgentCoreOverride(t *testing.T) {
+	const (
+		service = "aws:bedrockagentcore"
+		code    = "bedrock-agentcore"
+	)
+
+	if got := regionAvailabilityCode(service); got != code {
+		t.Fatalf("regionAvailabilityCode(%q) = %q, want %q", service, got, code)
+	}
+	if got := regions.ServiceRegions(service); len(got) != 0 {
+		t.Fatalf("SDK table now covers %s (%d regions) — the override exists because it did not; "+
+			"re-verify it is still needed", service, len(got))
+	}
+
+	// us-west-1 and ap-northeast-3 are enabled for the scanned account but absent
+	// from the catalog list, and both fail live even for org-admin credentials.
+	catalog := map[string]map[string]bool{code: {"us-east-1": true, "us-west-2": true}}
+	for region, want := range map[string]bool{
+		"us-east-1":      true,
+		"us-west-2":      true,
+		"us-west-1":      false,
+		"ap-northeast-3": false,
+	} {
+		if got := serviceAvailableInRegion(catalog, service, code, region); got != want {
+			t.Errorf("serviceAvailableInRegion(%s, %s) = %v, want %v", service, region, got, want)
+		}
 	}
 }
