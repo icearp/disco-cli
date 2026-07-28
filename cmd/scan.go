@@ -626,7 +626,7 @@ func renderNotices(w io.Writer, notices []store.ScanNotice, quiet bool) {
 	for i, n := range notices {
 		rows[i] = messageRow{n.Provider, n.Service, n.Scope, n.Message}
 	}
-	renderMessages(w, "Notes", rows, quiet)
+	renderMessages(w, "Notices", rows, quiet)
 }
 
 // renderWarnings prints a grouped, column-aligned block of scan warnings.
