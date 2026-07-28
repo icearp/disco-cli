@@ -19,15 +19,19 @@ func init() {
 	registerType(restype.Descriptor{Type: TypePersonalizeFilter, Service: "personalize"})
 	registerType(restype.Descriptor{Type: TypePersonalizeMetricAttribution, Service: "personalize", Leaf: true})
 	registerType(restype.Descriptor{Type: TypePersonalizeRecommender, Service: "personalize"})
-	// An AWS-provided recipe ARN carries no region
+	// LastUpdatedDateTime qualifies as volatile under the region-collision
+	// reason: an AWS-provided recipe ARN carries no region
 	// (arn:aws:personalize:::recipe/...), so every region reports the same
-	// natural key while AWS's per-region rollout gives each a different
-	// LastUpdatedDateTime -- so the regions version-split each other within a
-	// single scan. That is history churn, not a miscount: the versions are
-	// superseded, and scans.resource_count counts current rows only. Declaring
-	// the field volatile would end the churn but would drop it from stored
-	// attributes, and attributes are recorded as the provider reported them.
-	registerType(restype.Descriptor{Type: TypePersonalizeRecipe, Service: "personalize", Leaf: true, Managed: true})
+	// natural key, and AWS's per-region rollout gives each region a different
+	// value for a resource that is one partition-global object. Under a shared
+	// key that is indistinguishable from the resource changing, so the regions
+	// version-split each other within a single scan.
+	//
+	// Nothing is lost that the key could have kept: the field cannot be stored
+	// per region when there is no per-region row. See
+	// TestVolatileRulesAreJustified, which holds this reason to region-less
+	// ARNs only.
+	registerType(restype.Descriptor{Type: TypePersonalizeRecipe, Service: "personalize", Leaf: true, Managed: true, Volatile: []string{"LastUpdatedDateTime"}})
 	registerService(serviceEntry{
 		name: "aws:personalize",
 		fn:   scanPersonalize,

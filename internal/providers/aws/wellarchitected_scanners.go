@@ -11,14 +11,20 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeWellArchitectedWorkload, Service: "wellarchitected", Leaf: true})
-	// An AWS-owned lens ARN carries no region
+	// CreatedAt/UpdatedAt qualify as volatile under the region-collision
+	// reason: an AWS-owned lens ARN carries no region
 	// (arn:aws:wellarchitected::aws:lens/...), so every region reports the same
-	// natural key with that region's own CreatedAt/UpdatedAt rollout stamps and
-	// the regions version-split each other within a single scan. A
-	// customer-owned lens is region-qualified and never collides. Declaring
-	// those fields volatile would end the churn but would drop them from stored
-	// attributes, and attributes are recorded as the provider reported them.
-	registerType(restype.Descriptor{Type: TypeWellArchitectedLens, Service: "wellarchitected", Leaf: true})
+	// natural key with that region's own rollout stamps and the regions
+	// version-split each other within a single scan.
+	//
+	// A customer-owned lens IS region-qualified, so it never collides -- and it
+	// pays for this, losing two real fields to a rule it did not need, because
+	// volatile rules are per type and both lens kinds share one. Accepted: an
+	// AWS-owned lens is the overwhelming majority and its stamps describe AWS's
+	// rollout rather than anything the customer did. scanWALenses already tells
+	// the two apart per row (ManagedByProvider), so a per-row rule is the fix if
+	// a customer ever needs those fields. See TestVolatileRulesAreJustified.
+	registerType(restype.Descriptor{Type: TypeWellArchitectedLens, Service: "wellarchitected", Leaf: true, Volatile: []string{"CreatedAt", "UpdatedAt"}})
 	registerType(restype.Descriptor{Type: TypeWellArchitectedProfile, Service: "wellarchitected", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeWellArchitectedReviewTemplate, Service: "wellarchitected", Upstream: "AWS::wellarchitected::review-template", Leaf: true})
 	registerService(serviceEntry{
