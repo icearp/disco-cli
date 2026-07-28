@@ -21,7 +21,11 @@ type Scan struct {
 	// ErrorsJSON is the structured per-service failure array, JSON-encoded.
 	// SQLite stores it as TEXT, PG as JSONB; both round-trip through this
 	// string field. Default '[]' so SELECT * never NULL-scans.
-	ErrorsJSON    *string `db:"errors"`
+	ErrorsJSON *string `db:"errors"`
+	// WarningsJSON is the structured per-service warning array, JSON-encoded,
+	// with the same dialect story as ErrorsJSON. Separate from errors because a
+	// warning is not a failure: a scan carrying warnings is still `completed`.
+	WarningsJSON  *string `db:"warnings"`
 	ResourceCount *int    `db:"resource_count"`
 	MetaJSON      *string `db:"meta"`
 	// WorkspaceID is the per-workspace RLS discriminator. Omitted from the read
@@ -37,7 +41,7 @@ type Scan struct {
 // with columns the control plane adds — disco is consumed as a module whose
 // tables disco-saas extends. Keep in sync with the Scan struct's db tags.
 const scanColumns = "id, started_at, finished_at, status, providers, scope, " +
-	"error, errors, resource_count, meta"
+	"error, errors, warnings, resource_count, meta"
 
 // scanWire is the on-the-wire JSON shape for Scan: camelCase keys, parsed
 // providers/scope/meta objects, RFC3339 timestamps. The raw `*JSON` SQLite
@@ -282,6 +286,57 @@ func (s *Store) AppendScanError(id string, e ScanErrorEntry) error {
 		return err
 	}
 	_, err = s.exec(`UPDATE scans SET errors = ? WHERE id = ?`, string(out), id)
+	return err
+}
+
+// ScanWarningEntry is one structured warning row appended to scans.warnings.
+// service / region narrow the warning to a scope the UI can group by; scope is
+// the scanner's original scope string ("<account>/<region>" for AWS, bare for
+// Azure/GCP), kept verbatim so a warning stays traceable to the log line that
+// produced it; message is the reason, as the provider reported it.
+//
+// There is deliberately no code field. ScanErrorEntry has one because
+// scanErrorCode can scrape a recognisable AWS token out of a failure message;
+// warning messages are usually whole SDK error strings where the same scrape
+// returns "Error" and adds a column of noise.
+type ScanWarningEntry struct {
+	Service string `json:"service"`
+	Region  string `json:"region"`
+	Scope   string `json:"scope"`
+	Message string `json:"message"`
+}
+
+// AppendScanWarning appends one structured entry to scans.warnings, with the
+// same dialect split as AppendScanError: PG concatenates jsonb server-side, the
+// SQLite fallback reads-modifies-writes.
+//
+// Unlike errors, warnings are appended on every finalisation path — a scan that
+// completed cleanly and still skipped a region is the case this exists for.
+func (s *Store) AppendScanWarning(id string, e ScanWarningEntry) error {
+	b, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	if s.driver == driverPostgres {
+		_, err = s.exec(
+			`UPDATE scans
+			 SET warnings = warnings || $1::jsonb
+			 WHERE id = $2`, string(b), id)
+		return err
+	}
+	// SQLite path: read-modify-write. Acceptable for single-tenant CLI usage.
+	var raw string
+	if err := s.get(&raw, `SELECT COALESCE(warnings, '[]') FROM scans WHERE id = ?`, id); err != nil {
+		return err
+	}
+	var list []ScanWarningEntry
+	_ = json.Unmarshal([]byte(raw), &list)
+	list = append(list, e)
+	out, err := json.Marshal(list)
+	if err != nil {
+		return err
+	}
+	_, err = s.exec(`UPDATE scans SET warnings = ? WHERE id = ?`, string(out), id)
 	return err
 }
 

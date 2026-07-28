@@ -96,7 +96,7 @@ type Allocation struct {
 // errors are persisted as PartialScan; the call returns nil so the
 // caller can exit cleanly.
 func Execute(ctx context.Context, st *store.Store, a *Allocation) error {
-	_, _, scanErrors, _, _ := RunScanners(ctx, st, a.ScanID, a.scanners)
+	_, warnings, scanErrors, _, _ := RunScanners(ctx, st, a.ScanID, a.scanners)
 	// The per-service totals RunScanners accumulates drive progress output only;
 	// scans.resource_count is derived from the rows themselves inside the store,
 	// so this path and cmd/scan.go cannot disagree about it. Finalize owns the
@@ -104,7 +104,7 @@ func Execute(ctx context.Context, st *store.Store, a *Allocation) error {
 	// persistence shared with the CLI. ctx.Err() != nil means the scan was
 	// interrupted (signal/deadline) before finishing — finalize it partial even
 	// if no per-service error was reported.
-	if _, err := Finalize(st, a.ScanID, scanErrors, ctx.Err() != nil); err != nil {
+	if _, err := Finalize(st, a.ScanID, scanErrors, warnings, ctx.Err() != nil); err != nil {
 		return err
 	}
 	return nil
@@ -132,6 +132,20 @@ type FinalizeResult struct {
 // cancellation landed silently at a concurrency-semaphore gate).
 const interruptedReason = "scan interrupted before completion (signal)"
 
+// maxPersistedWarnings caps how many structured warning entries one scan row
+// carries. Errors are uncapped, which is a known latent problem (a 650-error
+// scan once produced a ~70,000px detail panel); warnings are worse on that axis
+// because they are numerous in *healthy* operation — a per-region availability
+// gap emits one per region, per service — so an uncapped array is a when, not
+// an if. Overflow is reported rather than silently dropped, so a rendered count
+// is never a quiet lie.
+const maxPersistedWarnings = 200
+
+// warningsTruncatedService is the synthetic entry's service, mirroring the
+// "scan:interrupted" convention: the "scan:" prefix marks a row the runner
+// synthesised rather than one a provider reported.
+const warningsTruncatedService = "scan:warnings-truncated"
+
 // Finalize marks the scan row complete (no errors and not interrupted) or
 // partial (one or more scan errors, or the scan was interrupted), and on the
 // partial path persists one structured ScanErrorEntry per failure alongside the
@@ -143,7 +157,21 @@ const interruptedReason = "scan interrupted before completion (signal)"
 // the call site — a cancelled scan is always partial, regardless of whether any
 // provider reported a context-canceled error (the silent semaphore-gate path
 // reports none), so the status can't depend on timing.
-func Finalize(st *store.Store, scanID string, scanErrors []store.ScanError, interrupted bool) (FinalizeResult, error) {
+//
+// warnings are persisted on EVERY path, including the clean one, and never
+// influence the status decision. This is the one place the parallel with errors
+// breaks on purpose: a `completed` scan carrying warnings is the normal case, so
+// persisting them only on the partial branch would drop them exactly when they
+// are the only signal there is. Letting a warning flip a scan to `partial` would
+// be the same mistake in the other direction — a status that is never clean is a
+// status people stop reading.
+func Finalize(
+	st *store.Store,
+	scanID string,
+	scanErrors []store.ScanError,
+	warnings []store.ScanWarning,
+	interrupted bool,
+) (FinalizeResult, error) {
 	if len(scanErrors) == 0 && !interrupted {
 		if err := st.CompleteScan(scanID); err != nil {
 			return FinalizeResult{}, fmt.Errorf("complete scan: %w", err)
@@ -152,7 +180,10 @@ func Finalize(st *store.Store, scanID string, scanErrors []store.ScanError, inte
 		if cerr != nil {
 			return FinalizeResult{}, cerr
 		}
-		return FinalizeResult{ResourceCount: count}, nil
+		return FinalizeResult{
+			ResourceCount: count,
+			AppendErrors:  persistWarnings(st, scanID, warnings),
+		}, nil
 	}
 
 	// Any errors or an interruption → partial scan. We no longer distinguish
@@ -190,20 +221,58 @@ func Finalize(st *store.Store, scanID string, scanErrors []store.ScanError, inte
 	// best-effort from Scope (shaped "<account>/<region>" for AWS; bare for
 	// Azure/GCP).
 	for _, e := range scanErrors {
-		region := ""
-		if i := strings.LastIndex(e.Scope, "/"); i >= 0 {
-			region = e.Scope[i+1:]
-		}
 		if aerr := st.AppendScanError(scanID, store.ScanErrorEntry{
 			Service: e.Provider + ":" + e.Service,
-			Region:  region,
+			Region:  regionFromScope(e.Scope),
 			Code:    scanErrorCode(e.Message),
 			Message: e.Message,
 		}); aerr != nil {
 			res.AppendErrors = append(res.AppendErrors, aerr)
 		}
 	}
+	res.AppendErrors = append(res.AppendErrors, persistWarnings(st, scanID, warnings)...)
 	return res, nil
+}
+
+// persistWarnings writes up to maxPersistedWarnings structured entries to
+// scans.warnings and returns the non-fatal append failures, which the caller
+// folds into FinalizeResult.AppendErrors. A run that exceeds the cap gets one
+// extra synthetic entry naming how many were dropped.
+func persistWarnings(st *store.Store, scanID string, warnings []store.ScanWarning) []error {
+	var appendErrs []error
+	kept := warnings
+	if len(kept) > maxPersistedWarnings {
+		kept = kept[:maxPersistedWarnings]
+	}
+	for _, w := range kept {
+		if aerr := st.AppendScanWarning(scanID, store.ScanWarningEntry{
+			Service: w.Provider + ":" + w.Service,
+			Region:  regionFromScope(w.Scope),
+			Scope:   w.Scope,
+			Message: w.Message,
+		}); aerr != nil {
+			appendErrs = append(appendErrs, aerr)
+		}
+	}
+	if dropped := len(warnings) - len(kept); dropped > 0 {
+		if aerr := st.AppendScanWarning(scanID, store.ScanWarningEntry{
+			Service: warningsTruncatedService,
+			Message: fmt.Sprintf("%d further warnings were not recorded (limit %d)", dropped, maxPersistedWarnings),
+		}); aerr != nil {
+			appendErrs = append(appendErrs, aerr)
+		}
+	}
+	return appendErrs
+}
+
+// regionFromScope parses the region best-effort out of a scanner scope string,
+// shaped "<account>/<region>" for AWS and bare for Azure/GCP. Returns "" when
+// the scope carries no region half.
+func regionFromScope(scope string) string {
+	if i := strings.LastIndex(scope, "/"); i >= 0 {
+		return scope[i+1:]
+	}
+	return ""
 }
 
 // scanErrorCode best-effort extracts an AWS-style error code from the failure

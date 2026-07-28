@@ -57,6 +57,58 @@ func TestAppendScanError_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestAppendScanWarning_RoundTrip mirrors the error round-trip on the warnings
+// column, and additionally reads through GetScan: the read projection must
+// carry `warnings`, or every SELECT in the package fails at scan time with
+// "missing destination name warnings" rather than at compile time.
+func TestAppendScanWarning_RoundTrip(t *testing.T) {
+	st := openTestStore(t)
+	id, err := st.CreateScanWithID("warn-scan-1", []string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScanWithID: %v", err)
+	}
+
+	// A fresh row must read as an empty array, never NULL — readers branch on
+	// neither.
+	sc, err := st.GetScan(id)
+	if err != nil {
+		t.Fatalf("GetScan before append: %v", err)
+	}
+	if sc.WarningsJSON == nil || *sc.WarningsJSON != "[]" {
+		t.Fatalf("fresh warnings = %v, want the '[]' column default", sc.WarningsJSON)
+	}
+
+	if err := st.AppendScanWarning(id, ScanWarningEntry{
+		Service: "aws:bedrockagentcore", Region: "us-west-1",
+		Scope: "228886154857/us-west-1", Message: "AccessDeniedException",
+	}); err != nil {
+		t.Fatalf("AppendScanWarning 1: %v", err)
+	}
+	if err := st.AppendScanWarning(id, ScanWarningEntry{
+		Service: "aws:s3control", Region: "ap-northeast-3",
+		Scope: "228886154857/ap-northeast-3", Message: "Region is not supported as home region",
+	}); err != nil {
+		t.Fatalf("AppendScanWarning 2: %v", err)
+	}
+
+	sc, err = st.GetScan(id)
+	if err != nil {
+		t.Fatalf("GetScan after append: %v", err)
+	}
+	if sc.WarningsJSON == nil {
+		t.Fatal("warnings read back NULL after two appends")
+	}
+	if !strings.Contains(*sc.WarningsJSON, "bedrockagentcore") ||
+		!strings.Contains(*sc.WarningsJSON, "s3control") {
+		t.Errorf("warnings payload missing entries: %s", *sc.WarningsJSON)
+	}
+	// Appending a warning must not disturb the errors column: they are separate
+	// severities, not one list with a flag.
+	if sc.ErrorsJSON == nil || *sc.ErrorsJSON != "[]" {
+		t.Errorf("errors = %v, want it untouched at '[]'", sc.ErrorsJSON)
+	}
+}
+
 // TestCreateScanWithID_EmptyMints exercises the legacy fallback path.
 func TestCreateScanWithID_EmptyMints(t *testing.T) {
 	st := openTestStore(t)

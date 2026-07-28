@@ -2,6 +2,8 @@ package scanrun
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -170,7 +172,7 @@ func TestExecute_CancelledCtxMarksPartial(t *testing.T) {
 func TestFinalize_InterruptedMarksPartial(t *testing.T) {
 	st, scanID := newFinalizeStore(t)
 
-	res, err := Finalize(st, scanID, nil, true)
+	res, err := Finalize(st, scanID, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
@@ -190,7 +192,7 @@ func TestFinalize_InterruptedMarksPartial(t *testing.T) {
 func TestFinalize_CleanMarksComplete(t *testing.T) {
 	st, scanID := newFinalizeStore(t)
 
-	res, err := Finalize(st, scanID, nil, false)
+	res, err := Finalize(st, scanID, nil, nil, false)
 	if err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
@@ -208,7 +210,7 @@ func TestFinalize_ErrorsMarkPartial(t *testing.T) {
 	st, scanID := newFinalizeStore(t)
 
 	errs := []store.ScanError{{Provider: "aws", Service: "ec2", Message: "boom"}}
-	res, err := Finalize(st, scanID, errs, false)
+	res, err := Finalize(st, scanID, errs, nil, false)
 	if err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
@@ -217,5 +219,112 @@ func TestFinalize_ErrorsMarkPartial(t *testing.T) {
 	}
 	if sc := scanStatus(t, st, scanID); sc.Status != "partial" {
 		t.Errorf("status = %q, want partial", sc.Status)
+	}
+}
+
+// parsedWarnings reads scans.warnings back off the row. Reading the persisted
+// column rather than trusting the FinalizeResult is the point: the whole feature
+// is that a remote consumer can see these after the process has exited.
+func parsedWarnings(t *testing.T, st *store.Store, id string) []store.ScanWarningEntry {
+	t.Helper()
+	sc := scanStatus(t, st, id)
+	if sc.WarningsJSON == nil {
+		t.Fatalf("scan %s has NULL warnings; the column defaults to '[]'", id)
+	}
+	var out []store.ScanWarningEntry
+	if err := json.Unmarshal([]byte(*sc.WarningsJSON), &out); err != nil {
+		t.Fatalf("unmarshal warnings %q: %v", *sc.WarningsJSON, err)
+	}
+	return out
+}
+
+// TestFinalize_WarningsPersistOnCleanPath is the assertion the whole change
+// exists for. A scan with warnings and zero errors is the NORMAL case — a
+// per-region availability gap on an otherwise healthy account — so persisting
+// warnings only on the partial branch would drop them exactly when they are the
+// only signal there is. The status assertion is equally load-bearing in the
+// other direction: a warning must never degrade a scan to partial.
+func TestFinalize_WarningsPersistOnCleanPath(t *testing.T) {
+	st, scanID := newFinalizeStore(t)
+
+	warns := []store.ScanWarning{{
+		Provider: "aws", Service: "bedrockagentcore",
+		Scope: "228886154857/us-west-1", Message: "AccessDeniedException",
+	}}
+	res, err := Finalize(st, scanID, nil, warns, false)
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if res.Partial || res.Interrupted {
+		t.Errorf("result = %+v, want clean; a warning is not a failure", res)
+	}
+	if sc := scanStatus(t, st, scanID); sc.Status != "completed" {
+		t.Errorf("status = %q, want completed; warnings must not influence status", sc.Status)
+	}
+
+	got := parsedWarnings(t, st, scanID)
+	if len(got) != 1 {
+		t.Fatalf("persisted %d warnings, want 1", len(got))
+	}
+	if got[0].Service != "aws:bedrockagentcore" {
+		t.Errorf("service = %q, want the provider-qualified name", got[0].Service)
+	}
+	if got[0].Region != "us-west-1" {
+		t.Errorf("region = %q, want it parsed off the scope", got[0].Region)
+	}
+	// The errors path throws the original scope away; warnings keep it, because
+	// "<account>/<region>" is what ties an entry back to a scanner log line.
+	if got[0].Scope != "228886154857/us-west-1" {
+		t.Errorf("scope = %q, want it kept verbatim", got[0].Scope)
+	}
+}
+
+// TestFinalize_WarningsPersistOnPartialPath: the partial branch returns before
+// the clean branch's persist call, so it needs its own write. Errors and
+// warnings must both land, in their own columns.
+func TestFinalize_WarningsPersistOnPartialPath(t *testing.T) {
+	st, scanID := newFinalizeStore(t)
+
+	errs := []store.ScanError{{Provider: "aws", Service: "ec2", Message: "boom"}}
+	warns := []store.ScanWarning{{Provider: "aws", Service: "kms", Scope: "acct/eu-west-1", Message: "denied"}}
+	if _, err := Finalize(st, scanID, errs, warns, false); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+
+	if got := parsedWarnings(t, st, scanID); len(got) != 1 || got[0].Message != "denied" {
+		t.Errorf("warnings = %+v, want the one reported warning", got)
+	}
+	sc := scanStatus(t, st, scanID)
+	if sc.ErrorsJSON == nil || !strings.Contains(*sc.ErrorsJSON, "boom") {
+		t.Errorf("errors = %v, want the error still in its own column", sc.ErrorsJSON)
+	}
+}
+
+// TestFinalize_WarningsAreCapped guards the overflow marker. Warnings are
+// numerous in healthy operation (one per region per service for an availability
+// gap), so an uncapped array is a when, not an if — and a cap that dropped
+// silently would make a rendered count a quiet lie.
+func TestFinalize_WarningsAreCapped(t *testing.T) {
+	st, scanID := newFinalizeStore(t)
+
+	warns := make([]store.ScanWarning, maxPersistedWarnings+50)
+	for i := range warns {
+		warns[i] = store.ScanWarning{Provider: "aws", Service: "svc", Message: fmt.Sprintf("w%d", i)}
+	}
+	if _, err := Finalize(st, scanID, nil, warns, false); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+
+	got := parsedWarnings(t, st, scanID)
+	if len(got) != maxPersistedWarnings+1 {
+		t.Fatalf("persisted %d entries, want %d kept + 1 truncation marker",
+			len(got), maxPersistedWarnings)
+	}
+	last := got[len(got)-1]
+	if last.Service != warningsTruncatedService {
+		t.Errorf("last entry service = %q, want %q", last.Service, warningsTruncatedService)
+	}
+	if !strings.Contains(last.Message, "50") {
+		t.Errorf("truncation marker = %q, want it to name the 50 dropped warnings", last.Message)
 	}
 }
