@@ -36,7 +36,7 @@ func maxMigrationVersion(t *testing.T, fsys embed.FS, dir string) int {
 // already number the same logical change differently (SQLite 003_scan_errors vs
 // PG 005_scan_errors_jsonb), so their max versions could silently diverge — at
 // which point the PG staleness check would compare against the wrong ceiling.
-// They are equal today (both 6); a future migration that lands under a different
+// They are equal today (both 14); a future migration that lands under a different
 // number per dialect trips this test, prompting the author to keep the ceilings
 // aligned (or make TargetSchemaVersion driver-aware).
 func TestMigrationVersionCeilingsMatch(t *testing.T) {

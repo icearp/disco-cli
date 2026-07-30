@@ -16,9 +16,30 @@
 -- verified_at / verified_by on every unchanged resource on every scan (the
 -- verify-only path), so with this index a no-op rescan of an unchanged
 -- resource costs a new heap tuple plus an insertion into all of the table's
--- indexes. Its only reader is DiffScans (store/diff.go), reached from the
--- `disco diff` CLI, whose Stale set that comment already documents as
--- approximate -- a scan of the current rows serves it correctly.
+-- indexes.
+--
+-- CORRECTION: this said DiffScans (store/diff.go), reached from the `disco diff`
+-- CLI, was its ONLY reader. It is not, and it has since gained another in this
+-- very package. Two more predicates count on this column:
+--
+--   * scanResourceCountExpr (store/scans.go), the resource_count CompleteScan
+--     and its siblings record. Added after this migration, and its own comment
+--     already refuses to index verified_by for the reason below -- the two
+--     comments agree, they just did not know about each other.
+--   * disco-saas' scan reaper, which records the same count on the FAILED path
+--     (internal/reconcile/reaper.go). A live server predicate, not a CLI one,
+--     and without the index it measured 1,734 ms / 24,591 buffers as a Parallel
+--     Seq Scan, once per reaped scan.
+--
+-- The drop still stands, and the cost is accepted rather than mitigated. A
+-- partial or trailing-key variant would not help: verified_by is rewritten on
+-- every unchanged resource on every scan, which is precisely the HOT-breaking
+-- amplification this migration exists to remove, and that is true of any index
+-- containing the column. Counting via discovered_by instead is NOT equivalent --
+-- a resource discovered by an older scan and merely re-verified by this one
+-- would drop out of the count. So: a background path, once per reaped scan,
+-- growing with history. Re-add the index only with a measurement showing the
+-- read cost has overtaken the write cost on a real table.
 --
 -- The other three are strict prefixes of a wider index under an identical
 -- predicate, so the planner can always use the wider one instead:
