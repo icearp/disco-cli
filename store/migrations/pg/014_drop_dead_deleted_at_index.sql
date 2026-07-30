@@ -1,0 +1,38 @@
+-- 014_drop_dead_deleted_at_index.sql
+--
+-- Drops idx_resources_deleted_at, correcting 013, which kept it on the reasoning
+-- that a partial index over archived rows only was both nearly free and the
+-- plausible selective path for an archived-only listing. The second half was
+-- measured wrong the same day.
+--
+-- What the measurement showed, on the 101,869-current-row table 013 quotes:
+--
+--   * An archived-only listing -- `WHERE workspace_id = $1 AND superseded_by IS
+--     NULL AND deleted_at IS NOT NULL ORDER BY provider, type, native_id LIMIT
+--     50` -- planned as an Index Scan using a DIFFERENT index, with
+--     `deleted_at IS NOT NULL` as an Index Cond rather than a filter. Any index
+--     whose leading columns already narrow to the workspace can carry the
+--     deleted_at test as a trailing condition, so the standalone partial index
+--     is not needed for the query shape it was defended for.
+--   * The table held one archived row, so the partial index was NOT empty, and
+--     its idx_scan was still 0. That is the difference between "unused" and
+--     "unsampled", and 013 assumed the latter without checking the row count.
+--
+-- Nothing in this repository reads it either: the only deleted_at predicates are
+-- in ArchiveResource / RestoreResource, and both lead with `root_id = ?`, which
+-- idx_resources_root_id serves.
+--
+-- The saving is trivial (16 kB, and a partial index over archived rows costs
+-- almost nothing to maintain). It is dropped because a justification that does
+-- not survive its own measurement should not stay in the tree, not because the
+-- bytes matter. If an archived-first access path is ever wanted, add it with the
+-- workspace or root leading and the predicate trailing -- the shape the planner
+-- actually chose.
+--
+-- Still KEPT, unchanged from 013 and for the reason given there: idx_resources_
+-- scan (DiffScans, CountResourcesByScan, ResourceFilter.DiscoveredBy) and
+-- idx_resources_status (ResourceFilter.Status). Both have named readers in this
+-- package, and both read zero scans only where the caller does not expose those
+-- queries.
+
+DROP INDEX IF EXISTS idx_resources_deleted_at;
