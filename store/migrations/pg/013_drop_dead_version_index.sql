@@ -1,0 +1,41 @@
+-- 013_drop_dead_version_index.sql
+--
+-- Drops idx_resources_previous_version. Sibling of 009_index_write_pressure:
+-- the same write-amplification argument, applied to the one index left on
+-- `resources` that no query in this repository can use.
+--
+-- previous_version_id is WRITTEN by both row-creating paths (UpsertResources'
+-- version split and ArchiveResource's tombstone) and RETURNED as a field by
+-- GetResourceVersions, but it is never a PREDICATE: the version chain is read
+-- by `WHERE root_id = ?` (store/resources_versioning.go), not by following
+-- previous_version_id link by link, so the chain stays fully walkable without
+-- an index on it. An index whose only consumer you cannot name in the code is
+-- a candidate for deletion rather than a safety net.
+--
+-- `resources` keeps every superseded version forever, so this index grew with
+-- total history rather than with the live set, and every version-split INSERT
+-- plus every non-heap-only UPDATE paid an entry in it. Measured on a
+-- 101,867-current-row table (202 MB heap, 13 indexes, 59 MB of index): 1232 kB
+-- and 0 scans since the last stats reset.
+--
+-- The other three zero-scan indexes on that same table were examined in the
+-- same pass and deliberately KEPT, because a zero scan count is evidence only
+-- when no reader exists in the code:
+--
+--   idx_resources_scan (discovered_by)  -- DiffScans' Added set (store/diff.go),
+--       CountResourcesByScan, and ResourceFilter.DiscoveredBy. All three are
+--       selective single-scan lookups against full history. The SaaS front end
+--       happens not to use them, which is why the counter reads zero there.
+--   idx_resources_status (status)       -- ResourceFilter.Status, i.e. the
+--       provider lifecycle filter. status is per-resource provider state
+--       (NULL when unreported), not a near-constant.
+--   idx_resources_deleted_at            -- partial (deleted_at IS NOT NULL), so
+--       it indexes archived rows only and costs essentially nothing to
+--       maintain. It is also the plausible selective path for an
+--       archived-only listing. The zero count came from a table with no
+--       archived rows, which says nothing about one that has them.
+--
+-- No fillfactor or autovacuum change here: 009 set those and 010 tuned
+-- fillfactor to 70 against measurement.
+
+DROP INDEX IF EXISTS idx_resources_previous_version;
