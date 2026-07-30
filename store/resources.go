@@ -314,9 +314,22 @@ func (s *Store) CountResourcesByScan(scanID string) (int, error) {
 // `disco check` to print the excluded-managed count alongside the evaluated
 // count so SecEng/Compliance personas don't misread the small denominator as
 // "no resources".
+//
+// The predicate is the bare column rather than a comparison to 1: SQLite has
+// no boolean type and stores 0/1, but `managed_by_provider` is a real BOOLEAN
+// on Postgres, where `= 1` is not false — it is an ERROR (42883, no operator
+// boolean = integer), so this counted nothing and failed the whole call on
+// that backend. Only `disco check` reaches it and the hosted product never
+// runs that command, which is why a query that could not execute survived.
+//
+// It also carries the current-row predicate, for the same reason the number
+// exists: it is meant to be the population the customer-only listing HID, and
+// that listing scopes to current rows. Without it the two numbers `disco
+// check` prints are counted over different populations, and the excluded count
+// grows with version history rather than with the estate.
 func (s *Store) CountManaged() (int, error) {
 	var n int
-	err := s.get(&n, "SELECT COUNT(*) FROM resources WHERE managed_by_provider = 1")
+	err := s.get(&n, "SELECT COUNT(*) FROM resources WHERE managed_by_provider"+currentVersionWhereSQL())
 	return n, err
 }
 
