@@ -108,9 +108,10 @@ CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).`,
 
 		asOf := ""
 		if scans, sErr := db.ListScans(); sErr == nil && len(scans) > 0 {
-			// scans[0].StartedAt is SQLite-flavoured (`YYYY-MM-DD HH:MM:SS`);
-			// renderJSON / consumers expect RFC3339 to match resource-row
-			// timestamps and the disco check input contract.
+			// nowExpr writes RFC3339, so this is a no-op for current rows;
+			// it stays because a store predating v0.31.0 holds the zoneless
+			// shape, and renderJSON / consumers expect RFC3339 to match
+			// resource-row timestamps and the disco check input contract.
 			asOf = store.ToRFC3339(scans[0].StartedAt)
 		}
 

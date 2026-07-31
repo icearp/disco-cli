@@ -59,9 +59,9 @@ type scanWire struct {
 }
 
 // MarshalJSON renders a Scan with camelCase keys, parsed providers / scope /
-// meta objects, and RFC3339 timestamps. The SQLite `datetime('now')` shape
-// (`YYYY-MM-DD HH:MM:SS`) is normalised so consumers can use a single
-// `time.Parse(time.RFC3339, ...)` regardless of row source.
+// meta objects, and RFC3339 timestamps. nowExpr writes RFC3339 already, so
+// this normalises only rows predating v0.31.0 — consumers can use a single
+// `time.Parse(time.RFC3339, ...)` regardless of row age.
 func (s Scan) MarshalJSON() ([]byte, error) {
 	w := scanWire{
 		ID:            s.ID,
@@ -93,23 +93,40 @@ func (s Scan) MarshalJSON() ([]byte, error) {
 	return json.Marshal(w)
 }
 
+// timestampLayouts are the shapes a column written by nowExpr can hold:
+// RFC3339, which nowExpr emits, and the zoneless "YYYY-MM-DD HH:MM:SS" it
+// emitted before v0.31.0. Migration 016 rewrites the stored rows, but a store
+// that has not run it — an older file opened by a newer binary, a restored
+// backup — still holds the old shape, so readers accept both.
+var timestampLayouts = []string{time.RFC3339, "2006-01-02 15:04:05"}
+
+// ParseTimestamp decodes a timestamp column written by nowExpr, accepting
+// either shape in timestampLayouts, and reports whether it parsed. Callers
+// check the bool rather than testing the returned time against the zero
+// value: an unparseable timestamp and a genuinely zero one are different
+// facts, and only the caller knows whether guessing is acceptable.
+func ParseTimestamp(s string) (time.Time, bool) {
+	for _, layout := range timestampLayouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.UTC(), true
+		}
+	}
+	return time.Time{}, false
+}
+
 // ToRFC3339 is the exported alias for callers outside the package
-// (cmd/summary.go) that need to project a SQLite-flavoured timestamp.
+// (cmd/summary.go) that need to project a store timestamp.
 func ToRFC3339(s string) string { return toRFC3339(s) }
 
-// toRFC3339 normalises a SQLite `datetime('now')` string
-// (`YYYY-MM-DD HH:MM:SS` UTC) to RFC3339. Empty input passes through.
-// Already-RFC3339 input round-trips unchanged. Anything unparseable is
-// returned untouched — better to surface a literal than swallow the value.
+// toRFC3339 normalises a stored timestamp to RFC3339. Empty input passes
+// through. Already-RFC3339 input round-trips unchanged. Anything unparseable
+// is returned untouched — better to surface a literal than swallow the value.
 func toRFC3339(s string) string {
 	if s == "" {
 		return s
 	}
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t.UTC().Format(time.RFC3339)
-	}
-	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
-		return t.UTC().Format(time.RFC3339)
+	if t, ok := ParseTimestamp(s); ok {
+		return t.Format(time.RFC3339)
 	}
 	return s
 }

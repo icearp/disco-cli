@@ -545,7 +545,7 @@ func runScanDryRun(cmd *cobra.Command, names []string, output string) error {
 			case sErr != nil:
 				detail = fmt.Sprintf("threshold %s, no prior complete scan", d)
 			default:
-				if t, perr := time.Parse("2006-01-02 15:04:05", sc.StartedAt); perr == nil {
+				if t, ok := store.ParseTimestamp(sc.StartedAt); ok {
 					age := time.Since(t).Round(time.Second)
 					if t.After(time.Now().UTC().Add(-d)) {
 						wouldScan = false
@@ -591,10 +591,10 @@ func evaluateIfOlderThan(db *store.Store, names []string, d time.Duration) (bool
 			// No prior scan for this provider — must run.
 			return false, "", nil
 		}
-		t, perr := time.Parse("2006-01-02 15:04:05", sc.StartedAt)
-		if perr != nil {
+		t, ok := store.ParseTimestamp(sc.StartedAt)
+		if !ok {
 			// Unparseable timestamp — be safe and run rather than skip.
-			_, _ = fmt.Fprintf(os.Stderr, "--if-older-than: cannot parse scan %s started_at %q: %v (running scan)\n", sc.ID, sc.StartedAt, perr)
+			_, _ = fmt.Fprintf(os.Stderr, "--if-older-than: cannot parse scan %s started_at %q (running scan)\n", sc.ID, sc.StartedAt)
 			return false, "", nil
 		}
 		if t.Before(threshold) {

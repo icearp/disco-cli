@@ -23,7 +23,7 @@ func openTestStore(t *testing.T) *Store {
 		t.Fatalf("openTestStore: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("openTestStore: insert test scan: %v", err)
 	}
 	return st
@@ -40,7 +40,7 @@ func TestOpenReadOnly_Reads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("insert scan: %v", err)
 	}
 	if _, err := st.UpsertResource(&Resource{
@@ -73,7 +73,7 @@ func TestOpenReadOnly_RejectsWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("insert scan: %v", err)
 	}
 	_ = st.Close()

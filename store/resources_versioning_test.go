@@ -26,7 +26,7 @@ func ensureTestScan(t *testing.T, st *Store, id string) {
 	t.Helper()
 	if _, err := st.db.Exec(
 		`INSERT OR IGNORE INTO scans (id, started_at, status, providers, scope)
-		 VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, id); err != nil {
+		 VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, id); err != nil {
 		t.Fatalf("ensureTestScan: %v", err)
 	}
 }

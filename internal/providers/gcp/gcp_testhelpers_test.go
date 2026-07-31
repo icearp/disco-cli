@@ -24,7 +24,7 @@ func newTestStore(t *testing.T) *store.Store {
 		t.Fatalf("newTestStore: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	if _, err := st.DB().Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+	if _, err := st.DB().Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("newTestStore: insert test scan: %v", err)
 	}
 	// Direction invariant — see aws_testhelper_test.go for rationale.

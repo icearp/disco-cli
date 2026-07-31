@@ -91,9 +91,9 @@ func (s *Store) ListCheckpoints(scanID string) ([]Checkpoint, error) {
 		if token.Valid {
 			c.LastToken = token.String
 		}
-		// SQLite datetime('now') returns "YYYY-MM-DD HH:MM:SS"; parse loosely
-		// — failure is non-fatal, leave UpdatedAt zero.
-		if t, terr := time.Parse("2006-01-02 15:04:05", updatedAt); terr == nil {
+		// Accepts either shape nowExpr has written (see ParseTimestamp);
+		// failure is non-fatal, leave UpdatedAt zero.
+		if t, ok := ParseTimestamp(updatedAt); ok {
 			c.UpdatedAt = t
 		}
 		out = append(out, c)

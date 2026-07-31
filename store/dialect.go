@@ -74,15 +74,28 @@ func (s *Store) selectAll(dest any, q string, args ...any) error {
 	return e.Select(dest, e.Rebind(q), args...)
 }
 
-// nowExpr returns a driver-appropriate SQL expression for the current
-// UTC time as "YYYY-MM-DD HH:MM:SS". SQLite's datetime('now') already
-// returns that shape; Postgres needs an explicit to_char. Embed directly
-// in INSERT/UPDATE statements that formerly hardcoded datetime('now').
+// nowExpr returns a driver-appropriate SQL expression for the current UTC
+// time as RFC3339 ("2006-01-02T15:04:05Z"). Both branches must render the
+// same bytes: the columns they feed are compared and ordered as TEXT, so a
+// dialect that formatted differently would sort its own rows apart. Embed
+// directly in INSERT/UPDATE statements.
+//
+// The trailing "Z" is load-bearing rather than decoration. These columns are
+// TEXT, and disco-saas casts them with ::timestamptz; without an offset that
+// cast resolves against the session TimeZone instead of UTC, so the value a
+// consumer reads depends on who is connected.
+//
+// This emitted a zoneless "YYYY-MM-DD HH:MM:SS" until v0.31.0, which the
+// schema's own column comments had always described as RFC3339. Readers that
+// still accept the old shape do so for rows written before migration 016
+// normalized them; see ToRFC3339.
 func (s *Store) nowExpr() string {
 	if s.driver == driverPostgres {
-		return "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD HH24:MI:SS')"
+		// to_char emits a literal character only when it is double-quoted,
+		// hence "T" and "Z" rather than bare T and Z.
+		return `to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`
 	}
-	return "datetime('now')"
+	return `strftime('%Y-%m-%dT%H:%M:%SZ','now')`
 }
 
 // tagJSONValueExists returns an EXISTS-clause SQL fragment that matches if

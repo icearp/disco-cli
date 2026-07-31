@@ -37,7 +37,7 @@ func TestClose_RemovesWALSidecars(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("insert scan: %v", err)
 	}
 	if _, err := st.UpsertResource(&Resource{
@@ -78,7 +78,7 @@ func TestClose_ReadOnlyDoesNotWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("insert scan: %v", err)
 	}
 	if err := st.Close(); err != nil {
@@ -165,7 +165,7 @@ func TestHelperLeakWAL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("helper Open: %v", err)
 	}
-	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("helper insert scan: %v", err)
 	}
 	if _, err := st.UpsertResource(&Resource{
@@ -191,7 +191,7 @@ func TestClose_LogsWhenSidecarCleanupBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("insert scan: %v", err)
 	}
 	if _, err := st.UpsertResource(&Resource{

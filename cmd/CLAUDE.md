@@ -104,7 +104,7 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 `resources`, `summary`, `tag-coverage`, and `scans show` all accept `--scan-id <id|latest>`. `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to the most-recent scan whose `resource_count > 0` — a re-verify run that touched no new rows otherwise silently zero-rows the documented drift workflow (F3 fix). Falls back to the most-recent scan when none qualify with a one-line stderr note. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.DiscoveredBy`; `scan --resume <id|latest>` uses the same shorthand convention.
 
-`ListScans` ORDER BY tie-breaks `started_at DESC` with `rowid DESC` because `datetime('now')` has 1s resolution — two scans created within the same second otherwise ordered by SQLite implementation default and `latest` could resolve to the older one.
+`ListScans` ORDER BY tie-breaks `started_at DESC` with `rowid DESC` because `nowExpr` has 1s resolution (RFC3339 to the second, no fraction) — two scans created within the same second otherwise ordered by SQLite implementation default and `latest` could resolve to the older one.
 
 ## `--scan-as discovered|verified|any` reconciles `scans.ResourceCount` ↔ `resources --scan-id`
 
