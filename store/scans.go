@@ -95,9 +95,9 @@ func (s Scan) MarshalJSON() ([]byte, error) {
 
 // timestampLayouts are the shapes a column written by nowExpr can hold:
 // RFC3339, which nowExpr emits, and the zoneless "YYYY-MM-DD HH:MM:SS" it
-// emitted before v0.31.0. Migration 016 rewrites the stored rows, but a store
-// that has not run it — an older file opened by a newer binary, a restored
-// backup — still holds the old shape, so readers accept both.
+// emitted before v0.31.0. Nothing rewrites the old rows (see
+// migrations/pg/016, which is deliberately empty), so a store written across
+// that boundary holds both shapes and readers must accept both.
 var timestampLayouts = []string{time.RFC3339, "2006-01-02 15:04:05"}
 
 // ParseTimestamp decodes a timestamp column written by nowExpr, accepting

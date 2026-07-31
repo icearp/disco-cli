@@ -94,10 +94,11 @@ func TestNowExpr_WritesRFC3339OnBothDialects(t *testing.T) {
 }
 
 // TestParseTimestamp_AcceptsBothStoredShapes pins the reader's tolerance as a
-// deliberate choice rather than an accident. Migration 016 normalizes stored
-// rows, but a store file that has not run it still holds the legacy shape, so
-// dropping the second layout would strand those rows — silently, since every
-// caller treats a parse failure as "no timestamp" rather than an error.
+// deliberate choice rather than an accident. Nothing rewrites rows written
+// before v0.31.0 — migrations/pg/016 is deliberately empty — so any store that
+// predates it still holds the legacy shape, and dropping the second layout
+// would strand those rows silently, since every caller treats a parse failure
+// as "no timestamp" rather than an error.
 func TestParseTimestamp_AcceptsBothStoredShapes(t *testing.T) {
 	want := time.Date(2026, 7, 28, 20, 47, 8, 0, time.UTC)
 	for _, tc := range []struct{ name, in string }{

@@ -86,9 +86,10 @@ func (s *Store) selectAll(dest any, q string, args ...any) error {
 // consumer reads depends on who is connected.
 //
 // This emitted a zoneless "YYYY-MM-DD HH:MM:SS" until v0.31.0, which the
-// schema's own column comments had always described as RFC3339. Readers that
-// still accept the old shape do so for rows written before migration 016
-// normalized them; see ToRFC3339.
+// schema's own column comments had always described as RFC3339. Rows written
+// before that keep the old shape -- no migration rewrites them, see
+// migrations/pg/016 -- so a store can hold both and readers accept both; see
+// ToRFC3339.
 func (s *Store) nowExpr() string {
 	if s.driver == driverPostgres {
 		// to_char emits a literal character only when it is double-quoted,
