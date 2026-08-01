@@ -134,6 +134,7 @@ func TestUpsertQuotas_DisplayOnlyChangeDoesNotSplit(t *testing.T) {
 	reworded := newQuota("ec2", "L-1216C47A", 5)
 	reworded.Name = "Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances"
 	reworded.ServiceName = strptr("Amazon Elastic Compute Cloud (Amazon EC2)")
+	reworded.Description = strptr("The maximum number of vCPUs for On-Demand Standard instances.")
 	n, err := st.UpsertQuotas([]*Quota{reworded})
 	if err != nil {
 		t.Fatalf("reworded upsert: %v", err)
@@ -155,6 +156,11 @@ func TestUpsertQuotas_DisplayOnlyChangeDoesNotSplit(t *testing.T) {
 	}
 	if cur.ServiceName == nil || *cur.ServiceName != *reworded.ServiceName {
 		t.Fatalf("service_name did not update in place: %v", cur.ServiceName)
+	}
+	// A description is prose the provider can reword at will. If it split the
+	// chain, one upstream copy edit would version every quota in the catalogue.
+	if cur.Description == nil || *cur.Description != *reworded.Description {
+		t.Fatalf("description did not update in place: %v", cur.Description)
 	}
 }
 

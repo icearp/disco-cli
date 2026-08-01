@@ -263,6 +263,9 @@ func quotaRow(acct *account, region, home, scanID string, q sqtypes.ServiceQuota
 		AttributesJSON: mustJSON(q),
 		DiscoveredBy:   scanID,
 	}
+	if desc := sv(q.Description); desc != "" {
+		out.Description = &desc
+	}
 	if name := sv(q.ServiceName); name != "" {
 		out.ServiceName = &name
 	}

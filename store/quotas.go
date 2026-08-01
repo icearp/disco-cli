@@ -42,6 +42,7 @@ type Quota struct {
 	ServiceName    *string  `db:"service_name"   json:"serviceName"`
 	QuotaCode      string   `db:"quota_code"     json:"quotaCode"`
 	Name           string   `db:"name"           json:"name"`
+	Description    *string  `db:"description"    json:"description"`
 	Unit           *string  `db:"unit"           json:"unit"`
 	Value          *float64 `db:"value"          json:"value"`
 	DefaultValue   *float64 `db:"default_value"  json:"defaultValue"`
@@ -131,6 +132,7 @@ func quotaSelectColumns() []string {
 		"service_name",
 		"quota_code",
 		"name",
+		"description",
 		"unit",
 		"value",
 		"default_value",
@@ -433,10 +435,11 @@ func (s *Store) upsertQuotasOn(quotas []*Quota, now string) (int, error) {
 				   SET verified_at  = ?,
 				       verified_by  = ?,
 				       name         = ?,
+				       description  = ?,
 				       service_name = ?,
 				       account_name = ?
 				 WHERE id = ?`,
-				now, q.DiscoveredBy, q.Name, q.ServiceName, q.AccountName, existing.VersionRowID,
+				now, q.DiscoveredBy, q.Name, q.Description, q.ServiceName, q.AccountName, existing.VersionRowID,
 			); err != nil {
 				return 0, fmt.Errorf("verify quota %s: %w", q.ID, err)
 			}
@@ -522,16 +525,16 @@ func (s *Store) insertFirstQuota(q *Quota, now string) (int, error) {
 	res, err := s.exec(`
 		INSERT INTO quotas
 			(id, root_id, provider, account_id, account_name, region,
-			 service_code, service_name, quota_code, name, unit,
+			 service_code, service_name, quota_code, name, description, unit,
 			 value, default_value, adjustable, global_quota, applied_level,
 			 attributes, discovered_at, discovered_by, verified_at, verified_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (provider, account_id, service_code, quota_code, region)
 		    WHERE superseded_by IS NULL
 		DO NOTHING`,
 		uuid.Must(uuid.NewV7()).String(), q.ID,
 		q.Provider, q.AccountID, q.AccountName, q.Region,
-		q.ServiceCode, q.ServiceName, q.QuotaCode, q.Name, q.Unit,
+		q.ServiceCode, q.ServiceName, q.QuotaCode, q.Name, q.Description, q.Unit,
 		q.Value, q.DefaultValue, q.Adjustable, q.GlobalQuota, q.AppliedLevel,
 		q.AttributesJSON, q.DiscoveredAt, q.DiscoveredBy, now, q.DiscoveredBy,
 	)
@@ -562,13 +565,13 @@ func (s *Store) splitQuota(q *Quota, existing currentQuotaRow, now string) error
 	if _, err := s.exec(`
 		INSERT INTO quotas
 			(id, root_id, previous_version_id, provider, account_id, account_name, region,
-			 service_code, service_name, quota_code, name, unit,
+			 service_code, service_name, quota_code, name, description, unit,
 			 value, default_value, adjustable, global_quota, applied_level,
 			 attributes, discovered_at, discovered_by, verified_at, verified_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		newRowID, existing.RootID, existing.VersionRowID,
 		q.Provider, q.AccountID, q.AccountName, q.Region,
-		q.ServiceCode, q.ServiceName, q.QuotaCode, q.Name, q.Unit,
+		q.ServiceCode, q.ServiceName, q.QuotaCode, q.Name, q.Description, q.Unit,
 		q.Value, q.DefaultValue, q.Adjustable, q.GlobalQuota, q.AppliedLevel,
 		q.AttributesJSON, existing.DiscoveredAt, existing.DiscoveredBy, now, q.DiscoveredBy,
 	); err != nil {

@@ -99,9 +99,10 @@ func (s *stubServiceQuotas) ListAWSDefaultServiceQuotas(_ context.Context, in *s
 
 func regionalQuota(region, sc, qc, name string, value float64, adjustable bool) sqtypes.ServiceQuota {
 	arn := "arn:aws:servicequotas:" + region + ":" + testAccountID + ":" + sc + "/" + qc
+	desc := "The maximum number of " + name + "."
 	return sqtypes.ServiceQuota{
 		ServiceCode: &sc, QuotaCode: &qc, QuotaName: &name, Value: &value,
-		Adjustable: adjustable, GlobalQuota: false, QuotaArn: &arn,
+		Adjustable: adjustable, GlobalQuota: false, QuotaArn: &arn, Description: &desc,
 	}
 }
 
@@ -171,6 +172,12 @@ func TestScanServiceQuotas_PersistsAdjustableAndFixed(t *testing.T) {
 		}
 		if r.Value == nil {
 			t.Errorf("%s: nil Value", r.QuotaCode)
+		}
+		// AWS populates Description on every quota it reports; it is the one
+		// field that says what a limit governs, which no combination of
+		// service code, quota code and unit conveys.
+		if r.Description == nil || *r.Description == "" {
+			t.Errorf("%s: empty Description", r.QuotaCode)
 		}
 	}
 

@@ -17,7 +17,7 @@ import (
 var quotasColumns = []string{
 	"provider", "account_id", "region", "service_code", "quota_code", "name",
 	"value", "default_value", "unit", "adjustable", "global_quota", "applied_level",
-	"id", "account_name", "service_name", "attributes",
+	"id", "account_name", "service_name", "description", "attributes",
 	"discovered_at", "discovered_by",
 }
 
@@ -27,7 +27,7 @@ var quotasColumns = []string{
 var quotasMarkdownHeaders = []string{
 	"Provider", "Account ID", "Region", "Service Code", "Quota Code", "Name",
 	"Value", "Default Value", "Unit", "Adjustable", "Global Quota", "Applied Level",
-	"ID", "Account Name", "Service Name", "Attributes",
+	"ID", "Account Name", "Service Name", "Description", "Attributes",
 	"Discovered At", "Discovered By",
 }
 
@@ -39,7 +39,7 @@ func quotaRow(q *store.Quota) []string {
 		q.Provider, q.AccountID, q.Region, q.ServiceCode, q.QuotaCode, q.Name,
 		formatQuotaValue(q.Value), formatQuotaValue(q.DefaultValue), derefOr(q.Unit, ""),
 		strconv.FormatBool(q.Adjustable), strconv.FormatBool(q.GlobalQuota), derefOr(q.AppliedLevel, ""),
-		q.ID, derefOr(q.AccountName, ""), derefOr(q.ServiceName, ""), q.AttributesJSON,
+		q.ID, derefOr(q.AccountName, ""), derefOr(q.ServiceName, ""), derefOr(q.Description, ""), q.AttributesJSON,
 		q.DiscoveredAt, q.DiscoveredBy,
 	}
 }
