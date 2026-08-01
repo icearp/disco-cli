@@ -192,7 +192,7 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 `store` must not import `internal/policy` (or other downstream packages). Doing so creates `cmd → policy → store → policy` cycle. Keep store types bare (string/pointer fields, no `policy.Finding`); conversion between store rows and wire types lives in cmd-side helpers (`storedFindingToFinding`, `findingToStored` in `cmd/findings.go`).
 
-## `Scan.StartedAt` format = SQLite datetime, not RFC3339 (in storage)
+## `Scan.StartedAt` in storage = RFC3339 since v0.31.0, and older rows keep the zoneless shape
 
 `CreateScan` stamps `started_at` via `nowExpr` (`dialect.go`), which since v0.31.0 returns **RFC3339** (`2026-07-28T20:47:08Z`) on both dialects; the DB column carries that shape verbatim. It emitted a zoneless `YYYY-MM-DD HH:MM:SS` before, which is why readers stay tolerant: consumers doing `time.Time` math on `Scan.StartedAt` (or `Checkpoint.UpdatedAt`) use `store.ParseTimestamp(s) (time.Time, bool)`, which accepts both shapes, or `store.ToRFC3339(s)` for the string form. Do not hardcode either layout at a call site — **nothing rewrites the old rows** (`migrations/pg/016` is deliberately empty; it shipped a rewrite in v0.31.0 and gave it up in v0.31.1, because disco-saas FORCEs RLS on these tables and its migration connection sets no `app.workspace_id`, so the DML `42704`'d on every already-provisioned tenant schema), so a store written across the v0.31.0 boundary holds BOTH shapes at once. Every caller treats a parse failure as "no timestamp" rather than an error, so a too-strict parse fails silently.
 

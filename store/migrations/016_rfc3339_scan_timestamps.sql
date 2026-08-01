@@ -5,3 +5,8 @@
 -- v0.31.0 was removed rather than repaired. This file exists to keep the
 -- per-dialect version ceilings equal, which TestMigrationVersionCeilingsMatch
 -- enforces, and to keep version 16 burnt so it is never reused.
+--
+-- Consequence for anyone reading schema_migrations: version 16 being recorded
+-- says only that the migration ran, and it is a no-op, so it is NOT evidence
+-- that a store's rows are RFC3339. The shape of the data is decided by which
+-- binary WROTE each row. Query the column if you need to know.

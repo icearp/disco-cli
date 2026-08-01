@@ -135,9 +135,13 @@ func renderScans(scans []store.Scan, format string) error {
 		if err := w.Write([]string{"id", "started_at", "finished_at", "status", "providers", "resource_count"}); err != nil {
 			return err
 		}
+		// Projected rather than printed raw: nothing rewrites rows written
+		// before v0.31.0 (migrations/pg/016 is deliberately empty), so a
+		// store spanning that boundary holds both shapes and a CSV/table
+		// consumer would otherwise see two timestamp formats in one column.
 		for _, s := range scans {
 			if err := w.Write([]string{
-				s.ID, s.StartedAt, ptrOrEmpty(s.FinishedAt), s.Status,
+				s.ID, store.ToRFC3339(s.StartedAt), store.ToRFC3339(ptrOrEmpty(s.FinishedAt)), s.Status,
 				strings.Join(s.Providers, ","), intPtrOrEmpty(s.ResourceCount),
 			}); err != nil {
 				return err
@@ -148,7 +152,7 @@ func renderScans(scans []store.Scan, format string) error {
 		rows := make([][]string, 0, len(scans))
 		for _, s := range scans {
 			rows = append(rows, []string{
-				s.ID, s.StartedAt, ptrOrEmpty(s.FinishedAt), s.Status,
+				s.ID, store.ToRFC3339(s.StartedAt), store.ToRFC3339(ptrOrEmpty(s.FinishedAt)), s.Status,
 				strings.Join(s.Providers, ","), intPtrOrEmpty(s.ResourceCount),
 			})
 		}
@@ -162,7 +166,7 @@ func renderScans(scans []store.Scan, format string) error {
 		_, _ = fmt.Fprintln(w, "ID\tSTARTED\tFINISHED\tSTATUS\tPROVIDERS\tRESOURCES")
 		for _, s := range scans {
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-				short(s.ID), s.StartedAt, ptrOrDash(s.FinishedAt), s.Status,
+				short(s.ID), store.ToRFC3339(s.StartedAt), store.ToRFC3339(ptrOrDash(s.FinishedAt)), s.Status,
 				strings.Join(s.Providers, ","), intPtrOrDash(s.ResourceCount))
 		}
 		return w.Flush()
@@ -190,13 +194,13 @@ func renderScanShow(sc *store.Scan, format string) error {
 			return err
 		}
 		return w.Write([]string{
-			sc.ID, sc.StartedAt, ptrOrEmpty(sc.FinishedAt), sc.Status,
+			sc.ID, store.ToRFC3339(sc.StartedAt), store.ToRFC3339(ptrOrEmpty(sc.FinishedAt)), sc.Status,
 			strings.Join(sc.Providers, ","), intPtrOrEmpty(sc.ResourceCount),
 			sc.ScopeJSON, ptrOrEmpty(sc.Error),
 		})
 	case "markdown", "md":
 		row := []string{
-			sc.ID, sc.StartedAt, ptrOrEmpty(sc.FinishedAt), sc.Status,
+			sc.ID, store.ToRFC3339(sc.StartedAt), store.ToRFC3339(ptrOrEmpty(sc.FinishedAt)), sc.Status,
 			strings.Join(sc.Providers, ","), intPtrOrEmpty(sc.ResourceCount),
 			sc.ScopeJSON, ptrOrEmpty(sc.Error),
 		}
@@ -207,8 +211,8 @@ func renderScanShow(sc *store.Scan, format string) error {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintf(w, "ID:\t%s\n", sc.ID)
 		_, _ = fmt.Fprintf(w, "Status:\t%s\n", sc.Status)
-		_, _ = fmt.Fprintf(w, "Started:\t%s\n", sc.StartedAt)
-		_, _ = fmt.Fprintf(w, "Finished:\t%s\n", ptrOrDash(sc.FinishedAt))
+		_, _ = fmt.Fprintf(w, "Started:\t%s\n", store.ToRFC3339(sc.StartedAt))
+		_, _ = fmt.Fprintf(w, "Finished:\t%s\n", store.ToRFC3339(ptrOrDash(sc.FinishedAt)))
 		_, _ = fmt.Fprintf(w, "Providers:\t%s\n", strings.Join(sc.Providers, ","))
 		_, _ = fmt.Fprintf(w, "Resources:\t%s\n", intPtrOrDash(sc.ResourceCount))
 		if sc.Error != nil && *sc.Error != "" {

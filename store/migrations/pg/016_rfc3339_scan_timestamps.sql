@@ -28,3 +28,8 @@
 -- So a store keeps whatever shape its rows were written in, mixed or not, and
 -- a consumer needing one uniform shape gets it by re-provisioning rather than
 -- by rewriting rows under a policy this connection cannot satisfy.
+--
+-- Consequence for anyone reading schema_migrations: version 16 being recorded
+-- says only that the migration ran, and it is a no-op, so it is NOT evidence
+-- that a store's rows are RFC3339. The shape of the data is decided by which
+-- binary WROTE each row. Query the column if you need to know.
