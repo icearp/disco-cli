@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/managed"
@@ -22,6 +23,32 @@ func TestNoDoubleDeclaredTypes(t *testing.T) {
 		if legacy[d.Type] {
 			t.Errorf("type %q declared via BOTH registerType and a legacy emit — remove the legacy site", d.Type)
 		}
+	}
+}
+
+// TestServiceQuotasDeclaresNoResourceType guards the classification a service
+// quota now has: it is a limit value stored in `quotas`, not a resource.
+//
+// Re-adding a registerType for it would put ~90% of a real account's rows back
+// into `resources` — silently, since every scanner test would still pass — and
+// would restore the badge and index pressure the split removed. The scanner is
+// still registered, so this is not "we stopped scanning quotas": the service
+// entry has to survive alongside the absent type.
+func TestServiceQuotasDeclaresNoResourceType(t *testing.T) {
+	for _, d := range registeredDescriptors {
+		if d.Service == "servicequotas" {
+			t.Errorf("quota type %q is registered as a resource — quotas belong in the quotas table", d.Type)
+		}
+	}
+	for _, s := range registeredServices {
+		for _, d := range s.emits {
+			if strings.HasPrefix(d.DiscoType, "aws:servicequotas:") {
+				t.Errorf("quota type %q is declared as a legacy emit — quotas belong in the quotas table", d.DiscoType)
+			}
+		}
+	}
+	if !serviceRegistered("aws:servicequotas") {
+		t.Error("aws:servicequotas is no longer registered as a service — quotas would stop being scanned entirely")
 	}
 }
 
@@ -54,7 +81,7 @@ func serviceRegistered(name string) bool {
 // are deliberately absent — their managed flag stays per-row scanner-set.
 func TestUnconditionalManagedStampedByType(t *testing.T) {
 	wantManaged := []string{
-		TypeServiceQuota, TypeQuickSightAccount, TypeQuickSightCustomization,
+		TypeQuickSightAccount, TypeQuickSightCustomization,
 		TypeOrganizationsRoot, TypeBedrockFoundationModel, TypeAPIGatewayAccount,
 		TypeSecurityHubStandard, TypeRoute53ResolverResolverConfig,
 	}

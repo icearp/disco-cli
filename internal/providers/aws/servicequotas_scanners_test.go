@@ -19,7 +19,8 @@ func noRateLimit() *pacer { return newPacer(rate.Inf, 0) }
 
 // stubServiceQuotas is an in-memory serviceQuotasAPI for unit tests. ListServices
 // returns the service codes; ListServiceQuotas serves per-code quota slices, both
-// paginated by an integer NextToken offset. servicesErr / quotaErr inject failures.
+// paginated by an integer NextToken offset. ListAWSDefaultServiceQuotas serves the
+// per-code defaults. servicesErr / quotaErr / defaultsErr inject failures.
 type stubServiceQuotas struct {
 	services     []string
 	servicesPage int
@@ -27,7 +28,9 @@ type stubServiceQuotas struct {
 	quotas       map[string][]sqtypes.ServiceQuota
 	quotaPage    int
 	quotaErr     map[string]error // keyed by ServiceCode
-	gotMaxResult atomic.Int32     // MaxResults seen on ListServiceQuotas (race-free under fanout)
+	defaults     map[string][]sqtypes.ServiceQuota
+	defaultsErr  error
+	gotMaxResult atomic.Int32 // MaxResults seen on ListServiceQuotas (race-free under fanout)
 }
 
 func encodeTok(n int) *string { s := strconv.Itoa(n); return &s }
@@ -83,6 +86,17 @@ func (s *stubServiceQuotas) ListServiceQuotas(_ context.Context, in *servicequot
 	return out, nil
 }
 
+func (s *stubServiceQuotas) ListAWSDefaultServiceQuotas(_ context.Context, in *servicequotas.ListAWSDefaultServiceQuotasInput, _ ...func(*servicequotas.Options)) (*servicequotas.ListAWSDefaultServiceQuotasOutput, error) {
+	if s.defaultsErr != nil {
+		return nil, s.defaultsErr
+	}
+	code := ""
+	if in.ServiceCode != nil {
+		code = *in.ServiceCode
+	}
+	return &servicequotas.ListAWSDefaultServiceQuotasOutput{Quotas: s.defaults[code]}, nil
+}
+
 func regionalQuota(region, sc, qc, name string, value float64, adjustable bool) sqtypes.ServiceQuota {
 	arn := "arn:aws:servicequotas:" + region + ":" + testAccountID + ":" + sc + "/" + qc
 	return sqtypes.ServiceQuota{
@@ -99,21 +113,20 @@ func globalQuota(sc, qc, name string, value float64, adjustable bool) sqtypes.Se
 	}
 }
 
-func listQuotaRows(t *testing.T, st *store.Store) []store.Resource {
+func listQuotaRows(t *testing.T, st *store.Store) []store.Quota {
 	t.Helper()
-	got, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, Types: []string{TypeServiceQuota}, IncludeManaged: true, Limit: 1000,
-	})
+	got, err := st.ListQuotas(store.QuotaFilter{Providers: []string{"aws"}, Limit: 1000})
 	if err != nil {
-		t.Fatalf("ListResources: %v", err)
+		t.Fatalf("ListQuotas: %v", err)
 	}
 	return got
 }
 
-// TestScanServiceQuotas_PersistsAdjustableOnly is the happy path: adjustable quotas
-// across two service codes persist (with multi-page pagination exercised), while a
-// non-adjustable quota is dropped.
-func TestScanServiceQuotas_PersistsAdjustableOnly(t *testing.T) {
+// TestScanServiceQuotas_PersistsAdjustableAndFixed is the happy path: quotas
+// across two service codes persist (with multi-page pagination exercised), and
+// the non-adjustable one is kept rather than dropped — a hard ceiling AWS moves
+// on its own is the signal this table exists to record.
+func TestScanServiceQuotas_PersistsAdjustableAndFixed(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -125,7 +138,7 @@ func TestScanServiceQuotas_PersistsAdjustableOnly(t *testing.T) {
 		quotas: map[string][]sqtypes.ServiceQuota{
 			"ec2": {
 				regionalQuota(region, "ec2", "L-0EA8095F", "VPCs per Region", 5, true),
-				regionalQuota(region, "ec2", "L-FIXED", "Fixed limit", 10, false), // dropped
+				regionalQuota(region, "ec2", "L-FIXED", "Fixed limit", 10, false),
 			},
 			"lambda": {
 				regionalQuota(region, "lambda", "L-B99A9384", "Concurrent executions", 1000, true),
@@ -137,8 +150,8 @@ func TestScanServiceQuotas_PersistsAdjustableOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if total != 2 || inserted != 2 {
-		t.Errorf("total=%d inserted=%d, want 2/2 (non-adjustable dropped)", total, inserted)
+	if total != 3 || inserted != 3 {
+		t.Errorf("total=%d inserted=%d, want 3/3 (non-adjustable is recorded, not dropped)", total, inserted)
 	}
 
 	if got := stub.gotMaxResult.Load(); got != 100 {
@@ -146,22 +159,123 @@ func TestScanServiceQuotas_PersistsAdjustableOnly(t *testing.T) {
 	}
 
 	rows := listQuotaRows(t, st)
-	if len(rows) != 2 {
-		t.Fatalf("got %d rows, want 2", len(rows))
+	if len(rows) != 3 {
+		t.Fatalf("got %d rows, want 3", len(rows))
 	}
 	for _, r := range rows {
-		if r.Type != TypeServiceQuota {
-			t.Errorf("type = %q, want %q", r.Type, TypeServiceQuota)
+		if r.Region != region {
+			t.Errorf("%s: region = %q, want %q", r.QuotaCode, r.Region, region)
 		}
-		if !r.ManagedByProvider {
-			t.Errorf("%s: ManagedByProvider = false, want true", r.NativeID)
+		if r.Name == "" {
+			t.Errorf("%s: empty Name", r.QuotaCode)
 		}
-		if r.Region == nil || *r.Region != region {
-			t.Errorf("%s: region = %v, want %q", r.NativeID, r.Region, region)
+		if r.Value == nil {
+			t.Errorf("%s: nil Value", r.QuotaCode)
 		}
-		if r.Name == nil || *r.Name == "" {
-			t.Errorf("%s: empty Name", r.NativeID)
-		}
+	}
+
+	fixed, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-FIXED"))
+	if err != nil {
+		t.Fatalf("GetQuota: %v", err)
+	}
+	if fixed == nil {
+		t.Fatal("non-adjustable quota was dropped")
+	}
+	if fixed.Adjustable {
+		t.Error("adjustable flag did not round-trip as false")
+	}
+
+	// The split is only real if nothing lands in resources any more.
+	res, err := st.ListResources(store.ResourceFilter{IncludeManaged: true, Limit: 100})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if len(res) != 0 {
+		t.Fatalf("quota scan wrote %d rows into resources, want 0", len(res))
+	}
+}
+
+// The AWS default is what makes applied-versus-default answerable: on an
+// adjustable quota a divergence is an increase the customer requested, and on a
+// non-adjustable one it means AWS moved a hard ceiling.
+func TestScanServiceQuotas_RecordsAWSDefault(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := "us-east-1"
+
+	stub := &stubServiceQuotas{
+		services: []string{"ec2"},
+		quotas: map[string][]sqtypes.ServiceQuota{
+			"ec2": {
+				regionalQuota(region, "ec2", "L-RAISED", "Raised limit", 64, true),
+				regionalQuota(region, "ec2", "L-UNKNOWN", "No default published", 7, true),
+			},
+		},
+		defaults: map[string][]sqtypes.ServiceQuota{
+			"ec2": {regionalQuota(region, "ec2", "L-RAISED", "Raised limit", 5, true)},
+		},
+	}
+
+	if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	raised, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-RAISED"))
+	if err != nil || raised == nil {
+		t.Fatalf("GetQuota raised: %v", err)
+	}
+	if raised.DefaultValue == nil || *raised.DefaultValue != 5 {
+		t.Errorf("default value = %v, want 5", raised.DefaultValue)
+	}
+	if raised.Value == nil || *raised.Value != 64 {
+		t.Errorf("applied value = %v, want 64", raised.Value)
+	}
+
+	// A quota with no published default keeps a NULL column, which reads as
+	// unknown rather than as "the default is zero".
+	unknown, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-UNKNOWN"))
+	if err != nil || unknown == nil {
+		t.Fatalf("GetQuota unknown: %v", err)
+	}
+	if unknown.DefaultValue != nil {
+		t.Errorf("default value = %v, want NULL when AWS publishes none", *unknown.DefaultValue)
+	}
+
+	only, err := st.ListQuotas(store.QuotaFilter{RaisedOnly: true})
+	if err != nil {
+		t.Fatalf("ListQuotas raised: %v", err)
+	}
+	if len(only) != 1 || only[0].QuotaCode != "L-RAISED" {
+		t.Fatalf("RaisedOnly returned %d rows: %+v", len(only), only)
+	}
+}
+
+// The defaults call is a convenience, not a precondition. Losing it must not
+// cost us the applied limit, which is the more important of the two.
+func TestScanServiceQuotas_DefaultsFailureDegrades(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := "us-east-1"
+
+	stub := &stubServiceQuotas{
+		services:    []string{"ec2"},
+		quotas:      map[string][]sqtypes.ServiceQuota{"ec2": {regionalQuota(region, "ec2", "L-1", "VPCs", 5, true)}},
+		defaultsErr: apiErr("AccessDeniedException", "no read"),
+	}
+
+	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != 1 || inserted != 1 {
+		t.Fatalf("total=%d inserted=%d, want 1/1 despite the defaults call failing", total, inserted)
+	}
+	got, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-1"))
+	if err != nil || got == nil {
+		t.Fatalf("GetQuota: %v", err)
+	}
+	if got.DefaultValue != nil {
+		t.Errorf("default value = %v, want NULL when the defaults call failed", *got.DefaultValue)
 	}
 }
 
@@ -213,16 +327,17 @@ func TestScanServiceQuotas_EmptyService(t *testing.T) {
 	}
 }
 
-// TestScanServiceQuotas_SynthesizedNativeID: a quota lacking QuotaArn falls back to
-// the region-less synthesized id; one missing both ARN and codes is dropped.
-func TestScanServiceQuotas_SynthesizedNativeID(t *testing.T) {
+// Identity is (provider, account, region, service code, quota code), so a quota
+// missing either code cannot be addressed and is dropped. The ARN is no longer
+// the key — it survives in the attributes remainder.
+func TestScanServiceQuotas_CodelessQuotaDropped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
 
 	noArn := regionalQuota(region, "ec2", "L-SYNTH", "Synth", 7, true)
-	noArn.QuotaArn = nil                                                      // force synthesized id
-	noCode := sqtypes.ServiceQuota{QuotaName: sp("orphan"), Adjustable: true} // no arn, no codes → dropped
+	noArn.QuotaArn = nil                                                      // the ARN is not the identity
+	noCode := sqtypes.ServiceQuota{QuotaName: sp("orphan"), Adjustable: true} // no codes → dropped
 
 	stub := &stubServiceQuotas{
 		services: []string{"ec2"},
@@ -237,8 +352,11 @@ func TestScanServiceQuotas_SynthesizedNativeID(t *testing.T) {
 		t.Fatalf("total=%d inserted=%d, want 1/1 (codeless quota dropped)", total, inserted)
 	}
 	rows := listQuotaRows(t, st)
-	if len(rows) != 1 || rows[0].NativeID != "aws:servicequotas:ec2:L-SYNTH" {
-		t.Fatalf("NativeID = %q, want aws:servicequotas:ec2:L-SYNTH", rows[0].NativeID)
+	if len(rows) != 1 || rows[0].QuotaCode != "L-SYNTH" {
+		t.Fatalf("QuotaCode = %+v, want L-SYNTH", rows)
+	}
+	if rows[0].ID != store.QuotaID("aws", acct.ID, region, "ec2", "L-SYNTH") {
+		t.Fatalf("row id %q is not the natural-key hash", rows[0].ID)
 	}
 }
 
@@ -317,8 +435,11 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 		if len(rows) != 1 {
 			t.Fatalf("east: got %d rows, want 1", len(rows))
 		}
-		if rows[0].Region == nil || *rows[0].Region != "global" {
-			t.Errorf("east: region = %v, want global", rows[0].Region)
+		if rows[0].Region != "global" {
+			t.Errorf("east: region = %q, want global", rows[0].Region)
+		}
+		if !rows[0].GlobalQuota {
+			t.Error("east: GlobalQuota flag did not round-trip")
 		}
 
 		stWest := newTestStore(t)
@@ -346,32 +467,33 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 // TestScanServiceQuotas_LimitOnlyChurnFree is the change-over-time contract:
 // re-scanning an unchanged limit produces NO new version; a changed limit splits
 // a new version. Uses the real scanner + mustJSON serialization, so it also
-// catches a volatile field sneaking into the stored attributes.
+// catches a volatile field sneaking into the stored attributes — which is what
+// would make a catalogue of this size unscannable.
 func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
-	arn := "arn:aws:servicequotas:" + region + ":" + testAccountID + ":ec2/L-1"
 
 	value := 5.0
+	adjustable := true
 	scan := func() {
 		t.Helper()
 		stub := &stubServiceQuotas{
 			services: []string{"ec2"},
 			quotas: map[string][]sqtypes.ServiceQuota{
-				"ec2": {regionalQuota(region, "ec2", "L-1", "VPCs", value, true)},
+				"ec2": {regionalQuota(region, "ec2", "L-1", "VPCs", value, adjustable)},
 			},
 		}
 		if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 	}
-	rootID := store.ResourceID("aws", acct.ID, arn)
+	rootID := store.QuotaID("aws", acct.ID, region, "ec2", "L-1")
 	versionCount := func() int {
 		t.Helper()
-		v, err := st.GetResourceVersions(rootID)
+		v, err := st.GetQuotaVersions(rootID)
 		if err != nil {
-			t.Fatalf("GetResourceVersions: %v", err)
+			t.Fatalf("GetQuotaVersions: %v", err)
 		}
 		return len(v)
 	}
@@ -388,5 +510,11 @@ func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
 	scan()
 	if n := versionCount(); n != 2 {
 		t.Fatalf("after limit change: got %d versions, want 2", n)
+	}
+	// AWS making a hard limit adjustable is itself a change worth a version.
+	adjustable = false
+	scan()
+	if n := versionCount(); n != 3 {
+		t.Fatalf("after an adjustability change: got %d versions, want 3", n)
 	}
 }

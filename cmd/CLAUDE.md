@@ -8,6 +8,7 @@ Cobra command layer.
 - `disco scan <provider>` — single provider (e.g. `disco scan aws`)
 - `disco scan --providers aws,gcp` — only named providers (comma-separated `StringSlice`)
 - `disco resources` — query local DB with filters (`--providers`, `--type`, `--regions`, `--status`, `--tag-key`/`--tag-value`, `--output table|json|csv|jsonl`); `--providers`/`--regions` are comma-separated multi-value. `disco resources show <id|native-id|name>` resolves and prints one resource via `store.ResolveResource`.
+- `disco quotas` — query recorded service quota limits (`--providers`, `--accounts`, `--regions`, `--service`, `--adjustable=true|false`, `--raised`, `--limit`, `--output`). Quotas live in their own `quotas` table, not in `resources`. AWS quotas need a scan with `--include-service-quotas`; Azure quotas arrive on every scan.
 - `disco diff <scanA> <scanB>` — drift detect; emits added/removed/changed rows between two scan IDs
 - `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot|mermaid --dot-theme light|dark` — walks `relationships` + `hierarchy_closure`. DOT styling lives in `cmd/graph_theme.go` — single `dotTheme` struct holds graph/node/edge attribute blocks + `nodePreset` map (primary/secondary/storage/identity/muted/error) + cluster palette. `presetForResource` picks a preset by `Type` second segment (`s3|rds|...`→storage, `iam|sso|...`→identity, `ec2|lambda|...`→primary).
 - `disco graph complete` — dumps every customer resource + every provider-managed resource that shares an edge with one. No seed, no BFS — backed by `store.GraphAll(GraphAllOpts)` which reads `ListResources({IncludeManaged: true})` paginated + `ListRelationships()` and applies the customer-edge inclusion rule in-memory. `--include-managed` keeps orphan managed nodes too. Traversal flags (`--depth`/`--kinds`/`--direction`) ignored.
@@ -68,10 +69,24 @@ Cobra also persists flag-attached values across tests when commands read via `cm
 ## `disco history <id>` surfaces the resource version chain
 
 `history` renders every version of a resource oldest→newest —
-the read surface for change-over-time (e.g. Azure quota-limit grants). The arg
+the read surface for change-over-time. The arg
 resolves through `store.ResolveResource` (same exact-id / name / native-id / short-id
 lookup as `graph`); the resolved current row's `.ID` (= `root_id`) keys
-`store.GetResourceVersions`. Output uses a purpose-built `historyEntry` struct, NOT
+`store.GetResourceVersions`.
+
+**It also accepts a quota id.** When `ResolveResource` finds nothing, `history`
+retries through `store.ResolveQuota` and renders `renderQuotaHistory`
+(`cmd/quotas.go`) — a different column set, because the interesting change in a
+quota chain is the VALUE, which a resource-shaped view has nowhere to put. Users
+paste ids without knowing which table they came from, so the fallback is the
+point; when neither matches, the *resource* error surfaces, since that is what
+the command is mostly for. `disco quotas` lists the same table with
+`--service` / `--regions` / `--adjustable` / `--raised` filters. Note
+`--adjustable` is a **string** flag parsed by `parseTristateFlag`, not a bool: a
+bool cannot distinguish "not filtering" from "filtering on false", so a bool
+would silently turn a bare `disco quotas` into `--adjustable=false`.
+
+Output uses a purpose-built `historyEntry` struct, NOT
 `store.ResourceVersion` directly: `store.Resource` has a value-receiver `MarshalJSON`
 that would be promoted onto the embedding struct and silently drop the version-only
 fields (`verified_at`, `superseded_by`, …) in JSON. New version-chain output paths

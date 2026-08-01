@@ -13,6 +13,34 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
+// TestQuotaLimitsDeclareNoResourceType guards the classification a quota limit
+// now has: a value stored in `quotas`, not a resource.
+//
+// Re-adding a registerType would put every Azure quota back into `resources`
+// silently — every scanner test would still pass — and this scanner is not
+// opt-in, so it would land on every Azure scan. The service registration has to
+// survive alongside the absent type: dropping that would stop quotas being
+// scanned at all, which is a different and much larger regression.
+func TestQuotaLimitsDeclareNoResourceType(t *testing.T) {
+	for _, d := range registeredDescriptors {
+		if d.Service == "microsoft.quota" {
+			t.Errorf("quota type %q is registered as a resource — quotas belong in the quotas table", d.Type)
+		}
+	}
+	if _, ok := azureAPITypeMap["microsoft.quota/quotas"]; ok {
+		t.Error("microsoft.quota/quotas still maps to a disco resource type")
+	}
+	var found bool
+	for _, s := range registeredServices {
+		if s.name == "azure:microsoft.quota" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("azure:microsoft.quota is no longer registered as a service — quotas would stop being scanned entirely")
+	}
+}
+
 func quotaScope(subID, ns, region string) string {
 	return "/subscriptions/" + subID + "/providers/" + ns + "/locations/" + region
 }
@@ -38,9 +66,10 @@ func quotaTestClient(t *testing.T, srv *armquotafake.Server) *armquota.Client {
 	return c
 }
 
-// storedLimit unmarshals a stored quota resource's attributes back through the
-// SDK's polymorphic decoder and returns the limit value — proves the limit
-// survived the mustJSON round-trip the scanner performs.
+// storedLimit unmarshals a stored quota's attributes back through the SDK's
+// polymorphic decoder and returns the limit value — proves the full provider
+// payload survived the mustJSON round-trip the scanner performs, alongside the
+// typed `value` column.
 func storedLimit(t *testing.T, attrs string) int32 {
 	t.Helper()
 	var base armquota.CurrentQuotaLimitBase
@@ -59,8 +88,8 @@ func storedLimit(t *testing.T, attrs string) int32 {
 
 // TestScanQuotaLimits_FakeTransport drives the scanner over a 1-namespace × 2-region
 // grid: one region returns two quota limits, the other 403s. Asserts the limits
-// land as resources (correct type/region/limit) and the denied region is tolerated
-// — it contributes no rows and no error.
+// land in the quotas table with the right identity, region and typed value, and
+// that the denied region is tolerated — it contributes no rows and no error.
 func TestScanQuotaLimits_FakeTransport(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -92,22 +121,83 @@ func TestScanQuotaLimits_FakeTransport(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2 (westus denied, contributes nothing)", total, inserted)
 	}
 
-	id := store.ResourceID("azure", sub.ID, eastScope+"/providers/Microsoft.Quota/quotas/standardDDv4Family")
-	got, err := st.GetResource(id)
+	id := store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family")
+	got, err := st.GetQuota(id)
 	if err != nil {
-		t.Fatalf("GetResource: %v", err)
+		t.Fatalf("GetQuota: %v", err)
 	}
-	if got.Type != TypeQuotaLimit {
-		t.Errorf("type: got %q, want %q", got.Type, TypeQuotaLimit)
+	if got == nil {
+		t.Fatal("quota not found under its natural key")
 	}
-	if got.Region == nil || *got.Region != "eastus" {
-		t.Errorf("region: got %v, want eastus", got.Region)
+	if got.Region != "eastus" {
+		t.Errorf("region: got %q, want eastus", got.Region)
 	}
-	if got.Name == nil || *got.Name != "standardDDv4Family" {
-		t.Errorf("name: got %v, want standardDDv4Family", got.Name)
+	if got.ServiceCode != "Microsoft.Compute" {
+		t.Errorf("service code: got %q, want Microsoft.Compute", got.ServiceCode)
+	}
+	if got.QuotaCode != "standardDDv4Family" {
+		t.Errorf("quota code: got %q, want standardDDv4Family", got.QuotaCode)
+	}
+	if got.Value == nil || *got.Value != 100 {
+		t.Errorf("value: got %v, want 100", got.Value)
+	}
+	if got.Unit == nil || *got.Unit != "Count" {
+		t.Errorf("unit: got %v, want Count", got.Unit)
 	}
 	if l := storedLimit(t, got.AttributesJSON); l != 100 {
 		t.Errorf("stored limit: got %d, want 100", l)
+	}
+
+	// Nothing this scanner writes may land in resources any more — that is the
+	// whole point of the split, and a stray registerType would silently undo it.
+	rows, err := st.ListResources(store.ResourceFilter{IncludeManaged: true, Limit: 100})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("quota scan wrote %d rows into resources, want 0", len(rows))
+	}
+}
+
+// A quota Azure reports as non-applicable is one only Microsoft can move, so the
+// flag has to survive onto the row rather than being inferred.
+func TestScanQuotaLimits_IsQuotaApplicableMapsToAdjustable(t *testing.T) {
+	st := newTestStore(t)
+	sub := newTestSubscription(testSubID)
+	eastScope := quotaScope(sub.ID, "Microsoft.Compute", "eastus")
+
+	applicable := quotaItem(eastScope, "standardDDv4Family", 100)
+	applicable.Properties.IsQuotaApplicable = to.Ptr(true)
+	fixed := quotaItem(eastScope, "standardFixedFamily", 10)
+	fixed.Properties.IsQuotaApplicable = to.Ptr(false)
+
+	server := &armquotafake.Server{
+		NewListPager: func(_ string, _ *armquota.ClientListOptions) fake.PagerResponder[armquota.ClientListResponse] {
+			r := fake.PagerResponder[armquota.ClientListResponse]{}
+			r.AddPage(http.StatusOK, armquota.ClientListResponse{
+				Limits: armquota.Limits{Value: []*armquota.CurrentQuotaLimitBase{applicable, fixed}},
+			}, nil)
+			return r
+		},
+	}
+	if _, _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
+		quotaTestClient(t, server), []string{"Microsoft.Compute"}, []string{"eastus"}); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	adj, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family"))
+	if err != nil || adj == nil {
+		t.Fatalf("GetQuota applicable: %v", err)
+	}
+	if !adj.Adjustable {
+		t.Error("IsQuotaApplicable=true did not map to adjustable")
+	}
+	hard, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardFixedFamily"))
+	if err != nil || hard == nil {
+		t.Fatalf("GetQuota non-applicable: %v", err)
+	}
+	if hard.Adjustable {
+		t.Error("IsQuotaApplicable=false did not map to non-adjustable")
 	}
 }
 
@@ -137,14 +227,12 @@ func TestScanQuotaLimits_EmptyRegion(t *testing.T) {
 	}
 }
 
-// TestScanQuotaLimits_SynthesizedNativeID covers the defensive fallback: when the
-// proxy returns no ID, the NativeID is synthesized from scope + the preferred RP
-// quota name (Properties.Name.Value), NOT the divergent wrapper Name. Pins the key
-// shape so a future change can't silently flip it and split false versions.
-func TestScanQuotaLimits_SynthesizedNativeID(t *testing.T) {
+// The quota code is the resource provider's own name (Properties.Name.Value),
+// NOT the divergent ARM wrapper name. Pins the key shape so a future change
+// cannot silently flip it and split false versions across the whole catalogue.
+func TestScanQuotaLimits_QuotaCodeIsProviderName(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
-	eastScope := quotaScope(sub.ID, "Microsoft.Compute", "eastus")
 
 	server := &armquotafake.Server{
 		NewListPager: func(_ string, _ *armquota.ClientListOptions) fake.PagerResponder[armquota.ClientListResponse] {
@@ -171,9 +259,47 @@ func TestScanQuotaLimits_SynthesizedNativeID(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total: got %d, want 1", total)
 	}
-	wantID := store.ResourceID("azure", sub.ID, eastScope+"/providers/Microsoft.Quota/quotas/standardDDv4Family")
-	if _, err := st.GetResource(wantID); err != nil {
-		t.Fatalf("expected resource keyed on synthesized NativeID (RP name): %v", err)
+	got, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family"))
+	if err != nil {
+		t.Fatalf("GetQuota: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected the quota keyed on the resource provider name, not the wrapper name")
+	}
+}
+
+// A limit whose polymorphic Limit object carries no value must leave the column
+// NULL. A limit of nothing and an unreported limit are different facts, and
+// defaulting to zero would read as "you may create none of these".
+func TestScanQuotaLimits_MissingLimitStaysNull(t *testing.T) {
+	st := newTestStore(t)
+	sub := newTestSubscription(testSubID)
+
+	server := &armquotafake.Server{
+		NewListPager: func(_ string, _ *armquota.ClientListOptions) fake.PagerResponder[armquota.ClientListResponse] {
+			r := fake.PagerResponder[armquota.ClientListResponse]{}
+			r.AddPage(http.StatusOK, armquota.ClientListResponse{
+				Limits: armquota.Limits{Value: []*armquota.CurrentQuotaLimitBase{{
+					Name: to.Ptr("standardDDv4Family"),
+					Properties: &armquota.Properties{
+						Name: &armquota.ResourceName{Value: to.Ptr("standardDDv4Family")},
+					},
+				}}},
+			}, nil)
+			return r
+		},
+	}
+
+	if _, _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
+		quotaTestClient(t, server), []string{"Microsoft.Compute"}, []string{"eastus"}); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	got, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family"))
+	if err != nil || got == nil {
+		t.Fatalf("GetQuota: %v", err)
+	}
+	if got.Value != nil {
+		t.Errorf("value: got %v, want NULL for an unreported limit", *got.Value)
 	}
 }
 
@@ -199,11 +325,11 @@ func TestScanQuotaLimits_GenuineErrorPropagates(t *testing.T) {
 	}
 }
 
-// TestScanQuotaLimits_LimitOnlyChurnFree is the change-over-time contract: storing
-// limit-only means a re-scan with an unchanged limit produces NO new version (the
-// resource version chain only grows on a real quota change), while a changed limit
-// splits a new version. Drives the real scanner + mustJSON serialization so the
-// test would also catch the limit response carrying a volatile field.
+// TestScanQuotaLimits_LimitOnlyChurnFree is the change-over-time contract:
+// storing limit-only means a re-scan with an unchanged limit produces NO new
+// version, while a changed limit splits one. Drives the real scanner + mustJSON
+// serialization so it would also catch the limit response carrying a volatile
+// field — which is what would make a catalogue of this size unscannable.
 func TestScanQuotaLimits_LimitOnlyChurnFree(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -229,12 +355,12 @@ func TestScanQuotaLimits_LimitOnlyChurnFree(t *testing.T) {
 			t.Fatalf("scan: %v", err)
 		}
 	}
-	rootID := store.ResourceID("azure", sub.ID, eastScope+"/providers/Microsoft.Quota/quotas/standardDDv4Family")
+	rootID := store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family")
 	versionCount := func() int {
 		t.Helper()
-		v, err := st.GetResourceVersions(rootID)
+		v, err := st.GetQuotaVersions(rootID)
 		if err != nil {
-			t.Fatalf("GetResourceVersions: %v", err)
+			t.Fatalf("GetQuotaVersions: %v", err)
 		}
 		return len(v)
 	}
@@ -249,21 +375,17 @@ func TestScanQuotaLimits_LimitOnlyChurnFree(t *testing.T) {
 	}
 	limit = 200 // quota granted
 	scan()
-	versions := func() []store.ResourceVersion {
-		v, err := st.GetResourceVersions(rootID)
-		if err != nil {
-			t.Fatalf("GetResourceVersions: %v", err)
-		}
-		return v
-	}()
-	if len(versions) != 2 {
-		t.Fatalf("after limit change: got %d versions, want 2", len(versions))
+	if n := versionCount(); n != 2 {
+		t.Fatalf("after limit change: got %d versions, want 2", n)
 	}
-	current, err := st.GetResource(rootID)
-	if err != nil {
-		t.Fatalf("GetResource: %v", err)
+	current, err := st.GetQuota(rootID)
+	if err != nil || current == nil {
+		t.Fatalf("GetQuota: %v", err)
+	}
+	if current.Value == nil || *current.Value != 200 {
+		t.Errorf("current value: got %v, want 200", current.Value)
 	}
 	if l := storedLimit(t, current.AttributesJSON); l != 200 {
-		t.Errorf("current limit: got %d, want 200", l)
+		t.Errorf("current stored limit: got %d, want 200", l)
 	}
 }

@@ -8,9 +8,9 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// seedVersionChain adds a resource with two versions (a limit change) to the
-// seeded DB and returns its caller-facing id (root_id). Models the quota
-// change-over-time case: same natural key, changed attributes → version split.
+// seedVersionChain adds a resource with two versions to the seeded DB and
+// returns its caller-facing id (root_id): same natural key, changed attributes
+// → version split.
 func seedVersionChain(t *testing.T, st *store.Store) string {
 	t.Helper()
 	scanA, err := st.CreateScan([]string{"azure"}, map[string]any{})
@@ -18,8 +18,8 @@ func seedVersionChain(t *testing.T, st *store.Store) string {
 		t.Fatalf("CreateScan A: %v", err)
 	}
 	base := &store.Resource{
-		Provider: "azure", AccountID: "sub-1", Type: "azure:microsoft.quota:quotas",
-		NativeID:       "/subscriptions/sub-1/providers/Microsoft.Compute/locations/eastus/providers/Microsoft.Quota/quotas/cores",
+		Provider: "azure", AccountID: "sub-1", Type: "azure:microsoft.compute:disk",
+		NativeID:       "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/disks/data",
 		AttributesJSON: `{"limit":100}`, DiscoveredBy: scanA,
 	}
 	if _, err := st.UpsertResource(base); err != nil {

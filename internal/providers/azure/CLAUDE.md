@@ -148,12 +148,24 @@ cartesian product of `quotaProviderNamespaces × azureregions.Regions`, bounded 
 (namespace, region) the proxy doesn't serve returns an `isSkippableScanError` and
 is dropped; only a genuine error aborts. Stored **limit-only** (the Quota API
 returns no usage and the serialized `CurrentQuotaLimitBase` omits
-`ProxyResource`/`SystemData`, so no etag/timestamp), which makes each quota a
-churn-free versioned resource — the version chain bumps only on a real limit
-change. `disco history <id>` reads that chain (see `cmd/CLAUDE.md`). Quotas are
-`Leaf: true` (no resolver edges) and emit no hierarchy pairs (not RG-scoped). When
-adding another quota-bearing namespace, extend `quotaProviderNamespaces` — nothing
-else.
+`ProxyResource`/`SystemData`, so no etag/timestamp; `armquota.Properties` holds
+only Limit, Name, ResourceType, Unit, QuotaPeriod and IsQuotaApplicable), which
+makes each quota churn-free — the version chain bumps only on a real limit
+change. `disco history <id>` reads that chain (see `cmd/CLAUDE.md`). When adding
+another quota-bearing namespace, extend `quotaProviderNamespaces` — nothing else.
+
+**Quotas are NOT resources and register no type.** `scanQuotaLimits` writes
+`store.Quota` rows into the `quotas` table (disco migration 017) via
+`UpsertQuotas`; `TestQuotaLimitsDeclareNoResourceType` fails if a `registerType`
+comes back, and it also asserts `azureAPITypeMap` no longer maps
+`microsoft.quota/quotas`. The service registration must survive alongside the
+absent type — dropping that stops quotas being scanned at all. Identity is
+`(provider, subscription, region, namespace, quota name)`, where the quota name
+is the resource provider's own `Properties.Name.Value` (e.g.
+`standardDDv4Family`), **not** the ARM wrapper name and **not** the ARM ID —
+which is preserved in the attributes remainder. `IsQuotaApplicable` maps to the
+`adjustable` column. This scanner is not opt-in, unlike AWS's, so every Azure
+scan records quotas — and Azure *resource* counts dropped when they moved out.
 
 ## Top three hierarchy tiers are stitched post-scan, not per-scanner
 

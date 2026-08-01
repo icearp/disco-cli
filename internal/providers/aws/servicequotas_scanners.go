@@ -10,7 +10,6 @@ import (
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
 	sqtypes "github.com/aws/aws-sdk-go-v2/service/servicequotas/types"
-	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/time/rate"
@@ -27,13 +26,17 @@ const (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeServiceQuota, Service: "servicequotas", Leaf: true, Managed: true})
+	// No registerType. A service quota is a limit value, not a resource: it has
+	// no graph edges, nothing provisions it, and it is queried by service and
+	// by proximity to the limit. It lands in the `quotas` table instead, which
+	// also keeps the provider's catalogue size — nine rows in ten, historically
+	// — from dictating how the inventory read path performs.
+	//
 	// global:false (default) — the harness dispatches this scanner once per
 	// enabled region; it fans out over service codes within that region.
-	// optIn:true — account quota limits are metadata, not resources, and the scan
-	// is far slower than any resource scanner, so it's excluded from a default
-	// `disco scan aws`. Select it with --include-service-quotas or
-	// --services aws:servicequotas.
+	// optIn:true — the scan is far slower than any resource scanner, so it is
+	// excluded from a default `disco scan aws`. Select it with
+	// --include-service-quotas or --services aws:servicequotas.
 	registerService(serviceEntry{
 		name:  "aws:servicequotas",
 		optIn: true,
@@ -46,12 +49,18 @@ func init() {
 type serviceQuotasAPI interface {
 	ListServices(context.Context, *servicequotas.ListServicesInput, ...func(*servicequotas.Options)) (*servicequotas.ListServicesOutput, error)
 	ListServiceQuotas(context.Context, *servicequotas.ListServiceQuotasInput, ...func(*servicequotas.Options)) (*servicequotas.ListServiceQuotasOutput, error)
+	ListAWSDefaultServiceQuotas(context.Context, *servicequotas.ListAWSDefaultServiceQuotasInput, ...func(*servicequotas.Options)) (*servicequotas.ListAWSDefaultServiceQuotasOutput, error)
 }
 
-// scanServiceQuotas records adjustable service-quota *limits* (not usage) for
-// one region. ServiceQuota carries no usage value, etag, or timestamp, so each
-// row is limit-only and its version bumps only on a real limit change — clean
-// change-over-time history via `disco history`, no churn.
+// scanServiceQuotas records service-quota limits (not usage) for one region into
+// the `quotas` table. ServiceQuota carries no usage value, etag, or timestamp,
+// so each row is limit-only and its version bumps only on a real limit change —
+// clean change-over-time history, no churn.
+//
+// Both adjustable and non-adjustable limits are recorded. Non-adjustable is the
+// more interesting class, not an afterthought: a hard ceiling moves only when
+// AWS moves it, with no customer request and no notification, so its version
+// history is the only way to see that happen.
 //
 // Enumerates every service code via ListServices, then fans ListServiceQuotas
 // out over them bounded by sqWorkers and paced by a per-region rate limiter at
@@ -80,7 +89,7 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 
 	var (
 		mu    sync.Mutex
-		batch []*store.Resource
+		batch []*store.Quota
 	)
 	sem := semaphore.NewWeighted(sqWorkers)
 	var wg sync.WaitGroup
@@ -116,7 +125,7 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 	if len(batch) == 0 {
 		return 0, 0, nil
 	}
-	n, err := st.UpsertResources(batch)
+	n, err := st.UpsertQuotas(batch)
 	if err != nil {
 		return 0, 0, fmt.Errorf("upsert service quotas: %w", err)
 	}
@@ -145,13 +154,17 @@ func listQuotaServiceCodes(ctx context.Context, client serviceQuotasAPI) ([]stri
 	}
 }
 
-// listQuotasForCode pages the applied quotas for one service code. A code that
-// is unsupported / not subscribed in this region returns NoSuchResourceException
-// (or IllegalArgumentException for a malformed code); both are skipped silently,
-// mirroring Azure's isSkippableScanError. QuotaAppliedAtLevel is left unset so
-// the proxy returns ACCOUNT-level quotas (ALL would add churny per-resource rows).
-func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string, acct *account, region, home, scanID string, pacer *pacer) ([]*store.Resource, error) {
-	var rows []*store.Resource
+// listQuotasForCode pages the applied quotas for one service code, pairing each
+// with the AWS default so applied-versus-default is answerable without a second
+// query at read time. A code that is unsupported / not subscribed in this region
+// returns NoSuchResourceException (or IllegalArgumentException for a malformed
+// code); both are skipped silently, mirroring Azure's isSkippableScanError.
+// QuotaAppliedAtLevel is left unset so the proxy returns ACCOUNT-level quotas
+// (ALL would add churny per-resource rows).
+func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string, acct *account, region, home, scanID string, pacer *pacer) ([]*store.Quota, error) {
+	defaults := listQuotaDefaultsForCode(ctx, client, code, pacer)
+
+	var rows []*store.Quota
 	in := &servicequotas.ListServiceQuotasInput{ServiceCode: &code, MaxResults: sdkaws.Int32(100)}
 	for {
 		// Pace each request (incl. paginated follow-ups) to the per-region 10 req/s
@@ -167,7 +180,7 @@ func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string
 			return nil, fmt.Errorf("servicequotas:ListServiceQuotas %s/%s: %w", code, region, err)
 		}
 		for i := range out.Quotas {
-			if r, ok := quotaRow(acct, region, home, scanID, out.Quotas[i]); ok {
+			if r, ok := quotaRow(acct, region, home, scanID, out.Quotas[i], defaults); ok {
 				rows = append(rows, r)
 			}
 		}
@@ -178,52 +191,91 @@ func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string
 	}
 }
 
-// quotaRow builds a store.Resource for one quota, or (nil,false) to drop it.
-// Only adjustable quotas are kept (the limits an operator can actually raise).
+// listQuotaDefaultsForCode returns the AWS default value per quota code for one
+// service, or nil when they cannot be read.
+//
+// This doubles the API calls the scanner makes, which is why it is worth
+// stating what it buys: on an adjustable quota a divergence from the default is
+// an increase the customer requested, and on a non-adjustable one it means AWS
+// moved a hard ceiling. Neither is derivable from the applied value alone, and
+// recovering it later would mean this same call anyway.
+//
+// Failures degrade rather than propagate. A missing default leaves the column
+// NULL, which reads as unknown; refusing to record the applied limit because the
+// default was unavailable would lose the more important of the two.
+func listQuotaDefaultsForCode(ctx context.Context, client serviceQuotasAPI, code string, pacer *pacer) map[string]float64 {
+	defaults := map[string]float64{}
+	in := &servicequotas.ListAWSDefaultServiceQuotasInput{ServiceCode: &code, MaxResults: sdkaws.Int32(100)}
+	for {
+		if err := pacer.wait(ctx); err != nil {
+			return defaults
+		}
+		out, err := client.ListAWSDefaultServiceQuotas(ctx, in)
+		if err != nil {
+			return defaults
+		}
+		for i := range out.Quotas {
+			qc, v := sv(out.Quotas[i].QuotaCode), out.Quotas[i].Value
+			if qc != "" && v != nil {
+				defaults[qc] = *v
+			}
+		}
+		if out.NextToken == nil {
+			return defaults
+		}
+		in.NextToken = out.NextToken
+	}
+}
+
+// quotaRow builds a store.Quota for one limit, or (nil,false) to drop it.
+//
+// Identity is (provider, account, region, service code, quota code), so a quota
+// missing either code cannot be addressed and is dropped. The QuotaArn is not
+// the identity — it is preserved in the attributes remainder alongside every
+// other field AWS reported.
+//
 // Global quotas are returned identically from every region; they are recorded
 // once — at the elected home region, under the region-less "global" sentinel —
 // so the row's identity never depends on which region emitted it.
-func quotaRow(acct *account, region, home, scanID string, q sqtypes.ServiceQuota) (*store.Resource, bool) {
-	if !q.Adjustable {
+func quotaRow(acct *account, region, home, scanID string, q sqtypes.ServiceQuota, defaults map[string]float64) (*store.Quota, bool) {
+	serviceCode, quotaCode := sv(q.ServiceCode), sv(q.QuotaCode)
+	if serviceCode == "" || quotaCode == "" {
 		return nil, false
 	}
-	regionPtr := &region
 	if q.GlobalQuota {
 		if region != home {
 			return nil, false
 		}
-		regionPtr = regionGlobal
+		region = *regionGlobal
 	}
-	nativeID := serviceQuotaNativeID(q)
-	if nativeID == "" {
-		return nil, false
-	}
-	name := sv(q.QuotaName)
-	return &store.Resource{
+
+	out := &store.Quota{
 		Provider:       "aws",
 		AccountID:      acct.ID,
 		AccountName:    &acct.Name,
-		Type:           TypeServiceQuota,
-		NativeID:       nativeID,
-		Name:           &name,
-		Region:         regionPtr,
+		Region:         region,
+		ServiceCode:    serviceCode,
+		QuotaCode:      quotaCode,
+		Name:           sv(q.QuotaName),
+		Value:          q.Value,
+		Adjustable:     q.Adjustable,
+		GlobalQuota:    q.GlobalQuota,
 		AttributesJSON: mustJSON(q),
 		DiscoveredBy:   scanID,
-	}, true
-}
-
-// serviceQuotaNativeID prefers the API QuotaArn (regional ARNs embed the region;
-// global ARNs are region-less — both collision-free). The synthesized fallback
-// is region-less so it stays stable across scans when no ARN is present.
-func serviceQuotaNativeID(q sqtypes.ServiceQuota) string {
-	if arn := sv(q.QuotaArn); arn != "" {
-		return arn
 	}
-	sc, qc := sv(q.ServiceCode), sv(q.QuotaCode)
-	if sc == "" || qc == "" {
-		return ""
+	if name := sv(q.ServiceName); name != "" {
+		out.ServiceName = &name
 	}
-	return "aws:servicequotas:" + sc + ":" + qc
+	if unit := sv(q.Unit); unit != "" {
+		out.Unit = &unit
+	}
+	if level := string(q.QuotaAppliedAtLevel); level != "" {
+		out.AppliedLevel = &level
+	}
+	if def, ok := defaults[quotaCode]; ok {
+		out.DefaultValue = &def
+	}
+	return out, true
 }
 
 // homeGlobalRegion elects the single region that emits global quotas: us-east-1

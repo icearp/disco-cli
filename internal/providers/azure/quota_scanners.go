@@ -9,14 +9,16 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/quota/armquota"
 	"github.com/icearp/disco-cli/internal/providers/azure/azureregions"
-	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeQuotaLimit, Service: "microsoft.quota", Leaf: true})
+	// No registerType. A quota limit is a value, not a resource: nothing
+	// provisions it, it has no graph edges, and it is queried by namespace and
+	// by proximity to the limit. It lands in the `quotas` table instead.
+	//
 	// Registration gate caveat: providerDisabled (azure_scanner.go) skips this
 	// scanner only if a subscription's Providers/List reports microsoft.quota as
 	// known-and-unregistered. Microsoft.Quota is a registration-free proxy RP
@@ -41,15 +43,20 @@ var quotaProviderNamespaces = []string{
 }
 
 // scanQuotaLimits discovers service quota *limits* (not usage) via the unified
-// Microsoft.Quota proxy. The proxy is scope-addressed — one List per
-// (provider-namespace, location) — so this fans out the cartesian product of
-// quotaProviderNamespaces × azureregions.Regions, bounded by maxConcurrentFanout.
-// Each limit is stored limit-only, so the resource version chain bumps only on
-// an actual quota change (grant/reduction) — churn-free change-over-time
-// history. The serialized CurrentQuotaLimitBase carries no usage, etag, or
-// systemData timestamp (omits ProxyResource/SystemData), so the only
-// theoretical churn source is the opaque RP-specific Properties.Properties
-// bag — empty for the compute/network/ML namespaces scanned here.
+// Microsoft.Quota proxy, storing them in the `quotas` table. The proxy is
+// scope-addressed — one List per (provider-namespace, location) — so this fans
+// out the cartesian product of quotaProviderNamespaces × azureregions.Regions,
+// bounded by maxConcurrentFanout.
+//
+// Each limit is stored limit-only, so the version chain bumps only on an actual
+// quota change (grant/reduction) — churn-free change-over-time history.
+// CurrentQuotaLimitBase carries no usage, etag or systemData timestamp (it omits
+// ProxyResource/SystemData), and armquota.Properties holds only Limit, Name,
+// ResourceType, Unit, QuotaPeriod and IsQuotaApplicable — so the only
+// theoretical churn source is the opaque RP-specific Properties.Properties bag,
+// empty for the compute/network/ML namespaces scanned here.
+//
+// Unlike AWS this scanner is not opt-in, so every Azure scan records quotas.
 func scanQuotaLimits(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armquota.NewClient(cred, azClientOptions)
 	if err != nil {
@@ -68,7 +75,7 @@ type quotaLister interface {
 func scanQuotaLimitsWithClient(ctx context.Context, sub *subscription, st *store.Store, scanID string, client quotaLister, namespaces, regions []string) (total, inserted int, err error) {
 	var (
 		mu       sync.Mutex
-		allBatch []*store.Resource
+		allBatch []*store.Quota
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gctx := errgroup.WithContext(ctx)
@@ -92,7 +99,12 @@ func scanQuotaLimitsWithClient(ctx context.Context, sub *subscription, st *store
 						}
 						return fmt.Errorf("armquota:Quota.List %s/%s: %w", ns, region, err)
 					}
-					batch, _ := azTrackedRows(sub, scanID, TypeQuotaLimit, page.Value, quotaExtract(scope, region))
+					var batch []*store.Quota
+					for _, item := range page.Value {
+						if q, ok := quotaRow(sub, scanID, ns, region, item); ok {
+							batch = append(batch, q)
+						}
+					}
 					if len(batch) == 0 {
 						continue
 					}
@@ -110,35 +122,79 @@ func scanQuotaLimitsWithClient(ctx context.Context, sub *subscription, st *store
 	if len(allBatch) == 0 {
 		return 0, 0, nil
 	}
-	n, err := st.UpsertResources(allBatch)
+	n, err := st.UpsertQuotas(allBatch)
 	if err != nil {
 		return 0, 0, fmt.Errorf("upsert quota limits: %w", err)
 	}
 	return len(allBatch), n, nil
 }
 
-// quotaExtract maps a Microsoft.Quota limit to azTrackedBase. The proxy returns
-// a stable ARM ID (…/Microsoft.Quota/quotas/{name}); when absent it is
-// synthesized from the scope + resource name so the natural key (and thus the
-// version chain) stays stable across scans. Region is the scope's location —
-// the SDK item carries none. Quotas are neither RG- nor parent-scoped, so no
-// hierarchy pairs are emitted (azTrackedRows only pairs IDs under a resource
-// group).
-func quotaExtract(scope, region string) func(*armquota.CurrentQuotaLimitBase) azTrackedBase {
-	return func(q *armquota.CurrentQuotaLimitBase) azTrackedBase {
-		name := quotaResourceName(q)
-		id := sv(q.ID)
-		if id == "" {
-			if name == "" {
-				return azTrackedBase{}
-			}
-			id = scope + "/providers/Microsoft.Quota/quotas/" + name
-		}
-		// managed: quotas materialize automatically per subscription and cannot be
-		// deleted — hidden from default list/graph unless --include-managed (kept
-		// consistent with aws:servicequotas:quota).
-		return azTrackedBase{id: id, name: name, location: region, managed: true, full: q}
+// quotaRow maps one Microsoft.Quota limit onto store.Quota, or returns
+// (nil,false) when it cannot be addressed.
+//
+// The identity is (provider, subscription, region, namespace, quota name). The
+// resource-provider's own quota name (Properties.Name.Value, e.g.
+// "standardDDv4Family") is the quota code; the ARM ID is not the identity but
+// is preserved in the attributes remainder alongside everything else the proxy
+// reported. Region is the scope's location — the SDK item carries none.
+//
+// IsQuotaApplicable maps to adjustable: it is Azure's statement of whether a
+// quota can be requested for this resource. A limit it reports as
+// non-applicable moves only when Microsoft moves it.
+func quotaRow(sub *subscription, scanID, namespace, region string, q *armquota.CurrentQuotaLimitBase) (*store.Quota, bool) {
+	code := quotaResourceName(q)
+	if code == "" {
+		return nil, false
 	}
+
+	out := &store.Quota{
+		Provider:       "azure",
+		AccountID:      sub.ID,
+		AccountName:    &sub.Name,
+		Region:         region,
+		ServiceCode:    namespace,
+		QuotaCode:      code,
+		Name:           quotaDisplayName(q, code),
+		Value:          quotaLimitValue(q),
+		AttributesJSON: mustJSON(q),
+		DiscoveredBy:   scanID,
+	}
+	if q.Properties != nil {
+		if q.Properties.IsQuotaApplicable != nil {
+			out.Adjustable = *q.Properties.IsQuotaApplicable
+		}
+		if unit := sv(q.Properties.Unit); unit != "" {
+			out.Unit = &unit
+		}
+	}
+	return out, true
+}
+
+// quotaLimitValue extracts the numeric limit. Limit is a polymorphic JSON
+// object; only LimitObject carries a value, and anything else leaves the column
+// NULL rather than inventing a zero — a limit of nothing and an unreported limit
+// are different facts.
+func quotaLimitValue(q *armquota.CurrentQuotaLimitBase) *float64 {
+	if q.Properties == nil {
+		return nil
+	}
+	lo, ok := q.Properties.Limit.(*armquota.LimitObject)
+	if !ok || lo == nil || lo.Value == nil {
+		return nil
+	}
+	v := float64(*lo.Value)
+	return &v
+}
+
+// quotaDisplayName prefers the resource provider's localized display name,
+// falling back to the quota code so the column is never empty.
+func quotaDisplayName(q *armquota.CurrentQuotaLimitBase, code string) string {
+	if q.Properties != nil && q.Properties.Name != nil {
+		if v := sv(q.Properties.Name.LocalizedValue); v != "" {
+			return v
+		}
+	}
+	return code
 }
 
 // quotaResourceName prefers the resource-provider's quota name

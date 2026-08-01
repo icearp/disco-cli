@@ -9,10 +9,9 @@ const (
 	TypeSubscription           = "azure:microsoft.resources:subscriptions"
 	// Management Groups (tenant scope)
 	TypeManagementGroup = "azure:microsoft.management:management-groups"
-	// Service quota limits via the unified Microsoft.Quota proxy. One row per
-	// (provider-namespace, location, resource) quota; limit-only (no usage) so
-	// the resource version chain bumps only on an actual limit change.
-	TypeQuotaLimit = "azure:microsoft.quota:quotas"
+	// Service quota limits have no resource type. The unified Microsoft.Quota
+	// proxy is scanned by azure:microsoft.quota into the `quotas` table, one row
+	// per (provider-namespace, location, quota) limit.
 	// Entra ID (Microsoft Graph — tenant scope)
 	TypeEntraUser             = "azure:microsoft.entra:user"
 	TypeEntraGroup            = "azure:microsoft.entra:group"
@@ -524,7 +523,6 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.resources/resourcegroups":                                   TypeResourcesResourceGroup,
 	"microsoft.resources/subscriptions":                                    TypeSubscription,
 	"microsoft.management/managementgroups":                                TypeManagementGroup,
-	"microsoft.quota/quotas":                                               TypeQuotaLimit,
 	"microsoft.security/pricings":                                          TypeSecurityPricing,
 	"microsoft.authorization/roleassignments":                              TypeAuthorizationRoleAssignment,
 	"microsoft.authorization/roledefinitions":                              TypeAuthorizationRoleDefinition,

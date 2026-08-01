@@ -92,9 +92,14 @@ var historyCmd = &cobra.Command{
 disco keeps a version chain per resource: re-scanning supersedes the previous
 row only when the resource's attributes change, so this is the change-over-time
 view. Accepts a resource id, name, native id, or short-id prefix (same lookup as
-'disco graph').`,
+'disco graph').
+
+Service quota ids are accepted too, and print the limit's value history. A
+non-adjustable quota that has more than one version was changed by the provider,
+not by you.`,
 	Example: `  disco history 1f3c0a9b2e4d5c6a7b8c9d0e1f2a3b4c
-  disco resources --type azure:microsoft.quota:quotas -o json | jq -r '.[0].id' | xargs disco history`,
+  disco resources --type aws:ec2:instance -o json | jq -r '.[0].id' | xargs disco history
+  disco quotas --adjustable=false -o json | jq -r '.[0].id' | xargs disco history`,
 	RunE: func(_ *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(historyOutputFmt, rerr) }()
 		db, err := openDB()
@@ -108,6 +113,17 @@ view. Accepts a resource id, name, native id, or short-id prefix (same lookup as
 		// pasted; the resolved current row's .ID is the root_id keying the chain.
 		target, err := db.ResolveResource(args[0], "", "", "")
 		if err != nil {
+			// A service quota is not a resource, but it keeps the same kind of
+			// version chain and users paste ids without knowing which table
+			// they came from. Fall back rather than making them learn the
+			// difference; the original error still surfaces if neither matches.
+			if q, qerr := db.ResolveQuota(args[0]); qerr == nil {
+				versions, verr := db.GetQuotaVersions(q.ID)
+				if verr != nil {
+					return fmt.Errorf("get quota versions: %w", verr)
+				}
+				return renderQuotaHistory(versions, historyOutputFmt)
+			}
 			return err
 		}
 		versions, err := db.GetResourceVersions(target.ID)
