@@ -60,6 +60,7 @@ var (
 	quotasServiceCodes []string
 	quotasAdjustable   string
 	quotasRaisedOnly   bool
+	quotasChangedOnly  bool
 	quotasOutputFmt    string
 	quotasLimit        int
 )
@@ -77,13 +78,15 @@ the value actually changes.
 
 The most interesting filter is --adjustable=false. A non-adjustable limit moves
 only when the provider moves it, with no request from you and no notification,
-so its history is the only record that it happened.
+so its history is the only record that it happened. Combine it with --changed to
+list exactly the hard ceilings the provider has moved.
 
 AWS quotas are only recorded when a scan is run with --include-service-quotas.
 Azure quotas are recorded on every scan.`,
 	Example: `  disco quotas
   disco quotas --service ec2 --region us-east-1
   disco quotas --adjustable=false
+  disco quotas --changed --adjustable=false
   disco quotas --raised -o json`,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(quotasOutputFmt, rerr) }()
@@ -105,6 +108,7 @@ Azure quotas are recorded on every scan.`,
 			ServiceCodes: quotasServiceCodes,
 			Adjustable:   adjustable,
 			RaisedOnly:   quotasRaisedOnly,
+			ChangedOnly:  quotasChangedOnly,
 			Limit:        quotasLimit,
 		})
 		if err != nil {
@@ -307,6 +311,7 @@ func init() {
 	f.StringSliceVar(&quotasServiceCodes, "service", nil, "Filter by service code (AWS ServiceCode, Azure provider namespace)")
 	f.StringVar(&quotasAdjustable, "adjustable", "", "Filter by whether the limit can be raised on request: true or false")
 	f.BoolVar(&quotasRaisedOnly, "raised", false, "Only limits whose value differs from the provider default")
+	f.BoolVar(&quotasChangedOnly, "changed", false, "Only limits that have held more than one value")
 	f.IntVar(&quotasLimit, "limit", 0, "Maximum rows to return (0 = all)")
 	f.StringVarP(&quotasOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	_ = quotasCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))

@@ -180,6 +180,17 @@ type QuotaFilter struct {
 	// increase the customer requested; on a non-adjustable one it means the
 	// provider moved a hard ceiling.
 	RaisedOnly bool
+	// ChangedOnly keeps only quotas that have held more than one value, which
+	// is a different question from RaisedOnly: that one compares the current
+	// value against the provider default (a state), this one asks whether the
+	// limit has ever moved (an event). A limit can sit above its default
+	// forever without changing, and can change repeatedly while landing back
+	// on its default.
+	//
+	// Paired with Adjustable=false this is the highest-value query the table
+	// supports: a hard ceiling that moved was moved by the provider, without a
+	// request and without notice.
+	ChangedOnly bool
 	Limit      int
 	Offset     int
 }
@@ -207,6 +218,12 @@ func (s *Store) ListQuotas(f QuotaFilter) ([]Quota, error) {
 	}
 	if f.RaisedOnly {
 		q = q.Where("default_value IS NOT NULL AND value IS NOT NULL AND value <> default_value")
+	}
+	if f.ChangedOnly {
+		// The current row of a chain that has ever split carries its
+		// predecessor, so this is a predicate on the row already being
+		// scanned rather than a correlated count over the other versions.
+		q = q.Where("previous_version_id IS NOT NULL")
 	}
 	q = q.OrderBy("provider ASC", "account_id ASC", "service_code ASC", "name ASC", "region ASC")
 	if f.Limit > 0 {

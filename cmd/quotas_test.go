@@ -49,6 +49,7 @@ func runQuotas(t *testing.T, args ...string) []store.Quota {
 	quotasOutputFmt = "table"
 	quotasAdjustable = ""
 	quotasRaisedOnly = false
+	quotasChangedOnly = false
 	quotasProviders, quotasAccounts, quotasRegions, quotasServiceCodes = nil, nil, nil, nil
 
 	out, err := captureStdout(t, func() error {
@@ -220,5 +221,52 @@ func TestHistoryCmd_UnknownIDPrefersResourceError(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "no resource matching") {
 		t.Errorf("expected the resource-not-found error, got %v", err)
+	}
+}
+
+// TestQuotasChangedFlag pins --changed against the case it is easy to conflate
+// with --raised.
+//
+// L-FIXED sits exactly on its default and has moved, so --raised must drop it
+// and --changed must keep it. That pair is the whole point of the second flag:
+// "the value differs from the default" is a state, "the value has moved" is an
+// event, and a hard ceiling the provider moved back onto its default is
+// invisible to the first question.
+func TestQuotasCmd_ChangedFlag(t *testing.T) {
+	st := seedTestDB(t)
+	seedQuotas(t, st)
+
+	// Move the non-adjustable limit, which splits its version chain.
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	f := func(v float64) *float64 { return &v }
+	unit := "None"
+	if _, err := st.UpsertQuotas([]*store.Quota{{
+		Provider: "aws", AccountID: "111", Region: "us-east-1",
+		ServiceCode: "lambda", QuotaCode: "L-FIXED", Name: "Function timeout",
+		Unit: &unit, Value: f(300), DefaultValue: f(900), Adjustable: false,
+		AttributesJSON: `{}`, DiscoveredBy: scanID,
+	}}); err != nil {
+		t.Fatalf("UpsertQuotas: %v", err)
+	}
+
+	changed := runQuotas(t, "--changed")
+	if len(changed) != 1 || changed[0].QuotaCode != "L-FIXED" {
+		t.Fatalf("--changed returned %d rows: %+v", len(changed), changed)
+	}
+
+	// Rescanning the same value must not manufacture a change, or every limit
+	// would qualify after two scans and the filter would mean nothing.
+	all := runQuotas(t)
+	if len(all) != 3 {
+		t.Fatalf("expected 3 current quotas, got %d", len(all))
+	}
+	if got := runQuotas(t, "--changed", "--adjustable=false"); len(got) != 1 {
+		t.Fatalf("--changed --adjustable=false returned %d rows", len(got))
+	}
+	if got := runQuotas(t, "--changed", "--adjustable=true"); len(got) != 0 {
+		t.Fatalf("no adjustable limit has moved, got %d rows", len(got))
 	}
 }
