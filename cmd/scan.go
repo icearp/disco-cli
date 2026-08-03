@@ -352,9 +352,15 @@ func tenantNoun(service string) string {
 // ServiceDisabled → "(<tenant>: disabled)" (account/project/subscription
 // hasn't enabled it but could), ServiceNotEntitled → "(<tenant>: not
 // entitled)" (exists but the tenant can't self-enable it), ServiceBillingDisabled
-// → "(<tenant>: billing disabled)" (billing off but self-enableable). All are
-// mutually exclusive with the error suffix, since a skipped service produces
-// no errors. tenantNoun derives the tenant noun from service's provider prefix.
+// → "(<tenant>: billing disabled)" (billing off but self-enableable),
+// ServiceBlocked → "(service: blocked)" (the provider refuses every operation
+// for every caller). All are mutually exclusive with the error suffix, since a
+// skipped service produces no errors. tenantNoun derives the tenant noun from
+// service's provider prefix.
+//
+// ServiceBlocked takes no tenant noun on purpose: unlike the other states it
+// says nothing about this account, so naming one would misattribute a
+// provider-wide fact to the caller.
 func serviceStatusSuffix(service string, status store.ServiceStatus, errCount int) string {
 	switch {
 	case status == store.ServiceUnavailable:
@@ -365,6 +371,8 @@ func serviceStatusSuffix(service string, status store.ServiceStatus, errCount in
 		return fmt.Sprintf("  (%s: not entitled)", tenantNoun(service))
 	case status == store.ServiceBillingDisabled:
 		return fmt.Sprintf("  (%s: billing disabled)", tenantNoun(service))
+	case status == store.ServiceBlocked:
+		return "  (service: blocked)"
 	case errCount > 0:
 		return "  (with errors)"
 	}

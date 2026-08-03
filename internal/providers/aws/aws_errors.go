@@ -401,6 +401,79 @@ func isHTTP404(err error) bool {
 	return ok && c == 404
 }
 
+// isHTTP403 reports whether err carries an HTTP 403. Companion to isHTTP404 for
+// the same reason: some refusals arrive as an untyped body the SDK maps to the
+// generic "UnknownError", where the transport status is the only reliable
+// signal. A 403 alone is NOT actionable — an ordinary IAM denial is also a 403 —
+// so callers must pair it with a message test (see isServiceBlocked).
+func isHTTP403(err error) bool {
+	c, ok := httpStatusCode(err)
+	return ok && c == 403
+}
+
+// blockedServiceNeedles are the phrases AWS uses to assert that an entire
+// service refuses every operation regardless of IAM. Matched case-insensitively
+// against the API error body, and only alongside a 403 (see isServiceBlocked).
+//
+// Each entry must assert that OPERATIONS ARE BLOCKED, not merely that something
+// is deprecated. "deprecated" is the reason AWS gives; blocking is the
+// observable fact, and only the fact justifies skipping the service. A service
+// can be deprecated and still answer — those operations should still be
+// scanned, so a needle matching bare "is deprecated" would silence a service
+// that is working, and would also swallow the per-operation and per-credential
+// deprecation messages that have nothing to do with the service's availability.
+//
+// An unrecognised phrasing therefore stays a hard scan error. That is the safe
+// direction: a missing needle is loud and gets one added, whereas a needle that
+// is too broad hides a real gap silently.
+var blockedServiceNeedles = []string{
+	"api operations are blocked",
+}
+
+// isServiceBlocked reports whether err is AWS refusing an ENTIRE service rather
+// than denying one caller's permission — the shape AWS Telco Network Builder
+// returns from every operation in every region it is offered in:
+//
+//	403  "AWS Telco Network Builder is deprecated. All API operations are blocked."
+//
+// No IAM change fixes this and no scanner retry helps, so the dispatch loop
+// treats it as a silent per-service skip rather than an error that marks the
+// whole scan partial.
+//
+// BOTH the status and the message must match, and that is the point. The Smithy
+// code is the generic "UnknownError" (it is in no accessDeniedCodes entry, so
+// isAccessDenied is false), which leaves the 403 as the only structural signal —
+// but a bare 403 is the ordinary "not authorized to perform" denial that MUST
+// keep warning, since that one a permission fix would repair. The message is
+// what separates them.
+//
+// Deliberately does not assert WHY the service is blocked. A single account
+// cannot distinguish a service AWS has withdrawn from one this account is not
+// eligible for, and the handling is identical either way.
+//
+// Reads ae.ErrorMessage() rather than err.Error(), matching every other
+// message-disambiguated predicate here (isAPIErrorWithMessage,
+// isAccessDeniedWithMessage): it keeps the match decoupled from Smithy's
+// "api error CODE: MSG" rendering and from the scanner's own
+// fmt.Errorf("svc:Op: %w", …) wrapping, so a change to either cannot silently
+// break the match.
+func isServiceBlocked(err error) bool {
+	if !isHTTP403(err) {
+		return false
+	}
+	var ae smithy.APIError
+	if !errors.As(err, &ae) {
+		return false
+	}
+	msg := strings.ToLower(ae.ErrorMessage())
+	for _, needle := range blockedServiceNeedles {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 // skipIfTransient mirrors skipIfAccessDenied for transient network/service
 // errors. Records a ScanWarning and returns nil so the caller can continue.
 // The caller must have verified the error shape via isTransientNetworkError.
@@ -433,6 +506,9 @@ const (
 	outcomeNotEntitled
 	// outcomeUnavailable: service is not deployed in this scope. Silent.
 	outcomeUnavailable
+	// outcomeBlocked: AWS refuses every operation on the service, for everyone,
+	// regardless of IAM. Silent — no permission change or retry would help.
+	outcomeBlocked
 	// outcomeTransient: momentary cloud-side glitch. Warn and continue.
 	outcomeTransient
 	// outcomeDeadline: the service burned its whole per-service budget
@@ -477,6 +553,14 @@ func classifyServiceError(err error) serviceOutcome {
 	// outage, which still warns below.
 	case isDNSNotFound(err), errors.Is(err, errServiceUnavailable):
 		return outcomeUnavailable
+	// A whole service refusing every caller. Detected generically rather than via
+	// a scanner-returned sentinel, so a service AWS blocks in future degrades
+	// quietly without anyone editing its scanner first — which is the failure this
+	// rung was added for (tnb reported nine identical hard errors per scan, one
+	// per region, marking every scan partial). Safe below the sentinel rungs: it
+	// requires a 403, and none of them carry one.
+	case isServiceBlocked(err):
+		return outcomeBlocked
 	// Must precede the transient rung: a deadline satisfies net.Error.Timeout(),
 	// so isTransientNetworkError would otherwise downgrade budget exhaustion to
 	// a warning. The only deadline in the scan is the per-service budget — there

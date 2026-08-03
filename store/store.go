@@ -96,7 +96,11 @@ const (
 // user controls. ServiceBillingDisabled: the project/account has billing
 // disabled (self-enableable — associate a billing account) → "(<tenant>:
 // billing disabled)". Sits beside ServiceDisabled (both self-enableable
-// preconditions) rather than the warnings block.
+// preconditions) rather than the warnings block. ServiceBlocked: the provider
+// refuses every operation on the service for every caller, whatever their
+// permissions — a withdrawn or closed service answering 403 "all API operations
+// are blocked" → "(service: blocked)". Distinct from ServiceNotEntitled, which
+// is about THIS tenant's eligibility; blocked is about the service itself.
 type ServiceStatus uint8
 
 const (
@@ -105,6 +109,7 @@ const (
 	ServiceUnavailable
 	ServiceNotEntitled
 	ServiceBillingDisabled
+	ServiceBlocked
 )
 
 type Store struct {

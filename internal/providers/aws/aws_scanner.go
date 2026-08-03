@@ -219,6 +219,8 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceNotEntitled)
 				case outcomeUnavailable:
 					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceUnavailable)
+				case outcomeBlocked:
+					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceBlocked)
 				case outcomeTransient:
 					_ = skipIfTransient(st, svc.name, acct.ID, "", err)
 					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceOK)
@@ -381,6 +383,8 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceNotEntitled)
 				case outcomeUnavailable:
 					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceUnavailable)
+				case outcomeBlocked:
+					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceBlocked)
 				case outcomeTransient:
 					_ = skipIfTransient(st, svc.name, acct.ID, region, err)
 					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceOK)

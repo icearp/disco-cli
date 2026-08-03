@@ -542,6 +542,118 @@ func TestIsHTTP404(t *testing.T) {
 	}
 }
 
+func TestIsHTTP403(t *testing.T) {
+	if !isHTTP403(respErrCode(403)) {
+		t.Error("403 response should match")
+	}
+	if !isHTTP403(fmt.Errorf("wrapped: %w", respErrCode(403))) {
+		t.Error("wrapped 403 should match")
+	}
+	if isHTTP403(respErrCode(404)) {
+		t.Error("404 must not match")
+	}
+	if isHTTP403(apiErr("AccessDenied", "denied")) {
+		t.Error("bare APIError (no transport status) must not match")
+	}
+	if isHTTP403(nil) {
+		t.Error("nil must not match")
+	}
+}
+
+// respErrCode builds the transport-level error shape AWS returns when the SDK
+// cannot map the body to a typed exception — the "UnknownError" code with only
+// the HTTP status carrying meaning.
+func respErrCode(code int) error {
+	return &smithyhttp.ResponseError{
+		Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
+		Err:      apiErr("UnknownError", ""),
+	}
+}
+
+// respErrMsg is respErrCode with a body, for the message-disambiguated matches.
+func respErrMsg(code int, msg string) error {
+	return &smithyhttp.ResponseError{
+		Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
+		Err:      apiErr("UnknownError", msg),
+	}
+}
+
+// TestIsServiceBlocked pins the discrimination that is the whole point of the
+// predicate: a 403 whose body says the SERVICE is blocked must be silently
+// skipped, while an ordinary 403 permission denial must NOT be — that one a
+// policy fix would repair, so swallowing it would hide a real misconfiguration.
+func TestIsServiceBlocked(t *testing.T) {
+	// The exact shape AWS Telco Network Builder returns from every operation in
+	// every region it is offered in.
+	tnb := respErrMsg(403, "AWS Telco Network Builder is deprecated. All API operations are blocked.")
+
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"tnb deprecation body", tnb, true},
+		{"wrapped by the scanner's fmt.Errorf", fmt.Errorf("tnb:ListSolFunctionPackages: %w", tnb), true},
+		{"blocked phrasing without the word deprecated", respErrMsg(403, "All API operations are blocked."), true},
+		{"case-insensitive", respErrMsg(403, "ALL API OPERATIONS ARE BLOCKED"), true},
+
+		// The negative half. Each of these is a 403 that must keep warning.
+		{"ordinary IAM denial", respErrMsg(403, "User: arn:aws:iam::1:user/x is not authorized to perform: tnb:ListSolFunctionPackages"), false},
+		{"SCP explicit deny", respErrMsg(403, "with an explicit deny in a service control policy"), false},
+		{"403 with no body", respErrCode(403), false},
+
+		// Deprecation alone must NOT match, at any status. "deprecated" is the
+		// reason AWS gives; blocking is the fact. A service can be deprecated and
+		// still answer, and those operations should still be scanned — so matching
+		// the word alone would silence a working service and swallow the
+		// per-operation / per-credential deprecation notices below.
+		{"deprecated operation within a live service", respErrMsg(403, "Operation ListThings is deprecated"), false},
+		{"deprecated credential type", respErrMsg(403, "This credential type is deprecated"), false},
+		{"deprecated API version", respErrMsg(403, "API version 2016-01-01 is deprecated"), false},
+		{"service deprecated but not blocked", respErrMsg(403, "AWS Foo is deprecated."), false},
+		{"deprecation phrasing on a non-403", respErrMsg(400, "this parameter is deprecated"), false},
+
+		// Status is required, not just the phrase.
+		{"blocked phrasing on a non-403", respErrMsg(400, "All API operations are blocked."), false},
+		{"bare APIError carrying no transport status", apiErr("AccessDenied", "all API operations are blocked"), false},
+		{"unrelated error", errors.New("boom"), false},
+		{"nil", nil, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := isServiceBlocked(c.err); got != c.want {
+				t.Errorf("isServiceBlocked(%v) = %v, want %v", c.err, got, c.want)
+			}
+		})
+	}
+}
+
+// TestClassifyServiceError_Blocked checks the rung is reachable from the
+// dispatch ladder, not just that the predicate works — a correct predicate wired
+// in below a rung that already matches would still report a hard error.
+func TestClassifyServiceError_Blocked(t *testing.T) {
+	blocked := fmt.Errorf("tnb:ListSolFunctionPackages: %w",
+		respErrMsg(403, "AWS Telco Network Builder is deprecated. All API operations are blocked."))
+	if got := classifyServiceError(blocked); got != outcomeBlocked {
+		t.Errorf("classifyServiceError(blocked) = %v, want outcomeBlocked", got)
+	}
+	// A real permission denial keeps its hard-error classification. Scanners are
+	// expected to catch access-denied themselves via skipIfAccessDenied; one that
+	// reaches the ladder is a gap worth surfacing, and must not be swallowed here.
+	denied := fmt.Errorf("svc:Op: %w", respErrMsg(403, "is not authorized to perform: svc:Op"))
+	if got := classifyServiceError(denied); got != outcomeError {
+		t.Errorf("classifyServiceError(plain 403 denial) = %v, want outcomeError", got)
+	}
+	// A store-write failure must still win, even carrying a 403-shaped cause: the
+	// ladder's first rung exists so a database outage is never reported as a
+	// benign per-service skip.
+	storeErr := fmt.Errorf("%w: %w", store.ErrStoreWrite,
+		respErrMsg(403, "AWS Telco Network Builder is deprecated. All API operations are blocked."))
+	if got := classifyServiceError(storeErr); got != outcomeStoreWrite {
+		t.Errorf("classifyServiceError(store write wrapping a blocked body) = %v, want outcomeStoreWrite", got)
+	}
+}
+
 func TestTranscribeRegionErr(t *testing.T) {
 	// Call Analytics sub-feature gap → per-op skip (nil), Transcribe still works.
 	handled, out := transcribeRegionErr(apiErr("BadRequestException", "Call Analytics isn't supported in this region."))
