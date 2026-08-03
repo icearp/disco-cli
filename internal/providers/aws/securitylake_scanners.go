@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/securitylake"
 	sltypes "github.com/aws/aws-sdk-go-v2/service/securitylake/types"
@@ -11,19 +10,33 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// isSecurityLakeNotEnabled disambiguates two not-enabled shapes from real IAM
-// denial: "must be a delegated Security Lake administrator account"
-// (delegation prerequisite missing) and the canned action-less "account is
-// not authorized to perform this operation" (Security Lake not onboarded at
-// all). Real IAM denials always name the action ("User: arn:... is not
-// authorized to perform: <action>").
+// isSecurityLakeNotEnabled disambiguates the not-enabled shapes from a real IAM
+// denial. Real IAM denials always name the action ("User: arn:... is not
+// authorized to perform: <action>"), so they still warn.
+//
+// AWS reports the SAME not-enabled account state in three phrasings across two
+// error classes, and which one you get depends on the regional endpoint. Two
+// arrive as an access-denied code: "must be a delegated Security Lake
+// administrator account" (delegation prerequisite missing) and the canned
+// action-less "account is not authorized to perform this operation" (never
+// onboarded). The third arrives as a ResourceNotFoundException carrying HTTP
+// 404 — "Security Lake isn't enabled for your account in any Regions" — which
+// is why the access-denied check cannot be a precondition for all of them.
+//
+// Measured on one account with Security Lake off everywhere: us-east-1,
+// us-east-2, eu-west-1 and ap-northeast-1 answered ListSubscribers with the
+// delegated-administrator phrasing, while eu-west-2 alone answered
+// ResourceNotFoundException. Identical account state, different regional
+// answer — so a single unmatched region turned an account-level fact into a
+// per-scan hard error that marked every scan partial. Compare
+// isStorageLensHomeRegionGap, where AWS likewise phrases one fact two ways.
+// Every branch reads the typed message via isAPIErrorWithMessage rather than
+// err.Error(), so a change in how the SDK renders its wrappers cannot silently
+// stop a branch matching.
 func isSecurityLakeNotEnabled(err error) bool {
-	if !isAccessDenied(err) {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "delegated Security Lake administrator") ||
-		strings.Contains(msg, "account is not authorized to perform this operation")
+	return isAPIErrorWithMessage(err, "ResourceNotFoundException", "Security Lake isn't enabled for your account") ||
+		isAccessDeniedWithMessage(err, "delegated Security Lake administrator") ||
+		isAccessDeniedWithMessage(err, "account is not authorized to perform this operation")
 }
 
 func init() {
