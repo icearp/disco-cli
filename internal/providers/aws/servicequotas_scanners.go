@@ -16,8 +16,27 @@ import (
 )
 
 const (
-	sqReqPerSec = rate.Limit(10) // documented ListServiceQuotas steady limit, per region per account
-	sqBurst     = 10             // documented burst allowance
+	// sqReqPerSec is the documented steady limit PER OPERATION, PER REGION -- not
+	// a budget shared across the three calls this scanner makes, and not an
+	// account-wide one.
+	//
+	// Both halves of that are checkable from the scanner's own output, which is
+	// the point: Service Quotas publishes its own API limits as quotas.
+	// L-65470577 "Throttle rate for ListServiceQuotas", L-71DCD22A "Throttle rate
+	// for ListAWSDefaultServiceQuotas" and L-E3924FE5 "Throttle rate for
+	// ListServices" are three distinct quotas, each 10, and each is reported
+	// SEPARATELY IN EVERY REGION (17 of them on the account this was measured on)
+	// rather than once under the region-less "global" sentinel -- which is how
+	// that same table records L-0C8306D7 "Active requests per account". Regional
+	// reporting is what makes them per-region buckets.
+	//
+	// Pacing all three through ONE limiter therefore spent a single budget against
+	// three meters and ran each call below its allowance; see [sqPacers]. To
+	// disprove any of this, re-run scripts/sql/check-servicequotas-api-limits.sql
+	// against a scanned account in the SaaS, or `disco quotas --service
+	// servicequotas` locally.
+	sqReqPerSec = rate.Limit(10)
+	sqBurst     = 10 // documented burst allowance
 	// sqWorkers ≥ rate × worst-case latency (~3s): enough concurrency that the rate
 	// limiter — not the semaphore — bounds throughput. A fixed cap of 10 only reaches
 	// 10 req/s when calls take ~1s; at higher latency it under-utilizes the bucket —
@@ -42,6 +61,37 @@ func init() {
 		optIn: true,
 		fn:    scanServiceQuotas,
 	})
+}
+
+// sqPacers holds one rate limiter per Service Quotas operation, because AWS
+// meters them separately.
+//
+// The previous shape was a single *pacer shared by all three calls. That is the
+// intuitive reading of "the API allows 10 req/s" and it is wrong: each operation
+// carries its own 10 req/s quota, so one shared limiter spent one budget on
+// three meters. The scanner makes one ListServiceQuotas and one
+// ListAWSDefaultServiceQuotas per service code, so those two were each getting
+// about half the rate they were entitled to.
+//
+// Splitting them changes no per-operation pressure -- each limiter still sits at
+// exactly the documented ceiling -- while letting the defaults pass overlap the
+// limits pass instead of queueing behind it.
+//
+// ListServices is called once per region and could not saturate anything; it has
+// its own limiter so that a future caller cannot silently borrow from the
+// per-code budgets.
+type sqPacers struct {
+	services *pacer
+	quotas   *pacer
+	defaults *pacer
+}
+
+func newSQPacers() *sqPacers {
+	return &sqPacers{
+		services: newPacer(sqReqPerSec, sqBurst),
+		quotas:   newPacer(sqReqPerSec, sqBurst),
+		defaults: newPacer(sqReqPerSec, sqBurst),
+	}
 }
 
 // serviceQuotasAPI is the narrow Service Quotas surface used by the scanner
@@ -72,13 +122,12 @@ type serviceQuotasAPI interface {
 // (optIn:true); see --include-service-quotas.
 func scanServiceQuotas(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := servicequotas.NewFromConfig(acct.cfg, func(o *servicequotas.Options) { o.Region = region })
-	pacer := newPacer(sqReqPerSec, sqBurst)
-	return scanServiceQuotasWithClient(ctx, client, acct, region, st, scanID, pacer)
+	return scanServiceQuotasWithClient(ctx, client, acct, region, st, scanID, newSQPacers())
 }
 
-func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, acct *account, region string, st *store.Store, scanID string, pacer *pacer) (total, inserted int, err error) {
+func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, acct *account, region string, st *store.Store, scanID string, pacers *sqPacers) (total, inserted int, err error) {
 	start := time.Now()
-	codes, err := listQuotaServiceCodes(ctx, client)
+	codes, err := listQuotaServiceCodes(ctx, client, pacers.services)
 	if err != nil {
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "servicequotas:ListServices", acct.ID, region, err)
@@ -100,7 +149,7 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 				return
 			}
 			defer sem.Release(1)
-			rows, derr := listQuotasForCode(ctx, client, code, acct, region, home, scanID, &missingDefaults, pacer)
+			rows, derr := listQuotasForCode(ctx, client, code, acct, region, home, scanID, &missingDefaults, pacers)
 			if derr != nil {
 				// Collect-and-continue: one bad service code must not drop the
 				// rows already gathered for the others in this region.
@@ -122,7 +171,11 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 	}
 	wg.Wait()
 	missingDefaults.report(st, acct.ID, region)
-	reportRateDebug(st, "servicequotas", region, pacer, start)
+	// One line per operation: a shared line could not show WHICH meter is
+	// saturated, which is the only question the report exists to answer.
+	reportRateDebug(st, "servicequotas:ListServices", region, pacers.services, start)
+	reportRateDebug(st, "servicequotas:ListServiceQuotas", region, pacers.quotas, start)
+	reportRateDebug(st, "servicequotas:ListAWSDefaultServiceQuotas", region, pacers.defaults, start)
 
 	if len(batch) == 0 {
 		return 0, 0, nil
@@ -136,10 +189,24 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 
 // listQuotaServiceCodes enumerates every service code Service Quotas knows about
 // in this region (manual NextToken pagination so the test stub needs one method).
-func listQuotaServiceCodes(ctx context.Context, client serviceQuotasAPI) ([]string, error) {
+//
+// Paced on its own limiter. It is a handful of calls and could not saturate
+// anything, but ListServices carries its own documented 10 req/s quota, so
+// pacing it here keeps every call this scanner makes accounted for on the meter
+// it actually bills to.
+//
+// Cancellation is an ERROR here, unlike in the per-code calls below, and the
+// asymmetry is deliberate. This list decides which service codes the region
+// scans at all, so returning a truncated one with a nil error would report a
+// scan that silently covered fewer services as a complete scan. A partial page
+// of QUOTAS is a smaller loss than a partial page of SERVICES.
+func listQuotaServiceCodes(ctx context.Context, client serviceQuotasAPI, pacer *pacer) ([]string, error) {
 	var codes []string
 	in := &servicequotas.ListServicesInput{MaxResults: sdkaws.Int32(100)}
 	for {
+		if err := pacer.wait(ctx); err != nil {
+			return nil, err
+		}
 		out, err := client.ListServices(ctx, in)
 		if err != nil {
 			return nil, err
@@ -163,16 +230,17 @@ func listQuotaServiceCodes(ctx context.Context, client serviceQuotasAPI) ([]stri
 // code); both are skipped silently, mirroring Azure's isSkippableScanError.
 // QuotaAppliedAtLevel is left unset so the proxy returns ACCOUNT-level quotas
 // (ALL would add churny per-resource rows).
-func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string, acct *account, region, home, scanID string, missing *defaultsOutcome, pacer *pacer) ([]*store.Quota, error) {
-	defaults, derr := listQuotaDefaultsForCode(ctx, client, code, pacer)
+func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string, acct *account, region, home, scanID string, missing *defaultsOutcome, pacers *sqPacers) ([]*store.Quota, error) {
+	defaults, derr := listQuotaDefaultsForCode(ctx, client, code, pacers.defaults)
 	missing.record(derr)
 
 	var rows []*store.Quota
 	in := &servicequotas.ListServiceQuotasInput{ServiceCode: &code, MaxResults: sdkaws.Int32(100)}
 	for {
-		// Pace each request (incl. paginated follow-ups) to the per-region 10 req/s
-		// bucket; ctx cancellation surfaces as a clean stop, not an error row.
-		if err := pacer.wait(ctx); err != nil {
+		// Pace each request (incl. paginated follow-ups) on the ListServiceQuotas
+		// meter specifically -- the defaults pass bills to its own, see
+		// [sqPacers]. ctx cancellation surfaces as a clean stop, not an error row.
+		if err := pacers.quotas.wait(ctx); err != nil {
 			return rows, nil
 		}
 		out, err := client.ListServiceQuotas(ctx, in)

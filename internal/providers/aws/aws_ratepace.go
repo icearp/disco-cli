@@ -11,7 +11,12 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// pacer caps a per-(account,region,service) fan-out at a fixed req/s ceiling.
+// pacer caps a fan-out at a fixed req/s ceiling.
+//
+// One pacer is one METER. AWS bills throttling per operation, not per service,
+// so a scanner making several different calls wants one pacer each rather than
+// one shared -- sharing spends a single budget against several meters and runs
+// every call below its documented allowance. See [sqPacers] for the worked case.
 // Size the worker count ABOVE rate × worst-case-latency so this limiter — not the
 // worker semaphore — bounds throughput: a fixed semaphore of N only reaches
 // N÷latency req/s, under-filling a low-TPS bucket whenever control-plane latency

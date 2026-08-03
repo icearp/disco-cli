@@ -18,7 +18,12 @@ import (
 
 // noRateLimit returns an unthrottled pacer so tests skip the production 10 req/s pace;
 // rate.Inf makes Wait return immediately, burst ignored.
-func noRateLimit() *pacer { return newPacer(rate.Inf, 0) }
+// noRateLimit gives every Service Quotas operation an unlimited pacer, so unit
+// tests exercise the fan-out rather than the rate ceiling.
+func noRateLimit() *sqPacers {
+	unlimited := func() *pacer { return newPacer(rate.Inf, 0) }
+	return &sqPacers{services: unlimited(), quotas: unlimited(), defaults: unlimited()}
+}
 
 // stubServiceQuotas is an in-memory serviceQuotasAPI for unit tests. ListServices
 // returns the service codes; ListServiceQuotas serves per-code quota slices, both
@@ -717,5 +722,72 @@ func TestScanServiceQuotas_DefaultsFailuresAggregatePerRegion(t *testing.T) {
 	// The count is what makes one entry as informative as the flood it replaces.
 	if msg := (*errs)[0].Message; !strings.Contains(msg, "5 service") {
 		t.Errorf("message = %q, want it to report how many codes failed", msg)
+	}
+}
+
+// TestScanServiceQuotas_PacesEachOperationSeparately pins that the three Service
+// Quotas calls bill to three limiters.
+//
+// AWS meters ListServices, ListServiceQuotas and ListAWSDefaultServiceQuotas
+// separately -- each carries its own "Throttle rate for <op>" quota of 10 req/s,
+// which this scanner can read back from its own output. A single shared limiter
+// spends one budget against three meters, so the two per-service-code calls each
+// ran at roughly half their allowance on the slowest scanner in the suite.
+//
+// Asserting exact per-limiter call counts is what makes this a regression test:
+// under one shared pacer the quotas limiter would carry the defaults calls too,
+// so the count would be the sum rather than the expected split.
+func TestScanServiceQuotas_PacesEachOperationSeparately(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := "us-east-1"
+
+	codes := []string{"ec2", "lambda", "s3"}
+	quotas := map[string][]sqtypes.ServiceQuota{}
+	for _, c := range codes {
+		quotas[c] = []sqtypes.ServiceQuota{regionalQuota(region, c, "L-1", "A limit", 5, true)}
+	}
+	stub := &stubServiceQuotas{services: codes, quotas: quotas}
+
+	pacers := noRateLimit()
+	if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, pacers); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	// One ListServices page, then one ListServiceQuotas and one
+	// ListAWSDefaultServiceQuotas per service code.
+	if got := pacers.services.calls.Load(); got != 1 {
+		t.Errorf("ListServices pacer counted %d calls, want 1", got)
+	}
+	if got := pacers.quotas.calls.Load(); got != int64(len(codes)) {
+		t.Errorf("ListServiceQuotas pacer counted %d calls, want %d -- a count of %d "+
+			"would mean the defaults calls are billing to this limiter too",
+			got, len(codes), 2*len(codes))
+	}
+	if got := pacers.defaults.calls.Load(); got != int64(len(codes)) {
+		t.Errorf("ListAWSDefaultServiceQuotas pacer counted %d calls, want %d", got, len(codes))
+	}
+}
+
+// TestListQuotaServiceCodes_CancellationIsAnError pins that a cancelled context
+// does not yield a truncated service list with a nil error.
+//
+// The per-code calls deliberately return what they have on cancellation -- the
+// scan is stopping and an error row per code would be noise. This one must not,
+// because its result decides WHICH services the region scans: a short list with
+// no error is a scan that silently covered fewer services while reporting
+// success, which is worse than a scan that reports it was interrupted.
+func TestListQuotaServiceCodes_CancellationIsAnError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	stub := &stubServiceQuotas{services: []string{"ec2", "lambda", "s3"}}
+	codes, err := listQuotaServiceCodes(ctx, stub, newPacer(rate.Inf, 0))
+	if err == nil {
+		t.Fatalf("cancelled context returned %d codes and no error; a truncated "+
+			"service list must not read as a complete one", len(codes))
+	}
+	if codes != nil {
+		t.Errorf("got %v alongside the error; want no partial list to be mistaken for usable", codes)
 	}
 }
