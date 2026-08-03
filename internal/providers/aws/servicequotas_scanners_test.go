@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
 	sqtypes "github.com/aws/aws-sdk-go-v2/service/servicequotas/types"
+	"github.com/aws/smithy-go"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/time/rate"
 )
@@ -523,5 +526,196 @@ func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
 	scan()
 	if n := versionCount(); n != 3 {
 		t.Fatalf("after an adjustability change: got %d versions, want 3", n)
+	}
+}
+
+// TestScanServiceQuotas_ReportsDefaultsFailure pins that a failed
+// ListAWSDefaultServiceQuotas is reported rather than swallowed, while the
+// applied limits are still recorded.
+//
+// Both halves matter and they pull in opposite directions. Losing the applied
+// limit because the default was unreadable would discard the more important of
+// the two, so degradation is deliberate. But a SILENT degradation writes NULL
+// into default_value, and the store compares DefaultValue when deciding whether
+// a quota changed -- so the next scan that reads the default records a version
+// bump on a limit that never moved. That is how ~91k spurious versions and
+// 107 MB appeared on a real tenant, presenting as genuine change in the "limits
+// that changed" view. The scan record is the only place the cause is findable.
+func TestScanServiceQuotas_ReportsDefaultsFailure(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := "us-east-1"
+
+	errs, warns := collectReports(st)
+
+	stub := &stubServiceQuotas{
+		services:    []string{"ec2"},
+		defaultsErr: &smithy.GenericAPIError{Code: "ThrottlingException", Message: "Rate exceeded"},
+		quotas: map[string][]sqtypes.ServiceQuota{
+			"ec2": {regionalQuota(region, "ec2", "L-0EA8095F", "VPCs per Region", 5, true)},
+		},
+	}
+
+	total, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	// The limit is still recorded. A defaults failure must not cost the applied value.
+	if total != 1 {
+		t.Errorf("total = %d, want 1 (the applied limit survives a defaults failure)", total)
+	}
+
+	if len(*errs) == 0 {
+		t.Fatal("defaults failure was swallowed; no ScanError reported")
+	}
+	if got := (*errs)[0].Service; got != "servicequotas:ListAWSDefaultServiceQuotas" {
+		t.Errorf("reported service = %q; want the defaults operation, so the "+
+			"failing call is identifiable without reading the scanner", got)
+	}
+	// ONE entry, not one per service code: a systematic failure hits all 251 of
+	// them in each of 18 regions, and 4,500 near identical rows would bury every
+	// other error in the scan rather than shout louder.
+	if len(*errs) != 1 {
+		t.Errorf("got %d errors, want exactly 1 aggregated entry for the region", len(*errs))
+	}
+	if !strings.Contains((*errs)[0].Scope, region) {
+		t.Errorf("scope = %q, want it to name the region it aggregates", (*errs)[0].Scope)
+	}
+	// The count and the underlying error both survive aggregation, or the entry
+	// says a failure happened without saying how bad or why.
+	if msg := (*errs)[0].Message; !strings.Contains(msg, "Rate exceeded") || !strings.Contains(msg, "1 service") {
+		t.Errorf("message = %q, want it to carry the failure count and the first error", msg)
+	}
+	if len(*warns) != 0 {
+		t.Errorf("throttling reported as a warning as well as an error: %+v", *warns)
+	}
+}
+
+// TestScanServiceQuotas_DefaultsAccessDeniedWarnsNotErrors covers the case a
+// missing IAM grant produces. servicequotas:ListAWSDefaultServiceQuotas is a
+// separate action from ListServiceQuotas, so a policy can allow the limits and
+// deny the defaults -- which would null every default on every scan forever.
+// It is a warning rather than an error because nothing is broken, but it must
+// not be silent.
+func TestScanServiceQuotas_DefaultsAccessDeniedWarnsNotErrors(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := "us-east-1"
+
+	errs, warns := collectReports(st)
+
+	stub := &stubServiceQuotas{
+		services:    []string{"ec2"},
+		defaultsErr: &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "User: ... not authorized"},
+		quotas: map[string][]sqtypes.ServiceQuota{
+			"ec2": {regionalQuota(region, "ec2", "L-0EA8095F", "VPCs per Region", 5, true)},
+		},
+	}
+
+	if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if len(*errs) != 0 {
+		t.Errorf("access denied raised as a hard error: %+v", *errs)
+	}
+	if len(*warns) == 0 {
+		t.Fatal("access denied on the defaults call was silent")
+	}
+}
+
+// TestScanServiceQuotas_NoPublishedDefaultsIsSilent pins the third outcome. A
+// service with no published defaults answers NoSuchResource, which is an answer
+// and not a failure -- reporting it would put a row on the scan record for every
+// such service and train operators to ignore the ones that matter.
+func TestScanServiceQuotas_NoPublishedDefaultsIsSilent(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := "us-east-1"
+
+	errs, warns := collectReports(st)
+
+	stub := &stubServiceQuotas{
+		services:    []string{"ec2"},
+		defaultsErr: &smithy.GenericAPIError{Code: "NoSuchResourceException", Message: "no defaults"},
+		quotas: map[string][]sqtypes.ServiceQuota{
+			"ec2": {regionalQuota(region, "ec2", "L-0EA8095F", "VPCs per Region", 5, true)},
+		},
+	}
+
+	if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if len(*errs) != 0 || len(*warns) != 0 {
+		t.Errorf("a service with no published defaults was not silent: errs=%+v warns=%+v", *errs, *warns)
+	}
+}
+
+// collectReports wires the store's report callbacks into slices a test can
+// assert on.
+//
+// The mutex is not decorative: scanServiceQuotasWithClient fans out over service
+// codes with up to sqWorkers goroutines, and every one of them can reach these
+// callbacks, so an unsynchronized append is a data race that -race would catch
+// only on the runs where the timing lands. Production wiring locks for the same
+// reason.
+func collectReports(st *store.Store) (*[]store.ScanError, *[]store.ScanWarning) {
+	var (
+		mu    sync.Mutex
+		errs  []store.ScanError
+		warns []store.ScanWarning
+	)
+	st.OnError = func(e store.ScanError) {
+		mu.Lock()
+		defer mu.Unlock()
+		errs = append(errs, e)
+	}
+	st.OnWarn = func(w store.ScanWarning) {
+		mu.Lock()
+		defer mu.Unlock()
+		warns = append(warns, w)
+	}
+	return &errs, &warns
+}
+
+// TestScanServiceQuotas_DefaultsFailuresAggregatePerRegion is the test the
+// aggregation exists for: many service codes failing produce ONE scan-record
+// entry, carrying the count.
+//
+// Without it the natural implementation reports inside the per-code fan-out,
+// and a systematic failure -- throttling, a missing grant -- writes one row per
+// code per region. At 251 services across 18 regions that is ~4,500 near
+// identical entries in a single scan, which buries every other error and bloats
+// the stored payload. One entry that says how many is strictly more useful.
+func TestScanServiceQuotas_DefaultsFailuresAggregatePerRegion(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := "us-east-1"
+	errs, _ := collectReports(st)
+
+	codes := []string{"ec2", "lambda", "s3", "iam", "rds"}
+	quotas := map[string][]sqtypes.ServiceQuota{}
+	for _, c := range codes {
+		quotas[c] = []sqtypes.ServiceQuota{regionalQuota(region, c, "L-1", "A limit", 5, true)}
+	}
+	stub := &stubServiceQuotas{
+		services:    codes,
+		defaultsErr: &smithy.GenericAPIError{Code: "ThrottlingException", Message: "Rate exceeded"},
+		quotas:      quotas,
+	}
+
+	total, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != len(codes) {
+		t.Errorf("total = %d, want %d (every applied limit survives)", total, len(codes))
+	}
+	if len(*errs) != 1 {
+		t.Fatalf("got %d scan errors for %d failing service codes, want 1 aggregated entry",
+			len(*errs), len(codes))
+	}
+	// The count is what makes one entry as informative as the flood it replaces.
+	if msg := (*errs)[0].Message; !strings.Contains(msg, "5 service") {
+		t.Errorf("message = %q, want it to report how many codes failed", msg)
 	}
 }

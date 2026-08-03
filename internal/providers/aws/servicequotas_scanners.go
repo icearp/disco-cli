@@ -88,8 +88,9 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 	home := homeGlobalRegion(acct)
 
 	var (
-		mu    sync.Mutex
-		batch []*store.Quota
+		mu              sync.Mutex
+		batch           []*store.Quota
+		missingDefaults defaultsOutcome
 	)
 	sem := semaphore.NewWeighted(sqWorkers)
 	var wg sync.WaitGroup
@@ -99,7 +100,7 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 				return
 			}
 			defer sem.Release(1)
-			rows, derr := listQuotasForCode(ctx, client, code, acct, region, home, scanID, pacer)
+			rows, derr := listQuotasForCode(ctx, client, code, acct, region, home, scanID, &missingDefaults, pacer)
 			if derr != nil {
 				// Collect-and-continue: one bad service code must not drop the
 				// rows already gathered for the others in this region.
@@ -120,6 +121,7 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 		})
 	}
 	wg.Wait()
+	missingDefaults.report(st, acct.ID, region)
 	reportRateDebug(st, "servicequotas", region, pacer, start)
 
 	if len(batch) == 0 {
@@ -161,8 +163,9 @@ func listQuotaServiceCodes(ctx context.Context, client serviceQuotasAPI) ([]stri
 // code); both are skipped silently, mirroring Azure's isSkippableScanError.
 // QuotaAppliedAtLevel is left unset so the proxy returns ACCOUNT-level quotas
 // (ALL would add churny per-resource rows).
-func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string, acct *account, region, home, scanID string, pacer *pacer) ([]*store.Quota, error) {
-	defaults := listQuotaDefaultsForCode(ctx, client, code, pacer)
+func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string, acct *account, region, home, scanID string, missing *defaultsOutcome, pacer *pacer) ([]*store.Quota, error) {
+	defaults, derr := listQuotaDefaultsForCode(ctx, client, code, pacer)
+	missing.record(derr)
 
 	var rows []*store.Quota
 	in := &servicequotas.ListServiceQuotasInput{ServiceCode: &code, MaxResults: sdkaws.Int32(100)}
@@ -191,8 +194,74 @@ func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string
 	}
 }
 
+// defaultsOutcome accumulates ListAWSDefaultServiceQuotas failures across the
+// per-service-code fan-out so the scan record carries ONE entry per region
+// instead of one per code.
+//
+// The aggregation is the point, not tidiness. A systematic failure -- throttling,
+// a missing grant -- fails EVERY service code, and this scanner fans out over
+// 251 of them in each of 18 regions. Reporting per code would put ~4,500 near
+// identical rows on a single scan, which is not a louder signal than one row but
+// a quieter one: it buries every other error in the scan and inflates the stored
+// error payload. Counting them and reporting once keeps the failure visible and
+// the record readable.
+//
+// Safe for concurrent use; report is called after the fan-out has joined.
+type defaultsOutcome struct {
+	mu       sync.Mutex
+	failures int
+	denied   error // first AccessDenied, if any
+	first    error // first failure of any other kind
+}
+
+// record notes one service code's failure. A nil error is a success and is
+// ignored, so callers need not branch.
+func (d *defaultsOutcome) record(err error) {
+	if err == nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.failures++
+	switch {
+	case isAccessDenied(err):
+		if d.denied == nil {
+			d.denied = err
+		}
+	case d.first == nil:
+		d.first = err
+	}
+}
+
+// report puts at most one entry on the scan record for the whole region.
+//
+// AccessDenied goes through skipIfAccessDenied, which drops the region-gap and
+// not-entitled cases and warns otherwise: a missing
+// servicequotas:ListAWSDefaultServiceQuotas grant is a policy fix, not a fault,
+// but it must not be silent -- it would null every default on every scan.
+// Anything else is a genuine error.
+func (d *defaultsOutcome) report(st *store.Store, acctID, region string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	const op = "servicequotas:ListAWSDefaultServiceQuotas"
+	if d.denied != nil {
+		_ = skipIfAccessDenied(st, op, acctID, region, d.denied)
+	}
+	if d.first == nil {
+		return
+	}
+	st.ReportError(store.ScanError{
+		Provider: "aws",
+		Service:  op,
+		Scope:    acctID + "/" + region,
+		Message: fmt.Sprintf("default quota values unavailable for %d service code(s); first error: %v",
+			d.failures, d.first),
+	})
+}
+
 // listQuotaDefaultsForCode returns the AWS default value per quota code for one
-// service, or nil when they cannot be read.
+// service, and the error that stopped it. A code absent from the map has no
+// default this call could read.
 //
 // This doubles the API calls the scanner makes, which is why it is worth
 // stating what it buys: on an adjustable quota a divergence from the default is
@@ -200,19 +269,39 @@ func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string
 // moved a hard ceiling. Neither is derivable from the applied value alone, and
 // recovering it later would mean this same call anyway.
 //
-// Failures degrade rather than propagate. A missing default leaves the column
-// NULL, which reads as unknown; refusing to record the applied limit because the
-// default was unavailable would lose the more important of the two.
-func listQuotaDefaultsForCode(ctx context.Context, client serviceQuotasAPI, code string, pacer *pacer) map[string]float64 {
+// THE ERROR IS RETURNED, NOT SWALLOWED, and the distinction matters more than it
+// looks. The applied limit is still recorded either way -- refusing to store it
+// because the default was unavailable would lose the more important of the two --
+// but a silent failure leaves default_value NULL, and NULL is not a neutral
+// outcome: [currentQuotaRow.unchanged] compares DefaultValue, so the next scan
+// that DOES read the default records a version bump on a limit that never moved.
+// On a six-figure quota table that is ~180 MB of fabricated history per
+// occurrence, and it presents as real change in the "limits that changed" view.
+// An unreported failure therefore does not degrade gracefully; it manufactures
+// data. Returning it is what makes the cause findable from the scan record
+// instead of from a heap size.
+//
+// The caller aggregates: see [defaultsOutcome] for why this must not report
+// per service code itself.
+func listQuotaDefaultsForCode(ctx context.Context, client serviceQuotasAPI, code string, pacer *pacer) (map[string]float64, error) {
 	defaults := map[string]float64{}
 	in := &servicequotas.ListAWSDefaultServiceQuotasInput{ServiceCode: &code, MaxResults: sdkaws.Int32(100)}
 	for {
+		// Cancellation is the scan stopping, not this call failing. It would
+		// otherwise be counted once per remaining service code and reported as
+		// the reason defaults are missing, which it is not.
 		if err := pacer.wait(ctx); err != nil {
-			return defaults
+			return defaults, nil
 		}
 		out, err := client.ListAWSDefaultServiceQuotas(ctx, in)
 		if err != nil {
-			return defaults
+			// A service that publishes no defaults answers NoSuchResource. That
+			// is an answer, not a failure, and is silent for the same reason
+			// listQuotasForCode skips it silently.
+			if isAPIErrorCode(err, "NoSuchResourceException", "IllegalArgumentException") {
+				return defaults, nil
+			}
+			return defaults, err
 		}
 		for i := range out.Quotas {
 			qc, v := sv(out.Quotas[i].QuotaCode), out.Quotas[i].Value
@@ -221,7 +310,7 @@ func listQuotaDefaultsForCode(ctx context.Context, client serviceQuotasAPI, code
 			}
 		}
 		if out.NextToken == nil {
-			return defaults
+			return defaults, nil
 		}
 		in.NextToken = out.NextToken
 	}

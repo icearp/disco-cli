@@ -191,8 +191,8 @@ type QuotaFilter struct {
 	// supports: a hard ceiling that moved was moved by the provider, without a
 	// request and without notice.
 	ChangedOnly bool
-	Limit      int
-	Offset     int
+	Limit       int
+	Offset      int
 }
 
 // ListQuotas returns current quota rows matching the filter, ordered by
