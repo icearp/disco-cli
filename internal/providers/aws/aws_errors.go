@@ -33,7 +33,7 @@ type nonRetryable struct {
 func (r nonRetryable) IsErrorRetryable(err error) bool {
 	var ae smithy.APIError
 	if errors.As(err, &ae) {
-		if _, ok := r.codes[ae.ErrorCode()]; ok {
+		if _, ok := r.codes[errorShapeName(ae.ErrorCode())]; ok {
 			return false
 		}
 	}
@@ -56,16 +56,39 @@ func withNonRetryableCodes(r sdkaws.Retryer, codes ...string) sdkaws.Retryer {
 	return nonRetryable{RetryerV2: rv2, codes: m}
 }
 
-// isAPIErrorCode reports whether err is a Smithy APIError whose ErrorCode()
+// isAPIErrorCode reports whether err is a Smithy APIError whose error code
 // matches any of the given codes. Single choke point for AWS error-code
 // predicates in this package — use directly for one-off checks, or wrap in
 // a named helper (see isAccessDenied) for codes reused across many sites.
+//
+// Codes are compared by shape name, so pass the bare name ("AccessDenied"),
+// never a namespaced one.
 func isAPIErrorCode(err error, codes ...string) bool {
 	var ae smithy.APIError
 	if !errors.As(err, &ae) {
 		return false
 	}
-	return slices.Contains(codes, ae.ErrorCode())
+	return slices.Contains(codes, errorShapeName(ae.ErrorCode()))
+}
+
+// errorShapeName strips any Smithy namespace prefix from an AWS error code,
+// returning the bare shape name.
+//
+// Most SDK deserializers sanitize this already. The rpc-v2-cbor ones do not:
+// their fallthrough for an error the operation does not model returns
+// smithy.GenericAPIError carrying the raw __type, so the code arrives as
+// "com.amazon.coral.service#InvalidParameterValueException" and every exact
+// match against it fails. Six services disco scans are on that protocol
+// (appstream, applicationinsights, backupgateway, kendraranking, mailmanager,
+// workspacesinstances) and more will follow.
+//
+// A code with no "#" is returned unchanged, so this is a no-op on the
+// sanitized path.
+func errorShapeName(code string) string {
+	if i := strings.LastIndex(code, "#"); i >= 0 {
+		return code[i+1:]
+	}
+	return code
 }
 
 // isAccessDenied reports whether err is an AWS permission error. Such errors

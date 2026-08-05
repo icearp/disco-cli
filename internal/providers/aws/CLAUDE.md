@@ -389,9 +389,17 @@ Singleton-config Get/List ops return distinct error codes when the config has no
 
 `isTransientNetworkError` (aws.go) matches `ThrottlingException` / `Throttling` / `ThrottledException` / `RateExceededException`. Post-retry throttle exhaust (SDK retryer burned its 10-attempt adaptive budget) warn-skips at `scanRegion` dispatch automatically. Scanners do NOT need inline `isAPIErrorCode(err, "ThrottlingException")` handling — same shape as RequestTimeout/ServiceUnavailable.
 
-## AppStream DescribeUsers: SAML auth-type rejected
+## AppStream DescribeUsers: USERPOOL is the only accepted auth type
 
-The SDK enum `appstreamtypes.AuthenticationType` exposes USERPOOL, SAML, API. AWS rejects SAML on `DescribeUsers` (`'SAML' is not a supported authentication type for describing users`); SAML federation users are not first-class user-pool entries. Iterate USERPOOL + API only.
+`DescribeUsers` takes exactly one `AuthenticationType`, and it is `USERPOOL` — the SDK's own field doc says *"You must specify USERPOOL"*. Do NOT iterate the enum. `appstreamtypes.AuthenticationType` is the shape shared with `CreateUser`/`EnableUser`/`BatchAssociateUserStack` and now carries four values (USERPOOL, API, SAML, AWS_AD); the other three name nothing a user pool holds — an API-auth session has no user record (`CreateStreamingURL` mints the URL) and SAML/AWS_AD users are federated — so each is a guaranteed `InvalidParameterValueException`.
+
+This burnt a scan. The scanner iterated USERPOOL + API and swallowed the 400 with an `isAPIErrorCode(err, "InvalidParameterValueException")` guard, so a doomed call per region per scan was invisible for as long as the guard matched. When the appstream SDK moved to rpc-v2-cbor the code arrived namespaced, the guard stopped matching, and 11 regions' worth of errors marked every scan `partial`. The swallow is gone with the loop — an error from the one supported call is real and should surface.
+
+## `isAPIErrorCode` compares SHAPE NAMES, so never pass a namespaced code
+
+`isAPIErrorCode` (`aws_errors.go`) routes `ae.ErrorCode()` through `errorShapeName`, which strips anything up to the last `#`. Pass the bare name (`"AccessDenied"`), never `"com.amazonaws.x#AccessDenied"` — the latter would never match after stripping.
+
+It exists because rpc-v2-cbor deserializers do not sanitize. Their switch matches modeled errors by shape name, but the `default:` fallthrough for an error the operation does NOT model returns `smithy.GenericAPIError{Code: typ}` carrying the raw `__type` — so an unmodeled error arrives as `com.amazon.coral.service#InvalidParameterValueException` while every awsjson/restjson service arrives bare. Six services disco scans are on that protocol today: `appstream`, `applicationinsights`, `backupgateway`, `kendraranking`, `mailmanager`, `workspacesinstances`. More will follow, and the failure is silent — `isAccessDenied`, `isServiceBlocked` and the `withNonRetryableCodes` retry guard all read codes through this path, so a missed match turns a warn-skip into a hard error or burns a retry budget.
 
 ## Resolver-edge metadata: `EdgeDecl`
 

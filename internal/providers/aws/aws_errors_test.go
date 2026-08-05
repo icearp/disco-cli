@@ -12,6 +12,7 @@ import (
 	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	smithy "github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 
@@ -139,6 +140,62 @@ func TestIsAPIErrorCode(t *testing.T) {
 	}
 	if isAPIErrorCode(nil, "AccessDenied") {
 		t.Error("nil error should not match")
+	}
+}
+
+func TestIsAPIErrorCodeStripsSmithyNamespace(t *testing.T) {
+	// rpc-v2-cbor deserializers return GenericAPIError carrying the raw __type
+	// for an error the operation does not model, so the code arrives namespaced.
+	// This is the shape that reached a live scan and made every one `partial`:
+	// appstream's InvalidParameterValueException on DescribeUsers.
+	namespaced := apiErr("com.amazon.coral.service#InvalidParameterValueException", "")
+	if !isAPIErrorCode(namespaced, "InvalidParameterValueException") {
+		t.Error("namespaced code should match its bare shape name")
+	}
+
+	// The namespace must not become a wildcard: a different shape under the same
+	// namespace still has to miss.
+	if isAPIErrorCode(namespaced, "AccessDenied") {
+		t.Error("namespaced code must not match an unrelated shape name")
+	}
+
+	// Every other deserializer sanitizes already, so the bare path is unchanged.
+	if !isAPIErrorCode(apiErr("AccessDenied", ""), "AccessDenied") {
+		t.Error("bare code should still match")
+	}
+
+	// Only the last separator delimits the shape name.
+	if !isAPIErrorCode(apiErr("a#b#ThrottlingException", ""), "ThrottlingException") {
+		t.Error("shape name is the segment after the last #")
+	}
+}
+
+func TestErrorShapeName(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"AccessDenied", "AccessDenied"},
+		{"com.amazon.coral.service#InvalidParameterValueException", "InvalidParameterValueException"},
+		{"a#b#Throttling", "Throttling"},
+		{"", ""},
+		{"#", ""},
+		{"trailing#", ""},
+		{"#leading", "leading"},
+	} {
+		if got := errorShapeName(tc.in); got != tc.want {
+			t.Errorf("errorShapeName(%q)=%q want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestNonRetryableMatchesNamespacedCode(t *testing.T) {
+	// The retry-budget guard reads codes the same way; a namespaced code slipping
+	// past it would burn a service's whole budget on attempts known to be doomed.
+	r := withNonRetryableCodes(retry.NewStandard(), "AuthorizerConfigurationException")
+	nr, ok := r.(nonRetryable)
+	if !ok {
+		t.Fatalf("withNonRetryableCodes returned %T, want nonRetryable", r)
+	}
+	if nr.IsErrorRetryable(apiErr("com.amazonaws.bedrockagentcore#AuthorizerConfigurationException", "")) {
+		t.Error("namespaced code should be treated as non-retryable")
 	}
 }
 

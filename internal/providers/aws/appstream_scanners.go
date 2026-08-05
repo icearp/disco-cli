@@ -580,50 +580,47 @@ func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *accou
 	return upsertBatch(st, batch, "appstream user-stack-associations")
 }
 
-// scanASUsers iterates the AuthenticationType values DescribeUsers supports
-// — USERPOOL (managed users) and API. SAML is not a valid filter (SAML
-// federation users aren't first-class user-pool entries; AWS rejects
-// `'SAML' is not a supported authentication type for describing users`).
+// scanASUsers pages through the AppStream user pool.
+//
+// USERPOOL is the only AuthenticationType DescribeUsers accepts — the SDK's own
+// field doc says "You must specify USERPOOL". The enum's other values (API,
+// SAML, AWS_AD) belong to the shape shared with CreateUser/EnableUser/etc, and
+// none of them names a user pool entry: an API-auth session has no user record
+// (CreateStreamingURL mints the URL), and SAML/AWS_AD users are federated. So
+// there is nothing to enumerate under them, and asking for one is a 400.
 func scanASUsers(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	authTypes := []astypes.AuthenticationType{
-		astypes.AuthenticationTypeUserpool,
-		astypes.AuthenticationTypeApi,
-	}
 	var batch []*store.Resource
-	for _, at := range authTypes {
-		auth := at
-		var token *string
-		for {
-			out, err := client.DescribeUsers(ctx, &appstream.DescribeUsersInput{AuthenticationType: auth, NextToken: token})
-			if err != nil {
-				if isAccessDenied(err) {
-					break
-				}
-				if isAPIErrorCode(err, "InvalidParameterValueException") {
-					break
-				}
-				return 0, 0, fmt.Errorf("appstream:DescribeUsers %s: %w", auth, err)
-			}
-			for _, u := range out.Users {
-				arn := sv(u.Arn)
-				if arn == "" {
-					continue
-				}
-				label := sv(u.UserName)
-				if label == "" {
-					label = arn
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeAppStreamUser, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
-				})
-			}
-			if out.NextToken == nil || *out.NextToken == "" {
+	var token *string
+	for {
+		out, err := client.DescribeUsers(ctx, &appstream.DescribeUsersInput{
+			AuthenticationType: astypes.AuthenticationTypeUserpool,
+			NextToken:          token,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
 				break
 			}
-			token = out.NextToken
+			return 0, 0, fmt.Errorf("appstream:DescribeUsers: %w", err)
 		}
+		for _, u := range out.Users {
+			arn := sv(u.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(u.UserName)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamUser, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		token = out.NextToken
 	}
 	return upsertBatch(st, batch, "appstream users")
 }
