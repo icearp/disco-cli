@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -383,6 +384,20 @@ func isTransientNetworkError(err error) bool {
 		return true
 	}
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	// HTTP 408 — the server timed out waiting for the request. Same fact as the
+	// RequestTimeout code below, so it is transient whether or not the body
+	// parses; matching on status covers both.
+	//
+	// It has to be status-based because the failing case has NO usable body: the
+	// SDK leaves errorCode AND errorMessage at the literal "UnknownError" (and
+	// the request ID empty), so no entry in the code list can match. Reading the
+	// status when the body is unreliable is the same tactic as httpStatusCode's
+	// other callers, isHTTP403 and isHTTP404.
+	//
+	// Observed on servicequotas:ListAWSDefaultServiceQuotas in one region.
+	if c, ok := httpStatusCode(err); ok && c == http.StatusRequestTimeout {
 		return true
 	}
 	return isAPIErrorCode(err,

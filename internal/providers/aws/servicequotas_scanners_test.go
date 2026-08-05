@@ -791,3 +791,38 @@ func TestListQuotaServiceCodes_CancellationIsAnError(t *testing.T) {
 		t.Errorf("got %v alongside the error; want no partial list to be mistaken for usable", codes)
 	}
 }
+
+// TestDefaultsOutcomeNamesTheServiceCode pins the identifier in the aggregated
+// report. Collapsing ~251 per-code failures into one row is deliberate, but the
+// row is only actionable if it names a code: "1 service code(s)" with no code
+// told an operator a failure existed and nothing about which service it was.
+func TestDefaultsOutcomeNamesTheServiceCode(t *testing.T) {
+	st := newTestStore(t)
+	var got []store.ScanError
+	st.OnError = func(e store.ScanError) { got = append(got, e) }
+
+	var d defaultsOutcome
+	d.record("ec2", nil) // success — must not count
+	d.record("lambda", errors.New("boom"))
+	d.record("s3", errors.New("later failure"))
+	d.report(st, testAccountID, testRegion)
+
+	if len(got) != 1 {
+		t.Fatalf("reported %d errors, want 1", len(got))
+	}
+	msg := got[0].Message
+	if !strings.Contains(msg, "lambda") {
+		t.Errorf("message %q does not name the failing service code it kept", msg)
+	}
+	// The kept pair must stay a pair: a later failure must not overwrite the
+	// code while leaving the earlier error, which would name one service and
+	// print another's error. Sequential here on purpose — under the real
+	// concurrent fan-out WHICH code is kept is arrival order, so only the
+	// pairing is assertable, not the identity.
+	if strings.Contains(msg, "s3") {
+		t.Errorf("message %q names a later code than the error it kept", msg)
+	}
+	if !strings.Contains(msg, "2 service code(s)") {
+		t.Errorf("message %q lost the failure count", msg)
+	}
+}

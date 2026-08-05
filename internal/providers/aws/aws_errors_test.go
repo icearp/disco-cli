@@ -575,6 +575,34 @@ func TestHTTPStatusCode(t *testing.T) {
 	}
 }
 
+// TestIsTransientBodylessTimeout pins the bodyless-408 path. A response the SDK
+// cannot parse leaves errorCode AND errorMessage both at the literal
+// "UnknownError", so no code-list entry can match and only the transport status
+// identifies it. Seen live on servicequotas:ListAWSDefaultServiceQuotas, where
+// it marked the whole scan `partial`.
+func TestIsTransientBodylessTimeout(t *testing.T) {
+	resp := func(code int) error {
+		return &smithyhttp.ResponseError{
+			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
+			Err:      apiErr("UnknownError", "UnknownError"),
+		}
+	}
+	if !isTransientNetworkError(resp(408)) {
+		t.Error("bodyless 408 should be transient")
+	}
+	if !isTransientNetworkError(fmt.Errorf("wrapped: %w", resp(408))) {
+		t.Error("wrapped 408 should be transient")
+	}
+	// Status alone must not turn every unparseable response into a skip: a 400
+	// is the caller's fault and has to stay a real error.
+	if isTransientNetworkError(resp(400)) {
+		t.Error("bodyless 400 must not be transient")
+	}
+	if isTransientNetworkError(resp(403)) {
+		t.Error("bodyless 403 must not be transient")
+	}
+}
+
 func TestIsHTTP404(t *testing.T) {
 	resp := func(code int) error {
 		return &smithyhttp.ResponseError{

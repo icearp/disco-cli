@@ -232,7 +232,7 @@ func listQuotaServiceCodes(ctx context.Context, client serviceQuotasAPI, pacer *
 // (ALL would add churny per-resource rows).
 func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string, acct *account, region, home, scanID string, missing *defaultsOutcome, pacers *sqPacers) ([]*store.Quota, error) {
 	defaults, derr := listQuotaDefaultsForCode(ctx, client, code, pacers.defaults)
-	missing.record(derr)
+	missing.record(code, derr)
 
 	var rows []*store.Quota
 	in := &servicequotas.ListServiceQuotasInput{ServiceCode: &code, MaxResults: sdkaws.Int32(100)}
@@ -275,16 +275,24 @@ func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string
 // the record readable.
 //
 // Safe for concurrent use; report is called after the fan-out has joined.
+// The service code travels with the kept error. Aggregating without it left a
+// one-failure report saying only "1 service code(s)" -- which names the count
+// and hides the only field that makes it actionable.
+//
+// "first" is arrival order across a concurrent fan-out, so the kept pair is an
+// EXAMPLE, not a stable or meaningful choice. report says so.
 type defaultsOutcome struct {
-	mu       sync.Mutex
-	failures int
-	denied   error // first AccessDenied, if any
-	first    error // first failure of any other kind
+	mu        sync.Mutex
+	failures  int
+	denied    error  // first AccessDenied to arrive, if any
+	deniedFor string // its service code
+	first     error  // first failure of any other kind to arrive
+	firstFor  string // its service code
 }
 
 // record notes one service code's failure. A nil error is a success and is
 // ignored, so callers need not branch.
-func (d *defaultsOutcome) record(err error) {
+func (d *defaultsOutcome) record(code string, err error) {
 	if err == nil {
 		return
 	}
@@ -294,10 +302,10 @@ func (d *defaultsOutcome) record(err error) {
 	switch {
 	case isAccessDenied(err):
 		if d.denied == nil {
-			d.denied = err
+			d.denied, d.deniedFor = err, code
 		}
 	case d.first == nil:
-		d.first = err
+		d.first, d.firstFor = err, code
 	}
 }
 
@@ -313,7 +321,7 @@ func (d *defaultsOutcome) report(st *store.Store, acctID, region string) {
 	defer d.mu.Unlock()
 	const op = "servicequotas:ListAWSDefaultServiceQuotas"
 	if d.denied != nil {
-		_ = skipIfAccessDenied(st, op, acctID, region, d.denied)
+		_ = skipIfAccessDenied(st, op, acctID, region, fmt.Errorf("%s: %w", d.deniedFor, d.denied))
 	}
 	if d.first == nil {
 		return
@@ -322,8 +330,8 @@ func (d *defaultsOutcome) report(st *store.Store, acctID, region string) {
 		Provider: "aws",
 		Service:  op,
 		Scope:    acctID + "/" + region,
-		Message: fmt.Sprintf("default quota values unavailable for %d service code(s); first error: %v",
-			d.failures, d.first),
+		Message: fmt.Sprintf("default quota values unavailable for %d service code(s); example (%s): %v",
+			d.failures, d.firstFor, d.first),
 	})
 }
 
