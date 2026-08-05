@@ -113,13 +113,15 @@ Resolvers needing API access (not just DB reads) register via `registerAPIResolv
 
 Cross-cutting resolvers iterate diagnosable resources via an explicit type allowlist (`diagnosableTypes` in `monitor_resolvers.go`) — calling Microsoft.Insights APIs on non-diagnosable types returns 404/400 per call. Extend the allowlist when new scanners land for diagnosable types; consult learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories for the master list.
 
-### `armmonitor` is pinned at v0.11.0 — do NOT bump (`go get -u` trap)
+### `armmonitor` must stay >= v0.13.0 (v0.12.0 is the broken one)
 
 `monitor_resolvers.go` uses `armmonitor.NewDiagnosticSettingsClient` / `DiagnosticSettingsResource` — the modern resource-level Diagnostic Settings API (`Microsoft.Insights/diagnosticSettings`, api-version `2021-05-01-preview`): multiple named settings per resource, `List`, and destinations (storage / Event Hub / Log Analytics) the resolver walks to emit edges.
 
 **v0.12.0 removed it.** Between v0.11.0 and v0.12.0 the package switched code generators from AutoRest (Swagger) to TypeSpec (`tsp-location.yaml` → `Microsoft.Insights/Insights`), and the TypeSpec port dropped the `2021-05-01-preview` api-version entirely. v0.12.0's `ServiceDiagnosticSettings` is NOT a successor — it's the *legacy* `2016-09-01` `/diagnosticSettings/service` singleton (no `List`, no `Delete`, one unnamed setting), a functional downgrade. The modern API is still live in Azure (documented on learn.microsoft.com under `rest-monitor-2021-05-01-preview`); there is no `armmonitor/v2` and no dedicated `armdiagnosticsettings`/`arminsights` module that exposes it.
 
-So v0.11.0 is the newest release carrying the API we need. `go get -u ./...` will try to pull v0.12.0 and break the build; re-pin to v0.11.0 (the `go.mod` require line carries a matching `// PINNED` comment). Revisit if/when a newer release or dedicated module restores the modern `diagnosticSettings` operations.
+**v0.13.0 restored it** (verified 2026-08-05 in the module cache: `diagnosticsettings_client.go` says `Generated from API version 2021-05-01-preview` and carries `NewListPager` + `Delete`), so the repo now runs v0.13.0 and the old v0.11.0 pin is gone. v0.12.0 remains the one bad release. Keep the floor at v0.13.0.
+
+The trap this leaves behind is a reasoning one: a green build is what tells you a bump is safe here, because v0.12.0's replacement had *different type names* and would not compile. That will not hold for every future Azure bump — a regen that keeps the names and changes the semantics compiles fine. Check the generated api-version comment, not just the build.
 
 ## Identity → MSI edges centralized
 

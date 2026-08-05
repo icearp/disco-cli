@@ -94,9 +94,12 @@ Three known reachable call sites — **all now closed**:
 2. OPA's vendored `internal/gojsonschema.formatErrorDescription`, reachable via
    `policy.NewEngine → ast.Compiler.Compile → Compiler.init → loadSchema` — **fixed upstream**.
    OPA merged a self-vendored methodless copy of `text/template` (`internal/methodlesstemplate`)
-   for the schema-error formatter. `go.mod` currently pins OPA to that unreleased main-branch
-   commit (see the pin comment on the `open-policy-agent/opa` require line) until OPA cuts a
-   tagged release containing it — drop the pin then.
+   for the schema-error formatter, released in **v1.19.0**. `go.mod` pinned an unreleased
+   main-branch pseudo-version until then; that pin is gone. **Never go below v1.19.0.**
+   Beware the version arithmetic: the pseudo-version sorted as `v1.18.2-0.…`, but the real
+   `v1.18.2` tag does NOT contain the fix — it was cut without that commit. Verify by file
+   (`internal/gojsonschema/errors_dce_test.go` exists, `errors.go` imports
+   `internal/methodlesstemplate`), never by comparing version strings.
 3. `google.golang.org/grpc` (pulled in transitively by the GCP SDK) imports
    `golang.org/x/net/trace`, whose `init()` unconditionally calls
    `http.HandleFunc("/debug/requests", Traces)` / `http.HandleFunc("/debug/events", Events)` —
@@ -107,7 +110,9 @@ Three known reachable call sites — **all now closed**:
    `-tags grpcnotrace` (`trace_notrace.go`, `//go:build grpcnotrace`) strips the `x/net/trace`
    wiring entirely. Baked into `Makefile`'s `TAGFLAG` (always on, on top of any `TAGS=`) and into
    every `dist` target. Fixing #2 and #3 together took the default build from ~942MB to ~294MB,
-   and `slim aws` from ~780MB (broken) to ~232MB.
+   and `slim aws` from ~780MB (broken) to ~232MB. Re-measured 2026-08-05 on OPA v1.19.0:
+   **279MB default, 219MB `slim aws`** — both slightly smaller, so a jump back toward 780MB is
+   the regression signal, not a few MB of drift.
 
 Guard when investigating: `go build -tags grpcnotrace -ldflags=-dumpdep 2>deps.txt` then
 `grep -c ' -> text/template.(\*Template).execute$' deps.txt` — must be `0`. `go tool nm <binary> |
