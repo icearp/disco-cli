@@ -4,7 +4,10 @@
 *.dll
 *.so
 *.dylib
+# `make build` writes ./disco (Makefile BINARY); `go build ./...` writes ./disco-cli
+# (the module name). Both are ~280MB -- ignore each.
 disco
+disco-cli
 
 # Test binary, built with `go test -c`
 *.test
