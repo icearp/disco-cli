@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -146,6 +147,7 @@ func quotaRow(sub *subscription, scanID, namespace, region string, q *armquota.C
 	if code == "" {
 		return nil, false
 	}
+	subAccountType := quotaSubAccountType
 
 	out := &store.Quota{
 		Provider:       "azure",
@@ -156,6 +158,7 @@ func quotaRow(sub *subscription, scanID, namespace, region string, q *armquota.C
 		QuotaCode:      code,
 		Name:           quotaDisplayName(q, code),
 		Value:          quotaLimitValue(q),
+		SubAccountType: &subAccountType,
 		AttributesJSON: mustJSON(q),
 		DiscoveredBy:   scanID,
 	}
@@ -166,8 +169,63 @@ func quotaRow(sub *subscription, scanID, namespace, region string, q *armquota.C
 		if unit := sv(q.Properties.Unit); unit != "" {
 			out.Unit = &unit
 		}
+		if rt := sv(q.Properties.ResourceType); rt != "" {
+			out.ResourceType = &rt
+		}
+		if unit, value, ok := parseISO8601Period(sv(q.Properties.QuotaPeriod)); ok {
+			out.PeriodUnit = &unit
+			out.PeriodValue = &value
+		}
 	}
 	return out, true
+}
+
+// quotaSubAccountType is FOCUS SubAccountType for every Azure quota: the
+// container an account_id names is a subscription, always.
+const quotaSubAccountType = "Subscription"
+
+// parseISO8601Period reads the rate window Azure reports as an ISO 8601
+// duration ("P1D", "PT1M", "PT1S") into the (unit, value) pair the column
+// stores, so an Azure PT1S and an AWS SECOND/1 land on the same two values.
+//
+// Only single-component durations are accepted. Azure documents this field as
+// the period a quota's usage is summarized over, which is one unit by
+// construction; a compound duration like P1DT12H has no single unit to store,
+// and returning false leaves both columns NULL rather than inventing one. The
+// raw string survives in the attributes remainder either way.
+//
+// Deliberately hand-rolled rather than pulled from a duration library: the
+// accepted grammar is six literals wide, and the failure that matters is
+// accepting something the column's CHECK constraint will reject.
+func parseISO8601Period(s string) (unit string, value int, ok bool) {
+	if len(s) < 3 || s[0] != 'P' {
+		return "", 0, false
+	}
+	body, clock := s[1:], false
+	if body[0] == 'T' {
+		body, clock = body[1:], true
+	}
+	designator := body[len(body)-1]
+	n, err := strconv.Atoi(body[:len(body)-1])
+	if err != nil || n <= 0 {
+		return "", 0, false
+	}
+	switch {
+	case clock && designator == 'S':
+		return "second", n, true
+	case clock && designator == 'M':
+		return "minute", n, true
+	case clock && designator == 'H':
+		return "hour", n, true
+	case !clock && designator == 'D':
+		return "day", n, true
+	case !clock && designator == 'W':
+		return "week", n, true
+	default:
+		// Y and M outside a time section are months and years, which the column
+		// does not model; a T-section designator outside one is malformed.
+		return "", 0, false
+	}
 }
 
 // quotaLimitValue extracts the numeric limit. Limit is a polymorphic JSON

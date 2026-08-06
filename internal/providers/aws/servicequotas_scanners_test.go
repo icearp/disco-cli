@@ -189,7 +189,7 @@ func TestScanServiceQuotas_PersistsAdjustableAndFixed(t *testing.T) {
 		}
 	}
 
-	fixed, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-FIXED"))
+	fixed, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-FIXED", ""))
 	if err != nil {
 		t.Fatalf("GetQuota: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestScanServiceQuotas_RecordsAWSDefault(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	raised, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-RAISED"))
+	raised, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-RAISED", ""))
 	if err != nil || raised == nil {
 		t.Fatalf("GetQuota raised: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestScanServiceQuotas_RecordsAWSDefault(t *testing.T) {
 
 	// A quota with no published default keeps a NULL column, which reads as
 	// unknown rather than as "the default is zero".
-	unknown, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-UNKNOWN"))
+	unknown, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-UNKNOWN", ""))
 	if err != nil || unknown == nil {
 		t.Fatalf("GetQuota unknown: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestScanServiceQuotas_DefaultsFailureDegrades(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Fatalf("total=%d inserted=%d, want 1/1 despite the defaults call failing", total, inserted)
 	}
-	got, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-1"))
+	got, err := st.GetQuota(store.QuotaID("aws", acct.ID, region, "ec2", "L-1", ""))
 	if err != nil || got == nil {
 		t.Fatalf("GetQuota: %v", err)
 	}
@@ -370,7 +370,7 @@ func TestScanServiceQuotas_CodelessQuotaDropped(t *testing.T) {
 	if len(rows) != 1 || rows[0].QuotaCode != "L-SYNTH" {
 		t.Fatalf("QuotaCode = %+v, want L-SYNTH", rows)
 	}
-	if rows[0].ID != store.QuotaID("aws", acct.ID, region, "ec2", "L-SYNTH") {
+	if rows[0].ID != store.QuotaID("aws", acct.ID, region, "ec2", "L-SYNTH", "") {
 		t.Fatalf("row id %q is not the natural-key hash", rows[0].ID)
 	}
 }
@@ -453,8 +453,10 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 		if rows[0].Region != "global" {
 			t.Errorf("east: region = %q, want global", rows[0].Region)
 		}
-		if !rows[0].GlobalQuota {
-			t.Error("east: GlobalQuota flag did not round-trip")
+		// 019 dropped global_quota: a global limit is recorded once under the
+		// region-less sentinel, so `region` already carries that fact.
+		if got := sv(rows[0].SubAccountType); got != "Account" {
+			t.Errorf("east: sub_account_type = %q, want Account", got)
 		}
 
 		stWest := newTestStore(t)
@@ -503,7 +505,7 @@ func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
 			t.Fatalf("scan: %v", err)
 		}
 	}
-	rootID := store.QuotaID("aws", acct.ID, region, "ec2", "L-1")
+	rootID := store.QuotaID("aws", acct.ID, region, "ec2", "L-1", "")
 	versionCount := func() int {
 		t.Helper()
 		v, err := st.GetQuotaVersions(rootID)
@@ -824,5 +826,52 @@ func TestDefaultsOutcomeNamesTheServiceCode(t *testing.T) {
 	}
 	if !strings.Contains(msg, "2 service code(s)") {
 		t.Errorf("message %q lost the failure count", msg)
+	}
+}
+
+// "*" is the absence of a dimension, not a dimension. Storing it verbatim would
+// re-key every context-carrying row and strand its predecessor as a current row
+// no later scan could reach — a silent, unrecoverable history break.
+func TestQuotaDimensionKey(t *testing.T) {
+	const instanceARN = "arn:aws:connect:us-east-1:123456789012:instance/abc"
+
+	for _, tc := range []struct {
+		name string
+		q    sqtypes.ServiceQuota
+		want string
+	}{
+		{"no context", sqtypes.ServiceQuota{}, ""},
+		{"star means every resource", sqtypes.ServiceQuota{QuotaContext: &sqtypes.QuotaContextInfo{ContextId: sp("*")}}, ""},
+		{"a real resource id is the dimension", sqtypes.ServiceQuota{QuotaContext: &sqtypes.QuotaContextInfo{ContextId: sp(instanceARN)}}, instanceARN},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := quotaDimensionKey(tc.q); got != tc.want {
+				t.Errorf("quotaDimensionKey = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// The column carries a CHECK constraint, so an unrecognized unit has to become
+// NULL rather than reach the database. A unit AWS adds later would otherwise
+// fail the whole batch.
+func TestQuotaPeriodUnit(t *testing.T) {
+	for _, tc := range []struct {
+		in   sqtypes.PeriodUnit
+		want string
+	}{
+		{sqtypes.PeriodUnitSecond, "second"},
+		{sqtypes.PeriodUnitMinute, "minute"},
+		{sqtypes.PeriodUnitHour, "hour"},
+		{sqtypes.PeriodUnitDay, "day"},
+		{sqtypes.PeriodUnitWeek, "week"},
+		{sqtypes.PeriodUnitMicrosecond, "microsecond"},
+		{sqtypes.PeriodUnitMillisecond, "millisecond"},
+		{"", ""},
+		{sqtypes.PeriodUnit("FORTNIGHT"), ""},
+	} {
+		if got := quotaPeriodUnit(tc.in); got != tc.want {
+			t.Errorf("quotaPeriodUnit(%q) = %q, want %q", tc.in, got, tc.want)
+		}
 	}
 }

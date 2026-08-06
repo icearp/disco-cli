@@ -29,30 +29,50 @@ import (
 // AttributesJSON is a JSON string in the DB and surfaces as a nested
 // `attributes` object via MarshalJSON.
 //
-// The identity is (provider, account, region, service code, quota code). ID
-// carries the deterministic [QuotaID] hash of exactly that tuple and is shared
-// by every row in the version chain, matching how Resource.ID carries root_id.
+// The identity is (provider, account, region, service code, quota code,
+// dimension key). ID carries the deterministic [QuotaID] hash of exactly that
+// tuple and is shared by every row in the version chain, matching how
+// Resource.ID carries root_id.
 type Quota struct {
-	ID             string   `db:"id"             json:"id"`
-	Provider       string   `db:"provider"       json:"provider"`
-	AccountID      string   `db:"account_id"     json:"accountId"`
-	AccountName    *string  `db:"account_name"   json:"accountName"`
-	Region         string   `db:"region"         json:"region"`
-	ServiceCode    string   `db:"service_code"   json:"serviceCode"`
-	ServiceName    *string  `db:"service_name"   json:"serviceName"`
-	QuotaCode      string   `db:"quota_code"     json:"quotaCode"`
-	Name           string   `db:"name"           json:"name"`
-	Description    *string  `db:"description"    json:"description"`
-	Unit           *string  `db:"unit"           json:"unit"`
-	Value          *float64 `db:"value"          json:"value"`
-	DefaultValue   *float64 `db:"default_value"  json:"defaultValue"`
-	Adjustable     bool     `db:"adjustable"     json:"adjustable"`
-	GlobalQuota    bool     `db:"global_quota"   json:"globalQuota"`
-	AppliedLevel   *string  `db:"applied_level"  json:"appliedLevel"`
-	AttributesJSON string   `db:"attributes"     json:"-"` // surfaced as `attributes` via MarshalJSON
-	DiscoveredAt   string   `db:"discovered_at"  json:"discoveredAt"`
-	DiscoveredBy   string   `db:"discovered_by"  json:"discoveredBy"`
-	WorkspaceID    *string  `db:"workspace_id"   json:"-"` // per-workspace RLS discriminator; nil when the disco-saas app.workspace_id GUC was unset
+	ID          string  `db:"id"           json:"id"`
+	Provider    string  `db:"provider"     json:"provider"`
+	AccountID   string  `db:"account_id"   json:"accountId"`
+	AccountName *string `db:"account_name" json:"accountName"`
+	Region      string  `db:"region"       json:"region"`
+	ServiceCode string  `db:"service_code" json:"serviceCode"`
+	ServiceName *string `db:"service_name" json:"serviceName"`
+	QuotaCode   string  `db:"quota_code"   json:"quotaCode"`
+	// DimensionKey names the provider dimension this row's value belongs to,
+	// empty when the limit is undimensioned. One quota code can carry a
+	// different value per dimension set, so it is part of the natural key.
+	DimensionKey string   `db:"dimension_key" json:"dimensionKey"`
+	Name         string   `db:"name"          json:"name"`
+	Description  *string  `db:"description"   json:"description"`
+	Unit         *string  `db:"unit"          json:"unit"`
+	Value        *float64 `db:"value"         json:"value"`
+	DefaultValue *float64 `db:"default_value" json:"defaultValue"`
+	Adjustable   bool     `db:"adjustable"    json:"adjustable"`
+	// PeriodUnit and PeriodValue describe the rate window, e.g. ("second", 1)
+	// for a per-second limit. A nil PeriodUnit IS the count case, which is what
+	// distinguishes "10 per second" from "10 in total".
+	PeriodUnit  *string `db:"period_unit"  json:"periodUnit"`
+	PeriodValue *int    `db:"period_value" json:"periodValue"`
+	// ResourceType is FOCUS ResourceType: what a resource-scoped limit counts,
+	// e.g. AWS::Connect::Instance. nil means the limit is not resource-scoped,
+	// which is how FOCUS spells that rather than with a scope enum.
+	ResourceType *string `db:"resource_type" json:"resourceType"`
+	// AvailabilityZone is FOCUS AvailabilityZone, set only on a zone-scoped
+	// limit. Denormalized out of DimensionKey, which already carries the zone
+	// as part of the key, so a zone is filterable without parsing that value.
+	AvailabilityZone *string `db:"availability_zone" json:"availabilityZone"`
+	// SubAccountType is FOCUS SubAccountType: what kind of container AccountID
+	// names — Account, Subscription, Project. Display-only, so it updates in
+	// place rather than splitting a version chain.
+	SubAccountType *string `db:"sub_account_type" json:"subAccountType"`
+	AttributesJSON string  `db:"attributes"       json:"-"` // surfaced as `attributes` via MarshalJSON
+	DiscoveredAt   string  `db:"discovered_at"    json:"discoveredAt"`
+	DiscoveredBy   string  `db:"discovered_by"    json:"discoveredBy"`
+	WorkspaceID    *string `db:"workspace_id"     json:"-"` // per-workspace RLS discriminator; nil when the disco-saas app.workspace_id GUC was unset
 }
 
 // quotaWire is the on-wire shape: attributes surfaced as a nested value,
@@ -113,8 +133,19 @@ type QuotaVersion struct {
 // QuotaID computes the stable identity hash for a quota. Unlike [ResourceID]
 // the region is part of the key: a limit is applied per region, and the same
 // service and quota code legitimately carry different values in each one.
-func QuotaID(provider, accountID, region, serviceCode, quotaCode string) string {
-	h := sha256.Sum256([]byte(provider + "|" + accountID + "|" + region + "|" + serviceCode + "|" + quotaCode))
+//
+// dimensionKey is appended ONLY when non-empty, so an undimensioned quota
+// hashes exactly as it did before the column existed and every stored row keeps
+// its root_id. That is what makes the multi-cloud reshape a pure DDL migration.
+// It assumes no component contains "|"; verified against all 153,414 rows on
+// the dev tenant, where none of quota_code, service_code, region or ContextId
+// did.
+func QuotaID(provider, accountID, region, serviceCode, quotaCode, dimensionKey string) string {
+	key := provider + "|" + accountID + "|" + region + "|" + serviceCode + "|" + quotaCode
+	if dimensionKey != "" {
+		key += "|" + dimensionKey
+	}
+	h := sha256.Sum256([]byte(key))
 	return fmt.Sprintf("%x", h[:idHashBytes])
 }
 
@@ -131,14 +162,18 @@ func quotaSelectColumns() []string {
 		"service_code",
 		"service_name",
 		"quota_code",
+		"dimension_key",
 		"name",
 		"description",
 		"unit",
 		"value",
 		"default_value",
 		"adjustable",
-		"global_quota",
-		"applied_level",
+		"period_unit",
+		"period_value",
+		"resource_type",
+		"availability_zone",
+		"sub_account_type",
 		"attributes",
 		"discovered_at",
 		"discovered_by",
@@ -372,12 +407,12 @@ func (s *Store) GetQuotaVersions(rootID string) ([]QuotaVersion, error) {
 //     superseded_by at it.
 //
 // What counts as changed is the limit itself — value, default_value,
-// adjustable, global_quota, unit, applied_level and the attributes remainder.
-// Both providers report limits only, with no usage figure, etag or timestamp
-// in the payload, so an unchanged quota produces no new row. That property is
-// what makes it safe to scan a catalogue of this size repeatedly, and it is
-// structural here rather than dependent on JSON serialization order: the
-// fields that decide it are typed columns.
+// adjustable, unit, the rate window, resource_type and availability_zone.
+// Every one of
+// those is a typed column; the raw attributes blob is deliberately NOT among
+// them, so a provider churning a field inside it cannot manufacture a version.
+// That property is what makes it safe to scan a catalogue of this size
+// repeatedly.
 //
 // Unlike UpsertResources this runs on [Store.ext], so it works both on a pool
 // and inside a caller-owned transaction from [WrapTx] — where s.db is nil and
@@ -390,7 +425,7 @@ func (s *Store) UpsertQuotas(quotas []*Quota) (inserted int, err error) {
 
 	for _, q := range quotas {
 		if q.ID == "" {
-			q.ID = QuotaID(q.Provider, q.AccountID, q.Region, q.ServiceCode, q.QuotaCode)
+			q.ID = QuotaID(q.Provider, q.AccountID, q.Region, q.ServiceCode, q.QuotaCode, q.DimensionKey)
 		}
 		if q.AttributesJSON == "" {
 			q.AttributesJSON = "{}"
@@ -447,6 +482,11 @@ func (s *Store) upsertQuotasOn(quotas []*Quota, now string) (int, error) {
 		case existing.unchanged(q):
 			// Verify-only. Display columns still move so a reworded label or a
 			// renamed account propagates without manufacturing a version.
+			//
+			// attributes moves with them. It stopped deciding what counts as a
+			// change (see currentQuotaRow.unchanged), and a column that neither
+			// splits nor updates would freeze at whatever the provider said the
+			// first time — so the raw payload is refreshed in place instead.
 			if _, err := s.exec(`
 				UPDATE quotas
 				   SET verified_at  = ?,
@@ -454,9 +494,11 @@ func (s *Store) upsertQuotasOn(quotas []*Quota, now string) (int, error) {
 				       name         = ?,
 				       description  = ?,
 				       service_name = ?,
-				       account_name = ?
+				       account_name = ?,
+				       attributes   = ?
 				 WHERE id = ?`,
-				now, q.DiscoveredBy, q.Name, q.Description, q.ServiceName, q.AccountName, existing.VersionRowID,
+				now, q.DiscoveredBy, q.Name, q.Description, q.ServiceName, q.AccountName,
+				q.AttributesJSON, existing.VersionRowID,
 			); err != nil {
 				return 0, fmt.Errorf("verify quota %s: %w", q.ID, err)
 			}
@@ -474,30 +516,54 @@ func (s *Store) upsertQuotasOn(quotas []*Quota, now string) (int, error) {
 // currentQuotaRow is the lookup projection: chain metadata plus the fields that
 // decide whether the limit changed.
 type currentQuotaRow struct {
-	VersionRowID   string   `db:"version_row_id"`
-	RootID         string   `db:"root_id"`
-	Unit           *string  `db:"unit"`
-	Value          *float64 `db:"value"`
-	DefaultValue   *float64 `db:"default_value"`
-	Adjustable     bool     `db:"adjustable"`
-	GlobalQuota    bool     `db:"global_quota"`
-	AppliedLevel   *string  `db:"applied_level"`
-	AttributesJSON string   `db:"attributes"`
-	DiscoveredAt   string   `db:"discovered_at"`
-	DiscoveredBy   string   `db:"discovered_by"`
+	VersionRowID     string   `db:"version_row_id"`
+	RootID           string   `db:"root_id"`
+	Unit             *string  `db:"unit"`
+	Value            *float64 `db:"value"`
+	DefaultValue     *float64 `db:"default_value"`
+	Adjustable       bool     `db:"adjustable"`
+	PeriodUnit       *string  `db:"period_unit"`
+	PeriodValue      *int     `db:"period_value"`
+	ResourceType     *string  `db:"resource_type"`
+	AvailabilityZone *string  `db:"availability_zone"`
+	DiscoveredAt     string   `db:"discovered_at"`
+	DiscoveredBy     string   `db:"discovered_by"`
 }
 
 // unchanged reports whether the incoming quota carries the same limit as the
 // stored row. Display-only columns are deliberately excluded — they update in
 // place instead of splitting the chain.
+//
+// It compares the TYPED columns and never the attributes blob. The blob is the
+// provider's raw object, so anything the provider adds, moves or churns inside
+// it would split a version — GCP reports a usage figure that moves on every
+// read, and Azure's Properties.Properties is an opaque bag with no contract at
+// all. Attributes are still stored verbatim and still refreshed on a verify-only
+// rescan; they just stop deciding what counts as a change.
+//
+// Two columns are excluded for their own reasons. dimension_key is part of the
+// natural key, so the lookup that produced this row already matched on it.
+// sub_account_type is a provider's label for a container kind — if AWS ever
+// reworded "Account", comparing it would split every chain in the catalogue at
+// once, which is the failure the description column is already kept out of.
 func (c currentQuotaRow) unchanged(q *Quota) bool {
 	return floatEqual(c.Value, q.Value) &&
 		floatEqual(c.DefaultValue, q.DefaultValue) &&
 		c.Adjustable == q.Adjustable &&
-		c.GlobalQuota == q.GlobalQuota &&
 		derefStr(c.Unit) == derefStr(q.Unit) &&
-		derefStr(c.AppliedLevel) == derefStr(q.AppliedLevel) &&
-		jsonEqual(c.AttributesJSON, q.AttributesJSON)
+		derefStr(c.PeriodUnit) == derefStr(q.PeriodUnit) &&
+		intEqual(c.PeriodValue, q.PeriodValue) &&
+		derefStr(c.ResourceType) == derefStr(q.ResourceType) &&
+		derefStr(c.AvailabilityZone) == derefStr(q.AvailabilityZone)
+}
+
+// intEqual compares two optional integers, treating NULL as distinct from any
+// value — the same contract as [floatEqual].
+func intEqual(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // floatEqual compares two optional limits, treating NULL as distinct from any
@@ -517,13 +583,13 @@ func (s *Store) currentQuota(q *Quota) (currentQuotaRow, error) {
 	var out currentQuotaRow
 	err := s.get(&out, `
 		SELECT id AS version_row_id, root_id, unit, value, default_value,
-		       adjustable, global_quota, applied_level, attributes,
-		       discovered_at, discovered_by
+		       adjustable, period_unit, period_value, resource_type,
+		       availability_zone, discovered_at, discovered_by
 		  FROM quotas
 		 WHERE provider = ? AND account_id = ? AND service_code = ?
-		   AND quota_code = ? AND region = ?
+		   AND quota_code = ? AND region = ? AND dimension_key = ?
 		   AND superseded_by IS NULL`,
-		q.Provider, q.AccountID, q.ServiceCode, q.QuotaCode, q.Region)
+		q.Provider, q.AccountID, q.ServiceCode, q.QuotaCode, q.Region, q.DimensionKey)
 	return out, err
 }
 
@@ -542,18 +608,20 @@ func (s *Store) insertFirstQuota(q *Quota, now string) (int, error) {
 	res, err := s.exec(`
 		INSERT INTO quotas
 			(id, root_id, provider, account_id, account_name, region,
-			 service_code, service_name, quota_code, name, description, unit,
-			 value, default_value, adjustable, global_quota, applied_level,
-			 attributes, discovered_at, discovered_by, verified_at, verified_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (provider, account_id, service_code, quota_code, region)
+			 service_code, service_name, quota_code, dimension_key, name, description, unit,
+			 value, default_value, adjustable, period_unit, period_value,
+			 resource_type, availability_zone, sub_account_type, attributes,
+			 discovered_at, discovered_by, verified_at, verified_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (provider, account_id, service_code, quota_code, region, dimension_key)
 		    WHERE superseded_by IS NULL
 		DO NOTHING`,
 		uuid.Must(uuid.NewV7()).String(), q.ID,
 		q.Provider, q.AccountID, q.AccountName, q.Region,
-		q.ServiceCode, q.ServiceName, q.QuotaCode, q.Name, q.Description, q.Unit,
-		q.Value, q.DefaultValue, q.Adjustable, q.GlobalQuota, q.AppliedLevel,
-		q.AttributesJSON, q.DiscoveredAt, q.DiscoveredBy, now, q.DiscoveredBy,
+		q.ServiceCode, q.ServiceName, q.QuotaCode, q.DimensionKey, q.Name, q.Description, q.Unit,
+		q.Value, q.DefaultValue, q.Adjustable, q.PeriodUnit, q.PeriodValue,
+		q.ResourceType, q.AvailabilityZone, q.SubAccountType, q.AttributesJSON,
+		q.DiscoveredAt, q.DiscoveredBy, now, q.DiscoveredBy,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert quota %s: %w", q.ID, err)
@@ -582,15 +650,17 @@ func (s *Store) splitQuota(q *Quota, existing currentQuotaRow, now string) error
 	if _, err := s.exec(`
 		INSERT INTO quotas
 			(id, root_id, previous_version_id, provider, account_id, account_name, region,
-			 service_code, service_name, quota_code, name, description, unit,
-			 value, default_value, adjustable, global_quota, applied_level,
-			 attributes, discovered_at, discovered_by, verified_at, verified_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 service_code, service_name, quota_code, dimension_key, name, description, unit,
+			 value, default_value, adjustable, period_unit, period_value,
+			 resource_type, availability_zone, sub_account_type, attributes,
+			 discovered_at, discovered_by, verified_at, verified_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		newRowID, existing.RootID, existing.VersionRowID,
 		q.Provider, q.AccountID, q.AccountName, q.Region,
-		q.ServiceCode, q.ServiceName, q.QuotaCode, q.Name, q.Description, q.Unit,
-		q.Value, q.DefaultValue, q.Adjustable, q.GlobalQuota, q.AppliedLevel,
-		q.AttributesJSON, existing.DiscoveredAt, existing.DiscoveredBy, now, q.DiscoveredBy,
+		q.ServiceCode, q.ServiceName, q.QuotaCode, q.DimensionKey, q.Name, q.Description, q.Unit,
+		q.Value, q.DefaultValue, q.Adjustable, q.PeriodUnit, q.PeriodValue,
+		q.ResourceType, q.AvailabilityZone, q.SubAccountType, q.AttributesJSON,
+		existing.DiscoveredAt, existing.DiscoveredBy, now, q.DiscoveredBy,
 	); err != nil {
 		return fmt.Errorf("insert new version of quota %s: %w", q.ID, err)
 	}

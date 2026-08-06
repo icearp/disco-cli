@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -421,10 +422,11 @@ func quotaRow(acct *account, region, home, scanID string, q sqtypes.ServiceQuota
 		Region:         region,
 		ServiceCode:    serviceCode,
 		QuotaCode:      quotaCode,
+		DimensionKey:   quotaDimensionKey(q),
 		Name:           sv(q.QuotaName),
 		Value:          q.Value,
 		Adjustable:     q.Adjustable,
-		GlobalQuota:    q.GlobalQuota,
+		SubAccountType: sp(quotaSubAccountType),
 		AttributesJSON: mustJSON(q),
 		DiscoveredBy:   scanID,
 	}
@@ -437,13 +439,62 @@ func quotaRow(acct *account, region, home, scanID string, q sqtypes.ServiceQuota
 	if unit := sv(q.Unit); unit != "" {
 		out.Unit = &unit
 	}
-	if level := string(q.QuotaAppliedAtLevel); level != "" {
-		out.AppliedLevel = &level
+	if q.QuotaContext != nil {
+		if rt := sv(q.QuotaContext.ContextScopeType); rt != "" {
+			out.ResourceType = &rt
+		}
+	}
+	if q.Period != nil {
+		if unit := quotaPeriodUnit(q.Period.PeriodUnit); unit != "" {
+			out.PeriodUnit = &unit
+		}
+		if q.Period.PeriodValue != nil {
+			v := int(*q.Period.PeriodValue)
+			out.PeriodValue = &v
+		}
 	}
 	if def, ok := defaults[quotaCode]; ok {
 		out.DefaultValue = &def
 	}
 	return out, true
+}
+
+// quotaSubAccountType is FOCUS SubAccountType for every AWS quota: the
+// container an account_id names is an AWS account, always. Azure writes
+// "Subscription" and GCP will write "Project".
+const quotaSubAccountType = "Account"
+
+// quotaDimensionKey returns the dimension this limit's value belongs to, or ""
+// when the limit is undimensioned.
+//
+// AWS spells "every resource" as the literal "*", which is the ABSENCE of a
+// dimension, not a dimension named "*". Storing it verbatim would put all 1,875
+// context-carrying rows on a new natural key and strand their predecessors as
+// current rows no later scan could reach.
+func quotaDimensionKey(q sqtypes.ServiceQuota) string {
+	if q.QuotaContext == nil {
+		return ""
+	}
+	if id := sv(q.QuotaContext.ContextId); id != "*" {
+		return id
+	}
+	return ""
+}
+
+// quotaPeriodUnit normalizes AWS's SCREAMING_CASE period unit to the lowercase
+// singular the column stores, so an AWS "SECOND" and an Azure "PT1S" land on
+// the same value. An unrecognized unit returns "" rather than being stored
+// as-is: the column carries a CHECK constraint, and a silent NULL beats a
+// migration-time failure on a value AWS added after this shipped.
+func quotaPeriodUnit(u sqtypes.PeriodUnit) string {
+	switch u {
+	case sqtypes.PeriodUnitMicrosecond, sqtypes.PeriodUnitMillisecond,
+		sqtypes.PeriodUnitSecond, sqtypes.PeriodUnitMinute,
+		sqtypes.PeriodUnitHour, sqtypes.PeriodUnitDay, sqtypes.PeriodUnitWeek:
+		return strings.ToLower(string(u))
+	default:
+		return ""
+	}
 }
 
 // homeGlobalRegion elects the single region that emits global quotas: us-east-1

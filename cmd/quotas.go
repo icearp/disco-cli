@@ -15,8 +15,9 @@ import (
 // quotasColumns is the column order for CSV output. The table renderer uses its
 // own narrower header.
 var quotasColumns = []string{
-	"provider", "account_id", "region", "service_code", "quota_code", "name",
-	"value", "default_value", "unit", "adjustable", "global_quota", "applied_level",
+	"provider", "account_id", "region", "service_code", "quota_code", "dimension_key", "name",
+	"value", "default_value", "unit", "adjustable",
+	"period_unit", "period_value", "resource_type", "availability_zone", "sub_account_type",
 	"id", "account_name", "service_name", "description", "attributes",
 	"discovered_at", "discovered_by",
 }
@@ -25,8 +26,9 @@ var quotasColumns = []string{
 // `quotas -o markdown` matches the headers every other markdown renderer uses.
 // Keep the two in lockstep.
 var quotasMarkdownHeaders = []string{
-	"Provider", "Account ID", "Region", "Service Code", "Quota Code", "Name",
-	"Value", "Default Value", "Unit", "Adjustable", "Global Quota", "Applied Level",
+	"Provider", "Account ID", "Region", "Service Code", "Quota Code", "Dimension Key", "Name",
+	"Value", "Default Value", "Unit", "Adjustable",
+	"Period Unit", "Period Value", "Resource Type", "Availability Zone", "Sub Account Type",
 	"ID", "Account Name", "Service Name", "Description", "Attributes",
 	"Discovered At", "Discovered By",
 }
@@ -36,12 +38,24 @@ var quotasMarkdownHeaders = []string{
 // limit and a limit of zero are different facts.
 func quotaRow(q *store.Quota) []string {
 	return []string{
-		q.Provider, q.AccountID, q.Region, q.ServiceCode, q.QuotaCode, q.Name,
+		q.Provider, q.AccountID, q.Region, q.ServiceCode, q.QuotaCode, q.DimensionKey, q.Name,
 		formatQuotaValue(q.Value), formatQuotaValue(q.DefaultValue), derefOr(q.Unit, ""),
-		strconv.FormatBool(q.Adjustable), strconv.FormatBool(q.GlobalQuota), derefOr(q.AppliedLevel, ""),
+		strconv.FormatBool(q.Adjustable),
+		derefOr(q.PeriodUnit, ""), formatQuotaPeriodValue(q.PeriodValue),
+		derefOr(q.ResourceType, ""), derefOr(q.AvailabilityZone, ""), derefOr(q.SubAccountType, ""),
 		q.ID, derefOr(q.AccountName, ""), derefOr(q.ServiceName, ""), derefOr(q.Description, ""), q.AttributesJSON,
 		q.DiscoveredAt, q.DiscoveredBy,
 	}
+}
+
+// formatQuotaPeriodValue renders a rate-window length, empty when the limit is
+// a count rather than a rate. Empty rather than "0" for the same reason
+// formatQuotaValue is: no window and a window of zero are different facts.
+func formatQuotaPeriodValue(v *int) string {
+	if v == nil {
+		return ""
+	}
+	return strconv.Itoa(*v)
 }
 
 // formatQuotaValue renders a limit without a trailing ".0" for whole numbers,

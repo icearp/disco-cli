@@ -174,7 +174,7 @@ func TestHistoryCmd_QuotaID(t *testing.T) {
 		t.Fatalf("UpsertQuotas: %v", err)
 	}
 
-	rootID := store.QuotaID("aws", "111", "us-east-1", "lambda", "L-FIXED")
+	rootID := store.QuotaID("aws", "111", "us-east-1", "lambda", "L-FIXED", "")
 	historyOutputFmt = "table"
 	out, err := captureStdout(t, func() error {
 		rootCmd.SetArgs([]string{"history", rootID, "-o", "json"})

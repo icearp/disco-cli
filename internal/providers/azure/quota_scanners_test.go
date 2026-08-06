@@ -121,7 +121,7 @@ func TestScanQuotaLimits_FakeTransport(t *testing.T) {
 		t.Fatalf("counts: got total=%d inserted=%d, want 2/2 (westus denied, contributes nothing)", total, inserted)
 	}
 
-	id := store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family")
+	id := store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family", "")
 	got, err := st.GetQuota(id)
 	if err != nil {
 		t.Fatalf("GetQuota: %v", err)
@@ -185,14 +185,14 @@ func TestScanQuotaLimits_IsQuotaApplicableMapsToAdjustable(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	adj, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family"))
+	adj, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family", ""))
 	if err != nil || adj == nil {
 		t.Fatalf("GetQuota applicable: %v", err)
 	}
 	if !adj.Adjustable {
 		t.Error("IsQuotaApplicable=true did not map to adjustable")
 	}
-	hard, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardFixedFamily"))
+	hard, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardFixedFamily", ""))
 	if err != nil || hard == nil {
 		t.Fatalf("GetQuota non-applicable: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestScanQuotaLimits_QuotaCodeIsProviderName(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total: got %d, want 1", total)
 	}
-	got, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family"))
+	got, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family", ""))
 	if err != nil {
 		t.Fatalf("GetQuota: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestScanQuotaLimits_MissingLimitStaysNull(t *testing.T) {
 		quotaTestClient(t, server), []string{"Microsoft.Compute"}, []string{"eastus"}); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	got, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family"))
+	got, err := st.GetQuota(store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family", ""))
 	if err != nil || got == nil {
 		t.Fatalf("GetQuota: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestScanQuotaLimits_LimitOnlyChurnFree(t *testing.T) {
 			t.Fatalf("scan: %v", err)
 		}
 	}
-	rootID := store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family")
+	rootID := store.QuotaID("azure", sub.ID, "eastus", "Microsoft.Compute", "standardDDv4Family", "")
 	versionCount := func() int {
 		t.Helper()
 		v, err := st.GetQuotaVersions(rootID)
@@ -387,5 +387,50 @@ func TestScanQuotaLimits_LimitOnlyChurnFree(t *testing.T) {
 	}
 	if l := storedLimit(t, current.AttributesJSON); l != 200 {
 		t.Errorf("current stored limit: got %d, want 200", l)
+	}
+}
+
+// Azure states the rate window as an ISO 8601 duration and AWS as a
+// (unit, value) pair; the column stores one shape, so this is where the two
+// meet. A rejected duration must leave both columns NULL rather than invent a
+// unit — the column carries a CHECK constraint, so a guess fails the batch.
+func TestParseISO8601Period(t *testing.T) {
+	for _, tc := range []struct {
+		in        string
+		wantUnit  string
+		wantValue int
+		wantOK    bool
+	}{
+		{"PT1S", "second", 1, true},
+		{"PT30S", "second", 30, true},
+		{"PT1M", "minute", 1, true},
+		{"PT5M", "minute", 5, true},
+		{"PT1H", "hour", 1, true},
+		{"P1D", "day", 1, true},
+		{"P30D", "day", 30, true},
+		{"P1W", "week", 1, true},
+
+		// A bare M outside the time section is MONTHS, not minutes -- the one
+		// ambiguity in the format, and the one that silently stores a limit as
+		// 60x too frequent if the T is not tracked.
+		{"P1M", "", 0, false},
+		{"P1Y", "", 0, false},
+
+		{"", "", 0, false},
+		{"P", "", 0, false},
+		{"PT", "", 0, false},
+		{"1D", "", 0, false},
+		{"P0D", "", 0, false},
+		{"PTS", "", 0, false},
+		{"P1DT12H", "", 0, false},
+		{"PXD", "", 0, false},
+	} {
+		t.Run(tc.in, func(t *testing.T) {
+			unit, value, ok := parseISO8601Period(tc.in)
+			if ok != tc.wantOK || unit != tc.wantUnit || value != tc.wantValue {
+				t.Errorf("parseISO8601Period(%q) = (%q, %d, %v), want (%q, %d, %v)",
+					tc.in, unit, value, ok, tc.wantUnit, tc.wantValue, tc.wantOK)
+			}
+		})
 	}
 }
