@@ -838,6 +838,44 @@ func TestConnectCampaignsNotProvisioned(t *testing.T) {
 	}
 }
 
+// AWS declines DescribeWorkspacesPools two different ways depending on the
+// region — feature-not-launched and closed-to-new-customers — and both must be
+// silent. The genuine-denial case is the discriminating one: it shares the
+// error code, so a needle widened to the bare code would silence a real IAM
+// problem with nothing reporting it.
+func TestIsWorkSpacesPoolsGap(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		msg  string
+		want bool
+	}{
+		{
+			"feature not launched in this region",
+			"You do not have the permissions required to perform this action. " +
+				"Refer to https://docs.aws.amazon.com/workspaces/latest/adminguide/workspaces-access-control.html",
+			true,
+		},
+		{
+			"closed to new customers as of 7/30/2026",
+			"Amazon WorkSpaces Pools is no longer available to new customers as of 7/30/2026. " +
+				"Refer to https://docs.aws.amazon.com/workspaces/latest/adminguide/wsp-pools-end-of-support.html",
+			true,
+		},
+		{
+			"genuine IAM denial",
+			"User: arn:aws:sts::123456789012:assumed-role/disco/scan is not authorized to " +
+				"perform: workspaces:DescribeWorkspacesPools on resource: *",
+			false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isWorkSpacesPoolsGap(apiErr("AccessDeniedException", tc.msg)); got != tc.want {
+				t.Errorf("isWorkSpacesPoolsGap(%q) = %v; want %v", tc.msg, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestChimeListErr_AvailabilityNoiseSilent(t *testing.T) {
 	st := newTestStore(t)
 	warned := false

@@ -134,13 +134,11 @@ func scanWSWorkspacesPools(ctx context.Context, client workSpacesAPI, acct *acco
 	for {
 		out, err := client.DescribeWorkspacesPools(ctx, &workspaces.DescribeWorkspacesPoolsInput{NextToken: nextToken})
 		if err != nil {
-			// WorkSpaces Pools is a per-region sub-feature. Where not launched,
-			// AWS returns a canned AccessDeniedException pointing at the
-			// workspaces-access-control docs URL — distinct from a real IAM
-			// denial, which carries the "is not authorized to perform:
-			// <action>" SDK-formatted body. Silent-skip the canned shape;
-			// warn on real denials.
-			if isAccessDeniedWithMessage(err, "workspaces-access-control.html") {
+			// Pools is a per-region sub-feature, and closed to new customers
+			// since 7/30/2026. Both facts arrive as a canned
+			// AccessDeniedException — see isWorkSpacesPoolsGap for the two
+			// phrasings. Silent-skip those; warn on real denials.
+			if isWorkSpacesPoolsGap(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {

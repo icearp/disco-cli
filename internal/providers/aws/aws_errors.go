@@ -191,6 +191,30 @@ func isStorageLensHomeRegionGap(err error) bool {
 	return strings.Contains(strings.ToLower(ae.ErrorMessage()), "home region")
 }
 
+// isWorkSpacesPoolsGap reports whether err is AWS declining
+// DescribeWorkspacesPools because the Pools sub-feature is not available to
+// this account in this region. Two phrasings are live at once and which one a
+// region returns is region-dependent:
+//
+//	"You do not have the permissions ... workspaces-access-control.html"   (not launched here)
+//	"no longer available to new customers ... wsp-pools-end-of-support.html" (closed 7/30/2026)
+//
+// Both arrive as AccessDeniedException and both are availability facts no IAM
+// change fixes, so the caller silent-skips. Matching on the docs-URL fragment
+// rather than the prose keeps the needle narrow: a wider match would swallow a
+// real denial silently, while a missed phrasing merely warns.
+//
+// A genuine IAM denial names the principal and action ("User: arn:... is not
+// authorized to perform: workspaces:DescribeWorkspacesPools") and carries no
+// docs URL, so it still warns.
+//
+// Scoped to this one operation on purpose: WorkSpaces itself scans normally, so
+// this is a per-operation gap inside a live service, not a blocked service.
+func isWorkSpacesPoolsGap(err error) bool {
+	return isAccessDeniedWithMessage(err, "workspaces-access-control.html") ||
+		isAccessDeniedWithMessage(err, "wsp-pools-end-of-support.html")
+}
+
 // isPayerAccountOnly reports whether err is the restriction AWS returns when a
 // payer/management-account-only billing API (BCM Pricing Calculator, BCM Data
 // Exports, Invoicing) is called from an organisation member account. It
