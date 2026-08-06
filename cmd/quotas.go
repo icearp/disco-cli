@@ -96,7 +96,7 @@ so its history is the only record that it happened. Combine it with --changed to
 list exactly the hard ceilings the provider has moved.
 
 AWS quotas are only recorded when a scan is run with --include-service-quotas.
-Azure quotas are recorded on every scan.`,
+Azure and GCP quotas are recorded on every scan.`,
 	Example: `  disco quotas
   disco quotas --service ec2 --region us-east-1
   disco quotas --adjustable=false
@@ -322,7 +322,7 @@ func init() {
 	f.StringSliceVar(&quotasProviders, "providers", nil, "Filter by provider (aws, azure, gcp)")
 	f.StringSliceVar(&quotasAccounts, "accounts", nil, "Filter by account, subscription or project id")
 	f.StringSliceVar(&quotasRegions, "regions", nil, "Filter by region (use 'global' for partition-wide limits)")
-	f.StringSliceVar(&quotasServiceCodes, "service", nil, "Filter by service code (AWS ServiceCode, Azure provider namespace)")
+	f.StringSliceVar(&quotasServiceCodes, "service", nil, "Filter by service code (AWS ServiceCode, Azure provider namespace, GCP service name)")
 	f.StringVar(&quotasAdjustable, "adjustable", "", "Filter by whether the limit can be raised on request: true or false")
 	f.BoolVar(&quotasRaisedOnly, "raised", false, "Only limits whose value differs from the provider default")
 	f.BoolVar(&quotasChangedOnly, "changed", false, "Only limits that have held more than one value")

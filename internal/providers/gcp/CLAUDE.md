@@ -130,6 +130,20 @@ GCP Compute `*.AggregatedList` returns `map[string]ScopedList` where keys are ei
 
 Scanners fanning out over global locations/regions catalog before hitting API-gated endpoint (KMS keyrings, future Pub/Sub regional, Cloud Run regional) still benefit from per-project `atomic.Bool` short-circuit even though sentinel mechanism above already suppresses warning storm. Reason: each goroutine still issues API call before returning sentinel. Flipping bool on first 403 lets remaining goroutines exit without network round-trip. Precedent: `kms_scanners.go` `apiDisabled`.
 
+## Service quotas: enumerate services, then one row per dimension set
+
+`quota_scanners.go` reads Cloud Quotas v1 and writes `store.Quota` rows, never resources — no `registerType`, exactly like Azure's `quota_scanners.go`. Not opt-in: `serviceEntry` carries no `optIn` field and `*gcp.Scanner` does not implement `providers.ServiceQuotasIncluder`, so every GCP scan records quotas.
+
+Two API facts shape the whole scanner. `ListQuotaInfos` has **no wildcard parent** — it names one service and listing across containers is refused — so enabled services come from Service Usage (`state:ENABLED`, name read from `Config.Name`) first. And **the value is not on `QuotaInfo`**: it lives at `DimensionsInfo.Details.Value`, so one `QuotaInfo` with N `DimensionsInfos` produces N rows and `dimension_key` has to be part of the natural key. Parent location is always `global`; region arrives inside the dimensions map.
+
+`quotaDimensionKey` sorts by key and percent-escapes `%|,=`. Both matter: `Dimensions` is a Go map, so an insertion-order encoding re-keys every row on the next scan and strands its predecessor as a current row nothing can reach; and `store.QuotaID` joins with `|` while this encoding joins with `,` and `=`, so an unescaped separator in a provider value could collide two quotas onto one root.
+
+`RefreshInterval` is free text (`"minute"`, `"10 seconds"`, empty for allocation quotas). `parseGCPRefreshInterval` accepts only what resolves to the seven units the Postgres `period_unit` CHECK allows and returns false otherwise, leaving both columns NULL. SQLite carries no such CHECK by design, so the parser's negative test is the only guard disco itself provides.
+
+`DefaultValue` is uniformly nil — Cloud Quotas reports no default — so `--raised` can never match a GCP quota. `Adjustable` is `!IsFixed`, which GCP always answers, so GCP is not the provider that would justify relaxing `adjustable NOT NULL`.
+
+Per-service `ListQuotaInfos` failures accumulate in `quotaListOutcome` and surface as ONE warning per project; a project enables tens of services and a systematic failure fails all of them. Every service failing on the same project fact escalates to `errServiceDisabled`/`errBillingDisabled` instead, so an unenabled Cloud Quotas API reads as "(project: disabled)" rather than a warning.
+
 ## Scanner-level tests via httptest fake server
 
 Per-phase scanners (`scanForwardingRules`, `scanInstances`, etc.) already accept `*compute.Service` — directly testable, no body extraction needed. Pattern: `httptest.NewServer` + `option.WithEndpoint(srv.URL)` + `option.WithHTTPClient(srv.Client())` + `option.WithoutAuthentication()` builds a concrete client pointed at the fake. Helpers in `fake_testhelper_test.go`: `fakeGCPServer(t, routes)`, `fakeGCPServerStatus(t, status, body)`, `fakeComputeService(t, srv)`. Precedent: `loadbalancing_scanners_test.go` covers happy path, real-403 ScanWarning, API-not-enabled sentinel.

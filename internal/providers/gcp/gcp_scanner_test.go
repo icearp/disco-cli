@@ -21,6 +21,7 @@ var expectedGCPServices = []string{
 	"gcp:cloudarmor",
 	"gcp:cloudbuild",
 	"gcp:clouddns",
+	"gcp:cloudquotas",
 	"gcp:cloudfunctions",
 	"gcp:cloudkms",
 	"gcp:cloudresourcemanager-liens",
