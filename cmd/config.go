@@ -47,6 +47,11 @@ gcp:
   # credentials endpoint, set these instead of a cred-config file:
   #   DISCO_GCP_WIF_AUDIENCE          - the workload-identity provider audience
   #   DISCO_GCP_WIF_SERVICE_ACCOUNT   - the service-account email to impersonate
+  # Optionally assume a role first, so the identity presented to Google carries
+  # a session name a provider's attribute condition can pin (set both or
+  # neither):
+  #   DISCO_GCP_WIF_ROLE_ARN          - role to assume before the exchange
+  #   DISCO_GCP_WIF_SESSION_NAME      - session name that role assumes under
 
 azure:
   # Explicit subscription list. If omitted, all accessible subscriptions are enumerated.

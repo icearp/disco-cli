@@ -54,7 +54,9 @@ Keyless auth (Workload Identity Federation): pass --credential-config
 without downloading a service-account key. On AWS ECS/Fargate, where the
 task-role identity is reachable only via the container-credentials
 endpoint, set DISCO_GCP_WIF_AUDIENCE + DISCO_GCP_WIF_SERVICE_ACCOUNT
-instead.
+instead. To present a named session — so the provider's attribute
+condition can pin which grant this run exercises — also set
+DISCO_GCP_WIF_ROLE_ARN + DISCO_GCP_WIF_SESSION_NAME.
 
 Examples:
   disco scan gcp

@@ -136,12 +136,12 @@ func clientOptions(ctx context.Context, cfg providerCfg) []option.ClientOption {
 		// account — no key, no file. Covers the one case Google's built-in AWS
 		// source can't: a Fargate task role, reachable only via the ECS
 		// container-credentials endpoint.
-		ts, err := wifTokenSource(ctx, wifAud, wifSA, scopes)
-		if err == nil {
+		if ts, ok := wifEnvSource(ctx, wifAud, wifSA, scopes); ok {
 			return []option.ClientOption{option.WithTokenSource(ts), option.WithScopes(scopes...)}
 		}
 		// Fall through to ADC on error so a misconfigured WIF env doesn't
-		// hard-fail a scan that could still authenticate another way.
+		// hard-fail a scan that could still authenticate another way. A run
+		// that named a session is exempt — see [wifEnvSource].
 	}
 
 	// ADC: env GOOGLE_APPLICATION_CREDENTIALS → gcloud default → metadata server.
