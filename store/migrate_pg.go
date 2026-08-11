@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/jmoiron/sqlx"
 )
 
 //go:embed migrations/pg/*.sql
 var migrationPGFS embed.FS
 
-// migratePG applies any pending Postgres migrations. Mirrors the SQLite
-// runner (migrate.go) one-for-one: same `schema_migrations` bookkeeping
-// table, same NNN_name.sql filename → version parsing, same per-statement
-// splitStatements semicolon split. Each migration is applied in its own
-// transaction so partial failure doesn't leave a half-migrated DB.
+// migratePG applies any pending Postgres migrations. It shares the SQLite
+// runner's (migrate.go) `schema_migrations` bookkeeping table and its
+// NNN_name.sql filename → version parsing, but NOT its per-statement
+// [splitStatements] split: each file is executed whole, in one round trip
+// (see [applyOnePG]). Each migration is applied in its own transaction so
+// partial failure doesn't leave a half-migrated DB.
 func (s *Store) migratePG(ctx context.Context) error {
 	entries, err := migrationPGFS.ReadDir("migrations/pg")
 	if err != nil {
@@ -103,11 +106,9 @@ func (s *Store) migratePG(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("begin tx for migration %d: %w", m.version, err)
 		}
-		for _, stmt := range splitStatements(string(data)) {
-			if _, err := tx.ExecContext(ctx, stmt); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("apply migration %d (%q): %w", m.version, stmt[:min(len(stmt), 60)], err)
-			}
+		if err := applyOnePG(ctx, tx, m.version, m.name, data); err != nil {
+			_ = tx.Rollback()
+			return err
 		}
 		if _, err := tx.ExecContext(ctx,
 			"INSERT INTO schema_migrations (version, applied_at) VALUES ($1, now())",
@@ -119,6 +120,30 @@ func (s *Store) migratePG(ctx context.Context) error {
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration %d: %w", m.version, err)
 		}
+	}
+	return nil
+}
+
+// applyOnePG executes one migration file's whole body in a single ExecContext,
+// rather than splitting it into statements the way the SQLite runner must.
+// pgx sends a parameterless query over the simple protocol, which accepts a
+// multi-statement body, so the round trips per migration drop from one per
+// statement to one per file.
+//
+// It also retires a trap. [splitStatements] tracks `--` line comments and `$$`
+// dollar-quoting but NOT single-quoted string literals, so a `;` inside a
+// literal split the statement mid-string and failed with 42601 (measured; it
+// shipped once in real COMMENT ON text). A `--` inside a literal is the milder
+// half: the splitter keeps the bytes and merely fails to split there, so the
+// two statements merge into one chunk that Postgres executes correctly anyway.
+// Executing the body whole removes the first outright and makes the second
+// moot. The SQLite runner still splits, because its driver takes one statement
+// per Exec.
+//
+// A body that is empty or contains only comments is a no-op, not an error.
+func applyOnePG(ctx context.Context, tx *sqlx.Tx, version int, name string, body []byte) error {
+	if _, err := tx.ExecContext(ctx, string(body)); err != nil {
+		return fmt.Errorf("apply migration %d (%s): %w", version, name, err)
 	}
 	return nil
 }
