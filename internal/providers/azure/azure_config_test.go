@@ -75,6 +75,32 @@ func TestResolveSubscriptionScope_NilUsesConfig(t *testing.T) {
 	}
 }
 
+// TestResolveSubscriptionScope_ConfigTrimsTheStoredID pins that the config
+// branch stores the TRIMMED id, not the raw one. A padded id clears the
+// fail-closed guard (which trims before testing for empty) and then fails the
+// strings.EqualFold match in subscriptionResourceBatch, so the scan reports
+// the pin as absent from the /subscriptions page and warns that the
+// delegation may have been revoked — a confident wrong diagnosis for
+// whitespace in a config file.
+func TestResolveSubscriptionScope_ConfigTrimsTheStoredID(t *testing.T) {
+	subs, err := resolveSubscriptionScope(nil, providerCfg{Subscriptions: []subscriptionCfg{{ID: "  cfg-sub\t", Name: " Prod\n"}}}, func() ([]subscription, error) {
+		t.Fatal("enumerate must not run when config lists subscriptions")
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(subs) != 1 || subs[0].ID != "cfg-sub" {
+		t.Fatalf("got %+v, want the id trimmed to %q", subs, "cfg-sub")
+	}
+	// Name is display-only — it reaches Resource.AccountName and the scope
+	// label — so a padded one is cosmetic rather than a wrong diagnosis, but
+	// it is the same asymmetry and the same one-line fix.
+	if subs[0].Name != "Prod" {
+		t.Errorf("Name = %q; want it trimmed to %q", subs[0].Name, "Prod")
+	}
+}
+
 // TestResolveSubscriptionScope_NilEmptyConfigEnumerates verifies the default
 // path: nil override + empty config triggers auto-enumeration.
 func TestResolveSubscriptionScope_NilEmptyConfigEnumerates(t *testing.T) {

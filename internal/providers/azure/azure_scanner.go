@@ -93,6 +93,32 @@ There is no --regions / --profile flag — Azure scopes per
 subscription/resource group, configured statically. --services narrows
 the scanner set when iterating on one provider.
 
+Keyless auth (Entra workload identity federation): on AWS, set
+DISCO_AZURE_WIF_CLIENT_ID + DISCO_AZURE_WIF_TENANT_ID to exchange an AWS
+STS web identity token for an Entra token via a federated identity
+credential — no client secret is stored. To present a named session, so
+the Entra trust names one identity rather than whatever the platform
+chose, also set DISCO_AZURE_WIF_ROLE_ARN + DISCO_AZURE_WIF_SESSION_NAME.
+DISCO_AZURE_WIF_AUDIENCE overrides the token audience and rarely needs to
+be set. Any of these set WITHOUT both required ids is refused rather than
+ignored, because a half-declared federation would otherwise fall back to a
+credential the tenant-scope guards do not apply to.
+
+Under this mode tenant-scope services (Entra ID, management groups) are
+SKIPPED unconditionally. The reason is what this build can CHECK, not what
+your setup is: nothing here confirms the federated identity belongs to the
+tenant being scanned, so tenant-scope results could describe a different
+directory. The case that motivates it is Azure Lighthouse, where the token
+authenticates in the MANAGING tenant and only subscription scope is
+delegated. It applies just the same when you federate into your OWN tenant,
+where the skip is unnecessary — closing that needs a positive check
+(compare the token's tid against the scanned subscription's tenant), which
+this build does not have.
+
+Subscriptions must also be named explicitly, by --subscriptions or by the
+config list: one delegated credential can see MANY customers' subscriptions,
+so auto-discovery is refused rather than left to guess which this scan meant.
+
 Examples:
   disco scan azure
   disco scan azure --subscriptions 00000000-0000-0000-0000-000000000000
@@ -131,29 +157,63 @@ func (s *Scanner) ServiceNames() []string {
 // Scan discovers all Azure resources across all configured subscriptions.
 // Subscriptions are scanned in parallel, bounded by maxConcurrentServices.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
-	subs, cred, err := loadSubscriptions(ctx, s.subscriptionOverride)
+	// Read the federation contract once and thread it down, so every gate in
+	// this scan agrees about which tenant the credential speaks for.
+	wif := wifEnv()
+	subs, cred, err := loadSubscriptions(ctx, s.subscriptionOverride, wif)
 	if err != nil {
+		// Redacted like every other credential failure. This one runs before
+		// any scanner, so it reaches the scan record through scanrun rather
+		// than through formatAzureError, and it is the likeliest of all of
+		// them to carry disco's own identifiers. A configuration refusal is
+		// NOT redacted — it names the variable to fix — so it keeps its wrap
+		// and stays matchable with errors.Is. See redactCredentialError.
+		if red := redactCredentialError(err); red != "" {
+			return errors.New("azure: load subscriptions: " + red)
+		}
 		return fmt.Errorf("azure: load subscriptions: %w", err)
 	}
+	s.scanWithCredential(ctx, st, scanID, subs, cred, wif)
+	return nil
+}
 
+// scanWithCredential runs the scan against an already-resolved credential.
+//
+// Split from [Scanner.Scan] so the federation gates can be exercised with a
+// stub credential: each of them decides whether a token is requested at all,
+// which is not observable from outside the network calls it prevents.
+func (s *Scanner) scanWithCredential(ctx context.Context, st *store.Store, scanID string, subs []subscription, cred azcore.TokenCredential, wif wifConfig) {
 	// Resolve the tenant GUID once and stamp it onto every subscription so
 	// tenant-scope scanners/resolvers can store tenant-identical resources
 	// (management groups, built-in role/policy definitions) under one account
 	// instead of duplicating per subscription. Best-effort: on failure the
 	// empty tenantID disables dedup and each subscription falls back to
 	// storing its own copy (current behavior).
-	if tenantID, terr := tenantIDFromCredScope(ctx, cred, armScope); terr != nil {
-		st.ReportWarning(store.ScanWarning{
-			Provider: "azure", Service: "scan", Scope: "tenant",
-			Message: "resolve tenant id: " + formatAzureError(terr),
-		})
-	} else {
-		// Friendly tenant name is a separate best-effort Graph call; degrade to
-		// the GUID (left as empty tenantName) when directory read is unavailable.
-		tenantName, _ := tenantDisplayName(ctx, cred)
-		for i := range subs {
-			subs[i].tenantID = tenantID
-			subs[i].tenantName = tenantName
+	//
+	// Skipped entirely under a federated credential (wif.tenantScopeEnabled,
+	// which is what the code below actually tests): the `tid` claim names the
+	// credential's OWN tenant, which under Lighthouse is not the customer's,
+	// and which nothing here can confirm either way. Stamping it
+	// would both mislabel their rows and make the per-subscription scanners
+	// skip built-in role/policy definitions on the assumption that a tenant
+	// service is storing them — which is precisely what is disabled. Leaving
+	// it empty selects the documented per-subscription fallback, so no data is
+	// lost. See wifConfig.tenantScopeEnabled.
+	if wif.tenantScopeEnabled() {
+		if tenantID, terr := tenantIDFromCredScope(ctx, cred, armScope); terr != nil {
+			st.ReportWarning(store.ScanWarning{
+				Provider: "azure", Service: "scan", Scope: "tenant",
+				Message: "resolve tenant id: " + formatAzureError(terr),
+			})
+		} else {
+			// Friendly tenant name is a separate best-effort Graph call; degrade
+			// to the GUID (left as empty tenantName) when directory read is
+			// unavailable.
+			tenantName, _ := tenantDisplayName(ctx, cred)
+			for i := range subs {
+				subs[i].tenantID = tenantID
+				subs[i].tenantName = tenantName
+			}
 		}
 	}
 
@@ -180,6 +240,10 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	wg.Go(func() {
 		defer close(entraDone)
 		defer reportPanic(st, "entra", tenantScopeLabel(subs))
+		if !wif.tenantScopeEnabled() {
+			reportTenantScopeSkipped(st, subs, s.serviceFilter)
+			return
+		}
 		runTenantServices(ctx, subs, cred, s.serviceFilter, st, scanID)
 	})
 
@@ -205,8 +269,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	// resource-group) once every subscription's phase-1 and the tenant phase have
 	// written their rows — the only point at which both endpoints of each
 	// cross-phase closure pair exist in the store.
-	stitchTopHierarchy(ctx, subs, cred, st)
-	return nil
+	stitchTopHierarchy(ctx, subs, cred, st, wif)
 }
 
 // scanSubscription runs phase 1 (resources + hierarchy) then phase 2

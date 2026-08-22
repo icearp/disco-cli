@@ -127,9 +127,105 @@ The trap this leaves behind is a reasoning one: a green build is what tells you 
 
 `managedidentity_resolvers.go::resolveManagedIdentityConsumers` walks every Azure resource's `identity.userAssignedIdentities` map. New scanners storing native SDK responses verbatim get MSI-consumer edges automatically — do NOT add per-service identity-map resolvers.
 
+## Federated credential, and why tenant scope switches off with it
+
+`wif.go` swaps `DefaultAzureCredential` for an AWS-to-Entra exchange when
+`DISCO_AZURE_WIF_CLIENT_ID` + `DISCO_AZURE_WIF_TENANT_ID` are set: `sts:GetWebIdentityToken`
+signs a JWT asserting the caller's AWS identity, `azidentity.NewClientAssertionCredential`
+presents it against a federated identity credential. Every link of the default chain fails in a
+distroless Fargate task, which is what this exists for. **`SigningAlgorithm` is required and must
+be `RS256`** — Entra supports nothing else for token exchange, AWS's own examples use ES384, and
+the mismatch surfaces only at exchange time. `retryCredential` retries `AADSTS70021:` (matched
+*with* the colon, or it would also match — and so keep retrying — the permanent `AADSTS700213`), which Microsoft documents as
+an expected transient while a federated credential replicates.
+
+**Under this credential the tenant phase is skipped wholesale, and that is a correctness
+requirement, not a permissions accommodation.** Azure Lighthouse delegates SUBSCRIPTION scope: the
+token's authority is *disco's* tenant and ARM resolves the delegation, so every tenant-scope API
+answers about disco's own directory. Note the gate keys on `configured()` — "the WIF contract is
+set" — not on "the identity is foreign to the scanned tenant", which nothing here can check. So it
+also fires for a standalone operator federating into their OWN tenant, where the skip is a real
+capability loss and is unnecessary. Deliberate: prose says so (`azure_scanner.go`'s LongDescription,
+`cmd/config.go`) instead of the customer-visible message claiming a topology, and closing it wants a
+positive `tid`-vs-subscription-tenant check, not a knob. Every registered tenant service would have
+(`grep -n 'registerTenantService' *.go`), plus `tenantDisplayName`, `tenantIDFromCredScope` and the
+management-group Entities list in `stitchTopHierarchy` — a DIFFERENT call from
+`scanManagementTenant`'s flat list, and a second call site of the same gate. All of them **succeed**
+rather than 403, so the customer's inventory silently gains disco's users, groups, service
+principals, applications and management groups, with no warning anywhere. The gate is
+`wifConfig.tenantScopeEnabled`, applied in `Scan` to the whole phase rather than per service, so a
+tenant service added later inherits it without being named.
+
+**That grep is not the whole set.** A call is tenant-wide because of its URL, not because of the
+phase that registered it, so `GET /subscriptions` (covered by `enumerateScope` +
+`subscriptionResourceBatch`) and armautomanage's `BestPractices.ListByTenant` (a tenant-ROOT path,
+deliberately left ungated — it returns Microsoft's published catalog and discloses nothing) both sit
+inside the per-SUBSCRIPTION fan-out. Re-derive the set from ARM URL templates carrying no
+`{subscriptionId}`/`{scope}` segment, not from the registry.
+
+Consequences to keep in step. `Scan` must also skip stamping `subscription.tenantID` — the
+`tid` claim names disco's tenant, and a non-empty value makes the per-sub scanners skip built-in
+role/policy definitions on the assumption a tenant service is storing them, which would silently
+drop them from the scan. Leaving it empty selects the documented per-sub fallback: no data lost.
+`stitchTopHierarchy` takes the whole `wifConfig` rather than a boolean — so the caller cannot hand
+it a decision that disagrees with the rest of the scan — and skips only the Entities call while the
+store-derived tiers still record.
+
+And **the `GET /subscriptions` calls are tenant-wide while the gate covers only the tenant PHASE**
+(`grep -n 'NewSubscriptionsClient' *.go` for the live set). `enumerateScope` refuses under
+federation, so naming subscriptions — by `--subscriptions` or the config list — becomes mandatory
+(and a pin the credential cannot see is warned about, not reported as an empty success);
+`scanSubscriptionResource` filters the page to the subscription being scanned, and unfiltered it
+wrote every delegated subscription, i.e. OTHER CUSTOMERS' ids and display names, under the current
+customer's `AccountID`. `azure_coverage.go` keeps its own copy of this shape on
+`DefaultAzureCredential`; it never touches the federated credential today, and pointing it at
+`newAzureCredential` means giving it the same filter.
+
+A **credential** failure is redacted before it reaches the scan record (`redactCredentialError`,
+with the raw cause on stderr): the text carries disco's tenant GUID in the authority URL, and — when
+the assertion callback fails, where there is no HTTP body at all — disco's AWS role ARN. It triggers
+on the error TYPE, because the cases that leak most carry no `AADSTS` code. `scanBodyForAADSTS` is
+the second, narrower net, for a credential failure arriving as some other type. It is NOT a cost
+gate, though it reads like one: `runtime.NewResponseError` passes `respErr.Error()` to `log.Write`
+as an argument, so an `*azcore.ResponseError` has already rendered itself and memoized the result
+before disco sees it — there is no dump left to avoid. It is a FALSE-POSITIVE gate. Redaction throws
+the message away, so an ARM failure that merely MENTIONS `AADSTS` would cost the customer the action
+and scope they lack permission on. So an `*azcore.ResponseError` is answered from what ARM
+classified it as, and only three shapes reach `err.Error()`: an `AADSTS` code in `ErrorCode`; a
+**401**, which is ARM rejecting OUR token and carries the `AADSTS` text in the MESSAGE; or no parsed
+code at all. The test is the STATUS, not a list of codes — a list is a hand-maintained allow-list on
+a disclosure boundary and Microsoft adds codes, while `AuthorizationFailed`, the one error that must
+never be redacted, is a 403.
+`TestRedactCredentialError_DoesNotRedactAnOrdinaryARMError` pins that direction, since nothing else
+can see it. Graph has its own arm on the same shape, keyed on `*graphErr.status == 401`, because
+`reportEntraErr` routes through `formatAzureError`: without it a Graph **403** — whose body says
+`Authorization_RequestDenied`, the customer's missing consent — fell to the bare substring fallback
+and was collapsed if it mentioned `AADSTS` anywhere
+(`TestReportEntraErr_KeepsAConsentDenialReadable`). It deliberately does NOT
+trigger on the `azure wif:` prefix: every pre-exchange CONFIG refusal carries that too, and
+collapsing those to "authentication failed" is exactly what the eager `AWS_REGION` check exists to
+prevent — two guards in one change cancelling.
+
+The suppressed tenant phase reports **a notice per service plus ONE warning for the phase**. Both
+halves of `store.ScanNotice`'s contract bind at once: coverage genuinely changed (so a notice alone
+would sit outside the warning count, and `scanrun` persists warnings while discarding notices), but
+this fires on every federated scan forever, and per-service fan-out would grow the count as tenant
+services are added.
+
+A **half-set** `DISCO_AZURE_WIF_CLIENT_ID`/`_TENANT_ID` pair is refused (`partiallyConfigured`)
+rather than falling back. `tenantScopeEnabled` reads `configured()` too, so a silent fall back would
+re-enable the whole tenant phase and unpin enumeration off one typo'd variable name.
+
+**There is no env var that reopens tenant scope, and adding a bare allow-list would be worse than
+nothing.** `azidentity`'s `resolveTenant` returns the credential's DEFAULT tenant whenever a request
+specifies none, consulting `AdditionallyAllowedTenants` only when one IS specified — and nothing
+here sets `policy.TokenRequestOptions.TenantID`. So a `DISCO_AZURE_GRAPH_TENANT_ID`-style knob would
+ungate the scanners while every token still targeted disco's tenant: the disclosure above, switched
+on by a variable promising the opposite. The knob ships with the token threading, not before.
+
 ## Subscription-scoped vs tenant-scoped
 
-Every per-sub scanner runs via `scanSubscription`. Tenant-scope services (Entra ID via Microsoft Graph SDK, etc.) register via `registerTenantService(tenantServiceEntry{...})` in `tenant_scanners.go` — fn fires ONCE per scan, receives `[]subscription` + cred. Dispatch via `runTenantServices` in `azure.go`. `Scan` runs the tenant phase **concurrently** with the per-sub fan-out (in the same `WaitGroup`) and gates only each subscription's phase-2 resolvers on it via `waitForTenant(ctx, entraDone)` — the tenant phase's only consumer is the phase-2 authorization resolver, so its latency hides behind phase-1 scanning instead of preceding it. New tenant services that other resolvers depend on inherit this join for free; a tenant service whose data a *phase-1* scanner needs would require widening the gate. Tenant-scope resources are stored under the tenant GUID (`subscription.tenantID`, resolved once in `Scan` from the ARM token's `tid` claim and stamped onto every subscription) so a multi-subscription scan keeps a single copy — precedent: `scanManagementTenant` (management groups), `scanAuthorizationBuiltins` (built-in role/policy/set definitions). When `tenantID` is empty (resolution failed) these fall back to per-subscription storage. **Hybrid pattern** (precedent: `scanSubscriptionResource` for `microsoft.resources`/`TypeSubscription`): a tenant-wide ARM API can still run *inside* `scanSubscription` if you accept per-sub duplication — `ResourceID` hash includes account_id so per-sub resolvers FK locally. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
+Every per-sub scanner runs via `scanSubscription`. Tenant-scope services (Entra ID via Microsoft Graph SDK, etc.) register via `registerTenantService(tenantServiceEntry{...})` in `tenant_scanners.go` — fn fires ONCE per scan, receives `[]subscription` + cred. Dispatch via `runTenantServices` in `tenant_scanners.go`. `Scan` runs the tenant phase **concurrently** with the per-sub fan-out (in the same `WaitGroup`) and gates only each subscription's phase-2 resolvers on it via `waitForTenant(ctx, entraDone)` — the tenant phase's only consumer is the phase-2 authorization resolver, so its latency hides behind phase-1 scanning instead of preceding it. New tenant services that other resolvers depend on inherit this join for free; a tenant service whose data a *phase-1* scanner needs would require widening the gate. Tenant-scope resources are stored under the tenant GUID (`subscription.tenantID`, resolved once in `Scan` from the ARM token's `tid` claim and stamped onto every subscription — **but not under a federated credential**, where the whole tenant phase is gated and the stamp is deliberately left empty; see the federation section above) so a multi-subscription scan keeps a single copy — precedent: `scanManagementTenant` (management groups), `scanAuthorizationBuiltins` (built-in role/policy/set definitions). When `tenantID` is empty (resolution failed) these fall back to per-subscription storage. **Hybrid pattern** (precedent: `scanSubscriptionResource` for `microsoft.resources`/`TypeSubscription`): a tenant-wide ARM API can still run *inside* `scanSubscription` if you accept per-sub duplication — `ResourceID` hash includes account_id so per-sub resolvers FK locally — **and you filter the response to the scanned scope**, which is the half that was missing. Its `GET /subscriptions` answers for the whole tenant, so under a delegated credential the unfiltered loop wrote other customers' subscription ids and display names under this customer's account. Unfiltered, per-sub duplication and cross-customer disclosure are the same bug. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
 
 ## Generic helpers split by concern
 
@@ -197,7 +293,7 @@ For error injection use `azfake.PagerResponder.AddResponseError(http.StatusForbi
 
 ## Error formatting — always `formatAzureError`
 
-`azcore.ResponseError.Error()` dumps the entire HTTP request+response (preamble, headers, full ARM error body) — multi-KB per warning. **Never** pass `err.Error()` directly into `store.ScanWarning.Message` / `store.ScanError.Message`. Use `formatAzureError(err)` (in `azure.go`) — narrows to `"{statusCode} {errorCode}: {message}"` matching AWS/GCP brevity. Falls back to `err.Error()` for non-`*azcore.ResponseError` (store / JSON / I/O errors), so it's safe at every site. Existing call sites: `skipIfAccessDenied`, `runTenantServices`, `runAPIResolvers` dispatch, `reportEntraErr` + Entra storage-error sites.
+`azcore.ResponseError.Error()` dumps the request line (method, scheme, host, escaped path — no headers, no query) plus the response status and the full ARM error body — multi-KB per warning. It renders no part of the REQUEST beyond that line — no headers, so no `Authorization: Bearer`; no request body, so no client-assertion JWT — which is why neither can reach the store or stderr through this path. **Never** pass `err.Error()` directly into `store.ScanWarning.Message` / `store.ScanError.Message`. Use `formatAzureError(err)` (in `azure_errors.go`) — narrows to `"{statusCode} {errorCode}: {message}"` matching AWS/GCP brevity. Falls back to `err.Error()` for non-`*azcore.ResponseError` (store / JSON / I/O errors), so it's safe at every site — **except** that it collapses a CREDENTIAL failure to its diagnostic code first, ahead of every other branch, because that text names disco's own tenant and AWS role rather than anything the customer scanned (`redactCredentialError`). Existing call sites: `skipIfAccessDenied`, `runTenantServices`, `runAPIResolvers` dispatch, `reportEntraErr` + Entra storage-error sites.
 
 ## Lint gotchas
 

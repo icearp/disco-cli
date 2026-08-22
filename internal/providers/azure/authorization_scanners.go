@@ -31,8 +31,9 @@ func init() {
 	// service — CollectEmits dedupes by DiscoType, and --services selects both
 	// phases.
 	registerTenantService(tenantServiceEntry{
-		name: "azure:microsoft.authorization",
-		fn:   scanAuthorizationBuiltins,
+		name:      "azure:microsoft.authorization",
+		fn:        scanAuthorizationBuiltins,
+		dedupOnly: true,
 	})
 }
 

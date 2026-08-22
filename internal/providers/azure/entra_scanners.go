@@ -398,19 +398,33 @@ func scanEntraApplications(ctx context.Context, g *graphClient, tenantID string,
 // Error() exposes (where Authorization_RequestDenied / Insufficient
 // privileges JSON live); transport / parse errors fall to the hard-error
 // branch.
+//
+// Classifies on the raw text and REPORTS the formatted one, because this was
+// the package's only report site bypassing the formatAzureError chokepoint.
+// For a *graphErr the two strings are identical unless the error is a
+// credential failure — formatAzureError returns err.Error() for anything that
+// is neither a credential failure nor an *azcore.ResponseError — so the change
+// buys exactly one thing: a CREDENTIAL failure is redacted here like
+// everywhere else. What keeps that narrow is scanBodyForAADSTS's graphErr arm,
+// which requires a 401: a Graph 403 says Authorization_RequestDenied, and
+// collapsing THAT would cost the customer the consent diagnostic that is
+// theirs to act on. That is not hypothetical once tenant scope reopens for
+// Graph, since a token acquisition failure surfaces through this function and
+// names disco's own tenant in the authority URL.
 func reportEntraErr(st *store.Store, scope string, err error) {
 	raw := err.Error()
+	msg := formatAzureError(err)
 	if strings.Contains(raw, "Authorization_RequestDenied") ||
 		strings.Contains(raw, "Insufficient privileges") ||
 		strings.Contains(raw, " 401") || strings.Contains(raw, " 403") ||
 		strings.Contains(raw, "graph: 401") || strings.Contains(raw, "graph: 403") {
 		st.ReportWarning(store.ScanWarning{
-			Provider: "azure", Service: "azure:microsoft.entra", Scope: scope, Message: raw,
+			Provider: "azure", Service: "azure:microsoft.entra", Scope: scope, Message: msg,
 		})
 		return
 	}
 	st.ReportError(store.ScanError{
-		Provider: "azure", Service: "azure:microsoft.entra", Scope: scope, Message: raw,
+		Provider: "azure", Service: "azure:microsoft.entra", Scope: scope, Message: msg,
 	})
 }
 

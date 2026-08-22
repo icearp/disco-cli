@@ -97,7 +97,15 @@ func scanManagementInto(ctx context.Context, accountID string, st *store.Store, 
 // RG→subscription tier is pure store data (no API), so it links even when the
 // caller lacks tenant-level Microsoft.Management read; only the MG tiers need
 // the Entities call, whose AccessDenied is tolerated.
-func stitchTopHierarchy(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store) {
+//
+// Takes the federation contract rather than a boolean: the caller cannot then
+// hand this function a decision that disagrees with the rest of the scan, and
+// there is no argument to get backwards. Under federation the Entities call
+// alone is suppressed (see wifConfig.tenantScopeEnabled) — it is tenant-wide,
+// so it answers for the credential's directory rather than the scanned
+// subscription's — while the store-derived tiers still link, because they
+// read rows this scan already wrote.
+func stitchTopHierarchy(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store, wif wifConfig) {
 	if len(subs) == 0 {
 		return
 	}
@@ -123,13 +131,20 @@ func stitchTopHierarchy(ctx context.Context, subs []subscription, cred azcore.To
 	// so each parent's chain exists before its children record. AccessDenied
 	// self-reports via skipIfAccessDenied and degrades to the self-seeds + RG
 	// tier; any other failure is reported so the missing tiers don't vanish
-	// silently.
-	mgPairs, eerr := managementParentPairs(ctx, cred, subs[0], mgIndex, subIndex, st)
-	if eerr != nil {
-		st.ReportError(store.ScanError{
-			Provider: "azure", Service: "azure:microsoft.management", Scope: "tenant",
-			Message: "management-group entities for hierarchy: " + formatAzureError(eerr),
-		})
+	// silently. Under federation the call is skipped for the same reason it
+	// tolerates AccessDenied — tenant-wide, so it enumerates the CREDENTIAL's
+	// management-group tree, which is not confirmably the scanned tenant's —
+	// and degrades the same way.
+	var mgPairs [][2]string
+	if wif.tenantScopeEnabled() {
+		var eerr error
+		mgPairs, eerr = managementParentPairs(ctx, cred, subs[0], mgIndex, subIndex, st)
+		if eerr != nil {
+			st.ReportError(store.ScanError{
+				Provider: "azure", Service: "azure:microsoft.management", Scope: "tenant",
+				Message: "management-group entities for hierarchy: " + formatAzureError(eerr),
+			})
+		}
 	}
 	recordTopHierarchy(st, mgIndex, subIndex, mgPairs)
 }
@@ -277,8 +292,19 @@ func storeNativeIDIndex(st *store.Store, rtype string) (map[string]string, error
 }
 
 // scanSubscriptionResource discovers the subscription itself as a first-class
-// resource (Microsoft.Resources/subscriptions). Tenant-scoped API run
-// per-subscription (duplication accepted as above).
+// resource (Microsoft.Resources/subscriptions).
+//
+// The list call is tenant-wide — armsubscription's NewListPager is
+// GET /subscriptions, "gets all subscriptions for a tenant" — so the page is
+// filtered to the subscription being scanned before anything is stored. Under
+// a Lighthouse managing identity that page carries every subscription
+// delegated by every customer, and the unfiltered loop wrote each of them
+// under the CURRENT customer's AccountID: customer A's inventory would gain
+// customer B's subscription ids and display names. Filtering also drops the
+// N-squared write this had for a multi-subscription scan.
+//
+// A pin that never appears in the page is warned about rather than reported as
+// an empty success — see the comment at the !pager.More() check.
 //
 // Recording subscription-as-resource closes a gap for scope-attached
 // resolvers: policy assignments scoped to `/subscriptions/<id>` could not
@@ -288,23 +314,79 @@ func scanSubscriptionResource(ctx context.Context, sub *subscription, cred azcor
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsubscription:NewSubscriptionsClient: %w", err)
 	}
-	return azPageScan(ctx, "armsubscription:Subscriptions.List", sub, st,
-		subClient.NewListPager(nil),
+	return scanSubscriptionResourceWithPager(ctx, sub, st, scanID, subClient.NewListPager(nil))
+}
+
+// scanSubscriptionResourceWithPager is the pager-consuming half, split out so
+// the miss case can be exercised without ARM. See the outer function.
+func scanSubscriptionResourceWithPager(ctx context.Context, sub *subscription, st *store.Store, scanID string, pager azPager[armsubscription.SubscriptionsClientListResponse]) (total, inserted int, err error) {
+	// Track whether the pin appeared at all. Without this a subscription the
+	// credential cannot see — a revoked delegation, a mistyped GUID — filters
+	// to nothing on every page and azPageScan returns (0, 0, nil), which the
+	// dispatcher reports as ServiceOK: indistinguishable from success.
+	seen := false
+	total, inserted, err = azPageScan(ctx, "armsubscription:Subscriptions.List", sub, st,
+		pager,
 		func(page armsubscription.SubscriptionsClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			for _, s := range page.Value {
-				if s == nil || s.ID == nil {
-					continue
-				}
-				name := sv(s.DisplayName)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeSubscription, NativeID: sv(s.ID),
-					Name:           &name,
-					AttributesJSON: mustJSON(s),
-					DiscoveredBy:   scanID,
-				})
-			}
+			batch := subscriptionResourceBatch(page.Value, sub, scanID)
+			seen = seen || len(batch) > 0
 			return batch, nil
 		})
+	// The pager must have DRAINED, and a page tally does not show that: an
+	// access-denied part-way through pagination leaves azPageScan answering nil
+	// — after reporting its own warning — with pages already read, so counting
+	// pages blames a revoked delegation for a permission failure reported one
+	// line earlier with a different cause. runtime.Pager only advances its
+	// cursor on a successful fetch, so More() stays true after any failure and
+	// goes false only when the listing genuinely ended.
+	if err == nil && !pager.More() && !seen {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "azure", Service: "azure:microsoft.resources", Scope: sub.scopeLabel(),
+			Message: "subscription not present in the tenant subscription list: it may not exist, or its delegation to this identity may have been revoked",
+		})
+	}
+	return total, inserted, err
+}
+
+// subscriptionGUID is the entry's subscription GUID, falling back to the tail
+// of its ARM id.
+//
+// The fallback is not defensive noise: subscriptionResourceBatch DROPS what it
+// cannot match, and scanSubscriptionResourceWithPager then reports a dropped
+// pin as a possibly-revoked delegation — so a nil SubscriptionID on the very
+// entry being scanned would produce a confident, wrong diagnosis.
+func subscriptionGUID(s *armsubscription.Subscription) string {
+	if id := sv(s.SubscriptionID); id != "" {
+		return id
+	}
+	return nameFromID(sv(s.ID))
+}
+
+// subscriptionResourceBatch maps one page of the tenant-wide subscription list
+// down to the single subscription being scanned.
+//
+// The pager is GET /subscriptions, which answers for every subscription the
+// credential can see. Under Azure Lighthouse that is every delegation the
+// managing tenant holds — i.e. OTHER CUSTOMERS. Recording the page unfiltered
+// writes their subscription ids and display names under this customer's
+// AccountID, so the filter is a disclosure boundary, not a tidiness measure.
+func subscriptionResourceBatch(page []*armsubscription.Subscription, sub *subscription, scanID string) []*store.Resource {
+	var batch []*store.Resource
+	for _, s := range page {
+		if s == nil || s.ID == nil {
+			continue
+		}
+		if !strings.EqualFold(subscriptionGUID(s), sub.ID) {
+			continue
+		}
+		name := sv(s.DisplayName)
+		batch = append(batch, &store.Resource{
+			Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+			Type: TypeSubscription, NativeID: sv(s.ID),
+			Name:           &name,
+			AttributesJSON: mustJSON(s),
+			DiscoveredBy:   scanID,
+		})
+	}
+	return batch
 }

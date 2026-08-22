@@ -17,8 +17,14 @@ For the authoritative, live list of scanned resource types, run
   grants, EFS mount targets, CloudFormation-managed resources, IAM Identity Center
   assignments, Entra ID identities, GCP VPC Service Controls perimeters, and more.
 - **AWS** — per-account, with `--regions`, `--profile`, and `--skip-globals`.
-- **Azure** — per-subscription via `DefaultAzureCredential`; scans every accessible
-  subscription, scoped per subscription / resource group.
+- **Azure** — per-subscription via `DefaultAzureCredential`, or keylessly from an AWS
+  workload via Entra workload identity federation; scoped per subscription / resource
+  group. By default it scans every accessible subscription. Under federation it does
+  not: the subscriptions must be named (`--subscriptions` or config), because one
+  delegated credential can reach many tenants' subscriptions and auto-discovery cannot
+  tell which the scan meant. Tenant-scope services (Entra ID, management groups) are
+  skipped under federation too — nothing confirms the federated identity belongs to the
+  tenant being scanned, so those results could describe a different directory.
 - **GCP** — per-project fan-out across every reachable project; org/folder-scoped
   resources (IAM policies, log sinks, VPC-SC) run once per scan.
 - **Partial-scan tolerance.** A denied or unreachable service degrades to a warning
