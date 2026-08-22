@@ -52,6 +52,13 @@ func scanAutomanage(ctx context.Context, sub *subscription, cred azcore.TokenCre
 				})
 		},
 		func() (int, int, error) {
+			// GET /providers/Microsoft.Automanage/bestPractices — a tenant-ROOT
+			// path inside the per-subscription fan-out, so wifConfig's tenant
+			// gate never sees it. Left ungated on purpose: what it returns is
+			// Microsoft's own published catalog, identical for every tenant and
+			// stored managed:true, so it discloses nothing about disco or about
+			// another customer. Any OTHER tenant-root call added here does need
+			// the gate — see wifConfig.tenantScopeEnabled.
 			return azSimpleScan(ctx, "armautomanage:BestPractices.ListByTenant", TypeAutomanageBestPractice, sub, st, scanID,
 				bp.NewListByTenantPager(nil),
 				func(p armautomanage.BestPracticesClientListByTenantResponse) []*armautomanage.BestPractice {

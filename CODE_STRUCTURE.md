@@ -33,7 +33,7 @@ Function-pointer shapes differ because each provider's scope object differs. Ref
 | Provider | Scanner fn signature | Resolver fn signature |
 |----------|----------------------|-----------------------|
 | aws      | `func(ctx, *account, region string, *store.Store, scanID) (total, inserted int, err error)` | `func(*account, *store.Store) error` |
-| azure    | `func(ctx, *subscription, *azidentity.DefaultAzureCredential, *store.Store, scanID) (total, inserted int, err error)` | `func(*subscription, *store.Store) error` |
+| azure    | `func(ctx, *subscription, azcore.TokenCredential, *store.Store, scanID) (total, inserted int, err error)` | `func(*subscription, *store.Store) error` |
 | gcp      | `func(ctx, *project, *store.Store, scanID) (total, inserted int, err error)` | `func(*project, *store.Store) error` |
 
 AWS service entries carry `global bool` — global services (IAM, Organizations, S3, CloudFront, Route 53, Shield) run once per account with `region=""`; regional services run per region. `registerService` panics on duplicate name.

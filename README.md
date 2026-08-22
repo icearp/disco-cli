@@ -41,7 +41,7 @@ CGO_ENABLED=0 go build -o disco .
 disco
 ├── scan
 │   ├── aws                   per-account, --regions, --profile, --skip-globals
-│   ├── azure                 per-subscription via DefaultAzureCredential
+│   ├── azure                 per-subscription via DefaultAzureCredential or Entra WIF
 │   └── gcp                   per-project fan-out across reachable projects
 ├── resources                 filter by --type, --providers, --regions, --discovered-since
 │   └── show <id|name>        full record for one resolved resource

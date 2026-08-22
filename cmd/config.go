@@ -59,6 +59,28 @@ azure:
   # Example:
   # - id: "00000000-0000-0000-0000-000000000000"
   #   name: Production
+  # Keyless auth (env-only, advanced): authenticate to Entra with an AWS STS
+  # web identity token exchanged against a federated identity credential, so
+  # no client secret exists on either side. Set both:
+  #   DISCO_AZURE_WIF_CLIENT_ID     - the Entra application (client) id
+  #   DISCO_AZURE_WIF_TENANT_ID     - the Entra tenant the application lives in
+  # Optionally assume a role first, so the identity the Entra trust names is
+  # one you chose rather than the platform default (set both or neither):
+  #   DISCO_AZURE_WIF_ROLE_ARN      - role to assume before the exchange
+  #   DISCO_AZURE_WIF_SESSION_NAME  - session name that role assumes under
+  # And rarely:
+  #   DISCO_AZURE_WIF_AUDIENCE      - token audience; defaults to the correct
+  #                                   api://AzureADTokenExchange. Note ANY of
+  #                                   these five set without both required
+  #                                   ones above is refused, not ignored.
+  # Whenever this is set, tenant-scope services (Entra ID, management groups)
+  # are skipped: nothing here confirms the federated identity belongs to the
+  # tenant being scanned, so those results could describe a different
+  # directory. Under Azure Lighthouse they would — the token authenticates in
+  # the managing tenant. Federating into your own tenant makes the skip
+  # unnecessary, but it still applies, and no variable re-enables it. The
+  # subscriptions below (or --subscriptions) also become mandatory, since one
+  # delegated credential can see many customers' subscriptions.
 `
 
 var configCmd = &cobra.Command{
