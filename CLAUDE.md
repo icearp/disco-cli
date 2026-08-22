@@ -223,3 +223,11 @@ Resolver-local struct fields rename safely with per-file `re.sub(r'\b' + old + r
 6. First optimize scan speed, then min memory + CPU.
 7. Keep deps minimal.
 8. Minimize token use. No re-read source already in context. Use sed, grep, head, tail cut lines during discovery + implementation.
+9. **This is a STANDALONE PUBLIC CLI as well as the SaaS scanner, so scope every claim about the
+   operator's deployment.** A doc comment, `Long`/`LongDescription` help text or
+   `ReportNotice`/`ReportWarning` message written for the SaaS deployment ships as a FALSE statement
+   to everyone else, and the message literals reach a customer-visible scan record. Say "Under Azure
+   Lighthouse …", or use a modal ("one delegated credential CAN see many customers' subscriptions") —
+   the bare categorical present tense is the tell. Fix all surfaces in ONE pass (doc comments, help
+   text, message literals, the package CLAUDE.md); the Azure federation gate keys on
+   `wifConfig.configured()` and correcting it one file per round took three rounds.
