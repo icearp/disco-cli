@@ -56,13 +56,27 @@ func TestScanWithCredential_FederatedScanRequestsNoToken(t *testing.T) {
 	s := &Scanner{}
 	s.scanWithCredential(t.Context(), st, "scan-1", nil, refusingCredential{t: t}, federatedCfg())
 
+	// The same structural claim under a CONSENTED directory. The Entra
+	// services run in that mode, so the block in Scan that stamps
+	// subscription.tenantID and calls tenantDisplayName looks like it should
+	// widen from tenantScopeEnabled to graphTenantEnabled — and must not: both
+	// read ARM or describe disco's own directory. Widening it is the most
+	// likely next mistake here, and with no subscriptions this is what fails
+	// on it, since every tenant service still returns before asking for a
+	// token.
+	s.scanWithCredential(t.Context(), st, "scan-1b", nil, refusingCredential{t: t}, federatedWithGraph)
+
 	// Assert the suppression is what was reported, not merely that SOMETHING
 	// was: with the gates deleted, the failed tenant-id resolution reports its
 	// own warning, so a bare count is satisfied by the very failure this test
 	// exists to catch.
+	// Matched on "skipped:", the one token both KIND-specific notices share.
+	// The wording split by kind — an ARM call names no directory, while the
+	// Graph service was simply not given one — so a phrase from either branch
+	// would pass while the other went unreported.
 	reported := false
 	for _, n := range notices {
-		if strings.Contains(n.Message, "could describe a different directory") {
+		if strings.HasPrefix(n.Message, directoryLossPrefix) {
 			reported = true
 		}
 	}

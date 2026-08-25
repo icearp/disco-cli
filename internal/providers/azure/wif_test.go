@@ -327,7 +327,7 @@ func TestReportTenantScopeSkipped_AccountsForEveryRegisteredService(t *testing.T
 	var svcs []serviceReport
 	var notices []store.ScanNotice
 	var warnings []store.ScanWarning
-	reportTenantScopeSkipped(recordingStore(&svcs, &notices, &warnings), []subscription{{ID: "sub"}}, nil)
+	reportTenantScopeSkipped(recordingStore(&svcs, &notices, &warnings), []subscription{{ID: "sub"}}, nil, federatedNoGraph)
 
 	if len(notices) != len(registeredTenantServices) {
 		t.Fatalf("emitted %d notices; want one per registered tenant service (%d)",
@@ -365,12 +365,41 @@ func TestReportTenantScopeSkipped_AccountsForEveryRegisteredService(t *testing.T
 	}
 }
 
+// TestSkipNotices_OnlyDirectoryLossCarriesThePrefix pins the invariant every
+// prefix-based assertion in this package rests on. Without it, dropping the
+// prefix from a loss notice makes those checks vacuous rather than red — the
+// same failure this file already shipped once with a quoted phrase.
+//
+// Three of the four arms are DEFINITIONAL as written: the loss constants are
+// composed as directoryLossPrefix + "…", so they cannot fail without editing
+// those definitions. That is the mutant they exist for — a later author
+// spelling one out as a bare literal, which is how the convention erodes —
+// and it is measured, not assumed. The dedup arm is the one with content
+// independent of how the constants are spelled. What NONE of them sees is a
+// FOURTH loss notice added without the prefix — three exist, and the fourth
+// arm here is the dedup one, which is not a loss notice. The list is
+// hand-enumerated because nothing in the type system carries the set.
+func TestSkipNotices_OnlyDirectoryLossCarriesThePrefix(t *testing.T) {
+	for _, n := range []struct{ label, msg string }{
+		{"armSkipNotice", armSkipNotice},
+		{"graphSkipNoticeUnnamed", graphSkipNoticeUnnamed},
+		{"graphSkipNoticeMalformed", graphSkipNoticeMalformed},
+	} {
+		if !strings.HasPrefix(n.msg, directoryLossPrefix) {
+			t.Errorf("%s does not carry directoryLossPrefix, so every check that tests for it silently stops seeing this notice: %q", n.label, n.msg)
+		}
+	}
+	if strings.HasPrefix(dedupSkipNotice, directoryLossPrefix) {
+		t.Errorf("dedupSkipNotice carries directoryLossPrefix, which marks a lost directory read; this phase loses nothing: %q", dedupSkipNotice)
+	}
+}
+
 // TestReportTenantScopeSkipped_SeparatesDedupFromDirectoryLoss pins the
 // distinction the notice text has to carry. A dedupOnly phase reads no
 // directory: its data is Microsoft-shipped and every subscription stores its
-// own copy when the tenant phase does not run, so telling the operator those
-// results "could describe a different directory" claims a loss that did not
-// happen — for a service that then reports real counts under the same name.
+// own copy when the tenant phase does not run, so handing it either
+// directory-loss notice claims a loss that did not happen — for a service that
+// then reports real counts under the same name.
 func TestReportTenantScopeSkipped_SeparatesDedupFromDirectoryLoss(t *testing.T) {
 	var dedup []string
 	for _, svc := range registeredTenantServices {
@@ -385,17 +414,35 @@ func TestReportTenantScopeSkipped_SeparatesDedupFromDirectoryLoss(t *testing.T) 
 	var svcs []serviceReport
 	var notices []store.ScanNotice
 	var warnings []store.ScanWarning
-	reportTenantScopeSkipped(recordingStore(&svcs, &notices, &warnings), []subscription{{ID: "sub"}}, nil)
+	reportTenantScopeSkipped(recordingStore(&svcs, &notices, &warnings), []subscription{{ID: "sub"}}, nil, federatedNoGraph)
 
 	byService := map[string]string{}
 	for _, n := range notices {
 		byService[n.Service] = n.Message
 	}
 	for _, name := range dedup {
-		// The exact phrase the directory-loss notice carries. Greps for a
-		// string no message emits pass vacuously, which this assertion did.
-		if strings.Contains(byService[name], "could describe a different directory") {
-			t.Errorf("dedup-only service %q was told its results may describe a different directory: %q", name, byService[name])
+		got := byService[name]
+		// STRUCTURAL, and derived from production rather than quoted: every
+		// directory-loss notice carries directoryLossPrefix and the dedup one
+		// must not, so this catches a third loss kind added later as well as
+		// the two that exist.
+		if strings.HasPrefix(got, directoryLossPrefix) {
+			t.Errorf("dedup-only service %q was handed a directory-loss notice: %q", name, got)
+		}
+		// CONTENT, and positive. The two checks above pin which BRANCH ran and
+		// say nothing about what the message SAYS: comparing against
+		// dedupSkipNotice reads the same constant the production code emits,
+		// so rewriting that constant into a directory-loss sentence satisfies
+		// both and satisfies the prefix test too, which is the mutant that
+		// survived the previous form of this test. A positive assertion on the
+		// wording is the only kind that goes red on a reword — and going red
+		// on a reword is the point, since the reword is when the claim needs
+		// re-reading.
+		if !strings.Contains(got, "each subscription stores its own copy") {
+			t.Errorf("dedup-only service %q notice does not say the rows are stored elsewhere, which is the whole reason this phase loses nothing: %q", name, got)
+		}
+		if got != dedupSkipNotice {
+			t.Errorf("dedup-only service %q notice = %q; want dedupSkipNotice", name, got)
 		}
 		for _, w := range warnings {
 			if w.Service == name {
@@ -416,7 +463,7 @@ func TestReportTenantScopeSkipped_HonoursFilter(t *testing.T) {
 	var svcs []serviceReport
 	var notices []store.ScanNotice
 	var warnings []store.ScanWarning
-	reportTenantScopeSkipped(recordingStore(&svcs, &notices, &warnings), []subscription{{ID: "sub"}}, []string{"azure:microsoft.entra"})
+	reportTenantScopeSkipped(recordingStore(&svcs, &notices, &warnings), []subscription{{ID: "sub"}}, []string{"azure:microsoft.entra"}, federatedNoGraph)
 
 	if len(notices) != 1 || notices[0].Service != "azure:microsoft.entra" {
 		t.Fatalf("emitted %+v; want exactly one notice, for azure:microsoft.entra", notices)
@@ -455,6 +502,15 @@ func TestPartiallyConfigured(t *testing.T) {
 		{"role arn alone", wifConfig{roleARN: "arn:aws:iam::1:role/r"}, true},
 		{"session name alone", wifConfig{sessionName: "s"}, true},
 		{"complete session, no identity", wifConfig{roleARN: "arn:aws:iam::1:role/r", sessionName: "s"}, true},
+		// The graph tenant alone is the worst member to let through, and the
+		// only one whose omission is a DISCLOSURE rather than a wrong
+		// credential: configured() is false, so tenantScopeEnabled() is true,
+		// every tenant service runs, and scanEntra reads whatever directory an
+		// ambient credential authenticated in -- with no pin, because
+		// graphTenantEnabled() is false too. Setting the variable that exists
+		// to prevent that is what turns it on.
+		{"graph tenant alone", wifConfig{graphTenantID: customerDirectory}, true},
+		{"graph tenant beside a complete pair is not partial", wifConfig{clientID: "c", tenantID: "t", graphTenantID: customerDirectory}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

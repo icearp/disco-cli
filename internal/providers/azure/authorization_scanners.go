@@ -138,7 +138,7 @@ func scanAuthorizationNamespace(ctx context.Context, sub *subscription, cred azc
 // (role, policy, policy-set) once per scan and stores them under the tenant GUID.
 // No-ops when the tenant GUID is unavailable — the per-sub scanners then keep
 // storing built-ins under each subscription (current behavior, no data loss).
-func scanAuthorizationBuiltins(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuthorizationBuiltins(ctx context.Context, subs []subscription, cred azcore.TokenCredential, _ wifConfig, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(subs) == 0 || subs[0].tenantID == "" {
 		return 0, 0, nil
 	}

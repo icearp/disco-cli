@@ -22,9 +22,18 @@ For the authoritative, live list of scanned resource types, run
   group. By default it scans every accessible subscription. Under federation it does
   not: the subscriptions must be named (`--subscriptions` or config), because one
   delegated credential can reach many tenants' subscriptions and auto-discovery cannot
-  tell which the scan meant. Tenant-scope services (Entra ID, management groups) are
-  skipped under federation too — nothing confirms the federated identity belongs to the
-  tenant being scanned, so those results could describe a different directory.
+  tell which the scan meant. The tenant-scope services (Entra ID directory objects,
+  management groups, and the tenant-wide fetch of Microsoft's built-in role, policy and policy-set
+  definitions) are skipped under federation too, because nothing confirms the federated
+  identity belongs to the tenant being scanned — under Azure Lighthouse it does not, since
+  the token authenticates in the managing tenant. They do not all stay skipped, and the ones
+  that do are not skipped for the same reason. The Entra ID services come back by naming a
+  directory in `DISCO_AZURE_GRAPH_TENANT_ID`: every Graph token is then issued FOR that
+  directory and the scan refuses to store anything when the directory that answers is not the
+  one named. Management groups have no equivalent — they read through a tenant-root Azure
+  Resource Manager call, which names no directory, so nothing could confirm which one
+  answered. The built-in-definitions fetch loses nothing at all: it is a deduplication pass
+  rather than a directory read, and each subscription stores its own copy instead.
 - **GCP** — per-project fan-out across every reachable project; org/folder-scoped
   resources (IAM policies, log sinks, VPC-SC) run once per scan.
 - **Partial-scan tolerance.** A denied or unreachable service degrades to a warning

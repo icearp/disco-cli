@@ -33,7 +33,7 @@ func init() {
 // multi-subscription scan keeps one copy of the MG tree, not one per
 // subscription. Falls back to the first subscription's ID when the tenant GUID
 // could not be resolved — still a single deduplicated copy.
-func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.TokenCredential, _ wifConfig, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(subs) == 0 {
 		return 0, 0, nil
 	}
