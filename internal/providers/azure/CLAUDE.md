@@ -105,7 +105,7 @@ Role-definition ARM IDs are returned scope-prefixed (`/subscriptions/{sub}/...`)
 
 ## Microsoft Graph (Entra ID) via raw REST + azcore token
 
-Tenant-scope identity scanners hit Graph v1.0 (`https://graph.microsoft.com/v1.0/{users,groups,servicePrincipals,applications}`) directly through the in-package `graphClient` — a thin `*http.Client` + token-issuer pair that issues bearer tokens via `cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}})`. The official `msgraph-sdk-go` (kiota-generated) was dropped — its 88-subpkg discriminator-driven model graph cost ~9 MB symbols + matching rodata to call four list endpoints whose JSON shape `userAttrs`/`groupAttrs`/`spAttrs`/`appAttrs` already model 1:1. Pagination is the OData `@odata.nextLink` chain via the generic `iterateGraph[T]` helper. Tenant ID still resolved by issuing a Graph token and parsing the `tid` claim from the JWT (`tenantIDFromCred`) — `azidentity` exposes no tenant getter. Permission failures surface as `ScanWarning` (Authorization_RequestDenied / Insufficient privileges / 401 / 403); other errors as `ScanError`. The `*Attrs` JSON-tag set must keep matching Graph's response keys — same struct doubles as the unmarshal target, so a tag drift silently zeros the field. Tests inject an httptest server URL via the `graphClient.baseURL` seam plus a `tokenIssuer`-implementing stub. Precedent: `entra_scanners.go`.
+Tenant-scope identity scanners hit Graph v1.0 (`https://graph.microsoft.com/v1.0/{users,groups,servicePrincipals,applications}`) directly through the in-package `graphClient` — a thin `*http.Client` + token-issuer pair that issues bearer tokens via `cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}, TenantID: g.tenantID})`, where an empty `tenantID` means the credential's own directory. Its `*http.Client` is `graphHTTPClient`, which refuses redirects — NOT the shared `azHTTPClient`. The official `msgraph-sdk-go` (kiota-generated) was dropped — its 88-subpkg discriminator-driven model graph cost ~9 MB symbols + matching rodata to call four list endpoints whose JSON shape `userAttrs`/`groupAttrs`/`spAttrs`/`appAttrs` already model 1:1. Pagination is the OData `@odata.nextLink` chain via the generic `iterateGraph[T]` helper. Tenant ID still resolved by issuing a token and parsing the `tid` claim from the JWT (`tenantIDFromCredScopeTenant`; there is no `tenantIDFromCred` any more) — `azidentity` exposes no tenant getter, and reading the tid back is also what proves a federated Graph token came from the directory that was asked for. Permission failures surface as `ScanWarning` (Authorization_RequestDenied / Insufficient privileges / 401 / 403); other errors as `ScanError` — except that the error types this package MINTS against a Graph response never reach that substring test at all, see `neverAConsentFailure`. The `*Attrs` JSON-tag set must keep matching Graph's response keys — same struct doubles as the unmarshal target, so a tag drift silently zeros the field. Tests inject an httptest server URL via the `graphClient.baseURL` seam plus a `tokenIssuer`-implementing stub. Precedent: `entra_scanners.go`.
 
 ## API-driven cross-cutting resolvers
 
@@ -139,22 +139,30 @@ the mismatch surfaces only at exchange time. `retryCredential` retries `AADSTS70
 *with* the colon, or it would also match — and so keep retrying — the permanent `AADSTS700213`), which Microsoft documents as
 an expected transient while a federated credential replicates.
 
-**Under this credential the tenant phase is skipped wholesale, and that is a correctness
-requirement, not a permissions accommodation.** Azure Lighthouse delegates SUBSCRIPTION scope: the
+**Under this credential the tenant phase is suppressed by default, and that is a correctness
+requirement, not a permissions accommodation.** (Suppressed, not skipped wholesale — the Entra
+services can be redirected to a named directory; see the `DISCO_AZURE_GRAPH_TENANT_ID` paragraphs
+below, and read the rest of this paragraph as the default it changes.) Azure Lighthouse delegates SUBSCRIPTION scope: the
 token's authority is *disco's* tenant and ARM resolves the delegation, so every tenant-scope API
 answers about disco's own directory. Note the gate keys on `configured()` — "the WIF contract is
 set" — not on "the identity is foreign to the scanned tenant", which nothing here can check. So it
 also fires for a standalone operator federating into their OWN tenant, where the skip is a real
 capability loss and is unnecessary. Deliberate: prose says so (`azure_scanner.go`'s LongDescription,
-`cmd/config.go`) instead of the customer-visible message claiming a topology, and closing it wants a
-positive `tid`-vs-subscription-tenant check, not a knob. Every registered tenant service would have
+`cmd/config.go`) instead of the customer-visible message claiming a topology. Closing it wanted a
+positive check rather than a knob, and the Graph half now has one — `scanEntra` refuses to store
+anything when the token's `tid` is not the directory the scan was configured for. Every registered tenant service would have
 (`grep -n 'registerTenantService' *.go`), plus `tenantDisplayName`, `tenantIDFromCredScope` and the
 management-group Entities list in `stitchTopHierarchy` — a DIFFERENT call from
-`scanManagementTenant`'s flat list, and a second call site of the same gate. All of them **succeed**
+`scanManagementTenant`'s flat list, and it keys on `tenantScopeEnabled` DIRECTLY rather
+than on the per-service gate below — correct, because it is an ARM call that no token can
+redirect, but it does mean two functions now answer "is tenant scope open" for different
+callers. All of them **succeed**
 rather than 403, so the customer's inventory silently gains disco's users, groups, service
-principals, applications and management groups, with no warning anywhere. The gate is
-`wifConfig.tenantScopeEnabled`, applied in `Scan` to the whole phase rather than per service, so a
-tenant service added later inherits it without being named.
+principals, applications and management groups, with no warning anywhere. The gate is `tenantServiceRunnable`
+(`tenant_scanners.go`), asked per service by BOTH `runTenantServices` and
+`reportTenantScopeSkipped` so the two can never disagree and no service falls through both. A tenant
+service added later is refused under federation without being named — `graphScoped` is opt-in, and
+the default is the suppression.
 
 **That grep is not the whole set.** A call is tenant-wide because of its URL, not because of the
 phase that registered it, so `GET /subscriptions` (covered by `enumerateScope` +
@@ -206,26 +214,264 @@ trigger on the `azure wif:` prefix: every pre-exchange CONFIG refusal carries th
 collapsing those to "authentication failed" is exactly what the eager `AWS_REGION` check exists to
 prevent — two guards in one change cancelling.
 
+**The phase warning's trailing ADVICE clause varies by state (`graphTenantAdvice`), because the two
+SUPPRESSED states fail closed identically and only the message can tell them apart** (the third is
+not a fail-closed state at all — the services run, and the advice must be silent there): a consented
+directory gets no advice at all (those services RAN and are not in the skipped list, so repeating
+their remedy tells an operator to do what they have done), a value set but not a GUID names the
+shape (otherwise it reads exactly like unset, and that is the one case where naming the shape is
+the whole diagnosis), and unset names the variable. Each clause of that warning is gated on the KIND it explains
+(`skippedARM` / `skippedGraph`), not on the wifConfig: `--services` can exclude either kind, so an
+unconditional ARM justification explains a Graph-only list with a fact that the very next clause
+contradicts, and unconditional advice tells an operator how to re-enable a service the run never
+asked for.
+
 The suppressed tenant phase reports **a notice per service plus ONE warning for the phase**. Both
 halves of `store.ScanNotice`'s contract bind at once: coverage genuinely changed (so a notice alone
 would sit outside the warning count, and `scanrun` persists warnings while discarding notices), but
 this fires on every federated scan forever, and per-service fan-out would grow the count as tenant
 services are added.
 
+**The skip notices are constants and a selector, and they split on two axes.** By KIND: an ARM
+phase offers no remedy through this credential because an ARM call names no directory, a `dedupOnly`
+phase lost nothing at all (the per-subscription scanners store the same rows), and the Graph phase's
+cause is actionable. Then the Graph one splits again by STATE, because suppression has two —
+`graphSkipNoticeUnnamed` and `graphSkipNoticeMalformed`, picked by `graphSkipNotice(wif)` on the same
+discriminator `graphTenantAdvice` uses for the phase warning. Both states fail closed identically, so
+only the message distinguishes them, and the unnamed wording told an operator who HAD set the
+variable that nothing was named — pointing them at a warning that said the opposite. Re-derive that
+set from the `const` block; it has been "three notices" in this file while the code had four.
+
+**A CONSTANT IS NOT A CONTENT ORACLE — this is the correction to what that paragraph used to say.**
+A test comparing a message against the constant the production code emits pins which BRANCH ran and
+says nothing about what the message SAYS, so rewriting that constant's VALUE into the forbidden
+claim satisfies it. Measured: the assertion "a dedupOnly service is not told its results may describe
+a different directory" was first written as a grep for a phrase, went vacuous when the phrase was
+reworded, was "fixed" by comparing against `dedupSkipNotice` — and the mutant that gives
+`dedupSkipNotice` the old directory-loss sentence PASSED. Three things settle it and the third is the
+only one with content: a STRUCTURAL check derived from production (`directoryLossPrefix`, which every
+loss notice carries and the dedup one must not), an identity check against the constant, and a
+POSITIVE assertion on the wording itself. Positive is the only kind that goes red on a reword, and
+going red on a reword is the point — the reword is when the claim needs re-reading.
+
+**And a POSITIVE assertion is not automatically a content check — a list of tokens the message must
+mention is a VOCABULARY check, and the two read identically.** The advice test asserted that the
+operator guidance names `DISCO_AZURE_WIF_TENANT_ID`, "OWN tenant", "Lighthouse", "CUSTOMER" and
+"inventory", which is every noun in the sentence and none of its polarity: replacing "and never
+`DISCO_AZURE_WIF_TENANT_ID`" with "and usually" — inverting the one security instruction the message
+carries, for the one value that passes every check in this package and discloses disco's own
+directory — left all five present and the package green.
+
+**Asserting the PREDICATE is not the fix either, and that correction was itself falsified in one
+round.** `"never "+env` was added, and the next mutant SWAPPED the two branch labels — Lighthouse
+gets "the same value as", the operator's own tenant gets "and never" — which keeps every token
+including the predicate, still tells a Lighthouse MSP to point Graph at disco's own directory, and
+was green package-wide. A security instruction has an ARGUMENT (here: which federation mode), and a
+mutant moves the argument. **Assert the PAIRING**: split the string at the two audience labels and
+check each clause carries its own verb and not the other's, in EITHER order — requiring one label to
+come first reports a correct Lighthouse-first rewrite as a swap, and a guard that fails with the
+wrong diagnosis gets suppressed rather than read.
+
+**Then stop refining WHAT is asserted and ask WHICH VALUE — that escalation ran three rounds up a
+dead axis.** grep, predicate, pairing are three sharpenings of one assertion against
+`graphTenantAdvice`'s RETURN VALUE, and all three were made in tests that call the helper directly.
+Nothing asserted the guidance against `warnings[0].Message`. So replacing the one call site,
+`msg += graphTenantAdvice(wif)`, with a one-line "set the variable" sentence deleted the whole
+which-directory guidance — prohibition included — from the only surface a customer sees, and was
+green package-wide: **a test on a helper's return value cannot see the helper's call being deleted.**
+Assert on the rendering the audience receives; a fragment-level pin is a supplement to that, never a
+substitute. The tell that this gap exists is a doc comment saying "read the assembled string, do not
+trust the suite" — that sentence names an assertion somebody chose not to write.
+
+**An ABSENCE has no predicate, so a negative guard cannot be made structural the way a pairing can —
+bound its SIZE instead.** Forbidding the words a retired claim used is a vocabulary check however it
+is framed: "cannot be confirmed to be" was reworded to "may not belong to" and carried none of
+`confirm`/`verif`/`prove`. What survives paraphrase is that a second causal clause has to be spelled
+somehow and every spelling is long, so the warning lead's prose carries a measured byte bound (110
+today, 140 allowed) alongside the verb list. Say in the comment which half is which; the framing is
+what a later round trusts.
+
+The same shape hides in a negative: a guard grepping the literal a previous round RETIRED is
+satisfied by re-adding the same claim reworded, so pin the structural property instead. Pick that
+property from the CLAIM, not from a word the claim happens to use — forbidding "directory" in the
+warning lead failed twice over, since this codebase says "tenant" and "directory" interchangeably
+(so the reworded re-add walked through) and the docs call the service "Entra ID directory objects"
+(so the obvious next edit would have gone red naming something that had not happened). The verb is
+what survives paraphrase: the lead is asserted to carry no "confirm"/"verif"/"prove".
+
+**Sharing a string between two callers re-creates, on the caller that did not have it, whatever
+defect the other caller's context was hiding.** `graphWhichDirectory` was extracted from the unset
+arm and appended to the malformed one; it opened "WHICH directory that is", whose "that" resolved
+against a preceding clause the unset arm supplied and the malformed arm did not — reintroducing on
+one side the dangling reference an earlier round had fixed on the other. The inverse shipped in the
+same edit: the anti-sufficiency clause stayed arm-local while the shared text's doc argued the
+property for both, so the malformed state — whose operator is about to retype a value — was told
+which directory to name and never what naming it buys. When text is shared, move the clauses that
+make it self-contained INTO it, and re-read every caller's assembled output, not the arms.
+
 A **half-set** `DISCO_AZURE_WIF_CLIENT_ID`/`_TENANT_ID` pair is refused (`partiallyConfigured`)
 rather than falling back. `tenantScopeEnabled` reads `configured()` too, so a silent fall back would
 re-enable the whole tenant phase and unpin enumeration off one typo'd variable name.
 
-**There is no env var that reopens tenant scope, and adding a bare allow-list would be worse than
-nothing.** `azidentity`'s `resolveTenant` returns the credential's DEFAULT tenant whenever a request
-specifies none, consulting `AdditionallyAllowedTenants` only when one IS specified — and nothing
-here sets `policy.TokenRequestOptions.TenantID`. So a `DISCO_AZURE_GRAPH_TENANT_ID`-style knob would
-ungate the scanners while every token still targeted disco's tenant: the disclosure above, switched
-on by a variable promising the opposite. The knob ships with the token threading, not before.
+**`DISCO_AZURE_GRAPH_TENANT_ID` reopens the GRAPH half only, and it is two changes rather than
+one — either alone is broken.** `azidentity`'s `resolveTenant` returns the credential's DEFAULT
+tenant whenever a request specifies none, and ERRORS when a request names a tenant that is neither
+the credential's own nor listed in `AdditionallyAllowedTenants`. So the variable sets both:
+`credentialOptions` puts the named directory in the allow list (exactly one entry, never `"*"`) and
+`graphClient` threads it as `policy.TokenRequestOptions.TenantID` on every Graph token. Threading
+without the allow list fails every acquisition; allow-listing without the threading is the version
+that was cut from the previous phase, which would ungate the scanners while every token still
+targeted disco's tenant — the disclosure above, switched on by a variable promising the opposite.
+
+**Only `graphScoped` services are reopened, and the asymmetry is not a conservatism.** A Graph token
+can name the directory it is for; a tenant-root ARM call answers about whichever directory the
+credential authenticated in and has no such parameter, so there is nothing to point and nothing to
+check. Widening `tenantServiceRunnable` to admit the ARM phases is the way this becomes a
+cross-customer disclosure again, which is what
+`TestTenantServiceRunnable_GraphConsentUngatesGraphAlone` exists to catch.
+
+**A `@odata.nextLink` is now checked against the configured Graph ORIGIN before it is followed.**
+A nextLink is a fresh REQUEST, not a redirect, so net/http's rule about dropping `Authorization`
+across hosts never applied to it — `graphClient.get` would present the bearer to whatever host the
+response body named. Do not read that as "the redirect case was covered by net/http": it was not,
+and it was worse — see the redirect paragraph below. That was true before this change; what changed is the token's value, now a
+CUSTOMER's directory under `Directory.Read.All` rather than disco's own. `sameGraphHost` compares
+scheme and parsed HOST against `baseURL`, never a string prefix
+(`https://graph.microsoft.com.evil.example` carries the right prefix). Scheme is compared to base
+rather than hardcoded to https so the httptest servers need no test-only escape hatch, and
+production — where `baseURL` is a `const` https literal — still refuses a downgrade. The host
+comparison is ASCII-only (`asciiHostEqual`), NOT `strings.EqualFold`: that applies Unicode simple
+folding, where U+017F folds to `s`, and `url.Parse` passes any byte >= 0x80 into `Host`
+unvalidated — so `EqualFold` answers true for `graph.microſoft.com`. The origin includes the PORT,
+so a `:443`-qualified link against a bare-host base is refused; Graph emits none, and refusing is
+the safe direction.
+
+**The refusal is its own ERROR TYPE (`foreignLinkError`), and `reportEntraErr` tests that type
+BEFORE its substring block.** The first version echoed the URL verbatim, so a nextLink of
+`https://evil.example/Authorization_RequestDenied` demoted the refusal to the routine
+missing-consent WARNING — the strongest evidence of a tampered Graph response, filed as a
+permission the customer had simply not granted. **Restricting the message to the parsed HOST was
+NOT sufficient, which is the part worth remembering**: `url.Parse` admits
+`Authorization_RequestDenied.evil.example` as a host outright (`shouldEscape` permits
+alphanumerics and `-`, `_`, `.`, `~`), and an IPv6 ZONE admits SPACES (`encodeZone` exempts `' '`),
+so `https://[fe80::1%25%20401]/x` yields the host `[fe80::1% 401]`, matching `" 401"`. Both
+measured. Sanitising the text of an error is not a control when something else classifies it;
+moving classification off the text is. `graphErr` keeps splicing the response BODY into the same
+substring channel, and that is correct — the body is the classifier's intended input and the reason
+it exists. The rule is not "nothing remote reaches the classifier", it is **"an error the
+classifier was not written to read must not be classified by reading it"**.
+
+**Two more text classifiers see the same errors, and both were live defects rather than
+hypotheticals.** Ordering the type test AFTER `msg := formatAzureError(err)` closed nothing:
+`scanBodyForAADSTS`'s last arm matches `"AADSTS"` in ANY error type — deliberately, because MSAL
+and STS return untyped credential errors and that arm is what catches them — so a host of
+`AADSTS700016.evil.example` rewrote the refusal as `azure authentication failed (AADSTS700016)`,
+dropped the host an operator would act on, wrote the attacker's host to stderr and left an
+attacker-chosen key in the never-cleared `loggedCredentialErrors` map. `reportEntraErr` therefore
+resolves the type BEFORE it formats. And `sameGraphHost` constrains a nextLink's scheme and host
+and nothing else, so `http.Client.Do`'s `*url.Error` carried the attacker's PATH and QUERY into the
+substring block — a tampered link the attacker then refuses to answer demoted a transport failure
+to the same warning.
+
+**Stripping the URL from that cause was NOT the fix, and believing it was is the mistake worth
+recording.** The unwrapped cause carries text the SERVER chooses: Go parses the `Location` header
+BEFORE it consults `CheckRedirect`, so an unparseable one renders as `failed to parse Location
+header "/v1.0/Authorization_RequestDenied%zz"` — measured, and classified as the missing-consent
+warning. A malformed response header line does the same with no redirect at all. There is no
+sanitising a channel the remote side writes into; the only fix is that `reportEntraErr` never reads
+it. `neverAConsentFailure` holds every type this package mints against a Graph response and is
+where the next one belongs — the rule is one line of code, not a habit. Re-derive the set from the
+function rather than from a count here: it read "all four" while the function held six, because the
+change that added `oversizePageError` and `tooManyPagesError` wired them in and left the sentence
+alone. Nothing enforces membership, so a seventh escapes silently.
+
+**Bounding that text is a CHOKEPOINT, not a property of each type, and getting that wrong shipped
+once.** `sanitizeForScanRecord` is called from `reportEntra` and nowhere else. The first attempt
+bounded one type's `Error()`, which left `graphErr` — the response BODY, the largest remote-chosen
+string of the lot — going through `formatAzureError`'s pass-through arm untouched, and `hostOnly`'s
+doc claiming a bound it did not have (a 20 kB host parses fine, measured). The body is capped a
+second time at the READ (`maxGraphErrorBody`), because the record's bound cannot stop an
+`io.ReadAll` holding it in memory first — two guards, two separate tests, and the read cap's mutant
+survived the record test.
+
+**A field the response carries as a TYPE must not be re-derived from its text.** `reportEntraErr`
+read the status with `strings.Contains(raw, " 403")`, which matches anywhere in the 8 KiB body the
+remote side wrote — so a 500 whose body said `Error 403` was filed as the routine missing-consent
+WARNING and the real fault never surfaced as one. `graphErr` carries `status` as an int; the code
+STRINGS (`Authorization_RequestDenied`, `Insufficient privileges`) still come from the body and
+should, because those are Graph's own diagnosis. Same claim as the paragraph above, one field
+further in: sanitising the channel is not the fix, not reading the channel for something it does
+not own is.
+
+**Two byte caps and a page cap, and the repeated-link refusal is NOT the loop's bound.** The ERROR
+body was capped while the SUCCESS body — the path that decodes into memory and then goes back for
+another page — was not; `maxGraphPageBody` (64 MiB) closes that, constructed as a `*io.LimitedReader` for the
+HANDLE — `io.LimitReader` RETURNS one, so the two truncate identically — because reading `N` back is
+what distinguishes "the page hit the cap" from a TRUNCATION-shaped malformed body — both reach
+`json.Decoder` as `io.ErrUnexpectedEOF`, while a syntactically invalid body arrives as
+`*json.SyntaxError` and was never confusable. `N` is seeded at the cap PLUS ONE, so `N == 0` means
+strictly more than the cap was delivered and the refusal's stated limit is always true — a body of
+exactly the cap leaves `N == 1` and cannot reach the branch. It does not establish that size is WHY
+the decode failed, so an over-cap body that was also malformed is reported as too large. `maxGraphPages` (200k) bounds the page
+count — the COUNT of `iterateGraph`'s cycle-detection keys and NOT their size, since a key is a
+whole nextLink and nothing caps a nextLink's length; the map's worst case is that product, which is
+an open gap stated at the constant rather than closed by it. It is a `var` only so a test can lower it — 200k round trips is not an observable, and a
+test re-deriving the bound would agree with itself whether or not `iterateGraph` still consulted it.
+**The repeated-link guard names an exact repeat and nothing else**: a server incrementing
+`$skiptoken` produces a fresh URL every time and walks straight past it. What bounds the general
+case is the `serviceTimeout` `runTenantServices` now applies — every (subscription, service) pair
+already had one and the tenant phase had none, so a service that never returned hung the whole scan
+on `wg.Wait()`. That deadline's `cancel()` is DEFERRED inside a wrapper func: `runTenantServices`
+does not recover, `azure_scanner_test.go` registers a tenant service that panics on purpose, and
+`go vet`'s lostcancel cannot see a call the panic jumps over.
+
+**`sameGraphHost` guards the response BODY; the redirect was the unguarded half, and the worse
+one.** It reads `@odata.nextLink`, so a 3xx went unexamined — and `azHTTPClient` had no
+`CheckRedirect`, so it was followed. Measured on the unfixed client: a 302 from the Graph host to
+another origin had the foreign response DECODED and stored as the customer's directory objects,
+**with the bearer forwarded to that origin**. net/http's rule is LOOSER than "same host":
+`shouldCopyHeaderOnRedirect` calls `isDomainOrSubdomain`, so `Authorization` survives a hop to a
+SUBDOMAIN (`evil.graph.microsoft.com`), and it reads `url.Hostname()`, so scheme and port are
+ignored and an https→http downgrade on the same host puts a `Directory.Read.All` token on the wire
+in clear — the exact shape `sameGraphHost` refuses by name for a nextLink. `graphHTTPClient` refuses
+every redirect; it shares the ARM pool's TRANSPORT and not its `http.Client`. **`azHTTPClient`
+itself is unchanged and ARM still follows redirects** — azcore ships no redirect policy, so the
+foreign-body half of this hazard is open there and is deliberately out of scope for a Graph change;
+do not read the Graph fix as covering it. Note
+`ErrUseLastResponse` hands the 3xx BODY back, and a 3xx body is decodable if the server says so — so
+`get` must refuse the status explicitly, or a redirect whose body is valid JSON is parsed as the
+page. Both halves are mutation-proved; the second survived a test whose redirect body was
+`http.Redirect`'s HTML.
+
+`DISCO_AZURE_GRAPH_TENANT_ID`'s value is required to be a GUID (`graphTenantGUID`). The
+multi-tenant aliases `common` and
+`organizations` are exactly what must not be accepted — they resolve to whatever directory the
+token happens to come back for, which is the property being pinned.
+
+**`DISCO_AZURE_GRAPH_TENANT_ID` is REFUSED when half-set, like every other variable in the
+contract, and it is the member whose omission from that check would be worst.** Alone it is not
+inert: `configured()` is false, so `tenantScopeEnabled()` is TRUE, every tenant service runs, and
+`scanEntra` reads whatever directory an ambient credential authenticated in with no pin at all —
+the disclosure the variable is advertised to prevent, switched on by setting it. The realistic
+arrival is a deployment still holding `AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET` for a Lighthouse
+managing principal while a rename drops the WIF pair.
+
+**One JOINING is deliberately untested and says so at the site.** `credentialOptions` is asserted
+in isolation and `graphClient`'s threading is asserted at the token, but nothing reaches
+`newFederatedCredential` without AWS STS — so reverting its options argument to `nil` is green
+across the suite. Recorded in a comment there rather than propped up with a seam built only for a
+test, because the failure is fail-closed and loud: every Graph acquisition would error.
+
+**The proof is the `tid`, never the variable.** `scanEntra` reads the tenant id from the token that
+came back rather than echoing what it asked for, and refuses to store anything if the two disagree:
+every row it writes is keyed by that id, so a mismatch that proceeded would file one directory's
+identities under another's account id, and an append-only inventory cannot be corrected afterwards.
+The disagreement can only mean something upstream is wrong, so a warning and zero rows is the
+answer, not a best effort.
 
 ## Subscription-scoped vs tenant-scoped
 
-Every per-sub scanner runs via `scanSubscription`. Tenant-scope services (Entra ID via Microsoft Graph SDK, etc.) register via `registerTenantService(tenantServiceEntry{...})` in `tenant_scanners.go` — fn fires ONCE per scan, receives `[]subscription` + cred. Dispatch via `runTenantServices` in `tenant_scanners.go`. `Scan` runs the tenant phase **concurrently** with the per-sub fan-out (in the same `WaitGroup`) and gates only each subscription's phase-2 resolvers on it via `waitForTenant(ctx, entraDone)` — the tenant phase's only consumer is the phase-2 authorization resolver, so its latency hides behind phase-1 scanning instead of preceding it. New tenant services that other resolvers depend on inherit this join for free; a tenant service whose data a *phase-1* scanner needs would require widening the gate. Tenant-scope resources are stored under the tenant GUID (`subscription.tenantID`, resolved once in `Scan` from the ARM token's `tid` claim and stamped onto every subscription — **but not under a federated credential**, where the whole tenant phase is gated and the stamp is deliberately left empty; see the federation section above) so a multi-subscription scan keeps a single copy — precedent: `scanManagementTenant` (management groups), `scanAuthorizationBuiltins` (built-in role/policy/set definitions). When `tenantID` is empty (resolution failed) these fall back to per-subscription storage. **Hybrid pattern** (precedent: `scanSubscriptionResource` for `microsoft.resources`/`TypeSubscription`): a tenant-wide ARM API can still run *inside* `scanSubscription` if you accept per-sub duplication — `ResourceID` hash includes account_id so per-sub resolvers FK locally — **and you filter the response to the scanned scope**, which is the half that was missing. Its `GET /subscriptions` answers for the whole tenant, so under a delegated credential the unfiltered loop wrote other customers' subscription ids and display names under this customer's account. Unfiltered, per-sub duplication and cross-customer disclosure are the same bug. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
+Every per-sub scanner runs via `scanSubscription`. Tenant-scope services (Entra ID via Microsoft Graph SDK, etc.) register via `registerTenantService(tenantServiceEntry{...})` in `tenant_scanners.go` — fn fires ONCE per scan, receives `[]subscription` + cred. Dispatch via `runTenantServices` in `tenant_scanners.go`. `Scan` runs the tenant phase **concurrently** with the per-sub fan-out (in the same `WaitGroup`) and gates only each subscription's phase-2 resolvers on it via `waitForTenant(ctx, entraDone)` — the tenant phase's only consumer is the phase-2 authorization resolver, so its latency hides behind phase-1 scanning instead of preceding it. New tenant services that other resolvers depend on inherit this join for free; a tenant service whose data a *phase-1* scanner needs would require widening the gate. Tenant-scope resources are stored under the tenant GUID (`subscription.tenantID`, resolved once in `Scan` from the ARM token's `tid` claim and stamped onto every subscription — **but not under a federated credential**, where the stamp is deliberately left empty; see the federation section above. That stays true even when `DISCO_AZURE_GRAPH_TENANT_ID` lets the Entra phase run — consenting to a directory does not fill the stamp, and could not: the stamp's source is an ARM token, which names disco's directory, while `scanEntra` resolves its own id from the GRAPH token it pinned, and under Lighthouse those are different directories) so a multi-subscription scan keeps a single copy — precedent: `scanManagementTenant` (management groups), `scanAuthorizationBuiltins` (built-in role/policy/set definitions). When `tenantID` is empty (resolution failed) these fall back to per-subscription storage. **Hybrid pattern** (precedent: `scanSubscriptionResource` for `microsoft.resources`/`TypeSubscription`): a tenant-wide ARM API can still run *inside* `scanSubscription` if you accept per-sub duplication — `ResourceID` hash includes account_id so per-sub resolvers FK locally — **and you filter the response to the scanned scope**, which is the half that was missing. Its `GET /subscriptions` answers for the whole tenant, so under a delegated credential the unfiltered loop wrote other customers' subscription ids and display names under this customer's account. Unfiltered, per-sub duplication and cross-customer disclosure are the same bug. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
 
 ## Generic helpers split by concern
 

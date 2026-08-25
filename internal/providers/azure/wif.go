@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -44,6 +45,12 @@ const (
 	envWIFAudience    = "DISCO_AZURE_WIF_AUDIENCE"
 	envWIFRoleARN     = "DISCO_AZURE_WIF_ROLE_ARN"
 	envWIFSessionName = "DISCO_AZURE_WIF_SESSION_NAME"
+	// envGraphTenantID names the DIRECTORY Microsoft Graph calls are aimed at,
+	// which under Azure Lighthouse is the customer's and not the credential's
+	// own. Set it only for a directory whose administrator has granted this
+	// application the Graph application permissions; see
+	// [wifConfig.graphTenantEnabled].
+	envGraphTenantID = "DISCO_AZURE_GRAPH_TENANT_ID"
 )
 
 const (
@@ -79,6 +86,11 @@ type wifConfig struct {
 	audience    string
 	roleARN     string
 	sessionName string
+	// graphTenantID is the customer directory Graph is aimed at. Separate from
+	// tenantID, which is the directory the CREDENTIAL authenticates in; under
+	// Lighthouse those differ and conflating them is the disclosure
+	// [wifConfig.tenantScopeEnabled] exists to prevent.
+	graphTenantID string
 }
 
 // wifEnv reads the contract from the environment. Read once per scan and
@@ -92,11 +104,12 @@ func wifEnv() wifConfig {
 	// than naming the variable, which is the diagnosis the eager checks exist
 	// to give.
 	return wifConfig{
-		clientID:    strings.TrimSpace(os.Getenv(envWIFClientID)),
-		tenantID:    strings.TrimSpace(os.Getenv(envWIFTenantID)),
-		audience:    strings.TrimSpace(os.Getenv(envWIFAudience)),
-		roleARN:     strings.TrimSpace(os.Getenv(envWIFRoleARN)),
-		sessionName: strings.TrimSpace(os.Getenv(envWIFSessionName)),
+		clientID:      strings.TrimSpace(os.Getenv(envWIFClientID)),
+		tenantID:      strings.TrimSpace(os.Getenv(envWIFTenantID)),
+		audience:      strings.TrimSpace(os.Getenv(envWIFAudience)),
+		roleARN:       strings.TrimSpace(os.Getenv(envWIFRoleARN)),
+		sessionName:   strings.TrimSpace(os.Getenv(envWIFSessionName)),
+		graphTenantID: strings.TrimSpace(os.Getenv(envGraphTenantID)),
 	}
 }
 
@@ -115,17 +128,29 @@ func (c wifConfig) configured() bool { return c.clientID != "" && c.tenantID != 
 // whole tenant phase and unpins subscription enumeration — the cross-customer
 // disclosure both guards exist to prevent, in the one deployment where they are
 // load-bearing. An operator's laptop sets none of these and is unaffected.
+//
+// [envGraphTenantID] counts, and it is the member that would be worst to
+// leave out. Alone it is not merely inert: configured() is false, so
+// tenantScopeEnabled() is TRUE, every tenant service runs, and scanEntra reads
+// whatever directory the ambient credential authenticated in with no pin at
+// all — the exact disclosure that variable is advertised to prevent, switched
+// on by setting it. The realistic arrival is a deployment that still holds
+// AZURE_CLIENT_ID/AZURE_CLIENT_SECRET for a Lighthouse managing principal
+// while a rename or a rollback drops the WIF pair.
 func (c wifConfig) partiallyConfigured() bool {
 	if c.configured() {
 		return false
 	}
-	return c.clientID != "" || c.tenantID != "" || c.audience != "" || c.sessionRequested()
+	return c.clientID != "" || c.tenantID != "" || c.audience != "" ||
+		c.graphTenantID != "" || c.sessionRequested()
 }
 
 // ErrIncompleteWIFConfig reports a half-declared federation. See
 // [wifConfig.partiallyConfigured].
 var ErrIncompleteWIFConfig = errors.New("azure wif: " + envWIFClientID + " and " + envWIFTenantID +
-	" must both be set to federate; refusing to fall back to an ambient credential (fail-closed)")
+	" must both be set to federate; refusing to fall back to an ambient credential (fail-closed). " +
+	"Any DISCO_AZURE_ variable in this contract set WITHOUT both of those triggers this, including " + envGraphTenantID +
+	", which grants nothing on its own and would leave every tenant-scope service reading the credential's own directory")
 
 // effectiveAudience is the configured audience, or the only value Entra
 // accepts.
@@ -150,15 +175,30 @@ func (c wifConfig) sessionComplete() bool { return c.roleARN != "" && c.sessionN
 // scope only: authentication happens in the MANAGING tenant and Azure Resource
 // Manager resolves the delegation, so every tenant-scope API this credential
 // can reach answers about DISCO'S OWN directory, not the customer's. Every
-// registered tenant service is affected (grep -n 'registerTenantService' *.go),
+// registered tenant service is affected by default (grep -n 'registerTenantService' *.go),
 // as are tenantDisplayName and tenantIDFromCredScope, which Scan calls outside
 // the service registry, and the management-group Entities list in
 // stitchTopHierarchy, which is a different call from scanManagementTenant's
 // flat list; all of them SUCCEED rather than fail.
 //
-// Which is why the gate is applied to the whole tenant phase in Scan rather
-// than per service: a tenant service added later inherits it without being
-// named here.
+// The registry half of that is now decided per service, by
+// tenantServiceRunnable, which asks THIS function first and admits a Graph
+// service against a named directory second — see
+// [wifConfig.graphTenantEnabled]. A tenant service added later is still
+// refused without being named here, because graphScoped is opt-in and the
+// default is the suppression. Two callers still read this function DIRECTLY,
+// and the grep above is how to re-derive them rather than trusting this list:
+// the block in Scan that stamps subscription.tenantID and fetches the tenant
+// display name, and stitchTopHierarchy's management-group Entities call. Both
+// are correct to, for DIFFERENT reasons. The Entities call is ARM, which names
+// no directory, so no token can redirect it. The block in Scan is NOT: it
+// resolves the tid from an ARM token and then calls tenantDisplayName, which
+// is Microsoft Graph and which a token could redirect — newGraphClient(cred,
+// "") is what keeps it on disco's directory. Redirecting only that half would
+// hang a customer's directory NAME on an ARM-derived id, so the two move
+// together or not at all. (tenantDisplayName and tenantIDFromCredScope test
+// nothing themselves — they sit INSIDE that one block, which is one call site
+// and not two.)
 //
 // That grep is NOT the whole set, though, and reading it as one is its own
 // mistake. A call is tenant-wide because of its URL, not because of which
@@ -174,15 +214,14 @@ func (c wifConfig) sessionComplete() bool { return c.roleARN != "" && c.sessionN
 // disclosure, and because Graph and ARM both ANSWER, nothing in the scan looks
 // wrong — the permission failures the Entra scanner reports never happen.
 //
-// There is deliberately NO env var that reopens tenant scope. Reaching the
-// customer's directory instead of disco's needs a per-request
-// policy.TokenRequestOptions.TenantID naming it, which nothing in this package
-// sets: azidentity's resolveTenant returns the credential's DEFAULT tenant
-// whenever the request specifies none, and consults AdditionallyAllowedTenants
-// only when one IS specified. So an allow-list alone would ungate the scanners
-// while every token still targeted disco's tenant — the disclosure above,
-// switched on by a variable whose name promises the opposite. The knob arrives
-// with the token threading, not before it.
+// There is deliberately NO env var that reopens ARM tenant scope, and this
+// function is not the one [envGraphTenantID] affects. Microsoft GRAPH can be
+// aimed at a named customer directory, because a token can carry that
+// directory — see [wifConfig.graphTenantEnabled], which arrived together with
+// the token threading rather than before it. ARM cannot: Lighthouse delegates
+// SUBSCRIPTION scope only, so a tenant-root ARM call answers about whichever
+// directory the credential authenticated in whatever the token names, and
+// there is nothing to redirect it to.
 //
 // A non-federated run is unaffected: an operator's own credential is already
 // scoped to their own tenant, which is exactly what they mean to scan.
@@ -190,20 +229,70 @@ func (c wifConfig) sessionComplete() bool { return c.roleARN != "" && c.sessionN
 // Known limit, and it cuts BOTH ways, because this keys on the env contract
 // rather than on the property it means to detect. Federating into your OWN
 // tenant is the benign direction: the credential's default tenant IS the
-// scanned tenant, nothing is foreign, and the whole tenant phase is suppressed
-// anyway — a real capability loss for a standalone operator, with no knob,
-// which is why the CLI help says so rather than blaming Lighthouse. The other
+// scanned tenant, nothing is foreign, and the ARM tenant services are
+// suppressed anyway — a real capability loss for a standalone operator, and
+// one only [envGraphTenantID] lifts, for the Entra services alone, by naming
+// that same tenant. Which is why the CLI help says so rather than blaming
+// Lighthouse. The other
 // direction is the unsafe one: a credential that IS a Lighthouse managing
 // identity but arrives another way — DefaultAzureCredential picking up AZURE_CLIENT_ID plus
 // AZURE_CLIENT_SECRET, which is the ordinary way Lighthouse gets automated —
 // leaves every guard off. Not reachable from the deployed image, which sets
 // the contract or nothing, and subscriptionResourceBatch's filter holds
 // either way. Closing it properly wants a POSITIVE signal: compare the
-// credential's tid against the scanned subscription's tenant. That cannot be
-// read off the page already being filtered — armsubscription.Subscription
-// carries no tenant field — so it needs a separate Get, which is why it is
-// recorded here rather than done.
+// credential's tid against the scanned subscription's tenant. Nothing in this
+// module graph can supply it: armsubscription.Subscription carries no tenant
+// field, and neither does a separate Get, whose response embeds that same
+// model (armsubscription@v1.2.0 response_types.go). It needs a package this
+// build does not depend on (resourcemanager/resources/armsubscriptions) or a
+// raw ARM call at a newer api-version — which is why it is recorded here
+// rather than done. [envGraphTenantID] does NOT close this: it pins which
+// directory answers a Graph token, not that the directory belongs to the
+// customer whose subscriptions are being scanned. The caller supplying that
+// value owns the correlation.
 func (c wifConfig) tenantScopeEnabled() bool { return !c.configured() }
+
+// graphTenantGUID matches the canonical 8-4-4-4-12 form. Deliberately
+// stricter than azidentity's own validTenantID, which also accepts names like
+// "organizations" and "common": those are multi-tenant aliases whose meaning
+// is "whichever directory the caller signs in to", which is the opposite of
+// naming one, and this value's whole job is to name one.
+var graphTenantGUID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// graphTenantEnabled reports whether the Microsoft Graph scanners may run
+// against the directory named by [envGraphTenantID].
+//
+// Both conditions are required and the conjunction IS the control:
+//
+//   - federated. A non-federated operator's credential already authenticates
+//     in the directory they mean to scan, so [wifConfig.tenantScopeEnabled] is
+//     already true and there is nothing to redirect.
+//   - the value is a GUID. This also covers "unset", since the empty string
+//     does not match — the Graph scanners stay off exactly as before. A
+//     malformed value would otherwise reach azidentity's
+//     AdditionallyAllowedTenants and policy.TokenRequestOptions.TenantID and
+//     fail with a message naming neither the variable nor this scan —
+//     locally, from azidentity's own validTenantID, or at the wire with an
+//     Entra code, depending on which characters it carries.
+//
+// This ungates the GRAPH scanners alone. It never reopens the ARM tenant
+// phase, whose calls Lighthouse does not delegate and which no token can
+// redirect.
+//
+// Being true is NOT sufficient for the calls to be safe, and the other two
+// halves live elsewhere on purpose: the credential must carry this directory
+// in its allow list ([newFederatedCredential]) and every Graph token must name
+// it ([graphClient.get]). azidentity's resolveTenant returns the credential's
+// DEFAULT tenant whenever a request specifies none, so a gate opened without
+// the threading would read DISCO'S directory and write it into the customer's
+// inventory — the disclosure of tenantScopeEnabled's doc, switched on by a
+// variable promising the opposite. That is why the knob was withheld until the
+// threading existed, and why scanEntra additionally REFUSES a token whose tid
+// is not this value: the env var says which directory was consented, the tid
+// says which one actually answered, and only the second is evidence.
+func (c wifConfig) graphTenantEnabled() bool {
+	return c.configured() && graphTenantGUID.MatchString(c.graphTenantID)
+}
 
 // credentialMode names which credential a scan authenticates with.
 type credentialMode string
@@ -240,20 +329,55 @@ func newAzureCredential(ctx context.Context, c wifConfig) (azcore.TokenCredentia
 
 // newFederatedCredential builds the AWS-to-Entra federated credential.
 //
-// No AdditionallyAllowedTenants: every token this credential mints is for
-// c.tenantID, which is what [wifConfig.tenantScopeEnabled] relies on. Widening
-// the allow list without also threading a per-request tenant would change
-// nothing at the wire and everything about what the gate believes.
+// AdditionallyAllowedTenants carries the consented customer directory and
+// NOTHING else — never "*", which azidentity accepts and which would let any
+// future caller mint a token for any directory this application is registered
+// in. With the list empty, azidentity's resolveTenant refuses a request naming
+// a tenant other than c.tenantID outright (azidentity.go, resolveTenant: a
+// non-empty default plus an empty list falls through to an error), so the
+// threading in [graphClient.get] would fail at every Graph call rather than
+// silently reading the wrong directory. Both halves are required and neither
+// is useful alone.
 func newFederatedCredential(ctx context.Context, c wifConfig) (azcore.TokenCredential, error) {
 	assertion, err := webIdentityAssertion(ctx, c)
 	if err != nil {
 		return nil, err
 	}
-	cred, err := azidentity.NewClientAssertionCredential(c.tenantID, c.clientID, assertion, nil)
+	// UNTESTED CALL SITE, stated rather than papered over: reverting this
+	// argument to nil is green across the whole suite. credentialOptions is
+	// asserted in isolation and graphClient's threading is asserted at the
+	// token, but nothing reaches HERE without AWS STS, so the two halves are
+	// each pinned and their JOINING is not. The failure is fail-closed and
+	// loud — every Graph acquisition would error, because azidentity refuses a
+	// named tenant that is not in the list — which is why it is recorded
+	// rather than propped up with a seam built only for a test.
+	cred, err := azidentity.NewClientAssertionCredential(c.tenantID, c.clientID, assertion, credentialOptions(c))
 	if err != nil {
 		return nil, fmt.Errorf("azure wif: client assertion credential: %w", err)
 	}
 	return &retryCredential{inner: cred}, nil
+}
+
+// credentialOptions builds the azidentity options for the federated
+// credential. Pure and side-effect-free so the allow list can be asserted
+// without AWS, Entra or the environment — the same contract as
+// [selectCredentialMode] and [resolveSubscriptionScope].
+//
+// Returns nil (azidentity's defaults, no allow list) unless a customer
+// directory is configured, so an ordinary Lighthouse scan keeps a credential
+// that can mint tokens for disco's tenant and nothing else.
+//
+// The list holds exactly the consented directory. Never "*": azidentity
+// accepts it and it would let any caller, now or later, mint a token for any
+// directory this multi-tenant application has a service principal in — which
+// is every customer who has ever deployed the Lighthouse offer.
+func credentialOptions(c wifConfig) *azidentity.ClientAssertionCredentialOptions {
+	if !c.graphTenantEnabled() {
+		return nil
+	}
+	return &azidentity.ClientAssertionCredentialOptions{
+		AdditionallyAllowedTenants: []string{c.graphTenantID},
+	}
 }
 
 // webIdentityAssertion wires the AWS side of the exchange: the subject
@@ -427,10 +551,15 @@ func (r *retryCredential) exhausted(now time.Time) bool {
 		//
 		// Race-only and deliberately uncovered: CompareAndSwap fails only on a
 		// non-zero value, so single-threaded this branch is unreachable and no
-		// test can kill a mutant that deletes it. Unreachable TODAY, too —
-		// cachingCredential's singleflight serialises acquisitions per scope
-		// and federation requests only one scope — which is exactly why it is
-		// written down rather than left for the token threading to discover.
+		// test can kill a mutant that deletes it. It used to be unreachable in
+		// production as well, because cachingCredential's singleflight serialises
+		// acquisitions per scope and federation requested only one. The Graph
+		// threading ended that: tokenCacheKey is TenantID + "\x00" + scopes, so a
+		// consented directory puts the Entra phase on (customer, graphScope)
+		// while the per-subscription fan-out is on ("", armScope) — two keys, two
+		// concurrent acquisitions, one retryCredential. The branch is benign
+		// either way, which is why it was written down rather than left for this
+		// change to discover.
 		return false
 	}
 	return now.Sub(time.Unix(0, first)) > r.budgetOrDefault()
@@ -456,6 +585,15 @@ func (r *retryCredential) GetToken(ctx context.Context, opts policy.TokenRequest
 	for attempt := 1; attempt <= federationPropagationAttempts; attempt++ {
 		tok, err = r.inner.GetToken(ctx, opts)
 		if err == nil {
+			// The streak is per-CREDENTIAL, not per-scope, and the Graph
+			// threading made that observable: a succeeding ARM acquisition now
+			// clears the stamp a concurrently-failing Graph one set, so the
+			// give-up budget can be extended indefinitely against a permanently
+			// broken consent. Bounded by federationPropagationAttempts either
+			// way — a few seconds per acquisition, and cachingCredential means
+			// one acquisition per (tenant, scope) — so it is left per-credential
+			// rather than given a key: the budget exists to stop a scan hanging
+			// on propagation, and a scan whose ARM half is working is not hung.
 			r.firstFailure.Store(0)
 			return tok, nil
 		}

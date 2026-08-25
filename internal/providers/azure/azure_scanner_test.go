@@ -319,18 +319,46 @@ func TestRegisteredTenantServices_ExpectedNames(t *testing.T) {
 	}
 }
 
-// TestRegisterTenantService_DuplicatePanics confirms double-registration is rejected.
+// TestRegisterTenantService_DuplicatePanics confirms double-registration is
+// rejected, and that it leaves the registry as it found it.
+//
+// The registration runs in a SUBTEST so its t.Cleanup fires before the parent
+// checks. Restoring with a plain t.Cleanup here is correct and untestable: the
+// cleanup runs after every assertion in the same test, and the one test that
+// would notice the leak — TestRegisteredTenantServices_ExpectedNames — sits
+// earlier in this same file, so it runs BEFORE the leak happens. That is why
+// the leak was invisible, and dropping the restore was green.
+//
+// It matters more than it did: the first registration below succeeds, and
+// reportTenantScopeSkipped now reads this registry on EVERY scan, so a leaked
+// fourth ARM-kind service is something every tenant-phase assertion downstream
+// has to be accidentally robust to.
 func TestRegisterTenantService_DuplicatePanics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("registerTenantService accepted duplicate name without panicking")
+	before := append([]tenantServiceEntry(nil), registeredTenantServices...)
+
+	t.Run("second registration panics", func(t *testing.T) {
+		saved := registeredTenantServices
+		t.Cleanup(func() { registeredTenantServices = saved })
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("registerTenantService accepted duplicate name without panicking")
+			}
+		}()
+		noop := func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, int, error) {
+			return 0, 0, nil
 		}
-	}()
-	noop := func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ *store.Store, _ string) (int, int, error) {
-		return 0, 0, nil
+		registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
+		registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
+	})
+
+	if len(registeredTenantServices) != len(before) {
+		t.Fatalf("registry left at %d services; started at %d — the successful first registration leaked into every later test", len(registeredTenantServices), len(before))
 	}
-	registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
-	registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
+	for i := range before {
+		if registeredTenantServices[i].name != before[i].name {
+			t.Errorf("registry entry %d is now %q; was %q", i, registeredTenantServices[i].name, before[i].name)
+		}
+	}
 }
 
 // assertReturns runs fn in a goroutine and fails if it has not returned within a
@@ -382,7 +410,7 @@ func TestTenantPhase_ClosesChannelOnPanic(t *testing.T) {
 	t.Cleanup(func() { registeredTenantServices = saved })
 	registeredTenantServices = []tenantServiceEntry{{
 		name: "azure:panic-test",
-		fn: func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ *store.Store, _ string) (int, int, error) {
+		fn: func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, int, error) {
 			panic("boom in tenant phase")
 		},
 	}}
@@ -394,7 +422,7 @@ func TestTenantPhase_ClosesChannelOnPanic(t *testing.T) {
 		// last, after the panic is recovered), reportPanic deferred second.
 		defer close(entraDone)
 		defer reportPanic(st, "entra", "tenant")
-		runTenantServices(context.Background(), nil, nil, nil, st, "scan-id")
+		runTenantServices(context.Background(), nil, nil, wifConfig{}, nil, st, "scan-id")
 	})
 
 	select {

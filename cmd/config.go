@@ -71,16 +71,44 @@ azure:
   # And rarely:
   #   DISCO_AZURE_WIF_AUDIENCE      - token audience; defaults to the correct
   #                                   api://AzureADTokenExchange. Note ANY of
-  #                                   these five set without both required
-  #                                   ones above is refused, not ignored.
-  # Whenever this is set, tenant-scope services (Entra ID, management groups)
-  # are skipped: nothing here confirms the federated identity belongs to the
-  # tenant being scanned, so those results could describe a different
-  # directory. Under Azure Lighthouse they would — the token authenticates in
-  # the managing tenant. Federating into your own tenant makes the skip
-  # unnecessary, but it still applies, and no variable re-enables it. The
-  # subscriptions below (or --subscriptions) also become mandatory, since one
-  # delegated credential can see many customers' subscriptions.
+  #                                   the DISCO_AZURE_* variables in this
+  #                                   block set without both required ones
+  #                                   above is refused, not ignored — that
+  #                                   includes DISCO_AZURE_GRAPH_TENANT_ID,
+  #                                   described below.
+  # Whenever this is set, the tenant-scope services (Entra ID directory
+  # objects, management groups, and the tenant-wide fetch of Microsoft's
+  # built-in role, policy and policy-set definitions) are skipped by default:
+  # nothing here confirms the federated identity belongs to the tenant being
+  # scanned, so those results could describe a different directory. Under
+  # Azure Lighthouse they would — the token authenticates in the managing
+  # tenant. Federating into your own tenant makes the skip unnecessary, but
+  # it still applies. One variable lifts half of it:
+  #   DISCO_AZURE_GRAPH_TENANT_ID   - the directory to read Entra ID objects
+  #                                   from, as a GUID. Re-enables the Entra
+  #                                   scanners ALONE, and does it by NAMING
+  #                                   that directory on every Graph token
+  #                                   rather than by trusting the identity —
+  #                                   the scan refuses to store anything if a
+  #                                   token comes back issued for a different
+  #                                   one. The application must be permitted
+  #                                   to issue tokens there (admin consent in
+  #                                   that directory). What stays skipped
+  #                                   whatever this says stays skipped for
+  #                                   DIFFERENT reasons. Management groups: a
+  #                                   tenant-root ARM call names no directory,
+  #                                   so nothing could confirm which one
+  #                                   answered. The tenant-wide fetch of
+  #                                   Microsoft's built-in role, policy and
+  #                                   policy-set definitions: nothing is lost,
+  #                                   because each subscription stores its own
+  #                                   copy instead — that phase is a
+  #                                   deduplication optimisation, not a
+  #                                   directory read.
+  #                                   Role assignments are read per
+  #                                   subscription and are unaffected.
+  # The subscriptions list above (or --subscriptions) also becomes mandatory,
+  # since one delegated credential can see many customers' subscriptions.
 `
 
 var configCmd = &cobra.Command{

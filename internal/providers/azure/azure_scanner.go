@@ -100,20 +100,38 @@ credential — no client secret is stored. To present a named session, so
 the Entra trust names one identity rather than whatever the platform
 chose, also set DISCO_AZURE_WIF_ROLE_ARN + DISCO_AZURE_WIF_SESSION_NAME.
 DISCO_AZURE_WIF_AUDIENCE overrides the token audience and rarely needs to
-be set. Any of these set WITHOUT both required ids is refused rather than
-ignored, because a half-declared federation would otherwise fall back to a
-credential the tenant-scope guards do not apply to.
+be set. Any DISCO_AZURE_ variable in this contract set WITHOUT both required
+ids is refused rather than ignored — including DISCO_AZURE_GRAPH_TENANT_ID,
+described below — because a half-declared federation would otherwise fall
+back to a credential the tenant-scope guards do not apply to.
 
-Under this mode tenant-scope services (Entra ID, management groups) are
-SKIPPED unconditionally. The reason is what this build can CHECK, not what
-your setup is: nothing here confirms the federated identity belongs to the
-tenant being scanned, so tenant-scope results could describe a different
-directory. The case that motivates it is Azure Lighthouse, where the token
-authenticates in the MANAGING tenant and only subscription scope is
-delegated. It applies just the same when you federate into your OWN tenant,
-where the skip is unnecessary — closing that needs a positive check
-(compare the token's tid against the scanned subscription's tenant), which
-this build does not have.
+Under this mode the tenant-scope services (Entra ID directory objects,
+management groups, and the tenant-wide fetch of Microsoft's built-in role,
+policy and policy-set definitions) are SKIPPED by default. The reason is
+what this build can CHECK, not what your setup is: nothing here confirms
+the federated identity belongs to the tenant being scanned, so tenant-scope
+results could describe a different directory. The case that motivates it is
+Azure Lighthouse, where the token authenticates in the MANAGING tenant and
+only subscription scope is delegated. It applies just the same when you
+federate into your OWN tenant, where the skip is unnecessary.
+
+Set DISCO_AZURE_GRAPH_TENANT_ID to the GUID of the directory you want Entra
+ID objects read from, and the Entra ID services run again. That is not a
+trust setting: every Microsoft Graph token is then issued FOR that directory
+by name, and the scan refuses to store anything if a token comes back issued
+for a different one. The Entra application must be permitted to issue tokens
+there — in the Lighthouse case, an administrator of that directory grants it
+admin consent.
+
+What stays skipped whatever that variable says does so for reasons that are
+not the same one. Management groups read through a tenant-root Azure Resource
+Manager call, which names no directory, so it answers about whichever one the
+credential authenticated in and there is nothing to point at the customer and
+nothing to check. The tenant-wide fetch of Microsoft's built-in role, policy
+and policy-set definitions loses nothing at all: it is a deduplication pass
+rather than a directory read, and each subscription stores its own copy
+instead. Role ASSIGNMENTS are unaffected either way: they are read per
+subscription, inside the delegation.
 
 Subscriptions must also be named explicitly, by --subscriptions or by the
 config list: one delegated credential can see MANY customers' subscriptions,
@@ -240,11 +258,7 @@ func (s *Scanner) scanWithCredential(ctx context.Context, st *store.Store, scanI
 	wg.Go(func() {
 		defer close(entraDone)
 		defer reportPanic(st, "entra", tenantScopeLabel(subs))
-		if !wif.tenantScopeEnabled() {
-			reportTenantScopeSkipped(st, subs, s.serviceFilter)
-			return
-		}
-		runTenantServices(ctx, subs, cred, s.serviceFilter, st, scanID)
+		runTenantPhase(ctx, subs, cred, wif, s.serviceFilter, st, scanID)
 	})
 
 	for i := range subs {
