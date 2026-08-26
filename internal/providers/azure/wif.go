@@ -203,11 +203,16 @@ func (c wifConfig) sessionComplete() bool { return c.roleARN != "" && c.sessionN
 // That grep is NOT the whole set, though, and reading it as one is its own
 // mistake. A call is tenant-wide because of its URL, not because of which
 // phase registered it: GET /subscriptions runs inside the per-subscription
-// fan-out (covered instead by enumerateScope and subscriptionResourceBatch),
-// and armautomanage's BestPractices.ListByTenant is a tenant-ROOT path in a
-// per-subscription scanner. To re-derive the set, look for ARM operations
-// whose URL template carries no {subscriptionId} or {scope} segment and check
-// each against these guards — a service-registry grep cannot see any of them.
+// fan-out and is covered instead by enumerateScope and
+// subscriptionResourceBatch. The one other instance we had found,
+// armautomanage's BestPractices.ListByTenant, was left ungated on the grounds
+// that its payload is Microsoft's own catalog — the wrong axis, because the
+// row it stored asserted a successful read of a subscription that had refused
+// every other call. That scanner is gone (the service retires in September
+// 2027), so no live example remains and the set is UNENUMERATED, not empty.
+// To re-derive it, look for ARM operations whose URL template carries no
+// {subscriptionId} or {scope} segment and check each against these guards — a
+// service-registry grep cannot see any of them.
 //
 // Left ungated, a Lighthouse-only scan writes disco's directory into the
 // customer's inventory as their resources. That is a cross-customer

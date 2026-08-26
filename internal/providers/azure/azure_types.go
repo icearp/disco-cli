@@ -473,7 +473,6 @@ const (
 	TypeAppContainersConnectedEnvironment  = "azure:microsoft.app:connected-environments"
 	TypeAppContainersJob                   = "azure:microsoft.app:jobs"
 	TypeAppContainersSessionPool           = "azure:microsoft.app:session-pools"
-	TypeAutomanageBestPractice             = "azure:microsoft.automanage:best-practices"
 	TypeAutomanageConfigProfileAssignment  = "azure:microsoft.automanage:configuration-profile-assignments"
 	TypeAutomanageServicePrincipal         = "azure:microsoft.automanage:service-principals"
 	TypeLargeInstanceStorage               = "azure:microsoft.azurelargeinstance:azure-large-storage-instances"
@@ -919,7 +918,6 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.app/connectedenvironments":                          TypeAppContainersConnectedEnvironment,
 	"microsoft.app/jobs":                                           TypeAppContainersJob,
 	"microsoft.app/sessionpools":                                   TypeAppContainersSessionPool,
-	"microsoft.automanage/bestpractices":                           TypeAutomanageBestPractice,
 	"microsoft.automanage/configurationprofileassignments":         TypeAutomanageConfigProfileAssignment,
 	"microsoft.automanage/serviceprincipals":                       TypeAutomanageServicePrincipal,
 	"microsoft.azurelargeinstance/azurelargestorageinstances":      TypeLargeInstanceStorage,
