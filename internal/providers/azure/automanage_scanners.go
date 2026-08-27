@@ -12,7 +12,6 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeAutomanageConfigProfile, Service: "microsoft.automanage", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAutomanageBestPractice, Service: "microsoft.automanage", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeAutomanageConfigProfileAssignment, Service: "microsoft.automanage", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeAutomanageServicePrincipal, Service: "microsoft.automanage", Leaf: true})
 	registerService(serviceEntry{
@@ -22,15 +21,11 @@ func init() {
 }
 
 // scanAutomanage discovers Automanage configuration profiles, the platform
-// best-practice catalog, profile assignments, and the service principal.
+// profile assignments, and the service principal.
 func scanAutomanage(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	profiles, err := armautomanage.NewConfigurationProfilesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armautomanage:NewConfigurationProfilesClient: %w", err)
-	}
-	bp, err := armautomanage.NewBestPracticesClient(cred, azClientOptions)
-	if err != nil {
-		return 0, 0, fmt.Errorf("armautomanage:NewBestPracticesClient: %w", err)
 	}
 	assigns, err := armautomanage.NewConfigurationProfileAssignmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -49,23 +44,6 @@ func scanAutomanage(ctx context.Context, sub *subscription, cred azcore.TokenCre
 				},
 				func(r *armautomanage.ConfigurationProfile) azTrackedBase {
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
-				})
-		},
-		func() (int, int, error) {
-			// GET /providers/Microsoft.Automanage/bestPractices — a tenant-ROOT
-			// path inside the per-subscription fan-out, so wifConfig's tenant
-			// gate never sees it. Left ungated on purpose: what it returns is
-			// Microsoft's own published catalog, identical for every tenant and
-			// stored managed:true, so it discloses nothing about disco or about
-			// another customer. Any OTHER tenant-root call added here does need
-			// the gate — see wifConfig.tenantScopeEnabled.
-			return azSimpleScan(ctx, "armautomanage:BestPractices.ListByTenant", TypeAutomanageBestPractice, sub, st, scanID,
-				bp.NewListByTenantPager(nil),
-				func(p armautomanage.BestPracticesClientListByTenantResponse) []*armautomanage.BestPractice {
-					return p.Value
-				},
-				func(r *armautomanage.BestPractice) azTrackedBase {
-					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), managed: true, full: r}
 				})
 		},
 		func() (int, int, error) {

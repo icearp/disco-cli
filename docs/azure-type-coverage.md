@@ -21,9 +21,9 @@ candidate set with the coverage command above.
 | Bucket | Count |
 |---|---|
 | Top-level types adjudicated | 1916 |
-| — INCLUDE (scannable) | 172 |
+| — INCLUDE (scannable) | 171 |
 | — DEFER (parent-scoped) | 32 |
-| — DROP (probed: no list / no module / query / third-party) | 328 |
+| — DROP (probed: no list / no module / query / third-party) | 329 |
 | — DROP (pattern: operations/metadata/action-verb) | 780 |
 | — DROP (namespace: third-party / billing / query / metadata RP) | 604 |
 | Nested child types (bulk DEFER parent-scoped) | 2337 |
@@ -35,7 +35,6 @@ candidate set with the coverage command above.
 | microsoft.app/connectedenvironments | appcontainers/armappcontainers/v3 | ConnectedEnvironmentsClient.NewListBySubscriptionPager | ConnectedEnvironment | false | - |
 | microsoft.app/jobs | appcontainers/armappcontainers/v3 | JobsClient.NewListBySubscriptionPager | Job | false | properties.configuration.secrets.value |
 | microsoft.app/sessionpools | appcontainers/armappcontainers/v3 | ContainerAppsSessionPoolsClient.NewListBySubscriptionPager | SessionPool | false | - |
-| microsoft.automanage/bestpractices | automanage/armautomanage | BestPracticesClient.NewListByTenantPager | BestPractice | true | - |
 | microsoft.automanage/configurationprofileassignments | automanage/armautomanage | ConfigurationProfileAssignmentsClient.NewListBySubscriptionPager | ConfigurationProfileAssignment | false | - |
 | microsoft.automanage/serviceprincipals | automanage/armautomanage | ServicePrincipalsClient.NewListBySubscriptionPager | ServicePrincipal | false | - |
 | microsoft.azurearcdata/postgresinstances | azurearcdata/armazurearcdata | PostgresInstancesClient.NewListPager | PostgresInstance | false | properties.basicLoginInformation.password |
@@ -251,12 +250,18 @@ map iteration order).
 
 ## DROP — probed candidates (full list)
 
-> Note: two types were INCLUDE'd then dropped after the first live scan exposed
-> unrecoverable SDK/API failures (see below).
+> Note: three types were INCLUDE'd then dropped. Two came off the first live
+> scan, which exposed unrecoverable SDK/API failures. The third,
+> `microsoft.automanage/bestpractices`, came off later for two reasons at once:
+> Microsoft retires the service in September 2027, and its pager is
+> tenant-ROOT, so under a delegated credential it answered for the scanning
+> principal's own directory while the rows were stamped with the scanned
+> subscription (issue #9).
 
 ```
 microsoft.maintenance/applyupdates	404 operation-not-supported — not sub-listable
 microsoft.network/networkvirtualapplianceskus	SDK deserialization bug (instanceCount string vs int32)
+microsoft.automanage/bestpractices	service retires 2027-09; tenant-ROOT pager carries no {subscriptionId}
 microsoft.aadcustomsecurityattributesdiagnosticsettings/diagnosticsettingscategories	metadata/ops
 microsoft.aadcustomsecurityattributesdiagnosticsettings/diagnosticsettings	no-sdk-module
 microsoft.app/agents	no-sdk-module

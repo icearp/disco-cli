@@ -165,10 +165,15 @@ service added later is refused under federation without being named — `graphSc
 the default is the suppression.
 
 **That grep is not the whole set.** A call is tenant-wide because of its URL, not because of the
-phase that registered it, so `GET /subscriptions` (covered by `enumerateScope` +
-`subscriptionResourceBatch`) and armautomanage's `BestPractices.ListByTenant` (a tenant-ROOT path,
-deliberately left ungated — it returns Microsoft's published catalog and discloses nothing) both sit
-inside the per-SUBSCRIPTION fan-out. Re-derive the set from ARM URL templates carrying no
+phase that registered it, so `GET /subscriptions` sits inside the per-SUBSCRIPTION fan-out and is
+covered by `enumerateScope` + `subscriptionResourceBatch`. The other instance we knew of,
+armautomanage's `BestPractices.ListByTenant`, was left ungated because its payload is Microsoft's
+own catalog — judged on the wrong axis. The harm was not the payload but the ATTRIBUTION: the row
+was stamped with the scanned subscription and so asserted a successful read of a subscription that
+had refused everything else. `managed:true` did not contain that: it hides a row from default
+listings and does nothing to a consumer that asks for managed rows. That scanner is gone, so no
+live example remains and the set is
+UNENUMERATED rather than empty. Re-derive it from ARM URL templates carrying no
 `{subscriptionId}`/`{scope}` segment, not from the registry.
 
 Consequences to keep in step. `Scan` must also skip stamping `subscription.tenantID` — the
