@@ -332,7 +332,8 @@ func (e *graphTransportError) Error() string {
 func (e *graphTransportError) Unwrap() error { return e.err }
 
 // sanitizeForScanRecord bounds and de-fangs remote text on its way to
-// store.ScanError. Called once, from reportEntra.
+// store.ScanError. Two callers: reportEntra, for Graph-derived text, and
+// reportPanic, for a recovered panic value.
 //
 // EVERY message reaching that record carries bytes somebody else chose — a
 // Graph error body, a nextLink host, a Location host, a transport cause that

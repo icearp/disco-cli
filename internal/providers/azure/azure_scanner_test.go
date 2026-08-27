@@ -2,6 +2,8 @@ package azure
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -429,5 +431,172 @@ func TestTenantPhase_ClosesChannelOnPanic(t *testing.T) {
 	case <-entraDone:
 	default:
 		t.Fatal("entraDone was not closed after the tenant phase panicked")
+	}
+}
+
+// TestReportPanic_RedactsAPanickedARMError pins the last path in this package
+// that reached store.ScanError without passing a redaction chokepoint.
+//
+// A recovered value is often an error, and %v on a panicked
+// *azcore.ResponseError renders its whole ARM body. For a 401 that body quotes
+// the issuer that was presented -- under Lighthouse federation, disco's own
+// directory, identical for every customer -- onto the CUSTOMER's scan record.
+// Both preWG goroutines defer reportPanic, so it sits on the exact path the
+// unreachable-subscription work is about.
+func TestReportPanic_RedactsAPanickedARMError(t *testing.T) {
+	const issuer = "https://sts.windows.net/581de929-1111-2222-3333-444455556666/"
+	body := `{"error":{"code":"InvalidAuthenticationTokenTenant","message":` +
+		`"The access token is from the wrong issuer '` + issuer + `'."}}`
+	respErr := &azcore.ResponseError{
+		ErrorCode:  "InvalidAuthenticationTokenTenant",
+		StatusCode: http.StatusUnauthorized,
+		RawResponse: &http.Response{
+			StatusCode: http.StatusUnauthorized,
+			Body:       io.NopCloser(strings.NewReader(body)),
+		},
+	}
+
+	st := newTestStore(t)
+	var (
+		mu  sync.Mutex
+		got store.ScanError
+	)
+	st.OnError = func(e store.ScanError) {
+		mu.Lock()
+		got = e
+		mu.Unlock()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer reportPanic(st, "providers", "sub-1")
+		panic(respErr)
+	}()
+	<-done
+
+	mu.Lock()
+	defer mu.Unlock()
+	// EQUALITY, because the two redactions in reportPanic produce the same
+	// observable on this fixture and a bounded assertion detects NEITHER.
+	// Measured: with formatAzureError removed but sanitizeForScanRecord kept,
+	// the leak strings sit past the 200-rune cut (azcore renders 256 bytes of
+	// request line, separators and ERROR CODE before the body begins, because
+	// this ResponseError has no Request), so a "must not contain" check passes;
+	// with sanitize removed but the formatter kept it passes too. Both mutants
+	// survived the first version of this test.
+	const want = "panic: azure token rejected for this scope " +
+		"(InvalidAuthenticationTokenTenant); see scanner logs"
+	if got.Message != want {
+		t.Errorf("panic report =\n  %q\nwant\n  %q", got.Message, want)
+	}
+	// Named separately so a future rewording that reintroduces the body fails
+	// with the reason rather than as an opaque string mismatch. "RESPONSE 401"
+	// is azcore's own render marker and sits INSIDE the 200-rune window, so it
+	// is what discriminates the formatter from the truncation.
+	for _, leak := range []string{"sts.windows.net", "581de929", "wrong issuer", "RESPONSE 401", "ERROR CODE:"} {
+		if strings.Contains(got.Message, leak) {
+			t.Errorf("panic report = %q; leaks %q onto the customer's scan record", got.Message, leak)
+		}
+	}
+}
+
+// TestReportPanic_BoundsAPanicTheFormatterPassesThrough is the leg that pins
+// sanitizeForScanRecord, and it exists because the ARM-error case above cannot.
+//
+// On a 401 the formatter already returns a short redacted sentence, so the
+// sanitize call is a no-op there and deleting it leaves that test green
+// (measured -- the mutant survived). The two only disagree where the formatter
+// passes text through: it returns err.Error() verbatim for anything that is not
+// an *azcore.ResponseError, and fmt.Sprintf("%v", r) for a non-error panic.
+// Nothing else bounds either.
+func TestReportPanic_BoundsAPanicTheFormatterPassesThrough(t *testing.T) {
+	st := newTestStore(t)
+	var (
+		mu  sync.Mutex
+		got store.ScanError
+	)
+	st.OnError = func(e store.ScanError) {
+		mu.Lock()
+		got = e
+		mu.Unlock()
+	}
+
+	// Not an *azcore.ResponseError, so formatAzureError returns it verbatim.
+	// Control characters FIRST: past the 200-rune cap they are removed by the
+	// truncation whether or not the printable filter runs, so the filter mutant
+	// survived the assertion below when they sat at index 4000.
+	huge := errors.New("head\x00\x1b[2J" + strings.Repeat("A", 4000))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer reportPanic(st, "providers", "sub-1")
+		panic(huge)
+	}()
+	<-done
+
+	mu.Lock()
+	defer mu.Unlock()
+	if r := []rune(got.Message); len(r) > 240 {
+		t.Errorf("panic report kept %d runes; want it bounded (the scan record is not a log sink)", len(r))
+	}
+	if !strings.Contains(got.Message, "truncated") {
+		t.Errorf("panic report = %q; want the truncation marker so the operator knows text was cut", got.Message)
+	}
+	if strings.ContainsAny(got.Message, "\x00\x1b") {
+		t.Errorf("panic report = %q; want control characters replaced", got.Message)
+	}
+}
+
+// TestReportPanic_SurvivesAPanickedTypedNil pins that formatting a recovered
+// value cannot itself panic.
+//
+// reportPanic is the deferred recover on both preWG goroutines and on the
+// per-subscription and tenant goroutines. sync.WaitGroup.Go installs no recover
+// of its own, so a panic INSIDE reportPanic is unrecovered and kills the whole
+// `disco scan` process -- one subscription's failure becoming total loss for
+// every other subscription in the run.
+//
+// fmt.Sprintf("%v", r) could not panic: fmt recovers a panicking Error() and
+// renders a nil pointer receiver as <nil>. Routing an error-valued panic
+// through formatAzureError gave that up. A typed nil satisfies r.(error) with a
+// non-nil interface, so formatAzureError's err == nil guard does not fire, and
+// errors.As MATCHES it -- setting respErr to nil -- so the first field read
+// dereferences nil. Measured before the guard: the second panic escaped.
+func TestReportPanic_SurvivesAPanickedTypedNil(t *testing.T) {
+	st := newTestStore(t)
+	var (
+		mu  sync.Mutex
+		got store.ScanError
+	)
+	st.OnError = func(e store.ScanError) {
+		mu.Lock()
+		got = e
+		mu.Unlock()
+	}
+
+	escaped := make(chan any, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer func() {
+			if r := recover(); r != nil {
+				escaped <- r
+			}
+		}()
+		defer reportPanic(st, "providers", "sub-1")
+		panic((*azcore.ResponseError)(nil))
+	}()
+	<-done
+
+	select {
+	case r := <-escaped:
+		t.Fatalf("a second panic escaped reportPanic (%v); in production this is unrecovered and ends the scan", r)
+	default:
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.HasPrefix(got.Message, "panic: ") {
+		t.Errorf("message = %q; want the panic still reported after the formatter gave up", got.Message)
 	}
 }

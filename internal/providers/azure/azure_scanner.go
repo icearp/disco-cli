@@ -296,22 +296,26 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 	//
 	// scanResourceGroups failure is reported and the scan continues — one
 	// service's (even the RG list's) error must never abort the subscription's
-	// other scanners.
+	// other scanners. The RP probe is the ONE exception, and only for a 401:
+	// see the isAuthenticationFailure arm below.
 	//
 	// The probe reads RP registration state once per subscription. ARM allows
 	// LIST on unregistered providers (empty 200, no error), so the per-call error
 	// path can't see a NotRegistered RP — this proactive gate is the only signal,
 	// the Azure analog of AWS's phase-0 "service enabled?" gate. A probe failure
 	// is non-fatal: regProviders stays nil and every service is scanned with the
-	// reactive error classifier as fallback.
+	// reactive error classifier as fallback. Non-fatal EXCEPT on a 401, which is
+	// not a gap in the probe's own permissions but a statement that this
+	// credential has no standing for the subscription at all.
 	var (
 		regProviders map[string]bool
+		rgListed     bool
 		rgErr, perr  error
 		preWG        sync.WaitGroup
 	)
 	preWG.Go(func() {
 		defer reportPanic(st, "resourcegroups", sub.scopeLabel())
-		rgErr = scanResourceGroups(ctx, sub, cred, st, scanID)
+		rgListed, rgErr = scanResourceGroups(ctx, sub, cred, st, scanID)
 	})
 	preWG.Go(func() {
 		defer reportPanic(st, "providers", sub.scopeLabel())
@@ -325,6 +329,77 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 		})
 	}
 	if perr != nil {
+		// A 401 on the RP probe means the presented token has no standing for
+		// this subscription -- under Lighthouse, that it was never delegated to
+		// this principal, or that the delegation is gone. Every service scanner
+		// would then issue a list call that cannot succeed, one near-identical
+		// warning each, which on the real never-delegated subscription
+		// OVERFLOWED the persisted warnings array and evicted everything worth
+		// reading. Do not read a call count off that run: the recorded 200 is
+		// scanrun.maxPersistedWarnings, a cap with the truncation marker set.
+		// The population is the per-subscription registry -- regenerate it with
+		// `grep -h 'registerService(serviceEntry{' internal/providers/azure/*.go |
+		// wc -l` and NOT with `grep -c`, which prints one count per file over a
+		// glob and no total -- and it bounds the count only loosely in both
+		// directions -- a scanner
+		// can issue several list calls, and an RG-fanout scanner issues none
+		// once the RG list itself refused. Returning here costs those calls
+		// nothing and yields exactly ONE scan error for the subscription, which
+		// is also the signal a consumer needs to tell "unreachable" apart from
+		// "empty" -- the two are otherwise identical, both being a scan that
+		// finishes clean with no rows.
+		//
+		// Only a 401. A 403 stays the existing warning: the principal IS
+		// recognised and some other service may well be readable, so gating the
+		// whole subscription on one narrow role would lose real inventory. Note
+		// this is the ONLY place a 401 is treated as anything but a per-call
+		// skip -- isSkippableScanError still absorbs one everywhere else.
+		//
+		// rgListed is the corroboration, and it is why the gate is a
+		// conjunction. A successful resource-group list proves the token WAS
+		// accepted for this subscription, so a 401 from the providers endpoint
+		// alone is about that endpoint and must not cost the customer every row
+		// they can actually see.
+		//
+		// What corroboration cannot rule out is a 401 both calls share that is
+		// not a delegation problem -- an in-flight tenant transfer, whose ARM
+		// body says propagation takes up to an hour, refuses both. That scan
+		// reports the account unreachable for one cycle and heals on the next
+		// clean one, so the corroboration buys the asymmetric case only and the
+		// symmetric one is accepted.
+		//
+		// These calls DO share one frozen token, and a retry inside the scan is
+		// futile -- but the reason is ours, not azcore's. azcore's bearer-token
+		// policy calls Expire() on any 401 (runtime/policy_bearer_token.go,
+		// handleChallenge), and refreshes early only on its own schedule --
+		// shouldRefresh takes the five-minute window only when RefreshOn is
+		// zero, which azidentity's confidential client leaves it only when the
+		// token response carried no refresh_in, which is the only thing MSAL
+		// fills it from, so neither window is a fixed fact;
+		// Expire() clears only the policy's own copy, and the next GetToken
+		// reads newCachingCredential (azure_credential.go), which returns the
+		// memoised token for the scope while it is more than five minutes from
+		// expiry and has no invalidation path. Read the credential this scan was
+		// handed before reasoning about token lifetime -- a correction written
+		// off the module cache alone got this backwards once.
+		//
+		// rgErr is already on the record above, and deliberately so even when the
+		// refusal follows: `rgListed` tracks the CALL, not the error, so a page
+		// that came back and then failed to STORE leaves rgListed true and
+		// SUPPRESSES this refusal -- which is the point, a database fault of ours
+		// must not be reported as the customer's principal losing access. The
+		// scan record then carries both the store failure and, if it fired, this
+		// refusal, and says which is which by service name.
+		//
+		// One fault of ours escapes that: a PANIC in the resource-group goroutine
+		// never returns, so rgListed stays false however many pages came back,
+		// and a concurrent probe 401 then refuses the subscription. It stays
+		// distinguishable on the record -- reportPanic files its own
+		// `resourcegroups` ScanError beside this one -- so the guarantee above is
+		// about the ERROR path, not about every way our side can fail.
+		if subscriptionUnreachable(perr, rgListed) {
+			return unreachableSubscriptionError(perr)
+		}
 		st.ReportWarning(store.ScanWarning{
 			Provider: "azure", Service: "providers", Scope: sub.scopeLabel(),
 			Message: formatAzureError(perr),
@@ -471,9 +546,50 @@ func waitForTenant(ctx context.Context, done <-chan struct{}) {
 // (providers/CLAUDE.md). Call deferred.
 func reportPanic(st *store.Store, service, scope string) {
 	if r := recover(); r != nil {
+		// A recovered value is often an error, and a panicked *azcore.ResponseError
+		// renders its whole ARM body -- which for a 401 names disco's own directory
+		// as the presented issuer, on the CUSTOMER's scan record. This was the last
+		// path in the package reaching store.ScanError without passing either
+		// chokepoint, and both preWG goroutines defer it.
+		// fmt.Sprintf("%v", r) is panic-SAFE by construction: fmt recovers a
+		// panicking Error() and prints <nil> for a nil pointer receiver. It is
+		// NOT hang-safe, and it sits outside every recover -- an Error() that
+		// blocks stalls this handler, then preWG.Wait, then the whole scan, with
+		// no record written. No recover can catch that; it is named so this
+		// comment does not read as a complete safety argument.
+		// formatAzureError gives that up, and this runs inside a deferred
+		// recover that sync.WaitGroup.Go does not guard -- so a panic HERE is
+		// unrecovered and takes the whole scan down, turning one subscription's
+		// failure into total loss for every other. Measured: panicking a typed
+		// nil (*azcore.ResponseError)(nil) satisfies r.(error), clears the
+		// err == nil guard, and errors.As MATCHES it and sets respErr nil, so
+		// the first field read dereferences nil.
+		text := fmt.Sprintf("%v", r)
+		if err, ok := r.(error); ok {
+			func() {
+				// LOAD-BEARING, not belt-and-braces: a BARE typed-nil error
+				// reaches formatAzureError from the r.(error) above, and the
+				// respErr != nil guards in azure_errors.go do not save it --
+				// every predicate there ends in a bare err.Error(), which
+				// dereferences the receiver. Deleting this recover turns one
+				// subscription's panic into an unrecovered second panic, and
+				// sync.WaitGroup.Go installs no recover of its own. Pinned by
+				// TestReportPanic_SurvivesAPanickedTypedNil.
+				//
+				// Attributed rather than discarded: a nil deref in OUR formatter
+				// would otherwise record a bare "panic: <nil>", indistinguishable
+				// from a scanner panicking a typed nil.
+				defer func() {
+					if p := recover(); p != nil {
+						text = fmt.Sprintf("%v [formatting the panic value failed: %v]", r, p)
+					}
+				}()
+				text = formatAzureError(err)
+			}()
+		}
 		st.ReportError(store.ScanError{
 			Provider: "azure", Service: service, Scope: scope,
-			Message: fmt.Sprintf("panic: %v", r),
+			Message: "panic: " + sanitizeForScanRecord(text),
 		})
 	}
 }

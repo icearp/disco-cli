@@ -40,8 +40,29 @@ func newCachingCredential(inner azcore.TokenCredential) *cachingCredential {
 
 // GetToken returns a cached token for the requested scopes if present and not
 // within five minutes of expiry; otherwise it fetches from inner and caches
-// the result. The five-minute skew matches azcore's own refresh window so
-// callers never see a token the SDK would consider stale.
+// the result.
+//
+// The five minutes is this cache's OWN margin, and it is the ONLY one that
+// decides what a caller gets. An earlier version of this comment claimed it
+// matched azcore's; azcore's shouldRefresh applies its five-minute early window
+// only when the token carries no RefreshOn (runtime/policy_bearer_token.go),
+// and azidentity's confidential client copies RefreshOn from the MSAL result
+// whenever the token response carried refresh_in (confidential_client.go copies
+// ar.Metadata.RefreshOn, which MSAL fills only from that field) -- so which
+// window azcore would use is not even fixed.
+//
+// It does not matter either way, and the reason is the thing to keep: azcore's
+// refresh calls back into this method (runtime.acquire invokes the credential
+// it was constructed with), so a refresh decision reads this map and gets the
+// SAME token back while it is more than five minutes from expiry. This cache
+// has no invalidation path, which is why the same token comes back on the NEXT
+// call too. azcore's Expire() on a 401 is a separate fact needing no
+// explanation from this cache: it is a method on the policy's own token state
+// (BearerTokenPolicy.mainResource), and marking that state stale is all it
+// does, so it could only ever clear the policy's copy. The policy IS wired to
+// this credential -- that is the callback two sentences up -- which is why
+// clearing its copy just fetches the same memoised token again. Read the
+// credential the scan was handed before reasoning about token lifetime.
 func (c *cachingCredential) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
 	key := tokenCacheKey(opts)
 	c.mu.Lock()
