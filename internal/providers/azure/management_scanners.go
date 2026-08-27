@@ -32,7 +32,12 @@ func init() {
 // per scan as a tenant service, storing each MG under the tenant GUID so a
 // multi-subscription scan keeps one copy of the MG tree, not one per
 // subscription. Falls back to the first subscription's ID when the tenant GUID
-// could not be resolved — still a single deduplicated copy.
+// could not be resolved: still a single deduplicated copy, but one MISLABELLED
+// as that subscription's, since the list is tenant-wide. Tracked as
+// icearp/disco-cli#12, where the expected fix is to skip and report rather than
+// fall back. Unreachable under federation — tenantServiceRunnable refuses every
+// non-graphScoped tenant service when wifConfig.configured() — so it is the
+// standalone-CLI path that carries it.
 func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.TokenCredential, _ wifConfig, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(subs) == 0 {
 		return 0, 0, nil

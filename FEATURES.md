@@ -39,6 +39,10 @@ For the authoritative, live list of scanned resource types, run
 - **Partial-scan tolerance.** A denied or unreachable service degrades to a warning
   and a partial-scan status rather than failing the run; edges pointing at
   unscanned targets skip silently, so a partial scan still yields a usable graph.
+  A whole SUBSCRIPTION is the one exception: an Azure subscription whose token is
+  rejected outright is refused once, with a single scan error (plus whatever the
+  resource-group listing already reported, which lands before the gate can fire),
+  rather than one warning per service. The CLI's run summary names the subscription.
 - **Secret scrubbing** at the storage boundary (`store/sanitize.go`) — resource
   attributes are redacted before anything is written to the local database.
 - **Stable resource identity.** Deterministic resource IDs keep rows stable across

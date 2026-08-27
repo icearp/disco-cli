@@ -581,3 +581,27 @@ func TestReportEntraErr_RedactsAGraphTokenRejection(t *testing.T) {
 		t.Errorf("reported %q; the tenant GUID must not reach the scan record", msgs[0])
 	}
 }
+
+// TestRedactCredentialError_NamesTheStatusWhenARMSendsNoCode covers a 401 that
+// carries no ErrorCode and no AADSTS token in its body. The parenthetical then
+// rendered as a bare "()", which reads to an operator as a defect in disco
+// rather than as a refusal by Azure — and the redaction is exactly the moment
+// the only remaining diagnostic is the one the message must still carry.
+func TestRedactCredentialError_NamesTheStatusWhenARMSendsNoCode(t *testing.T) {
+	err := armResponseError(http.StatusUnauthorized, "",
+		"the access token issued for tenant 11111111-1111-1111-1111-111111111111 cannot be used here")
+
+	got := redactCredentialError(err)
+	if got == "" {
+		t.Fatalf("redactCredentialError() = \"\"; want a redaction — the body names the issuer that was presented")
+	}
+	if strings.Contains(got, "()") {
+		t.Errorf("redactCredentialError() = %q; want the status named, not an empty parenthetical", got)
+	}
+	if !strings.Contains(got, "Unauthorized") {
+		t.Errorf("redactCredentialError() = %q; want it to name the status when ARM sends no code", got)
+	}
+	if strings.Contains(got, "11111111-1111-1111-1111-111111111111") {
+		t.Errorf("redactCredentialError() = %q; want the body dropped", got)
+	}
+}
