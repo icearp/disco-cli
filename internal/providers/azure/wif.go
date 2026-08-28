@@ -91,6 +91,13 @@ type wifConfig struct {
 	// Lighthouse those differ and conflating them is the disclosure
 	// [wifConfig.tenantScopeEnabled] exists to prevent.
 	graphTenantID string
+	// subscriptionTenantID is the directory every scanned subscription must
+	// be owned by, checked against ARM in [bindSubscriptions]. Usually the
+	// same value as graphTenantID, and deliberately a separate variable: that
+	// one says which directory a Graph token is aimed at, this one says which
+	// directory ARM must agree owns the subscriptions, and only the second is
+	// checked against a second source.
+	subscriptionTenantID string
 }
 
 // wifEnv reads the contract from the environment. Read once per scan and
@@ -104,12 +111,13 @@ func wifEnv() wifConfig {
 	// than naming the variable, which is the diagnosis the eager checks exist
 	// to give.
 	return wifConfig{
-		clientID:      strings.TrimSpace(os.Getenv(envWIFClientID)),
-		tenantID:      strings.TrimSpace(os.Getenv(envWIFTenantID)),
-		audience:      strings.TrimSpace(os.Getenv(envWIFAudience)),
-		roleARN:       strings.TrimSpace(os.Getenv(envWIFRoleARN)),
-		sessionName:   strings.TrimSpace(os.Getenv(envWIFSessionName)),
-		graphTenantID: strings.TrimSpace(os.Getenv(envGraphTenantID)),
+		clientID:             strings.TrimSpace(os.Getenv(envWIFClientID)),
+		tenantID:             strings.TrimSpace(os.Getenv(envWIFTenantID)),
+		audience:             strings.TrimSpace(os.Getenv(envWIFAudience)),
+		roleARN:              strings.TrimSpace(os.Getenv(envWIFRoleARN)),
+		sessionName:          strings.TrimSpace(os.Getenv(envWIFSessionName)),
+		graphTenantID:        strings.TrimSpace(os.Getenv(envGraphTenantID)),
+		subscriptionTenantID: strings.TrimSpace(os.Getenv(envSubscriptionTenantID)),
 	}
 }
 
@@ -137,6 +145,13 @@ func (c wifConfig) configured() bool { return c.clientID != "" && c.tenantID != 
 // on by setting it. The realistic arrival is a deployment that still holds
 // AZURE_CLIENT_ID/AZURE_CLIENT_SECRET for a Lighthouse managing principal
 // while a rename or a rollback drops the WIF pair.
+//
+// [envSubscriptionTenantID] deliberately does NOT count, and it is the one
+// DISCO_AZURE_ variable that does not. The test above is "would this value,
+// alone, open something": that one opens nothing — it only adds a refusal, and
+// [bindSubscriptions] runs it against an unfederated credential too, which is
+// a supported standalone use. Counting it would turn the one variable that
+// narrows a scan into a reason to refuse the scan outright.
 func (c wifConfig) partiallyConfigured() bool {
 	if c.configured() {
 		return false
@@ -149,8 +164,10 @@ func (c wifConfig) partiallyConfigured() bool {
 // [wifConfig.partiallyConfigured].
 var ErrIncompleteWIFConfig = errors.New("azure wif: " + envWIFClientID + " and " + envWIFTenantID +
 	" must both be set to federate; refusing to fall back to an ambient credential (fail-closed). " +
-	"Any DISCO_AZURE_ variable in this contract set WITHOUT both of those triggers this, including " + envGraphTenantID +
-	", which grants nothing on its own and would leave every tenant-scope service reading the credential's own directory")
+	envWIFAudience + ", " + envWIFRoleARN + ", " + envWIFSessionName + " or " + envGraphTenantID +
+	" set WITHOUT both of those triggers this — " + envGraphTenantID +
+	" grants nothing on its own and would leave every tenant-scope service reading the credential's own directory. " +
+	envSubscriptionTenantID + " is the exception and never triggers it: it opens nothing and is usable unfederated")
 
 // effectiveAudience is the configured audience, or the only value Entra
 // accepts.
@@ -244,17 +261,30 @@ func (c wifConfig) sessionComplete() bool { return c.roleARN != "" && c.sessionN
 // AZURE_CLIENT_SECRET, which is the ordinary way Lighthouse gets automated —
 // leaves every guard off. Not reachable from the deployed image, which sets
 // the contract or nothing, and subscriptionResourceBatch's filter holds
-// either way. Closing it properly wants a POSITIVE signal: compare the
-// credential's tid against the scanned subscription's tenant. Nothing in this
-// module graph can supply it: armsubscription.Subscription carries no tenant
-// field, and neither does a separate Get, whose response embeds that same
-// model (armsubscription@v1.2.0 response_types.go). It needs a package this
-// build does not depend on (resourcemanager/resources/armsubscriptions) or a
-// raw ARM call at a newer api-version — which is why it is recorded here
-// rather than done. [envGraphTenantID] does NOT close this: it pins which
+// either way.
+//
+// There is now a POSITIVE signal that REACHES the unsafe direction, and it
+// does not close it. [bindSubscriptions] asks ARM which directory owns each
+// scanned subscription and refuses the scan unless that is the directory
+// [envSubscriptionTenantID] names. What it CHECKS is ARM's answer against a
+// named directory rather than the env contract; the contract decides only
+// whether naming one is MANDATORY. So a managing identity arriving as
+// AZURE_CLIENT_ID/AZURE_CLIENT_SECRET is checked as soon as that variable is
+// set — and nothing makes that operator set it, since configured() is false.
+//
+// It binds the SUBSCRIPTIONS, which is not this function's subject. In that
+// same state this function returns TRUE, so every tenant-scope service runs
+// against whatever directory the ambient credential authenticated in — the
+// disclosure above, bound subscriptions or not. Do not read the two guards as
+// covering each other: this one is off exactly where that one is opt-in.
+// Closing it properly means deciding from ARM rather than from the
+// environment — the owner [subscriptionOwners] already returns, compared
+// against the credential's own tid — which is a change to what this function
+// keys on, not another knob.
+//
+// [envGraphTenantID] does not close this either: it pins which
 // directory answers a Graph token, not that the directory belongs to the
-// customer whose subscriptions are being scanned. The caller supplying that
-// value owns the correlation.
+// customer whose subscriptions are being scanned.
 func (c wifConfig) tenantScopeEnabled() bool { return !c.configured() }
 
 // graphTenantGUID matches the canonical 8-4-4-4-12 form. Deliberately

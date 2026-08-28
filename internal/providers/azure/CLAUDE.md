@@ -150,8 +150,12 @@ set" — not on "the identity is foreign to the scanned tenant", which nothing h
 also fires for a standalone operator federating into their OWN tenant, where the skip is a real
 capability loss and is unnecessary. Deliberate: prose says so (`azure_scanner.go`'s LongDescription,
 `cmd/config.go`) instead of the customer-visible message claiming a topology. Closing it wanted a
-positive check rather than a knob, and the Graph half now has one — `scanEntra` refuses to store
-anything when the token's `tid` is not the directory the scan was configured for. Every registered tenant service would have
+positive check rather than a knob, and both halves now have one — `scanEntra` refuses to store
+anything when the token's `tid` is not the directory the scan was configured for, and
+`bindSubscriptions` refuses the scan unless ARM reports every scanned subscription as reachable by
+this credential and owned by `DISCO_AZURE_SUBSCRIPTION_TENANT_ID`. Neither narrows this gate: it
+still keys on `configured()`, so the ambient-managing-identity direction has the ARM binding
+(opt-in) and no tenant-scope suppression at all. Every registered tenant service would have
 (`grep -n 'registerTenantService' *.go`), plus `tenantDisplayName`, `tenantIDFromCredScope` and the
 management-group Entities list in `stitchTopHierarchy` — a DIFFERENT call from
 `scanManagementTenant`'s flat list, and it keys on `tenantScopeEnabled` DIRECTLY rather
@@ -479,8 +483,14 @@ multi-tenant aliases `common` and
 `organizations` are exactly what must not be accepted — they resolve to whatever directory the
 token happens to come back for, which is the property being pinned.
 
-**`DISCO_AZURE_GRAPH_TENANT_ID` is REFUSED when half-set, like every other variable in the
-contract, and it is the member whose omission from that check would be worst.** Alone it is not
+**`DISCO_AZURE_GRAPH_TENANT_ID` is REFUSED when half-set, like every other counted variable in the
+contract, and it is the member whose omission from that check would be worst.** (`DISCO_AZURE_SUBSCRIPTION_TENANT_ID`
+is the one variable `partiallyConfigured` does NOT count, and the exception is stated in
+`ErrIncompleteWIFConfig` itself: it opens nothing and is meant to work against an ambient
+credential. `TestIncompleteWIFConfig_NamesEveryCountedVariable` pins the message against the
+predicate, since that list is hand-written over a live set — and it reflects over `wifConfig`'s
+FIELDS as well, because a table checked only against itself catches a removal and never an
+addition.) Alone it is not
 inert: `configured()` is false, so `tenantScopeEnabled()` is TRUE, every tenant service runs, and
 `scanEntra` reads whatever directory an ambient credential authenticated in with no pin at all —
 the disclosure the variable is advertised to prevent, switched on by setting it. The realistic
@@ -492,6 +502,13 @@ in isolation and `graphClient`'s threading is asserted at the token, but nothing
 `newFederatedCredential` without AWS STS — so reverting its options argument to `nil` is green
 across the suite. Recorded in a comment there rather than propped up with a seam built only for a
 test, because the failure is fail-closed and loud: every Graph acquisition would error.
+
+**The `loadSubscriptions` -> `bindSubscriptions` joining has the opposite treatment**, because its
+failure is SILENT: deleting the call leaves every behavioural test green and every scan unbound.
+`TestLoadSubscriptions_CallsTheBinding` parses `azure_config.go` with `go/ast` and asserts the call
+exists and that its error leaves the function. Source-level because `loadSubscriptions` builds a
+credential before it reaches the binding, so there is no seam short of one built only for a test.
+Prefer this shape whenever a guard's removal is invisible rather than loud.
 
 **The proof is the `tid`, never the variable.** `scanEntra` reads the tenant id from the token that
 came back rather than echoing what it asked for, and refuses to store anything if the two disagree:

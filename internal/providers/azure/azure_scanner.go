@@ -89,6 +89,8 @@ identity, env vars) or the explicit 'subscriptions:' list in config.yaml.
 --subscriptions pins the scan to exactly the listed subscription IDs and
 disables auto-enumeration (fail-closed) — use it to constrain a shared
 credential delegated across multiple tenants to one tenant's subscriptions.
+A pin selects; it does not prove whose the selection is, which is what
+DISCO_AZURE_SUBSCRIPTION_TENANT_ID below adds.
 There is no --regions / --profile flag — Azure scopes per
 subscription/resource group, configured statically. --services narrows
 the scanner set when iterating on one provider.
@@ -100,12 +102,25 @@ credential — no client secret is stored. To present a named session, so
 the Entra trust names one identity rather than whatever the platform
 chose, also set DISCO_AZURE_WIF_ROLE_ARN + DISCO_AZURE_WIF_SESSION_NAME.
 DISCO_AZURE_WIF_AUDIENCE overrides the token audience and rarely needs to
-be set. Any DISCO_AZURE_ variable in this contract set WITHOUT both required
-ids is refused rather than ignored — including DISCO_AZURE_GRAPH_TENANT_ID,
-described below — because a half-declared federation would otherwise fall
-back to a credential the tenant-scope guards do not apply to.
+be set. Setting DISCO_AZURE_WIF_AUDIENCE, DISCO_AZURE_WIF_ROLE_ARN,
+DISCO_AZURE_WIF_SESSION_NAME or DISCO_AZURE_GRAPH_TENANT_ID without both
+required ids is refused rather than ignored, because a half-declared
+federation would otherwise fall back to a credential the tenant-scope guards
+do not apply to.
 
-Under this mode the tenant-scope services (Entra ID directory objects,
+Federation also requires DISCO_AZURE_SUBSCRIPTION_TENANT_ID: the GUID of the
+directory that OWNS the subscriptions being scanned. Naming subscriptions
+says which to read and never whose they are, so the scan asks Azure Resource
+Manager and refuses unless ARM lists each one for this credential AND reports
+it as owned by that directory. It is the one variable here that is not
+refused when set alone, and it is worth setting against an ordinary
+credential too, together with --subscriptions: an ambient credential can hold
+Lighthouse delegations as well, and this is the only check here that asks ARM
+whose a subscription is rather than assuming the credential authenticates in
+the directory being scanned. Without a pin it applies to every enumerated
+subscription, so one outside the named directory refuses the whole scan.
+
+Under federation the tenant-scope services (Entra ID directory objects,
 management groups, and the tenant-wide fetch of Microsoft's built-in role,
 policy and policy-set definitions) are SKIPPED by default. The reason is
 what this build can CHECK, not what your setup is: nothing here confirms
@@ -180,19 +195,44 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	wif := wifEnv()
 	subs, cred, err := loadSubscriptions(ctx, s.subscriptionOverride, wif)
 	if err != nil {
-		// Redacted like every other credential failure. This one runs before
-		// any scanner, so it reaches the scan record through scanrun rather
-		// than through formatAzureError, and it is the likeliest of all of
-		// them to carry disco's own identifiers. A configuration refusal is
-		// NOT redacted — it names the variable to fix — so it keeps its wrap
-		// and stays matchable with errors.Is. See redactCredentialError.
-		if red := redactCredentialError(err); red != "" {
-			return errors.New("azure: load subscriptions: " + red)
-		}
-		return fmt.Errorf("azure: load subscriptions: %w", err)
+		return loadSubscriptionsError(err)
 	}
 	s.scanWithCredential(ctx, st, scanID, subs, cred, wif)
 	return nil
+}
+
+// loadSubscriptionsError renders a loadSubscriptions failure for the scan
+// record.
+//
+// Redacted like every other credential failure. This one runs before any
+// scanner, so it reaches the scan record through scanrun rather than through
+// formatAzureError, and it is the likeliest of all of them to carry disco's
+// own identifiers. A configuration refusal is NOT redacted — it names the
+// variable to fix — so it keeps its wrap and stays matchable with errors.Is.
+// See redactCredentialError.
+//
+// An ARM failure is narrowed to status + code + ARM's own message, the same
+// shape every in-scan error gets. Without that the wrap stores azcore's full
+// request line and response body on the scan record, which a SaaS caller
+// renders to a customer: redaction covers 401 and AADSTS, and a 403
+// AuthorizationFailed passes straight through it. BOTH subscription list
+// calls arrive here — enumerateSubscriptions and bindSubscriptions' owner
+// lookup — so the narrowing belongs at this join rather than in either of
+// them, where a second redaction pass would relabel a 401 as an
+// authentication failure and eat the call-site prefix.
+//
+// Everything that is not an *azcore.ResponseError keeps the wrap, which is
+// what leaves a configuration refusal matchable
+// (TestScan_KeepsAConfigRefusalMatchable).
+func loadSubscriptionsError(err error) error {
+	if red := redactCredentialError(err); red != "" {
+		return errors.New("azure: load subscriptions: " + red)
+	}
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) && respErr != nil {
+		return errors.New("azure: load subscriptions: " + formatAzureError(err))
+	}
+	return fmt.Errorf("azure: load subscriptions: %w", err)
 }
 
 // scanWithCredential runs the scan against an already-resolved credential.

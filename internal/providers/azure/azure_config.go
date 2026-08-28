@@ -58,6 +58,16 @@ func loadSubscriptions(ctx context.Context, override []string, wif wifConfig) ([
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// Every path lands here, the enumerate one included: a subscription this
+	// credential can reach is not thereby a subscription the caller is
+	// entitled to scan, and which of the three branches named it says nothing
+	// about whose it is. See [bindSubscriptions].
+	if err := bindSubscriptions(subs, wif, func() (map[string]string, error) {
+		return subscriptionOwners(ctx, cred)
+	}); err != nil {
+		return nil, nil, err
+	}
 	return subs, cred, nil
 }
 

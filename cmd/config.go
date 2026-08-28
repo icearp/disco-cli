@@ -70,13 +70,37 @@ azure:
   #   DISCO_AZURE_WIF_SESSION_NAME  - session name that role assumes under
   # And rarely:
   #   DISCO_AZURE_WIF_AUDIENCE      - token audience; defaults to the correct
-  #                                   api://AzureADTokenExchange. Note ANY of
-  #                                   the DISCO_AZURE_* variables in this
-  #                                   block set without both required ones
-  #                                   above is refused, not ignored — that
-  #                                   includes DISCO_AZURE_GRAPH_TENANT_ID,
-  #                                   described below.
-  # Whenever this is set, the tenant-scope services (Entra ID directory
+  #                                   api://AzureADTokenExchange. Note that
+  #                                   DISCO_AZURE_WIF_AUDIENCE,
+  #                                   DISCO_AZURE_WIF_ROLE_ARN,
+  #                                   DISCO_AZURE_WIF_SESSION_NAME or
+  #                                   DISCO_AZURE_GRAPH_TENANT_ID set without
+  #                                   both required ones above is refused, not
+  #                                   ignored.
+  # Federation also makes one variable MANDATORY, because a pin alone says
+  # which subscriptions to read and never whose they are:
+  #   DISCO_AZURE_SUBSCRIPTION_TENANT_ID
+  #                                 - the directory that owns every scanned
+  #                                   subscription, as a GUID. Checked against
+  #                                   Azure Resource Manager rather than taken
+  #                                   on trust: the scan is refused if ARM does
+  #                                   not list a scanned subscription for this
+  #                                   credential (not delegated, or revoked),
+  #                                   or lists it as owned by a different
+  #                                   directory. It is the one variable here
+  #                                   that is NOT refused when set on its own.
+  #                                   Optional without federation, and worth
+  #                                   setting there WITH a subscription pin:
+  #                                   an ambient credential can hold Lighthouse
+  #                                   delegations too, and this is the only
+  #                                   check that reads ARM instead of trusting
+  #                                   that the credential authenticates in the
+  #                                   directory being scanned. Without a pin it
+  #                                   applies to every enumerated subscription,
+  #                                   so one outside the named directory
+  #                                   refuses the whole scan.
+  # Whenever the WIF client/tenant pair above is set, the tenant-scope
+  # services (Entra ID directory
   # objects, management groups, and the tenant-wide fetch of Microsoft's
   # built-in role, policy and policy-set definitions) are skipped by default:
   # nothing here confirms the federated identity belongs to the tenant being
