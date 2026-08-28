@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -694,5 +695,68 @@ func TestRetryCredential_BudgetMeasuresTheCurrentStreak(t *testing.T) {
 	}
 	if got := inner.calls - before; got < 2 {
 		t.Errorf("second acquisition made %d calls; want it retried — a new streak gets its own budget", got)
+	}
+}
+
+// TestIncompleteWIFConfig_NamesEveryCountedVariable pins the correspondence
+// between what partiallyConfigured COUNTS and what ErrIncompleteWIFConfig
+// NAMES.
+//
+// The message carries a hand-written list over a live set. It used to say "Any
+// DISCO_AZURE_ variable in this contract", which was a rule rather than a list
+// and stopped being true when DISCO_AZURE_SUBSCRIPTION_TENANT_ID arrived as
+// the one exception.
+//
+// Three assertions, and the third is the staleness guard. Each listed variable
+// must make partiallyConfigured true ALONE and must be named in the message —
+// that catches a removal. The exception must be named too. And every field of
+// wifConfig must be accounted for by name in this test, which is what catches
+// an ADDITION: a new member of the struct that nobody classified turns this
+// red, whereas a table checked only against itself stays green forever. It
+// cannot see a new field added to partiallyConfigured's disjunction without a
+// new struct field, which is not a reachable shape — the predicate reads
+// fields.
+func TestIncompleteWIFConfig_NamesEveryCountedVariable(t *testing.T) {
+	counted := []struct {
+		env   string
+		field string
+		cfg   wifConfig
+	}{
+		{envWIFAudience, "audience", wifConfig{audience: "api://x"}},
+		{envWIFRoleARN, "roleARN", wifConfig{roleARN: "arn:aws:iam::111111111111:role/r"}},
+		{envWIFSessionName, "sessionName", wifConfig{sessionName: "s"}},
+		{envGraphTenantID, "graphTenantID", wifConfig{graphTenantID: customerDirectory}},
+	}
+	for _, c := range counted {
+		t.Run(c.env, func(t *testing.T) {
+			if !c.cfg.partiallyConfigured() {
+				t.Fatalf("partiallyConfigured() = false for %s alone", c.env)
+			}
+			if !strings.Contains(ErrIncompleteWIFConfig.Error(), c.env) {
+				t.Errorf("ErrIncompleteWIFConfig does not name %s; the operator is told to fix a variable the message never mentions", c.env)
+			}
+		})
+	}
+
+	// The exception, stated in the message as well as in the predicate: an
+	// operator who set only this one must not read the refusal as being about
+	// it. Its own behaviour is pinned in subscription_binding_test.go.
+	if !strings.Contains(ErrIncompleteWIFConfig.Error(), envSubscriptionTenantID) {
+		t.Errorf("ErrIncompleteWIFConfig does not mention %s; the exception is invisible", envSubscriptionTenantID)
+	}
+
+	// Every field classified. clientID and tenantID are the pair the whole
+	// contract is about, subscriptionTenantID is the exception, and the rest
+	// are the counted table above.
+	classified := map[string]bool{"clientID": true, "tenantID": true, "subscriptionTenantID": true}
+	for _, c := range counted {
+		classified[c.field] = true
+	}
+	cfgType := reflect.TypeOf(wifConfig{})
+	for i := range cfgType.NumField() {
+		name := cfgType.Field(i).Name
+		if !classified[name] {
+			t.Errorf("wifConfig.%s is not classified by this test: decide whether partiallyConfigured counts it, then add it to `counted` or to `classified`", name)
+		}
 	}
 }
