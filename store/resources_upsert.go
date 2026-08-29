@@ -154,11 +154,21 @@ func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, 
 			//
 			// Scanners upsert concurrently (errgroup goroutines, each on its own
 			// transaction), so a sibling can insert this natural key between our
-			// lookup and this insert. ON CONFLICT DO NOTHING on the
-			// current-by-natural-key partial index turns that race into a no-op
-			// instead of a 23505 that would abort the whole batch tx — the sibling
-			// already recorded the row, so we skip (same natural key, same
+			// lookup and this insert. ON CONFLICT DO NOTHING turns that race into
+			// a no-op instead of a 23505 that would abort the whole batch tx — the
+			// sibling already recorded the row, so we skip (same natural key, same
 			// point-in-time scan — no info lost).
+			//
+			// The clause names no conflict target. An embedder may add columns to
+			// the natural key — a multi-tenant host scoping it per workspace, say —
+			// and an inferred target must match that index exactly or the insert
+			// fails 42P10. Untargeted, it swallows a violation of ANY unique index
+			// on the table rather than only the natural key. The price is bounded
+			// for the constraints DISCO defines — the only other one here is the
+			// primary key, on a uuid generated per insert attempt — but an
+			// embedder that adds a unique index to this table inherits a silent
+			// skip where it would have had a 23505, and so would a future disco
+			// migration that adds one.
 			if r.DiscoveredAt == "" {
 				r.DiscoveredAt = now
 			}
@@ -171,9 +181,7 @@ func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, 
 					 verified_at, verified_by, managed_by_provider)
 				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
 				        $14, $15, $16, $17, $18, $19)
-				ON CONFLICT (provider, account_id, native_id)
-				    WHERE superseded_by IS NULL
-				DO NOTHING`),
+				ON CONFLICT DO NOTHING`),
 				rowID, r.ID, r.Provider, r.AccountID, r.AccountName, r.Type, r.NativeID,
 				r.Name, r.Region, r.Zone, r.Status, r.TagsJSON, r.AttributesJSON,
 				r.CreatedAt, r.DiscoveredAt, r.DiscoveredBy,
@@ -327,10 +335,10 @@ func (s *Store) insertResourcesIfAbsentTx(resources []*Resource, now string) (in
 			r.DiscoveredAt = now
 		}
 		rowID := uuid.Must(uuid.NewV7()).String()
-		// ON CONFLICT DO NOTHING on the current-by-natural-key partial index: if
-		// the row already exists (placeholder racing its own scanner, or a prior
-		// run already populated it), this is a no-op — a populated row is never
-		// clobbered down to the placeholder's empty attributes.
+		// ON CONFLICT DO NOTHING: if the row already exists (placeholder racing
+		// its own scanner, or a prior run already populated it), this is a no-op —
+		// a populated row is never clobbered down to the placeholder's empty
+		// attributes. No conflict target, for the reason given in upsertResourcesTx.
 		res, err := tx.Exec(tx.Rebind(`
 			INSERT INTO resources
 				(id, root_id, provider, account_id, account_name, type, native_id,
@@ -339,9 +347,7 @@ func (s *Store) insertResourcesIfAbsentTx(resources []*Resource, now string) (in
 				 verified_at, verified_by, managed_by_provider, reference_only)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
 			        $14, $15, $16, $17, $18, $19, TRUE)
-			ON CONFLICT (provider, account_id, native_id)
-			    WHERE superseded_by IS NULL
-			DO NOTHING`),
+			ON CONFLICT DO NOTHING`),
 			rowID, r.ID, r.Provider, r.AccountID, r.AccountName, r.Type, r.NativeID,
 			r.Name, r.Region, r.Zone, r.Status, r.TagsJSON, r.AttributesJSON,
 			r.CreatedAt, r.DiscoveredAt, r.DiscoveredBy,

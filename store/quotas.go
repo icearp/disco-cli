@@ -597,10 +597,11 @@ func (s *Store) currentQuota(q *Quota) (currentQuotaRow, error) {
 // rows it wrote.
 //
 // Scanners upsert concurrently, so a sibling goroutine can take this natural
-// key between the lookup and this insert. ON CONFLICT DO NOTHING against the
-// current-by-natural-key partial index turns that race into a no-op rather than
-// a 23505 that would abort the whole batch — the sibling recorded the same
-// limit from the same point-in-time scan, so nothing is lost.
+// key between the lookup and this insert. ON CONFLICT DO NOTHING turns that
+// race into a no-op rather than a 23505 that would abort the whole batch — the
+// sibling recorded the same limit from the same point-in-time scan, so nothing
+// is lost. The clause names no conflict target, for the reason given on the
+// resources insert in upsertResourcesTx.
 func (s *Store) insertFirstQuota(q *Quota, now string) (int, error) {
 	if q.DiscoveredAt == "" {
 		q.DiscoveredAt = now
@@ -613,9 +614,7 @@ func (s *Store) insertFirstQuota(q *Quota, now string) (int, error) {
 			 resource_type, availability_zone, sub_account_type, attributes,
 			 discovered_at, discovered_by, verified_at, verified_by)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (provider, account_id, service_code, quota_code, region, dimension_key)
-		    WHERE superseded_by IS NULL
-		DO NOTHING`,
+		ON CONFLICT DO NOTHING`,
 		uuid.Must(uuid.NewV7()).String(), q.ID,
 		q.Provider, q.AccountID, q.AccountName, q.Region,
 		q.ServiceCode, q.ServiceName, q.QuotaCode, q.DimensionKey, q.Name, q.Description, q.Unit,

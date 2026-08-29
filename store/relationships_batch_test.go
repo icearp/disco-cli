@@ -190,3 +190,64 @@ func TestBeginRelBuffer_IndependentBuffers(t *testing.T) {
 		t.Errorf("after bs2 flush: %d edges, want 2", len(got))
 	}
 }
+
+// TestUpsertRelationships_RefreshesAttributes covers the UPDATE half of the
+// UPDATE-then-INSERT upsert on the SQLite backend, which is the one the CLI
+// ships. Every other edge test passes nil attrs, so without this the refresh is
+// exercised only by the docker-gated Postgres tests.
+//
+// Three claims: a re-upsert of an existing edge overwrites attributes in place
+// rather than duplicating the row, a repeat WITHIN one batch lets the later
+// element win (its UPDATE must see the INSERT its predecessor made in the same
+// uncommitted transaction), and direction is not refreshed.
+func TestUpsertRelationships_RefreshesAttributes(t *testing.T) {
+	st := openTestStore(t)
+	a, b := mkNode(t, st, "i-refresh-A"), mkNode(t, st, "i-refresh-B")
+
+	first, second, third := `{"seen":"first"}`, `{"seen":"second"}`, `{"seen":"third"}`
+
+	if err := st.UpsertRelationship(a, b, RelUses, "undirected", &first); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+	if err := st.UpsertRelationship(a, b, RelUses, "directed", &second); err != nil {
+		t.Fatalf("re-upsert: %v", err)
+	}
+
+	got, err := st.ListRelationships()
+	if err != nil {
+		t.Fatalf("ListRelationships: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("after re-upsert: %d edges, want 1", len(got))
+	}
+	if derefStr(got[0].Attributes) != second {
+		t.Errorf("attributes = %q, want %q (the re-upsert must refresh in place)",
+			derefStr(got[0].Attributes), second)
+	}
+	if got[0].Direction != "undirected" {
+		t.Errorf("direction = %q, want %q — direction is written on insert only",
+			got[0].Direction, "undirected")
+	}
+
+	// A batch carrying the same edge twice: the second element's UPDATE has to
+	// see the first element's row inside the still-open transaction.
+	if err := st.UpsertRelationships([]RelEdge{
+		{FromID: a, ToID: b, Kind: RelAttachedTo, Attrs: &first},
+		{FromID: a, ToID: b, Kind: RelAttachedTo, Attrs: &third},
+	}); err != nil {
+		t.Fatalf("batch with a repeated edge: %v", err)
+	}
+	got, err = st.ListRelationships()
+	if err != nil {
+		t.Fatalf("ListRelationships after batch: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("after batch: %d edges, want 2 (the repeat must not duplicate)", len(got))
+	}
+	for _, r := range got {
+		if r.Kind == RelAttachedTo && derefStr(r.Attributes) != third {
+			t.Errorf("batched edge attributes = %q, want %q (later element wins)",
+				derefStr(r.Attributes), third)
+		}
+	}
+}

@@ -12,8 +12,8 @@ Seven: `resources`, `quotas`, `relationships`, `hierarchy_closure`, `scans`, `sc
 
 
 - **`resources`**: one row per attribute-snapshot of a cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. PK `id` is a per-row UUIDv7, the deterministic `ResourceID` hash lives in `root_id`, and the current row in a chain has `superseded_by IS NULL`. `UpsertResources` auto-handles version splits (see resource-versioning rule below). No `parent_id` column — hierarchy via `RecordHierarchyBatch(pairs)` only.
-- **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`, `bounded-by`, `cross-account-trust`, `cross-sub-rbac`, `cross-project-iam`, `org-iam`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. Hierarchy `contains` lives in `hierarchy_closure` only (not here), so second edge (e.g. `attached-to`) between already-hierarchical resources conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list). **UNIQUE collapses many-to-one refs**: when N distinct source refs (e.g. two trust-policy principals from the same foreign account) all map to the same target, only one row survives. Edge count = distinct (from, to) pairs, not distinct refs — tests asserting counts must account for this.
-- **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `RecordHierarchyBatch(pairs)` (single tx) after upserting resources. The same call ALSO writes a `parent → child contains` row to `relationships` so `GraphWalk` (relationships-only) sees the edge — single source of truth across providers. Closure rows always go down; the relationship row is gated on both endpoints existing in `resources`, with a missing endpoint surfacing as a `ScanWarning` (operators see drift, callers stay simple). Don't add a separate `UpsertRelationship(parent, child, RelContains)` call beside the closure write — duplicate but idempotent under `INSERT OR IGNORE`.
+- **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`, `bounded-by`, `cross-account-trust`, `cross-sub-rbac`, `cross-project-iam`, `org-iam`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. The upsert is UPDATE-then-INSERT rather than `ON CONFLICT … DO UPDATE`, because that form cannot omit its conflict target and an embedder may widen this key. An embedder that widens it MUST scope it with row-level security, and all four conditions matter, because the UPDATE half carries no scope predicate of its own: the table `ENABLE`d **and** `FORCE`d (without FORCE the owner — the ordinary writer — is exempt), the writing role NOSUPERUSER and NOBYPASSRLS, and a permissive policy that covers UPDATE. A policy with `USING` and no `WITH CHECK` is fine, not a hole: Postgres reuses `USING` as the check, so an UPDATE cannot move a row out of the caller's scope. Get it wrong in the first two ways and one scope's re-scan rewrites every other scope's row while `RowsAffected` hides the count; get it wrong in the third and the UPDATE matches nothing, the INSERT is absorbed, and the edge is dropped in silence. Hierarchy `contains` lives in `hierarchy_closure` only (not here), so second edge (e.g. `attached-to`) between already-hierarchical resources conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list). **UNIQUE collapses many-to-one refs**: when N distinct source refs (e.g. two trust-policy principals from the same foreign account) all map to the same target, only one row survives. Edge count = distinct (from, to) pairs, not distinct refs — tests asserting counts must account for this.
+- **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `RecordHierarchyBatch(pairs)` (single tx) after upserting resources. The same call ALSO writes a `parent → child contains` row to `relationships` so `GraphWalk` (relationships-only) sees the edge — single source of truth across providers. Closure rows always go down; the relationship row is gated on both endpoints existing in `resources`, with a missing endpoint surfacing as a `ScanWarning` (operators see drift, callers stay simple). Don't add a separate `UpsertRelationship(parent, child, RelContains)` call beside the closure write — duplicate but idempotent under `ON CONFLICT DO NOTHING`.
 - **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
 
 Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interpolation. `sqlx` handles struct scanning. Raw SQL for CTEs + anything squirrel can't express cleanly.
@@ -46,9 +46,17 @@ AWS access key IDs (AKIA…) are public-ish identifiers, not credentials — IAM
 
 **No CI gate** on rule coverage — adding a new resource type whose SDK response carries credentials/tokens leaks unless the author registers a rule alongside `registerService`. Reviewers must catch this. Per-provider `redact_test.go` files use real SDK types, so SDK field renames break the test on `go mod tidy` (cheap drift catch without a global harness).
 
-## modernc/sqlite FK + INSERT OR IGNORE asymmetry
+## Edge endpoints are checked in Go, not by the database
 
-`INSERT OR IGNORE` silently absorbs FK violations on `hierarchy_closure` (caller intent — pairs for unscanned parents are normal) but surfaces them as errors on `relationships`. `recordHierarchyTx` (in `relationships.go`) handles this with an explicit `EXISTS` pre-check and a `ScanWarning` on miss — bugs become visible without spamming `errors.Is` checks across every scanner call site. Use the same pattern when writing into `relationships` from a context where endpoints may not all be scanned.
+`recordHierarchyTx` (in `relationships.go`) pre-checks both endpoints with an
+`EXISTS` and reports a `ScanWarning` on a miss, rather than letting the write
+fail. The hierarchy `contains` row is the only edge write that checks its endpoints at all — `UpsertRelationship`/`UpsertRelationships` deliberately do not, since cross-tenant edges point at resources outside scan scope, which is what the `InsertResourcesIfAbsent` placeholders exist for. Nothing in the database enforces it either: `006`
+dropped the FKs from `relationships` and `hierarchy_closure` to `resources` on
+both backends, because `id` became the per-version row id and `root_id` is
+non-unique by design. `ON CONFLICT DO NOTHING` would not have covered it either
+— it absorbs uniqueness conflicts only, never FK, NOT NULL or CHECK. Use the
+same pre-check pattern when writing into `relationships` from a context where
+endpoints may not all be scanned.
 
 Rule of thumb for "advisory" failures (skip happens, but operator should know): prefer `ReportWarning` over a sentinel error. Sentinel forces every caller to add `errors.Is` boilerplate; warning surfaces in scan output AND tests can attach `OnWarn` to detect drift, with zero caller-side churn. Reserve sentinel errors for cases callers must branch on (e.g. `ErrNoPath` driving exit-code routing in `cmd/root.go`).
 
@@ -141,24 +149,38 @@ v1.6+). PG 17.7 lacks native `uuidv7()` (PG 18 only); the future
 migration path to `uuid` column type when PG 18 ships is a single
 `ALTER TABLE ... TYPE uuid USING ...::uuid` per column.
 
-## UpsertResources ON CONFLICT scope
+## UpsertResources verify-path scope
 
-ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`, `verified_by`, `managed_by_provider`. Does **not** update `region`, `zone`, `account_name`, `discovered_at`. Set all fields on initial insert — second upsert can't patch. Adding a new mutable column = three edits: INSERT col list, VALUES placeholder, ON CONFLICT SET.
+There is no `ON CONFLICT … DO UPDATE` on `resources`: the verify path is a plain
+`UPDATE` and a changed resource is a version SPLIT (an `UPDATE` of the
+predecessor's `superseded_by` plus a full `INSERT`), both in `upsertResourcesTx`
+(`resources_upsert.go`). Read off the statement at `resources_upsert.go:210`, the verify `UPDATE` writes
+`verified_at`, `verified_by`, `name`, `region`, `zone`, `status`,
+`account_name`, `managed_by_provider`, and clears `deleted_at`/`deleted_by` (a
+re-seen resource lifts its archival tombstone). It does **not** write `tags` or
+`attributes` — it cannot, since that branch is only reached when both already
+compare equal — nor `discovered_at`/`discovered_by`, which belong to the chain
+root. Adding a new mutable column means editing the verify UPDATE, the split
+INSERT's column list, and its VALUES.
 
 ## Reference-discovered placeholders (`InsertResourcesIfAbsent`)
 
 `InsertResourcesIfAbsent(resources)` runs **only** the first-discovery
-`INSERT … ON CONFLICT (provider,account_id,native_id) WHERE superseded_by
-IS NULL DO NOTHING` path — never the verify or version-split paths. It is the
+`INSERT … ON CONFLICT DO NOTHING` path — never the verify or version-split
+paths. That clause names **no conflict target**, so it is correct whatever
+columns the current-by-natural-key index carries: an embedder may widen the key
+(a multi-tenant host scoping it per workspace), and an inferred target must
+match the live index exactly or the insert fails `42P10`. It is the
 reference-discovery primitive: when a resolver sees a cross-tenant edge into an
 account/subscription/project outside scan scope, it inserts an empty-attribute
 (`{}`) row at that resource's **real self-node natural key** (so the edge's
-`to_id` — the deterministic `root_id` — has a stable FK target), then emits the
+`to_id` — the deterministic `root_id` — names a row that exists, though nothing
+in the database enforces that since `006` dropped the edge FKs), then emits the
 edge. If that target is later scanned (this run or a future one), its own
 scanner calls `UpsertResources`, finds the placeholder as the current version,
 and version-splits it `{}`→populated; the placeholder is preserved in history
 and the edge keeps resolving across the split. The ON CONFLICT DO NOTHING makes
-it FK-safe but non-destructive — a populated row is never reduced back to `{}`,
+it non-destructive — a populated row is never reduced back to `{}`,
 regardless of resolver-vs-scanner ordering. Do **not** use `UpsertResources`
 for placeholders: it would version-split a populated row down to `{}`. Sole
 callers today are the three cross-tenant resolvers (`resolveIAMRoleCrossAccountTrust`
@@ -168,7 +190,7 @@ type and no marker column — the version chain is the whole mechanism.
 
 ## FK constraint: resources require scan record
 
-`resources.discovered_by` + `resources.verified_by` = FKs to `scans(id)`. Any test inserting resources needs scan record in DB first. `newTestStore` (provider tests) handles — inserts scan with fixed ID `"00000000000000000000000000000000"`.
+`resources.discovered_by` = FK to `scans(id)`; `verified_by` holds a scan id too but carries no constraint (`006` added it as a plain column). Any test inserting resources needs scan record in DB first. `newTestStore` (provider tests) handles — inserts scan with fixed ID `"00000000000000000000000000000000"`.
 
 ## ListResources filter shape
 
@@ -229,7 +251,7 @@ Single `*Store` covers both SQLite and Postgres; `OpenPostgres(ctx, dsn, ...PGOp
 - `s.tagJSONValueExists()` — `json_each(tags)` vs `jsonb_each_text(tags)`.
 
 Other portability rules baked in:
-- `INSERT OR IGNORE` was replaced with `INSERT ... ON CONFLICT (cols) DO NOTHING`. SQLite supports this since 3.24; Postgres requires the explicit conflict target. New writes follow the same shape.
+- `INSERT OR IGNORE` was replaced with `INSERT ... ON CONFLICT DO NOTHING`, which both backends support. Writes on `resources`, `quotas`, `relationships` and `hierarchy_closure` name **no conflict target**: an inferred target must match a live unique index exactly, and an embedder may widen those keys (a multi-tenant host scoping them per workspace), which would then fail `42P10`. `scans` and `scan_checkpoints` keep their targets — `scans (id)` and the four-column `scan_checkpoints (scan_id, provider, service, scope)`, both led by a globally unique scan id, so widening their KEYS would buy an embedder nothing. They are still RLS-scoped like every other scan-data table; this is about the key, not about isolation. New writes follow the same rule.
 - `recordHierarchyTx` and friends accept `*sql.Tx` but pass through `s.rebind(...)` first because tx itself is unaware of the driver.
 
 ### Single-tenant backend + `WithAfterConnect` extension point

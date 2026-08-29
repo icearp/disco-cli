@@ -50,7 +50,7 @@ func resolveKMSAliases(acct *account, st *store.Store) error { ... }
 
 ## Two-phase scan + concurrency
 
-Foreign keys ON. Relationship rows reference resource IDs — resources must exist first.
+Foreign keys ON, but NOT on edges: `006` dropped `relationships`/`hierarchy_closure` -> `resources`, because `id` became the per-version row id and `root_id` is non-unique by design. Edge endpoints are checked in Go, and only for the hierarchy `contains` row (`recordHierarchyTx`'s `EXISTS` gate).
 
 1. **Phase 1a (aws only)**: global services, bounded by `semaphore.Weighted(maxConcurrentServices=10)`.
 2. **Phase 1b**: regional services (aws), per-subscription services (azure), per-project services (gcp). Same semaphore-bounded fan-out. Each service gets `context.WithTimeout(ctx, serviceTimeout)` — aws/gcp `5 * time.Minute`, azure `30 * time.Minute`.

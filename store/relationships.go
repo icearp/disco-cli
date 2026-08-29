@@ -81,14 +81,56 @@ type relBuffer struct {
 	edges []RelEdge
 }
 
-const upsertRelationshipSQL = `
+// The edge upsert is UPDATE-then-INSERT rather than INSERT … ON CONFLICT …
+// DO UPDATE, because Postgres has no untargeted DO UPDATE: that form must infer
+// a conflict target, and an inferred target must match a live unique index
+// exactly or the statement fails 42P10. An embedder may widen the edge key —
+// a multi-tenant host scoping it per workspace, where two tenants legitimately
+// hold the same (from_id, to_id, kind), since those ids are the deterministic
+// ResourceID hash and not per-row identifiers. UPDATE names columns instead of
+// inferring an index, so it is correct against either shape — PROVIDED the
+// embedder enforces its own scope with row-level security. The UPDATE carries no
+// scope predicate of its own, so it is confined only when the table is ENABLEd
+// AND FORCEd (FORCE is a table property; without it the owner, which is the
+// ordinary writer, is exempt), the role is neither superuser nor BYPASSRLS, and
+// a policy actually covers UPDATE. Miss one of the first three and one scope's
+// re-scan rewrites EVERY other scope's row, then skips its own INSERT having
+// "matched" them. Miss the last and the UPDATE matches nothing, the INSERT is
+// absorbed below, and the edge is dropped in silence.
+//
+// UPDATE first, INSERT only when it matched nothing: a re-scan finds the edge
+// already present, which is the common case, and pays one statement for it —
+// while first discovery pays two, so a greenfield scan is the branch that got
+// slower. direction is deliberately not refreshed, matching the DO UPDATE this
+// replaces.
+const updateRelationshipSQL = `
+	UPDATE relationships
+	   SET attributes = ?, discovered_at = ?
+	 WHERE from_id = ? AND to_id = ? AND kind = ?`
+
+// insertRelationshipSQL is the other half. ON CONFLICT DO NOTHING covers the
+// race where a sibling inserted this edge since the UPDATE above matched
+// nothing. That flips the tie: the first writer's attributes stand, where the
+// old DO UPDATE let the later one win. What can be lost is a differing attrs
+// blob on a concurrent CREATE of one edge — the UNIQUE key collapses many
+// distinct refs onto one row, so siblings do not always carry identical
+// attributes. A row that already exists takes the UPDATE above and is
+// last-writer-wins exactly as before.
+const insertRelationshipSQL = `
 	INSERT INTO relationships (from_id, to_id, kind, direction, attributes, discovered_at)
 	VALUES (?, ?, ?, ?, ?, ?)
-	ON CONFLICT(from_id, to_id, kind) DO UPDATE SET
-		attributes    = excluded.attributes,
-		discovered_at = excluded.discovered_at`
+	ON CONFLICT DO NOTHING`
 
-// UpsertRelationship inserts a relationship, ignoring conflicts (idempotent).
+// UpsertRelationship inserts a relationship, or refreshes the attributes and
+// discovered_at of one already at this (from_id, to_id, kind). Idempotent.
+// direction is written on insert only, never refreshed.
+//
+// Two writers CREATING one edge concurrently resolve first-writer-wins: the
+// loser's attributes are dropped rather than overwriting, which is the one
+// behaviour change from the ON CONFLICT DO UPDATE this replaced (see
+// updateRelationshipSQL for why it could not stay). A writer finding the edge
+// already present is last-writer-wins, as before.
+//
 // On a buffered store (BeginRelBuffer) the edge is accumulated and written later
 // by FlushRelBuffer in a single transaction instead of its own autocommit.
 func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *string) error {
@@ -106,8 +148,18 @@ func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *
 	}
 	discoveredAt := time.Now().UTC().Format(time.RFC3339)
 	if err := s.withWriteRetry("upsert relationship", func() error {
-		_, err := s.exec(upsertRelationshipSQL, fromID, toID, kind, direction, attrs, discoveredAt)
+		res, err := s.exec(updateRelationshipSQL, attrs, discoveredAt, fromID, toID, kind)
 		if err != nil {
+			return fmt.Errorf("%s -[%s]-> %s: %w", fromID, kind, toID, err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("%s -[%s]-> %s: rows affected: %w", fromID, kind, toID, err)
+		}
+		if n > 0 {
+			return nil
+		}
+		if _, err := s.exec(insertRelationshipSQL, fromID, toID, kind, direction, attrs, discoveredAt); err != nil {
 			return fmt.Errorf("%s -[%s]-> %s: %w", fromID, kind, toID, err)
 		}
 		return nil
@@ -120,9 +172,9 @@ func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *
 	return nil
 }
 
-// UpsertRelationships upserts many relationships in a single transaction with a
-// reused prepared statement — the batch form of UpsertRelationship. Idempotent
-// (same ON CONFLICT). Empty input is a no-op. Callers that buffer via
+// UpsertRelationships upserts many relationships in a single transaction with
+// reused prepared statements — the batch form of UpsertRelationship, and
+// idempotent by the same UPDATE-then-INSERT. Empty input is a no-op. Callers that buffer via
 // BeginRelBuffer reach this through FlushRelBuffer; it is also callable directly.
 func (s *Store) UpsertRelationships(edges []RelEdge) error {
 	if len(edges) == 0 {
@@ -141,11 +193,16 @@ func (s *Store) upsertRelationshipsTx(edges []RelEdge) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	stmt, err := tx.Preparex(tx.Rebind(upsertRelationshipSQL))
+	updateStmt, err := tx.Preparex(tx.Rebind(updateRelationshipSQL))
 	if err != nil {
-		return fmt.Errorf("prepare upsert relationships: %w", err)
+		return fmt.Errorf("prepare update relationships: %w", err)
 	}
-	defer func() { _ = stmt.Close() }()
+	defer func() { _ = updateStmt.Close() }()
+	insertStmt, err := tx.Preparex(tx.Rebind(insertRelationshipSQL))
+	if err != nil {
+		return fmt.Errorf("prepare insert relationships: %w", err)
+	}
+	defer func() { _ = insertStmt.Close() }()
 
 	discoveredAt := time.Now().UTC().Format(time.RFC3339)
 	for _, e := range edges {
@@ -153,7 +210,18 @@ func (s *Store) upsertRelationshipsTx(edges []RelEdge) error {
 		if dir == "" {
 			dir = "directed"
 		}
-		if _, err := stmt.Exec(e.FromID, e.ToID, e.Kind, dir, e.Attrs, discoveredAt); err != nil {
+		res, err := updateStmt.Exec(e.Attrs, discoveredAt, e.FromID, e.ToID, e.Kind)
+		if err != nil {
+			return fmt.Errorf("upsert relationship %s -[%s]-> %s: %w", e.FromID, e.Kind, e.ToID, err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("upsert relationship %s -[%s]-> %s: rows affected: %w", e.FromID, e.Kind, e.ToID, err)
+		}
+		if n > 0 {
+			continue
+		}
+		if _, err := insertStmt.Exec(e.FromID, e.ToID, e.Kind, dir, e.Attrs, discoveredAt); err != nil {
 			return fmt.Errorf("upsert relationship %s -[%s]-> %s: %w", e.FromID, e.Kind, e.ToID, err)
 		}
 	}
@@ -366,7 +434,7 @@ func (s *Store) recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing
 	if _, err := tx.Exec(s.rebind(`
 		INSERT INTO hierarchy_closure (ancestor_id, descendant_id, depth)
 		VALUES (?, ?, 0)
-		ON CONFLICT (ancestor_id, descendant_id) DO NOTHING`), childID, childID); err != nil {
+		ON CONFLICT DO NOTHING`), childID, childID); err != nil {
 		return false, fmt.Errorf("closure self-entry %s: %w", childID, err)
 	}
 	if _, err := tx.Exec(s.rebind(`
@@ -374,7 +442,7 @@ func (s *Store) recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing
 		SELECT hc.ancestor_id, ?, hc.depth + 1
 		FROM hierarchy_closure hc
 		WHERE hc.descendant_id = ?
-		ON CONFLICT (ancestor_id, descendant_id) DO NOTHING`), childID, parentID); err != nil {
+		ON CONFLICT DO NOTHING`), childID, parentID); err != nil {
 		return false, fmt.Errorf("closure ancestor entries %s: %w", childID, err)
 	}
 	if childID == parentID {
@@ -394,7 +462,7 @@ func (s *Store) recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing
 	if _, err := tx.Exec(s.rebind(`
 		INSERT INTO relationships (from_id, to_id, kind, direction, discovered_at)
 		VALUES (?, ?, 'contains', 'directed', ?)
-		ON CONFLICT (from_id, to_id, kind) DO NOTHING`),
+		ON CONFLICT DO NOTHING`),
 		parentID, childID, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 		return false, fmt.Errorf("hierarchy relationship row %s→%s: %w", parentID, childID, err)
 	}
