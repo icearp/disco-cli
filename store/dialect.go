@@ -81,9 +81,14 @@ func (s *Store) selectAll(dest any, q string, args ...any) error {
 // directly in INSERT/UPDATE statements.
 //
 // The trailing "Z" is load-bearing rather than decoration. These columns are
-// TEXT, and disco-saas casts them with ::timestamptz; without an offset that
-// cast resolves against the session TimeZone instead of UTC, so the value a
-// consumer reads depends on who is connected.
+// TEXT and their readers compare and order them AS TEXT, so lexicographic
+// order is chronological only while every value is fixed-width UTC. The
+// zoneless form below carries a space at byte 10, which sorts under every
+// canonical value of its own date or later. A reader that casts instead has a
+// second reason to want the offset -- without one the cast resolves against
+// the session TimeZone rather than UTC -- but casting a column it does not
+// write is a liability of its own: one value that will not cast raises
+// 22007/22008 and takes the whole statement down.
 //
 // This emitted a zoneless "YYYY-MM-DD HH:MM:SS" until v0.31.0, which the
 // schema's own column comments had always described as RFC3339. Rows written
