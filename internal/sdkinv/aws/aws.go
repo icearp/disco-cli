@@ -7,7 +7,6 @@
 package aws
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 
@@ -48,10 +47,6 @@ func (extractor) FetchSpec() []sdkinv.FetchSource {
 			Expand: expandServiceReference,
 		},
 	}
-}
-
-func (extractor) Extract(context.Context, string) (*sdkinv.Universe, error) {
-	return nil, sdkinv.ErrNotImplemented
 }
 
 type srIndexEntry struct {

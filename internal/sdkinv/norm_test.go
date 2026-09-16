@@ -1,0 +1,49 @@
+package sdkinv
+
+import (
+	"reflect"
+	"testing"
+)
+
+func TestCanonAndSingular(t *testing.T) {
+	for in, want := range map[string]string{
+		"virtualMachines": "virtualmachine", "virtual-machines": "virtualmachine", "Databases": "database",
+		"snoozes": "snooze", "policies": "policy", "indexes": "index", "addresses": "address", "status": "status",
+		"aliases": "aliase", "DBInstances": "dbinstance", "AWS::EC2::Instance": "awsec2instance",
+	} {
+		if got := CanonSingular(in); got != want {
+			t.Errorf("CanonSingular(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestKebab(t *testing.T) {
+	for in, want := range map[string]string{
+		"virtualMachineScaleSets": "virtual-machine-scale-sets", "p2sVpnGateways": "p2s-vpn-gateways",
+		"dedicatedHSMs": "dedicated-hsms", "DBInstance": "db-instance", "instances": "instances", "IPAllocations": "ip-allocations",
+	} {
+		if got := Kebab(in); got != want {
+			t.Errorf("Kebab(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestStripScopes(t *testing.T) {
+	scopes := map[string]bool{"subscriptions": true, "resourcegroups": true, "projects": true, "locations": true}
+	cases := []struct {
+		tmpl string
+		want ResourcePath
+	}{
+		{"/subscriptions/{s}/providers/Microsoft.Compute/virtualMachines", ResourcePath{Statics: []string{"providers", "Microsoft.Compute", "virtualMachines"}}},
+		{"/subscriptions/{s}/resourceGroups/{rg}/providers/Microsoft.Compute/virtualMachines/{vm}/extensions", ResourcePath{Statics: []string{"providers", "Microsoft.Compute", "virtualMachines", "extensions"}, Parents: []string{"virtualMachines"}}},
+		{"/subscriptions/{s}/resourceGroups/{rg}/providers/Microsoft.Compute/virtualMachines/{vm}", ResourcePath{Statics: []string{"providers", "Microsoft.Compute", "virtualMachines"}, Item: true}},
+		{"projects/{p}/locations/{l}/jobs/{j}/executions", ResourcePath{Statics: []string{"jobs", "executions"}, Parents: []string{"jobs"}}},
+		{"b/{bucket}/anywhereCaches", ResourcePath{Statics: []string{"b", "anywhereCaches"}, Parents: []string{"b"}}},
+	}
+	for _, c := range cases {
+		got := StripScopes(ParseTemplate(c.tmpl), scopes, nil)
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("StripScopes(%q) = %+v, want %+v", c.tmpl, got, c.want)
+		}
+	}
+}

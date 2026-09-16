@@ -5,7 +5,6 @@
 package azure
 
 import (
-	"context"
 	"strings"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
@@ -34,8 +33,10 @@ func (extractor) FetchSpec() []sdkinv.FetchSource {
 	}}
 }
 
-// keepARMFile keeps generated client, model and response-type sources of arm*
-// modules; tests, fakes, examples and the client factory carry no paths.
+// keepARMFile keeps the generated Go sources of arm* modules. Request builders
+// live in *_client.go but also in client.go / api_client.go (armresources'
+// generic client, armmanagementgroups), so every non-test .go file is kept
+// except fakes and the large models_serde.go marshal code.
 func keepARMFile(p string) bool {
 	if !strings.HasPrefix(p, rmPrefix) || !strings.HasSuffix(p, ".go") {
 		return false
@@ -44,17 +45,7 @@ func keepARMFile(p string) bool {
 		return false
 	}
 	base := p[strings.LastIndex(p, "/")+1:]
-	switch {
-	case base == "client_factory.go":
-		return false
-	case strings.HasSuffix(base, "_client.go"), base == "models.go", base == "response_types.go", base == "responses.go":
-		return true
-	}
-	return false
-}
-
-func (extractor) Extract(context.Context, string) (*sdkinv.Universe, error) {
-	return nil, sdkinv.ErrNotImplemented
+	return base != "models_serde.go" && base != "client_factory.go"
 }
 
 func init() { sdkinv.Register(extractor{}) }

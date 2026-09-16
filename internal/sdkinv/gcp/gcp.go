@@ -5,7 +5,6 @@
 package gcp
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -65,10 +64,6 @@ func (e extractor) FetchSpec() []sdkinv.FetchSource {
 		Keep:     func(p string) bool { return strings.HasSuffix(p, "-api.json") },
 		LocalDir: filepath.Join(modCache(), modulePath+"@"+ver),
 	}}
-}
-
-func (extractor) Extract(context.Context, string) (*sdkinv.Universe, error) {
-	return nil, sdkinv.ErrNotImplemented
 }
 
 func init() { sdkinv.Register(extractor{}) }

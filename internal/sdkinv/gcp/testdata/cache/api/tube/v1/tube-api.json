@@ -1,0 +1,9 @@
+{
+  "name": "tube", "version": "v1",
+  "resources": {
+    "channels": {"methods": {
+      "list": {"path": "channels", "httpMethod": "GET", "parameters": {}},
+      "insert": {"path": "channels", "httpMethod": "POST", "parameters": {}}
+    }}
+  }
+}
