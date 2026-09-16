@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOrganization, Service: "cloudresourcemanager", Upstream: "cloudresourcemanager.googleapis.com/Organization", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFolder, Service: "cloudresourcemanager", Upstream: "cloudresourcemanager.googleapis.com/Folder", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeProject, Service: "cloudresourcemanager", Upstream: "cloudresourcemanager.googleapis.com/Project", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOrganization, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFolder, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeProject, Service: "cloudresourcemanager", Leaf: true})
 	// scanHierarchy runs direct from gcp.go (not via registerService) — it
 	// fires once before per-project fan-out and emits the project/folder/
 	// organization rows resolvers anchor against. Declared via

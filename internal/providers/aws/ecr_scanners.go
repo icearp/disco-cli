@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeECRRepository, Service: "ecr", Upstream: "AWS::ECR::Repository"})
+	registerType(restype.Descriptor{Type: TypeECRRepository, Service: "ecr"})
 	registerType(restype.Descriptor{Type: TypeECRPublicRepository, Service: "ecr", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeECRPullThroughCacheRule, Service: "ecr", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeECRPullTimeUpdateExclusion, Service: "ecr", Leaf: true})

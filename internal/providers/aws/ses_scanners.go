@@ -15,8 +15,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSESEmailIdentity, Service: "ses", Upstream: "AWS::SES::EmailIdentity"})
-	registerType(restype.Descriptor{Type: TypeSESConfigurationSet, Service: "ses", Upstream: "AWS::SES::ConfigurationSet", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSESEmailIdentity, Service: "ses"})
+	registerType(restype.Descriptor{Type: TypeSESConfigurationSet, Service: "ses", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeSESConfigurationSetEventDestination, Service: "ses"})
 	registerType(restype.Descriptor{Type: TypeSESContactList, Service: "ses", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeSESCustomVerificationEmailTemplate, Service: "ses", Leaf: true})

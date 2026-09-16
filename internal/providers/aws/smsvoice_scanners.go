@@ -16,9 +16,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSMSVoicePool, Service: "sms-voice", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeSMSVoiceProtectConfiguration, Service: "sms-voice", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeSMSVoiceSenderID, Service: "sms-voice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistration, Service: "sms-voice", Upstream: "AWS::sms-voice::Registration", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistrationAttachment, Service: "sms-voice", Upstream: "AWS::sms-voice::RegistrationAttachment", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoiceVerifiedDestinationNumber, Service: "sms-voice", Upstream: "AWS::sms-voice::VerifiedDestinationNumber", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistration, Service: "sms-voice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistrationAttachment, Service: "sms-voice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceVerifiedDestinationNumber, Service: "sms-voice", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:sms-voice",
 		fn:   scanSMSVoice,

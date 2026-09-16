@@ -19,12 +19,12 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeProtonEnvironment, Service: "proton"})
 	registerType(restype.Descriptor{Type: TypeProtonEnvironmentAccountConnection, Service: "proton", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeProtonEnvironmentTemplate, Service: "proton", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeProtonEnvironmentTemplateVersion, Service: "proton", Upstream: "AWS::proton::environment-template-version"})
+	registerType(restype.Descriptor{Type: TypeProtonEnvironmentTemplateVersion, Service: "proton"})
 	registerType(restype.Descriptor{Type: TypeProtonRepository, Service: "proton", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeProtonService, Service: "proton", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeProtonServiceInstance, Service: "proton", Upstream: "AWS::proton::service-instance"})
+	registerType(restype.Descriptor{Type: TypeProtonServiceInstance, Service: "proton"})
 	registerType(restype.Descriptor{Type: TypeProtonServiceTemplate, Service: "proton", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeProtonServiceTemplateVersion, Service: "proton", Upstream: "AWS::proton::service-template-version"})
+	registerType(restype.Descriptor{Type: TypeProtonServiceTemplateVersion, Service: "proton"})
 	registerService(serviceEntry{
 		name: "aws:proton",
 		fn:   scanProton,

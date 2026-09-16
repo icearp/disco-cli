@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBedrockCustomModel, Service: "bedrock", Upstream: "AWS::bedrock::custom-model", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBedrockImportedModel, Service: "bedrock", Upstream: "AWS::bedrock::imported-model", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBedrockMarketplaceModelEndpoint, Service: "bedrock", Upstream: "AWS::bedrock::bedrock-marketplace-model-endpoint", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBedrockProvisionedModel, Service: "bedrock", Upstream: "AWS::bedrock::provisioned-model"})
-	registerType(restype.Descriptor{Type: TypeBedrockCustomModelDeployment, Service: "bedrock", Upstream: "AWS::bedrock::custom-model-deployment"})
+	registerType(restype.Descriptor{Type: TypeBedrockCustomModel, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockImportedModel, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockMarketplaceModelEndpoint, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockProvisionedModel, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockCustomModelDeployment, Service: "bedrock"})
 }
 
 // bedrockModelsAPI is the narrow Bedrock surface the model scanners use. All

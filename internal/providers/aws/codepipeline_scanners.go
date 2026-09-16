@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCodePipelinePipeline, Service: "codepipeline", Upstream: "AWS::CodePipeline::Pipeline"})
-	registerType(restype.Descriptor{Type: TypeCodePipelineCustomActionType, Service: "codepipeline", Upstream: "AWS::CodePipeline::CustomActionType", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCodePipelineWebhook, Service: "codepipeline", Upstream: "AWS::CodePipeline::Webhook"})
+	registerType(restype.Descriptor{Type: TypeCodePipelinePipeline, Service: "codepipeline"})
+	registerType(restype.Descriptor{Type: TypeCodePipelineCustomActionType, Service: "codepipeline", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodePipelineWebhook, Service: "codepipeline"})
 	registerService(serviceEntry{
 		name: "aws:codepipeline",
 		fn:   scanCodePipeline,

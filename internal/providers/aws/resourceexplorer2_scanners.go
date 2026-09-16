@@ -14,7 +14,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeResourceExplorer2Index, Service: "resource-explorer-2", Leaf: true, Managed: true})
 	registerType(restype.Descriptor{Type: TypeResourceExplorer2View, Service: "resource-explorer-2", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeResourceExplorer2DefaultViewAssociation, Service: "resource-explorer-2", Leaf: true, Managed: true})
-	registerType(restype.Descriptor{Type: TypeResourceExplorer2ManagedView, Service: "resource-explorer-2", Upstream: "AWS::resource-explorer-2::managed-view", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2ManagedView, Service: "resource-explorer-2", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:resource-explorer-2",
 		fn:   scanResourceExplorer2,

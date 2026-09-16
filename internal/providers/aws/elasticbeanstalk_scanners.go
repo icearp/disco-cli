@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBeanstalkApplication, Service: "elasticbeanstalk", Upstream: "AWS::ElasticBeanstalk::Application"})
-	registerType(restype.Descriptor{Type: TypeBeanstalkEnvironment, Service: "elasticbeanstalk", Upstream: "AWS::ElasticBeanstalk::Environment", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBeanstalkApplication, Service: "elasticbeanstalk"})
+	registerType(restype.Descriptor{Type: TypeBeanstalkEnvironment, Service: "elasticbeanstalk", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeBeanstalkApplicationVersion, Service: "elasticbeanstalk"})
 	registerType(restype.Descriptor{Type: TypeBeanstalkPlatform, Service: "elasticbeanstalk", Leaf: true})
 	registerService(serviceEntry{
@@ -36,7 +36,7 @@ type elasticbeanstalkAPI interface {
 // pagination (no SDK paginator). Per-phase AccessDenied tolerated.
 // Configuration templates are skipped (sub-resource: names embedded in the
 // application's ConfigurationTemplates[], no standalone list API); solution
-// stacks are an AWS catalog (aws_skips.go). The AWS-managed platform
+// stacks are an AWS catalog. The AWS-managed platform
 // catalogue is excluded by filtering ListPlatformVersions to
 // PlatformOwner=self (custom platforms only).
 func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

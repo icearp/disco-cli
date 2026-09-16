@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePCAConnectorSCEPConnector, Service: "pca-connector-scep", Upstream: "AWS::PCAConnectorSCEP::Connector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePCAConnectorSCEPChallenge, Service: "pca-connector-scep", Upstream: "AWS::PCAConnectorSCEP::Challenge", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePCAConnectorSCEPConnector, Service: "pca-connector-scep", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePCAConnectorSCEPChallenge, Service: "pca-connector-scep", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:pca-connector-scep",
 		fn:   scanPCAConnectorSCEP,

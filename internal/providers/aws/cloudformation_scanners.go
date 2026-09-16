@@ -16,12 +16,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCloudFormationStack, Service: "cloudformation", Upstream: "AWS::CloudFormation::Stack"})
-	registerType(restype.Descriptor{Type: TypeCloudFormationStackSet, Service: "cloudformation", Upstream: "AWS::CloudFormation::StackSet"})
-	registerType(restype.Descriptor{Type: TypeCloudFormationGeneratedTemplate, Service: "cloudformation", Upstream: "AWS::cloudformation::generatedtemplate", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudFormationResourceScan, Service: "cloudformation", Upstream: "AWS::cloudformation::resourcescan", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudFormationType, Service: "cloudformation", Upstream: "AWS::cloudformation::type", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudFormationTypeHook, Service: "cloudformation", Upstream: "AWS::cloudformation::typeHook", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFormationStack, Service: "cloudformation"})
+	registerType(restype.Descriptor{Type: TypeCloudFormationStackSet, Service: "cloudformation"})
+	registerType(restype.Descriptor{Type: TypeCloudFormationGeneratedTemplate, Service: "cloudformation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFormationResourceScan, Service: "cloudformation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFormationType, Service: "cloudformation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFormationTypeHook, Service: "cloudformation", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:cloudformation",
 		fn:   scanCloudFormation,

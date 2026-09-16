@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeShieldProtection, Service: "shield", Upstream: "AWS::Shield::Protection"})
-	registerType(restype.Descriptor{Type: TypeShieldProtectionGroup, Service: "shield", Upstream: "AWS::Shield::ProtectionGroup"})
+	registerType(restype.Descriptor{Type: TypeShieldProtection, Service: "shield"})
+	registerType(restype.Descriptor{Type: TypeShieldProtectionGroup, Service: "shield"})
 	registerType(restype.Descriptor{Type: TypeShieldDRTAccess, Service: "shield", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeShieldProactiveEngagement, Service: "shield", Leaf: true})
 	registerService(serviceEntry{

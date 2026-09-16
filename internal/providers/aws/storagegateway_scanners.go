@@ -17,8 +17,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeStorageGatewayShare, Service: "storagegateway"})
 	registerType(restype.Descriptor{Type: TypeStorageGatewayTape, Service: "storagegateway"})
 	registerType(restype.Descriptor{Type: TypeStorageGatewayTapePool, Service: "storagegateway", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeStorageGatewayFsAssociation, Service: "storagegateway", Upstream: "AWS::storagegateway::fs-association"})
-	registerType(restype.Descriptor{Type: TypeStorageGatewayCacheReport, Service: "storagegateway", Upstream: "AWS::storagegateway::cache-report", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageGatewayFsAssociation, Service: "storagegateway"})
+	registerType(restype.Descriptor{Type: TypeStorageGatewayCacheReport, Service: "storagegateway", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeStorageGatewayDevice, Service: "storagegateway"})
 	registerService(serviceEntry{
 		name: "aws:storagegateway",

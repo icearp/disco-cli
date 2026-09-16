@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePubSubTopic, Service: "pubsub", Upstream: "pubsub.googleapis.com/Topic"})
-	registerType(restype.Descriptor{Type: TypePubSubSubscription, Service: "pubsub", Upstream: "pubsub.googleapis.com/Subscription"})
-	registerType(restype.Descriptor{Type: TypePubSubSchema, Service: "pubsub", Upstream: "pubsub.googleapis.com/Schema", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePubSubSnapshot, Service: "pubsub", Upstream: "pubsub.googleapis.com/Snapshot"})
+	registerType(restype.Descriptor{Type: TypePubSubTopic, Service: "pubsub"})
+	registerType(restype.Descriptor{Type: TypePubSubSubscription, Service: "pubsub"})
+	registerType(restype.Descriptor{Type: TypePubSubSchema, Service: "pubsub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePubSubSnapshot, Service: "pubsub"})
 	registerService(serviceEntry{
 		name: "gcp:pubsub",
 		fn:   scanPubSub,

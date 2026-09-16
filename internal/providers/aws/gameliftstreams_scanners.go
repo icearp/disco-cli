@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeGameLiftStreamsApplication, Service: "gameliftstreams", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeGameLiftStreamsStreamGroup, Service: "gameliftstreams", Upstream: "AWS::gameliftstreams::stream group"})
+	registerType(restype.Descriptor{Type: TypeGameLiftStreamsStreamGroup, Service: "gameliftstreams"})
 	registerService(serviceEntry{
 		name: "aws:gameliftstreams",
 		fn:   scanGameLiftStreams,

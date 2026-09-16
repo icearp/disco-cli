@@ -9,9 +9,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2SecondaryInterface, Service: "ec2", Upstream: "AWS::ec2::secondary-interface"})
-	registerType(restype.Descriptor{Type: TypeEC2SecondaryNetwork, Service: "ec2", Upstream: "AWS::ec2::secondary-network", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2SecondarySubnet, Service: "ec2", Upstream: "AWS::ec2::secondary-subnet"})
+	registerType(restype.Descriptor{Type: TypeEC2SecondaryInterface, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2SecondaryNetwork, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2SecondarySubnet, Service: "ec2"})
 }
 
 // scanEC2Secondary discovers multi-VPC secondary networking resources:

@@ -15,11 +15,11 @@ func init() {
 		name: "gcp:artifactregistry",
 		fn:   scanArtifactRegistry,
 	})
-	registerType(restype.Descriptor{Type: TypeArtifactRepository, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Repository"})
-	registerType(restype.Descriptor{Type: TypeArtifactPackage, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Package", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeArtifactTag, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Tag", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeArtifactRule, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Rule"})
-	registerType(restype.Descriptor{Type: TypeArtifactAttachment, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Attachment"})
+	registerType(restype.Descriptor{Type: TypeArtifactRepository, Service: "artifactregistry"})
+	registerType(restype.Descriptor{Type: TypeArtifactPackage, Service: "artifactregistry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeArtifactTag, Service: "artifactregistry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeArtifactRule, Service: "artifactregistry"})
+	registerType(restype.Descriptor{Type: TypeArtifactAttachment, Service: "artifactregistry"})
 }
 
 // maxConcurrentArtifactFanout caps the per-Repository (Packages/Rules/

@@ -14,9 +14,7 @@ import (
 )
 
 // registeredDescriptors holds every type declared via the unified registerType
-// path. Source for the TestNoDoubleDeclaredTypes guard. Azure aliases stay in
-// azureAPITypeMap (it is both the alias source and the mirror-test truth, and
-// carries multiple upstream keys per type), so descriptors set no Upstream.
+// path. Source for the TestNoDoubleDeclaredTypes guard.
 var registeredDescriptors []restype.Descriptor
 
 // descriptorEmits accumulates the coverage decls produced by registerType,

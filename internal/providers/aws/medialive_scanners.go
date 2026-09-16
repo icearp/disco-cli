@@ -19,7 +19,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeMediaLiveEventBridgeRuleTemplate, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveEventBridgeRuleTemplateGroup, Service: "medialive", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeMediaLiveInput, Service: "medialive"})
-	registerType(restype.Descriptor{Type: TypeMediaLiveInputDevice, Service: "medialive", Upstream: "AWS::medialive::input-device", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveInputDevice, Service: "medialive", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeMediaLiveInputSecurityGroup, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveNode, Service: "medialive", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeMediaLiveReservation, Service: "medialive", Leaf: true})

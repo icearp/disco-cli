@@ -27,8 +27,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeFMSNotificationChannel, Service: "fms", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeFMSPolicy, Service: "fms", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeFMSResourceSet, Service: "fms", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFMSAppsList, Service: "fms", Upstream: "AWS::fms::applications-list", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFMSProtocolsList, Service: "fms", Upstream: "AWS::fms::protocols-list", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFMSAppsList, Service: "fms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFMSProtocolsList, Service: "fms", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:fms",
 		global: true,

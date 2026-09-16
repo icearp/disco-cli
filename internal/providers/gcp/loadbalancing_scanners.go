@@ -10,13 +10,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeComputeForwardingRule, Service: "compute", Upstream: "compute.googleapis.com/ForwardingRule"})
-	registerType(restype.Descriptor{Type: TypeComputeTargetHTTPProxy, Service: "compute", Upstream: "compute.googleapis.com/TargetHttpProxy"})
-	registerType(restype.Descriptor{Type: TypeComputeTargetHTTPSProxy, Service: "compute", Upstream: "compute.googleapis.com/TargetHttpsProxy"})
-	registerType(restype.Descriptor{Type: TypeComputeURLMap, Service: "compute", Upstream: "compute.googleapis.com/UrlMap"})
-	registerType(restype.Descriptor{Type: TypeComputeBackendService, Service: "compute", Upstream: "compute.googleapis.com/BackendService"})
+	registerType(restype.Descriptor{Type: TypeComputeForwardingRule, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeTargetHTTPProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeTargetHTTPSProxy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeURLMap, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeBackendService, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionBackendService, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeBackendBucket, Service: "compute", Upstream: "compute.googleapis.com/BackendBucket"})
+	registerType(restype.Descriptor{Type: TypeComputeBackendBucket, Service: "compute"})
 	registerService(serviceEntry{
 		name: "gcp:loadbalancing",
 		fn:   scanLoadBalancing,

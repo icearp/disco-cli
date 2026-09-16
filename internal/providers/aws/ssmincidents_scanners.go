@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSSMIncidentsReplicationSet, Service: "ssm-incidents", Upstream: "AWS::SSMIncidents::ReplicationSet"})
-	registerType(restype.Descriptor{Type: TypeSSMIncidentsResponsePlan, Service: "ssm-incidents", Upstream: "AWS::SSMIncidents::ResponsePlan"})
+	registerType(restype.Descriptor{Type: TypeSSMIncidentsReplicationSet, Service: "ssm-incidents"})
+	registerType(restype.Descriptor{Type: TypeSSMIncidentsResponsePlan, Service: "ssm-incidents"})
 	registerService(serviceEntry{
 		name: "aws:ssm-incidents",
 		fn:   scanSSMIncidents,

@@ -13,9 +13,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWAFv2WebACL, Service: "wafv2", Upstream: "AWS::WAFv2::WebACL"})
-	registerType(restype.Descriptor{Type: TypeWAFv2RuleGroup, Service: "wafv2", Upstream: "AWS::WAFv2::RuleGroup", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFv2IPSet, Service: "wafv2", Upstream: "AWS::WAFv2::IPSet", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFv2WebACL, Service: "wafv2"})
+	registerType(restype.Descriptor{Type: TypeWAFv2RuleGroup, Service: "wafv2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFv2IPSet, Service: "wafv2", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeWAFv2LoggingConfiguration, Service: "wafv2"})
 	registerType(restype.Descriptor{Type: TypeWAFv2RegexPatternSet, Service: "wafv2", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeWAFv2WebACLAssociation, Service: "wafv2"})

@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeSupplyChainInstance, Service: "scn", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSupplyChainDataIntegrationFlow, Service: "scn", Upstream: "AWS::scn::data-integration-flow"})
+	registerType(restype.Descriptor{Type: TypeSupplyChainDataIntegrationFlow, Service: "scn"})
 	registerType(restype.Descriptor{Type: TypeSupplyChainDataset, Service: "scn"})
 	registerType(restype.Descriptor{Type: TypeSupplyChainNamespace, Service: "scn"})
 	registerService(serviceEntry{

@@ -17,7 +17,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeFSxVolume, Service: "fsx"})
 	registerType(restype.Descriptor{Type: TypeFSxS3AccessPointAttachment, Service: "fsx", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeFSxBackup, Service: "fsx"})
-	registerType(restype.Descriptor{Type: TypeFSxFileCache, Service: "fsx", Upstream: "AWS::fsx::file-cache"})
+	registerType(restype.Descriptor{Type: TypeFSxFileCache, Service: "fsx"})
 	registerService(serviceEntry{
 		name: "aws:fsx",
 		fn:   scanFSx,

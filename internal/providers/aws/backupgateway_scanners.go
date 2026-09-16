@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBackupGatewayHypervisor, Service: "backupgateway", Upstream: "AWS::BackupGateway::Hypervisor"})
-	registerType(restype.Descriptor{Type: TypeBackupGatewayGateway, Service: "backupgateway", Upstream: "AWS::backup-gateway::gateway"})
-	registerType(restype.Descriptor{Type: TypeBackupGatewayVirtualMachine, Service: "backupgateway", Upstream: "AWS::backup-gateway::virtualmachine"})
+	registerType(restype.Descriptor{Type: TypeBackupGatewayHypervisor, Service: "backupgateway"})
+	registerType(restype.Descriptor{Type: TypeBackupGatewayGateway, Service: "backupgateway"})
+	registerType(restype.Descriptor{Type: TypeBackupGatewayVirtualMachine, Service: "backupgateway"})
 	registerService(serviceEntry{
 		name: "aws:backupgateway",
 		fn:   scanBackupGateway,

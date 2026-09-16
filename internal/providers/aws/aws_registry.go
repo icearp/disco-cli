@@ -42,18 +42,6 @@ func registerType(d restype.Descriptor) {
 	descriptorEmits = append(descriptorEmits, restype.Emit(d))
 }
 
-// descriptorAliases returns the disco-type -> upstream-key overrides declared
-// via registerType (empty Upstream falls through to AlgorithmicKey).
-func descriptorAliases() map[string]string {
-	out := make(map[string]string, len(registeredDescriptors))
-	for _, d := range registeredDescriptors {
-		if d.Upstream != "" {
-			out[d.Type] = d.Upstream
-		}
-	}
-	return out
-}
-
 // CollectEmits returns the deduped union of every emits decl registered
 // across the AWS package. Consumed by the coverage.Provider impl.
 func CollectEmits() []coverage.TypeDecl {

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDSQLCluster, Service: "dsql", Upstream: "AWS::DSQL::Cluster"})
+	registerType(restype.Descriptor{Type: TypeDSQLCluster, Service: "dsql"})
 	registerType(restype.Descriptor{Type: TypeDSQLStream, Service: "dsql"})
 	registerService(serviceEntry{
 		name: "aws:dsql",

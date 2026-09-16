@@ -6,21 +6,21 @@ AWS scanner + resolver conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 `registerType(restype.Descriptor{...})` in `aws_registry.go` is the single-site
 declaration for everything disco knows about a resource type: coverage emit
-(`Service` + `Leaf`/`Uncatalogued`), upstream alias (`Upstream`, empty falls
-through to `AlgorithmicKey`), redaction rules (`Redact`), volatile fields
+(`Service` + `Leaf`), redaction rules (`Redact`), volatile fields
 (`Volatile`), and the **unconditional** `Managed` flag (the store stamps
 `ManagedByProvider` by type at the upsert boundary — see
 `store/resources_upsert.go`). It forwards field rules into the shared
 redact/volatile/managed engines via `restype.Emit` and routes the coverage
-decl through `descriptorEmits`; `Aliases()` returns `descriptorAliases()`.
+decl through `descriptorEmits`.
 
 **AWS is fully migrated** — every type is declared via `registerType` from the
 `init()` of the file owning its upsert. `aws_redact.go`, `aws_volatile.go`, the
 literal `Aliases()` map, and `registerExtraEmits` are gone. New services declare
 their types with `registerType`; new redact/volatile/managed rules go on the
 descriptor, not a central file. `TestNoDoubleDeclaredTypes` rejects a type
-declared via both the descriptor path and a legacy emit; mirror/orphan/leaf
-tests guard naming and resolver-source correctness.
+declared via both the descriptor path and a legacy emit; `aws_pairing_test.go`
+guards that every type's scanner calls an SDK list op, and the leaf test guards
+resolver sources. `Descriptor.Upstream` and `aws_type_mirror_test.go` are gone.
 
 **`Managed: true` is only for UNCONDITIONALLY-managed types.** A type whose
 `ManagedByProvider` is per-row conditional (`OwnerId == "AWS"`,
@@ -263,14 +263,16 @@ Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for som
 
 `go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed.
 
-## Coverage upstream = CloudFormation ∪ Service Reference
+## Coverage: SDK universe first, registries only under `--cross-check`
 
-`coverageProvider.Fetch` (`aws_coverage.go`) returns the **union** of two catalogs, because neither is complete:
+`disco coverage services --providers aws` derives every listable resource from the pinned aws-sdk-go-v2 Smithy models + Service Reference in the SDK cache and pairs them with the scanner source (`internal/sdkinv/CLAUDE.md`, `internal/coverage/CLAUDE.md`). Nothing here is hand-listed: `aws_skips.go`, `Descriptor.Upstream`, `Uncatalogued` and `serviceRenames` are gone. A skipped-for-a-reason resource (ephemeral job records, retired services the SDK still ships) is an honest `uncovered` row the Phase 8 baseline accepts.
+
+`coverageProvider.CrossCheck` (`aws_coverage.go`, `--cross-check` only) returns the **union** of two live catalogs, because neither is complete:
 
 - **CloudFormation ListTypes** (`Visibility=Public, Type=Resource`) — needs AWS creds; lists only resources with a CFN provider. Misses SDK-real resources like DynamoDB streams, AuditManager controls, IdentityStore users, Macie classification jobs, service quotas.
 - **AWS Service Reference** (`aws_servicereference.go`) — the credential-free public JSON form of the IAM Service Authorization Reference (`https://servicereference.us-east-1.amazonaws.com/`, ~451 services, ~2250 resource types). Supplies the CFN-absent reals above, but itself omits real CFN-modeled resources (e.g. SecurityHub `insight`, `delegated-admin`).
 
-Service Reference entries are synthesized into the same `AWS::<service>::<resource>` shape disco's `Aliases()` / `AlgorithmicKey` already target, so `coverage.Build` unions + dedupes the overlap case-insensitively with no extra machinery. Both fetches are **fatal on failure** (the `errCoverageRegistryUnreachable` → exit-2 contract) — the union requires both, so a partial fetch can't silently re-introduce false `upstream-missing`. SR service segments are lower-cased (`macie2`, `dynamodb`); where disco's segment differs from SR's (disco `macie` vs SR `macie2`) an explicit alias bridges it, otherwise the algorithmic key matches. `TestAWSResourceMirrorsUpstream` ratchets the resource-segment naming against the alias map.
+Service Reference entries are synthesized into the same `AWS::<service>::<resource>` shape as CFN, and `CanonicalKey` (`sdkinv.Canon` service + `sdkinv.Ident` resource, "Resource" suffix dropped) collapses the twins onto the candidate's `RegistryKey`. Both fetches are **fatal on failure** (the `errCoverageRegistryUnreachable` → exit-2 contract) — the union requires both, so a partial fetch can't silently report drift. There is no rename map: a CFN service the SDK spells differently (`MWAA`/`airflow`, `EFS`/`elasticfilesystem`) is a service the universe does not know, so `--cross-check` leaves it out rather than reporting every one of its types as `registry-only`.
 
 Latency: the SR fan-out is ~451 small credless GETs at concurrency 32, ~1.3s wall. Caching via the index `modified` stamps is a possible follow-up if it regresses.
 

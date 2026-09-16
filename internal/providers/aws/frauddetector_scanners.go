@@ -18,7 +18,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeFraudDetectorOutcome, Service: "frauddetector", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeFraudDetectorVariable, Service: "frauddetector", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeFraudDetectorModel, Service: "frauddetector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFraudDetectorExternalModel, Service: "frauddetector", Upstream: "AWS::frauddetector::external-model", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorExternalModel, Service: "frauddetector", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeFraudDetectorRule, Service: "frauddetector"})
 	registerService(serviceEntry{
 		name: "aws:frauddetector",

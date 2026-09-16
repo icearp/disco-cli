@@ -10,12 +10,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2ReservedInstances, Service: "ec2", Upstream: "AWS::ec2::reserved-instances", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2HostReservation, Service: "ec2", Upstream: "AWS::ec2::host-reservation", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2CapacityBlock, Service: "ec2", Upstream: "AWS::ec2::capacity-block", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2FpgaImage, Service: "ec2", Upstream: "AWS::ec2::fpga-image", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2PublicIpv4Pool, Service: "ec2", Upstream: "AWS::ec2::ipv4pool-ec2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2Ipv6Pool, Service: "ec2", Upstream: "AWS::ec2::ipv6pool-ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2ReservedInstances, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2HostReservation, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2CapacityBlock, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2FpgaImage, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2PublicIpv4Pool, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2Ipv6Pool, Service: "ec2", Leaf: true})
 }
 
 // scanEC2Inventory discovers EC2 purchase/capacity inventory and BYOIP address

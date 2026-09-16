@@ -11,13 +11,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeELBv2LoadBalancer, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::LoadBalancer"})
-	registerType(restype.Descriptor{Type: TypeELBv2Listener, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::Listener"})
-	registerType(restype.Descriptor{Type: TypeELBv2ListenerCertificate, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::ListenerCertificate"})
-	registerType(restype.Descriptor{Type: TypeELBv2ListenerRule, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::ListenerRule"})
-	registerType(restype.Descriptor{Type: TypeELBv2TargetGroup, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::TargetGroup"})
-	registerType(restype.Descriptor{Type: TypeELBv2TrustStore, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::TrustStore", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeELBv2TrustStoreRevocation, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancingV2::TrustStoreRevocation"})
+	registerType(restype.Descriptor{Type: TypeELBv2LoadBalancer, Service: "elasticloadbalancing"})
+	registerType(restype.Descriptor{Type: TypeELBv2Listener, Service: "elasticloadbalancing"})
+	registerType(restype.Descriptor{Type: TypeELBv2ListenerCertificate, Service: "elasticloadbalancing"})
+	registerType(restype.Descriptor{Type: TypeELBv2ListenerRule, Service: "elasticloadbalancing"})
+	registerType(restype.Descriptor{Type: TypeELBv2TargetGroup, Service: "elasticloadbalancing"})
+	registerType(restype.Descriptor{Type: TypeELBv2TrustStore, Service: "elasticloadbalancing", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeELBv2TrustStoreRevocation, Service: "elasticloadbalancing"})
 	registerService(serviceEntry{
 		name: "aws:elasticloadbalancingv2",
 		fn:   scanELBv2,

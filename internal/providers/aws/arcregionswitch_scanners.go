@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeARCRegionSwitchPlan, Service: "arc-region-switch", Upstream: "AWS::ARCRegionSwitch::Plan"})
+	registerType(restype.Descriptor{Type: TypeARCRegionSwitchPlan, Service: "arc-region-switch"})
 	registerService(serviceEntry{
 		name: "aws:arc-region-switch",
 		fn:   scanARCRegionSwitch,

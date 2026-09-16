@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSageMakerGeospatialRasterDataCollection, Service: "sagemaker-geospatial", Upstream: "AWS::sagemaker-geospatial::RasterDataCollection", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerGeospatialRasterDataCollection, Service: "sagemaker-geospatial", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:sagemaker-geospatial",
 		fn:   scanSageMakerGeospatial,

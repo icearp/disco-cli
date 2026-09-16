@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIAMSAKey, Service: "iam", Upstream: "iam.googleapis.com/Key", Redact: []redact.Rule{{Path: "privateKeyData", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeIAMSAKey, Service: "iam", Redact: []redact.Rule{{Path: "privateKeyData", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "gcp:iam-key",
 		fn:   scanIAMServiceAccountKeys,

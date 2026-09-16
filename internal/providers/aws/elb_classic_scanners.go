@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeELBClassicLoadBalancer, Service: "elasticloadbalancing", Upstream: "AWS::ElasticLoadBalancing::LoadBalancer"})
+	registerType(restype.Descriptor{Type: TypeELBClassicLoadBalancer, Service: "elasticloadbalancing"})
 	registerService(serviceEntry{
 		name: "aws:elasticloadbalancing",
 		fn:   scanELBClassic,

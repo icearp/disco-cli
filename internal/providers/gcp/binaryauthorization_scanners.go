@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBinAuthPolicy, Service: "binaryauthorization", Upstream: "binaryauthorization.googleapis.com/Policy"})
-	registerType(restype.Descriptor{Type: TypeBinAuthAttestor, Service: "binaryauthorization", Upstream: "binaryauthorization.googleapis.com/Attestor"})
+	registerType(restype.Descriptor{Type: TypeBinAuthPolicy, Service: "binaryauthorization"})
+	registerType(restype.Descriptor{Type: TypeBinAuthAttestor, Service: "binaryauthorization"})
 	registerService(serviceEntry{
 		name: "gcp:binaryauthorization",
 		fn:   scanBinaryAuthorization,

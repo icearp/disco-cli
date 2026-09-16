@@ -13,11 +13,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCloudBuildTrigger, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/Trigger", Redact: []redact.Rule{{Path: "substitutions.*", Mode: redact.RedactScalar}, {Path: "build.steps[*].env[*]", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeCloudBuildWorkerPool, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/WorkerPool"})
-	registerType(restype.Descriptor{Type: TypeCloudBuildConnection, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/Connection"})
-	registerType(restype.Descriptor{Type: TypeCloudBuildRepository, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/Repository", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudBuildGithubEnterpriseConfig, Service: "cloudbuild", Upstream: "cloudbuild.googleapis.com/GithubEnterpriseConfig"})
+	registerType(restype.Descriptor{Type: TypeCloudBuildTrigger, Service: "cloudbuild", Redact: []redact.Rule{{Path: "substitutions.*", Mode: redact.RedactScalar}, {Path: "build.steps[*].env[*]", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudBuildWorkerPool, Service: "cloudbuild"})
+	registerType(restype.Descriptor{Type: TypeCloudBuildConnection, Service: "cloudbuild"})
+	registerType(restype.Descriptor{Type: TypeCloudBuildRepository, Service: "cloudbuild", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudBuildGithubEnterpriseConfig, Service: "cloudbuild"})
 	registerService(serviceEntry{
 		name: "gcp:cloudbuild",
 		fn:   scanCloudBuildTriggers,

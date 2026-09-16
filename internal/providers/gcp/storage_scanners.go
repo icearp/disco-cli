@@ -14,14 +14,14 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeStorageBucket, Service: "storage", Upstream: "storage.googleapis.com/Bucket"})
-	registerType(restype.Descriptor{Type: TypeStorageHmacKey, Service: "storage", Upstream: "storage.googleapis.com/HmacKey"})
-	registerType(restype.Descriptor{Type: TypeStorageNotification, Service: "storage", Upstream: "storage.googleapis.com/Notification"})
-	registerType(restype.Descriptor{Type: TypeStorageManagedFolder, Service: "storage", Upstream: "storage.googleapis.com/ManagedFolder", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeStorageAnywhereCache, Service: "storage", Upstream: "storage.googleapis.com/AnywhereCache", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeStorageFolder, Service: "storage", Upstream: "storage.googleapis.com/Folder", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeStorageBucketAccessControl, Service: "storage", Upstream: "storage.googleapis.com/BucketAccessControl"})
-	registerType(restype.Descriptor{Type: TypeStorageDefaultObjectAccessControl, Service: "storage", Upstream: "storage.googleapis.com/DefaultObjectAccessControl"})
+	registerType(restype.Descriptor{Type: TypeStorageBucket, Service: "storage"})
+	registerType(restype.Descriptor{Type: TypeStorageHmacKey, Service: "storage"})
+	registerType(restype.Descriptor{Type: TypeStorageNotification, Service: "storage"})
+	registerType(restype.Descriptor{Type: TypeStorageManagedFolder, Service: "storage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageAnywhereCache, Service: "storage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageFolder, Service: "storage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageBucketAccessControl, Service: "storage"})
+	registerType(restype.Descriptor{Type: TypeStorageDefaultObjectAccessControl, Service: "storage"})
 	registerService(serviceEntry{
 		name: "gcp:storage",
 		fn:   scanStorage,

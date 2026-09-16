@@ -10,12 +10,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMSKCluster, Service: "msk", Upstream: "AWS::MSK::Cluster"})
-	registerType(restype.Descriptor{Type: TypeMSKBatchScramSecret, Service: "msk", Upstream: "AWS::MSK::BatchScramSecret"})
-	registerType(restype.Descriptor{Type: TypeMSKClusterPolicy, Service: "msk", Upstream: "AWS::MSK::ClusterPolicy"})
-	registerType(restype.Descriptor{Type: TypeMSKConfiguration, Service: "msk", Upstream: "AWS::MSK::Configuration", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMSKReplicator, Service: "msk", Upstream: "AWS::MSK::Replicator"})
-	registerType(restype.Descriptor{Type: TypeMSKVpcConnection, Service: "msk", Upstream: "AWS::MSK::VpcConnection"})
+	registerType(restype.Descriptor{Type: TypeMSKCluster, Service: "msk"})
+	registerType(restype.Descriptor{Type: TypeMSKBatchScramSecret, Service: "msk"})
+	registerType(restype.Descriptor{Type: TypeMSKClusterPolicy, Service: "msk"})
+	registerType(restype.Descriptor{Type: TypeMSKConfiguration, Service: "msk", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMSKReplicator, Service: "msk"})
+	registerType(restype.Descriptor{Type: TypeMSKVpcConnection, Service: "msk"})
 	registerService(serviceEntry{
 		name: "aws:kafka",
 		fn:   scanKafka,

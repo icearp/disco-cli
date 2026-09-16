@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGKECluster, Service: "container", Upstream: "container.googleapis.com/Cluster"})
-	registerType(restype.Descriptor{Type: TypeGKENodePool, Service: "container", Upstream: "container.googleapis.com/NodePool"})
+	registerType(restype.Descriptor{Type: TypeGKECluster, Service: "container"})
+	registerType(restype.Descriptor{Type: TypeGKENodePool, Service: "container"})
 	registerService(serviceEntry{
 		name: "gcp:gke",
 		fn:   scanGKE,

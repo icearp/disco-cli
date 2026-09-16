@@ -13,8 +13,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDetectiveGraph, Service: "detective", Upstream: "AWS::Detective::Graph", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDetectiveMember, Service: "detective", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeDetectiveGraph, Service: "detective", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDetectiveMember, Service: "detective"})
 	registerType(restype.Descriptor{Type: TypeDetectiveOrganizationAdmin, Service: "detective"})
 	registerService(serviceEntry{
 		name: "aws:detective",

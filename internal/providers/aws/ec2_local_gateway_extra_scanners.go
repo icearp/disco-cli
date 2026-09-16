@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2LocalGateway, Service: "ec2", Upstream: "AWS::ec2::local-gateway", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2CoipPool, Service: "ec2", Upstream: "AWS::ec2::coip-pool"})
-	registerType(restype.Descriptor{Type: TypeEC2OutpostLag, Service: "ec2", Upstream: "AWS::ec2::outpost-lag"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGateway, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2CoipPool, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2OutpostLag, Service: "ec2"})
 }
 
 // scanEC2LocalGatewayExtra discovers Outpost local gateways, customer-owned IP

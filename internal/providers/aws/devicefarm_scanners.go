@@ -17,7 +17,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeDeviceFarmInstanceProfile, Service: "devicefarm", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeDeviceFarmDeviceInstance, Service: "devicefarm"})
 	registerType(restype.Descriptor{Type: TypeDeviceFarmVPCEConfiguration, Service: "devicefarm", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDeviceFarmTestGridProject, Service: "devicefarm", Upstream: "AWS::devicefarm::testgrid-project"})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmTestGridProject, Service: "devicefarm"})
 	registerService(serviceEntry{
 		name:   "aws:devicefarm",
 		fn:     scanDeviceFarm,

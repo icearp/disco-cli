@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCodeStarNotificationsNotificationRule, Service: "codestar-notifications", Upstream: "AWS::CodeStarNotifications::NotificationRule", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodeStarNotificationsNotificationRule, Service: "codestar-notifications", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:codestar-notifications",
 		fn:   scanCodeStarNotifications,

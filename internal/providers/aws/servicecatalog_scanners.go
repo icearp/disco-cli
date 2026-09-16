@@ -14,8 +14,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeServiceCatalogPortfolio, Service: "servicecatalog", Upstream: "AWS::ServiceCatalog::Portfolio"})
-	registerType(restype.Descriptor{Type: TypeServiceCatalogProduct, Service: "servicecatalog", Upstream: "AWS::ServiceCatalog::CloudFormationProduct", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogPortfolio, Service: "servicecatalog"})
+	registerType(restype.Descriptor{Type: TypeServiceCatalogProduct, Service: "servicecatalog", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeServiceCatalogAcceptedPortfolioShare, Service: "servicecatalog", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeServiceCatalogCloudFormationProvisionedProduct, Service: "servicecatalog"})
 	registerType(restype.Descriptor{Type: TypeServiceCatalogServiceAction, Service: "servicecatalog", Leaf: true})

@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeARCZonalShiftObserverStatus, Service: "arc-zonal-shift", Upstream: "AWS::ARCZonalShift::AutoshiftObserverNotificationStatus", Leaf: true, Managed: true})
-	registerType(restype.Descriptor{Type: TypeARCZonalShiftConfiguration, Service: "arc-zonal-shift", Upstream: "AWS::ARCZonalShift::ZonalAutoshiftConfiguration"})
+	registerType(restype.Descriptor{Type: TypeARCZonalShiftObserverStatus, Service: "arc-zonal-shift", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeARCZonalShiftConfiguration, Service: "arc-zonal-shift"})
 	registerService(serviceEntry{
 		name: "aws:arc-zonal-shift",
 		fn:   scanARCZonalShift,

@@ -22,9 +22,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeODBCloudVMCluster, Service: "odb", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeODBOdbNetwork, Service: "odb", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeODBOdbPeeringConnection, Service: "odb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabase, Service: "odb", Upstream: "AWS::odb::autonomous-database"})
-	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabaseBackup, Service: "odb", Upstream: "AWS::odb::autonomous-database-backup"})
-	registerType(restype.Descriptor{Type: TypeODBDbNode, Service: "odb", Upstream: "AWS::odb::db-node"})
+	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabase, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabaseBackup, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBDbNode, Service: "odb"})
 	registerService(serviceEntry{
 		name: "aws:odb",
 		fn:   scanODB,

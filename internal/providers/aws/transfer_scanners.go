@@ -13,7 +13,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeTransferAgreement, Service: "transfer"})
 	registerType(restype.Descriptor{Type: TypeTransferCertificate, Service: "transfer", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeTransferConnector, Service: "transfer", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTransferHostKey, Service: "transfer", Upstream: "AWS::transfer::host-key"})
+	registerType(restype.Descriptor{Type: TypeTransferHostKey, Service: "transfer"})
 	registerType(restype.Descriptor{Type: TypeTransferProfile, Service: "transfer", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeTransferServer, Service: "transfer"})
 	registerType(restype.Descriptor{Type: TypeTransferUser, Service: "transfer"})

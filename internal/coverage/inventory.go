@@ -198,8 +198,15 @@ func BuildInventory(in Inputs) Matrix {
 // resource candidates with no registry key. Identities come from the
 // provider's CrossChecker so the two spellings compare.
 func CrossCheck(m *Matrix, u *sdkinv.Universe, registry []UpstreamType, cc CrossChecker) {
+	// registry-only is judged against every candidate class and only within
+	// services the SDK universe knows: a registry's catalog/operation nodes
+	// and the APIs the universe excludes by rule are not drift.
 	candidates := map[string]sdkinv.Candidate{}
+	known := map[string]bool{}
+	services := map[string]bool{}
 	for _, c := range u.Candidates {
+		known[cc.RegistryKey(c)] = true
+		services[strings.ToLower(c.Service)] = true
 		if c.Class == sdkinv.ClassResource {
 			candidates[cc.RegistryKey(c)] = c
 		}
@@ -211,7 +218,7 @@ func CrossCheck(m *Matrix, u *sdkinv.Universe, registry []UpstreamType, cc Cross
 			continue
 		}
 		seen[id] = true
-		if _, ok := candidates[id]; ok {
+		if known[id] || !services[strings.ToLower(r.Service)] {
 			continue
 		}
 		m.Rows = append(m.Rows, Row{Provider: m.Provider, Service: r.Service, Key: r.Key, Bucket: BucketRegistryDrift, Reason: ReasonRegistryOnly})

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeTranslateParallelData, Service: "translate", Upstream: "AWS::translate::parallel-data", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTranslateParallelData, Service: "translate", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeTranslateTerminology, Service: "translate", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:translate",

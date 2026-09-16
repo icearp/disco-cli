@@ -27,9 +27,11 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
 - `disco-only` — emitted type no candidate accounts for. Reason `explained: <unpaired reason>`
   (`non-sdk`, `other-op:<label>`, `sdk-skew:<op>`), `pairing-unavailable`, or `unexplained`
   (the only one `--check-strict` fails on).
-- `registry-drift` — only with `--cross-check`: `registry-only` (live registry key with no
-  resource candidate) / `candidate-only`. Identities compare via `RegistryKey(candidate)` vs
-  `CanonicalKey(registryKey)`.
+- `registry-drift` — only with `--cross-check`: `registry-only` (live registry key, within a
+  service the universe knows, matching no candidate of any class) / `candidate-only` (resource
+  candidate the registry lacks). Identities compare via `RegistryKey(candidate)` vs
+  `CanonicalKey(registryKey)`. Registry entries for services outside the universe (non-cloud
+  GCP APIs, CFN service renames) are excluded by rule, not drift.
 - Unit of coverage is the candidate: one op → N types counts once (`Row.DiscoType` is the
   name-matching type, `Row.DiscoTypes` the rest); N ops → one type marks every candidate covered.
 
@@ -44,13 +46,13 @@ here and by GCP's `RegistryKey`/`CanonicalKey`: `Singular` alone splits "caches"
 AWS 50.2% (1624/3236), Azure 19.7% (386/1959), GCP 23.3% (235/1009); zero unexplained. The
 Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
 
-## Reconcile tests (Phase 4 → deleted in Phase 5)
+## Retired hand lists (Phase 5)
 
-`DISCO_RECONCILE=1 go test ./internal/providers/<p>/ -run TestReconcileHandLists -v` classifies
-every hand-list entry (`aws_skips.go`, descriptor `Upstream`, `azureAPITypeMap`, `Uncatalogued`,
-the two docs ledgers) against the inventory. Triage at the pins above: AWS `skip-contradicted`
-(198) are all ephemeral/retired/catalog rows the SDK still lists — they become honest `uncovered`
-rows the Phase 8 baseline accepts; `skip-unmatched` (194) are CFN-only or retired services with
-no Smithy model; Azure `alias-orphan` (2) are the `CloudServices*` sdk-skew; ledger-absent rows
-are ledger errors (`microsoft.storage/storagetasks` lives under `microsoft.storageactions`,
-`hybridnetwork/devices` left the SDK, `admin Transfer` was never scanned).
+`aws_skips.go`, `Descriptor.Upstream`/`Uncatalogued`, `azureAPITypeMap`, `serviceRenames`,
+GCP `singularizeExceptions` and the Discovery allowlist are gone; the pairing tests replace
+them. The one-time reconcile report (Phase 4) found: AWS `skip-contradicted` 198 — ephemeral,
+retired or catalog rows the SDK still lists, now honest `uncovered` rows for the Phase 8
+baseline; `skip-unmatched` 194 — CFN-only or retired services with no Smithy model; Azure
+`alias-orphan` 2 — the `CloudServices*` sdk-skew; ledger-absent rows were ledger errors
+(`microsoft.storage/storagetasks` lives under `microsoft.storageactions`, `hybridnetwork/devices`
+left the SDK, `admin Transfer` was never scanned).

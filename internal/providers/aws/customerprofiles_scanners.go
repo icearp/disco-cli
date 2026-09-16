@@ -18,10 +18,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeCPObjectType, Service: "customer-profiles"})
 	registerType(restype.Descriptor{Type: TypeCPRecommender, Service: "customer-profiles"})
 	registerType(restype.Descriptor{Type: TypeCPSegmentDefinition, Service: "customer-profiles"})
-	registerType(restype.Descriptor{Type: TypeCustomerProfilesLayouts, Service: "customer-profiles", Upstream: "AWS::profile::layouts"})
-	registerType(restype.Descriptor{Type: TypeCustomerProfilesDomainObjectTypes, Service: "customer-profiles", Upstream: "AWS::profile::domain-object-types"})
-	registerType(restype.Descriptor{Type: TypeCustomerProfilesRecommenderFilters, Service: "customer-profiles", Upstream: "AWS::profile::recommender-filters"})
-	registerType(restype.Descriptor{Type: TypeCustomerProfilesRecommenderSchemas, Service: "customer-profiles", Upstream: "AWS::profile::recommender-schemas"})
+	registerType(restype.Descriptor{Type: TypeCustomerProfilesLayouts, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCustomerProfilesDomainObjectTypes, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCustomerProfilesRecommenderFilters, Service: "customer-profiles"})
+	registerType(restype.Descriptor{Type: TypeCustomerProfilesRecommenderSchemas, Service: "customer-profiles"})
 	registerService(serviceEntry{
 		name: "aws:customer-profiles",
 		fn:   scanCustomerProfiles,

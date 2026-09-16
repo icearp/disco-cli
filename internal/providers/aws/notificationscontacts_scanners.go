@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNotificationsContactsEmailContact, Service: "notifications-contacts", Upstream: "AWS::NotificationsContacts::EmailContact", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNotificationsContactsEmailContact, Service: "notifications-contacts", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:notifications-contacts",
 		global: true,

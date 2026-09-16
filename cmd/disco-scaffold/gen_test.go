@@ -69,7 +69,4 @@ func TestGenScaffold(t *testing.T) {
 			t.Errorf("scaffold lacks %q:\n%s", want, src)
 		}
 	}
-	if strings.Contains(src, "Upstream:") {
-		t.Error("scaffold must not emit the retired Upstream alias")
-	}
 }

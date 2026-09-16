@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAutoScalingPlansScalingPlan, Service: "autoscaling-plans", Upstream: "AWS::AutoScalingPlans::ScalingPlan"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingPlansScalingPlan, Service: "autoscaling-plans"})
 	registerService(serviceEntry{
 		name: "aws:autoscaling-plans",
 		fn:   scanAutoScalingPlans,

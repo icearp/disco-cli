@@ -14,8 +14,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeS3Bucket, Service: "s3", Upstream: "AWS::S3::Bucket"})
-	registerType(restype.Descriptor{Type: TypeS3BucketPolicy, Service: "s3", Upstream: "AWS::S3::BucketPolicy"})
+	registerType(restype.Descriptor{Type: TypeS3Bucket, Service: "s3"})
+	registerType(restype.Descriptor{Type: TypeS3BucketPolicy, Service: "s3"})
 	registerService(serviceEntry{
 		name:   "aws:s3",
 		global: true,

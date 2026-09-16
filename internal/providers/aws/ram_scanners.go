@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRAMResourceShare, Service: "ram", Upstream: "AWS::RAM::ResourceShare", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRAMPermission, Service: "ram", Upstream: "AWS::RAM::Permission", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRAMResourceShare, Service: "ram", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRAMPermission, Service: "ram", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:ram",
 		fn:   scanRAM,

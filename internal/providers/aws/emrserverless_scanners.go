@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEMRServerlessApplication, Service: "emr-serverless", Upstream: "AWS::EMRServerless::Application", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEMRServerlessApplication, Service: "emr-serverless", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:emr-serverless",
 		fn:   scanEMRServerless,

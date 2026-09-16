@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSecurityHubHub, Service: "securityhub", Upstream: "AWS::SecurityHub::Hub", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityHubInsight, Service: "securityhub", Upstream: "AWS::SecurityHub::Insight", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityHubProductSubscription, Service: "securityhub", Upstream: "AWS::SecurityHub::ProductSubscription"})
-	registerType(restype.Descriptor{Type: TypeSecurityHubStandardsSubscription, Service: "securityhub", Uncatalogued: true, Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubHub, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubInsight, Service: "securityhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityHubProductSubscription, Service: "securityhub"})
+	registerType(restype.Descriptor{Type: TypeSecurityHubStandardsSubscription, Service: "securityhub", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeSecurityHubAggregatorV2, Service: "securityhub", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeSecurityHubAutomationRule, Service: "securityhub", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeSecurityHubAutomationRuleV2, Service: "securityhub", Leaf: true})

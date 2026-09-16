@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeFinSpaceEnvironment, Service: "fin-space", Upstream: "AWS::FinSpace::Environment", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFinSpaceEnvironment, Service: "fin-space", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:fin-space",
 		fn:   scanFinSpace,

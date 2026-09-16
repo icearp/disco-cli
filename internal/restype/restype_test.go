@@ -12,11 +12,9 @@ import (
 
 func TestEmitReturnsCoverageDecl(t *testing.T) {
 	got := Emit(Descriptor{
-		Type:         "test:svc:full",
-		Service:      "svc",
-		Upstream:     "Test::Svc::Full",
-		Uncatalogued: true,
-		Leaf:         true,
+		Type:    "test:svc:full",
+		Service: "svc",
+		Leaf:    true,
 	})
 	want := coverage.TypeDecl{
 		Service:   "svc",

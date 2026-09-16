@@ -26,8 +26,9 @@ func TestLeafTypesNotResolverSources(t *testing.T) {
 }
 
 // TestCanonicalKey pins the SR↔CFN duplicate-collapse normalization: plurals,
-// hyphens, the SR "Resource" suffix, and the service-rename bridge all reduce
-// the two catalog spellings of one resource to the same identity.
+// hyphens and the SR "Resource" suffix reduce the two catalog spellings of one
+// resource to the same identity. Genuine service renames (CFN MWAA vs SR
+// airflow) are not bridged: they surface as registry-only drift.
 func TestCanonicalKey(t *testing.T) {
 	p := coverageProvider{}
 	same := []struct{ a, b string }{
@@ -35,10 +36,7 @@ func TestCanonicalKey(t *testing.T) {
 		{"AWS::Amplify::Branch", "AWS::amplify::branches"},                               // -es plural
 		{"AWS::AmplifyUIBuilder::Component", "AWS::amplifyuibuilder::ComponentResource"}, // SR Resource suffix
 		{"AWS::ACMPCA::CertificateAuthority", "AWS::acm-pca::certificate-authority"},     // hyphen + case
-		{"AWS::CertificateManager::Certificate", "AWS::acm::certificate"},                // service rename acm
-		{"AWS::MWAA::Environment", "AWS::airflow::environment"},                          // service rename airflow
-		{"AWS::MWAAServerless::Workflow", "AWS::airflow-serverless::Workflow"},           // rename + hyphen
-		{"AWS::aidevops::private-connection", "AWS::DevOpsAgent::PrivateConnection"},     // rename devopsagent
+		{"AWS::ElastiCache::Cache", "AWS::elasticache::caches"},                          // -ches plural vs -che singular
 	}
 	for _, c := range same {
 		if ka, kb := p.CanonicalKey(c.a), p.CanonicalKey(c.b); ka != kb {

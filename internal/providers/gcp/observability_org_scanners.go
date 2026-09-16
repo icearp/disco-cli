@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLoggingSink, Service: "logging", Upstream: "logging.googleapis.com/Sink"})
+	registerType(restype.Descriptor{Type: TypeLoggingSink, Service: "logging"})
 	registerOrgService(orgServiceEntry{
 		name: "gcp:logging-org",
 		fn:   scanLoggingSinksOrg,

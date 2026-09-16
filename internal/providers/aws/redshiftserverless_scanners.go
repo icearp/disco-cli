@@ -13,9 +13,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeRedshiftServerlessNamespace, Service: "redshift-serverless"})
 	registerType(restype.Descriptor{Type: TypeRedshiftServerlessSnapshot, Service: "redshift-serverless"})
 	registerType(restype.Descriptor{Type: TypeRedshiftServerlessWorkgroup, Service: "redshift-serverless"})
-	registerType(restype.Descriptor{Type: TypeRedshiftServerlessEndpointAccess, Service: "redshift-serverless", Upstream: "AWS::redshift-serverless::endpointAccess"})
-	registerType(restype.Descriptor{Type: TypeRedshiftServerlessRecoveryPoint, Service: "redshift-serverless", Upstream: "AWS::redshift-serverless::recoveryPoint"})
-	registerType(restype.Descriptor{Type: TypeRedshiftServerlessManagedWorkgroup, Service: "redshift-serverless", Upstream: "AWS::redshift-serverless::managed-workgroup", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessEndpointAccess, Service: "redshift-serverless"})
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessRecoveryPoint, Service: "redshift-serverless"})
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessManagedWorkgroup, Service: "redshift-serverless", Leaf: true, Managed: true})
 	registerService(serviceEntry{
 		name: "aws:redshift-serverless",
 		fn:   scanRedshiftServerless,

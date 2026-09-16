@@ -14,8 +14,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWorkspaceUser, Service: "admin", Upstream: "admin.googleapis.com/User", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudIdentityGroup, Service: "cloudidentity", Upstream: "cloudidentity.googleapis.com/Group", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkspaceUser, Service: "admin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityGroup, Service: "cloudidentity", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeCloudIdentityDevice, Service: "cloudidentity", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeCloudIdentityDeviceUser, Service: "cloudidentity"})
 	registerType(restype.Descriptor{Type: TypeCloudIdentityClientState, Service: "cloudidentity", Leaf: true})

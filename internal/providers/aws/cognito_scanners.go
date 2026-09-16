@@ -14,9 +14,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCognitoUserPool, Service: "cognito", Upstream: "AWS::Cognito::UserPool"})
-	registerType(restype.Descriptor{Type: TypeCognitoAppClient, Service: "cognito", Upstream: "AWS::Cognito::UserPoolClient"})
-	registerType(restype.Descriptor{Type: TypeCognitoIdentityPool, Service: "cognito", Upstream: "AWS::Cognito::IdentityPool"})
+	registerType(restype.Descriptor{Type: TypeCognitoUserPool, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoAppClient, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoIdentityPool, Service: "cognito"})
 	registerType(restype.Descriptor{Type: TypeCognitoUserPoolDomain, Service: "cognito"})
 	registerType(restype.Descriptor{Type: TypeCognitoUserPoolGroup, Service: "cognito"})
 	registerType(restype.Descriptor{Type: TypeCognitoUserPoolIdentityProvider, Service: "cognito"})

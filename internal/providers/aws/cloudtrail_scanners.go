@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCloudTrailTrail, Service: "cloudtrail", Upstream: "AWS::CloudTrail::Trail"})
-	registerType(restype.Descriptor{Type: TypeCloudTrailEventDataStore, Service: "cloudtrail", Upstream: "AWS::CloudTrail::EventDataStore"})
+	registerType(restype.Descriptor{Type: TypeCloudTrailTrail, Service: "cloudtrail"})
+	registerType(restype.Descriptor{Type: TypeCloudTrailEventDataStore, Service: "cloudtrail"})
 	registerType(restype.Descriptor{Type: TypeCloudTrailChannel, Service: "cloudtrail"})
 	registerType(restype.Descriptor{Type: TypeCloudTrailDashboard, Service: "cloudtrail", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeCloudTrailResourcePolicy, Service: "cloudtrail"})

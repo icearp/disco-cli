@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeComposerEnv, Service: "composer", Upstream: "composer.googleapis.com/Environment", Redact: []redact.Rule{{Path: "config.softwareConfig.envVariables.*", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeComposerUserWorkloadsConfigMap, Service: "composer", Upstream: "composer.googleapis.com/UserWorkloadsConfigMap", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComposerEnv, Service: "composer", Redact: []redact.Rule{{Path: "config.softwareConfig.envVariables.*", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeComposerUserWorkloadsConfigMap, Service: "composer", Leaf: true})
 	registerService(serviceEntry{
 		name: "gcp:composer",
 		fn:   scanComposer,

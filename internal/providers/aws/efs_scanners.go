@@ -12,9 +12,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEFSFileSystem, Service: "efs", Upstream: "AWS::EFS::FileSystem"})
-	registerType(restype.Descriptor{Type: TypeEFSAccessPoint, Service: "efs", Upstream: "AWS::EFS::AccessPoint", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEFSMountTarget, Service: "efs", Upstream: "AWS::EFS::MountTarget"})
+	registerType(restype.Descriptor{Type: TypeEFSFileSystem, Service: "efs"})
+	registerType(restype.Descriptor{Type: TypeEFSAccessPoint, Service: "efs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEFSMountTarget, Service: "efs"})
 	registerService(serviceEntry{
 		name: "aws:efs",
 		fn:   scanEFS,

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCURReportDefinition, Service: "cur", Upstream: "AWS::CUR::ReportDefinition", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCURReportDefinition, Service: "cur", Leaf: true})
 	registerService(serviceEntry{
 		name:   "aws:cur",
 		global: true,

@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGuardDutyDetector, Service: "guardduty", Upstream: "AWS::GuardDuty::Detector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeGuardDutyFilter, Service: "guardduty", Upstream: "AWS::GuardDuty::Filter"})
-	registerType(restype.Descriptor{Type: TypeGuardDutyIPSet, Service: "guardduty", Upstream: "AWS::GuardDuty::IPSet"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyDetector, Service: "guardduty", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGuardDutyFilter, Service: "guardduty"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyIPSet, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyMember, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyMalwareProtectionPlan, Service: "guardduty", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeGuardDutyPublishingDestination, Service: "guardduty"})

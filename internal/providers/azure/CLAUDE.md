@@ -4,22 +4,18 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 ## Discover what's not yet covered
 
-`disco coverage services --providers azure --filter uncovered` — diff ARM Providers/List vs scanner `emits` decls (deduped via the alias map in `azure_coverage.go`, which inverts `azureAPITypeMap`). Other filters: `covered`, `uncatalogued`, `upstream-missing`. `--check-strict` exits non-zero on any `upstream-missing` (alias-map drift). Subscription auto-detected; pass `--subscriptions` to override.
-
-**ARM `Providers/List` never enumerates proxy child types.** Deep child/proxy resourceTypes (e.g. `microsoft.sql/managedinstances/keys`, `…/managedinstances/databases/transparentdataencryption`, `microsoft.network/virtualnetworks/subnets`, `microsoft.sql/servers/devopsauditsettings`) are real, scannable ARM resources but absent from the registry view, so they'd false-flag as `upstream-missing`. Their emit decls carry `Uncatalogued: true` to bucket them as `uncatalogued` instead (they are all SDK-scanned). (ARM is inconsistent — it *does* list some children like `managedinstances/vulnerabilityassessments`, which stay non-uncatalogued/covered; only flag the ones a live run shows missing.) Entra identities (Graph, not an ARM RP) are `Uncatalogued` for the same reason.
-
-**A clean `--check-strict` needs the preview RPs registered.** Three top-level RPs disco scans are absent until registered in the coverage subscription: `Microsoft.AzureLargeInstance`, `Microsoft.HardwareSecurityModules`, `Microsoft.OnlineExperimentation`. These are listable once registered; run `az provider register --namespace <RP>` for each so they bucket as `covered`.
+`disco coverage services --providers azure --filter uncovered` — every ARM collection the pinned azure-sdk-for-go can list (item path PUT/PATCH/DELETE = resource) that no scanner pairs with (`internal/coverage/CLAUDE.md`). Offline; needs `disco coverage sdk fetch`. `--cross-check` diffs the universe against live ARM `Providers/List` as `registry-drift`; ARM never enumerates proxy child types (`microsoft.sql/managedinstances/keys`, `…/virtualnetworks/subnets`), so those show as `candidate-only` there — the SDK, not the registry, is the truth. Entra identities (Graph, not an ARM RP) are `disco-only: explained: non-sdk`.
 
 ## Adding a new type — 3 spots
 
-1. `azure_types.go`: `Type*` const **and** entry in `azureAPITypeMap` (lowercase ARM key like `microsoft.foo/bars`).
+1. `azure_types.go`: `Type*` const (`azure:<namespace>:<kebab collection>[:<child>]`; the pairing test only needs the scanner to call the `arm*` list op).
 2. `azure_scanner_test.go`: append service name to `expectedAzureServices`.
 3. New `<svc>_scanners.go` self-registers the service via `init() { registerService(serviceEntry{name, fn}) }` and declares each type it upserts via `registerType(restype.Descriptor{...})` in the same `init()`. Resolvers via `registerResolver(fn)` from `<svc>_resolvers.go`.
 
 ### Unified per-type declaration via `registerType`
 
 `registerType(restype.Descriptor{...})` in `azure_registry.go` is the single-site
-declaration for coverage emit (`Service` + `Leaf`/`Uncatalogued`), redaction
+declaration for coverage emit (`Service` + `Leaf`), redaction
 rules (`Redact`), and the unconditional `Managed` flag (the store stamps
 `ManagedByProvider` by type — used only by `TypeNetworkCloudRackSKU`; the
 built-in role/policy/set-definition types stay scanner-set because they are
@@ -27,16 +23,12 @@ managed only for tenant built-ins, not custom defs). It forwards field rules
 into the shared redact/volatile/managed engines and routes the coverage decl
 through `descriptorEmits`.
 
-**Aliases are NOT on the descriptor.** Azure keeps them in `azureAPITypeMap`
-(`azure_types.go`) because that map is both the alias source AND the
-`azure_type_mirror_test.go` truth, and it carries *multiple* upstream keys per
-disco type (which a single `Descriptor.Upstream` can't represent). `Aliases()`
-inverts it as before — leave it alone.
-
 **Azure is fully migrated** — every type is declared via `registerType`;
 `azure_redact.go` and the legacy `serviceEntry.emits` / `registerExtraEmits`
 paths are gone. `TestNoDoubleDeclaredTypes` guards against a type declared via
-both paths; the mirror/leaf/redact tests guard naming and redaction.
+both paths; `azure_pairing_test.go` guards that every type's scanner calls an SDK
+list op, and the leaf/redact tests guard resolver sources and redaction.
+`azureAPITypeMap` and `azure_type_mirror_test.go` are gone.
 
 ## Service names align to the ARM namespace: `azure:microsoft.<namespace>`
 
@@ -549,8 +541,7 @@ another quota-bearing namespace, extend `quotaProviderNamespaces` — nothing el
 **Quotas are NOT resources and register no type.** `scanQuotaLimits` writes
 `store.Quota` rows into the `quotas` table (disco migration 017) via
 `UpsertQuotas`; `TestQuotaLimitsDeclareNoResourceType` fails if a `registerType`
-comes back, and it also asserts `azureAPITypeMap` no longer maps
-`microsoft.quota/quotas`. The service registration must survive alongside the
+comes back. The service registration must survive alongside the
 absent type — dropping that stops quotas being scanned at all. Identity is
 `(provider, subscription, region, namespace, quota name)`, where the quota name
 is the resource provider's own `Properties.Name.Value` (e.g.

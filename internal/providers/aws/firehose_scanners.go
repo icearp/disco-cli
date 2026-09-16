@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeFirehoseDeliveryStream, Service: "kinesisfirehose", Upstream: "AWS::KinesisFirehose::DeliveryStream"})
+	registerType(restype.Descriptor{Type: TypeFirehoseDeliveryStream, Service: "kinesisfirehose"})
 	registerService(serviceEntry{
 		name: "aws:firehose",
 		fn:   scanFirehose,

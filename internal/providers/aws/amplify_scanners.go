@@ -16,7 +16,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAmplifyApp, Service: "amplify"})
 	registerType(restype.Descriptor{Type: TypeAmplifyBranch, Service: "amplify"})
 	registerType(restype.Descriptor{Type: TypeAmplifyDomain, Service: "amplify", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAmplifyWebhooks, Service: "amplify", Upstream: "AWS::amplify::webhooks", Leaf: true, Redact: []redact.Rule{{Path: "WebhookUrl", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAmplifyWebhooks, Service: "amplify", Leaf: true, Redact: []redact.Rule{{Path: "WebhookUrl", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "aws:amplify",
 		fn:   scanAmplify,

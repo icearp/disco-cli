@@ -12,14 +12,14 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEventsEventBus, Service: "events", Upstream: "AWS::Events::EventBus"})
-	registerType(restype.Descriptor{Type: TypeEventsRule, Service: "events", Upstream: "AWS::Events::Rule"})
-	registerType(restype.Descriptor{Type: TypeEventsConnection, Service: "events", Upstream: "AWS::Events::Connection"})
-	registerType(restype.Descriptor{Type: TypeEventsAPIDestination, Service: "events", Upstream: "AWS::Events::ApiDestination"})
+	registerType(restype.Descriptor{Type: TypeEventsEventBus, Service: "events"})
+	registerType(restype.Descriptor{Type: TypeEventsRule, Service: "events"})
+	registerType(restype.Descriptor{Type: TypeEventsConnection, Service: "events"})
+	registerType(restype.Descriptor{Type: TypeEventsAPIDestination, Service: "events"})
 	registerType(restype.Descriptor{Type: TypeEventsArchive, Service: "events"})
 	registerType(restype.Descriptor{Type: TypeEventsEndpoint, Service: "events"})
 	registerType(restype.Descriptor{Type: TypeEventsEventBusPolicy, Service: "events"})
-	registerType(restype.Descriptor{Type: TypeEventsEventSource, Service: "events", Upstream: "AWS::events::event-source", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventsEventSource, Service: "events", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:events",
 		fn:   scanEventBridge,

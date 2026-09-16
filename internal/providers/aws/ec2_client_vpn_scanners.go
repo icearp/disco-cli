@@ -12,10 +12,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2ClientVPNEndpoint, Service: "ec2", Upstream: "AWS::EC2::ClientVpnEndpoint"})
-	registerType(restype.Descriptor{Type: TypeEC2ClientVPNAuthorizationRule, Service: "ec2", Upstream: "AWS::EC2::ClientVpnAuthorizationRule"})
-	registerType(restype.Descriptor{Type: TypeEC2ClientVPNRoute, Service: "ec2", Upstream: "AWS::EC2::ClientVpnRoute"})
-	registerType(restype.Descriptor{Type: TypeEC2ClientVPNTargetNetworkAssociation, Service: "ec2", Upstream: "AWS::EC2::ClientVpnTargetNetworkAssociation"})
+	registerType(restype.Descriptor{Type: TypeEC2ClientVPNEndpoint, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2ClientVPNAuthorizationRule, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2ClientVPNRoute, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2ClientVPNTargetNetworkAssociation, Service: "ec2"})
 }
 
 // scanEC2ClientVPN discovers all Client VPN resources in parallel.

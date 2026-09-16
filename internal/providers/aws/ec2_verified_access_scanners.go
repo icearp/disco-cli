@@ -9,10 +9,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessTrustProvider, Service: "ec2", Upstream: "AWS::EC2::VerifiedAccessTrustProvider", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessInstance, Service: "ec2", Upstream: "AWS::EC2::VerifiedAccessInstance"})
-	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessGroup, Service: "ec2", Upstream: "AWS::EC2::VerifiedAccessGroup"})
-	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessEndpoint, Service: "ec2", Upstream: "AWS::EC2::VerifiedAccessEndpoint"})
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessTrustProvider, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessInstance, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessGroup, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessEndpoint, Service: "ec2"})
 }
 
 // scanEC2VerifiedAccess discovers all Verified Access resources in parallel.

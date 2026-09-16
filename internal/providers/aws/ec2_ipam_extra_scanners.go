@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2IpamPolicy, Service: "ec2", Upstream: "AWS::ec2::ipam-policy"})
-	registerType(restype.Descriptor{Type: TypeEC2IpamExternalResourceVerificationToken, Service: "ec2", Upstream: "AWS::ec2::ipam-external-resource-verification-token", Redact: []redact.Rule{{Path: "TokenValue", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeEC2IpamPolicy, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2IpamExternalResourceVerificationToken, Service: "ec2", Redact: []redact.Rule{{Path: "TokenValue", Mode: redact.RedactScalar}}})
 }
 
 // scanEC2IPAMExtra discovers IPAM policies and external-resource verification

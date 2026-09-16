@@ -197,7 +197,8 @@ func TestCrossCheck(t *testing.T) {
 		{Key: "EC2/Instance", Service: "ec2"},
 		{Key: "ec2/instance", Service: "ec2"}, // same identity: one row at most
 		{Key: "ec2/phantom", Service: "ec2"},
-		{Key: "ec2/instancetype", Service: "ec2"}, // catalog: registry lists it, the universe never counts it
+		{Key: "ec2/instancetype", Service: "ec2"}, // catalog candidate: known to the universe, so not drift
+		{Key: "zzz/thing", Service: "zzz"},        // service outside the universe: excluded by rule, not drift
 	}, fakeCrossChecker{})
 	drift := map[string]string{}
 	for _, r := range m.Rows {
@@ -205,8 +206,13 @@ func TestCrossCheck(t *testing.T) {
 			drift[r.Key] = r.Reason
 		}
 	}
-	if drift["ec2/phantom"] != ReasonRegistryOnly || drift["ec2/instancetype"] != ReasonRegistryOnly {
-		t.Errorf("registry-only rows missing: %v", drift)
+	if drift["ec2/phantom"] != ReasonRegistryOnly {
+		t.Errorf("registry-only row missing: %v", drift)
+	}
+	for _, k := range []string{"ec2/instancetype", "zzz/thing"} {
+		if _, ok := drift[k]; ok {
+			t.Errorf("%s reported as drift", k)
+		}
 	}
 	if _, ok := drift["ec2/instance"]; ok {
 		t.Error("matched registry key reported as drift")

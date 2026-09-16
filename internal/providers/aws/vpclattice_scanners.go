@@ -24,7 +24,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetworkResourceAssociation, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetworkServiceAssociation, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetworkVpcAssociation, Service: "vpclattice"})
-	registerType(restype.Descriptor{Type: TypeVpcLatticeResourceEndpointAssociation, Service: "vpclattice", Upstream: "AWS::vpc-lattice::ResourceEndpointAssociation"})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeResourceEndpointAssociation, Service: "vpclattice"})
 	registerService(serviceEntry{
 		name: "aws:vpclattice",
 		fn:   scanVpcLattice,

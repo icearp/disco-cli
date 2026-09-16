@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLakeFormationResource, Service: "lakeformation", Upstream: "AWS::LakeFormation::Resource"})
+	registerType(restype.Descriptor{Type: TypeLakeFormationResource, Service: "lakeformation"})
 	registerType(restype.Descriptor{Type: TypeLakeFormationDataCellsFilter, Service: "lakeformation", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeLakeFormationDataLakeSettings, Service: "lakeformation", Leaf: true, Managed: true})
 	registerType(restype.Descriptor{Type: TypeLakeFormationPrincipalPermissions, Service: "lakeformation", Leaf: true})

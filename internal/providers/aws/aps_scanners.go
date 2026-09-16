@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAPSWorkspace, Service: "aps", Upstream: "AWS::APS::Workspace"})
-	registerType(restype.Descriptor{Type: TypeAPSScraper, Service: "aps", Upstream: "AWS::APS::Scraper"})
-	registerType(restype.Descriptor{Type: TypeAPSAnomalyDetector, Service: "aps", Upstream: "AWS::APS::AnomalyDetector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAPSRuleGroupsNamespace, Service: "aps", Upstream: "AWS::APS::RuleGroupsNamespace", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAPSResourcePolicy, Service: "aps", Upstream: "AWS::APS::ResourcePolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPSWorkspace, Service: "aps"})
+	registerType(restype.Descriptor{Type: TypeAPSScraper, Service: "aps"})
+	registerType(restype.Descriptor{Type: TypeAPSAnomalyDetector, Service: "aps", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPSRuleGroupsNamespace, Service: "aps", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPSResourcePolicy, Service: "aps", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:aps",
 		fn:   scanAPS,

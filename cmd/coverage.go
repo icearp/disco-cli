@@ -146,7 +146,7 @@ func init() {
 	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: "+strings.Join(coverage.Filters, ", ")+" (gaps = uncovered + unexplained disco-only)")
 	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion(coverage.Filters...))
 	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
-	coverageServicesCmd.Flags().Duration("timeout", 60*time.Second, "--cross-check only: per-provider live-fetch timeout")
+	coverageServicesCmd.Flags().Duration("timeout", 3*time.Minute, "--cross-check only: per-provider live-fetch timeout (GCP walks every Discovery doc)")
 	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on unexplained disco-only rows. A missing SDK cache or failed registry fetch always exits 2.")
 
 	// regions subcommand flags.

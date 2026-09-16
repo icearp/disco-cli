@@ -15,13 +15,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCloudFunction, Service: "cloudfunctions", Upstream: "cloudfunctions.googleapis.com/Function", Redact: []redact.Rule{{Path: "serviceConfig.environmentVariables.*", Mode: redact.RedactScalar}, {Path: "environmentVariables.*", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeCloudRunSvc, Service: "run", Upstream: "run.googleapis.com/Service", Redact: []redact.Rule{{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeCloudRunRevision, Service: "run", Upstream: "run.googleapis.com/Revision", Redact: []redact.Rule{{Path: "containers[*].env[*].value", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeCloudRunWorkerPool, Service: "run", Upstream: "run.googleapis.com/WorkerPool", Redact: []redact.Rule{{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeCloudRunInstance, Service: "run", Upstream: "run.googleapis.com/Instance", Redact: []redact.Rule{{Path: "containers[*].env[*].value", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeCloudRunDomainMapping, Service: "run", Upstream: "run.googleapis.com/Domainmapping"})
-	registerType(restype.Descriptor{Type: TypeCloudRunAuthorizedDomain, Service: "run", Upstream: "run.googleapis.com/Authorizeddomain", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudFunction, Service: "cloudfunctions", Redact: []redact.Rule{{Path: "serviceConfig.environmentVariables.*", Mode: redact.RedactScalar}, {Path: "environmentVariables.*", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudRunSvc, Service: "run", Redact: []redact.Rule{{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudRunRevision, Service: "run", Redact: []redact.Rule{{Path: "containers[*].env[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudRunWorkerPool, Service: "run", Redact: []redact.Rule{{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudRunInstance, Service: "run", Redact: []redact.Rule{{Path: "containers[*].env[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudRunDomainMapping, Service: "run"})
+	registerType(restype.Descriptor{Type: TypeCloudRunAuthorizedDomain, Service: "run", Leaf: true})
 	registerService(serviceEntry{
 		name: "gcp:cloudfunctions",
 		fn:   scanCloudFunctions,

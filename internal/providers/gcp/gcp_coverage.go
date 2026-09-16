@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -16,10 +18,9 @@ import (
 
 func init() { coverage.Register(&coverageProvider{}) }
 
-// coverageProvider implements coverage.Provider for GCP. Upstream truth
-// source = the public Discovery API. Coverage truth source = CollectEmits()
-// (services.go), which unions every registerService / registerOrgService
-// emits decl plus extraEmits from hierarchy_scanners + iampolicy_resolvers.
+// coverageProvider implements coverage.Provider for GCP: the types its
+// scanners emit (CollectEmits) and, for --cross-check, the public Discovery
+// API (CrossCheck).
 type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "gcp" }
@@ -30,39 +31,6 @@ func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 // backing `disco coverage resolvers --providers gcp`.
 func (coverageProvider) ListResolvers() []coverage.ResolverInfo { return ListResolvers() }
 func (coverageProvider) ResolverEdgeSources() []string          { return ResolverEdgeSources() }
-
-// Aliases overrides the algorithmic disco-type → upstream-key mapping for GCP
-// types whose Discovery resource-collection name doesn't match the disco
-// service segment 1:1 (e.g. cloudresourcemanager Discovery uses singular
-// "Project" while disco's segment is "cloudresourcemanager").
-//
-// Discovery key shape: "<api>.googleapis.com/<Resource>" — the same shape
-// produced by Fetch below. Empty map allowed; algorithmic fallback handles
-// the rest.
-func (coverageProvider) Aliases() map[string]string {
-	return descriptorAliases()
-}
-
-// AlgorithmicKey converts a disco type to a best-effort Discovery key shape.
-// Fallback when Aliases() has no entry — keeps the matrix render sensible
-// for entries not yet audited against a live Discovery dump. Format:
-// "<service>.googleapis.com/<Pascal>".
-func (coverageProvider) AlgorithmicKey(discoType string) string {
-	parts := strings.SplitN(discoType, ":", 3)
-	if len(parts) != 3 {
-		return discoType
-	}
-	svc, kind := parts[1], parts[2]
-	// Convert kebab-case kind to Pascal: "alert-policy" → "AlertPolicy".
-	segs := strings.Split(kind, "-")
-	for i, s := range segs {
-		if s == "" {
-			continue
-		}
-		segs[i] = strings.ToUpper(s[:1]) + s[1:]
-	}
-	return svc + ".googleapis.com/" + strings.Join(segs, "")
-}
 
 // Discovery API endpoints. Public, unauthenticated; rate-limited but generous
 // for a one-shot enumeration. discoveryListURL is a var so tests can point the
@@ -84,26 +52,28 @@ func (coverageProvider) CanonicalKey(upstreamKey string) string {
 	return strings.TrimSuffix(api, ".googleapis.com") + "/" + sdkinv.Ident(res)
 }
 
-// CrossCheck enumerates first-party Google APIs via the Discovery API and returns
-// every resource collection encountered as an UpstreamType. Filtering is
-// applied to the union of:
-//   - registered scanner names (project-scope + org-scope service entries),
-//   - parent / sibling APIs that don't have their own scanner but supply
-//     resource shapes scanners depend on (cloudresourcemanager, iam, run, …).
+// CrossCheck enumerates every API the public Discovery list advertises and
+// returns each resource collection as an UpstreamType. All ~650 docs are
+// fetched (no allowlist): the universe covers every cloud-rooted API, so a
+// narrower registry would report its other candidates as candidate-only.
 //
-// The filter is *post-fetch* — we still paginate the full Discovery list once
-// but skip per-API doc HTTP calls for APIs disco doesn't need.
+// The list keeps advertising retired APIs whose doc 404s or 502s (poly v1,
+// area120tables v1alpha1, datalabeling v1beta1). A doc failure is fatal only
+// for an API disco scans — there it would surface as false drift; any other
+// failed API is named on stderr and its candidates read as candidate-only.
 func (coverageProvider) CrossCheck(ctx context.Context, _ coverage.FetchOptions) ([]coverage.UpstreamType, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
-
-	allow := relevantAPISet()
+	scanned := map[string]bool{}
+	for _, e := range CollectEmits() {
+		scanned[e.Service] = true
+	}
 
 	apis, err := fetchDiscoveryAPIList(ctx, client)
 	if err != nil {
 		return nil, fmt.Errorf("discovery list: %w", err)
 	}
 
-	type apiRef struct{ name, url string }
+	type apiRef struct{ name, url, version string }
 	var todo []apiRef
 	seenURL := map[string]bool{}
 	for _, a := range apis {
@@ -111,16 +81,14 @@ func (coverageProvider) CrossCheck(ctx context.Context, _ coverage.FetchOptions)
 			continue
 		}
 		seenURL[a.DiscoveryRestURL] = true
-		if !allow[a.Name] {
-			continue
-		}
-		todo = append(todo, apiRef{name: a.Name, url: a.DiscoveryRestURL})
+		todo = append(todo, apiRef{name: a.Name, url: a.DiscoveryRestURL, version: a.Version})
 	}
 
 	var (
 		mu       sync.Mutex
 		out      []coverage.UpstreamType
 		firstErr error // guarded by mu
+		skipped  []string
 		sem      = semaphore.NewWeighted(discoveryFetchLimit)
 		wg       sync.WaitGroup
 	)
@@ -131,6 +99,12 @@ func (coverageProvider) CrossCheck(ctx context.Context, _ coverage.FetchOptions)
 		wg.Go(func() {
 			defer sem.Release(1)
 			doc, err := fetchDiscoveryDoc(ctx, client, ref.url)
+			if err != nil && !scanned[ref.name] {
+				mu.Lock()
+				skipped = append(skipped, ref.name+"/"+ref.version)
+				mu.Unlock()
+				return
+			}
 			if err != nil {
 				// A per-API doc failure would leave that API's types absent
 				// from the upstream set, falsely bucketing them upstream-missing.
@@ -150,6 +124,10 @@ func (coverageProvider) CrossCheck(ctx context.Context, _ coverage.FetchOptions)
 		})
 	}
 	wg.Wait()
+	if len(skipped) > 0 {
+		sort.Strings(skipped)
+		fmt.Fprintf(os.Stderr, "  gcp: %d Discovery docs unreachable (retired APIs, not scanned): %s\n", len(skipped), strings.Join(skipped, " "))
+	}
 	if firstErr != nil {
 		return nil, firstErr
 	}
@@ -169,33 +147,10 @@ func (coverageProvider) CrossCheck(ctx context.Context, _ coverage.FetchOptions)
 	return deduped, nil
 }
 
-// relevantAPISet is the union of APIs disco's registered scanners (project +
-// org) cover, plus parent APIs whose Discovery docs supply resource shapes.
-// Drives the post-fetch filter in CrossCheck.
-func relevantAPISet() map[string]bool {
-	emits := CollectEmits()
-	out := make(map[string]bool, len(emits)+8)
-	for _, e := range emits {
-		out[e.Service] = true
-	}
-	// APIs that always belong (parent surfaces, common shared shapes).
-	for _, a := range []string{
-		"cloudresourcemanager", "iam", "compute", "dns", "pubsub",
-		"bigquery", "bigtableadmin", "firestore", "spanner", "composer",
-		"artifactregistry", "logging", "monitoring", "cloudbuild",
-		"binaryauthorization", "batch", "container", "cloudkms",
-		"secretmanager", "storage", "sqladmin", "accesscontextmanager",
-		"dataproc", "dataflow", "admin", "cloudidentity", "run",
-		"cloudfunctions", "certificatemanager",
-	} {
-		out[a] = true
-	}
-	return out
-}
-
 // discoveryAPI is the relevant subset of one entry in the Discovery list.
 type discoveryAPI struct {
 	Name             string `json:"name"`
+	Version          string `json:"version"`
 	DiscoveryRestURL string `json:"discoveryRestUrl"`
 	Preferred        bool   `json:"preferred"`
 }
@@ -263,9 +218,8 @@ func fetchDiscoveryDoc(ctx context.Context, client *http.Client, url string) (*d
 // `get` or `list` method, matching GCP's notion of a resource type in
 // tooling like gcloud + asset inventory.
 //
-// Resource name conversion: Discovery uses lowerCamel collection names
-// ("forwardingRules" → singular "ForwardingRule"). Strip a trailing 's' and
-// PascalCase. Imperfect but consistent — alias-map overrides cover edge cases.
+// The key keeps the collection's own spelling ("forwardingRules");
+// CanonicalKey reduces it to the equality stem.
 func walkResourceCollections(api string, doc *discoveryDoc) []coverage.UpstreamType {
 	if doc == nil {
 		return nil
@@ -274,11 +228,7 @@ func walkResourceCollections(api string, doc *discoveryDoc) []coverage.UpstreamT
 	var walk func(name string, r discoveryResource)
 	walk = func(name string, r discoveryResource) {
 		if hasFetchMethod(r.Methods) {
-			singular := singularize(name)
-			out = append(out, coverage.UpstreamType{
-				Key:     api + ".googleapis.com/" + pascalCase(singular),
-				Service: api,
-			})
+			out = append(out, coverage.UpstreamType{Key: api + ".googleapis.com/" + name, Service: api})
 		}
 		for childName, child := range r.Resources {
 			walk(childName, child)
@@ -301,61 +251,6 @@ func hasFetchMethod(methods map[string]json.RawMessage) bool {
 		}
 	}
 	return false
-}
-
-// singularizeExceptions handles plurals no suffix-only rule can resolve.
-// "databases" and "aliases" both end in identical "-ases", but the true
-// singular of one ends in a silent "e" (non-sibilant stem, "+s" plural) and
-// the other in a genuine sibilant "s" (sibilant stem, "+es" plural) — the
-// suffix alone can't tell them apart. Extend this map, not the heuristic
-// below, when a new word hits the same ambiguity (surfaces as an
-// "upstream-missing" row in `disco coverage services` for a type that's
-// actually scanned).
-var singularizeExceptions = map[string]string{
-	"databases":      "database",
-	"snoozes":        "snooze",
-	"anywhereCaches": "anywhereCache",
-}
-
-// singularize strips a trailing plural marker from a lowerCamel collection
-// name. Heuristic only — alias-map handles cases this gets wrong (e.g.
-// "indexes" → "Index" handled here via the sibilant-stem rule, "policies" →
-// "Policy" via the -ies rule, but genuinely irregular plurals go in
-// singularizeExceptions above).
-func singularize(s string) string {
-	if exc, ok := singularizeExceptions[s]; ok {
-		return exc
-	}
-	switch {
-	case strings.HasSuffix(s, "ies") && len(s) > 3:
-		return s[:len(s)-3] + "y"
-	case strings.HasSuffix(s, "es") && len(s) > 2 && hasSibilantStem(s[:len(s)-2]):
-		return s[:len(s)-2]
-	case strings.HasSuffix(s, "s") && len(s) > 1:
-		return s[:len(s)-1]
-	}
-	return s
-}
-
-// hasSibilantStem reports whether stem ends in a sound that pluralizes with
-// "-es" rather than a bare "-s" (s, x, z, ch, sh) — e.g. "address"/"alias"/
-// "box"/"branch"/"dish", distinguishing "addresses" → "address" from
-// "instances" → "instance".
-func hasSibilantStem(stem string) bool {
-	switch {
-	case strings.HasSuffix(stem, "s"), strings.HasSuffix(stem, "x"), strings.HasSuffix(stem, "z"):
-		return true
-	case strings.HasSuffix(stem, "ch"), strings.HasSuffix(stem, "sh"):
-		return true
-	}
-	return false
-}
-
-func pascalCase(s string) string {
-	if s == "" {
-		return ""
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // FetchRegions calls compute.Regions.List for the first accessible project

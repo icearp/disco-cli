@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeTnbFunctionInstance, Service: "tnb", Upstream: "AWS::tnb::function-instance"})
-	registerType(restype.Descriptor{Type: TypeTnbFunctionPackage, Service: "tnb", Upstream: "AWS::tnb::function-package", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTnbNetworkInstance, Service: "tnb", Upstream: "AWS::tnb::network-instance"})
-	registerType(restype.Descriptor{Type: TypeTnbNetworkPackage, Service: "tnb", Upstream: "AWS::tnb::network-package", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTnbNetworkOperation, Service: "tnb", Upstream: "AWS::tnb::network-operation"})
+	registerType(restype.Descriptor{Type: TypeTnbFunctionInstance, Service: "tnb"})
+	registerType(restype.Descriptor{Type: TypeTnbFunctionPackage, Service: "tnb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTnbNetworkInstance, Service: "tnb"})
+	registerType(restype.Descriptor{Type: TypeTnbNetworkPackage, Service: "tnb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTnbNetworkOperation, Service: "tnb"})
 	registerService(serviceEntry{
 		name: "aws:tnb",
 		fn:   scanTnb,

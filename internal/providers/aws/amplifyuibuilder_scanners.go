@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAmplifyUIBuilderComponent, Service: "amplify-ui-builder", Upstream: "AWS::AmplifyUIBuilder::Component", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAmplifyUIBuilderForm, Service: "amplify-ui-builder", Upstream: "AWS::AmplifyUIBuilder::Form", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAmplifyUIBuilderTheme, Service: "amplify-ui-builder", Upstream: "AWS::AmplifyUIBuilder::Theme", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAmplifyUIBuilderComponent, Service: "amplify-ui-builder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAmplifyUIBuilderForm, Service: "amplify-ui-builder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAmplifyUIBuilderTheme, Service: "amplify-ui-builder", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:amplify-ui-builder",
 		fn:   scanAmplifyUIBuilder,

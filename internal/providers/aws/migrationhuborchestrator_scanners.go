@@ -12,8 +12,8 @@ import (
 // AWS Migration Hub Orchestrator — migration workflows and the templates they
 // instantiate from. Both leaf: no outbound edges to other scanned AWS types.
 func init() {
-	registerType(restype.Descriptor{Type: TypeMigrationHubOrchestratorWorkflow, Service: "migrationhub-orchestrator", Upstream: "AWS::migrationhub-orchestrator::workflow", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMigrationHubOrchestratorTemplate, Service: "migrationhub-orchestrator", Upstream: "AWS::migrationhub-orchestrator::template", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMigrationHubOrchestratorWorkflow, Service: "migrationhub-orchestrator", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMigrationHubOrchestratorTemplate, Service: "migrationhub-orchestrator", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:migrationhub-orchestrator",
 		fn:   scanMigrationHubOrchestrator,

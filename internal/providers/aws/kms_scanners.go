@@ -14,9 +14,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeKMSKey, Service: "kms", Upstream: "AWS::KMS::Key"})
-	registerType(restype.Descriptor{Type: TypeKMSAlias, Service: "kms", Upstream: "AWS::KMS::Alias"})
-	registerType(restype.Descriptor{Type: TypeKMSGrant, Service: "kms", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeKMSKey, Service: "kms"})
+	registerType(restype.Descriptor{Type: TypeKMSAlias, Service: "kms"})
+	registerType(restype.Descriptor{Type: TypeKMSGrant, Service: "kms"})
 	registerService(serviceEntry{
 		name: "aws:kms",
 		fn:   scanKMS,

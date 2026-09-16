@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeUXCAccountCustomization, Service: "uxc", Upstream: "AWS::UXC::AccountCustomization", Managed: true})
+	registerType(restype.Descriptor{Type: TypeUXCAccountCustomization, Service: "uxc", Managed: true})
 	registerService(serviceEntry{
 		name:   "aws:uxc",
 		global: true,

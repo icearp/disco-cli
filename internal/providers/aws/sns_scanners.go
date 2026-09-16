@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSNSTopic, Service: "sns", Upstream: "AWS::SNS::Topic"})
+	registerType(restype.Descriptor{Type: TypeSNSTopic, Service: "sns"})
 	registerType(restype.Descriptor{Type: TypeSNSSubscription, Service: "sns"})
 	registerType(restype.Descriptor{Type: TypeSNSTopicPolicy, Service: "sns"})
 	registerService(serviceEntry{

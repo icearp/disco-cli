@@ -14,7 +14,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeNetworkVirtualNetwork, Service: "microsoft.network"})
-	registerType(restype.Descriptor{Type: TypeNetworkSubnet, Service: "microsoft.network", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeNetworkSubnet, Service: "microsoft.network"})
 	registerType(restype.Descriptor{Type: TypeNetworkSecurityGroup, Service: "microsoft.network"})
 	registerType(restype.Descriptor{Type: TypeNetworkPublicIPAddress, Service: "microsoft.network"})
 	registerType(restype.Descriptor{Type: TypeNetworkApplicationGateway, Service: "microsoft.network"})

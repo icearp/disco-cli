@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeQBusinessApplication, Service: "qbusiness", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeQBusinessChatResponseConfiguration, Service: "qbusiness", Upstream: "AWS::qbusiness::chat-response-configuration"})
+	registerType(restype.Descriptor{Type: TypeQBusinessChatResponseConfiguration, Service: "qbusiness"})
 	registerType(restype.Descriptor{Type: TypeQBusinessDataAccessor, Service: "qbusiness"})
 	registerType(restype.Descriptor{Type: TypeQBusinessDataSource, Service: "qbusiness"})
 	registerType(restype.Descriptor{Type: TypeQBusinessIndex, Service: "qbusiness"})

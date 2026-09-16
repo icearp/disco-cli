@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDSMicrosoftAD, Service: "directory-service", Upstream: "AWS::DirectoryService::MicrosoftAD"})
-	registerType(restype.Descriptor{Type: TypeDSSimpleAD, Service: "directory-service", Upstream: "AWS::DirectoryService::SimpleAD"})
+	registerType(restype.Descriptor{Type: TypeDSMicrosoftAD, Service: "directory-service"})
+	registerType(restype.Descriptor{Type: TypeDSSimpleAD, Service: "directory-service"})
 	registerService(serviceEntry{
 		name: "aws:directory-service",
 		fn:   scanDirectoryService,

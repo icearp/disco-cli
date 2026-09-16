@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeServerlessRepoApplication, Service: "serverlessrepo", Upstream: "AWS::serverlessrepo::applications", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeServerlessRepoApplication, Service: "serverlessrepo", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:serverlessrepo",
 		fn:   scanServerlessRepo,

@@ -3,7 +3,6 @@ package azure
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -16,11 +15,9 @@ import (
 
 func init() { coverage.Register(&coverageProvider{}) }
 
-// coverageProvider implements coverage.Provider for Azure. Upstream truth =
-// ARM `Providers/List?$expand=resourceTypes`; coverage truth = CollectEmits()
-// in services.go, unioning every registerService / registerTenantService
-// emits decl plus extraEmits from compute / sql child scanner files and
-// resourcegroups.
+// coverageProvider implements coverage.Provider for Azure: the types its
+// scanners emit (CollectEmits) and, for --cross-check, the live ARM
+// `Providers/List?$expand=resourceTypes` registry (CrossCheck).
 type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "azure" }
@@ -53,55 +50,6 @@ func (coverageProvider) ResolverEdgeSources() []string {
 		out = append(out, e.Source)
 	}
 	return out
-}
-
-// Aliases inverts azureAPITypeMap (types.go): that map is upstream→disco
-// for live scanner scans; coverage needs the reverse. Built once at
-// process start.
-//
-// ARM type keys are stored lowercased ("microsoft.compute/virtualmachines").
-// Multi-segment children
-// (e.g. "microsoft.network/virtualnetworks/subnets") preserved verbatim.
-//
-// azureAPITypeMap is intentionally many-to-one for a few documented aliases
-// (e.g. "microsoft.connectedcache/enterprisecustomers" and ".../enterprisemcccustomers"
-// both map to TypeConnectedCacheEnterpriseCustomer). A plain `range` picks
-// whichever upstream key Go's randomized map iteration visits last, so the
-// "covered" key flips between runs. Sort candidates and take the shortest
-// (tie-break lexicographic) as the canonical alias, deterministically.
-func (coverageProvider) Aliases() map[string]string {
-	candidates := make(map[string][]string, len(azureAPITypeMap))
-	for upstream, disco := range azureAPITypeMap {
-		candidates[disco] = append(candidates[disco], upstream)
-	}
-	out := make(map[string]string, len(candidates))
-	for disco, upstreams := range candidates {
-		sort.Slice(upstreams, func(i, j int) bool {
-			if len(upstreams[i]) != len(upstreams[j]) {
-				return len(upstreams[i]) < len(upstreams[j])
-			}
-			return upstreams[i] < upstreams[j]
-		})
-		out[disco] = upstreams[0]
-	}
-	return out
-}
-
-// AlgorithmicKey is the fallback for disco types missing from the alias map:
-// e.g. disco "azure:microsoft.compute:galleries:images:versions" -> ARM key
-// "microsoft.compute/galleries/images/versions" by stripping kebab dashes
-// (ARM segments have no separators) and turning the disco ':' sub-resource
-// separators back into ARM '/' hierarchy. Mostly exists so future types
-// compile-check without an alias entry.
-func (coverageProvider) AlgorithmicKey(discoType string) string {
-	parts := strings.SplitN(discoType, ":", 3)
-	if len(parts) != 3 {
-		return discoType
-	}
-	ns, kind := parts[1], parts[2]
-	kind = strings.ReplaceAll(kind, "-", "")
-	kind = strings.ReplaceAll(kind, ":", "/")
-	return ns + "/" + kind
 }
 
 // RegistryKey: SDK candidate keys already carry the ARM shape

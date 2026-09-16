@@ -10,13 +10,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBatchComputeEnvironment, Service: "batch", Upstream: "AWS::Batch::ComputeEnvironment"})
-	registerType(restype.Descriptor{Type: TypeBatchJobQueue, Service: "batch", Upstream: "AWS::Batch::JobQueue"})
-	registerType(restype.Descriptor{Type: TypeBatchJobDefinition, Service: "batch", Upstream: "AWS::Batch::JobDefinition"})
-	registerType(restype.Descriptor{Type: TypeBatchSchedulingPolicy, Service: "batch", Upstream: "AWS::Batch::SchedulingPolicy", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBatchConsumableResource, Service: "batch", Upstream: "AWS::Batch::ConsumableResource", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBatchServiceEnvironment, Service: "batch", Upstream: "AWS::Batch::ServiceEnvironment", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBatchQuotaShare, Service: "batch", Upstream: "AWS::Batch::QuotaShare"})
+	registerType(restype.Descriptor{Type: TypeBatchComputeEnvironment, Service: "batch"})
+	registerType(restype.Descriptor{Type: TypeBatchJobQueue, Service: "batch"})
+	registerType(restype.Descriptor{Type: TypeBatchJobDefinition, Service: "batch"})
+	registerType(restype.Descriptor{Type: TypeBatchSchedulingPolicy, Service: "batch", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBatchConsumableResource, Service: "batch", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBatchServiceEnvironment, Service: "batch", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBatchQuotaShare, Service: "batch"})
 	registerService(serviceEntry{
 		name: "aws:batch",
 		fn:   scanBatch,

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCodeGuruProfilerProfilingGroup, Service: "code-guru-profiler", Upstream: "AWS::CodeGuruProfiler::ProfilingGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodeGuruProfilerProfilingGroup, Service: "code-guru-profiler", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:code-guru-profiler",
 		fn:   scanCodeGuruProfiler,

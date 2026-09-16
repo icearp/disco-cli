@@ -27,9 +27,6 @@ func TestQuotaLimitsDeclareNoResourceType(t *testing.T) {
 			t.Errorf("quota type %q is registered as a resource — quotas belong in the quotas table", d.Type)
 		}
 	}
-	if _, ok := azureAPITypeMap["microsoft.quota/quotas"]; ok {
-		t.Error("microsoft.quota/quotas still maps to a disco resource type")
-	}
 	var found bool
 	for _, s := range registeredServices {
 		if s.name == "azure:microsoft.quota" {

@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLookoutEquipmentInferenceScheduler, Service: "lookout-equipment", Upstream: "AWS::LookoutEquipment::InferenceScheduler"})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentInferenceScheduler, Service: "lookout-equipment"})
 	registerType(restype.Descriptor{Type: TypeLookoutEquipmentDataset, Service: "lookout-equipment", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLookoutEquipmentLabelGroup, Service: "lookout-equipment", Upstream: "AWS::lookoutequipment::label-group", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentLabelGroup, Service: "lookout-equipment", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeLookoutEquipmentModel, Service: "lookout-equipment", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLookoutEquipmentModelVersion, Service: "lookout-equipment", Upstream: "AWS::lookoutequipment::model-version"})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentModelVersion, Service: "lookout-equipment"})
 	registerService(serviceEntry{
 		name: "aws:lookout-equipment",
 		fn:   scanLookoutEquipment,

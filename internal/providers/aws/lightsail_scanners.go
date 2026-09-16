@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLightsailInstance, Service: "lightsail", Upstream: "AWS::Lightsail::Instance"})
-	registerType(restype.Descriptor{Type: TypeLightsailDatabase, Service: "lightsail", Upstream: "AWS::Lightsail::Database", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLightsailContainerService, Service: "lightsail", Upstream: "AWS::Lightsail::Container", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailInstance, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailDatabase, Service: "lightsail", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailContainerService, Service: "lightsail", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeLightsailAlarm, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailBucket, Service: "lightsail", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeLightsailCertificate, Service: "lightsail"})

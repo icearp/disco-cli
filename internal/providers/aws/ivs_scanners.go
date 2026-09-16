@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIVSAdConfiguration, Service: "ivs", Upstream: "AWS::ivs::Ad-Configuration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSAdConfiguration, Service: "ivs", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeIVSChannel, Service: "ivs"})
 	registerType(restype.Descriptor{Type: TypeIVSEncoderConfiguration, Service: "ivs", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeIVSIngestConfiguration, Service: "ivs"})

@@ -2120,7 +2120,6 @@ const (
 	// DB parameter group has no CloudFormation twin (only InfluxDBCluster /
 	// InfluxDBInstance are CFN-modeled), so it carries the Service Reference's
 	// own "timestream-influxdb" service segment to match the SR key directly
-	// (db-cluster / db-instance collapse to the influx-db-* types via Skips()).
 	TypeTimestreamInfluxDBParameterGroup = "aws:timestream-influxdb:db-parameter-group"
 	// DataBrew (databrew_scanners.go).
 	TypeDataBrewDataset  = "aws:databrew:dataset"

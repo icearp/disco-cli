@@ -10,13 +10,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataprocCluster, Service: "dataproc", Upstream: "dataproc.googleapis.com/Cluster"})
-	registerType(restype.Descriptor{Type: TypeDataprocAutoscalingPolicy, Service: "dataproc", Upstream: "dataproc.googleapis.com/AutoscalingPolicy", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDataprocBatch, Service: "dataproc", Upstream: "dataproc.googleapis.com/Batch"})
-	registerType(restype.Descriptor{Type: TypeDataprocSession, Service: "dataproc", Upstream: "dataproc.googleapis.com/Session"})
-	registerType(restype.Descriptor{Type: TypeDataprocSessionTemplate, Service: "dataproc", Upstream: "dataproc.googleapis.com/SessionTemplate"})
-	registerType(restype.Descriptor{Type: TypeDataprocWorkflowTemplate, Service: "dataproc", Upstream: "dataproc.googleapis.com/WorkflowTemplate"})
-	registerType(restype.Descriptor{Type: TypeDataprocJob, Service: "dataproc", Upstream: "dataproc.googleapis.com/Job"})
+	registerType(restype.Descriptor{Type: TypeDataprocCluster, Service: "dataproc"})
+	registerType(restype.Descriptor{Type: TypeDataprocAutoscalingPolicy, Service: "dataproc", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataprocBatch, Service: "dataproc"})
+	registerType(restype.Descriptor{Type: TypeDataprocSession, Service: "dataproc"})
+	registerType(restype.Descriptor{Type: TypeDataprocSessionTemplate, Service: "dataproc"})
+	registerType(restype.Descriptor{Type: TypeDataprocWorkflowTemplate, Service: "dataproc"})
+	registerType(restype.Descriptor{Type: TypeDataprocJob, Service: "dataproc"})
 	registerService(serviceEntry{
 		name: "gcp:dataproc",
 		fn:   scanDataproc,

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeHealthImagingDatastore, Service: "health-imaging", Upstream: "AWS::HealthImaging::Datastore"})
+	registerType(restype.Descriptor{Type: TypeHealthImagingDatastore, Service: "health-imaging"})
 	registerService(serviceEntry{
 		name: "aws:health-imaging",
 		fn:   scanHealthImaging,

@@ -26,7 +26,7 @@ func init() {
 	// a customer ever needs those fields. See TestVolatileRulesAreJustified.
 	registerType(restype.Descriptor{Type: TypeWellArchitectedLens, Service: "wellarchitected", Leaf: true, Volatile: []string{"CreatedAt", "UpdatedAt"}})
 	registerType(restype.Descriptor{Type: TypeWellArchitectedProfile, Service: "wellarchitected", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWellArchitectedReviewTemplate, Service: "wellarchitected", Upstream: "AWS::wellarchitected::review-template", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWellArchitectedReviewTemplate, Service: "wellarchitected", Leaf: true})
 	registerService(serviceEntry{
 		name: "aws:wellarchitected",
 		fn:   scanWellArchitected,

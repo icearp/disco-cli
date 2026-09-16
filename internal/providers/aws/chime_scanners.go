@@ -16,14 +16,14 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeChimeAppInstance, Service: "chime", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeChimeAppInstanceBot, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeAppInstanceUser, Service: "chime"})
-	registerType(restype.Descriptor{Type: TypeChimeChannelFlow, Service: "chime", Upstream: "AWS::chime::channel-flow"})
-	registerType(restype.Descriptor{Type: TypeChimeMediaPipeline, Service: "chime", Upstream: "AWS::chime::media-pipeline", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeChimeMediaInsightsPipelineConfiguration, Service: "chime", Upstream: "AWS::chime::media-insights-pipeline-configuration", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeChimeMediaPipelineKinesisVideoStreamPool, Service: "chime", Upstream: "AWS::chime::media-pipeline-kinesis-video-stream-pool", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeChimeSipMediaApplication, Service: "chime", Upstream: "AWS::chime::sip-media-application"})
-	registerType(restype.Descriptor{Type: TypeChimeVoiceConnector, Service: "chime", Upstream: "AWS::chime::voice-connector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeChimeVoiceProfileDomain, Service: "chime", Upstream: "AWS::chime::voice-profile-domain"})
-	registerType(restype.Descriptor{Type: TypeChimeVoiceProfile, Service: "chime", Upstream: "AWS::chime::voice-profile"})
+	registerType(restype.Descriptor{Type: TypeChimeChannelFlow, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeMediaPipeline, Service: "chime", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeMediaInsightsPipelineConfiguration, Service: "chime", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeMediaPipelineKinesisVideoStreamPool, Service: "chime", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeSipMediaApplication, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeVoiceConnector, Service: "chime", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeVoiceProfileDomain, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeVoiceProfile, Service: "chime"})
 	registerService(serviceEntry{
 		name: "aws:chime",
 		fn:   scanChime,

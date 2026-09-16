@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEKSAnywhereSubscription, Service: "eks", Upstream: "AWS::eks::eks-anywhere-subscription", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEKSAnywhereSubscription, Service: "eks", Leaf: true})
 }
 
 type eksAnywhereAPI interface {

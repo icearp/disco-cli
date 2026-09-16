@@ -10,26 +10,25 @@ GCP scanner/resolver conventions. Cross-provider rules: `internal/providers/CLAU
 
 `registerType(restype.Descriptor{...})` in `gcp_registry.go` is the single-site
 declaration for everything disco knows about a resource type: coverage emit
-(`Service` + `Leaf`/`Uncatalogued`), upstream alias (`Upstream`, empty falls
-through to `AlgorithmicKey`), redaction rules (`Redact`), volatile fields
+(`Service` + `Leaf`), redaction rules (`Redact`), volatile fields
 (`Volatile`), and the unconditional `Managed` flag (the store stamps
 `ManagedByProvider` by type). It forwards field rules into the shared
 redact/volatile/managed engines and routes the coverage decl through
-`descriptorEmits` so `CollectEmits` still surfaces it; `Aliases()` returns
-`descriptorAliases()` directly.
+`descriptorEmits` so `CollectEmits` still surfaces it.
 
 **GCP is fully migrated** — every type is declared via `registerType` from the
 `init()` of the file owning its upsert. The legacy `staticAliases` map and
 `gcp_redact.go` are gone; there is no `serviceEntry.emits` /
 `registerExtraEmits` for new work. New services declare their types with
 `registerType`. `TestNoDoubleDeclaredTypes` rejects any type declared via both
-the descriptor path and a legacy emit site; the mirror/orphan/leaf coverage
-tests guard naming and resolver-source correctness.
+the descriptor path and a legacy emit site; `gcp_pairing_test.go` guards that
+every type's scanner calls a Discovery list method, and the leaf test guards
+resolver sources. `Descriptor.Upstream` and `gcp_type_mirror_test.go` are gone.
 - `gcp_scanner_test.go` carries TWO expectation lists: `expectedGCPServices` (project-scope) and `expectedGCPOrgServices` (org-scope, via `registerOrgService`). New scanner updates whichever list matches its registration call — getting it wrong only fails at test time, not build time.
 
 ## Discover what's not yet covered
 
-`disco coverage services --providers gcp --filter uncovered` — diff GCP Discovery API vs scanner emits. Works credless (Discovery is public). Other filters: `covered`, `uncatalogued` (SDK-scanned but absent from Discovery — none on GCP today: `gcp:iam:policy` lands `covered` because Discovery's `iam.googleapis.com/Policy` matches it), `upstream-missing`. `--check-strict` exits 1 on `upstream-missing` rows (alias-map drift signal) — wire into CI to catch alias/scanner drift. A Discovery fetch failure — the top-level list **or any per-API doc** — is always fatal (exit 2 via the cmd layer's `errCoverageRegistryUnreachable`), so a dropped doc never silently undercounts the upstream and falsely flags that API's types as drift.
+`disco coverage services --providers gcp --filter uncovered` — every cloud-rooted Discovery collection with a `list`/`aggregatedList` method that no scanner pairs with (`internal/coverage/CLAUDE.md`). Offline from the pinned `google.golang.org/api` docs in the SDK cache. `--cross-check` walks every live Discovery doc (~650, no allowlist; `--timeout` default 3m) and reports `registry-drift`; a dropped doc is always fatal (exit 2 via `errCoverageRegistryUnreachable`) so a partial registry never masquerades as drift.
 
 ## Resolver-edge metadata: `EdgeDecl`
 

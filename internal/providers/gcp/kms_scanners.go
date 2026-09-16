@@ -13,8 +13,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeKMSKeyRing, Service: "cloudkms", Upstream: "cloudkms.googleapis.com/KeyRing", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeKMSCryptoKey, Service: "cloudkms", Upstream: "cloudkms.googleapis.com/CryptoKey"})
+	registerType(restype.Descriptor{Type: TypeKMSKeyRing, Service: "cloudkms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKMSCryptoKey, Service: "cloudkms"})
 	registerType(restype.Descriptor{Type: TypeKMSCryptoKeyVersion, Service: "cloudkms"})
 	registerType(restype.Descriptor{Type: TypeKMSEkmConnection, Service: "cloudkms", Leaf: true})
 	registerType(restype.Descriptor{Type: TypeKMSImportJob, Service: "cloudkms", Leaf: true})

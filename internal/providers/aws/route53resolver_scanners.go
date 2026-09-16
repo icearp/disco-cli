@@ -22,7 +22,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverQueryLoggingConfigAssociation, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverRule, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverRuleAssociation, Service: "route53resolver"})
-	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallConfig, Service: "route53resolver", Upstream: "AWS::route53resolver::firewall-config", Managed: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallConfig, Service: "route53resolver", Managed: true})
 	registerService(serviceEntry{
 		name: "aws:route53resolver",
 		fn:   scanRoute53Resolver,

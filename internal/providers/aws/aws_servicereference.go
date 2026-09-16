@@ -36,10 +36,9 @@ type srServiceDoc struct {
 
 // fetchServiceReference returns one coverage.UpstreamType per (service,
 // resource) pair from the AWS Service Reference catalog, shaped as
-// "AWS::<service>::<resource>" — the same homogeneous form disco's alias /
-// AlgorithmicKey machinery produces, so coverage.Build unions and dedupes it
-// against CloudFormation ListTypes case-insensitively. Credential-free: plain
-// HTTPS GETs, no AWS SDK.
+// "AWS::<service>::<resource>" — the same shape as CloudFormation ListTypes,
+// so CrossCheck unions the two and CanonicalKey collapses the twins.
+// Credential-free: plain HTTPS GETs, no AWS SDK.
 func fetchServiceReference(ctx context.Context) ([]coverage.UpstreamType, error) {
 	return fetchServiceReferenceFrom(ctx, serviceReferenceIndexURL, http.DefaultClient)
 }
