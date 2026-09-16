@@ -93,15 +93,18 @@ func UpperFirst(s string) string {
 func SortCandidates(cs []Candidate) {
 	sort.Slice(cs, func(i, j int) bool { return cs[i].Key < cs[j].Key })
 	for i := range cs {
-		ops := cs[i].Ops
-		// Shared signing names (rds, neptune, docdb) repeat a label across modules.
-		sort.Slice(ops, func(a, b int) bool {
-			if ops[a].Label != ops[b].Label {
-				return ops[a].Label < ops[b].Label
-			}
-			return ops[a].Module < ops[b].Module
-		})
+		SortOps(cs[i].Ops) // shared signing names (rds, neptune, docdb) repeat a label across modules
 	}
+}
+
+// SortOps orders operations by label then module.
+func SortOps(ops []Operation) {
+	sort.Slice(ops, func(a, b int) bool {
+		if ops[a].Label != ops[b].Label {
+			return ops[a].Label < ops[b].Label
+		}
+		return ops[a].Module < ops[b].Module
+	})
 }
 
 // StrongerClass returns the class that wins when two ops describe one key:

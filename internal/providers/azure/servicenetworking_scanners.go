@@ -24,7 +24,7 @@ func scanServiceNetworking(ctx context.Context, sub *subscription, cred azcore.T
 	if err != nil {
 		return 0, 0, fmt.Errorf("armservicenetworking:NewTrafficControllerInterfaceClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armservicenetworking:TrafficControllers.ListBySubscription", TypeServiceNetworkingTrafficController, sub, st, scanID,
+	return azSimpleScan(ctx, "armservicenetworking:TrafficControllerInterface.ListBySubscription", TypeServiceNetworkingTrafficController, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
 		func(p armservicenetworking.TrafficControllerInterfaceClientListBySubscriptionResponse) []*armservicenetworking.TrafficController {
 			return p.Value

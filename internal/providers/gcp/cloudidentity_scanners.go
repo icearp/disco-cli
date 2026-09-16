@@ -210,7 +210,7 @@ func scanWorkspaceUsers(ctx context.Context, svc *directory.Service, st *store.S
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return customerID, 0, 0, skipIfDenied(st, "admin:directory.users.list", "tenant", err)
+			return customerID, 0, 0, skipIfDenied(st, "admin:users.list", "tenant", err)
 		}
 		return customerID, 0, 0, err
 	}

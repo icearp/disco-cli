@@ -80,10 +80,14 @@ type Diagnostic struct {
 
 // Universe is everything one provider's SDK can list.
 type Universe struct {
-	Provider    string            `json:"provider"`
-	Pins        map[string]string `json:"pins"` // source name -> ref/version/sha
-	Candidates  []Candidate       `json:"candidates"`
-	Diagnostics []Diagnostic      `json:"diagnostics,omitempty"`
+	Provider   string            `json:"provider"`
+	Pins       map[string]string `json:"pins"` // source name -> ref/version/sha
+	Candidates []Candidate       `json:"candidates"`
+	// Other lists operations the SDK ships that are not candidates (writes,
+	// item reads, actions), so a scanner label naming one is a known op, not
+	// a typo.
+	Other       []Operation  `json:"other,omitempty"`
+	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
 }
 
 // Kind selects how a FetchSource is retrieved.

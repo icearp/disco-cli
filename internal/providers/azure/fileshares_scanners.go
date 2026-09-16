@@ -24,7 +24,7 @@ func scanFileShares(ctx context.Context, sub *subscription, cred azcore.TokenCre
 	if err != nil {
 		return 0, 0, fmt.Errorf("armfileshares:NewClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armfileshares:FileShares.ListBySubscription", TypeFileSharesFileShare, sub, st, scanID,
+	return azSimpleScan(ctx, "armfileshares:Client.ListBySubscription", TypeFileSharesFileShare, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
 		func(p armfileshares.ClientListBySubscriptionResponse) []*armfileshares.FileShare { return p.Value },
 		func(f *armfileshares.FileShare) azTrackedBase {

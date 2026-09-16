@@ -40,7 +40,7 @@ var scopeNames = map[string]bool{
 
 // armOwnModules are the modules whose paths have no /providers/ segment
 // because they address ARM's own namespace (resource groups, subscriptions).
-var armOwnModules = map[string]bool{"resources/armresources": true, "resources/armsubscriptions": true}
+var armOwnModules = map[string]bool{"resources/armresources": true, "resources/armsubscriptions": true, "subscription/armsubscription": true}
 
 const armOwnNamespace = "microsoft.resources"
 
@@ -70,8 +70,8 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 			return rerr
 		}
 		for _, b := range parseBuilders(string(raw), module) {
-			if diag := index(entries, b); diag != "" {
-				u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: rel, Message: diag})
+			if !index(entries, b) {
+				u.Other = append(u.Other, opFor(b, "", nil, ""))
 			}
 		}
 		return nil
@@ -85,6 +85,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		}
 	}
 	sdkinv.SortCandidates(u.Candidates)
+	sdkinv.SortOps(u.Other)
 	return u, nil
 }
 
@@ -113,7 +114,7 @@ func parseBuilders(src, module string) []builder {
 }
 
 // index files one builder under its (namespace, type path) entry.
-func index(entries map[string]*entry, b builder) string {
+func index(entries map[string]*entry, b builder) bool {
 	segs := sdkinv.ParseTemplate(b.path)
 	nsIdx := -1
 	for i := len(segs) - 2; i >= 0; i-- {
@@ -137,11 +138,11 @@ func index(entries map[string]*entry, b builder) string {
 		namespace = armOwnNamespace
 		prefix, rest = segs, segs
 	default:
-		return "" // action/operation path outside any resource provider; nothing to list
+		return false // action/operation path outside any resource provider; nothing to list
 	}
 	rp := sdkinv.StripScopes(rest, scopeNames, nil)
 	if len(rp.Statics) == 0 {
-		return ""
+		return false
 	}
 	statics := make([]string, len(rp.Statics))
 	for i, s := range rp.Statics {
@@ -159,17 +160,37 @@ func index(entries map[string]*entry, b builder) string {
 	}
 	if rp.Item {
 		e.itemMethods[b.method] = true
-		return ""
+		return false
 	}
 	if b.method != "GET" {
-		return ""
+		return false
 	}
 	sc := scopeOf(prefix, namespace)
 	if e.scope == "" || scopeRank[sc] > scopeRank[e.scope] {
 		e.scope = sc
 	}
 	e.collection = append(e.collection, b)
-	return ""
+	return true
+}
+
+// opFor is the Operation record for one request builder.
+func opFor(b builder, namespace string, parents []string, scope sdkinv.Scope) sdkinv.Operation {
+	mod := b.module[strings.LastIndex(b.module, "/")+1:]
+	clientName := b.client
+	if clientName == "" {
+		clientName = "Client"
+	}
+	return sdkinv.Operation{
+		Service: namespace,
+		Name:    b.client + "Client." + b.op,
+		Label:   mod + ":" + clientName + "." + b.op,
+		IsList:  namespace != "",
+		Paged:   b.paged,
+		Targets: parents,
+		Scope:   scope,
+		Path:    b.path,
+		Module:  fmt.Sprintf("azure-sdk-for-go@%s/sdk/resourcemanager/%s", sdkinv.AzureSDKRef, b.module),
+	}
 }
 
 // scopeRank orders scopes widest-first for the collapsed candidate.
@@ -233,22 +254,7 @@ func classify(e *entry) (sdkinv.Candidate, bool) {
 	c.Signals = append(c.Signals, "scope:"+string(e.scope))
 	sort.Strings(c.Signals)
 	for _, b := range e.collection {
-		mod := b.module[strings.LastIndex(b.module, "/")+1:]
-		clientName := b.client
-		if clientName == "" {
-			clientName = "Client"
-		}
-		c.Ops = append(c.Ops, sdkinv.Operation{
-			Service: e.namespace,
-			Name:    b.client + "Client." + b.op,
-			Label:   mod + ":" + clientName + "." + b.op,
-			IsList:  true,
-			Paged:   b.paged,
-			Targets: e.parents,
-			Scope:   e.scope,
-			Path:    b.path,
-			Module:  fmt.Sprintf("azure-sdk-for-go@%s/sdk/resourcemanager/%s", sdkinv.AzureSDKRef, b.module),
-		})
+		c.Ops = append(c.Ops, opFor(b, e.namespace, e.parents, e.scope))
 	}
 	return c, true
 }

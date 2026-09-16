@@ -30,9 +30,9 @@ func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:VMs.ListAll", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:VirtualMachines.ListAll", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:VMs.ListAll: %w", err)
+			return 0, 0, fmt.Errorf("armcompute:VirtualMachines.ListAll: %w", err)
 		}
 		var batch []*store.Resource
 		var pairs [][2]string
@@ -127,9 +127,9 @@ func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenC
 			resp, err := client.List(gctx, rgName, vmName, nil)
 			if err != nil {
 				if isSkippableScanError(err) {
-					return skipIfAccessDenied(st, "armcompute:VMExtensions.List", sub.ID, err)
+					return skipIfAccessDenied(st, "armcompute:VirtualMachineExtensions.List", sub.ID, err)
 				}
-				return fmt.Errorf("armcompute:VMExtensions.List %s/%s: %w", rgName, vmName, err)
+				return fmt.Errorf("armcompute:VirtualMachineExtensions.List %s/%s: %w", rgName, vmName, err)
 			}
 
 			var localBatch []*store.Resource

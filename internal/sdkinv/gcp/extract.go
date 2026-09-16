@@ -58,9 +58,13 @@ var (
 		"projects": true, "organizations": true, "folders": true, "billingaccounts": true, "customers": true, "customer": true,
 		"locations": true, "zones": true, "regions": true,
 	}
-	literals  = map[string]bool{"global": true, "aggregated": true}
-	versionRe = regexp.MustCompile(`^v\d`)
-	paramRe   = regexp.MustCompile(`\[\^/\]\+`)
+	literals = map[string]bool{"global": true, "aggregated": true}
+	// knativeRoot is run v1's project alias: "namespaces/{namespace}/services".
+	// Only a leading pair is a scope; "namespaces" under a real root (iam
+	// workload identity pools) is a resource collection.
+	knativeRoot = "namespaces"
+	versionRe   = regexp.MustCompile(`^v\d`)
+	paramRe     = regexp.MustCompile(`\[\^/\]\+`)
 )
 
 type entry struct {
@@ -94,9 +98,11 @@ func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, err
 			return nil
 		}
 		rel, _ := filepath.Rel(root, p)
-		if !indexDoc(entries, &dc, filepath.ToSlash(filepath.Dir(rel)), e.Ref()) {
+		cloud, others := indexDoc(entries, &dc, filepath.ToSlash(filepath.Dir(rel)), e.Ref())
+		if !cloud {
 			excluded[dc.Name] = true
 		}
+		u.Other = append(u.Other, others...)
 		return nil
 	})
 	if err != nil {
@@ -119,6 +125,15 @@ func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, err
 		u.Candidates = append(u.Candidates, toCandidate(key, en))
 	}
 	sdkinv.SortCandidates(u.Candidates)
+	// Non-cloud APIs are outside the universe entirely, other ops included.
+	kept := u.Other[:0]
+	for _, o := range u.Other {
+		if !excluded[o.Service] {
+			kept = append(kept, o)
+		}
+	}
+	u.Other = kept
+	sdkinv.SortOps(u.Other)
 	return u, nil
 }
 
@@ -131,8 +146,9 @@ type lister struct {
 
 // indexDoc files every list method of one document version. Returns false
 // when no lister is rooted in a cloud container (API excluded).
-func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) bool {
+func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []sdkinv.Operation) {
 	var listers []lister
+	var others []sdkinv.Operation
 	var walk func(res map[string]*resource, path []string)
 	walk = func(res map[string]*resource, path []string) {
 		names := make([]string, 0, len(res))
@@ -146,7 +162,12 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) bool {
 			for mn, m := range r.Methods {
 				if mn == "list" || mn == "aggregatedList" {
 					listers = append(listers, lister{docPath: p, name: mn, m: m, node: r})
+					continue
 				}
+				others = append(others, sdkinv.Operation{
+					Service: dc.Name, Name: strings.Join(p, ".") + "." + mn, Label: dc.Name + ":" + strings.Join(p, ".") + "." + mn,
+					Path: template(m), Module: fmt.Sprintf("%s@%s/%s", modulePath, ref, docDir),
+				})
 			}
 			walk(r.Resources, p)
 		}
@@ -161,18 +182,20 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) bool {
 		}
 	}
 	if !cloud {
-		return false
+		return false, nil
 	}
 	preview := strings.Contains(dc.Version, "alpha") || strings.Contains(dc.Version, "beta")
 	for _, l := range listers {
 		tmpl := template(l.m)
-		segs := sdkinv.ParseTemplate(tmpl)
+		segs := dropKnativeRoot(sdkinv.ParseTemplate(tmpl))
 		rp := sdkinv.StripScopes(segs, scopeNames, literals)
 		if rp.Item || len(rp.Statics) == 0 {
 			continue
 		}
-		docPath := stripScopeNodes(l.docPath)
-		key := dc.Name + "/" + strings.Join(docPath, "/")
+		docPath := stripScopeNodes(dropKnativeNode(l.docPath))
+		// Lower-cased so one collection reached through several versions
+		// (run v1 "workerpools", v2 "workerPools") is one candidate.
+		key := dc.Name + "/" + strings.ToLower(strings.Join(docPath, "/"))
 		en := entries[key]
 		if en == nil {
 			en = &entry{api: dc.Name, docPath: docPath, signals: map[string]bool{}, ops: map[string]sdkinv.Operation{}, versions: map[string]bool{}}
@@ -205,7 +228,7 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) bool {
 			Scope: scope, Path: tmpl, Module: module,
 		}
 	}
-	return true
+	return true, others
 }
 
 // template returns the concrete path template: flatPath, else path with
@@ -265,6 +288,20 @@ func scopeOf(segs []sdkinv.Segment, tmpl string) sdkinv.Scope {
 	return sdkinv.ScopeGlobal
 }
 
+func dropKnativeRoot(segs []sdkinv.Segment) []sdkinv.Segment {
+	if len(segs) > 2 && !segs[0].Param && strings.EqualFold(segs[0].Text, knativeRoot) && segs[1].Param {
+		return segs[2:]
+	}
+	return segs
+}
+
+func dropKnativeNode(docPath []string) []string {
+	if len(docPath) > 1 && strings.EqualFold(docPath[0], knativeRoot) {
+		return docPath[1:]
+	}
+	return docPath
+}
+
 // stripScopeNodes drops container nodes from a document path, keeping the
 // last node even when it is itself a container collection ("projects",
 // "zones" are real listable collections at the leaf).
@@ -287,7 +324,7 @@ func parentKey(dc *doc, docPath, parents []string, segs []sdkinv.Segment) string
 		return ""
 	}
 	if len(docPath) > 1 {
-		return dc.Name + "/" + strings.Join(docPath[:len(docPath)-1], "/")
+		return dc.Name + "/" + strings.ToLower(strings.Join(docPath[:len(docPath)-1], "/"))
 	}
 	last := parents[len(parents)-1]
 	paramName := ""

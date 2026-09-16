@@ -58,9 +58,16 @@ func TestExtract_Fixture(t *testing.T) {
 	if p := got["microsoft.widgets/widgets/parts"]; p.Ops[0].Paged || len(p.Ops[0].Targets) != 1 || p.Ops[0].Targets[0] != "widgets" {
 		t.Errorf("parts op = %+v", p.Ops[0])
 	}
-	// checkNameAvailability is POST-only: never a candidate.
+	// checkNameAvailability is POST-only: never a candidate, but an Other op.
 	if _, ok := got["microsoft.widgets/checknameavailability"]; ok {
 		t.Error("POST-only action path became a candidate")
+	}
+	others := map[string]bool{}
+	for _, o := range u.Other {
+		others[o.Label] = true
+	}
+	if !others["armwidgets:Widgets.Get"] || !others["armwidgets:TenantThings.CheckName"] || others["armwidgets:Widgets.List"] {
+		t.Errorf("Other = %v", others)
 	}
 }
 

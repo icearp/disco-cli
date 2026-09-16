@@ -24,7 +24,7 @@ func scanMigrationAssessment(ctx context.Context, sub *subscription, cred azcore
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmigrationassessment:NewAssessmentProjectsOperationsClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armmigrationassessment:AssessmentProjects.ListBySubscription", TypeMigrateAssessmentProject, sub, st, scanID,
+	return azSimpleScan(ctx, "armmigrationassessment:AssessmentProjectsOperations.ListBySubscription", TypeMigrateAssessmentProject, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
 		func(p armmigrationassessment.AssessmentProjectsOperationsClientListBySubscriptionResponse) []*armmigrationassessment.AssessmentProject {
 			return p.Value

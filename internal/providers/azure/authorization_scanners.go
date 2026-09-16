@@ -203,7 +203,7 @@ func scanAuthorizationBuiltins(ctx context.Context, subs []subscription, cred az
 func scanBuiltinRoleDefsInto(ctx context.Context, subScope, accountID string, st *store.Store, scanID string, client *armauthorization.RoleDefinitionsClient) (total, inserted int, err error) {
 	scopeRef := &subscription{ID: accountID, Name: "tenant"}
 	filter := "type eq 'BuiltInRole'"
-	return azPageScan(ctx, "armauthorization:RoleDefinitions.ListBuiltIn", scopeRef, st,
+	return azPageScan(ctx, "armauthorization:RoleDefinitions.List", scopeRef, st,
 		client.NewListPager(subScope, &armauthorization.RoleDefinitionsClientListOptions{Filter: &filter}),
 		func(page armauthorization.RoleDefinitionsClientListResponse) ([]*store.Resource, [][2]string) {
 			var batch []*store.Resource

@@ -93,7 +93,7 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.Token
 			if err != nil {
 				return 0, 0, fmt.Errorf("armappcontainers:NewContainerAppsSessionPoolsClient: %w", err)
 			}
-			return azSimpleScan(ctx, "armappcontainers:SessionPools.ListBySubscription", TypeAppContainersSessionPool, sub, st, scanID,
+			return azSimpleScan(ctx, "armappcontainers:ContainerAppsSessionPools.ListBySubscription", TypeAppContainersSessionPool, sub, st, scanID,
 				poolClient.NewListBySubscriptionPager(nil),
 				func(p armappcontainers.ContainerAppsSessionPoolsClientListBySubscriptionResponse) []*armappcontainers.SessionPool {
 					return p.Value

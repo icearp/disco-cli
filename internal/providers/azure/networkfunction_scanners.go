@@ -24,7 +24,7 @@ func scanNetworkFunction(ctx context.Context, sub *subscription, cred azcore.Tok
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetworkfunction:NewAzureTrafficCollectorsBySubscriptionClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armnetworkfunction:AzureTrafficCollectors.List", TypeNetworkFunctionTrafficCollector, sub, st, scanID,
+	return azSimpleScan(ctx, "armnetworkfunction:AzureTrafficCollectorsBySubscription.List", TypeNetworkFunctionTrafficCollector, sub, st, scanID,
 		client.NewListPager(nil),
 		func(p armnetworkfunction.AzureTrafficCollectorsBySubscriptionClientListResponse) []*armnetworkfunction.AzureTrafficCollector {
 			return p.Value

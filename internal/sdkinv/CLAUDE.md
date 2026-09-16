@@ -54,6 +54,10 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 - Live counts (pins in `pins.go`): AWS 4490 candidates / 348 services (2460 resource);
   Azure 3744 (1959 resource); GCP 1859 / 192 APIs (1151 resource). Each live test logs these;
   a large swing after a pin bump is the signal to re-check anchors.
+- `Universe.Other` carries every SDK op that is not a candidate op (writes, item reads,
+  actions). Every extractor must end with `sdkinv.SortOps(u.Other)`: it is filled from map
+  walks, and the conformance DeepEqual only catches the omission on some runs (`-count=5`).
+  Pairing needs it to explain types built from a Get/Describe (`other-op:` reason).
 
 ### AWS (`aws/extract.go`)
 
@@ -64,6 +68,9 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   or same verb (`ListObjectsV2`→`ListBucket`). A generic action (apigateway's `GET`) binds nothing,
   so the Smithy shape decides `IsList` (signal `fallback`). 14 services are absent from the
   catalog entirely (cloudwatch=`monitoring`, tagging, sso portal, partner central…).
+- SR `IsList` is incomplete (backup-gateway `ListGateways`, batch `DescribeComputeEnvironments`
+  are false): a List/Describe op with a collection output is a lister unless the bound action
+  `IsWrite` (signal `shape-list`). Trusting SR alone left 269 scanner types unpaired.
 - Candidates: IsList ops, plus non-list Get/Describe/Head with no collection output (attribute).
   Writes, actions and batch reads are never candidates.
 - Lineage: catalog targets count only when the op has a required input (a lister with none is
@@ -100,9 +107,58 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 - API included iff some lister's template root is a cloud root (`projects`, `organizations`,
   `folders`, `billingAccounts`, `customers`); 192 of 654 docs qualify. Roots that are the
   listed collection (`cloudresourcemanager/projects`) keep their own scope.
+- Keys are lower-cased so one collection reached through several versions is one candidate
+  (run v1 `namespaces.workerpools` + v2 `projects.locations.workerPools` → `run/workerpools`).
+  Op labels keep the document's spelling. A leading `namespaces/{}` pair is run v1's project
+  alias and is dropped; `namespaces` below a real root (iam workload identity pools) is a
+  resource collection — never add it to `scopeNames`.
 - Template = `flatPath` else `path` with `{+x}` expanded from the parameter `pattern`; scope
   nodes strip but the last node is kept.
 - Operation nodes detected by response `$ref` suffix (`Operation`, `ListOperationsResponse`),
   never by method-name rules (`run` executions have `cancel`).
 - Class: `insert|create` → resource; `delete` only → resource; `get` only → catalog; else
   non-resource. Alpha/beta-only collections carry `preview-only`.
+
+## Pairing (Phase 3, `pairing/`)
+
+- `pairing.Scan(ctx, cache, provider, dir)` = extract from the cache + `Walk` + `Unpaired`;
+  wraps `sdkinv.ErrNotFetched` so `internal/providers/<p>/<p>_pairing_test.go` skips without
+  the cache. Those two tests (`TestScannerOpLabelsResolve`, `TestEveryEmittedTypePaired`) are the
+  gate: label-no-op / label-no-anchor / unresolved-receiver fail; sdk-skew is logged.
+- go/parser with `SkipObjectResolution`, non-test files only, stdlib only. Anchors (SDK call
+  shapes, per `Resolver.Anchors`) are authoritative; op labels in string literals are a
+  cross-check. `Type*` constants with a `<provider>:` value are the types (other string consts
+  such as `quotaServiceName = "gcp:cloudquotas"` are ignored by name).
+- Reach: a function's types are its own plus its callees' to depth 3; a method call on a local
+  (`s.scanTables`) and a method value passed as an argument (`forEachItem(…, s.scanDataset)`)
+  both resolve to the one method of that name in the package (ambiguous names resolve to
+  nothing). Labels resolve against the function, its callees and its direct callers — the
+  label sits at the error site, the pager is often built one frame up.
+- Kinds: `emits` (anchor + types), `sidecar` (anchor, no types — a listing helper; its direct
+  caller is then paired with what it stores), `derived` (a dispatcher with no anchor of its
+  own: types no anchored callee stores, paired with everything the callees list, minus types
+  some `emits` pairing already carries), `label` (label with no call anywhere), `other`
+  (non-candidate op), `skew` (call the pinned SDK lacks).
+- Unpaired reasons: `non-sdk` (every file referencing the const imports no SDK module —
+  Entra over Graph), `other-op:<label>`, `sdk-skew:<op>`, else `unexplained` (fatal).
+- sdk-skew is real and expected: the Azure monorepo HEAD differs from the go.mod majors
+  (armcompute `CloudServices*`, armsubscription `Subscriptions.List`, armappplatform absent,
+  postgresql flexible servers, edgeorder); GCP `serviceusage.services.list`. 24 Azure + 1 GCP
+  at the 2026-09-16 pins. Bumping the pins is the fix, not the scanner.
+- Azure: a receiver binds from `armX.New<Y>Client(`, a client-factory `cf.New<Y>Client()`, a
+  `*armX.<Y>Client` parameter or struct field, or a package-local interface seam whose method
+  signatures mention `armX.<Y>Client…Response/Options` (`TypeOwner`). An unbound pager resolves
+  only when exactly one imported client has that op. Any `List*` on a bound client anchors
+  even when the pin lacks it (generated clients have no other methods; skew surfaces in Walk).
+  Label form is `armX:<Y>.<Op>` with the
+  `Client` suffix dropped and bare `Client` kept (`armredis:Client.ListBySubscription`) — 22
+  scanner labels were typos against this form and were corrected in Phase 3.
+- AWS: anchors are `pkg.New<Op>Paginator(`, `pkg.<Op>Input{` and `recv.<Op>(` for any op an
+  imported service package ships; receivers need no binding. `LabelAliases` accepts the
+  separator-stripped service (`accessanalyzer:` for `access-analyzer`).
+- GCP: anchors are `svc.A.B.List(`/`.AggregatedList(` with the root a bound local or struct
+  field, and any other Discovery method on a bound service (`Projects.GetIamPolicy`). Aliases:
+  full path, scope-stripped path in the document's spelling, and `svc:<leaf>.<method>`.
+- Fixture: `pairing/testdata/scannerpkg/<p>` is a synthetic scanner package parsed, never
+  compiled, against `../<p>/testdata/cache`; `pairing_test.go` asserts one case per rule and the
+  exact line of each diagnostic — renumber when editing those files.

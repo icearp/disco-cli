@@ -64,11 +64,14 @@ func TestExtract_Fixture(t *testing.T) {
 			t.Errorf("%s = class %s depth %d parent %q ops %v signals %v; want %+v", k, c.Class, c.Depth, c.Parent, opNames(c), c.Signals, w)
 		}
 	}
-	// Write ops never become candidates.
+	// Write ops never become candidates; they ship as Other for pairing.
 	for _, k := range []string{"widgets/createwidget", "widgets/creategadget"} {
 		if _, ok := got[k]; ok {
 			t.Errorf("write op surfaced as candidate %s", k)
 		}
+	}
+	if !hasOther(u, "widgets:CreateWidget") || hasOther(u, "widgets:ListWidgets") {
+		t.Errorf("Other = %v", otherLabels(u))
 	}
 	w := got["widgets/widget"]
 	for _, o := range w.Ops {
@@ -221,4 +224,21 @@ func TestExtract_Live(t *testing.T) {
 	if len(u.Diagnostics) > 30 {
 		t.Errorf("too many services missing from the Service Reference: %d", len(u.Diagnostics))
 	}
+}
+
+func hasOther(u *sdkinv.Universe, label string) bool {
+	for _, o := range u.Other {
+		if o.Label == label {
+			return true
+		}
+	}
+	return false
+}
+
+func otherLabels(u *sdkinv.Universe) []string {
+	out := make([]string, 0, len(u.Other))
+	for _, o := range u.Other {
+		out = append(out, o.Label)
+	}
+	return out
 }

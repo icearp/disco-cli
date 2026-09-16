@@ -79,6 +79,13 @@ func TestExtract_Fixture(t *testing.T) {
 	if _, ok := got["tube/channels"]; ok {
 		t.Error("non-cloud API tube included")
 	}
+	others := map[string]bool{}
+	for _, o := range u.Other {
+		others[o.Label] = true
+	}
+	if !others["widgets:projects.locations.widgets.get"] || others["widgets:projects.locations.widgets.list"] || others["tube:channels.get"] {
+		t.Errorf("Other = %v", others)
+	}
 	found := false
 	for _, d := range u.Diagnostics {
 		found = found || strings.Contains(d.Message, "non-cloud APIs excluded: tube")
@@ -106,20 +113,20 @@ func TestExtract_Live(t *testing.T) {
 	}{
 		"compute/instances":                  {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
 		"compute/zones":                      {sdkinv.ClassCatalog, 0, sdkinv.ScopeProject},
-		"compute/machineTypes":               {sdkinv.ClassCatalog, 0, sdkinv.ScopeProject},
-		"compute/globalOperations":           {sdkinv.ClassNonResource, 0, sdkinv.ScopeProject},
-		"compute/regionDisks":                {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
+		"compute/machinetypes":               {sdkinv.ClassCatalog, 0, sdkinv.ScopeProject},
+		"compute/globaloperations":           {sdkinv.ClassNonResource, 0, sdkinv.ScopeProject},
+		"compute/regiondisks":                {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
 		"run/jobs/executions":                {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
 		"storage/buckets":                    {sdkinv.ClassResource, 0, sdkinv.ScopeGlobal},
 		"storage/notifications":              {sdkinv.ClassResource, 1, sdkinv.ScopeGlobal},
 		"sqladmin/databases":                 {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
-		"cloudkms/keyRings/cryptoKeys":       {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
+		"cloudkms/keyrings/cryptokeys":       {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
 		"cloudresourcemanager/projects":      {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
 		"container/clusters":                 {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
 		"cloudidentity/groups":               {sdkinv.ClassResource, 0, sdkinv.ScopeGlobal},
 		"admin/users":                        {sdkinv.ClassResource, 0, sdkinv.ScopeGlobal},
 		"cloudresourcemanager/organizations": {sdkinv.ClassCatalog, 0, sdkinv.ScopeOrg},
-		"monitoring/alertPolicies":           {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
+		"monitoring/alertpolicies":           {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
 	}
 	for k, w := range anchors {
 		c, ok := got[k]
@@ -131,7 +138,7 @@ func TestExtract_Live(t *testing.T) {
 			t.Errorf("%s = class %s depth %d parent %q scope %s signals %v; want %+v", k, c.Class, c.Depth, c.Parent, c.Ops[0].Scope, c.Signals, w)
 		}
 	}
-	for _, k := range []string{"youtube/channels", "adsense/accounts", "dfareporting/userProfiles"} {
+	for _, k := range []string{"youtube/channels", "adsense/accounts", "dfareporting/userprofiles"} {
 		if _, ok := got[k]; ok {
 			t.Errorf("non-cloud API candidate present: %s", k)
 		}

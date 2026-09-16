@@ -26,7 +26,7 @@ func scanRedis(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 	if err != nil {
 		return 0, 0, fmt.Errorf("armredis:NewClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armredis:Caches.ListBySubscription", TypeRedisCache, sub, st, scanID,
+	return azSimpleScan(ctx, "armredis:Client.ListBySubscription", TypeRedisCache, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
 		func(p armredis.ClientListBySubscriptionResponse) []*armredis.ResourceInfo { return p.Value },
 		func(r *armredis.ResourceInfo) azTrackedBase {

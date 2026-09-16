@@ -132,15 +132,18 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: filepath.Base(f), Message: jerr.Error()})
 			continue
 		}
-		if diag := indexModel(entries, &m, sr, filepath.Base(f)); diag != "" {
+		diag, other := indexModel(entries, &m, sr, filepath.Base(f))
+		if diag != "" {
 			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: filepath.Base(f), Message: diag})
 		}
+		u.Other = append(u.Other, other...)
 	}
 	mergeDetailReads(entries)
 	for key, en := range entries {
 		u.Candidates = append(u.Candidates, toCandidate(key, en))
 	}
 	sdkinv.SortCandidates(u.Candidates)
+	sdkinv.SortOps(u.Other)
 	return u, nil
 }
 
@@ -320,11 +323,12 @@ func serviceKey(m *smithyModel) (string, string) {
 	return "", ""
 }
 
-func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srService, file string) string {
+func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srService, file string) (string, []sdkinv.Operation) {
 	svc, _ := serviceKey(m)
 	if svc == "" {
-		return "no service shape with a signing name"
+		return "no service shape with a signing name", nil
 	}
+	var other []sdkinv.Operation
 	sr := srAll[svc]
 	diag := ""
 	if sr == nil {
@@ -347,16 +351,26 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 				act, hasAct = sr.actions[op]
 			}
 		}
+		// The catalog's IsList is incomplete (backup-gateway:ListGateways,
+		// batch:DescribeComputeEnvironments carry false): a read verb over a
+		// collection output is a lister whatever the annotation says.
+		shapeList := listVerbs[verb] && o.listMembers >= 1
 		var isList bool
-		if hasAct {
-			isList = act.isList
+		switch {
+		case hasAct:
+			isList = act.isList || (shapeList && !act.isWrite)
 			signals["sr:action"] = true
-		} else {
-			isList = listVerbs[verb] && o.listMembers == 1
+			if !act.isList && isList {
+				signals["shape-list"] = true
+			}
+		default:
+			isList = shapeList
 			signals["fallback"] = true
 		}
 		if !isList && (o.listMembers != 0 || !detailVerbs[verb]) {
-			continue // writes, actions, batch reads: never a candidate
+			// Writes, actions, batch reads: never a candidate.
+			other = append(other, sdkinv.Operation{Service: svc, Name: op, Label: svc + ":" + op, Required: o.required, Scope: sdkinv.ScopeAccount, Module: module})
+			continue
 		}
 		lin := lineage(sr, act, hasAct, o, nounCanon, signals)
 		class := classify(isList, o, sr, nounCanon, lin, signals)
@@ -385,7 +399,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 			Required: o.required, Targets: lin.targets, Scope: sdkinv.ScopeAccount, Module: module,
 		})
 	}
-	return diag
+	return diag, other
 }
 
 // place is where an operation's subject sits in the resource tree.
