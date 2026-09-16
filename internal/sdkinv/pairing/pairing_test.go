@@ -103,6 +103,12 @@ func TestWalkAWS(t *testing.T) {
 	expectPairing(t, res, "widgets/accountsetting", "scanAccountSettings", "sidecar")
 	// A label with no call anywhere still records the intent.
 	expectPairing(t, res, "widgets/zone", "staleLabel", "label")
+	// A shared store helper keeps each caller's type with that caller's op.
+	expectPairing(t, res, "widgets/alias", "scanAliases", "emits", TypeAWSAlias)
+	expectPairing(t, res, "widgets/gizmo", "scanGizmos", "emits", TypeAWSGizmo)
+	// A package-level op/type table pairs with every op the ranging scanner calls.
+	expectPairing(t, res, "widgets/gizmo", "scanTable", "emits", TypeAWSTableGizmo, TypeAWSTableZone)
+	expectPairing(t, res, "widgets/zone", "scanTable", "emits", TypeAWSTableGizmo, TypeAWSTableZone)
 
 	if got := diagKinds(res); len(got) != 2 || got["label-no-op"] != 1 || got["label-no-anchor"] != 1 {
 		t.Errorf("diagnostics = %v", res.Diagnostics)
@@ -115,7 +121,7 @@ func TestWalkAWS(t *testing.T) {
 			t.Errorf("caller-resolved label diagnosed: %v", d)
 		}
 	}
-	if len(unpaired) != 2 || unpaired[TypeAWSOrphan] != "unexplained" || unpaired[TypeAWSGraphOnly] != "non-sdk" {
+	if len(unpaired) != 3 || unpaired[TypeAWSOrphan] != "unexplained" || unpaired[TypeAWSGraphOnly] != "non-sdk" || unpaired[TypeAWSMasked] != "unexplained" {
 		t.Errorf("unpaired = %v", unpaired)
 	}
 	if _, ok := res.Consts["serviceLabel"]; ok {
@@ -124,12 +130,17 @@ func TestWalkAWS(t *testing.T) {
 }
 
 const (
-	TypeAWSWidget    = "aws:widgets:widget"
-	TypeAWSGrant     = "aws:widgets:grant"
-	TypeAWSGadget    = "aws:widgets:gadget"
-	TypeAWSSchema    = "aws:widgets:schema"
-	TypeAWSOrphan    = "aws:widgets:orphan"
-	TypeAWSGraphOnly = "aws:graph:thing"
+	TypeAWSWidget     = "aws:widgets:widget"
+	TypeAWSGrant      = "aws:widgets:grant"
+	TypeAWSGadget     = "aws:widgets:gadget"
+	TypeAWSSchema     = "aws:widgets:schema"
+	TypeAWSOrphan     = "aws:widgets:orphan"
+	TypeAWSGraphOnly  = "aws:graph:thing"
+	TypeAWSAlias      = "aws:widgets:alias"
+	TypeAWSGizmo      = "aws:widgets:gizmo"
+	TypeAWSTableGizmo = "aws:widgets:table-gizmo"
+	TypeAWSTableZone  = "aws:widgets:table-zone"
+	TypeAWSMasked     = "aws:widgets:masked"
 )
 
 func TestWalkAzure(t *testing.T) {

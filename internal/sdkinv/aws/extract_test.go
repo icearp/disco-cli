@@ -49,7 +49,12 @@ func TestExtract_Fixture(t *testing.T) {
 		"widgets/accountsetting":          {sdkinv.ClassAttribute, 0, "", []string{"GetAccountSettings"}},
 		"widgets/widgettype":              {sdkinv.ClassNonResource, 0, "", []string{"ListWidgetTypes"}},
 		"widgets/gadget":                  {sdkinv.ClassResource, 0, "", []string{"DescribeGadgets"}},
-		"nosr/thing":                      {sdkinv.ClassCatalog, 0, "", []string{"GetThing", "ListThings"}},
+		"widgets/gizmo":                   {sdkinv.ClassResource, 0, "", []string{"ListGizmos"}},
+		// Two spellings of the noun (aliases / alias) and of the parent
+		// (gizmo / gizmos): the key keeps the "s" of alias and the parent
+		// names the gizmo candidate.
+		"widgets/alias": {sdkinv.ClassResource, 1, "widgets/gizmo", []string{"GetAlias", "ListAliases"}},
+		"nosr/thing":    {sdkinv.ClassCatalog, 0, "", []string{"GetThing", "ListThings"}},
 	}
 	if len(got) != len(wants) {
 		t.Errorf("candidates = %d, want %d: %v", len(got), len(wants), slices.Sorted(mapsKeys(got)))
@@ -241,4 +246,27 @@ func otherLabels(u *sdkinv.Universe) []string {
 		out = append(out, o.Label)
 	}
 	return out
+}
+
+// TestEntryPlace_OrderIndependent feeds the same lineages in both orders:
+// the parent spelling an entry keeps must not follow the model's map order.
+func TestEntryPlace_OrderIndependent(t *testing.T) {
+	a := place{depth: 1, parent: "gizmo", parentDisp: "gizmos"}
+	b := place{depth: 1, parent: "gizmo", parentDisp: "gizmo"}
+	for _, order := range [][]place{{a, b}, {b, a}} {
+		en := &entry{depth: -1}
+		for _, lin := range order {
+			en.place(lin)
+		}
+		if en.parentID != "gizmo" || en.parentDisp != "gizmo" {
+			t.Errorf("order %v: parent %q display %q", order, en.parentID, en.parentDisp)
+		}
+	}
+	en := &entry{depth: -1}
+	en.place(place{depth: 2, parent: "deep", parentDisp: "deep"})
+	en.place(place{depth: 1, parent: "shallow", parentDisp: "shallow"})
+	en.place(place{depth: 1, parent: "another", parentDisp: "another"})
+	if en.depth != 1 || en.parentID != "another" {
+		t.Errorf("shallowest lineage then smallest parent should win: depth %d parent %q", en.depth, en.parentID)
+	}
 }

@@ -166,6 +166,50 @@
     }
    },
    "Resources": []
+  },
+  {
+   "Name": "ListAliases",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": [
+    {
+     "Name": "gizmo"
+    }
+   ]
+  },
+  {
+   "Name": "GetAlias",
+   "Annotations": {
+    "Properties": {
+     "IsList": false,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": [
+    {
+     "Name": "alias"
+    }
+   ]
+  },
+  {
+   "Name": "ListGizmos",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
   }
  ],
  "Operations": [
@@ -262,6 +306,33 @@
      "Service": "widgets"
     }
    ]
+  },
+  {
+   "Name": "ListAliases",
+   "AuthorizedActions": [
+    {
+     "Name": "ListAliases",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "GetAlias",
+   "AuthorizedActions": [
+    {
+     "Name": "GetAlias",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListGizmos",
+   "AuthorizedActions": [
+    {
+     "Name": "ListGizmos",
+     "Service": "widgets"
+    }
+   ]
   }
  ],
  "Resources": [
@@ -269,6 +340,18 @@
    "Name": "widget",
    "ARNFormats": [
     "arn:${Partition}:widgets:${Region}:${Account}:widget/${WidgetId}"
+   ]
+  },
+  {
+   "Name": "gizmo",
+   "ARNFormats": [
+    "arn:${Partition}:widgets:${Region}:${Account}:gizmo/${GizmoId}"
+   ]
+  },
+  {
+   "Name": "alias",
+   "ARNFormats": [
+    "arn:${Partition}:widgets:${Region}:${Account}:gizmos/${GizmosId}/alias/${AliasName}"
    ]
   }
  ]

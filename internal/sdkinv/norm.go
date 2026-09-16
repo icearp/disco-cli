@@ -28,9 +28,19 @@ func Singular(s string) string {
 	switch {
 	case strings.HasSuffix(s, "ies") && len(s) > 3:
 		return s[:len(s)-3] + "y"
+	case strings.HasSuffix(s, "yses") && len(s) > 4: // analyses
+		return s[:len(s)-2] + "is"
 	case strings.HasSuffix(s, "sses"), strings.HasSuffix(s, "xes"), strings.HasSuffix(s, "ches"), strings.HasSuffix(s, "shes"):
 		return s[:len(s)-2]
-	case strings.HasSuffix(s, "ss"), strings.HasSuffix(s, "us"), strings.HasSuffix(s, "sis"):
+	case strings.HasSuffix(s, "ses") && len(s) > 3:
+		// "-ses" hides two shapes: an "-s" singular (status, alias, lens)
+		// and an "-se" singular (database, case, release); the letter before
+		// the stem's "s" tells them apart well enough for SDK nouns.
+		if stem := s[:len(s)-3]; strings.HasSuffix(stem, "u") || strings.HasSuffix(stem, "ia") || strings.HasSuffix(stem, "n") {
+			return s[:len(s)-2]
+		}
+		return s[:len(s)-1]
+	case strings.HasSuffix(s, "ss"), strings.HasSuffix(s, "us"), strings.HasSuffix(s, "sis"), strings.HasSuffix(s, "ias"):
 		return s
 	case strings.HasSuffix(s, "s") && len(s) > 1:
 		return s[:len(s)-1]
@@ -47,8 +57,11 @@ func CanonSingular(s string) string { return Singular(Canon(s)) }
 // "statuses"/"status", "accesses"/"access"). Never display it.
 func Ident(s string) string {
 	c := Canon(s)
-	if strings.HasSuffix(c, "ies") && len(c) > 3 {
+	switch {
+	case strings.HasSuffix(c, "ies") && len(c) > 3:
 		return c[:len(c)-3] + "y"
+	case strings.HasSuffix(c, "yses") && len(c) > 4: // analyses / analysis
+		c = c[:len(c)-2] + "is"
 	}
 	return strings.TrimRight(c, "es")
 }

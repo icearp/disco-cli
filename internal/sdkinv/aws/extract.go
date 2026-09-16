@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -70,8 +72,8 @@ type srService struct {
 	actions   map[string]srAction
 	opAction  map[string]string   // SDK operation name -> IAM action name
 	resources map[string][]string // resource name -> ARN id variables beyond partition/region/account
-	writeNoun map[string]bool     // CanonSingular(noun of an IsWrite action) -> true
-	resCanon  map[string]string   // CanonSingular(resource name) -> resource name
+	writeNoun map[string]bool     // Ident(noun of an IsWrite action) -> true
+	resCanon  map[string]string   // Ident(resource name) -> resource name
 	idStem    map[string]string   // stem of a resource's own ARN id variable ("bucket" from BucketName) -> resource name
 }
 
@@ -85,7 +87,7 @@ var (
 	scopeParams = map[string]bool{"MaxResults": true, "MaxItems": true, "Limit": true, "PageSize": true, "NextToken": true, "Marker": true, "PageToken": true, "DryRun": true, "AccountId": true, "Region": true}
 	idLikeRe    = regexp.MustCompile(`(Id|Ids|ID|IDs|Arn|Arns|ARN|ARNs|Name|Names|Identifier|Identifiers)$`)
 	// selfStems are id-like member stems that name the operation's own subject.
-	selfStems   = map[string]bool{"": true, "resource": true, "target": true}
+	selfStems   = map[string]bool{"": true, sdkinv.Ident("resource"): true, sdkinv.Ident("target"): true}
 	versionRe   = regexp.MustCompile(`V\d+$`)
 	qualifierRe = regexp.MustCompile(`(For|By|In|Of|Within|From)[A-Z]`)
 	arnVarRe    = regexp.MustCompile(`\$\{([A-Za-z0-9_]+)\}`)
@@ -97,13 +99,46 @@ var (
 )
 
 type entry struct {
-	service string
-	noun    string
-	depth   int
-	parent  string
-	class   sdkinv.Class
-	signals map[string]bool
-	ops     []sdkinv.Operation
+	service    string
+	nouns      []string // Canon of every op noun seen, for the display name
+	srName     string   // Canon of the catalog resource name when one matched
+	depth      int
+	parentID   string // Ident of the parent noun, "" at depth 0
+	parentDisp string // display form of the parent noun when no entry resolves it
+	class      sdkinv.Class
+	signals    map[string]bool
+	ops        []sdkinv.Operation
+}
+
+// display is the noun shown in the key. With one spelling it is that noun
+// singularised (a bare ListAliases). With several, a spelling that another
+// spelling singularises to wins (analysis over analyses, app over apps), else
+// the shortest. Identities (Ident) decide equality; display never does.
+func (en *entry) display() string {
+	spellings := map[string]bool{}
+	for _, n := range append(en.nouns, en.srName) {
+		if n != "" {
+			spellings[n] = true
+		}
+	}
+	best, bestSingular := "", ""
+	for n := range spellings {
+		if best == "" || shorter(n, best) {
+			best = n
+		}
+		for q := range spellings {
+			if q != n && sdkinv.Singular(q) == n && (bestSingular == "" || shorter(n, bestSingular)) {
+				bestSingular = n
+			}
+		}
+	}
+	switch {
+	case len(spellings) == 1:
+		return sdkinv.Singular(best)
+	case bestSingular != "":
+		return bestSingular
+	}
+	return best
 }
 
 func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error) {
@@ -139,9 +174,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		u.Other = append(u.Other, other...)
 	}
 	mergeDetailReads(entries)
-	for key, en := range entries {
-		u.Candidates = append(u.Candidates, toCandidate(key, en))
-	}
+	u.Candidates = assemble(entries)
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)
 	return u, nil
@@ -213,7 +246,7 @@ func indexSR(d *srDoc) *srService {
 		// Tagging-only writes (CreateTags) do not make "tag" a resource noun.
 		if act.isWrite && !a.Annotations.Properties.IsTaggingOnly {
 			_, noun := splitVerb(a.Name)
-			s.writeNoun[sdkinv.CanonSingular(noun)] = true
+			s.writeNoun[sdkinv.Ident(noun)] = true
 		}
 	}
 	for _, o := range d.Operations {
@@ -236,7 +269,12 @@ func indexSR(d *srDoc) *srService {
 		}
 		s.resources[r.Name] = vars
 		if len(r.ARNFormats) > 0 { // a resource without an ARN is not addressable
-			s.resCanon[sdkinv.CanonSingular(r.Name)] = r.Name
+			// The catalog lists singular and plural forms as separate resources
+			// (RestApi, RestApis); both share one identity, the shorter names it.
+			id := sdkinv.Ident(r.Name)
+			if cur, ok := s.resCanon[id]; !ok || len(r.Name) < len(cur) {
+				s.resCanon[id] = r.Name
+			}
 		}
 		if len(vars) > 0 {
 			if stem := memberStem(vars[len(vars)-1]); stem != "" {
@@ -342,7 +380,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 		op := id[strings.LastIndex(id, "#")+1:]
 		o := analyzeOp(m, sh)
 		verb, noun := splitVerb(op)
-		nounCanon := sdkinv.CanonSingular(noun)
+		nounCanon := sdkinv.Ident(noun)
 		signals := map[string]bool{}
 		act, hasAct := srAction{}, false
 		if sr != nil {
@@ -380,16 +418,16 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 		}
 		en := entries[key]
 		if en == nil {
-			en = &entry{service: svc, noun: noun, depth: -1, signals: map[string]bool{}}
+			en = &entry{service: svc, depth: -1, signals: map[string]bool{}}
 			entries[key] = en
 		}
-		if en.depth < 0 || lin.depth < en.depth {
-			en.depth = lin.depth
-			en.parent = ""
-			if lin.depth > 0 && lin.parent != "" {
-				en.parent = svc + "/" + lin.parent
+		en.nouns = append(en.nouns, sdkinv.Canon(noun))
+		if sr != nil {
+			if name, ok := sr.resCanon[nounCanon]; ok {
+				en.srName = sdkinv.Canon(name)
 			}
 		}
+		en.place(lin)
 		en.class = sdkinv.StrongerClass(en.class, class)
 		for s := range signals {
 			en.signals[s] = true
@@ -403,11 +441,31 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 }
 
 // place is where an operation's subject sits in the resource tree.
+// place folds one op's lineage into the entry. Several ops land on one key
+// (ListResolvers, ListResolversByFunction); the shallowest lineage wins, ties
+// by parent identity then by its display, so the pick does not follow the
+// model's map order.
+func (en *entry) place(lin place) {
+	parent := ""
+	if lin.depth > 0 && lin.parent != "" {
+		parent = lin.parent
+	}
+	switch {
+	case en.depth < 0 || lin.depth < en.depth:
+		en.depth, en.parentID, en.parentDisp = lin.depth, parent, lin.parentDisp
+	case lin.depth == en.depth && parent != "" && (en.parentID == "" || parent < en.parentID):
+		en.parentID, en.parentDisp = parent, lin.parentDisp
+	case lin.depth == en.depth && parent != "" && parent == en.parentID && shorter(lin.parentDisp, en.parentDisp):
+		en.parentDisp = lin.parentDisp
+	}
+}
+
 type place struct {
-	targets []string // catalog resources the operation is authorised against
-	self    bool     // one target is the subject itself
-	depth   int
-	parent  string // CanonSingular parent noun, "" when unknown
+	targets    []string // catalog resources the operation is authorised against
+	self       bool     // one target is the subject itself
+	depth      int
+	parent     string // Ident of the parent noun, "" when unknown
+	parentDisp string // display form of the parent noun
 }
 
 // lineage derives depth and parent. Catalog targets count only when the
@@ -428,11 +486,11 @@ func lineage(sr *srService, act srAction, hasAct bool, o opShape, nounCanon stri
 			if len(vars) == 0 {
 				continue
 			}
-			if sdkinv.CanonSingular(r) == nounCanon {
+			if sdkinv.Ident(r) == nounCanon {
 				lin.self = true
 				lin.depth = len(vars) - 1
 				if len(vars) > 1 {
-					lin.parent = memberStem(vars[len(vars)-2])
+					lin.parent, lin.parentDisp = memberStem(vars[len(vars)-2]), memberDisp(vars[len(vars)-2])
 				}
 				break
 			}
@@ -440,11 +498,12 @@ func lineage(sr *srService, act srAction, hasAct bool, o opShape, nounCanon stri
 		}
 		if !lin.self && len(parents) > 0 {
 			p := pickParent(sr, parents, o.required)
-			lin.parent = sdkinv.CanonSingular(p)
+			lin.parent, lin.parentDisp = sdkinv.Ident(p), sdkinv.Canon(p)
 			lin.depth = len(sr.resources[p])
 		}
 		return lin
 	}
+	disp := map[string]string{}
 	for _, r := range o.required {
 		stem := memberStem(r)
 		switch {
@@ -452,25 +511,27 @@ func lineage(sr *srService, act srAction, hasAct bool, o opShape, nounCanon stri
 			lin.self = true
 		case sr != nil && sr.idStem[stem] != "":
 			lin.targets = append(lin.targets, stem)
+			disp[stem] = sdkinv.Canon(sr.idStem[stem])
 			lin.depth = max(lin.depth, len(sr.resources[sr.idStem[stem]]))
 		case idLikeRe.MatchString(r):
 			lin.targets = append(lin.targets, stem)
+			disp[stem] = memberDisp(r)
 			lin.depth = max(lin.depth, 1)
 		}
 	}
 	sort.Strings(lin.targets)
 	if len(lin.targets) > 0 {
 		lin.parent = lin.targets[len(lin.targets)-1]
+		lin.parentDisp = disp[lin.parent]
 		signals["required-id"] = true
 	}
 	return lin
 }
 
-// memberStem is the noun a member or ARN variable names: "KeyId" → "key",
-// "BucketName" → "bucket", "Name" → "".
-func memberStem(name string) string {
-	return sdkinv.CanonSingular(idLikeRe.ReplaceAllString(name, ""))
-}
+// memberStem is the identity of the noun a member or ARN variable names:
+// "KeyId" → Ident("key"), "Name" → "". memberDisp is its display form.
+func memberStem(name string) string { return sdkinv.Ident(idLikeRe.ReplaceAllString(name, "")) }
+func memberDisp(name string) string { return sdkinv.Canon(idLikeRe.ReplaceAllString(name, "")) }
 
 type opShape struct {
 	required    []string
@@ -559,7 +620,7 @@ func pickParent(sr *srService, targets, required []string) string {
 	best, bestScore := "", -1
 	for _, t := range targets {
 		score := 2 * len(sr.resources[t])
-		tc := sdkinv.CanonSingular(t)
+		tc := sdkinv.Ident(t)
 		for _, r := range required {
 			if strings.Contains(sdkinv.Canon(r), tc) {
 				score++
@@ -573,11 +634,50 @@ func pickParent(sr *srService, targets, required []string) string {
 	return best
 }
 
-func toCandidate(key string, en *entry) sdkinv.Candidate {
-	c := sdkinv.Candidate{Provider: "aws", Service: en.service, Key: key, Depth: en.depth, Class: en.class, Parent: en.parent, Ops: en.ops}
-	for s := range en.signals {
-		c.Signals = append(c.Signals, s)
+// assemble turns identity-keyed entries into candidates keyed by display
+// names. A parent renders as its own entry's display when one exists (so
+// Parent always names a candidate key), else as the lineage's display form.
+func assemble(entries map[string]*entry) []sdkinv.Candidate {
+	byKey := map[string]*entry{}
+	for _, id := range slices.Sorted(maps.Keys(entries)) { // fold order decides the kept entry
+		en := entries[id]
+		parts := strings.Split(id, "/")
+		disp := en.display()
+		key := en.service + "/" + disp
+		if len(parts) == 3 { // attribute nested under its parent identity
+			key = en.service + "/" + parentDisplay(entries, en) + "/" + disp
+		}
+		if dup := byKey[key]; dup != nil { // two identities with one display: fold the ops
+			dup.ops = append(dup.ops, en.ops...)
+			for s := range en.signals {
+				dup.signals[s] = true
+			}
+			continue
+		}
+		byKey[key] = en
 	}
-	sort.Strings(c.Signals)
-	return c
+	out := make([]sdkinv.Candidate, 0, len(byKey))
+	for key, en := range byKey {
+		c := sdkinv.Candidate{Provider: "aws", Service: en.service, Key: key, Depth: en.depth, Class: en.class, Ops: en.ops}
+		if en.depth > 0 && en.parentID != "" {
+			c.Parent = en.service + "/" + parentDisplay(entries, en)
+		}
+		for s := range en.signals {
+			c.Signals = append(c.Signals, s)
+		}
+		sort.Strings(c.Signals)
+		sdkinv.SortOps(c.Ops)
+		out = append(out, c)
+	}
+	return out
+}
+
+// shorter orders display forms: fewer characters first, then lexically.
+func shorter(a, b string) bool { return len(a) < len(b) || (len(a) == len(b) && a < b) }
+
+func parentDisplay(entries map[string]*entry, en *entry) string {
+	if p := entries[en.service+"/"+en.parentID]; p != nil {
+		return p.display()
+	}
+	return en.parentDisp
 }

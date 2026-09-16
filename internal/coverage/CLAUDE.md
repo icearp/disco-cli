@@ -37,13 +37,14 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
 
 ## Identity
 
-`sdkinv.Ident` (Canon, `-ies`→`y`, trailing `e`/`s` run stripped) is the only cross-source equality used
+`sdkinv.Ident` (Canon, `-ies`→`y`, `-yses`→`-ysis`, trailing `e`/`s` run stripped) is the only cross-source equality used
 here and by GCP's `RegistryKey`/`CanonicalKey`: `Singular` alone splits "caches"/"cache" and
 "aliases"/"alias". Never display an Ident; keys come from the extractor.
 
 ## Live numbers (2026-09-16 pins, pairing on)
 
-AWS 50.2% (1624/3236), Azure 19.7% (386/1959), GCP 23.3% (235/1009); zero unexplained. The
+AWS 50.3% (1636/3250), Azure 19.7% (386/1959), GCP 23.3% (235/1009); zero unexplained. Azure
+carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 1 (`other-op`). The
 Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
 
 ## Retired hand lists (Phase 5)

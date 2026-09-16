@@ -40,6 +40,15 @@
     },
     {
      "target": "ns#CreateWidget"
+    },
+    {
+     "target": "ns#ListAliases"
+    },
+    {
+     "target": "ns#GetAlias"
+    },
+    {
+     "target": "ns#ListGizmos"
     }
    ],
    "traits": {
@@ -470,6 +479,122 @@
    "members": {
     "Widget": {
      "target": "ns#Widget"
+    }
+   }
+  },
+  "ns#ListAliases": {
+   "type": "operation",
+   "input": {
+    "target": "ns#ListAliasesRequest"
+   },
+   "output": {
+    "target": "ns#ListAliasesResponse"
+   },
+   "traits": {
+    "smithy.api#paginated": {
+     "inputToken": "NextToken",
+     "outputToken": "NextToken"
+    }
+   }
+  },
+  "ns#ListAliasesRequest": {
+   "type": "structure",
+   "members": {
+    "GizmoId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "NextToken": {
+     "target": "smithy.api#String"
+    }
+   }
+  },
+  "ns#ListAliasesResponse": {
+   "type": "structure",
+   "members": {
+    "Aliases": {
+     "target": "ns#AliasList"
+    }
+   }
+  },
+  "ns#AliasList": {
+   "type": "list",
+   "member": {
+    "target": "ns#Alias"
+   }
+  },
+  "ns#Alias": {
+   "type": "structure",
+   "members": {
+    "AliasName": {
+     "target": "smithy.api#String"
+    }
+   }
+  },
+  "ns#GetAlias": {
+   "type": "operation",
+   "input": {
+    "target": "ns#GetAliasRequest"
+   },
+   "output": {
+    "target": "ns#GetAliasResponse"
+   },
+   "traits": {}
+  },
+  "ns#GetAliasRequest": {
+   "type": "structure",
+   "members": {
+    "AliasName": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   }
+  },
+  "ns#GetAliasResponse": {
+   "type": "structure",
+   "members": {
+    "Alias": {
+     "target": "ns#Alias"
+    }
+   }
+  },
+  "ns#ListGizmos": {
+   "type": "operation",
+   "input": {
+    "target": "ns#ListGizmosRequest"
+   },
+   "output": {
+    "target": "ns#ListGizmosResponse"
+   },
+   "traits": {}
+  },
+  "ns#ListGizmosRequest": {
+   "type": "structure",
+   "members": {}
+  },
+  "ns#ListGizmosResponse": {
+   "type": "structure",
+   "members": {
+    "Gizmos": {
+     "target": "ns#GizmoList"
+    }
+   }
+  },
+  "ns#GizmoList": {
+   "type": "list",
+   "member": {
+    "target": "ns#Gizmo"
+   }
+  },
+  "ns#Gizmo": {
+   "type": "structure",
+   "members": {
+    "GizmoId": {
+     "target": "smithy.api#String"
     }
    }
   }

@@ -9,7 +9,8 @@ func TestCanonAndSingular(t *testing.T) {
 	for in, want := range map[string]string{
 		"virtualMachines": "virtualmachine", "virtual-machines": "virtualmachine", "Databases": "database",
 		"snoozes": "snooze", "policies": "policy", "indexes": "index", "addresses": "address", "status": "status",
-		"aliases": "aliase", "DBInstances": "dbinstance", "AWS::EC2::Instance": "awsec2instance",
+		"aliases": "alias", "statuses": "status", "lenses": "lens", "analyses": "analysis", "cases": "case",
+		"releases": "release", "alias": "alias", "accountAlias": "accountalias", "DBInstances": "dbinstance", "AWS::EC2::Instance": "awsec2instance",
 	} {
 		if got := CanonSingular(in); got != want {
 			t.Errorf("CanonSingular(%q) = %q, want %q", in, got, want)
@@ -18,6 +19,7 @@ func TestCanonAndSingular(t *testing.T) {
 	for plural, singular := range map[string]string{
 		"anywhereCaches": "anywhere-cache", "aliases": "alias", "statuses": "status", "databases": "database",
 		"policies": "policy", "indexes": "index", "instances": "instance", "addresses": "address", "accesses": "access", "keys": "key",
+		"analyses": "analysis", "lenses": "lens", "cases": "case",
 	} {
 		if Ident(plural) != Ident(singular) {
 			t.Errorf("Ident(%q) = %q, Ident(%q) = %q", plural, Ident(plural), singular, Ident(singular))

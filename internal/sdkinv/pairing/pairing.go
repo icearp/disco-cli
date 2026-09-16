@@ -132,7 +132,9 @@ type fn struct {
 	line    int
 	decl    *ast.FuncDecl
 	types   map[string]bool
-	labels  map[string][]int // label literal -> lines
+	outflow map[string]map[string]bool // callee -> type constants passed to it as arguments
+	inflow  map[string]map[string]bool // caller -> type constants it passes in
+	labels  map[string][]int           // label literal -> lines
 	callees map[string]bool
 	anchors []Anchor
 	diags   []Diagnostic
@@ -174,11 +176,11 @@ func Walk(dir string, u *sdkinv.Universe) (*Result, error) {
 	}
 	idx := indexUniverse(r, u)
 	consts := collectConsts(parsed, u.Provider)
+	varTypes := collectVarTypes(parsed, consts)
 	fields := collectFields(parsed, r)
 	seams := collectSeams(parsed, r)
 	res := &Result{Provider: u.Provider, Consts: consts}
 	fns := map[string]*fn{}
-	flows := map[string]map[string]bool{} // callee -> types passed as args
 	var order []*fn
 	for _, af := range parsed {
 		imports, mods := fileImports(r, af)
@@ -190,9 +192,10 @@ func Walk(dir string, u *sdkinv.Universe) (*Result, error) {
 			}
 			f := &fn{
 				name: funcName(fd), file: file, line: fset.Position(fd.Pos()).Line, decl: fd,
-				types: map[string]bool{}, labels: map[string][]int{}, callees: map[string]bool{}, mods: mods,
+				types: map[string]bool{}, outflow: map[string]map[string]bool{}, inflow: map[string]map[string]bool{},
+				labels: map[string][]int{}, callees: map[string]bool{}, mods: mods,
 			}
-			scanBody(f, fd, fset, consts, imports, r.LabelGrammar(), flows)
+			scanBody(f, fd, fset, consts, varTypes, imports, r.LabelGrammar())
 			fv := &Func{
 				provider: u.Provider, fset: fset, Decl: fd, Imports: imports, Vars: bindLocals(fd, imports, r, seams), Fields: fields[recvType(fd)], SDKMods: mods,
 				Ops: idx.has, Other: idx.hasOther, ClientsWith: idx.clientsWith,
@@ -213,7 +216,7 @@ func Walk(dir string, u *sdkinv.Universe) (*Result, error) {
 			}
 		}
 	}
-	propagateFlows(fns, flows)
+	linkFlows(fns, order)
 	linkCallers(fns, order)
 	for _, f := range order {
 		f.rtypes = reachableTypes(fns, f)
@@ -533,6 +536,42 @@ func collectConsts(files []*ast.File, provider string) map[string]string {
 	return out
 }
 
+// collectVarTypes maps each package-level var to the type constants its
+// initialiser references, so a table-driven scanner ranging over the table
+// stores what the table names.
+func collectVarTypes(files []*ast.File, consts map[string]string) map[string]map[string]bool {
+	out := map[string]map[string]bool{}
+	for _, af := range files {
+		for _, d := range af.Decls {
+			gd, ok := d.(*ast.GenDecl)
+			if !ok || gd.Tok != token.VAR {
+				continue
+			}
+			for _, sp := range gd.Specs {
+				vs := sp.(*ast.ValueSpec)
+				types := map[string]bool{}
+				for _, v := range vs.Values {
+					ast.Inspect(v, func(n ast.Node) bool {
+						if id, ok := n.(*ast.Ident); ok {
+							if t, ok := consts[id.Name]; ok {
+								types[t] = true
+							}
+						}
+						return true
+					})
+				}
+				if len(types) == 0 {
+					continue
+				}
+				for _, n := range vs.Names {
+					out[n.Name] = types
+				}
+			}
+		}
+	}
+	return out
+}
+
 // collectFields maps, per struct type, fields typed *mod.Ident (an SDK
 // client or service) to their origin, so methods on a scanner struct resolve
 // s.svc.X.List( and c.client.NewListPager(.
@@ -691,7 +730,7 @@ func typeIdent(e ast.Expr) string {
 
 // scanBody records type-constant references, label literals, package-local
 // callees and type constants passed to them.
-func scanBody(f *fn, fd *ast.FuncDecl, fset *token.FileSet, consts map[string]string, imports map[string]string, grammar *regexp.Regexp, flows map[string]map[string]bool) {
+func scanBody(f *fn, fd *ast.FuncDecl, fset *token.FileSet, consts map[string]string, varTypes map[string]map[string]bool, imports map[string]string, grammar *regexp.Regexp) {
 	concat := map[token.Pos]bool{} // literal operands of +: a prefix, not a label
 	ast.Inspect(fd.Body, func(n ast.Node) bool {
 		switch x := n.(type) {
@@ -702,6 +741,9 @@ func scanBody(f *fn, fd *ast.FuncDecl, fset *token.FileSet, consts map[string]st
 			}
 		case *ast.Ident:
 			if v, ok := consts[x.Name]; ok {
+				f.types[v] = true
+			}
+			for v := range varTypes[x.Name] { // a package-level table of types
 				f.types[v] = true
 			}
 		case *ast.BasicLit:
@@ -734,10 +776,10 @@ func scanBody(f *fn, fd *ast.FuncDecl, fset *token.FileSet, consts map[string]st
 				switch a := arg.(type) {
 				case *ast.Ident:
 					if v, ok := consts[a.Name]; ok {
-						if flows[callee] == nil {
-							flows[callee] = map[string]bool{}
+						if f.outflow[callee] == nil {
+							f.outflow[callee] = map[string]bool{}
 						}
-						flows[callee][v] = true
+						f.outflow[callee][v] = true
 					}
 				case *ast.SelectorExpr: // forEachItem(ctx, n, items, s.scanDataset): a method value
 					if id, ok := a.X.(*ast.Ident); ok {
@@ -836,31 +878,23 @@ func unstar(e ast.Expr) ast.Expr {
 	return e
 }
 
-// propagateFlows pushes type constants passed as arguments into the callee
-// until stable, so a helper taking rtype/dtype is paired with every type
-// its callers hand it.
-func propagateFlows(fns map[string]*fn, flows map[string]map[string]bool) {
-	for i := 0; i < 8; i++ {
-		changed := false
-		for callee, types := range flows {
-			f := fns[callee]
-			if f == nil {
-				if _, method, ok := strings.Cut(callee, "."); ok {
-					f = fns[methodKey(method)]
-				}
-			}
-			if f == nil {
+// linkFlows records, on each callee, which caller passes it which type
+// constants. The flow stays attributed to its caller: a shared store helper
+// fed TypeA by one scanner and TypeB by another must not make either
+// scanner's SDK call look like it stores both.
+func linkFlows(fns map[string]*fn, order []*fn) {
+	for _, f := range order {
+		for callee, types := range f.outflow {
+			g := resolveCallee(fns, callee)
+			if g == nil {
 				continue
 			}
-			for t := range types {
-				if !f.types[t] {
-					f.types[t] = true
-					changed = true
-				}
+			if g.inflow[f.name] == nil {
+				g.inflow[f.name] = map[string]bool{}
 			}
-		}
-		if !changed {
-			return
+			for t := range types {
+				g.inflow[f.name][t] = true
+			}
 		}
 	}
 }
@@ -977,12 +1011,28 @@ func methodKey(method string) string { return "*." + method }
 // callees, so a lister whose page handler is a named helper still pairs
 // with the types that helper stores.
 func reachableTypes(fns map[string]*fn, f *fn) []string {
-	types := map[string]bool{}
+	var visited []*fn
+	inWalk := map[string]bool{}
 	walkCallees(fns, f, func(cur *fn) {
+		visited = append(visited, cur)
+		inWalk[cur.name] = true
+	})
+	types := map[string]bool{}
+	for _, cur := range visited {
 		for t := range cur.types {
 			types[t] = true
 		}
-	})
+		// Types passed into a helper count for the helper itself (it stores
+		// whatever any caller hands it) and for callers inside this walk.
+		for caller, ts := range cur.inflow {
+			if cur != f && !inWalk[caller] {
+				continue
+			}
+			for t := range ts {
+				types[t] = true
+			}
+		}
+	}
 	out := make([]string, 0, len(types))
 	for t := range types {
 		out = append(out, t)
@@ -1012,8 +1062,8 @@ func reachableAnchors(fns map[string]*fn, f *fn) (map[string]opRef, map[string]b
 	return out, typeless
 }
 
-// SDKFiles reports, per constant name, whether some non-init function that
-// references it lives in a file importing an SDK package.
+// SDKFiles reports, per constant name, whether some non-init function or
+// package-level var that references it lives in a file importing an SDK package.
 func SDKFiles(dir string, r Resolver) (map[string]bool, error) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
@@ -1033,17 +1083,23 @@ func SDKFiles(dir string, r Resolver) (map[string]bool, error) {
 		if len(mods) == 0 {
 			continue
 		}
-		for _, d := range af.Decls {
-			fd, ok := d.(*ast.FuncDecl)
-			if !ok || fd.Body == nil || fd.Name.Name == "init" {
-				continue
+		mark := func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok {
+				out[id.Name] = true
 			}
-			ast.Inspect(fd.Body, func(n ast.Node) bool {
-				if id, ok := n.(*ast.Ident); ok {
-					out[id.Name] = true
+			return true
+		}
+		for _, d := range af.Decls {
+			switch x := d.(type) {
+			case *ast.FuncDecl:
+				if x.Body != nil && x.Name.Name != "init" {
+					ast.Inspect(x.Body, mark)
 				}
-				return true
-			})
+			case *ast.GenDecl: // a package-level table of types
+				if x.Tok == token.VAR {
+					ast.Inspect(x, mark)
+				}
+			}
 		}
 	}
 	return out, nil

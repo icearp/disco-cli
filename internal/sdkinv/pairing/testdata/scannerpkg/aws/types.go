@@ -9,3 +9,11 @@ const (
 	TypeGraphOnly = "aws:graph:thing"
 	serviceLabel  = "aws:widgets" // not Type-prefixed: never a coverage type
 )
+
+const (
+	TypeTableGizmo = "aws:widgets:table-gizmo"
+	TypeTableZone  = "aws:widgets:table-zone"
+	TypeAlias      = "aws:widgets:alias"
+	TypeGizmo      = "aws:widgets:gizmo"
+	TypeMasked     = "aws:widgets:masked"
+)

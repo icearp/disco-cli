@@ -49,12 +49,15 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   build from a map, including `Signals`).
 - `StrongerClass` ranks resource > catalog > non-resource > attribute: a detail read (Get)
   merged onto a lister's key never outranks the lister.
-- `Singular` keeps `-sis`/`-ss`/`-us`, strips `-ies`→`y`, `-sses/-xes/-ches/-shes`→`-es`, else `-s`.
-  `apis`→`api`; `addresses`→`address`. No inflector dep — matching is separator-stripped anyway.
-  AWS candidate keys are built from `CanonSingular`, so it must stay display-safe; equality
-  across sources uses `Ident` (`-ies`→`y`, then every trailing `e`/`s` dropped: `caches`/`cache`,
-  `aliases`/`alias`, `statuses`/`status` otherwise never meet).
-- Live counts (pins in `pins.go`): AWS 4490 candidates / 348 services (2460 resource);
+- `Ident` is the only identity (`-ies`→`y`, `-yses`→`-ysis`, then every trailing `e`/`s`
+  dropped): `caches`/`cache`, `aliases`/`alias`, `statuses`/`status`, `analyses`/`analysis` meet
+  there and nowhere else. Never show an Ident (`alias`→`alia`).
+- `Singular` is display only: keeps `-sis`/`-ss`/`-us`/`-ias`, `-ies`→`y`, `-yses`→`-ysis`,
+  `-sses/-xes/-ches/-shes`→`-es`, `-ses` after `u`/`ia`/`n`→`-s` (status, alias, lens) else `-se`
+  (database, case), else `-s`. No inflector dep. Any new rule needs a `norm_test` pair; the old
+  `CanonSingular` keys shipped `bedrock/flowalia`, `wellarchitected/len`, `config/…statuse` and
+  split `RestApi`/`RestApis` into two candidates before the live keys were audited.
+- Live counts (pins in `pins.go`): AWS 5561 candidates / 354 services (3250 resource);
   Azure 3744 (1959 resource); GCP 1859 / 192 APIs (1151 resource). Each live test logs these;
   a large swing after a pin bump is the signal to re-check anchors.
 - `Universe.Other` carries every SDK op that is not a candidate op (writes, item reads,
@@ -87,6 +90,18 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   (`child-uncatalogued`, e.g. `kms/grant`); child without ids → attribute; noun with an
   `IsWrite` non-tagging action → resource (`writable-noun`); no collection → non-resource;
   else catalog (`ec2/instancetype`, `ec2/accountattribute`, `ec2/tag`).
+- Identity vs display: entries merge on `Ident` (`svc/<ident>`, attributes `svc/<parent
+  ident>/<ident>`); `assemble` renders keys last. `entry.display()` = the one spelling
+  singularised, else the spelling another spelling singularises to (`analysis` over
+  `analyses`), else the shortest; the catalog's own name joins the spellings (`resCanon` keeps
+  the shortest catalog name per identity — SR lists `RestApi` and `RestApis`). `Parent` is
+  the parent entry's display when one exists, else the lineage's spelling; ~250 live parents
+  name no candidate (an id member with no lister) and that is accepted.
+- Determinism: `entry.place` folds lineages by shallowest depth, then smallest parent ident,
+  then shortest parent display (`GetLink` says `gateway`, `ListLinks` says
+  `respondergateway`, both ident `gateway`); `assemble` folds in sorted id order. Verify with
+  four `disco coverage services -o json` runs hashed — the conformance `DeepEqual` only sees
+  the fixture.
 - `mergeDetailReads` folds `<svc>/<parent>/<noun>` attributes into an existing `<svc>/<noun>`
   resource (GetBasePathMapping's `BasePath` is not id-like).
 - Scope params (`AccountId`, `Region`, paging members) never denote a parent.
@@ -135,7 +150,14 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 - Reach: a function's types are its own plus its callees' to depth 3; a method call on a local
   (`s.scanTables`) and a method value passed as an argument (`forEachItem(…, s.scanDataset)`)
   both resolve to the one method of that name in the package (ambiguous names resolve to
-  nothing). Labels resolve against the function, its callees and its direct callers — the
+  nothing). A `Type*` constant passed as an argument flows to the callee per caller
+  (`fn.outflow`/`inflow`): the helper's own pairing carries every caller's type, a caller's
+  pairing only what it and its walked callees pass. The union rule it replaced let
+  `storeIDs(st, TypeA, …)` from one scanner explain TypeB from a scanner with no SDK call
+  (fixture `scanMasked`) and hid two Azure sdk-skew types behind sibling anchors.
+  A package-level `var` table naming `Type*` constants flows into every function that
+  references the var (`collectVarTypes`), and `SDKFiles` counts those references, so a
+  table-only type is `unexplained`, never `non-sdk`. Labels resolve against the function, its callees and its direct callers — the
   label sits at the error site, the pager is often built one frame up.
 - Kinds: `emits` (anchor + types), `sidecar` (anchor, no types — a listing helper; its direct
   caller is then paired with what it stores), `derived` (a dispatcher with no anchor of its
