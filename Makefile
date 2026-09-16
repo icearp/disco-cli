@@ -27,7 +27,7 @@ SYFT_VERSION ?= v1.49.0
 # (vuln.go.dev) is queried live at run time — the pin fixes the tool, not the data.
 GOVULNCHECK_VERSION ?= v1.6.0
 
-.PHONY: all deps fmt lint vet test build check-migrations gen-regions clean dist sbom vulncheck
+.PHONY: all deps fmt lint vet test build check-migrations gen-regions sdk-fetch clean dist sbom vulncheck
 
 check-migrations:
 	./scripts/check-migrations.sh
@@ -38,6 +38,12 @@ check-migrations:
 # CI, which runs go test and no make targets.
 gen-regions:
 	go generate ./internal/providers/aws/awsregions/...
+
+# sdk-fetch populates $XDG_CACHE_HOME/disco/sdk with the pinned SDK sources the
+# coverage denominator is derived from (internal/sdkinv/pins.go). No-op when
+# the pinned snapshots are already present.
+sdk-fetch:
+	$(GO) go run $(TAGFLAG) . coverage sdk fetch
 
 all: fmt vet test build
 

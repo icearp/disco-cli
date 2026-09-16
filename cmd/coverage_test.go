@@ -27,7 +27,11 @@ type fakeCoverageProvider struct {
 // otherwise carry stale entries from a prior run.
 func resetCoverageFlags(t *testing.T) {
 	t.Helper()
+	subs := coverageCmd.Commands()
 	for _, sub := range coverageCmd.Commands() {
+		subs = append(subs, sub.Commands()...) // sdk fetch|status carry their own --providers
+	}
+	for _, sub := range subs {
 		for _, f := range []string{"providers", "regions", "services"} {
 			if fl := sub.Flags().Lookup(f); fl != nil {
 				_ = fl.Value.Set("")

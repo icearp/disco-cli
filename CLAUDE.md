@@ -61,6 +61,12 @@ golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 # multi-tenant columns live in disco-saas's own migration set)
 make check-migrations
 
+# Populate the SDK source cache the coverage denominator derives from (no-op when present)
+make sdk-fetch            # = disco coverage sdk fetch; see internal/sdkinv/CLAUDE.md
+
+# Cold `go build ./...` exceeds 2 min (three cloud SDKs). Build/test/lint scoped packages first
+# (`./internal/sdkinv/... ./cmd/...`), run the full build in the background.
+
 # Format before commit (project gofmt config rewrites init() one-liners; run before each commit to avoid linter drift)
 gofmt -w .
 ```
@@ -158,6 +164,7 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 - `internal/providers/aws/CLAUDE.md` — AWS-specific resolver/scanner conventions (ARN helpers, KMS, IAM, ELBv2, Route53, paginators, Smithy, transient errors, etc.)
 - `internal/providers/azure/CLAUDE.md` — Azure-specific helpers (azPageScan, rgHierarchyPair, vault-URI parsers), case-insensitive ARM-ID rule, MSI consumer resolver, sub-scoped vs tenant-scoped pattern
 - `internal/providers/gcp/CLAUDE.md` — GCP-specific (per-project fan-out, scopes-above-project gap, IAM policy synth-resource shape, permission-denied handling, NativeID conventions)
+- `internal/sdkinv/CLAUDE.md` — SDK source cache layout, pins, Smithy/Service Reference facts
 
 ## Bundled features of note
 
