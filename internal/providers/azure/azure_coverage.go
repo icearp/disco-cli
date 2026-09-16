@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
 func init() { coverage.Register(&coverageProvider{}) }
@@ -58,8 +59,8 @@ func (coverageProvider) ResolverEdgeSources() []string {
 // for live scanner scans; coverage needs the reverse. Built once at
 // process start.
 //
-// ARM type keys are stored lowercased ("microsoft.compute/virtualmachines")
-// to match coverage.Build's lowercased lookup. Multi-segment children
+// ARM type keys are stored lowercased ("microsoft.compute/virtualmachines").
+// Multi-segment children
 // (e.g. "microsoft.network/virtualnetworks/subnets") preserved verbatim.
 //
 // azureAPITypeMap is intentionally many-to-one for a few documented aliases
@@ -103,11 +104,18 @@ func (coverageProvider) AlgorithmicKey(discoType string) string {
 	return ns + "/" + kind
 }
 
-// Fetch pages ARM Providers/List with $expand=resourceTypes and returns
+// RegistryKey: SDK candidate keys already carry the ARM shape
+// ("microsoft.compute/virtualmachines/extensions", lowercased).
+func (coverageProvider) RegistryKey(c sdkinv.Candidate) string { return c.Key }
+
+// CanonicalKey lowercases: ARM identifiers are case-insensitive.
+func (coverageProvider) CanonicalKey(upstreamKey string) string { return strings.ToLower(upstreamKey) }
+
+// CrossCheck pages ARM Providers/List with $expand=resourceTypes and returns
 // every fully-qualified Azure resource type ("microsoft.compute/virtualmachines"
 // lowercased). Auto-detects first available subscription when opts.Subscription
 // is empty.
-func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) ([]coverage.UpstreamType, error) {
+func (coverageProvider) CrossCheck(ctx context.Context, opts coverage.FetchOptions) ([]coverage.UpstreamType, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, fmt.Errorf("azure credential: %w", err)

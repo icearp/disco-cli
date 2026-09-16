@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
 func init() { coverage.Register(&coverageProvider{}) }
@@ -169,11 +170,8 @@ var serviceRenames = map[string]string{
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic
 // identity so a CloudFormation spelling and its Service-Reference twin collapse
 // to one resource (e.g. AWS::Amplify::App and AWS::amplify::apps both →
-// "amplify::app"). coverage.Build uses it to treat an uncovered upstream key as
-// covered when its identity matches an already-covered key — the cross-catalog
-// duplicate case. The covered-vs-leftover asymmetry (one side is a disco-emitted
-// alias target, the other an unmatched catalog entry) is what scopes the merge;
-// `coverage services --filter duplicate` surfaces every collapse for audit.
+// "amplify::app"). `coverage services --cross-check` compares it with
+// RegistryKey so the SR/CFN twins collapse onto one candidate.
 func (coverageProvider) CanonicalKey(upstreamKey string) string {
 	parts := strings.SplitN(upstreamKey, "::", 3)
 	if len(parts) != 3 {
@@ -182,12 +180,18 @@ func (coverageProvider) CanonicalKey(upstreamKey string) string {
 	return canonService(parts[1]) + "::" + canonResource(parts[2])
 }
 
-// Fetch returns the union of CloudFormation ListTypes (Public, Resource) and
-// the AWS Service Reference catalog. CFN supplies registry-modeled resources;
-// Service Reference supplies the SDK-real resources CFN omits. Third-party CFN
-// types (community / Hooks / Modules) are filtered out — not relevant to
-// disco's coverage matrix.
-func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) ([]coverage.UpstreamType, error) {
+// RegistryKey is the candidate's identity in CanonicalKey's namespace, so a
+// cross-check compares "ec2/instance" with CFN "AWS::EC2::Instance" and SR
+// "AWS::ec2::instance" alike.
+func (coverageProvider) RegistryKey(c sdkinv.Candidate) string {
+	return canonService(c.Service) + "::" + canonResource(c.Key[strings.LastIndex(c.Key, "/")+1:])
+}
+
+// CrossCheck returns the union of CloudFormation ListTypes (Public, Resource)
+// and the AWS Service Reference catalog. CFN supplies registry-modeled
+// resources; Service Reference supplies the SDK-real resources CFN omits.
+// Third-party CFN types (community / Hooks / Modules) are filtered out.
+func (coverageProvider) CrossCheck(ctx context.Context, opts coverage.FetchOptions) ([]coverage.UpstreamType, error) {
 	regions := opts.Regions
 	if len(regions) == 0 {
 		regions = []string{"us-east-1"}
@@ -244,8 +248,7 @@ func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) (
 	// supplies the SDK-real resources CFN omits (DynamoDB streams, AuditManager
 	// controls, IdentityStore users, Macie classification jobs). Both fetches
 	// are fatal on failure — the union requires both, so a partial fetch can't
-	// silently re-introduce false upstream-missing rows. coverage.Build dedupes
-	// the overlap case-insensitively.
+	// silently report registry drift. CrossCheck dedupes by canonical identity.
 	srTypes, err := fetchServiceReference(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("service reference fetch: %w", err)

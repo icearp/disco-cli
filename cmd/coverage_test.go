@@ -1,25 +1,16 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/sdkinv"
 )
-
-// fakeCoverageProvider scopes coverage tests to a synthetic provider so real
-// AWS/Azure/GCP providers (which Fetch live registries over the network)
-// stay untouched. Name carries the test name to avoid duplicate-registration
-// panics across t.Run / parallel tests.
-type fakeCoverageProvider struct {
-	name     string
-	emits    []coverage.TypeDecl
-	upstream []coverage.UpstreamType
-	fetchErr error
-}
 
 // resetCoverageFlags clears StringSlice flags on every coverage subcommand
 // before each test: pflag's StringSlice values accumulate across consecutive
@@ -44,149 +35,115 @@ func resetCoverageFlags(t *testing.T) {
 	}
 }
 
-func (f *fakeCoverageProvider) Name() string { return f.name }
-func (f *fakeCoverageProvider) Fetch(_ context.Context, _ coverage.FetchOptions) ([]coverage.UpstreamType, error) {
-	return f.upstream, f.fetchErr
+// fixtureCache stages the AWS extractor's synthetic SDK fixture as a populated
+// cache snapshot, so `coverage services` runs offline against a two-service
+// universe instead of the 400-service live one.
+func fixtureCache(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	dir := sdkinv.Cache{Root: root}.Dir("aws", sdkinv.AWSSDKRef)
+	if err := os.CopyFS(dir, os.DirFS(filepath.Join("..", "internal", "sdkinv", "aws", "testdata", "cache"))); err != nil {
+		t.Fatal(err)
+	}
+	manifest, _ := json.Marshal(sdkinv.Manifest{Provider: "aws", Ref: sdkinv.AWSSDKRef})
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
 }
-func (f *fakeCoverageProvider) Emits() []coverage.TypeDecl     { return f.emits }
-func (f *fakeCoverageProvider) Aliases() map[string]string     { return nil }
-func (f *fakeCoverageProvider) AlgorithmicKey(_ string) string { return "" }
 
-// TestCoverage_StrictCannotAssessOnFetchFailure: a registry-unreachable fetch
-// under --check-strict surfaces the distinct "registry unreachable" error
-// rather than the fleet-wide false-drift report (F9).
-func TestCoverage_StrictCannotAssessOnFetchFailure(t *testing.T) {
-	name := "f9-cannot-assess"
-	coverage.Register(&fakeCoverageProvider{
-		name:     name,
-		emits:    []coverage.TypeDecl{{Service: "ec2", DiscoType: name + ":ec2:instance"}},
-		fetchErr: errors.New("throttled"),
-	})
-
+// TestCoverageServices_CacheAbsentExits2: without a populated SDK cache the
+// inventory cannot be derived; the distinct sentinel maps to exit 2 and the
+// message tells the operator how to populate it.
+func TestCoverageServices_CacheAbsentExits2(t *testing.T) {
 	resetCoverageFlags(t)
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--check-strict", "--timeout", "1s"})
+		cmd.SetArgs([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", t.TempDir(), "--source-root="})
 		return cmd.Execute()
 	})
-	if err == nil {
-		t.Fatalf("want error, got nil")
+	if !errors.Is(err, errCoverageInventoryUnavailable) {
+		t.Fatalf("want errCoverageInventoryUnavailable, got %v", err)
 	}
-	if !errors.Is(err, errCoverageRegistryUnreachable) {
-		t.Errorf("want errCoverageRegistryUnreachable, got: %v", err)
-	}
-	if strings.Contains(err.Error(), "upstream-missing rows present") {
-		t.Errorf("strict-gate fell through to drift message: %v", err)
+	if !strings.Contains(err.Error(), "disco coverage sdk fetch") {
+		t.Errorf("error must name the fetch command: %v", err)
 	}
 }
 
-// TestCoverage_StrictDriftStillFires: clean fetch + drift row still hits the
-// existing strict gate.
-func TestCoverage_StrictDriftStillFires(t *testing.T) {
-	name := "f9-drift"
-	coverage.Register(&fakeCoverageProvider{
-		name:     name,
-		emits:    []coverage.TypeDecl{{Service: "ec2", DiscoType: name + ":ec2:instance"}},
-		upstream: nil, // empty but no fetchErr → real "drift": disco emits without upstream
-	})
-
-	resetCoverageFlags(t)
-	_, err := captureStdout(t, func() error {
-		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--check-strict", "--timeout", "1s"})
-		return cmd.Execute()
-	})
-	if err == nil {
-		t.Fatalf("want strict-drift error, got nil")
-	}
-	if !strings.Contains(err.Error(), "upstream-missing rows present") {
-		t.Errorf("want existing drift message, got: %v", err)
-	}
-}
-
-// TestCoverage_NonStrictErrorsOnFetchFailure: even without --check-strict, a
-// fetch failure (e.g. expired/missing credentials) is fatal — an empty
-// upstream would falsely bucket every emitted type as upstream-missing.
-func TestCoverage_NonStrictErrorsOnFetchFailure(t *testing.T) {
-	name := "f9-fatal"
-	coverage.Register(&fakeCoverageProvider{
-		name:     name,
-		emits:    []coverage.TypeDecl{{Service: "ec2", DiscoType: name + ":ec2:instance"}},
-		fetchErr: errors.New("ExpiredToken"),
-	})
-
+// TestCoverageServices_Offline runs the whole services path against the
+// fixture cache with pairing unavailable: every fixture candidate is either
+// name-matched or uncovered, every emitted type is disco-only with the
+// pairing-unavailable reason, and --check-strict passes because nothing can
+// be called unexplained without pairing.
+func TestCoverageServices_Offline(t *testing.T) {
+	root := fixtureCache(t)
 	resetCoverageFlags(t)
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--timeout", "1s", "--check-strict=false"})
-		return cmd.Execute()
-	})
-	if err == nil {
-		t.Fatalf("non-strict fetch failure must error, got nil")
-	}
-	if !errors.Is(err, errCoverageRegistryUnreachable) {
-		t.Errorf("want errCoverageRegistryUnreachable, got: %v", err)
-	}
-	// No matrix should have been rendered to stdout before the error.
-	if strings.Contains(out, "upstream-missing") || strings.Contains(out, name+":ec2:instance") {
-		t.Errorf("a misleading matrix was rendered before the fatal error:\n%s", out)
-	}
-}
-
-// TestCoverage_FetchFailureJSONEnvelope: with -o json, a fetch failure emits the
-// structured {"error":...} envelope on stdout (via maybeStructuredError) so
-// machine consumers see the failure, not a false zero-coverage document.
-func TestCoverage_FetchFailureJSONEnvelope(t *testing.T) {
-	name := "f9-json"
-	coverage.Register(&fakeCoverageProvider{
-		name:     name,
-		emits:    []coverage.TypeDecl{{Service: "ec2", DiscoType: name + ":ec2:instance"}},
-		fetchErr: errors.New("ExpiredToken"),
-	})
-
-	resetCoverageFlags(t)
-	out, err := captureStdout(t, func() error {
-		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--timeout", "1s", "-o", "json"})
-		return cmd.Execute()
-	})
-	if err == nil {
-		t.Fatalf("want error, got nil")
-	}
-	var env struct {
-		Error string `json:"error"`
-	}
-	if jerr := json.Unmarshal([]byte(out), &env); jerr != nil {
-		t.Fatalf("stdout is not a JSON error envelope: %v\n%s", jerr, out)
-	}
-	if !strings.Contains(env.Error, "upstream registry unreachable") {
-		t.Errorf("envelope error = %q; want it to mention the unreachable registry", env.Error)
-	}
-}
-
-// TestCoverage_UncataloguedFilterPassesStrict: an Uncatalogued emit lands in the
-// uncatalogued bucket (not upstream-missing), so --check-strict stays clean and
-// --filter uncatalogued surfaces the row. Guards the WS2 bucket end to end.
-func TestCoverage_UncataloguedFilterPassesStrict(t *testing.T) {
-	name := "ws2-uncat"
-	coverage.Register(&fakeCoverageProvider{
-		name:  name,
-		emits: []coverage.TypeDecl{{Service: "kms", DiscoType: name + ":kms:grant", Uncatalogued: true}},
-		// No upstream entry — a synthetic-era flag would false-flag this as
-		// upstream-missing and trip --check-strict.
-	})
-
-	resetCoverageFlags(t)
-	out, err := captureStdout(t, func() error {
-		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--filter", "uncatalogued", "--check-strict", "--timeout", "1s"})
+		cmd.SetArgs([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", root, "--source-root=", "--check-strict", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("uncatalogued row must not trip --check-strict: %v", err)
+		t.Fatalf("services: %v", err)
 	}
-	if !strings.Contains(out, name+":kms:grant") {
-		t.Errorf("--filter uncatalogued did not surface the uncatalogued row:\n%s", out)
+	var matrices []coverage.Matrix
+	if err := json.Unmarshal([]byte(out), &matrices); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if len(matrices) != 1 || matrices[0].Provider != "aws" || matrices[0].Pairing {
+		t.Fatalf("matrices = %+v", matrices)
+	}
+	m := matrices[0]
+	if m.Pins["aws-sdk-go-v2"] != sdkinv.AWSSDKRef {
+		t.Errorf("pins = %v", m.Pins)
+	}
+	if m.Summary.Uncovered == 0 || m.Summary.Unexplained != 0 {
+		t.Errorf("summary = %+v", m.Summary)
+	}
+	var sawUncovered, sawDiscoOnly bool
+	for _, r := range m.Rows {
+		switch r.Bucket {
+		case coverage.BucketUncovered:
+			sawUncovered = r.Key == "widgets/widget" && len(r.Ops) > 0 || sawUncovered
+		case coverage.BucketDiscoOnly:
+			sawDiscoOnly = true
+			if r.Reason != coverage.ReasonPairingUnavailable {
+				t.Errorf("disco-only %s reason = %q", r.DiscoType, r.Reason)
+			}
+		}
+	}
+	if !sawUncovered || !sawDiscoOnly {
+		t.Errorf("rows lack widgets/widget uncovered (%v) or a disco-only row (%v)", sawUncovered, sawDiscoOnly)
+	}
+}
+
+// TestCoverageServices_FiltersAndFormats: --filter narrows rows without
+// touching the headline, and every documented format renders.
+func TestCoverageServices_FiltersAndFormats(t *testing.T) {
+	root := fixtureCache(t)
+	for _, tc := range []struct {
+		format, filter, want string
+	}{
+		{"table", "uncovered", "aws: **Coverage:** 0.0%"},
+		{"markdown", "gaps", "### Uncovered"},
+		{"csv", "all", "provider,service,key,disco_type,bucket,depth,parent,scope,reason,ops"},
+		{"jsonl", "uncovered", `"bucket":"uncovered"`},
+	} {
+		resetCoverageFlags(t)
+		out, err := captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", root, "--source-root=", "--filter", tc.filter, "-o", tc.format})
+			return cmd.Execute()
+		})
+		if err != nil {
+			t.Fatalf("%s/%s: %v", tc.format, tc.filter, err)
+		}
+		if !strings.Contains(out, tc.want) {
+			t.Errorf("%s/%s lacks %q:\n%s", tc.format, tc.filter, tc.want, out)
+		}
+		if tc.filter == "uncovered" && strings.Contains(out, "disco-only") && tc.format != "table" {
+			t.Errorf("%s/%s leaked disco-only rows", tc.format, tc.filter)
+		}
 	}
 }
 
@@ -196,7 +153,7 @@ func TestCoverage_RejectsUnknownFilter(t *testing.T) {
 	resetCoverageFlags(t)
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "services", "--filter", "bogus", "--timeout", "1s"})
+		cmd.SetArgs([]string{"coverage", "services", "--filter", "bogus"})
 		return cmd.Execute()
 	})
 	if err == nil || !strings.Contains(err.Error(), "--filter must be one of") {
@@ -204,14 +161,24 @@ func TestCoverage_RejectsUnknownFilter(t *testing.T) {
 	}
 }
 
-// TestSelectedAuditors pins which providers expose resolver auditing to
-// `disco coverage resolvers`. AWS, Azure, and GCP all implement
-// coverage.ResolverAuditor. The registry is populated by the
-// internal/providers/all blank import; the call does no network I/O (registry
-// lookup + interface assertion).
-// TestCoverageResolvers_UnknownFormat verifies `coverage resolvers` now
-// rejects an invalid -o instead of silently falling through to the table
-// (parity with the services/regions siblings). Registry-only, no network.
+// TestCoverage_RegistryDriftNeedsCrossCheck: the drift bucket only exists
+// when the live registry was fetched, so asking for it offline is an error,
+// not an empty report.
+func TestCoverage_RegistryDriftNeedsCrossCheck(t *testing.T) {
+	resetCoverageFlags(t)
+	_, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"coverage", "services", "--filter", "registry-drift", "--cross-check=false"})
+		return cmd.Execute()
+	})
+	if err == nil || !strings.Contains(err.Error(), "needs --cross-check") {
+		t.Errorf("want cross-check validation error, got %v", err)
+	}
+}
+
+// TestCoverageResolvers_UnknownFormat verifies `coverage resolvers` rejects an
+// invalid -o instead of silently falling through to the table (parity with
+// the services/regions siblings). Registry-only, no network.
 func TestCoverageResolvers_UnknownFormat(t *testing.T) {
 	resetCoverageFlags(t)
 	_, err := captureStdout(t, func() error {
@@ -224,6 +191,11 @@ func TestCoverageResolvers_UnknownFormat(t *testing.T) {
 	}
 }
 
+// TestSelectedAuditors pins which providers expose resolver auditing to
+// `disco coverage resolvers`. AWS, Azure, and GCP all implement
+// coverage.ResolverAuditor. The registry is populated by the
+// internal/providers/all blank import; the call does no network I/O (registry
+// lookup + interface assertion).
 func TestSelectedAuditors(t *testing.T) {
 	// Empty selection = every auditing provider; must include aws + azure.
 	all, err := selectedAuditors(nil)

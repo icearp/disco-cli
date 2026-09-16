@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/sdkinv"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -70,7 +71,20 @@ var discoveryListURL = "https://www.googleapis.com/discovery/v1/apis"
 
 const discoveryFetchLimit = 8
 
-// Fetch enumerates first-party Google APIs via the Discovery API and returns
+// RegistryKey is the candidate's identity in CanonicalKey's namespace: the
+// API name and the canonical singular of the listed collection, so
+// "cloudkms/keyrings/cryptokeys" meets Discovery's "cloudkms.googleapis.com/CryptoKey".
+func (coverageProvider) RegistryKey(c sdkinv.Candidate) string {
+	return c.Service + "/" + sdkinv.Ident(c.Key[strings.LastIndex(c.Key, "/")+1:])
+}
+
+// CanonicalKey maps "<api>.googleapis.com/<Resource>" onto RegistryKey's shape.
+func (coverageProvider) CanonicalKey(upstreamKey string) string {
+	api, res, _ := strings.Cut(upstreamKey, "/")
+	return strings.TrimSuffix(api, ".googleapis.com") + "/" + sdkinv.Ident(res)
+}
+
+// CrossCheck enumerates first-party Google APIs via the Discovery API and returns
 // every resource collection encountered as an UpstreamType. Filtering is
 // applied to the union of:
 //   - registered scanner names (project-scope + org-scope service entries),
@@ -78,9 +92,8 @@ const discoveryFetchLimit = 8
 //     resource shapes scanners depend on (cloudresourcemanager, iam, run, …).
 //
 // The filter is *post-fetch* — we still paginate the full Discovery list once
-// but skip per-API doc HTTP calls for APIs disco doesn't need. Keeps the
-// matrix focused; trims runtime ~10× vs scanning every Google API.
-func (coverageProvider) Fetch(ctx context.Context, _ coverage.FetchOptions) ([]coverage.UpstreamType, error) {
+// but skip per-API doc HTTP calls for APIs disco doesn't need.
+func (coverageProvider) CrossCheck(ctx context.Context, _ coverage.FetchOptions) ([]coverage.UpstreamType, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	allow := relevantAPISet()
@@ -158,7 +171,7 @@ func (coverageProvider) Fetch(ctx context.Context, _ coverage.FetchOptions) ([]c
 
 // relevantAPISet is the union of APIs disco's registered scanners (project +
 // org) cover, plus parent APIs whose Discovery docs supply resource shapes.
-// Drives the post-fetch filter in Fetch.
+// Drives the post-fetch filter in CrossCheck.
 func relevantAPISet() map[string]bool {
 	emits := CollectEmits()
 	out := make(map[string]bool, len(emits)+8)

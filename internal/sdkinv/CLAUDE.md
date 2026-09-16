@@ -51,6 +51,9 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   merged onto a lister's key never outranks the lister.
 - `Singular` keeps `-sis`/`-ss`/`-us`, strips `-ies`→`y`, `-sses/-xes/-ches/-shes`→`-es`, else `-s`.
   `apis`→`api`; `addresses`→`address`. No inflector dep — matching is separator-stripped anyway.
+  AWS candidate keys are built from `CanonSingular`, so it must stay display-safe; equality
+  across sources uses `Ident` (`-ies`→`y`, then every trailing `e`/`s` dropped: `caches`/`cache`,
+  `aliases`/`alias`, `statuses`/`status` otherwise never meet).
 - Live counts (pins in `pins.go`): AWS 4490 candidates / 348 services (2460 resource);
   Azure 3744 (1959 resource); GCP 1859 / 192 APIs (1151 resource). Each live test logs these;
   a large swing after a pin bump is the signal to re-check anchors.

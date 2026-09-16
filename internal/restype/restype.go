@@ -51,9 +51,8 @@ func Emit(d Descriptor) coverage.TypeDecl {
 		managed.Register(d.Type)
 	}
 	return coverage.TypeDecl{
-		Service:      d.Service,
-		DiscoType:    d.Type,
-		Uncatalogued: d.Uncatalogued,
-		Leaf:         d.Leaf,
+		Service:   d.Service,
+		DiscoType: d.Type,
+		Leaf:      d.Leaf,
 	}
 }

@@ -99,7 +99,7 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 ## Scanner `emits []coverage.TypeDecl` is coverage truth source
 
-Every `registerService` / `registerOrgService` / `registerTenantService` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType, Uncatalogued, Leaf}}`. Coverage matrix (`disco coverage`) reads this. `KnownTypes()` no longer exists — emits + alias map are the source of truth.
+Every `registerService` / `registerOrgService` / `registerTenantService` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType, Leaf}}` (`restype.Descriptor.Uncatalogued` still exists but no longer reaches the coverage engine — Phase 5 deletes it). Coverage matrix (`disco coverage`) reads this. `KnownTypes()` no longer exists — emits + alias map are the source of truth.
 
 There is no `Synthetic` flag. Cross-tenant references are modelled as real self-node types (`aws:iam:account`, `azure:microsoft.resources:subscriptions`, `gcp:cloudresourcemanager:project`) inserted as empty-attribute placeholders — see "Resolver-side reference-discovered placeholders" above. They emit/bucket like any other real type.
 

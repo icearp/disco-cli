@@ -1,34 +1,56 @@
 # CLAUDE.md — `internal/coverage/`
 
-Coverage matrix engine for `disco coverage`. Per-provider impl in `internal/providers/<p>/coverage.go` registers via `coverage.Register(...)` from init.
+Coverage matrix engine for `disco coverage services`. The denominator is the SDK-derived
+universe (`internal/sdkinv`); the numerator is the static pairing of scanner SDK calls with
+the types they store (`internal/sdkinv/pairing`). Per-provider glue in
+`internal/providers/<p>/<p>_coverage.go` registers via `coverage.Register` from init.
 
-## Adding a provider
+## Provider contract
 
-1. Implement `coverage.Provider` (Name, Fetch, Emits, Aliases, AlgorithmicKey).
-2. Sweep every scanner's `registerService` to add `emits []coverage.TypeDecl{{Service, DiscoType, Uncatalogued, Leaf}}`.
-3. Build alias map for known disco↔upstream mismatches; algorithmic fallback covers the rest.
-4. Flag SDK-scanned types absent from the registry `Uncatalogued`, so they don't trip `upstream-missing`.
+- `Provider` = `Name()` + `Emits()` only. Optional: `CrossChecker` (`CrossCheck`, `RegistryKey`,
+  `CanonicalKey` — drives `--cross-check`), `RegionLister`, `ResolverAuditor`.
+- `InputsFromCache(ctx, cache, provider, emits, scannerDir)` is the one derivation path shared by
+  `cmd/coverage.go`, `cmd/disco-scaffold` and the reconcile tests; an empty `scannerDir` means
+  "name matching only" (`Matrix.Pairing=false`, disco-only rows carry `pairing-unavailable`).
+- `BuildInventory(Inputs) Matrix` computes the summary **before** any filter; `Filter` only
+  narrows `Rows`. Never recompute percentages from filtered rows.
 
-## Bucket semantics
+## Bucket semantics (`inventory.go`)
 
-- `covered` — disco emits + upstream registry has it.
-- `uncovered` — upstream has it, no disco scanner, and not deliberately skipped. A genuine, actionable gap.
-- `not-scannable` — upstream has it, no disco scanner, but the provider declared the key in `Skips()` (the optional `coverage.Skipper` interface) because it is not independently discoverable: a CFN sub-resource/association type with no standalone List API, an ephemeral task/quote/report record, or a preview service with no public SDK. Carries a per-entry `Reason`. Checked only on the leftover-upstream (no-match) path, so a key gains a real scanner later simply by being emitted (it then buckets `covered`) — remove its skip entry in that same commit. Does NOT trip `--check-strict`. AWS declares these in `internal/providers/aws/aws_skips.go`. (Cross-catalog **duplicates** are NOT skipped here — they collapse automatically; see below.)
-- **Cross-catalog duplicates** — AWS's upstream is CloudFormation ∪ Service Reference, which spell one resource two ways (`AWS::Amplify::App` vs `AWS::amplify::apps`). An unmatched upstream key whose canonical identity (`coverage.CanonicalKeyer`, implemented by `aws_coverage.go::CanonicalKey`) equals an already-covered key's identity buckets **`covered`** with a `Reason` of `"duplicate of <covered key>"`, so the SR/CFN twin never shows as an actionable gap. `disco coverage services --filter duplicate` lists every such collapse for auditing (it is the covered rows carrying a Reason). No impl of the interface → no canonical dedup (Azure/GCP are single-catalog). Hazard guarded against: the normalizer singularizes before stripping the SR `Resource` suffix and never reduces a segment to empty (`Resources`→`resource`, not `""`); services are not de-pluralized (`aidevops` stays `aidevops`). Genuine service renames (CFN `MWAA` ↔ SR `airflow`) live in a small `serviceRenames` map.
-- `uncatalogued` — a **real resource disco scans** via the SDK that no upstream registry lists (e.g. `aws:kms:grant`, GuardDuty/Detective/Inspector members, Azure Entra identities + SQL/network proxy children). Checked only on the no-match path, so it **auto-upgrades to `covered`** if the registry later lists the key (this is why `gcp:iam:policy` lands `covered` — Discovery's `iam.googleapis.com/Policy` matches it). Does NOT trip `--check-strict`.
-- `upstream-missing` — disco emits but upstream registry doesn't list, and the type is not uncatalogued. Drift signal: alias-map typo, retired API, or scanner targeting obsolete type. `--check-strict` exits non-zero on any.
+- `covered` — resource candidate with an `emits`/`sidecar`/`derived` pairing to one of its ops,
+  or (reason `matched-by-name`) an emitted type whose `sdkinv.Ident` equals the candidate's.
+  A `sidecar` pairing with no types is still covered (reason `sidecar`): the scanner lists it.
+  `label` pairings prove nothing (no SDK call) and never cover.
+- `uncovered` — resource candidate no scanner lists. The only actionable gap.
+- `attribute` — `ClassAttribute` (Get + id, no collection). Not in `%`.
+- `excluded` — catalog / non-resource / `preview-only`; reason carries the rule. Not in `%`.
+- `disco-only` — emitted type no candidate accounts for. Reason `explained: <unpaired reason>`
+  (`non-sdk`, `other-op:<label>`, `sdk-skew:<op>`), `pairing-unavailable`, or `unexplained`
+  (the only one `--check-strict` fails on).
+- `registry-drift` — only with `--cross-check`: `registry-only` (live registry key with no
+  resource candidate) / `candidate-only`. Identities compare via `RegistryKey(candidate)` vs
+  `CanonicalKey(registryKey)`.
+- Unit of coverage is the candidate: one op → N types counts once (`Row.DiscoType` is the
+  name-matching type, `Row.DiscoTypes` the rest); N ops → one type marks every candidate covered.
 
-There is no synthetic bucket. Cross-tenant references (foreign account/sub/project) are modelled as **real self-node types** (`aws:iam:account`, `azure:microsoft.resources:subscriptions`, `gcp:cloudresourcemanager:project`), inserted as empty-attribute placeholders that version-populate when scanned — see store/CLAUDE.md "Reference-discovered placeholders". They bucket like any other real type.
+## Identity
 
-## GCP Discovery quirks
+`sdkinv.Ident` (Canon, `-ies`→`y`, trailing `e`/`s` run stripped) is the only cross-source equality used
+here and by GCP's `RegistryKey`/`CanonicalKey`: `Singular` alone splits "caches"/"cache" and
+"aliases"/"alias". Never display an Ident; keys come from the extractor.
 
-- Fetch all versions of each relevant API (v1+v2 expose different collections, e.g. cloudbuild Trigger in v1, Connection in v2). Dedupe by upstream key.
-- `singularize` strips trailing `s`/`ies` only — irregular plurals (Indexes→Index) need alias-map entry, not heuristic patches.
-- Discovery resource collection name → singular → PascalCase. Walk recurses through nested `resources` tree.
+## Live numbers (2026-09-16 pins, pairing on)
 
-## Per-provider upstream sources
+AWS 50.2% (1624/3236), Azure 19.7% (386/1959), GCP 23.3% (235/1009); zero unexplained. The
+Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
 
-The "upstream registry" a provider diffs against is not one fixed API:
+## Reconcile tests (Phase 4 → deleted in Phase 5)
 
-- **AWS**: union of CloudFormation ListTypes (creds) ∪ the credential-free AWS Service Reference catalog (`internal/providers/aws/aws_servicereference.go`). Neither alone is complete — CFN omits SDK-real resources, SR omits CFN-modeled ones. `Fetch` appends both into one `[]UpstreamType`; `Build` dedupes case-insensitively. Detail: `internal/providers/aws/CLAUDE.md` §"Coverage upstream".
-- **Azure**: ARM provider/resource-type list. **GCP**: Discovery documents (see quirks above).
+`DISCO_RECONCILE=1 go test ./internal/providers/<p>/ -run TestReconcileHandLists -v` classifies
+every hand-list entry (`aws_skips.go`, descriptor `Upstream`, `azureAPITypeMap`, `Uncatalogued`,
+the two docs ledgers) against the inventory. Triage at the pins above: AWS `skip-contradicted`
+(198) are all ephemeral/retired/catalog rows the SDK still lists — they become honest `uncovered`
+rows the Phase 8 baseline accepts; `skip-unmatched` (194) are CFN-only or retired services with
+no Smithy model; Azure `alias-orphan` (2) are the `CloudServices*` sdk-skew; ledger-absent rows
+are ledger errors (`microsoft.storage/storagetasks` lives under `microsoft.storageactions`,
+`hybridnetwork/devices` left the SDK, `admin Transfer` was never scanned).

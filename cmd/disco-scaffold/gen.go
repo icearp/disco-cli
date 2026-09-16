@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
 // scannerSig maps a provider to the (imports, serviceEntry-fn signature) its
@@ -37,11 +38,11 @@ var scannerSigs = map[string]scannerSig{
 }
 
 // genScaffold renders a self-contained <svc>_scanners.go: the Type* consts,
-// the registerType descriptors (Upstream set only when the algorithmic key
-// can't reproduce the upstream key), a registerService call, and a stub
-// scanner returning (0,0,nil). It compiles as-is; the human fills the body and
-// later lifts the consts into <provider>_types.go.
-func genScaffold(provName, service string, rows []coverage.Row, prov coverage.Provider) string {
+// the registerType descriptors (each annotated with the SDK list ops, depth
+// and scope the candidate was derived from), a registerService call, and a
+// stub scanner returning (0,0,nil). It compiles as-is; the human fills the
+// body and later lifts the consts into <provider>_types.go.
+func genScaffold(provName, service string, rows []coverage.Row) string {
 	sig, ok := scannerSigs[provName]
 	if !ok {
 		// Unknown provider signature: emit descriptors only, no scanner skeleton.
@@ -51,27 +52,26 @@ func genScaffold(provName, service string, rows []coverage.Row, prov coverage.Pr
 
 	var consts, descs strings.Builder
 	for _, r := range rows {
-		res := resourceSegment(provName, r.UpstreamKey)
+		res := resourceSegment(r.Key)
 		discoType := provName + ":" + service + ":" + kebab(res)
 		constName := "Type" + svcFn + pascal(res)
 		fmt.Fprintf(&consts, "\t%s = %q\n", constName, discoType)
-
-		// Only carry Upstream when the algorithmic key can't reproduce the
-		// upstream key — otherwise the alias is redundant. The human should
-		// verify the derived disco type before trusting either path.
-		up := ""
-		if prov.AlgorithmicKey(discoType) != r.UpstreamKey {
-			up = fmt.Sprintf(", Upstream: %q", r.UpstreamKey)
+		fmt.Fprintf(&descs, "\t// %s: ops %s; depth %d", r.Key, strings.Join(r.Ops, ", "), r.Depth)
+		if r.Parent != "" {
+			fmt.Fprintf(&descs, " (parent %s)", r.Parent)
 		}
-		fmt.Fprintf(&descs, "\tregisterType(restype.Descriptor{Type: %s, Service: %q%s})\n", constName, service, up)
+		if r.Scope != "" {
+			fmt.Fprintf(&descs, "; scope %s", r.Scope)
+		}
+		fmt.Fprintf(&descs, "\n\tregisterType(restype.Descriptor{Type: %s, Service: %q})\n", constName, service)
 	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "package %s\n\n", provName)
 	b.WriteString("// Code scaffolded by cmd/disco-scaffold — VERIFY before use.\n")
-	b.WriteString("// Const names + disco type strings are best-effort derived from the upstream\n")
-	b.WriteString("// key; reconcile them with <provider>_types.go naming conventions, then move\n")
-	b.WriteString("// the consts there. The scanner body is a TODO stub returning (0,0,nil).\n\n")
+	b.WriteString("// Const names + disco type strings are best-effort derived from the SDK\n")
+	b.WriteString("// candidate key; reconcile them with <provider>_types.go naming conventions,\n")
+	b.WriteString("// then move the consts there. The scanner body is a TODO stub returning (0,0,nil).\n\n")
 	if len(sig.imports) > 0 {
 		b.WriteString("import (\n")
 		for _, imp := range sig.imports {
@@ -99,18 +99,10 @@ func genScaffold(provName, service string, rows []coverage.Row, prov coverage.Pr
 	return b.String()
 }
 
-// resourceSegment extracts the resource portion of a provider-specific upstream
-// key: AWS "AWS::Svc::Resource" -> "Resource"; GCP "api.googleapis.com/Resource"
-// and Azure "Microsoft.X/types/child" -> the last path segment.
-func resourceSegment(provName, key string) string {
-	switch provName {
-	case "aws":
-		parts := strings.Split(key, "::")
-		return parts[len(parts)-1]
-	default:
-		parts := strings.Split(key, "/")
-		return parts[len(parts)-1]
-	}
+// resourceSegment is the singular resource noun of a candidate key: the last
+// path segment ("compute/regiondisks" -> "regiondisk", "kms/grant" -> "grant").
+func resourceSegment(key string) string {
+	return sdkinv.Singular(key[strings.LastIndex(key, "/")+1:])
 }
 
 // splitWords breaks an identifier into lowercase word tokens across camelCase,

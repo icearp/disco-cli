@@ -123,7 +123,7 @@ func Execute(ctx context.Context) {
 		// `coverage --check-strict` distinguishes transient registry-fetch
 		// failure (exit 2) from genuine drift (exit 1) so CI pipelines can
 		// retry-with-backoff vs. file-a-ticket.
-		if errors.Is(err, errCoverageRegistryUnreachable) {
+		if errors.Is(err, errCoverageRegistryUnreachable) || errors.Is(err, errCoverageInventoryUnavailable) {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}

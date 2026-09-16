@@ -41,7 +41,7 @@ func TestCoverageFetch_PerAPIDocFailurePropagates(t *testing.T) {
 	discoveryListURL = srv.URL + "/apis"
 	t.Cleanup(func() { discoveryListURL = orig })
 
-	_, err := coverageProvider{}.Fetch(context.Background(), coverage.FetchOptions{})
+	_, err := coverageProvider{}.CrossCheck(context.Background(), coverage.FetchOptions{})
 	if err == nil {
 		t.Fatal("per-API doc fetch failure must propagate as a Fetch error, got nil")
 	}
@@ -56,7 +56,7 @@ func TestCoverageFetch_AllDocsOKNoError(t *testing.T) {
 	discoveryListURL = srv.URL + "/apis"
 	t.Cleanup(func() { discoveryListURL = orig })
 
-	out, err := coverageProvider{}.Fetch(context.Background(), coverage.FetchOptions{})
+	out, err := coverageProvider{}.CrossCheck(context.Background(), coverage.FetchOptions{})
 	if err != nil {
 		t.Fatalf("all docs OK should not error: %v", err)
 	}

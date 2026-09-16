@@ -15,6 +15,14 @@ func TestCanonAndSingular(t *testing.T) {
 			t.Errorf("CanonSingular(%q) = %q, want %q", in, got, want)
 		}
 	}
+	for plural, singular := range map[string]string{
+		"anywhereCaches": "anywhere-cache", "aliases": "alias", "statuses": "status", "databases": "database",
+		"policies": "policy", "indexes": "index", "instances": "instance", "addresses": "address", "accesses": "access", "keys": "key",
+	} {
+		if Ident(plural) != Ident(singular) {
+			t.Errorf("Ident(%q) = %q, Ident(%q) = %q", plural, Ident(plural), singular, Ident(singular))
+		}
+	}
 }
 
 func TestKebab(t *testing.T) {

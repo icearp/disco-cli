@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/icearp/disco-cli/internal/providers"
+	"github.com/icearp/disco-cli/internal/sdkinv"
 	"github.com/spf13/cobra"
 )
 
@@ -42,29 +45,35 @@ each tag — see 'disco tag-coverage'.`,
 
 var coverageServicesCmd = &cobra.Command{
 	Use:   "services",
-	Short: "Diff scanner emits against the upstream type registry",
-	Long: `Compares disco's registered scanners against the live upstream type
-registry of each cloud provider:
+	Short: "Measure scanner coverage of each cloud's SDK-listable resources",
+	Long: `Measures how much of each cloud's listable resource surface disco scans.
 
-  - AWS:    CloudFormation ListTypes (Public, Resource)
-  - Azure:  ARM Providers/List?$expand=resourceTypes
-  - GCP:    Discovery API (https://www.googleapis.com/discovery/v1/apis)
-
-Coverage truth source is the per-scanner emits []TypeDecl declared on each
-serviceEntry — disco knows what each scanner upserts, not a static slice
-that may have drifted.
+The denominator is derived offline from the providers' own SDK sources
+(populate the cache once with 'disco coverage sdk fetch'): every List
+operation becomes a candidate resource, classified as resource, attribute
+(a detail read of a parent), catalog (read-only reference data) or
+non-resource. The numerator is a static pairing of each scanner's SDK calls
+with the types it stores, derived from disco's own source (--source-root).
 
 Bucket model:
-  - covered          disco scanner + upstream registry entry both present.
-  - uncovered        upstream registry entry has no disco scanner.
-  - uncatalogued     disco scans it via the SDK; no upstream registry lists it.
-  - upstream-missing disco emits but upstream registry no longer publishes
-                     — drift signal. Surface via --check-strict for CI gating.`,
+  - covered      a resource candidate some scanner lists.
+  - uncovered    a resource candidate no scanner lists — the gap list.
+  - attribute    a detail read; listed, not counted.
+  - excluded     catalog / non-resource / preview-only; listed, not counted.
+  - disco-only   an emitted type with no candidate; the reason says whether
+                 it is explained (no SDK, built from a non-list op, SDK skew).
+  - registry-drift  only with --cross-check: the live registry (CloudFormation
+                 + Service Reference, ARM Providers, Discovery) and the SDK
+                 universe disagree.
+
+Percent = covered / (covered + uncovered), computed before --filter, per
+provider, per service and per depth. Pins are printed with every report:
+numbers compare only across identical pins.`,
 	Example: `  disco coverage services
-  disco coverage services --providers gcp
-  disco coverage services --providers aws --filter uncovered
-  disco coverage services --providers aws --regions us-east-1,us-west-2
-  disco coverage services -o json | jq '.[].rows[] | select(.bucket=="upstream-missing")'
+  disco coverage services --providers gcp -o markdown
+  disco coverage services --providers aws --filter gaps
+  disco coverage services --providers aws --services ec2,s3 -o json | jq '.[0].summary'
+  disco coverage services --cross-check --providers azure --filter registry-drift
   disco coverage services --check-strict`,
 	Args: cobra.NoArgs,
 	RunE: runCoverageServices,
@@ -128,14 +137,17 @@ func init() {
 
 	// services subcommand flags.
 	coverageServicesCmd.Flags().StringSlice("providers", nil, fmt.Sprintf("Limit to listed providers (%s); empty = all registered", providerListHint()))
-	coverageServicesCmd.Flags().StringSlice("regions", nil, "Regions for the upstream registry call (CFN ListTypes per region, union); empty = SDK default (us-east-1)")
-	coverageServicesCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
-	coverageServicesCmd.Flags().StringSlice("subscriptions", nil, "Azure subscription ID(s) for the registry context (--providers azure only); first is used, empty = autodetect")
-	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, not-scannable, uncatalogued, upstream-missing, duplicate")
-	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "not-scannable", "uncatalogued", "upstream-missing", "duplicate"))
+	coverageServicesCmd.Flags().String("sdk-cache", sdkinv.DefaultCacheRoot(), "SDK source cache directory (see 'disco coverage sdk fetch')")
+	coverageServicesCmd.Flags().String("source-root", defaultSourceRoot(), "disco source checkout for scanner pairing; empty = name matching only")
+	coverageServicesCmd.Flags().Bool("cross-check", false, "Also diff the SDK universe against the live upstream registry (needs credentials)")
+	coverageServicesCmd.Flags().StringSlice("regions", nil, "--cross-check only: regions for the CloudFormation registry call (union); empty = us-east-1")
+	coverageServicesCmd.Flags().String("profile", "", "--cross-check only: AWS profile name")
+	coverageServicesCmd.Flags().StringSlice("subscriptions", nil, "--cross-check only: Azure subscription ID(s); first is used, empty = autodetect")
+	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: "+strings.Join(coverage.Filters, ", ")+" (gaps = uncovered + unexplained disco-only)")
+	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion(coverage.Filters...))
 	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
-	coverageServicesCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
-	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift). A registry-fetch failure always exits 2, with or without this flag.")
+	coverageServicesCmd.Flags().Duration("timeout", 60*time.Second, "--cross-check only: per-provider live-fetch timeout")
+	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on unexplained disco-only rows. A missing SDK cache or failed registry fetch always exits 2.")
 
 	// regions subcommand flags.
 	coverageRegionsCmd.Flags().StringSlice("providers", nil, fmt.Sprintf("Limit to listed providers (%s); empty = all registered", providerListHint()))
@@ -156,12 +168,30 @@ func init() {
 }
 
 // errCoverageRegistryUnreachable signals a provider's upstream registry fetch
-// failed (e.g. expired/missing credentials), so coverage can't be assessed.
-// Always fatal — otherwise every emitted type would falsely bucket as
-// upstream-missing against an empty registry. Mapped to exit 2 in Execute()
-// (vs exit 1 for genuine drift) so CI can tell transient credential failure
-// from real drift.
+// failed (e.g. expired/missing credentials), so --cross-check can't be
+// assessed. Mapped to exit 2 in Execute() (vs exit 1 for genuine drift) so CI
+// can tell transient credential failure from real drift.
 var errCoverageRegistryUnreachable = errors.New("upstream registry unreachable for")
+
+// errCoverageInventoryUnavailable signals the SDK source cache lacks a
+// provider's pinned snapshot, so the denominator can't be derived. Exit 2,
+// like a registry failure: nothing about disco's coverage changed.
+var errCoverageInventoryUnavailable = errors.New("sdk inventory unavailable")
+
+// defaultSourceRoot is the working directory when it is a disco checkout
+// (go.mod names this module); pairing needs the scanner source, and any
+// other directory would be a different program.
+func defaultSourceRoot() string {
+	raw, err := os.ReadFile("go.mod")
+	if err != nil || !strings.HasPrefix(string(raw), "module github.com/icearp/disco-cli\n") {
+		return ""
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return wd
+}
 
 // outputFormat resolves the --output persistent flag on the invoking subcommand.
 func outputFormat(cmd *cobra.Command) string {
@@ -180,81 +210,136 @@ func firstOrEmpty(vals []string, _ error) string {
 	return ""
 }
 
+// servicesOptions are the parsed flags of `coverage services`.
+type servicesOptions struct {
+	providers   []string
+	cache       sdkinv.Cache
+	sourceRoot  string
+	crossCheck  bool
+	fetch       coverage.FetchOptions
+	timeout     time.Duration
+	filter      string
+	services    []string
+	checkStrict bool
+}
+
 func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
-	provNames, _ := cmd.Flags().GetStringSlice("providers")
-	regions, _ := cmd.Flags().GetStringSlice("regions")
-	profile, _ := cmd.Flags().GetString("profile")
-	subscription := firstOrEmpty(cmd.Flags().GetStringSlice("subscriptions"))
 	outputFmt := outputFormat(cmd)
 	defer func() { maybeStructuredError(outputFmt, rerr) }()
-	filter, _ := cmd.Flags().GetString("filter")
-	services, _ := cmd.Flags().GetStringSlice("services")
-	timeout, _ := cmd.Flags().GetDuration("timeout")
-	checkStrict, _ := cmd.Flags().GetBool("check-strict")
-
-	switch filter {
-	case "all", "covered", "uncovered", "not-scannable", "uncatalogued", "upstream-missing", "duplicate":
-	default:
-		return fmt.Errorf("--filter must be one of all|covered|uncovered|not-scannable|uncatalogued|upstream-missing|duplicate; got %q", filter)
-	}
 	switch outputFmt {
 	case "markdown", "md", "table", "json", "jsonl", "csv":
 	default:
 		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", outputFmt)
 	}
+	var o servicesOptions
+	o.providers, _ = cmd.Flags().GetStringSlice("providers")
+	root, _ := cmd.Flags().GetString("sdk-cache")
+	o.cache = sdkinv.Cache{Root: root}
+	o.sourceRoot, _ = cmd.Flags().GetString("source-root")
+	o.crossCheck, _ = cmd.Flags().GetBool("cross-check")
+	o.fetch.Regions, _ = cmd.Flags().GetStringSlice("regions")
+	o.fetch.Profile, _ = cmd.Flags().GetString("profile")
+	o.fetch.Subscription = firstOrEmpty(cmd.Flags().GetStringSlice("subscriptions"))
+	o.timeout, _ = cmd.Flags().GetDuration("timeout")
+	o.filter, _ = cmd.Flags().GetString("filter")
+	o.services, _ = cmd.Flags().GetStringSlice("services")
+	o.checkStrict, _ = cmd.Flags().GetBool("check-strict")
+	if !slices.Contains(coverage.Filters, o.filter) {
+		return fmt.Errorf("--filter must be one of %s; got %q", strings.Join(coverage.Filters, "|"), o.filter)
+	}
+	if o.filter == "registry-drift" && !o.crossCheck {
+		return fmt.Errorf("--filter registry-drift needs --cross-check")
+	}
 
-	covProviders, err := resolveCoverageProviders(provNames)
+	matrices, err := buildServiceMatrices(cmd.Context(), o)
 	if err != nil {
 		return err
 	}
-	if len(covProviders) == 0 {
-		return fmt.Errorf("no coverage providers registered")
+	if err := renderServiceMatrices(cmd.OutOrStdout(), outputFmt, matrices); err != nil {
+		return err
 	}
+	if o.checkStrict {
+		for _, m := range matrices {
+			if m.Summary.Unexplained > 0 {
+				return fmt.Errorf("%s: %d emitted types pair with no SDK call (--check-strict); see --filter disco-only", m.Provider, m.Summary.Unexplained)
+			}
+		}
+	}
+	return nil
+}
 
-	opts := coverage.FetchOptions{Regions: regions, Profile: profile, Subscription: subscription}
-
+// buildServiceMatrices derives one matrix per provider from the SDK cache,
+// pairs it with the scanner source when available, and applies the row
+// filter after the summaries are computed.
+func buildServiceMatrices(ctx context.Context, o servicesOptions) ([]coverage.Matrix, error) {
+	covProviders, err := resolveCoverageProviders(o.providers)
+	if err != nil {
+		return nil, err
+	}
+	if len(covProviders) == 0 {
+		return nil, fmt.Errorf("no coverage providers registered")
+	}
 	var matrices []coverage.Matrix
 	var fetchFailures []string
 	for _, p := range covProviders {
-		if verbose {
-			fmt.Fprintf(os.Stderr, "Fetching %s upstream registry...\n", p.Name())
-		}
-		fetchCtx, cancel := context.WithTimeout(cmd.Context(), timeout)
-		upstream, err := p.Fetch(fetchCtx, opts)
-		cancel()
+		in, err := inventoryInputs(ctx, o, p)
 		if err != nil {
-			// A failed fetch (commonly expired/missing credentials) yields an empty
-			// upstream, which would falsely bucket every type as upstream-missing.
-			// Skip the build and fail below rather than print a confidently-wrong matrix.
-			fmt.Fprintf(os.Stderr, "  %s: fetch failed: %v\n", p.Name(), err)
-			fetchFailures = append(fetchFailures, p.Name())
-			continue
+			return nil, err
 		}
-		var skips map[string]string
-		if sk, ok := p.(coverage.Skipper); ok {
-			skips = sk.Skips()
+		m := coverage.BuildInventory(in)
+		if o.crossCheck {
+			cc, ok := p.(coverage.CrossChecker)
+			if !ok {
+				fmt.Fprintf(os.Stderr, "  %s: no registry cross-check support; skipping\n", p.Name())
+			} else {
+				fetchCtx, cancel := context.WithTimeout(ctx, o.timeout)
+				registry, err := cc.CrossCheck(fetchCtx, o.fetch)
+				cancel()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "  %s: registry fetch failed: %v\n", p.Name(), err)
+					fetchFailures = append(fetchFailures, p.Name())
+					continue
+				}
+				coverage.CrossCheck(&m, in.Universe, registry, cc)
+			}
 		}
-		var canonical func(string) string
-		if ck, ok := p.(coverage.CanonicalKeyer); ok {
-			canonical = ck.CanonicalKey
-		}
-		m := coverage.Build(p.Name(), p.Emits(), p.Aliases(), p.AlgorithmicKey, upstream, skips, canonical)
-		m.Rows = filterRows(m.Rows, filter, services)
+		m.Rows = coverage.Filter(m.Rows, o.filter, o.services)
 		matrices = append(matrices, m)
 	}
-
 	// Fetch failure is always fatal (exit 2), independent of --check-strict;
 	// returned before rendering so no misleading matrix is emitted.
 	if len(fetchFailures) > 0 {
-		return fmt.Errorf("%w: %s; check credentials, then retry or scope --providers", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
+		return nil, fmt.Errorf("%w: %s; check credentials, then retry or scope --providers", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
 	}
+	return matrices, nil
+}
 
-	w := cmd.OutOrStdout()
+// inventoryInputs extracts the provider's universe from the cache and, when
+// the source root holds the scanner package, its pairings.
+func inventoryInputs(ctx context.Context, o servicesOptions, p coverage.Provider) (coverage.Inputs, error) {
+	if verbose {
+		fmt.Fprintf(os.Stderr, "Extracting %s SDK inventory...\n", p.Name())
+	}
+	scannerDir := ""
+	if o.sourceRoot == "" {
+		fmt.Fprintf(os.Stderr, "  %s: no --source-root; pairing unavailable, matching candidates by name only\n", p.Name())
+	} else {
+		scannerDir = filepath.Join(o.sourceRoot, "internal", "providers", p.Name())
+	}
+	in, err := coverage.InputsFromCache(ctx, o.cache, p.Name(), p.Emits(), scannerDir)
+	if err != nil && in.Universe == nil {
+		return in, fmt.Errorf("%w: %v", errCoverageInventoryUnavailable, err)
+	}
+	// A pairing failure with the universe in hand (unparsable scanner source,
+	// wrong --source-root) stays fatal: degrading to name matching would
+	// print a lower percentage that looks like a real regression.
+	return in, err
+}
+
+func renderServiceMatrices(w io.Writer, outputFmt string, matrices []coverage.Matrix) error {
 	switch outputFmt {
 	case "json":
-		if err := coverage.RenderJSON(w, matrices); err != nil {
-			return err
-		}
+		return coverage.RenderJSON(w, matrices)
 	case "jsonl":
 		enc := json.NewEncoder(w)
 		for _, m := range matrices {
@@ -264,38 +349,22 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 				}
 			}
 		}
+		return nil
 	case "csv":
 		cw := csv.NewWriter(w)
-		_ = cw.Write([]string{"provider", "service", "disco_type", "upstream_key", "bucket", "reason"})
+		_ = cw.Write([]string{"provider", "service", "key", "disco_type", "bucket", "depth", "parent", "scope", "reason", "ops"})
 		for _, m := range matrices {
 			for _, r := range m.Rows {
-				_ = cw.Write([]string{r.Provider, r.Service, r.DiscoType, r.UpstreamKey, string(r.Bucket), r.Reason})
+				_ = cw.Write([]string{r.Provider, r.Service, r.Key, r.DiscoType, string(r.Bucket), strconv.Itoa(r.Depth), r.Parent, r.Scope, r.Reason, strings.Join(r.Ops, " ")})
 			}
 		}
 		cw.Flush()
-		if err := cw.Error(); err != nil {
-			return err
-		}
+		return cw.Error()
 	case "markdown", "md":
-		if err := coverage.RenderMarkdown(w, matrices); err != nil {
-			return err
-		}
+		return coverage.RenderMarkdown(w, matrices)
 	default:
-		if err := coverage.RenderTable(w, matrices); err != nil {
-			return err
-		}
+		return coverage.RenderTable(w, matrices)
 	}
-
-	if checkStrict {
-		for _, m := range matrices {
-			for _, r := range m.Rows {
-				if r.Bucket == coverage.BucketUpstreamMissing {
-					return fmt.Errorf("upstream-missing rows present (--check-strict); refresh alias map or scanner emits decl")
-				}
-			}
-		}
-	}
-	return nil
 }
 
 func runCoverageRegions(cmd *cobra.Command, _ []string) (rerr error) {
@@ -698,31 +767,4 @@ func anyServiceMatch(svcs []string, allowed map[string]bool) bool {
 		}
 	}
 	return false
-}
-
-// filterRows applies --filter and --services to a row slice.
-func filterRows(rows []coverage.Row, filter string, services []string) []coverage.Row {
-	allowedSvc := map[string]bool{}
-	for _, s := range services {
-		allowedSvc[strings.ToLower(s)] = true
-	}
-	// "duplicate" is a cross-cut, not a bucket: the canonical-twin rows Build
-	// emits as covered with a "duplicate of …" reason, surfaced for auditing
-	// SR↔CFN merges before trusting them to hide a gap.
-	wantBucket := coverage.Bucket(filter)
-	out := rows[:0]
-	for _, r := range rows {
-		if filter == "duplicate" {
-			if r.Bucket != coverage.BucketCovered || r.Reason == "" {
-				continue
-			}
-		} else if filter != "all" && r.Bucket != wantBucket {
-			continue
-		}
-		if len(allowedSvc) > 0 && !allowedSvc[strings.ToLower(r.Service)] {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out
 }

@@ -6,31 +6,31 @@ import (
 	"text/tabwriter"
 )
 
-// RenderTable writes a tabwriter-aligned plain-text matrix. Bucket column
-// supports shell filtering, e.g. `awk '$4 == "covered"'`.
+// RenderTable writes the headline per provider, then a tabwriter-aligned
+// row table. The bucket column supports shell filtering (`awk '$5 == "uncovered"'`).
 func RenderTable(w io.Writer, matrices []Matrix) error {
+	for _, m := range matrices {
+		if _, err := fmt.Fprintf(w, "%s: %s\n", m.Provider, Headline(m)); err != nil {
+			return err
+		}
+	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(tw, "PROVIDER\tSERVICE\tDISCO TYPE\tUPSTREAM KEY\tBUCKET\tREASON"); err != nil {
+	if _, err := fmt.Fprintln(tw, "PROVIDER\tSERVICE\tKEY\tDISCO TYPE\tBUCKET\tDEPTH\tSCOPE\tREASON"); err != nil {
 		return err
 	}
 	for _, m := range matrices {
 		for _, r := range m.Rows {
-			disco := r.DiscoType
-			if disco == "" {
-				disco = "-"
-			}
-			up := r.UpstreamKey
-			if up == "" {
-				up = "-"
-			}
-			reason := r.Reason
-			if reason == "" {
-				reason = "-"
-			}
-			if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", r.Provider, r.Service, disco, up, r.Bucket, reason); err != nil {
+			if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\n", r.Provider, r.Service, dash(r.Key), dash(r.DiscoType), r.Bucket, r.Depth, dash(r.Scope), dash(r.Reason)); err != nil {
 				return err
 			}
 		}
 	}
 	return tw.Flush()
+}
+
+func dash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }

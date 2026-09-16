@@ -41,6 +41,18 @@ func Singular(s string) string {
 // CanonSingular is Canon followed by Singular.
 func CanonSingular(s string) string { return Singular(Canon(s)) }
 
+// Ident is the cross-source equality stem: Canon, "-ies"→"y", then every
+// trailing "e"/"s" dropped, so a plural and its singular meet even where
+// Singular cannot know the stem ("caches"/"cache", "aliases"/"alias",
+// "statuses"/"status", "accesses"/"access"). Never display it.
+func Ident(s string) string {
+	c := Canon(s)
+	if strings.HasSuffix(c, "ies") && len(c) > 3 {
+		return c[:len(c)-3] + "y"
+	}
+	return strings.TrimRight(c, "es")
+}
+
 // Kebab converts camelCase / PascalCase to kebab-case, keeping digit runs
 // attached ("virtualMachineScaleSets" → "virtual-machine-scale-sets",
 // "p2sVpnGateways" → "p2s-vpn-gateways").

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"go/format"
 	"strings"
 	"testing"
@@ -34,52 +33,43 @@ func TestSplitWordsKebabPascal(t *testing.T) {
 }
 
 func TestResourceSegment(t *testing.T) {
-	cases := []struct{ prov, key, want string }{
-		{"aws", "AWS::ApiGateway::RestApi", "RestApi"},
-		{"aws", "AWS::sms-voice::Registration", "Registration"},
-		{"gcp", "pubsub.googleapis.com/Topic", "Topic"},
-		{"azure", "Microsoft.Compute/virtualMachines", "virtualMachines"},
-		{"azure", "Microsoft.Network/virtualNetworks/subnets", "subnets"},
+	cases := []struct{ key, want string }{
+		{"ec2/instance", "instance"},
+		{"kms/grant", "grant"},
+		{"pubsub/topics", "topic"},
+		{"microsoft.compute/virtualmachines", "virtualmachine"},
+		{"microsoft.network/virtualnetworks/subnets", "subnet"},
+		{"compute/regiondisks", "regiondisk"},
 	}
 	for _, c := range cases {
-		if got := resourceSegment(c.prov, c.key); got != c.want {
-			t.Errorf("resourceSegment(%q, %q) = %q; want %q", c.prov, c.key, got, c.want)
+		if got := resourceSegment(c.key); got != c.want {
+			t.Errorf("resourceSegment(%q) = %q; want %q", c.key, got, c.want)
 		}
 	}
 }
 
-func TestGenScaffold_OmitsRedundantUpstream(t *testing.T) {
-	// algo reproduces the key for :topic (no Upstream needed) but not for :queue.
-	prov := stubProvider{algo: map[string]string{
-		"gcp:pubsub:topic": "pubsub.googleapis.com/Topic",
-	}}
+func TestGenScaffold(t *testing.T) {
 	rows := []coverage.Row{
-		{Service: "pubsub", UpstreamKey: "pubsub.googleapis.com/Topic", Bucket: coverage.BucketUncovered},
-		{Service: "pubsub", UpstreamKey: "pubsub.googleapis.com/Queue", Bucket: coverage.BucketUncovered},
+		{Service: "pubsub", Key: "pubsub/topics", Bucket: coverage.BucketUncovered, Ops: []string{"pubsub:projects.topics.list"}, Scope: "project"},
+		{Service: "pubsub", Key: "pubsub/topics/subscriptions", Bucket: coverage.BucketUncovered, Ops: []string{"pubsub:projects.topics.subscriptions.list"}, Depth: 1, Parent: "pubsub/topics", Scope: "project"},
 	}
-	src := genScaffold("gcp", "pubsub", rows, prov)
+	src := genScaffold("gcp", "pubsub", rows)
 	if _, err := format.Source([]byte(src)); err != nil {
 		t.Fatalf("generated source does not gofmt/compile-parse: %v\n%s", err, src)
 	}
-	if strings.Contains(src, `Type: TypePubsubTopic, Service: "pubsub", Upstream:`) {
-		t.Error("Topic should omit Upstream (algorithmic key reproduces it)")
+	for _, want := range []string{
+		`TypePubsubTopic        = "gcp:pubsub:topic"`,
+		`TypePubsubSubscription = "gcp:pubsub:subscription"`,
+		`// pubsub/topics: ops pubsub:projects.topics.list; depth 0; scope project`,
+		`registerType(restype.Descriptor{Type: TypePubsubTopic, Service: "pubsub"})`,
+		`// pubsub/topics/subscriptions: ops pubsub:projects.topics.subscriptions.list; depth 1 (parent pubsub/topics); scope project`,
+		"func scanPubsub(ctx context.Context, p *project",
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("scaffold lacks %q:\n%s", want, src)
+		}
 	}
-	if !strings.Contains(src, `Type: TypePubsubQueue, Service: "pubsub", Upstream: "pubsub.googleapis.com/Queue"`) {
-		t.Errorf("Queue should carry Upstream (algorithmic key differs); got:\n%s", src)
-	}
-	if !strings.Contains(src, "func scanPubsub(ctx context.Context, p *project") {
-		t.Error("expected a GCP-shaped stub scanner signature")
+	if strings.Contains(src, "Upstream:") {
+		t.Error("scaffold must not emit the retired Upstream alias")
 	}
 }
-
-// stubProvider implements coverage.Provider; only Name + AlgorithmicKey are
-// exercised by genScaffold, the rest satisfy the interface.
-type stubProvider struct{ algo map[string]string }
-
-func (stubProvider) Name() string { return "gcp" }
-func (stubProvider) Fetch(context.Context, coverage.FetchOptions) ([]coverage.UpstreamType, error) {
-	return nil, nil
-}
-func (stubProvider) Emits() []coverage.TypeDecl               { return nil }
-func (stubProvider) Aliases() map[string]string               { return nil }
-func (s stubProvider) AlgorithmicKey(discoType string) string { return s.algo[discoType] }
