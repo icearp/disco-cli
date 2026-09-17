@@ -12,19 +12,19 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNetworkCloudCluster, Service: "microsoft.networkcloud", Leaf: true, Redact: []redact.Rule{{Path: "properties.aggregatorOrSingleRackDefinition.bareMetalMachineConfigurationData[*].bmcCredentials.password", Mode: redact.RedactScalar}, {Path: "properties.aggregatorOrSingleRackDefinition.storageApplianceConfigurationData[*].adminCredentials.password", Mode: redact.RedactScalar}, {Path: "properties.computeRackDefinitions[*].bareMetalMachineConfigurationData[*].bmcCredentials.password", Mode: redact.RedactScalar}, {Path: "properties.computeRackDefinitions[*].storageApplianceConfigurationData[*].adminCredentials.password", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudBareMetalMachine, Service: "microsoft.networkcloud", Leaf: true, Redact: []redact.Rule{{Path: "properties.bmcCredentials.password", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudServicesNetwork, Service: "microsoft.networkcloud", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudClusterManager, Service: "microsoft.networkcloud", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudKubernetesCluster, Service: "microsoft.networkcloud", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudL2Network, Service: "microsoft.networkcloud", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudL3Network, Service: "microsoft.networkcloud", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudRack, Service: "microsoft.networkcloud", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudRackSKU, Service: "microsoft.networkcloud", Leaf: true, Managed: true})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudStorageAppliance, Service: "microsoft.networkcloud", Leaf: true, Redact: []redact.Rule{{Path: "properties.administratorCredentials.password", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudTrunkedNetwork, Service: "microsoft.networkcloud", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudVirtualMachine, Service: "microsoft.networkcloud", Leaf: true, Redact: []redact.Rule{{Path: "properties.vmImageRepositoryCredentials.password", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeNetworkCloudVolume, Service: "microsoft.networkcloud", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudCluster, Service: "microsoft.networkcloud", Redact: []redact.Rule{{Path: "properties.aggregatorOrSingleRackDefinition.bareMetalMachineConfigurationData[*].bmcCredentials.password", Mode: redact.RedactScalar}, {Path: "properties.aggregatorOrSingleRackDefinition.storageApplianceConfigurationData[*].adminCredentials.password", Mode: redact.RedactScalar}, {Path: "properties.computeRackDefinitions[*].bareMetalMachineConfigurationData[*].bmcCredentials.password", Mode: redact.RedactScalar}, {Path: "properties.computeRackDefinitions[*].storageApplianceConfigurationData[*].adminCredentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudBareMetalMachine, Service: "microsoft.networkcloud", Redact: []redact.Rule{{Path: "properties.bmcCredentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudServicesNetwork, Service: "microsoft.networkcloud"})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudClusterManager, Service: "microsoft.networkcloud"})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudKubernetesCluster, Service: "microsoft.networkcloud"})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudL2Network, Service: "microsoft.networkcloud"})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudL3Network, Service: "microsoft.networkcloud"})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudRack, Service: "microsoft.networkcloud"})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudRackSKU, Service: "microsoft.networkcloud", Managed: true})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudStorageAppliance, Service: "microsoft.networkcloud", Redact: []redact.Rule{{Path: "properties.administratorCredentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudTrunkedNetwork, Service: "microsoft.networkcloud"})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudVirtualMachine, Service: "microsoft.networkcloud", Redact: []redact.Rule{{Path: "properties.vmImageRepositoryCredentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeNetworkCloudVolume, Service: "microsoft.networkcloud"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.networkcloud",
 		fn:   scanNetworkCloud,

@@ -18,8 +18,8 @@ func isBudgetsLinkedAccount(err error) bool {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBudgetsBudget, Service: "budgets", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBudgetsBudgetsAction, Service: "budgets", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBudgetsBudget, Service: "budgets"})
+	registerType(restype.Descriptor{Type: TypeBudgetsBudgetsAction, Service: "budgets"})
 	registerService(serviceEntry{
 		name:   "aws:budgets",
 		global: true,

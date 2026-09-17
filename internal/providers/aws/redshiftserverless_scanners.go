@@ -15,7 +15,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeRedshiftServerlessWorkgroup, Service: "redshift-serverless"})
 	registerType(restype.Descriptor{Type: TypeRedshiftServerlessEndpointAccess, Service: "redshift-serverless"})
 	registerType(restype.Descriptor{Type: TypeRedshiftServerlessRecoveryPoint, Service: "redshift-serverless"})
-	registerType(restype.Descriptor{Type: TypeRedshiftServerlessManagedWorkgroup, Service: "redshift-serverless", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeRedshiftServerlessManagedWorkgroup, Service: "redshift-serverless", Managed: true})
 	registerService(serviceEntry{
 		name: "aws:redshift-serverless",
 		fn:   scanRedshiftServerless,
@@ -192,7 +192,7 @@ func scanRSSRecoveryPoints(ctx context.Context, client redshiftServerlessAPI, ac
 }
 
 // scanRSSManagedWorkgroups discovers AWS-managed (Amazon-operated) workgroups,
-// e.g. those backing zero-ETL / SageMaker integrations. Leaf + provider-managed.
+// e.g. those backing zero-ETL / SageMaker integrations. edge-less + provider-managed.
 func scanRSSManagedWorkgroups(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := redshiftserverless.NewListManagedWorkgroupsPaginator(client, &redshiftserverless.ListManagedWorkgroupsInput{})
 	var batch []*store.Resource

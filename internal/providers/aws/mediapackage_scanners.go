@@ -11,11 +11,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMediaPackageChannel, Service: "mediapackage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaPackageChannel, Service: "mediapackage"})
 	registerType(restype.Descriptor{Type: TypeMediaPackageOriginEndpoint, Service: "mediapackage"})
 	registerType(restype.Descriptor{Type: TypeMediaPackageAsset, Service: "mediapackage"})
 	registerType(restype.Descriptor{Type: TypeMediaPackagePackagingConfiguration, Service: "mediapackage"})
-	registerType(restype.Descriptor{Type: TypeMediaPackagePackagingGroup, Service: "mediapackage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaPackagePackagingGroup, Service: "mediapackage"})
 	registerService(serviceEntry{
 		name: "aws:mediapackage",
 		fn:   scanMediaPackage,

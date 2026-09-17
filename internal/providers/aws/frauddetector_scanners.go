@@ -11,14 +11,14 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeFraudDetectorDetector, Service: "frauddetector"})
-	registerType(restype.Descriptor{Type: TypeFraudDetectorEntityType, Service: "frauddetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorEntityType, Service: "frauddetector"})
 	registerType(restype.Descriptor{Type: TypeFraudDetectorEventType, Service: "frauddetector"})
-	registerType(restype.Descriptor{Type: TypeFraudDetectorLabel, Service: "frauddetector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFraudDetectorList, Service: "frauddetector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFraudDetectorOutcome, Service: "frauddetector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFraudDetectorVariable, Service: "frauddetector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFraudDetectorModel, Service: "frauddetector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFraudDetectorExternalModel, Service: "frauddetector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorLabel, Service: "frauddetector"})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorList, Service: "frauddetector"})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorOutcome, Service: "frauddetector"})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorVariable, Service: "frauddetector"})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorModel, Service: "frauddetector"})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorExternalModel, Service: "frauddetector"})
 	registerType(restype.Descriptor{Type: TypeFraudDetectorRule, Service: "frauddetector"})
 	registerService(serviceEntry{
 		name: "aws:frauddetector",

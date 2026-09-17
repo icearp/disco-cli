@@ -13,7 +13,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeB2BICapability, Service: "b2bi"})
 	registerType(restype.Descriptor{Type: TypeB2BIPartnership, Service: "b2bi"})
 	registerType(restype.Descriptor{Type: TypeB2BIProfile, Service: "b2bi"})
-	registerType(restype.Descriptor{Type: TypeB2BITransformer, Service: "b2bi", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeB2BITransformer, Service: "b2bi"})
 	registerService(serviceEntry{
 		name: "aws:b2bi",
 		fn:   scanB2BI,

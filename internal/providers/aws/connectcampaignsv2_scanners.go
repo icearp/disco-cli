@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeConnectCampaignsV2Campaign, Service: "connect-campaigns-v2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectCampaignsV2Campaign, Service: "connect-campaigns-v2"})
 	registerService(serviceEntry{
 		name: "aws:connect-campaigns-v2",
 		fn:   scanConnectCampaignsV2,

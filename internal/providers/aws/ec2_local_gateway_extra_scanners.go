@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2LocalGateway, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGateway, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2CoipPool, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2OutpostLag, Service: "ec2"})
 }
@@ -32,7 +32,7 @@ func scanEC2LocalGatewayExtra(ctx context.Context, client ec2API, acct *account,
 	)
 }
 
-// scanLocalGateways — Leaf: only outbound ref is OutpostArn, which disco
+// scanLocalGateways — edge-less: only outbound ref is OutpostArn, which disco
 // doesn't scan (no Outposts service).
 func scanLocalGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(

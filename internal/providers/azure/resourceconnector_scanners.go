@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeResourceConnectorAppliance, Service: "microsoft.resourceconnector", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResourceConnectorAppliance, Service: "microsoft.resourceconnector"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.resourceconnector",
 		fn:   scanResourceConnector,

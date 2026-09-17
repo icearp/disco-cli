@@ -14,12 +14,12 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeWAFv2WebACL, Service: "wafv2"})
-	registerType(restype.Descriptor{Type: TypeWAFv2RuleGroup, Service: "wafv2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFv2IPSet, Service: "wafv2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFv2RuleGroup, Service: "wafv2"})
+	registerType(restype.Descriptor{Type: TypeWAFv2IPSet, Service: "wafv2"})
 	registerType(restype.Descriptor{Type: TypeWAFv2LoggingConfiguration, Service: "wafv2"})
-	registerType(restype.Descriptor{Type: TypeWAFv2RegexPatternSet, Service: "wafv2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFv2RegexPatternSet, Service: "wafv2"})
 	registerType(restype.Descriptor{Type: TypeWAFv2WebACLAssociation, Service: "wafv2"})
-	registerType(restype.Descriptor{Type: TypeWAFv2ManagedRuleSet, Service: "wafv2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFv2ManagedRuleSet, Service: "wafv2"})
 	registerService(serviceEntry{
 		name: "aws:wafv2",
 		fn:   scanWAFv2,

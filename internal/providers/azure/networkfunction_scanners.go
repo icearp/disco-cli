@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNetworkFunctionTrafficCollector, Service: "microsoft.networkfunction", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkFunctionTrafficCollector, Service: "microsoft.networkfunction"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.networkfunction",
 		fn:   scanNetworkFunction,

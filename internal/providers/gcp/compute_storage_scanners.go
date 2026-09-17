@@ -25,7 +25,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeRegionInstantSnapshot, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeInstantSnapshotGroup, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionInstantSnapshotGroup, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeStoragePool, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeStoragePool, Service: "compute"})
 }
 
 func scanComputeDisks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {

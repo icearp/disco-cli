@@ -14,9 +14,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeDeviceFarmProject, Service: "devicefarm", Redact: []redact.Rule{{Path: "EnvironmentVariables[*].Value", Mode: redact.RedactScalar}}})
 	registerType(restype.Descriptor{Type: TypeDeviceFarmDevicePool, Service: "devicefarm"})
 	registerType(restype.Descriptor{Type: TypeDeviceFarmNetworkProfile, Service: "devicefarm"})
-	registerType(restype.Descriptor{Type: TypeDeviceFarmInstanceProfile, Service: "devicefarm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmInstanceProfile, Service: "devicefarm"})
 	registerType(restype.Descriptor{Type: TypeDeviceFarmDeviceInstance, Service: "devicefarm"})
-	registerType(restype.Descriptor{Type: TypeDeviceFarmVPCEConfiguration, Service: "devicefarm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmVPCEConfiguration, Service: "devicefarm"})
 	registerType(restype.Descriptor{Type: TypeDeviceFarmTestGridProject, Service: "devicefarm"})
 	registerService(serviceEntry{
 		name:   "aws:devicefarm",

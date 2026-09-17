@@ -11,11 +11,11 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeCertManagerCertificate, Service: "certificatemanager"})
-	registerType(restype.Descriptor{Type: TypeCertManagerMap, Service: "certificatemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCertManagerMap, Service: "certificatemanager"})
 	registerType(restype.Descriptor{Type: TypeCertManagerMapEntry, Service: "certificatemanager"})
-	registerType(restype.Descriptor{Type: TypeCertManagerDNSAuth, Service: "certificatemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCertManagerIssuanceConfig, Service: "certificatemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCertManagerTrustConfig, Service: "certificatemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCertManagerDNSAuth, Service: "certificatemanager"})
+	registerType(restype.Descriptor{Type: TypeCertManagerIssuanceConfig, Service: "certificatemanager"})
+	registerType(restype.Descriptor{Type: TypeCertManagerTrustConfig, Service: "certificatemanager"})
 	registerService(serviceEntry{
 		name: "gcp:certificatemanager",
 		fn:   scanCertificateManager,

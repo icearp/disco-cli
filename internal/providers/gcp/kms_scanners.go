@@ -13,13 +13,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeKMSKeyRing, Service: "cloudkms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKMSKeyRing, Service: "cloudkms"})
 	registerType(restype.Descriptor{Type: TypeKMSCryptoKey, Service: "cloudkms"})
 	registerType(restype.Descriptor{Type: TypeKMSCryptoKeyVersion, Service: "cloudkms"})
-	registerType(restype.Descriptor{Type: TypeKMSEkmConnection, Service: "cloudkms", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeKMSImportJob, Service: "cloudkms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKMSEkmConnection, Service: "cloudkms"})
+	registerType(restype.Descriptor{Type: TypeKMSImportJob, Service: "cloudkms"})
 	registerType(restype.Descriptor{Type: TypeKMSKeyHandle, Service: "cloudkms"})
-	registerType(restype.Descriptor{Type: TypeKMSSingleTenantHsmInstance, Service: "cloudkms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKMSSingleTenantHsmInstance, Service: "cloudkms"})
 	registerService(serviceEntry{
 		name: "gcp:cloudkms",
 		fn:   scanCloudKMS,

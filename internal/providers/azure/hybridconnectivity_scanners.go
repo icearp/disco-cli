@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeHybridConnectivityPublicCloud, Service: "microsoft.hybridconnectivity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHybridConnectivityPublicCloud, Service: "microsoft.hybridconnectivity"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hybridconnectivity",
 		fn:   scanHybridConnectivity,

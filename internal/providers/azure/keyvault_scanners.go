@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeKeyVaultVault, Service: "microsoft.keyvault"})
-	registerType(restype.Descriptor{Type: TypeKeyVaultManagedHSM, Service: "microsoft.keyvault", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKeyVaultManagedHSM, Service: "microsoft.keyvault"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.keyvault",
 		fn:   scanKeyVault,

@@ -11,8 +11,8 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeCleanRoomsAnalysisTemplate, Service: "cleanrooms"})
-	registerType(restype.Descriptor{Type: TypeCleanRoomsCollaboration, Service: "cleanrooms", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCleanRoomsConfiguredTable, Service: "cleanrooms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsCollaboration, Service: "cleanrooms"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsConfiguredTable, Service: "cleanrooms"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsConfiguredTableAssociation, Service: "cleanrooms"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsConfiguredAudienceModelAssociation, Service: "cleanrooms"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsIDMappingTable, Service: "cleanrooms"})

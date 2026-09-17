@@ -17,11 +17,11 @@ func isOdbNotOnboarded(err error) bool {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeODBCloudAutonomousVMCluster, Service: "odb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeODBCloudExadataInfrastructure, Service: "odb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeODBCloudVMCluster, Service: "odb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeODBOdbNetwork, Service: "odb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeODBOdbPeeringConnection, Service: "odb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeODBCloudAutonomousVMCluster, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBCloudExadataInfrastructure, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBCloudVMCluster, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBOdbNetwork, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBOdbPeeringConnection, Service: "odb"})
 	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabase, Service: "odb"})
 	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabaseBackup, Service: "odb"})
 	registerType(restype.Descriptor{Type: TypeODBDbNode, Service: "odb"})

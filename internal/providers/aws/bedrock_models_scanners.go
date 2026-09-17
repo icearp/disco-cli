@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBedrockCustomModel, Service: "bedrock", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBedrockImportedModel, Service: "bedrock", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBedrockMarketplaceModelEndpoint, Service: "bedrock", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockCustomModel, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockImportedModel, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockMarketplaceModelEndpoint, Service: "bedrock"})
 	registerType(restype.Descriptor{Type: TypeBedrockProvisionedModel, Service: "bedrock"})
 	registerType(restype.Descriptor{Type: TypeBedrockCustomModelDeployment, Service: "bedrock"})
 }

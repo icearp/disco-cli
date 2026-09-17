@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSupportAppAccountAlias, Service: "support-app", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSupportAppSlackChannelConfiguration, Service: "support-app", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSupportAppSlackWorkspaceConfiguration, Service: "support-app", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSupportAppAccountAlias, Service: "support-app"})
+	registerType(restype.Descriptor{Type: TypeSupportAppSlackChannelConfiguration, Service: "support-app"})
+	registerType(restype.Descriptor{Type: TypeSupportAppSlackWorkspaceConfiguration, Service: "support-app"})
 	registerService(serviceEntry{
 		name:   "aws:support-app",
 		global: true,

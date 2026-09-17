@@ -24,7 +24,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeTimestreamScheduledQuery, Service: "timestream"})
 	registerType(restype.Descriptor{Type: TypeTimestreamInfluxDBCluster, Service: "timestream"})
 	registerType(restype.Descriptor{Type: TypeTimestreamInfluxDBInstance, Service: "timestream"})
-	registerType(restype.Descriptor{Type: TypeTimestreamInfluxDBParameterGroup, Service: "timestream-influxdb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTimestreamInfluxDBParameterGroup, Service: "timestream-influxdb"})
 	registerService(serviceEntry{
 		name: "aws:timestream",
 		fn:   scanTimestream,

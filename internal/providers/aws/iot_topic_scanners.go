@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeIoTTopicRule, Service: "iot"})
-	registerType(restype.Descriptor{Type: TypeIoTTopicRuleDestination, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTTopicRuleDestination, Service: "iot"})
 }
 
 type iotTopicAPI interface {

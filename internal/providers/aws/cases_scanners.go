@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCasesDomain, Service: "cases", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCasesDomain, Service: "cases"})
 	registerType(restype.Descriptor{Type: TypeCasesCaseRule, Service: "cases"})
 	registerType(restype.Descriptor{Type: TypeCasesField, Service: "cases"})
 	registerType(restype.Descriptor{Type: TypeCasesLayout, Service: "cases"})

@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCommunicationService, Service: "microsoft.communication", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCommunicationEmailService, Service: "microsoft.communication", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCommunicationService, Service: "microsoft.communication"})
+	registerType(restype.Descriptor{Type: TypeCommunicationEmailService, Service: "microsoft.communication"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.communication",
 		fn:   scanCommunication,

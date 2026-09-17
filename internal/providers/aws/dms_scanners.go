@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDMSCertificate, Service: "dms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDMSCertificate, Service: "dms"})
 	registerType(restype.Descriptor{Type: TypeDMSDataMigration, Service: "dms"})
-	registerType(restype.Descriptor{Type: TypeDMSDataProvider, Service: "dms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDMSDataProvider, Service: "dms"})
 	registerType(restype.Descriptor{Type: TypeDMSEndpoint, Service: "dms"})
 	registerType(restype.Descriptor{Type: TypeDMSEventSubscription, Service: "dms"})
 	registerType(restype.Descriptor{Type: TypeDMSInstanceProfile, Service: "dms"})

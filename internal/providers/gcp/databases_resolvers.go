@@ -26,7 +26,7 @@ func init() {
 //     (kmsKeyNames is the multi-region form — one key per covered region)
 //   - Spanner backup schedule -[uses]-> cryptoKey, same encryptionConfig
 //     shape as Spanner database above (Resolver Wave R25) — Firestore's own
-//     BackupSchedule sibling stays `Leaf: true`, it has no such field.
+//     BackupSchedule sibling stays edge-less, it has no such field.
 //
 // Cross-project key references skipped (FK-safe).
 //

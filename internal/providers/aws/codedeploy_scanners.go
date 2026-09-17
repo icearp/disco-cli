@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCodeDeployApplication, Service: "codedeploy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodeDeployApplication, Service: "codedeploy"})
 	registerType(restype.Descriptor{Type: TypeCodeDeployDeploymentGroup, Service: "codedeploy"})
-	registerType(restype.Descriptor{Type: TypeCodeDeployDeploymentConfig, Service: "codedeploy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodeDeployDeploymentConfig, Service: "codedeploy"})
 	registerService(serviceEntry{
 		name: "aws:codedeploy",
 		fn:   scanCodeDeploy,

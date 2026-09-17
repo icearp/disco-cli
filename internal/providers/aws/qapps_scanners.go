@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeQAppsQApp, Service: "qapps", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQAppsQApp, Service: "qapps"})
 	registerService(serviceEntry{
 		name: "aws:qapps",
 		fn:   scanQApps,

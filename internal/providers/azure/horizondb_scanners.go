@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeHorizonDBCluster, Service: "microsoft.horizondb", Leaf: true, Redact: []redact.Rule{{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeHorizonDBParameterGroup, Service: "microsoft.horizondb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHorizonDBCluster, Service: "microsoft.horizondb", Redact: []redact.Rule{{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeHorizonDBParameterGroup, Service: "microsoft.horizondb"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.horizondb",
 		fn:   scanHorizonDB,

@@ -13,16 +13,16 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeMediaConnectBridge, Service: "mediaconnect"})
 	registerType(restype.Descriptor{Type: TypeMediaConnectBridgeOutput, Service: "mediaconnect"})
 	registerType(restype.Descriptor{Type: TypeMediaConnectBridgeSource, Service: "mediaconnect"})
-	registerType(restype.Descriptor{Type: TypeMediaConnectFlow, Service: "mediaconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConnectFlow, Service: "mediaconnect"})
 	registerType(restype.Descriptor{Type: TypeMediaConnectFlowEntitlement, Service: "mediaconnect"})
 	registerType(restype.Descriptor{Type: TypeMediaConnectFlowOutput, Service: "mediaconnect"})
 	registerType(restype.Descriptor{Type: TypeMediaConnectFlowSource, Service: "mediaconnect"})
 	registerType(restype.Descriptor{Type: TypeMediaConnectFlowVpcInterface, Service: "mediaconnect"})
-	registerType(restype.Descriptor{Type: TypeMediaConnectGateway, Service: "mediaconnect", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaConnectRouterInput, Service: "mediaconnect", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaConnectRouterNetworkInterface, Service: "mediaconnect", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaConnectRouterOutput, Service: "mediaconnect", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaConnectReservation, Service: "mediaconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConnectGateway, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectRouterInput, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectRouterNetworkInterface, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectRouterOutput, Service: "mediaconnect"})
+	registerType(restype.Descriptor{Type: TypeMediaConnectReservation, Service: "mediaconnect"})
 	registerService(serviceEntry{
 		name: "aws:mediaconnect",
 		fn:   scanMediaConnect,

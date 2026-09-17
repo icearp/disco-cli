@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEVSEnvironment, Service: "evs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEVSEnvironment, Service: "evs"})
 	registerService(serviceEntry{
 		name: "aws:evs",
 		fn:   scanEVS,

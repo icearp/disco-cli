@@ -12,7 +12,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeEMRContainersVirtualCluster, Service: "emr-containers"})
 	registerType(restype.Descriptor{Type: TypeEMRContainersEndpoint, Service: "emr-containers"})
-	registerType(restype.Descriptor{Type: TypeEMRContainersSecurityConfig, Service: "emr-containers", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEMRContainersSecurityConfig, Service: "emr-containers"})
 	registerType(restype.Descriptor{Type: TypeEMRContainersJobTemplate, Service: "emr-containers"})
 	registerService(serviceEntry{
 		name: "aws:emr-containers",

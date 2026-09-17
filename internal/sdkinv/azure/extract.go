@@ -22,6 +22,7 @@ type builder struct {
 	path   string
 	module string // "<rp>/arm<mod>"
 	paged  bool   // a New<op>Pager wrapper exists
+	result string // list-result model the response decoder fills
 }
 
 var (
@@ -79,10 +80,24 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 	if err != nil {
 		return nil, err
 	}
+	loaded := map[string]models{}
 	for _, e := range entries {
-		if c, ok := classify(e); ok {
-			u.Candidates = append(u.Candidates, c)
+		c, ok := classify(e)
+		if !ok {
+			continue
 		}
+		for _, b := range e.collection {
+			if b.result == "" {
+				continue
+			}
+			m, seen := loaded[b.module]
+			if !seen {
+				m = loadModels(root, b.module)
+				loaded[b.module] = m
+			}
+			c.Refs = mergeRefs(c.Refs, refsOf(m, b.result))
+		}
+		u.Candidates = append(u.Candidates, c)
 	}
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)
@@ -93,6 +108,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 func parseBuilders(src, module string) []builder {
 	locs := builderRe.FindAllStringSubmatchIndex(src, -1)
 	out := make([]builder, 0, len(locs))
+	var results map[string]string
 	for i, loc := range locs {
 		end := len(src)
 		if i+1 < len(locs) {
@@ -100,6 +116,9 @@ func parseBuilders(src, module string) []builder {
 		}
 		body := src[loc[1]:end]
 		client, op := src[loc[2]:loc[3]], sdkinv.UpperFirst(src[loc[4]:loc[5]])
+		if results == nil {
+			results = parseResults(src)
+		}
 		pm := urlPathRe.FindStringSubmatch(body)
 		mm := methodRe.FindStringSubmatch(body)
 		if pm == nil || mm == nil {
@@ -107,7 +126,8 @@ func parseBuilders(src, module string) []builder {
 		}
 		out = append(out, builder{
 			client: client, op: op, method: strings.ToUpper(mm[1]), path: pm[1], module: module,
-			paged: strings.Contains(src, "func (client *"+client+"Client) New"+op+"Pager("),
+			paged:  strings.Contains(src, "func (client *"+client+"Client) New"+op+"Pager("),
+			result: results[op],
 		})
 	}
 	return out
@@ -257,4 +277,22 @@ func classify(e *entry) (sdkinv.Candidate, bool) {
 		c.Ops = append(c.Ops, opFor(b, e.namespace, e.parents, e.scope))
 	}
 	return c, true
+}
+
+func mergeRefs(a, b []string) []string {
+	if len(b) == 0 {
+		return a
+	}
+	seen := map[string]bool{}
+	for _, r := range a {
+		seen[r] = true
+	}
+	for _, r := range b {
+		if !seen[r] {
+			seen[r] = true
+			a = append(a, r)
+		}
+	}
+	sort.Strings(a)
+	return a
 }

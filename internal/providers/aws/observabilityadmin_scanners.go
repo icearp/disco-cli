@@ -10,12 +10,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeObservabilityAdminOrganizationCentralizationRule, Service: "observabilityadmin", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeObservabilityAdminOrganizationTelemetryRule, Service: "observabilityadmin", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeObservabilityAdminS3TableIntegration, Service: "observabilityadmin", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeObservabilityAdminTelemetryEnrichment, Service: "observabilityadmin", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeObservabilityAdminTelemetryPipelines, Service: "observabilityadmin", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeObservabilityAdminTelemetryRule, Service: "observabilityadmin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminOrganizationCentralizationRule, Service: "observabilityadmin"})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminOrganizationTelemetryRule, Service: "observabilityadmin"})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminS3TableIntegration, Service: "observabilityadmin"})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminTelemetryEnrichment, Service: "observabilityadmin"})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminTelemetryPipelines, Service: "observabilityadmin"})
+	registerType(restype.Descriptor{Type: TypeObservabilityAdminTelemetryRule, Service: "observabilityadmin"})
 	registerService(serviceEntry{
 		name: "aws:observabilityadmin",
 		fn:   scanObservabilityAdmin,

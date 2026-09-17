@@ -14,7 +14,7 @@ import (
 const savingsPlansRegion = "us-east-1"
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSavingsPlansSavingsPlan, Service: "savingsplans", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSavingsPlansSavingsPlan, Service: "savingsplans"})
 	registerService(serviceEntry{
 		name:   "aws:savingsplans",
 		global: true,

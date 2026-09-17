@@ -11,14 +11,14 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeGlueCatalog, Service: "glue"})
-	registerType(restype.Descriptor{Type: TypeGlueCustomEntityType, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueCustomEntityType, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueDataCatalogEncryptionSettings, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueDataQualityRuleset, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueIdentityCenterConfiguration, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueIntegration, Service: "glue"})
-	registerType(restype.Descriptor{Type: TypeGlueIntegrationResourceProperty, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueIntegrationResourceProperty, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueSecurityConfiguration, Service: "glue"})
-	registerType(restype.Descriptor{Type: TypeGlueUsageProfile, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueUsageProfile, Service: "glue"})
 }
 
 func scanGlueMisc(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

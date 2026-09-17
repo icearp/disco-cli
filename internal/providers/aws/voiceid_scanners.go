@@ -17,7 +17,7 @@ func isVoiceIDNotEnabled(err error) bool {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeVoiceIDDomain, Service: "voice-id", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeVoiceIDDomain, Service: "voice-id"})
 	registerService(serviceEntry{
 		name: "aws:voice-id",
 		fn:   scanVoiceID,

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGlobalAcceleratorAccelerator, Service: "global-accelerator", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlobalAcceleratorAccelerator, Service: "global-accelerator"})
 	registerType(restype.Descriptor{Type: TypeGlobalAcceleratorCrossAccountAttachment, Service: "global-accelerator"})
 	registerType(restype.Descriptor{Type: TypeGlobalAcceleratorListener, Service: "global-accelerator"})
 	registerType(restype.Descriptor{Type: TypeGlobalAcceleratorEndpointGroup, Service: "global-accelerator"})

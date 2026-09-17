@@ -13,7 +13,7 @@ import (
 // "gcp:compute" service. Resolved by compute_vpn_interconnect_resolvers.go
 // (Resolver Wave R5).
 func init() {
-	registerType(restype.Descriptor{Type: TypeComputeInterconnect, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeInterconnect, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeInterconnectAttachment, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeInterconnectGroup, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeInterconnectAttachmentGroup, Service: "compute"})

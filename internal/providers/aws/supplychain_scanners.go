@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSupplyChainInstance, Service: "scn", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSupplyChainInstance, Service: "scn"})
 	registerType(restype.Descriptor{Type: TypeSupplyChainDataIntegrationFlow, Service: "scn"})
 	registerType(restype.Descriptor{Type: TypeSupplyChainDataset, Service: "scn"})
 	registerType(restype.Descriptor{Type: TypeSupplyChainNamespace, Service: "scn"})

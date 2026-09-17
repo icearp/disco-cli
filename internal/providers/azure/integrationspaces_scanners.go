@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIntegrationSpace, Service: "microsoft.integrationspaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIntegrationSpace, Service: "microsoft.integrationspaces"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.integrationspaces",
 		fn:   scanIntegrationSpaces,

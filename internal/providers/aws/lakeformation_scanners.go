@@ -11,10 +11,10 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeLakeFormationResource, Service: "lakeformation"})
-	registerType(restype.Descriptor{Type: TypeLakeFormationDataCellsFilter, Service: "lakeformation", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLakeFormationDataLakeSettings, Service: "lakeformation", Leaf: true, Managed: true})
-	registerType(restype.Descriptor{Type: TypeLakeFormationPrincipalPermissions, Service: "lakeformation", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLakeFormationTag, Service: "lakeformation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLakeFormationDataCellsFilter, Service: "lakeformation"})
+	registerType(restype.Descriptor{Type: TypeLakeFormationDataLakeSettings, Service: "lakeformation", Managed: true})
+	registerType(restype.Descriptor{Type: TypeLakeFormationPrincipalPermissions, Service: "lakeformation"})
+	registerType(restype.Descriptor{Type: TypeLakeFormationTag, Service: "lakeformation"})
 	registerService(serviceEntry{
 		name: "aws:lakeformation",
 		fn:   scanLakeFormation,

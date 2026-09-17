@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsAccountAssociation, Service: "iotmanagedintegrations", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsCredentialLocker, Service: "iotmanagedintegrations", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsManagedThing, Service: "iotmanagedintegrations", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsOtaTask, Service: "iotmanagedintegrations", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsProvisioningProfile, Service: "iotmanagedintegrations", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsAccountAssociation, Service: "iotmanagedintegrations"})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsCredentialLocker, Service: "iotmanagedintegrations"})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsManagedThing, Service: "iotmanagedintegrations"})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsOtaTask, Service: "iotmanagedintegrations"})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsProvisioningProfile, Service: "iotmanagedintegrations"})
 	registerService(serviceEntry{
 		name: "aws:iotmanagedintegrations",
 		fn:   scanIoTManagedIntegrations,

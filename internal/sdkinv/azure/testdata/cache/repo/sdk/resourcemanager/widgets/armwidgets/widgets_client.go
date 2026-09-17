@@ -43,3 +43,19 @@ func (client *WidgetsClient) instanceViewCreateRequest(ctx context.Context, reso
 	req, err := runtime.NewRequest(ctx, http.MethodGet, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	return req, err
 }
+
+func (client *WidgetsClient) listHandleResponse(resp *http.Response) (WidgetsClientListResponse, error) {
+	result := WidgetsClientListResponse{}
+	if err := runtime.UnmarshalAsJSON(resp, &result.WidgetListResult); err != nil {
+		return WidgetsClientListResponse{}, err
+	}
+	return result, nil
+}
+
+func (client *WidgetsClient) listByResourceGroupHandleResponse(resp *http.Response) (WidgetsClientListByResourceGroupResponse, error) {
+	result := WidgetsClientListByResourceGroupResponse{}
+	if err := runtime.UnmarshalAsJSON(resp, &result.WidgetListResult); err != nil {
+		return WidgetsClientListByResourceGroupResponse{}, err
+	}
+	return result, nil
+}

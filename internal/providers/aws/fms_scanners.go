@@ -24,11 +24,11 @@ func isFMSAdminOnlyDenial(err error) bool {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeFMSNotificationChannel, Service: "fms", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFMSPolicy, Service: "fms", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFMSResourceSet, Service: "fms", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFMSAppsList, Service: "fms", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFMSProtocolsList, Service: "fms", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFMSNotificationChannel, Service: "fms"})
+	registerType(restype.Descriptor{Type: TypeFMSPolicy, Service: "fms"})
+	registerType(restype.Descriptor{Type: TypeFMSResourceSet, Service: "fms"})
+	registerType(restype.Descriptor{Type: TypeFMSAppsList, Service: "fms"})
+	registerType(restype.Descriptor{Type: TypeFMSProtocolsList, Service: "fms"})
 	registerService(serviceEntry{
 		name:   "aws:fms",
 		global: true,

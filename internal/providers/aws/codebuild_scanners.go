@@ -14,7 +14,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeCodeBuildFleet, Service: "code-build"})
 	registerType(restype.Descriptor{Type: TypeCodeBuildProject, Service: "code-build", Redact: []redact.Rule{{Path: "Environment.EnvironmentVariables[*].Value", Mode: redact.RedactScalar}}})
 	registerType(restype.Descriptor{Type: TypeCodeBuildReportGroup, Service: "code-build"})
-	registerType(restype.Descriptor{Type: TypeCodeBuildSourceCredential, Service: "code-build", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodeBuildSourceCredential, Service: "code-build"})
 	registerService(serviceEntry{
 		name: "aws:code-build",
 		fn:   scanCodeBuild,

@@ -11,10 +11,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsIdentityProvider, Service: "license-manager-user-subscriptions", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsLicenseServerEndpoint, Service: "license-manager-user-subscriptions", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsProductSubscription, Service: "license-manager-user-subscriptions", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsInstanceUser, Service: "license-manager-user-subscriptions", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsIdentityProvider, Service: "license-manager-user-subscriptions"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsLicenseServerEndpoint, Service: "license-manager-user-subscriptions"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsProductSubscription, Service: "license-manager-user-subscriptions"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsInstanceUser, Service: "license-manager-user-subscriptions"})
 	registerService(serviceEntry{
 		name: "aws:license-manager-user-subscriptions",
 		fn:   scanLicenseManagerUserSubscriptions,

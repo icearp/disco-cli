@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMigrateAssessmentProject, Service: "microsoft.migrate", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMigrateAssessmentProject, Service: "microsoft.migrate"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.migrate",
 		fn:   scanMigrationAssessment,

@@ -12,7 +12,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypePubSubTopic, Service: "pubsub"})
 	registerType(restype.Descriptor{Type: TypePubSubSubscription, Service: "pubsub"})
-	registerType(restype.Descriptor{Type: TypePubSubSchema, Service: "pubsub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePubSubSchema, Service: "pubsub"})
 	registerType(restype.Descriptor{Type: TypePubSubSnapshot, Service: "pubsub"})
 	registerService(serviceEntry{
 		name: "gcp:pubsub",

@@ -12,10 +12,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTable, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTable, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRoute, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayVirtualInterface, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayVirtualInterfaceGroup, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayVirtualInterfaceGroup, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTableVPCAssociation, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTableVIGAssociation, Service: "ec2"})
 }

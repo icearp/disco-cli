@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAppMeshMesh, Service: "appmesh", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppMeshMesh, Service: "appmesh"})
 	registerType(restype.Descriptor{Type: TypeAppMeshGatewayRoute, Service: "appmesh"})
 	registerType(restype.Descriptor{Type: TypeAppMeshRoute, Service: "appmesh"})
 	registerType(restype.Descriptor{Type: TypeAppMeshVirtualGateway, Service: "appmesh"})

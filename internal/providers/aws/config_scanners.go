@@ -13,13 +13,13 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeConfigRule, Service: "config"})
 	registerType(restype.Descriptor{Type: TypeConfigRecorder, Service: "config"})
 	registerType(restype.Descriptor{Type: TypeConfigDeliveryChannel, Service: "config"})
-	registerType(restype.Descriptor{Type: TypeConfigAggregationAuthorization, Service: "config", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConfigConfigurationAggregator, Service: "config", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConfigConformancePack, Service: "config", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConfigOrganizationConfigRule, Service: "config", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConfigOrganizationConformancePack, Service: "config", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConfigRemediationConfiguration, Service: "config", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConfigStoredQuery, Service: "config", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConfigAggregationAuthorization, Service: "config"})
+	registerType(restype.Descriptor{Type: TypeConfigConfigurationAggregator, Service: "config"})
+	registerType(restype.Descriptor{Type: TypeConfigConformancePack, Service: "config"})
+	registerType(restype.Descriptor{Type: TypeConfigOrganizationConfigRule, Service: "config"})
+	registerType(restype.Descriptor{Type: TypeConfigOrganizationConformancePack, Service: "config"})
+	registerType(restype.Descriptor{Type: TypeConfigRemediationConfiguration, Service: "config"})
+	registerType(restype.Descriptor{Type: TypeConfigStoredQuery, Service: "config"})
 	registerService(serviceEntry{
 		name: "aws:config",
 		fn:   scanConfig,

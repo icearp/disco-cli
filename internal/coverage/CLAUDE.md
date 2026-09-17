@@ -32,6 +32,9 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
   candidate the registry lacks). Identities compare via `RegistryKey(candidate)` vs
   `CanonicalKey(registryKey)`. Registry entries for services outside the universe (non-cloud
   GCP APIs, CFN service renames) are excluded by rule, not drift.
+- `Row.Refs` copies `Candidate.Refs`; `TypeRefs(matrix)` unions them per paired disco type for
+  `resolvers --missing`. Refs are hints (id/ARN/URL-shaped element fields, own id excluded), never
+  a bucket input.
 - Unit of coverage is the candidate: one op → N types counts once (`Row.DiscoType` is the
   name-matching type, `Row.DiscoTypes` the rest); N ops → one type marks every candidate covered.
 

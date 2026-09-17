@@ -12,9 +12,9 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypePCAConnectorADConnector, Service: "pca-connector-ad"})
 	registerType(restype.Descriptor{Type: TypePCAConnectorADDirectoryRegistration, Service: "pca-connector-ad"})
-	registerType(restype.Descriptor{Type: TypePCAConnectorADServicePrincipalName, Service: "pca-connector-ad", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePCAConnectorADTemplate, Service: "pca-connector-ad", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePCAConnectorADTemplateGroupACE, Service: "pca-connector-ad", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePCAConnectorADServicePrincipalName, Service: "pca-connector-ad"})
+	registerType(restype.Descriptor{Type: TypePCAConnectorADTemplate, Service: "pca-connector-ad"})
+	registerType(restype.Descriptor{Type: TypePCAConnectorADTemplateGroupACE, Service: "pca-connector-ad"})
 	registerService(serviceEntry{
 		name: "aws:pca-connector-ad",
 		fn:   scanPCAConnectorAD,

@@ -13,9 +13,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeApplicationSignalsSLO, Service: "applicationsignals", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeApplicationSignalsGroupingConfiguration, Service: "applicationsignals", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudWatchService, Service: "cloudwatch", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeApplicationSignalsSLO, Service: "applicationsignals"})
+	registerType(restype.Descriptor{Type: TypeApplicationSignalsGroupingConfiguration, Service: "applicationsignals"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchService, Service: "cloudwatch"})
 	registerService(serviceEntry{
 		name: "aws:applicationsignals",
 		fn:   scanApplicationSignals,

@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLoadTest, Service: "microsoft.loadtestservice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLoadTest, Service: "microsoft.loadtestservice"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.loadtestservice",
 		fn:   scanLoadTesting,

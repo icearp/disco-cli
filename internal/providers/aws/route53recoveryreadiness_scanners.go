@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeR53RRCell, Service: "route53-recovery-readiness", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeR53RRReadinessCheck, Service: "route53-recovery-readiness", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeR53RRRecoveryGroup, Service: "route53-recovery-readiness", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeR53RRResourceSet, Service: "route53-recovery-readiness", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53RRCell, Service: "route53-recovery-readiness"})
+	registerType(restype.Descriptor{Type: TypeR53RRReadinessCheck, Service: "route53-recovery-readiness"})
+	registerType(restype.Descriptor{Type: TypeR53RRRecoveryGroup, Service: "route53-recovery-readiness"})
+	registerType(restype.Descriptor{Type: TypeR53RRResourceSet, Service: "route53-recovery-readiness"})
 	registerService(serviceEntry{
 		name:   "aws:route53-recovery-readiness",
 		global: true,

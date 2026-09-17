@@ -11,14 +11,14 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeTransferAgreement, Service: "transfer"})
-	registerType(restype.Descriptor{Type: TypeTransferCertificate, Service: "transfer", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTransferConnector, Service: "transfer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTransferCertificate, Service: "transfer"})
+	registerType(restype.Descriptor{Type: TypeTransferConnector, Service: "transfer"})
 	registerType(restype.Descriptor{Type: TypeTransferHostKey, Service: "transfer"})
-	registerType(restype.Descriptor{Type: TypeTransferProfile, Service: "transfer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTransferProfile, Service: "transfer"})
 	registerType(restype.Descriptor{Type: TypeTransferServer, Service: "transfer"})
 	registerType(restype.Descriptor{Type: TypeTransferUser, Service: "transfer"})
-	registerType(restype.Descriptor{Type: TypeTransferWebApp, Service: "transfer", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTransferWorkflow, Service: "transfer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTransferWebApp, Service: "transfer"})
+	registerType(restype.Descriptor{Type: TypeTransferWorkflow, Service: "transfer"})
 	registerService(serviceEntry{
 		name: "aws:transfer",
 		fn:   scanTransfer,

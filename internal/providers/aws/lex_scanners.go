@@ -14,7 +14,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeLexBotAlias, Service: "lex"})
 	registerType(restype.Descriptor{Type: TypeLexBotVersion, Service: "lex"})
 	registerType(restype.Descriptor{Type: TypeLexResourcePolicy, Service: "lex"})
-	registerType(restype.Descriptor{Type: TypeLexTestSet, Service: "lex", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLexTestSet, Service: "lex"})
 	registerService(serviceEntry{
 		name: "aws:lex",
 		fn:   scanLex,

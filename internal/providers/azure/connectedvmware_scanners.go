@@ -12,13 +12,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeConnectedVMwareVCenter, Service: "microsoft.connectedvmwarevsphere", Leaf: true, Redact: []redact.Rule{{Path: "properties.credentials.password", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeConnectedVMwareCluster, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConnectedVMwareDatastore, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConnectedVMwareHost, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConnectedVMwareResourcePool, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConnectedVMwareVMTemplate, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConnectedVMwareVirtualNetwork, Service: "microsoft.connectedvmwarevsphere", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareVCenter, Service: "microsoft.connectedvmwarevsphere", Redact: []redact.Rule{{Path: "properties.credentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareCluster, Service: "microsoft.connectedvmwarevsphere"})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareDatastore, Service: "microsoft.connectedvmwarevsphere"})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareHost, Service: "microsoft.connectedvmwarevsphere"})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareResourcePool, Service: "microsoft.connectedvmwarevsphere"})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareVMTemplate, Service: "microsoft.connectedvmwarevsphere"})
+	registerType(restype.Descriptor{Type: TypeConnectedVMwareVirtualNetwork, Service: "microsoft.connectedvmwarevsphere"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.connectedvmwarevsphere",
 		fn:   scanConnectedVMware,

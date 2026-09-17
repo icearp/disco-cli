@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBotServiceBot, Service: "microsoft.botservice", Leaf: true, Redact: []redact.Rule{{Path: "properties.luisKey", Mode: redact.RedactScalar}, {Path: "properties.developerAppInsightsApiKey", Mode: redact.RedactScalar}, {Path: "properties.publishingCredentials", Mode: redact.RedactScalar}, {Path: "properties.migrationToken", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeBotServiceBot, Service: "microsoft.botservice", Redact: []redact.Rule{{Path: "properties.luisKey", Mode: redact.RedactScalar}, {Path: "properties.developerAppInsightsApiKey", Mode: redact.RedactScalar}, {Path: "properties.publishingCredentials", Mode: redact.RedactScalar}, {Path: "properties.migrationToken", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.botservice",
 		fn:   scanBotService,

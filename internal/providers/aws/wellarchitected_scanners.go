@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWellArchitectedWorkload, Service: "wellarchitected", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWellArchitectedWorkload, Service: "wellarchitected"})
 	// CreatedAt/UpdatedAt qualify as volatile under the region-collision
 	// reason: an AWS-owned lens ARN carries no region
 	// (arn:aws:wellarchitected::aws:lens/...), so every region reports the same
@@ -24,9 +24,9 @@ func init() {
 	// rollout rather than anything the customer did. scanWALenses already tells
 	// the two apart per row (ManagedByProvider), so a per-row rule is the fix if
 	// a customer ever needs those fields. See TestVolatileRulesAreJustified.
-	registerType(restype.Descriptor{Type: TypeWellArchitectedLens, Service: "wellarchitected", Leaf: true, Volatile: []string{"CreatedAt", "UpdatedAt"}})
-	registerType(restype.Descriptor{Type: TypeWellArchitectedProfile, Service: "wellarchitected", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWellArchitectedReviewTemplate, Service: "wellarchitected", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWellArchitectedLens, Service: "wellarchitected", Volatile: []string{"CreatedAt", "UpdatedAt"}})
+	registerType(restype.Descriptor{Type: TypeWellArchitectedProfile, Service: "wellarchitected"})
+	registerType(restype.Descriptor{Type: TypeWellArchitectedReviewTemplate, Service: "wellarchitected"})
 	registerService(serviceEntry{
 		name: "aws:wellarchitected",
 		fn:   scanWellArchitected,
@@ -42,7 +42,7 @@ type wellArchitectedAPI interface {
 
 // scanWellArchitected discovers Well-Architected workloads, lenses, profiles,
 // and review templates. All expose native ARNs; the lens-review graph is left
-// unscanned (Leaf inventory rows).
+// unscanned (edge-less inventory rows).
 func scanWellArchitected(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := wellarchitected.NewFromConfig(acct.cfg, func(o *wellarchitected.Options) { o.Region = region })
 

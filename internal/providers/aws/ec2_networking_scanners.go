@@ -14,25 +14,25 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2VPC, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VPC, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2Subnet, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2InternetGateway, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2EgressOnlyIGW, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2EgressOnlyIGW, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2NatGateway, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2RouteTable, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2NetworkInterface, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2NetworkInterfacePermission, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2NetworkACL, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2EIP, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2DHCPOptions, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2DHCPOptions, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2CarrierGateway, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VPCEndpoint, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2VPCEndpointService, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VPCEndpointService, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VPCEndpointServicePermissions, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VPCEndpointConnectionNotification, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VPCPeeringConnection, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2VPCBlockPublicAccessOptions, Service: "ec2", Leaf: true, Managed: true})
-	registerType(restype.Descriptor{Type: TypeEC2VPCBlockPublicAccessExclusion, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VPCBlockPublicAccessOptions, Service: "ec2", Managed: true})
+	registerType(restype.Descriptor{Type: TypeEC2VPCBlockPublicAccessExclusion, Service: "ec2"})
 }
 
 // scanEC2Networking discovers all networking resources: VPCs, subnets, internet

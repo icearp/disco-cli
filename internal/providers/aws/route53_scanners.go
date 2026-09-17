@@ -27,15 +27,15 @@ type route53API interface {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRoute53HostedZone, Service: "route53", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53HostedZone, Service: "route53"})
 	registerType(restype.Descriptor{Type: TypeRoute53RecordSet, Service: "route53"})
-	registerType(restype.Descriptor{Type: TypeRoute53HealthCheck, Service: "route53", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53HealthCheck, Service: "route53"})
 	registerType(restype.Descriptor{Type: TypeRoute53DNSSEC, Service: "route53"})
 	registerType(restype.Descriptor{Type: TypeRoute53KeySigningKey, Service: "route53"})
-	registerType(restype.Descriptor{Type: TypeRoute53CIDRCollection, Service: "route53", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRoute53DelegationSet, Service: "route53", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53CIDRCollection, Service: "route53"})
+	registerType(restype.Descriptor{Type: TypeRoute53DelegationSet, Service: "route53"})
 	registerType(restype.Descriptor{Type: TypeRoute53QueryLoggingConfig, Service: "route53"})
-	registerType(restype.Descriptor{Type: TypeRoute53TrafficPolicy, Service: "route53", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53TrafficPolicy, Service: "route53"})
 	registerType(restype.Descriptor{Type: TypeRoute53TrafficPolicyInstance, Service: "route53"})
 	registerService(serviceEntry{
 		name:   "aws:route53",

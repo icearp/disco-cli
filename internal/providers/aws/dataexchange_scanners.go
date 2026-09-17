@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataExchangeDataSets, Service: "dataexchange", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataExchangeDataSets, Service: "dataexchange"})
 	registerType(restype.Descriptor{Type: TypeDataExchangeDataGrants, Service: "dataexchange"})
 	registerType(restype.Descriptor{Type: TypeDataExchangeEventActions, Service: "dataexchange"})
 	registerService(serviceEntry{

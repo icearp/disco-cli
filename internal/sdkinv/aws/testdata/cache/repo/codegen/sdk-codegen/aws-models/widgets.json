@@ -70,6 +70,12 @@
     },
     "Name": {
      "target": "smithy.api#String"
+    },
+    "VpcId": {
+     "target": "smithy.api#String"
+    },
+    "Network": {
+     "target": "ns#WidgetNetwork"
     }
    }
   },
@@ -594,6 +600,17 @@
    "type": "structure",
    "members": {
     "GizmoId": {
+     "target": "smithy.api#String"
+    }
+   }
+  },
+  "ns#WidgetNetwork": {
+   "type": "structure",
+   "members": {
+    "SubnetIds": {
+     "target": "ns#StringList"
+    },
+    "Cidr": {
      "target": "smithy.api#String"
     }
    }

@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeEFSFileSystem, Service: "efs"})
-	registerType(restype.Descriptor{Type: TypeEFSAccessPoint, Service: "efs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEFSAccessPoint, Service: "efs"})
 	registerType(restype.Descriptor{Type: TypeEFSMountTarget, Service: "efs"})
 	registerService(serviceEntry{
 		name: "aws:efs",

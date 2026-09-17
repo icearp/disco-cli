@@ -23,11 +23,11 @@ func isMacieNotEnabled(err error) bool {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMacieSession, Service: "macie", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMacieSession, Service: "macie"})
 	registerType(restype.Descriptor{Type: TypeMacieClassificationJob, Service: "macie"})
 	registerType(restype.Descriptor{Type: TypeMacieAllowList, Service: "macie"})
-	registerType(restype.Descriptor{Type: TypeMacieCustomDataIdentifier, Service: "macie", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMacieFindingsFilter, Service: "macie", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMacieCustomDataIdentifier, Service: "macie"})
+	registerType(restype.Descriptor{Type: TypeMacieFindingsFilter, Service: "macie"})
 	registerType(restype.Descriptor{Type: TypeMacieMember, Service: "macie"})
 	registerService(serviceEntry{
 		name: "aws:macie",

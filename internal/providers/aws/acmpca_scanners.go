@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeACMPrivateCA, Service: "acmpca"})
-	registerType(restype.Descriptor{Type: TypeACMPCAPermission, Service: "acmpca", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeACMPCAPermission, Service: "acmpca"})
 	registerService(serviceEntry{
 		name: "aws:acm-pca",
 		fn:   scanACMPCA,

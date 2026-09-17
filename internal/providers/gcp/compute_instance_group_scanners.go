@@ -18,8 +18,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceGroup, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeInstanceGroupManager, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceGroupManager, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeInstanceGroupManagerResizeRequest, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceGroupManagerResizeRequest, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeInstanceGroupManagerResizeRequest, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceGroupManagerResizeRequest, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeInstanceTemplate, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceTemplate, Service: "compute"})
 }

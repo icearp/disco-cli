@@ -40,10 +40,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeLambdaVersion, Service: "lambda"})
 	registerType(restype.Descriptor{Type: TypeLambdaURL, Service: "lambda"})
 	registerType(restype.Descriptor{Type: TypeLambdaESM, Service: "lambda"})
-	registerType(restype.Descriptor{Type: TypeLambdaLayerVersion, Service: "lambda", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLambdaCodeSigningConfig, Service: "lambda", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLambdaLayerVersion, Service: "lambda"})
+	registerType(restype.Descriptor{Type: TypeLambdaCodeSigningConfig, Service: "lambda"})
 	registerType(restype.Descriptor{Type: TypeLambdaEventInvokeConfig, Service: "lambda"})
-	registerType(restype.Descriptor{Type: TypeLambdaCapacityProvider, Service: "lambda", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLambdaCapacityProvider, Service: "lambda"})
 	registerType(restype.Descriptor{Type: TypeLambdaPermission, Service: "lambda"})
 	registerType(restype.Descriptor{Type: TypeLambdaLayerVersionPermission, Service: "lambda"})
 	registerService(serviceEntry{

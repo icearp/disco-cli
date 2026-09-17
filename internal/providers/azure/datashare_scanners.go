@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataShareAccount, Service: "microsoft.datashare", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataShareAccount, Service: "microsoft.datashare"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.datashare",
 		fn:   scanDataShare,

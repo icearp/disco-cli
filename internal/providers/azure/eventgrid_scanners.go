@@ -15,11 +15,11 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEventGridSystemTopic, Service: "microsoft.eventgrid"})
 	registerType(restype.Descriptor{Type: TypeEventGridDomain, Service: "microsoft.eventgrid"})
 	registerType(restype.Descriptor{Type: TypeEventGridEventSubscription, Service: "microsoft.eventgrid"})
-	registerType(restype.Descriptor{Type: TypeEventGridNamespace, Service: "microsoft.eventgrid", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEventGridPartnerConfiguration, Service: "microsoft.eventgrid", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEventGridPartnerNamespace, Service: "microsoft.eventgrid", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEventGridPartnerRegistration, Service: "microsoft.eventgrid", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEventGridPartnerTopic, Service: "microsoft.eventgrid", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventGridNamespace, Service: "microsoft.eventgrid"})
+	registerType(restype.Descriptor{Type: TypeEventGridPartnerConfiguration, Service: "microsoft.eventgrid"})
+	registerType(restype.Descriptor{Type: TypeEventGridPartnerNamespace, Service: "microsoft.eventgrid"})
+	registerType(restype.Descriptor{Type: TypeEventGridPartnerRegistration, Service: "microsoft.eventgrid"})
+	registerType(restype.Descriptor{Type: TypeEventGridPartnerTopic, Service: "microsoft.eventgrid"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.eventgrid",
 		fn:   scanEventGrid,

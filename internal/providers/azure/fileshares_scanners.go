@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeFileSharesFileShare, Service: "microsoft.fileshares", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFileSharesFileShare, Service: "microsoft.fileshares"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.fileshares",
 		fn:   scanFileShares,

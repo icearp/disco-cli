@@ -18,7 +18,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIAMAccount, Service: "iam", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIAMAccount, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMUser, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMGroup, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMRole, Service: "iam"})
@@ -27,12 +27,12 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeIAMRolePolicy, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMUserPolicy, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMGroupPolicy, Service: "iam"})
-	registerType(restype.Descriptor{Type: TypeIAMAccessKey, Service: "iam", Leaf: true, Redact: []redact.Rule{{Path: "SecretAccessKey", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeIAMInstanceProfile, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMOIDCProvider, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMSAMLProvider, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMServerCertificate, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMVirtualMFADevice, Service: "iam", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIAMAccessKey, Service: "iam", Redact: []redact.Rule{{Path: "SecretAccessKey", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeIAMInstanceProfile, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMOIDCProvider, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMSAMLProvider, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMServerCertificate, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMVirtualMFADevice, Service: "iam"})
 	registerService(serviceEntry{
 		name:   "aws:iam",
 		global: true,

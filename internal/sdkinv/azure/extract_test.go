@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
@@ -52,6 +53,11 @@ func TestExtract_Fixture(t *testing.T) {
 		}
 	}
 	w := got["microsoft.widgets/widgets"]
+	// Refs: sub-resource structs and ID-suffixed strings below the envelope,
+	// through nested properties; the envelope's own ID/Name/Type are not refs.
+	if want := []string{"properties.extra.policyID", "properties.subnetID", "properties.vault"}; !slices.Equal(w.Refs, want) {
+		t.Errorf("widgets refs = %v, want %v", w.Refs, want)
+	}
 	if w.Ops[0].Label != "armwidgets:Widgets.List" || !w.Ops[0].Paged || w.Ops[0].Path == "" {
 		t.Errorf("widgets op = %+v", w.Ops[0])
 	}

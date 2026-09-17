@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeTranslateParallelData, Service: "translate", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTranslateTerminology, Service: "translate", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTranslateParallelData, Service: "translate"})
+	registerType(restype.Descriptor{Type: TypeTranslateTerminology, Service: "translate"})
 	registerService(serviceEntry{
 		name: "aws:translate",
 		fn:   scanTranslate,

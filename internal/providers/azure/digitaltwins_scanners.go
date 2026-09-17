@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDigitalTwinsInstance, Service: "microsoft.digitaltwins", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDigitalTwinsInstance, Service: "microsoft.digitaltwins"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.digitaltwins",
 		fn:   scanDigitalTwins,

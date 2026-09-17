@@ -12,11 +12,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDVCHostPool, Service: "microsoft.desktopvirtualization", Leaf: true, Redact: []redact.Rule{{Path: "properties.registrationInfo.token", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeDVCHostPool, Service: "microsoft.desktopvirtualization", Redact: []redact.Rule{{Path: "properties.registrationInfo.token", Mode: redact.RedactScalar}}})
 	registerType(restype.Descriptor{Type: TypeDVCApplicationGroup, Service: "microsoft.desktopvirtualization"})
 	registerType(restype.Descriptor{Type: TypeDVCWorkspace, Service: "microsoft.desktopvirtualization"})
 	registerType(restype.Descriptor{Type: TypeDVCScalingPlan, Service: "microsoft.desktopvirtualization"})
-	registerType(restype.Descriptor{Type: TypeDesktopVirtAppAttachPackage, Service: "microsoft.desktopvirtualization", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDesktopVirtAppAttachPackage, Service: "microsoft.desktopvirtualization"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.desktopvirtualization",
 		fn:   scanDesktopVirtualization,

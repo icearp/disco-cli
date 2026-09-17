@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataBoxJob, Service: "microsoft.databox", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataBoxJob, Service: "microsoft.databox"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.databox",
 		fn:   scanDataBox,

@@ -26,7 +26,6 @@ import (
 type Descriptor struct {
 	Type    string // disco type, e.g. "gcp:artifactregistry:repository" — the key
 	Service string // disco service segment, e.g. "artifactregistry"
-	Leaf    bool   // intentionally edge-less; filtered from --missing-resolvers
 	// Managed marks a type as UNCONDITIONALLY provider-managed; the store stamps
 	// ManagedByProvider by type. Do NOT set for types whose managed status is a
 	// per-row runtime decision — those stay scanner-set.
@@ -51,6 +50,5 @@ func Emit(d Descriptor) coverage.TypeDecl {
 	return coverage.TypeDecl{
 		Service:   d.Service,
 		DiscoType: d.Type,
-		Leaf:      d.Leaf,
 	}
 }

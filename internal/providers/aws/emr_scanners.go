@@ -13,7 +13,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEMRCluster, Service: "emr"})
 	registerType(restype.Descriptor{Type: TypeEMRInstanceFleet, Service: "emr"})
 	registerType(restype.Descriptor{Type: TypeEMRInstanceGroup, Service: "emr"})
-	registerType(restype.Descriptor{Type: TypeEMRSecurityConfig, Service: "emr", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEMRSecurityConfig, Service: "emr"})
 	registerType(restype.Descriptor{Type: TypeEMRStep, Service: "emr"})
 	registerType(restype.Descriptor{Type: TypeEMRStudio, Service: "emr"})
 	registerType(restype.Descriptor{Type: TypeEMRStudioSessionMapping, Service: "emr"})

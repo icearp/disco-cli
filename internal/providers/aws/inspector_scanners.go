@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeInspector2Filter, Service: "inspectorv2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeInspector2Filter, Service: "inspectorv2"})
 	registerType(restype.Descriptor{Type: TypeInspector2Member, Service: "inspectorv2"})
-	registerType(restype.Descriptor{Type: TypeInspector2CisScanConfiguration, Service: "inspectorv2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityIntegration, Service: "inspectorv2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityScanConfiguration, Service: "inspectorv2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeInspector2CisScanConfiguration, Service: "inspectorv2"})
+	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityIntegration, Service: "inspectorv2"})
+	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityScanConfiguration, Service: "inspectorv2"})
 	registerService(serviceEntry{
 		name: "aws:inspector2",
 		fn:   scanInspector2,

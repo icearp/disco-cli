@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLaunchWizardDeployment, Service: "launch-wizard", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLaunchWizardDeployment, Service: "launch-wizard"})
 	registerService(serviceEntry{
 		name: "aws:launch-wizard",
 		fn:   scanLaunchWizard,

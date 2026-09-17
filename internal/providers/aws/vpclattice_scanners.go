@@ -11,14 +11,14 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeVpcLatticeService, Service: "vpclattice"})
-	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetwork, Service: "vpclattice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetwork, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeListener, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeRule, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeTargetGroup, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeAccessLogSubscription, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeAuthPolicy, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeResourcePolicy, Service: "vpclattice"})
-	registerType(restype.Descriptor{Type: TypeVpcLatticeDomainVerification, Service: "vpclattice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeVpcLatticeDomainVerification, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeResourceConfiguration, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeResourceGateway, Service: "vpclattice"})
 	registerType(restype.Descriptor{Type: TypeVpcLatticeServiceNetworkResourceAssociation, Service: "vpclattice"})

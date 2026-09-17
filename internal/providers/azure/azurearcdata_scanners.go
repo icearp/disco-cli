@@ -12,10 +12,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAzureArcDataController, Service: "microsoft.azurearcdata", Leaf: true, Redact: []redact.Rule{{Path: "properties.logsDashboardCredential.password", Mode: redact.RedactScalar}, {Path: "properties.metricsDashboardCredential.password", Mode: redact.RedactScalar}, {Path: "properties.logAnalyticsWorkspaceConfig.primaryKey", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeAzureArcDataPostgres, Service: "microsoft.azurearcdata", Leaf: true, Redact: []redact.Rule{{Path: "properties.basicLoginInformation.password", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeAzureArcDataSQLManagedInstance, Service: "microsoft.azurearcdata", Leaf: true, Redact: []redact.Rule{{Path: "properties.basicLoginInformation.password", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeAzureArcDataSQLServerInstance, Service: "microsoft.azurearcdata", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureArcDataController, Service: "microsoft.azurearcdata", Redact: []redact.Rule{{Path: "properties.logsDashboardCredential.password", Mode: redact.RedactScalar}, {Path: "properties.metricsDashboardCredential.password", Mode: redact.RedactScalar}, {Path: "properties.logAnalyticsWorkspaceConfig.primaryKey", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAzureArcDataPostgres, Service: "microsoft.azurearcdata", Redact: []redact.Rule{{Path: "properties.basicLoginInformation.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAzureArcDataSQLManagedInstance, Service: "microsoft.azurearcdata", Redact: []redact.Rule{{Path: "properties.basicLoginInformation.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAzureArcDataSQLServerInstance, Service: "microsoft.azurearcdata"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azurearcdata",
 		fn:   scanAzureArcData,

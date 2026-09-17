@@ -11,10 +11,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallDomainList, Service: "route53resolver", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallRuleGroup, Service: "route53resolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallDomainList, Service: "route53resolver"})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallRuleGroup, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallRuleGroupAssociation, Service: "route53resolver"})
-	registerType(restype.Descriptor{Type: TypeRoute53ResolverOutpostResolver, Service: "route53resolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverOutpostResolver, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverConfig, Service: "route53resolver", Managed: true})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverDNSSECConfig, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverEndpoint, Service: "route53resolver"})

@@ -14,8 +14,8 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeSageMakerNotebookInstance, Service: "sagemaker"})
-	registerType(restype.Descriptor{Type: TypeSageMakerNotebookInstanceLifecycleConfig, Service: "sagemaker", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSageMakerCodeRepository, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerNotebookInstanceLifecycleConfig, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerCodeRepository, Service: "sagemaker"})
 	registerType(restype.Descriptor{Type: TypeSageMakerProcessingJob, Service: "sagemaker"})
 }
 

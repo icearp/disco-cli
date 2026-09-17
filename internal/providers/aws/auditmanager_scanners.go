@@ -24,8 +24,8 @@ func isAuditManagerNotEnabled(err error) bool {
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeAuditManagerAssessment, Service: "auditmanager"})
-	registerType(restype.Descriptor{Type: TypeAuditManagerControl, Service: "auditmanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAuditManagerFramework, Service: "auditmanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAuditManagerControl, Service: "auditmanager"})
+	registerType(restype.Descriptor{Type: TypeAuditManagerFramework, Service: "auditmanager"})
 	registerService(serviceEntry{
 		name: "aws:auditmanager",
 		fn:   scanAuditManager,

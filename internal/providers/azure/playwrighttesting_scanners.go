@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePlaywrightAccount, Service: "microsoft.azureplaywrightservice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePlaywrightAccount, Service: "microsoft.azureplaywrightservice"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azureplaywrightservice",
 		fn:   scanPlaywrightTesting,

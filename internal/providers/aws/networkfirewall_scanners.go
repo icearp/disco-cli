@@ -19,8 +19,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeNetworkFirewallLoggingConfiguration, Service: "networkfirewall"})
 	registerType(restype.Descriptor{Type: TypeNetworkFirewallTLSInspectionConfiguration, Service: "networkfirewall"})
 	registerType(restype.Descriptor{Type: TypeNetworkFirewallVpcEndpointAssociation, Service: "networkfirewall"})
-	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyConfiguration, Service: "networkfirewall", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyRuleGroup, Service: "networkfirewall", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyConfiguration, Service: "networkfirewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyRuleGroup, Service: "networkfirewall"})
 	registerService(serviceEntry{
 		name: "aws:network-firewall",
 		fn:   scanNetworkFirewall,

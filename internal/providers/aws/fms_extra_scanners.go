@@ -9,7 +9,7 @@ import (
 )
 
 // scanFMSAppsLists discovers customer-defined Firewall Manager applications lists
-// (DefaultLists=false excludes AWS-managed ones). Leaf — policies reference these,
+// (DefaultLists=false excludes AWS-managed ones). edge-less — policies reference these,
 // no outbound edges.
 func scanFMSAppsLists(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := fms.NewListAppsListsPaginator(client, &fms.ListAppsListsInput{}, func(o *fms.ListAppsListsPaginatorOptions) { o.Limit = 100 })
@@ -44,7 +44,7 @@ func scanFMSAppsLists(ctx context.Context, client fmsAPI, acct *account, region 
 	return upsertBatch(st, batch, "fms applications-lists")
 }
 
-// scanFMSProtocolsLists discovers customer-defined Firewall Manager protocols lists. Leaf.
+// scanFMSProtocolsLists discovers customer-defined Firewall Manager protocols lists. edge-less.
 func scanFMSProtocolsLists(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := fms.NewListProtocolsListsPaginator(client, &fms.ListProtocolsListsInput{}, func(o *fms.ListProtocolsListsPaginatorOptions) { o.Limit = 100 })
 	var batch []*store.Resource

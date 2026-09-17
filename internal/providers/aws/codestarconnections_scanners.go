@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsConnection, Service: "codestar-connections", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsConnection, Service: "codestar-connections"})
 	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsHost, Service: "codestar-connections"})
 	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsRepositoryLink, Service: "codestar-connections"})
 	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsSyncConfiguration, Service: "codestar-connections"})

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeMQBroker, Service: "mq"})
-	registerType(restype.Descriptor{Type: TypeMQConfiguration, Service: "mq", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMQConfiguration, Service: "mq"})
 	registerType(restype.Descriptor{Type: TypeMQConfigurationAssociation, Service: "mq"})
 	registerService(serviceEntry{
 		name: "aws:mq",

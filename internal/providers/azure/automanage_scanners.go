@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAutomanageConfigProfile, Service: "microsoft.automanage", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAutomanageConfigProfileAssignment, Service: "microsoft.automanage", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAutomanageServicePrincipal, Service: "microsoft.automanage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAutomanageConfigProfile, Service: "microsoft.automanage"})
+	registerType(restype.Descriptor{Type: TypeAutomanageConfigProfileAssignment, Service: "microsoft.automanage"})
+	registerType(restype.Descriptor{Type: TypeAutomanageServicePrincipal, Service: "microsoft.automanage"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.automanage",
 		fn:   scanAutomanage,

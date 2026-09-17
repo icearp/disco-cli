@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAccessAnalyzerAnalyzer, Service: "accessanalyzer", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAccessAnalyzerArchiveRule, Service: "accessanalyzer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAccessAnalyzerAnalyzer, Service: "accessanalyzer"})
+	registerType(restype.Descriptor{Type: TypeAccessAnalyzerArchiveRule, Service: "accessanalyzer"})
 	registerService(serviceEntry{
 		name: "aws:accessanalyzer",
 		fn:   scanAccessAnalyzer,

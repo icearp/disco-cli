@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeDAXCluster, Service: "dax"})
-	registerType(restype.Descriptor{Type: TypeDAXParameterGroup, Service: "dax", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDAXParameterGroup, Service: "dax"})
 	registerType(restype.Descriptor{Type: TypeDAXSubnetGroup, Service: "dax"})
 	registerService(serviceEntry{
 		name: "aws:dax",

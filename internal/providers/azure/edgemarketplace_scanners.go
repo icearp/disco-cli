@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEdgeMarketplaceOffer, Service: "microsoft.edgemarketplace", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEdgeMarketplacePublisher, Service: "microsoft.edgemarketplace", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEdgeMarketplaceOffer, Service: "microsoft.edgemarketplace"})
+	registerType(restype.Descriptor{Type: TypeEdgeMarketplacePublisher, Service: "microsoft.edgemarketplace"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.edgemarketplace",
 		fn:   scanEdgeMarketplace,

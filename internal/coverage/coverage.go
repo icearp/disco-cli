@@ -17,12 +17,6 @@ import (
 type TypeDecl struct {
 	Service   string // disco's service segment (e.g. "ec2", "compute", "microsoft.compute")
 	DiscoType string // canonical disco type, e.g. "aws:ec2:instance"
-	// Leaf marks a type as intentionally edge-less: its scanner upserts rows
-	// but the resource has no outbound refs to other scanned types
-	// (account-level configs, registry policies, leaf catalogue items).
-	// `disco coverage resolvers --missing` filters these out so the orphan
-	// list only contains genuinely wire-able candidates.
-	Leaf bool
 }
 
 // UpstreamType is one entry of a provider's live registry (CloudFormation /

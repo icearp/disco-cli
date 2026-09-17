@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRedisEnterpriseCluster, Service: "microsoft.cache", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRedisEnterpriseCluster, Service: "microsoft.cache"})
 }
 
 // scanRedisEnterprise discovers Azure Cache for Redis Enterprise clusters.

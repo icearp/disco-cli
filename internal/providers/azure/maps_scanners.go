@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMapsAccount, Service: "microsoft.maps", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMapsAccount, Service: "microsoft.maps"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.maps",
 		fn:   scanMaps,

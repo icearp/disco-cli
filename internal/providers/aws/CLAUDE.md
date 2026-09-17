@@ -409,11 +409,11 @@ It exists because rpc-v2-cbor deserializers do not sanitize. Their switch matche
 
 Tooling:
 - `disco coverage resolvers --providers aws [--only-unannotated]` — per-resolver edge counts.
-- `disco coverage resolvers --missing --providers aws` — emitted disco types with no `EdgeDecl.Source` mention. The candidate gap inventory.
+- `disco coverage resolvers --missing --providers aws [--with-refs]` — emitted disco types with no `EdgeDecl.Source` mention, each with the id/ARN fields its SDK element carries (`VpcConfig.SubnetIds`, `KmsKeyId`), richest first. The candidate gap inventory; `--with-refs` drops the derived leaves.
 - `go run ./cmd/aws-resolver-audit/ --list-edges` — every declared (src, tgt, kind) triple.
 - `go run ./cmd/aws-resolver-audit/ --db <path>` — diffs declared metadata + DB edges against ARN/ID refs walked from `AttributesJSON`.
 
-Snapshot lives in the orphan-types fenced block of `docs/aws-missing-resolvers.md` — refresh with `disco coverage resolvers --missing --providers aws` after each resolver-shipping commit and replace the block contents so future PRs diff against it.
+Audit workflow (no checked-in snapshot; the SDK-derived list is reproducible): scan a representative account (`disco scan aws --regions us-east-1,us-west-2,eu-west-1`), run `go run ./cmd/aws-resolver-audit --db <path> --top 100` for `(source → target)` pairs whose `AttributesJSON` carries a ref but no edge exists, and `disco coverage resolvers --missing --with-refs --providers aws` for the orphan types worth a resolver.
 
 ## NativeID parent-extraction = dominant child→parent shape
 

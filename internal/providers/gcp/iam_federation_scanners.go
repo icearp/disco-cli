@@ -22,17 +22,17 @@ import (
 // functions (distinct SDK service types, unlike CRM TagKeys which shares one
 // List call across both scopes) but emit the same TypeIAMRole.
 func init() {
-	registerType(restype.Descriptor{Type: TypeIAMWorkforcePool, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMProvider, Service: "iam", Leaf: true, Redact: []redact.Rule{{Path: "oidc.clientSecret.value.plainText", Mode: redact.RedactScalar}, {Path: "extendedAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar}, {Path: "extraAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeIAMScimTenant, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMRole, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMWorkloadIdentityPool, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMProvider, Service: "iam", Leaf: true, Redact: []redact.Rule{{Path: "oidc.clientSecret.value.plainText", Mode: redact.RedactScalar}, {Path: "extendedAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar}, {Path: "extraAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeIAMNamespace, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMManagedIdentity, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMOauthClient, Service: "iam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIAMCredential, Service: "iam", Leaf: true, Redact: []redact.Rule{{Path: "clientSecret", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeIAMRole, Service: "iam", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIAMWorkforcePool, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMProvider, Service: "iam", Redact: []redact.Rule{{Path: "oidc.clientSecret.value.plainText", Mode: redact.RedactScalar}, {Path: "extendedAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar}, {Path: "extraAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeIAMScimTenant, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMRole, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMWorkloadIdentityPool, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMProvider, Service: "iam", Redact: []redact.Rule{{Path: "oidc.clientSecret.value.plainText", Mode: redact.RedactScalar}, {Path: "extendedAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar}, {Path: "extraAttributesOauth2Client.clientSecret.value.plainText", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeIAMNamespace, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMManagedIdentity, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMOauthClient, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMCredential, Service: "iam", Redact: []redact.Rule{{Path: "clientSecret", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeIAMRole, Service: "iam"})
 	registerOrgService(orgServiceEntry{
 		name: "gcp:iam-org",
 		fn:   scanIAMOrgScoped,

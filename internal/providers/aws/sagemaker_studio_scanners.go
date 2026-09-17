@@ -18,8 +18,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSageMakerUserProfile, Service: "sagemaker"})
 	registerType(restype.Descriptor{Type: TypeSageMakerSpace, Service: "sagemaker"})
 	registerType(restype.Descriptor{Type: TypeSageMakerApp, Service: "sagemaker"})
-	registerType(restype.Descriptor{Type: TypeSageMakerAppImageConfig, Service: "sagemaker", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSageMakerStudioLifecycleConfig, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerAppImageConfig, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerStudioLifecycleConfig, Service: "sagemaker"})
 }
 
 // sagemakerStudioAPI is the narrow surface used by SageMaker Studio

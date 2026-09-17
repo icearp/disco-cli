@@ -11,12 +11,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAppConfigApplication, Service: "appconfig", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppConfigApplication, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigConfigurationProfile, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigDeployment, Service: "appconfig"})
-	registerType(restype.Descriptor{Type: TypeAppConfigDeploymentStrategy, Service: "appconfig", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppConfigDeploymentStrategy, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigEnvironment, Service: "appconfig"})
-	registerType(restype.Descriptor{Type: TypeAppConfigExtension, Service: "appconfig", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppConfigExtension, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigExtensionAssociation, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigHostedConfigurationVersion, Service: "appconfig"})
 	registerService(serviceEntry{

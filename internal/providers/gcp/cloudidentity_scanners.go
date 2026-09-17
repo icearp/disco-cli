@@ -14,18 +14,18 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWorkspaceUser, Service: "admin", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudIdentityGroup, Service: "cloudidentity", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudIdentityDevice, Service: "cloudidentity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkspaceUser, Service: "admin"})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityGroup, Service: "cloudidentity"})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityDevice, Service: "cloudidentity"})
 	registerType(restype.Descriptor{Type: TypeCloudIdentityDeviceUser, Service: "cloudidentity"})
-	registerType(restype.Descriptor{Type: TypeCloudIdentityClientState, Service: "cloudidentity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityClientState, Service: "cloudidentity"})
 	registerType(restype.Descriptor{Type: TypeCloudIdentityMembership, Service: "cloudidentity"})
-	registerType(restype.Descriptor{Type: TypeCloudIdentityInboundOidcSsoProfile, Service: "cloudidentity", Leaf: true, Redact: []redact.Rule{{Path: "rpConfig.clientSecret", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeCloudIdentityInboundSamlSsoProfile, Service: "cloudidentity", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudIdentityIdpCredential, Service: "cloudidentity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityInboundOidcSsoProfile, Service: "cloudidentity", Redact: []redact.Rule{{Path: "rpConfig.clientSecret", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityInboundSamlSsoProfile, Service: "cloudidentity"})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityIdpCredential, Service: "cloudidentity"})
 	registerType(restype.Descriptor{Type: TypeCloudIdentityInboundSsoAssignment, Service: "cloudidentity"})
 	registerType(restype.Descriptor{Type: TypeCloudIdentityPolicy, Service: "cloudidentity"})
-	registerType(restype.Descriptor{Type: TypeCloudIdentityUserinvitation, Service: "cloudidentity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudIdentityUserinvitation, Service: "cloudidentity"})
 	registerOrgService(orgServiceEntry{
 		name: "gcp:cloudidentity",
 		fn:   scanCloudIdentity,

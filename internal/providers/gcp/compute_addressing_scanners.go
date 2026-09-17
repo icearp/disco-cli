@@ -18,7 +18,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeComputeAddress, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeGlobalAddress, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputePublicAdvertisedPrefix, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputePublicAdvertisedPrefix, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputePublicDelegatedPrefix, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeGlobalPublicDelegatedPrefix, Service: "compute"})
 }

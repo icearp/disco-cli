@@ -63,6 +63,9 @@ func genScaffold(provName, service string, rows []coverage.Row) string {
 		if r.Scope != "" {
 			fmt.Fprintf(&descs, "; scope %s", r.Scope)
 		}
+		if len(r.Refs) > 0 {
+			fmt.Fprintf(&descs, "; refs %s", strings.Join(r.Refs, ", "))
+		}
 		fmt.Fprintf(&descs, "\n\tregisterType(restype.Descriptor{Type: %s, Service: %q})\n", constName, service)
 	}
 

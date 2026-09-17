@@ -26,7 +26,7 @@ import (
 // Per `go doc compute.NetworkEndpointGroup`'s own field docs, not every
 // (scope, field) combination is reachable: Network "cannot be set for...
 // global NEGs" (adversarial review caught this — dropped from the EdgeDecl
-// list below; TypeComputeGlobalNetworkEndpointGroup is flagged `Leaf: true`
+// list below; TypeComputeGlobalNetworkEndpointGroup is flagged edge-less
 // in compute_networking_scanners.go since it now has zero real outbound
 // fields), and CloudRun/CloudFunction only apply to SERVERLESS-type
 // endpoints, which per the package doc's own scope note are created only via

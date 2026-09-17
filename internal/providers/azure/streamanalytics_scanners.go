@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeStreamAnalyticsJob, Service: "microsoft.streamanalytics", Leaf: true, Redact: []redact.Rule{{Path: "properties.jobStorageAccount.accountKey", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeStreamAnalyticsCluster, Service: "microsoft.streamanalytics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStreamAnalyticsJob, Service: "microsoft.streamanalytics", Redact: []redact.Rule{{Path: "properties.jobStorageAccount.accountKey", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeStreamAnalyticsCluster, Service: "microsoft.streamanalytics"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.streamanalytics",
 		fn:   scanStreamAnalytics,

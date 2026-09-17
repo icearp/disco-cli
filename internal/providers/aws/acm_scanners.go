@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeACMCertificate, Service: "acm"})
-	registerType(restype.Descriptor{Type: TypeACMAccount, Service: "acm", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeACMAccount, Service: "acm", Managed: true})
 	registerService(serviceEntry{
 		name: "aws:acm",
 		fn:   scanACM,

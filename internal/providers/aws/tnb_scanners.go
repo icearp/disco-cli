@@ -11,9 +11,9 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeTnbFunctionInstance, Service: "tnb"})
-	registerType(restype.Descriptor{Type: TypeTnbFunctionPackage, Service: "tnb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTnbFunctionPackage, Service: "tnb"})
 	registerType(restype.Descriptor{Type: TypeTnbNetworkInstance, Service: "tnb"})
-	registerType(restype.Descriptor{Type: TypeTnbNetworkPackage, Service: "tnb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTnbNetworkPackage, Service: "tnb"})
 	registerType(restype.Descriptor{Type: TypeTnbNetworkOperation, Service: "tnb"})
 	registerService(serviceEntry{
 		name: "aws:tnb",

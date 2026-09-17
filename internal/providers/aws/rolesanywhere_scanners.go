@@ -12,8 +12,8 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeRolesAnywhereCRL, Service: "roles-anywhere"})
 	registerType(restype.Descriptor{Type: TypeRolesAnywhereProfile, Service: "roles-anywhere"})
-	registerType(restype.Descriptor{Type: TypeRolesAnywhereTrustAnchor, Service: "roles-anywhere", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRolesAnywhereSubject, Service: "roles-anywhere", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRolesAnywhereTrustAnchor, Service: "roles-anywhere"})
+	registerType(restype.Descriptor{Type: TypeRolesAnywhereSubject, Service: "roles-anywhere"})
 	registerService(serviceEntry{
 		name: "aws:roles-anywhere",
 		fn:   scanRolesAnywhere,

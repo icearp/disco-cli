@@ -24,7 +24,7 @@ type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "aws" }
 
-// Emits returns CollectEmits() verbatim — the Leaf flag on each TypeDecl is
+// Emits returns CollectEmits() verbatim — the edge-less flag on each TypeDecl is
 // set at registration time alongside the scanner's emits decl, keeping the
 // decision next to the SDK-shape author who knows whether the type carries
 // outbound refs.

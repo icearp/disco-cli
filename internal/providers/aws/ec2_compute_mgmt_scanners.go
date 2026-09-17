@@ -15,18 +15,18 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEC2SecurityGroup, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2SecurityGroupVPCAssociation, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2Volume, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2KeyPair, Service: "ec2", Leaf: true, Redact: []redact.Rule{{Path: "KeyMaterial", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeEC2KeyPair, Service: "ec2", Redact: []redact.Rule{{Path: "KeyMaterial", Mode: redact.RedactScalar}}})
 	registerType(restype.Descriptor{Type: TypeEC2LaunchTemplate, Service: "ec2", Redact: []redact.Rule{{Path: "LaunchTemplateData.UserData", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeEC2PlacementGroup, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2PlacementGroup, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2Image, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2Snapshot, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2Host, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2Host, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2SpotFleet, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2Fleet, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2CapacityReservation, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2CapacityReservationFleet, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2InstanceConnectEndpoint, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2SnapshotBlockPublicAccess, Service: "ec2", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeEC2SnapshotBlockPublicAccess, Service: "ec2", Managed: true})
 }
 
 // scanEC2ComputeMgmt discovers all compute resources: instances, security groups,

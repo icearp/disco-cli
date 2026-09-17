@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCEAnomalyMonitor, Service: "ce", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCEAnomalySubscription, Service: "ce", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCECostCategory, Service: "ce", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCEAnomalyMonitor, Service: "ce"})
+	registerType(restype.Descriptor{Type: TypeCEAnomalySubscription, Service: "ce"})
+	registerType(restype.Descriptor{Type: TypeCECostCategory, Service: "ce"})
 	registerService(serviceEntry{
 		name:   "aws:ce",
 		global: true,

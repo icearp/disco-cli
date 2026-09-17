@@ -19,7 +19,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEventsArchive, Service: "events"})
 	registerType(restype.Descriptor{Type: TypeEventsEndpoint, Service: "events"})
 	registerType(restype.Descriptor{Type: TypeEventsEventBusPolicy, Service: "events"})
-	registerType(restype.Descriptor{Type: TypeEventsEventSource, Service: "events", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventsEventSource, Service: "events"})
 	registerService(serviceEntry{
 		name: "aws:events",
 		fn:   scanEventBridge,
@@ -69,7 +69,7 @@ func scanEventBridge(ctx context.Context, acct *account, region string, st *stor
 
 // scanEventBridgeEventSources discovers SaaS partner event sources offered to
 // the account (ListEventSources, manual NextToken — no SDK paginator). A partner
-// event bus is created from one; the source itself is Leaf.
+// event bus is created from one; the source itself is edge-less.
 func scanEventBridgeEventSources(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var token *string
 	var batch []*store.Resource

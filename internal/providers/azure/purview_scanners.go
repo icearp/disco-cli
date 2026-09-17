@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePurviewAccount, Service: "microsoft.purview", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePurviewAccount, Service: "microsoft.purview"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.purview",
 		fn:   scanPurview,

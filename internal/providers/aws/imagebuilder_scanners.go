@@ -11,15 +11,15 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeImageBuilderComponent, Service: "imagebuilder", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeImageBuilderContainerRecipe, Service: "imagebuilder", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeImageBuilderDistributionConfiguration, Service: "imagebuilder", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeImageBuilderImage, Service: "imagebuilder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeImageBuilderComponent, Service: "imagebuilder"})
+	registerType(restype.Descriptor{Type: TypeImageBuilderContainerRecipe, Service: "imagebuilder"})
+	registerType(restype.Descriptor{Type: TypeImageBuilderDistributionConfiguration, Service: "imagebuilder"})
+	registerType(restype.Descriptor{Type: TypeImageBuilderImage, Service: "imagebuilder"})
 	registerType(restype.Descriptor{Type: TypeImageBuilderImagePipeline, Service: "imagebuilder"})
-	registerType(restype.Descriptor{Type: TypeImageBuilderImageRecipe, Service: "imagebuilder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeImageBuilderImageRecipe, Service: "imagebuilder"})
 	registerType(restype.Descriptor{Type: TypeImageBuilderInfrastructureConfig, Service: "imagebuilder"})
 	registerType(restype.Descriptor{Type: TypeImageBuilderLifecyclePolicy, Service: "imagebuilder"})
-	registerType(restype.Descriptor{Type: TypeImageBuilderWorkflow, Service: "imagebuilder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeImageBuilderWorkflow, Service: "imagebuilder"})
 	registerService(serviceEntry{
 		name: "aws:imagebuilder",
 		fn:   scanImageBuilder,
@@ -161,7 +161,7 @@ func scanIBDistributionConfigs(ctx context.Context, client imageBuilderAPI, acct
 // scanIBImages discovers self-owned ImageBuilder image-version lines (the
 // AWS::ImageBuilder::Image resource). ListImages returns summary entries; the
 // per-build refs (recipe / infrastructure / distribution config) live on
-// GetImage, so this is a summary-only Leaf scanner.
+// GetImage, so this is a summary-only edge-less scanner.
 func scanIBImages(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := imagebuilder.NewListImagesPaginator(client, &imagebuilder.ListImagesInput{Owner: types.OwnershipSelf})
 	var batch []*store.Resource

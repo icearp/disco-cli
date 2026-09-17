@@ -14,11 +14,13 @@ import (
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
-// Discovery document subset. schemas are deliberately not decoded.
+// Discovery document subset. Schemas stay raw and decode one at a time on
+// the ref walk (refs.go).
 type doc struct {
-	Name      string               `json:"name"`
-	Version   string               `json:"version"`
-	Resources map[string]*resource `json:"resources"`
+	Name      string                     `json:"name"`
+	Version   string                     `json:"version"`
+	Resources map[string]*resource       `json:"resources"`
+	Schemas   map[string]json.RawMessage `json:"schemas"`
 }
 
 type resource struct {
@@ -77,6 +79,7 @@ type entry struct {
 	signals  map[string]bool
 	ops      map[string]sdkinv.Operation // by label+module
 	versions map[string]bool
+	refs     map[string]bool
 }
 
 func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error) {
@@ -185,6 +188,7 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []s
 		return false, nil
 	}
 	preview := strings.Contains(dc.Version, "alpha") || strings.Contains(dc.Version, "beta")
+	schemas := &schemaSet{raw: dc.Schemas}
 	for _, l := range listers {
 		tmpl := template(l.m)
 		segs := dropKnativeRoot(sdkinv.ParseTemplate(tmpl))
@@ -198,7 +202,7 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []s
 		key := dc.Name + "/" + strings.ToLower(strings.Join(docPath, "/"))
 		en := entries[key]
 		if en == nil {
-			en = &entry{api: dc.Name, docPath: docPath, signals: map[string]bool{}, ops: map[string]sdkinv.Operation{}, versions: map[string]bool{}}
+			en = &entry{api: dc.Name, docPath: docPath, signals: map[string]bool{}, ops: map[string]sdkinv.Operation{}, versions: map[string]bool{}, refs: map[string]bool{}}
 			entries[key] = en
 		}
 		en.versions[dc.Version] = true
@@ -213,6 +217,9 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []s
 			en.parent = parentKey(dc, docPath, rp.Parents, segs)
 		}
 		en.class = sdkinv.StrongerClass(en.class, classify(l.node, en.signals))
+		for _, r := range schemas.refsOf(l.m.Response.Ref) {
+			en.refs[r] = true
+		}
 		var required, targets []string
 		for i, sg := range segs {
 			if sg.Param && i > 0 && !scopeNames[strings.ToLower(segs[i-1].Text)] {
@@ -408,5 +415,9 @@ func toCandidate(key string, en *entry) sdkinv.Candidate {
 	for _, op := range en.ops {
 		c.Ops = append(c.Ops, op)
 	}
+	for r := range en.refs {
+		c.Refs = append(c.Refs, r)
+	}
+	sort.Strings(c.Refs)
 	return c
 }

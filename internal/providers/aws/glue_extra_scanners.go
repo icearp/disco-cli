@@ -9,7 +9,7 @@ import (
 )
 
 // scanGlueBlueprints discovers Glue blueprints (workflow templates). The list
-// summary carries no ARN, so NativeID is synthesized. Leaf.
+// summary carries no ARN, so NativeID is synthesized. edge-less.
 func scanGlueBlueprints(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := glue.NewListBlueprintsPaginator(client, &glue.ListBlueprintsInput{})
 	var batch []*store.Resource

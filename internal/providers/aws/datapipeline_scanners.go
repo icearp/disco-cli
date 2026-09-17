@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataPipelinePipeline, Service: "datapipeline", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataPipelinePipeline, Service: "datapipeline"})
 	registerService(serviceEntry{
 		name: "aws:datapipeline",
 		fn:   scanDataPipeline,

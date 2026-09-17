@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeS3VectorsVectorBucket, Service: "s3vectors", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3VectorsIndex, Service: "s3vectors", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3VectorsVectorBucketPolicy, Service: "s3vectors", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3VectorsVectorBucket, Service: "s3vectors"})
+	registerType(restype.Descriptor{Type: TypeS3VectorsIndex, Service: "s3vectors"})
+	registerType(restype.Descriptor{Type: TypeS3VectorsVectorBucketPolicy, Service: "s3vectors"})
 	registerService(serviceEntry{
 		name: "aws:s3vectors",
 		fn:   scanS3Vectors,

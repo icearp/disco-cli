@@ -112,7 +112,13 @@ or drift signal that hasn't been triaged.
 
 --missing flips the output to the orphan-type inventory: every emitted
 disco type that never appears as the Source of a declared EdgeDecl.
-Candidate gap list for new resolvers.
+Candidate gap list for new resolvers. Each row carries refs: the fields
+on the SDK's listed element that name other resources (VpcId,
+properties.networkProfile.networkInterfaces), derived from the SDK cache
+and the scanner pairing; rows sort by ref count so the richest gaps come
+first. A type with no refs is a derived leaf; --with-refs hides those.
+Without the SDK cache refs are omitted with a warning (--with-refs then
+exits 2).
 
 --services filters to resolvers (or orphan types) whose service segment
 matches one of the named services.
@@ -124,7 +130,8 @@ support resolver auditing); naming a provider without auditing support errors.`,
   disco coverage resolvers --only-unannotated
   disco coverage resolvers --missing
   disco coverage resolvers --services ec2,s3
-  disco coverage resolvers --missing --services ec2 -o json`,
+  disco coverage resolvers --missing --services ec2 -o json
+  disco coverage resolvers --missing --with-refs --providers aws`,
 	Args: cobra.NoArgs,
 	RunE: runCoverageResolvers,
 }
@@ -162,6 +169,9 @@ func init() {
 	coverageResolversCmd.Flags().StringSlice("services", nil, "Filter to resolvers (or orphan types) touching the listed services")
 	coverageResolversCmd.Flags().Bool("only-unannotated", false, "List mode only: omit resolvers that already declare ≥1 EdgeDecl")
 	coverageResolversCmd.Flags().Bool("missing", false, "Switch to orphan-type mode: emit disco types never appearing as EdgeDecl.Source")
+	coverageResolversCmd.Flags().Bool("with-refs", false, "--missing only: hide types whose listed SDK element names no other resource (derived leaves); needs the SDK cache")
+	coverageResolversCmd.Flags().String("sdk-cache", sdkinv.DefaultCacheRoot(), "SDK source cache the --missing refs derive from (see 'disco coverage sdk fetch')")
+	coverageResolversCmd.Flags().String("source-root", defaultSourceRoot(), "disco source checkout for scanner pairing; empty = name matching only")
 
 	coverageCmd.AddCommand(coverageServicesCmd, coverageRegionsCmd, coverageResolversCmd)
 	rootCmd.AddCommand(coverageCmd)
@@ -495,6 +505,11 @@ func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
 	services, _ := cmd.Flags().GetStringSlice("services")
 	onlyUnannotated, _ := cmd.Flags().GetBool("only-unannotated")
 	missing, _ := cmd.Flags().GetBool("missing")
+	withRefs, _ := cmd.Flags().GetBool("with-refs")
+	var o servicesOptions
+	root, _ := cmd.Flags().GetString("sdk-cache")
+	o.cache = sdkinv.Cache{Root: root}
+	o.sourceRoot, _ = cmd.Flags().GetString("source-root")
 	outputFmt := outputFormat(cmd)
 	defer func() { maybeStructuredError(outputFmt, rerr) }()
 
@@ -513,7 +528,7 @@ func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
 
 	w := cmd.OutOrStdout()
 	if missing {
-		return runResolversMissing(w, auditors, services, outputFmt)
+		return runResolversMissing(cmd.Context(), w, auditors, services, outputFmt, o, withRefs)
 	}
 	return runResolversList(w, auditors, services, onlyUnannotated, outputFmt)
 }
@@ -635,55 +650,89 @@ func runResolversList(w io.Writer, auditors []auditorPair, services []string, on
 	return nil
 }
 
+// orphanRow is one `resolvers --missing` line: an emitted type no resolver
+// names as a Source, with the reference fields its SDK element carries.
+type orphanRow struct {
+	Provider  string   `json:"provider"`
+	DiscoType string   `json:"discoType"`
+	Service   string   `json:"service"`
+	Refs      []string `json:"refs,omitempty"`
+}
+
 // runResolversMissing prints orphan disco types — those never appearing as
 // the Source of any EdgeDecl — optionally filtered to types whose service
-// segment matches a named service.
-func runResolversMissing(w io.Writer, auditors []auditorPair, services []string, outputFmt string) error {
+// segment matches a named service, richest in refs first.
+func runResolversMissing(ctx context.Context, w io.Writer, auditors []auditorPair, services []string, outputFmt string, o servicesOptions, withRefs bool) error {
 	allowed := lowerSet(services)
-	type row struct {
-		Provider  string `json:"provider"`
-		DiscoType string `json:"discoType"`
-		Service   string `json:"service"`
-	}
-	var rows []row
-	totalEmitted := 0
+	var rows []orphanRow
 	for _, a := range auditors {
 		provName := a.prov.Name()
-		emitted := make(map[string]struct{})
-		for _, decl := range a.prov.Emits() {
-			if decl.Leaf {
-				continue
+		refs, err := orphanRefs(ctx, o, a.prov)
+		if err != nil {
+			if withRefs {
+				return err
 			}
-			emitted[decl.DiscoType] = struct{}{}
+			// Refs are a hint; the orphan list itself needs no SDK cache.
+			fmt.Fprintf(os.Stderr, "  %s: refs unavailable (%v)\n", provName, err)
 		}
-		totalEmitted += len(emitted)
 		sources := make(map[string]struct{})
 		for _, s := range a.ra.ResolverEdgeSources() {
 			sources[s] = struct{}{}
 		}
-		orphans := make([]string, 0, len(emitted))
-		for t := range emitted {
-			if _, has := sources[t]; has {
+		for _, decl := range a.prov.Emits() {
+			if _, has := sources[decl.DiscoType]; has {
 				continue
 			}
-			orphans = append(orphans, t)
-		}
-		sort.Strings(orphans)
-		for _, t := range orphans {
-			svc := discoServiceSegment(t)
+			svc := discoServiceSegment(decl.DiscoType)
 			if len(allowed) > 0 && !allowed[strings.ToLower(svc)] {
 				continue
 			}
-			rows = append(rows, row{Provider: provName, DiscoType: t, Service: svc})
+			if withRefs && len(refs[decl.DiscoType]) == 0 {
+				continue
+			}
+			rows = append(rows, orphanRow{Provider: provName, DiscoType: decl.DiscoType, Service: svc, Refs: refs[decl.DiscoType]})
 		}
 	}
+	sort.Slice(rows, func(i, j int) bool {
+		if len(rows[i].Refs) != len(rows[j].Refs) {
+			return len(rows[i].Refs) > len(rows[j].Refs)
+		}
+		if rows[i].Provider != rows[j].Provider {
+			return rows[i].Provider < rows[j].Provider
+		}
+		return rows[i].DiscoType < rows[j].DiscoType
+	})
+	return renderOrphanRows(w, outputFmt, rows)
+}
+
+// orphanRefs derives type → reference fields from the provider's SDK
+// inventory paired with its scanners.
+func orphanRefs(ctx context.Context, o servicesOptions, p coverage.Provider) (map[string][]string, error) {
+	in, err := inventoryInputs(ctx, o, p)
+	if err != nil {
+		return nil, err
+	}
+	return coverage.TypeRefs(coverage.BuildInventory(in)), nil
+}
+
+// refsCell keeps a table line readable: the count and the first few paths.
+func refsCell(refs []string) string {
+	if len(refs) == 0 {
+		return ""
+	}
+	const show = 6
+	if len(refs) <= show {
+		return fmt.Sprintf("%d: %s", len(refs), strings.Join(refs, ","))
+	}
+	return fmt.Sprintf("%d: %s,…", len(refs), strings.Join(refs[:show], ","))
+}
+
+func renderOrphanRows(w io.Writer, outputFmt string, rows []orphanRow) error {
 	switch outputFmt {
 	case "json":
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
-		if err := enc.Encode(rows); err != nil {
-			return err
-		}
+		return enc.Encode(rows)
 	case "jsonl":
 		enc := json.NewEncoder(w)
 		for _, r := range rows {
@@ -693,33 +742,26 @@ func runResolversMissing(w io.Writer, auditors []auditorPair, services []string,
 		}
 	case "csv":
 		cw := csv.NewWriter(w)
-		_ = cw.Write([]string{"provider", "disco_type", "service"})
+		_ = cw.Write([]string{"provider", "disco_type", "service", "refs"})
 		for _, r := range rows {
-			_ = cw.Write([]string{r.Provider, r.DiscoType, r.Service})
+			_ = cw.Write([]string{r.Provider, r.DiscoType, r.Service, strings.Join(r.Refs, " ")})
 		}
 		cw.Flush()
-		if err := cw.Error(); err != nil {
-			return err
-		}
+		return cw.Error()
 	case "markdown", "md":
 		mdRows := make([][]string, 0, len(rows))
 		for _, r := range rows {
-			mdRows = append(mdRows, []string{r.Provider, r.DiscoType, r.Service})
+			mdRows = append(mdRows, []string{r.Provider, r.DiscoType, r.Service, refsCell(r.Refs)})
 		}
-		if err := renderMarkdownTable(w, []string{"Provider", "Disco Type", "Service"}, mdRows); err != nil {
-			return err
-		}
+		return renderMarkdownTable(w, []string{"Provider", "Disco Type", "Service", "Refs"}, mdRows)
 	default:
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(tw, "PROVIDER\tDISCO_TYPE\tSERVICE")
+		_, _ = fmt.Fprintln(tw, "PROVIDER\tDISCO_TYPE\tSERVICE\tREFS")
 		for _, r := range rows {
-			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", r.Provider, r.DiscoType, r.Service)
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", r.Provider, r.DiscoType, r.Service, refsCell(r.Refs))
 		}
-		if err := tw.Flush(); err != nil {
-			return err
-		}
+		return tw.Flush()
 	}
-	fmt.Fprintf(os.Stderr, "\n%d source-orphan types out of %d emitted\n", len(rows), totalEmitted)
 	return nil
 }
 

@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBareMetalInstance, Service: "microsoft.baremetalinfrastructure", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBareMetalInstance, Service: "microsoft.baremetalinfrastructure"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.baremetalinfrastructure",
 		fn:   scanBareMetalInfrastructure,

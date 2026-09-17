@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePollyLexicon, Service: "polly", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePollyLexicon, Service: "polly"})
 	registerService(serviceEntry{
 		name: "aws:polly",
 		fn:   scanPolly,

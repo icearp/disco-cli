@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSnowDeviceManagementManagedDevice, Service: "snow-device-management", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSnowDeviceManagementTask, Service: "snow-device-management", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSnowDeviceManagementManagedDevice, Service: "snow-device-management"})
+	registerType(restype.Descriptor{Type: TypeSnowDeviceManagementTask, Service: "snow-device-management"})
 	registerService(serviceEntry{
 		name: "aws:snow-device-management",
 		fn:   scanSnowDeviceManagement,

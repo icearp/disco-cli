@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessTrustProvider, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessTrustProvider, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessInstance, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessGroup, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessEndpoint, Service: "ec2"})

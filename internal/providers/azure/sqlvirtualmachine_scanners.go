@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSQLVirtualMachine, Service: "microsoft.sqlvirtualmachine", Leaf: true, Redact: []redact.Rule{{Path: "properties.autoBackupSettings.password", Mode: redact.RedactScalar}, {Path: "properties.autoBackupSettings.storageAccessKey", Mode: redact.RedactScalar}, {Path: "properties.keyVaultCredentialSettings.servicePrincipalSecret", Mode: redact.RedactScalar}, {Path: "properties.wsfcDomainCredentials.clusterBootstrapAccountPassword", Mode: redact.RedactScalar}, {Path: "properties.wsfcDomainCredentials.clusterOperatorAccountPassword", Mode: redact.RedactScalar}, {Path: "properties.wsfcDomainCredentials.sqlServiceAccountPassword", Mode: redact.RedactScalar}, {Path: "properties.serverConfigurationsManagementSettings.sqlConnectivityUpdateSettings.sqlAuthUpdatePassword", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeSQLVirtualMachineGroup, Service: "microsoft.sqlvirtualmachine", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSQLVirtualMachine, Service: "microsoft.sqlvirtualmachine", Redact: []redact.Rule{{Path: "properties.autoBackupSettings.password", Mode: redact.RedactScalar}, {Path: "properties.autoBackupSettings.storageAccessKey", Mode: redact.RedactScalar}, {Path: "properties.keyVaultCredentialSettings.servicePrincipalSecret", Mode: redact.RedactScalar}, {Path: "properties.wsfcDomainCredentials.clusterBootstrapAccountPassword", Mode: redact.RedactScalar}, {Path: "properties.wsfcDomainCredentials.clusterOperatorAccountPassword", Mode: redact.RedactScalar}, {Path: "properties.wsfcDomainCredentials.sqlServiceAccountPassword", Mode: redact.RedactScalar}, {Path: "properties.serverConfigurationsManagementSettings.sqlConnectivityUpdateSettings.sqlAuthUpdatePassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSQLVirtualMachineGroup, Service: "microsoft.sqlvirtualmachine"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.sqlvirtualmachine",
 		fn:   scanSQLVirtualMachine,

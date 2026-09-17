@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeOpInsightsWorkspace, Service: "microsoft.operationalinsights"})
-	registerType(restype.Descriptor{Type: TypeOpInsightsCluster, Service: "microsoft.operationalinsights", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOpInsightsCluster, Service: "microsoft.operationalinsights"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.operationalinsights",
 		fn:   scanOperationalInsights,

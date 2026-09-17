@@ -20,11 +20,11 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAppStreamEntitlement, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamFleet, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamImageBuilder, Service: "appstream"})
-	registerType(restype.Descriptor{Type: TypeAppStreamImage, Service: "appstream", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppStreamImage, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamStack, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamStackFleetAssociation, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamStackUserAssociation, Service: "appstream"})
-	registerType(restype.Descriptor{Type: TypeAppStreamUser, Service: "appstream", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppStreamUser, Service: "appstream"})
 	registerService(serviceEntry{
 		name: "aws:appstream",
 		fn:   scanAppStream,

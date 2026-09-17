@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRTBFabricRequesterGateway, Service: "rtbfabric", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRTBFabricResponderGateway, Service: "rtbfabric", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRTBFabricLink, Service: "rtbfabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRTBFabricRequesterGateway, Service: "rtbfabric"})
+	registerType(restype.Descriptor{Type: TypeRTBFabricResponderGateway, Service: "rtbfabric"})
+	registerType(restype.Descriptor{Type: TypeRTBFabricLink, Service: "rtbfabric"})
 	registerType(restype.Descriptor{Type: TypeRTBFabricLinkRoutingRule, Service: "rtbfabric"})
 	registerService(serviceEntry{
 		name: "aws:rtbfabric",

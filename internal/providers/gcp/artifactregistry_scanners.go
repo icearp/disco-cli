@@ -16,8 +16,8 @@ func init() {
 		fn:   scanArtifactRegistry,
 	})
 	registerType(restype.Descriptor{Type: TypeArtifactRepository, Service: "artifactregistry"})
-	registerType(restype.Descriptor{Type: TypeArtifactPackage, Service: "artifactregistry", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeArtifactTag, Service: "artifactregistry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeArtifactPackage, Service: "artifactregistry"})
+	registerType(restype.Descriptor{Type: TypeArtifactTag, Service: "artifactregistry"})
 	registerType(restype.Descriptor{Type: TypeArtifactRule, Service: "artifactregistry"})
 	registerType(restype.Descriptor{Type: TypeArtifactAttachment, Service: "artifactregistry"})
 }

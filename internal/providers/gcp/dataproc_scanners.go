@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeDataprocCluster, Service: "dataproc"})
-	registerType(restype.Descriptor{Type: TypeDataprocAutoscalingPolicy, Service: "dataproc", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataprocAutoscalingPolicy, Service: "dataproc"})
 	registerType(restype.Descriptor{Type: TypeDataprocBatch, Service: "dataproc"})
 	registerType(restype.Descriptor{Type: TypeDataprocSession, Service: "dataproc"})
 	registerType(restype.Descriptor{Type: TypeDataprocSessionTemplate, Service: "dataproc"})

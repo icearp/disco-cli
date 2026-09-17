@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTFirmwareDefenseWorkspace, Service: "microsoft.iotfirmwaredefense", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTFirmwareDefenseWorkspace, Service: "microsoft.iotfirmwaredefense"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.iotfirmwaredefense",
 		fn:   scanIoTFirmwareDefense,

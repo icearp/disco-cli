@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDevOpsInfrastructurePool, Service: "microsoft.devopsinfrastructure", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDevOpsInfrastructurePool, Service: "microsoft.devopsinfrastructure"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.devopsinfrastructure",
 		fn:   scanDevOpsInfrastructure,

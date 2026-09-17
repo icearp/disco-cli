@@ -11,9 +11,9 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeLookoutEquipmentInferenceScheduler, Service: "lookout-equipment"})
-	registerType(restype.Descriptor{Type: TypeLookoutEquipmentDataset, Service: "lookout-equipment", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLookoutEquipmentLabelGroup, Service: "lookout-equipment", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLookoutEquipmentModel, Service: "lookout-equipment", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentDataset, Service: "lookout-equipment"})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentLabelGroup, Service: "lookout-equipment"})
+	registerType(restype.Descriptor{Type: TypeLookoutEquipmentModel, Service: "lookout-equipment"})
 	registerType(restype.Descriptor{Type: TypeLookoutEquipmentModelVersion, Service: "lookout-equipment"})
 	registerService(serviceEntry{
 		name: "aws:lookout-equipment",

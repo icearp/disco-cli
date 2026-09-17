@@ -10,18 +10,18 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2ReservedInstances, Service: "ec2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2HostReservation, Service: "ec2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2CapacityBlock, Service: "ec2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2FpgaImage, Service: "ec2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2PublicIpv4Pool, Service: "ec2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2Ipv6Pool, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2ReservedInstances, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2HostReservation, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2CapacityBlock, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2FpgaImage, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2PublicIpv4Pool, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2Ipv6Pool, Service: "ec2"})
 }
 
 // scanEC2Inventory discovers EC2 purchase/capacity inventory and BYOIP address
 // pools: Reserved Instances, dedicated-host reservations, Capacity Blocks,
 // self-owned FPGA images, and public IPv4 / IPv6 address pools. These are
-// billing or address-allocation records with no outbound resource edges (Leaf).
+// billing or address-allocation records with no outbound resource edges (edge-less).
 func scanEC2Inventory(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(
 		ctx,

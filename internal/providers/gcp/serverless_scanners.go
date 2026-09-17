@@ -21,7 +21,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeCloudRunWorkerPool, Service: "run", Redact: []redact.Rule{{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
 	registerType(restype.Descriptor{Type: TypeCloudRunInstance, Service: "run", Redact: []redact.Rule{{Path: "containers[*].env[*].value", Mode: redact.RedactScalar}}})
 	registerType(restype.Descriptor{Type: TypeCloudRunDomainMapping, Service: "run"})
-	registerType(restype.Descriptor{Type: TypeCloudRunAuthorizedDomain, Service: "run", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudRunAuthorizedDomain, Service: "run"})
 	registerService(serviceEntry{
 		name: "gcp:cloudfunctions",
 		fn:   scanCloudFunctions,

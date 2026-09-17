@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCloudDirectoryDirectory, Service: "clouddirectory", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudDirectoryDevelopmentSchema, Service: "clouddirectory", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudDirectoryPublishedSchema, Service: "clouddirectory", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudDirectoryDirectory, Service: "clouddirectory"})
+	registerType(restype.Descriptor{Type: TypeCloudDirectoryDevelopmentSchema, Service: "clouddirectory"})
+	registerType(restype.Descriptor{Type: TypeCloudDirectoryPublishedSchema, Service: "clouddirectory"})
 	registerType(restype.Descriptor{Type: TypeCloudDirectoryAppliedSchema, Service: "clouddirectory"})
 	registerService(serviceEntry{
 		name: "aws:clouddirectory",

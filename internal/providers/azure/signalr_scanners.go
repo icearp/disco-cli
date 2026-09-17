@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSignalR, Service: "microsoft.signalrservice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSignalR, Service: "microsoft.signalrservice"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.signalrservice",
 		fn:   scanSignalRServiceNamespace,

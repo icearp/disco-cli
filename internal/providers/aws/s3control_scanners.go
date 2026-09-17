@@ -30,16 +30,16 @@ type s3controlAPI interface {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeS3AccessGrantsInstance, Service: "s3", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3AccessGrantsInstance, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3AccessGrantsLocation, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3AccessGrant, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3AccessPoint, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3MultiRegionAccessPoint, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3MultiRegionAccessPointPolicy, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3StorageLens, Service: "s3"})
-	registerType(restype.Descriptor{Type: TypeS3StorageLensGroup, Service: "s3", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3ObjectLambdaAccessPoint, Service: "s3-object-lambda", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3ObjectLambdaAccessPointPolicy, Service: "s3-object-lambda", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3StorageLensGroup, Service: "s3"})
+	registerType(restype.Descriptor{Type: TypeS3ObjectLambdaAccessPoint, Service: "s3-object-lambda"})
+	registerType(restype.Descriptor{Type: TypeS3ObjectLambdaAccessPointPolicy, Service: "s3-object-lambda"})
 	registerService(serviceEntry{
 		name:   "aws:s3control",
 		global: false,

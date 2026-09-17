@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTLogging, Service: "iot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTResourceSpecificLogging, Service: "iot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTEncryptionConfiguration, Service: "iot", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeIoTLogging, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTResourceSpecificLogging, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTEncryptionConfiguration, Service: "iot", Managed: true})
 }
 
 type iotLoggingAPI interface {

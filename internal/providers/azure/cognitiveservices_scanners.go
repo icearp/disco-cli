@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeCognitiveServicesAccount, Service: "microsoft.cognitiveservices", Redact: []redact.Rule{{Path: "properties.apiProperties.eventHubConnectionString", Mode: redact.RedactScalar}, {Path: "properties.apiProperties.qnaAzureSearchEndpointKey", Mode: redact.RedactScalar}, {Path: "properties.apiProperties.storageAccountConnectionString", Mode: redact.RedactScalar}, {Path: "properties.migrationToken", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeCognitiveCommitmentPlan, Service: "microsoft.cognitiveservices", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCognitiveCommitmentPlan, Service: "microsoft.cognitiveservices"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.cognitiveservices",
 		fn:   scanCognitiveServices,

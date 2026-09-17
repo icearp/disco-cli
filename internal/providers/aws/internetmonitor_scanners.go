@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeInternetMonitorMonitor, Service: "internet-monitor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeInternetMonitorMonitor, Service: "internet-monitor"})
 	registerService(serviceEntry{
 		name: "aws:internet-monitor",
 		fn:   scanInternetMonitor,

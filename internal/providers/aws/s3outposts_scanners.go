@@ -11,10 +11,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeS3OutpostsEndpoint, Service: "s3outposts", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3OutpostsBucket, Service: "s3outposts", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3OutpostsAccessPoint, Service: "s3outposts", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3OutpostsBucketPolicy, Service: "s3outposts", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3OutpostsEndpoint, Service: "s3outposts"})
+	registerType(restype.Descriptor{Type: TypeS3OutpostsBucket, Service: "s3outposts"})
+	registerType(restype.Descriptor{Type: TypeS3OutpostsAccessPoint, Service: "s3outposts"})
+	registerType(restype.Descriptor{Type: TypeS3OutpostsBucketPolicy, Service: "s3outposts"})
 	registerService(serviceEntry{
 		name: "aws:s3outposts",
 		fn:   scanS3Outposts,

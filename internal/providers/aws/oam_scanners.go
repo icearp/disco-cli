@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOAMLink, Service: "oam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeOAMSink, Service: "oam", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOAMLink, Service: "oam"})
+	registerType(restype.Descriptor{Type: TypeOAMSink, Service: "oam"})
 	registerService(serviceEntry{
 		name: "aws:oam",
 		fn:   scanOAM,

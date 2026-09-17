@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRefactorSpacesEnvironment, Service: "refactor-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRefactorSpacesEnvironment, Service: "refactor-spaces"})
 	registerType(restype.Descriptor{Type: TypeRefactorSpacesApplication, Service: "refactor-spaces"})
 	registerType(restype.Descriptor{Type: TypeRefactorSpacesService, Service: "refactor-spaces"})
 	registerType(restype.Descriptor{Type: TypeRefactorSpacesRoute, Service: "refactor-spaces"})

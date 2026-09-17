@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLargeInstance, Service: "microsoft.azurelargeinstance", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLargeInstanceStorage, Service: "microsoft.azurelargeinstance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLargeInstance, Service: "microsoft.azurelargeinstance"})
+	registerType(restype.Descriptor{Type: TypeLargeInstanceStorage, Service: "microsoft.azurelargeinstance"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azurelargeinstance",
 		fn:   scanLargeInstance,

@@ -13,7 +13,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeMSKCluster, Service: "msk"})
 	registerType(restype.Descriptor{Type: TypeMSKBatchScramSecret, Service: "msk"})
 	registerType(restype.Descriptor{Type: TypeMSKClusterPolicy, Service: "msk"})
-	registerType(restype.Descriptor{Type: TypeMSKConfiguration, Service: "msk", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMSKConfiguration, Service: "msk"})
 	registerType(restype.Descriptor{Type: TypeMSKReplicator, Service: "msk"})
 	registerType(restype.Descriptor{Type: TypeMSKVpcConnection, Service: "msk"})
 	registerService(serviceEntry{

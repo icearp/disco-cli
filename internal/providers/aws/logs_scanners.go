@@ -18,22 +18,22 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLogsLogGroup, Service: "logs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsLogGroup, Service: "logs"})
 	registerType(restype.Descriptor{Type: TypeLogsLogStream, Service: "logs", Volatile: []string{"UploadSequenceToken"}})
 	registerType(restype.Descriptor{Type: TypeLogsMetricFilter, Service: "logs"})
 	registerType(restype.Descriptor{Type: TypeLogsSubscriptionFilter, Service: "logs"})
 	registerType(restype.Descriptor{Type: TypeLogsQueryDefinition, Service: "logs"})
-	registerType(restype.Descriptor{Type: TypeLogsScheduledQuery, Service: "logs", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLogsResourcePolicy, Service: "logs", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLogsAccountPolicy, Service: "logs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsScheduledQuery, Service: "logs"})
+	registerType(restype.Descriptor{Type: TypeLogsResourcePolicy, Service: "logs"})
+	registerType(restype.Descriptor{Type: TypeLogsAccountPolicy, Service: "logs"})
 	registerType(restype.Descriptor{Type: TypeLogsDestination, Service: "logs"})
 	registerType(restype.Descriptor{Type: TypeLogsDelivery, Service: "logs"})
-	registerType(restype.Descriptor{Type: TypeLogsDeliverySource, Service: "logs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsDeliverySource, Service: "logs"})
 	registerType(restype.Descriptor{Type: TypeLogsDeliveryDest, Service: "logs"})
 	registerType(restype.Descriptor{Type: TypeLogsLogAnomalyDetector, Service: "logs"})
 	registerType(restype.Descriptor{Type: TypeLogsTransformer, Service: "logs"})
-	registerType(restype.Descriptor{Type: TypeLogsIntegration, Service: "logs", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLogsLookupTable, Service: "logs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLogsIntegration, Service: "logs"})
+	registerType(restype.Descriptor{Type: TypeLogsLookupTable, Service: "logs"})
 	registerService(serviceEntry{
 		name: "aws:logs",
 		fn:   scanLogs,

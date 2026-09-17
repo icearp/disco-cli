@@ -10,13 +10,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSecurityAgentAgentSpace, Service: "security-agent", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityAgentApplication, Service: "security-agent", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityAgentPentest, Service: "security-agent", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityAgentTargetDomain, Service: "security-agent", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityAgentIntegration, Service: "security-agent", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityAgentPrivateConnection, Service: "security-agent", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityAgentSecurityRequirementPack, Service: "security-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentAgentSpace, Service: "security-agent"})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentApplication, Service: "security-agent"})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentPentest, Service: "security-agent"})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentTargetDomain, Service: "security-agent"})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentIntegration, Service: "security-agent"})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentPrivateConnection, Service: "security-agent"})
+	registerType(restype.Descriptor{Type: TypeSecurityAgentSecurityRequirementPack, Service: "security-agent"})
 	registerService(serviceEntry{
 		name: "aws:security-agent",
 		fn:   scanSecurityAgent,

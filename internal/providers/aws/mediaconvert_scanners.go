@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMediaConvertJobTemplate, Service: "media-convert", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaConvertPreset, Service: "media-convert", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaConvertQueue, Service: "media-convert", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaConvertJobTemplate, Service: "media-convert"})
+	registerType(restype.Descriptor{Type: TypeMediaConvertPreset, Service: "media-convert"})
+	registerType(restype.Descriptor{Type: TypeMediaConvertQueue, Service: "media-convert"})
 	registerService(serviceEntry{
 		name: "aws:media-convert",
 		fn:   scanMediaConvert,

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBraketSpendingLimit, Service: "braket", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBraketSpendingLimit, Service: "braket"})
 	registerService(serviceEntry{
 		name: "aws:braket",
 		fn:   scanBraket,

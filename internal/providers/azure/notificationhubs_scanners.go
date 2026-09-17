@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNotificationHubNamespace, Service: "microsoft.notificationhubs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNotificationHubNamespace, Service: "microsoft.notificationhubs"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.notificationhubs",
 		fn:   scanNotificationHubs,

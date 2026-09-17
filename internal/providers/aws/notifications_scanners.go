@@ -12,11 +12,11 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeNotificationsChannelAssociation, Service: "notifications"})
 	registerType(restype.Descriptor{Type: TypeNotificationsEventRule, Service: "notifications"})
-	registerType(restype.Descriptor{Type: TypeNotificationsManagedNotificationAdditionalChannelAssoc, Service: "notifications", Leaf: true, Managed: true})
-	registerType(restype.Descriptor{Type: TypeNotificationsNotificationConfiguration, Service: "notifications", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNotificationsNotificationHub, Service: "notifications", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNotificationsManagedNotificationAdditionalChannelAssoc, Service: "notifications", Managed: true})
+	registerType(restype.Descriptor{Type: TypeNotificationsNotificationConfiguration, Service: "notifications"})
+	registerType(restype.Descriptor{Type: TypeNotificationsNotificationHub, Service: "notifications"})
 	registerType(restype.Descriptor{Type: TypeNotificationsOrganizationalUnitAssociation, Service: "notifications"})
-	registerType(restype.Descriptor{Type: TypeNotificationsManagedNotificationConfiguration, Service: "notifications", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeNotificationsManagedNotificationConfiguration, Service: "notifications", Managed: true})
 	registerService(serviceEntry{
 		name:   "aws:notifications",
 		global: true,

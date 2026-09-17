@@ -48,6 +48,7 @@ type Row struct {
 	Scope      string   `json:"scope,omitempty"`
 	Reason     string   `json:"reason,omitempty"`
 	Signals    []string `json:"signals,omitempty"`
+	Refs       []string `json:"refs,omitempty"` // candidate element fields naming other resources
 }
 
 // DepthSummary is the covered/uncovered split at one candidate depth.
@@ -131,7 +132,7 @@ func BuildInventory(in Inputs) Matrix {
 	}
 	accounted := map[string]bool{}
 	for _, c := range in.Universe.Candidates {
-		row := Row{Provider: in.Provider, Service: c.Service, Key: c.Key, Depth: c.Depth, Parent: c.Parent, Signals: c.Signals}
+		row := Row{Provider: in.Provider, Service: c.Service, Key: c.Key, Depth: c.Depth, Parent: c.Parent, Signals: c.Signals, Refs: c.Refs}
 		for _, op := range c.Ops {
 			row.Ops = append(row.Ops, op.Label)
 			if row.Scope == "" {
@@ -410,4 +411,37 @@ func bestType(paired map[string]bool, c sdkinv.Candidate) string {
 		}
 	}
 	return names[0]
+}
+
+// TypeRefs maps each row's primary disco type to the union of its
+// candidates' Refs: the element fields a resolver for that type could follow.
+// A type with no refs is a derived leaf. Only Row.DiscoType counts: the
+// DiscoTypes of a dispatcher's derived pairing span a whole service and
+// would hand every network type the application gateway's 280 fields.
+func TypeRefs(m Matrix) map[string][]string {
+	sets := map[string]map[string]bool{}
+	add := func(t string, refs []string) {
+		if t == "" {
+			return
+		}
+		if sets[t] == nil {
+			sets[t] = map[string]bool{}
+		}
+		for _, r := range refs {
+			sets[t][r] = true
+		}
+	}
+	for _, r := range m.Rows {
+		add(r.DiscoType, r.Refs)
+	}
+	out := make(map[string][]string, len(sets))
+	for t, set := range sets {
+		refs := make([]string, 0, len(set))
+		for r := range set {
+			refs = append(refs, r)
+		}
+		sort.Strings(refs)
+		out[t] = refs
+	}
+	return out
 }

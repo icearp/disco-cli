@@ -80,18 +80,3 @@ func TestCoverageFetch_AllDocsOKNoError(t *testing.T) {
 		t.Error("want at least one upstream type from the fetchable collection, got 0")
 	}
 }
-
-func TestLeafTypesNotResolverSources(t *testing.T) {
-	sources := make(map[string]bool)
-	for _, s := range ResolverEdgeSources() {
-		sources[s] = true
-	}
-	for _, decl := range CollectEmits() {
-		if !decl.Leaf {
-			continue
-		}
-		if sources[decl.DiscoType] {
-			t.Errorf("emits[%q] flagged Leaf: true but type appears as resolver source — drop the Leaf flag or remove the resolver", decl.DiscoType)
-		}
-	}
-}

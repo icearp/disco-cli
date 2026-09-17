@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2CapacityManagerDataExport, Service: "ec2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2NetworkPerformanceMetricSubscription, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2CapacityManagerDataExport, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkPerformanceMetricSubscription, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayMeteringPolicy, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2VPCEncryptionControl, Service: "ec2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2VPNConcentrator, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2VPCEncryptionControl, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2VPNConcentrator, Service: "ec2"})
 }
 
 // scanEC2MiscExtra discovers small EC2 families not worth their own scanner

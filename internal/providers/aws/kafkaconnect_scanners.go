@@ -11,8 +11,8 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeKafkaConnectConnector, Service: "kafka-connect"})
-	registerType(restype.Descriptor{Type: TypeKafkaConnectCustomPlugin, Service: "kafka-connect", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeKafkaConnectWorkerConfiguration, Service: "kafka-connect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKafkaConnectCustomPlugin, Service: "kafka-connect"})
+	registerType(restype.Descriptor{Type: TypeKafkaConnectWorkerConfiguration, Service: "kafka-connect"})
 	registerService(serviceEntry{
 		name: "aws:kafka-connect",
 		fn:   scanKafkaConnect,

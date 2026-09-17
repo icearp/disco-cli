@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeTranscribeCallAnalyticsCategory, Service: "transcribe", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTranscribeLanguageModel, Service: "transcribe", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTranscribeVocabulary, Service: "transcribe", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTranscribeVocabularyFilter, Service: "transcribe", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTranscribeMedicalVocabulary, Service: "transcribe", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTranscribeCallAnalyticsCategory, Service: "transcribe"})
+	registerType(restype.Descriptor{Type: TypeTranscribeLanguageModel, Service: "transcribe"})
+	registerType(restype.Descriptor{Type: TypeTranscribeVocabulary, Service: "transcribe"})
+	registerType(restype.Descriptor{Type: TypeTranscribeVocabularyFilter, Service: "transcribe"})
+	registerType(restype.Descriptor{Type: TypeTranscribeMedicalVocabulary, Service: "transcribe"})
 	registerService(serviceEntry{
 		name: "aws:transcribe",
 		fn:   scanTranscribe,

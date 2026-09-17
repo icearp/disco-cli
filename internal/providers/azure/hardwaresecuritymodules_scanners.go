@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDedicatedHsm, Service: "microsoft.hardwaresecuritymodules", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDedicatedHsm, Service: "microsoft.hardwaresecuritymodules"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hardwaresecuritymodules",
 		fn:   scanHardwareSecurityModules,

@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeManagedServicesRegistrationDefinition, Service: "microsoft.managedservices", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeManagedServicesMarketplaceRegDef, Service: "microsoft.managedservices", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeManagedServicesRegistrationAssign, Service: "microsoft.managedservices", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedServicesRegistrationDefinition, Service: "microsoft.managedservices"})
+	registerType(restype.Descriptor{Type: TypeManagedServicesMarketplaceRegDef, Service: "microsoft.managedservices"})
+	registerType(restype.Descriptor{Type: TypeManagedServicesRegistrationAssign, Service: "microsoft.managedservices"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.managedservices",
 		fn:   scanManagedServices,

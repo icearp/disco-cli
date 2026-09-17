@@ -15,9 +15,9 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeIoTCertificate, Service: "iot"})
-	registerType(restype.Descriptor{Type: TypeIoTCACertificate, Service: "iot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTCertificateProvider, Service: "iot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTPolicy, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTCACertificate, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTCertificateProvider, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTPolicy, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTPolicyPrincipalAttachment, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTRoleAlias, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTAuthorizer, Service: "iot"})

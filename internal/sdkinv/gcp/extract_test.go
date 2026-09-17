@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -66,6 +67,11 @@ func TestExtract_Fixture(t *testing.T) {
 	}
 	if c := got["widgets/gadgets"]; !hasSignal(c, "preview-only") {
 		t.Errorf("gadgets (v1beta1 only) lacks preview-only: %v", c.Signals)
+	}
+	// Refs: strings the schema describes as URLs, resource names or
+	// accounts, through one nested schema; name/selfLink are the element's own.
+	if want := []string{"network", "serviceAccount", "sizing.machineType"}; !slices.Equal(got["widgets/widgets"].Refs, want) {
+		t.Errorf("widgets refs = %v, want %v", got["widgets/widgets"].Refs, want)
 	}
 	if c := got["widgets/widgets"]; hasSignal(c, "preview-only") || len(c.Ops) != 2 {
 		t.Errorf("widgets (v1+v1beta1) = %v ops %d", c.Signals, len(c.Ops))

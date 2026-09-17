@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeTextractAdapter, Service: "textract", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTextractAdapter, Service: "textract"})
 	registerType(restype.Descriptor{Type: TypeTextractAdapterVersion, Service: "textract"})
 	registerService(serviceEntry{
 		name: "aws:textract",

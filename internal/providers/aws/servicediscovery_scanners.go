@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeServiceDiscoveryHTTPNamespace, Service: "servicediscovery", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeServiceDiscoveryHTTPNamespace, Service: "servicediscovery"})
 	registerType(restype.Descriptor{Type: TypeServiceDiscoveryPrivateDNSNamespace, Service: "servicediscovery"})
 	registerType(restype.Descriptor{Type: TypeServiceDiscoveryPublicDNSNamespace, Service: "servicediscovery"})
 	registerType(restype.Descriptor{Type: TypeServiceDiscoveryService, Service: "servicediscovery"})

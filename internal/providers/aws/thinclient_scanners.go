@@ -11,8 +11,8 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeThinClientDevice, Service: "thinclient"})
-	registerType(restype.Descriptor{Type: TypeThinClientEnvironment, Service: "thinclient", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeThinClientSoftwareSet, Service: "thinclient", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeThinClientEnvironment, Service: "thinclient"})
+	registerType(restype.Descriptor{Type: TypeThinClientSoftwareSet, Service: "thinclient", Managed: true})
 	registerService(serviceEntry{
 		name: "aws:thinclient",
 		fn:   scanThinClient,

@@ -21,15 +21,15 @@ import (
 // lacked org-level tag permissions). Lien/TagBinding/EffectiveTag are
 // project-scoped only — GCP has no org-level Lien/TagBinding endpoint.
 func init() {
-	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLien, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeLien, Service: "cloudresourcemanager"})
 	registerType(restype.Descriptor{Type: TypeTagBinding, Service: "cloudresourcemanager"})
 	registerType(restype.Descriptor{Type: TypeEffectiveTag, Service: "cloudresourcemanager"})
-	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager"})
 	registerOrgService(orgServiceEntry{
 		name: "gcp:cloudresourcemanager-tags",
 		fn:   scanCRMTags,

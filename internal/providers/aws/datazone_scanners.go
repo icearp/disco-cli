@@ -16,7 +16,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeDataZoneProjectProfile, Service: "datazone"})
 	registerType(restype.Descriptor{Type: TypeDataZoneProjectMembership, Service: "datazone"})
 	registerType(restype.Descriptor{Type: TypeDataZoneGroupProfile, Service: "datazone"})
-	registerType(restype.Descriptor{Type: TypeDataZoneUserProfile, Service: "datazone", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataZoneUserProfile, Service: "datazone"})
 	registerType(restype.Descriptor{Type: TypeDataZoneEnvironment, Service: "datazone"})
 	registerType(restype.Descriptor{Type: TypeDataZoneEnvironmentProfile, Service: "datazone"})
 	registerType(restype.Descriptor{Type: TypeDataZoneEnvironmentActions, Service: "datazone"})

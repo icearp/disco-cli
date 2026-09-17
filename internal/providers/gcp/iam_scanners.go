@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIAMServiceAccount, Service: "iam", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIAMServiceAccount, Service: "iam"})
 	registerService(serviceEntry{
 		name: "gcp:iam",
 		fn:   scanIAMServiceAccounts,

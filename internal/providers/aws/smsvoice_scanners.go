@@ -10,15 +10,15 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSMSVoiceConfigurationSet, Service: "sms-voice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoiceOptOutList, Service: "sms-voice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoicePhoneNumber, Service: "sms-voice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoicePool, Service: "sms-voice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoiceProtectConfiguration, Service: "sms-voice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoiceSenderID, Service: "sms-voice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistration, Service: "sms-voice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistrationAttachment, Service: "sms-voice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSMSVoiceVerifiedDestinationNumber, Service: "sms-voice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceConfigurationSet, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceOptOutList, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoicePhoneNumber, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoicePool, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceProtectConfiguration, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceSenderID, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistration, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistrationAttachment, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceVerifiedDestinationNumber, Service: "sms-voice"})
 	registerService(serviceEntry{
 		name: "aws:sms-voice",
 		fn:   scanSMSVoice,

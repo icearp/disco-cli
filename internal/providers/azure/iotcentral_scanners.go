@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTCentralApp, Service: "microsoft.iotcentral", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTCentralApp, Service: "microsoft.iotcentral"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.iotcentral",
 		fn:   scanIoTCentral,

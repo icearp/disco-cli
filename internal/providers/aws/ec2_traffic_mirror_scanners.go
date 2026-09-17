@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeEC2TrafficMirrorTarget, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2TrafficMirrorFilter, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2TrafficMirrorFilter, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2TrafficMirrorFilterRule, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2TrafficMirrorSession, Service: "ec2"})
 }

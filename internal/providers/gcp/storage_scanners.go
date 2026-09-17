@@ -17,9 +17,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeStorageBucket, Service: "storage"})
 	registerType(restype.Descriptor{Type: TypeStorageHmacKey, Service: "storage"})
 	registerType(restype.Descriptor{Type: TypeStorageNotification, Service: "storage"})
-	registerType(restype.Descriptor{Type: TypeStorageManagedFolder, Service: "storage", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeStorageAnywhereCache, Service: "storage", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeStorageFolder, Service: "storage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageManagedFolder, Service: "storage"})
+	registerType(restype.Descriptor{Type: TypeStorageAnywhereCache, Service: "storage"})
+	registerType(restype.Descriptor{Type: TypeStorageFolder, Service: "storage"})
 	registerType(restype.Descriptor{Type: TypeStorageBucketAccessControl, Service: "storage"})
 	registerType(restype.Descriptor{Type: TypeStorageDefaultObjectAccessControl, Service: "storage"})
 	registerService(serviceEntry{

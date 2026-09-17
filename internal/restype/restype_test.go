@@ -14,12 +14,10 @@ func TestEmitReturnsCoverageDecl(t *testing.T) {
 	got := Emit(Descriptor{
 		Type:    "test:svc:full",
 		Service: "svc",
-		Leaf:    true,
 	})
 	want := coverage.TypeDecl{
 		Service:   "svc",
 		DiscoType: "test:svc:full",
-		Leaf:      true,
 	}
 	if got != want {
 		t.Fatalf("TypeDecl = %+v, want %+v", got, want)

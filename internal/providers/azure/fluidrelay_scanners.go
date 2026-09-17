@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeFluidRelayServer, Service: "microsoft.fluidrelay", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFluidRelayServer, Service: "microsoft.fluidrelay"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.fluidrelay",
 		fn:   scanFluidRelay,

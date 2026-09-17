@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDevHubWorkflow, Service: "microsoft.devhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDevHubWorkflow, Service: "microsoft.devhub"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.devhub",
 		fn:   scanDevHub,

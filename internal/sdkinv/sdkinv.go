@@ -69,6 +69,12 @@ type Candidate struct {
 	Class    Class       `json:"class"`
 	Ops      []Operation `json:"ops"`
 	Signals  []string    `json:"signals,omitempty"` // audit trail of the rules that fired
+	// Refs are dotted field paths on the listed element that name other
+	// resources (VpcId, properties.networkProfile.networkInterfaces,
+	// networkInterfaces.subnetwork): hints for which resolver edges a scanner
+	// of this candidate could wire. Sorted, deduplicated, never the element's
+	// own id.
+	Refs []string `json:"refs,omitempty"`
 }
 
 // Diagnostic records something an extractor could not classify confidently.

@@ -11,12 +11,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCleanRoomsMLConfiguredModelAlgorithm, Service: "cleanrooms-ml", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCleanRoomsMLConfiguredModelAlgorithmAssociation, Service: "cleanrooms-ml", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCleanRoomsMLTrainingDataset, Service: "cleanrooms-ml", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLConfiguredModelAlgorithm, Service: "cleanrooms-ml"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLConfiguredModelAlgorithmAssociation, Service: "cleanrooms-ml"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLTrainingDataset, Service: "cleanrooms-ml"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsMLAudienceModel, Service: "cleanrooms-ml"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsMLConfiguredAudienceModel, Service: "cleanrooms-ml"})
-	registerType(restype.Descriptor{Type: TypeCleanRoomsMLMLInputChannel, Service: "cleanrooms-ml", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMLMLInputChannel, Service: "cleanrooms-ml"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsMLTrainedModel, Service: "cleanrooms-ml"})
 	registerService(serviceEntry{
 		name: "aws:cleanrooms-ml",

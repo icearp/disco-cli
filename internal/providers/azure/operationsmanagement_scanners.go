@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOpsManagementSolution, Service: "microsoft.operationsmanagement", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOpsManagementSolution, Service: "microsoft.operationsmanagement"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.operationsmanagement",
 		fn:   scanOperationsManagement,

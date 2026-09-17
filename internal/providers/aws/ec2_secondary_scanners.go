@@ -10,7 +10,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeEC2SecondaryInterface, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2SecondaryNetwork, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2SecondaryNetwork, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2SecondarySubnet, Service: "ec2"})
 }
 

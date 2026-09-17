@@ -13,14 +13,14 @@ import (
 // leaf: they describe the migration pipeline (source servers, waves, templates)
 // and carry no outbound edges to other scanned AWS resource types.
 func init() {
-	registerType(restype.Descriptor{Type: TypeMGNSourceServer, Service: "mgn", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNApplication, Service: "mgn", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNWave, Service: "mgn", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNConnector, Service: "mgn", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNLaunchConfigurationTemplate, Service: "mgn", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNReplicationConfigurationTemplate, Service: "mgn", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNVcenterClient, Service: "mgn", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNNetworkMigrationDefinition, Service: "mgn", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMGNSourceServer, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNApplication, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNWave, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNConnector, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNLaunchConfigurationTemplate, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNReplicationConfigurationTemplate, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNVcenterClient, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNNetworkMigrationDefinition, Service: "mgn"})
 	registerService(serviceEntry{
 		name: "aws:mgn",
 		fn:   scanMGN,

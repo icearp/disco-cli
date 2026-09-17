@@ -11,10 +11,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGlueRegistry, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueRegistry, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueSchema, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueSchemaVersion, Service: "glue"})
-	registerType(restype.Descriptor{Type: TypeGlueSchemaVersionMetadata, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueSchemaVersionMetadata, Service: "glue"})
 }
 
 // scanGlueSchema runs all Schema-family phases — Glue Schema Registry

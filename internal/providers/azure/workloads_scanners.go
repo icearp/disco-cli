@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWorkloadsSAPVirtualInstance, Service: "microsoft.workloads", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWorkloadsMonitor, Service: "microsoft.workloads", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkloadsSAPVirtualInstance, Service: "microsoft.workloads"})
+	registerType(restype.Descriptor{Type: TypeWorkloadsMonitor, Service: "microsoft.workloads"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.workloads",
 		fn:   scanWorkloads,

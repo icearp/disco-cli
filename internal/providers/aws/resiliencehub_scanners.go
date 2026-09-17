@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeResilienceHubApp, Service: "resilience-hub", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeResilienceHubResiliencyPolicy, Service: "resilience-hub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResilienceHubApp, Service: "resilience-hub"})
+	registerType(restype.Descriptor{Type: TypeResilienceHubResiliencyPolicy, Service: "resilience-hub"})
 	registerType(restype.Descriptor{Type: TypeResilienceHubAppAssessment, Service: "resilience-hub"})
-	registerType(restype.Descriptor{Type: TypeResilienceHubRecommendationTemplate, Service: "resilience-hub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResilienceHubRecommendationTemplate, Service: "resilience-hub"})
 	registerService(serviceEntry{
 		name: "aws:resilience-hub",
 		fn:   scanResilienceHub,

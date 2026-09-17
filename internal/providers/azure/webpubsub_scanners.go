@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWebPubSub, Service: "microsoft.signalrservice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWebPubSub, Service: "microsoft.signalrservice"})
 }
 
 // scanWebPubSub discovers Azure Web PubSub resources.

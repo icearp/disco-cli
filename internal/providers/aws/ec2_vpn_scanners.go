@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2CustomerGateway, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2CustomerGateway, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VPNGateway, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VPNConnection, Service: "ec2"})
 }

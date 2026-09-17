@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeHybridContainerVirtualNetwork, Service: "microsoft.hybridcontainerservice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHybridContainerVirtualNetwork, Service: "microsoft.hybridcontainerservice"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hybridcontainerservice",
 		fn:   scanHybridContainerService,

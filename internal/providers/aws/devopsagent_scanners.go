@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDevOpsAgentAgentSpace, Service: "dev-ops-agent", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDevOpsAgentAssociation, Service: "dev-ops-agent", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDevOpsAgentService, Service: "dev-ops-agent", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDevOpsAgentAgentSpace, Service: "dev-ops-agent"})
+	registerType(restype.Descriptor{Type: TypeDevOpsAgentAssociation, Service: "dev-ops-agent"})
+	registerType(restype.Descriptor{Type: TypeDevOpsAgentService, Service: "dev-ops-agent"})
 	registerService(serviceEntry{
 		name: "aws:dev-ops-agent",
 		fn:   scanDevOpsAgent,

@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAzureSphereCatalog, Service: "microsoft.azuresphere", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureSphereCatalog, Service: "microsoft.azuresphere"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azuresphere",
 		fn:   scanAzureSphere,

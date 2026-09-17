@@ -3,6 +3,7 @@ package coverage
 import (
 	"bytes"
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -287,5 +288,36 @@ func TestIdentities(t *testing.T) {
 	}
 	if got := bestType(map[string]bool{"gcp:cloudkms:crypto-key": true, "gcp:cloudkms:key-ring": true}, sdkinv.Candidate{Service: "cloudkms", Key: "cloudkms/keyrings/cryptokeys"}); got != "gcp:cloudkms:crypto-key" {
 		t.Errorf("bestType leaf = %s", got)
+	}
+}
+
+func TestTypeRefs(t *testing.T) {
+	in := testInputs()
+	for i := range in.Universe.Candidates {
+		switch in.Universe.Candidates[i].Key {
+		case "ec2/instance":
+			in.Universe.Candidates[i].Refs = []string{"SubnetId", "VpcId"}
+		case "kms/key":
+			in.Universe.Candidates[i].Refs = []string{"Arn"}
+		}
+	}
+	refs := TypeRefs(BuildInventory(in))
+	// The row's primary type inherits the candidate's refs; the other types
+	// the same listing stores do not (a dispatcher's derived pairing would
+	// otherwise spread one element's fields across a whole service).
+	if got := refs["aws:ec2:instance"]; !slices.Equal(got, []string{"SubnetId", "VpcId"}) {
+		t.Errorf("instance refs = %v", got)
+	}
+	if got := refs["aws:ec2:instance-detail"]; len(got) > 0 {
+		t.Errorf("instance-detail refs = %v, want none", got)
+	}
+	if got := refs["aws:kms:key"]; !slices.Equal(got, []string{"Arn"}) {
+		t.Errorf("kms key refs = %v", got)
+	}
+	// A paired type whose element names nothing, and an unpaired type, have none.
+	for _, typ := range []string{"aws:kms:grant", "aws:foo:bar", "aws:s3:bucket"} {
+		if got, ok := refs[typ]; ok && len(got) > 0 {
+			t.Errorf("%s refs = %v, want none", typ, got)
+		}
 	}
 }

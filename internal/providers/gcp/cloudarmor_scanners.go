@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeComputeSecurityPolicy, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeSecurityPolicy, Service: "compute"})
 	registerService(serviceEntry{
 		name: "gcp:cloudarmor",
 		fn:   scanCloudArmor,

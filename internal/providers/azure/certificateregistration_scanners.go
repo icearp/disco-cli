@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCertificateOrder, Service: "microsoft.certificateregistration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCertificateOrder, Service: "microsoft.certificateregistration"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.certificateregistration",
 		fn:   scanCertificateRegistration,

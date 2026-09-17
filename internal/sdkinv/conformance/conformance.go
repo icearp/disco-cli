@@ -6,6 +6,7 @@ package conformance
 import (
 	"context"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -49,6 +50,7 @@ func Check(t *testing.T, e sdkinv.Extractor, fixtureDir string) {
 	keys := map[string]bool{}
 	classes := map[sdkinv.Class]bool{}
 	depths := map[int]bool{}
+	refs := false
 	for _, c := range u.Candidates {
 		if keys[c.Key] {
 			t.Errorf("%s: duplicate key %s", e.Name(), c.Key)
@@ -56,25 +58,16 @@ func Check(t *testing.T, e sdkinv.Extractor, fixtureDir string) {
 		keys[c.Key] = true
 		classes[c.Class] = true
 		depths[c.Depth] = true
-		if c.Provider != e.Name() || c.Service == "" || !strings.HasPrefix(c.Key, c.Service+"/") {
-			t.Errorf("%s: malformed candidate %+v", e.Name(), c)
-		}
-		if c.Class == "" || len(c.Ops) == 0 {
-			t.Errorf("%s: %s has class %q and %d ops", e.Name(), c.Key, c.Class, len(c.Ops))
-		}
-		if (c.Depth > 0) != (c.Parent != "") {
-			t.Errorf("%s: %s depth %d parent %q", e.Name(), c.Key, c.Depth, c.Parent)
-		}
-		for _, o := range c.Ops {
-			if o.Service != c.Service || o.Name == "" || o.Module == "" || !strings.Contains(o.Label, ":") {
-				t.Errorf("%s: %s malformed op %+v", e.Name(), c.Key, o)
-			}
-		}
+		refs = refs || len(c.Refs) > 0
+		checkCandidate(t, e.Name(), c)
 	}
 	for _, c := range u.Candidates {
 		if c.Parent != "" && !keys[c.Parent] {
 			t.Errorf("%s: %s parent %s not in fixture universe", e.Name(), c.Key, c.Parent)
 		}
+	}
+	if !refs {
+		t.Errorf("%s: fixture has no candidate with refs", e.Name())
 	}
 	for _, cl := range []sdkinv.Class{sdkinv.ClassResource, sdkinv.ClassCatalog, sdkinv.ClassNonResource} {
 		if !classes[cl] {
@@ -96,4 +89,26 @@ func sortedKeys(cs []sdkinv.Candidate) bool {
 		}
 	}
 	return true
+}
+
+// checkCandidate asserts one candidate's own shape.
+func checkCandidate(t *testing.T, name string, c sdkinv.Candidate) {
+	t.Helper()
+	if c.Provider != name || c.Service == "" || !strings.HasPrefix(c.Key, c.Service+"/") {
+		t.Errorf("%s: malformed candidate %+v", name, c)
+	}
+	if c.Class == "" || len(c.Ops) == 0 {
+		t.Errorf("%s: %s has class %q and %d ops", name, c.Key, c.Class, len(c.Ops))
+	}
+	if (c.Depth > 0) != (c.Parent != "") {
+		t.Errorf("%s: %s depth %d parent %q", name, c.Key, c.Depth, c.Parent)
+	}
+	for _, o := range c.Ops {
+		if o.Service != c.Service || o.Name == "" || o.Module == "" || !strings.Contains(o.Label, ":") {
+			t.Errorf("%s: %s malformed op %+v", name, c.Key, o)
+		}
+	}
+	if !slices.IsSorted(c.Refs) || len(slices.Compact(slices.Clone(c.Refs))) != len(c.Refs) {
+		t.Errorf("%s: %s refs not sorted and unique: %v", name, c.Key, c.Refs)
+	}
 }

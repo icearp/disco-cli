@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeStorageMover, Service: "microsoft.storagemover", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageMover, Service: "microsoft.storagemover"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.storagemover",
 		fn:   scanStorageMover,

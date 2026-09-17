@@ -69,6 +69,14 @@ func TestExtract_Fixture(t *testing.T) {
 			t.Errorf("%s = class %s depth %d parent %q ops %v signals %v; want %+v", k, c.Class, c.Depth, c.Parent, opNames(c), c.Signals, w)
 		}
 	}
+	// Refs: id-like members below the element minus its own id (WidgetId,
+	// Name), through one nested structure.
+	if got, want := got["widgets/widget"].Refs, []string{"Network.SubnetIds", "VpcId"}; !slices.Equal(got, want) {
+		t.Errorf("widgets/widget refs = %v, want %v", got, want)
+	}
+	if r := got["widgets/gadget"].Refs; r != nil {
+		t.Errorf("widgets/gadget refs = %v, want none (only its own arn)", r)
+	}
 	// Write ops never become candidates; they ship as Other for pairing.
 	for _, k := range []string{"widgets/createwidget", "widgets/creategadget"} {
 		if _, ok := got[k]; ok {

@@ -25,8 +25,8 @@ func msToRFC3339(ms int64) *string {
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeBQDataset, Service: "bigquery"})
-	registerType(restype.Descriptor{Type: TypeBQTable, Service: "bigquery", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBQModel, Service: "bigquery", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBQTable, Service: "bigquery"})
+	registerType(restype.Descriptor{Type: TypeBQModel, Service: "bigquery"})
 	registerType(restype.Descriptor{Type: TypeBQRoutine, Service: "bigquery"})
 	registerType(restype.Descriptor{Type: TypeBQRowAccessPolicy, Service: "bigquery"})
 	registerService(serviceEntry{
@@ -69,7 +69,7 @@ type rowAccessPolicyAttrs struct {
 //
 // Resolver Wave R27 confirmed via `go doc` that this same List-shape gap
 // (internal/providers/CLAUDE.md "List-only summary scanners block resolver
-// work") also covers Model and Routine, flagged `Leaf: true` alongside Table:
+// work") also covers Model and Routine, flagged edge-less alongside Table:
 //   - `ListModelsResponse`'s own doc: "Only the following fields are
 //     populated: model_reference, model_type, creation_time,
 //     last_modified_time and labels" — `EncryptionConfiguration` (the only
@@ -87,13 +87,13 @@ type rowAccessPolicyAttrs struct {
 //     `DefinitionBody`/`ImportedLibraries` remain informational only (SQL
 //     text / `gs://` object paths, no matching scanned-resource type).
 //
-// Table/Model/Routine all stay `Leaf: true` for now — Table/Model would need
+// Table/Model/Routine all stay edge-less for now — Table/Model would need
 // a per-row `.Get` fan-out (Tables.Get / Models.Get) to become resolvable,
 // same cost tradeoff as the Table note above (thousands of calls per
 // dataset), deferred until rule-engine demand justifies it. Routine's only
 // resolvable fields (`RemoteFunctionOptions.Connection`,
 // `SparkOptions.Connection`) both target BigQuery Connections, which disco
-// doesn't scan yet — dropping Routine's `Leaf` flag is a future wave's job,
+// doesn't scan yet — dropping Routine's `edge-less` flag is a future wave's job,
 // paired with adding that scanner.
 //
 // `RowAccessPolicy.Grantees` is doc'd "Optional. Input only." (go doc

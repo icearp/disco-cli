@@ -13,15 +13,15 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeChimeAppInstance, Service: "chime", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeAppInstance, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeAppInstanceBot, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeAppInstanceUser, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeChannelFlow, Service: "chime"})
-	registerType(restype.Descriptor{Type: TypeChimeMediaPipeline, Service: "chime", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeChimeMediaInsightsPipelineConfiguration, Service: "chime", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeChimeMediaPipelineKinesisVideoStreamPool, Service: "chime", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeMediaPipeline, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeMediaInsightsPipelineConfiguration, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeMediaPipelineKinesisVideoStreamPool, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeSipMediaApplication, Service: "chime"})
-	registerType(restype.Descriptor{Type: TypeChimeVoiceConnector, Service: "chime", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChimeVoiceConnector, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeVoiceProfileDomain, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeVoiceProfile, Service: "chime"})
 	registerService(serviceEntry{

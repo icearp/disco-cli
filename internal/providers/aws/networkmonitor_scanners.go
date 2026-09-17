@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNetworkMonitorMonitor, Service: "networkmonitor", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkMonitorProbe, Service: "networkmonitor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkMonitorMonitor, Service: "networkmonitor"})
+	registerType(restype.Descriptor{Type: TypeNetworkMonitorProbe, Service: "networkmonitor"})
 	registerService(serviceEntry{
 		name: "aws:networkmonitor",
 		fn:   scanNetworkMonitor,

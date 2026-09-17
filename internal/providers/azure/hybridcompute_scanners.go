@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeHybridComputeMachine, Service: "microsoft.hybridcompute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeHybridComputePrivateLinkScope, Service: "microsoft.hybridcompute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHybridComputeMachine, Service: "microsoft.hybridcompute"})
+	registerType(restype.Descriptor{Type: TypeHybridComputePrivateLinkScope, Service: "microsoft.hybridcompute"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hybridcompute",
 		fn:   scanHybridCompute,

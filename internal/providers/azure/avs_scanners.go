@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAVSPrivateCloud, Service: "microsoft.avs", Leaf: true, Redact: []redact.Rule{{Path: "properties.nsxtPassword", Mode: redact.RedactScalar}, {Path: "properties.vcenterPassword", Mode: redact.RedactScalar}, {Path: "properties.identitySources[*].password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeAVSPrivateCloud, Service: "microsoft.avs", Redact: []redact.Rule{{Path: "properties.nsxtPassword", Mode: redact.RedactScalar}, {Path: "properties.vcenterPassword", Mode: redact.RedactScalar}, {Path: "properties.identitySources[*].password", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.avs",
 		fn:   scanAVS,

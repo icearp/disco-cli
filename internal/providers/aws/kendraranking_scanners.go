@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeKendraRankingExecutionPlan, Service: "kendra-ranking", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKendraRankingExecutionPlan, Service: "kendra-ranking"})
 	registerService(serviceEntry{
 		name: "aws:kendra-ranking",
 		fn:   scanKendraRanking,

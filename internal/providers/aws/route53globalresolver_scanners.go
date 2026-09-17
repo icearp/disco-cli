@@ -10,13 +10,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeR53GRAccessSource, Service: "route53globalresolver", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeR53GRAccessToken, Service: "route53globalresolver", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeR53GRDNSView, Service: "route53globalresolver", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeR53GRFirewallDomainList, Service: "route53globalresolver", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeR53GRFirewallRule, Service: "route53globalresolver", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeR53GRGlobalResolver, Service: "route53globalresolver", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeR53GRHostedZoneAssociation, Service: "route53globalresolver", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeR53GRAccessSource, Service: "route53globalresolver"})
+	registerType(restype.Descriptor{Type: TypeR53GRAccessToken, Service: "route53globalresolver"})
+	registerType(restype.Descriptor{Type: TypeR53GRDNSView, Service: "route53globalresolver"})
+	registerType(restype.Descriptor{Type: TypeR53GRFirewallDomainList, Service: "route53globalresolver"})
+	registerType(restype.Descriptor{Type: TypeR53GRFirewallRule, Service: "route53globalresolver"})
+	registerType(restype.Descriptor{Type: TypeR53GRGlobalResolver, Service: "route53globalresolver"})
+	registerType(restype.Descriptor{Type: TypeR53GRHostedZoneAssociation, Service: "route53globalresolver"})
 	registerService(serviceEntry{
 		name:   "aws:route53globalresolver",
 		global: true,

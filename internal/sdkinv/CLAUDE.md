@@ -60,6 +60,18 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 - Live counts (pins in `pins.go`): AWS 5561 candidates / 354 services (3250 resource);
   Azure 3744 (1959 resource); GCP 1859 / 192 APIs (1151 resource). Each live test logs these;
   a large swing after a pin bump is the signal to re-check anchors.
+- `Candidate.Refs` (Phase 6, `<p>/refs.go`): dotted paths on the listed element that name other
+  resources, sorted and unique, own id excluded, depth-bounded. AWS: Smithy output → collection
+  element (or a detail read's single structure) → `idLikeRe` members, prelude `smithy.api#String`
+  targets are absent from the model file and count as primitives; own = bare `Arn/Id/Name` or a
+  stem equal to the noun at depth 0. Azure: `<op>HandleResponse` names the `*ListResult`, its
+  `Value []*T` element walked through `models.go` (regex over generated structs, parsed once per
+  module): sub-resource structs (`*SubResource`, `*…Reference`, or only an `ID`) and `*ID`
+  strings; envelope `ID/Name/Type/Location/Tags` skipped. GCP: `response.$ref` → array-of-`$ref`
+  property (aggregated lists: the map value's array) → string properties named `*Link/*Url/*Id/
+  *Ref/*Account/*Network` or described as a URL / resource name / service account / KMS;
+  `selfLink/id/name/kind` skipped. Schemas decode lazily from `json.RawMessage`. Every fixture
+  carries one candidate with refs (conformance).
 - `Universe.Other` carries every SDK op that is not a candidate op (writes, item reads,
   actions). Every extractor must end with `sdkinv.SortOps(u.Other)`: it is filled from map
   walks, and the conformance DeepEqual only catches the omission on some runs (`-count=5`).

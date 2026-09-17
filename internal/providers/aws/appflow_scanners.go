@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeAppFlowFlow, Service: "appflow"})
-	registerType(restype.Descriptor{Type: TypeAppFlowConnector, Service: "appflow", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppFlowConnector, Service: "appflow"})
 	registerType(restype.Descriptor{Type: TypeAppFlowConnectorProfile, Service: "appflow"})
 	registerService(serviceEntry{
 		name: "aws:appflow",

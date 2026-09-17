@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSSMSAPApplication, Service: "systems-manager-sap", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMSAPApplication, Service: "systems-manager-sap"})
 	registerType(restype.Descriptor{Type: TypeSystemsManagerSAPComponent, Service: "systems-manager-sap"})
 	registerType(restype.Descriptor{Type: TypeSystemsManagerSAPDatabase, Service: "systems-manager-sap"})
 	registerService(serviceEntry{

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
+
 	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
@@ -15,7 +17,8 @@ import (
 // resetCoverageFlags clears StringSlice flags on every coverage subcommand
 // before each test: pflag's StringSlice values accumulate across consecutive
 // Execute() calls in the same process, so providers/regions/services would
-// otherwise carry stale entries from a prior run.
+// otherwise carry stale entries from a prior run; bools (--missing,
+// --with-refs) would stay set for the next test.
 func resetCoverageFlags(t *testing.T) {
 	t.Helper()
 	subs := coverageCmd.Commands()
@@ -23,15 +26,14 @@ func resetCoverageFlags(t *testing.T) {
 		subs = append(subs, sub.Commands()...) // sdk fetch|status carry their own --providers
 	}
 	for _, sub := range subs {
-		for _, f := range []string{"providers", "regions", "services"} {
-			if fl := sub.Flags().Lookup(f); fl != nil {
-				_ = fl.Value.Set("")
-				fl.Changed = false
-				if sv, ok := fl.Value.(interface{ Replace([]string) error }); ok {
-					_ = sv.Replace(nil)
-				}
+		sub.Flags().VisitAll(func(fl *pflag.Flag) {
+			if sv, ok := fl.Value.(interface{ Replace([]string) error }); ok {
+				_ = sv.Replace(nil) // a slice's DefValue is "[]", which Set would append
+			} else {
+				_ = fl.Value.Set(fl.DefValue)
 			}
-		}
+			fl.Changed = false
+		})
 	}
 }
 
@@ -232,5 +234,49 @@ func TestSelectedAuditors(t *testing.T) {
 	if _, err := selectedAuditors([]string{"nope"}); err == nil ||
 		!strings.Contains(err.Error(), "no coverage support") {
 		t.Errorf("expected unknown-provider error, got %v", err)
+	}
+}
+
+// TestCoverageResolversMissing_WithRefsNeedsCache: --with-refs hides derived
+// leaves, which needs the SDK inventory; without it the run exits 2 like
+// `services` does instead of silently printing an empty list.
+func TestCoverageResolversMissing_WithRefsNeedsCache(t *testing.T) {
+	resetCoverageFlags(t)
+	_, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"coverage", "resolvers", "--missing", "--with-refs", "--providers", "aws", "--sdk-cache", t.TempDir(), "--source-root="})
+		return cmd.Execute()
+	})
+	if !errors.Is(err, errCoverageInventoryUnavailable) {
+		t.Fatalf("want errCoverageInventoryUnavailable, got %v", err)
+	}
+}
+
+// TestCoverageResolversMissing_Offline: the orphan list itself never needs
+// the cache; refs are a hint, omitted (with a warning) when the inventory is
+// unavailable, and the fixture universe pairs with no real AWS type.
+func TestCoverageResolversMissing_Offline(t *testing.T) {
+	for _, cache := range []string{t.TempDir(), fixtureCache(t)} {
+		resetCoverageFlags(t)
+		out, err := captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs([]string{"coverage", "resolvers", "--missing", "--providers", "aws", "--services", "ec2", "--sdk-cache", cache, "--source-root=", "-o", "json"})
+			return cmd.Execute()
+		})
+		if err != nil {
+			t.Fatalf("resolvers --missing: %v", err)
+		}
+		var rows []orphanRow
+		if err := json.Unmarshal([]byte(out), &rows); err != nil {
+			t.Fatalf("json: %v\n%s", err, out)
+		}
+		if len(rows) == 0 {
+			t.Fatal("no orphan rows for ec2")
+		}
+		for _, r := range rows {
+			if r.Provider != "aws" || r.Service != "ec2" || len(r.Refs) != 0 {
+				t.Errorf("row = %+v", r)
+			}
+		}
 	}
 }

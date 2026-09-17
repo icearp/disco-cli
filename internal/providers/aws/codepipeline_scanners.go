@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeCodePipelinePipeline, Service: "codepipeline"})
-	registerType(restype.Descriptor{Type: TypeCodePipelineCustomActionType, Service: "codepipeline", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCodePipelineCustomActionType, Service: "codepipeline"})
 	registerType(restype.Descriptor{Type: TypeCodePipelineWebhook, Service: "codepipeline"})
 	registerService(serviceEntry{
 		name: "aws:codepipeline",

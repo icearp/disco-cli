@@ -99,13 +99,13 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 ## Scanner `emits []coverage.TypeDecl` is coverage truth source
 
-Every `registerService` / `registerOrgService` / `registerTenantService` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType, Leaf}}`. `disco coverage services` pairs these with the SDK calls the scanner makes (`internal/sdkinv/pairing`); there is no alias map, no upstream key and no skip list — a type is covered because its scanner calls the SDK op that lists it. `KnownTypes()` no longer exists.
+Every `registerService` / `registerOrgService` / `registerTenantService` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType}}`. `disco coverage services` pairs these with the SDK calls the scanner makes (`internal/sdkinv/pairing`); there is no alias map, no upstream key and no skip list — a type is covered because its scanner calls the SDK op that lists it. `KnownTypes()` no longer exists.
 
 There is no `Synthetic` flag. Cross-tenant references are modelled as real self-node types (`aws:iam:account`, `azure:microsoft.resources:subscriptions`, `gcp:cloudresourcemanager:project`) inserted as empty-attribute placeholders — see "Resolver-side reference-discovered placeholders" above. They emit/bucket like any other real type.
 
 There is no `Uncatalogued` flag either: a real SDK-scanned type no registry lists (`aws:kms:grant`, Entra identities, the Azure SQL proxy children) is simply paired with its SDK call; a type built from a non-list op or a non-SDK client shows as `disco-only: explained` — never a strict failure.
 
-Terminal types whose scanner upserts rows but for which no resolver will ever wire outbound edges (account/region singletons, third-party catalogue mirrors, config-only policy bodies) get `Leaf: true` so `disco coverage resolvers --missing` filters them out. Drop the flag in the same commit that ships an outbound resolver — `TestLeafTypesNotResolverSources` (in `internal/providers/aws/coverage_leaves_test.go`) catches the contradiction. Non-serviceEntry upsert sites (hierarchy scanners, ec2_*/compute_*/sql_* child files) declare via `registerExtraEmits(coverage.TypeDecl{...})` from the same file's init(). Per-provider `CollectEmits()` aggregates and dedupes for the `coverage.Provider` impl.
+There is no `Leaf` flag. Whether a type can have outbound edges is derived: `disco coverage resolvers --missing` lists each orphan type with the reference fields on its SDK-listed element (`Candidate.Refs`, from the Smithy model / `models.go` / Discovery schema), sorted richest first; a type with no refs is the derived leaf and `--with-refs` hides it. Do not re-introduce a hand flag when a refs row looks wrong — fix the derivation in `internal/sdkinv/<p>/refs.go`. Non-serviceEntry upsert sites (hierarchy scanners, ec2_*/compute_*/sql_* child files) declare via `registerExtraEmits(coverage.TypeDecl{...})` from the same file's init(). Per-provider `CollectEmits()` aggregates and dedupes for the `coverage.Provider` impl.
 
 ## Embedding child data in parent attributes
 

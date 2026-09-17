@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeManagedBlockchainAccessor, Service: "managed-blockchain", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeManagedBlockchainMember, Service: "managed-blockchain", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeManagedBlockchainNetwork, Service: "managed-blockchain", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeManagedBlockchainNode, Service: "managed-blockchain", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeManagedBlockchainAccessor, Service: "managed-blockchain"})
+	registerType(restype.Descriptor{Type: TypeManagedBlockchainMember, Service: "managed-blockchain"})
+	registerType(restype.Descriptor{Type: TypeManagedBlockchainNetwork, Service: "managed-blockchain"})
+	registerType(restype.Descriptor{Type: TypeManagedBlockchainNode, Service: "managed-blockchain"})
 	registerType(restype.Descriptor{Type: TypeManagedBlockchainProposal, Service: "managed-blockchain"})
 	registerService(serviceEntry{
 		name: "aws:managed-blockchain",

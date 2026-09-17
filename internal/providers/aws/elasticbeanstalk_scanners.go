@@ -11,9 +11,9 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeBeanstalkApplication, Service: "elasticbeanstalk"})
-	registerType(restype.Descriptor{Type: TypeBeanstalkEnvironment, Service: "elasticbeanstalk", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBeanstalkEnvironment, Service: "elasticbeanstalk"})
 	registerType(restype.Descriptor{Type: TypeBeanstalkApplicationVersion, Service: "elasticbeanstalk"})
-	registerType(restype.Descriptor{Type: TypeBeanstalkPlatform, Service: "elasticbeanstalk", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBeanstalkPlatform, Service: "elasticbeanstalk"})
 	registerService(serviceEntry{
 		name: "aws:elasticbeanstalk",
 		fn:   scanElasticBeanstalk,

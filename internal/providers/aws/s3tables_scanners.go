@@ -11,11 +11,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeS3TablesTableBucket, Service: "s3tables", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3TablesNamespace, Service: "s3tables", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3TablesTable, Service: "s3tables", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3TablesTableBucketPolicy, Service: "s3tables", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3TablesTablePolicy, Service: "s3tables", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3TablesTableBucket, Service: "s3tables"})
+	registerType(restype.Descriptor{Type: TypeS3TablesNamespace, Service: "s3tables"})
+	registerType(restype.Descriptor{Type: TypeS3TablesTable, Service: "s3tables"})
+	registerType(restype.Descriptor{Type: TypeS3TablesTableBucketPolicy, Service: "s3tables"})
+	registerType(restype.Descriptor{Type: TypeS3TablesTablePolicy, Service: "s3tables"})
 	registerService(serviceEntry{
 		name: "aws:s3tables",
 		fn:   scanS3Tables,

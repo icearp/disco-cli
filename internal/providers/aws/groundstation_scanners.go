@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGroundStationConfig, Service: "ground-station", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeGroundStationDataflowEndpointGroup, Service: "ground-station", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeGroundStationMissionProfile, Service: "ground-station", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGroundStationConfig, Service: "ground-station"})
+	registerType(restype.Descriptor{Type: TypeGroundStationDataflowEndpointGroup, Service: "ground-station"})
+	registerType(restype.Descriptor{Type: TypeGroundStationMissionProfile, Service: "ground-station"})
 	registerService(serviceEntry{
 		name: "aws:ground-station",
 		fn:   scanGroundStation,

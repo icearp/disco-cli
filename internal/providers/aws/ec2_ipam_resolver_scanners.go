@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2IPAMPrefixListResolver, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMPrefixListResolver, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2IPAMPrefixListResolverTarget, Service: "ec2"})
 }
 

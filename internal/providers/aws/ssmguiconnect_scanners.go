@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSSMGuiConnectPreferences, Service: "ssm-gui-connect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMGuiConnectPreferences, Service: "ssm-gui-connect"})
 	registerService(serviceEntry{
 		name: "aws:ssm-gui-connect",
 		fn:   scanSSMGuiConnect,

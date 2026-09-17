@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSCARApplication, Service: "service-catalog-app-registry", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSCARAttributeGroup, Service: "service-catalog-app-registry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSCARApplication, Service: "service-catalog-app-registry"})
+	registerType(restype.Descriptor{Type: TypeSCARAttributeGroup, Service: "service-catalog-app-registry"})
 	registerType(restype.Descriptor{Type: TypeSCARAttributeGroupAssociation, Service: "service-catalog-app-registry"})
 	registerType(restype.Descriptor{Type: TypeSCARResourceAssociation, Service: "service-catalog-app-registry"})
 	registerService(serviceEntry{

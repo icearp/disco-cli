@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRUMAppMonitor, Service: "rum", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRUMAppMonitor, Service: "rum"})
 	registerService(serviceEntry{
 		name: "aws:rum",
 		fn:   scanRUM,

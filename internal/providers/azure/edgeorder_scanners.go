@@ -12,9 +12,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEdgeOrderItem, Service: "microsoft.edgeorder", Leaf: true, Redact: []redact.Rule{{Path: "properties.orderItemDetails.reverseShippingDetails.sasKeyForLabel", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeEdgeOrderAddress, Service: "microsoft.edgeorder", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEdgeOrderOrder, Service: "microsoft.edgeorder", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEdgeOrderItem, Service: "microsoft.edgeorder", Redact: []redact.Rule{{Path: "properties.orderItemDetails.reverseShippingDetails.sasKeyForLabel", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeEdgeOrderAddress, Service: "microsoft.edgeorder"})
+	registerType(restype.Descriptor{Type: TypeEdgeOrderOrder, Service: "microsoft.edgeorder"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.edgeorder",
 		fn:   scanEdgeOrder,

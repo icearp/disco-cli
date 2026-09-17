@@ -13,9 +13,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeBatchComputeEnvironment, Service: "batch"})
 	registerType(restype.Descriptor{Type: TypeBatchJobQueue, Service: "batch"})
 	registerType(restype.Descriptor{Type: TypeBatchJobDefinition, Service: "batch"})
-	registerType(restype.Descriptor{Type: TypeBatchSchedulingPolicy, Service: "batch", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBatchConsumableResource, Service: "batch", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBatchServiceEnvironment, Service: "batch", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBatchSchedulingPolicy, Service: "batch"})
+	registerType(restype.Descriptor{Type: TypeBatchConsumableResource, Service: "batch"})
+	registerType(restype.Descriptor{Type: TypeBatchServiceEnvironment, Service: "batch"})
 	registerType(restype.Descriptor{Type: TypeBatchQuotaShare, Service: "batch"})
 	registerService(serviceEntry{
 		name: "aws:batch",

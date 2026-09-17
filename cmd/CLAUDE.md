@@ -106,7 +106,7 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 `disco scans -o json` / `disco scans show -o json` use `store.Scan.MarshalJSON` (F5 fix): camelCase keys, RFC3339 timestamps, parsed `providers` / `scope` / `meta`, no PascalCase or `*JSON` SQLite-column leak. `disco summary.asOf` is normalised at population time via `store.ToRFC3339`.
 
-`coverage --resolvers -o json` / `coverage --missing-resolvers -o json` honour the `-o json` flag (F8 fix); previously they always emitted TSV.
+`coverage resolvers -o json` / `coverage resolvers --missing -o json` honour the `-o json` flag (F8 fix); previously they always emitted TSV. `--missing` rows carry `refs` (from the SDK cache + pairing, richest first; `--with-refs` hides ref-less derived leaves and needs the cache, exit 2 without it).
 
 ## One error message, not two: `structuredErrorEmitted`
 

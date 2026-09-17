@@ -23,10 +23,10 @@ func isBillingConductorPayerOnly(err error) bool {
 const billingConductorRegion = "us-east-1"
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBillingConductorBillingGroup, Service: "billingconductor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBillingConductorBillingGroup, Service: "billingconductor"})
 	registerType(restype.Descriptor{Type: TypeBillingConductorCustomLineItem, Service: "billingconductor"})
-	registerType(restype.Descriptor{Type: TypeBillingConductorPricingPlan, Service: "billingconductor", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBillingConductorPricingRule, Service: "billingconductor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBillingConductorPricingPlan, Service: "billingconductor"})
+	registerType(restype.Descriptor{Type: TypeBillingConductorPricingRule, Service: "billingconductor"})
 	registerService(serviceEntry{
 		name:   "aws:billingconductor",
 		global: true,

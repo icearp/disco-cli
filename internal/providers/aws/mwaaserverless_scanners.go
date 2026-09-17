@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMWAAServerlessWorkflow, Service: "mwaa-serverless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMWAAServerlessWorkflow, Service: "mwaa-serverless"})
 	registerService(serviceEntry{
 		name: "aws:mwaa-serverless",
 		fn:   scanMWAAServerless,

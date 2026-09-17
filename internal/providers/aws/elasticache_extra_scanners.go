@@ -17,7 +17,7 @@ func ecTags(ctx context.Context, client elasticacheAPI, arn string) *string {
 }
 
 // scanElastiCacheReservedNodes discovers purchased reserved cache nodes (a
-// billing reservation, Leaf).
+// billing reservation, edge-less).
 func scanElastiCacheReservedNodes(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeReservedCacheNodesPaginator(client, &elasticache.DescribeReservedCacheNodesInput{})
 	var batch []*store.Resource

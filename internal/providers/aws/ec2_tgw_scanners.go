@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2TransitGateway, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGateway, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayAttachment, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayConnect, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayConnectPeer, Service: "ec2"})

@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeQuantumWorkspace, Service: "microsoft.quantum", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeQuantumWorkspace, Service: "microsoft.quantum"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.quantum",
 		fn:   scanQuantum,

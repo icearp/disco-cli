@@ -10,10 +10,10 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeEC2FlowLog, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2PrefixList, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2PrefixList, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsPath, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAnalysis, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAccessScope, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAccessScope, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAccessScopeAnalysis, Service: "ec2"})
 }
 

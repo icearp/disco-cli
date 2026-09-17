@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDeviceUpdateAccount, Service: "microsoft.deviceupdate", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDeviceUpdateAccount, Service: "microsoft.deviceupdate"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.deviceupdate",
 		fn:   scanDeviceUpdate,

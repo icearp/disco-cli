@@ -13,14 +13,14 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeSSMDocument, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMParameter, Service: "ssm"})
-	registerType(restype.Descriptor{Type: TypeSSMPatchBaseline, Service: "ssm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMPatchBaseline, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMAssociation, Service: "ssm"})
-	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindow, Service: "ssm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindow, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindowTarget, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindowTask, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMResourceDataSync, Service: "ssm"})
-	registerType(restype.Descriptor{Type: TypeSSMManagedInstance, Service: "ssm", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSSMOpsMetadata, Service: "ssm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSSMManagedInstance, Service: "ssm"})
+	registerType(restype.Descriptor{Type: TypeSSMOpsMetadata, Service: "ssm"})
 	registerService(serviceEntry{
 		name: "aws:ssm",
 		fn:   scanSSM,

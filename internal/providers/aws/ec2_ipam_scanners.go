@@ -12,12 +12,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2IPAM, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2IPAM, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2IPAMScope, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2IPAMPool, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2IPAMPoolCIDR, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2IPAMAllocation, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscovery, Service: "ec2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscovery, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscoveryAssociation, Service: "ec2"})
 }
 

@@ -12,9 +12,9 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeAPSWorkspace, Service: "aps"})
 	registerType(restype.Descriptor{Type: TypeAPSScraper, Service: "aps"})
-	registerType(restype.Descriptor{Type: TypeAPSAnomalyDetector, Service: "aps", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAPSRuleGroupsNamespace, Service: "aps", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAPSResourcePolicy, Service: "aps", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPSAnomalyDetector, Service: "aps"})
+	registerType(restype.Descriptor{Type: TypeAPSRuleGroupsNamespace, Service: "aps"})
+	registerType(restype.Descriptor{Type: TypeAPSResourcePolicy, Service: "aps"})
 	registerService(serviceEntry{
 		name: "aws:aps",
 		fn:   scanAPS,

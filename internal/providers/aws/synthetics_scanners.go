@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSyntheticsCanary, Service: "synthetics", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSyntheticsGroup, Service: "synthetics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSyntheticsCanary, Service: "synthetics"})
+	registerType(restype.Descriptor{Type: TypeSyntheticsGroup, Service: "synthetics"})
 	registerService(serviceEntry{
 		name: "aws:synthetics",
 		fn:   scanSynthetics,

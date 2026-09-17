@@ -12,11 +12,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeScVmmServer, Service: "microsoft.scvmm", Leaf: true, Redact: []redact.Rule{{Path: "properties.credentials.password", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeScVmmCloud, Service: "microsoft.scvmm", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeScVmmAvailabilitySet, Service: "microsoft.scvmm", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeScVmmVMTemplate, Service: "microsoft.scvmm", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeScVmmVirtualNetwork, Service: "microsoft.scvmm", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeScVmmServer, Service: "microsoft.scvmm", Redact: []redact.Rule{{Path: "properties.credentials.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeScVmmCloud, Service: "microsoft.scvmm"})
+	registerType(restype.Descriptor{Type: TypeScVmmAvailabilitySet, Service: "microsoft.scvmm"})
+	registerType(restype.Descriptor{Type: TypeScVmmVMTemplate, Service: "microsoft.scvmm"})
+	registerType(restype.Descriptor{Type: TypeScVmmVirtualNetwork, Service: "microsoft.scvmm"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.scvmm",
 		fn:   scanScVmm,

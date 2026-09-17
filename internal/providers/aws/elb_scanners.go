@@ -16,7 +16,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeELBv2ListenerCertificate, Service: "elasticloadbalancing"})
 	registerType(restype.Descriptor{Type: TypeELBv2ListenerRule, Service: "elasticloadbalancing"})
 	registerType(restype.Descriptor{Type: TypeELBv2TargetGroup, Service: "elasticloadbalancing"})
-	registerType(restype.Descriptor{Type: TypeELBv2TrustStore, Service: "elasticloadbalancing", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeELBv2TrustStore, Service: "elasticloadbalancing"})
 	registerType(restype.Descriptor{Type: TypeELBv2TrustStoreRevocation, Service: "elasticloadbalancing"})
 	registerService(serviceEntry{
 		name: "aws:elasticloadbalancingv2",

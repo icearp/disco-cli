@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePCSCluster, Service: "pcs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePCSCluster, Service: "pcs"})
 	registerType(restype.Descriptor{Type: TypePCSComputeNodeGroup, Service: "pcs"})
 	registerType(restype.Descriptor{Type: TypePCSQueue, Service: "pcs"})
 	registerService(serviceEntry{

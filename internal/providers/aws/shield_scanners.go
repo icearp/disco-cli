@@ -12,8 +12,8 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeShieldProtection, Service: "shield"})
 	registerType(restype.Descriptor{Type: TypeShieldProtectionGroup, Service: "shield"})
-	registerType(restype.Descriptor{Type: TypeShieldDRTAccess, Service: "shield", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeShieldProactiveEngagement, Service: "shield", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeShieldDRTAccess, Service: "shield"})
+	registerType(restype.Descriptor{Type: TypeShieldProactiveEngagement, Service: "shield"})
 	registerService(serviceEntry{
 		name:   "aws:shield",
 		global: true,

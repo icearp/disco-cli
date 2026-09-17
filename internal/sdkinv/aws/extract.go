@@ -108,6 +108,7 @@ type entry struct {
 	class      sdkinv.Class
 	signals    map[string]bool
 	ops        []sdkinv.Operation
+	refs       map[string]bool
 }
 
 // display is the noun shown in the key. With one spelling it is that noun
@@ -200,6 +201,9 @@ func mergeDetailReads(entries map[string]*entry) {
 		res.ops = append(res.ops, en.ops...)
 		for sig := range en.signals {
 			res.signals[sig] = true
+		}
+		for r := range en.refs {
+			res.refs[r] = true
 		}
 		delete(entries, key)
 	}
@@ -418,7 +422,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 		}
 		en := entries[key]
 		if en == nil {
-			en = &entry{service: svc, depth: -1, signals: map[string]bool{}}
+			en = &entry{service: svc, depth: -1, signals: map[string]bool{}, refs: map[string]bool{}}
 			entries[key] = en
 		}
 		en.nouns = append(en.nouns, sdkinv.Canon(noun))
@@ -429,6 +433,9 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 		}
 		en.place(lin)
 		en.class = sdkinv.StrongerClass(en.class, class)
+		for _, r := range refsOf(m, sh, nounCanon) {
+			en.refs[r] = true
+		}
 		for s := range signals {
 			en.signals[s] = true
 		}
@@ -652,6 +659,9 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 			for s := range en.signals {
 				dup.signals[s] = true
 			}
+			for r := range en.refs {
+				dup.refs[r] = true
+			}
 			continue
 		}
 		byKey[key] = en
@@ -666,6 +676,10 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 			c.Signals = append(c.Signals, s)
 		}
 		sort.Strings(c.Signals)
+		for r := range en.refs {
+			c.Refs = append(c.Refs, r)
+		}
+		sort.Strings(c.Refs)
 		sdkinv.SortOps(c.Ops)
 		out = append(out, c)
 	}

@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeECSCluster, Service: "ecs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECSCluster, Service: "ecs"})
 	registerType(restype.Descriptor{Type: TypeECSService, Service: "ecs"})
 	registerType(restype.Descriptor{Type: TypeECSTaskDefinition, Service: "ecs"})
 	registerType(restype.Descriptor{Type: TypeECSCapacityProvider, Service: "ecs"})
