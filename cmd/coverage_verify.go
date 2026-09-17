@@ -333,20 +333,19 @@ func truncate(s string, n int) string {
 }
 
 // labelIndex is the scanner pairing seen from the warning side: which types
-// each op label stores. A label the pairing knows but that stores none of a
-// type's rows must not explain that type; an unknown label (pairing absent,
-// or a spelling the walk never saw) falls back to its service prefix.
+// each op label stores. With the pairing present every op label a scanner
+// can persist is known (the pairing tests fail on an unresolved label), so
+// a label it does not know is no op at all — a store-level warning such as
+// a native-id collision, which explains nothing. Without the pairing a
+// warning joins by its service prefix.
 type labelIndex struct {
 	byType map[string]map[string]bool
 	known  map[string]bool
 }
 
 func (ix labelIndex) explains(label, typ string, services map[string]bool) bool {
-	if ix.byType[typ][label] {
-		return true
-	}
-	if ix.known[label] {
-		return false
+	if len(ix.known) > 0 {
+		return ix.byType[typ][label]
 	}
 	prefix, _, _ := strings.Cut(label, ":")
 	return services[strings.ToLower(prefix)]

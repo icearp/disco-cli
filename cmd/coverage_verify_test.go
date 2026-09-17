@@ -207,6 +207,35 @@ func TestCoverageVerify_NothingStored(t *testing.T) {
 	}
 }
 
+// TestLabelIndexExplains: with the pairing present only a label paired to
+// the type explains it — a store-level warning labelled by a type
+// ("organizations:root … maps to both types") must not explain every
+// organizations type by prefix; without the pairing the prefix is all
+// there is.
+func TestLabelIndexExplains(t *testing.T) {
+	services := map[string]bool{"organizations": true}
+	paired := labelIndex{
+		byType: map[string]map[string]bool{"aws:organizations:account": {"organizations:ListAccounts": true}},
+		known:  map[string]bool{"organizations:ListAccounts": true, "organizations:ListRoots": true},
+	}
+	for _, tc := range []struct {
+		name  string
+		ix    labelIndex
+		label string
+		want  bool
+	}{
+		{"paired label", paired, "organizations:ListAccounts", true},
+		{"known label of another type", paired, "organizations:ListRoots", false},
+		{"unknown label with pairing", paired, "organizations:root", false},
+		{"prefix without pairing", labelIndex{}, "organizations:root", true},
+		{"other service without pairing", labelIndex{}, "kms:ListKeys", false},
+	} {
+		if got := tc.ix.explains(tc.label, "aws:organizations:account", services); got != tc.want {
+			t.Errorf("%s: explains(%q) = %v; want %v", tc.name, tc.label, got, tc.want)
+		}
+	}
+}
+
 // TestCoverageVerify_NoScan: an empty database has nothing to verify and says so.
 func TestCoverageVerify_NoScan(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "disco.db")
