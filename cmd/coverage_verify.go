@@ -112,7 +112,10 @@ func runCoverageVerify(cmd *cobra.Command, _ []string) (rerr error) {
 	if err != nil {
 		return err
 	}
-	ctx := scanContext{scan: sc}
+	ctx := scanContext{scan: sc, stored: map[string]bool{}}
+	for _, pt := range stored {
+		ctx.stored[pt.Provider] = true
+	}
 	if err := ctx.load(); err != nil {
 		return err
 	}
@@ -205,6 +208,7 @@ func resolveScan(db *store.Store, id string) (*store.Scan, error) {
 // scanContext is what a scan record says about why a type may be absent.
 type scanContext struct {
 	scan      *store.Scan
+	stored    map[string]bool // providers with at least one row in this scan
 	providers map[string]bool // scope.providers
 	errors    []store.ScanErrorEntry
 	warnings  []store.ScanWarningEntry
@@ -256,6 +260,12 @@ func (c *scanContext) reason(provider string, d coverage.TypeDecl, services map[
 		svc := strings.ToLower(stripProvider(e.Service, provider))
 		if svc == wholeScanService || services[svc] {
 			return "scan-error: " + e.Code + regionSuffix(e.Region)
+		}
+		// A provider that stored nothing and failed before any service ran
+		// (aws:load-accounts, gcp:load-projects) lost every type to that
+		// failure, whatever label the scanner gave it.
+		if !c.stored[provider] && strings.HasPrefix(strings.ToLower(e.Service), provider+":") {
+			return "scan-error: " + e.Code + " (" + svc + ")" + regionSuffix(e.Region)
 		}
 	}
 	for _, w := range c.warnings {

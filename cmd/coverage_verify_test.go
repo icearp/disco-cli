@@ -170,6 +170,43 @@ func TestCoverageVerify_WholeScanError(t *testing.T) {
 	}
 }
 
+// TestCoverageVerify_NothingStored: a provider that failed before any service
+// ran records one error under a label that is no scanner service
+// (aws:load-accounts, an expired login) and stores nothing; every declared
+// type is explained by that error rather than reading "no rows".
+func TestCoverageVerify_NothingStored(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "disco.db")
+	viper.Set("db", dbPath)
+	t.Cleanup(func() { viper.Set("db", "") })
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	scanID, err := st.CreateScanWithID("verifyscan0000000000000000000002", []string{"aws"}, map[string]any{"providers": []string{"aws"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AppendScanError(scanID, store.ScanErrorEntry{Service: "aws:load-accounts", Code: "Error", Message: "login session has expired"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CompleteScan(scanID); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := runVerify(t)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if len(rows) == 0 {
+		t.Fatal("no rows")
+	}
+	for _, r := range rows {
+		if r.Reason != "scan-error: Error (load-accounts)" {
+			t.Fatalf("%s reason = %q", r.DiscoType, r.Reason)
+		}
+	}
+}
+
 // TestCoverageVerify_NoScan: an empty database has nothing to verify and says so.
 func TestCoverageVerify_NoScan(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "disco.db")
