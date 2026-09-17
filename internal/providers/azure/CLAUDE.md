@@ -15,7 +15,7 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 ### Unified per-type declaration via `registerType`
 
 `registerType(restype.Descriptor{...})` in `azure_registry.go` is the single-site
-declaration for coverage emit (`Service` + `Leaf`), redaction
+declaration for coverage emit (`Service`), redaction
 rules (`Redact`), and the unconditional `Managed` flag (the store stamps
 `ManagedByProvider` by type — used only by `TypeNetworkCloudRackSKU`; the
 built-in role/policy/set-definition types stay scanner-set because they are
@@ -57,9 +57,9 @@ Target = the type the edge points at; Kind = a `store.Rel*` constant. Audit + co
 resolver is invisible to gap analysis. Cross-cutting central resolvers whose source is *every*
 resource type (`resolveManagedIdentityConsumers`, `resolveExtendedLocationConsumers`) stay
 unannotated **on purpose** — per-type Source enumeration is meaningless and would pollute the
-`--missing` per-service inventory; they carry a comment saying so. `TestLeafTypesNotResolverSources`
-(`azure_coverage_test.go`) fails if a type flagged `Leaf: true` on its emits decl appears as an
-`EdgeDecl.Source` — drop the Leaf flag in the same commit that ships the resolver.
+`--missing` per-service inventory; they carry a comment saying so. There is no leaf flag: a type
+leaves `--missing` when a resolver's `EdgeDecl` names it, and `--with-refs` hides the derived leaves
+(no reference field on the SDK-listed element).
 
 ## Helpers (reuse before reinventing)
 

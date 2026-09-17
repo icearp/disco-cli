@@ -139,7 +139,7 @@ Providers make **per-service API calls** via each cloud's native Go SDK. No unif
 
 ### CLI subcommands (summary)
 
-`disco scan|list|diff|graph|check`. Details: `cmd/CLAUDE.md`.
+`disco scan|resources|scans|diff|graph|check|findings|history|summary|tag-coverage|quotas|coverage|snapshot|verify|config`. Details: `cmd/CLAUDE.md`.
 
 ### Resource type naming
 
@@ -168,7 +168,8 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 - `internal/providers/aws/CLAUDE.md` — AWS-specific resolver/scanner conventions (ARN helpers, KMS, IAM, ELBv2, Route53, paginators, Smithy, transient errors, etc.)
 - `internal/providers/azure/CLAUDE.md` — Azure-specific helpers (azPageScan, rgHierarchyPair, vault-URI parsers), case-insensitive ARM-ID rule, MSI consumer resolver, sub-scoped vs tenant-scoped pattern
 - `internal/providers/gcp/CLAUDE.md` — GCP-specific (per-project fan-out, scopes-above-project gap, IAM policy synth-resource shape, permission-denied handling, NativeID conventions)
-- `internal/sdkinv/CLAUDE.md` — SDK source cache layout, pins, Smithy/Service Reference facts
+- `internal/sdkinv/CLAUDE.md` — SDK source cache layout, pins, extractor rules per provider, AST pairing
+- `internal/coverage/CLAUDE.md` — coverage buckets and reasons, identity rule, baseline ratchet, live numbers
 
 ## Bundled features of note
 

@@ -10,7 +10,7 @@ GCP scanner/resolver conventions. Cross-provider rules: `internal/providers/CLAU
 
 `registerType(restype.Descriptor{...})` in `gcp_registry.go` is the single-site
 declaration for everything disco knows about a resource type: coverage emit
-(`Service` + `Leaf`), redaction rules (`Redact`), volatile fields
+(`Service`), redaction rules (`Redact`), volatile fields
 (`Volatile`), and the unconditional `Managed` flag (the store stamps
 `ManagedByProvider` by type). It forwards field rules into the shared
 redact/volatile/managed engines and routes the coverage decl through

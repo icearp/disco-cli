@@ -97,9 +97,9 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 `util.MustJSON(v any) string`, `util.Sv(p *string) string`, `util.AllResources` (= `math.MaxUint32`, used as `Limit` in `ListResources` to fetch all rows). Each provider keeps unexported one-liner wrappers (`mustJSON`, `sv`) delegating to `util` — call sites clean, logic centralized.
 
-## Scanner `emits []coverage.TypeDecl` is coverage truth source
+## `registerType` is the coverage truth source
 
-Every `registerService` / `registerOrgService` / `registerTenantService` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType}}`. `disco coverage services` pairs these with the SDK calls the scanner makes (`internal/sdkinv/pairing`); there is no alias map, no upstream key and no skip list — a type is covered because its scanner calls the SDK op that lists it. `KnownTypes()` no longer exists.
+Every file that upserts a disco type declares it with `registerType(restype.Descriptor{Type, Service, …})` from its `init()`; `CollectEmits()` turns the descriptors into the provider's `[]coverage.TypeDecl`. `disco coverage services` pairs these with the SDK calls the scanner makes (`internal/sdkinv/pairing`); there is no alias map, no upstream key and no skip list — a type is covered because its scanner calls the SDK op that lists it. `KnownTypes()` no longer exists.
 
 `registerType` / `registerService` (and the org/tenant variants) also record their caller's file
 through `restype.Origin` (`runtime.Caller(2)`, so call them only from a scanner file's `init()`,
