@@ -37,7 +37,12 @@ var descriptorEmits []coverage.TypeDecl
 // and forwards its field rules into the shared redact/volatile/managed engines
 // via restype.Emit, whose coverage decl joins descriptorEmits so CollectEmits
 // surfaces it. Call from the init() of the file owning the type's upsert.
+// typeOrigin links each type to the scanner service registered from the same
+// file; see restype.Origin.
+var typeOrigin restype.Origin
+
 func registerType(d restype.Descriptor) {
+	typeOrigin.NoteType(d.Type)
 	registeredDescriptors = append(registeredDescriptors, d)
 	descriptorEmits = append(descriptorEmits, restype.Emit(d))
 }
@@ -71,6 +76,7 @@ var registeredServices []serviceEntry
 // Panics if a service with the same name has already been registered, which
 // catches copy-paste errors that would otherwise silently scan a service twice.
 func registerService(e serviceEntry) {
+	typeOrigin.NoteService(e.name)
 	for _, s := range registeredServices {
 		if s.name == e.name {
 			panic("disco: duplicate AWS service registration: " + e.name)

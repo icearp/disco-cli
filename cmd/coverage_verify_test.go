@@ -16,7 +16,7 @@ import (
 // emits in every way verify reports: an undeclared type, a declared type with
 // rows, a service that errored, an operation that was skipped, and a provider
 // outside the scan scope. Returns the scan id.
-func seedVerifyDB(t *testing.T, scope map[string]any) (*store.Store, string) {
+func seedVerifyDB(t *testing.T, scope map[string]any, extraErrors ...store.ScanErrorEntry) (*store.Store, string) {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "disco.db")
 	viper.Set("db", dbPath)
@@ -39,8 +39,14 @@ func seedVerifyDB(t *testing.T, scope map[string]any) (*store.Store, string) {
 	}
 	// The scan runner persists Service as "<provider>:<service>" for errors and
 	// "<provider>:<op label>" for warnings; seed the same shapes.
-	if err := st.AppendScanError(scanID, store.ScanErrorEntry{Service: "aws:s3", Region: "us-east-1", Code: "AccessDenied", Message: "nope"}); err != nil {
-		t.Fatal(err)
+	errs := append([]store.ScanErrorEntry{
+		{Service: "aws:s3", Region: "us-east-1", Code: "AccessDenied", Message: "nope"},
+		{Service: "aws:sso-admin", Region: "us-east-1", Code: "Throttling", Message: "slow down"},
+	}, extraErrors...)
+	for _, e := range errs {
+		if err := st.AppendScanError(scanID, e); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := st.AppendScanWarning(scanID, store.ScanWarningEntry{Service: "aws:kms:ListKeys", Region: "us-east-1", Message: "skipped: access denied"}); err != nil {
 		t.Fatal(err)
@@ -95,9 +101,10 @@ func TestCoverageVerify_Reasons(t *testing.T) {
 		t.Error("aws:ec2:instance was stored and must not be reported")
 	}
 	for typ, want := range map[string]string{
-		"aws:s3:bucket":  "scan-error: AccessDenied (us-east-1)",
-		"aws:kms:key":    "warning: kms:ListKeys (us-east-1): skipped: access denied",
-		"aws:ec2:volume": "no rows",
+		"aws:s3:bucket":    "scan-error: AccessDenied (us-east-1)",
+		"aws:sso:instance": "scan-error: Throttling (us-east-1)", // scanner service aws:sso-admin, declared service sso
+		"aws:kms:key":      "warning: kms:ListKeys (us-east-1): skipped: access denied",
+		"aws:ec2:volume":   "no rows",
 	} {
 		r, ok := verifyRowByType(rows, typ)
 		if !ok || r.Status != verifyDeclaredNotEmitted || r.Reason != want {
@@ -143,6 +150,23 @@ func TestCoverageVerify_OutOfScopeAndLatest(t *testing.T) {
 	}
 	if _, err := runVerify(t, "--scan-id", "nope"); err == nil {
 		t.Error("unknown scan id must error")
+	}
+}
+
+// TestCoverageVerify_WholeScanError: when the provider's Scan itself failed
+// the runner records service "scan"; every declared type of that provider
+// is then explained by it, including types no service registers (the GCP
+// hierarchy types the scanner core stores).
+func TestCoverageVerify_WholeScanError(t *testing.T) {
+	seedVerifyDB(t, map[string]any{"providers": []string{"aws"}}, store.ScanErrorEntry{Service: "aws:scan", Code: "Unknown", Message: "load accounts: boom"})
+	rows, err := runVerify(t, "--providers", "aws")
+	if !errors.Is(err, errCoverageUndeclared) {
+		t.Fatalf("want errCoverageUndeclared, got %v", err)
+	}
+	for _, r := range rows {
+		if r.Status == verifyDeclaredNotEmitted && !strings.HasPrefix(r.Reason, "scan-error: ") {
+			t.Errorf("%s reason = %q; want a scan-error", r.DiscoType, r.Reason)
+		}
 	}
 }
 

@@ -101,6 +101,15 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 Every `registerService` / `registerOrgService` / `registerTenantService` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType}}`. `disco coverage services` pairs these with the SDK calls the scanner makes (`internal/sdkinv/pairing`); there is no alias map, no upstream key and no skip list — a type is covered because its scanner calls the SDK op that lists it. `KnownTypes()` no longer exists.
 
+`registerType` / `registerService` (and the org/tenant variants) also record their caller's file
+through `restype.Origin` (`runtime.Caller(2)`, so call them only from a scanner file's `init()`,
+never through a wrapper): `coverage verify` joins a scan-record error under a scanner service
+name (`aws:sso-admin`) to the types registered in the same file, because declared services
+(`sso`) and scanner names differ for dozens of services. Types in helper files with no
+`registerService` join by declared service or type segment instead; `cmd`'s
+`TestEveryEmittedTypeHasScannerService` fails when a type reaches no scanner service by any of
+the three (the GCP hierarchy types are the accepted exception — a whole-scan failure covers them).
+
 There is no `Synthetic` flag. Cross-tenant references are modelled as real self-node types (`aws:iam:account`, `azure:microsoft.resources:subscriptions`, `gcp:cloudresourcemanager:project`) inserted as empty-attribute placeholders — see "Resolver-side reference-discovered placeholders" above. They emit/bucket like any other real type.
 
 There is no `Uncatalogued` flag either: a real SDK-scanned type no registry lists (`aws:kms:grant`, Entra identities, the Azure SQL proxy children) is simply paired with its SDK call; a type built from a non-list op or a non-SDK client shows as `disco-only: explained` — never a strict failure.

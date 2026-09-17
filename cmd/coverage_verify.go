@@ -127,6 +127,7 @@ func runCoverageVerify(cmd *cobra.Command, _ []string) (rerr error) {
 		for _, d := range p.Emits() {
 			declared[d.DiscoType] = d
 		}
+		services := typeServiceNames(p)
 		emitted := map[string]bool{}
 		for _, pt := range stored {
 			if pt.Provider != p.Name() {
@@ -142,7 +143,7 @@ func runCoverageVerify(cmd *cobra.Command, _ []string) (rerr error) {
 			if emitted[typ] {
 				continue
 			}
-			rows = append(rows, verifyRow{Provider: p.Name(), DiscoType: typ, Service: d.Service, Status: verifyDeclaredNotEmitted, Reason: ctx.reason(p.Name(), d, labels)})
+			rows = append(rows, verifyRow{Provider: p.Name(), DiscoType: typ, Service: d.Service, Status: verifyDeclaredNotEmitted, Reason: ctx.reason(p.Name(), d, services[typ], labels)})
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -247,23 +248,54 @@ func (c *scanContext) load() error {
 
 // reason explains one declared type without rows. Entries are recorded as
 // "<provider>:<service>" (errors) and "<provider>:<op label>" (warnings).
-func (c *scanContext) reason(provider string, d coverage.TypeDecl, labels labelIndex) string {
+func (c *scanContext) reason(provider string, d coverage.TypeDecl, services map[string]bool, labels labelIndex) string {
 	if len(c.providers) > 0 && !c.providers[provider] {
 		return "out-of-scope: provider not scanned"
 	}
-	svc := strings.ToLower(d.Service)
 	for _, e := range c.errors {
-		if strings.EqualFold(stripProvider(e.Service, provider), svc) {
+		svc := strings.ToLower(stripProvider(e.Service, provider))
+		if svc == wholeScanService || services[svc] {
 			return "scan-error: " + e.Code + regionSuffix(e.Region)
 		}
 	}
 	for _, w := range c.warnings {
 		label := stripProvider(w.Service, provider)
-		if labels.explains(label, d.DiscoType, svc) {
+		if labels.explains(label, d.DiscoType, services) {
 			return "warning: " + label + regionSuffix(w.Region) + ": " + truncate(w.Message, 80)
 		}
 	}
 	return "no rows"
+}
+
+// wholeScanService is the service the runner records when a provider's Scan
+// itself fails (internal/scanrun): nothing of that provider was listed.
+const wholeScanService = "scan"
+
+// typeServiceNames is every name a scan-record entry may carry for a type:
+// the scanner services registered from the type's own file
+// (coverage.ServiceMapper), the API service it declares and its type
+// segment. Scanner names ("aws:sso-admin") and declared services ("sso")
+// differ for dozens of services; no single key joins them all.
+func typeServiceNames(p coverage.Provider) map[string]map[string]bool {
+	out := map[string]map[string]bool{}
+	add := func(typ, name string) {
+		if out[typ] == nil {
+			out[typ] = map[string]bool{}
+		}
+		out[typ][strings.ToLower(stripProvider(name, p.Name()))] = true
+	}
+	for _, d := range p.Emits() {
+		add(d.DiscoType, d.Service)
+		add(d.DiscoType, discoServiceSegment(d.DiscoType))
+	}
+	if m, ok := p.(coverage.ServiceMapper); ok {
+		for typ, names := range m.TypeServices() {
+			for _, n := range names {
+				add(typ, n)
+			}
+		}
+	}
+	return out
 }
 
 // stripProvider drops the "<provider>:" prefix the scan runner adds when it
@@ -299,7 +331,7 @@ type labelIndex struct {
 	known  map[string]bool
 }
 
-func (ix labelIndex) explains(label, typ, service string) bool {
+func (ix labelIndex) explains(label, typ string, services map[string]bool) bool {
 	if ix.byType[typ][label] {
 		return true
 	}
@@ -307,7 +339,7 @@ func (ix labelIndex) explains(label, typ, service string) bool {
 		return false
 	}
 	prefix, _, _ := strings.Cut(label, ":")
-	return strings.EqualFold(prefix, service)
+	return services[strings.ToLower(prefix)]
 }
 
 // buildLabelIndex derives the index from the SDK cache and scanner source;

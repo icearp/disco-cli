@@ -8,7 +8,9 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
 ## Provider contract
 
 - `Provider` = `Name()` + `Emits()` only. Optional: `CrossChecker` (`CrossCheck`, `RegistryKey`,
-  `CanonicalKey` — drives `--cross-check`), `RegionLister`, `ResolverAuditor`.
+  `CanonicalKey` — drives `--cross-check`), `RegionLister`, `ResolverAuditor`, `ServiceMapper`
+  (`TypeServices()`: disco type → scanner service names registered from the same file, via
+  `restype.Origin`; `coverage verify` joins `scans.errors` through it).
 - `InputsFromCache(ctx, cache, provider, emits, scannerDir)` is the one derivation path shared by
   `cmd/coverage.go`, `cmd/disco-scaffold` and the reconcile tests; an empty `scannerDir` means
   "name matching only" (`Matrix.Pairing=false`, disco-only rows carry `pairing-unavailable`).

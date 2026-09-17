@@ -56,6 +56,7 @@ var registeredTenantServices []tenantServiceEntry
 // registerTenantService adds a tenant-scope service to the registry.
 // Panics on duplicate name to catch copy-paste errors at init time.
 func registerTenantService(e tenantServiceEntry) {
+	typeOrigin.NoteService(e.name)
 	for _, s := range registeredTenantServices {
 		if s.name == e.name {
 			panic("disco: duplicate Azure tenant service registration: " + e.name)

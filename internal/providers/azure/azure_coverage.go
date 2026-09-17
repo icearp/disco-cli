@@ -24,6 +24,9 @@ func (coverageProvider) Name() string { return "azure" }
 
 func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 
+// TypeServices implements coverage.ServiceMapper from the registration files.
+func (coverageProvider) TypeServices() map[string][]string { return typeOrigin.TypeServices() }
+
 // ListResolvers implements coverage.ResolverAuditor by adapting the package's
 // ListResolvers() registry view into the neutral coverage shape, so cmd can
 // render `disco coverage resolvers` without importing this package directly.

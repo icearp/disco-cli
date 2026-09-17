@@ -43,6 +43,13 @@ type Provider interface {
 	Emits() []TypeDecl
 }
 
+// ServiceMapper is implemented by providers that know which scanner service
+// (the name scan records carry in scans.errors / scans.warnings) stores each
+// type; `coverage verify` joins failures to types through it.
+type ServiceMapper interface {
+	TypeServices() map[string][]string
+}
+
 // CrossChecker is implemented by providers that can diff the SDK universe
 // against a live registry (`coverage services --cross-check`). RegistryKey
 // and CanonicalKey map a candidate and a registry key onto one identity so

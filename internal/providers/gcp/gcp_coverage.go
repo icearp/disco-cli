@@ -27,6 +27,9 @@ func (coverageProvider) Name() string { return "gcp" }
 
 func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 
+// TypeServices implements coverage.ServiceMapper from the registration files.
+func (coverageProvider) TypeServices() map[string][]string { return typeOrigin.TypeServices() }
+
 // ListResolvers and ResolverEdgeSources implement coverage.ResolverAuditor,
 // backing `disco coverage resolvers --providers gcp`.
 func (coverageProvider) ListResolvers() []coverage.ResolverInfo { return ListResolvers() }
