@@ -434,3 +434,21 @@ func (s *Store) ListScans() ([]Scan, error) {
 	}
 	return scans, nil
 }
+
+// ProviderType is one (provider, disco type) pair a scan stored rows for.
+type ProviderType struct {
+	Provider string `json:"provider"`
+	Type     string `json:"type"`
+}
+
+// TypesForScan lists the distinct resource types a scan touched: rows it
+// inserted (discovered_by) or re-verified (verified_by). Both axes count
+// because an unchanged resource keeps its original discovered_by and only
+// moves verified_by forward, yet the scanner still emitted it.
+func (s *Store) TypesForScan(scanID string) ([]ProviderType, error) {
+	var out []ProviderType
+	err := s.selectAll(&out, `SELECT DISTINCT provider, type FROM resources
+		WHERE discovered_by = ? OR verified_by = ?
+		ORDER BY provider, type`, scanID, scanID)
+	return out, err
+}

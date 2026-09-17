@@ -224,6 +224,13 @@ The trailing `Z` is load-bearing, not cosmetic: disco-saas casts these TEXT colu
 
 **Wire shape is RFC3339.** `Scan.MarshalJSON` (added F5 fix) projects `startedAt` / `finishedAt` to RFC3339 before emitting, so `disco scans -o json` and `disco summary -o json | jq '.asOf'` carry parseable timestamps that match resource-row `discoveredAt` / `verifiedAt`. The wire envelope uses camelCase keys and drops the SQLite `*JSON` columns (`ProvidersJSON`, `ScopeJSON`, `MetaJSON`) in favour of parsed `providers` / `scope` / `meta` objects. Don't reach into `scans -o json` consumers expecting the legacy PascalCase shape.
 
+## `TypesForScan(scanID)` = distinct (provider, type) a scan touched
+
+`SELECT DISTINCT provider, type FROM resources WHERE discovered_by = ? OR verified_by = ?` — both
+scan FKs, because a re-verify run inserts nothing yet proves the scanner still emits the type.
+Feeds `disco coverage verify`; SQLite + PG tests share `testTypesForScan`. Do not build scan
+introspection on `scan_checkpoints` — it has no reader and its writers are incidental.
+
 ## `scans.resource_count` = totalSeen, not totalNew
 
 `CompleteScan` / `PartialScan` persist the count of rows the scan upserted (every row visited, including pre-existing). The insert-only `totalNew` value (return of `UpsertResources`) is printed at scan-end stdout but not persisted. Drift between scans is `disco diff`'s job, not a column on `scans`. Don't re-derive "what changed" from `resource_count` deltas.

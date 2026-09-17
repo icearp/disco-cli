@@ -1,6 +1,8 @@
 package store
 
 import (
+	"context"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -118,5 +120,72 @@ func TestCreateScanWithID_EmptyMints(t *testing.T) {
 	}
 	if len(got) != 32 {
 		t.Fatalf("minted id length = %d, want 32-hex", len(got))
+	}
+}
+
+func TestTypesForScan(t *testing.T) {
+	st := openTestStore(t)
+	testTypesForScan(t, st)
+}
+
+// TestTypesForScan_PG guards dialect parity: the query is plain SQL under
+// Rebind, so Postgres must return the same pairs in the same order.
+func TestTypesForScan_PG(t *testing.T) {
+	dsn, purge := pgTestEnv(t)
+	t.Cleanup(purge)
+	st, err := OpenPostgres(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("open pg: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	testTypesForScan(t, st)
+}
+
+func testTypesForScan(t *testing.T, st *Store) {
+	t.Helper()
+	first, err := st.CreateScanWithID("types-scan-1", []string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScanWithID: %v", err)
+	}
+	rows := []*Resource{
+		{Provider: "aws", AccountID: "1", Type: "aws:ec2:instance", NativeID: "i-1", AttributesJSON: "{}", DiscoveredBy: first},
+		{Provider: "aws", AccountID: "1", Type: "aws:ec2:volume", NativeID: "vol-1", AttributesJSON: "{}", DiscoveredBy: first},
+		{Provider: "aws", AccountID: "1", Type: "aws:ec2:volume", NativeID: "vol-2", AttributesJSON: "{}", DiscoveredBy: first},
+	}
+	if _, err := st.UpsertResources(rows); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if err := st.CompleteScan(first); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	// A second scan re-verifies the unchanged instance (verified_by moves,
+	// discovered_by stays) and adds a bucket.
+	second, err := st.CreateScanWithID("types-scan-2", []string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScanWithID: %v", err)
+	}
+	if _, err := st.UpsertResources([]*Resource{
+		{Provider: "aws", AccountID: "1", Type: "aws:ec2:instance", NativeID: "i-1", AttributesJSON: "{}", DiscoveredBy: second},
+		{Provider: "aws", AccountID: "1", Type: "aws:s3:bucket", NativeID: "b", AttributesJSON: "{}", DiscoveredBy: second},
+	}); err != nil {
+		t.Fatalf("upsert 2: %v", err)
+	}
+	got, err := st.TypesForScan(second)
+	if err != nil {
+		t.Fatalf("TypesForScan: %v", err)
+	}
+	want := []ProviderType{{"aws", "aws:ec2:instance"}, {"aws", "aws:s3:bucket"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("second scan types = %v, want %v", got, want)
+	}
+	got, err = st.TypesForScan(first)
+	if err != nil {
+		t.Fatalf("TypesForScan: %v", err)
+	}
+	if len(got) != 2 || got[0].Type != "aws:ec2:instance" || got[1].Type != "aws:ec2:volume" {
+		t.Errorf("first scan types = %v", got)
+	}
+	if got, _ := st.TypesForScan("nope"); len(got) != 0 {
+		t.Errorf("unknown scan types = %v", got)
 	}
 }
