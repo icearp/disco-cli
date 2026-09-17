@@ -9,11 +9,11 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Wave 1 of the GCP type-coverage buildout (docs/gcp-type-coverage.md): the
+// Wave 1 of the GCP type-coverage buildout (the 2026-07 type-coverage audit): the
 // Compute Engine storage-resource domain. New phases of the existing
 // "gcp:compute" service (wired into scanCompute's fan-out list in
-// compute_scanners.go) — not a new service registration, so emits go through
-// registerExtraEmits rather than a second registerService call.
+// compute_scanners.go) — not a new service registration, so types are
+// declared with registerType rather than a second registerService call.
 func init() {
 	registerType(restype.Descriptor{Type: TypeComputeDisk, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionDisk, Service: "compute"})

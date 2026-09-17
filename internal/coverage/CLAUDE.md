@@ -40,6 +40,19 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
 - Unit of coverage is the candidate: one op → N types counts once (`Row.DiscoType` is the
   name-matching type, `Row.DiscoTypes` the rest); N ops → one type marks every candidate covered.
 
+## Baseline ratchet (`baseline.go`)
+
+`NewBaseline(unfiltered matrices)` records per provider: pins, percent, covered/uncovered counts
+and keys, unexplained disco types (sorted, byte-stable). `CompareBaseline` is fatal on a covered
+key now uncovered (under any pins — a scanner lost a listing), a percent drop under identical
+pins, or a new unexplained type; a covered key that is no longer a candidate at all is `regressed` under the same pins (the
+universe cannot shrink by itself) and `gone-since-baseline` under new ones; a pin bump only
+reports `pins-changed` + `new-since-baseline` / `gone-since-baseline` keys, never the percent,
+because a larger universe with the same scanners can only lower it. Rows are sorted in
+`BuildInventory`, so `docs/coverage.md` is byte-stable (verified: two `make gen-coverage` runs
+`cmp` equal).
+`make gen-coverage` accepts; `make check-coverage` enforces (plus a diff of `docs/coverage.md`).
+
 ## Identity
 
 `sdkinv.Ident` (Canon, `-ies`→`y`, `-yses`→`-ysis`, trailing `e`/`s` run stripped) is the only cross-source equality used

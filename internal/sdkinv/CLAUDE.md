@@ -23,6 +23,10 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   binary reads the version from `debug.ReadBuildInfo()`. `TestPinMatchesGoMod` fails when go.mod
   moves — bump the pin in the same commit as the dependency.
 - A pin bump changes the denominator; reports print the pins.
+- The Service Reference catalog is unversioned. Its pin (`service-reference@YYYY-MM-DD`) is the
+  newest per-service `modified` stamp in `index.json`, never the file mtime: two fetches of the
+  same catalog agree, a catalog update is a pin bump, and `make check-coverage` treats a moved
+  pin as growth to regenerate, not a regression. A cache rebuild on CI can therefore move it.
 
 ## Archive handling (`fetch.go`)
 

@@ -8,7 +8,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Wave 5 of the GCP type-coverage buildout (docs/gcp-type-coverage.md): the
+// Wave 5 of the GCP type-coverage buildout (the 2026-07 type-coverage audit): the
 // Compute Engine Interconnect domain. New phases of the existing
 // "gcp:compute" service. Resolved by compute_vpn_interconnect_resolvers.go
 // (Resolver Wave R5).

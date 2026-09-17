@@ -65,7 +65,7 @@ type rowAccessPolicyAttrs struct {
 // Tables.Get's full schema/proto fetch, a row access policy list call is
 // cheap and is the only way to discover a security-relevant resource type
 // that has no independent enumeration path — accepted per the type-coverage
-// buildout's audit (docs/gcp-type-coverage.md).
+// buildout's audit (the 2026-07 type-coverage audit).
 //
 // Resolver Wave R27 confirmed via `go doc` that this same List-shape gap
 // (internal/providers/CLAUDE.md "List-only summary scanners block resolver

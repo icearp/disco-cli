@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Wave 4 of the GCP type-coverage buildout (docs/gcp-type-coverage.md): the
+// Wave 4 of the GCP type-coverage buildout (the 2026-07 type-coverage audit): the
 // Compute Engine networking-core domain. New phases of the existing
 // "gcp:compute" service. No resolvers this wave — these types reference
 // networks/subnetworks/backends via bare self-link strings scattered across

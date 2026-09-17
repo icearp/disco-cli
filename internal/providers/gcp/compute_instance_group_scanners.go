@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Wave 2 of the GCP type-coverage buildout (docs/gcp-type-coverage.md): the
+// Wave 2 of the GCP type-coverage buildout (the 2026-07 type-coverage audit): the
 // Compute Engine instance-groups & templates domain. New phases of the
 // existing "gcp:compute" service (wired into scanCompute's fan-out list in
 // compute_scanners.go).

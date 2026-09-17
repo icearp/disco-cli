@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/iam/v1"
 )
 
-// Wave 8g of the GCP type-coverage buildout (docs/gcp-type-coverage.md),
+// Wave 8g of the GCP type-coverage buildout (the 2026-07 type-coverage audit),
 // closes ROADMAP R4.23: IAM workforce/workload identity federation, OAuth
 // clients, and custom roles.
 //

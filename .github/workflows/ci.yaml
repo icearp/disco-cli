@@ -1,0 +1,75 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  # The SDK cache lives under XDG_CACHE_HOME; pin it inside the workspace so
+  # actions/cache can key it on the SDK pins.
+  XDG_CACHE_HOME: ${{ github.workspace }}/.cache
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Restore SDK source cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/disco/sdk
+          # pins.go names the AWS/Azure refs; go.mod names the GCP Discovery
+          # module version. Either moving invalidates the denominator.
+          key: sdk-cache-${{ hashFiles('internal/sdkinv/pins.go', 'go.mod') }}
+      - name: Fetch SDK sources (no-op when cached)
+        run: make sdk-fetch
+      - name: Vet
+        run: go vet ./...
+      - name: Unit tests
+        run: CGO_ENABLED=0 go test -tags grpcnotrace ./...
+      - name: Coverage ratchet
+        run: make check-coverage
+
+  regen-coverage:
+    # Push to main only: regenerate the coverage report + baseline and commit
+    # them back when they changed. `[skip ci]` keeps the bot commit from
+    # re-triggering this workflow.
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    # Two pushes to main in quick succession must not race their bot commits.
+    concurrency:
+      group: regen-coverage
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Restore SDK source cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/disco/sdk
+          key: sdk-cache-${{ hashFiles('internal/sdkinv/pins.go', 'go.mod') }}
+      - name: Regenerate coverage report
+        run: make gen-coverage
+      - name: Commit when changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- docs/coverage.md docs/coverage-baseline.json; then
+            echo "coverage report unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/coverage.md docs/coverage-baseline.json
+          git commit -m "docs(coverage): regenerate report and baseline [skip ci]"
+          git push

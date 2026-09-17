@@ -6,7 +6,7 @@ AWS scanner + resolver conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 `registerType(restype.Descriptor{...})` in `aws_registry.go` is the single-site
 declaration for everything disco knows about a resource type: coverage emit
-(`Service` + `Leaf`), redaction rules (`Redact`), volatile fields
+(`Service`), redaction rules (`Redact`), volatile fields
 (`Volatile`), and the **unconditional** `Managed` flag (the store stamps
 `ManagedByProvider` by type at the upsert boundary — see
 `store/resources_upsert.go`). It forwards field rules into the shared
@@ -456,13 +456,15 @@ Common predicates observed when flagging AWS-default rows at scan time:
 
 Verify the predicate against a real account if the SDK doc is ambiguous — observed behaviour wins.
 
-## Adding a resolver for a previously-leaf type
+## Adding a resolver for an orphan type
 
-`TestLeafTypesNotResolverSources` (`coverage_leaves_test.go`) fails when a `coverage.TypeDecl` flagged `Leaf: true` (set inline on the scanner's `emits` decl) appears as an `EdgeDecl.Source`. Drop the `Leaf: true` flag in the same commit as the new resolver — the test is the only signal, no build error. Leaf flags live on each type's `registerType(restype.Descriptor{...})` descriptor since the central `coverage_leaves.go` map was retired.
+`disco coverage resolvers --missing --providers aws --with-refs` lists the emitted types that are
+no `EdgeDecl.Source`, richest reference fields first; pick from the top. There is no leaf flag to
+drop — a type leaves the list when its resolver's `EdgeDecl` names it.
 
-## Re-verify leaf-flag comments before trusting them
+## Re-verify "blocked" comments before trusting them
 
-Per-emit-decl `Leaf: true` flags often carry an inline reason ("refs blocked by sanitize", "refs need Describe enrichment", "no SDK list op"). These rot: redaction is now per-type and per-path (each type's `registerType` descriptor `Redact` field); ARN-bearing fields like `CredentialsArn` / `SecretArn` / `TokenSourceArn` / `AuthorizationHeaderArn` are preserved by *omission* (no rule targets them). Before adding a sidecar workaround for what a comment says is "blocked", read the type's descriptor `Redact` and confirm the field actually has a rule on it; if not, the resolver can read it directly. Same applies to "no Describe op" claims — SDK additions land between scanner-write and leaf-comment time.
+Scanner comments claiming a reference is unusable ("refs blocked by sanitize", "refs need Describe enrichment", "no SDK list op") rot: redaction is now per-type and per-path (each type's `registerType` descriptor `Redact` field); ARN-bearing fields like `CredentialsArn` / `SecretArn` / `TokenSourceArn` / `AuthorizationHeaderArn` are preserved by *omission* (no rule targets them). Before adding a sidecar workaround for what a comment says is "blocked", read the type's descriptor `Redact` and confirm the field actually has a rule on it; if not, the resolver can read it directly. Same applies to "no Describe op" claims — SDK additions land after the comment was written.
 
 ## Parent-row "leaf" ≠ no edges
 

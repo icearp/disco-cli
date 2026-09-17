@@ -155,6 +155,8 @@ func init() {
 	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
 	coverageServicesCmd.Flags().Duration("timeout", 3*time.Minute, "--cross-check only: per-provider live-fetch timeout (GCP walks every Discovery doc)")
 	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on unexplained disco-only rows. A missing SDK cache or failed registry fetch always exits 2.")
+	coverageServicesCmd.Flags().String("baseline", "", "Compare the unfiltered matrices with this baseline JSON; exit 1 on a regression (see 'make check-coverage')")
+	coverageServicesCmd.Flags().String("write-baseline", "", "Write the unfiltered matrices as a baseline JSON to this path (see 'make gen-coverage')")
 
 	// regions subcommand flags.
 	coverageRegionsCmd.Flags().StringSlice("providers", nil, fmt.Sprintf("Limit to listed providers (%s); empty = all registered", providerListHint()))
@@ -187,6 +189,13 @@ var errCoverageRegistryUnreachable = errors.New("upstream registry unreachable f
 // provider's pinned snapshot, so the denominator can't be derived. Exit 2,
 // like a registry failure: nothing about disco's coverage changed.
 var errCoverageInventoryUnavailable = errors.New("sdk inventory unavailable")
+
+// errCoverageBaseline / errCoverageStrict exit 1 after the matrix rendered:
+// a regression against --baseline, or an unexplained type under --check-strict.
+var (
+	errCoverageBaseline = errors.New("coverage baseline")
+	errCoverageStrict   = errors.New("--check-strict")
+)
 
 // defaultSourceRoot is the working directory when it is a disco checkout
 // (go.mod names this module); pairing needs the scanner source, and any
@@ -231,11 +240,19 @@ type servicesOptions struct {
 	filter      string
 	services    []string
 	checkStrict bool
+	baseline    string // compare against this file
+	writeBase   string // write the fresh baseline here
 }
 
 func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	outputFmt := outputFormat(cmd)
-	defer func() { maybeStructuredError(outputFmt, rerr) }()
+	defer func() {
+		// The rendered matrix is the payload and the exit code the gate:
+		// no error envelope after it (precedent: check's findings).
+		if !errors.Is(rerr, errCoverageBaseline) && !errors.Is(rerr, errCoverageStrict) {
+			maybeStructuredError(outputFmt, rerr)
+		}
+	}()
 	switch outputFmt {
 	case "markdown", "md", "table", "json", "jsonl", "csv":
 	default:
@@ -254,6 +271,8 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	o.filter, _ = cmd.Flags().GetString("filter")
 	o.services, _ = cmd.Flags().GetStringSlice("services")
 	o.checkStrict, _ = cmd.Flags().GetBool("check-strict")
+	o.baseline, _ = cmd.Flags().GetString("baseline")
+	o.writeBase, _ = cmd.Flags().GetString("write-baseline")
 	if !slices.Contains(coverage.Filters, o.filter) {
 		return fmt.Errorf("--filter must be one of %s; got %q", strings.Join(coverage.Filters, "|"), o.filter)
 	}
@@ -265,22 +284,70 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	if err != nil {
 		return err
 	}
+	// Baselines see every row; --filter only narrows what is rendered.
+	drifts, err := baselineStep(o, matrices)
+	if err != nil {
+		return err
+	}
+	for i := range matrices {
+		matrices[i].Rows = coverage.Filter(matrices[i].Rows, o.filter, o.services)
+	}
 	if err := renderServiceMatrices(cmd.OutOrStdout(), outputFmt, matrices); err != nil {
+		return err
+	}
+	if err := reportDrifts(drifts); err != nil {
 		return err
 	}
 	if o.checkStrict {
 		for _, m := range matrices {
 			if m.Summary.Unexplained > 0 {
-				return fmt.Errorf("%s: %d emitted types pair with no SDK call (--check-strict); see --filter disco-only", m.Provider, m.Summary.Unexplained)
+				return fmt.Errorf("%w: %s: %d emitted types pair with no SDK call; see --filter disco-only", errCoverageStrict, m.Provider, m.Summary.Unexplained)
 			}
 		}
 	}
 	return nil
 }
 
-// buildServiceMatrices derives one matrix per provider from the SDK cache,
-// pairs it with the scanner source when available, and applies the row
-// filter after the summaries are computed.
+// baselineStep writes and/or compares the baseline before any filter runs.
+func baselineStep(o servicesOptions, matrices []coverage.Matrix) ([]coverage.Drift, error) {
+	if o.writeBase != "" && o.writeBase == o.baseline {
+		return nil, fmt.Errorf("--baseline and --write-baseline name the same file; the fresh matrix would compare with itself")
+	}
+	if o.writeBase != "" {
+		if err := coverage.WriteBaseline(o.writeBase, coverage.NewBaseline(matrices)); err != nil {
+			return nil, fmt.Errorf("write baseline: %w", err)
+		}
+	}
+	if o.baseline == "" {
+		return nil, nil
+	}
+	b, err := coverage.ReadBaseline(o.baseline)
+	if err != nil {
+		return nil, fmt.Errorf("read baseline: %w", err)
+	}
+	return coverage.CompareBaseline(b, matrices), nil
+}
+
+// reportDrifts prints every drift on stderr after the report and fails on
+// the fatal ones, so the rendered matrix is still there to read.
+func reportDrifts(drifts []coverage.Drift) error {
+	fatal := 0
+	for _, d := range drifts {
+		mark := "  "
+		if d.Fatal() {
+			mark = "! "
+			fatal++
+		}
+		fmt.Fprintf(os.Stderr, "%s%s: %s %s %s\n", mark, d.Provider, d.Kind, d.Key, d.Detail)
+	}
+	if fatal > 0 {
+		return fmt.Errorf("%w: %d regression(s) against the baseline; accept with `make gen-coverage` only if intended", errCoverageBaseline, fatal)
+	}
+	return nil
+}
+
+// buildServiceMatrices derives one matrix per provider from the SDK cache
+// and pairs it with the scanner source when available; rows are unfiltered.
 func buildServiceMatrices(ctx context.Context, o servicesOptions) ([]coverage.Matrix, error) {
 	covProviders, err := resolveCoverageProviders(o.providers)
 	if err != nil {
@@ -313,7 +380,6 @@ func buildServiceMatrices(ctx context.Context, o servicesOptions) ([]coverage.Ma
 				coverage.CrossCheck(&m, in.Universe, registry, cc)
 			}
 		}
-		m.Rows = coverage.Filter(m.Rows, o.filter, o.services)
 		matrices = append(matrices, m)
 	}
 	// Fetch failure is always fatal (exit 2), independent of --check-strict;

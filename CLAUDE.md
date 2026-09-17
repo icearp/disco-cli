@@ -149,10 +149,14 @@ Namespaced lowercase: `aws:ec2:instance`, `azure:microsoft.compute:virtual-machi
 
 Viper reads `xdg.ConfigHome/disco/config.yaml`, env prefix `DISCO_`. `--db` flag (or `$DISCO_DB`) overrides DB path; default `xdg.DataHome/disco/disco.db`. Linux: `~/.config/disco/` + `~/.local/share/disco/`. macOS/Windows: both collapse to platform app-data dir. Paths resolved via `github.com/adrg/xdg` in `cmd/paths.go` (`configDir()`, `dataDir()`). `defaultDBPath()` = pure getter — directory creation is `store.Open()` job.
 
-## Coverage gap docs (`docs/`)
+## Coverage report (`docs/coverage.md`, `docs/coverage-baseline.json`)
 
-- `docs/aws-missing-services.md` — scanner-layer skip list (CFN types not scanned). Gitignored, per-dev. Read by `scripts/aws-next-service.sh`.
-- `docs/aws-missing-resolvers.md` — resolver-layer gaps: audit workflow + orphan-types TSV (fenced block). Tracked. Refresh via `disco coverage resolvers --missing --providers aws`.
+Both are generated, never edited: `make gen-coverage` writes them from the SDK cache (`-o markdown
+--filter gaps` + `--write-baseline`); `make check-coverage` is the CI ratchet (`--baseline
+--check-strict`, then a diff against the committed report). A pin bump or a new scanner changes
+both — regenerate and commit the diff as the review. Resolver gaps: `disco coverage resolvers
+--missing --with-refs`. The hand ledgers (`docs/{azure,gcp}-type-coverage.md`,
+`docs/aws-missing-*.md`, `scripts/aws-next-service.sh`) are gone; do not recreate them.
 
 ## Nested guidance
 

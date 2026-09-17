@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	// IoT emits are declared per family file via registerExtraEmits — scanIoT
+	// IoT types are declared per family file via registerType — scanIoT
 	// upserts nothing itself, only fans out to family scanners (things,
 	// certs/auth, defender, jobs, software, logging).
 	registerService(serviceEntry{name: "aws:iot", fn: scanIoT})

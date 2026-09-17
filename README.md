@@ -187,11 +187,20 @@ symbol-level precision under 8GB.
 
 ### Coverage drift gating in CI
 
-`coverage --check-strict` exits non-zero whenever the scanner-declared type list disagrees with the live cloud-provider registry (CloudFormation `ListTypes` / Azure ARM `Providers/List` / GCP Discovery API). Pair with `--resolvers --only-unannotated` to surface resolvers with zero declared `EdgeDecl`. Those are the candidate sweep targets for closing graph gaps.
+`coverage services` measures disco's scanners against the clouds' own SDKs: the denominator is
+every listable resource in the pinned SDK sources (`disco coverage sdk fetch` caches them
+offline), the numerator is the static pairing of each scanner's SDK calls with the types it
+stores. `--check-strict` exits non-zero when an emitted type pairs with no SDK call;
+`--baseline` exits non-zero when a previously covered resource is no longer listed or the
+percentage drops under the same pins. `resolvers --only-unannotated` surfaces resolvers with
+zero declared `EdgeDecl`, the candidate sweep targets for closing graph gaps, and
+`coverage verify` checks a finished scan's stored types against what the scanners declare.
 
 ```bash
-disco coverage services --check-strict --providers aws
+make check-coverage                                              # the CI ratchet
+disco coverage services --providers aws --filter gaps            # what AWS lists that disco does not scan
 disco coverage resolvers --only-unannotated --providers aws -o json | jq '.[].resolver'
+disco coverage verify --scan-id latest                           # stored types vs declared emits
 ```
 
 ### Find dangling resources mid-incident
@@ -219,27 +228,18 @@ Per-subdirectory `CLAUDE.md` files document local conventions; `CODE_STRUCTURE.m
 
 ## Coverage
 
-All three clouds are covered broadly: hundreds of services scanned via each cloud's
-per-service SDK, spanning compute, storage, networking, identity, data, security, and
-governance. Approximate breadth (distinct resource types the running binary declares):
-
-| Provider | Services | Resource types |
-|----------|---------:|---------------:|
-| AWS      |    ~300  |         ~1,800 |
-| Azure    |    ~150  |           ~420 |
-| GCP      |     ~40  |           ~250 |
-
-These lists move as services ship, so the README does not hand-maintain them. For the live,
-authoritative list from the binary you built, run:
+Every provider is measured, not estimated: [`docs/coverage.md`](docs/coverage.md) is
+regenerated from the pinned SDK sources and lists the headline percentage per provider, the
+per-service split, and every resource the SDK can list that disco does not scan yet. The
+numbers move only when the SDK pins move or a scanner lands; `docs/coverage-baseline.json` is
+the ratchet CI enforces.
 
 ```bash
 disco coverage services --providers aws        # or azure, gcp
-disco coverage services --filter uncovered     # what each registry exposes that disco doesn't yet scan
+disco coverage services --filter uncovered     # what each SDK exposes that disco doesn't yet scan
 ```
 
-Detecting drift between disco's scanners and the upstream cloud registries is exactly what the
-`coverage` command exists for (see the coverage-gating use case above). `FEATURES.md` lists
-shipped capabilities in prose.
+`FEATURES.md` lists shipped capabilities in prose.
 
 ## Development
 

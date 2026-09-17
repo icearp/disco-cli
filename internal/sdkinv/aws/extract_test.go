@@ -278,3 +278,31 @@ func TestEntryPlace_OrderIndependent(t *testing.T) {
 		t.Errorf("shallowest lineage then smallest parent should win: depth %d parent %q", en.depth, en.parentID)
 	}
 }
+
+// TestServiceReferenceVersion: the pin follows the catalog's newest
+// `modified` stamp (UTC date), not the file's mtime, and an index without
+// stamps pins by digest so the fixture is still versioned.
+func TestServiceReferenceVersion(t *testing.T) {
+	dir := t.TempDir()
+	write := func(body string) string {
+		p := filepath.Join(dir, "index.json")
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	got, err := serviceReferenceVersion(write(`[{"service":"a","modified":1774454984},{"service":"b","modified":1789999999}]`))
+	if err != nil || got != "2026-09-21" {
+		t.Errorf("stamped index = %q, %v; want 2026-09-21", got, err)
+	}
+	first, err := serviceReferenceVersion(write(`[{"service":"widgets"}]`))
+	if err != nil || len(first) != 12 {
+		t.Errorf("unstamped index = %q, %v; want a 12-hex digest", first, err)
+	}
+	if again, _ := serviceReferenceVersion(write(`[{"service":"widgets"}]`)); again != first {
+		t.Errorf("digest not stable: %q vs %q", first, again)
+	}
+	if _, err := serviceReferenceVersion(write(`{}`)); err == nil {
+		t.Error("non-array index must error")
+	}
+}

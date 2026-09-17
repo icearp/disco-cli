@@ -20,7 +20,7 @@ func init() {
 // neighbours). RouteServerAssociation + RouteServerPropagation are skipped —
 // they're association/propagation fields on already-scanned resources (route
 // table, route server), not resources with their own SDK list op (see
-// docs/aws-missing-services.md).
+// `disco coverage services --filter uncovered`).
 func scanEC2RouteServer(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(
 		ctx,

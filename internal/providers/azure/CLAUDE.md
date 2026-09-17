@@ -39,8 +39,8 @@ its `emits`, e.g. `microsoft.documentdb` — NOT the friendly `cosmos`). One reg
 namespace**: the registry panics on duplicate names (`azure_registry.go`).
 - If several scanners share a namespace (e.g. dns/frontdoor/private-endpoints are all
   `microsoft.network`), **merge** them under one `serviceEntry` whose `fn` runs each via
-  `azRunPhases(...)` and whose `emits` is the union — secondary files keep their `scanX` fn but
-  declare emits via `registerExtraEmits(...)` instead of a second `registerService`. Precedent:
+  `azRunPhases(...)` and whose `emits` is the union — secondary files keep their `scanX` fn and
+  declare their types with `registerType` instead of a second `registerService`. Precedent:
   `network_scanners.go::scanNetworkNamespace`, `cosmos_scanners.go::scanDocumentDBNamespace`.
 - If one scanner spans two namespaces, **split** it into one registration each. Precedent:
   `containerapps_scanners.go` (`microsoft.app` + `microsoft.containerinstance`).

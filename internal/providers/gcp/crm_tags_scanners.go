@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/cloudresourcemanager/v3"
 )
 
-// Wave 8b of the GCP type-coverage buildout (docs/gcp-type-coverage.md):
+// Wave 8b of the GCP type-coverage buildout (the 2026-07 type-coverage audit):
 // Cloud Resource Manager Tags + Liens.
 //
 // A TagKey/TagValue/TagHold tree can be parented by EITHER an organization OR
@@ -226,7 +226,7 @@ func crmProjectFullResourceName(projectNumber string) (name string, ok bool) {
 // a feature most commonly used at the project/folder/org level for
 // cost-allocation and IAM-condition tagging. Scoped down to the project
 // resource itself — same judgment call as Wave 7's ReservationSlot
-// deferral (see docs/gcp-type-coverage.md).
+// deferral (2026-07 type-coverage audit).
 func scanCRMLiensAndBindings(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := cloudresourcemanager.NewService(ctx, opts...)

@@ -178,6 +178,61 @@ func TestCoverage_RegistryDriftNeedsCrossCheck(t *testing.T) {
 	}
 }
 
+// TestCoverageServices_Baseline: --write-baseline records the unfiltered
+// matrix (a --filter that hides every covered row must not empty it),
+// comparing against that file is clean, and a baseline claiming a key the
+// fixture never covers fails with the baseline sentinel after rendering.
+func TestCoverageServices_Baseline(t *testing.T) {
+	root := fixtureCache(t)
+	path := filepath.Join(t.TempDir(), "baseline.json")
+	run := func(args ...string) (string, error) {
+		resetCoverageFlags(t)
+		return captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs(append([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", root, "--source-root=", "-o", "json"}, args...))
+			return cmd.Execute()
+		})
+	}
+	if _, err := run("--filter", "uncovered", "--write-baseline", path); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	b, err := coverage.ReadBaseline(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aws := b["aws"]
+	if len(aws.UncoveredKeys) == 0 || aws.Pins["aws-sdk-go-v2"] != sdkinv.AWSSDKRef {
+		t.Fatalf("baseline = %+v", aws)
+	}
+	if aws.Covered != len(aws.CoveredKeys) || aws.Uncovered != len(aws.UncoveredKeys) {
+		t.Errorf("baseline counts %d/%d disagree with keys %d/%d", aws.Covered, aws.Uncovered, len(aws.CoveredKeys), len(aws.UncoveredKeys))
+	}
+	if _, err := run("--baseline", path); err != nil {
+		t.Fatalf("clean compare: %v", err)
+	}
+	// Move one uncovered key into the covered list: the fresh run now regresses it.
+	aws.CoveredKeys = append(aws.CoveredKeys, aws.UncoveredKeys[0])
+	aws.UncoveredKeys = aws.UncoveredKeys[1:]
+	aws.Covered++
+	aws.Uncovered--
+	aws.Percent = 100 * float64(aws.Covered) / float64(aws.Covered+aws.Uncovered)
+	b["aws"] = aws
+	if err := coverage.WriteBaseline(path, b); err != nil {
+		t.Fatal(err)
+	}
+	out, err := run("--baseline", path)
+	if !errors.Is(err, errCoverageBaseline) {
+		t.Fatalf("want errCoverageBaseline, got %v", err)
+	}
+	var matrices []coverage.Matrix
+	if jerr := json.Unmarshal([]byte(out), &matrices); jerr != nil || len(matrices) != 1 {
+		t.Errorf("matrix must still render before the failure: %v\n%s", jerr, out)
+	}
+	if _, err := run("--baseline", filepath.Join(t.TempDir(), "none.json")); err == nil {
+		t.Error("missing baseline file must error")
+	}
+}
+
 // TestCoverageResolvers_UnknownFormat verifies `coverage resolvers` rejects an
 // invalid -o instead of silently falling through to the table (parity with
 // the services/regions siblings). Registry-only, no network.

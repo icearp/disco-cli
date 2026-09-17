@@ -15,7 +15,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeResourcesResourceGroup, Service: "resources"})
 	// scanResourceGroups runs once per subscription, invoked directly from
 	// azure.go (not via registerService) since it pre-seeds RG parents every
-	// other scanner depends on. Emits declared via registerExtraEmits.
+	// other scanner depends on. Types declared via registerType.
 }
 
 // scanResourceGroups discovers all resource groups in a subscription and

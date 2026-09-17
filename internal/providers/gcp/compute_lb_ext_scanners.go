@@ -8,7 +8,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Wave 6 of the GCP type-coverage buildout (docs/gcp-type-coverage.md): the
+// Wave 6 of the GCP type-coverage buildout (the 2026-07 type-coverage audit): the
 // remaining load-balancing / health-check / SSL-TLS domain, on top of the
 // pre-existing "gcp:loadbalancing" service (ForwardingRule, TargetHTTP(S)Proxy,
 // URLMap, BackendService, BackendBucket). New phases of "gcp:compute". No

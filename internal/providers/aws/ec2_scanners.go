@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	// Emits are declared per category file via registerExtraEmits — scanEC2
+	// Types are declared per category file via registerType — scanEC2
 	// itself upserts nothing, just fans out to category scanners (compute_mgmt,
 	// networking, ipam, tgw, …).
 	registerService(serviceEntry{name: "aws:ec2", fn: scanEC2})

@@ -30,7 +30,7 @@ const maxConcurrentArtifactFanout = 10
 // location via the `locations/-` wildcard, then fans out per repository for
 // Packages, Rules, and Attachments, then per package for Tags.
 //
-// Deliberately NOT scanned (see docs/gcp-type-coverage.md Wave 11b for the
+// Deliberately NOT scanned (see the 2026-07 type-coverage audit, Wave 11b for the
 // full reasoning): Version, and the format-specific per-artifact views
 // DockerImage/MavenArtifact/NpmPackage/PythonPackage, all share the same
 // cardinality profile — one row per pushed image/artifact rather than per

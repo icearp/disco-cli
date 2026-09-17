@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	// SageMaker emits are declared per family file via registerExtraEmits;
+	// SageMaker types are declared per family file via registerType;
 	// scanSageMaker itself upserts nothing, only fans out to family scanners
 	// (studio, training, inference, monitoring, …).
 	registerService(serviceEntry{name: "aws:sagemaker", fn: scanSageMaker})

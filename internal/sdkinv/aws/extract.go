@@ -2,6 +2,8 @@ package aws
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -11,6 +13,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
@@ -232,11 +235,38 @@ func loadServiceReference(dir string) (map[string]*srService, string, error) {
 	if len(out) == 0 {
 		return nil, "", fmt.Errorf("no Service Reference documents under %s", dir)
 	}
-	st, err := os.Stat(filepath.Join(dir, "index.json"))
+	ver, err := serviceReferenceVersion(filepath.Join(dir, "index.json"))
 	if err != nil {
 		return nil, "", err
 	}
-	return out, st.ModTime().UTC().Format("2006-01-02"), nil
+	return out, ver, nil
+}
+
+// serviceReferenceVersion pins the unversioned catalog by its content: the
+// newest per-service `modified` stamp in the index, so two fetches of the
+// same catalog agree and a catalog update reads as a pin bump. The file's
+// own mtime is the fetch time and would move on every cache rebuild. An
+// index without stamps (the fixture) pins by digest.
+func serviceReferenceVersion(indexPath string) (string, error) {
+	raw, err := os.ReadFile(indexPath)
+	if err != nil {
+		return "", err
+	}
+	var entries []struct {
+		Modified int64 `json:"modified"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return "", fmt.Errorf("%s: %w", indexPath, err)
+	}
+	var newest int64
+	for _, e := range entries {
+		newest = max(newest, e.Modified)
+	}
+	if newest == 0 {
+		sum := sha256.Sum256(raw)
+		return hex.EncodeToString(sum[:6]), nil
+	}
+	return time.Unix(newest, 0).UTC().Format("2006-01-02"), nil
 }
 
 func indexSR(d *srDoc) *srService {

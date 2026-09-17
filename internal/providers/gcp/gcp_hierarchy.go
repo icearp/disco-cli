@@ -16,8 +16,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeProject, Service: "cloudresourcemanager"})
 	// scanHierarchy runs direct from gcp.go (not via registerService) — it
 	// fires once before per-project fan-out and emits the project/folder/
-	// organization rows resolvers anchor against. Declared via
-	// registerExtraEmits so the coverage matrix still picks up its emits.
+	// organization rows resolvers anchor against. Declared via registerType
+	// so the coverage matrix still picks up its types.
 }
 
 // scanHierarchy discovers the GCP org → folder → project tree and populates

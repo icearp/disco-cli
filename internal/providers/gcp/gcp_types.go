@@ -27,7 +27,7 @@ const (
 	TypeComputeBackendService   = "gcp:compute:backend-service"
 	TypeComputeBackendBucket    = "gcp:compute:backend-bucket"
 	TypeComputeSecurityPolicy   = "gcp:compute:security-policy"
-	// Compute Engine — storage (Wave 1 of the type-coverage buildout, docs/gcp-type-coverage.md)
+	// Compute Engine — storage (Wave 1 of the 2026-07 type-coverage buildout)
 	TypeComputeDisk                       = "gcp:compute:disk"
 	TypeComputeRegionDisk                 = "gcp:compute:region-disk"
 	TypeComputeImage                      = "gcp:compute:image"

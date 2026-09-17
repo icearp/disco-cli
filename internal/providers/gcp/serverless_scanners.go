@@ -79,7 +79,7 @@ func scanCloudFunctions(ctx context.Context, p *project, st *store.Store, scanID
 // (`Projects.Locations.Jobs`) are a separate sibling API surface, scanned by
 // `scanCloudRunJobs` in jobs_scanners.go (which also fans out Executions).
 //
-// Deliberately NOT scanned (see docs/gcp-type-coverage.md Wave 11d): the
+// Deliberately NOT scanned (see the 2026-07 type-coverage audit, Wave 11d): the
 // Knative-legacy `Configuration`/`Route` types are shadow representations of
 // the same Service already scanned here (one Configuration + one Route per
 // Service, no independent data). `Task` (per-Execution runtime attempt, same
