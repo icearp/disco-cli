@@ -17,6 +17,7 @@ package scanrun
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -223,7 +224,8 @@ func Finalize(
 	for _, e := range scanErrors {
 		if aerr := st.AppendScanError(scanID, store.ScanErrorEntry{
 			Service: e.Provider + ":" + e.Service,
-			Region:  regionFromScope(e.Scope),
+			Region:  regionFromScope(e.Provider, e.Scope),
+			Scope:   e.Scope,
 			Code:    scanErrorCode(e.Message),
 			Message: e.Message,
 		}); aerr != nil {
@@ -246,10 +248,11 @@ func persistWarnings(st *store.Store, scanID string, warnings []store.ScanWarnin
 	}
 	for _, w := range kept {
 		if aerr := st.AppendScanWarning(scanID, store.ScanWarningEntry{
-			Service: w.Provider + ":" + w.Service,
-			Region:  regionFromScope(w.Scope),
-			Scope:   w.Scope,
-			Message: w.Message,
+			Service:     w.Provider + ":" + w.Service,
+			Region:      regionFromScope(w.Provider, w.Scope),
+			Scope:       w.Scope,
+			ServiceName: w.ServiceName,
+			Message:     w.Message,
 		}); aerr != nil {
 			appendErrs = append(appendErrs, aerr)
 		}
@@ -265,21 +268,44 @@ func persistWarnings(st *store.Store, scanID string, warnings []store.ScanWarnin
 	return appendErrs
 }
 
-// regionFromScope parses the region best-effort out of a scanner scope string,
-// shaped "<account>/<region>" for AWS and bare for Azure/GCP. Returns "" when
-// the scope carries no region half.
-func regionFromScope(scope string) string {
+// regionFromScope parses the region out of an AWS scanner scope string, shaped
+// "<account>/<region>". Only AWS scopes carry a region: a GCP skip scope is
+// "project/scope/name", whose last segment is an instance group or a table,
+// and reading that as a region prints a table name where a region belongs.
+// The full scope is persisted alongside, so nothing is lost by declining.
+func regionFromScope(provider, scope string) string {
+	if provider != "aws" {
+		return ""
+	}
 	if i := strings.LastIndex(scope, "/"); i >= 0 {
 		return scope[i+1:]
 	}
 	return ""
 }
 
-// scanErrorCode best-effort extracts an AWS-style error code from the failure
-// message — e.g. "AccessDenied", "Throttling", "UnknownOperation". Returns
-// "Error" when no recognisable token is present so the structured entry's
-// `code` field is never empty.
+// Error-code shapes each provider's formatted message carries. Matching the
+// shape beats the token list below it: the list holds ten AWS tokens, so every
+// other code (UnauthorizedException, ValidationException, AuthorizationFailed)
+// used to persist as the useless literal "Error".
+var (
+	// AWS SDK v2: "… api error UnauthorizedException: This feature is no …".
+	awsAPIErrorRe = regexp.MustCompile(`api error ([A-Za-z][A-Za-z0-9_]*):`)
+	// Azure formatAzureError: "403 AuthorizationFailed: The client …".
+	azureErrorRe = regexp.MustCompile(`^\d{3} ([A-Za-z][A-Za-z0-9_]*):`)
+	// GCP skipIfDenied: "403 Permission denied (accessNotConfigured)".
+	gcpReasonRe = regexp.MustCompile(`^\d{3} .*\(([A-Za-z][A-Za-z0-9_]*)\)$`)
+)
+
+// scanErrorCode best-effort extracts the provider's error code from the
+// failure message — e.g. "AccessDenied", "AuthorizationFailed",
+// "accessNotConfigured". Returns "Error" when no recognisable token is present
+// so the structured entry's `code` field is never empty.
 func scanErrorCode(msg string) string {
+	for _, re := range []*regexp.Regexp{awsAPIErrorRe, azureErrorRe, gcpReasonRe} {
+		if m := re.FindStringSubmatch(msg); m != nil {
+			return m[1]
+		}
+	}
 	for _, candidate := range []string{
 		"AccessDenied", "Throttling", "ThrottlingException",
 		"UnknownOperationException", "UnsupportedOperation",

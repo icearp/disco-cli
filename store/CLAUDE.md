@@ -226,10 +226,27 @@ The trailing `Z` is load-bearing, not cosmetic: disco-saas casts these TEXT colu
 
 ## `TypesForScan(scanID)` = distinct (provider, type) a scan touched
 
-`SELECT DISTINCT provider, type FROM resources WHERE discovered_by = ? OR verified_by = ?` — both
-scan FKs, because a re-verify run inserts nothing yet proves the scanner still emits the type.
+`SELECT DISTINCT provider, type FROM resources WHERE (discovered_by = ? OR verified_by = ?) AND
+NOT reference_only` — both scan FKs, because a re-verify run inserts nothing yet proves the
+scanner still emits the type; `NOT reference_only` because `InsertResourcesIfAbsent` stamps the
+scan id onto resolver placeholders, and one of those counted as a type the scan emitted.
 Feeds `disco coverage verify`; SQLite + PG tests share `testTypesForScan`. Do not build scan
 introspection on `scan_checkpoints` — it has no reader and its writers are incidental.
+
+## A scan record's warnings and errors are what `coverage verify` reasons from
+
+`ScanWarning.ServiceName` is the registered scanner service a warning came from, distinct from
+`Service`, which is an op label (`armnetwork:VirtualWans.List`). Nothing turns an Azure op label
+into `microsoft.<ns>` — armappservice, armcosmos and armresources each disagree — so the name is
+stamped at the dispatch site by `Store.WithWarningService(name)`, a shallow-copy scoped store
+like `WithUpsertCounters`. Scanners keep reporting op labels and know nothing about it. An empty
+`ServiceName` means the warning names no service (a store-level native-id collision), and
+`coverage verify` then lets it explain no missing type.
+
+`ScanErrorEntry.Scope` exists for the same reason in the error direction: without it a
+per-subscription Azure failure and a failure of the whole provider are the same row. `Region` is
+parsed from the scope for AWS only — a GCP skip scope is `project/scope/name`, whose last segment
+is a table or an instance group, not a region.
 
 ## `scans.resource_count` = totalSeen, not totalNew
 

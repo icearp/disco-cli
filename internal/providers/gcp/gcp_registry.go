@@ -137,7 +137,7 @@ func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st 
 			continue
 		}
 		var newC, changedC atomic.Int64
-		total, _, err := svc.fn(ctx, scopes, st.WithUpsertCounters(&newC, &changedC), scanID)
+		total, _, err := svc.fn(ctx, scopes, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 		if err != nil {
 			// API-not-enabled at org scope (accesscontextmanager, org-policy,
 			// etc.) returns errServiceDisabled — mirrors scanProject, surfaces

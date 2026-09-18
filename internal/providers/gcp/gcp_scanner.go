@@ -201,7 +201,7 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 			svcCtx, cancel := context.WithTimeout(gctx, serviceTimeout)
 			defer cancel()
 			var newC, changedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC), scanID)
+			total, _, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 			if err != nil {
 				// First rung, ahead of every skip: a failed store write is not a
 				// GCP-side condition and must never be reported as one. Mirrors

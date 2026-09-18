@@ -198,6 +198,17 @@ func resolveScan(db *store.Store, id string) (*store.Scan, error) {
 		}
 		return sc, nil
 	}
+	// Every other scan-id-taking command accepts the 8-char prefix `disco
+	// scans` prints; this one used to accept only the 32-hex form the CLI
+	// never shows. `latest` stays LatestCompleteScan, which resolveScanID
+	// does not implement (it would pick a running scan).
+	if isScanIDPrefix(id) {
+		full, err := resolveScanIDPrefix(db, id)
+		if err != nil {
+			return nil, err
+		}
+		id = full
+	}
 	sc, err := db.GetScan(id)
 	if err != nil {
 		return nil, fmt.Errorf("scan %q: %w", id, err)
@@ -210,8 +221,13 @@ type scanContext struct {
 	scan      *store.Scan
 	stored    map[string]bool // providers with at least one row in this scan
 	providers map[string]bool // scope.providers
-	errors    []store.ScanErrorEntry
-	warnings  []store.ScanWarningEntry
+	// services and regions are scope.<provider>.services / .regions, absent
+	// when the scan named none ("all"). A --services-filtered scan otherwise
+	// reads exactly like an empty account.
+	services map[string]map[string]bool
+	regions  map[string]map[string]bool
+	errors   []store.ScanErrorEntry
+	warnings []store.ScanWarningEntry
 }
 
 // inScope keeps the providers the scan actually ran. Naming a provider with
@@ -231,9 +247,32 @@ func (c *scanContext) load() error {
 	var scope struct {
 		Providers []string `json:"providers"`
 	}
+	c.services, c.regions = map[string]map[string]bool{}, map[string]map[string]bool{}
 	if c.scan.ScopeJSON != "" {
 		if err := json.Unmarshal([]byte(c.scan.ScopeJSON), &scope); err != nil {
 			return fmt.Errorf("scan %s scope: %w", c.scan.ID, err)
+		}
+		// The scope object mixes shapes — a "providers" list beside one block
+		// per provider, whose own values are polymorphic (a list, the string
+		// "all", a bool) — so each key decodes on its own and loosely: an
+		// unreadable block must narrow nothing rather than fail the command.
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(c.scan.ScopeJSON), &raw); err == nil {
+			for prov, blob := range raw {
+				var block struct {
+					Services any `json:"services"`
+					Regions  any `json:"regions"`
+				}
+				if err := json.Unmarshal(blob, &block); err != nil {
+					continue
+				}
+				if s := scopeList(block.Services, prov); s != nil {
+					c.services[strings.ToLower(prov)] = s
+				}
+				if r := scopeList(block.Regions, ""); r != nil {
+					c.regions[strings.ToLower(prov)] = r
+				}
+			}
 		}
 	}
 	c.providers = lowerSet(scope.Providers)
@@ -250,36 +289,140 @@ func (c *scanContext) load() error {
 	return nil
 }
 
+// scopeList reads a scope value that names a selection. A JSON array narrows;
+// the literal "all" (and anything else, including a bool or a missing key)
+// does not, and returns nil so the caller records no narrowing at all. The
+// provider prefix is dropped because --services is written "aws:ec2" while
+// every service name this file joins on is bare.
+func scopeList(v any, provider string) map[string]bool {
+	items, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, it := range items {
+		s, ok := it.(string)
+		if !ok || s == "" {
+			continue
+		}
+		if provider != "" {
+			s = stripProvider(s, strings.ToLower(provider))
+		}
+		out[strings.ToLower(s)] = true
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // reason explains one declared type without rows. Entries are recorded as
 // "<provider>:<service>" (errors) and "<provider>:<op label>" (warnings).
 func (c *scanContext) reason(provider string, d coverage.TypeDecl, services map[string]bool, labels labelIndex) string {
 	if len(c.providers) > 0 && !c.providers[provider] {
 		return "out-of-scope: provider not scanned"
 	}
-	for _, e := range c.errors {
-		svc := strings.ToLower(stripProvider(e.Service, provider))
-		if svc == wholeScanService || services[svc] {
-			return "scan-error: " + e.Code + regionSuffix(e.Region)
-		}
-		// A provider that stored nothing and failed before any service ran
-		// (aws:load-accounts, gcp:load-projects) lost every type to that
-		// failure, whatever label the scanner gave it.
-		if !c.stored[provider] && strings.HasPrefix(strings.ToLower(e.Service), provider+":") {
-			return "scan-error: " + e.Code + " (" + svc + ")" + regionSuffix(e.Region)
-		}
+	if sel := c.services[provider]; len(sel) > 0 && !anyOf(sel, services) {
+		return "out-of-scope: service not in --services"
+	}
+	if r := c.errorReason(provider, services); r != "" {
+		return r
 	}
 	for _, w := range c.warnings {
 		label := stripProvider(w.Service, provider)
-		if labels.explains(label, d.DiscoType, services) {
+		if labels.explains(w, label, d.DiscoType, services, provider) {
 			return "warning: " + label + regionSuffix(w.Region) + ": " + truncate(w.Message, 80)
 		}
 	}
+	// "no rows" claims the account has none, which a provider that stored
+	// nothing at all has not established.
+	if !c.stored[provider] && len(c.errors) == 0 {
+		return "nothing stored: " + provider + " recorded no rows and no failure"
+	}
+	if sel := c.regions[provider]; len(sel) > 0 {
+		return "no rows in the scanned regions (" + strings.Join(sortedKeysOf(sel), ", ") + ")"
+	}
 	return "no rows"
+}
+
+// errorReason matches the scan's recorded failures against one type, exact
+// matches first. Both tests used to run in one pass over the list, so the
+// first provider-prefixed entry short-circuited every later exact match.
+func (c *scanContext) errorReason(provider string, services map[string]bool) string {
+	for _, e := range c.errors {
+		svc := strings.ToLower(stripProvider(e.Service, provider))
+		if svc == wholeScanService || svc == interruptedService || services[svc] {
+			return scanErrorReason(e, svc)
+		}
+	}
+	// A provider that stored nothing and failed before any service ran
+	// (aws:load-accounts, gcp:load-projects, one unreachable subscription
+	// when it was the only one) lost every type to that failure, whatever
+	// label the scanner gave it.
+	if !c.stored[provider] {
+		for _, e := range c.errors {
+			if strings.HasPrefix(strings.ToLower(e.Service), provider+":") {
+				return scanErrorReason(e, strings.ToLower(stripProvider(e.Service, provider)))
+			}
+		}
+	}
+	return ""
+}
+
+// scanErrorReason renders one error entry the way the warning branch renders a
+// warning: the code alone is right in kind and useless in content, because the
+// runner writes the literal "Error" whenever it cannot read a code.
+func scanErrorReason(e store.ScanErrorEntry, svc string) string {
+	out := "scan-error: " + e.Code
+	// Neither whole-scan label names a service, so neither belongs in the
+	// service slot; "Canceled (scan:interrupted)" reads as a service called
+	// scan:interrupted.
+	if svc != "" && svc != wholeScanService && svc != interruptedService {
+		out += " (" + svc + ")"
+	}
+	switch {
+	case e.Region != "":
+		out += regionSuffix(e.Region)
+	case e.Scope != "":
+		out += " [" + e.Scope + "]"
+	}
+	if e.Message != "" {
+		// Wider than the warning budget: a provider error message opens with
+		// SDK boilerplate ("operation error STS: GetCallerIdentity, …") and
+		// the part worth reading is behind it.
+		out += ": " + truncate(e.Message, 120)
+	}
+	return out
+}
+
+// anyOf reports whether any of the type's service names was selected.
+func anyOf(selected, names map[string]bool) bool {
+	for n := range names {
+		if selected[n] {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedKeysOf(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // wholeScanService is the service the runner records when a provider's Scan
 // itself fails (internal/scanrun): nothing of that provider was listed.
 const wholeScanService = "scan"
+
+// interruptedService is the entry Finalize records on Ctrl-C. It carries no
+// provider prefix, so it explains every provider of the scan — and it is the
+// default --scan-id latest target right after an interrupt, because
+// LatestCompleteScan accepts a partial scan.
+const interruptedService = "scan:interrupted"
 
 // typeServiceNames is every name a scan-record entry may carry for a type:
 // the scanner services registered from the type's own file
@@ -336,16 +479,33 @@ func truncate(s string, n int) string {
 // each op label stores. With the pairing present every op label a scanner
 // can persist is known (the pairing tests fail on an unresolved label), so
 // a label it does not know is no op at all — a store-level warning such as
-// a native-id collision, which explains nothing. Without the pairing a
-// warning joins by its service prefix.
+// a native-id collision, which explains nothing unless the scan recorded the
+// service it came from. Without the pairing a warning joins by that service,
+// else by its label prefix.
 type labelIndex struct {
 	byType map[string]map[string]bool
 	known  map[string]bool
 }
 
-func (ix labelIndex) explains(label, typ string, services map[string]bool) bool {
+func (ix labelIndex) explains(w store.ScanWarningEntry, label, typ string, services map[string]bool, provider string) bool {
+	if ix.byType[typ][label] {
+		return true
+	}
+	// A label the pairing does not know may still be a warning the scan
+	// tagged with the service it came from. That tag is the only join for an
+	// Azure "arm<module>:<Client>.<Method>" label, whose prefix is a module
+	// name no rule turns into "microsoft.<ns>", and for the scanners that
+	// warn under a service name rather than an op label.
+	if !ix.known[label] {
+		for _, n := range strings.Split(w.ServiceName, ",") {
+			n = strings.ToLower(stripProvider(strings.TrimSpace(n), provider))
+			if n != "" && services[n] {
+				return true
+			}
+		}
+	}
 	if len(ix.known) > 0 {
-		return ix.byType[typ][label]
+		return false
 	}
 	prefix, _, _ := strings.Cut(label, ":")
 	return services[strings.ToLower(prefix)]

@@ -328,3 +328,72 @@ func TestFinalize_WarningsAreCapped(t *testing.T) {
 		t.Errorf("truncation marker = %q, want it to name the 50 dropped warnings", last.Message)
 	}
 }
+
+// parsedErrors reads scans.errors back off the row, like parsedWarnings.
+func parsedErrors(t *testing.T, st *store.Store, id string) []store.ScanErrorEntry {
+	t.Helper()
+	sc := scanStatus(t, st, id)
+	if sc.ErrorsJSON == nil {
+		t.Fatalf("scan %s has NULL errors; the column defaults to '[]'", id)
+	}
+	var out []store.ScanErrorEntry
+	if err := json.Unmarshal([]byte(*sc.ErrorsJSON), &out); err != nil {
+		t.Fatalf("unmarshal errors %q: %v", *sc.ErrorsJSON, err)
+	}
+	return out
+}
+
+// The scope is what tells a per-subscription failure from a failure of the
+// whole provider, and only AWS scopes carry a region in their last segment.
+func TestFinalize_ErrorEntriesCarryScopeAndAWSOnlyRegion(t *testing.T) {
+	st, scanID := newFinalizeStore(t)
+
+	errs := []store.ScanError{
+		{Provider: "aws", Service: "ec2", Scope: "123456789012/us-west-2", Message: "api error UnauthorizedException: gone"},
+		{Provider: "azure", Service: "scan", Scope: "sub-1", Message: "403 AuthorizationFailed: denied"},
+		{Provider: "gcp", Service: "compute", Scope: "proj/zone/instance-group-a", Message: "403 Permission denied (accessNotConfigured)"},
+	}
+	if _, err := Finalize(st, scanID, errs, nil, false); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	got := parsedErrors(t, st, scanID)
+	if len(got) != 3 {
+		t.Fatalf("entries = %+v, want 3", got)
+	}
+	want := []store.ScanErrorEntry{
+		{Service: "aws:ec2", Region: "us-west-2", Scope: "123456789012/us-west-2", Code: "UnauthorizedException"},
+		{Service: "azure:scan", Region: "", Scope: "sub-1", Code: "AuthorizationFailed"},
+		{Service: "gcp:compute", Region: "", Scope: "proj/zone/instance-group-a", Code: "accessNotConfigured"},
+	}
+	for i, w := range want {
+		g := got[i]
+		if g.Service != w.Service || g.Region != w.Region || g.Scope != w.Scope || g.Code != w.Code {
+			t.Errorf("entry %d = {service:%q region:%q scope:%q code:%q}, want {service:%q region:%q scope:%q code:%q}",
+				i, g.Service, g.Region, g.Scope, g.Code, w.Service, w.Region, w.Scope, w.Code)
+		}
+	}
+}
+
+// The registered service name is the only join a consumer has for an Azure op
+// label, which no rule turns into "microsoft.<ns>".
+func TestFinalize_WarningsCarryServiceName(t *testing.T) {
+	st, scanID := newFinalizeStore(t)
+
+	warns := []store.ScanWarning{
+		{Provider: "azure", Service: "armnetwork:VirtualWans.List", Scope: "sub-1", ServiceName: "azure:microsoft.network", Message: "denied"},
+		{Provider: "aws", Service: "kms:ListKeys", Scope: "123456789012/us-east-1", Message: "denied"},
+	}
+	if _, err := Finalize(st, scanID, nil, warns, false); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	got := parsedWarnings(t, st, scanID)
+	if len(got) != 2 {
+		t.Fatalf("entries = %+v, want 2", got)
+	}
+	if got[0].ServiceName != "azure:microsoft.network" {
+		t.Errorf("azure entry serviceName = %q, want azure:microsoft.network", got[0].ServiceName)
+	}
+	if got[1].ServiceName != "" {
+		t.Errorf("aws entry serviceName = %q, want empty (the label is already the service)", got[1].ServiceName)
+	}
+}

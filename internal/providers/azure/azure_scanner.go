@@ -304,14 +304,17 @@ func (s *Scanner) scanWithCredential(ctx context.Context, st *store.Store, scanI
 	for i := range subs {
 		sub := &subs[i]
 		wg.Go(func() {
-			defer reportPanic(st, "scan", sub.scopeLabel())
+			// Not the bare "scan": a consumer reading the scan record must be
+			// able to tell one unreachable subscription from a run that never
+			// listed anything, or every tenant-scoped type gets blamed on it.
+			defer reportPanic(st, subscriptionScanService, sub.scopeLabel())
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return
 			}
 			defer sem.Release(1)
 			if err := scanSubscription(ctx, sub, cred, s.serviceFilter, st, scanID, entraDone); err != nil {
 				st.ReportError(store.ScanError{
-					Provider: "azure", Service: "scan", Scope: sub.scopeLabel(),
+					Provider: "azure", Service: subscriptionScanService, Scope: sub.scopeLabel(),
 					Message: formatAzureError(err),
 				})
 			}
@@ -468,7 +471,7 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			var newC, changedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, sub, cred, st.WithUpsertCounters(&newC, &changedC), scanID)
+			total, _, err := svc.fn(svcCtx, sub, cred, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 			switch {
 			case err == nil:
 				st.ReportService(svc.name, sub.scopeLabel(), total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
@@ -584,6 +587,11 @@ func waitForTenant(ctx context.Context, done <-chan struct{}) {
 // reported error for that service/scope, never abort the scan — the
 // panic-case extension of the "errors never abort scan" contract
 // (providers/CLAUDE.md). Call deferred.
+// subscriptionScanService labels a failure of one subscription's whole scan.
+// The runner records a provider-wide failure as "scan"; this is deliberately
+// not that.
+const subscriptionScanService = "scan:subscription"
+
 func reportPanic(st *store.Store, service, scope string) {
 	if r := recover(); r != nil {
 		// A recovered value is often an error, and a panicked *azcore.ResponseError

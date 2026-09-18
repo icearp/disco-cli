@@ -166,7 +166,7 @@ func runTenantServices(ctx context.Context, subs []subscription, cred azcore.Tok
 		func() {
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
-			total, _, err = svc.fn(svcCtx, subs, cred, wif, st.WithUpsertCounters(&newC, &changedC), scanID)
+			total, _, err = svc.fn(svcCtx, subs, cred, wif, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 		}()
 		if err != nil {
 			st.ReportError(store.ScanError{
@@ -405,7 +405,11 @@ func reportTenantScopeSkipped(st *store.Store, subs []subscription, filter []str
 		}
 		st.ReportWarning(store.ScanWarning{
 			Provider: "azure", Service: "azure:tenant-scope", Scope: scope,
-			Message: msg,
+			// "tenant-scope" names no registered service, so the skipped
+			// services are listed here: without them a consumer cannot tell
+			// which declared types this warning accounts for.
+			ServiceName: strings.Join(skipped, ","),
+			Message:     msg,
 		})
 	}
 }
