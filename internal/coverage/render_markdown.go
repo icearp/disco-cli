@@ -65,8 +65,11 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 		{BucketAttribute, "Attributes (detail reads, not counted)", []string{"Service", "Key", "Disco type", "Ops"}, func(r Row) []string {
 			return []string{r.Service, r.Key, r.DiscoType, strings.Join(r.Ops, ", ")}
 		}},
-		{BucketExcluded, "Excluded (catalog, non-resource, preview-only)", []string{"Service", "Key", "Reason"}, func(r Row) []string {
-			return []string{r.Service, r.Key, r.Reason}
+		// The disco type column is what makes a wrong class rule visible: an
+		// excluded row a scanner provably lists and stores is a classifier
+		// bug, and printing only service/key/reason hid 93 of them.
+		{BucketExcluded, "Excluded (catalog, non-resource, preview-only)", []string{"Service", "Key", "Reason", "Disco type"}, func(r Row) []string {
+			return []string{r.Service, r.Key, r.Reason, discoTypeCell(r)}
 		}},
 	}
 	for _, s := range sections {
@@ -134,4 +137,17 @@ func mdSection(w io.Writer, title string, headers []string, rows []Row, cells fu
 	}
 	_, err := fmt.Fprintln(w)
 	return err
+}
+
+// discoTypeCell names the type an excluded row is paired with; with several
+// paired and no winner (ReasonMultiType) the first of the set stands in, since
+// the point of the column is that the row is scanned at all.
+func discoTypeCell(r Row) string {
+	if r.DiscoType != "" {
+		return r.DiscoType
+	}
+	if len(r.DiscoTypes) > 0 {
+		return r.DiscoTypes[0] + " (+" + fmt.Sprint(len(r.DiscoTypes)-1) + ")"
+	}
+	return ""
 }

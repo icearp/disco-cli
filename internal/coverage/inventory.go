@@ -1,6 +1,7 @@
 package coverage
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -34,6 +35,10 @@ const (
 	ReasonMultiType     = "multi-type"
 	ReasonCandidateOnly = "candidate-only"
 )
+
+// SignalScannerLists marks an excluded row a scanner demonstrably lists and
+// stores: a classifier bug to triage, not a settled exclusion.
+const SignalScannerLists = "scanner-lists"
 
 // Row is one entry in the coverage matrix.
 type Row struct {
@@ -142,12 +147,7 @@ func BuildInventory(in Inputs) Matrix {
 	accounted := map[string]bool{}
 	for _, c := range in.Universe.Candidates {
 		row := Row{Provider: in.Provider, Service: c.Service, Key: c.Key, Depth: c.Depth, Parent: c.Parent, Signals: c.Signals, Refs: c.Refs}
-		for _, op := range c.Ops {
-			row.Ops = append(row.Ops, op.Label)
-			if row.Scope == "" {
-				row.Scope = string(op.Scope)
-			}
-		}
+		row.Ops, row.Scope = opCells(c.Ops)
 		paired, listed := types[c.Key]
 		switch {
 		case len(paired) > 0:
@@ -155,7 +155,11 @@ func BuildInventory(in Inputs) Matrix {
 		case listed:
 			row.Reason = ReasonSidecar
 		default:
-			if t, ok := byIdent[candidateIdent(c)]; ok {
+			// A name match must not mask the regression signal: when the
+			// pairing ran and explicitly could not explain the type, the
+			// disco-only row it would suppress is the only thing
+			// --check-strict exits on. other-op and skew matches stand.
+			if t, ok := byIdent[candidateIdent(c)]; ok && !contradicted(in, t) {
 				row.DiscoType, row.Reason = t, ReasonMatchedByName
 				accounted[t] = true
 			}
@@ -167,6 +171,12 @@ func BuildInventory(in Inputs) Matrix {
 			row.Bucket = BucketAttribute
 		case c.Class == sdkinv.ClassCatalog, c.Class == sdkinv.ClassNonResource:
 			row.Bucket, row.Reason = BucketExcluded, string(c.Class)
+			// The class rule wins, but a scanner that provably lists and
+			// stores the candidate is the strongest evidence the rule is
+			// wrong. Keep it visible instead of discarding it with the reason.
+			if row.DiscoType != "" || len(row.DiscoTypes) > 0 {
+				row.Signals = append(append([]string(nil), row.Signals...), SignalScannerLists)
+			}
 		case len(paired) > 0 || listed || row.DiscoType != "":
 			row.Bucket = BucketCovered
 		default:
@@ -249,6 +259,10 @@ func Filter(rows []Row, filter string, services []string) []Row {
 			if r.Bucket != BucketUncovered && (r.Bucket != BucketDiscoOnly || r.Reason != ReasonUnexplained) {
 				continue
 			}
+		case FilterScannerLists:
+			if !slices.Contains(r.Signals, SignalScannerLists) {
+				continue
+			}
 		default:
 			if string(r.Bucket) != filter {
 				continue
@@ -263,7 +277,11 @@ func Filter(rows []Row, filter string, services []string) []Row {
 }
 
 // Filters lists the accepted --filter values.
-var Filters = []string{"all", "covered", "uncovered", "attribute", "excluded", "disco-only", "gaps", "registry-drift"}
+var Filters = []string{"all", "covered", "uncovered", "attribute", "excluded", "disco-only", "gaps", "registry-drift", FilterScannerLists}
+
+// FilterScannerLists narrows to excluded rows a scanner provably lists — the
+// worklist for fixing the per-provider class rules.
+const FilterScannerLists = "scanner-lists"
 
 func summarize(rows []Row) (Summary, []ServiceSummary) {
 	var s Summary
@@ -405,6 +423,30 @@ func assignPairedTypes(row *Row, paired map[string]bool, c sdkinv.Candidate, acc
 		}
 		sort.Strings(row.DiscoTypes)
 	}
+}
+
+// opCells lists a candidate's op labels and its scope. Sibling models and
+// per-version GCP documents repeat a label, so 930 rows rendered a duplicated
+// ops cell; Ops is never read back, so the fold is presentation only.
+func opCells(ops []sdkinv.Operation) ([]string, string) {
+	var labels []string
+	scope := ""
+	for _, op := range ops {
+		if !slices.Contains(labels, op.Label) {
+			labels = append(labels, op.Label)
+		}
+		if scope == "" {
+			scope = string(op.Scope)
+		}
+	}
+	return labels, scope
+}
+
+// contradicted reports that the pairing ran and could not explain the type.
+// A name match then has to yield: the disco-only row it would suppress is the
+// only thing --check-strict exits on.
+func contradicted(in Inputs, discoType string) bool {
+	return in.Pairings != nil && in.Unpaired[discoType] == ReasonUnexplained
 }
 
 // bestType picks the paired type to display for a candidate: the one whose

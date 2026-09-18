@@ -12,10 +12,11 @@ import (
 const armPrefix = "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/"
 
 var (
-	azureLabelRe = regexp.MustCompile(`^arm[a-z0-9]+:[A-Za-z0-9]+\.[A-Za-z0-9]+$`)
-	azurePagerRe = regexp.MustCompile(`^New(\w+)Pager$`)
-	azureCtorRe  = regexp.MustCompile(`^New(\w*Client|ClientFactory)$`)
-	azureTypeRe  = regexp.MustCompile(`^(\w*?Client)[A-Z]\w*$`) // <X>Client<Op>Response, ClientListOptions
+	azureLabelRe      = regexp.MustCompile(`^arm[a-z0-9]+:[A-Za-z0-9]+\.[A-Za-z0-9]+$`)
+	azureLooseLabelRe = regexp.MustCompile(`^arm[a-z0-9]+:[A-Za-z0-9]+$`)
+	azurePagerRe      = regexp.MustCompile(`^New(\w+)Pager$`)
+	azureCtorRe       = regexp.MustCompile(`^New(\w*Client|ClientFactory)$`)
+	azureTypeRe       = regexp.MustCompile(`^(\w*?Client)[A-Z]\w*$`) // <X>Client<Op>Response, ClientListOptions
 )
 
 type azureResolver struct{}
@@ -24,6 +25,12 @@ func init() { Register(azureResolver{}) }
 
 func (azureResolver) Name() string                 { return "azure" }
 func (azureResolver) LabelGrammar() *regexp.Regexp { return azureLabelRe }
+
+// LooseLabelGrammar catches the near miss the strict grammar hides: an arm
+// module and one bare segment, missing the Client. that 374 of the 376 live
+// Azure labels carry. Without it "armdigitaltwins:List" was simply not a
+// label, so nothing checked it.
+func (azureResolver) LooseLabelGrammar() *regexp.Regexp { return azureLooseLabelRe }
 
 // ImportKey: the arm module name (armcompute), majors stripped; fake and
 // other sub-packages carry no clients.

@@ -24,7 +24,7 @@ func scanDigitalTwins(ctx context.Context, sub *subscription, cred azcore.TokenC
 	if err != nil {
 		return 0, 0, fmt.Errorf("armdigitaltwins:NewClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armdigitaltwins:List", TypeDigitalTwinsInstance, sub, st, scanID,
+	return azSimpleScan(ctx, "armdigitaltwins:Client.List", TypeDigitalTwinsInstance, sub, st, scanID,
 		client.NewListPager(nil),
 		func(p armdigitaltwins.ClientListResponse) []*armdigitaltwins.Description { return p.Value },
 		func(d *armdigitaltwins.Description) azTrackedBase {

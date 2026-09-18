@@ -548,8 +548,8 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | chime | chime/channelsassociatedwithchannelflow | 3 | account | chime:ListChannelsAssociatedWithChannelFlow |
 | chime | chime/mediacapturepipeline | 0 | account | chime:GetMediaCapturePipeline, chime:ListMediaCapturePipelines |
 | chime | chime/messagingstreamingconfiguration | 2 | account | chime:GetMessagingStreamingConfigurations |
-| chime | chime/phonenumber | 0 | account | chime:GetPhoneNumber, chime:GetPhoneNumber, chime:ListPhoneNumbers, chime:ListPhoneNumbers |
-| chime | chime/phonenumberorder | 0 | account | chime:GetPhoneNumberOrder, chime:GetPhoneNumberOrder, chime:ListPhoneNumberOrders, chime:ListPhoneNumberOrders |
+| chime | chime/phonenumber | 0 | account | chime:GetPhoneNumber, chime:ListPhoneNumbers |
+| chime | chime/phonenumberorder | 0 | account | chime:GetPhoneNumberOrder, chime:ListPhoneNumberOrders |
 | chime | chime/proxysession | 2 | account | chime:GetProxySession, chime:ListProxySessions |
 | chime | chime/room | 0 | account | chime:GetRoom, chime:ListRooms |
 | chime | chime/roommembership | 1 | account | chime:ListRoomMemberships |
@@ -739,7 +739,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | connect | connect/userproficiency | 2 | account | connect:ListUserProficiencies |
 | connect | connect/workspaceassociation | 2 | account | connect:SearchWorkspaceAssociations |
 | connect | connect/workspacepage | 2 | account | connect:ListWorkspacePages |
-| connect-campaigns | connect-campaigns/campaignstatebatch | 1 | account | connect-campaigns:GetCampaignStateBatch, connect-campaigns:GetCampaignStateBatch |
+| connect-campaigns | connect-campaigns/campaignstatebatch | 1 | account | connect-campaigns:GetCampaignStateBatch |
 | controlcatalog | controlcatalog/commoncontrol | 0 | account | controlcatalog:ListCommonControls |
 | controlcatalog | controlcatalog/control | 0 | account | controlcatalog:GetControl, controlcatalog:ListControls |
 | controlcatalog | controlcatalog/domain | 0 | account | controlcatalog:ListDomains |
@@ -979,7 +979,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | elasticfilesystem | elasticfilesystem/replicationconfiguration | 0 | account | elasticfilesystem:DescribeReplicationConfigurations |
 | elasticloadbalancing | elasticloadbalancing/instancehealth | 2 | account | elasticloadbalancing:DescribeInstanceHealth |
 | elasticloadbalancing | elasticloadbalancing/loadbalancerpolicy | 0 | account | elasticloadbalancing:DescribeLoadBalancerPolicies |
-| elasticloadbalancing | elasticloadbalancing/tag | 0 | account | elasticloadbalancing:DescribeTags, elasticloadbalancing:DescribeTags |
+| elasticloadbalancing | elasticloadbalancing/tag | 0 | account | elasticloadbalancing:DescribeTags |
 | elasticloadbalancing | elasticloadbalancing/truststoreassociation | 2 | account | elasticloadbalancing:DescribeTrustStoreAssociations |
 | elasticmapreduce | elasticmapreduce/bootstrapaction | 1 | account | elasticmapreduce:ListBootstrapActions |
 | elasticmapreduce | elasticmapreduce/instance | 1 | account | elasticmapreduce:ListInstances |
@@ -1006,14 +1006,14 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | es | es/migration | 1 | account | es:GetMigration, es:ListMigrations |
 | es | es/outboundconnection | 0 | account | es:DescribeOutboundConnections |
 | es | es/outboundcrossclustersearchconnection | 0 | account | es:DescribeOutboundCrossClusterSearchConnections |
-| es | es/package | 0 | account | es:DescribePackages, es:DescribePackages, es:ListPackagesForDomain, es:ListPackagesForDomain |
+| es | es/package | 0 | account | es:DescribePackages, es:ListPackagesForDomain |
 | es | es/reservedelasticsearchinstanceoffering | 0 | account | es:DescribeReservedElasticsearchInstanceOfferings |
 | es | es/reservedinstanceoffering | 0 | account | es:DescribeReservedInstanceOfferings |
 | es | es/scheduledaction | 1 | account | es:ListScheduledActions |
-| es | es/upgradehistory | 1 | account | es:GetUpgradeHistory, es:GetUpgradeHistory |
-| es | es/vpcendpoint | 0 | account | es:DescribeVpcEndpoints, es:DescribeVpcEndpoints, es:ListVpcEndpoints, es:ListVpcEndpoints, es:ListVpcEndpointsForDomain, es:ListVpcEndpointsForDomain |
-| events | events/partnereventsource | 0 | account | events:DescribePartnerEventSource, events:DescribePartnerEventSource, events:ListPartnerEventSources, events:ListPartnerEventSources |
-| events | events/replay | 0 | account | events:DescribeReplay, events:DescribeReplay, events:ListReplays, events:ListReplays |
+| es | es/upgradehistory | 1 | account | es:GetUpgradeHistory |
+| es | es/vpcendpoint | 0 | account | es:DescribeVpcEndpoints, es:ListVpcEndpoints, es:ListVpcEndpointsForDomain |
+| events | events/partnereventsource | 0 | account | events:DescribePartnerEventSource, events:ListPartnerEventSources |
+| events | events/replay | 0 | account | events:DescribeReplay, events:ListReplays |
 | evs | evs/accountsetting | 0 | account | evs:GetAccountSettings |
 | evs | evs/environmentconnector | 1 | account | evs:ListEnvironmentConnectors |
 | evs | evs/environmenthost | 1 | account | evs:ListEnvironmentHosts |
@@ -1101,7 +1101,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | greengrass | greengrass/bulkdeployment | 0 | account | greengrass:ListBulkDeployments |
 | greengrass | greengrass/bulkdeploymentdetailedreport | 1 | account | greengrass:ListBulkDeploymentDetailedReports |
 | greengrass | greengrass/clientdevicesassociatedwithcoredevice | 1 | account | greengrass:ListClientDevicesAssociatedWithCoreDevice |
-| greengrass | greengrass/connectivityinfo | 0 | account | greengrass:GetConnectivityInfo, greengrass:GetConnectivityInfo |
+| greengrass | greengrass/connectivityinfo | 0 | account | greengrass:GetConnectivityInfo |
 | greengrass | greengrass/effectivedeployment | 1 | account | greengrass:ListEffectiveDeployments |
 | greengrass | greengrass/groupcertificateauthority | 1 | account | greengrass:GetGroupCertificateAuthority, greengrass:ListGroupCertificateAuthorities |
 | greengrass | greengrass/installedcomponent | 1 | account | greengrass:ListInstalledComponents |
@@ -1304,7 +1304,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | lex | lex/intentversion | 1 | account | lex:GetIntentVersions |
 | lex | lex/migration | 0 | account | lex:GetMigration, lex:GetMigrations |
 | lex | lex/recommendedintent | 1 | account | lex:ListRecommendedIntents |
-| lex | lex/session | 2 | account | lex:GetSession, lex:GetSession |
+| lex | lex/session | 2 | account | lex:GetSession |
 | lex | lex/sessionanalyticsdata | 1 | account | lex:ListSessionAnalyticsData |
 | lex | lex/slot | 1 | account | lex:DescribeSlot, lex:ListSlots |
 | lex | lex/slottype | 0 | account | lex:DescribeSlotType, lex:GetSlotType, lex:GetSlotTypes, lex:ListSlotTypes |
@@ -1556,16 +1556,16 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | ram | ram/pendinginvitationresource | 1 | account | ram:ListPendingInvitationResources |
 | ram | ram/permissionassociation | 0 | account | ram:ListPermissionAssociations |
 | ram | ram/resourceshareinvitation | 0 | account | ram:GetResourceShareInvitations |
-| rds | rds/certificate | 0 | account | rds:DescribeCertificates, rds:DescribeCertificates |
+| rds | rds/certificate | 0 | account | rds:DescribeCertificates |
 | rds | rds/dbclusterbacktrack | 1 | account | rds:DescribeDBClusterBacktracks |
-| rds | rds/dbclusterparameter | 1 | account | rds:DescribeDBClusterParameters, rds:DescribeDBClusterParameters, rds:DescribeDBClusterParameters |
+| rds | rds/dbclusterparameter | 1 | account | rds:DescribeDBClusterParameters |
 | rds | rds/dblogfile | 1 | account | rds:DescribeDBLogFiles |
-| rds | rds/dbparameter | 1 | account | rds:DescribeDBParameters, rds:DescribeDBParameters |
+| rds | rds/dbparameter | 1 | account | rds:DescribeDBParameters |
 | rds | rds/dbproxytarget | 1 | account | rds:DescribeDBProxyTargets |
 | rds | rds/dbrecommendation | 0 | account | rds:DescribeDBRecommendations |
 | rds | rds/exporttask | 0 | account | rds:DescribeExportTasks |
 | rds | rds/optiongroupoption | 1 | account | rds:DescribeOptionGroupOptions |
-| rds | rds/pendingmaintenanceaction | 0 | account | rds:DescribePendingMaintenanceActions, rds:DescribePendingMaintenanceActions, rds:DescribePendingMaintenanceActions |
+| rds | rds/pendingmaintenanceaction | 0 | account | rds:DescribePendingMaintenanceActions |
 | rds | rds/reserveddbinstancesoffering | 0 | account | rds:DescribeReservedDBInstancesOfferings |
 | redshift | redshift/authenticationprofile | 0 | account | redshift:DescribeAuthenticationProfiles |
 | redshift | redshift/clusterdbrevision | 0 | account | redshift:DescribeClusterDbRevisions |
@@ -1655,7 +1655,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | s3 | s3/bucketcor | 1 | account | s3:GetBucketCors |
 | s3 | s3/bucketintelligenttieringconfiguration | 1 | account | s3:GetBucketIntelligentTieringConfiguration, s3:ListBucketIntelligentTieringConfigurations |
 | s3 | s3/bucketinventoryconfiguration | 1 | account | s3:GetBucketInventoryConfiguration, s3:ListBucketInventoryConfigurations |
-| s3 | s3/bucketlifecycleconfiguration | 1 | account | s3:GetBucketLifecycleConfiguration, s3:GetBucketLifecycleConfiguration |
+| s3 | s3/bucketlifecycleconfiguration | 1 | account | s3:GetBucketLifecycleConfiguration |
 | s3 | s3/bucketmetricsconfiguration | 1 | account | s3:GetBucketMetricsConfiguration, s3:ListBucketMetricsConfigurations |
 | s3 | s3/bucketnotificationconfiguration | 1 | account | s3:GetBucketNotificationConfiguration |
 | s3 | s3/job | 0 | account | s3:DescribeJob, s3:ListJobs |
@@ -1754,9 +1754,9 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | ses | ses/archivesearch | 1 | account | ses:GetArchiveSearch, ses:ListArchiveSearches |
 | ses | ses/archivesearchresult | 1 | account | ses:GetArchiveSearchResults |
 | ses | ses/contact | 1 | account | ses:GetContact, ses:ListContacts |
-| ses | ses/dedicatedip | 0 | account | ses:GetDedicatedIp, ses:GetDedicatedIp, ses:GetDedicatedIps, ses:GetDedicatedIps |
-| ses | ses/deliverabilitydashboardoption | 0 | account | ses:GetDeliverabilityDashboardOptions, ses:GetDeliverabilityDashboardOptions |
-| ses | ses/deliverabilitytestreport | 0 | account | ses:GetDeliverabilityTestReport, ses:GetDeliverabilityTestReport, ses:ListDeliverabilityTestReports, ses:ListDeliverabilityTestReports |
+| ses | ses/dedicatedip | 0 | account | ses:GetDedicatedIp, ses:GetDedicatedIps |
+| ses | ses/deliverabilitydashboardoption | 0 | account | ses:GetDeliverabilityDashboardOptions |
+| ses | ses/deliverabilitytestreport | 0 | account | ses:GetDeliverabilityTestReport, ses:ListDeliverabilityTestReports |
 | ses | ses/emailidentitycertificate | 1 | account | ses:ListEmailIdentityCertificates |
 | ses | ses/exportjob | 0 | account | ses:GetExportJob, ses:ListExportJobs |
 | ses | ses/identity | 0 | account | ses:ListIdentities |
@@ -1915,11 +1915,11 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | wickr | wickr/networksetting | 1 | account | wickr:GetNetworkSettings |
 | wickr | wickr/securitygroupuser | 1 | account | wickr:ListSecurityGroupUsers |
 | wickr | wickr/user | 1 | account | wickr:GetUser, wickr:ListUsers |
-| wisdom | wisdom/importjob | 1 | account | wisdom:GetImportJob, wisdom:GetImportJob, wisdom:ListImportJobs, wisdom:ListImportJobs |
+| wisdom | wisdom/importjob | 1 | account | wisdom:GetImportJob, wisdom:ListImportJobs |
 | wisdom | wisdom/message | 2 | account | wisdom:ListMessages |
 | wisdom | wisdom/model | 1 | account | wisdom:ListModels |
-| wisdom | wisdom/recommendation | 2 | account | wisdom:GetRecommendations, wisdom:GetRecommendations |
-| wisdom | wisdom/session | 1 | account | wisdom:GetSession, wisdom:GetSession, wisdom:SearchSessions, wisdom:SearchSessions |
+| wisdom | wisdom/recommendation | 2 | account | wisdom:GetRecommendations |
+| wisdom | wisdom/session | 1 | account | wisdom:GetSession, wisdom:SearchSessions |
 | wisdom | wisdom/span | 2 | account | wisdom:ListSpans |
 | workdocs | workdocs/comment | 1 | account | workdocs:DescribeComments |
 | workdocs | workdocs/documentversion | 1 | account | workdocs:DescribeDocumentVersions, workdocs:GetDocumentVersion |
@@ -3970,81 +3970,81 @@ Pins: google.golang.org/api@v0.292.0
 | admin | admin/schemas | 0 | tenant | admin:schemas.list |
 | admin | admin/tokens | 1 | global | admin:tokens.list |
 | admin | admin/users/aliases | 1 | global | admin:users.aliases.list |
-| agentidentity | agentidentity/authproviders | 0 | project | agentidentity:projects.locations.authProviders.list, agentidentity:projects.locations.authProviders.list, agentidentity:projects.locations.authProviders.list |
-| agentidentity | agentidentity/authproviders/authorizations | 1 | project | agentidentity:projects.locations.authProviders.authorizations.list, agentidentity:projects.locations.authProviders.authorizations.list, agentidentity:projects.locations.authProviders.authorizations.list |
-| agentregistry | agentregistry/bindings | 0 | project | agentregistry:projects.locations.bindings.list, agentregistry:projects.locations.bindings.list |
-| agentregistry | agentregistry/services | 0 | project | agentregistry:projects.locations.services.list, agentregistry:projects.locations.services.list |
+| agentidentity | agentidentity/authproviders | 0 | project | agentidentity:projects.locations.authProviders.list |
+| agentidentity | agentidentity/authproviders/authorizations | 1 | project | agentidentity:projects.locations.authProviders.authorizations.list |
+| agentregistry | agentregistry/bindings | 0 | project | agentregistry:projects.locations.bindings.list |
+| agentregistry | agentregistry/services | 0 | project | agentregistry:projects.locations.services.list |
 | aiplatform | aiplatform/agents | 0 | project | aiplatform:projects.locations.agents.list |
-| aiplatform | aiplatform/batchpredictionjobs | 0 | global | aiplatform:batchPredictionJobs.list, aiplatform:batchPredictionJobs.list, aiplatform:projects.locations.batchPredictionJobs.list, aiplatform:projects.locations.batchPredictionJobs.list |
-| aiplatform | aiplatform/cachedcontents | 0 | project | aiplatform:projects.locations.cachedContents.list, aiplatform:projects.locations.cachedContents.list |
-| aiplatform | aiplatform/customjobs | 0 | project | aiplatform:projects.locations.customJobs.list, aiplatform:projects.locations.customJobs.list |
-| aiplatform | aiplatform/datalabelingjobs | 0 | project | aiplatform:projects.locations.dataLabelingJobs.list, aiplatform:projects.locations.dataLabelingJobs.list |
-| aiplatform | aiplatform/datasets | 0 | global | aiplatform:datasets.list, aiplatform:datasets.list, aiplatform:projects.locations.datasets.list, aiplatform:projects.locations.datasets.list |
-| aiplatform | aiplatform/datasets/datasetversions | 1 | global | aiplatform:datasets.datasetVersions.list, aiplatform:datasets.datasetVersions.list, aiplatform:projects.locations.datasets.datasetVersions.list, aiplatform:projects.locations.datasets.datasetVersions.list |
-| aiplatform | aiplatform/datasets/savedqueries | 1 | project | aiplatform:projects.locations.datasets.savedQueries.list, aiplatform:projects.locations.datasets.savedQueries.list |
-| aiplatform | aiplatform/deploymentresourcepools | 0 | project | aiplatform:projects.locations.deploymentResourcePools.list, aiplatform:projects.locations.deploymentResourcePools.list |
-| aiplatform | aiplatform/endpoints | 0 | project | aiplatform:projects.locations.endpoints.list, aiplatform:projects.locations.endpoints.list |
-| aiplatform | aiplatform/evaluationitems | 0 | project | aiplatform:projects.locations.evaluationItems.list, aiplatform:projects.locations.evaluationItems.list |
+| aiplatform | aiplatform/batchpredictionjobs | 0 | global | aiplatform:batchPredictionJobs.list, aiplatform:projects.locations.batchPredictionJobs.list |
+| aiplatform | aiplatform/cachedcontents | 0 | project | aiplatform:projects.locations.cachedContents.list |
+| aiplatform | aiplatform/customjobs | 0 | project | aiplatform:projects.locations.customJobs.list |
+| aiplatform | aiplatform/datalabelingjobs | 0 | project | aiplatform:projects.locations.dataLabelingJobs.list |
+| aiplatform | aiplatform/datasets | 0 | global | aiplatform:datasets.list, aiplatform:projects.locations.datasets.list |
+| aiplatform | aiplatform/datasets/datasetversions | 1 | global | aiplatform:datasets.datasetVersions.list, aiplatform:projects.locations.datasets.datasetVersions.list |
+| aiplatform | aiplatform/datasets/savedqueries | 1 | project | aiplatform:projects.locations.datasets.savedQueries.list |
+| aiplatform | aiplatform/deploymentresourcepools | 0 | project | aiplatform:projects.locations.deploymentResourcePools.list |
+| aiplatform | aiplatform/endpoints | 0 | project | aiplatform:projects.locations.endpoints.list |
+| aiplatform | aiplatform/evaluationitems | 0 | project | aiplatform:projects.locations.evaluationItems.list |
 | aiplatform | aiplatform/evaluationmetrics | 0 | project | aiplatform:projects.locations.evaluationMetrics.list |
-| aiplatform | aiplatform/evaluationruns | 0 | project | aiplatform:projects.locations.evaluationRuns.list, aiplatform:projects.locations.evaluationRuns.list |
-| aiplatform | aiplatform/evaluationsets | 0 | project | aiplatform:projects.locations.evaluationSets.list, aiplatform:projects.locations.evaluationSets.list |
-| aiplatform | aiplatform/featuregroups | 0 | project | aiplatform:projects.locations.featureGroups.list, aiplatform:projects.locations.featureGroups.list |
-| aiplatform | aiplatform/featuregroups/features | 1 | project | aiplatform:projects.locations.featureGroups.features.list, aiplatform:projects.locations.featureGroups.features.list |
-| aiplatform | aiplatform/featureonlinestores | 0 | project | aiplatform:projects.locations.featureOnlineStores.list, aiplatform:projects.locations.featureOnlineStores.list |
-| aiplatform | aiplatform/featureonlinestores/featureviews | 1 | project | aiplatform:projects.locations.featureOnlineStores.featureViews.list, aiplatform:projects.locations.featureOnlineStores.featureViews.list |
-| aiplatform | aiplatform/featurestores | 0 | project | aiplatform:projects.locations.featurestores.list, aiplatform:projects.locations.featurestores.list |
-| aiplatform | aiplatform/featurestores/entitytypes | 1 | project | aiplatform:projects.locations.featurestores.entityTypes.list, aiplatform:projects.locations.featurestores.entityTypes.list |
-| aiplatform | aiplatform/featurestores/entitytypes/features | 2 | project | aiplatform:projects.locations.featurestores.entityTypes.features.list, aiplatform:projects.locations.featurestores.entityTypes.features.list |
-| aiplatform | aiplatform/hyperparametertuningjobs | 0 | project | aiplatform:projects.locations.hyperparameterTuningJobs.list, aiplatform:projects.locations.hyperparameterTuningJobs.list |
-| aiplatform | aiplatform/indexendpoints | 0 | project | aiplatform:projects.locations.indexEndpoints.list, aiplatform:projects.locations.indexEndpoints.list |
-| aiplatform | aiplatform/indexes | 0 | project | aiplatform:projects.locations.indexes.list, aiplatform:projects.locations.indexes.list |
+| aiplatform | aiplatform/evaluationruns | 0 | project | aiplatform:projects.locations.evaluationRuns.list |
+| aiplatform | aiplatform/evaluationsets | 0 | project | aiplatform:projects.locations.evaluationSets.list |
+| aiplatform | aiplatform/featuregroups | 0 | project | aiplatform:projects.locations.featureGroups.list |
+| aiplatform | aiplatform/featuregroups/features | 1 | project | aiplatform:projects.locations.featureGroups.features.list |
+| aiplatform | aiplatform/featureonlinestores | 0 | project | aiplatform:projects.locations.featureOnlineStores.list |
+| aiplatform | aiplatform/featureonlinestores/featureviews | 1 | project | aiplatform:projects.locations.featureOnlineStores.featureViews.list |
+| aiplatform | aiplatform/featurestores | 0 | project | aiplatform:projects.locations.featurestores.list |
+| aiplatform | aiplatform/featurestores/entitytypes | 1 | project | aiplatform:projects.locations.featurestores.entityTypes.list |
+| aiplatform | aiplatform/featurestores/entitytypes/features | 2 | project | aiplatform:projects.locations.featurestores.entityTypes.features.list |
+| aiplatform | aiplatform/hyperparametertuningjobs | 0 | project | aiplatform:projects.locations.hyperparameterTuningJobs.list |
+| aiplatform | aiplatform/indexendpoints | 0 | project | aiplatform:projects.locations.indexEndpoints.list |
+| aiplatform | aiplatform/indexes | 0 | project | aiplatform:projects.locations.indexes.list |
 | aiplatform | aiplatform/memorybanks/memories | 1 | project | aiplatform:projects.locations.memoryBanks.memories.list |
-| aiplatform | aiplatform/metadatastores | 0 | project | aiplatform:projects.locations.metadataStores.list, aiplatform:projects.locations.metadataStores.list |
-| aiplatform | aiplatform/metadatastores/artifacts | 1 | project | aiplatform:projects.locations.metadataStores.artifacts.list, aiplatform:projects.locations.metadataStores.artifacts.list |
-| aiplatform | aiplatform/metadatastores/contexts | 1 | project | aiplatform:projects.locations.metadataStores.contexts.list, aiplatform:projects.locations.metadataStores.contexts.list |
-| aiplatform | aiplatform/metadatastores/executions | 1 | project | aiplatform:projects.locations.metadataStores.executions.list, aiplatform:projects.locations.metadataStores.executions.list |
-| aiplatform | aiplatform/metadatastores/metadataschemas | 1 | project | aiplatform:projects.locations.metadataStores.metadataSchemas.list, aiplatform:projects.locations.metadataStores.metadataSchemas.list |
-| aiplatform | aiplatform/modeldeploymentmonitoringjobs | 0 | project | aiplatform:projects.locations.modelDeploymentMonitoringJobs.list, aiplatform:projects.locations.modelDeploymentMonitoringJobs.list |
-| aiplatform | aiplatform/models | 0 | project | aiplatform:projects.locations.models.list, aiplatform:projects.locations.models.list |
-| aiplatform | aiplatform/nasjobs | 0 | project | aiplatform:projects.locations.nasJobs.list, aiplatform:projects.locations.nasJobs.list |
-| aiplatform | aiplatform/notebookexecutionjobs | 0 | project | aiplatform:projects.locations.notebookExecutionJobs.list, aiplatform:projects.locations.notebookExecutionJobs.list |
-| aiplatform | aiplatform/notebookruntimes | 0 | project | aiplatform:projects.locations.notebookRuntimes.list, aiplatform:projects.locations.notebookRuntimes.list |
-| aiplatform | aiplatform/notebookruntimetemplates | 0 | project | aiplatform:projects.locations.notebookRuntimeTemplates.list, aiplatform:projects.locations.notebookRuntimeTemplates.list |
+| aiplatform | aiplatform/metadatastores | 0 | project | aiplatform:projects.locations.metadataStores.list |
+| aiplatform | aiplatform/metadatastores/artifacts | 1 | project | aiplatform:projects.locations.metadataStores.artifacts.list |
+| aiplatform | aiplatform/metadatastores/contexts | 1 | project | aiplatform:projects.locations.metadataStores.contexts.list |
+| aiplatform | aiplatform/metadatastores/executions | 1 | project | aiplatform:projects.locations.metadataStores.executions.list |
+| aiplatform | aiplatform/metadatastores/metadataschemas | 1 | project | aiplatform:projects.locations.metadataStores.metadataSchemas.list |
+| aiplatform | aiplatform/modeldeploymentmonitoringjobs | 0 | project | aiplatform:projects.locations.modelDeploymentMonitoringJobs.list |
+| aiplatform | aiplatform/models | 0 | project | aiplatform:projects.locations.models.list |
+| aiplatform | aiplatform/nasjobs | 0 | project | aiplatform:projects.locations.nasJobs.list |
+| aiplatform | aiplatform/notebookexecutionjobs | 0 | project | aiplatform:projects.locations.notebookExecutionJobs.list |
+| aiplatform | aiplatform/notebookruntimes | 0 | project | aiplatform:projects.locations.notebookRuntimes.list |
+| aiplatform | aiplatform/notebookruntimetemplates | 0 | project | aiplatform:projects.locations.notebookRuntimeTemplates.list |
 | aiplatform | aiplatform/onlineevaluators | 0 | project | aiplatform:projects.locations.onlineEvaluators.list |
-| aiplatform | aiplatform/persistentresources | 0 | project | aiplatform:projects.locations.persistentResources.list, aiplatform:projects.locations.persistentResources.list |
-| aiplatform | aiplatform/pipelinejobs | 0 | project | aiplatform:projects.locations.pipelineJobs.list, aiplatform:projects.locations.pipelineJobs.list |
-| aiplatform | aiplatform/ragcorpora | 0 | project | aiplatform:projects.locations.ragCorpora.list, aiplatform:projects.locations.ragCorpora.list |
-| aiplatform | aiplatform/ragcorpora/ragfiles | 1 | project | aiplatform:projects.locations.ragCorpora.ragFiles.list, aiplatform:projects.locations.ragCorpora.ragFiles.list |
-| aiplatform | aiplatform/reasoningengines | 0 | project | aiplatform:projects.locations.reasoningEngines.list, aiplatform:projects.locations.reasoningEngines.list, aiplatform:reasoningEngines.list, aiplatform:reasoningEngines.list |
-| aiplatform | aiplatform/reasoningengines/memories | 1 | project | aiplatform:projects.locations.reasoningEngines.memories.list, aiplatform:projects.locations.reasoningEngines.memories.list, aiplatform:reasoningEngines.memories.list |
-| aiplatform | aiplatform/reasoningengines/sandboxenvironments | 1 | project | aiplatform:projects.locations.reasoningEngines.sandboxEnvironments.list, aiplatform:projects.locations.reasoningEngines.sandboxEnvironments.list, aiplatform:reasoningEngines.sandboxEnvironments.list |
+| aiplatform | aiplatform/persistentresources | 0 | project | aiplatform:projects.locations.persistentResources.list |
+| aiplatform | aiplatform/pipelinejobs | 0 | project | aiplatform:projects.locations.pipelineJobs.list |
+| aiplatform | aiplatform/ragcorpora | 0 | project | aiplatform:projects.locations.ragCorpora.list |
+| aiplatform | aiplatform/ragcorpora/ragfiles | 1 | project | aiplatform:projects.locations.ragCorpora.ragFiles.list |
+| aiplatform | aiplatform/reasoningengines | 0 | project | aiplatform:projects.locations.reasoningEngines.list, aiplatform:reasoningEngines.list |
+| aiplatform | aiplatform/reasoningengines/memories | 1 | project | aiplatform:projects.locations.reasoningEngines.memories.list, aiplatform:reasoningEngines.memories.list |
+| aiplatform | aiplatform/reasoningengines/sandboxenvironments | 1 | project | aiplatform:projects.locations.reasoningEngines.sandboxEnvironments.list, aiplatform:reasoningEngines.sandboxEnvironments.list |
 | aiplatform | aiplatform/reasoningengines/sandboxenvironmentsnapshots | 1 | project | aiplatform:projects.locations.reasoningEngines.sandboxEnvironmentSnapshots.list, aiplatform:reasoningEngines.sandboxEnvironmentSnapshots.list |
 | aiplatform | aiplatform/reasoningengines/sandboxenvironmenttemplates | 1 | project | aiplatform:projects.locations.reasoningEngines.sandboxEnvironmentTemplates.list, aiplatform:reasoningEngines.sandboxEnvironmentTemplates.list |
-| aiplatform | aiplatform/reasoningengines/sessions | 1 | project | aiplatform:projects.locations.reasoningEngines.sessions.list, aiplatform:projects.locations.reasoningEngines.sessions.list, aiplatform:reasoningEngines.sessions.list |
-| aiplatform | aiplatform/schedules | 0 | project | aiplatform:projects.locations.schedules.list, aiplatform:projects.locations.schedules.list |
+| aiplatform | aiplatform/reasoningengines/sessions | 1 | project | aiplatform:projects.locations.reasoningEngines.sessions.list, aiplatform:reasoningEngines.sessions.list |
+| aiplatform | aiplatform/schedules | 0 | project | aiplatform:projects.locations.schedules.list |
 | aiplatform | aiplatform/semanticgovernancepolicies | 0 | project | aiplatform:projects.locations.semanticGovernancePolicies.list |
-| aiplatform | aiplatform/specialistpools | 0 | project | aiplatform:projects.locations.specialistPools.list, aiplatform:projects.locations.specialistPools.list |
-| aiplatform | aiplatform/studies | 0 | project | aiplatform:projects.locations.studies.list, aiplatform:projects.locations.studies.list |
-| aiplatform | aiplatform/studies/trials | 1 | project | aiplatform:projects.locations.studies.trials.list, aiplatform:projects.locations.studies.trials.list |
-| aiplatform | aiplatform/tensorboards | 0 | project | aiplatform:projects.locations.tensorboards.list, aiplatform:projects.locations.tensorboards.list |
-| aiplatform | aiplatform/tensorboards/experiments | 1 | project | aiplatform:projects.locations.tensorboards.experiments.list, aiplatform:projects.locations.tensorboards.experiments.list |
-| aiplatform | aiplatform/tensorboards/experiments/runs | 2 | project | aiplatform:projects.locations.tensorboards.experiments.runs.list, aiplatform:projects.locations.tensorboards.experiments.runs.list |
-| aiplatform | aiplatform/tensorboards/experiments/runs/timeseries | 3 | project | aiplatform:projects.locations.tensorboards.experiments.runs.timeSeries.list, aiplatform:projects.locations.tensorboards.experiments.runs.timeSeries.list |
-| aiplatform | aiplatform/trainingpipelines | 0 | project | aiplatform:projects.locations.trainingPipelines.list, aiplatform:projects.locations.trainingPipelines.list |
-| aiplatform | aiplatform/tuningjobs | 0 | project | aiplatform:projects.locations.tuningJobs.list, aiplatform:projects.locations.tuningJobs.list |
-| alloydb | alloydb/backups | 0 | project | alloydb:projects.locations.backups.list, alloydb:projects.locations.backups.list, alloydb:projects.locations.backups.list |
-| alloydb | alloydb/clusters | 0 | project | alloydb:projects.locations.clusters.list, alloydb:projects.locations.clusters.list, alloydb:projects.locations.clusters.list |
-| alloydb | alloydb/clusters/instances | 1 | project | alloydb:projects.locations.clusters.instances.list, alloydb:projects.locations.clusters.instances.list, alloydb:projects.locations.clusters.instances.list |
-| alloydb | alloydb/clusters/users | 1 | project | alloydb:projects.locations.clusters.users.list, alloydb:projects.locations.clusters.users.list, alloydb:projects.locations.clusters.users.list |
-| analyticshub | analyticshub/dataexchanges | 0 | org | analyticshub:organizations.locations.dataExchanges.list, analyticshub:organizations.locations.dataExchanges.list, analyticshub:projects.locations.dataExchanges.list, analyticshub:projects.locations.dataExchanges.list |
-| analyticshub | analyticshub/dataexchanges/listings | 1 | project | analyticshub:projects.locations.dataExchanges.listings.list, analyticshub:projects.locations.dataExchanges.listings.list |
+| aiplatform | aiplatform/specialistpools | 0 | project | aiplatform:projects.locations.specialistPools.list |
+| aiplatform | aiplatform/studies | 0 | project | aiplatform:projects.locations.studies.list |
+| aiplatform | aiplatform/studies/trials | 1 | project | aiplatform:projects.locations.studies.trials.list |
+| aiplatform | aiplatform/tensorboards | 0 | project | aiplatform:projects.locations.tensorboards.list |
+| aiplatform | aiplatform/tensorboards/experiments | 1 | project | aiplatform:projects.locations.tensorboards.experiments.list |
+| aiplatform | aiplatform/tensorboards/experiments/runs | 2 | project | aiplatform:projects.locations.tensorboards.experiments.runs.list |
+| aiplatform | aiplatform/tensorboards/experiments/runs/timeseries | 3 | project | aiplatform:projects.locations.tensorboards.experiments.runs.timeSeries.list |
+| aiplatform | aiplatform/trainingpipelines | 0 | project | aiplatform:projects.locations.trainingPipelines.list |
+| aiplatform | aiplatform/tuningjobs | 0 | project | aiplatform:projects.locations.tuningJobs.list |
+| alloydb | alloydb/backups | 0 | project | alloydb:projects.locations.backups.list |
+| alloydb | alloydb/clusters | 0 | project | alloydb:projects.locations.clusters.list |
+| alloydb | alloydb/clusters/instances | 1 | project | alloydb:projects.locations.clusters.instances.list |
+| alloydb | alloydb/clusters/users | 1 | project | alloydb:projects.locations.clusters.users.list |
+| analyticshub | analyticshub/dataexchanges | 0 | org | analyticshub:organizations.locations.dataExchanges.list, analyticshub:projects.locations.dataExchanges.list |
+| analyticshub | analyticshub/dataexchanges/listings | 1 | project | analyticshub:projects.locations.dataExchanges.listings.list |
 | analyticshub | analyticshub/dataexchanges/querytemplates | 1 | project | analyticshub:projects.locations.dataExchanges.queryTemplates.list |
 | analyticshub | analyticshub/subscriptions | 0 | project | analyticshub:projects.locations.subscriptions.list |
 | androiddeviceprovisioning | androiddeviceprovisioning/configurations | 0 | tenant | androiddeviceprovisioning:customers.configurations.list |
 | androiddeviceprovisioning | androiddeviceprovisioning/partners/customers | 1 | global | androiddeviceprovisioning:partners.customers.list |
-| apigateway | apigateway/apis | 0 | project | apigateway:projects.locations.apis.list, apigateway:projects.locations.apis.list |
-| apigateway | apigateway/apis/configs | 1 | project | apigateway:projects.locations.apis.configs.list, apigateway:projects.locations.apis.configs.list |
-| apigateway | apigateway/gateways | 0 | project | apigateway:projects.locations.gateways.list, apigateway:projects.locations.gateways.list |
+| apigateway | apigateway/apis | 0 | project | apigateway:projects.locations.apis.list |
+| apigateway | apigateway/apis/configs | 1 | project | apigateway:projects.locations.apis.configs.list |
+| apigateway | apigateway/gateways | 0 | project | apigateway:projects.locations.gateways.list |
 | apigee | apigee/analytics/datastores | 0 | org | apigee:organizations.analytics.datastores.list |
 | apigee | apigee/apimserviceextensions | 0 | org | apigee:organizations.apimServiceExtensions.list |
 | apigee | apigee/apiproducts | 0 | org | apigee:organizations.apiproducts.list |
@@ -4112,21 +4112,21 @@ Pins: google.golang.org/api@v0.292.0
 | apihub | apihub/plugins/instances | 1 | project | apihub:projects.locations.plugins.instances.list |
 | apihub | apihub/runtimeprojectattachments | 0 | project | apihub:projects.locations.runtimeProjectAttachments.list |
 | apikeys | apikeys/keys | 0 | project | apikeys:projects.locations.keys.list |
-| appengine | appengine/applications/authorizedcertificates | 1 | project | appengine:projects.locations.applications.authorizedCertificates.list, appengine:projects.locations.applications.authorizedCertificates.list, appengine:projects.locations.applications.authorizedCertificates.list |
-| appengine | appengine/applications/domainmappings | 1 | project | appengine:projects.locations.applications.domainMappings.list, appengine:projects.locations.applications.domainMappings.list, appengine:projects.locations.applications.domainMappings.list |
-| appengine | appengine/apps/authorizedcertificates | 1 | global | appengine:apps.authorizedCertificates.list, appengine:apps.authorizedCertificates.list, appengine:apps.authorizedCertificates.list |
-| appengine | appengine/apps/domainmappings | 1 | global | appengine:apps.domainMappings.list, appengine:apps.domainMappings.list, appengine:apps.domainMappings.list |
-| appengine | appengine/apps/firewall/ingressrules | 1 | global | appengine:apps.firewall.ingressRules.list, appengine:apps.firewall.ingressRules.list |
-| appengine | appengine/apps/services | 1 | global | appengine:apps.services.list, appengine:apps.services.list |
-| appengine | appengine/apps/services/versions | 2 | global | appengine:apps.services.versions.list, appengine:apps.services.versions.list |
-| appengine | appengine/apps/services/versions/instances | 3 | global | appengine:apps.services.versions.instances.list, appengine:apps.services.versions.instances.list |
-| apphub | apphub/applications | 0 | project | apphub:projects.locations.applications.list, apphub:projects.locations.applications.list |
-| apphub | apphub/applications/services | 1 | project | apphub:projects.locations.applications.services.list, apphub:projects.locations.applications.services.list |
-| apphub | apphub/applications/workloads | 1 | project | apphub:projects.locations.applications.workloads.list, apphub:projects.locations.applications.workloads.list |
-| apphub | apphub/serviceprojectattachments | 0 | project | apphub:projects.locations.serviceProjectAttachments.list, apphub:projects.locations.serviceProjectAttachments.list |
-| artifactregistry | artifactregistry/repositories/files | 1 | project | artifactregistry:projects.locations.repositories.files.list, artifactregistry:projects.locations.repositories.files.list, artifactregistry:projects.locations.repositories.files.list |
-| artifactregistry | artifactregistry/repositories/packages/versions | 2 | project | artifactregistry:projects.locations.repositories.packages.versions.list, artifactregistry:projects.locations.repositories.packages.versions.list, artifactregistry:projects.locations.repositories.packages.versions.list |
-| assuredworkloads | assuredworkloads/workloads | 0 | org | assuredworkloads:organizations.locations.workloads.list, assuredworkloads:organizations.locations.workloads.list |
+| appengine | appengine/applications/authorizedcertificates | 1 | project | appengine:projects.locations.applications.authorizedCertificates.list |
+| appengine | appengine/applications/domainmappings | 1 | project | appengine:projects.locations.applications.domainMappings.list |
+| appengine | appengine/apps/authorizedcertificates | 1 | global | appengine:apps.authorizedCertificates.list |
+| appengine | appengine/apps/domainmappings | 1 | global | appengine:apps.domainMappings.list |
+| appengine | appengine/apps/firewall/ingressrules | 1 | global | appengine:apps.firewall.ingressRules.list |
+| appengine | appengine/apps/services | 1 | global | appengine:apps.services.list |
+| appengine | appengine/apps/services/versions | 2 | global | appengine:apps.services.versions.list |
+| appengine | appengine/apps/services/versions/instances | 3 | global | appengine:apps.services.versions.instances.list |
+| apphub | apphub/applications | 0 | project | apphub:projects.locations.applications.list |
+| apphub | apphub/applications/services | 1 | project | apphub:projects.locations.applications.services.list |
+| apphub | apphub/applications/workloads | 1 | project | apphub:projects.locations.applications.workloads.list |
+| apphub | apphub/serviceprojectattachments | 0 | project | apphub:projects.locations.serviceProjectAttachments.list |
+| artifactregistry | artifactregistry/repositories/files | 1 | project | artifactregistry:projects.locations.repositories.files.list |
+| artifactregistry | artifactregistry/repositories/packages/versions | 2 | project | artifactregistry:projects.locations.repositories.packages.versions.list |
+| assuredworkloads | assuredworkloads/workloads | 0 | org | assuredworkloads:organizations.locations.workloads.list |
 | backupdr | backupdr/backupplanassociations | 0 | project | backupdr:projects.locations.backupPlanAssociations.list |
 | backupdr | backupdr/backupplans | 0 | project | backupdr:projects.locations.backupPlans.list |
 | backupdr | backupdr/backupvaults | 0 | project | backupdr:projects.locations.backupVaults.list |
@@ -4135,34 +4135,34 @@ Pins: google.golang.org/api@v0.292.0
 | baremetalsolution | baremetalsolution/nfsshares | 0 | project | baremetalsolution:projects.locations.nfsShares.list |
 | baremetalsolution | baremetalsolution/sshkeys | 0 | project | baremetalsolution:projects.locations.sshKeys.list |
 | baremetalsolution | baremetalsolution/volumes/snapshots | 1 | project | baremetalsolution:projects.locations.volumes.snapshots.list |
-| beyondcorp | beyondcorp/appconnections | 0 | project | beyondcorp:projects.locations.appConnections.list, beyondcorp:projects.locations.appConnections.list |
-| beyondcorp | beyondcorp/appconnectors | 0 | project | beyondcorp:projects.locations.appConnectors.list, beyondcorp:projects.locations.appConnectors.list |
-| beyondcorp | beyondcorp/appgateways | 0 | project | beyondcorp:projects.locations.appGateways.list, beyondcorp:projects.locations.appGateways.list |
-| beyondcorp | beyondcorp/securitygateways | 0 | project | beyondcorp:projects.locations.securityGateways.list, beyondcorp:projects.locations.securityGateways.list |
-| beyondcorp | beyondcorp/securitygateways/applications | 1 | project | beyondcorp:projects.locations.securityGateways.applications.list, beyondcorp:projects.locations.securityGateways.applications.list |
+| beyondcorp | beyondcorp/appconnections | 0 | project | beyondcorp:projects.locations.appConnections.list |
+| beyondcorp | beyondcorp/appconnectors | 0 | project | beyondcorp:projects.locations.appConnectors.list |
+| beyondcorp | beyondcorp/appgateways | 0 | project | beyondcorp:projects.locations.appGateways.list |
+| beyondcorp | beyondcorp/securitygateways | 0 | project | beyondcorp:projects.locations.securityGateways.list |
+| beyondcorp | beyondcorp/securitygateways/applications | 1 | project | beyondcorp:projects.locations.securityGateways.applications.list |
 | biglake | biglake/catalogs | 0 | project | biglake:projects.locations.catalogs.list |
 | biglake | biglake/catalogs/databases | 1 | project | biglake:projects.locations.catalogs.databases.list |
 | biglake | biglake/catalogs/databases/tables | 2 | project | biglake:projects.locations.catalogs.databases.tables.list |
 | bigquery | bigquery/jobs | 0 | project | bigquery:jobs.list |
-| bigquerydatapolicy | bigquerydatapolicy/datapolicies | 0 | project | bigquerydatapolicy:projects.locations.dataPolicies.list, bigquerydatapolicy:projects.locations.dataPolicies.list |
+| bigquerydatapolicy | bigquerydatapolicy/datapolicies | 0 | project | bigquerydatapolicy:projects.locations.dataPolicies.list |
 | bigquerydatatransfer | bigquerydatatransfer/transferconfigs | 0 | project | bigquerydatatransfer:projects.locations.transferConfigs.list, bigquerydatatransfer:projects.transferConfigs.list |
 | bigquerydatatransfer | bigquerydatatransfer/transferconfigs/runs | 1 | project | bigquerydatatransfer:projects.locations.transferConfigs.runs.list, bigquerydatatransfer:projects.transferConfigs.runs.list |
-| bigqueryreservation | bigqueryreservation/capacitycommitments | 0 | project | bigqueryreservation:projects.locations.capacityCommitments.list, bigqueryreservation:projects.locations.capacityCommitments.list |
+| bigqueryreservation | bigqueryreservation/capacitycommitments | 0 | project | bigqueryreservation:projects.locations.capacityCommitments.list |
 | bigqueryreservation | bigqueryreservation/reservationgroups | 0 | project | bigqueryreservation:projects.locations.reservationGroups.list |
-| bigqueryreservation | bigqueryreservation/reservations | 0 | project | bigqueryreservation:projects.locations.reservations.list, bigqueryreservation:projects.locations.reservations.list, bigqueryreservation:projects.locations.reservations.list |
-| bigqueryreservation | bigqueryreservation/reservations/assignments | 1 | project | bigqueryreservation:projects.locations.reservations.assignments.list, bigqueryreservation:projects.locations.reservations.assignments.list |
-| billingbudgets | billingbudgets/budgets | 0 | billing-account | billingbudgets:billingAccounts.budgets.list, billingbudgets:billingAccounts.budgets.list |
+| bigqueryreservation | bigqueryreservation/reservations | 0 | project | bigqueryreservation:projects.locations.reservations.list |
+| bigqueryreservation | bigqueryreservation/reservations/assignments | 1 | project | bigqueryreservation:projects.locations.reservations.assignments.list |
+| billingbudgets | billingbudgets/budgets | 0 | billing-account | billingbudgets:billingAccounts.budgets.list |
 | binaryauthorization | binaryauthorization/platforms/policies | 1 | project | binaryauthorization:projects.platforms.policies.list |
 | blockchainnodeengine | blockchainnodeengine/blockchainnodes | 0 | project | blockchainnodeengine:projects.locations.blockchainNodes.list |
-| ces | ces/apps | 0 | project | ces:projects.locations.apps.list, ces:projects.locations.apps.list |
-| ces | ces/apps/agents | 1 | project | ces:projects.locations.apps.agents.list, ces:projects.locations.apps.agents.list |
-| ces | ces/apps/conversations | 1 | project | ces:projects.locations.apps.conversations.list, ces:projects.locations.apps.conversations.list |
-| ces | ces/apps/deployments | 1 | project | ces:projects.locations.apps.deployments.list, ces:projects.locations.apps.deployments.list |
-| ces | ces/apps/examples | 1 | project | ces:projects.locations.apps.examples.list, ces:projects.locations.apps.examples.list |
-| ces | ces/apps/guardrails | 1 | project | ces:projects.locations.apps.guardrails.list, ces:projects.locations.apps.guardrails.list |
-| ces | ces/apps/tools | 1 | project | ces:projects.locations.apps.tools.list, ces:projects.locations.apps.tools.list |
-| ces | ces/apps/toolsets | 1 | project | ces:projects.locations.apps.toolsets.list, ces:projects.locations.apps.toolsets.list |
-| ces | ces/apps/versions | 1 | project | ces:projects.locations.apps.versions.list, ces:projects.locations.apps.versions.list |
+| ces | ces/apps | 0 | project | ces:projects.locations.apps.list |
+| ces | ces/apps/agents | 1 | project | ces:projects.locations.apps.agents.list |
+| ces | ces/apps/conversations | 1 | project | ces:projects.locations.apps.conversations.list |
+| ces | ces/apps/deployments | 1 | project | ces:projects.locations.apps.deployments.list |
+| ces | ces/apps/examples | 1 | project | ces:projects.locations.apps.examples.list |
+| ces | ces/apps/guardrails | 1 | project | ces:projects.locations.apps.guardrails.list |
+| ces | ces/apps/tools | 1 | project | ces:projects.locations.apps.tools.list |
+| ces | ces/apps/toolsets | 1 | project | ces:projects.locations.apps.toolsets.list |
+| ces | ces/apps/versions | 1 | project | ces:projects.locations.apps.versions.list |
 | chromemanagement | chromemanagement/connectorconfigs | 0 | tenant | chromemanagement:customers.connectorConfigs.list |
 | chromemanagement | chromemanagement/profiles | 0 | tenant | chromemanagement:customers.profiles.list |
 | chromemanagement | chromemanagement/profiles/commands | 1 | tenant | chromemanagement:customers.profiles.commands.list |
@@ -4172,7 +4172,7 @@ Pins: google.golang.org/api@v0.292.0
 | cloudbuild | cloudbuild/bitbucketserverconfigs | 0 | project | cloudbuild:projects.locations.bitbucketServerConfigs.list |
 | cloudbuild | cloudbuild/builds | 0 | project | cloudbuild:projects.builds.list, cloudbuild:projects.locations.builds.list |
 | cloudbuild | cloudbuild/gitlabconfigs | 0 | project | cloudbuild:projects.locations.gitLabConfigs.list |
-| cloudcontrolspartner | cloudcontrolspartner/customers | 0 | org | cloudcontrolspartner:organizations.locations.customers.list, cloudcontrolspartner:organizations.locations.customers.list |
+| cloudcontrolspartner | cloudcontrolspartner/customers | 0 | org | cloudcontrolspartner:organizations.locations.customers.list |
 | clouddeploy | clouddeploy/customtargettypes | 0 | project | clouddeploy:projects.locations.customTargetTypes.list |
 | clouddeploy | clouddeploy/deliverypipelines | 0 | project | clouddeploy:projects.locations.deliveryPipelines.list |
 | clouddeploy | clouddeploy/deliverypipelines/automations | 1 | project | clouddeploy:projects.locations.deliveryPipelines.automations.list |
@@ -4184,20 +4184,20 @@ Pins: google.golang.org/api@v0.292.0
 | cloudiot | cloudiot/registries/devices | 1 | project | cloudiot:projects.locations.registries.devices.list |
 | cloudkms | cloudkms/singletenanthsminstances/proposals | 1 | project | cloudkms:projects.locations.singleTenantHsmInstances.proposals.list |
 | cloudprofiler | cloudprofiler/profiles | 0 | project | cloudprofiler:projects.profiles.list |
-| cloudscheduler | cloudscheduler/jobs | 0 | project | cloudscheduler:projects.locations.jobs.list, cloudscheduler:projects.locations.jobs.list |
-| cloudsupport | cloudsupport/cases | 0 | project | cloudsupport:cases.list, cloudsupport:cases.list |
-| cloudsupport | cloudsupport/cases/comments | 1 | project | cloudsupport:cases.comments.list, cloudsupport:cases.comments.list |
-| cloudsupport | cloudsupport/supporteventsubscriptions | 0 | org | cloudsupport:organizations.supportEventSubscriptions.list, cloudsupport:organizations.supportEventSubscriptions.list |
-| cloudtasks | cloudtasks/queues | 0 | project | cloudtasks:projects.locations.queues.list, cloudtasks:projects.locations.queues.list, cloudtasks:projects.locations.queues.list |
-| cloudtasks | cloudtasks/queues/tasks | 1 | project | cloudtasks:projects.locations.queues.tasks.list, cloudtasks:projects.locations.queues.tasks.list, cloudtasks:projects.locations.queues.tasks.list |
-| composer | composer/environments/userworkloadssecrets | 1 | project | composer:projects.locations.environments.userWorkloadsSecrets.list, composer:projects.locations.environments.userWorkloadsSecrets.list |
-| compute | compute/firewallpolicies | 0 | global | compute:firewallPolicies.list, compute:firewallPolicies.list, compute:firewallPolicies.list |
-| compute | compute/globalvmextensionpolicies | 0 | project | compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.list, compute:globalVmExtensionPolicies.list, compute:globalVmExtensionPolicies.list |
-| compute | compute/licenses | 0 | project | compute:licenses.list, compute:licenses.list, compute:licenses.list |
-| compute | compute/organizationsecuritypolicies | 0 | global | compute:organizationSecurityPolicies.list, compute:organizationSecurityPolicies.list, compute:organizationSecurityPolicies.list |
-| compute | compute/rolloutplans | 0 | project | compute:rolloutPlans.list, compute:rolloutPlans.list, compute:rolloutPlans.list |
-| compute | compute/rollouts | 0 | project | compute:rollouts.list, compute:rollouts.list, compute:rollouts.list |
-| compute | compute/zonevmextensionpolicies | 0 | project | compute:zoneVmExtensionPolicies.list, compute:zoneVmExtensionPolicies.list, compute:zoneVmExtensionPolicies.list |
+| cloudscheduler | cloudscheduler/jobs | 0 | project | cloudscheduler:projects.locations.jobs.list |
+| cloudsupport | cloudsupport/cases | 0 | project | cloudsupport:cases.list |
+| cloudsupport | cloudsupport/cases/comments | 1 | project | cloudsupport:cases.comments.list |
+| cloudsupport | cloudsupport/supporteventsubscriptions | 0 | org | cloudsupport:organizations.supportEventSubscriptions.list |
+| cloudtasks | cloudtasks/queues | 0 | project | cloudtasks:projects.locations.queues.list |
+| cloudtasks | cloudtasks/queues/tasks | 1 | project | cloudtasks:projects.locations.queues.tasks.list |
+| composer | composer/environments/userworkloadssecrets | 1 | project | composer:projects.locations.environments.userWorkloadsSecrets.list |
+| compute | compute/firewallpolicies | 0 | global | compute:firewallPolicies.list |
+| compute | compute/globalvmextensionpolicies | 0 | project | compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.list |
+| compute | compute/licenses | 0 | project | compute:licenses.list |
+| compute | compute/organizationsecuritypolicies | 0 | global | compute:organizationSecurityPolicies.list |
+| compute | compute/rolloutplans | 0 | project | compute:rolloutPlans.list |
+| compute | compute/rollouts | 0 | project | compute:rollouts.list |
+| compute | compute/zonevmextensionpolicies | 0 | project | compute:zoneVmExtensionPolicies.list |
 | config | config/deploymentgroups | 0 | project | config:projects.locations.deploymentGroups.list |
 | config | config/deployments | 0 | project | config:projects.locations.deployments.list |
 | config | config/previews | 0 | project | config:projects.locations.previews.list |
@@ -4237,32 +4237,32 @@ Pins: google.golang.org/api@v0.292.0
 | contactcenterinsights | contactcenterinsights/qascorecards/revisions | 1 | project | contactcenterinsights:projects.locations.qaScorecards.revisions.list |
 | contactcenterinsights | contactcenterinsights/qascorecards/revisions/qaquestions | 2 | project | contactcenterinsights:projects.locations.qaScorecards.revisions.qaQuestions.list |
 | contactcenterinsights | contactcenterinsights/views | 0 | project | contactcenterinsights:projects.locations.views.list |
-| containeranalysis | containeranalysis/notes | 0 | project | containeranalysis:projects.locations.notes.list, containeranalysis:projects.locations.notes.list, containeranalysis:projects.notes.list, containeranalysis:projects.notes.list, containeranalysis:projects.notes.list |
-| containeranalysis | containeranalysis/occurrences | 0 | project | containeranalysis:projects.locations.occurrences.list, containeranalysis:projects.locations.occurrences.list, containeranalysis:projects.occurrences.list, containeranalysis:projects.occurrences.list, containeranalysis:projects.occurrences.list |
+| containeranalysis | containeranalysis/notes | 0 | project | containeranalysis:projects.locations.notes.list, containeranalysis:projects.notes.list |
+| containeranalysis | containeranalysis/occurrences | 0 | project | containeranalysis:projects.locations.occurrences.list, containeranalysis:projects.occurrences.list |
 | contentwarehouse | contentwarehouse/documentschemas | 0 | project | contentwarehouse:projects.locations.documentSchemas.list |
 | contentwarehouse | contentwarehouse/rulesets | 0 | project | contentwarehouse:projects.locations.ruleSets.list |
 | contentwarehouse | contentwarehouse/synonymsets | 0 | project | contentwarehouse:projects.locations.synonymSets.list |
-| datacatalog | datacatalog/entrygroups | 0 | project | datacatalog:projects.locations.entryGroups.list, datacatalog:projects.locations.entryGroups.list |
-| datacatalog | datacatalog/entrygroups/entries | 1 | project | datacatalog:projects.locations.entryGroups.entries.list, datacatalog:projects.locations.entryGroups.entries.list |
-| datacatalog | datacatalog/entrygroups/entries/tags | 2 | project | datacatalog:projects.locations.entryGroups.entries.tags.list, datacatalog:projects.locations.entryGroups.entries.tags.list |
-| datacatalog | datacatalog/entrygroups/tags | 1 | project | datacatalog:projects.locations.entryGroups.tags.list, datacatalog:projects.locations.entryGroups.tags.list |
-| datacatalog | datacatalog/taxonomies | 0 | project | datacatalog:projects.locations.taxonomies.list, datacatalog:projects.locations.taxonomies.list |
-| datacatalog | datacatalog/taxonomies/policytags | 1 | project | datacatalog:projects.locations.taxonomies.policyTags.list, datacatalog:projects.locations.taxonomies.policyTags.list |
-| dataform | dataform/repositories | 0 | project | dataform:projects.locations.repositories.list, dataform:projects.locations.repositories.list |
-| dataform | dataform/repositories/compilationresults | 1 | project | dataform:projects.locations.repositories.compilationResults.list, dataform:projects.locations.repositories.compilationResults.list |
-| dataform | dataform/repositories/releaseconfigs | 1 | project | dataform:projects.locations.repositories.releaseConfigs.list, dataform:projects.locations.repositories.releaseConfigs.list |
-| dataform | dataform/repositories/workflowconfigs | 1 | project | dataform:projects.locations.repositories.workflowConfigs.list, dataform:projects.locations.repositories.workflowConfigs.list |
-| dataform | dataform/repositories/workflowinvocations | 1 | project | dataform:projects.locations.repositories.workflowInvocations.list, dataform:projects.locations.repositories.workflowInvocations.list |
-| dataform | dataform/repositories/workspaces | 1 | project | dataform:projects.locations.repositories.workspaces.list, dataform:projects.locations.repositories.workspaces.list |
-| datafusion | datafusion/instances | 0 | project | datafusion:projects.locations.instances.list, datafusion:projects.locations.instances.list |
-| datafusion | datafusion/instances/dnspeerings | 1 | project | datafusion:projects.locations.instances.dnsPeerings.list, datafusion:projects.locations.instances.dnsPeerings.list |
+| datacatalog | datacatalog/entrygroups | 0 | project | datacatalog:projects.locations.entryGroups.list |
+| datacatalog | datacatalog/entrygroups/entries | 1 | project | datacatalog:projects.locations.entryGroups.entries.list |
+| datacatalog | datacatalog/entrygroups/entries/tags | 2 | project | datacatalog:projects.locations.entryGroups.entries.tags.list |
+| datacatalog | datacatalog/entrygroups/tags | 1 | project | datacatalog:projects.locations.entryGroups.tags.list |
+| datacatalog | datacatalog/taxonomies | 0 | project | datacatalog:projects.locations.taxonomies.list |
+| datacatalog | datacatalog/taxonomies/policytags | 1 | project | datacatalog:projects.locations.taxonomies.policyTags.list |
+| dataform | dataform/repositories | 0 | project | dataform:projects.locations.repositories.list |
+| dataform | dataform/repositories/compilationresults | 1 | project | dataform:projects.locations.repositories.compilationResults.list |
+| dataform | dataform/repositories/releaseconfigs | 1 | project | dataform:projects.locations.repositories.releaseConfigs.list |
+| dataform | dataform/repositories/workflowconfigs | 1 | project | dataform:projects.locations.repositories.workflowConfigs.list |
+| dataform | dataform/repositories/workflowinvocations | 1 | project | dataform:projects.locations.repositories.workflowInvocations.list |
+| dataform | dataform/repositories/workspaces | 1 | project | dataform:projects.locations.repositories.workspaces.list |
+| datafusion | datafusion/instances | 0 | project | datafusion:projects.locations.instances.list |
+| datafusion | datafusion/instances/dnspeerings | 1 | project | datafusion:projects.locations.instances.dnsPeerings.list |
 | datalineage | datalineage/processes | 0 | project | datalineage:projects.locations.processes.list |
 | datalineage | datalineage/processes/runs | 1 | project | datalineage:projects.locations.processes.runs.list |
 | datalineage | datalineage/processes/runs/lineageevents | 2 | project | datalineage:projects.locations.processes.runs.lineageEvents.list |
-| datamigration | datamigration/connectionprofiles | 0 | project | datamigration:projects.locations.connectionProfiles.list, datamigration:projects.locations.connectionProfiles.list |
+| datamigration | datamigration/connectionprofiles | 0 | project | datamigration:projects.locations.connectionProfiles.list |
 | datamigration | datamigration/conversionworkspaces | 0 | project | datamigration:projects.locations.conversionWorkspaces.list |
 | datamigration | datamigration/conversionworkspaces/mappingrules | 1 | project | datamigration:projects.locations.conversionWorkspaces.mappingRules.list |
-| datamigration | datamigration/migrationjobs | 0 | project | datamigration:projects.locations.migrationJobs.list, datamigration:projects.locations.migrationJobs.list |
+| datamigration | datamigration/migrationjobs | 0 | project | datamigration:projects.locations.migrationJobs.list |
 | datamigration | datamigration/privateconnections | 0 | project | datamigration:projects.locations.privateConnections.list |
 | datapipelines | datapipelines/pipelines | 0 | project | datapipelines:projects.locations.pipelines.list |
 | dataplex | dataplex/aspecttypes | 0 | project | dataplex:projects.locations.aspectTypes.list |
@@ -4291,84 +4291,84 @@ Pins: google.golang.org/api@v0.292.0
 | dataplex | dataplex/metadatafeeds | 0 | project | dataplex:projects.locations.metadataFeeds.list |
 | dataplex | dataplex/metadatajobs | 0 | project | dataplex:projects.locations.metadataJobs.list |
 | datastore | datastore/indexes | 0 | project | datastore:projects.indexes.list |
-| datastream | datastream/connectionprofiles | 0 | project | datastream:projects.locations.connectionProfiles.list, datastream:projects.locations.connectionProfiles.list |
-| datastream | datastream/privateconnections | 0 | project | datastream:projects.locations.privateConnections.list, datastream:projects.locations.privateConnections.list |
-| datastream | datastream/privateconnections/routes | 1 | project | datastream:projects.locations.privateConnections.routes.list, datastream:projects.locations.privateConnections.routes.list |
-| datastream | datastream/streams | 0 | project | datastream:projects.locations.streams.list, datastream:projects.locations.streams.list |
-| deploymentmanager | deploymentmanager/deployments | 0 | project | deploymentmanager:deployments.list, deploymentmanager:deployments.list |
+| datastream | datastream/connectionprofiles | 0 | project | datastream:projects.locations.connectionProfiles.list |
+| datastream | datastream/privateconnections | 0 | project | datastream:projects.locations.privateConnections.list |
+| datastream | datastream/privateconnections/routes | 1 | project | datastream:projects.locations.privateConnections.routes.list |
+| datastream | datastream/streams | 0 | project | datastream:projects.locations.streams.list |
+| deploymentmanager | deploymentmanager/deployments | 0 | project | deploymentmanager:deployments.list |
 | developerconnect | developerconnect/accountconnectors | 0 | project | developerconnect:projects.locations.accountConnectors.list |
 | developerconnect | developerconnect/accountconnectors/users | 1 | project | developerconnect:projects.locations.accountConnectors.users.list |
 | developerconnect | developerconnect/connections | 0 | project | developerconnect:projects.locations.connections.list |
 | developerconnect | developerconnect/connections/gitrepositorylinks | 1 | project | developerconnect:projects.locations.connections.gitRepositoryLinks.list |
 | developerconnect | developerconnect/insightsconfigs | 0 | project | developerconnect:projects.locations.insightsConfigs.list |
-| dialogflow | dialogflow/agent/entitytypes | 0 | project | dialogflow:projects.agent.entityTypes.list, dialogflow:projects.agent.entityTypes.list, dialogflow:projects.locations.agent.entityTypes.list, dialogflow:projects.locations.agent.entityTypes.list |
-| dialogflow | dialogflow/agent/environments | 0 | project | dialogflow:projects.agent.environments.list, dialogflow:projects.agent.environments.list, dialogflow:projects.locations.agent.environments.list, dialogflow:projects.locations.agent.environments.list |
-| dialogflow | dialogflow/agent/environments/users/sessions/contexts | 3 | project | dialogflow:projects.agent.environments.users.sessions.contexts.list, dialogflow:projects.agent.environments.users.sessions.contexts.list, dialogflow:projects.locations.agent.environments.users.sessions.contexts.list, dialogflow:projects.locations.agent.environments.users.sessions.contexts.list |
-| dialogflow | dialogflow/agent/environments/users/sessions/entitytypes | 3 | project | dialogflow:projects.agent.environments.users.sessions.entityTypes.list, dialogflow:projects.agent.environments.users.sessions.entityTypes.list, dialogflow:projects.locations.agent.environments.users.sessions.entityTypes.list, dialogflow:projects.locations.agent.environments.users.sessions.entityTypes.list |
-| dialogflow | dialogflow/agent/intents | 0 | project | dialogflow:projects.agent.intents.list, dialogflow:projects.agent.intents.list, dialogflow:projects.locations.agent.intents.list, dialogflow:projects.locations.agent.intents.list |
-| dialogflow | dialogflow/agent/knowledgebases | 0 | project | dialogflow:projects.agent.knowledgeBases.list, dialogflow:projects.agent.knowledgeBases.list |
-| dialogflow | dialogflow/agent/knowledgebases/documents | 1 | project | dialogflow:projects.agent.knowledgeBases.documents.list, dialogflow:projects.agent.knowledgeBases.documents.list |
-| dialogflow | dialogflow/agent/sessions/contexts | 1 | project | dialogflow:projects.agent.sessions.contexts.list, dialogflow:projects.agent.sessions.contexts.list, dialogflow:projects.locations.agent.sessions.contexts.list, dialogflow:projects.locations.agent.sessions.contexts.list |
-| dialogflow | dialogflow/agent/sessions/entitytypes | 1 | project | dialogflow:projects.agent.sessions.entityTypes.list, dialogflow:projects.agent.sessions.entityTypes.list, dialogflow:projects.locations.agent.sessions.entityTypes.list, dialogflow:projects.locations.agent.sessions.entityTypes.list |
-| dialogflow | dialogflow/agent/versions | 0 | project | dialogflow:projects.agent.versions.list, dialogflow:projects.agent.versions.list, dialogflow:projects.locations.agent.versions.list, dialogflow:projects.locations.agent.versions.list |
-| dialogflow | dialogflow/agents | 0 | project | dialogflow:projects.locations.agents.list, dialogflow:projects.locations.agents.list |
-| dialogflow | dialogflow/agents/entitytypes | 1 | project | dialogflow:projects.locations.agents.entityTypes.list, dialogflow:projects.locations.agents.entityTypes.list |
-| dialogflow | dialogflow/agents/environments | 1 | project | dialogflow:projects.locations.agents.environments.list, dialogflow:projects.locations.agents.environments.list |
-| dialogflow | dialogflow/agents/environments/experiments | 2 | project | dialogflow:projects.locations.agents.environments.experiments.list, dialogflow:projects.locations.agents.environments.experiments.list |
-| dialogflow | dialogflow/agents/environments/sessions/entitytypes | 3 | project | dialogflow:projects.locations.agents.environments.sessions.entityTypes.list, dialogflow:projects.locations.agents.environments.sessions.entityTypes.list |
-| dialogflow | dialogflow/agents/flows | 1 | project | dialogflow:projects.locations.agents.flows.list, dialogflow:projects.locations.agents.flows.list |
-| dialogflow | dialogflow/agents/flows/pages | 2 | project | dialogflow:projects.locations.agents.flows.pages.list, dialogflow:projects.locations.agents.flows.pages.list |
-| dialogflow | dialogflow/agents/flows/transitionroutegroups | 2 | project | dialogflow:projects.locations.agents.flows.transitionRouteGroups.list, dialogflow:projects.locations.agents.flows.transitionRouteGroups.list |
-| dialogflow | dialogflow/agents/flows/versions | 2 | project | dialogflow:projects.locations.agents.flows.versions.list, dialogflow:projects.locations.agents.flows.versions.list |
-| dialogflow | dialogflow/agents/generators | 1 | project | dialogflow:projects.locations.agents.generators.list, dialogflow:projects.locations.agents.generators.list |
-| dialogflow | dialogflow/agents/intents | 1 | project | dialogflow:projects.locations.agents.intents.list, dialogflow:projects.locations.agents.intents.list |
-| dialogflow | dialogflow/agents/playbooks | 1 | project | dialogflow:projects.locations.agents.playbooks.list, dialogflow:projects.locations.agents.playbooks.list |
-| dialogflow | dialogflow/agents/playbooks/examples | 2 | project | dialogflow:projects.locations.agents.playbooks.examples.list, dialogflow:projects.locations.agents.playbooks.examples.list |
-| dialogflow | dialogflow/agents/playbooks/versions | 2 | project | dialogflow:projects.locations.agents.playbooks.versions.list, dialogflow:projects.locations.agents.playbooks.versions.list |
-| dialogflow | dialogflow/agents/sessions/entitytypes | 2 | project | dialogflow:projects.locations.agents.sessions.entityTypes.list, dialogflow:projects.locations.agents.sessions.entityTypes.list |
-| dialogflow | dialogflow/agents/testcases | 1 | project | dialogflow:projects.locations.agents.testCases.list, dialogflow:projects.locations.agents.testCases.list |
-| dialogflow | dialogflow/agents/tools | 1 | project | dialogflow:projects.locations.agents.tools.list, dialogflow:projects.locations.agents.tools.list |
-| dialogflow | dialogflow/agents/tools/versions | 2 | project | dialogflow:projects.locations.agents.tools.versions.list, dialogflow:projects.locations.agents.tools.versions.list |
-| dialogflow | dialogflow/agents/transitionroutegroups | 1 | project | dialogflow:projects.locations.agents.transitionRouteGroups.list, dialogflow:projects.locations.agents.transitionRouteGroups.list |
-| dialogflow | dialogflow/agents/webhooks | 1 | project | dialogflow:projects.locations.agents.webhooks.list, dialogflow:projects.locations.agents.webhooks.list |
+| dialogflow | dialogflow/agent/entitytypes | 0 | project | dialogflow:projects.agent.entityTypes.list, dialogflow:projects.locations.agent.entityTypes.list |
+| dialogflow | dialogflow/agent/environments | 0 | project | dialogflow:projects.agent.environments.list, dialogflow:projects.locations.agent.environments.list |
+| dialogflow | dialogflow/agent/environments/users/sessions/contexts | 3 | project | dialogflow:projects.agent.environments.users.sessions.contexts.list, dialogflow:projects.locations.agent.environments.users.sessions.contexts.list |
+| dialogflow | dialogflow/agent/environments/users/sessions/entitytypes | 3 | project | dialogflow:projects.agent.environments.users.sessions.entityTypes.list, dialogflow:projects.locations.agent.environments.users.sessions.entityTypes.list |
+| dialogflow | dialogflow/agent/intents | 0 | project | dialogflow:projects.agent.intents.list, dialogflow:projects.locations.agent.intents.list |
+| dialogflow | dialogflow/agent/knowledgebases | 0 | project | dialogflow:projects.agent.knowledgeBases.list |
+| dialogflow | dialogflow/agent/knowledgebases/documents | 1 | project | dialogflow:projects.agent.knowledgeBases.documents.list |
+| dialogflow | dialogflow/agent/sessions/contexts | 1 | project | dialogflow:projects.agent.sessions.contexts.list, dialogflow:projects.locations.agent.sessions.contexts.list |
+| dialogflow | dialogflow/agent/sessions/entitytypes | 1 | project | dialogflow:projects.agent.sessions.entityTypes.list, dialogflow:projects.locations.agent.sessions.entityTypes.list |
+| dialogflow | dialogflow/agent/versions | 0 | project | dialogflow:projects.agent.versions.list, dialogflow:projects.locations.agent.versions.list |
+| dialogflow | dialogflow/agents | 0 | project | dialogflow:projects.locations.agents.list |
+| dialogflow | dialogflow/agents/entitytypes | 1 | project | dialogflow:projects.locations.agents.entityTypes.list |
+| dialogflow | dialogflow/agents/environments | 1 | project | dialogflow:projects.locations.agents.environments.list |
+| dialogflow | dialogflow/agents/environments/experiments | 2 | project | dialogflow:projects.locations.agents.environments.experiments.list |
+| dialogflow | dialogflow/agents/environments/sessions/entitytypes | 3 | project | dialogflow:projects.locations.agents.environments.sessions.entityTypes.list |
+| dialogflow | dialogflow/agents/flows | 1 | project | dialogflow:projects.locations.agents.flows.list |
+| dialogflow | dialogflow/agents/flows/pages | 2 | project | dialogflow:projects.locations.agents.flows.pages.list |
+| dialogflow | dialogflow/agents/flows/transitionroutegroups | 2 | project | dialogflow:projects.locations.agents.flows.transitionRouteGroups.list |
+| dialogflow | dialogflow/agents/flows/versions | 2 | project | dialogflow:projects.locations.agents.flows.versions.list |
+| dialogflow | dialogflow/agents/generators | 1 | project | dialogflow:projects.locations.agents.generators.list |
+| dialogflow | dialogflow/agents/intents | 1 | project | dialogflow:projects.locations.agents.intents.list |
+| dialogflow | dialogflow/agents/playbooks | 1 | project | dialogflow:projects.locations.agents.playbooks.list |
+| dialogflow | dialogflow/agents/playbooks/examples | 2 | project | dialogflow:projects.locations.agents.playbooks.examples.list |
+| dialogflow | dialogflow/agents/playbooks/versions | 2 | project | dialogflow:projects.locations.agents.playbooks.versions.list |
+| dialogflow | dialogflow/agents/sessions/entitytypes | 2 | project | dialogflow:projects.locations.agents.sessions.entityTypes.list |
+| dialogflow | dialogflow/agents/testcases | 1 | project | dialogflow:projects.locations.agents.testCases.list |
+| dialogflow | dialogflow/agents/tools | 1 | project | dialogflow:projects.locations.agents.tools.list |
+| dialogflow | dialogflow/agents/tools/versions | 2 | project | dialogflow:projects.locations.agents.tools.versions.list |
+| dialogflow | dialogflow/agents/transitionroutegroups | 1 | project | dialogflow:projects.locations.agents.transitionRouteGroups.list |
+| dialogflow | dialogflow/agents/webhooks | 1 | project | dialogflow:projects.locations.agents.webhooks.list |
 | dialogflow | dialogflow/conversationdatasets | 0 | project | dialogflow:projects.conversationDatasets.list, dialogflow:projects.locations.conversationDatasets.list |
 | dialogflow | dialogflow/conversationmodels | 0 | project | dialogflow:projects.conversationModels.list, dialogflow:projects.locations.conversationModels.list |
 | dialogflow | dialogflow/conversationmodels/evaluations | 1 | project | dialogflow:projects.conversationModels.evaluations.list, dialogflow:projects.locations.conversationModels.evaluations.list |
-| dialogflow | dialogflow/conversationprofiles | 0 | project | dialogflow:projects.conversationProfiles.list, dialogflow:projects.conversationProfiles.list, dialogflow:projects.locations.conversationProfiles.list, dialogflow:projects.locations.conversationProfiles.list |
-| dialogflow | dialogflow/conversations | 0 | project | dialogflow:projects.conversations.list, dialogflow:projects.conversations.list, dialogflow:projects.locations.conversations.list, dialogflow:projects.locations.conversations.list |
-| dialogflow | dialogflow/conversations/participants | 1 | project | dialogflow:projects.conversations.participants.list, dialogflow:projects.conversations.participants.list, dialogflow:projects.locations.conversations.participants.list, dialogflow:projects.locations.conversations.participants.list |
-| dialogflow | dialogflow/generators | 0 | project | dialogflow:projects.generators.list, dialogflow:projects.generators.list, dialogflow:projects.locations.generators.list, dialogflow:projects.locations.generators.list |
-| dialogflow | dialogflow/generators/evaluations | 1 | project | dialogflow:projects.locations.generators.evaluations.list, dialogflow:projects.locations.generators.evaluations.list |
-| dialogflow | dialogflow/knowledgebases | 0 | project | dialogflow:projects.knowledgeBases.list, dialogflow:projects.knowledgeBases.list, dialogflow:projects.locations.knowledgeBases.list, dialogflow:projects.locations.knowledgeBases.list |
-| dialogflow | dialogflow/knowledgebases/documents | 1 | project | dialogflow:projects.knowledgeBases.documents.list, dialogflow:projects.knowledgeBases.documents.list, dialogflow:projects.locations.knowledgeBases.documents.list, dialogflow:projects.locations.knowledgeBases.documents.list |
-| dialogflow | dialogflow/securitysettings | 0 | project | dialogflow:projects.locations.securitySettings.list, dialogflow:projects.locations.securitySettings.list |
-| dialogflow | dialogflow/siptrunks | 0 | project | dialogflow:projects.locations.sipTrunks.list, dialogflow:projects.locations.sipTrunks.list |
-| dialogflow | dialogflow/tools | 0 | project | dialogflow:projects.locations.tools.list, dialogflow:projects.locations.tools.list |
-| discoveryengine | discoveryengine/cmekconfigs | 0 | project | discoveryengine:projects.locations.cmekConfigs.list, discoveryengine:projects.locations.cmekConfigs.list, discoveryengine:projects.locations.cmekConfigs.list |
-| discoveryengine | discoveryengine/collections/datastores | 1 | project | discoveryengine:projects.locations.collections.dataStores.list, discoveryengine:projects.locations.collections.dataStores.list, discoveryengine:projects.locations.collections.dataStores.list |
-| discoveryengine | discoveryengine/collections/datastores/branches/documents | 3 | project | discoveryengine:projects.locations.collections.dataStores.branches.documents.list, discoveryengine:projects.locations.collections.dataStores.branches.documents.list, discoveryengine:projects.locations.collections.dataStores.branches.documents.list |
-| discoveryengine | discoveryengine/collections/datastores/controls | 2 | project | discoveryengine:projects.locations.collections.dataStores.controls.list, discoveryengine:projects.locations.collections.dataStores.controls.list, discoveryengine:projects.locations.collections.dataStores.controls.list |
-| discoveryengine | discoveryengine/collections/datastores/conversations | 2 | project | discoveryengine:projects.locations.collections.dataStores.conversations.list, discoveryengine:projects.locations.collections.dataStores.conversations.list, discoveryengine:projects.locations.collections.dataStores.conversations.list |
-| discoveryengine | discoveryengine/collections/datastores/schemas | 2 | project | discoveryengine:projects.locations.collections.dataStores.schemas.list, discoveryengine:projects.locations.collections.dataStores.schemas.list, discoveryengine:projects.locations.collections.dataStores.schemas.list |
-| discoveryengine | discoveryengine/collections/datastores/servingconfigs | 2 | project | discoveryengine:projects.locations.collections.dataStores.servingConfigs.list, discoveryengine:projects.locations.collections.dataStores.servingConfigs.list, discoveryengine:projects.locations.collections.dataStores.servingConfigs.list |
-| discoveryengine | discoveryengine/collections/datastores/sessions | 2 | project | discoveryengine:projects.locations.collections.dataStores.sessions.list, discoveryengine:projects.locations.collections.dataStores.sessions.list, discoveryengine:projects.locations.collections.dataStores.sessions.list |
-| discoveryengine | discoveryengine/collections/datastores/sitesearchengine/targetsites | 2 | project | discoveryengine:projects.locations.collections.dataStores.siteSearchEngine.targetSites.list, discoveryengine:projects.locations.collections.dataStores.siteSearchEngine.targetSites.list, discoveryengine:projects.locations.collections.dataStores.siteSearchEngine.targetSites.list |
-| discoveryengine | discoveryengine/collections/engines | 1 | project | discoveryengine:projects.locations.collections.engines.list, discoveryengine:projects.locations.collections.engines.list, discoveryengine:projects.locations.collections.engines.list |
-| discoveryengine | discoveryengine/collections/engines/assistants | 2 | project | discoveryengine:projects.locations.collections.engines.assistants.list, discoveryengine:projects.locations.collections.engines.assistants.list, discoveryengine:projects.locations.collections.engines.assistants.list |
+| dialogflow | dialogflow/conversationprofiles | 0 | project | dialogflow:projects.conversationProfiles.list, dialogflow:projects.locations.conversationProfiles.list |
+| dialogflow | dialogflow/conversations | 0 | project | dialogflow:projects.conversations.list, dialogflow:projects.locations.conversations.list |
+| dialogflow | dialogflow/conversations/participants | 1 | project | dialogflow:projects.conversations.participants.list, dialogflow:projects.locations.conversations.participants.list |
+| dialogflow | dialogflow/generators | 0 | project | dialogflow:projects.generators.list, dialogflow:projects.locations.generators.list |
+| dialogflow | dialogflow/generators/evaluations | 1 | project | dialogflow:projects.locations.generators.evaluations.list |
+| dialogflow | dialogflow/knowledgebases | 0 | project | dialogflow:projects.knowledgeBases.list, dialogflow:projects.locations.knowledgeBases.list |
+| dialogflow | dialogflow/knowledgebases/documents | 1 | project | dialogflow:projects.knowledgeBases.documents.list, dialogflow:projects.locations.knowledgeBases.documents.list |
+| dialogflow | dialogflow/securitysettings | 0 | project | dialogflow:projects.locations.securitySettings.list |
+| dialogflow | dialogflow/siptrunks | 0 | project | dialogflow:projects.locations.sipTrunks.list |
+| dialogflow | dialogflow/tools | 0 | project | dialogflow:projects.locations.tools.list |
+| discoveryengine | discoveryengine/cmekconfigs | 0 | project | discoveryengine:projects.locations.cmekConfigs.list |
+| discoveryengine | discoveryengine/collections/datastores | 1 | project | discoveryengine:projects.locations.collections.dataStores.list |
+| discoveryengine | discoveryengine/collections/datastores/branches/documents | 3 | project | discoveryengine:projects.locations.collections.dataStores.branches.documents.list |
+| discoveryengine | discoveryengine/collections/datastores/controls | 2 | project | discoveryengine:projects.locations.collections.dataStores.controls.list |
+| discoveryengine | discoveryengine/collections/datastores/conversations | 2 | project | discoveryengine:projects.locations.collections.dataStores.conversations.list |
+| discoveryengine | discoveryengine/collections/datastores/schemas | 2 | project | discoveryengine:projects.locations.collections.dataStores.schemas.list |
+| discoveryengine | discoveryengine/collections/datastores/servingconfigs | 2 | project | discoveryengine:projects.locations.collections.dataStores.servingConfigs.list |
+| discoveryengine | discoveryengine/collections/datastores/sessions | 2 | project | discoveryengine:projects.locations.collections.dataStores.sessions.list |
+| discoveryengine | discoveryengine/collections/datastores/sitesearchengine/targetsites | 2 | project | discoveryengine:projects.locations.collections.dataStores.siteSearchEngine.targetSites.list |
+| discoveryengine | discoveryengine/collections/engines | 1 | project | discoveryengine:projects.locations.collections.engines.list |
+| discoveryengine | discoveryengine/collections/engines/assistants | 2 | project | discoveryengine:projects.locations.collections.engines.assistants.list |
 | discoveryengine | discoveryengine/collections/engines/assistants/agents/a2a/v1/tasks/pushnotificationconfigs | 5 | project | discoveryengine:projects.locations.collections.engines.assistants.agents.a2a.v1.tasks.pushNotificationConfigs.list |
-| discoveryengine | discoveryengine/collections/engines/controls | 2 | project | discoveryengine:projects.locations.collections.engines.controls.list, discoveryengine:projects.locations.collections.engines.controls.list, discoveryengine:projects.locations.collections.engines.controls.list |
-| discoveryengine | discoveryengine/collections/engines/conversations | 2 | project | discoveryengine:projects.locations.collections.engines.conversations.list, discoveryengine:projects.locations.collections.engines.conversations.list, discoveryengine:projects.locations.collections.engines.conversations.list |
-| discoveryengine | discoveryengine/collections/engines/servingconfigs | 2 | project | discoveryengine:projects.locations.collections.engines.servingConfigs.list, discoveryengine:projects.locations.collections.engines.servingConfigs.list, discoveryengine:projects.locations.collections.engines.servingConfigs.list |
-| discoveryengine | discoveryengine/collections/engines/sessions | 2 | project | discoveryengine:projects.locations.collections.engines.sessions.list, discoveryengine:projects.locations.collections.engines.sessions.list, discoveryengine:projects.locations.collections.engines.sessions.list |
-| discoveryengine | discoveryengine/datastores | 0 | project | discoveryengine:projects.locations.dataStores.list, discoveryengine:projects.locations.dataStores.list, discoveryengine:projects.locations.dataStores.list |
-| discoveryengine | discoveryengine/datastores/branches/documents | 2 | project | discoveryengine:projects.locations.dataStores.branches.documents.list, discoveryengine:projects.locations.dataStores.branches.documents.list, discoveryengine:projects.locations.dataStores.branches.documents.list |
-| discoveryengine | discoveryengine/datastores/controls | 1 | project | discoveryengine:projects.locations.dataStores.controls.list, discoveryengine:projects.locations.dataStores.controls.list, discoveryengine:projects.locations.dataStores.controls.list |
-| discoveryengine | discoveryengine/datastores/conversations | 1 | project | discoveryengine:projects.locations.dataStores.conversations.list, discoveryengine:projects.locations.dataStores.conversations.list, discoveryengine:projects.locations.dataStores.conversations.list |
-| discoveryengine | discoveryengine/datastores/schemas | 1 | project | discoveryengine:projects.locations.dataStores.schemas.list, discoveryengine:projects.locations.dataStores.schemas.list, discoveryengine:projects.locations.dataStores.schemas.list |
-| discoveryengine | discoveryengine/datastores/servingconfigs | 1 | project | discoveryengine:projects.locations.dataStores.servingConfigs.list, discoveryengine:projects.locations.dataStores.servingConfigs.list, discoveryengine:projects.locations.dataStores.servingConfigs.list |
-| discoveryengine | discoveryengine/datastores/sessions | 1 | project | discoveryengine:projects.locations.dataStores.sessions.list, discoveryengine:projects.locations.dataStores.sessions.list, discoveryengine:projects.locations.dataStores.sessions.list |
-| discoveryengine | discoveryengine/datastores/sitesearchengine/targetsites | 1 | project | discoveryengine:projects.locations.dataStores.siteSearchEngine.targetSites.list, discoveryengine:projects.locations.dataStores.siteSearchEngine.targetSites.list, discoveryengine:projects.locations.dataStores.siteSearchEngine.targetSites.list |
-| discoveryengine | discoveryengine/identitymappingstores | 0 | project | discoveryengine:projects.locations.identityMappingStores.list, discoveryengine:projects.locations.identityMappingStores.list, discoveryengine:projects.locations.identityMappingStores.list |
+| discoveryengine | discoveryengine/collections/engines/controls | 2 | project | discoveryengine:projects.locations.collections.engines.controls.list |
+| discoveryengine | discoveryengine/collections/engines/conversations | 2 | project | discoveryengine:projects.locations.collections.engines.conversations.list |
+| discoveryengine | discoveryengine/collections/engines/servingconfigs | 2 | project | discoveryengine:projects.locations.collections.engines.servingConfigs.list |
+| discoveryengine | discoveryengine/collections/engines/sessions | 2 | project | discoveryengine:projects.locations.collections.engines.sessions.list |
+| discoveryengine | discoveryengine/datastores | 0 | project | discoveryengine:projects.locations.dataStores.list |
+| discoveryengine | discoveryengine/datastores/branches/documents | 2 | project | discoveryengine:projects.locations.dataStores.branches.documents.list |
+| discoveryengine | discoveryengine/datastores/controls | 1 | project | discoveryengine:projects.locations.dataStores.controls.list |
+| discoveryengine | discoveryengine/datastores/conversations | 1 | project | discoveryengine:projects.locations.dataStores.conversations.list |
+| discoveryengine | discoveryengine/datastores/schemas | 1 | project | discoveryengine:projects.locations.dataStores.schemas.list |
+| discoveryengine | discoveryengine/datastores/servingconfigs | 1 | project | discoveryengine:projects.locations.dataStores.servingConfigs.list |
+| discoveryengine | discoveryengine/datastores/sessions | 1 | project | discoveryengine:projects.locations.dataStores.sessions.list |
+| discoveryengine | discoveryengine/datastores/sitesearchengine/targetsites | 1 | project | discoveryengine:projects.locations.dataStores.siteSearchEngine.targetSites.list |
+| discoveryengine | discoveryengine/identitymappingstores | 0 | project | discoveryengine:projects.locations.identityMappingStores.list |
 | dlp | dlp/connections | 0 | org | dlp:organizations.locations.connections.list, dlp:projects.locations.connections.list |
 | dlp | dlp/contentpolicies | 0 | project | dlp:projects.locations.contentPolicies.list |
 | dlp | dlp/deidentifytemplates | 0 | org | dlp:organizations.deidentifyTemplates.list, dlp:organizations.locations.deidentifyTemplates.list, dlp:projects.deidentifyTemplates.list, dlp:projects.locations.deidentifyTemplates.list |
@@ -4379,12 +4379,12 @@ Pins: google.golang.org/api@v0.292.0
 | dlp | dlp/jobtriggers | 0 | org | dlp:organizations.locations.jobTriggers.list, dlp:projects.jobTriggers.list, dlp:projects.locations.jobTriggers.list |
 | dlp | dlp/storedinfotypes | 0 | org | dlp:organizations.locations.storedInfoTypes.list, dlp:organizations.storedInfoTypes.list, dlp:projects.locations.storedInfoTypes.list, dlp:projects.storedInfoTypes.list |
 | dlp | dlp/tabledataprofiles | 0 | org | dlp:organizations.locations.tableDataProfiles.list, dlp:projects.locations.tableDataProfiles.list |
-| dns | dns/changes | 1 | project | dns:changes.list, dns:changes.list, dns:changes.list, dns:changes.list |
-| documentai | documentai/processors | 0 | project | documentai:projects.locations.processors.list, documentai:projects.locations.processors.list |
-| documentai | documentai/processors/processorversions | 1 | project | documentai:projects.locations.processors.processorVersions.list, documentai:projects.locations.processors.processorVersions.list |
-| documentai | documentai/schemas | 0 | project | documentai:projects.locations.schemas.list, documentai:projects.locations.schemas.list |
-| documentai | documentai/schemas/schemaversions | 1 | project | documentai:projects.locations.schemas.schemaVersions.list, documentai:projects.locations.schemas.schemaVersions.list |
-| domains | domains/registrations | 0 | project | domains:projects.locations.registrations.list, domains:projects.locations.registrations.list, domains:projects.locations.registrations.list |
+| dns | dns/changes | 1 | project | dns:changes.list |
+| documentai | documentai/processors | 0 | project | documentai:projects.locations.processors.list |
+| documentai | documentai/processors/processorversions | 1 | project | documentai:projects.locations.processors.processorVersions.list |
+| documentai | documentai/schemas | 0 | project | documentai:projects.locations.schemas.list |
+| documentai | documentai/schemas/schemaversions | 1 | project | documentai:projects.locations.schemas.schemaVersions.list |
+| domains | domains/registrations | 0 | project | domains:projects.locations.registrations.list |
 | essentialcontacts | essentialcontacts/contacts | 0 | folder | essentialcontacts:folders.contacts.list, essentialcontacts:organizations.contacts.list, essentialcontacts:projects.contacts.list |
 | eventarc | eventarc/channelconnections | 0 | project | eventarc:projects.locations.channelConnections.list |
 | eventarc | eventarc/channels | 0 | project | eventarc:projects.locations.channels.list |
@@ -4392,41 +4392,41 @@ Pins: google.golang.org/api@v0.292.0
 | eventarc | eventarc/googleapisources | 0 | project | eventarc:projects.locations.googleApiSources.list |
 | eventarc | eventarc/messagebuses | 0 | project | eventarc:projects.locations.messageBuses.list |
 | eventarc | eventarc/pipelines | 0 | project | eventarc:projects.locations.pipelines.list |
-| eventarc | eventarc/triggers | 0 | project | eventarc:projects.locations.triggers.list, eventarc:projects.locations.triggers.list |
-| file | file/backups | 0 | project | file:projects.locations.backups.list, file:projects.locations.backups.list |
-| file | file/instances | 0 | project | file:projects.locations.instances.list, file:projects.locations.instances.list |
-| file | file/instances/snapshots | 1 | project | file:projects.locations.instances.snapshots.list, file:projects.locations.instances.snapshots.list |
-| firebaseappcheck | firebaseappcheck/apps/debugtokens | 1 | project | firebaseappcheck:projects.apps.debugTokens.list, firebaseappcheck:projects.apps.debugTokens.list |
-| firebaseappcheck | firebaseappcheck/services/resourcepolicies | 1 | project | firebaseappcheck:projects.services.resourcePolicies.list, firebaseappcheck:projects.services.resourcePolicies.list |
+| eventarc | eventarc/triggers | 0 | project | eventarc:projects.locations.triggers.list |
+| file | file/backups | 0 | project | file:projects.locations.backups.list |
+| file | file/instances | 0 | project | file:projects.locations.instances.list |
+| file | file/instances/snapshots | 1 | project | file:projects.locations.instances.snapshots.list |
+| firebaseappcheck | firebaseappcheck/apps/debugtokens | 1 | project | firebaseappcheck:projects.apps.debugTokens.list |
+| firebaseappcheck | firebaseappcheck/services/resourcepolicies | 1 | project | firebaseappcheck:projects.services.resourcePolicies.list |
 | firebaseappdistribution | firebaseappdistribution/apps/releases/feedbackreports | 2 | project | firebaseappdistribution:projects.apps.releases.feedbackReports.list |
 | firebaseappdistribution | firebaseappdistribution/groups | 0 | project | firebaseappdistribution:projects.groups.list |
-| firebaseapphosting | firebaseapphosting/backends | 0 | project | firebaseapphosting:projects.locations.backends.list, firebaseapphosting:projects.locations.backends.list |
-| firebaseapphosting | firebaseapphosting/backends/builds | 1 | project | firebaseapphosting:projects.locations.backends.builds.list, firebaseapphosting:projects.locations.backends.builds.list |
-| firebaseapphosting | firebaseapphosting/backends/domains | 1 | project | firebaseapphosting:projects.locations.backends.domains.list, firebaseapphosting:projects.locations.backends.domains.list |
-| firebaseapphosting | firebaseapphosting/backends/rollouts | 1 | project | firebaseapphosting:projects.locations.backends.rollouts.list, firebaseapphosting:projects.locations.backends.rollouts.list |
-| firebasedataconnect | firebasedataconnect/services | 0 | project | firebasedataconnect:projects.locations.services.list, firebasedataconnect:projects.locations.services.list |
-| firebasedataconnect | firebasedataconnect/services/connectors | 1 | project | firebasedataconnect:projects.locations.services.connectors.list, firebasedataconnect:projects.locations.services.connectors.list |
-| firebasedataconnect | firebasedataconnect/services/schemas | 1 | project | firebasedataconnect:projects.locations.services.schemas.list, firebasedataconnect:projects.locations.services.schemas.list |
+| firebaseapphosting | firebaseapphosting/backends | 0 | project | firebaseapphosting:projects.locations.backends.list |
+| firebaseapphosting | firebaseapphosting/backends/builds | 1 | project | firebaseapphosting:projects.locations.backends.builds.list |
+| firebaseapphosting | firebaseapphosting/backends/domains | 1 | project | firebaseapphosting:projects.locations.backends.domains.list |
+| firebaseapphosting | firebaseapphosting/backends/rollouts | 1 | project | firebaseapphosting:projects.locations.backends.rollouts.list |
+| firebasedataconnect | firebasedataconnect/services | 0 | project | firebasedataconnect:projects.locations.services.list |
+| firebasedataconnect | firebasedataconnect/services/connectors | 1 | project | firebasedataconnect:projects.locations.services.connectors.list |
+| firebasedataconnect | firebasedataconnect/services/schemas | 1 | project | firebasedataconnect:projects.locations.services.schemas.list |
 | firebaserules | firebaserules/releases | 0 | project | firebaserules:projects.releases.list |
 | firebaserules | firebaserules/rulesets | 0 | project | firebaserules:projects.rulesets.list |
-| firestore | firestore/databases/collectiongroups/indexes | 2 | project | firestore:projects.databases.collectionGroups.indexes.list, firestore:projects.databases.collectionGroups.indexes.list |
+| firestore | firestore/databases/collectiongroups/indexes | 2 | project | firestore:projects.databases.collectionGroups.indexes.list |
 | gkebackup | gkebackup/backupchannels | 0 | project | gkebackup:projects.locations.backupChannels.list |
 | gkebackup | gkebackup/backupplans | 0 | project | gkebackup:projects.locations.backupPlans.list |
 | gkebackup | gkebackup/backupplans/backups | 1 | project | gkebackup:projects.locations.backupPlans.backups.list |
 | gkebackup | gkebackup/restorechannels | 0 | project | gkebackup:projects.locations.restoreChannels.list |
 | gkebackup | gkebackup/restoreplans | 0 | project | gkebackup:projects.locations.restorePlans.list |
 | gkebackup | gkebackup/restoreplans/restores | 1 | project | gkebackup:projects.locations.restorePlans.restores.list |
-| gkehub | gkehub/features | 0 | project | gkehub:projects.locations.features.list, gkehub:projects.locations.features.list, gkehub:projects.locations.features.list |
-| gkehub | gkehub/fleets | 0 | org | gkehub:organizations.locations.fleets.list, gkehub:organizations.locations.fleets.list, gkehub:organizations.locations.fleets.list, gkehub:projects.locations.fleets.list, gkehub:projects.locations.fleets.list, gkehub:projects.locations.fleets.list |
-| gkehub | gkehub/memberships | 0 | project | gkehub:projects.locations.memberships.list, gkehub:projects.locations.memberships.list, gkehub:projects.locations.memberships.list, gkehub:projects.locations.memberships.list, gkehub:projects.locations.memberships.list |
-| gkehub | gkehub/memberships/bindings | 1 | project | gkehub:projects.locations.memberships.bindings.list, gkehub:projects.locations.memberships.bindings.list, gkehub:projects.locations.memberships.bindings.list |
-| gkehub | gkehub/memberships/features | 1 | project | gkehub:projects.locations.memberships.features.list, gkehub:projects.locations.memberships.features.list, gkehub:projects.locations.memberships.features.list |
-| gkehub | gkehub/memberships/rbacrolebindings | 1 | project | gkehub:projects.locations.memberships.rbacrolebindings.list, gkehub:projects.locations.memberships.rbacrolebindings.list, gkehub:projects.locations.memberships.rbacrolebindings.list |
-| gkehub | gkehub/rollouts | 0 | project | gkehub:projects.locations.rollouts.list, gkehub:projects.locations.rollouts.list, gkehub:projects.locations.rollouts.list |
-| gkehub | gkehub/rolloutsequences | 0 | project | gkehub:projects.locations.rolloutSequences.list, gkehub:projects.locations.rolloutSequences.list, gkehub:projects.locations.rolloutSequences.list |
-| gkehub | gkehub/scopes | 0 | project | gkehub:projects.locations.scopes.list, gkehub:projects.locations.scopes.list, gkehub:projects.locations.scopes.list |
-| gkehub | gkehub/scopes/namespaces | 1 | project | gkehub:projects.locations.scopes.namespaces.list, gkehub:projects.locations.scopes.namespaces.list, gkehub:projects.locations.scopes.namespaces.list |
-| gkehub | gkehub/scopes/rbacrolebindings | 1 | project | gkehub:projects.locations.scopes.rbacrolebindings.list, gkehub:projects.locations.scopes.rbacrolebindings.list, gkehub:projects.locations.scopes.rbacrolebindings.list |
+| gkehub | gkehub/features | 0 | project | gkehub:projects.locations.features.list |
+| gkehub | gkehub/fleets | 0 | org | gkehub:organizations.locations.fleets.list, gkehub:projects.locations.fleets.list |
+| gkehub | gkehub/memberships | 0 | project | gkehub:projects.locations.memberships.list |
+| gkehub | gkehub/memberships/bindings | 1 | project | gkehub:projects.locations.memberships.bindings.list |
+| gkehub | gkehub/memberships/features | 1 | project | gkehub:projects.locations.memberships.features.list |
+| gkehub | gkehub/memberships/rbacrolebindings | 1 | project | gkehub:projects.locations.memberships.rbacrolebindings.list |
+| gkehub | gkehub/rollouts | 0 | project | gkehub:projects.locations.rollouts.list |
+| gkehub | gkehub/rolloutsequences | 0 | project | gkehub:projects.locations.rolloutSequences.list |
+| gkehub | gkehub/scopes | 0 | project | gkehub:projects.locations.scopes.list |
+| gkehub | gkehub/scopes/namespaces | 1 | project | gkehub:projects.locations.scopes.namespaces.list |
+| gkehub | gkehub/scopes/rbacrolebindings | 1 | project | gkehub:projects.locations.scopes.rbacrolebindings.list |
 | gkeonprem | gkeonprem/baremetaladminclusters | 0 | project | gkeonprem:projects.locations.bareMetalAdminClusters.list |
 | gkeonprem | gkeonprem/baremetalclusters | 0 | project | gkeonprem:projects.locations.bareMetalClusters.list |
 | gkeonprem | gkeonprem/baremetalclusters/baremetalnodepools | 1 | project | gkeonprem:projects.locations.bareMetalClusters.bareMetalNodePools.list |
@@ -4436,16 +4436,16 @@ Pins: google.golang.org/api@v0.292.0
 | health | health/subscribers | 0 | project | health:projects.subscribers.list |
 | health | health/subscribers/subscriptions | 1 | project | health:projects.subscribers.subscriptions.list |
 | health | health/users/datatypes/datapoints | 2 | global | health:users.dataTypes.dataPoints.list |
-| healthcare | healthcare/datasets | 0 | project | healthcare:projects.locations.datasets.list, healthcare:projects.locations.datasets.list, healthcare:projects.locations.datasets.list |
-| healthcare | healthcare/datasets/consentstores | 1 | project | healthcare:projects.locations.datasets.consentStores.list, healthcare:projects.locations.datasets.consentStores.list |
-| healthcare | healthcare/datasets/consentstores/attributedefinitions | 2 | project | healthcare:projects.locations.datasets.consentStores.attributeDefinitions.list, healthcare:projects.locations.datasets.consentStores.attributeDefinitions.list |
-| healthcare | healthcare/datasets/consentstores/consentartifacts | 2 | project | healthcare:projects.locations.datasets.consentStores.consentArtifacts.list, healthcare:projects.locations.datasets.consentStores.consentArtifacts.list |
-| healthcare | healthcare/datasets/consentstores/consents | 2 | project | healthcare:projects.locations.datasets.consentStores.consents.list, healthcare:projects.locations.datasets.consentStores.consents.list |
-| healthcare | healthcare/datasets/consentstores/userdatamappings | 2 | project | healthcare:projects.locations.datasets.consentStores.userDataMappings.list, healthcare:projects.locations.datasets.consentStores.userDataMappings.list |
-| healthcare | healthcare/datasets/dicomstores | 1 | project | healthcare:projects.locations.datasets.dicomStores.list, healthcare:projects.locations.datasets.dicomStores.list, healthcare:projects.locations.datasets.dicomStores.list |
-| healthcare | healthcare/datasets/fhirstores | 1 | project | healthcare:projects.locations.datasets.fhirStores.list, healthcare:projects.locations.datasets.fhirStores.list, healthcare:projects.locations.datasets.fhirStores.list |
-| healthcare | healthcare/datasets/hl7v2stores | 1 | project | healthcare:projects.locations.datasets.hl7V2Stores.list, healthcare:projects.locations.datasets.hl7V2Stores.list, healthcare:projects.locations.datasets.hl7V2Stores.list |
-| healthcare | healthcare/datasets/hl7v2stores/messages | 2 | project | healthcare:projects.locations.datasets.hl7V2Stores.messages.list, healthcare:projects.locations.datasets.hl7V2Stores.messages.list, healthcare:projects.locations.datasets.hl7V2Stores.messages.list |
+| healthcare | healthcare/datasets | 0 | project | healthcare:projects.locations.datasets.list |
+| healthcare | healthcare/datasets/consentstores | 1 | project | healthcare:projects.locations.datasets.consentStores.list |
+| healthcare | healthcare/datasets/consentstores/attributedefinitions | 2 | project | healthcare:projects.locations.datasets.consentStores.attributeDefinitions.list |
+| healthcare | healthcare/datasets/consentstores/consentartifacts | 2 | project | healthcare:projects.locations.datasets.consentStores.consentArtifacts.list |
+| healthcare | healthcare/datasets/consentstores/consents | 2 | project | healthcare:projects.locations.datasets.consentStores.consents.list |
+| healthcare | healthcare/datasets/consentstores/userdatamappings | 2 | project | healthcare:projects.locations.datasets.consentStores.userDataMappings.list |
+| healthcare | healthcare/datasets/dicomstores | 1 | project | healthcare:projects.locations.datasets.dicomStores.list |
+| healthcare | healthcare/datasets/fhirstores | 1 | project | healthcare:projects.locations.datasets.fhirStores.list |
+| healthcare | healthcare/datasets/hl7v2stores | 1 | project | healthcare:projects.locations.datasets.hl7V2Stores.list |
+| healthcare | healthcare/datasets/hl7v2stores/messages | 2 | project | healthcare:projects.locations.datasets.hl7V2Stores.messages.list |
 | hypercomputecluster | hypercomputecluster/clusters | 0 | project | hypercomputecluster:projects.locations.clusters.list |
 | iam | iam/workforcepools/providers/keys | 2 | global | iam:locations.workforcePools.providers.keys.list |
 | iam | iam/workforcepools/providers/scimtenants/tokens | 3 | global | iam:locations.workforcePools.providers.scimTenants.tokens.list |
@@ -4461,29 +4461,29 @@ Pins: google.golang.org/api@v0.292.0
 | identitytoolkit | identitytoolkit/tenants/inboundsamlconfigs | 1 | project | identitytoolkit:projects.tenants.inboundSamlConfigs.list |
 | identitytoolkit | identitytoolkit/tenants/oauthidpconfigs | 1 | project | identitytoolkit:projects.tenants.oauthIdpConfigs.list |
 | ids | ids/endpoints | 0 | project | ids:projects.locations.endpoints.list |
-| integrations | integrations/authconfigs | 0 | project | integrations:projects.locations.authConfigs.list, integrations:projects.locations.authConfigs.list |
+| integrations | integrations/authconfigs | 0 | project | integrations:projects.locations.authConfigs.list |
 | integrations | integrations/certificates | 0 | project | integrations:projects.locations.certificates.list |
-| integrations | integrations/integrations | 0 | project | integrations:projects.locations.integrations.list, integrations:projects.locations.integrations.list |
-| integrations | integrations/integrations/versions | 1 | project | integrations:projects.locations.integrations.versions.list, integrations:projects.locations.integrations.versions.list |
-| integrations | integrations/products/authconfigs | 1 | project | integrations:projects.locations.products.authConfigs.list, integrations:projects.locations.products.authConfigs.list |
-| integrations | integrations/products/certificates | 1 | project | integrations:projects.locations.products.certificates.list, integrations:projects.locations.products.certificates.list |
-| integrations | integrations/products/integrations | 1 | project | integrations:projects.locations.products.integrations.list, integrations:projects.locations.products.integrations.list |
-| integrations | integrations/products/integrations/versions | 2 | project | integrations:projects.locations.products.integrations.versions.list, integrations:projects.locations.products.integrations.versions.list |
-| integrations | integrations/products/sfdcinstances | 1 | project | integrations:projects.locations.products.sfdcInstances.list, integrations:projects.locations.products.sfdcInstances.list |
-| integrations | integrations/products/sfdcinstances/sfdcchannels | 2 | project | integrations:projects.locations.products.sfdcInstances.sfdcChannels.list, integrations:projects.locations.products.sfdcInstances.sfdcChannels.list |
-| integrations | integrations/sfdcinstances | 0 | project | integrations:projects.locations.sfdcInstances.list, integrations:projects.locations.sfdcInstances.list |
-| integrations | integrations/sfdcinstances/sfdcchannels | 1 | project | integrations:projects.locations.sfdcInstances.sfdcChannels.list, integrations:projects.locations.sfdcInstances.sfdcChannels.list |
-| jobs | jobs/companies | 0 | project | jobs:projects.companies.list, jobs:projects.companies.list |
-| jobs | jobs/jobs | 0 | project | jobs:projects.jobs.list, jobs:projects.jobs.list |
+| integrations | integrations/integrations | 0 | project | integrations:projects.locations.integrations.list |
+| integrations | integrations/integrations/versions | 1 | project | integrations:projects.locations.integrations.versions.list |
+| integrations | integrations/products/authconfigs | 1 | project | integrations:projects.locations.products.authConfigs.list |
+| integrations | integrations/products/certificates | 1 | project | integrations:projects.locations.products.certificates.list |
+| integrations | integrations/products/integrations | 1 | project | integrations:projects.locations.products.integrations.list |
+| integrations | integrations/products/integrations/versions | 2 | project | integrations:projects.locations.products.integrations.versions.list |
+| integrations | integrations/products/sfdcinstances | 1 | project | integrations:projects.locations.products.sfdcInstances.list |
+| integrations | integrations/products/sfdcinstances/sfdcchannels | 2 | project | integrations:projects.locations.products.sfdcInstances.sfdcChannels.list |
+| integrations | integrations/sfdcinstances | 0 | project | integrations:projects.locations.sfdcInstances.list |
+| integrations | integrations/sfdcinstances/sfdcchannels | 1 | project | integrations:projects.locations.sfdcInstances.sfdcChannels.list |
+| jobs | jobs/companies | 0 | project | jobs:projects.companies.list |
+| jobs | jobs/jobs | 0 | project | jobs:projects.jobs.list |
 | jobs | jobs/tenants | 0 | project | jobs:projects.tenants.list |
 | jobs | jobs/tenants/companies | 1 | project | jobs:projects.tenants.companies.list |
 | jobs | jobs/tenants/jobs | 1 | project | jobs:projects.tenants.jobs.list |
 | logging | logging/logs | 0 | billing-account | logging:billingAccounts.logs.list, logging:folders.logs.list, logging:logs.list, logging:organizations.logs.list, logging:projects.logs.list |
 | looker | looker/instances | 0 | project | looker:projects.locations.instances.list |
 | looker | looker/instances/backups | 1 | project | looker:projects.locations.instances.backups.list |
-| managedidentities | managedidentities/domains | 0 | project | managedidentities:projects.locations.global.domains.list, managedidentities:projects.locations.global.domains.list, managedidentities:projects.locations.global.domains.list |
-| managedidentities | managedidentities/domains/backups | 1 | project | managedidentities:projects.locations.global.domains.backups.list, managedidentities:projects.locations.global.domains.backups.list, managedidentities:projects.locations.global.domains.backups.list |
-| managedidentities | managedidentities/peerings | 0 | project | managedidentities:projects.locations.global.peerings.list, managedidentities:projects.locations.global.peerings.list, managedidentities:projects.locations.global.peerings.list |
+| managedidentities | managedidentities/domains | 0 | project | managedidentities:projects.locations.global.domains.list |
+| managedidentities | managedidentities/domains/backups | 1 | project | managedidentities:projects.locations.global.domains.backups.list |
+| managedidentities | managedidentities/peerings | 0 | project | managedidentities:projects.locations.global.peerings.list |
 | managedkafka | managedkafka/clusters | 0 | project | managedkafka:projects.locations.clusters.list |
 | managedkafka | managedkafka/clusters/acls | 1 | project | managedkafka:projects.locations.clusters.acls.list |
 | managedkafka | managedkafka/clusters/consumergroups | 1 | project | managedkafka:projects.locations.clusters.consumerGroups.list |
@@ -4495,22 +4495,22 @@ Pins: google.golang.org/api@v0.292.0
 | managedkafka | managedkafka/schemaregistries/contexts/subjects/versions | 3 | project | managedkafka:projects.locations.schemaRegistries.contexts.subjects.versions.list |
 | managedkafka | managedkafka/schemaregistries/subjects | 1 | project | managedkafka:projects.locations.schemaRegistries.subjects.list |
 | managedkafka | managedkafka/schemaregistries/subjects/versions | 2 | project | managedkafka:projects.locations.schemaRegistries.subjects.versions.list |
-| memcache | memcache/instances | 0 | project | memcache:projects.locations.instances.list, memcache:projects.locations.instances.list |
-| metastore | metastore/federations | 0 | project | metastore:projects.locations.federations.list, metastore:projects.locations.federations.list, metastore:projects.locations.federations.list |
-| metastore | metastore/services | 0 | project | metastore:projects.locations.services.list, metastore:projects.locations.services.list, metastore:projects.locations.services.list, metastore:projects.locations.services.list, metastore:projects.locations.services.list, metastore:projects.locations.services.list |
-| metastore | metastore/services/backups | 1 | project | metastore:projects.locations.services.backups.list, metastore:projects.locations.services.backups.list, metastore:projects.locations.services.backups.list, metastore:projects.locations.services.backups.list, metastore:projects.locations.services.backups.list, metastore:projects.locations.services.backups.list |
-| metastore | metastore/services/metadataimports | 1 | project | metastore:projects.locations.services.metadataImports.list, metastore:projects.locations.services.metadataImports.list, metastore:projects.locations.services.metadataImports.list |
-| metastore | metastore/services/migrationexecutions | 1 | project | metastore:projects.locations.services.migrationExecutions.list, metastore:projects.locations.services.migrationExecutions.list, metastore:projects.locations.services.migrationExecutions.list, metastore:projects.locations.services.migrationExecutions.list, metastore:projects.locations.services.migrationExecutions.list |
-| migrationcenter | migrationcenter/assets | 0 | project | migrationcenter:projects.locations.assets.list, migrationcenter:projects.locations.assets.list |
-| migrationcenter | migrationcenter/assetsexportjobs | 0 | project | migrationcenter:projects.locations.assetsExportJobs.list, migrationcenter:projects.locations.assetsExportJobs.list |
-| migrationcenter | migrationcenter/discoveryclients | 0 | project | migrationcenter:projects.locations.discoveryClients.list, migrationcenter:projects.locations.discoveryClients.list |
-| migrationcenter | migrationcenter/groups | 0 | project | migrationcenter:projects.locations.groups.list, migrationcenter:projects.locations.groups.list |
-| migrationcenter | migrationcenter/importjobs | 0 | project | migrationcenter:projects.locations.importJobs.list, migrationcenter:projects.locations.importJobs.list |
-| migrationcenter | migrationcenter/importjobs/importdatafiles | 1 | project | migrationcenter:projects.locations.importJobs.importDataFiles.list, migrationcenter:projects.locations.importJobs.importDataFiles.list |
-| migrationcenter | migrationcenter/preferencesets | 0 | project | migrationcenter:projects.locations.preferenceSets.list, migrationcenter:projects.locations.preferenceSets.list |
-| migrationcenter | migrationcenter/reportconfigs | 0 | project | migrationcenter:projects.locations.reportConfigs.list, migrationcenter:projects.locations.reportConfigs.list |
-| migrationcenter | migrationcenter/reportconfigs/reports | 1 | project | migrationcenter:projects.locations.reportConfigs.reports.list, migrationcenter:projects.locations.reportConfigs.reports.list |
-| migrationcenter | migrationcenter/sources | 0 | project | migrationcenter:projects.locations.sources.list, migrationcenter:projects.locations.sources.list |
+| memcache | memcache/instances | 0 | project | memcache:projects.locations.instances.list |
+| metastore | metastore/federations | 0 | project | metastore:projects.locations.federations.list |
+| metastore | metastore/services | 0 | project | metastore:projects.locations.services.list |
+| metastore | metastore/services/backups | 1 | project | metastore:projects.locations.services.backups.list |
+| metastore | metastore/services/metadataimports | 1 | project | metastore:projects.locations.services.metadataImports.list |
+| metastore | metastore/services/migrationexecutions | 1 | project | metastore:projects.locations.services.migrationExecutions.list |
+| migrationcenter | migrationcenter/assets | 0 | project | migrationcenter:projects.locations.assets.list |
+| migrationcenter | migrationcenter/assetsexportjobs | 0 | project | migrationcenter:projects.locations.assetsExportJobs.list |
+| migrationcenter | migrationcenter/discoveryclients | 0 | project | migrationcenter:projects.locations.discoveryClients.list |
+| migrationcenter | migrationcenter/groups | 0 | project | migrationcenter:projects.locations.groups.list |
+| migrationcenter | migrationcenter/importjobs | 0 | project | migrationcenter:projects.locations.importJobs.list |
+| migrationcenter | migrationcenter/importjobs/importdatafiles | 1 | project | migrationcenter:projects.locations.importJobs.importDataFiles.list |
+| migrationcenter | migrationcenter/preferencesets | 0 | project | migrationcenter:projects.locations.preferenceSets.list |
+| migrationcenter | migrationcenter/reportconfigs | 0 | project | migrationcenter:projects.locations.reportConfigs.list |
+| migrationcenter | migrationcenter/reportconfigs/reports | 1 | project | migrationcenter:projects.locations.reportConfigs.reports.list |
+| migrationcenter | migrationcenter/sources | 0 | project | migrationcenter:projects.locations.sources.list |
 | ml | ml/jobs | 0 | project | ml:projects.jobs.list |
 | ml | ml/models | 0 | project | ml:projects.models.list |
 | ml | ml/models/versions | 1 | project | ml:projects.models.versions.list |
@@ -4518,20 +4518,20 @@ Pins: google.golang.org/api@v0.292.0
 | ml | ml/studies/trials | 1 | project | ml:projects.locations.studies.trials.list |
 | monitoring | monitoring/metricdescriptors | 0 | project | monitoring:projects.metricDescriptors.list |
 | monitoring | monitoring/timeseries | 0 | folder | monitoring:folders.timeSeries.list, monitoring:organizations.timeSeries.list, monitoring:projects.timeSeries.list |
-| netapp | netapp/activedirectories | 0 | project | netapp:projects.locations.activeDirectories.list, netapp:projects.locations.activeDirectories.list |
-| netapp | netapp/backuppolicies | 0 | project | netapp:projects.locations.backupPolicies.list, netapp:projects.locations.backupPolicies.list |
-| netapp | netapp/backupvaults | 0 | project | netapp:projects.locations.backupVaults.list, netapp:projects.locations.backupVaults.list |
-| netapp | netapp/backupvaults/backups | 1 | project | netapp:projects.locations.backupVaults.backups.list, netapp:projects.locations.backupVaults.backups.list |
-| netapp | netapp/hostgroups | 0 | project | netapp:projects.locations.hostGroups.list, netapp:projects.locations.hostGroups.list |
-| netapp | netapp/kmsconfigs | 0 | project | netapp:projects.locations.kmsConfigs.list, netapp:projects.locations.kmsConfigs.list |
-| netapp | netapp/storagepools | 0 | project | netapp:projects.locations.storagePools.list, netapp:projects.locations.storagePools.list |
-| netapp | netapp/volumes | 0 | project | netapp:projects.locations.volumes.list, netapp:projects.locations.volumes.list |
-| netapp | netapp/volumes/quotarules | 1 | project | netapp:projects.locations.volumes.quotaRules.list, netapp:projects.locations.volumes.quotaRules.list |
-| netapp | netapp/volumes/replications | 1 | project | netapp:projects.locations.volumes.replications.list, netapp:projects.locations.volumes.replications.list |
-| netapp | netapp/volumes/snapshots | 1 | project | netapp:projects.locations.volumes.snapshots.list, netapp:projects.locations.volumes.snapshots.list |
+| netapp | netapp/activedirectories | 0 | project | netapp:projects.locations.activeDirectories.list |
+| netapp | netapp/backuppolicies | 0 | project | netapp:projects.locations.backupPolicies.list |
+| netapp | netapp/backupvaults | 0 | project | netapp:projects.locations.backupVaults.list |
+| netapp | netapp/backupvaults/backups | 1 | project | netapp:projects.locations.backupVaults.backups.list |
+| netapp | netapp/hostgroups | 0 | project | netapp:projects.locations.hostGroups.list |
+| netapp | netapp/kmsconfigs | 0 | project | netapp:projects.locations.kmsConfigs.list |
+| netapp | netapp/storagepools | 0 | project | netapp:projects.locations.storagePools.list |
+| netapp | netapp/volumes | 0 | project | netapp:projects.locations.volumes.list |
+| netapp | netapp/volumes/quotarules | 1 | project | netapp:projects.locations.volumes.quotaRules.list |
+| netapp | netapp/volumes/replications | 1 | project | netapp:projects.locations.volumes.replications.list |
+| netapp | netapp/volumes/snapshots | 1 | project | netapp:projects.locations.volumes.snapshots.list |
 | networkconnectivity | networkconnectivity/automateddnsrecords | 0 | project | networkconnectivity:projects.locations.automatedDnsRecords.list |
-| networkconnectivity | networkconnectivity/hubs | 0 | project | networkconnectivity:projects.locations.global.hubs.list, networkconnectivity:projects.locations.global.hubs.list |
-| networkconnectivity | networkconnectivity/internalranges | 0 | project | networkconnectivity:projects.locations.internalRanges.list, networkconnectivity:projects.locations.internalRanges.list |
+| networkconnectivity | networkconnectivity/hubs | 0 | project | networkconnectivity:projects.locations.global.hubs.list |
+| networkconnectivity | networkconnectivity/internalranges | 0 | project | networkconnectivity:projects.locations.internalRanges.list |
 | networkconnectivity | networkconnectivity/multiclouddatatransferconfigs | 0 | project | networkconnectivity:projects.locations.multicloudDataTransferConfigs.list |
 | networkconnectivity | networkconnectivity/multiclouddatatransferconfigs/destinations | 1 | project | networkconnectivity:projects.locations.multicloudDataTransferConfigs.destinations.list |
 | networkconnectivity | networkconnectivity/policybasedroutes | 0 | project | networkconnectivity:projects.locations.global.policyBasedRoutes.list |
@@ -4541,59 +4541,59 @@ Pins: google.golang.org/api@v0.292.0
 | networkconnectivity | networkconnectivity/serviceconnectionmaps | 0 | project | networkconnectivity:projects.locations.serviceConnectionMaps.list |
 | networkconnectivity | networkconnectivity/serviceconnectionpolicies | 0 | project | networkconnectivity:projects.locations.serviceConnectionPolicies.list |
 | networkconnectivity | networkconnectivity/serviceconnectiontokens | 0 | project | networkconnectivity:projects.locations.serviceConnectionTokens.list |
-| networkconnectivity | networkconnectivity/spokes | 0 | project | networkconnectivity:projects.locations.spokes.list, networkconnectivity:projects.locations.spokes.list |
+| networkconnectivity | networkconnectivity/spokes | 0 | project | networkconnectivity:projects.locations.spokes.list |
 | networkconnectivity | networkconnectivity/spokes/gatewayadvertisedroutes | 1 | project | networkconnectivity:projects.locations.spokes.gatewayAdvertisedRoutes.list |
 | networkconnectivity | networkconnectivity/transports | 0 | project | networkconnectivity:projects.locations.transports.list |
-| networkmanagement | networkmanagement/connectivitytests | 0 | project | networkmanagement:projects.locations.global.connectivityTests.list, networkmanagement:projects.locations.global.connectivityTests.list |
+| networkmanagement | networkmanagement/connectivitytests | 0 | project | networkmanagement:projects.locations.global.connectivityTests.list |
 | networkmanagement | networkmanagement/networkmonitoringproviders | 0 | project | networkmanagement:projects.locations.networkMonitoringProviders.list |
-| networkmanagement | networkmanagement/vpcflowlogsconfigs | 0 | org | networkmanagement:organizations.locations.vpcFlowLogsConfigs.list, networkmanagement:organizations.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.list |
-| networksecurity | networksecurity/addressgroups | 0 | org | networksecurity:organizations.locations.addressGroups.list, networksecurity:organizations.locations.addressGroups.list, networksecurity:projects.locations.addressGroups.list, networksecurity:projects.locations.addressGroups.list |
-| networksecurity | networksecurity/authorizationpolicies | 0 | project | networksecurity:projects.locations.authorizationPolicies.list, networksecurity:projects.locations.authorizationPolicies.list |
-| networksecurity | networksecurity/authzpolicies | 0 | project | networksecurity:projects.locations.authzPolicies.list, networksecurity:projects.locations.authzPolicies.list |
-| networksecurity | networksecurity/backendauthenticationconfigs | 0 | project | networksecurity:projects.locations.backendAuthenticationConfigs.list, networksecurity:projects.locations.backendAuthenticationConfigs.list |
-| networksecurity | networksecurity/clienttlspolicies | 0 | project | networksecurity:projects.locations.clientTlsPolicies.list, networksecurity:projects.locations.clientTlsPolicies.list |
-| networksecurity | networksecurity/dnsthreatdetectors | 0 | project | networksecurity:projects.locations.dnsThreatDetectors.list, networksecurity:projects.locations.dnsThreatDetectors.list |
-| networksecurity | networksecurity/firewallendpointassociations | 0 | project | networksecurity:projects.locations.firewallEndpointAssociations.list, networksecurity:projects.locations.firewallEndpointAssociations.list |
-| networksecurity | networksecurity/firewallendpoints | 0 | org | networksecurity:organizations.locations.firewallEndpoints.list, networksecurity:organizations.locations.firewallEndpoints.list, networksecurity:projects.locations.firewallEndpoints.list, networksecurity:projects.locations.firewallEndpoints.list |
-| networksecurity | networksecurity/gatewaysecuritypolicies | 0 | project | networksecurity:projects.locations.gatewaySecurityPolicies.list, networksecurity:projects.locations.gatewaySecurityPolicies.list |
-| networksecurity | networksecurity/gatewaysecuritypolicies/rules | 1 | project | networksecurity:projects.locations.gatewaySecurityPolicies.rules.list, networksecurity:projects.locations.gatewaySecurityPolicies.rules.list |
-| networksecurity | networksecurity/interceptdeploymentgroups | 0 | project | networksecurity:projects.locations.interceptDeploymentGroups.list, networksecurity:projects.locations.interceptDeploymentGroups.list |
-| networksecurity | networksecurity/interceptdeployments | 0 | project | networksecurity:projects.locations.interceptDeployments.list, networksecurity:projects.locations.interceptDeployments.list |
-| networksecurity | networksecurity/interceptendpointgroupassociations | 0 | project | networksecurity:projects.locations.interceptEndpointGroupAssociations.list, networksecurity:projects.locations.interceptEndpointGroupAssociations.list |
-| networksecurity | networksecurity/interceptendpointgroups | 0 | project | networksecurity:projects.locations.interceptEndpointGroups.list, networksecurity:projects.locations.interceptEndpointGroups.list |
-| networksecurity | networksecurity/mirroringdeploymentgroups | 0 | project | networksecurity:projects.locations.mirroringDeploymentGroups.list, networksecurity:projects.locations.mirroringDeploymentGroups.list |
-| networksecurity | networksecurity/mirroringdeployments | 0 | project | networksecurity:projects.locations.mirroringDeployments.list, networksecurity:projects.locations.mirroringDeployments.list |
-| networksecurity | networksecurity/mirroringendpointgroupassociations | 0 | project | networksecurity:projects.locations.mirroringEndpointGroupAssociations.list, networksecurity:projects.locations.mirroringEndpointGroupAssociations.list |
-| networksecurity | networksecurity/mirroringendpointgroups | 0 | project | networksecurity:projects.locations.mirroringEndpointGroups.list, networksecurity:projects.locations.mirroringEndpointGroups.list |
-| networksecurity | networksecurity/sacattachments | 0 | project | networksecurity:projects.locations.sacAttachments.list, networksecurity:projects.locations.sacAttachments.list |
-| networksecurity | networksecurity/sacrealms | 0 | project | networksecurity:projects.locations.sacRealms.list, networksecurity:projects.locations.sacRealms.list |
-| networksecurity | networksecurity/securityprofilegroups | 0 | org | networksecurity:organizations.locations.securityProfileGroups.list, networksecurity:organizations.locations.securityProfileGroups.list, networksecurity:projects.locations.securityProfileGroups.list, networksecurity:projects.locations.securityProfileGroups.list |
-| networksecurity | networksecurity/securityprofiles | 0 | org | networksecurity:organizations.locations.securityProfiles.list, networksecurity:organizations.locations.securityProfiles.list, networksecurity:projects.locations.securityProfiles.list, networksecurity:projects.locations.securityProfiles.list |
-| networksecurity | networksecurity/servertlspolicies | 0 | project | networksecurity:projects.locations.serverTlsPolicies.list, networksecurity:projects.locations.serverTlsPolicies.list |
-| networksecurity | networksecurity/tlsinspectionpolicies | 0 | project | networksecurity:projects.locations.tlsInspectionPolicies.list, networksecurity:projects.locations.tlsInspectionPolicies.list |
-| networksecurity | networksecurity/urllists | 0 | project | networksecurity:projects.locations.urlLists.list, networksecurity:projects.locations.urlLists.list |
-| networkservices | networkservices/agentconnectivitytemplates | 0 | project | networkservices:projects.locations.agentConnectivityTemplates.list, networkservices:projects.locations.agentConnectivityTemplates.list |
-| networkservices | networkservices/agentgateways | 0 | project | networkservices:projects.locations.agentGateways.list, networkservices:projects.locations.agentGateways.list |
-| networkservices | networkservices/authzextensions | 0 | project | networkservices:projects.locations.authzExtensions.list, networkservices:projects.locations.authzExtensions.list |
-| networkservices | networkservices/endpointpolicies | 0 | project | networkservices:projects.locations.endpointPolicies.list, networkservices:projects.locations.endpointPolicies.list |
-| networkservices | networkservices/gateways | 0 | project | networkservices:projects.locations.gateways.list, networkservices:projects.locations.gateways.list |
-| networkservices | networkservices/grpcroutes | 0 | project | networkservices:projects.locations.grpcRoutes.list, networkservices:projects.locations.grpcRoutes.list |
-| networkservices | networkservices/httproutes | 0 | project | networkservices:projects.locations.httpRoutes.list, networkservices:projects.locations.httpRoutes.list |
-| networkservices | networkservices/lbedgeextensions | 0 | project | networkservices:projects.locations.lbEdgeExtensions.list, networkservices:projects.locations.lbEdgeExtensions.list |
-| networkservices | networkservices/lbrouteextensions | 0 | project | networkservices:projects.locations.lbRouteExtensions.list, networkservices:projects.locations.lbRouteExtensions.list |
-| networkservices | networkservices/lbtrafficextensions | 0 | project | networkservices:projects.locations.lbTrafficExtensions.list, networkservices:projects.locations.lbTrafficExtensions.list |
-| networkservices | networkservices/meshes | 0 | project | networkservices:projects.locations.meshes.list, networkservices:projects.locations.meshes.list |
+| networkmanagement | networkmanagement/vpcflowlogsconfigs | 0 | org | networkmanagement:organizations.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.list |
+| networksecurity | networksecurity/addressgroups | 0 | org | networksecurity:organizations.locations.addressGroups.list, networksecurity:projects.locations.addressGroups.list |
+| networksecurity | networksecurity/authorizationpolicies | 0 | project | networksecurity:projects.locations.authorizationPolicies.list |
+| networksecurity | networksecurity/authzpolicies | 0 | project | networksecurity:projects.locations.authzPolicies.list |
+| networksecurity | networksecurity/backendauthenticationconfigs | 0 | project | networksecurity:projects.locations.backendAuthenticationConfigs.list |
+| networksecurity | networksecurity/clienttlspolicies | 0 | project | networksecurity:projects.locations.clientTlsPolicies.list |
+| networksecurity | networksecurity/dnsthreatdetectors | 0 | project | networksecurity:projects.locations.dnsThreatDetectors.list |
+| networksecurity | networksecurity/firewallendpointassociations | 0 | project | networksecurity:projects.locations.firewallEndpointAssociations.list |
+| networksecurity | networksecurity/firewallendpoints | 0 | org | networksecurity:organizations.locations.firewallEndpoints.list, networksecurity:projects.locations.firewallEndpoints.list |
+| networksecurity | networksecurity/gatewaysecuritypolicies | 0 | project | networksecurity:projects.locations.gatewaySecurityPolicies.list |
+| networksecurity | networksecurity/gatewaysecuritypolicies/rules | 1 | project | networksecurity:projects.locations.gatewaySecurityPolicies.rules.list |
+| networksecurity | networksecurity/interceptdeploymentgroups | 0 | project | networksecurity:projects.locations.interceptDeploymentGroups.list |
+| networksecurity | networksecurity/interceptdeployments | 0 | project | networksecurity:projects.locations.interceptDeployments.list |
+| networksecurity | networksecurity/interceptendpointgroupassociations | 0 | project | networksecurity:projects.locations.interceptEndpointGroupAssociations.list |
+| networksecurity | networksecurity/interceptendpointgroups | 0 | project | networksecurity:projects.locations.interceptEndpointGroups.list |
+| networksecurity | networksecurity/mirroringdeploymentgroups | 0 | project | networksecurity:projects.locations.mirroringDeploymentGroups.list |
+| networksecurity | networksecurity/mirroringdeployments | 0 | project | networksecurity:projects.locations.mirroringDeployments.list |
+| networksecurity | networksecurity/mirroringendpointgroupassociations | 0 | project | networksecurity:projects.locations.mirroringEndpointGroupAssociations.list |
+| networksecurity | networksecurity/mirroringendpointgroups | 0 | project | networksecurity:projects.locations.mirroringEndpointGroups.list |
+| networksecurity | networksecurity/sacattachments | 0 | project | networksecurity:projects.locations.sacAttachments.list |
+| networksecurity | networksecurity/sacrealms | 0 | project | networksecurity:projects.locations.sacRealms.list |
+| networksecurity | networksecurity/securityprofilegroups | 0 | org | networksecurity:organizations.locations.securityProfileGroups.list, networksecurity:projects.locations.securityProfileGroups.list |
+| networksecurity | networksecurity/securityprofiles | 0 | org | networksecurity:organizations.locations.securityProfiles.list, networksecurity:projects.locations.securityProfiles.list |
+| networksecurity | networksecurity/servertlspolicies | 0 | project | networksecurity:projects.locations.serverTlsPolicies.list |
+| networksecurity | networksecurity/tlsinspectionpolicies | 0 | project | networksecurity:projects.locations.tlsInspectionPolicies.list |
+| networksecurity | networksecurity/urllists | 0 | project | networksecurity:projects.locations.urlLists.list |
+| networkservices | networkservices/agentconnectivitytemplates | 0 | project | networkservices:projects.locations.agentConnectivityTemplates.list |
+| networkservices | networkservices/agentgateways | 0 | project | networkservices:projects.locations.agentGateways.list |
+| networkservices | networkservices/authzextensions | 0 | project | networkservices:projects.locations.authzExtensions.list |
+| networkservices | networkservices/endpointpolicies | 0 | project | networkservices:projects.locations.endpointPolicies.list |
+| networkservices | networkservices/gateways | 0 | project | networkservices:projects.locations.gateways.list |
+| networkservices | networkservices/grpcroutes | 0 | project | networkservices:projects.locations.grpcRoutes.list |
+| networkservices | networkservices/httproutes | 0 | project | networkservices:projects.locations.httpRoutes.list |
+| networkservices | networkservices/lbedgeextensions | 0 | project | networkservices:projects.locations.lbEdgeExtensions.list |
+| networkservices | networkservices/lbrouteextensions | 0 | project | networkservices:projects.locations.lbRouteExtensions.list |
+| networkservices | networkservices/lbtrafficextensions | 0 | project | networkservices:projects.locations.lbTrafficExtensions.list |
+| networkservices | networkservices/meshes | 0 | project | networkservices:projects.locations.meshes.list |
 | networkservices | networkservices/multicastconsumerassociations | 0 | project | networkservices:projects.locations.multicastConsumerAssociations.list |
 | networkservices | networkservices/multicastgroupconsumeractivations | 0 | project | networkservices:projects.locations.multicastGroupConsumerActivations.list |
-| networkservices | networkservices/servicebindings | 0 | project | networkservices:projects.locations.serviceBindings.list, networkservices:projects.locations.serviceBindings.list |
-| networkservices | networkservices/servicelbpolicies | 0 | project | networkservices:projects.locations.serviceLbPolicies.list, networkservices:projects.locations.serviceLbPolicies.list |
-| networkservices | networkservices/tcproutes | 0 | project | networkservices:projects.locations.tcpRoutes.list, networkservices:projects.locations.tcpRoutes.list |
-| networkservices | networkservices/tlsroutes | 0 | project | networkservices:projects.locations.tlsRoutes.list, networkservices:projects.locations.tlsRoutes.list |
-| networkservices | networkservices/wasmplugins | 0 | project | networkservices:projects.locations.wasmPlugins.list, networkservices:projects.locations.wasmPlugins.list |
-| networkservices | networkservices/wasmplugins/versions | 1 | project | networkservices:projects.locations.wasmPlugins.versions.list, networkservices:projects.locations.wasmPlugins.versions.list |
+| networkservices | networkservices/servicebindings | 0 | project | networkservices:projects.locations.serviceBindings.list |
+| networkservices | networkservices/servicelbpolicies | 0 | project | networkservices:projects.locations.serviceLbPolicies.list |
+| networkservices | networkservices/tcproutes | 0 | project | networkservices:projects.locations.tcpRoutes.list |
+| networkservices | networkservices/tlsroutes | 0 | project | networkservices:projects.locations.tlsRoutes.list |
+| networkservices | networkservices/wasmplugins | 0 | project | networkservices:projects.locations.wasmPlugins.list |
+| networkservices | networkservices/wasmplugins/versions | 1 | project | networkservices:projects.locations.wasmPlugins.versions.list |
 | notebooks | notebooks/environments | 0 | project | notebooks:projects.locations.environments.list |
 | notebooks | notebooks/executions | 0 | project | notebooks:projects.locations.executions.list |
-| notebooks | notebooks/instances | 0 | project | notebooks:projects.locations.instances.list, notebooks:projects.locations.instances.list |
+| notebooks | notebooks/instances | 0 | project | notebooks:projects.locations.instances.list |
 | notebooks | notebooks/runtimes | 0 | project | notebooks:projects.locations.runtimes.list |
 | notebooks | notebooks/schedules | 0 | project | notebooks:projects.locations.schedules.list |
 | observability | observability/buckets/datasets/links | 2 | project | observability:projects.locations.buckets.datasets.links.list |
@@ -4611,15 +4611,15 @@ Pins: google.golang.org/api@v0.292.0
 | oracledatabase | oracledatabase/odbnetworks/odbsubnets | 1 | project | oracledatabase:projects.locations.odbNetworks.odbSubnets.list |
 | orgpolicy | orgpolicy/customconstraints | 0 | org | orgpolicy:organizations.customConstraints.list |
 | orgpolicy | orgpolicy/policies | 0 | folder | orgpolicy:folders.policies.list, orgpolicy:organizations.policies.list, orgpolicy:projects.policies.list |
-| osconfig | osconfig/ospolicyassignments | 0 | project | osconfig:projects.locations.osPolicyAssignments.list, osconfig:projects.locations.osPolicyAssignments.list |
-| osconfig | osconfig/patchdeployments | 0 | project | osconfig:projects.patchDeployments.list, osconfig:projects.patchDeployments.list |
-| osconfig | osconfig/policyorchestrators | 0 | folder | osconfig:folders.locations.global.policyOrchestrators.list, osconfig:folders.locations.global.policyOrchestrators.list, osconfig:organizations.locations.global.policyOrchestrators.list, osconfig:organizations.locations.global.policyOrchestrators.list, osconfig:projects.locations.global.policyOrchestrators.list, osconfig:projects.locations.global.policyOrchestrators.list |
-| parallelstore | parallelstore/instances | 0 | project | parallelstore:projects.locations.instances.list, parallelstore:projects.locations.instances.list |
+| osconfig | osconfig/ospolicyassignments | 0 | project | osconfig:projects.locations.osPolicyAssignments.list |
+| osconfig | osconfig/patchdeployments | 0 | project | osconfig:projects.patchDeployments.list |
+| osconfig | osconfig/policyorchestrators | 0 | folder | osconfig:folders.locations.global.policyOrchestrators.list, osconfig:organizations.locations.global.policyOrchestrators.list, osconfig:projects.locations.global.policyOrchestrators.list |
+| parallelstore | parallelstore/instances | 0 | project | parallelstore:projects.locations.instances.list |
 | parametermanager | parametermanager/parameters | 0 | project | parametermanager:projects.locations.parameters.list |
 | parametermanager | parametermanager/parameters/versions | 1 | project | parametermanager:projects.locations.parameters.versions.list |
 | parametermanager | parametermanager/templates | 0 | project | parametermanager:projects.locations.templates.list |
 | parametermanager | parametermanager/templates/versions | 1 | project | parametermanager:projects.locations.templates.versions.list |
-| policysimulator | policysimulator/orgpolicyviolationspreviews | 0 | org | policysimulator:organizations.locations.orgPolicyViolationsPreviews.list, policysimulator:organizations.locations.orgPolicyViolationsPreviews.list |
+| policysimulator | policysimulator/orgpolicyviolationspreviews | 0 | org | policysimulator:organizations.locations.orgPolicyViolationsPreviews.list |
 | privateca | privateca/capools | 0 | project | privateca:projects.locations.caPools.list |
 | privateca | privateca/capools/certificateauthorities | 1 | project | privateca:projects.locations.caPools.certificateAuthorities.list |
 | privateca | privateca/capools/certificates | 1 | project | privateca:projects.locations.caPools.certificates.list |
@@ -4627,24 +4627,24 @@ Pins: google.golang.org/api@v0.292.0
 | rapidmigrationassessment | rapidmigrationassessment/collectors | 0 | project | rapidmigrationassessment:projects.locations.collectors.list |
 | recaptchaenterprise | recaptchaenterprise/firewallpolicies | 0 | project | recaptchaenterprise:projects.firewallpolicies.list |
 | recaptchaenterprise | recaptchaenterprise/keys | 0 | project | recaptchaenterprise:projects.keys.list |
-| redis | redis/aclpolicies | 0 | project | redis:projects.locations.aclPolicies.list, redis:projects.locations.aclPolicies.list |
-| redis | redis/backupcollections/backups | 1 | project | redis:projects.locations.backupCollections.backups.list, redis:projects.locations.backupCollections.backups.list |
-| redis | redis/clusters | 0 | project | redis:projects.locations.clusters.list, redis:projects.locations.clusters.list |
-| redis | redis/clusters/tokenauthusers | 1 | project | redis:projects.locations.clusters.tokenAuthUsers.list, redis:projects.locations.clusters.tokenAuthUsers.list |
-| redis | redis/clusters/tokenauthusers/authtokens | 2 | project | redis:projects.locations.clusters.tokenAuthUsers.authTokens.list, redis:projects.locations.clusters.tokenAuthUsers.authTokens.list |
-| redis | redis/instances | 0 | project | redis:projects.locations.instances.list, redis:projects.locations.instances.list |
-| retail | retail/catalogs/branches/products | 2 | project | retail:projects.locations.catalogs.branches.products.list, retail:projects.locations.catalogs.branches.products.list, retail:projects.locations.catalogs.branches.products.list |
-| retail | retail/catalogs/controls | 1 | project | retail:projects.locations.catalogs.controls.list, retail:projects.locations.catalogs.controls.list, retail:projects.locations.catalogs.controls.list |
-| retail | retail/catalogs/models | 1 | project | retail:projects.locations.catalogs.models.list, retail:projects.locations.catalogs.models.list, retail:projects.locations.catalogs.models.list |
-| retail | retail/catalogs/servingconfigs | 1 | project | retail:projects.locations.catalogs.servingConfigs.list, retail:projects.locations.catalogs.servingConfigs.list, retail:projects.locations.catalogs.servingConfigs.list |
+| redis | redis/aclpolicies | 0 | project | redis:projects.locations.aclPolicies.list |
+| redis | redis/backupcollections/backups | 1 | project | redis:projects.locations.backupCollections.backups.list |
+| redis | redis/clusters | 0 | project | redis:projects.locations.clusters.list |
+| redis | redis/clusters/tokenauthusers | 1 | project | redis:projects.locations.clusters.tokenAuthUsers.list |
+| redis | redis/clusters/tokenauthusers/authtokens | 2 | project | redis:projects.locations.clusters.tokenAuthUsers.authTokens.list |
+| redis | redis/instances | 0 | project | redis:projects.locations.instances.list |
+| retail | retail/catalogs/branches/products | 2 | project | retail:projects.locations.catalogs.branches.products.list |
+| retail | retail/catalogs/controls | 1 | project | retail:projects.locations.catalogs.controls.list |
+| retail | retail/catalogs/models | 1 | project | retail:projects.locations.catalogs.models.list |
+| retail | retail/catalogs/servingconfigs | 1 | project | retail:projects.locations.catalogs.servingConfigs.list |
 | run | run/workerpools/revisions | 1 | project | run:projects.locations.workerPools.revisions.list |
-| saasservicemgmt | saasservicemgmt/releases | 0 | project | saasservicemgmt:projects.locations.releases.list, saasservicemgmt:projects.locations.releases.list |
-| saasservicemgmt | saasservicemgmt/rolloutkinds | 0 | project | saasservicemgmt:projects.locations.rolloutKinds.list, saasservicemgmt:projects.locations.rolloutKinds.list |
-| saasservicemgmt | saasservicemgmt/rollouts | 0 | project | saasservicemgmt:projects.locations.rollouts.list, saasservicemgmt:projects.locations.rollouts.list |
-| saasservicemgmt | saasservicemgmt/saas | 0 | project | saasservicemgmt:projects.locations.saas.list, saasservicemgmt:projects.locations.saas.list |
-| saasservicemgmt | saasservicemgmt/tenants | 0 | project | saasservicemgmt:projects.locations.tenants.list, saasservicemgmt:projects.locations.tenants.list |
-| saasservicemgmt | saasservicemgmt/unitkinds | 0 | project | saasservicemgmt:projects.locations.unitKinds.list, saasservicemgmt:projects.locations.unitKinds.list |
-| saasservicemgmt | saasservicemgmt/units | 0 | project | saasservicemgmt:projects.locations.units.list, saasservicemgmt:projects.locations.units.list |
+| saasservicemgmt | saasservicemgmt/releases | 0 | project | saasservicemgmt:projects.locations.releases.list |
+| saasservicemgmt | saasservicemgmt/rolloutkinds | 0 | project | saasservicemgmt:projects.locations.rolloutKinds.list |
+| saasservicemgmt | saasservicemgmt/rollouts | 0 | project | saasservicemgmt:projects.locations.rollouts.list |
+| saasservicemgmt | saasservicemgmt/saas | 0 | project | saasservicemgmt:projects.locations.saas.list |
+| saasservicemgmt | saasservicemgmt/tenants | 0 | project | saasservicemgmt:projects.locations.tenants.list |
+| saasservicemgmt | saasservicemgmt/unitkinds | 0 | project | saasservicemgmt:projects.locations.unitKinds.list |
+| saasservicemgmt | saasservicemgmt/units | 0 | project | saasservicemgmt:projects.locations.units.list |
 | script | script/deployments | 0 | project | script:projects.deployments.list |
 | script | script/versions | 0 | project | script:projects.versions.list |
 | securesourcemanager | securesourcemanager/instances | 0 | project | securesourcemanager:projects.locations.instances.list |
@@ -4658,49 +4658,49 @@ Pins: google.golang.org/api@v0.292.0
 | securitycenter | securitycenter/bigqueryexports | 0 | folder | securitycenter:folders.bigQueryExports.list, securitycenter:organizations.bigQueryExports.list, securitycenter:projects.bigQueryExports.list |
 | securitycenter | securitycenter/eventthreatdetectionsettings/custommodules | 0 | folder | securitycenter:folders.eventThreatDetectionSettings.customModules.list, securitycenter:organizations.eventThreatDetectionSettings.customModules.list, securitycenter:projects.eventThreatDetectionSettings.customModules.list |
 | securitycenter | securitycenter/muteconfigs | 0 | folder | securitycenter:folders.muteConfigs.list, securitycenter:organizations.muteConfigs.list, securitycenter:projects.muteConfigs.list |
-| securitycenter | securitycenter/notificationconfigs | 0 | folder | securitycenter:folders.notificationConfigs.list, securitycenter:organizations.notificationConfigs.list, securitycenter:organizations.notificationConfigs.list, securitycenter:projects.notificationConfigs.list |
+| securitycenter | securitycenter/notificationconfigs | 0 | folder | securitycenter:folders.notificationConfigs.list, securitycenter:organizations.notificationConfigs.list, securitycenter:projects.notificationConfigs.list |
 | securitycenter | securitycenter/resourcevalueconfigs | 0 | org | securitycenter:organizations.resourceValueConfigs.list |
 | securitycenter | securitycenter/securityhealthanalyticssettings/custommodules | 0 | folder | securitycenter:folders.securityHealthAnalyticsSettings.customModules.list, securitycenter:organizations.securityHealthAnalyticsSettings.customModules.list, securitycenter:projects.securityHealthAnalyticsSettings.customModules.list |
-| securitycenter | securitycenter/sources | 0 | folder | securitycenter:folders.sources.list, securitycenter:organizations.sources.list, securitycenter:organizations.sources.list, securitycenter:organizations.sources.list, securitycenter:projects.sources.list |
-| securitycenter | securitycenter/sources/findings | 1 | folder | securitycenter:folders.sources.findings.list, securitycenter:organizations.sources.findings.list, securitycenter:organizations.sources.findings.list, securitycenter:organizations.sources.findings.list, securitycenter:projects.sources.findings.list |
+| securitycenter | securitycenter/sources | 0 | folder | securitycenter:folders.sources.list, securitycenter:organizations.sources.list, securitycenter:projects.sources.list |
+| securitycenter | securitycenter/sources/findings | 1 | folder | securitycenter:folders.sources.findings.list, securitycenter:organizations.sources.findings.list, securitycenter:projects.sources.findings.list |
 | securityposture | securityposture/posturedeployments | 0 | org | securityposture:organizations.locations.postureDeployments.list |
 | securityposture | securityposture/postures | 0 | org | securityposture:organizations.locations.postures.list |
-| servicedirectory | servicedirectory/namespaces | 0 | project | servicedirectory:projects.locations.namespaces.list, servicedirectory:projects.locations.namespaces.list |
-| servicedirectory | servicedirectory/namespaces/services | 1 | project | servicedirectory:projects.locations.namespaces.services.list, servicedirectory:projects.locations.namespaces.services.list |
-| servicedirectory | servicedirectory/namespaces/services/endpoints | 2 | project | servicedirectory:projects.locations.namespaces.services.endpoints.list, servicedirectory:projects.locations.namespaces.services.endpoints.list |
+| servicedirectory | servicedirectory/namespaces | 0 | project | servicedirectory:projects.locations.namespaces.list |
+| servicedirectory | servicedirectory/namespaces/services | 1 | project | servicedirectory:projects.locations.namespaces.services.list |
+| servicedirectory | servicedirectory/namespaces/services/endpoints | 2 | project | servicedirectory:projects.locations.namespaces.services.endpoints.list |
 | sourcerepo | sourcerepo/repos | 0 | project | sourcerepo:projects.repos.list |
 | spanner | spanner/instances/databases/sessions | 2 | project | spanner:projects.instances.databases.sessions.list |
-| speech | speech/customclasses | 0 | project | speech:projects.locations.customClasses.list, speech:projects.locations.customClasses.list |
-| speech | speech/phrasesets | 0 | project | speech:projects.locations.phraseSets.list, speech:projects.locations.phraseSets.list |
+| speech | speech/customclasses | 0 | project | speech:projects.locations.customClasses.list |
+| speech | speech/phrasesets | 0 | project | speech:projects.locations.phraseSets.list |
 | storage | storage/objectaccesscontrols | 2 | global | storage:objectAccessControls.list |
 | storage | storage/objects | 1 | global | storage:objects.list |
 | storagebatchoperations | storagebatchoperations/jobs | 0 | project | storagebatchoperations:projects.locations.jobs.list |
 | storagetransfer | storagetransfer/agentpools | 0 | project | storagetransfer:projects.agentPools.list |
 | storagetransfer | storagetransfer/transferjobs | 0 | global | storagetransfer:transferJobs.list |
 | testing | testing/devicesessions | 0 | project | testing:projects.deviceSessions.list |
-| tpu | tpu/nodes | 0 | project | tpu:projects.locations.nodes.list, tpu:projects.locations.nodes.list, tpu:projects.locations.nodes.list, tpu:projects.locations.nodes.list |
-| tpu | tpu/queuedresources | 0 | project | tpu:projects.locations.queuedResources.list, tpu:projects.locations.queuedResources.list |
-| transcoder | transcoder/jobs | 0 | project | transcoder:projects.locations.jobs.list, transcoder:projects.locations.jobs.list |
-| transcoder | transcoder/jobtemplates | 0 | project | transcoder:projects.locations.jobTemplates.list, transcoder:projects.locations.jobTemplates.list |
+| tpu | tpu/nodes | 0 | project | tpu:projects.locations.nodes.list |
+| tpu | tpu/queuedresources | 0 | project | tpu:projects.locations.queuedResources.list |
+| transcoder | transcoder/jobs | 0 | project | transcoder:projects.locations.jobs.list |
+| transcoder | transcoder/jobtemplates | 0 | project | transcoder:projects.locations.jobTemplates.list |
 | translate | translate/adaptivemtdatasets | 0 | project | translate:projects.locations.adaptiveMtDatasets.list |
 | translate | translate/adaptivemtdatasets/adaptivemtfiles | 1 | project | translate:projects.locations.adaptiveMtDatasets.adaptiveMtFiles.list |
 | translate | translate/datasets | 0 | project | translate:projects.locations.datasets.list |
-| translate | translate/glossaries | 0 | project | translate:projects.locations.glossaries.list, translate:projects.locations.glossaries.list |
+| translate | translate/glossaries | 0 | project | translate:projects.locations.glossaries.list |
 | translate | translate/glossaries/glossaryentries | 1 | project | translate:projects.locations.glossaries.glossaryEntries.list |
 | translate | translate/models | 0 | project | translate:projects.locations.models.list |
 | vision | vision/products | 0 | project | vision:projects.locations.products.list |
 | vision | vision/products/referenceimages | 1 | project | vision:projects.locations.products.referenceImages.list |
 | vision | vision/productsets | 0 | project | vision:projects.locations.productSets.list |
-| vmmigration | vmmigration/groups | 0 | project | vmmigration:projects.locations.groups.list, vmmigration:projects.locations.groups.list |
-| vmmigration | vmmigration/imageimports | 0 | project | vmmigration:projects.locations.imageImports.list, vmmigration:projects.locations.imageImports.list |
-| vmmigration | vmmigration/sources | 0 | project | vmmigration:projects.locations.sources.list, vmmigration:projects.locations.sources.list |
-| vmmigration | vmmigration/sources/datacenterconnectors | 1 | project | vmmigration:projects.locations.sources.datacenterConnectors.list, vmmigration:projects.locations.sources.datacenterConnectors.list |
-| vmmigration | vmmigration/sources/diskmigrationjobs | 1 | project | vmmigration:projects.locations.sources.diskMigrationJobs.list, vmmigration:projects.locations.sources.diskMigrationJobs.list |
-| vmmigration | vmmigration/sources/migratingvms | 1 | project | vmmigration:projects.locations.sources.migratingVms.list, vmmigration:projects.locations.sources.migratingVms.list |
-| vmmigration | vmmigration/sources/migratingvms/clonejobs | 2 | project | vmmigration:projects.locations.sources.migratingVms.cloneJobs.list, vmmigration:projects.locations.sources.migratingVms.cloneJobs.list |
-| vmmigration | vmmigration/sources/migratingvms/cutoverjobs | 2 | project | vmmigration:projects.locations.sources.migratingVms.cutoverJobs.list, vmmigration:projects.locations.sources.migratingVms.cutoverJobs.list |
-| vmmigration | vmmigration/sources/utilizationreports | 1 | project | vmmigration:projects.locations.sources.utilizationReports.list, vmmigration:projects.locations.sources.utilizationReports.list |
-| vmmigration | vmmigration/targetprojects | 0 | project | vmmigration:projects.locations.targetProjects.list, vmmigration:projects.locations.targetProjects.list |
+| vmmigration | vmmigration/groups | 0 | project | vmmigration:projects.locations.groups.list |
+| vmmigration | vmmigration/imageimports | 0 | project | vmmigration:projects.locations.imageImports.list |
+| vmmigration | vmmigration/sources | 0 | project | vmmigration:projects.locations.sources.list |
+| vmmigration | vmmigration/sources/datacenterconnectors | 1 | project | vmmigration:projects.locations.sources.datacenterConnectors.list |
+| vmmigration | vmmigration/sources/diskmigrationjobs | 1 | project | vmmigration:projects.locations.sources.diskMigrationJobs.list |
+| vmmigration | vmmigration/sources/migratingvms | 1 | project | vmmigration:projects.locations.sources.migratingVms.list |
+| vmmigration | vmmigration/sources/migratingvms/clonejobs | 2 | project | vmmigration:projects.locations.sources.migratingVms.cloneJobs.list |
+| vmmigration | vmmigration/sources/migratingvms/cutoverjobs | 2 | project | vmmigration:projects.locations.sources.migratingVms.cutoverJobs.list |
+| vmmigration | vmmigration/sources/utilizationreports | 1 | project | vmmigration:projects.locations.sources.utilizationReports.list |
+| vmmigration | vmmigration/targetprojects | 0 | project | vmmigration:projects.locations.targetProjects.list |
 | vmwareengine | vmwareengine/datastores | 0 | project | vmwareengine:projects.locations.datastores.list |
 | vmwareengine | vmwareengine/networkpeerings | 0 | project | vmwareengine:projects.locations.networkPeerings.list |
 | vmwareengine | vmwareengine/networkpolicies | 0 | project | vmwareengine:projects.locations.networkPolicies.list |
@@ -4713,17 +4713,17 @@ Pins: google.golang.org/api@v0.292.0
 | vmwareengine | vmwareengine/privateclouds/managementdnszonebindings | 1 | project | vmwareengine:projects.locations.privateClouds.managementDnsZoneBindings.list |
 | vmwareengine | vmwareengine/privateconnections | 0 | project | vmwareengine:projects.locations.privateConnections.list |
 | vmwareengine | vmwareengine/vmwareenginenetworks | 0 | project | vmwareengine:projects.locations.vmwareEngineNetworks.list |
-| vpcaccess | vpcaccess/connectors | 0 | project | vpcaccess:projects.locations.connectors.list, vpcaccess:projects.locations.connectors.list |
+| vpcaccess | vpcaccess/connectors | 0 | project | vpcaccess:projects.locations.connectors.list |
 | webcontentpublisher | webcontentpublisher/publications | 0 | org | webcontentpublisher:organizations.publications.list |
 | webcontentpublisher | webcontentpublisher/publications/ctas | 1 | org | webcontentpublisher:organizations.publications.ctas.list |
-| websecurityscanner | websecurityscanner/scanconfigs | 0 | project | websecurityscanner:projects.scanConfigs.list, websecurityscanner:projects.scanConfigs.list, websecurityscanner:projects.scanConfigs.list |
-| workflowexecutions | workflowexecutions/workflows/executions | 1 | project | workflowexecutions:projects.locations.workflows.executions.list, workflowexecutions:projects.locations.workflows.executions.list |
-| workflows | workflows/workflows | 0 | project | workflows:projects.locations.workflows.list, workflows:projects.locations.workflows.list |
+| websecurityscanner | websecurityscanner/scanconfigs | 0 | project | websecurityscanner:projects.scanConfigs.list |
+| workflowexecutions | workflowexecutions/workflows/executions | 1 | project | workflowexecutions:projects.locations.workflows.executions.list |
+| workflows | workflows/workflows | 0 | project | workflows:projects.locations.workflows.list |
 | workloadmanager | workloadmanager/deployments | 0 | project | workloadmanager:projects.locations.deployments.list |
 | workloadmanager | workloadmanager/deployments/actuations | 1 | project | workloadmanager:projects.locations.deployments.actuations.list |
 | workloadmanager | workloadmanager/evaluations | 0 | project | workloadmanager:projects.locations.evaluations.list |
 | workloadmanager | workloadmanager/evaluations/executions | 1 | project | workloadmanager:projects.locations.evaluations.executions.list |
-| workstations | workstations/workstationclusters | 0 | project | workstations:projects.locations.workstationClusters.list, workstations:projects.locations.workstationClusters.list |
-| workstations | workstations/workstationclusters/workstationconfigs | 1 | project | workstations:projects.locations.workstationClusters.workstationConfigs.list, workstations:projects.locations.workstationClusters.workstationConfigs.list |
-| workstations | workstations/workstationclusters/workstationconfigs/workstations | 2 | project | workstations:projects.locations.workstationClusters.workstationConfigs.workstations.list, workstations:projects.locations.workstationClusters.workstationConfigs.workstations.list |
+| workstations | workstations/workstationclusters | 0 | project | workstations:projects.locations.workstationClusters.list |
+| workstations | workstations/workstationclusters/workstationconfigs | 1 | project | workstations:projects.locations.workstationClusters.workstationConfigs.list |
+| workstations | workstations/workstationclusters/workstationconfigs/workstations | 2 | project | workstations:projects.locations.workstationClusters.workstationConfigs.workstations.list |
 

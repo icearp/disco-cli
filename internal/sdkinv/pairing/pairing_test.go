@@ -89,8 +89,10 @@ func expectDiag(t *testing.T, res *Result, kind, file string, line int) {
 
 func TestWalkAWS(t *testing.T) {
 	res, unpaired := walkFixture(t, "aws")
-	// Own anchor; types reach through the callee.
-	expectPairing(t, res, "widgets/widget", "scanWidgets", "emits", TypeAWSWidget, TypeAWSGrant)
+	// Own anchor. scanGrants is called with nothing but scanWidgets' own
+	// parameters, so it cannot be storing rows this listing returned and its
+	// type is not credited here — it has its own pairing below.
+	expectPairing(t, res, "widgets/widget", "scanWidgets", "emits", TypeAWSWidget)
 	expectPairing(t, res, "widgets/grant", "scanGrants", "emits", TypeAWSGrant)
 	// A helper that only lists pairs with what its caller stores.
 	expectPairing(t, res, "widgets/gadget", "listGadgets", "sidecar")
@@ -110,6 +112,12 @@ func TestWalkAWS(t *testing.T) {
 	// A package-level op/type table pairs with every op the ranging scanner calls.
 	expectPairing(t, res, "widgets/gizmo", "scanTable", "emits", TypeAWSTableGizmo, TypeAWSTableZone)
 	expectPairing(t, res, "widgets/zone", "scanTable", "emits", TypeAWSTableGizmo, TypeAWSTableZone)
+
+	// A resolver names types in a filter and in a switch, and writes only
+	// edges: the anchor stands, the types do not.
+	expectPairing(t, res, "widgets/alias", "resolveAliasLinks", "sidecar")
+	// The store four plain hops below the anchor still pairs.
+	expectPairing(t, res, "widgets/zone", "scanDeep", "emits", TypeAWSDeep)
 
 	if got := diagKinds(res); len(got) != 2 || got["label-no-op"] != 1 || got["label-no-anchor"] != 1 {
 		t.Errorf("diagnostics = %v", res.Diagnostics)
@@ -142,6 +150,7 @@ const (
 	TypeAWSTableGizmo = "aws:widgets:table-gizmo"
 	TypeAWSTableZone  = "aws:widgets:table-zone"
 	TypeAWSMasked     = "aws:widgets:masked"
+	TypeAWSDeep       = "aws:widgets:deep"
 )
 
 func TestWalkAzure(t *testing.T) {
@@ -164,6 +173,8 @@ func TestWalkAzure(t *testing.T) {
 	expectDiag(t, res, "sdk-skew", "widgets_scanners.go", 93)
 	expectDiag(t, res, "unresolved-receiver", "widgets_scanners.go", 104)
 	expectDiag(t, res, "sdk-module-absent", "gone_scanners.go", 12)
+	// A label off the strict grammar but recognisably one: a typo, not silence.
+	expectDiag(t, res, "label-malformed", "widgets_scanners.go", 119)
 	if len(unpaired) != 2 || unpaired["azure:microsoft.entra:user"] != "non-sdk" || unpaired["azure:microsoft.widgets:stale"] != "sdk-skew:WidgetsClient.ListGone" {
 		t.Errorf("unpaired = %v", unpaired)
 	}

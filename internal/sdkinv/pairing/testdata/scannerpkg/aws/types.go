@@ -16,4 +16,5 @@ const (
 	TypeAlias      = "aws:widgets:alias"
 	TypeGizmo      = "aws:widgets:gizmo"
 	TypeMasked     = "aws:widgets:masked"
+	TypeDeep       = "aws:widgets:deep"
 )

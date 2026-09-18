@@ -23,11 +23,18 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
 
 - `covered` — resource candidate with an `emits`/`sidecar`/`derived` pairing to one of its ops,
   or (reason `matched-by-name`) an emitted type whose `sdkinv.Ident` equals the candidate's.
+  A name match yields when the pairing ran and reported that type `unexplained`: it set
+  `accounted[t]`, suppressing the disco-only row and with it `Summary.Unexplained` — the only
+  number `--check-strict` exits on. `other-op` and `sdk-skew` explanations still name-match.
   A `sidecar` pairing with no types is still covered (reason `sidecar`): the scanner lists it.
   `label` pairings prove nothing (no SDK call) and never cover.
 - `uncovered` — resource candidate no scanner lists. The only actionable gap.
 - `attribute` — `ClassAttribute` (Get + id, no collection). Not in `%`.
 - `excluded` — catalog / non-resource / `preview-only`; reason carries the rule. Not in `%`.
+  An excluded row a scanner provably lists keeps its `discoType` and gains the `scanner-lists`
+  signal; `--filter scanner-lists` is that worklist, and the markdown Excluded section prints the
+  type. The class rule still wins the bucket — re-bucketing these before the rules are fixed
+  would move AWS 50.34% → 51.08% — but discarding the evidence hid 93 classifier bugs.
 - `disco-only` — emitted type no candidate accounts for. Reason `explained: <unpaired reason>`
   (`non-sdk`, `other-op:<label>`, `sdk-skew:<op>`), `pairing-unavailable`, or `unexplained`
   (the only one `--check-strict` fails on).
@@ -42,6 +49,8 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
   **only** when it matches the candidate's ident or shares its leaf: the five `aws:docdb:*` orphans
   do share `rds/dbinstance`'s leaf and were starved of its 44 refs, while a dispatcher's derived
   pairing spans a whole service and must not hand every network type the app gateway's 280 fields.
+- `Row.Ops` folds repeated labels (sibling AWS models, per-version GCP documents): 930 rows
+  rendered a duplicated ops cell. `Ops` is never read back, so the fold is presentation only.
 - Unit of coverage is the candidate: one op → N types counts once; N ops → one type marks every
   candidate covered. `Row.DiscoType` is the type to display — identity match, else shared leaf —
   and `Row.DiscoTypes` the whole set when more than one is paired. With several paired and neither

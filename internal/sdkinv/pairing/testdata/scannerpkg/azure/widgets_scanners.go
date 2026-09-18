@@ -111,3 +111,10 @@ func scanUnbound(ctx context.Context, client any, st *store.Store) error {
 }
 
 func skipIfAccessDenied(st *store.Store, op string, err error) error { return err }
+
+// scanNearMiss labels its call with the module and one bare segment, missing
+// the Client. every other Azure label carries: off the strict grammar, and
+// therefore invisible until the loose shape detector saw it.
+func scanNearMiss(st *store.Store, err error) error {
+	return skipIfAccessDenied(st, "armwidgets:List", err)
+}

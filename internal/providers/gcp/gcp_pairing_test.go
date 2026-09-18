@@ -31,7 +31,7 @@ func pairScanners(t *testing.T) (*pairing.Result, map[string]string) {
 // snapshot no longer has — is logged, not fatal: it moves with the pin.
 func TestScannerOpLabelsResolve(t *testing.T) {
 	res, _ := pairScanners(t)
-	fatal := map[string]bool{"label-no-op": true, "label-no-anchor": true, "unresolved-receiver": true}
+	fatal := map[string]bool{"label-no-op": true, "label-no-anchor": true, "label-malformed": true, "unresolved-receiver": true}
 	skew := 0
 	for _, d := range res.Diagnostics {
 		if fatal[d.Kind] {
@@ -47,10 +47,10 @@ func TestScannerOpLabelsResolve(t *testing.T) {
 // with an SDK call in reach, or is explained — no SDK module in its file,
 // rows built from a non-listing op, or SDK skew.
 func TestEveryEmittedTypePaired(t *testing.T) {
-	_, unpaired := pairScanners(t)
+	res, unpaired := pairScanners(t)
 	for typ, reason := range unpaired {
 		if reason == "unexplained" {
-			t.Errorf("%s: no SDK call pairs with it", typ)
+			t.Errorf("%s: no SDK call pairs with it (stored by %v)", typ, res.StoredBy[typ])
 		}
 	}
 	t.Logf("%d types explained without a candidate op", len(unpaired))

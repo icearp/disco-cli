@@ -404,3 +404,67 @@ func TestTypeRefs_FoldsLeafMatchingSecondaryTypes(t *testing.T) {
 		t.Errorf("foreign type inherited refs %v", got)
 	}
 }
+
+// TestBuildInventory_NameMatchYieldsToUnexplained: the name match set
+// accounted[t], which suppressed the type's disco-only row and therefore
+// Summary.Unexplained — the only number --check-strict exits on. A scanner
+// that loses its listing call while keeping its Type constant stayed covered
+// and kept both gates green.
+func TestBuildInventory_NameMatchYieldsToUnexplained(t *testing.T) {
+	in := testInputs()
+	in.Unpaired["aws:s3:bucket"] = ReasonUnexplained
+	m := BuildInventory(in)
+	if r, _ := rowByKey(m, "s3/bucket", ""); r.Bucket != BucketUncovered || r.DiscoType != "" {
+		t.Errorf("s3/bucket = %s %q, want uncovered with no type", r.Bucket, r.DiscoType)
+	}
+	if m.Summary.Unexplained != 2 { // aws:foo:bar was already unexplained
+		t.Errorf("unexplained = %d, want 2", m.Summary.Unexplained)
+	}
+	// An other-op or skew explanation still name-matches.
+	in.Unpaired["aws:s3:bucket"] = "other-op:s3:HeadBucket"
+	if r, _ := rowByKey(BuildInventory(in), "s3/bucket", ""); r.Reason != ReasonMatchedByName {
+		t.Errorf("explained type = %q, want matched-by-name", r.Reason)
+	}
+}
+
+// TestBuildInventory_ExcludedKeepsScannerEvidence: the class rule wins the
+// bucket, but discarding the pairing hid 93 rows a scanner provably lists —
+// the worklist for fixing the class rules.
+func TestBuildInventory_ExcludedKeepsScannerEvidence(t *testing.T) {
+	in := testInputs()
+	in.Emits = append(in.Emits, TypeDecl{Service: "ec2", DiscoType: "aws:ec2:instance-type"})
+	in.Pairings = append(in.Pairings, pairing.Pairing{
+		Key: "ec2/instancetype", Kind: "emits", Types: []string{"aws:ec2:instance-type"},
+	})
+	m := BuildInventory(in)
+	r, ok := rowByKey(m, "ec2/instancetype", "")
+	if !ok {
+		t.Fatal("no ec2/instancetype row")
+	}
+	if r.Bucket != BucketExcluded || r.Reason != "catalog" || r.DiscoType != "aws:ec2:instance-type" {
+		t.Errorf("row = %+v", r)
+	}
+	if !slices.Contains(r.Signals, SignalScannerLists) {
+		t.Errorf("signals = %v, want %s", r.Signals, SignalScannerLists)
+	}
+	if got := Filter(m.Rows, FilterScannerLists, nil); len(got) != 1 || got[0].Key != "ec2/instancetype" {
+		t.Errorf("scanner-lists filter = %v", got)
+	}
+}
+
+// TestBuildInventory_OpsDedupe: sibling models and per-version GCP documents
+// repeat a label, and 930 rows rendered a duplicated ops cell.
+func TestBuildInventory_OpsDedupe(t *testing.T) {
+	in := testInputs()
+	for i := range in.Universe.Candidates {
+		if in.Universe.Candidates[i].Key == "kms/key" {
+			in.Universe.Candidates[i].Ops = []sdkinv.Operation{
+				{Label: "kms:ListKeys"}, {Label: "kms:ListKeys"}, {Label: "kms:DescribeKey"},
+			}
+		}
+	}
+	r, _ := rowByKey(BuildInventory(in), "kms/key", "")
+	if !slices.Equal(r.Ops, []string{"kms:ListKeys", "kms:DescribeKey"}) {
+		t.Errorf("ops = %v", r.Ops)
+	}
+}

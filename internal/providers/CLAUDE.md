@@ -102,6 +102,16 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 Every file that upserts a disco type declares it with `registerType(restype.Descriptor{Type, Service, …})` from its `init()`; `CollectEmits()` turns the descriptors into the provider's `[]coverage.TypeDecl`. `disco coverage services` pairs these with the SDK calls the scanner makes (`internal/sdkinv/pairing`); there is no alias map, no upstream key and no skip list — a type is covered because its scanner calls the SDK op that lists it. `KnownTypes()` no longer exists.
 
+A scanner is paired with a type only when it **stores** it: the pairing walker credits a
+`Type*` identifier to a function's SDK call only if that function, or something it reaches,
+builds a `store.Resource` or calls `UpsertResource(s)`/`InsertResourcesIfAbsent`. Naming a type
+in a `store.ResourceFilter`, a `case` clause or a comparison — what a resolver does — is not
+storing it, and such a function's op pairs as `sidecar` (still covered, no type credited). The
+walker also only follows a call that is handed something the caller produced, so a helper
+invoked with nothing but the caller's own `(ctx, st, scanID)` is not credited with this
+listing's rows. Op-label literals must match the provider's grammar exactly —
+`arm<module>:<Client>.<Op>` on Azure — or the pairing test fails with `label-malformed`.
+
 `registerType` / `registerService` (and the org/tenant variants) also record their caller's file
 through `restype.Origin` (`runtime.Caller(2)`, so call them only from a scanner file's `init()`,
 never through a wrapper): `coverage verify` joins a scan-record error under a scanner service

@@ -192,12 +192,35 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 - `pairing.Scan(ctx, cache, provider, dir)` = extract from the cache + `Walk` + `Unpaired`;
   wraps `sdkinv.ErrNotFetched` so `internal/providers/<p>/<p>_pairing_test.go` skips without
   the cache. Those two tests (`TestScannerOpLabelsResolve`, `TestEveryEmittedTypePaired`) are the
-  gate: label-no-op / label-no-anchor / unresolved-receiver fail; sdk-skew is logged.
+  gate: label-no-op / label-no-anchor / label-malformed / unresolved-receiver fail; sdk-skew is
+  logged. `TestEveryEmittedTypePaired` prints `Result.StoredBy[type]` with the failure, which is
+  the only thing that names which scanner the walker could not reach.
 - go/parser with `SkipObjectResolution`, non-test files only, stdlib only. Anchors (SDK call
   shapes, per `Resolver.Anchors`) are authoritative; op labels in string literals are a
   cross-check. `Type*` constants with a `<provider>:` value are the types (other string consts
   such as `quotaServiceName = "gcp:cloudquotas"` are ignored by name).
-- Reach: a function's types are its own plus its callees' to depth 3; a method call on a local
+- **Naming a type is not storing it.** A function's `Type*` identifiers count only when the
+  function, or something it reaches, builds a `store.Resource` or calls `UpsertResource(s)` /
+  `InsertResourcesIfAbsent`. The signal travels down through callees and then **up** the caller
+  chain to a fixpoint (`markStoring`): the store is usually one hop down (a batch handed to
+  `upsertWithProjClosure`), and a phase table such as `wafPhases` names the type and the op while
+  its storing driver sits one hop up and never sees the constant. Relationship and hierarchy
+  writes are deliberately not the signal — a resolver names its source types in a
+  `store.ResourceFilter` and writes edges alone, and counting those made
+  `microsoft.insights/diagnosticsettings` claim 30 foreign types. Without a store in reach the
+  anchor still stands, so the candidate stays **covered as `sidecar`**; only the credited types go.
+- **Fed callees only.** `reachableTypes` walks `walkFedCallees`: a callee counts when the call
+  hands it something the caller produced (a local, a field of one, a composite, a call result),
+  or when the caller was itself fed and forwards its parameters on (`linkFeeds`, a fixpoint — a
+  store four plain pass-through hops down is still this listing's). A helper called with nothing
+  but the caller's own `(ctx, st, scanID)` cannot be storing rows this listing returned, so its
+  types are not credited to this anchor; it keeps its own pairing. `orphanTypes`/`derived` read
+  the **unpruned** set instead, because "rows built from a sibling's listing" is exactly what
+  derived means.
+- Reach: a function's types are its own plus its fed callees' to depth 3, and past the cap only
+  through callees that anchor nothing themselves — the cap holds over-attribution down, but a
+  correct scanner storing four hops down was reported `unexplained` and failed both gates. A
+  method call on a local
   (`s.scanTables`) and a method value passed as an argument (`forEachItem(…, s.scanDataset)`)
   both resolve to the one method of that name in the package (ambiguous names resolve to
   nothing). A `Type*` constant passed as an argument flows to the callee per caller
@@ -214,11 +237,19 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   then the smaller label). Map-range order otherwise picked the reported op per run.
 - Kinds: `emits` (anchor + types), `sidecar` (anchor, no types — a listing helper; its direct
   caller is then paired with what it stores), `derived` (a dispatcher with no anchor of its
-  own: types no anchored callee stores, paired with everything the callees list, minus types
-  some `emits` pairing already carries), `label` (label with no call anywhere), `other`
-  (non-candidate op), `skew` (call the pinned SDK lacks).
+  own: types no anchored callee stores, paired with the listings whose service or leaf relates
+  to the type, minus types some `emits` pairing already carries), `label` (label with no call
+  anywhere), `other` (non-candidate op), `skew` (call the pinned SDK lacks).
+- A **promoted** anchor — one a typeless listing helper contributed, not one this function calls
+  — is credited only with what this function's own flow stores, never with what a *caller* passed
+  in. The `cur == f` inflow rule is right for a helper that genuinely lists and stores and wrong
+  here: it gave `microsoft.resources/resourcegroups` five types from unrelated callers of the
+  same fan-out helper.
 - Unpaired reasons: `non-sdk` (every file referencing the const imports no SDK module —
-  Entra over Graph), `other-op:<label>`, `sdk-skew:<op>`, else `unexplained` (fatal).
+  Entra over Graph), `other-op:<label>`, `sdk-skew:<op>`, else `unexplained` (fatal). A `label`
+  pairing does **not** count as paired (it proves no SDK call, which is why `inventory.go`'s
+  `pairingKinds` excludes it), and `derived` yields to `other-op`/`sdk-skew`: evidence by
+  proximity must not displace a named op.
 - sdk-skew is real and expected: the Azure monorepo HEAD differs from the go.mod majors
   (armcompute `CloudServices*`, armsubscription `Subscriptions.List`, armappplatform absent,
   postgresql flexible servers, edgeorder); GCP `serviceusage.services.list`. 24 Azure + 1 GCP
@@ -230,7 +261,12 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   even when the pin lacks it (generated clients have no other methods; skew surfaces in Walk).
   Label form is `armX:<Y>.<Op>` with the
   `Client` suffix dropped and bare `Client` kept (`armredis:Client.ListBySubscription`) — 22
-  scanner labels were typos against this form and were corrected in Phase 3.
+  scanner labels were typos against this form and were corrected in Phase 3. `LooseLabelGrammar`
+  (the optional `LooseLabeller` half of the `Resolver` interface, Azure only) catches the near
+  miss `arm<module>:<Op>` with the `Client.` dropped, which the strict grammar made invisible —
+  an off-grammar literal is simply not a label, so a typo read as "this function names no op".
+  AWS's decorated labels (`amp:ListWorkspaces(extended)`) are deliberate operator-facing text
+  and must stay undiagnosed: do not give AWS a loose grammar.
 - AWS: anchors are `pkg.New<Op>Paginator(`, `pkg.<Op>Input{` and `recv.<Op>(` for any op an
   imported service package ships; receivers need no binding. `LabelAliases` accepts the
   separator-stripped service (`accessanalyzer:` for `access-analyzer`).
