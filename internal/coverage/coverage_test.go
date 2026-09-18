@@ -343,3 +343,64 @@ func TestBuildInventory_PairedButEmpty(t *testing.T) {
 		}
 	}
 }
+
+// TestBestType_MultiTypeHasNoWinner: with several types paired and neither
+// the ident nor the leaf matching, naming one is a coin toss — it showed the
+// diagnostic-settings dispatcher as "azure:microsoft.apimanagement:service".
+// A lone paired type is still the answer.
+func TestBestType_MultiTypeHasNoWinner(t *testing.T) {
+	c := sdkinv.Candidate{Service: "route53", Key: "route53/tag"}
+	paired := map[string]bool{"aws:route53:cidr-collection": true, "aws:route53:hosted-zone": true}
+	if got := bestType(paired, c); got != "" {
+		t.Errorf("bestType = %q, want empty", got)
+	}
+	if got := bestType(map[string]bool{"aws:route53:hosted-zone": true}, c); got != "aws:route53:hosted-zone" {
+		t.Errorf("single paired type = %q", got)
+	}
+}
+
+// TestBuildInventory_MultiTypeRowStaysCovered: clearing the arbitrary display
+// type must not cost the row its bucket — the pairing is what covers it.
+func TestBuildInventory_MultiTypeRowStaysCovered(t *testing.T) {
+	in := testInputs()
+	in.Pairings = append(in.Pairings, pairing.Pairing{
+		Key: "s3/bucket", Kind: "emits", Types: []string{"aws:kms:grant", "aws:foo:bar"},
+	})
+	m := BuildInventory(in)
+	r, ok := rowByKey(m, "s3/bucket", "")
+	if !ok {
+		t.Fatal("no s3/bucket row")
+	}
+	if r.Bucket != BucketCovered || r.DiscoType != "" || r.Reason != ReasonMultiType {
+		t.Errorf("row = %+v, want covered/empty type/multi-type", r)
+	}
+	if !slices.Equal(r.DiscoTypes, []string{"aws:foo:bar", "aws:kms:grant"}) {
+		t.Errorf("discoTypes = %v", r.DiscoTypes)
+	}
+}
+
+// TestTypeRefs_FoldsLeafMatchingSecondaryTypes: the five aws:docdb:* orphans
+// share rds/dbinstance's leaf and were starved of its refs, while a
+// dispatcher's unrelated types must still inherit nothing.
+func TestTypeRefs_FoldsLeafMatchingSecondaryTypes(t *testing.T) {
+	in := testInputs()
+	in.Universe.Candidates = append(in.Universe.Candidates,
+		sdkinv.Candidate{Service: "rds", Key: "rds/dbinstances", Class: sdkinv.ClassResource, Refs: []string{"KmsKeyId"}})
+	in.Emits = append(in.Emits,
+		TypeDecl{Service: "rds", DiscoType: "aws:rds:db-instance"},
+		TypeDecl{Service: "docdb", DiscoType: "aws:docdb:db-instance"},
+		TypeDecl{Service: "amplify", DiscoType: "aws:amplify:app"})
+	in.Pairings = append(in.Pairings, pairing.Pairing{
+		Key: "rds/dbinstances", Kind: "emits",
+		Types: []string{"aws:rds:db-instance", "aws:docdb:db-instance", "aws:amplify:app"},
+	})
+	refs := TypeRefs(BuildInventory(in))
+	for _, typ := range []string{"aws:rds:db-instance", "aws:docdb:db-instance"} {
+		if got := refs[typ]; !slices.Equal(got, []string{"KmsKeyId"}) {
+			t.Errorf("%s refs = %v, want [KmsKeyId]", typ, got)
+		}
+	}
+	if got := refs["aws:amplify:app"]; len(got) > 0 {
+		t.Errorf("foreign type inherited refs %v", got)
+	}
+}

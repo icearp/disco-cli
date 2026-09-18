@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
 // Discovery schema subset, decoded lazily per document: most schemas are
@@ -31,8 +33,10 @@ var (
 	// or the description says it is a URL, a resource name, a key or an account.
 	refNameRe = regexp.MustCompile(`(Link|Links|Url|Urls|Uri|Uris|Id|Ids|Ref|Refs|Account|Network|Subnetwork)$`)
 	refDescRe = regexp.MustCompile(`(?i)\b(URL|URI|resource name|fully[- ]qualified|reference to|service account|email address|KMS|in the format|of the form)\b`)
-	// ownProps are the element's own identity and bookkeeping.
-	ownProps = map[string]bool{"selfLink": true, "id": true, "name": true, "kind": true, "etag": true, "uid": true, "description": true, "creationTimestamp": true, "createTime": true, "updateTime": true, "selfLinkWithId": true}
+	// ownProps are the element's own identity and bookkeeping. displayName,
+	// generateName, clientOperationId and revisionId join them because they
+	// read as refs to refDescRe while naming nothing outside the element.
+	ownProps = map[string]bool{"selfLink": true, "id": true, "name": true, "kind": true, "etag": true, "uid": true, "description": true, "creationTimestamp": true, "createTime": true, "updateTime": true, "selfLinkWithId": true, "displayName": true, "generateName": true, "clientOperationId": true, "revisionId": true}
 )
 
 type schemaSet struct {
@@ -61,7 +65,12 @@ func (ss *schemaSet) get(name string) *schema {
 // element resolves a list response to the schema of one listed item: the
 // array property's item schema, or for an aggregated list the array inside
 // the per-scope map value.
-func (ss *schemaSet) element(response string) string {
+//
+// A response may carry several arrays of schemas (ListJobsResponse has
+// failedLocation beside jobs), so the one named after the collection wins,
+// then the richest item schema, then the alphabetically first. Taking the
+// first outright gave dataflow/jobs FailedLocation's zero refs over Job's 17.
+func (ss *schemaSet) element(response, noun string) string {
 	s := ss.get(response)
 	if s == nil {
 		return ""
@@ -71,16 +80,28 @@ func (ss *schemaSet) element(response string) string {
 		names = append(names, n)
 	}
 	sort.Strings(names)
+	var best string
+	var bestProps int
+	want := sdkinv.Ident(noun)
 	for _, n := range names {
 		p := s.Properties[n]
-		if p.Type == "array" && p.Items != nil && p.Items.Ref != "" {
+		if p.Type != "array" || p.Items == nil || p.Items.Ref == "" {
+			continue
+		}
+		if want != "" && (sdkinv.Ident(n) == want || sdkinv.Ident(p.Items.Ref) == want) {
 			return p.Items.Ref
 		}
+		if item := ss.get(p.Items.Ref); best == "" || len(item.props()) > bestProps {
+			best, bestProps = p.Items.Ref, len(item.props())
+		}
+	}
+	if best != "" {
+		return best
 	}
 	for _, n := range names {
 		p := s.Properties[n]
 		if p.Type == "object" && p.AdditionalProperties != nil && p.AdditionalProperties.Ref != "" {
-			if el := ss.element(p.AdditionalProperties.Ref); el != "" {
+			if el := ss.element(p.AdditionalProperties.Ref, noun); el != "" {
 				return el
 			}
 		}
@@ -90,8 +111,8 @@ func (ss *schemaSet) element(response string) string {
 
 // refsOf lists the properties on a listed element that name other
 // resources, at any depth up to refDepth.
-func (ss *schemaSet) refsOf(response string) []string {
-	el := ss.element(response)
+func (ss *schemaSet) refsOf(response, noun string) []string {
+	el := ss.element(response, noun)
 	if el == "" {
 		return nil
 	}
@@ -118,6 +139,11 @@ func (ss *schemaSet) walk(name, prefix string, depth int, refs, seen map[string]
 		if depth == 0 && ownProps[pn] {
 			continue
 		}
+		// JSON-schema keys ($ref, $schema, $id) describe the document, not a
+		// resource; their descriptions read exactly like a reference.
+		if strings.HasPrefix(pn, "$") {
+			continue
+		}
 		path := prefix + pn
 		nested := p.Ref
 		if p.Type == "array" && p.Items != nil {
@@ -134,6 +160,14 @@ func (ss *schemaSet) walk(name, prefix string, depth int, refs, seen map[string]
 		}
 	}
 	delete(seen, name)
+}
+
+// props is nil-safe: an unresolvable $ref has no properties to count.
+func (s *schema) props() map[string]*prop {
+	if s == nil {
+		return nil
+	}
+	return s.Properties
 }
 
 func isRef(name, desc string) bool {

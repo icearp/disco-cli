@@ -364,9 +364,9 @@ func TestSelectedAuditors(t *testing.T) {
 	}
 }
 
-// TestCoverageResolversMissing_WithRefsNeedsCache: --with-refs hides derived
-// leaves, which needs the SDK inventory; without it the run exits 2 like
-// `services` does instead of silently printing an empty list.
+// TestCoverageResolversMissing_WithRefsNeedsCache: --with-refs asks for the
+// refs column, which needs the SDK inventory; without it the run exits 2 like
+// `services` does instead of silently printing a refless list.
 func TestCoverageResolversMissing_WithRefsNeedsCache(t *testing.T) {
 	resetCoverageFlags(t)
 	_, err := captureStdout(t, func() error {
@@ -405,5 +405,34 @@ func TestCoverageResolversMissing_Offline(t *testing.T) {
 				t.Errorf("row = %+v", r)
 			}
 		}
+	}
+}
+
+// TestCoverageResolversMissing_WithRefsKeepsReflessTypes: refs recall is
+// lossy, so their absence is a hint, not the definition of a derived leaf.
+// Using it as a hide gate deleted 477 real gaps from the worklist; the fixture
+// universe pairs with no real AWS type, so every row here is refless.
+func TestCoverageResolversMissing_WithRefsKeepsReflessTypes(t *testing.T) {
+	cache := fixtureCache(t)
+	rows := func(args ...string) []orphanRow {
+		t.Helper()
+		resetCoverageFlags(t)
+		out, err := captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs(append([]string{"coverage", "resolvers", "--missing", "--providers", "aws", "--services", "ec2", "--sdk-cache", cache, "--source-root=", "-o", "json"}, args...))
+			return cmd.Execute()
+		})
+		if err != nil {
+			t.Fatalf("resolvers --missing %v: %v", args, err)
+		}
+		var got []orphanRow
+		if err := json.Unmarshal([]byte(out), &got); err != nil {
+			t.Fatalf("json: %v\n%s", err, out)
+		}
+		return got
+	}
+	plain, withRefs := rows(), rows("--with-refs")
+	if len(plain) == 0 || len(withRefs) != len(plain) {
+		t.Fatalf("--with-refs returned %d rows, plain returned %d", len(withRefs), len(plain))
 	}
 }

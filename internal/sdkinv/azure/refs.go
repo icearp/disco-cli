@@ -13,9 +13,12 @@ import (
 var (
 	structRe = regexp.MustCompile(`(?m)^type (\w+) struct \{\n((?:.*\n)*?)\}`)
 	fieldRe  = regexp.MustCompile(`(?m)^\t([A-Z]\w*) (.+)$`)
-	// handleRe finds the operation's response decoder and the list-result
-	// type it unmarshals into.
-	handleRe = regexp.MustCompile(`(?s)func \(client \*\w*Client\) (\w+)HandleResponse\(.*?&result\.(\w+)\)`)
+	// handleHeadRe finds an operation's response decoder; resultRe finds the
+	// list-result field it unmarshals into, searched only within that
+	// decoder's own body (topFuncRe bounds it).
+	handleHeadRe = regexp.MustCompile(`(?m)^func \(client \*\w*Client\) (\w+)HandleResponse\(`)
+	resultRe     = regexp.MustCompile(`&result\.(\w+)\)`)
+	topFuncRe    = regexp.MustCompile(`(?m)^func `)
 )
 
 type field struct{ name, typ string }
@@ -23,28 +26,87 @@ type field struct{ name, typ string }
 // models is one module's struct table, parsed on first use.
 type models map[string][]field
 
+// arrayFieldRe matches a response struct's bare list field ("RolloutArray
+// []*Rollout"), the decode shape used by the older generator instead of a
+// named ...ListResult model.
+var arrayFieldRe = regexp.MustCompile(`^\[\]\*(\w+)$`)
+
+// loadModels parses one module's struct table. Two generator layouts exist:
+// models.go with no struct tags, and the older zz_generated_models.go whose
+// fields carry a `json:"..."` tag — hence the cut at the first backtick.
+// response_types.go joins the same table because the array decode shape names
+// a field of the response struct, which is declared nowhere else.
 func loadModels(root, module string) models {
-	raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(module), "models.go"))
-	if err != nil {
+	dir := filepath.Join(root, filepath.FromSlash(module))
+	out := models{}
+	for _, name := range []string{"models.go", "zz_generated_models.go"} {
+		raw, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			continue
+		}
+		for _, m := range structRe.FindAllStringSubmatch(string(raw), -1) {
+			var fields []field
+			for _, f := range fieldRe.FindAllStringSubmatch(m[2], -1) {
+				typ := strings.TrimSpace(f[2])
+				if i := strings.IndexByte(typ, '`'); i >= 0 {
+					typ = strings.TrimSpace(typ[:i])
+				}
+				fields = append(fields, field{f[1], typ})
+			}
+			out[m[1]] = fields
+		}
+	}
+	if len(out) == 0 {
 		return nil
 	}
-	out := models{}
-	for _, m := range structRe.FindAllStringSubmatch(string(raw), -1) {
-		var fields []field
-		for _, f := range fieldRe.FindAllStringSubmatch(m[2], -1) {
-			fields = append(fields, field{f[1], f[2]})
-		}
-		out[m[1]] = fields
-	}
+	addResponseArrays(dir, out)
 	return out
+}
+
+// addResponseArrays registers each response struct's "<X>Array []*X" field as
+// a synthetic list-result model, so refsOf resolves it the same way it
+// resolves a real ...ListResult. A name the module already declares wins.
+func addResponseArrays(dir string, out models) {
+	raw, err := os.ReadFile(filepath.Join(dir, "response_types.go"))
+	if err != nil {
+		return
+	}
+	for _, m := range structRe.FindAllStringSubmatch(string(raw), -1) {
+		for _, f := range fieldRe.FindAllStringSubmatch(m[2], -1) {
+			name, typ := f[1], strings.TrimSpace(f[2])
+			if i := strings.IndexByte(typ, '`'); i >= 0 {
+				typ = strings.TrimSpace(typ[:i])
+			}
+			if !strings.HasSuffix(name, "Array") || !arrayFieldRe.MatchString(typ) {
+				continue
+			}
+			if _, dup := out[name]; !dup {
+				out[name] = []field{{name: "Value", typ: typ}}
+			}
+		}
+	}
 }
 
 // parseResults maps each operation to the result type its response decoder
 // fills (listAllHandleResponse → VirtualMachineListResult).
 func parseResults(src string) map[string]string {
+	// Each decoder's body ends at the next top-level func. Without that bound
+	// a HEAD op's tag-only decoder (no &result.X at all) swallowed the next
+	// function and stole its result type, and because the matches cannot
+	// overlap the real lister then got none — 106 listers lost their refs.
+	funcs := topFuncRe.FindAllStringIndex(src, -1)
 	out := map[string]string{}
-	for _, m := range handleRe.FindAllStringSubmatch(src, -1) {
-		out[upperFirst(m[1])] = m[2]
+	for _, loc := range handleHeadRe.FindAllStringSubmatchIndex(src, -1) {
+		end := len(src)
+		for _, f := range funcs {
+			if f[0] > loc[0] {
+				end = f[0]
+				break
+			}
+		}
+		if m := resultRe.FindStringSubmatch(src[loc[0]:end]); m != nil {
+			out[upperFirst(src[loc[2]:loc[3]])] = m[1]
+		}
 	}
 	return out
 }
@@ -100,7 +162,7 @@ func walkRefs(m models, typ, prefix string, depth int, refs map[string]bool) {
 		case isRefStruct(m, base):
 			refs[path] = true
 		case f.typ == "*string" || f.typ == "[]*string":
-			if strings.HasSuffix(f.name, "ID") || strings.HasSuffix(f.name, "IDs") || strings.HasSuffix(f.name, "ResourceID") {
+			if isStringRef(f.name, path) {
 				refs[path] = true
 			}
 		case depth < refDepth && len(m[base]) > 0 && !strings.HasPrefix(f.typ, "map["):
@@ -108,6 +170,28 @@ func walkRefs(m models, typ, prefix string, depth int, refs map[string]bool) {
 		}
 	}
 }
+
+// isStringRef decides whether a string field names another ARM resource.
+// ID-suffixed names are the bulk; ManagedBy is the exact name ARM uses for the
+// owning resource's id. The URI/URL family is admitted only under a KeyVault
+// or encryption-key path — a bare URI/URL suffix pulls in a hundred data-plane
+// endpoints and sign-on URLs naming no ARM resource, while these are the
+// strings three Azure resolvers already parse (vaultNameFromVaultURI).
+func isStringRef(name, path string) bool {
+	if name == "ManagedBy" {
+		return true
+	}
+	if strings.HasSuffix(name, "ID") || strings.HasSuffix(name, "IDs") {
+		return true
+	}
+	if !uriSuffixRe.MatchString(name) {
+		return false
+	}
+	lower := strings.ToLower(path)
+	return strings.Contains(lower, "keyvault") || strings.Contains(lower, "encryptionkey")
+}
+
+var uriSuffixRe = regexp.MustCompile(`(?i)ur[il]s?$`)
 
 // isRefStruct: a struct that is nothing but a pointer to another resource.
 func isRefStruct(m models, typ string) bool {

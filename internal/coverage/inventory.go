@@ -28,7 +28,11 @@ const (
 	ReasonUnexplained        = "unexplained"
 	ReasonPairingUnavailable = "pairing-unavailable"
 	ReasonRegistryOnly       = "registry-only"
-	ReasonCandidateOnly      = "candidate-only"
+	// ReasonMultiType: several types are paired and none of them matches the
+	// candidate's identity, so naming one of them as "the" type would be a
+	// coin toss. DiscoTypes carries the whole set.
+	ReasonMultiType     = "multi-type"
+	ReasonCandidateOnly = "candidate-only"
 )
 
 // Row is one entry in the coverage matrix.
@@ -147,17 +151,7 @@ func BuildInventory(in Inputs) Matrix {
 		paired, listed := types[c.Key]
 		switch {
 		case len(paired) > 0:
-			row.DiscoType = bestType(paired, c)
-			for t := range paired {
-				accounted[t] = true
-				if t != row.DiscoType {
-					row.DiscoTypes = append(row.DiscoTypes, t)
-				}
-			}
-			if row.DiscoTypes != nil {
-				row.DiscoTypes = append(row.DiscoTypes, row.DiscoType)
-				sort.Strings(row.DiscoTypes)
-			}
+			assignPairedTypes(&row, paired, c, accounted)
 		case listed:
 			row.Reason = ReasonSidecar
 		default:
@@ -173,7 +167,7 @@ func BuildInventory(in Inputs) Matrix {
 			row.Bucket = BucketAttribute
 		case c.Class == sdkinv.ClassCatalog, c.Class == sdkinv.ClassNonResource:
 			row.Bucket, row.Reason = BucketExcluded, string(c.Class)
-		case row.DiscoType != "" || listed:
+		case len(paired) > 0 || listed || row.DiscoType != "":
 			row.Bucket = BucketCovered
 		default:
 			row.Bucket = BucketUncovered
@@ -391,8 +385,34 @@ func typeIdents(discoType string) []string {
 	return []string{sdkinv.Canon(parts[1]) + "/" + strings.Join(segs, "/")}
 }
 
+// assignPairedTypes records which emitted types a candidate is credited with:
+// the one to display, the whole set when there is more than one, and every one
+// of them as accounted for.
+func assignPairedTypes(row *Row, paired map[string]bool, c sdkinv.Candidate, accounted map[string]bool) {
+	row.DiscoType = bestType(paired, c)
+	if row.DiscoType == "" {
+		row.Reason = ReasonMultiType
+	}
+	for t := range paired {
+		accounted[t] = true
+		if t != row.DiscoType {
+			row.DiscoTypes = append(row.DiscoTypes, t)
+		}
+	}
+	if len(paired) > 1 {
+		if row.DiscoType != "" {
+			row.DiscoTypes = append(row.DiscoTypes, row.DiscoType)
+		}
+		sort.Strings(row.DiscoTypes)
+	}
+}
+
 // bestType picks the paired type to display for a candidate: the one whose
-// identity matches the key, else the one sharing its leaf, else the first.
+// identity matches the key, else the one sharing its leaf. With several types
+// paired and neither tier matching, there is no answer — the alphabetically
+// first is a coin toss that showed the diagnostic-settings dispatcher as
+// "azure:microsoft.apimanagement:service" — so it returns "" and the caller
+// records ReasonMultiType. A lone paired type is always the answer.
 func bestType(paired map[string]bool, c sdkinv.Candidate) string {
 	names := make([]string, 0, len(paired))
 	for t := range paired {
@@ -415,14 +435,22 @@ func bestType(paired map[string]bool, c sdkinv.Candidate) string {
 			}
 		}
 	}
-	return names[0]
+	if len(names) == 1 {
+		return names[0]
+	}
+	return ""
 }
 
-// TypeRefs maps each row's primary disco type to the union of its
-// candidates' Refs: the element fields a resolver for that type could follow.
-// A type with no refs is a derived leaf. Only Row.DiscoType counts: the
-// DiscoTypes of a dispatcher's derived pairing span a whole service and
-// would hand every network type the application gateway's 280 fields.
+// TypeRefs maps paired disco types to the union of their candidates' Refs:
+// the element fields a resolver for that type could follow. A type with no
+// refs is a hint that it may be a derived leaf, never proof of one.
+//
+// The primary type takes the row's refs; a secondary type from Row.DiscoTypes
+// takes them only when it matches the candidate's identity or shares its leaf.
+// That narrowness is the point: the five aws:docdb:* orphans do share
+// rds/dbinstance's leaf and were starved of its 44 refs, while the types a
+// dispatcher's derived pairing sweeps up span a whole service and must not
+// inherit the application gateway's 280 fields.
 func TypeRefs(m Matrix) map[string][]string {
 	sets := map[string]map[string]bool{}
 	add := func(t string, refs []string) {
@@ -438,6 +466,22 @@ func TypeRefs(m Matrix) map[string][]string {
 	}
 	for _, r := range m.Rows {
 		add(r.DiscoType, r.Refs)
+		if len(r.Refs) == 0 || len(r.DiscoTypes) == 0 {
+			continue
+		}
+		want := candidateIdent(sdkinv.Candidate{Service: r.Service, Key: r.Key})
+		leaf := want[strings.LastIndex(want, "/")+1:]
+		for _, t := range r.DiscoTypes {
+			if t == r.DiscoType {
+				continue
+			}
+			for _, id := range typeIdents(t) {
+				if id == want || id[strings.LastIndex(id, "/")+1:] == leaf {
+					add(t, r.Refs)
+					break
+				}
+			}
+		}
 	}
 	out := make(map[string][]string, len(sets))
 	for t, set := range sets {

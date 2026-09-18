@@ -79,17 +79,37 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   Azure 3744 (1959 resource); GCP 1859 / 192 APIs (1151 resource). Each live test logs these;
   a large swing after a pin bump is the signal to re-check anchors.
 - `Candidate.Refs` (Phase 6, `<p>/refs.go`): dotted paths on the listed element that name other
-  resources, sorted and unique, own id excluded, depth-bounded. AWS: Smithy output → collection
-  element (or a detail read's single structure) → `idLikeRe` members, prelude `smithy.api#String`
-  targets are absent from the model file and count as primitives; own = bare `Arn/Id/Name` or a
-  stem equal to the noun at depth 0. Azure: `<op>HandleResponse` names the `*ListResult`, its
-  `Value []*T` element walked through `models.go` (regex over generated structs, parsed once per
-  module): sub-resource structs (`*SubResource`, `*…Reference`, or only an `ID`) and `*ID`
-  strings; envelope `ID/Name/Type/Location/Tags` skipped. GCP: `response.$ref` → array-of-`$ref`
-  property (aggregated lists: the map value's array) → string properties named `*Link/*Url/*Id/
-  *Ref/*Account/*Network` or described as a URL / resource name / service account / KMS;
-  `selfLink/id/name/kind` skipped. Schemas decode lazily from `json.RawMessage`. Every fixture
-  carries one candidate with refs (conformance).
+  resources, sorted and unique, own id excluded, depth-bounded. Refs are a **hint**: they rank
+  `coverage resolvers --missing`, never bucket a row, and their absence is not proof of a derived
+  leaf (`internal/providers/CLAUDE.md`). Recall matters more than precision.
+  - **AWS**: Smithy output → collection element; a detail read has no collection, so its elements
+    are **every** structure member of the output, and `flatRefs` additionally takes the output's
+    own id-like primitives — `GetEnvironment` answers with `vpcId`/`subnetIds`/`loadBalancerArn`
+    beside a `storageConfigurations` list, and walking only the structures loses all three
+    (recognising only the single-structure shape left 1,275 detail reads refless). A ref must
+    target a `string`: enum, integer and long targets are never refs (`State.Name`), and
+    `tokenNameRe` drops `*Token`/`*ETag`/`*RequestId`/`*RevisionId` names. Own id = bare
+    `Arn/Id/Name` or a suffix-of-noun stem at depth 0, **plus an exact-noun stem at every depth**
+    (`DescribeInstances`' element is `Reservation`, so `Instances.InstanceId` arrives at depth 1).
+    Never extend the loose suffix rule below depth 0: it matches 682 genuine cross-resource refs.
+  - **Azure**: each `<op>HandleResponse` body is bounded at the **next top-level `func`** before
+    the `&result.X` search — unbounded, a HEAD op's tag-only decoder swallowed the following
+    function and stole its result type, and non-overlapping matches then left the real lister with
+    none (106 listers, 66 in armapimanagement). The models table is `models.go` **or** the older
+    `zz_generated_models.go` (whose fields carry a struct tag, hence the cut at the first backtick),
+    plus `response_types.go`: a bare `<X>Array []*X` response field is registered as a synthetic
+    list result so `refsOf` resolves it like a real `*ListResult`. String refs = `*ID`/`*IDs`, the
+    exact name `ManagedBy`, and `*URI`/`*URL` **only** under a `keyvault`/`encryptionkey` path — a
+    bare URI/URL suffix pulls in a hundred data-plane endpoints and sign-on URLs. Envelope
+    `ID/Name/Type/Location/Tags` skipped.
+  - **GCP**: `response.$ref` → the array-of-`$ref` property whose `Ident` matches the collection
+    noun, else the richest item schema, else alphabetical (aggregated lists: the map value's
+    array). Taking the first outright gave `dataflow/jobs` `FailedLocation`'s zero refs over
+    `Job`'s 17. Then string properties named `*Link/*Url/*Id/*Ref/*Account/*Network` or described
+    as a URL / resource name / service account / KMS; `$`-prefixed names are JSON-schema keys, not
+    refs, and `selfLink/id/name/kind/displayName/generateName/clientOperationId/revisionId` are the
+    element's own. Schemas decode lazily from `json.RawMessage`.
+  - Every fixture carries one candidate with refs (conformance).
 - `Universe.Other` carries every SDK op that is not a candidate op (writes, item reads,
   actions). Every extractor must end with `sdkinv.SortOps(u.Other)`: it is filled from map
   walks, and the conformance DeepEqual only catches the omission on some runs (`-count=5`).

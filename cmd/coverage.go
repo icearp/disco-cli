@@ -116,7 +116,9 @@ Candidate gap list for new resolvers. Each row carries refs: the fields
 on the SDK's listed element that name other resources (VpcId,
 properties.networkProfile.networkInterfaces), derived from the SDK cache
 and the scanner pairing; rows sort by ref count so the richest gaps come
-first. A type with no refs is a derived leaf; --with-refs hides those.
+first. Refs are a hint, not proof: a type with no refs is often, but not
+always, a derived leaf, so --with-refs requires the SDK cache and reports
+how many rows carry none rather than deleting them from the worklist.
 Without the SDK cache refs are omitted with a warning (--with-refs then
 exits 2).
 
@@ -171,7 +173,7 @@ func init() {
 	coverageResolversCmd.Flags().StringSlice("services", nil, "Filter to resolvers (or orphan types) touching the listed services")
 	coverageResolversCmd.Flags().Bool("only-unannotated", false, "List mode only: omit resolvers that already declare ≥1 EdgeDecl")
 	coverageResolversCmd.Flags().Bool("missing", false, "Switch to orphan-type mode: emit disco types never appearing as EdgeDecl.Source")
-	coverageResolversCmd.Flags().Bool("with-refs", false, "--missing only: hide types whose listed SDK element names no other resource (derived leaves); needs the SDK cache")
+	coverageResolversCmd.Flags().Bool("with-refs", false, "--missing only: require the SDK cache for the refs column and report how many orphan types carry no refs")
 	coverageResolversCmd.Flags().String("sdk-cache", sdkinv.DefaultCacheRoot(), "SDK source cache the --missing refs derive from (see 'disco coverage sdk fetch')")
 	coverageResolversCmd.Flags().String("source-root", defaultSourceRoot(), "disco source checkout for scanner pairing; empty = name matching only")
 
@@ -764,6 +766,7 @@ type orphanRow struct {
 func runResolversMissing(ctx context.Context, w io.Writer, auditors []auditorPair, services []string, outputFmt string, o servicesOptions, withRefs bool) error {
 	allowed := lowerSet(services)
 	var rows []orphanRow
+	var refless int
 	for _, a := range auditors {
 		provName := a.prov.Name()
 		refs, err := orphanRefs(ctx, o, a.prov)
@@ -786,8 +789,10 @@ func runResolversMissing(ctx context.Context, w io.Writer, auditors []auditorPai
 			if len(allowed) > 0 && !allowed[strings.ToLower(svc)] {
 				continue
 			}
-			if withRefs && len(refs[decl.DiscoType]) == 0 {
-				continue
+			// Refless rows stay in the worklist: ref recall is lossy, and
+			// hiding on a missing hint deleted 477 real gaps (#125).
+			if len(refs[decl.DiscoType]) == 0 {
+				refless++
 			}
 			rows = append(rows, orphanRow{Provider: provName, DiscoType: decl.DiscoType, Service: svc, Refs: refs[decl.DiscoType]})
 		}
@@ -801,6 +806,9 @@ func runResolversMissing(ctx context.Context, w io.Writer, auditors []auditorPai
 		}
 		return rows[i].DiscoType < rows[j].DiscoType
 	})
+	if withRefs && refless > 0 {
+		fmt.Fprintf(os.Stderr, "\n%d of %d orphan types carry no refs — a hint they are derived leaves, not proof\n", refless, len(rows))
+	}
 	return renderOrphanRows(w, outputFmt, rows)
 }
 

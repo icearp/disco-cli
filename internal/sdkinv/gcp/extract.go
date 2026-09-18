@@ -217,7 +217,13 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []s
 			en.parent = parentKey(dc, docPath, rp.Parents, segs)
 		}
 		en.class = sdkinv.StrongerClass(en.class, classify(l.node, en.signals))
-		for _, r := range schemas.refsOf(l.m.Response.Ref) {
+		// A lister at the document root has no resource node, so there is no
+		// collection noun to prefer an element by.
+		noun := ""
+		if len(docPath) > 0 {
+			noun = docPath[len(docPath)-1]
+		}
+		for _, r := range schemas.refsOf(l.m.Response.Ref, noun) {
 			en.refs[r] = true
 		}
 		var required, targets []string

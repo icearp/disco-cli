@@ -38,9 +38,18 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
   GCP APIs, CFN service renames) are excluded by rule, not drift.
 - `Row.Refs` copies `Candidate.Refs`; `TypeRefs(matrix)` unions them per paired disco type for
   `resolvers --missing`. Refs are hints (id/ARN/URL-shaped element fields, own id excluded), never
-  a bucket input.
-- Unit of coverage is the candidate: one op → N types counts once (`Row.DiscoType` is the
-  name-matching type, `Row.DiscoTypes` the rest); N ops → one type marks every candidate covered.
+  a bucket input. `TypeRefs` gives a row's refs to `Row.DiscoType`, and to a `Row.DiscoTypes` entry
+  **only** when it matches the candidate's ident or shares its leaf: the five `aws:docdb:*` orphans
+  do share `rds/dbinstance`'s leaf and were starved of its 44 refs, while a dispatcher's derived
+  pairing spans a whole service and must not hand every network type the app gateway's 280 fields.
+- Unit of coverage is the candidate: one op → N types counts once; N ops → one type marks every
+  candidate covered. `Row.DiscoType` is the type to display — identity match, else shared leaf —
+  and `Row.DiscoTypes` the whole set when more than one is paired. With several paired and neither
+  tier matching there is no answer, so `bestType` returns `""` and the row carries reason
+  `multi-type`; the alphabetically first was a coin toss that showed the diagnostic-settings
+  dispatcher as `azure:microsoft.apimanagement:service` (40 rows). **The covered bucket therefore
+  keys on `len(paired) > 0`, never on `DiscoType != ""`** — clearing the display type must not cost
+  a row its bucket.
 
 ## Baseline ratchet (`baseline.go`)
 
