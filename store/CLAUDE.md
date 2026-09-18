@@ -243,6 +243,12 @@ like `WithUpsertCounters`. Scanners keep reporting op labels and know nothing ab
 `ServiceName` means the warning names no service (a store-level native-id collision), and
 `coverage verify` then lets it explain no missing type.
 
+A warning the store itself raises — a native-id collision, a missing hierarchy endpoint, a
+recovered write — sets the unexported `storeLevel` and is never stamped: it fires from inside
+whichever service happened to be writing, and stamping that service's name makes a message about
+two colliding rows read as "this service was skipped". Found live: the collision warning explained
+every `aws:organizations:*` type until `storeLevel` existed.
+
 `ScanErrorEntry.Scope` exists for the same reason in the error direction: without it a
 per-subscription Azure failure and a failure of the whole provider are the same row. `Region` is
 parsed from the scope for AWS only — a GCP skip scope is `project/scope/name`, whose last segment

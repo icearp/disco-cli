@@ -144,10 +144,11 @@ func (s *Store) withWriteRetry(op string, fn func() error) error {
 		if err = fn(); err == nil {
 			if i > 1 {
 				s.ReportWarning(ScanWarning{
-					Provider: "store",
-					Service:  "write",
-					Scope:    op,
-					Message:  fmt.Sprintf("recovered after %d attempts", i),
+					Provider:   "store",
+					Service:    "write",
+					storeLevel: true,
+					Scope:      op,
+					Message:    fmt.Sprintf("recovered after %d attempts", i),
 				})
 			}
 			if s.writeFailStreak != nil {

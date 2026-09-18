@@ -417,7 +417,7 @@ func (s *Store) recordHierarchyOnce(childID, parentID string) error {
 	}
 	if missing {
 		s.ReportWarning(ScanWarning{
-			Provider: "store", Service: "hierarchy",
+			Provider: "store", Service: "hierarchy", storeLevel: true,
 			Scope: childID + "→" + parentID, Message: hierarchyMissingWarn,
 		})
 	}
@@ -523,7 +523,7 @@ func (s *Store) recordHierarchyBatchOnce(pairs [][2]string) error {
 	}
 	if missingCount > 0 {
 		s.ReportWarning(ScanWarning{
-			Provider: "store", Service: "hierarchy",
+			Provider: "store", Service: "hierarchy", storeLevel: true,
 			Scope:   firstMissingScope,
 			Message: fmt.Sprintf("%s (and %d more)", hierarchyMissingWarn, missingCount-1),
 		})

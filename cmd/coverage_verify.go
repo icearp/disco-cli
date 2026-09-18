@@ -340,7 +340,10 @@ func (c *scanContext) reason(provider string, d coverage.TypeDecl, services map[
 		return "nothing stored: " + provider + " recorded no rows and no failure"
 	}
 	if sel := c.regions[provider]; len(sel) > 0 {
-		return "no rows in the scanned regions (" + strings.Join(sortedKeysOf(sel), ", ") + ")"
+		// A claim about the scan, not about the type: nothing here knows
+		// whether the type is regional, and a global service listed under a
+		// --regions run is not absent "in those regions".
+		return "no rows (scan limited to regions: " + strings.Join(sortedKeysOf(sel), ", ") + ")"
 	}
 	return "no rows"
 }

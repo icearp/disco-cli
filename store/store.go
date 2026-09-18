@@ -38,6 +38,12 @@ type ScanWarning struct {
 	// Empty means "this warning names no service" — a store-level warning
 	// such as a native-id collision, which explains no missing type.
 	ServiceName string
+	// storeLevel marks a warning raised by the store itself rather than by a
+	// scanner. Such a warning fires from inside whichever service happened to
+	// be writing, so WithWarningService would stamp that service's name onto
+	// it and a consumer would read "this service was skipped" from a message
+	// about two rows colliding. Unexported: only this package can set it.
+	storeLevel bool
 }
 
 // ScanNotice is a by-design decision a scan made that the operator should see
@@ -247,7 +253,7 @@ func (s *Store) ReportResolveComplete(provider string, edges int) {
 // warnings can be collected and rendered as a single grouped block rather
 // than interleaving with aligned progress output.
 func (s *Store) ReportWarning(w ScanWarning) {
-	if w.ServiceName == "" {
+	if w.ServiceName == "" && !w.storeLevel {
 		w.ServiceName = s.warnService
 	}
 	if s.OnWarn != nil {

@@ -421,3 +421,24 @@ func TestCoverageVerify_SubscriptionScopedError(t *testing.T) {
 		t.Errorf("reason = %q; a scope-carrying failure must not answer for every type", r.Reason)
 	}
 }
+
+// TestCoverageVerify_RegionScope: a --regions run says so rather than
+// claiming the account holds none, and says it about the scan rather than
+// about the type, which may well be global.
+func TestCoverageVerify_RegionScope(t *testing.T) {
+	seedVerifyDB(t, map[string]any{
+		"providers": []string{"aws"},
+		"aws":       map[string]any{"regions": []string{"us-east-2"}},
+	})
+	rows, err := runVerify(t, "--providers", "aws")
+	if !errors.Is(err, errCoverageUndeclared) {
+		t.Fatalf("want errCoverageUndeclared, got %v", err)
+	}
+	r, ok := verifyRowByType(rows, "aws:ec2:volume")
+	if !ok {
+		t.Fatal("aws:ec2:volume missing")
+	}
+	if r.Reason != "no rows (scan limited to regions: us-east-2)" {
+		t.Errorf("reason = %q; want the region-limited form", r.Reason)
+	}
+}

@@ -951,3 +951,27 @@ func TestRecordHierarchy_SkipsMissingResource(t *testing.T) {
 		t.Errorf("expected one hierarchy warning, got %+v", warns)
 	}
 }
+
+// A store-level warning fires from inside whichever service happened to be
+// writing, so the dispatcher's service name must not be stamped onto it: a
+// native-id collision is not evidence that the service was skipped, and
+// `coverage verify` reads that field as exactly that claim.
+func TestReportWarning_StoreLevelKeepsNoServiceName(t *testing.T) {
+	st := openTestStore(t)
+	var got []ScanWarning
+	st.OnWarn = func(w ScanWarning) { got = append(got, w) }
+	scoped := st.WithWarningService("aws:organizations")
+
+	scoped.ReportWarning(ScanWarning{Provider: "aws", Service: "organizations:ListRoots", Message: "denied"})
+	scoped.ReportWarning(ScanWarning{Provider: "aws", Service: "aws:organizations:root", Message: "native_id maps to both types", storeLevel: true})
+
+	if len(got) != 2 {
+		t.Fatalf("got %d warnings, want 2", len(got))
+	}
+	if got[0].ServiceName != "aws:organizations" {
+		t.Errorf("scanner warning ServiceName = %q, want aws:organizations", got[0].ServiceName)
+	}
+	if got[1].ServiceName != "" {
+		t.Errorf("store-level warning ServiceName = %q, want empty", got[1].ServiceName)
+	}
+}
