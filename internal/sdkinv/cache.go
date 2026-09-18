@@ -2,12 +2,16 @@ package sdkinv
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/adrg/xdg"
@@ -30,10 +34,35 @@ func DefaultCacheRoot() string {
 
 // Manifest describes one fetched snapshot.
 type Manifest struct {
-	Provider  string         `json:"provider"`
-	Ref       string         `json:"ref"`
+	Provider string `json:"provider"`
+	Ref      string `json:"ref"`
+	// Spec fingerprints the FetchSpec the snapshot was fetched with. The ref
+	// alone does not identify the files on disk: widening a source's Keep
+	// filter at an unchanged ref leaves every existing cache holding the old,
+	// narrower file set, which the extractor reads as a smaller universe with
+	// no fetch and no warning. Empty in snapshots written before the field
+	// existed, which Status treats as a mismatch.
+	Spec      string         `json:"spec"`
 	FetchedAt time.Time      `json:"fetchedAt"`
 	Sources   []SourceRecord `json:"sources"`
+}
+
+// SpecFingerprint hashes everything about a FetchSpec that decides which files
+// land on disk. Keep and Expand are funcs and cannot be hashed, so KeepID and
+// ExpandID stand in for them; a change that does not move those ids is
+// invisible here.
+func SpecFingerprint(spec []FetchSource) string {
+	var b strings.Builder
+	for _, s := range spec {
+		b.WriteString(strings.Join([]string{
+			s.Name, string(s.Kind), s.URL, s.Dest, strconv.Itoa(s.Strip), s.KeepID, s.ExpandID,
+			strconv.FormatBool(s.Keep != nil), strconv.FormatBool(s.LocalDir != ""),
+			strconv.FormatBool(s.Expand != nil),
+		}, "|"))
+		b.WriteByte('\n')
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])[:16]
 }
 
 // SourceRecord is the fetch result for one FetchSource.
@@ -54,11 +83,18 @@ func (c Cache) Dir(provider, ref string) string {
 	return filepath.Join(c.Root, provider+"@"+ref)
 }
 
-// Status loads the manifest for a provider ref, or ErrNotFetched.
-func (c Cache) Status(provider, ref string) (*Manifest, error) {
+// Status loads the manifest for e's snapshot, or ErrNotFetched. A snapshot
+// whose manifest names a different provider/ref, or was fetched with a
+// different FetchSpec, is reported as not fetched: the files on disk are not
+// the ones e would read now, and refetching is the only way to find out.
+func (c Cache) Status(e Extractor) (*Manifest, error) {
+	provider, ref := e.Name(), e.Ref()
+	notFetched := func(why string) error {
+		return fmt.Errorf("%w: %s@%s%s (run: disco coverage sdk fetch --providers %s)", ErrNotFetched, provider, ref, why, provider)
+	}
 	raw, err := os.ReadFile(filepath.Join(c.Dir(provider, ref), manifestFile))
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("%w: %s@%s (run: disco coverage sdk fetch --providers %s)", ErrNotFetched, provider, ref, provider)
+		return nil, notFetched("")
 	}
 	if err != nil {
 		return nil, err
@@ -67,13 +103,26 @@ func (c Cache) Status(provider, ref string) (*Manifest, error) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, fmt.Errorf("%s manifest: %w", provider, err)
 	}
+	if m.Provider != provider || m.Ref != ref {
+		return nil, notFetched(fmt.Sprintf(" (manifest says %s@%s)", m.Provider, m.Ref))
+	}
+	if want := SpecFingerprint(e.FetchSpec()); m.Spec != want {
+		return nil, notFetched(fmt.Sprintf(" (fetched with a different source spec: %s, now %s)", orNone(m.Spec), want))
+	}
 	return &m, nil
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "none recorded"
+	}
+	return s
 }
 
 // EnsureOptions tune Ensure.
 type EnsureOptions struct {
 	Force  bool         // refetch even when the snapshot is present
-	Client *http.Client // nil = a client with no overall timeout (large archives); ctx governs cancellation
+	Client *http.Client // nil = fetchClient(): per-hop timeouts, no overall deadline (large archives)
 	Log    func(format string, args ...any)
 }
 
@@ -84,13 +133,13 @@ type EnsureOptions struct {
 func (c Cache) Ensure(ctx context.Context, e Extractor, opts EnsureOptions) (dir string, fetched bool, err error) {
 	dir = c.Dir(e.Name(), e.Ref())
 	if !opts.Force {
-		if _, serr := c.Status(e.Name(), e.Ref()); serr == nil {
+		if _, serr := c.Status(e); serr == nil {
 			return dir, false, nil
 		}
 	}
 	client := opts.Client
 	if client == nil {
-		client = &http.Client{}
+		client = fetchClient()
 	}
 	logf := opts.Log
 	if logf == nil {
@@ -105,7 +154,7 @@ func (c Cache) Ensure(ctx context.Context, e Extractor, opts EnsureOptions) (dir
 	}
 	defer os.RemoveAll(tmp)
 
-	m := Manifest{Provider: e.Name(), Ref: e.Ref(), FetchedAt: time.Now().UTC()}
+	m := Manifest{Provider: e.Name(), Ref: e.Ref(), Spec: SpecFingerprint(e.FetchSpec()), FetchedAt: time.Now().UTC()}
 	for _, src := range e.FetchSpec() {
 		logf("%s: fetching %s", e.Name(), src.Name)
 		rec, ferr := fetchSource(ctx, client, src, filepath.Join(tmp, src.Dest))
@@ -128,7 +177,7 @@ func (c Cache) Ensure(ctx context.Context, e Extractor, opts EnsureOptions) (dir
 	if err := os.Rename(tmp, dir); err != nil {
 		// Two fetches of the same snapshot can race here; if the other one
 		// already renamed a complete snapshot into place, ours is redundant.
-		if _, serr := c.Status(e.Name(), e.Ref()); serr == nil {
+		if _, serr := c.Status(e); serr == nil {
 			return dir, false, nil
 		}
 		return "", false, err

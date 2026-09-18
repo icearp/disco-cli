@@ -49,10 +49,14 @@ sdk-fetch:
 # gen-coverage regenerates the committed coverage report (docs/coverage.md, the
 # gaps only) and the baseline the ratchet compares against. Run it to accept a
 # pin bump or a deliberate change in what is covered; the diff is the review.
+# The report lands in a temp file and is moved into place only after the run
+# succeeded: `> docs/coverage.md` truncates the committed report before the
+# command has produced a byte, so a failed run left an empty report behind.
 gen-coverage: sdk-fetch
-	@mkdir -p docs
+	@mkdir -p docs $(DIST_DIR)
 	$(GO) go run $(TAGFLAG) . coverage services -o markdown --filter gaps \
-		--write-baseline docs/coverage-baseline.json > docs/coverage.md
+		--write-baseline docs/coverage-baseline.json > $(DIST_DIR)/coverage.md.new
+	@mv $(DIST_DIR)/coverage.md.new docs/coverage.md
 
 # check-coverage is the CI ratchet: exit 1 on a covered key turning uncovered,
 # a percent drop under the same pins, an emitted type losing its SDK pairing
@@ -64,7 +68,13 @@ check-coverage: sdk-fetch
 	@mkdir -p $(DIST_DIR)
 	$(GO) go run $(TAGFLAG) . coverage services -o markdown --filter gaps \
 		--baseline docs/coverage-baseline.json --check-strict > $(DIST_DIR)/coverage.md.tmp
-	@if ! diff <(grep '^Pins:' docs/coverage.md) <(grep '^Pins:' $(DIST_DIR)/coverage.md.tmp) >/dev/null; then \
+	@if [ ! -f docs/coverage.md ]; then \
+		echo "docs/coverage.md is missing: run 'make gen-coverage' and commit the result" >&2; exit 1; \
+	fi; \
+	old=$$(grep -c '^Pins:' docs/coverage.md); new=$$(grep -c '^Pins:' $(DIST_DIR)/coverage.md.tmp); \
+	if [ "$$old" -eq 0 ] || [ "$$new" -ne "$$old" ]; then \
+		echo "coverage report shape changed ($$old -> $$new 'Pins:' lines): a report with no pins cannot be compared, run 'make gen-coverage' and review the diff" >&2; exit 1; \
+	elif ! diff <(grep '^Pins:' docs/coverage.md) <(grep '^Pins:' $(DIST_DIR)/coverage.md.tmp) >/dev/null; then \
 		echo "SDK pins moved; docs/coverage.md is regenerated on the next push to main (or run 'make gen-coverage')" >&2; \
 	elif ! diff -u docs/coverage.md $(DIST_DIR)/coverage.md.tmp; then \
 		echo "docs/coverage.md is stale: run 'make gen-coverage' and commit the result" >&2; exit 1; \

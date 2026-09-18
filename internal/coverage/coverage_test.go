@@ -55,7 +55,7 @@ func testInputs() Inputs {
 		{Key: "", Kind: "other", Label: "ec2:DescribeVolumeStatus", Types: []string{"aws:ec2:volume-status"}},
 	}
 	unpaired := map[string]string{"aws:entra:user": "non-sdk", "aws:foo:bar": "unexplained", "aws:ec2:volume-status": "other-op:ec2:DescribeVolumeStatus"}
-	return Inputs{Provider: "aws", Emits: emits, Universe: u, Pairings: pairings, Unpaired: unpaired}
+	return Inputs{Provider: "aws", Emits: emits, Universe: u, Pairings: pairings, Unpaired: unpaired, Paired: true}
 }
 
 func rowByKey(m Matrix, key, discoType string) (Row, bool) {
@@ -142,7 +142,7 @@ func TestBuildInventory_Summary(t *testing.T) {
 
 func TestBuildInventory_NoPairing(t *testing.T) {
 	in := testInputs()
-	in.Pairings, in.Unpaired = nil, nil
+	in.Pairings, in.Unpaired, in.Paired = nil, nil, false
 	m := BuildInventory(in)
 	if m.Pairing {
 		t.Error("pairing reported available")
@@ -318,6 +318,28 @@ func TestTypeRefs(t *testing.T) {
 	for _, typ := range []string{"aws:kms:grant", "aws:foo:bar", "aws:s3:bucket"} {
 		if got, ok := refs[typ]; ok && len(got) > 0 {
 			t.Errorf("%s refs = %v, want none", typ, got)
+		}
+	}
+}
+
+// TestBuildInventory_PairedButEmpty: a scanner tree that parses and anchors
+// nothing is a total pairing collapse, not "no scanner source". Reporting it
+// as the latter stamped every disco-only row `pairing-unavailable`, which
+// left Summary.Unexplained at 0 and made --check-strict vacuous.
+func TestBuildInventory_PairedButEmpty(t *testing.T) {
+	in := testInputs()
+	in.Pairings, in.Unpaired = nil, nil
+	in.Paired = true
+	m := BuildInventory(in)
+	if !m.Pairing {
+		t.Error("pairing reported unavailable")
+	}
+	if m.Summary.Unexplained == 0 {
+		t.Error("no type reported unexplained")
+	}
+	for _, r := range m.Rows {
+		if r.Bucket == BucketDiscoOnly && r.Reason == ReasonPairingUnavailable {
+			t.Errorf("row stamped pairing-unavailable: %+v", r)
 		}
 	}
 }

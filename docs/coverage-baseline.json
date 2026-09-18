@@ -2,8 +2,9 @@
   "aws": {
     "pins": {
       "aws-sdk-go-v2": "release-2026-09-15",
-      "service-reference": "2026-09-16"
+      "service-reference": "5a4568127472"
     },
+    "pairing": true,
     "percent": 50.33846153846154,
     "covered": 1636,
     "uncovered": 1614,
@@ -3267,6 +3268,7 @@
     "pins": {
       "azure-sdk-for-go": "f3847e8925003b3ae044a0ce2eaebd0e9983ed90"
     },
+    "pairing": true,
     "percent": 19.70393057682491,
     "covered": 386,
     "uncovered": 1573,
@@ -5239,6 +5241,7 @@
     "pins": {
       "google.golang.org/api": "v0.292.0"
     },
+    "pairing": true,
     "percent": 23.290386521308225,
     "covered": 235,
     "uncovered": 774,

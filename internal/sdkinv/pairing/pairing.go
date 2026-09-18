@@ -985,6 +985,9 @@ func linkCallers(fns map[string]*fn, order []*fn) {
 }
 
 // walkCallees visits f and its package-local callees up to calleeDepth.
+// Callees are visited in name order: the visit order decides which of two
+// callees anchoring the same candidate is reported, and a map range would
+// make that choice differ between runs of the same binary.
 func walkCallees(fns map[string]*fn, f *fn, visit func(*fn)) {
 	seen := map[string]bool{f.name: true}
 	frontier := []*fn{f}
@@ -992,7 +995,7 @@ func walkCallees(fns map[string]*fn, f *fn, visit func(*fn)) {
 		var next []*fn
 		for _, cur := range frontier {
 			visit(cur)
-			for c := range cur.callees {
+			for _, c := range sortedSet(cur.callees) {
 				if g := resolveCallee(fns, c); g != nil && !seen[g.name] {
 					seen[g.name] = true
 					next = append(next, g)
@@ -1001,6 +1004,27 @@ func walkCallees(fns map[string]*fn, f *fn, visit func(*fn)) {
 		}
 		frontier = next
 	}
+}
+
+// sortedSet orders a call-site set so every walk over it is reproducible.
+func sortedSet(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// betterAnchor reports whether a should replace b as the op reported for a
+// candidate two functions both anchor. A listing beats a single-item read
+// (scanGuardDutyDetectors anchors both ListDetectors and GetDetector), and
+// the smaller label breaks the remaining ties so the choice is total.
+func betterAnchor(a, b sdkinv.Operation) bool {
+	if a.IsList != b.IsList {
+		return a.IsList
+	}
+	return a.Label < b.Label
 }
 
 // methodKey is the fns key under which a uniquely named method is also
@@ -1047,12 +1071,16 @@ func reachableTypes(fns map[string]*fn, f *fn) []string {
 func reachableAnchors(fns map[string]*fn, f *fn) (map[string]opRef, map[string]bool) {
 	out := map[string]opRef{}
 	walkCallees(fns, f, func(cur *fn) {
-		for k, v := range cur.anchored {
+		for _, k := range sortedKeys(cur.anchored) {
+			v := cur.anchored[k]
+			if have, ok := out[k]; ok && !betterAnchor(v.op, have.op) {
+				continue
+			}
 			out[k] = v
 		}
 	})
 	typeless := map[string]bool{}
-	for c := range f.callees {
+	for _, c := range sortedSet(f.callees) {
 		if g := resolveCallee(fns, c); g != nil && g != f && len(g.rtypes) == 0 {
 			for k := range g.anchored {
 				typeless[k] = true

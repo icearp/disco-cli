@@ -38,13 +38,16 @@ func (extractor) FetchSpec() []sdkinv.FetchSource {
 			Keep: func(p string) bool {
 				return strings.HasPrefix(p, smithyModelsDir) && strings.HasSuffix(p, ".json")
 			},
+			KeepID: "aws-models-json-v1",
 		},
 		{
-			Name:   "service-reference",
-			Kind:   sdkinv.KindJSONIndex,
-			URL:    serviceReferenceURL,
-			Dest:   "service-reference",
-			Expand: expandServiceReference,
+			Name:         "service-reference",
+			Kind:         sdkinv.KindJSONIndex,
+			URL:          serviceReferenceURL,
+			Dest:         "service-reference",
+			Expand:       expandServiceReference,
+			ExpandID:     "sr-services-v1",
+			PinnedDigest: sdkinv.AWSServiceReferenceDigest,
 		},
 	}
 }

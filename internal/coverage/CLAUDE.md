@@ -11,6 +11,8 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
   `CanonicalKey` — drives `--cross-check`), `RegionLister`, `ResolverAuditor`, `ServiceMapper`
   (`TypeServices()`: disco type → scanner service names registered from the same file, via
   `restype.Origin`; `coverage verify` joins `scans.errors` through it).
+- `Inputs.Paired` is set explicitly by `InputsFromCache`; a walk that parsed but anchored nothing
+  is a paired run with no pairings, not "no source".
 - `InputsFromCache(ctx, cache, provider, emits, scannerDir)` is the one derivation path shared by
   `cmd/coverage.go`, `cmd/disco-scaffold` and the reconcile tests; an empty `scannerDir` means
   "name matching only" (`Matrix.Pairing=false`, disco-only rows carry `pairing-unavailable`).
@@ -51,7 +53,16 @@ reports `pins-changed` + `new-since-baseline` / `gone-since-baseline` keys, neve
 because a larger universe with the same scanners can only lower it. Rows are sorted in
 `BuildInventory`, so `docs/coverage.md` is byte-stable (verified: two `make gen-coverage` runs
 `cmp` equal).
+`ProviderBaseline.Pairing` records whether the scanner source was paired; a mode-mixed compare
+is fatal (`pairing-mode`) because name matching alone reports ~7 points less on AWS. A provider
+absent from the file is fatal (`no-baseline`) — nothing would guard it. An uncovered key leaving
+the universe is reported (`denominator-shrunk`): it raises the percent, so no other check fires.
+`--write-baseline` **merges** into the existing file (`coverage.Merge`), so a `--providers`-narrowed
+run cannot silently drop the ratchet for the providers it did not compute.
 `make gen-coverage` accepts; `make check-coverage` enforces (plus a diff of `docs/coverage.md`).
+`docs/coverage.md` is generated but **committed** — `.gitignore`'s `coverage.*` swallowed it and
+both the stale-report diff and the CI regen job were no-ops against a file that existed only
+locally. Keep ignore patterns narrow (`*.out`, `coverage.html`).
 
 ## Identity
 

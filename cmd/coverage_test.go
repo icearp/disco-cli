@@ -47,8 +47,26 @@ func fixtureCache(t *testing.T) string {
 	if err := os.CopyFS(dir, os.DirFS(filepath.Join("..", "internal", "sdkinv", "aws", "testdata", "cache"))); err != nil {
 		t.Fatal(err)
 	}
-	manifest, _ := json.Marshal(sdkinv.Manifest{Provider: "aws", Ref: sdkinv.AWSSDKRef})
+	e, ok := sdkinv.Get("aws")
+	if !ok {
+		t.Fatal("aws extractor not registered")
+	}
+	manifest, _ := json.Marshal(sdkinv.Manifest{Provider: "aws", Ref: sdkinv.AWSSDKRef, Spec: sdkinv.SpecFingerprint(e.FetchSpec())})
 	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// fixtureSourceRoot stages the pairing package's synthetic AWS scanner
+// package as <root>/internal/providers/aws, so the gates can run against the
+// fixture universe without parsing the 400-service real scanner tree.
+func fixtureSourceRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	dst := filepath.Join(root, "internal", "providers", "aws")
+	src := filepath.Join("..", "internal", "sdkinv", "pairing", "testdata", "scannerpkg", "aws")
+	if err := os.CopyFS(dst, os.DirFS(src)); err != nil {
 		t.Fatal(err)
 	}
 	return root
@@ -74,15 +92,15 @@ func TestCoverageServices_CacheAbsentExits2(t *testing.T) {
 
 // TestCoverageServices_Offline runs the whole services path against the
 // fixture cache with pairing unavailable: every fixture candidate is either
-// name-matched or uncovered, every emitted type is disco-only with the
-// pairing-unavailable reason, and --check-strict passes because nothing can
-// be called unexplained without pairing.
+// name-matched or uncovered and every emitted type is disco-only with the
+// pairing-unavailable reason. The gates are not exercised here — without
+// pairing they are refused (TestCoverageServices_GatesNeedPairing).
 func TestCoverageServices_Offline(t *testing.T) {
 	root := fixtureCache(t)
 	resetCoverageFlags(t)
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", root, "--source-root=", "--check-strict", "-o", "json"})
+		cmd.SetArgs([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", root, "--source-root=", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -178,18 +196,44 @@ func TestCoverage_RegistryDriftNeedsCrossCheck(t *testing.T) {
 	}
 }
 
+// TestCoverageServices_GatesNeedPairing: --check-strict, --baseline and
+// --write-baseline all measure the pairing, so each is refused when the
+// scanner source is unavailable. --check-strict used to exit 0 in that mode
+// whatever was wrong (Summary.Unexplained is 0 by construction), and a
+// baseline written in it recorded a name-matching-only covered set that a
+// later pairing-on run accepted as clean.
+func TestCoverageServices_GatesNeedPairing(t *testing.T) {
+	root := fixtureCache(t)
+	for _, gate := range [][]string{
+		{"--check-strict"},
+		{"--baseline", filepath.Join(t.TempDir(), "b.json")},
+		{"--write-baseline", filepath.Join(t.TempDir(), "b.json")},
+	} {
+		resetCoverageFlags(t)
+		_, err := captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs(append([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", root, "--source-root=", "-o", "json"}, gate...))
+			return cmd.Execute()
+		})
+		if !errors.Is(err, errCoverageInventoryUnavailable) {
+			t.Errorf("%v: want errCoverageInventoryUnavailable, got %v", gate, err)
+		}
+	}
+}
+
 // TestCoverageServices_Baseline: --write-baseline records the unfiltered
 // matrix (a --filter that hides every covered row must not empty it),
 // comparing against that file is clean, and a baseline claiming a key the
 // fixture never covers fails with the baseline sentinel after rendering.
 func TestCoverageServices_Baseline(t *testing.T) {
 	root := fixtureCache(t)
+	srcRoot := fixtureSourceRoot(t)
 	path := filepath.Join(t.TempDir(), "baseline.json")
 	run := func(args ...string) (string, error) {
 		resetCoverageFlags(t)
 		return captureStdout(t, func() error {
 			cmd := rootCmd
-			cmd.SetArgs(append([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", root, "--source-root=", "-o", "json"}, args...))
+			cmd.SetArgs(append([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", root, "--source-root", srcRoot, "-o", "json"}, args...))
 			return cmd.Execute()
 		})
 	}
@@ -201,7 +245,7 @@ func TestCoverageServices_Baseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	aws := b["aws"]
-	if len(aws.UncoveredKeys) == 0 || aws.Pins["aws-sdk-go-v2"] != sdkinv.AWSSDKRef {
+	if len(aws.CoveredKeys) == 0 || !aws.Pairing || aws.Pins["aws-sdk-go-v2"] != sdkinv.AWSSDKRef {
 		t.Fatalf("baseline = %+v", aws)
 	}
 	if aws.Covered != len(aws.CoveredKeys) || aws.Uncovered != len(aws.UncoveredKeys) {
@@ -210,12 +254,10 @@ func TestCoverageServices_Baseline(t *testing.T) {
 	if _, err := run("--baseline", path); err != nil {
 		t.Fatalf("clean compare: %v", err)
 	}
-	// Move one uncovered key into the covered list: the fresh run now regresses it.
-	aws.CoveredKeys = append(aws.CoveredKeys, aws.UncoveredKeys[0])
-	aws.UncoveredKeys = aws.UncoveredKeys[1:]
+	// A covered key the fresh run no longer has at all: under identical pins
+	// the universe cannot shrink, so this is a scanner or extractor losing it.
+	aws.CoveredKeys = append(aws.CoveredKeys, "widgets/phantom")
 	aws.Covered++
-	aws.Uncovered--
-	aws.Percent = 100 * float64(aws.Covered) / float64(aws.Covered+aws.Uncovered)
 	b["aws"] = aws
 	if err := coverage.WriteBaseline(path, b); err != nil {
 		t.Fatal(err)
@@ -230,6 +272,36 @@ func TestCoverageServices_Baseline(t *testing.T) {
 	}
 	if _, err := run("--baseline", filepath.Join(t.TempDir(), "none.json")); err == nil {
 		t.Error("missing baseline file must error")
+	}
+}
+
+// TestCoverageServices_PartialWriteBaselineMerges: writing the baseline for
+// one provider must leave the others in the file. A --providers-narrowed
+// regen used to truncate it, after which CompareBaseline reported only
+// no-baseline for the missing providers and nothing guarded them.
+func TestCoverageServices_PartialWriteBaselineMerges(t *testing.T) {
+	root := fixtureCache(t)
+	srcRoot := fixtureSourceRoot(t)
+	path := filepath.Join(t.TempDir(), "baseline.json")
+	if err := coverage.WriteBaseline(path, coverage.Baseline{
+		"azure": {Pins: map[string]string{"azure-sdk-for-go": "sha"}, Pairing: true, Percent: 19.7, Covered: 386},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	resetCoverageFlags(t)
+	if _, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"coverage", "services", "--providers", "aws", "--sdk-cache", root, "--source-root", srcRoot, "-o", "json", "--write-baseline", path})
+		return cmd.Execute()
+	}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	b, err := coverage.ReadBaseline(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b) != 2 || b["azure"].Covered != 386 || len(b["aws"].CoveredKeys) == 0 {
+		t.Errorf("merged baseline = %+v", b)
 	}
 }
 

@@ -119,11 +119,26 @@ type FetchSource struct {
 	Strip int
 	// Keep decides whether an archive entry (after Strip) is written. nil keeps all.
 	Keep func(path string) bool
+	// KeepID names what Keep selects and MUST change whenever Keep does: it is
+	// the only part of the filter a cached snapshot can be compared against.
+	// Widening Keep at an unchanged ref once left every existing cache holding
+	// the old, narrower file set, which the extractor then read as a smaller
+	// universe with no fetch and no warning.
+	KeepID string
 	// LocalDir, when set and present on disk, is walked instead of downloading
 	// (e.g. an already-populated GOMODCACHE). Paths are relative to LocalDir.
 	LocalDir string
 	// Expand parses the index document into per-entry fetches (KindJSONIndex only).
 	Expand func(index []byte) ([]IndexEntry, error)
+	// ExpandID names what Expand selects out of the index and MUST change
+	// whenever Expand does, for the same reason KeepID must: the cached file
+	// set is the only evidence of the old behaviour and it carries no code.
+	ExpandID string
+	// PinnedDigest, when set, is the expected sha256 prefix of the downloaded
+	// document. An unversioned source (the AWS Service Reference catalog) has
+	// no ref to pin, so its content digest is the pin; a mismatch is reported,
+	// never enforced, because the served catalog is whatever it is.
+	PinnedDigest string
 }
 
 // IndexEntry is one document referenced by a JSON index. It is written to

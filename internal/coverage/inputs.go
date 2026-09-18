@@ -18,7 +18,7 @@ func InputsFromCache(ctx context.Context, cache sdkinv.Cache, provider string, e
 	if !ok {
 		return in, fmt.Errorf("no SDK extractor for provider %s", provider)
 	}
-	if _, err := cache.Status(provider, e.Ref()); err != nil {
+	if _, err := cache.Status(e); err != nil {
 		return in, err
 	}
 	u, err := e.Extract(ctx, cache.Dir(provider, e.Ref()))
@@ -38,6 +38,6 @@ func InputsFromCache(ctx context.Context, cache sdkinv.Cache, provider string, e
 	if err != nil {
 		return in, err
 	}
-	in.Pairings, in.Unpaired = res.Pairings, res.Unpaired(res.Consts, sdk)
+	in.Pairings, in.Unpaired, in.Paired = res.Pairings, res.Unpaired(res.Consts, sdk), true
 	return in, nil
 }

@@ -110,7 +110,13 @@ func TestExtract_Fixture(t *testing.T) {
 	if th := got["nosr/thing"]; !slices.Contains(th.Signals, "fallback") {
 		t.Errorf("nosr signals = %v", th.Signals)
 	}
-	if len(u.Diagnostics) != 1 || u.Diagnostics[0].Source != "nosr.json" {
+	// The fixture catalog is not the pinned one, so the pin mismatch is
+	// expected here; what matters is that it is reported rather than silent.
+	kinds := map[string]bool{}
+	for _, d := range u.Diagnostics {
+		kinds[d.Source] = true
+	}
+	if len(u.Diagnostics) != 2 || !kinds["nosr.json"] || !kinds["service-reference/index.json"] {
 		t.Errorf("diagnostics = %+v", u.Diagnostics)
 	}
 	if u.Pins["aws-sdk-go-v2"] != sdkinv.AWSSDKRef || u.Pins["service-reference"] == "" {
@@ -279,9 +285,11 @@ func TestEntryPlace_OrderIndependent(t *testing.T) {
 	}
 }
 
-// TestServiceReferenceVersion: the pin follows the catalog's newest
-// `modified` stamp (UTC date), not the file's mtime, and an index without
-// stamps pins by digest so the fixture is still versioned.
+// TestServiceReferenceVersion: the unversioned catalog pins by the digest of
+// its index and by nothing else. The `modified` stamps it used to read are a
+// property of when the cache was built, not of the catalog's content, so two
+// machines holding the same catalog disagreed on the pin and the ratchet
+// downgraded its fatal checks.
 func TestServiceReferenceVersion(t *testing.T) {
 	dir := t.TempDir()
 	write := func(body string) string {
@@ -291,18 +299,25 @@ func TestServiceReferenceVersion(t *testing.T) {
 		}
 		return p
 	}
-	got, err := serviceReferenceVersion(write(`[{"service":"a","modified":1774454984},{"service":"b","modified":1789999999}]`))
-	if err != nil || got != "2026-09-21" {
-		t.Errorf("stamped index = %q, %v; want 2026-09-21", got, err)
-	}
-	first, err := serviceReferenceVersion(write(`[{"service":"widgets"}]`))
+	stamped := `[{"service":"a","modified":1774454984},{"service":"b","modified":1789999999}]`
+	first, err := serviceReferenceVersion(write(stamped))
 	if err != nil || len(first) != 12 {
-		t.Errorf("unstamped index = %q, %v; want a 12-hex digest", first, err)
+		t.Fatalf("stamped index = %q, %v; want a 12-hex digest", first, err)
 	}
-	if again, _ := serviceReferenceVersion(write(`[{"service":"widgets"}]`)); again != first {
+	if again, _ := serviceReferenceVersion(write(stamped)); again != first {
 		t.Errorf("digest not stable: %q vs %q", first, again)
 	}
-	if _, err := serviceReferenceVersion(write(`{}`)); err == nil {
-		t.Error("non-array index must error")
+	// Same services, newer stamps: the same catalog content must not be a
+	// different pin, and different content must be.
+	restamped, _ := serviceReferenceVersion(write(`[{"service":"a","modified":1774454984},{"service":"b","modified":1799999999}]`))
+	if restamped == first {
+		t.Error("a changed index must change the digest")
+	}
+	unstamped, _ := serviceReferenceVersion(write(`[{"service":"widgets"}]`))
+	if len(unstamped) != 12 || unstamped == first {
+		t.Errorf("unstamped index = %q", unstamped)
+	}
+	if _, err := serviceReferenceVersion(filepath.Join(dir, "absent.json")); err == nil {
+		t.Error("a missing index must error")
 	}
 }

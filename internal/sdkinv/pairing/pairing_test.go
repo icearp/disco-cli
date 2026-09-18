@@ -2,6 +2,7 @@ package pairing
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -264,4 +265,58 @@ func TestResolverKeys(t *testing.T) {
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("gcp LabelAliases = %v, want %v", got, want)
 	}
+}
+
+// TestWalkIsDeterministic guards the pairing against map-iteration order.
+// scanWidgetPair reaches two callees anchoring the same candidate under
+// different ops; before the callee walk was ordered, which op the pairing
+// reported flipped between runs of the same binary, and the flip reached
+// `coverage verify`'s reason column while leaving the report byte-identical.
+func TestWalkIsDeterministic(t *testing.T) {
+	var first string
+	for i := range 20 {
+		res, _ := walkFixture(t, "aws")
+		var b strings.Builder
+		for _, p := range res.Pairings {
+			fmt.Fprintf(&b, "%s\t%s\t%s\t%s\t%v\n", p.Func, p.Key, p.Op, p.Kind, p.Types)
+		}
+		got := b.String()
+		if i == 0 {
+			first = got
+			continue
+		}
+		if got != first {
+			t.Fatalf("walk %d differs from walk 0:\n%s", i, diffLines(first, got))
+		}
+	}
+	res, _ := walkFixture(t, "aws")
+	if p, ok := pairingsFor(res, "widgets/widget")["scanWidgetPair"]; !ok {
+		t.Fatalf("no pairing from scanWidgetPair; have %v", pairingsFor(res, "widgets/widget"))
+	} else if p.kind != "emits" {
+		t.Errorf("scanWidgetPair kind = %s, want emits", p.kind)
+	}
+	for _, p := range res.Pairings {
+		// The listing wins over the detail read of the same candidate.
+		if p.Func == "scanWidgetPair" && p.Op != "ListWidgets" {
+			t.Errorf("scanWidgetPair op = %q, want ListWidgets", p.Op)
+		}
+	}
+}
+
+// diffLines reports the first differing line of two newline-separated dumps.
+func diffLines(a, b string) string {
+	as, bs := strings.Split(a, "\n"), strings.Split(b, "\n")
+	for i := range max(len(as), len(bs)) {
+		x, y := "", ""
+		if i < len(as) {
+			x = as[i]
+		}
+		if i < len(bs) {
+			y = bs[i]
+		}
+		if x != y {
+			return fmt.Sprintf("line %d:\n-%s\n+%s", i+1, x, y)
+		}
+	}
+	return "(no line differs)"
 }

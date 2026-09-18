@@ -12,10 +12,12 @@ disco-cli
 # Test binary, built with `go test -c`
 *.test
 
-# Code coverage profiles and other test artifacts
+# Code coverage profiles and other test artifacts. Note the narrow patterns:
+# a bare `coverage.*` also ignored docs/coverage.md, the generated coverage
+# report the ratchet diffs against, so it was never committed.
 *.out
-coverage.*
-!coverage.go
+coverage.html
+coverage.txt
 *.coverprofile
 profile.cov
 

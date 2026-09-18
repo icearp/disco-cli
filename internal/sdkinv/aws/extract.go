@@ -13,7 +13,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
@@ -152,6 +151,16 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		return nil, err
 	}
 	u.Pins["service-reference"] = srVersion
+	// The catalog is unversioned and served live, so the fetched copy can be
+	// newer than the pin. Report it rather than hide it: the pins printed on
+	// every report and recorded in the baseline are what the numbers were
+	// actually computed from.
+	if srVersion != sdkinv.AWSServiceReferenceDigest {
+		u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{
+			Severity: "warn", Source: "service-reference/index.json",
+			Message: fmt.Sprintf("catalog digest %s does not match the pin %s in internal/sdkinv/pins.go; the numbers are from the cached catalog", srVersion, sdkinv.AWSServiceReferenceDigest),
+		})
+	}
 	modelDir := filepath.Join(dir, "repo", smithyModelsDir)
 	files, err := filepath.Glob(filepath.Join(modelDir, "*.json"))
 	if err != nil {
@@ -242,31 +251,19 @@ func loadServiceReference(dir string) (map[string]*srService, string, error) {
 	return out, ver, nil
 }
 
-// serviceReferenceVersion pins the unversioned catalog by its content: the
-// newest per-service `modified` stamp in the index, so two fetches of the
-// same catalog agree and a catalog update reads as a pin bump. The file's
-// own mtime is the fetch time and would move on every cache rebuild. An
-// index without stamps (the fixture) pins by digest.
+// serviceReferenceVersion pins the unversioned catalog by the digest of its
+// index, which is what sdkinv.AWSServiceReferenceDigest records. A date
+// derived from the index's newest `modified` stamp looked like a pin but was
+// a property of whenever the cache happened to be built: it moved on 12 of 13
+// consecutive days, and a moved pin turns the ratchet's fatal checks into
+// advisory ones (`gone-since-baseline` instead of `regressed`).
 func serviceReferenceVersion(indexPath string) (string, error) {
 	raw, err := os.ReadFile(indexPath)
 	if err != nil {
 		return "", err
 	}
-	var entries []struct {
-		Modified int64 `json:"modified"`
-	}
-	if err := json.Unmarshal(raw, &entries); err != nil {
-		return "", fmt.Errorf("%s: %w", indexPath, err)
-	}
-	var newest int64
-	for _, e := range entries {
-		newest = max(newest, e.Modified)
-	}
-	if newest == 0 {
-		sum := sha256.Sum256(raw)
-		return hex.EncodeToString(sum[:6]), nil
-	}
-	return time.Unix(newest, 0).UTC().Format("2006-01-02"), nil
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:6]), nil
 }
 
 func indexSR(d *srDoc) *srService {

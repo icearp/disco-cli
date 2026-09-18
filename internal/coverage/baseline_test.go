@@ -7,7 +7,7 @@ import (
 )
 
 func baselineMatrix(pins map[string]string, covered, uncovered, unexplained []string) Matrix {
-	m := Matrix{Provider: "aws", Pins: pins}
+	m := Matrix{Provider: "aws", Pins: pins, Pairing: true}
 	for _, k := range covered {
 		m.Rows = append(m.Rows, Row{Key: k, Bucket: BucketCovered})
 	}
@@ -93,10 +93,44 @@ func TestCompareBaseline(t *testing.T) {
 	t.Run("provider without baseline reports", func(t *testing.T) {
 		m := baselineMatrix(pins, nil, nil, nil)
 		m.Provider = "gcp"
-		if ds := CompareBaseline(base, []Matrix{m}); len(ds) != 1 || ds[0].Kind != DriftNoBaseline || ds[0].Fatal() {
+		// Fatal: a partial --write-baseline used to leave a file with one
+		// provider in it, after which the other two were unguarded and CI
+		// stayed green.
+		if ds := CompareBaseline(base, []Matrix{m}); len(ds) != 1 || ds[0].Kind != DriftNoBaseline || !ds[0].Fatal() {
 			t.Errorf("drifts = %+v", ds)
 		}
 	})
+	t.Run("pairing mode mismatch is fatal and stops the compare", func(t *testing.T) {
+		m := baselineMatrix(pins, []string{"ec2/instance", "s3/bucket"}, []string{"ec2/fleet"}, []string{"aws:x:y"})
+		m.Pairing = false
+		ds := CompareBaseline(base, []Matrix{m})
+		if len(ds) != 1 || ds[0].Kind != DriftPairingMode || !ds[0].Fatal() {
+			t.Errorf("drifts = %+v", ds)
+		}
+	})
+	t.Run("an uncovered key leaving the universe is reported", func(t *testing.T) {
+		ds := CompareBaseline(base, []Matrix{baselineMatrix(pins, []string{"ec2/instance", "s3/bucket"}, nil, []string{"aws:x:y"})})
+		kinds := driftKinds(ds)
+		if !reflect.DeepEqual(kinds[DriftDenominatorCut], []string{"ec2/fleet"}) {
+			t.Errorf("drifts = %+v", ds)
+		}
+		for _, d := range ds {
+			if d.Fatal() {
+				t.Errorf("shrinking the denominator must not be fatal: %+v", d)
+			}
+		}
+	})
+}
+
+// TestMergeKeepsProvidersNotRewritten: `--providers aws --write-baseline`
+// must not drop azure and gcp from the file.
+func TestMergeKeepsProvidersNotRewritten(t *testing.T) {
+	prev := Baseline{"aws": {Percent: 1}, "azure": {Percent: 2}, "gcp": {Percent: 3}}
+	fresh := Baseline{"aws": {Percent: 9}}
+	got := Merge(prev, fresh)
+	if len(got) != 3 || got["aws"].Percent != 9 || got["azure"].Percent != 2 || got["gcp"].Percent != 3 {
+		t.Errorf("merged = %+v", got)
+	}
 }
 
 // TestBaselineRoundTrip: the file survives write → read unchanged and is

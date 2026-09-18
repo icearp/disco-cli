@@ -7,6 +7,12 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 ## Cache layout (`$XDG_CACHE_HOME/disco/sdk/<provider>@<ref>/`, `disco coverage sdk fetch|status`, `make sdk-fetch`)
 
 - `manifest.json` written last; a dir without it is "absent". Fetch lands in `.tmp-*` then renames.
+- A snapshot's identity is provider + ref + `SpecFingerprint(FetchSpec)` (manifest `spec`).
+  `Cache.Status(e Extractor)` returns `ErrNotFetched` on any mismatch, so a wrong-identity or
+  wrong-spec directory refetches instead of being read. **Changing a source's `Keep` or `Expand`
+  MUST bump its `KeepID`/`ExpandID`** (funcs cannot be hashed; the `all` guard test only checks
+  the id is non-empty). Widening `keepARMFile` at an unchanged `AzureSDKRef` once left every
+  cache holding the old narrower file set, silently reporting Azure 19.52% instead of 19.70%.
 - `aws@<tag>/repo/codegen/sdk-codegen/aws-models/*.json` (431 Smithy models) +
   `service-reference/index.json` and `<service>.json` (456 docs).
 - `azure@<sha>/repo/sdk/resourcemanager/<rp>/arm<rp>/{*_client.go,models.go,response_types.go,responses.go}`.
@@ -23,16 +29,24 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   binary reads the version from `debug.ReadBuildInfo()`. `TestPinMatchesGoMod` fails when go.mod
   moves — bump the pin in the same commit as the dependency.
 - A pin bump changes the denominator; reports print the pins.
-- The Service Reference catalog is unversioned. Its pin (`service-reference@YYYY-MM-DD`) is the
-  newest per-service `modified` stamp in `index.json`, never the file mtime: two fetches of the
-  same catalog agree, a catalog update is a pin bump, and `make check-coverage` treats a moved
-  pin as growth to regenerate, not a regression. A cache rebuild on CI can therefore move it.
+- The Service Reference catalog is unversioned and served live, so its pin is content:
+  `AWSServiceReferenceDigest` = first 12 hex of `sha256(index.json)`, printed as
+  `service-reference@<digest>`. A fetch that disagrees is **reported, never enforced**
+  (extractor diagnostic + `coverage sdk status` stderr note) — the served catalog is whatever it
+  is. The catalog moves most days: bump the digest in the same commit as the regenerated
+  baseline. `make check-coverage` treats a moved pin as growth to regenerate, not a regression.
 
 ## Archive handling (`fetch.go`)
 
 - GitHub tarballs prefix `<repo>-<ref>/` (Strip 1); module zips `<module>@<ver>/` (Strip 2).
 - Entry paths are backslash-normalised, `..`/absolute rejected, 64 MB per-entry cap; JSON-index
-  entry names must match `^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`.
+  entry names must match `^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`, must be unique, and may not be
+  `index` (it would overwrite the index document). The whole index is validated **before** the
+  errgroup fan-out: a mid-loop reject left goroutines writing into the discarded snapshot.
+- `fetchClient()` sets per-hop timeouts (`ResponseHeaderTimeout`, `TLSHandshakeTimeout`) and
+  **never an overall `Client.Timeout`** — the AWS tarball is hundreds of MB and a whole-request
+  deadline aborts a healthy slow download. Bodies are wrapped in `idleReader`, which cancels the
+  request after 60 s with no byte and reports `transfer stalled: …` rather than `context canceled`.
 
 ## Catalog facts (verified 2026-09-16)
 
@@ -175,6 +189,9 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   references the var (`collectVarTypes`), and `SDKFiles` counts those references, so a
   table-only type is `unexplained`, never `non-sdk`. Labels resolve against the function, its callees and its direct callers — the
   label sits at the error site, the pager is often built one frame up.
+- `Walk` is deterministic within a process: callee sets are walked in sorted order and two
+  callees anchoring one candidate tie-break by `betterAnchor` (a listing beats a detail read,
+  then the smaller label). Map-range order otherwise picked the reported op per run.
 - Kinds: `emits` (anchor + types), `sidecar` (anchor, no types — a listing helper; its direct
   caller is then paired with what it stores), `derived` (a dispatcher with no anchor of its
   own: types no anchored callee stores, paired with everything the callees list, minus types

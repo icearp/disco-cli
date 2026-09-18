@@ -36,6 +36,12 @@ func TestExtractorsRegistered(t *testing.T) {
 			if s.Kind == sdkinv.KindJSONIndex && s.Expand == nil {
 				t.Errorf("%s/%s: json-index without Expand", n, s.Name)
 			}
+			if s.Expand != nil && s.ExpandID == "" {
+				t.Errorf("%s/%s: Expand without an ExpandID; a cached snapshot cannot tell the index parse changed", n, s.Name)
+			}
+			if s.Keep != nil && s.KeepID == "" {
+				t.Errorf("%s/%s: Keep filter without a KeepID; a cached snapshot cannot tell the filter changed", n, s.Name)
+			}
 			if s.Kind != sdkinv.KindJSONIndex && s.Keep == nil {
 				t.Errorf("%s/%s: archive source without Keep filter", n, s.Name)
 			}
@@ -68,7 +74,10 @@ func TestInventoryWalkTime(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", n, err)
 		}
-		if d := time.Since(start); d > 10*time.Second {
+		// A generous ceiling on purpose: the point is catching an accidental
+		// quadratic walk, not policing seconds on a cold page cache or a
+		// loaded CI runner. Azure parses ~30k generated Go files.
+		if d := time.Since(start); d > 60*time.Second {
 			t.Errorf("%s: extract took %s", n, d)
 		}
 		if len(u.Candidates) < 500 {

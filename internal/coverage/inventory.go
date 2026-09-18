@@ -99,6 +99,11 @@ type Inputs struct {
 	// source is unavailable, in which case only name matching applies.
 	Pairings []pairing.Pairing
 	Unpaired map[string]string
+	// Paired records that the walk ran, which a nil Pairings slice does not:
+	// a source tree that parses but anchors nothing would otherwise be
+	// indistinguishable from no source tree, and every gate keys on the
+	// difference.
+	Paired bool
 }
 
 // pairingKinds are the pairing kinds that prove a scanner lists a candidate.
@@ -109,7 +114,7 @@ var pairingKinds = map[string]bool{"emits": true, "sidecar": true, "derived": tr
 // type into buckets. The unit of coverage is the candidate: one op storing
 // seven types counts once, seven ops storing one type mark seven candidates.
 func BuildInventory(in Inputs) Matrix {
-	m := Matrix{Provider: in.Provider, Pins: in.Universe.Pins, Pairing: in.Pairings != nil}
+	m := Matrix{Provider: in.Provider, Pins: in.Universe.Pins, Pairing: in.Paired}
 	types := map[string]map[string]bool{} // candidate key -> paired disco types
 	for _, p := range in.Pairings {
 		if p.Key == "" || !pairingKinds[p.Kind] {
@@ -181,7 +186,7 @@ func BuildInventory(in Inputs) Matrix {
 		}
 		row := Row{Provider: in.Provider, Service: e.Service, DiscoType: e.DiscoType, Bucket: BucketDiscoOnly}
 		switch reason, ok := in.Unpaired[e.DiscoType]; {
-		case in.Pairings == nil:
+		case !in.Paired:
 			row.Reason = ReasonPairingUnavailable
 		case ok && reason != ReasonUnexplained:
 			row.Reason = "explained: " + reason

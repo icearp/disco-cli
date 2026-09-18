@@ -15,7 +15,7 @@ func Scan(ctx context.Context, cache sdkinv.Cache, provider, dir string) (*Resul
 	if !ok {
 		return nil, nil, fmt.Errorf("pairing: no extractor for provider %q", provider)
 	}
-	if _, err := cache.Status(provider, e.Ref()); err != nil {
+	if _, err := cache.Status(e); err != nil {
 		return nil, nil, err
 	}
 	u, err := e.Extract(ctx, cache.Dir(provider, e.Ref()))

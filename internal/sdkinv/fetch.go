@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -32,8 +34,33 @@ const indexFetchConcurrency = 32
 
 const userAgent = "disco-coverage-sdk-fetch"
 
+// Per-hop limits for the fetch client. No overall Client.Timeout: see
+// idleReader.
+const (
+	bodyIdleTimeout       = 60 * time.Second
+	responseHeaderTimeout = 45 * time.Second
+	tlsHandshakeTimeout   = 20 * time.Second
+)
+
+// fetchClient bounds the stalls a cache fetch can hit without bounding the
+// transfer itself.
+func fetchClient() *http.Client {
+	tr, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return &http.Client{}
+	}
+	t := tr.Clone()
+	t.ResponseHeaderTimeout = responseHeaderTimeout
+	t.TLSHandshakeTimeout = tlsHandshakeTimeout
+	return &http.Client{Transport: t}
+}
+
 // safeEntryName bounds JSON-index entry names to one plain path segment:
 // no separators, no dot-only names, bounded length.
+// indexName is the index document's own file name; entries are written beside
+// it as <name>.json, so no entry may be called this.
+const indexName = "index"
+
 var safeEntryName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`)
 
 func fetchSource(ctx context.Context, client *http.Client, src FetchSource, dest string) (SourceRecord, error) {
@@ -58,22 +85,72 @@ func fetchSource(ctx context.Context, client *http.Client, src FetchSource, dest
 	}
 }
 
-// httpGet opens url and returns the body; the caller closes it.
+// httpGet opens url and returns the body; the caller closes it. The body is
+// wrapped so a transfer that stops producing bytes fails instead of hanging
+// until the process is killed.
 func httpGet(ctx context.Context, client *http.Client, url string) (io.ReadCloser, error) {
+	return httpGetIdle(ctx, client, url, bodyIdleTimeout)
+}
+
+func httpGetIdle(ctx context.Context, client *http.Client, url string, idle time.Duration) (io.ReadCloser, error) {
+	ctx, cancel := context.WithCancel(ctx)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	req.Header.Set("User-Agent", userAgent)
 	resp, err := client.Do(req)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
+		cancel()
 		return nil, fmt.Errorf("GET %s: status %d", url, resp.StatusCode)
 	}
-	return resp.Body, nil
+	return newIdleReader(resp.Body, cancel, idle), nil
+}
+
+// idleReader cancels the request when no byte arrives for timeout. A whole-
+// request deadline cannot do this job: the AWS tarball is several hundred MB
+// and a legitimate slow link would trip it, while a server that stalls
+// mid-body trips nothing at all.
+type idleReader struct {
+	rc      io.ReadCloser
+	cancel  context.CancelFunc
+	timer   *time.Timer
+	d       time.Duration
+	stalled atomic.Bool
+}
+
+func newIdleReader(rc io.ReadCloser, cancel context.CancelFunc, d time.Duration) *idleReader {
+	ir := &idleReader{rc: rc, cancel: cancel, d: d}
+	// The timer fires the cancel, which makes the in-flight Read return; a
+	// Reset racing a fire is harmless because the context stays cancelled.
+	ir.timer = time.AfterFunc(d, func() { ir.stalled.Store(true); cancel() })
+	return ir
+}
+
+func (ir *idleReader) Read(p []byte) (int, error) {
+	n, err := ir.rc.Read(p)
+	switch {
+	case n > 0:
+		ir.timer.Reset(ir.d)
+	case err != nil && ir.stalled.Load():
+		// Without this the fetch reports a bare "context canceled", which
+		// reads as an interrupted run rather than a server that stopped.
+		err = fmt.Errorf("transfer stalled: no data for %s: %w", ir.d, err)
+	}
+	return n, err
+}
+
+func (ir *idleReader) Close() error {
+	ir.timer.Stop()
+	err := ir.rc.Close()
+	ir.cancel()
+	return err
 }
 
 // hashingReader tees bytes into a sha256 while counting them.
@@ -201,7 +278,7 @@ func fetchJSONIndex(ctx context.Context, client *http.Client, src FetchSource, d
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return rec, err
 	}
-	if err := os.WriteFile(filepath.Join(dest, "index.json"), index, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dest, indexName+".json"), index, 0o644); err != nil {
 		return rec, err
 	}
 	rec.Files = 1
@@ -209,12 +286,25 @@ func fetchJSONIndex(ctx context.Context, client *http.Client, src FetchSource, d
 	if err != nil {
 		return rec, err
 	}
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(indexFetchConcurrency)
+	// Validate the whole index before any fetch starts. Rejecting mid-loop
+	// returned while the goroutines already launched kept writing into the
+	// snapshot the caller was about to discard.
+	seen := make(map[string]bool, len(entries))
 	for _, en := range entries {
 		if en.URL == "" || !safeEntryName.MatchString(en.Name) {
 			return rec, fmt.Errorf("index entry %q (%s) is not a safe file name", en.Name, en.URL)
 		}
+		if en.Name == indexName {
+			return rec, fmt.Errorf("index entry %q would overwrite the index document itself", en.Name)
+		}
+		if seen[en.Name] {
+			return rec, fmt.Errorf("index entry %q appears twice", en.Name)
+		}
+		seen[en.Name] = true
+	}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(indexFetchConcurrency)
+	for _, en := range entries {
 		g.Go(func() error {
 			b, err := httpGet(gctx, client, en.URL)
 			if err != nil {

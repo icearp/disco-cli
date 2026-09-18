@@ -62,6 +62,7 @@ func (e extractor) FetchSpec() []sdkinv.FetchSource {
 		Dest:     "api",
 		Strip:    2, // "google.golang.org/api@<ver>/"
 		Keep:     func(p string) bool { return strings.HasSuffix(p, "-api.json") },
+		KeepID:   "discovery-api-json-v1",
 		LocalDir: filepath.Join(modCache(), modulePath+"@"+ver),
 	}}
 }

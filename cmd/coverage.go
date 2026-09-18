@@ -284,6 +284,9 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	if err != nil {
 		return err
 	}
+	if err := requirePairing(o, matrices); err != nil {
+		return err
+	}
 	// Baselines see every row; --filter only narrows what is rendered.
 	drifts, err := baselineStep(o, matrices)
 	if err != nil {
@@ -308,13 +311,43 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	return nil
 }
 
+// requirePairing refuses the gates when the scanner source was unavailable.
+// Without pairing every emitted type takes the pairing-unavailable branch, so
+// Summary.Unexplained is 0 by construction and --check-strict passes whatever
+// is wrong; a baseline written in that mode records a name-matching-only
+// covered set (278 keys short across the three providers) that a later
+// pairing-on run silently accepts.
+func requirePairing(o servicesOptions, matrices []coverage.Matrix) error {
+	if !o.checkStrict && o.baseline == "" && o.writeBase == "" {
+		return nil
+	}
+	var unpaired []string
+	for _, m := range matrices {
+		if !m.Pairing {
+			unpaired = append(unpaired, m.Provider)
+		}
+	}
+	if len(unpaired) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: no scanner pairing for %s; --check-strict, --baseline and --write-baseline measure the pairing, so they need --source-root to name a disco checkout",
+		errCoverageInventoryUnavailable, strings.Join(unpaired, ", "))
+}
+
 // baselineStep writes and/or compares the baseline before any filter runs.
 func baselineStep(o servicesOptions, matrices []coverage.Matrix) ([]coverage.Drift, error) {
 	if o.writeBase != "" && o.writeBase == o.baseline {
 		return nil, fmt.Errorf("--baseline and --write-baseline name the same file; the fresh matrix would compare with itself")
 	}
 	if o.writeBase != "" {
-		if err := coverage.WriteBaseline(o.writeBase, coverage.NewBaseline(matrices)); err != nil {
+		// Merge, never truncate: a --providers-narrowed run must leave the
+		// providers it did not compute exactly as it found them.
+		fresh := coverage.NewBaseline(matrices)
+		prev, err := coverage.ReadBaseline(o.writeBase)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("read baseline %s: %w", o.writeBase, err)
+		}
+		if err := coverage.WriteBaseline(o.writeBase, coverage.Merge(prev, fresh)); err != nil {
 			return nil, fmt.Errorf("write baseline: %w", err)
 		}
 	}

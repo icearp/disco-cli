@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 type tarEntry struct {
@@ -223,6 +225,22 @@ func TestFetchJSONIndex_ExpandsAndRejectsUnsafeNames(t *testing.T) {
 		t.Fatalf("record = %+v", rec)
 	}
 
+	// An entry named "index" would overwrite the index document beside it.
+	shadow := func([]byte) ([]IndexEntry, error) {
+		return []IndexEntry{{Name: indexName, URL: srv.URL + "/v1/ec2.json"}}, nil
+	}
+	if _, err := fetchSource(context.Background(), srv.Client(), FetchSource{Name: "sr", Kind: KindJSONIndex, URL: srv.URL + "/", Expand: shadow}, t.TempDir()); err == nil {
+		t.Error("index entry shadowing the index document accepted")
+	}
+
+	// Two entries writing one file would race; the index is rejected whole.
+	dup := func([]byte) ([]IndexEntry, error) {
+		return []IndexEntry{{Name: "ec2", URL: srv.URL + "/v1/ec2.json"}, {Name: "ec2", URL: srv.URL + "/v1/ec2.json"}}, nil
+	}
+	if _, err := fetchSource(context.Background(), srv.Client(), FetchSource{Name: "sr", Kind: KindJSONIndex, URL: srv.URL + "/", Expand: dup}, t.TempDir()); err == nil {
+		t.Error("duplicate index entry name accepted")
+	}
+
 	for _, bad := range []string{"../x", "..", ".", "a/b", `a\b`, "", strings.Repeat("x", 201), ".hidden"} {
 		unsafe := func([]byte) ([]IndexEntry, error) { return []IndexEntry{{Name: bad, URL: srv.URL + "/v1/x.json"}}, nil }
 		if _, err := fetchSource(context.Background(), srv.Client(), FetchSource{Name: "sr", Kind: KindJSONIndex, URL: srv.URL + "/", Expand: unsafe}, t.TempDir()); err == nil {
@@ -237,5 +255,31 @@ func TestFetchSource_HTTPErrorSurfaces(t *testing.T) {
 	_, err := fetchSource(context.Background(), srv.Client(), FetchSource{Name: "x", Kind: KindTarball, URL: srv.URL}, t.TempDir())
 	if err == nil {
 		t.Fatal("expected error on 404")
+	}
+}
+
+// A server that accepts the request and then stops sending must fail the
+// fetch, not hang: the old client had no timeout of any kind.
+func TestHTTPGet_StalledBodyFails(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "1024")
+		_, _ = w.Write([]byte("start"))
+		w.(http.Flusher).Flush()
+		<-release // never sends the rest
+	}))
+	defer func() { close(release); srv.Close() }()
+
+	body, err := httpGetIdle(context.Background(), srv.Client(), srv.URL, 50*time.Millisecond)
+	if err != nil {
+		t.Fatalf("httpGet: %v", err)
+	}
+	defer body.Close()
+	_, err = io.ReadAll(body)
+	if err == nil {
+		t.Fatal("read of a stalled body returned nil error")
+	}
+	if !strings.Contains(err.Error(), "transfer stalled") {
+		t.Errorf("stalled read error = %v, want it to name the stall", err)
 	}
 }

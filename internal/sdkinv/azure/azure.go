@@ -24,12 +24,13 @@ func (extractor) Ref() string  { return sdkinv.AzureSDKRef }
 
 func (extractor) FetchSpec() []sdkinv.FetchSource {
 	return []sdkinv.FetchSource{{
-		Name:  "arm-clients",
-		Kind:  sdkinv.KindTarball,
-		URL:   tarballURL,
-		Dest:  "repo",
-		Strip: 1,
-		Keep:  keepARMFile,
+		Name:   "arm-clients",
+		Kind:   sdkinv.KindTarball,
+		URL:    tarballURL,
+		Dest:   "repo",
+		Strip:  1,
+		Keep:   keepARMFile,
+		KeepID: "arm-go-sources-v2",
 	}}
 }
 

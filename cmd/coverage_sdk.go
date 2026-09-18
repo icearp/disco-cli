@@ -114,6 +114,36 @@ type sdkStatusRow struct {
 	Dir      string                `json:"dir"`
 	Manifest *sdkinv.Manifest      `json:"manifest,omitempty"`
 	Sources  []sdkinv.SourceRecord `json:"-"`
+	// PinNotes name the sources whose fetched content disagrees with the
+	// digest pinned in internal/sdkinv/pins.go.
+	PinNotes []string `json:"pinNotes,omitempty"`
+	// Notes explain a snapshot directory that exists but does not count as
+	// fetched (wrong provider/ref, or a different source spec).
+	Notes []string `json:"notes,omitempty"`
+}
+
+// pinNotes compares each pinned-by-digest source against what the snapshot
+// actually holds. An unversioned catalog cannot be fetched at a ref, so the
+// disagreement is reported here and in the report's pins rather than hidden.
+func pinNotes(e sdkinv.Extractor, m *sdkinv.Manifest) []string {
+	if m == nil {
+		return nil
+	}
+	var out []string
+	for _, src := range e.FetchSpec() {
+		if src.PinnedDigest == "" {
+			continue
+		}
+		for _, rec := range m.Sources {
+			if rec.Name != src.Name || rec.SHA256 == "" {
+				continue
+			}
+			if got := rec.SHA256[:min(len(rec.SHA256), len(src.PinnedDigest))]; got != src.PinnedDigest {
+				out = append(out, fmt.Sprintf("%s: cached %s, pinned %s (bump the pin in internal/sdkinv/pins.go with the regenerated baseline)", src.Name, got, src.PinnedDigest))
+			}
+		}
+	}
+	return out
 }
 
 func runCoverageSDKStatus(cmd *cobra.Command, _ []string) error {
@@ -126,12 +156,19 @@ func runCoverageSDKStatus(cmd *cobra.Command, _ []string) error {
 	rows := make([]sdkStatusRow, 0, len(exts))
 	for _, e := range exts {
 		row := sdkStatusRow{Provider: e.Name(), Ref: e.Ref(), Dir: cache.Dir(e.Name(), e.Ref())}
-		m, serr := cache.Status(e.Name(), e.Ref())
+		m, serr := cache.Status(e)
 		switch {
 		case serr == nil:
 			row.Present, row.Manifest = true, m
+			row.PinNotes = pinNotes(e, m)
 		case !errors.Is(serr, sdkinv.ErrNotFetched):
 			return serr
+		default:
+			// A snapshot rejected for a stale source spec looks exactly like
+			// one that was never fetched; the reason is only in the error.
+			if _, err := os.Stat(row.Dir); err == nil {
+				row.Notes = append(row.Notes, serr.Error())
+			}
 		}
 		rows = append(rows, row)
 	}
@@ -156,5 +193,13 @@ func runCoverageSDKStatus(cmd *cobra.Command, _ []string) error {
 		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", r.Provider, r.Ref, state, fetched, sources, r.Dir)
 	}
-	return tw.Flush()
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	for _, r := range rows {
+		for _, note := range append(append([]string{}, r.Notes...), r.PinNotes...) {
+			fmt.Fprintf(os.Stderr, "  %s: %s\n", r.Provider, note)
+		}
+	}
+	return nil
 }
