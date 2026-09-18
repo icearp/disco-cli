@@ -42,7 +42,7 @@ var descriptorEmits []coverage.TypeDecl
 var typeOrigin restype.Origin
 
 func registerType(d restype.Descriptor) {
-	typeOrigin.NoteType(d.Type)
+	typeOrigin.NoteType(d.Type, d.Service)
 	registeredDescriptors = append(registeredDescriptors, d)
 	descriptorEmits = append(descriptorEmits, restype.Emit(d))
 }

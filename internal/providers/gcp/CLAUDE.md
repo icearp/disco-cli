@@ -87,7 +87,7 @@ Real IAM 403 (rare; caller lacks permission but API enabled) still goes to warni
 
 ## Permission-denied is non-fatal
 
-`isPermissionDenied(err)` covers 401/403/BigQuery-400. Always pair with `skipIfDenied(st, "<api>:<method>", scope, err)` — never propagate from per-service scanner. Function dispatches internally between sentinel (API not enabled — see above) and warning (real permission denial).
+`isPermissionDenied(err)` covers 401/403/BigQuery-400. Always pair with `skipIfDenied(st, "<api>:<method>", scope, err)` — never propagate from per-service scanner, and never a bare `continue`: `scanHierarchy`'s three `Projects.Get`/`Organizations.Get`/`Folders.Get` sites skipped silently, so a denied project left no row, no warning and no error, and `coverage verify` read the whole hierarchy as "the account has none". They now warn under the `cloudresourcemanager` label, which is the name the hierarchy types join to (the walk runs direct from `gcp.go`, so it has no registered service of its own). `runOrgServices` likewise records a notice when no org or folder scope resolved instead of returning in silence. Function dispatches internally between sentinel (API not enabled — see above) and warning (real permission denial).
 
 ## `forEachItem[T]` helper — bounded-concurrency fan-out
 

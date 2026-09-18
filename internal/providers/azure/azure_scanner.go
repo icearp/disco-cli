@@ -297,7 +297,9 @@ func (s *Scanner) scanWithCredential(ctx context.Context, st *store.Store, scanI
 	entraDone := make(chan struct{})
 	wg.Go(func() {
 		defer close(entraDone)
-		defer reportPanic(st, "entra", tenantScopeLabel(subs))
+		// The registered name, not "entra": a label no service is registered
+		// under joins to no declared type, so the failure explains nothing.
+		defer reportPanic(st, entraServiceName, tenantScopeLabel(subs))
 		runTenantPhase(ctx, subs, cred, wif, s.serviceFilter, st, scanID)
 	})
 
@@ -357,7 +359,9 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 		preWG        sync.WaitGroup
 	)
 	preWG.Go(func() {
-		defer reportPanic(st, "resourcegroups", sub.scopeLabel())
+		// resourcegroups_scanners.go registers no service of its own; the
+		// resource-group types are declared by azure:microsoft.resources.
+		defer reportPanic(st, resourcesServiceName, sub.scopeLabel())
 		rgListed, rgErr = scanResourceGroups(ctx, sub, cred, st, scanID)
 	})
 	preWG.Go(func() {
@@ -367,7 +371,7 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 	preWG.Wait()
 	if rgErr != nil {
 		st.ReportError(store.ScanError{
-			Provider: "azure", Service: "resourcegroups", Scope: sub.scopeLabel(),
+			Provider: "azure", Service: resourcesServiceName, Scope: sub.scopeLabel(),
 			Message: formatAzureError(rgErr),
 		})
 	}
@@ -587,6 +591,13 @@ func waitForTenant(ctx context.Context, done <-chan struct{}) {
 // reported error for that service/scope, never abort the scan — the
 // panic-case extension of the "errors never abort scan" contract
 // (providers/CLAUDE.md). Call deferred.
+// Registered service names used by dispatch-level reporting, where the
+// failing code is not inside a registered service's own scan function.
+const (
+	entraServiceName     = "azure:microsoft.entra"
+	resourcesServiceName = "azure:microsoft.resources"
+)
+
 // subscriptionScanService labels a failure of one subscription's whole scan.
 // The runner records a provider-wide failure as "scan"; this is deliberately
 // not that.

@@ -47,6 +47,24 @@ namespace**: the registry panics on duplicate names (`azure_registry.go`).
 Tenant-scope `microsoft.entra` (Graph) is the lone non-ARM-RP exception, registered via
 `registerTenantService` and excluded from `expectedAzureServices`.
 
+Dispatch-level reporting must use those registered names too — `entraServiceName` and
+`resourcesServiceName` in `azure_scanner.go`, never the ad-hoc `"entra"` / `"resourcegroups"`
+they replaced. A label no service is registered under joins to no declared type, so the failure
+it records explains nothing. A failure of one subscription's whole scan is
+`subscriptionScanService` (`scan:subscription`), deliberately not the runner's provider-wide
+`scan`: with the bare label every declared type, tenant-scoped ones included, was blamed on one
+unreachable subscription.
+
+Warnings carry their service without knowing it: the dispatch loop passes
+`st.WithWarningService(svc.name)`, so a scanner keeps reporting op labels
+(`armnetwork:VirtualWans.List`) and the registered name rides along. Nothing turns an `arm<module>`
+prefix into `microsoft.<ns>` — armappservice, armcosmos and armresources each disagree — so that
+field is the only join a consumer has.
+
+`enumerateSubscriptions` fails with `ErrNoSubscriptions` when ARM lists none, like the pin and
+config paths. Returning an empty slice produced a completed scan with no rows, no error and no
+warning, so a credential pointed at the wrong tenant was indistinguishable from an empty one.
+
 ## Resolver-edge metadata: `EdgeDecl`
 
 `registerResolver(fn, emits ...EdgeDecl)` is variadic — every resolver lists each

@@ -39,8 +39,7 @@ would be a benign per-service warning while the scan reported success having sto
 
 Keep it a report-and-continue (`ReportError`, don't propagate): `ReportError` already drives
 `res.Partial` → `errScanPartial` under `--fail-on-error`, so the exit code is non-zero without
-aborting sibling services. GCP's default arm propagates via errgroup; the store-write arm
-deliberately does not, matching AWS/Azure.
+aborting sibling services. Every arm of every provider now reports and continues.
 
 ## Errors never abort scan
 
@@ -51,7 +50,9 @@ Provider scanners must NOT propagate per-service / per-region / per-resolver err
 - `Scan()` returns `nil` even when individual services failed; load-credentials / load-accounts failures also report-and-return-nil.
 - `cmd/scan.go` collects errors via `OnError` and renders one grouped block at end. Inline `FAILED:` lines no longer printed.
 
-Replace `errgroup.WithContext` with plain `sync.WaitGroup` for per-service fan-out — errgroup cancels siblings on first error, which we explicitly do not want. Precedent: `aws/aws.go` `scanRegion` + `scanAccount` phase 1a.
+Replace `errgroup.WithContext` with plain `sync.WaitGroup` for per-service fan-out — errgroup cancels siblings on first error, which we explicitly do not want. Precedent: `aws/aws.go` `scanRegion` + `scanAccount` phase 1a. GCP was the last holdout (a transient 500 or the per-service timeout in one project cancelled every service in every project **and** phase 2, so the run kept its phase-1 rows and lost every relationship edge); `TestScanProject_OneServiceFailureDoesNotCancelSiblings` guards it.
+
+A type's scanner service comes from `restype.Origin`: the file `registerType` was called from, narrowed by the descriptor's declared `Service` when that file registers several scanners (`apigateway`/`apigatewayv2`, the three GCP database services). Comparison is on a normalised form — provider prefix, separators and a leading `cloud` dropped — so the declared `run` reaches the scanner `gcp:cloudrun`. A type matching none of its file's scanners is left unclaimed rather than attributed to all of them; `TestEveryEmittedTypeHasScannerService` fails when that loses a type's only join.
 
 ## Provider registry (`registry.go`)
 

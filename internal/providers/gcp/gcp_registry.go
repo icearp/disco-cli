@@ -79,7 +79,7 @@ var descriptorEmits []coverage.TypeDecl
 var typeOrigin restype.Origin
 
 func registerType(d restype.Descriptor) {
-	typeOrigin.NoteType(d.Type)
+	typeOrigin.NoteType(d.Type, d.Service)
 	registeredDescriptors = append(registeredDescriptors, d)
 	descriptorEmits = append(descriptorEmits, restype.Emit(d))
 }
@@ -128,7 +128,17 @@ func registerOrgService(e orgServiceEntry) {
 // propagated (matches scanProject's per-service convention). Skipped when no
 // org/folder scopes were resolved (e.g. user only has project-level creds).
 func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st *store.Store, scanID string) {
-	if len(scopes) == 0 || len(registeredOrgServices) == 0 {
+	if len(registeredOrgServices) == 0 {
+		return
+	}
+	// No scope resolved means every org- and folder-scoped service was
+	// skipped. Returning in silence made that indistinguishable from an
+	// organization holding none of those resources.
+	if len(scopes) == 0 {
+		st.ReportNotice(store.ScanNotice{
+			Provider: "gcp", Service: "org-services", Scope: "org",
+			Message: "no organization or folder scope resolved (the credential reached no parent of the scanned projects); org- and folder-scoped services were skipped",
+		})
 		return
 	}
 	allowed := serviceFilterSet(filter)
