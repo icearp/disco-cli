@@ -51,6 +51,11 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
   pairing spans a whole service and must not hand every network type the app gateway's 280 fields.
 - `Row.Ops` folds repeated labels (sibling AWS models, per-version GCP documents): 930 rows
   rendered a duplicated ops cell. `Ops` is never read back, so the fold is presentation only.
+- `Row.Scope` is the **narrowest** scope among the candidate's ops (`scopeSpecificity`: project >
+  resource-group/subscription > account/region > org > folder > billing-account/management-group >
+  tenant/extension > global). Ops sort by label, so taking `Ops[0]` printed `billingAccounts.` or
+  `folders.` on 117 GCP rows that a project-scoped lister also serves. AWS ops carry no scope at
+  all, by rule (`internal/sdkinv/CLAUDE.md`), and the renderers dash an empty value.
 - Unit of coverage is the candidate: one op → N types counts once; N ops → one type marks every
   candidate covered. `Row.DiscoType` is the type to display — identity match, else shared leaf —
   and `Row.DiscoTypes` the whole set when more than one is paired. With several paired and neither
@@ -90,7 +95,7 @@ here and by GCP's `RegistryKey`/`CanonicalKey`: `Singular` alone splits "caches"
 
 ## Live numbers (2026-09-16 pins, pairing on)
 
-AWS 50.3% (1636/3250), Azure 19.7% (386/1959), GCP 23.3% (235/1009); zero unexplained. Azure
+AWS 50.4% (1637/3247), Azure 19.7% (386/1959), GCP 23.3% (235/1009); zero unexplained. Azure
 carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 1 (`other-op`). The
 Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
 

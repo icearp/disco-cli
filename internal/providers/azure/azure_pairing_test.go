@@ -3,6 +3,12 @@ package azure
 import (
 	"context"
 	"errors"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
@@ -41,6 +47,55 @@ func TestScannerOpLabelsResolve(t *testing.T) {
 		skew++
 	}
 	t.Logf("%d pairings, %d skew diagnostics", len(res.Pairings), skew)
+	if absent := armModulesAbsentFromCache(t); len(absent) > 0 {
+		// Not a failure: the pin is monorepo HEAD, so a module disco imports
+		// can be one upstream deleted. Those ops can only ever read as skew.
+		t.Logf("arm modules imported here but absent from the pinned snapshot: %v", absent)
+	}
+}
+
+// armModulesAbsentFromCache lists the sdk/resourcemanager module directories
+// this package imports that the pinned cache snapshot does not hold.
+func armModulesAbsentFromCache(t *testing.T) []string {
+	t.Helper()
+	e, ok := sdkinv.Get("azure")
+	if !ok {
+		t.Fatal("azure extractor not registered")
+	}
+	root := filepath.Join(sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}.Dir("azure", e.Ref()), "repo", "sdk", "resourcemanager")
+	files, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read scanner package: %v", err)
+	}
+	fset := token.NewFileSet()
+	seen, absent := map[string]bool{}, []string{}
+	for _, fi := range files {
+		name := fi.Name()
+		if fi.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, perr := parser.ParseFile(fset, name, nil, parser.ImportsOnly|parser.SkipObjectResolution)
+		if perr != nil {
+			t.Fatalf("parse %s: %v", name, perr)
+		}
+		for _, imp := range f.Imports {
+			path := strings.Trim(imp.Path.Value, `"`)
+			_, rel, found := strings.Cut(path, "/sdk/resourcemanager/")
+			if !found || seen[rel] {
+				continue
+			}
+			seen[rel] = true
+			dir := rel
+			if base := filepath.Base(dir); strings.HasPrefix(base, "v") && base != "v" {
+				dir = filepath.Dir(dir) // major-version suffix is not a directory upstream
+			}
+			if _, serr := os.Stat(filepath.Join(root, dir)); serr != nil {
+				absent = append(absent, rel)
+			}
+		}
+	}
+	sort.Strings(absent)
+	return absent
 }
 
 // TestEveryEmittedTypePaired: every Type* constant is stored by a function

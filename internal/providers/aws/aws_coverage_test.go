@@ -15,8 +15,13 @@ func TestCanonicalKey(t *testing.T) {
 		{"AWS::Amplify::App", "AWS::amplify::apps"},                                      // plural
 		{"AWS::Amplify::Branch", "AWS::amplify::branches"},                               // -es plural
 		{"AWS::AmplifyUIBuilder::Component", "AWS::amplifyuibuilder::ComponentResource"}, // SR Resource suffix
-		{"AWS::ACMPCA::CertificateAuthority", "AWS::acm-pca::certificate-authority"},     // hyphen + case
-		{"AWS::ElastiCache::Cache", "AWS::elasticache::caches"},                          // -ches plural vs -che singular
+		// A stem ending in "e" only meets its plain spelling when the suffix is
+		// trimmed before Ident's trailing e/s strip. "Component" ends in "t",
+		// which is why the case above passed while seven real rows drifted.
+		{"AWS::AmplifyUIBuilder::Theme", "AWS::amplifyuibuilder::ThemeResource"},
+		{"AWS::mgn::SourceServer", "AWS::mgn::SourceServerResource"},
+		{"AWS::ACMPCA::CertificateAuthority", "AWS::acm-pca::certificate-authority"}, // hyphen + case
+		{"AWS::ElastiCache::Cache", "AWS::elasticache::caches"},                      // -ches plural vs -che singular
 	}
 	for _, c := range same {
 		if ka, kb := p.CanonicalKey(c.a), p.CanonicalKey(c.b); ka != kb {

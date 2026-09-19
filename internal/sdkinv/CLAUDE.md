@@ -75,8 +75,8 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   (database, case), else `-s`. No inflector dep. Any new rule needs a `norm_test` pair; the old
   `CanonSingular` keys shipped `bedrock/flowalia`, `wellarchitected/len`, `config/…statuse` and
   split `RestApi`/`RestApis` into two candidates before the live keys were audited.
-- Live counts (pins in `pins.go`): AWS 5561 candidates / 354 services (3250 resource);
-  Azure 3744 (1959 resource); GCP 1859 / 192 APIs (1151 resource). Each live test logs these;
+- Live counts (pins in `pins.go`): AWS 5555 candidates / 354 services (3247 resource);
+  Azure 3652 (1959 resource); GCP 1843 / 191 APIs (1151 resource). Each live test logs these;
   a large swing after a pin bump is the signal to re-check anchors.
 - `Candidate.Refs` (Phase 6, `<p>/refs.go`): dotted paths on the listed element that name other
   resources, sorted and unique, own id excluded, depth-bounded. Refs are a **hint**: they rank
@@ -108,7 +108,9 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
     `Job`'s 17. Then string properties named `*Link/*Url/*Id/*Ref/*Account/*Network` or described
     as a URL / resource name / service account / KMS; `$`-prefixed names are JSON-schema keys, not
     refs, and `selfLink/id/name/kind/displayName/generateName/clientOperationId/revisionId` are the
-    element's own. Schemas decode lazily from `json.RawMessage`.
+    element's own. Schemas decode lazily from `json.RawMessage`, and `element` shares `walk`'s
+    `seen` set: self-referential schemas are in the cache (`discovery JsonSchema`, `BackendRule`,
+    dataflow `BoundedTrieNode`) and an unguarded recursion aborts the whole command.
   - Every fixture carries one candidate with refs (conformance).
 - `Universe.Other` carries every SDK op that is not a candidate op (writes, item reads,
   actions). Every extractor must end with `sdkinv.SortOps(u.Other)`: it is filled from map
@@ -153,7 +155,17 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   four `disco coverage services -o json` runs hashed — the conformance `DeepEqual` only sees
   the fixture.
 - `mergeDetailReads` folds `<svc>/<parent>/<noun>` attributes into an existing `<svc>/<noun>`
-  resource (GetBasePathMapping's `BasePath` is not id-like).
+  resource (GetBasePathMapping's `BasePath` is not id-like); it carries the detail read's **noun**
+  too, because that spelling is usually the singular the key should show (`GetAlias` beside
+  `ListAliases`).
+- A noun missing from `resCanon` is retried as `Ident(parent+noun)` **before** the key and the
+  class are fixed: `ListVersionsByFunction` says `versions` where the catalog says "function
+  version", and a sibling op spelling `FunctionVersions` keyed the same object a second time.
+- An op whose noun is empty (`sagemaker:Search`) goes to `Universe.Other`: its key would end in
+  `/` and match nothing. `conformance.Check` rejects any empty key segment.
+- `Operation.Scope` is left **empty** for AWS. Nothing in a Smithy model separates a regional
+  listing from an account-wide one (iam and ec2 both declare a `Region` endpoint parameter), and
+  stamping every op `account` made the column say nothing.
 - Scope params (`AccountId`, `Region`, paging members) never denote a parent.
 - SR structs use camelCase tags: `encoding/json` matches keys case-insensitively, so the
   PascalCase catalog decodes without a tagliatelle exclusion.
@@ -162,13 +174,25 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 
 - Walk every non-test `.go` under `sdk/resourcemanager` (builders live in `client.go` /
   `api_client.go` too); receiver may be bare `Client` (label `armX:Client.Op`).
-- Key = namespace + statics after the last `providers/` segment; `armresources`/`armsubscriptions`
-  own paths without `providers/` (`microsoft.resources/resourcegroups`).
+- Key = namespace + statics after the last `providers/` segment **whose successor is static**;
+  the generic `…/providers/{resourceProviderNamespace}/features` form otherwise discarded the real
+  namespace for `*`. `providers` is in `scopeNames`, so the trailing `providers/{param}` pair of
+  that form strips instead of keying `microsoft.features/providers/features`.
+  `armresources`/`armsubscriptions` own paths without `providers/` (`microsoft.resources/resourcegroups`).
 - Scope pairs (`subscriptions/{}`, `resourceGroups/{}`, `locations/{}`, `managementGroups/{}`)
   strip only when more path follows, so a trailing container (`resourceGroups`) stays a
   candidate; `{scope}` as first param → `extension` scope (role assignments).
 - Class from item-path methods: PUT/PATCH/DELETE → resource; GET/HEAD only → catalog; none →
   non-resource.
+- `scopeOf` reads scope pairs from the **whole** template (a `managementGroups/{}` pair sits after
+  the namespace in microsoft.management's own paths) but decides `extension` on the prefix before
+  the namespace only — a `providers/{param}` pair there is the parent the caller names.
+- A lister with no item path whose result element matches a same-module entry that does write is
+  folded into that entry as an extra op under the `alternate-lister` signal (87 rows, e.g.
+  `microsoft.sql/servers/replicationlinks` into `…/servers/databases/replicationlinks`). Judged on
+  its own path an alternate has no write verb and read as a non-resource.
+- `index()` admits any collection GET, paged or not: ~307 singleton/action GETs come in this way
+  and all land in `excluded`. The README says so; do not read `Value []*T` as an enforced rule.
 
 ### GCP (`gcp/extract.go`)
 
@@ -180,8 +204,25 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   Op labels keep the document's spelling. A leading `namespaces/{}` pair is run v1's project
   alias and is dropped; `namespaces` below a real root (iam workload identity pools) is a
   resource collection — never add it to `scopeNames`.
-- Template = `flatPath` else `path` with `{+x}` expanded from the parameter `pattern`; scope
-  nodes strip but the last node is kept.
+- Template = `flatPath` else `path` with `{+x}` expanded from the parameter `pattern`; the leading
+  version prefix strips on `^v\d` **or** the document's own `Version` (Deployment Manager's alpha
+  document is spelled `alpha` and the whole API dropped out of the universe). Scope nodes strip but
+  the last node is kept.
+- `zones`/`regions` strip only in the compute shape `projects/{p}/(zones|regions)/{x}`
+  (`scopesFor`): Dataplex nests assets under `lakes/{lake}/zones/{zone}` where the zone is itself a
+  create-capable collection. The same map drives `stripScopeNodes`, or the key and the doc path
+  disagree.
+- `Scope` is the template root's cloud root, else `project` when `dropKnativeRoot` stripped run
+  v1's alias or the lister declares a required `project`/`projectId`/`parent` **query** parameter
+  (storage buckets), else `global`.
+- Two Discovery documents can be one service (`sql` and `sqladmin` both answer at
+  `sqladmin.googleapis.com`): documents are grouped by rootUrl + servicePath + canonicalName and
+  the name matching the rootUrl's host label wins. rootUrl alone is shared by 31 documents — never
+  collapse on it.
+- `Parent` is resolved to the nearest ancestor prefix that is itself a candidate and cleared when
+  none is; the document tree nests nodes that list nothing (`appengine/apps`). `Depth` stays the
+  template's parent-id count, so **depth>0 with no parent is legal** — `conformance.Check` only
+  rejects depth 0 *with* a parent, and `TestExtract_Live` asserts every parent resolves.
 - Operation nodes detected by response `$ref` suffix (`Operation`, `ListOperationsResponse`),
   never by method-name rules (`run` executions have `cancel`).
 - Class: `insert|create` → resource; `delete` only → resource; `get` only → catalog; else
@@ -250,10 +291,16 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   pairing does **not** count as paired (it proves no SDK call, which is why `inventory.go`'s
   `pairingKinds` excludes it), and `derived` yields to `other-op`/`sdk-skew`: evidence by
   proximity must not displace a named op.
+- sdk-skew runs both ways. `AzureSDKRef` is monorepo HEAD: an op newer than the snapshot is fixed
+  by bumping the pin, an op **deleted upstream** (armcompute CloudServices, the whole
+  armappplatform module) is not — bumping moves further away, and the fix is a `go.mod` major bump
+  plus retiring the scanner. `TestScannerOpLabelsResolve` logs the imported `arm` modules the
+  snapshot no longer holds. Never pin Azure per `go.mod`: that deletes ~769 rows and inflates the
+  percentage.
 - sdk-skew is real and expected: the Azure monorepo HEAD differs from the go.mod majors
   (armcompute `CloudServices*`, armsubscription `Subscriptions.List`, armappplatform absent,
   postgresql flexible servers, edgeorder); GCP `serviceusage.services.list`. 24 Azure + 1 GCP
-  at the 2026-09-16 pins. Bumping the pins is the fix, not the scanner.
+  at the 2026-09-16 pins. Which direction the fix runs is the bullet above.
 - Azure: a receiver binds from `armX.New<Y>Client(`, a client-factory `cf.New<Y>Client()`, a
   `*armX.<Y>Client` parameter or struct field, or a package-local interface seam whose method
   signatures mention `armX.<Y>Client…Response/Options` (`TypeOwner`). An unbound pager resolves

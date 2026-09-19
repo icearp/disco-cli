@@ -45,7 +45,9 @@ func TestExtract_Fixture(t *testing.T) {
 		"widgets/operations":    {sdkinv.ClassNonResource, 0, "", sdkinv.ScopeProject},
 		"widgets/zones":         {sdkinv.ClassCatalog, 0, "", sdkinv.ScopeProject},
 		"widgets/gizmos":        {sdkinv.ClassResource, 0, "", sdkinv.ScopeProject},
-		"widgets/buckets":       {sdkinv.ClassResource, 0, "", sdkinv.ScopeGlobal},
+		// Storage-shaped: the path names no container, the required "project"
+		// query parameter does, so the scope is project and not global.
+		"widgets/buckets":       {sdkinv.ClassResource, 0, "", sdkinv.ScopeProject},
 		"widgets/notifications": {sdkinv.ClassResource, 1, "widgets/buckets", sdkinv.ScopeGlobal},
 		"widgets/gadgets":       {sdkinv.ClassResource, 0, "", sdkinv.ScopeProject},
 	}
@@ -123,7 +125,7 @@ func TestExtract_Live(t *testing.T) {
 		"compute/globaloperations":           {sdkinv.ClassNonResource, 0, sdkinv.ScopeProject},
 		"compute/regiondisks":                {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
 		"run/jobs/executions":                {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
-		"storage/buckets":                    {sdkinv.ClassResource, 0, sdkinv.ScopeGlobal},
+		"storage/buckets":                    {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
 		"storage/notifications":              {sdkinv.ClassResource, 1, sdkinv.ScopeGlobal},
 		"sqladmin/databases":                 {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
 		"cloudkms/keyrings/cryptokeys":       {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
@@ -147,6 +149,15 @@ func TestExtract_Live(t *testing.T) {
 	for _, k := range []string{"youtube/channels", "adsense/accounts", "dfareporting/userprofiles"} {
 		if _, ok := got[k]; ok {
 			t.Errorf("non-cloud API candidate present: %s", k)
+		}
+	}
+	// Every Parent names a candidate key: the contract README states and
+	// conformance asserts on fixtures. Live, the document tree nests nodes
+	// that list nothing (appengine/apps), so a dangling pointer means the
+	// walk-up in Extract stopped resolving.
+	for _, c := range u.Candidates {
+		if c.Parent != "" && got[c.Parent].Key == "" {
+			t.Errorf("%s: parent %q is not a candidate key", c.Key, c.Parent)
 		}
 	}
 	counts := map[sdkinv.Class]int{}

@@ -89,9 +89,13 @@ var (
 	scopeParams = map[string]bool{"MaxResults": true, "MaxItems": true, "Limit": true, "PageSize": true, "NextToken": true, "Marker": true, "PageToken": true, "DryRun": true, "AccountId": true, "Region": true}
 	idLikeRe    = regexp.MustCompile(`(Id|Ids|ID|IDs|Arn|Arns|ARN|ARNs|Name|Names|Identifier|Identifiers)$`)
 	// selfStems are id-like member stems that name the operation's own subject.
-	selfStems   = map[string]bool{"": true, sdkinv.Ident("resource"): true, sdkinv.Ident("target"): true}
-	versionRe   = regexp.MustCompile(`V\d+$`)
-	qualifierRe = regexp.MustCompile(`(For|By|In|Of|Within|From)[A-Z]`)
+	selfStems = map[string]bool{"": true, sdkinv.Ident("resource"): true, sdkinv.Ident("target"): true}
+	versionRe = regexp.MustCompile(`V\d+$`)
+	// qualifierRe cuts the noun at a qualifier: "As" joins the list because
+	// SearchProductsAsAdmin yielded the noun ProductsAsAdmin, which matched
+	// neither the Service Reference resource nor a write noun. The offset>0
+	// guard at the call site keeps ImportAsProvisionedProduct intact.
+	qualifierRe = regexp.MustCompile(`(For|By|In|Of|Within|From|As)[A-Z]`)
 	arnVarRe    = regexp.MustCompile(`\$\{([A-Za-z0-9_]+)\}`)
 	// crossCuttingTargets: a list action authorised against this many distinct
 	// resource types reads a facet of them (tags, policies), not a resource.
@@ -210,6 +214,10 @@ func mergeDetailReads(entries map[string]*entry) {
 		if res == nil || res.class != sdkinv.ClassResource {
 			continue
 		}
+		// The detail read's own spelling comes too: it is usually the singular
+		// ("GetAlias" beside "ListAliases"), and dropping it left the key
+		// plural whenever the catalog name was a compound ("function alias").
+		res.nouns = append(res.nouns, en.nouns...)
 		res.ops = append(res.ops, en.ops...)
 		for sig := range en.signals {
 			res.signals[sig] = true
@@ -412,6 +420,12 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 		o := analyzeOp(m, sh)
 		verb, noun := splitVerb(op)
 		nounCanon := sdkinv.Ident(noun)
+		if nounCanon == "" {
+			// An op that is all verb (sagemaker:Search) names no collection;
+			// keying it yields "sagemaker/", a key nothing can ever match.
+			other = append(other, sdkinv.Operation{Service: svc, Name: op, Label: svc + ":" + op, Required: o.required, Module: module})
+			continue
+		}
 		signals := map[string]bool{}
 		act, hasAct := srAction{}, false
 		if sr != nil {
@@ -438,10 +452,22 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 		}
 		if !isList && (o.listMembers != 0 || !detailVerbs[verb]) {
 			// Writes, actions, batch reads: never a candidate.
-			other = append(other, sdkinv.Operation{Service: svc, Name: op, Label: svc + ":" + op, Required: o.required, Scope: sdkinv.ScopeAccount, Module: module})
+			other = append(other, sdkinv.Operation{Service: svc, Name: op, Label: svc + ":" + op, Required: o.required, Module: module})
 			continue
 		}
 		lin := lineage(sr, act, hasAct, o, nounCanon, signals)
+		// A child collection named without its parent misses the catalog:
+		// ListVersionsByFunction yields "versions" while the Service Reference
+		// names the resource "function version", which a sibling op spelling
+		// "FunctionVersions" does match — one object, two candidate keys, the
+		// second counted as a gap. Retry with the parent prefixed here, before
+		// the key and the class are fixed, not at the srName assignment below.
+		if sr != nil && lin.parent != "" && sr.resCanon[nounCanon] == "" {
+			if joined := sdkinv.Ident(lin.parent + nounCanon); sr.resCanon[joined] != "" {
+				nounCanon = joined
+				signals["sr:parent-noun"] = true
+			}
+		}
 		class := classify(isList, o, sr, nounCanon, lin, signals)
 		key := svc + "/" + nounCanon
 		if class == sdkinv.ClassAttribute && lin.parent != "" && !lin.self {
@@ -468,7 +494,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 		}
 		en.ops = append(en.ops, sdkinv.Operation{
 			Service: svc, Name: op, Label: svc + ":" + op, IsList: isList, Paged: o.paged,
-			Required: o.required, Targets: lin.targets, Scope: sdkinv.ScopeAccount, Module: module,
+			Required: o.required, Targets: lin.targets, Module: module,
 		})
 	}
 	return diag, other

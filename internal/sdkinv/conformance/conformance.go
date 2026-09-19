@@ -97,10 +97,20 @@ func checkCandidate(t *testing.T, name string, c sdkinv.Candidate) {
 	if c.Provider != name || c.Service == "" || !strings.HasPrefix(c.Key, c.Service+"/") {
 		t.Errorf("%s: malformed candidate %+v", name, c)
 	}
+	// An empty segment means a noun the extractor never found; the key then
+	// matches no type and no registry entry (sagemaker:Search keyed "sagemaker/").
+	for _, seg := range strings.Split(c.Key, "/") {
+		if seg == "" {
+			t.Errorf("%s: key %q has an empty segment", name, c.Key)
+		}
+	}
 	if c.Class == "" || len(c.Ops) == 0 {
 		t.Errorf("%s: %s has class %q and %d ops", name, c.Key, c.Class, len(c.Ops))
 	}
-	if (c.Depth > 0) != (c.Parent != "") {
+	// A depth>0 candidate may name no parent: the template counts parent ids
+	// the document tree has no listable node for. Depth 0 with a parent is
+	// always wrong.
+	if c.Depth == 0 && c.Parent != "" {
 		t.Errorf("%s: %s depth %d parent %q", name, c.Key, c.Depth, c.Parent)
 	}
 	for _, o := range c.Ops {

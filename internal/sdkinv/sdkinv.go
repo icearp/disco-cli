@@ -14,7 +14,9 @@ import (
 	"sync"
 )
 
-// Scope names the container a list operation enumerates within.
+// Scope names the container a list operation enumerates within. It is
+// provider-specific and may be empty: AWS leaves it unset because its models
+// carry nothing that separates a regional listing from an account-wide one.
 type Scope string
 
 // Scope values shared across providers. A provider uses the subset that

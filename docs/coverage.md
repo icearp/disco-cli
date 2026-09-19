@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.3% (1636/3250 listable) · depth0 68.0% · depth1 26.0% · depth2 27.3% · depth3 12.5% · depth4 0.0% · depth5 0.0% · attribute 1661 · excluded 650 · disco-only 0 (0 unexplained)
+**Coverage:** 50.4% (1637/3247 listable) · depth0 68.1% · depth1 26.0% · depth2 27.5% · depth3 12.5% · depth4 0.0% · depth5 0.0% · attribute 1660 · excluded 648 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 |---|---|---|---|
 | ec2 | 109 | 86 | 55.9 |
 | resiliencehub | 4 | 35 | 10.3 |
-| sagemaker | 51 | 34 | 60.0 |
+| sagemaker | 51 | 33 | 60.7 |
 | connect | 34 | 31 | 52.3 |
 | iotsitewise | 9 | 28 | 24.3 |
 | datazone | 12 | 23 | 34.3 |
@@ -38,10 +38,10 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | cloudformation | 7 | 12 | 36.8 |
 | deadline | 12 | 12 | 50.0 |
 | guardduty | 9 | 12 | 42.9 |
-| lambda | 10 | 12 | 45.5 |
 | omics | 11 | 12 | 47.8 |
 | s3 | 8 | 12 | 40.0 |
 | comprehend | 4 | 11 | 26.7 |
+| lambda | 10 | 11 | 47.6 |
 | rds | 21 | 11 | 65.6 |
 | aidevops | 4 | 10 | 28.6 |
 | backup | 10 | 10 | 50.0 |
@@ -89,7 +89,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | macie2 | 5 | 6 | 45.5 |
 | mgh | 1 | 6 | 14.3 |
 | odb | 8 | 6 | 57.1 |
-| servicecatalog | 11 | 6 | 64.7 |
 | snowball | 0 | 6 | 0.0 |
 | sso | 8 | 6 | 57.1 |
 | wickr | 0 | 6 | 0.0 |
@@ -113,6 +112,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | redshift-serverless | 6 | 5 | 54.5 |
 | rekognition | 4 | 5 | 44.4 |
 | route53 | 10 | 5 | 66.7 |
+| servicecatalog | 12 | 5 | 70.6 |
 | ssm-incidents | 2 | 5 | 28.6 |
 | support | 0 | 5 | 0.0 |
 | voiceid | 1 | 5 | 16.7 |
@@ -217,7 +217,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | pi | 0 | 2 | 0.0 |
 | qapps | 1 | 2 | 33.3 |
 | redshift-data | 0 | 2 | 0.0 |
-| resource-explorer-2 | 3 | 2 | 60.0 |
 | resource-groups | 2 | 2 | 50.0 |
 | route53resolver | 10 | 2 | 83.3 |
 | rum | 1 | 2 | 33.3 |
@@ -269,6 +268,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | pricingplanmanager | 0 | 1 | 0.0 |
 | refactor-spaces | 4 | 1 | 80.0 |
 | repostspace | 1 | 1 | 50.0 |
+| resource-explorer-2 | 3 | 1 | 75.0 |
 | route53-recovery-cluster | 0 | 1 | 0.0 |
 | route53-recovery-control-config | 4 | 1 | 80.0 |
 | s3-outposts | 1 | 1 | 50.0 |
@@ -339,1629 +339,1625 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1614)
+### Uncovered (listable, no scanner) (1610)
 
 | Service | Key | Depth | Scope | Ops |
 | --- | --- | --- | --- | --- |
-| access-analyzer | access-analyzer/accesspreview | 1 | account | access-analyzer:GetAccessPreview, access-analyzer:ListAccessPreviews |
-| access-analyzer | access-analyzer/accesspreviewfinding | 1 | account | access-analyzer:ListAccessPreviewFindings |
-| access-analyzer | access-analyzer/analyzedresource | 1 | account | access-analyzer:GetAnalyzedResource, access-analyzer:ListAnalyzedResources |
-| access-analyzer | access-analyzer/policygeneration | 0 | account | access-analyzer:ListPolicyGenerations |
-| account | account/region | 0 | account | account:ListRegions |
-| account-access | account-access/application | 0 | account | account-access:GetApplication, account-access:ListApplications |
-| account-access | account-access/entitlement | 1 | account | account-access:GetEntitlement, account-access:ListEntitlements |
-| acm | acm/acmeaccount | 1 | account | acm:DescribeAcmeAccount, acm:ListAcmeAccounts |
-| acm | acm/acmedomainvalidation | 1 | account | acm:DescribeAcmeDomainValidation, acm:ListAcmeDomainValidations |
-| acm | acm/acmeendpoint | 0 | account | acm:DescribeAcmeEndpoint, acm:ListAcmeEndpoints |
-| acm | acm/acmeexternalaccountbinding | 1 | account | acm:DescribeAcmeExternalAccountBinding, acm:ListAcmeExternalAccountBindings |
-| acm | acm/certificatedomainvalidation | 1 | account | acm:ListCertificateDomainValidations |
-| aco-automation | aco-automation/account | 0 | account | aco-automation:ListAccounts |
-| aco-automation | aco-automation/automationevent | 0 | account | aco-automation:GetAutomationEvent, aco-automation:ListAutomationEvents |
-| aco-automation | aco-automation/automationeventstep | 1 | account | aco-automation:ListAutomationEventSteps |
-| aco-automation | aco-automation/automationrule | 0 | account | aco-automation:GetAutomationRule, aco-automation:ListAutomationRules |
-| agent-registry | agent-registry/discoverableregistryrecord | 0 | account | agent-registry:BatchGetDiscoverableRegistryRecord, agent-registry:ListDiscoverableRegistryRecords, agent-registry:SearchDiscoverableRegistryRecords |
-| agent-registry | agent-registry/registry | 0 | account | agent-registry:GetRegistry, agent-registry:ListRegistries |
-| agent-registry | agent-registry/registryrecord | 1 | account | agent-registry:GetRegistryRecord, agent-registry:ListRegistryRecords |
-| aidevops | aidevops/asset | 1 | account | aidevops:GetAsset, aidevops:ListAssets |
-| aidevops | aidevops/backlogtask | 1 | account | aidevops:GetBacklogTask, aidevops:ListBacklogTasks |
-| aidevops | aidevops/chat | 1 | account | aidevops:ListChats |
-| aidevops | aidevops/execution | 1 | account | aidevops:ListExecutions |
-| aidevops | aidevops/goal | 1 | account | aidevops:ListGoals |
-| aidevops | aidevops/journalrecord | 1 | account | aidevops:ListJournalRecords |
-| aidevops | aidevops/pendingmessage | 1 | account | aidevops:ListPendingMessages |
-| aidevops | aidevops/recommendation | 1 | account | aidevops:GetRecommendation, aidevops:ListRecommendations |
-| aidevops | aidevops/trigger | 1 | account | aidevops:GetTrigger, aidevops:ListTriggers |
-| aidevops | aidevops/webhook | 2 | account | aidevops:ListWebhooks |
-| airflow-serverless | airflow-serverless/taskinstance | 1 | account | airflow-serverless:GetTaskInstance, airflow-serverless:ListTaskInstances |
-| airflow-serverless | airflow-serverless/workflowrun | 1 | account | airflow-serverless:GetWorkflowRun, airflow-serverless:ListWorkflowRuns |
-| airflow-serverless | airflow-serverless/workflowversion | 1 | account | airflow-serverless:ListWorkflowVersions |
-| amplify | amplify/artifact | 1 | account | amplify:ListArtifacts |
-| amplify | amplify/job | 2 | account | amplify:GetJob, amplify:ListJobs |
-| amplifybackend | amplifybackend/backendjob | 1 | account | amplifybackend:GetBackendJob, amplifybackend:ListBackendJobs |
-| amplifyuibuilder | amplifyuibuilder/codegenjob | 1 | account | amplifyuibuilder:GetCodegenJob, amplifyuibuilder:ListCodegenJobs |
-| apigateway | apigateway/portal | 0 | account | apigateway:GetPortal, apigateway:ListPortals |
-| apigateway | apigateway/portalproduct | 0 | account | apigateway:GetPortalProduct, apigateway:ListPortalProducts |
-| apigateway | apigateway/productpage | 1 | account | apigateway:GetProductPage, apigateway:ListProductPages |
-| apigateway | apigateway/productrestendpointpage | 1 | account | apigateway:GetProductRestEndpointPage, apigateway:ListProductRestEndpointPages |
-| app-integrations | app-integrations/applicationassociation | 1 | account | app-integrations:ListApplicationAssociations |
-| app-integrations | app-integrations/dataintegrationassociation | 1 | account | app-integrations:ListDataIntegrationAssociations |
-| app-integrations | app-integrations/eventintegrationassociation | 1 | account | app-integrations:ListEventIntegrationAssociations |
-| appconfig | appconfig/experimentdefinition | 0 | account | appconfig:GetExperimentDefinition, appconfig:ListExperimentDefinitions |
-| appconfig | appconfig/experimentrun | 2 | account | appconfig:GetExperimentRun, appconfig:ListExperimentRuns |
-| appflow | appflow/connectorentity | 0 | account | appflow:DescribeConnectorEntity, appflow:ListConnectorEntities |
-| appflow | appflow/flowexecutionrecord | 1 | account | appflow:DescribeFlowExecutionRecords |
-| application-autoscaling | application-autoscaling/scheduledaction | 0 | account | application-autoscaling:DescribeScheduledActions |
-| application-signals | application-signals/instrumentationconfiguration | 0 | account | application-signals:GetInstrumentationConfiguration, application-signals:ListInstrumentationConfigurations |
-| application-signals | application-signals/servicelevelobjectivebudgetreport | 1 | account | application-signals:BatchGetServiceLevelObjectiveBudgetReport |
-| applicationinsights | applicationinsights/component | 1 | account | applicationinsights:DescribeComponent, applicationinsights:ListComponents |
-| applicationinsights | applicationinsights/logpattern | 1 | account | applicationinsights:DescribeLogPattern, applicationinsights:ListLogPatterns |
-| applicationinsights | applicationinsights/problem | 0 | account | applicationinsights:DescribeProblem, applicationinsights:ListProblems |
-| applicationinsights | applicationinsights/workload | 1 | account | applicationinsights:DescribeWorkload, applicationinsights:ListWorkloads |
-| apprunner | apprunner/customdomain | 2 | account | apprunner:DescribeCustomDomains |
-| apprunner | apprunner/operation | 2 | account | apprunner:ListOperations |
-| appstream | appstream/associatedstack | 1 | account | appstream:ListAssociatedStacks |
-| appstream | appstream/exportimagetask | 0 | account | appstream:GetExportImageTask, appstream:ListExportImageTasks |
-| appstream | appstream/imagepermission | 1 | account | appstream:DescribeImagePermissions |
-| appstream | appstream/session | 1 | account | appstream:DescribeSessions |
-| appstream | appstream/softwareassociation | 1 | account | appstream:DescribeSoftwareAssociations |
-| appstream | appstream/usagereportsubscription | 0 | account | appstream:DescribeUsageReportSubscriptions |
-| arc-region-switch | arc-region-switch/planevaluationstatus | 1 | account | arc-region-switch:GetPlanEvaluationStatus |
-| arc-region-switch | arc-region-switch/planexecution | 1 | account | arc-region-switch:GetPlanExecution, arc-region-switch:ListPlanExecutions |
-| arc-region-switch | arc-region-switch/planexecutionevent | 1 | account | arc-region-switch:ListPlanExecutionEvents |
-| arc-region-switch | arc-region-switch/route53healthcheck | 1 | account | arc-region-switch:ListRoute53HealthChecks, arc-region-switch:ListRoute53HealthChecksInRegion |
-| arc-zonal-shift | arc-zonal-shift/zonalshift | 0 | account | arc-zonal-shift:ListZonalShifts |
-| artifact | artifact/complianceinquiry | 0 | account | artifact:ListComplianceInquiries |
-| artifact | artifact/reportversion | 1 | account | artifact:ListReportVersions |
-| athena | athena/calculationexecution | 1 | account | athena:GetCalculationExecution, athena:ListCalculationExecutions |
-| athena | athena/database | 1 | account | athena:GetDatabase, athena:ListDatabases |
-| athena | athena/executor | 2 | account | athena:ListExecutors |
-| athena | athena/notebookmetadata | 1 | account | athena:GetNotebookMetadata, athena:ListNotebookMetadata |
-| athena | athena/notebooksession | 1 | account | athena:ListNotebookSessions |
-| athena | athena/queryexecution | 0 | account | athena:BatchGetQueryExecution, athena:GetQueryExecution, athena:ListQueryExecutions |
-| athena | athena/session | 1 | account | athena:GetSession, athena:ListSessions |
-| athena | athena/tablemetadata | 1 | account | athena:GetTableMetadata, athena:ListTableMetadata |
-| auditmanager | auditmanager/assessmentcontrolinsight | 1 | account | auditmanager:ListAssessmentControlInsightsByControlDomain |
-| auditmanager | auditmanager/assessmentreport | 0 | account | auditmanager:ListAssessmentReports |
-| auditmanager | auditmanager/changelog | 1 | account | auditmanager:GetChangeLogs |
-| auditmanager | auditmanager/delegation | 0 | account | auditmanager:GetDelegations |
-| auditmanager | auditmanager/evidence | 2 | account | auditmanager:GetEvidence, auditmanager:GetEvidenceByEvidenceFolder |
-| auditmanager | auditmanager/evidencefolder | 1 | account | auditmanager:GetEvidenceFolder, auditmanager:GetEvidenceFoldersByAssessment, auditmanager:GetEvidenceFoldersByAssessmentControl |
-| autoscaling | autoscaling/instancerefresh | 1 | account | autoscaling:DescribeInstanceRefreshes |
-| autoscaling | autoscaling/loadbalancer | 1 | account | autoscaling:DescribeLoadBalancers |
-| autoscaling | autoscaling/loadbalancertargetgroup | 1 | account | autoscaling:DescribeLoadBalancerTargetGroups |
-| autoscaling | autoscaling/notificationconfiguration | 0 | account | autoscaling:DescribeNotificationConfigurations |
-| autoscaling | autoscaling/trafficsource | 1 | account | autoscaling:DescribeTrafficSources |
-| autoscaling-plans | autoscaling-plans/scalingplanresource | 1 | account | autoscaling-plans:DescribeScalingPlanResources |
-| aws-marketplace | aws-marketplace/agreement | 0 | account | aws-marketplace:DescribeAgreement, aws-marketplace:SearchAgreements |
-| aws-marketplace | aws-marketplace/agreementcancellationrequest | 0 | account | aws-marketplace:GetAgreementCancellationRequest, aws-marketplace:ListAgreementCancellationRequests |
-| aws-marketplace | aws-marketplace/agreemententitlement | 1 | account | aws-marketplace:GetAgreementEntitlements |
-| aws-marketplace | aws-marketplace/agreementinvoicelineitem | 1 | account | aws-marketplace:ListAgreementInvoiceLineItems |
-| aws-marketplace | aws-marketplace/agreementpaymentrequest | 0 | account | aws-marketplace:GetAgreementPaymentRequest, aws-marketplace:ListAgreementPaymentRequests |
-| aws-marketplace | aws-marketplace/assessment | 1 | account | aws-marketplace:DescribeAssessment, aws-marketplace:ListAssessments |
-| aws-marketplace | aws-marketplace/billingadjustmentrequest | 0 | account | aws-marketplace:GetBillingAdjustmentRequest, aws-marketplace:ListBillingAdjustmentRequests |
-| aws-marketplace | aws-marketplace/changeset | 1 | account | aws-marketplace:DescribeChangeSet, aws-marketplace:ListChangeSets |
-| aws-marketplace | aws-marketplace/entity | 1 | account | aws-marketplace:DescribeEntity, aws-marketplace:ListEntities |
-| aws-marketplace | aws-marketplace/listing | 0 | account | aws-marketplace:GetListing, aws-marketplace:SearchListings |
-| aws-marketplace | aws-marketplace/offer | 1 | account | aws-marketplace:GetOffer |
-| aws-marketplace | aws-marketplace/offerset | 1 | account | aws-marketplace:GetOfferSet |
-| aws-marketplace | aws-marketplace/product | 1 | account | aws-marketplace:GetProduct |
-| aws-marketplace | aws-marketplace/purchaseoption | 0 | account | aws-marketplace:ListPurchaseOptions |
-| awsssoportal | awsssoportal/accountrole | 1 | account | awsssoportal:ListAccountRoles |
-| b2bi | b2bi/transformerjob | 1 | account | b2bi:GetTransformerJob |
-| backup | backup/backupaccesspoint | 0 | account | backup:DescribeBackupAccessPoint, backup:ListBackupAccessPoints, backup:ListBackupAccessPointsByRecoveryPoint, backup:ListBackupAccessPointsByResource |
-| backup | backup/backupjob | 0 | account | backup:DescribeBackupJob, backup:ListBackupJobs |
-| backup | backup/backupplanversion | 1 | account | backup:ListBackupPlanVersions |
-| backup | backup/copyjob | 0 | account | backup:DescribeCopyJob, backup:ListCopyJobs |
-| backup | backup/indexedrecoverypoint | 0 | account | backup:ListIndexedRecoveryPoints |
-| backup | backup/protectedresource | 0 | account | backup:DescribeProtectedResource, backup:ListProtectedResources, backup:ListProtectedResourcesByBackupVault |
-| backup | backup/reportjob | 0 | account | backup:DescribeReportJob, backup:ListReportJobs |
-| backup | backup/restoreaccessbackupvault | 1 | account | backup:ListRestoreAccessBackupVaults |
-| backup | backup/restorejob | 0 | account | backup:DescribeRestoreJob, backup:ListRestoreJobs, backup:ListRestoreJobsByProtectedResource |
-| backup | backup/scanjob | 0 | account | backup:DescribeScanJob, backup:ListScanJobs |
-| backup-gateway | backup-gateway/hypervisorpropertymapping | 1 | account | backup-gateway:GetHypervisorPropertyMappings |
-| backup-search | backup-search/searchjob | 0 | account | backup-search:GetSearchJob, backup-search:ListSearchJobs |
-| backup-search | backup-search/searchjobbackup | 1 | account | backup-search:ListSearchJobBackups |
-| backup-search | backup-search/searchresultexportjob | 0 | account | backup-search:GetSearchResultExportJob, backup-search:ListSearchResultExportJobs |
-| batch | batch/job | 0 | account | batch:DescribeJobs, batch:ListJobs, batch:ListJobsByConsumableResource |
-| batch | batch/servicejob | 0 | account | batch:DescribeServiceJob, batch:ListServiceJobs |
-| bcm-data-exports | bcm-data-exports/execution | 1 | account | bcm-data-exports:GetExecution, bcm-data-exports:ListExecutions |
-| bcm-data-exports | bcm-data-exports/table | 0 | account | bcm-data-exports:GetTable, bcm-data-exports:ListTables |
-| bcm-pricing-calculator | bcm-pricing-calculator/billestimatecommitment | 1 | account | bcm-pricing-calculator:ListBillEstimateCommitments |
-| bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputcommitmentmodification | 1 | account | bcm-pricing-calculator:ListBillEstimateInputCommitmentModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputusagemodification | 1 | account | bcm-pricing-calculator:ListBillEstimateInputUsageModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/billestimatelineitem | 1 | account | bcm-pricing-calculator:ListBillEstimateLineItems |
-| bcm-pricing-calculator | bcm-pricing-calculator/billscenariocommitmentmodification | 1 | account | bcm-pricing-calculator:ListBillScenarioCommitmentModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/billscenariousagemodification | 1 | account | bcm-pricing-calculator:ListBillScenarioUsageModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/workloadestimateusage | 1 | account | bcm-pricing-calculator:ListWorkloadEstimateUsage |
-| bedrock | bedrock/advancedpromptoptimizationjob | 0 | account | bedrock:GetAdvancedPromptOptimizationJob, bedrock:ListAdvancedPromptOptimizationJobs |
-| bedrock | bedrock/agentactiongroup | 1 | account | bedrock:GetAgentActionGroup, bedrock:ListAgentActionGroups |
-| bedrock | bedrock/agentcollaborator | 1 | account | bedrock:GetAgentCollaborator, bedrock:ListAgentCollaborators |
-| bedrock | bedrock/agentknowledgebase | 1 | account | bedrock:GetAgentKnowledgeBase, bedrock:ListAgentKnowledgeBases |
-| bedrock | bedrock/agentversion | 1 | account | bedrock:GetAgentVersion, bedrock:ListAgentVersions |
-| bedrock | bedrock/asyncinvoke | 0 | account | bedrock:GetAsyncInvoke, bedrock:ListAsyncInvokes |
-| bedrock | bedrock/automatedreasoningpolicybuildworkflow | 1 | account | bedrock:GetAutomatedReasoningPolicyBuildWorkflow, bedrock:ListAutomatedReasoningPolicyBuildWorkflows |
-| bedrock | bedrock/automatedreasoningpolicytestcase | 1 | account | bedrock:GetAutomatedReasoningPolicyTestCase, bedrock:ListAutomatedReasoningPolicyTestCases |
-| bedrock | bedrock/automatedreasoningpolicytestresult | 1 | account | bedrock:GetAutomatedReasoningPolicyTestResult, bedrock:ListAutomatedReasoningPolicyTestResults |
-| bedrock | bedrock/dataautomationlibraryingestionjob | 0 | account | bedrock:GetDataAutomationLibraryIngestionJob, bedrock:ListDataAutomationLibraryIngestionJobs |
-| bedrock | bedrock/evaluationjob | 0 | account | bedrock:GetEvaluationJob, bedrock:ListEvaluationJobs |
-| bedrock | bedrock/flowexecution | 2 | account | bedrock:GetFlowExecution, bedrock:ListFlowExecutions |
-| bedrock | bedrock/foundationmodelagreementoffer | 1 | account | bedrock:ListFoundationModelAgreementOffers |
-| bedrock | bedrock/ingestionjob | 1 | account | bedrock:GetIngestionJob, bedrock:ListIngestionJobs |
-| bedrock | bedrock/invocation | 1 | account | bedrock:ListInvocations |
-| bedrock | bedrock/invocationstep | 1 | account | bedrock:GetInvocationStep, bedrock:ListInvocationSteps |
-| bedrock | bedrock/knowledgebasedocument | 1 | account | bedrock:GetKnowledgeBaseDocuments, bedrock:ListKnowledgeBaseDocuments |
-| bedrock | bedrock/modelcopyjob | 0 | account | bedrock:GetModelCopyJob, bedrock:ListModelCopyJobs |
-| bedrock | bedrock/modelcustomizationjob | 0 | account | bedrock:GetModelCustomizationJob, bedrock:ListModelCustomizationJobs |
-| bedrock | bedrock/modelimportjob | 0 | account | bedrock:GetModelImportJob, bedrock:ListModelImportJobs |
-| bedrock | bedrock/modelinvocationjob | 0 | account | bedrock:GetModelInvocationJob, bedrock:ListModelInvocationJobs |
-| bedrock | bedrock/session | 0 | account | bedrock:GetSession, bedrock:ListSessions |
-| bedrock-agentcore | bedrock-agentcore/abtest | 0 | account | bedrock-agentcore:GetABTest, bedrock-agentcore:ListABTests |
-| bedrock-agentcore | bedrock-agentcore/actor | 1 | account | bedrock-agentcore:ListActors |
-| bedrock-agentcore | bedrock-agentcore/agentruntimeversion | 1 | account | bedrock-agentcore:ListAgentRuntimeVersions, bedrock-agentcore:ListAgentRuntimeVersionsByCapacityProvider |
-| bedrock-agentcore | bedrock-agentcore/batchevaluation | 0 | account | bedrock-agentcore:GetBatchEvaluation, bedrock-agentcore:ListBatchEvaluations |
-| bedrock-agentcore | bedrock-agentcore/browsersession | 1 | account | bedrock-agentcore:GetBrowserSession, bedrock-agentcore:ListBrowserSessions |
-| bedrock-agentcore | bedrock-agentcore/capacityprovider | 0 | account | bedrock-agentcore:GetCapacityProvider, bedrock-agentcore:ListCapacityProviders |
-| bedrock-agentcore | bedrock-agentcore/codeinterpretersession | 1 | account | bedrock-agentcore:GetCodeInterpreterSession, bedrock-agentcore:ListCodeInterpreterSessions |
-| bedrock-agentcore | bedrock-agentcore/configurationbundleversion | 1 | account | bedrock-agentcore:GetConfigurationBundleVersion, bedrock-agentcore:ListConfigurationBundleVersions |
-| bedrock-agentcore | bedrock-agentcore/consentportal | 0 | account | bedrock-agentcore:GetConsentPortal, bedrock-agentcore:ListConsentPortals |
-| bedrock-agentcore | bedrock-agentcore/event | 1 | account | bedrock-agentcore:GetEvent, bedrock-agentcore:ListEvents |
-| bedrock-agentcore | bedrock-agentcore/gatewayratelimit | 1 | account | bedrock-agentcore:GetGatewayRateLimit, bedrock-agentcore:ListGatewayRateLimits |
-| bedrock-agentcore | bedrock-agentcore/gatewayrule | 1 | account | bedrock-agentcore:GetGatewayRule, bedrock-agentcore:ListGatewayRules |
-| bedrock-agentcore | bedrock-agentcore/harnessversion | 1 | account | bedrock-agentcore:ListHarnessVersions |
-| bedrock-agentcore | bedrock-agentcore/memoryextractionjob | 1 | account | bedrock-agentcore:ListMemoryExtractionJobs |
-| bedrock-agentcore | bedrock-agentcore/memoryrecord | 1 | account | bedrock-agentcore:GetMemoryRecord, bedrock-agentcore:ListMemoryRecords, bedrock-agentcore:RetrieveMemoryRecords |
-| bedrock-agentcore | bedrock-agentcore/paymentinstrument | 1 | account | bedrock-agentcore:GetPaymentInstrument, bedrock-agentcore:ListPaymentInstruments |
-| bedrock-agentcore | bedrock-agentcore/paymentsession | 1 | account | bedrock-agentcore:GetPaymentSession, bedrock-agentcore:ListPaymentSessions |
-| bedrock-agentcore | bedrock-agentcore/policygenerationasset | 2 | account | bedrock-agentcore:ListPolicyGenerationAssets |
-| bedrock-agentcore | bedrock-agentcore/policygenerationsummary | 1 | account | bedrock-agentcore:GetPolicyGenerationSummary, bedrock-agentcore:ListPolicyGenerationSummaries |
-| bedrock-agentcore | bedrock-agentcore/policysummary | 1 | account | bedrock-agentcore:GetPolicySummary, bedrock-agentcore:ListPolicySummaries |
-| bedrock-agentcore | bedrock-agentcore/recommendation | 0 | account | bedrock-agentcore:GetRecommendation, bedrock-agentcore:ListRecommendations |
-| bedrock-agentcore | bedrock-agentcore/session | 1 | account | bedrock-agentcore:ListSessions |
-| billing | billing/billingpreference | 0 | account | billing:GetBillingPreferences |
-| billing | billing/credit | 1 | account | billing:GetCredits |
-| billing | billing/creditallocationhistory | 1 | account | billing:GetCreditAllocationHistory |
-| billingconductor | billingconductor/billinggroupcostreport | 0 | account | billingconductor:GetBillingGroupCostReport, billingconductor:ListBillingGroupCostReports |
-| billingconductor | billingconductor/customlineitemversion | 1 | account | billingconductor:ListCustomLineItemVersions |
-| billingconductor | billingconductor/pricingplansassociatedwithpricingrule | 1 | account | billingconductor:ListPricingPlansAssociatedWithPricingRule |
-| billingconductor | billingconductor/pricingrulesassociatedtopricingplan | 1 | account | billingconductor:ListPricingRulesAssociatedToPricingPlan |
-| billingconductor | billingconductor/resourcesassociatedtocustomlineitem | 1 | account | billingconductor:ListResourcesAssociatedToCustomLineItem |
-| braket | braket/device | 0 | account | braket:GetDevice, braket:SearchDevices |
-| braket | braket/job | 0 | account | braket:GetJob, braket:SearchJobs |
-| braket | braket/quantumtask | 0 | account | braket:GetQuantumTask, braket:SearchQuantumTasks |
-| cases | cases/allrelateditem | 1 | account | cases:SearchAllRelatedItems |
-| cases | cases/case | 1 | account | cases:GetCase, cases:ListCasesForContact, cases:SearchCases |
-| cases | cases/caseauditevent | 2 | account | cases:GetCaseAuditEvents |
-| cases | cases/relateditem | 2 | account | cases:SearchRelatedItems |
-| cassandra | cassandra/stream | 0 | account | cassandra:GetStream, cassandra:ListStreams |
-| ce | ce/anomaly | 1 | account | ce:GetAnomalies |
-| ce | ce/commitmentpurchaseanalysis | 0 | account | ce:GetCommitmentPurchaseAnalysis, ce:ListCommitmentPurchaseAnalyses |
-| ce | ce/savingsplanspurchaserecommendationgeneration | 0 | account | ce:ListSavingsPlansPurchaseRecommendationGeneration |
-| chatbot | chatbot/chimewebhookconfiguration | 0 | account | chatbot:DescribeChimeWebhookConfigurations |
-| chatbot | chatbot/microsoftteamsconfiguredteam | 0 | account | chatbot:ListMicrosoftTeamsConfiguredTeams |
-| chatbot | chatbot/microsoftteamsuseridentity | 0 | account | chatbot:ListMicrosoftTeamsUserIdentities |
-| chatbot | chatbot/slackuseridentity | 0 | account | chatbot:DescribeSlackUserIdentities |
-| chime | chime/account | 0 | account | chime:GetAccount, chime:ListAccounts |
-| chime | chime/appinstanceuserendpoint | 3 | account | chime:DescribeAppInstanceUserEndpoint, chime:ListAppInstanceUserEndpoints |
-| chime | chime/attendee | 2 | account | chime:GetAttendee, chime:ListAttendees |
-| chime | chime/bot | 0 | account | chime:GetBot, chime:ListBots |
-| chime | chime/channel | 2 | account | chime:DescribeChannel, chime:ListChannels, chime:SearchChannels |
-| chime | chime/channelsassociatedwithchannelflow | 3 | account | chime:ListChannelsAssociatedWithChannelFlow |
-| chime | chime/mediacapturepipeline | 0 | account | chime:GetMediaCapturePipeline, chime:ListMediaCapturePipelines |
-| chime | chime/messagingstreamingconfiguration | 2 | account | chime:GetMessagingStreamingConfigurations |
-| chime | chime/phonenumber | 0 | account | chime:GetPhoneNumber, chime:ListPhoneNumbers |
-| chime | chime/phonenumberorder | 0 | account | chime:GetPhoneNumberOrder, chime:ListPhoneNumberOrders |
-| chime | chime/proxysession | 2 | account | chime:GetProxySession, chime:ListProxySessions |
-| chime | chime/room | 0 | account | chime:GetRoom, chime:ListRooms |
-| chime | chime/roommembership | 1 | account | chime:ListRoomMemberships |
-| chime | chime/siprule | 0 | account | chime:GetSipRule, chime:ListSipRules |
-| chime | chime/user | 0 | account | chime:GetUser, chime:ListUsers |
-| chime | chime/voiceconnectorgroup | 0 | account | chime:GetVoiceConnectorGroup, chime:ListVoiceConnectorGroups |
-| cleanrooms | cleanrooms/analysislogexport | 1 | account | cleanrooms:GetAnalysisLogExport, cleanrooms:ListAnalysisLogExports |
-| cleanrooms | cleanrooms/collaborationanalysistemplate | 1 | account | cleanrooms:BatchGetCollaborationAnalysisTemplate, cleanrooms:GetCollaborationAnalysisTemplate, cleanrooms:ListCollaborationAnalysisTemplates |
-| cleanrooms | cleanrooms/collaborationchangerequest | 1 | account | cleanrooms:GetCollaborationChangeRequest, cleanrooms:ListCollaborationChangeRequests |
-| cleanrooms | cleanrooms/collaborationconfiguredaudiencemodelassociation | 1 | account | cleanrooms:GetCollaborationConfiguredAudienceModelAssociation, cleanrooms:ListCollaborationConfiguredAudienceModelAssociations |
-| cleanrooms | cleanrooms/collaborationidnamespaceassociation | 1 | account | cleanrooms:GetCollaborationIdNamespaceAssociation, cleanrooms:ListCollaborationIdNamespaceAssociations |
-| cleanrooms | cleanrooms/collaborationprivacybudget | 1 | account | cleanrooms:ListCollaborationPrivacyBudgets |
-| cleanrooms | cleanrooms/collaborationprivacybudgettemplate | 1 | account | cleanrooms:GetCollaborationPrivacyBudgetTemplate, cleanrooms:ListCollaborationPrivacyBudgetTemplates |
-| cleanrooms | cleanrooms/intermediatetable | 1 | account | cleanrooms:GetIntermediateTable, cleanrooms:ListIntermediateTables |
-| cleanrooms | cleanrooms/intermediatetableversion | 2 | account | cleanrooms:ListIntermediateTableVersions |
-| cleanrooms | cleanrooms/member | 1 | account | cleanrooms:ListMembers |
-| cleanrooms | cleanrooms/privacybudget | 1 | account | cleanrooms:ListPrivacyBudgets |
-| cleanrooms | cleanrooms/protectedjob | 1 | account | cleanrooms:GetProtectedJob, cleanrooms:ListProtectedJobs |
-| cleanrooms | cleanrooms/protectedquery | 1 | account | cleanrooms:GetProtectedQuery, cleanrooms:ListProtectedQueries |
-| cleanrooms | cleanrooms/schema | 1 | account | cleanrooms:BatchGetSchema, cleanrooms:GetSchema, cleanrooms:ListSchemas |
-| cleanrooms-ml | cleanrooms-ml/audienceexportjob | 0 | account | cleanrooms-ml:ListAudienceExportJobs |
-| cleanrooms-ml | cleanrooms-ml/audiencegenerationjob | 0 | account | cleanrooms-ml:GetAudienceGenerationJob, cleanrooms-ml:ListAudienceGenerationJobs |
-| cleanrooms-ml | cleanrooms-ml/collaborationconfiguredmodelalgorithmassociation | 1 | account | cleanrooms-ml:GetCollaborationConfiguredModelAlgorithmAssociation, cleanrooms-ml:ListCollaborationConfiguredModelAlgorithmAssociations |
-| cleanrooms-ml | cleanrooms-ml/collaborationmlinputchannel | 1 | account | cleanrooms-ml:GetCollaborationMLInputChannel, cleanrooms-ml:ListCollaborationMLInputChannels |
-| cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodel | 1 | account | cleanrooms-ml:GetCollaborationTrainedModel, cleanrooms-ml:ListCollaborationTrainedModels |
-| cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodelexportjob | 2 | account | cleanrooms-ml:ListCollaborationTrainedModelExportJobs |
-| cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodelinferencejob | 1 | account | cleanrooms-ml:ListCollaborationTrainedModelInferenceJobs |
-| cleanrooms-ml | cleanrooms-ml/trainedmodelinferencejob | 1 | account | cleanrooms-ml:GetTrainedModelInferenceJob, cleanrooms-ml:ListTrainedModelInferenceJobs |
-| cleanrooms-ml | cleanrooms-ml/trainedmodelversion | 1 | account | cleanrooms-ml:ListTrainedModelVersions |
-| cloud9 | cloud9/environmentmembership | 0 | account | cloud9:DescribeEnvironmentMemberships |
-| cloudcontrolapi | cloudcontrolapi/resource | 1 | account | cloudcontrolapi:GetResource, cloudcontrolapi:ListResources |
-| clouddirectory | clouddirectory/attachedindice | 1 | account | clouddirectory:ListAttachedIndices |
-| clouddirectory | clouddirectory/index | 1 | account | clouddirectory:ListIndex |
-| clouddirectory | clouddirectory/objectinformation | 1 | account | clouddirectory:GetObjectInformation |
-| clouddirectory | clouddirectory/objectparent | 1 | account | clouddirectory:ListObjectParents |
-| clouddirectory | clouddirectory/objectparentpath | 1 | account | clouddirectory:ListObjectParentPaths |
-| clouddirectory | clouddirectory/objectpolicy | 1 | account | clouddirectory:ListObjectPolicies |
-| clouddirectory | clouddirectory/policyattachment | 1 | account | clouddirectory:ListPolicyAttachments |
-| cloudformation | cloudformation/changeset | 2 | account | cloudformation:DescribeChangeSet, cloudformation:ListChangeSets |
-| cloudformation | cloudformation/changesethook | 2 | account | cloudformation:DescribeChangeSetHooks |
-| cloudformation | cloudformation/resourcescanrelatedresource | 1 | account | cloudformation:ListResourceScanRelatedResources |
-| cloudformation | cloudformation/resourcescanresource | 1 | account | cloudformation:ListResourceScanResources |
-| cloudformation | cloudformation/stackevent | 2 | account | cloudformation:DescribeStackEvents |
-| cloudformation | cloudformation/stackinstanceresourcedrift | 2 | account | cloudformation:ListStackInstanceResourceDrifts |
-| cloudformation | cloudformation/stackrefactor | 0 | account | cloudformation:DescribeStackRefactor, cloudformation:ListStackRefactors |
-| cloudformation | cloudformation/stackrefactoraction | 2 | account | cloudformation:ListStackRefactorActions |
-| cloudformation | cloudformation/stackresourcedrift | 2 | account | cloudformation:DescribeStackResourceDrifts |
-| cloudformation | cloudformation/stacksetautodeploymenttarget | 2 | account | cloudformation:ListStackSetAutoDeploymentTargets |
-| cloudformation | cloudformation/stacksetoperation | 2 | account | cloudformation:DescribeStackSetOperation, cloudformation:ListStackSetOperations |
-| cloudformation | cloudformation/stacksetoperationresult | 2 | account | cloudformation:ListStackSetOperationResults |
-| cloudfront | cloudfront/domainconflict | 1 | account | cloudfront:ListDomainConflicts |
-| cloudtrail | cloudtrail/eventconfiguration | 0 | account | cloudtrail:GetEventConfiguration |
-| cloudtrail | cloudtrail/eventselector | 1 | account | cloudtrail:GetEventSelectors |
-| cloudtrail | cloudtrail/import | 0 | account | cloudtrail:GetImport, cloudtrail:ListImports |
-| cloudtrail | cloudtrail/insightsdata | 1 | account | cloudtrail:ListInsightsData |
-| cloudtrail | cloudtrail/insightselector | 0 | account | cloudtrail:GetInsightSelectors |
-| cloudtrail | cloudtrail/query | 0 | account | cloudtrail:DescribeQuery, cloudtrail:ListQueries |
-| codeartifact | codeartifact/package | 2 | account | codeartifact:DescribePackage, codeartifact:ListPackages |
-| codeartifact | codeartifact/subpackagegroup | 2 | account | codeartifact:ListSubPackageGroups |
-| codebuild | codebuild/build | 0 | account | codebuild:BatchGetBuilds, codebuild:ListBuilds, codebuild:ListBuildsForProject |
-| codebuild | codebuild/buildbatch | 0 | account | codebuild:BatchGetBuildBatches, codebuild:ListBuildBatches, codebuild:ListBuildBatchesForProject |
-| codebuild | codebuild/codecoverage | 1 | account | codebuild:DescribeCodeCoverages |
-| codebuild | codebuild/commandexecution | 1 | account | codebuild:BatchGetCommandExecutions, codebuild:ListCommandExecutionsForSandbox |
-| codebuild | codebuild/report | 0 | account | codebuild:BatchGetReports, codebuild:ListReports, codebuild:ListReportsForReportGroup |
-| codebuild | codebuild/reportgrouptrend | 1 | account | codebuild:GetReportGroupTrend |
-| codebuild | codebuild/sandbox | 0 | account | codebuild:BatchGetSandboxes, codebuild:ListSandboxes, codebuild:ListSandboxesForProject |
-| codebuild | codebuild/testcase | 1 | account | codebuild:DescribeTestCases |
-| codecatalyst | codecatalyst/devenvironment | 1 | account | codecatalyst:GetDevEnvironment, codecatalyst:ListDevEnvironments |
-| codecatalyst | codecatalyst/eventlog | 1 | account | codecatalyst:ListEventLogs |
-| codecatalyst | codecatalyst/project | 1 | account | codecatalyst:GetProject, codecatalyst:ListProjects |
-| codecatalyst | codecatalyst/space | 0 | account | codecatalyst:GetSpace, codecatalyst:ListSpaces |
-| codecatalyst | codecatalyst/workflow | 2 | account | codecatalyst:GetWorkflow, codecatalyst:ListWorkflows |
-| codecatalyst | codecatalyst/workflowrun | 2 | account | codecatalyst:GetWorkflowRun, codecatalyst:ListWorkflowRuns |
-| codecommit | codecommit/approvalruletemplate | 0 | account | codecommit:GetApprovalRuleTemplate, codecommit:ListApprovalRuleTemplates |
-| codecommit | codecommit/associatedapprovalruletemplate | 1 | account | codecommit:ListAssociatedApprovalRuleTemplatesForRepository |
-| codecommit | codecommit/comment | 1 | account | codecommit:GetComment, codecommit:GetCommentsForComparedCommit, codecommit:GetCommentsForPullRequest |
-| codecommit | codecommit/commit | 1 | account | codecommit:BatchGetCommits, codecommit:GetCommit |
-| codecommit | codecommit/filecommithistory | 1 | account | codecommit:ListFileCommitHistory |
-| codecommit | codecommit/folder | 1 | account | codecommit:GetFolder |
-| codecommit | codecommit/pullrequest | 1 | account | codecommit:GetPullRequest, codecommit:ListPullRequests |
-| codecommit | codecommit/pullrequestapprovalstate | 1 | account | codecommit:GetPullRequestApprovalStates |
-| codecommit | codecommit/pullrequestevent | 1 | account | codecommit:DescribePullRequestEvents |
-| codecommit | codecommit/repositorytrigger | 1 | account | codecommit:GetRepositoryTriggers |
-| codeconnections | codeconnections/connection | 0 | account | codeconnections:GetConnection, codeconnections:ListConnections |
-| codeconnections | codeconnections/host | 0 | account | codeconnections:GetHost, codeconnections:ListHosts |
-| codeconnections | codeconnections/repositorylink | 0 | account | codeconnections:GetRepositoryLink, codeconnections:ListRepositoryLinks |
-| codeconnections | codeconnections/syncconfiguration | 0 | account | codeconnections:GetSyncConfiguration, codeconnections:ListSyncConfigurations |
-| codedeploy | codedeploy/deployment | 0 | account | codedeploy:BatchGetDeployments, codedeploy:GetDeployment, codedeploy:ListDeployments |
-| codedeploy | codedeploy/deploymentinstance | 2 | account | codedeploy:BatchGetDeploymentInstances, codedeploy:GetDeploymentInstance, codedeploy:ListDeploymentInstances |
-| codedeploy | codedeploy/deploymenttarget | 1 | account | codedeploy:BatchGetDeploymentTargets, codedeploy:GetDeploymentTarget, codedeploy:ListDeploymentTargets |
-| codedeploy | codedeploy/onpremisesinstance | 0 | account | codedeploy:BatchGetOnPremisesInstances, codedeploy:GetOnPremisesInstance, codedeploy:ListOnPremisesInstances |
-| codeguru-profiler | codeguru-profiler/findingsreport | 1 | account | codeguru-profiler:ListFindingsReports |
-| codeguru-reviewer | codeguru-reviewer/codereview | 0 | account | codeguru-reviewer:DescribeCodeReview, codeguru-reviewer:ListCodeReviews |
-| codeguru-reviewer | codeguru-reviewer/recommendation | 1 | account | codeguru-reviewer:ListRecommendations |
-| codeguru-reviewer | codeguru-reviewer/recommendationfeedback | 1 | account | codeguru-reviewer:DescribeRecommendationFeedback, codeguru-reviewer:ListRecommendationFeedback |
-| codeguru-security | codeguru-security/finding | 1 | account | codeguru-security:BatchGetFindings, codeguru-security:GetFindings |
-| codeguru-security | codeguru-security/scan | 0 | account | codeguru-security:GetScan, codeguru-security:ListScans |
-| codepipeline | codepipeline/actionexecution | 1 | account | codepipeline:ListActionExecutions |
-| codepipeline | codepipeline/deployactionexecutiontarget | 1 | account | codepipeline:ListDeployActionExecutionTargets |
-| codepipeline | codepipeline/pipelineexecution | 1 | account | codepipeline:GetPipelineExecution, codepipeline:ListPipelineExecutions |
-| codepipeline | codepipeline/pipelinestate | 1 | account | codepipeline:GetPipelineState |
-| codepipeline | codepipeline/ruleexecution | 1 | account | codepipeline:ListRuleExecutions |
-| codestar-notifications | codestar-notifications/target | 0 | account | codestar-notifications:ListTargets |
-| cognito-identity | cognito-identity/identity | 0 | account | cognito-identity:DescribeIdentity, cognito-identity:ListIdentities |
-| cognito-idp | cognito-idp/device | 0 | account | cognito-idp:GetDevice, cognito-idp:ListDevices |
-| cognito-idp | cognito-idp/listgroup | 1 | account | cognito-idp:AdminListGroupsForUser |
-| cognito-idp | cognito-idp/user | 0 | account | cognito-idp:GetUser, cognito-idp:ListUsers, cognito-idp:ListUsersInGroup |
-| cognito-idp | cognito-idp/userimportjob | 1 | account | cognito-idp:DescribeUserImportJob, cognito-idp:ListUserImportJobs |
-| cognito-idp | cognito-idp/userpoolclientsecret | 1 | account | cognito-idp:ListUserPoolClientSecrets |
-| cognito-idp | cognito-idp/userpoolreplica | 1 | account | cognito-idp:ListUserPoolReplicas |
-| cognito-sync | cognito-sync/dataset | 2 | account | cognito-sync:DescribeDataset, cognito-sync:ListDatasets |
-| cognito-sync | cognito-sync/record | 3 | account | cognito-sync:ListRecords |
-| comprehend | comprehend/dataset | 0 | account | comprehend:DescribeDataset, comprehend:ListDatasets |
-| comprehend | comprehend/documentclassificationjob | 0 | account | comprehend:DescribeDocumentClassificationJob, comprehend:ListDocumentClassificationJobs |
-| comprehend | comprehend/dominantlanguagedetectionjob | 0 | account | comprehend:DescribeDominantLanguageDetectionJob, comprehend:ListDominantLanguageDetectionJobs |
-| comprehend | comprehend/entitiesdetectionjob | 0 | account | comprehend:DescribeEntitiesDetectionJob, comprehend:ListEntitiesDetectionJobs |
-| comprehend | comprehend/eventsdetectionjob | 0 | account | comprehend:DescribeEventsDetectionJob, comprehend:ListEventsDetectionJobs |
-| comprehend | comprehend/flywheeliterationhistory | 1 | account | comprehend:ListFlywheelIterationHistory |
-| comprehend | comprehend/keyphrasesdetectionjob | 0 | account | comprehend:DescribeKeyPhrasesDetectionJob, comprehend:ListKeyPhrasesDetectionJobs |
-| comprehend | comprehend/piientitiesdetectionjob | 0 | account | comprehend:DescribePiiEntitiesDetectionJob, comprehend:ListPiiEntitiesDetectionJobs |
-| comprehend | comprehend/sentimentdetectionjob | 0 | account | comprehend:DescribeSentimentDetectionJob, comprehend:ListSentimentDetectionJobs |
-| comprehend | comprehend/targetedsentimentdetectionjob | 0 | account | comprehend:DescribeTargetedSentimentDetectionJob, comprehend:ListTargetedSentimentDetectionJobs |
-| comprehend | comprehend/topicsdetectionjob | 0 | account | comprehend:DescribeTopicsDetectionJob, comprehend:ListTopicsDetectionJobs |
-| comprehendmedical | comprehendmedical/entitiesdetectionv2job | 0 | account | comprehendmedical:DescribeEntitiesDetectionV2Job, comprehendmedical:ListEntitiesDetectionV2Jobs |
-| comprehendmedical | comprehendmedical/icd10cminferencejob | 0 | account | comprehendmedical:DescribeICD10CMInferenceJob, comprehendmedical:ListICD10CMInferenceJobs |
-| comprehendmedical | comprehendmedical/phidetectionjob | 0 | account | comprehendmedical:DescribePHIDetectionJob, comprehendmedical:ListPHIDetectionJobs |
-| comprehendmedical | comprehendmedical/rxnorminferencejob | 0 | account | comprehendmedical:DescribeRxNormInferenceJob, comprehendmedical:ListRxNormInferenceJobs |
-| comprehendmedical | comprehendmedical/snomedctinferencejob | 0 | account | comprehendmedical:DescribeSNOMEDCTInferenceJob, comprehendmedical:ListSNOMEDCTInferenceJobs |
-| compute-optimizer | compute-optimizer/autoscalinggrouprecommendation | 0 | account | compute-optimizer:GetAutoScalingGroupRecommendations |
-| compute-optimizer | compute-optimizer/ebsvolumerecommendation | 0 | account | compute-optimizer:GetEBSVolumeRecommendations |
-| compute-optimizer | compute-optimizer/ec2instancerecommendation | 0 | account | compute-optimizer:GetEC2InstanceRecommendations |
-| compute-optimizer | compute-optimizer/ecsservicerecommendation | 0 | account | compute-optimizer:GetECSServiceRecommendations |
-| compute-optimizer | compute-optimizer/enrollmentstatus | 0 | account | compute-optimizer:GetEnrollmentStatus, compute-optimizer:GetEnrollmentStatusesForOrganization |
-| compute-optimizer | compute-optimizer/idlerecommendation | 0 | account | compute-optimizer:GetIdleRecommendations |
-| compute-optimizer | compute-optimizer/lambdafunctionrecommendation | 0 | account | compute-optimizer:GetLambdaFunctionRecommendations |
-| compute-optimizer | compute-optimizer/licenserecommendation | 0 | account | compute-optimizer:GetLicenseRecommendations |
-| compute-optimizer | compute-optimizer/rdsdatabaserecommendation | 0 | account | compute-optimizer:GetRDSDatabaseRecommendations |
-| compute-optimizer | compute-optimizer/recommendationpreference | 0 | account | compute-optimizer:GetRecommendationPreferences |
-| config | config/aggregatecompliance | 1 | account | config:DescribeAggregateComplianceByConfigRules, config:DescribeAggregateComplianceByConformancePacks |
-| config | config/aggregatecompliancedetail | 1 | account | config:GetAggregateComplianceDetailsByConfigRule |
-| config | config/aggregateconfigrulecompliancesummary | 1 | account | config:GetAggregateConfigRuleComplianceSummary |
-| config | config/aggregateconformancepackcompliancesummary | 1 | account | config:GetAggregateConformancePackComplianceSummary |
-| config | config/aggregatediscoveredresource | 1 | account | config:ListAggregateDiscoveredResources |
-| config | config/aggregatediscoveredresourcecount | 1 | account | config:GetAggregateDiscoveredResourceCounts |
-| config | config/aggregateresourceconfig | 1 | account | config:BatchGetAggregateResourceConfig, config:GetAggregateResourceConfig |
-| config | config/compliancedetail | 0 | account | config:GetComplianceDetailsByConfigRule, config:GetComplianceDetailsByResource |
-| config | config/configurationaggregatorsourcesstatus | 1 | account | config:DescribeConfigurationAggregatorSourcesStatus |
-| config | config/conformancepackcompliance | 2 | account | config:DescribeConformancePackCompliance |
-| config | config/conformancepackcompliancedetail | 2 | account | config:GetConformancePackComplianceDetails |
-| config | config/conformancepackcompliancesummary | 2 | account | config:GetConformancePackComplianceSummary |
-| config | config/connector | 0 | account | config:GetConnector, config:ListConnectors |
-| config | config/organizationconfigruledetailedstatus | 1 | account | config:GetOrganizationConfigRuleDetailedStatus |
-| config | config/organizationconformancepackdetailedstatus | 1 | account | config:GetOrganizationConformancePackDetailedStatus |
-| config | config/pendingaggregationrequest | 0 | account | config:DescribePendingAggregationRequests |
-| config | config/remediationexception | 1 | account | config:DescribeRemediationExceptions |
-| config | config/resourceconfig | 0 | account | config:BatchGetResourceConfig |
-| config | config/resourceevaluation | 0 | account | config:ListResourceEvaluations |
-| config | config/retentionconfiguration | 0 | account | config:DescribeRetentionConfigurations |
-| connect | connect/analyticsdataassociation | 1 | account | connect:ListAnalyticsDataAssociations |
-| connect | connect/analyticsdatalakedataset | 1 | account | connect:ListAnalyticsDataLakeDataSets |
-| connect | connect/associatedcontact | 2 | account | connect:ListAssociatedContacts |
-| connect | connect/attachedfilemetadata | 2 | account | connect:BatchGetAttachedFileMetadata |
-| connect | connect/attachedfilesconfiguration | 1 | account | connect:DescribeAttachedFilesConfiguration, connect:ListAttachedFilesConfigurations |
-| connect | connect/childhour | 2 | account | connect:ListChildHoursOfOperations |
-| connect | connect/contact | 1 | account | connect:DescribeContact, connect:SearchContacts |
-| connect | connect/contactevaluation | 1 | account | connect:DescribeContactEvaluation, connect:ListContactEvaluations, connect:SearchContactEvaluations |
-| connect | connect/contactmetric | 2 | account | connect:GetContactMetrics |
-| connect | connect/datatablevalue | 2 | account | connect:ListDataTableValues |
-| connect | connect/defaultvocabulary | 1 | account | connect:ListDefaultVocabularies |
-| connect | connect/entitysecurityprofile | 3 | account | connect:ListEntitySecurityProfiles |
-| connect | connect/evaluationformaiversion | 1 | account | connect:ListEvaluationFormAIVersions |
-| connect | connect/evaluationformversion | 2 | account | connect:ListEvaluationFormVersions |
-| connect | connect/extractiondefinition | 1 | account | connect:DescribeExtractionDefinition, connect:ListExtractionDefinitions |
-| connect | connect/flowassociation | 0 | account | connect:BatchGetFlowAssociation, connect:GetFlowAssociation, connect:ListFlowAssociations |
-| connect | connect/lexbot | 1 | account | connect:ListLexBots |
-| connect | connect/metric | 1 | account | connect:DescribeMetric, connect:ListMetrics, connect:SearchMetrics |
-| connect | connect/queueemailaddress | 2 | account | connect:ListQueueEmailAddresses |
-| connect | connect/queuequickconnect | 2 | account | connect:ListQueueQuickConnects |
-| connect | connect/routingprofilemanualassignmentqueue | 2 | account | connect:ListRoutingProfileManualAssignmentQueues |
-| connect | connect/routingprofilequeue | 2 | account | connect:ListRoutingProfileQueues |
-| connect | connect/securityprofileflowmodule | 2 | account | connect:ListSecurityProfileFlowModules |
-| connect | connect/testcase | 1 | account | connect:DescribeTestCase, connect:ListTestCases, connect:SearchTestCases |
-| connect | connect/testcaseexecution | 1 | account | connect:ListTestCaseExecutions |
-| connect | connect/trafficdistributiongroupuser | 1 | account | connect:ListTrafficDistributionGroupUsers |
-| connect | connect/usecase | 1 | account | connect:ListUseCases |
-| connect | connect/usernotification | 2 | account | connect:ListUserNotifications |
-| connect | connect/userproficiency | 2 | account | connect:ListUserProficiencies |
-| connect | connect/workspaceassociation | 2 | account | connect:SearchWorkspaceAssociations |
-| connect | connect/workspacepage | 2 | account | connect:ListWorkspacePages |
-| connect-campaigns | connect-campaigns/campaignstatebatch | 1 | account | connect-campaigns:GetCampaignStateBatch |
-| controlcatalog | controlcatalog/commoncontrol | 0 | account | controlcatalog:ListCommonControls |
-| controlcatalog | controlcatalog/control | 0 | account | controlcatalog:GetControl, controlcatalog:ListControls |
-| controlcatalog | controlcatalog/domain | 0 | account | controlcatalog:ListDomains |
-| controlcatalog | controlcatalog/objective | 0 | account | controlcatalog:ListObjectives |
-| controltower | controltower/baseline | 0 | account | controltower:GetBaseline, controltower:ListBaselines |
-| cost-optimization-hub | cost-optimization-hub/enrollmentstatus | 0 | account | cost-optimization-hub:ListEnrollmentStatuses |
-| databrew | databrew/jobrun | 1 | account | databrew:DescribeJobRun, databrew:ListJobRuns |
-| databrew | databrew/recipeversion | 1 | account | databrew:ListRecipeVersions |
-| dataexchange | dataexchange/datasetrevision | 1 | account | dataexchange:ListDataSetRevisions |
-| dataexchange | dataexchange/job | 0 | account | dataexchange:GetJob, dataexchange:ListJobs |
-| dataexchange | dataexchange/revisionasset | 2 | account | dataexchange:ListRevisionAssets |
-| datasync | datasync/taskexecution | 0 | account | datasync:DescribeTaskExecution, datasync:ListTaskExecutions |
-| datazone | datazone/account | 1 | account | datazone:ListAccountsInAccountPool |
-| datazone | datazone/accountpool | 1 | account | datazone:GetAccountPool, datazone:ListAccountPools |
-| datazone | datazone/asset | 1 | account | datazone:GetAsset |
-| datazone | datazone/assetfilter | 1 | account | datazone:GetAssetFilter, datazone:ListAssetFilters |
-| datazone | datazone/assetrevision | 1 | account | datazone:ListAssetRevisions |
-| datazone | datazone/dataproduct | 1 | account | datazone:GetDataProduct |
-| datazone | datazone/dataproductrevision | 1 | account | datazone:ListDataProductRevisions |
-| datazone | datazone/datasourcerun | 1 | account | datazone:GetDataSourceRun, datazone:ListDataSourceRuns |
-| datazone | datazone/datasourcerunactivity | 1 | account | datazone:ListDataSourceRunActivities |
-| datazone | datazone/environmentblueprint | 1 | account | datazone:GetEnvironmentBlueprint, datazone:ListEnvironmentBlueprints |
-| datazone | datazone/jobrun | 1 | account | datazone:GetJobRun, datazone:ListJobRuns |
-| datazone | datazone/lineageevent | 1 | account | datazone:GetLineageEvent, datazone:ListLineageEvents |
-| datazone | datazone/lineagenode | 1 | account | datazone:GetLineageNode |
-| datazone | datazone/lineagenodehistory | 1 | account | datazone:ListLineageNodeHistory |
-| datazone | datazone/metadatagenerationrun | 1 | account | datazone:GetMetadataGenerationRun, datazone:ListMetadataGenerationRuns |
-| datazone | datazone/notebook | 1 | account | datazone:GetNotebook, datazone:ListNotebooks |
-| datazone | datazone/notebookrun | 1 | account | datazone:GetNotebookRun, datazone:ListNotebookRuns |
-| datazone | datazone/notification | 1 | account | datazone:ListNotifications |
-| datazone | datazone/policygrant | 1 | account | datazone:ListPolicyGrants |
-| datazone | datazone/subscription | 1 | account | datazone:GetSubscription, datazone:ListSubscriptions |
-| datazone | datazone/subscriptiongrant | 1 | account | datazone:GetSubscriptionGrant, datazone:ListSubscriptionGrants |
-| datazone | datazone/subscriptionrequest | 1 | account | datazone:ListSubscriptionRequests |
-| datazone | datazone/subscriptionrequestdetail | 1 | account | datazone:GetSubscriptionRequestDetails |
-| dax | dax/parameter | 1 | account | dax:DescribeParameters |
-| deadline | deadline/farmmember | 1 | account | deadline:ListFarmMembers |
-| deadline | deadline/fleetmember | 2 | account | deadline:ListFleetMembers |
-| deadline | deadline/job | 0 | account | deadline:BatchGetJob, deadline:GetJob, deadline:ListJobs, deadline:SearchJobs |
-| deadline | deadline/jobmember | 3 | account | deadline:ListJobMembers |
-| deadline | deadline/queuemember | 2 | account | deadline:ListQueueMembers |
-| deadline | deadline/session | 0 | account | deadline:BatchGetSession, deadline:GetSession, deadline:ListSessions, deadline:ListSessionsForWorker |
-| deadline | deadline/sessionaction | 0 | account | deadline:BatchGetSessionAction, deadline:GetSessionAction, deadline:ListSessionActions |
-| deadline | deadline/step | 0 | account | deadline:BatchGetStep, deadline:GetStep, deadline:ListSteps, deadline:SearchSteps |
-| deadline | deadline/stepconsumer | 3 | account | deadline:ListStepConsumers |
-| deadline | deadline/stepdependency | 3 | account | deadline:ListStepDependencies |
-| deadline | deadline/task | 0 | account | deadline:BatchGetTask, deadline:GetTask, deadline:ListTasks, deadline:SearchTasks |
-| deadline | deadline/worker | 0 | account | deadline:BatchGetWorker, deadline:GetWorker, deadline:ListWorkers, deadline:SearchWorkers |
-| detective | detective/graphmemberdatasource | 1 | account | detective:BatchGetGraphMemberDatasources |
-| detective | detective/investigation | 1 | account | detective:GetInvestigation, detective:ListInvestigations |
-| detective | detective/invitation | 0 | account | detective:ListInvitations |
-| detective | detective/membershipdatasource | 1 | account | detective:BatchGetMembershipDatasources |
-| devicefarm | devicefarm/device | 0 | account | devicefarm:GetDevice, devicefarm:ListDevices |
-| devicefarm | devicefarm/job | 0 | account | devicefarm:GetJob, devicefarm:ListJobs |
-| devicefarm | devicefarm/offering | 0 | account | devicefarm:ListOfferings |
-| devicefarm | devicefarm/remoteaccesssession | 1 | account | devicefarm:GetRemoteAccessSession, devicefarm:ListRemoteAccessSessions |
-| devicefarm | devicefarm/run | 0 | account | devicefarm:GetRun, devicefarm:ListRuns |
-| devicefarm | devicefarm/sample | 1 | account | devicefarm:ListSamples |
-| devicefarm | devicefarm/suite | 0 | account | devicefarm:GetSuite, devicefarm:ListSuites |
-| devicefarm | devicefarm/test | 0 | account | devicefarm:GetTest, devicefarm:ListTests |
-| devicefarm | devicefarm/testgridsession | 0 | account | devicefarm:GetTestGridSession, devicefarm:ListTestGridSessions |
-| devicefarm | devicefarm/upload | 0 | account | devicefarm:GetUpload, devicefarm:ListUploads |
-| devops-guru | devops-guru/anomalousloggroup | 1 | account | devops-guru:ListAnomalousLogGroups |
-| devops-guru | devops-guru/anomaly | 0 | account | devops-guru:DescribeAnomaly, devops-guru:ListAnomaliesForInsight |
-| devops-guru | devops-guru/insight | 0 | account | devops-guru:DescribeInsight, devops-guru:ListInsights, devops-guru:SearchInsights |
-| devops-guru | devops-guru/organizationinsight | 0 | account | devops-guru:ListOrganizationInsights, devops-guru:SearchOrganizationInsights |
-| devops-guru | devops-guru/recommendation | 1 | account | devops-guru:ListRecommendations |
-| directconnect | directconnect/connectionsoninterconnect | 1 | account | directconnect:DescribeConnectionsOnInterconnect |
-| directconnect | directconnect/directconnectgatewayassociationproposal | 0 | account | directconnect:DescribeDirectConnectGatewayAssociationProposals |
-| directconnect | directconnect/hostedconnection | 1 | account | directconnect:DescribeHostedConnections |
-| directconnect | directconnect/interconnect | 0 | account | directconnect:DescribeInterconnects |
-| directconnect | directconnect/resiliencygroup | 0 | account | directconnect:GetResiliencyGroup, directconnect:ListResiliencyGroups |
-| directconnect | directconnect/resiliencygroupassociation | 1 | account | directconnect:ListResiliencyGroupAssociations |
-| discovery | discovery/agent | 0 | account | discovery:DescribeAgents |
-| discovery | discovery/configuration | 0 | account | discovery:DescribeConfigurations, discovery:ListConfigurations |
-| discovery | discovery/continuousexport | 0 | account | discovery:DescribeContinuousExports |
-| discovery | discovery/exporttask | 0 | account | discovery:DescribeExportTasks |
-| discovery | discovery/importtask | 0 | account | discovery:DescribeImportTasks |
-| discovery | discovery/serverneighbor | 1 | account | discovery:ListServerNeighbors |
-| dms | dms/connection | 0 | account | dms:DescribeConnections |
-| dms | dms/endpointsetting | 1 | account | dms:DescribeEndpointSettings |
-| dms | dms/extensionpackassociation | 1 | account | dms:DescribeExtensionPackAssociations |
-| dms | dms/fleetadvisorcollector | 0 | account | dms:DescribeFleetAdvisorCollectors |
-| dms | dms/fleetadvisordatabase | 0 | account | dms:DescribeFleetAdvisorDatabases |
-| dms | dms/fleetadvisorlsaanalysis | 0 | account | dms:DescribeFleetAdvisorLsaAnalysis |
-| dms | dms/metadatamodelassessment | 1 | account | dms:DescribeMetadataModelAssessments |
-| dms | dms/metadatamodelconversion | 1 | account | dms:DescribeMetadataModelConversions |
-| dms | dms/metadatamodelcreation | 0 | account | dms:DescribeMetadataModelCreations |
-| dms | dms/metadatamodelexportsasscript | 1 | account | dms:DescribeMetadataModelExportsAsScript |
-| dms | dms/metadatamodelexportstotarget | 1 | account | dms:DescribeMetadataModelExportsToTarget |
-| dms | dms/metadatamodelimport | 0 | account | dms:DescribeMetadataModelImports |
-| dms | dms/pendingmaintenanceaction | 0 | account | dms:DescribePendingMaintenanceActions |
-| dms | dms/recommendation | 0 | account | dms:DescribeRecommendations |
-| dms | dms/replication | 0 | account | dms:DescribeReplications |
-| dms | dms/replicationtaskassessmentrun | 0 | account | dms:DescribeReplicationTaskAssessmentRuns |
-| dms | dms/replicationtaskindividualassessment | 0 | account | dms:DescribeReplicationTaskIndividualAssessments |
-| docdb-elastic | docdb-elastic/pendingmaintenanceaction | 0 | account | docdb-elastic:GetPendingMaintenanceAction, docdb-elastic:ListPendingMaintenanceActions |
-| drs | drs/job | 0 | account | drs:DescribeJobs |
-| drs | drs/launchaction | 1 | account | drs:ListLaunchActions |
-| drs | drs/recoveryplan | 0 | account | drs:GetRecoveryPlan, drs:ListRecoveryPlans |
-| drs | drs/recoveryplanexecution | 0 | account | drs:GetRecoveryPlanExecution, drs:ListRecoveryPlanExecutions |
-| drs | drs/recoveryplanexecutionstep | 1 | account | drs:GetRecoveryPlanExecutionStep, drs:ListRecoveryPlanExecutionSteps |
-| drs | drs/recoveryplanstep | 1 | account | drs:GetRecoveryPlanStep, drs:ListRecoveryPlanSteps |
-| drs | drs/recoverysnapshot | 1 | account | drs:DescribeRecoverySnapshots |
-| drs | drs/replicationconfiguration | 1 | account | drs:GetReplicationConfiguration |
-| ds | ds/adassessment | 0 | account | ds:DescribeADAssessment, ds:ListADAssessments |
-| ds | ds/certificate | 1 | account | ds:DescribeCertificate, ds:ListCertificates |
-| ds | ds/conditionalforwarder | 1 | account | ds:DescribeConditionalForwarders |
-| ds | ds/domaincontroller | 1 | account | ds:DescribeDomainControllers |
-| ds | ds/eventtopic | 0 | account | ds:DescribeEventTopics |
-| ds | ds/iproute | 1 | account | ds:ListIpRoutes |
-| ds | ds/logsubscription | 0 | account | ds:ListLogSubscriptions |
-| ds | ds/region | 1 | account | ds:DescribeRegions |
-| ds | ds/schemaextension | 1 | account | ds:ListSchemaExtensions |
-| ds | ds/setting | 1 | account | ds:DescribeSettings |
-| ds | ds/shareddirectory | 1 | account | ds:DescribeSharedDirectories |
-| ds | ds/snapshot | 0 | account | ds:DescribeSnapshots |
-| ds | ds/trust | 0 | account | ds:DescribeTrusts |
-| ds-data | ds-data/group | 1 | account | ds-data:DescribeGroup, ds-data:ListGroups, ds-data:ListGroupsForMember, ds-data:SearchGroups |
-| ds-data | ds-data/groupmember | 1 | account | ds-data:ListGroupMembers |
-| ds-data | ds-data/user | 1 | account | ds-data:DescribeUser, ds-data:ListUsers, ds-data:SearchUsers |
-| dynamodb | dynamodb/contributorinsight | 0 | account | dynamodb:DescribeContributorInsights, dynamodb:ListContributorInsights |
-| dynamodb | dynamodb/export | 0 | account | dynamodb:DescribeExport, dynamodb:ListExports |
-| dynamodb | dynamodb/globaltablesetting | 1 | account | dynamodb:DescribeGlobalTableSettings |
-| dynamodb | dynamodb/import | 0 | account | dynamodb:DescribeImport, dynamodb:ListImports |
-| dynamodb | dynamodb/item | 1 | account | dynamodb:BatchGetItem, dynamodb:GetItem |
-| dynamodb | dynamodb/kinesisstreamingdestination | 1 | account | dynamodb:DescribeKinesisStreamingDestination |
-| dynamodb | dynamodb/record | 2 | account | dynamodb:GetRecords |
-| ec2 | ec2/accountvpcencryptioncontrol | 0 | account | ec2:DescribeAccountVpcEncryptionControl |
-| ec2 | ec2/addresstransfer | 0 | account | ec2:DescribeAddressTransfers |
-| ec2 | ec2/allowedimagessetting | 0 | account | ec2:GetAllowedImagesSettings |
-| ec2 | ec2/applicationstatuscheck | 0 | account | ec2:DescribeApplicationStatusChecks |
-| ec2 | ec2/associatedenclavecertificateiamrole | 1 | account | ec2:GetAssociatedEnclaveCertificateIamRoles |
-| ec2 | ec2/bundletask | 0 | account | ec2:DescribeBundleTasks |
-| ec2 | ec2/byoipcidr | 0 | account | ec2:DescribeByoipCidrs |
-| ec2 | ec2/capacityblockextensionoffering | 1 | account | ec2:DescribeCapacityBlockExtensionOfferings |
-| ec2 | ec2/capacitymanagermetricdimension | 1 | account | ec2:GetCapacityManagerMetricDimensions |
-| ec2 | ec2/capacitymanagermonitoredtagkey | 0 | account | ec2:GetCapacityManagerMonitoredTagKeys |
-| ec2 | ec2/capacityreservationcancellationquote | 0 | account | ec2:DescribeCapacityReservationCancellationQuotes |
-| ec2 | ec2/capacityreservationusage | 1 | account | ec2:GetCapacityReservationUsage |
-| ec2 | ec2/clientvpnconnection | 1 | account | ec2:DescribeClientVpnConnections |
-| ec2 | ec2/coippoolusage | 1 | account | ec2:GetCoipPoolUsage |
-| ec2 | ec2/conversiontask | 0 | account | ec2:DescribeConversionTasks |
-| ec2 | ec2/declarativepoliciesreport | 0 | account | ec2:DescribeDeclarativePoliciesReports |
-| ec2 | ec2/declarativepoliciesreportsummary | 1 | account | ec2:GetDeclarativePoliciesReportSummary |
-| ec2 | ec2/elasticgpu | 0 | account | ec2:DescribeElasticGpus |
-| ec2 | ec2/exportimagetask | 0 | account | ec2:DescribeExportImageTasks |
-| ec2 | ec2/exporttask | 0 | account | ec2:DescribeExportTasks |
-| ec2 | ec2/fastsnapshotrestore | 0 | account | ec2:DescribeFastSnapshotRestores |
-| ec2 | ec2/fleetinstance | 1 | account | ec2:DescribeFleetInstances |
-| ec2 | ec2/group | 1 | account | ec2:GetGroupsForCapacityReservation |
-| ec2 | ec2/hostreservationpurchasepreview | 1 | account | ec2:GetHostReservationPurchasePreview |
-| ec2 | ec2/iaminstanceprofileassociation | 0 | account | ec2:DescribeIamInstanceProfileAssociations |
-| ec2 | ec2/identityidformat | 1 | account | ec2:DescribeIdentityIdFormat |
-| ec2 | ec2/idformat | 0 | account | ec2:DescribeIdFormat |
-| ec2 | ec2/imageancestry | 1 | account | ec2:GetImageAncestry |
-| ec2 | ec2/imageattribute | 1 | account | ec2:DescribeImageAttribute |
-| ec2 | ec2/imagereference | 1 | account | ec2:DescribeImageReferences |
-| ec2 | ec2/imageusagereport | 0 | account | ec2:DescribeImageUsageReports |
-| ec2 | ec2/importimagetask | 0 | account | ec2:DescribeImportImageTasks |
-| ec2 | ec2/importsnapshottask | 0 | account | ec2:DescribeImportSnapshotTasks |
-| ec2 | ec2/instanceattribute | 1 | account | ec2:DescribeInstanceAttribute |
-| ec2 | ec2/instancecreditspecification | 0 | account | ec2:DescribeInstanceCreditSpecifications |
-| ec2 | ec2/instanceeventnotificationattribute | 0 | account | ec2:DescribeInstanceEventNotificationAttributes |
-| ec2 | ec2/instancemetadatadefault | 0 | account | ec2:GetInstanceMetadataDefaults |
-| ec2 | ec2/instancestatus | 0 | account | ec2:DescribeInstanceStatus |
-| ec2 | ec2/ipamaddresshistory | 1 | account | ec2:GetIpamAddressHistory |
-| ec2 | ec2/ipambyoasn | 0 | account | ec2:DescribeIpamByoasn |
-| ec2 | ec2/ipamdiscoveredaccount | 1 | account | ec2:GetIpamDiscoveredAccounts |
-| ec2 | ec2/ipamdiscoveredpublicaddress | 1 | account | ec2:GetIpamDiscoveredPublicAddresses |
-| ec2 | ec2/ipamdiscoveredresourcecidr | 1 | account | ec2:GetIpamDiscoveredResourceCidrs |
-| ec2 | ec2/ipamdiscoveredroute | 1 | account | ec2:GetIpamDiscoveredRoutes |
-| ec2 | ec2/ipaminternetregistryassociation | 0 | account | ec2:DescribeIpamInternetRegistryAssociations |
-| ec2 | ec2/ipampolicyallocationrule | 1 | account | ec2:GetIpamPolicyAllocationRules |
-| ec2 | ec2/ipampolicyorganizationtarget | 1 | account | ec2:GetIpamPolicyOrganizationTargets |
-| ec2 | ec2/ipamprefixlistresolverrule | 1 | account | ec2:GetIpamPrefixListResolverRules |
-| ec2 | ec2/ipamresourcecidr | 1 | account | ec2:GetIpamResourceCidrs |
-| ec2 | ec2/ipamrouteprotectionfinding | 1 | account | ec2:GetIpamRouteProtectionFindings |
-| ec2 | ec2/ipamroutingpolicyregistration | 1 | account | ec2:GetIpamRoutingPolicyRegistrations |
-| ec2 | ec2/ipamroutingpolicyregistrationdelta | 1 | account | ec2:GetIpamRoutingPolicyRegistrationDeltas |
-| ec2 | ec2/macmodificationtask | 0 | account | ec2:DescribeMacModificationTasks |
-| ec2 | ec2/managedprefixlistassociation | 1 | account | ec2:GetManagedPrefixListAssociations |
-| ec2 | ec2/managedresourcevisibility | 0 | account | ec2:GetManagedResourceVisibility |
-| ec2 | ec2/networkinsightsaccessscopeanalysisfinding | 1 | account | ec2:GetNetworkInsightsAccessScopeAnalysisFindings |
-| ec2 | ec2/networkinterfaceattribute | 1 | account | ec2:DescribeNetworkInterfaceAttribute |
-| ec2 | ec2/replacerootvolumetask | 0 | account | ec2:DescribeReplaceRootVolumeTasks |
-| ec2 | ec2/reservedinstancesexchangequote | 1 | account | ec2:GetReservedInstancesExchangeQuote |
-| ec2 | ec2/reservedinstanceslisting | 0 | account | ec2:DescribeReservedInstancesListings |
-| ec2 | ec2/reservedinstancesoffering | 0 | account | ec2:DescribeReservedInstancesOfferings |
-| ec2 | ec2/routeserverassociation | 1 | account | ec2:GetRouteServerAssociations |
-| ec2 | ec2/routeserverpropagation | 1 | account | ec2:GetRouteServerPropagations |
-| ec2 | ec2/routeserverroutingdatabase | 1 | account | ec2:GetRouteServerRoutingDatabase |
-| ec2 | ec2/scheduledinstance | 0 | account | ec2:DescribeScheduledInstances |
-| ec2 | ec2/securitygroupreference | 1 | account | ec2:DescribeSecurityGroupReferences |
-| ec2 | ec2/securitygrouprule | 0 | account | ec2:DescribeSecurityGroupRules |
-| ec2 | ec2/snapshotattribute | 1 | account | ec2:DescribeSnapshotAttribute |
-| ec2 | ec2/spotdatafeedsubscription | 0 | account | ec2:DescribeSpotDatafeedSubscription |
-| ec2 | ec2/spotfleetinstance | 1 | account | ec2:DescribeSpotFleetInstances |
-| ec2 | ec2/stalesecuritygroup | 1 | account | ec2:DescribeStaleSecurityGroups |
-| ec2 | ec2/storeimagetask | 0 | account | ec2:DescribeStoreImageTasks |
-| ec2 | ec2/subnetcidrreservation | 1 | account | ec2:GetSubnetCidrReservations |
-| ec2 | ec2/transitgatewayattachmentpropagation | 1 | account | ec2:GetTransitGatewayAttachmentPropagations |
-| ec2 | ec2/transitgatewaypolicytableassociation | 1 | account | ec2:GetTransitGatewayPolicyTableAssociations |
-| ec2 | ec2/transitgatewaypolicytableentry | 1 | account | ec2:GetTransitGatewayPolicyTableEntries |
-| ec2 | ec2/transitgatewayprefixlistreference | 1 | account | ec2:GetTransitGatewayPrefixListReferences |
-| ec2 | ec2/verifiedaccessendpointtarget | 1 | account | ec2:GetVerifiedAccessEndpointTargets |
-| ec2 | ec2/verifiedaccessinstanceloggingconfiguration | 0 | account | ec2:DescribeVerifiedAccessInstanceLoggingConfigurations |
-| ec2 | ec2/volumeattribute | 1 | account | ec2:DescribeVolumeAttribute |
-| ec2 | ec2/vpcclassiclink | 0 | account | ec2:DescribeVpcClassicLink |
-| ec2 | ec2/vpcclassiclinkdnssupport | 0 | account | ec2:DescribeVpcClassicLinkDnsSupport |
-| ec2 | ec2/vpcendpointconnection | 0 | account | ec2:DescribeVpcEndpointConnections |
-| ec2 | ec2/vpcendpointserviceconfiguration | 0 | account | ec2:DescribeVpcEndpointServiceConfigurations |
-| ec2 | ec2/vpcresourcesblockingencryptionenforcement | 1 | account | ec2:GetVpcResourcesBlockingEncryptionEnforcement |
-| ec2 | ec2/vpnconnectiondevicetype | 0 | account | ec2:GetVpnConnectionDeviceTypes |
-| ecr | ecr/image | 1 | account | ecr:BatchGetImage, ecr:DescribeImages, ecr:ListImages |
-| ecr | ecr/imagereplicationstatus | 1 | account | ecr:DescribeImageReplicationStatus |
-| ecr | ecr/imagesigningstatus | 1 | account | ecr:DescribeImageSigningStatus |
-| ecr | ecr/repositoryscanningconfiguration | 1 | account | ecr:BatchGetRepositoryScanningConfiguration |
-| ecr-public | ecr-public/image | 1 | account | ecr-public:DescribeImages |
-| ecr-public | ecr-public/registry | 0 | account | ecr-public:DescribeRegistries |
-| ecs | ecs/accountsetting | 0 | account | ecs:ListAccountSettings |
-| ecs | ecs/attribute | 1 | account | ecs:ListAttributes |
-| ecs | ecs/daemondeployment | 2 | account | ecs:DescribeDaemonDeployments, ecs:ListDaemonDeployments |
-| ecs | ecs/daemonrevision | 2 | account | ecs:DescribeDaemonRevisions |
-| ecs | ecs/servicedeployment | 2 | account | ecs:DescribeServiceDeployments, ecs:ListServiceDeployments |
-| ecs | ecs/servicerevision | 2 | account | ecs:DescribeServiceRevisions |
-| ecs | ecs/taskprotection | 2 | account | ecs:GetTaskProtection |
-| eks | eks/accesspolicy | 0 | account | eks:ListAccessPolicies |
-| eks | eks/associatedaccesspolicy | 5 | account | eks:ListAssociatedAccessPolicies |
-| eks | eks/clusterversion | 0 | account | eks:DescribeClusterVersions |
-| elasticache | elasticache/cacheparameter | 1 | account | elasticache:DescribeCacheParameters |
-| elasticache | elasticache/reservedcachenodesoffering | 0 | account | elasticache:DescribeReservedCacheNodesOfferings |
-| elasticache | elasticache/updateaction | 0 | account | elasticache:DescribeUpdateActions |
-| elasticbeanstalk | elasticbeanstalk/configurationsetting | 2 | account | elasticbeanstalk:DescribeConfigurationSettings |
-| elasticbeanstalk | elasticbeanstalk/environmentmanagedaction | 0 | account | elasticbeanstalk:DescribeEnvironmentManagedActions |
-| elasticfilesystem | elasticfilesystem/accountpreference | 0 | account | elasticfilesystem:DescribeAccountPreferences |
-| elasticfilesystem | elasticfilesystem/replicationconfiguration | 0 | account | elasticfilesystem:DescribeReplicationConfigurations |
-| elasticloadbalancing | elasticloadbalancing/instancehealth | 2 | account | elasticloadbalancing:DescribeInstanceHealth |
-| elasticloadbalancing | elasticloadbalancing/loadbalancerpolicy | 0 | account | elasticloadbalancing:DescribeLoadBalancerPolicies |
-| elasticloadbalancing | elasticloadbalancing/tag | 0 | account | elasticloadbalancing:DescribeTags |
-| elasticloadbalancing | elasticloadbalancing/truststoreassociation | 2 | account | elasticloadbalancing:DescribeTrustStoreAssociations |
-| elasticmapreduce | elasticmapreduce/bootstrapaction | 1 | account | elasticmapreduce:ListBootstrapActions |
-| elasticmapreduce | elasticmapreduce/instance | 1 | account | elasticmapreduce:ListInstances |
-| elasticmapreduce | elasticmapreduce/jobflow | 0 | account | elasticmapreduce:DescribeJobFlows |
-| elasticmapreduce | elasticmapreduce/notebookexecution | 0 | account | elasticmapreduce:DescribeNotebookExecution, elasticmapreduce:ListNotebookExecutions |
-| elasticmapreduce | elasticmapreduce/session | 1 | account | elasticmapreduce:GetSession, elasticmapreduce:ListSessions |
-| elemental-inference | elemental-inference/dictionary | 0 | account | elemental-inference:GetDictionary, elemental-inference:ListDictionaries |
-| emr-containers | emr-containers/jobrun | 1 | account | emr-containers:DescribeJobRun, emr-containers:ListJobRuns |
-| emr-serverless | emr-serverless/jobrun | 1 | account | emr-serverless:GetJobRun, emr-serverless:ListJobRuns |
-| emr-serverless | emr-serverless/jobrunattempt | 2 | account | emr-serverless:ListJobRunAttempts |
-| emr-serverless | emr-serverless/session | 1 | account | emr-serverless:GetSession, emr-serverless:ListSessions |
-| entityresolution | entityresolution/idmappingjob | 1 | account | entityresolution:GetIdMappingJob, entityresolution:ListIdMappingJobs |
-| entityresolution | entityresolution/matchingjob | 1 | account | entityresolution:GetMatchingJob, entityresolution:ListMatchingJobs |
-| entityresolution | entityresolution/providerservice | 0 | account | entityresolution:GetProviderService, entityresolution:ListProviderServices |
-| es | es/datasourceattachment | 1 | account | es:DescribeDataSourceAttachment, es:ListDataSourceAttachments |
-| es | es/directquerydatasource | 0 | account | es:GetDirectQueryDataSource, es:ListDirectQueryDataSources |
-| es | es/domainmaintenance | 1 | account | es:ListDomainMaintenances |
-| es | es/domainnode | 1 | account | es:DescribeDomainNodes |
-| es | es/elasticsearchdomain | 1 | account | es:DescribeElasticsearchDomain, es:DescribeElasticsearchDomains |
-| es | es/inboundconnection | 0 | account | es:DescribeInboundConnections |
-| es | es/inboundcrossclustersearchconnection | 0 | account | es:DescribeInboundCrossClusterSearchConnections |
-| es | es/insight | 1 | account | es:ListInsights |
-| es | es/insightdetail | 1 | account | es:DescribeInsightDetails |
-| es | es/migration | 1 | account | es:GetMigration, es:ListMigrations |
-| es | es/outboundconnection | 0 | account | es:DescribeOutboundConnections |
-| es | es/outboundcrossclustersearchconnection | 0 | account | es:DescribeOutboundCrossClusterSearchConnections |
-| es | es/package | 0 | account | es:DescribePackages, es:ListPackagesForDomain |
-| es | es/reservedelasticsearchinstanceoffering | 0 | account | es:DescribeReservedElasticsearchInstanceOfferings |
-| es | es/reservedinstanceoffering | 0 | account | es:DescribeReservedInstanceOfferings |
-| es | es/scheduledaction | 1 | account | es:ListScheduledActions |
-| es | es/upgradehistory | 1 | account | es:GetUpgradeHistory |
-| es | es/vpcendpoint | 0 | account | es:DescribeVpcEndpoints, es:ListVpcEndpoints, es:ListVpcEndpointsForDomain |
-| events | events/partnereventsource | 0 | account | events:DescribePartnerEventSource, events:ListPartnerEventSources |
-| events | events/replay | 0 | account | events:DescribeReplay, events:ListReplays |
-| evs | evs/accountsetting | 0 | account | evs:GetAccountSettings |
-| evs | evs/environmentconnector | 1 | account | evs:ListEnvironmentConnectors |
-| evs | evs/environmenthost | 1 | account | evs:ListEnvironmentHosts |
-| evs | evs/environmentvlan | 1 | account | evs:ListEnvironmentVlans |
-| evs | evs/vmentitlement | 1 | account | evs:ListVmEntitlements |
-| finspace | finspace/kxchangeset | 2 | account | finspace:GetKxChangeset, finspace:ListKxChangesets |
-| finspace | finspace/kxclusternode | 2 | account | finspace:ListKxClusterNodes |
-| finspace-api | finspace-api/changeset | 1 | account | finspace-api:GetChangeset, finspace-api:ListChangesets |
-| finspace-api | finspace-api/dataview | 1 | account | finspace-api:GetDataView, finspace-api:ListDataViews |
-| finspace-api | finspace-api/permissiongroup | 0 | account | finspace-api:GetPermissionGroup, finspace-api:ListPermissionGroups, finspace-api:ListPermissionGroupsByUser |
-| finspace-api | finspace-api/user | 0 | account | finspace-api:GetUser, finspace-api:ListUsers, finspace-api:ListUsersByPermissionGroup |
-| fis | fis/action | 0 | account | fis:GetAction, fis:ListActions |
-| fis | fis/experiment | 0 | account | fis:GetExperiment, fis:ListExperiments |
-| fis | fis/experimentresolvedtarget | 1 | account | fis:ListExperimentResolvedTargets |
-| fis | fis/experimenttargetaccountconfiguration | 1 | account | fis:GetExperimentTargetAccountConfiguration, fis:ListExperimentTargetAccountConfigurations |
-| fms | fms/adminaccount | 0 | account | fms:GetAdminAccount, fms:ListAdminAccountsForOrganization |
-| fms | fms/compliancestatus | 1 | account | fms:ListComplianceStatus |
-| fms | fms/discoveredresource | 1 | account | fms:ListDiscoveredResources |
-| fms | fms/resourcesetresource | 1 | account | fms:ListResourceSetResources |
-| forecast | forecast/accuracymetric | 1 | account | forecast:GetAccuracyMetrics |
-| forecast | forecast/autopredictor | 1 | account | forecast:DescribeAutoPredictor |
-| forecast | forecast/datasetimportjob | 0 | account | forecast:DescribeDatasetImportJob, forecast:ListDatasetImportJobs |
-| forecast | forecast/explainabilityexport | 0 | account | forecast:DescribeExplainabilityExport, forecast:ListExplainabilityExports |
-| forecast | forecast/forecastexportjob | 0 | account | forecast:DescribeForecastExportJob, forecast:ListForecastExportJobs |
-| forecast | forecast/monitorevaluation | 1 | account | forecast:ListMonitorEvaluations |
-| forecast | forecast/predictorbacktestexportjob | 0 | account | forecast:DescribePredictorBacktestExportJob, forecast:ListPredictorBacktestExportJobs |
-| forecast | forecast/whatifforecastexport | 0 | account | forecast:DescribeWhatIfForecastExport, forecast:ListWhatIfForecastExports |
-| frauddetector | frauddetector/batchimportjob | 0 | account | frauddetector:GetBatchImportJobs |
-| frauddetector | frauddetector/batchpredictionjob | 0 | account | frauddetector:GetBatchPredictionJobs |
-| frauddetector | frauddetector/detectorversion | 0 | account | frauddetector:GetDetectorVersion |
-| frauddetector | frauddetector/modelversion | 0 | account | frauddetector:DescribeModelVersions, frauddetector:GetModelVersion |
-| fsx | fsx/datarepositorytask | 0 | account | fsx:DescribeDataRepositoryTasks |
-| fsx | fsx/filesystemalias | 1 | account | fsx:DescribeFileSystemAliases |
-| gamelift | gamelift/compute | 1 | account | gamelift:DescribeCompute, gamelift:ListCompute |
-| gamelift | gamelift/computeaccess | 1 | account | gamelift:GetComputeAccess |
-| gamelift | gamelift/containergroupdefinitionversion | 1 | account | gamelift:ListContainerGroupDefinitionVersions |
-| gamelift | gamelift/containergroupportmapping | 1 | account | gamelift:DescribeContainerGroupPortMappings |
-| gamelift | gamelift/fleetcapacity | 0 | account | gamelift:DescribeFleetCapacity |
-| gamelift | gamelift/fleetevent | 1 | account | gamelift:DescribeFleetEvents |
-| gamelift | gamelift/gameserver | 1 | account | gamelift:DescribeGameServer, gamelift:ListGameServers |
-| gamelift | gamelift/gameserverinstance | 1 | account | gamelift:DescribeGameServerInstances |
-| gamelift | gamelift/gamesession | 0 | account | gamelift:DescribeGameSessions, gamelift:SearchGameSessions |
-| gamelift | gamelift/instance | 1 | account | gamelift:DescribeInstances |
-| gamelift | gamelift/matchmaking | 1 | account | gamelift:DescribeMatchmaking |
-| gamelift | gamelift/playerconnectiondetail | 1 | account | gamelift:GetPlayerConnectionDetails |
-| gamelift | gamelift/playersession | 0 | account | gamelift:DescribePlayerSessions |
-| gamelift | gamelift/scalingpolicy | 1 | account | gamelift:DescribeScalingPolicies |
-| gamelift | gamelift/vpcpeeringauthorization | 0 | account | gamelift:DescribeVpcPeeringAuthorizations |
-| gamelift | gamelift/vpcpeeringconnection | 0 | account | gamelift:DescribeVpcPeeringConnections |
-| gameliftstreams | gameliftstreams/applicationshadercach | 1 | account | gameliftstreams:ListApplicationShaderCaches |
-| gameliftstreams | gameliftstreams/streamsession | 0 | account | gameliftstreams:GetStreamSession, gameliftstreams:ListStreamSessions, gameliftstreams:ListStreamSessionsByAccount |
-| gameliftstreams | gameliftstreams/streamurl | 0 | account | gameliftstreams:GetStreamUrl, gameliftstreams:ListStreamUrls |
-| geo | geo/deviceposition | 1 | account | geo:BatchGetDevicePosition, geo:GetDevicePosition, geo:ListDevicePositions |
-| geo | geo/devicepositionhistory | 1 | account | geo:GetDevicePositionHistory |
-| geo | geo/geofence | 1 | account | geo:GetGeofence, geo:ListGeofences |
-| geo | geo/job | 0 | account | geo:GetJob, geo:ListJobs |
-| glacier | glacier/job | 1 | account | glacier:DescribeJob, glacier:ListJobs |
-| glacier | glacier/multipartupload | 1 | account | glacier:ListMultipartUploads |
-| glacier | glacier/provisionedcapacity | 1 | account | glacier:ListProvisionedCapacity |
-| globalaccelerator | globalaccelerator/byoipcidr | 0 | account | globalaccelerator:ListByoipCidrs |
-| globalaccelerator | globalaccelerator/crossaccountresource | 1 | account | globalaccelerator:ListCrossAccountResources |
-| globalaccelerator | globalaccelerator/customroutingaccelerator | 0 | account | globalaccelerator:DescribeCustomRoutingAccelerator, globalaccelerator:ListCustomRoutingAccelerators |
-| globalaccelerator | globalaccelerator/customroutingendpointgroup | 2 | account | globalaccelerator:DescribeCustomRoutingEndpointGroup, globalaccelerator:ListCustomRoutingEndpointGroups |
-| globalaccelerator | globalaccelerator/customroutinglistener | 1 | account | globalaccelerator:DescribeCustomRoutingListener, globalaccelerator:ListCustomRoutingListeners |
-| globalaccelerator | globalaccelerator/customroutingportmapping | 1 | account | globalaccelerator:ListCustomRoutingPortMappings, globalaccelerator:ListCustomRoutingPortMappingsByDestination |
-| glue | glue/blueprintrun | 1 | account | glue:GetBlueprintRun, glue:GetBlueprintRuns |
-| glue | glue/columnstatisticstaskrun | 0 | account | glue:GetColumnStatisticsTaskRun, glue:GetColumnStatisticsTaskRuns, glue:ListColumnStatisticsTaskRuns |
-| glue | glue/crawl | 1 | account | glue:ListCrawls |
-| glue | glue/dataqualityresult | 0 | account | glue:BatchGetDataQualityResult, glue:GetDataQualityResult, glue:ListDataQualityResults |
-| glue | glue/dataqualityrulerecommendationrun | 0 | account | glue:GetDataQualityRuleRecommendationRun, glue:ListDataQualityRuleRecommendationRuns |
-| glue | glue/dataqualityrulesetevaluationrun | 0 | account | glue:BatchGetDataQualityRulesetEvaluationRun, glue:GetDataQualityRulesetEvaluationRun, glue:ListDataQualityRulesetEvaluationRuns |
-| glue | glue/dataqualitystatisticannotation | 0 | account | glue:ListDataQualityStatisticAnnotations |
-| glue | glue/glossaryterm | 0 | account | glue:GetGlossaryTerm, glue:ListGlossaryTerms |
-| glue | glue/inboundintegration | 0 | account | glue:DescribeInboundIntegrations |
-| glue | glue/integrationtableproperty | 0 | account | glue:GetIntegrationTableProperties, glue:ListIntegrationTableProperties |
-| glue | glue/iterableform | 1 | account | glue:BatchGetIterableForms, glue:ListIterableForms |
-| glue | glue/jobrun | 1 | account | glue:GetJobRun, glue:GetJobRuns |
-| glue | glue/materializedviewrefreshtaskrun | 1 | account | glue:GetMaterializedViewRefreshTaskRun, glue:ListMaterializedViewRefreshTaskRuns |
-| glue | glue/mltaskrun | 1 | account | glue:GetMLTaskRun, glue:GetMLTaskRuns |
-| glue | glue/resourcepolicy | 0 | account | glue:GetResourcePolicies, glue:GetResourcePolicy |
-| glue | glue/session | 0 | account | glue:GetSession, glue:ListSessions |
-| glue | glue/statement | 1 | account | glue:GetStatement, glue:ListStatements |
-| glue | glue/unfilteredtablemetadata | 1 | account | glue:GetUnfilteredTableMetadata |
-| glue | glue/workflowrun | 1 | account | glue:GetWorkflowRun, glue:GetWorkflowRuns |
-| greengrass | greengrass/bulkdeployment | 0 | account | greengrass:ListBulkDeployments |
-| greengrass | greengrass/bulkdeploymentdetailedreport | 1 | account | greengrass:ListBulkDeploymentDetailedReports |
-| greengrass | greengrass/clientdevicesassociatedwithcoredevice | 1 | account | greengrass:ListClientDevicesAssociatedWithCoreDevice |
-| greengrass | greengrass/connectivityinfo | 0 | account | greengrass:GetConnectivityInfo |
-| greengrass | greengrass/effectivedeployment | 1 | account | greengrass:ListEffectiveDeployments |
-| greengrass | greengrass/groupcertificateauthority | 1 | account | greengrass:GetGroupCertificateAuthority, greengrass:ListGroupCertificateAuthorities |
-| greengrass | greengrass/installedcomponent | 1 | account | greengrass:ListInstalledComponents |
-| groundstation | groundstation/antenna | 1 | account | groundstation:ListAntennas |
-| groundstation | groundstation/contact | 0 | account | groundstation:DescribeContact, groundstation:ListContacts |
-| groundstation | groundstation/contactversion | 1 | account | groundstation:DescribeContactVersion, groundstation:ListContactVersions |
-| groundstation | groundstation/groundstationreservation | 1 | account | groundstation:ListGroundStationReservations |
-| groundstation | groundstation/satellite | 0 | account | groundstation:GetSatellite, groundstation:ListSatellites |
-| guardduty | guardduty/coverage | 1 | account | guardduty:ListCoverage |
-| guardduty | guardduty/customdetectionrule | 0 | account | guardduty:GetCustomDetectionRule, guardduty:ListCustomDetectionRules |
-| guardduty | guardduty/customdetectionruleassociation | 0 | account | guardduty:GetCustomDetectionRuleAssociation, guardduty:ListCustomDetectionRuleAssociations |
-| guardduty | guardduty/customdetectionruleorgconfiguration | 0 | account | guardduty:GetCustomDetectionRuleOrgConfiguration, guardduty:ListCustomDetectionRuleOrgConfigurations |
-| guardduty | guardduty/finding | 1 | account | guardduty:GetFindings, guardduty:ListFindings |
-| guardduty | guardduty/investigation | 1 | account | guardduty:GetInvestigation, guardduty:ListInvestigations |
-| guardduty | guardduty/invitation | 0 | account | guardduty:ListInvitations |
-| guardduty | guardduty/malwarescan | 0 | account | guardduty:DescribeMalwareScans, guardduty:GetMalwareScan, guardduty:ListMalwareScans |
-| guardduty | guardduty/memberdetector | 1 | account | guardduty:GetMemberDetectors |
-| guardduty | guardduty/organizationadminaccount | 0 | account | guardduty:ListOrganizationAdminAccounts |
-| guardduty | guardduty/organizationconfiguration | 1 | account | guardduty:DescribeOrganizationConfiguration |
-| guardduty | guardduty/remainingfreetrialday | 1 | account | guardduty:GetRemainingFreeTrialDays |
-| health | health/affectedentity | 0 | account | health:DescribeAffectedEntities, health:DescribeAffectedEntitiesForOrganization |
-| health | health/entityaggregate | 0 | account | health:DescribeEntityAggregates, health:DescribeEntityAggregatesForOrganization |
-| health | health/event | 0 | account | health:DescribeEvents, health:DescribeEventsForOrganization |
-| health | health/eventdetail | 0 | account | health:DescribeEventDetails, health:DescribeEventDetailsForOrganization |
-| health-agent | health-agent/domain | 0 | account | health-agent:GetDomain, health-agent:ListDomains |
-| health-agent | health-agent/subscription | 1 | account | health-agent:GetSubscription, health-agent:ListSubscriptions |
-| healthlake | healthlake/datatransformationjob | 0 | account | healthlake:DescribeDataTransformationJob, healthlake:ListDataTransformationJobs |
-| healthlake | healthlake/datatransformationprofile | 0 | account | healthlake:GetDataTransformationProfile, healthlake:ListDataTransformationProfiles |
-| healthlake | healthlake/datatransformationprofileversion | 1 | account | healthlake:ListDataTransformationProfileVersions |
-| healthlake | healthlake/fhirexportjob | 1 | account | healthlake:DescribeFHIRExportJob, healthlake:ListFHIRExportJobs |
-| healthlake | healthlake/fhirimportjob | 1 | account | healthlake:DescribeFHIRImportJob, healthlake:ListFHIRImportJobs |
-| iam | iam/attachedgrouppolicy | 1 | account | iam:ListAttachedGroupPolicies |
-| iam | iam/attachedrolepolicy | 1 | account | iam:ListAttachedRolePolicies |
-| iam | iam/attacheduserpolicy | 1 | account | iam:ListAttachedUserPolicies |
-| iam | iam/delegationrequest | 0 | account | iam:GetDelegationRequest, iam:ListDelegationRequests |
-| iam | iam/entity | 1 | account | iam:ListEntitiesForPolicy |
-| iam | iam/loginprofile | 0 | account | iam:GetLoginProfile |
-| iam | iam/mfadevice | 0 | account | iam:GetMFADevice, iam:ListMFADevices |
-| iam | iam/organizationsaccessreport | 1 | account | iam:GetOrganizationsAccessReport |
-| iam | iam/policyversion | 1 | account | iam:GetPolicyVersion, iam:ListPolicyVersions |
-| iam | iam/servicelastaccesseddetail | 1 | account | iam:GetServiceLastAccessedDetails |
-| iam | iam/servicespecificcredential | 0 | account | iam:ListServiceSpecificCredentials |
-| iam | iam/signingcertificate | 0 | account | iam:ListSigningCertificates |
-| iam | iam/sshpublickey | 0 | account | iam:GetSSHPublicKey, iam:ListSSHPublicKeys |
-| imagebuilder | imagebuilder/imagepackage | 3 | account | imagebuilder:ListImagePackages |
-| imagebuilder | imagebuilder/imagepipelineimage | 1 | account | imagebuilder:ListImagePipelineImages |
-| imagebuilder | imagebuilder/lifecycleexecution | 0 | account | imagebuilder:GetLifecycleExecution, imagebuilder:ListLifecycleExecutions |
-| imagebuilder | imagebuilder/lifecycleexecutionresource | 1 | account | imagebuilder:ListLifecycleExecutionResources |
-| imagebuilder | imagebuilder/workflowexecution | 0 | account | imagebuilder:GetWorkflowExecution, imagebuilder:ListWorkflowExecutions |
-| imagebuilder | imagebuilder/workflowstepexecution | 0 | account | imagebuilder:GetWorkflowStepExecution, imagebuilder:ListWorkflowStepExecutions |
-| inspector | inspector/assessmentrun | 0 | account | inspector:DescribeAssessmentRuns, inspector:ListAssessmentRuns |
-| inspector | inspector/assessmentrunagent | 1 | account | inspector:ListAssessmentRunAgents |
-| inspector | inspector/assessmenttarget | 0 | account | inspector:DescribeAssessmentTargets, inspector:ListAssessmentTargets |
-| inspector | inspector/assessmenttemplate | 0 | account | inspector:DescribeAssessmentTemplates, inspector:ListAssessmentTemplates |
-| inspector | inspector/exclusion | 0 | account | inspector:DescribeExclusions, inspector:ListExclusions |
-| inspector | inspector/resourcegroup | 0 | account | inspector:DescribeResourceGroups |
-| inspector2 | inspector2/cisscanresultsaggregated | 1 | account | inspector2:ListCisScanResultsAggregatedByChecks, inspector2:ListCisScanResultsAggregatedByTargetResource |
-| inspector2 | inspector2/cluster | 2 | account | inspector2:GetClustersForImage |
-| inspector2 | inspector2/codesnippet | 1 | account | inspector2:BatchGetCodeSnippet |
-| inspector2 | inspector2/connector | 0 | account | inspector2:ListConnectors |
-| inspector2 | inspector2/connectorscanconfiguration | 0 | account | inspector2:ListConnectorScanConfigurations |
-| inspector2 | inspector2/delegatedadminaccount | 0 | account | inspector2:GetDelegatedAdminAccount, inspector2:ListDelegatedAdminAccounts |
-| inspector2 | inspector2/finding | 0 | account | inspector2:ListFindings |
-| inspector2 | inspector2/findingdetail | 1 | account | inspector2:BatchGetFindingDetails |
-| inspector2 | inspector2/freetrialinfo | 1 | account | inspector2:BatchGetFreeTrialInfo |
-| inspector2 | inspector2/memberec2deepinspectionstatus | 0 | account | inspector2:BatchGetMemberEc2DeepInspectionStatus |
-| internetmonitor | internetmonitor/healthevent | 1 | account | internetmonitor:GetHealthEvent, internetmonitor:ListHealthEvents |
-| internetmonitor | internetmonitor/internetevent | 0 | account | internetmonitor:GetInternetEvent, internetmonitor:ListInternetEvents |
-| internetmonitor | internetmonitor/queryresult | 1 | account | internetmonitor:GetQueryResults |
-| invoicing | invoicing/invoiceprofile | 1 | account | invoicing:BatchGetInvoiceProfile |
-| invoicing | invoicing/procurementportalpreference | 0 | account | invoicing:GetProcurementPortalPreference, invoicing:ListProcurementPortalPreferences |
-| invoicing | invoicing/procurementportalsupplier | 1 | account | invoicing:ListProcurementPortalSuppliers |
-| iot | iot/auditmitigationactionsexecution | 1 | account | iot:ListAuditMitigationActionsExecutions |
-| iot | iot/auditmitigationactionstask | 0 | account | iot:DescribeAuditMitigationActionsTask, iot:ListAuditMitigationActionsTasks |
-| iot | iot/auditsuppression | 0 | account | iot:DescribeAuditSuppression, iot:ListAuditSuppressions |
-| iot | iot/audittask | 0 | account | iot:DescribeAuditTask, iot:ListAuditTasks |
-| iot | iot/commandexecution | 0 | account | iot:GetCommandExecution, iot:ListCommandExecutions |
-| iot | iot/detectmitigationactionstask | 0 | account | iot:DescribeDetectMitigationActionsTask, iot:ListDetectMitigationActionsTasks |
-| iot | iot/jobexecution | 1 | account | iot:DescribeJobExecution, iot:ListJobExecutionsForJob, iot:ListJobExecutionsForThing |
-| iot | iot/policyversion | 1 | account | iot:GetPolicyVersion, iot:ListPolicyVersions |
-| iot | iot/principalpolicy | 0 | account | iot:ListPrincipalPolicies |
-| iot | iot/principalthing | 1 | account | iot:ListPrincipalThings, iot:ListPrincipalThingsV2 |
-| iot | iot/provisioningtemplateversion | 1 | account | iot:DescribeProvisioningTemplateVersion, iot:ListProvisioningTemplateVersions |
-| iot | iot/relatedresource | 1 | account | iot:ListRelatedResourcesForAuditFinding |
-| iot | iot/sbomvalidationresult | 2 | account | iot:ListSbomValidationResults |
-| iot | iot/thingregistrationtask | 0 | account | iot:DescribeThingRegistrationTask, iot:ListThingRegistrationTasks |
-| iot | iot/violationevent | 1 | account | iot:ListViolationEvents |
-| iot-jobs-data | iot-jobs-data/pendingjobexecution | 1 | account | iot-jobs-data:GetPendingJobExecutions |
-| iotdeviceadvisor | iotdeviceadvisor/suiterun | 0 | account | iotdeviceadvisor:GetSuiteRun, iotdeviceadvisor:ListSuiteRuns |
-| iotfleetwise | iotfleetwise/decodermanifestnetworkinterface | 1 | account | iotfleetwise:ListDecoderManifestNetworkInterfaces |
-| iotfleetwise | iotfleetwise/decodermanifestsignal | 1 | account | iotfleetwise:ListDecoderManifestSignals |
-| iotfleetwise | iotfleetwise/vehiclestatus | 1 | account | iotfleetwise:GetVehicleStatus |
-| iotmanagedintegrations | iotmanagedintegrations/cloudconnector | 0 | account | iotmanagedintegrations:GetCloudConnector, iotmanagedintegrations:ListCloudConnectors |
-| iotmanagedintegrations | iotmanagedintegrations/connectordestination | 0 | account | iotmanagedintegrations:GetConnectorDestination, iotmanagedintegrations:ListConnectorDestinations |
-| iotmanagedintegrations | iotmanagedintegrations/destination | 0 | account | iotmanagedintegrations:GetDestination, iotmanagedintegrations:ListDestinations |
-| iotmanagedintegrations | iotmanagedintegrations/devicediscovery | 0 | account | iotmanagedintegrations:GetDeviceDiscovery, iotmanagedintegrations:ListDeviceDiscoveries |
-| iotmanagedintegrations | iotmanagedintegrations/eventlogconfiguration | 0 | account | iotmanagedintegrations:GetEventLogConfiguration, iotmanagedintegrations:ListEventLogConfigurations |
-| iotmanagedintegrations | iotmanagedintegrations/managedthingschema | 1 | account | iotmanagedintegrations:ListManagedThingSchemas |
-| iotmanagedintegrations | iotmanagedintegrations/managedthingstate | 1 | account | iotmanagedintegrations:GetManagedThingState |
-| iotmanagedintegrations | iotmanagedintegrations/notificationconfiguration | 0 | account | iotmanagedintegrations:GetNotificationConfiguration, iotmanagedintegrations:ListNotificationConfigurations |
-| iotmanagedintegrations | iotmanagedintegrations/otataskconfiguration | 0 | account | iotmanagedintegrations:GetOtaTaskConfiguration, iotmanagedintegrations:ListOtaTaskConfigurations |
-| iotmanagedintegrations | iotmanagedintegrations/otataskexecution | 1 | account | iotmanagedintegrations:ListOtaTaskExecutions |
-| iotsitewise | iotsitewise/action | 1 | account | iotsitewise:DescribeAction, iotsitewise:ListActions |
-| iotsitewise | iotsitewise/application | 0 | account | iotsitewise:DescribeApplication, iotsitewise:ListApplications |
-| iotsitewise | iotsitewise/assetcompositemodel | 1 | account | iotsitewise:DescribeAssetCompositeModel |
-| iotsitewise | iotsitewise/assetmodelcompositemodel | 1 | account | iotsitewise:DescribeAssetModelCompositeModel, iotsitewise:ListAssetModelCompositeModels |
-| iotsitewise | iotsitewise/assetmodelinterfacerelationship | 1 | account | iotsitewise:DescribeAssetModelInterfaceRelationship |
-| iotsitewise | iotsitewise/assetmodelproperty | 1 | account | iotsitewise:ListAssetModelProperties |
-| iotsitewise | iotsitewise/assetproperty | 1 | account | iotsitewise:DescribeAssetProperty, iotsitewise:ListAssetProperties |
-| iotsitewise | iotsitewise/assetpropertyaggregate | 1 | account | iotsitewise:BatchGetAssetPropertyAggregates, iotsitewise:GetAssetPropertyAggregates |
-| iotsitewise | iotsitewise/assetpropertyvalue | 0 | account | iotsitewise:BatchGetAssetPropertyValue, iotsitewise:GetAssetPropertyValue |
-| iotsitewise | iotsitewise/assetpropertyvaluehistory | 0 | account | iotsitewise:BatchGetAssetPropertyValueHistory, iotsitewise:GetAssetPropertyValueHistory |
-| iotsitewise | iotsitewise/associatedasset | 1 | account | iotsitewise:ListAssociatedAssets |
-| iotsitewise | iotsitewise/bulkimportjob | 0 | account | iotsitewise:DescribeBulkImportJob, iotsitewise:ListBulkImportJobs |
-| iotsitewise | iotsitewise/compositionrelationship | 1 | account | iotsitewise:ListCompositionRelationships |
-| iotsitewise | iotsitewise/computationmodeldatabindingusage | 1 | account | iotsitewise:ListComputationModelDataBindingUsages |
-| iotsitewise | iotsitewise/datasetdatasegment | 1 | account | iotsitewise:ListDatasetDataSegments |
-| iotsitewise | iotsitewise/datasetdatasegmentrelationship | 1 | account | iotsitewise:ListDatasetDataSegmentRelationships |
-| iotsitewise | iotsitewise/datasetexportjob | 1 | account | iotsitewise:DescribeDatasetExportJob, iotsitewise:ListDatasetExportJobs |
-| iotsitewise | iotsitewise/enrichmentjob | 1 | account | iotsitewise:DescribeEnrichmentJob, iotsitewise:ListEnrichmentJobs |
-| iotsitewise | iotsitewise/execution | 0 | account | iotsitewise:DescribeExecution, iotsitewise:ListExecutions |
-| iotsitewise | iotsitewise/pipeline | 1 | account | iotsitewise:DescribePipeline, iotsitewise:ListPipelines |
-| iotsitewise | iotsitewise/pipelineexecution | 2 | account | iotsitewise:DescribePipelineExecution, iotsitewise:ListPipelineExecutions |
-| iotsitewise | iotsitewise/projectasset | 1 | account | iotsitewise:ListProjectAssets |
-| iotsitewise | iotsitewise/query | 1 | account | iotsitewise:DescribeQuery, iotsitewise:ListQueries |
-| iotsitewise | iotsitewise/search | 1 | account | iotsitewise:DescribeSearch, iotsitewise:ListSearches |
-| iotsitewise | iotsitewise/searchresult | 1 | account | iotsitewise:GetSearchResults |
-| iotsitewise | iotsitewise/task | 1 | account | iotsitewise:DescribeTask, iotsitewise:ListTasks |
-| iotsitewise | iotsitewise/timesery | 0 | account | iotsitewise:DescribeTimeSeries, iotsitewise:ListTimeSeries |
-| iotsitewise | iotsitewise/workspace | 0 | account | iotsitewise:DescribeWorkspace, iotsitewise:ListWorkspaces |
-| iotthingsgraph | iotthingsgraph/flowexecution | 1 | account | iotthingsgraph:SearchFlowExecutions |
-| iotthingsgraph | iotthingsgraph/flowexecutionmessage | 1 | account | iotthingsgraph:ListFlowExecutionMessages |
-| iotthingsgraph | iotthingsgraph/thing | 1 | account | iotthingsgraph:SearchThings |
-| iottwinmaker | iottwinmaker/component | 2 | account | iottwinmaker:ListComponents |
-| iottwinmaker | iottwinmaker/metadatatransferjob | 0 | account | iottwinmaker:GetMetadataTransferJob, iottwinmaker:ListMetadataTransferJobs |
-| iottwinmaker | iottwinmaker/property | 2 | account | iottwinmaker:ListProperties |
-| iottwinmaker | iottwinmaker/syncresource | 2 | account | iottwinmaker:ListSyncResources |
-| iotwireless | iotwireless/eventconfiguration | 0 | account | iotwireless:GetEventConfigurationByResourceTypes, iotwireless:ListEventConfigurations |
-| iotwireless | iotwireless/loglevel | 0 | account | iotwireless:GetLogLevelsByResourceTypes |
-| iotwireless | iotwireless/positionconfiguration | 0 | account | iotwireless:GetPositionConfiguration, iotwireless:ListPositionConfigurations |
-| iotwireless | iotwireless/queuedmessage | 0 | account | iotwireless:ListQueuedMessages |
-| ivs | ivs/composition | 0 | account | ivs:GetComposition, ivs:ListCompositions |
-| ivs | ivs/participant | 1 | account | ivs:GetParticipant, ivs:ListParticipants |
-| ivs | ivs/participantevent | 1 | account | ivs:ListParticipantEvents |
-| ivs | ivs/participantreplica | 1 | account | ivs:ListParticipantReplicas |
-| ivs | ivs/stagesession | 1 | account | ivs:GetStageSession, ivs:ListStageSessions |
-| ivs | ivs/stream | 0 | account | ivs:GetStream, ivs:ListStreams |
-| ivs | ivs/streamsession | 1 | account | ivs:GetStreamSession, ivs:ListStreamSessions |
-| kafka | kafka/channel | 2 | account | kafka:DescribeChannel, kafka:ListChannels |
-| kafka | kafka/clientvpcconnection | 2 | account | kafka:ListClientVpcConnections |
-| kafka | kafka/clusteroperation | 0 | account | kafka:DescribeClusterOperation, kafka:DescribeClusterOperationV2, kafka:ListClusterOperations, kafka:ListClusterOperationsV2 |
-| kafka | kafka/node | 2 | account | kafka:ListNodes |
-| kafka | kafka/topic | 2 | account | kafka:DescribeTopic, kafka:ListTopics |
-| kafkaconnect | kafkaconnect/connectoroperation | 2 | account | kafkaconnect:DescribeConnectorOperation, kafkaconnect:ListConnectorOperations |
-| kendra | kendra/datasourcesyncjob | 2 | account | kendra:ListDataSourceSyncJobs |
-| kendra | kendra/documentstatus | 1 | account | kendra:BatchGetDocumentStatus |
-| kendra | kendra/entitypersona | 2 | account | kendra:ListEntityPersonas |
-| kendra | kendra/experienceentity | 2 | account | kendra:ListExperienceEntities |
-| kendra | kendra/groupsolderthanorderingid | 2 | account | kendra:ListGroupsOlderThanOrderingId |
-| kendra | kendra/principalmapping | 2 | account | kendra:DescribePrincipalMapping |
-| kendra | kendra/querysuggestion | 1 | account | kendra:GetQuerySuggestions |
-| kinesis | kinesis/channel | 0 | account | kinesis:DescribeChannel, kinesis:ListChannels |
-| kinesis | kinesis/record | 1 | account | kinesis:GetRecords |
-| kinesis | kinesis/shard | 0 | account | kinesis:ListShards |
-| kinesisanalytics | kinesisanalytics/applicationoperation | 1 | account | kinesisanalytics:DescribeApplicationOperation, kinesisanalytics:ListApplicationOperations |
-| kinesisanalytics | kinesisanalytics/applicationsnapshot | 1 | account | kinesisanalytics:DescribeApplicationSnapshot, kinesisanalytics:ListApplicationSnapshots |
-| kinesisanalytics | kinesisanalytics/applicationversion | 1 | account | kinesisanalytics:DescribeApplicationVersion, kinesisanalytics:ListApplicationVersions |
-| kinesisvideo | kinesisvideo/edgeagentconfiguration | 1 | account | kinesisvideo:ListEdgeAgentConfigurations |
-| kms | kms/customkeystore | 0 | account | kms:DescribeCustomKeyStores |
-| kms | kms/keyrotation | 1 | account | kms:ListKeyRotations |
-| lakeformation | lakeformation/lakeformationidentitycenterconfiguration | 0 | account | lakeformation:DescribeLakeFormationIdentityCenterConfiguration |
-| lakeformation | lakeformation/lakeformationoptin | 0 | account | lakeformation:ListLakeFormationOptIns |
-| lakeformation | lakeformation/lftagexpression | 0 | account | lakeformation:GetLFTagExpression, lakeformation:ListLFTagExpressions |
-| lakeformation | lakeformation/transaction | 0 | account | lakeformation:DescribeTransaction, lakeformation:ListTransactions |
-| lambda | lambda/durableexecution | 1 | account | lambda:GetDurableExecution, lambda:ListDurableExecutionsByFunction |
-| lambda | lambda/durableexecutionhistory | 4 | account | lambda:GetDurableExecutionHistory |
-| lambda | lambda/durableexecutionstate | 4 | account | lambda:GetDurableExecutionState |
-| lambda | lambda/functionconfiguration | 1 | account | lambda:GetFunctionConfiguration |
-| lambda | lambda/functionversion | 1 | account | lambda:ListFunctionVersionsByCapacityProvider |
-| lambda | lambda/managedmicrovmimageversion | 1 | account | lambda:ListManagedMicrovmImageVersions |
-| lambda | lambda/microvm | 0 | account | lambda:GetMicrovm, lambda:ListMicrovms |
-| lambda | lambda/microvmimage | 0 | account | lambda:GetMicrovmImage, lambda:ListMicrovmImages |
-| lambda | lambda/microvmimagebuild | 1 | account | lambda:GetMicrovmImageBuild, lambda:ListMicrovmImageBuilds |
-| lambda | lambda/microvmimageversion | 1 | account | lambda:GetMicrovmImageVersion, lambda:ListMicrovmImageVersions |
-| lambda | lambda/networkconnector | 0 | account | lambda:GetNetworkConnector, lambda:ListNetworkConnectors |
-| lambda | lambda/provisionedconcurrencyconfig | 1 | account | lambda:GetProvisionedConcurrencyConfig, lambda:ListProvisionedConcurrencyConfigs |
-| launchwizard | launchwizard/deploymentpatternversion | 1 | account | launchwizard:GetDeploymentPatternVersion, launchwizard:ListDeploymentPatternVersions |
-| launchwizard | launchwizard/workloaddeploymentpattern | 1 | account | launchwizard:GetWorkloadDeploymentPattern, launchwizard:ListWorkloadDeploymentPatterns |
-| lex | lex/botaliasreplica | 1 | account | lex:ListBotAliasReplicas |
-| lex | lex/botanalyzerhistory | 1 | account | lex:ListBotAnalyzerHistory |
-| lex | lex/botchannelassociation | 3 | account | lex:GetBotChannelAssociation, lex:GetBotChannelAssociations |
-| lex | lex/botlocale | 1 | account | lex:DescribeBotLocale, lex:ListBotLocales |
-| lex | lex/botrecommendation | 1 | account | lex:DescribeBotRecommendation, lex:ListBotRecommendations |
-| lex | lex/botresourcegeneration | 1 | account | lex:DescribeBotResourceGeneration, lex:ListBotResourceGenerations |
-| lex | lex/customvocabularyitem | 1 | account | lex:ListCustomVocabularyItems |
-| lex | lex/export | 0 | account | lex:DescribeExport, lex:GetExport, lex:ListExports |
-| lex | lex/import | 0 | account | lex:DescribeImport, lex:GetImport, lex:ListImports |
-| lex | lex/intent | 0 | account | lex:DescribeIntent, lex:GetIntent, lex:GetIntents, lex:ListIntents |
-| lex | lex/intentpath | 1 | account | lex:ListIntentPaths |
-| lex | lex/intentversion | 1 | account | lex:GetIntentVersions |
-| lex | lex/migration | 0 | account | lex:GetMigration, lex:GetMigrations |
-| lex | lex/recommendedintent | 1 | account | lex:ListRecommendedIntents |
-| lex | lex/session | 2 | account | lex:GetSession |
-| lex | lex/sessionanalyticsdata | 1 | account | lex:ListSessionAnalyticsData |
-| lex | lex/slot | 1 | account | lex:DescribeSlot, lex:ListSlots |
-| lex | lex/slottype | 0 | account | lex:DescribeSlotType, lex:GetSlotType, lex:GetSlotTypes, lex:ListSlotTypes |
-| lex | lex/slottypeversion | 1 | account | lex:GetSlotTypeVersions |
-| lex | lex/testexecution | 0 | account | lex:DescribeTestExecution, lex:ListTestExecutions |
-| lex | lex/testsetrecord | 1 | account | lex:ListTestSetRecords |
-| lex | lex/utteranceanalyticsdata | 1 | account | lex:ListUtteranceAnalyticsData |
-| license-manager | license-manager/asset | 1 | account | license-manager:ListAssetsForLicenseAssetGroup |
-| license-manager | license-manager/association | 1 | account | license-manager:ListAssociationsForLicenseConfiguration |
-| license-manager | license-manager/failure | 1 | account | license-manager:ListFailuresForLicenseConfigurationOperations |
-| license-manager | license-manager/licenseconversiontask | 0 | account | license-manager:GetLicenseConversionTask, license-manager:ListLicenseConversionTasks |
-| license-manager | license-manager/licensespecification | 0 | account | license-manager:ListLicenseSpecificationsForResource |
-| license-manager | license-manager/licenseversion | 1 | account | license-manager:ListLicenseVersions |
-| license-manager | license-manager/receivedgrant | 0 | account | license-manager:ListReceivedGrants, license-manager:ListReceivedGrantsForOrganization |
-| license-manager | license-manager/servicesetting | 0 | account | license-manager:GetServiceSettings |
-| license-manager | license-manager/token | 0 | account | license-manager:ListTokens |
-| license-manager | license-manager/usage | 1 | account | license-manager:ListUsageForLicenseConfiguration |
-| lightsail | lightsail/autosnapshot | 0 | account | lightsail:GetAutoSnapshots |
-| lightsail | lightsail/bucketaccesskey | 1 | account | lightsail:GetBucketAccessKeys |
-| lightsail | lightsail/bucketbundle | 0 | account | lightsail:GetBucketBundles |
-| lightsail | lightsail/cloudformationstackrecord | 0 | account | lightsail:GetCloudFormationStackRecords |
-| lightsail | lightsail/costestimate | 1 | account | lightsail:GetCostEstimate |
-| lightsail | lightsail/distributionbundle | 0 | account | lightsail:GetDistributionBundles |
-| lightsail | lightsail/exportsnapshotrecord | 0 | account | lightsail:GetExportSnapshotRecords |
-| lightsail | lightsail/relationaldatabaseparameter | 1 | account | lightsail:GetRelationalDatabaseParameters |
-| lightsail | lightsail/setuphistory | 1 | account | lightsail:GetSetupHistory |
-| logs | logs/anomaly | 0 | account | logs:ListAnomalies |
-| logs | logs/exporttask | 0 | account | logs:DescribeExportTasks |
-| logs | logs/fieldindex | 1 | account | logs:DescribeFieldIndexes |
-| logs | logs/importtask | 0 | account | logs:DescribeImportTasks |
-| logs | logs/importtaskbatch | 1 | account | logs:DescribeImportTaskBatches |
-| logs | logs/indexpolicy | 1 | account | logs:DescribeIndexPolicies |
-| logs | logs/logfield | 1 | account | logs:GetLogFields |
-| logs | logs/scheduledqueryhistory | 1 | account | logs:GetScheduledQueryHistory |
-| logs | logs/source | 1 | account | logs:ListSourcesForS3TableIntegration |
-| logs | logs/syslogconfiguration | 0 | account | logs:ListSyslogConfigurations |
-| lookoutequipment | lookoutequipment/dataingestionjob | 0 | account | lookoutequipment:DescribeDataIngestionJob, lookoutequipment:ListDataIngestionJobs |
-| lookoutequipment | lookoutequipment/inferenceevent | 2 | account | lookoutequipment:ListInferenceEvents |
-| lookoutequipment | lookoutequipment/inferenceexecution | 2 | account | lookoutequipment:ListInferenceExecutions |
-| lookoutequipment | lookoutequipment/label | 2 | account | lookoutequipment:DescribeLabel, lookoutequipment:ListLabels |
-| lookoutequipment | lookoutequipment/retrainingscheduler | 0 | account | lookoutequipment:DescribeRetrainingScheduler, lookoutequipment:ListRetrainingSchedulers |
-| lookoutequipment | lookoutequipment/sensorstatistic | 2 | account | lookoutequipment:ListSensorStatistics |
-| m2 | m2/batchjobexecution | 1 | account | m2:GetBatchJobExecution, m2:ListBatchJobExecutions |
-| m2 | m2/batchjobrestartpoint | 1 | account | m2:ListBatchJobRestartPoints |
-| m2 | m2/dataset | 1 | account | m2:ListDataSets |
-| m2 | m2/datasetexporthistory | 1 | account | m2:ListDataSetExportHistory |
-| m2 | m2/datasetimporthistory | 1 | account | m2:ListDataSetImportHistory |
-| machinelearning | machinelearning/batchprediction | 0 | account | machinelearning:DescribeBatchPredictions, machinelearning:GetBatchPrediction |
-| machinelearning | machinelearning/datasource | 0 | account | machinelearning:DescribeDataSources, machinelearning:GetDataSource |
-| machinelearning | machinelearning/evaluation | 0 | account | machinelearning:DescribeEvaluations, machinelearning:GetEvaluation |
-| machinelearning | machinelearning/mlmodel | 0 | account | machinelearning:DescribeMLModels, machinelearning:GetMLModel |
-| macie2 | macie2/automateddiscoveryaccount | 0 | account | macie2:ListAutomatedDiscoveryAccounts |
-| macie2 | macie2/classificationscope | 0 | account | macie2:GetClassificationScope, macie2:ListClassificationScopes |
-| macie2 | macie2/invitation | 0 | account | macie2:ListInvitations |
-| macie2 | macie2/organizationadminaccount | 0 | account | macie2:ListOrganizationAdminAccounts |
-| macie2 | macie2/resourceprofiledetection | 0 | account | macie2:ListResourceProfileDetections |
-| macie2 | macie2/sensitivityinspectiontemplate | 0 | account | macie2:GetSensitivityInspectionTemplate, macie2:ListSensitivityInspectionTemplates |
-| managedblockchain | managedblockchain/invitation | 0 | account | managedblockchain:ListInvitations |
-| managedblockchain | managedblockchain/proposalvote | 1 | account | managedblockchain:ListProposalVotes |
-| mediaconnect | mediaconnect/entitlement | 0 | account | mediaconnect:ListEntitlements |
-| mediaconnect | mediaconnect/flowsourcemetadata | 2 | account | mediaconnect:DescribeFlowSourceMetadata |
-| mediaconnect | mediaconnect/gatewayinstance | 0 | account | mediaconnect:DescribeGatewayInstance, mediaconnect:ListGatewayInstances |
-| mediaconnect | mediaconnect/offering | 0 | account | mediaconnect:DescribeOffering, mediaconnect:ListOfferings |
-| mediaconvert | mediaconvert/job | 0 | account | mediaconvert:GetJob, mediaconvert:ListJobs, mediaconvert:SearchJobs |
-| medialive | medialive/alert | 1 | account | medialive:ListAlerts |
-| medialive | medialive/clusteralert | 1 | account | medialive:ListClusterAlerts |
-| medialive | medialive/inputdevicetransfer | 0 | account | medialive:ListInputDeviceTransfers |
-| medialive | medialive/multiplexalert | 1 | account | medialive:ListMultiplexAlerts |
-| medialive | medialive/offering | 0 | account | medialive:DescribeOffering, medialive:ListOfferings |
-| medialive | medialive/schedule | 1 | account | medialive:DescribeSchedule |
-| medialive | medialive/thumbnail | 1 | account | medialive:DescribeThumbnails |
-| mediapackage | mediapackage/harvestjob | 0 | account | mediapackage:DescribeHarvestJob, mediapackage:ListHarvestJobs |
-| mediapackagev2 | mediapackagev2/harvestjob | 1 | account | mediapackagev2:GetHarvestJob, mediapackagev2:ListHarvestJobs |
-| mediastore | mediastore/container | 0 | account | mediastore:DescribeContainer, mediastore:ListContainers |
-| mediastore | mediastore/object | 1 | account | mediastore:DescribeObject, mediastore:GetObject |
-| medical-imaging | medical-imaging/dicomimportjob | 1 | account | medical-imaging:GetDICOMImportJob, medical-imaging:ListDICOMImportJobs |
-| medical-imaging | medical-imaging/imageset | 1 | account | medical-imaging:GetImageSet, medical-imaging:SearchImageSets |
-| medical-imaging | medical-imaging/imagesetversion | 2 | account | medical-imaging:ListImageSetVersions |
-| memorydb | memorydb/multiregionparameter | 1 | account | memorydb:DescribeMultiRegionParameters |
-| memorydb | memorydb/parameter | 1 | account | memorydb:DescribeParameters |
-| memorydb | memorydb/reservednodesoffering | 0 | account | memorydb:DescribeReservedNodesOfferings |
-| mgh | mgh/applicationstate | 0 | account | mgh:DescribeApplicationState, mgh:ListApplicationStates |
-| mgh | mgh/createdartifact | 2 | account | mgh:ListCreatedArtifacts |
-| mgh | mgh/discoveredresource | 2 | account | mgh:ListDiscoveredResources |
-| mgh | mgh/homeregioncontrol | 0 | account | mgh:DescribeHomeRegionControls |
-| mgh | mgh/migrationtask | 0 | account | mgh:DescribeMigrationTask, mgh:ListMigrationTasks |
-| mgh | mgh/sourceresource | 2 | account | mgh:ListSourceResources |
-| mgn | mgn/export | 0 | account | mgn:ListExports |
-| mgn | mgn/import | 0 | account | mgn:ListImports |
-| mgn | mgn/importfileenrichment | 0 | account | mgn:ListImportFileEnrichments |
-| mgn | mgn/job | 0 | account | mgn:DescribeJobs |
-| mgn | mgn/networkmigrationanalysis | 1 | account | mgn:ListNetworkMigrationAnalyses |
-| mgn | mgn/networkmigrationanalysisresult | 1 | account | mgn:ListNetworkMigrationAnalysisResults |
-| mgn | mgn/networkmigrationcodegeneration | 1 | account | mgn:ListNetworkMigrationCodeGenerations |
-| mgn | mgn/networkmigrationcodegenerationsegment | 1 | account | mgn:ListNetworkMigrationCodeGenerationSegments |
-| mgn | mgn/networkmigrationdeployedstack | 1 | account | mgn:ListNetworkMigrationDeployedStacks |
-| mgn | mgn/networkmigrationdeployment | 1 | account | mgn:ListNetworkMigrationDeployments |
-| mgn | mgn/networkmigrationexecution | 1 | account | mgn:ListNetworkMigrationExecutions |
-| mgn | mgn/networkmigrationmappersegment | 1 | account | mgn:ListNetworkMigrationMapperSegments |
-| mgn | mgn/networkmigrationmappersegmentconstruct | 1 | account | mgn:GetNetworkMigrationMapperSegmentConstruct, mgn:ListNetworkMigrationMapperSegmentConstructs |
-| mgn | mgn/networkmigrationmapping | 1 | account | mgn:ListNetworkMigrationMappings |
-| mgn | mgn/networkmigrationmappingupdate | 1 | account | mgn:ListNetworkMigrationMappingUpdates |
-| mgn | mgn/replicationconfiguration | 1 | account | mgn:GetReplicationConfiguration |
-| mgn | mgn/sourceserveraction | 1 | account | mgn:ListSourceServerActions |
-| mgn | mgn/templateaction | 1 | account | mgn:ListTemplateActions |
-| migrationhub-orchestrator | migrationhub-orchestrator/plugin | 0 | account | migrationhub-orchestrator:ListPlugins |
-| migrationhub-orchestrator | migrationhub-orchestrator/templatestep | 1 | account | migrationhub-orchestrator:GetTemplateStep, migrationhub-orchestrator:ListTemplateSteps |
-| migrationhub-orchestrator | migrationhub-orchestrator/workflowstep | 1 | account | migrationhub-orchestrator:GetWorkflowStep, migrationhub-orchestrator:ListWorkflowSteps |
-| migrationhub-strategy | migrationhub-strategy/applicationcomponentdetail | 1 | account | migrationhub-strategy:GetApplicationComponentDetails |
-| migrationhub-strategy | migrationhub-strategy/assessment | 0 | account | migrationhub-strategy:GetAssessment |
-| migrationhub-strategy | migrationhub-strategy/collector | 0 | account | migrationhub-strategy:ListCollectors |
-| migrationhub-strategy | migrationhub-strategy/importfiletask | 0 | account | migrationhub-strategy:GetImportFileTask, migrationhub-strategy:ListImportFileTask |
-| mobiletargeting | mobiletargeting/channel | 0 | account | mobiletargeting:GetChannels |
-| mobiletargeting | mobiletargeting/exportjob | 1 | account | mobiletargeting:GetExportJob, mobiletargeting:GetExportJobs |
-| mobiletargeting | mobiletargeting/importjob | 1 | account | mobiletargeting:GetImportJob, mobiletargeting:GetImportJobs |
-| mobiletargeting | mobiletargeting/journey | 1 | account | mobiletargeting:GetJourney, mobiletargeting:ListJourneys |
-| mobiletargeting | mobiletargeting/recommenderconfiguration | 0 | account | mobiletargeting:GetRecommenderConfiguration, mobiletargeting:GetRecommenderConfigurations |
-| monitoring | monitoring/alarmcontributor | 1 | account | monitoring:DescribeAlarmContributors |
-| mpa | mpa/policyversion | 0 | account | mpa:GetPolicyVersion, mpa:ListPolicyVersions |
-| mpa | mpa/resourcepolicy | 0 | account | mpa:GetResourcePolicy, mpa:ListResourcePolicies |
-| mpa | mpa/session | 0 | account | mpa:GetSession, mpa:ListSessions |
-| mq | mq/sharedresource | 2 | account | mq:DescribeSharedResources |
-| mturk-requester | mturk-requester/assignment | 0 | account | mturk-requester:GetAssignment, mturk-requester:ListAssignmentsForHIT |
-| mturk-requester | mturk-requester/hit | 0 | account | mturk-requester:GetHIT, mturk-requester:ListHITs, mturk-requester:ListHITsForQualificationType |
-| mturk-requester | mturk-requester/workerswithqualificationtype | 1 | account | mturk-requester:ListWorkersWithQualificationType |
-| neptune-db | neptune-db/loaderjob | 0 | account | neptune-db:ListLoaderJobs |
-| neptune-db | neptune-db/mldataprocessingjob | 0 | account | neptune-db:GetMLDataProcessingJob, neptune-db:ListMLDataProcessingJobs |
-| neptune-db | neptune-db/mlendpoint | 0 | account | neptune-db:GetMLEndpoint, neptune-db:ListMLEndpoints |
-| neptune-db | neptune-db/mlmodeltrainingjob | 0 | account | neptune-db:GetMLModelTrainingJob, neptune-db:ListMLModelTrainingJobs |
-| neptune-db | neptune-db/mlmodeltransformjob | 0 | account | neptune-db:GetMLModelTransformJob, neptune-db:ListMLModelTransformJobs |
-| neptune-graph | neptune-graph/exporttask | 0 | account | neptune-graph:GetExportTask, neptune-graph:ListExportTasks |
-| neptune-graph | neptune-graph/importtask | 0 | account | neptune-graph:GetImportTask, neptune-graph:ListImportTasks |
-| network-firewall | network-firewall/analysisreport | 0 | account | network-firewall:ListAnalysisReports |
-| network-firewall | network-firewall/containerassociation | 0 | account | network-firewall:DescribeContainerAssociation, network-firewall:ListContainerAssociations |
-| network-firewall | network-firewall/flowoperation | 1 | account | network-firewall:DescribeFlowOperation, network-firewall:ListFlowOperations |
-| network-firewall | network-firewall/proxy | 0 | account | network-firewall:DescribeProxy, network-firewall:ListProxies |
-| networkflowmonitor | networkflowmonitor/queryresultsmonitortopcontributor | 1 | account | networkflowmonitor:GetQueryResultsMonitorTopContributors |
-| networkflowmonitor | networkflowmonitor/queryresultsworkloadinsightstopcontributor | 1 | account | networkflowmonitor:GetQueryResultsWorkloadInsightsTopContributors |
-| networkmanager | networkmanager/attachmentroutingpolicyassociation | 1 | account | networkmanager:ListAttachmentRoutingPolicyAssociations |
-| networkmanager | networkmanager/connectpeerassociation | 1 | account | networkmanager:GetConnectPeerAssociations |
-| networkmanager | networkmanager/corenetworkchangeset | 1 | account | networkmanager:GetCoreNetworkChangeSet |
-| networkmanager | networkmanager/corenetworkpolicyversion | 1 | account | networkmanager:ListCoreNetworkPolicyVersions |
-| networkmanager | networkmanager/networkresource | 1 | account | networkmanager:GetNetworkResources |
-| networkmanager | networkmanager/networkroute | 1 | account | networkmanager:GetNetworkRoutes |
-| networkmanager | networkmanager/networktelemetry | 1 | account | networkmanager:GetNetworkTelemetry |
-| networkmanager | networkmanager/transitgatewayconnectpeerassociation | 1 | account | networkmanager:GetTransitGatewayConnectPeerAssociations |
-| notifications | notifications/managednotificationchildevent | 1 | account | notifications:GetManagedNotificationChildEvent, notifications:ListManagedNotificationChildEvents |
-| notifications | notifications/managednotificationevent | 0 | account | notifications:GetManagedNotificationEvent, notifications:ListManagedNotificationEvents |
-| notifications | notifications/memberaccount | 1 | account | notifications:ListMemberAccounts |
-| notifications | notifications/notificationevent | 0 | account | notifications:GetNotificationEvent, notifications:ListNotificationEvents |
-| nova-act | nova-act/act | 1 | account | nova-act:ListActs |
-| nova-act | nova-act/session | 2 | account | nova-act:ListSessions |
-| nova-act | nova-act/workflowrun | 1 | account | nova-act:GetWorkflowRun, nova-act:ListWorkflowRuns |
-| oam | oam/attachedlink | 1 | account | oam:ListAttachedLinks |
-| odb | odb/autonomousdatabaseclone | 1 | account | odb:ListAutonomousDatabaseClones |
-| odb | odb/autonomousdatabasepeer | 1 | account | odb:ListAutonomousDatabasePeers |
-| odb | odb/autonomousvirtualmachine | 1 | account | odb:ListAutonomousVirtualMachines |
-| odb | odb/dbserver | 1 | account | odb:GetDbServer, odb:ListDbServers |
-| odb | odb/exadbvmcluster | 0 | account | odb:GetExadbVmCluster, odb:ListExadbVmClusters |
-| odb | odb/exascaledbstoragevault | 0 | account | odb:GetExascaleDbStorageVault, odb:ListExascaleDbStorageVaults |
-| omics | omics/annotationimportjob | 0 | account | omics:GetAnnotationImportJob, omics:ListAnnotationImportJobs |
-| omics | omics/batch | 0 | account | omics:GetBatch, omics:ListBatch |
-| omics | omics/multipartreadsetupload | 1 | account | omics:ListMultipartReadSetUploads |
-| omics | omics/readset | 1 | account | omics:GetReadSet, omics:ListReadSets |
-| omics | omics/readsetactivationjob | 1 | account | omics:GetReadSetActivationJob, omics:ListReadSetActivationJobs |
-| omics | omics/readsetexportjob | 1 | account | omics:GetReadSetExportJob, omics:ListReadSetExportJobs |
-| omics | omics/readsetimportjob | 1 | account | omics:GetReadSetImportJob, omics:ListReadSetImportJobs |
-| omics | omics/referenceimportjob | 1 | account | omics:GetReferenceImportJob, omics:ListReferenceImportJobs |
-| omics | omics/run | 0 | account | omics:GetRun, omics:ListRuns, omics:ListRunsInBatch |
-| omics | omics/runtask | 1 | account | omics:GetRunTask, omics:ListRunTasks |
-| omics | omics/share | 0 | account | omics:GetShare, omics:ListShares |
-| omics | omics/variantimportjob | 0 | account | omics:GetVariantImportJob, omics:ListVariantImportJobs |
-| organizations | organizations/awsserviceaccess | 0 | account | organizations:ListAWSServiceAccessForOrganization |
-| organizations | organizations/children | 2 | account | organizations:ListChildren |
-| organizations | organizations/handshake | 0 | account | organizations:DescribeHandshake, organizations:ListHandshakesForAccount, organizations:ListHandshakesForOrganization |
-| osis | osis/pipelineendpointconnection | 0 | account | osis:ListPipelineEndpointConnections |
-| outposts | outposts/asset | 1 | account | outposts:ListAssets |
-| outposts | outposts/assetinstance | 1 | account | outposts:ListAssetInstances |
-| outposts | outposts/blockinginstance | 1 | account | outposts:ListBlockingInstancesForCapacityTask |
-| outposts | outposts/capacitytask | 0 | account | outposts:GetCapacityTask, outposts:ListCapacityTasks |
-| outposts | outposts/order | 0 | account | outposts:GetOrder, outposts:ListOrders |
-| outposts | outposts/outpostbillinginformation | 1 | account | outposts:GetOutpostBillingInformation |
-| outposts | outposts/quote | 0 | account | outposts:GetQuote, outposts:ListQuotes |
-| partnercentral | partnercentral/marketplacerevenueshare | 1 | account | partnercentral:GetMarketplaceRevenueShare, partnercentral:ListMarketplaceRevenueShares |
-| partnercentral | partnercentral/marketplacerevenueshareallocation | 2 | account | partnercentral:GetMarketplaceRevenueShareAllocation, partnercentral:ListMarketplaceRevenueShareAllocations |
-| partnercentral | partnercentral/revenueattribution | 1 | account | partnercentral:GetRevenueAttribution, partnercentral:ListRevenueAttributions |
-| partnercentral | partnercentral/revenueattributionallocation | 2 | account | partnercentral:GetRevenueAttributionAllocation, partnercentral:ListRevenueAttributionAllocations |
-| partnercentral | partnercentral/revenueattributionallocationstask | 2 | account | partnercentral:GetRevenueAttributionAllocationsTask |
-| partnercentral-selling | partnercentral-selling/awsopportunitysummary | 1 | account | partnercentral-selling:GetAwsOpportunitySummary |
-| partnercentral-selling | partnercentral-selling/prospecting | 0 | account | partnercentral-selling:GetProspectingFromEngagementTask, partnercentral-selling:ListProspectingFromEngagementTasks |
-| partnercentral-selling | partnercentral-selling/resourcesnapshot | 1 | account | partnercentral-selling:GetResourceSnapshot, partnercentral-selling:ListResourceSnapshots |
-| personalize | personalize/batchinferencejob | 0 | account | personalize:DescribeBatchInferenceJob, personalize:ListBatchInferenceJobs |
-| personalize | personalize/batchsegmentjob | 0 | account | personalize:DescribeBatchSegmentJob, personalize:ListBatchSegmentJobs |
-| personalize | personalize/datadeletionjob | 0 | account | personalize:DescribeDataDeletionJob, personalize:ListDataDeletionJobs |
-| personalize | personalize/datasetexportjob | 0 | account | personalize:DescribeDatasetExportJob, personalize:ListDatasetExportJobs |
-| personalize | personalize/datasetimportjob | 0 | account | personalize:DescribeDatasetImportJob, personalize:ListDatasetImportJobs |
-| personalize | personalize/personalizedranking | 1 | account | personalize:GetPersonalizedRanking |
-| personalize | personalize/solutionversion | 0 | account | personalize:DescribeSolutionVersion, personalize:ListSolutionVersions |
-| pi | pi/performanceanalysisreport | 3 | account | pi:GetPerformanceAnalysisReport, pi:ListPerformanceAnalysisReports |
-| pi | pi/performanceanalysisreportrecommendation | 3 | account | pi:ListPerformanceAnalysisReportRecommendations |
-| polly | polly/speechsynthesistask | 0 | account | polly:GetSpeechSynthesisTask, polly:ListSpeechSynthesisTasks |
-| pricingplanmanager | pricingplanmanager/subscription | 0 | account | pricingplanmanager:GetSubscription, pricingplanmanager:ListSubscriptions |
-| profile | profile/accountintegration | 2 | account | profile:ListAccountIntegrations |
-| profile | profile/calculatedattribute | 1 | account | profile:BatchGetCalculatedAttributeForProfile, profile:GetCalculatedAttributeForProfile, profile:ListCalculatedAttributesForProfile |
-| profile | profile/identityresolutionjob | 1 | account | profile:GetIdentityResolutionJob, profile:ListIdentityResolutionJobs |
-| profile | profile/match | 1 | account | profile:GetMatches |
-| profile | profile/objecttypeattribute | 2 | account | profile:ListObjectTypeAttributes |
-| profile | profile/profile | 1 | account | profile:BatchGetProfile, profile:SearchProfiles |
-| profile | profile/profilehistoryrecord | 1 | account | profile:GetProfileHistoryRecord, profile:ListProfileHistoryRecords |
-| profile | profile/profileobject | 2 | account | profile:ListProfileObjects |
-| profile | profile/rulebasedmatch | 1 | account | profile:ListRuleBasedMatches |
-| profile | profile/segmentmembership | 2 | account | profile:GetSegmentMembership |
-| profile | profile/segmentsubscriptionevent | 2 | account | profile:ListSegmentSubscriptionEvents |
-| profile | profile/similarprofile | 1 | account | profile:GetSimilarProfiles |
-| profile | profile/stream | 1 | account | profile:GetStreamForSegments |
-| profile | profile/uploadjob | 1 | account | profile:GetUploadJob, profile:ListUploadJobs |
-| profile | profile/workflow | 1 | account | profile:GetWorkflow, profile:ListWorkflows |
-| qapps | qapps/libraryitem | 1 | account | qapps:GetLibraryItem, qapps:ListLibraryItems |
-| qapps | qapps/qappsessiondata | 3 | account | qapps:ListQAppSessionData |
-| qbusiness | qbusiness/attachment | 1 | account | qbusiness:ListAttachments |
-| qbusiness | qbusiness/conversation | 1 | account | qbusiness:ListConversations |
-| qbusiness | qbusiness/document | 2 | account | qbusiness:ListDocuments |
-| qbusiness | qbusiness/group | 2 | account | qbusiness:GetGroup, qbusiness:ListGroups |
-| qbusiness | qbusiness/message | 1 | account | qbusiness:ListMessages |
-| qbusiness | qbusiness/pluginaction | 2 | account | qbusiness:ListPluginActions |
-| qbusiness | qbusiness/relevantcontent | 1 | account | qbusiness:SearchRelevantContent |
-| qbusiness | qbusiness/user | 1 | account | qbusiness:GetUser |
-| quicksight | quicksight/app | 0 | account | quicksight:DescribeApp, quicksight:ListApps, quicksight:SearchApps |
-| quicksight | quicksight/approvalpolicy | 0 | account | quicksight:DescribeApprovalPolicy, quicksight:ListApprovalPolicies |
-| quicksight | quicksight/assetbundleexportjob | 0 | account | quicksight:DescribeAssetBundleExportJob, quicksight:ListAssetBundleExportJobs |
-| quicksight | quicksight/assetbundleimportjob | 0 | account | quicksight:DescribeAssetBundleImportJob, quicksight:ListAssetBundleImportJobs |
-| quicksight | quicksight/dashboardversion | 1 | account | quicksight:ListDashboardVersions |
-| quicksight | quicksight/dlpsetting | 0 | account | quicksight:DescribeDlpSetting, quicksight:ListDlpSettings |
-| quicksight | quicksight/foldermember | 1 | account | quicksight:ListFolderMembers |
-| quicksight | quicksight/groupmembership | 1 | account | quicksight:DescribeGroupMembership, quicksight:ListGroupMemberships |
-| quicksight | quicksight/ingestion | 1 | account | quicksight:DescribeIngestion, quicksight:ListIngestions |
-| quicksight | quicksight/keyregistration | 1 | account | quicksight:DescribeKeyRegistration |
-| quicksight | quicksight/limitsprofile | 0 | account | quicksight:DescribeLimitsProfile, quicksight:ListLimitsProfiles |
-| quicksight | quicksight/selfupgrade | 1 | account | quicksight:ListSelfUpgrades |
-| quicksight | quicksight/spaceresource | 1 | account | quicksight:ListSpaceResources |
-| quicksight | quicksight/templatealias | 1 | account | quicksight:DescribeTemplateAlias, quicksight:ListTemplateAliases |
-| quicksight | quicksight/templateversion | 1 | account | quicksight:ListTemplateVersions |
-| quicksight | quicksight/themealias | 1 | account | quicksight:DescribeThemeAlias, quicksight:ListThemeAliases |
-| quicksight | quicksight/themeversion | 1 | account | quicksight:ListThemeVersions |
-| quicksight | quicksight/topicrefreshschedule | 1 | account | quicksight:DescribeTopicRefreshSchedule, quicksight:ListTopicRefreshSchedules |
-| quicksight | quicksight/topicreviewedanswer | 1 | account | quicksight:ListTopicReviewedAnswers |
-| quicksight | quicksight/usergroup | 1 | account | quicksight:ListUserGroups |
-| quicksight | quicksight/usersindexcapacity | 1 | account | quicksight:ListUsersIndexCapacity |
-| ram | ram/pendinginvitationresource | 1 | account | ram:ListPendingInvitationResources |
-| ram | ram/permissionassociation | 0 | account | ram:ListPermissionAssociations |
-| ram | ram/resourceshareinvitation | 0 | account | ram:GetResourceShareInvitations |
-| rds | rds/certificate | 0 | account | rds:DescribeCertificates |
-| rds | rds/dbclusterbacktrack | 1 | account | rds:DescribeDBClusterBacktracks |
-| rds | rds/dbclusterparameter | 1 | account | rds:DescribeDBClusterParameters |
-| rds | rds/dblogfile | 1 | account | rds:DescribeDBLogFiles |
-| rds | rds/dbparameter | 1 | account | rds:DescribeDBParameters |
-| rds | rds/dbproxytarget | 1 | account | rds:DescribeDBProxyTargets |
-| rds | rds/dbrecommendation | 0 | account | rds:DescribeDBRecommendations |
-| rds | rds/exporttask | 0 | account | rds:DescribeExportTasks |
-| rds | rds/optiongroupoption | 1 | account | rds:DescribeOptionGroupOptions |
-| rds | rds/pendingmaintenanceaction | 0 | account | rds:DescribePendingMaintenanceActions |
-| rds | rds/reserveddbinstancesoffering | 0 | account | rds:DescribeReservedDBInstancesOfferings |
-| redshift | redshift/authenticationprofile | 0 | account | redshift:DescribeAuthenticationProfiles |
-| redshift | redshift/clusterdbrevision | 0 | account | redshift:DescribeClusterDbRevisions |
-| redshift | redshift/clusterparameter | 1 | account | redshift:DescribeClusterParameters |
-| redshift | redshift/clustersecuritygroup | 0 | account | redshift:DescribeClusterSecurityGroups |
-| redshift | redshift/customdomainassociation | 0 | account | redshift:DescribeCustomDomainAssociations |
-| redshift | redshift/inboundintegration | 0 | account | redshift:DescribeInboundIntegrations |
-| redshift | redshift/partner | 1 | account | redshift:DescribePartners |
-| redshift | redshift/qev2idcapplication | 0 | account | redshift:DescribeQev2IdcApplications |
-| redshift | redshift/reservednodeexchangeoffering | 1 | account | redshift:GetReservedNodeExchangeOfferings |
-| redshift | redshift/reservednodeoffering | 0 | account | redshift:DescribeReservedNodeOfferings |
-| redshift-data | redshift-data/statement | 0 | account | redshift-data:DescribeStatement, redshift-data:ListStatements |
-| redshift-data | redshift-data/table | 1 | account | redshift-data:DescribeTable, redshift-data:ListTables |
-| redshift-serverless | redshift-serverless/customdomainassociation | 0 | account | redshift-serverless:GetCustomDomainAssociation, redshift-serverless:ListCustomDomainAssociations |
-| redshift-serverless | redshift-serverless/reservation | 0 | account | redshift-serverless:GetReservation, redshift-serverless:ListReservations |
-| redshift-serverless | redshift-serverless/scheduledaction | 0 | account | redshift-serverless:GetScheduledAction, redshift-serverless:ListScheduledActions |
-| redshift-serverless | redshift-serverless/snapshotcopyconfiguration | 0 | account | redshift-serverless:ListSnapshotCopyConfigurations |
-| redshift-serverless | redshift-serverless/usagelimit | 0 | account | redshift-serverless:GetUsageLimit, redshift-serverless:ListUsageLimits |
-| refactor-spaces | refactor-spaces/environmentvpc | 1 | account | refactor-spaces:ListEnvironmentVpcs |
-| rekognition | rekognition/datasetlabel | 3 | account | rekognition:ListDatasetLabels |
-| rekognition | rekognition/face | 1 | account | rekognition:ListFaces, rekognition:SearchFaces, rekognition:SearchFacesByImage |
-| rekognition | rekognition/mediaanalysisjob | 0 | account | rekognition:GetMediaAnalysisJob, rekognition:ListMediaAnalysisJobs |
-| rekognition | rekognition/projectpolicy | 2 | account | rekognition:ListProjectPolicies |
-| rekognition | rekognition/user | 1 | account | rekognition:ListUsers, rekognition:SearchUsers, rekognition:SearchUsersByImage |
-| repostspace | repostspace/channel | 1 | account | repostspace:GetChannel, repostspace:ListChannels |
-| resiliencehub | resiliencehub/alarmrecommendation | 1 | account | resiliencehub:ListAlarmRecommendations |
-| resiliencehub | resiliencehub/appassessmentcompliancedrift | 1 | account | resiliencehub:ListAppAssessmentComplianceDrifts |
-| resiliencehub | resiliencehub/appassessmentresourcedrift | 1 | account | resiliencehub:ListAppAssessmentResourceDrifts |
-| resiliencehub | resiliencehub/appcomponentcompliance | 1 | account | resiliencehub:ListAppComponentCompliances |
-| resiliencehub | resiliencehub/appcomponentrecommendation | 1 | account | resiliencehub:ListAppComponentRecommendations |
-| resiliencehub | resiliencehub/appinputsource | 1 | account | resiliencehub:ListAppInputSources |
-| resiliencehub | resiliencehub/appversion | 1 | account | resiliencehub:DescribeAppVersion, resiliencehub:ListAppVersions |
-| resiliencehub | resiliencehub/appversionresource | 1 | account | resiliencehub:DescribeAppVersionResource, resiliencehub:ListAppVersionResources |
-| resiliencehub | resiliencehub/appversionresourcemapping | 1 | account | resiliencehub:ListAppVersionResourceMappings |
-| resiliencehub | resiliencehub/assertion | 1 | account | resiliencehub:ListAssertions |
-| resiliencehub | resiliencehub/dependency | 0 | account | resiliencehub:ListDependencies |
-| resiliencehub | resiliencehub/failuremodeassessment | 1 | account | resiliencehub:ListFailureModeAssessments |
-| resiliencehub | resiliencehub/failuremodefinding | 1 | account | resiliencehub:GetFailureModeFinding, resiliencehub:ListFailureModeFindings |
-| resiliencehub | resiliencehub/inputsource | 1 | account | resiliencehub:ListInputSources |
-| resiliencehub | resiliencehub/policy | 0 | account | resiliencehub:GetPolicy, resiliencehub:ListPolicies |
-| resiliencehub | resiliencehub/report | 0 | account | resiliencehub:ListReports |
-| resiliencehub | resiliencehub/resolvedtestruntargetresource | 1 | account | resiliencehub:ListResolvedTestRunTargetResources |
-| resiliencehub | resiliencehub/resource | 1 | account | resiliencehub:ListResources |
-| resiliencehub | resiliencehub/resourcegroupingrecommendation | 0 | account | resiliencehub:ListResourceGroupingRecommendations |
-| resiliencehub | resiliencehub/service | 0 | account | resiliencehub:GetService, resiliencehub:ListServices |
-| resiliencehub | resiliencehub/serviceevent | 1 | account | resiliencehub:ListServiceEvents |
-| resiliencehub | resiliencehub/servicefunction | 1 | account | resiliencehub:ListServiceFunctions |
-| resiliencehub | resiliencehub/servicetopologyedge | 1 | account | resiliencehub:ListServiceTopologyEdges |
-| resiliencehub | resiliencehub/soprecommendation | 1 | account | resiliencehub:ListSopRecommendations |
-| resiliencehub | resiliencehub/system | 0 | account | resiliencehub:GetSystem, resiliencehub:ListSystems |
-| resiliencehub | resiliencehub/systemevent | 1 | account | resiliencehub:ListSystemEvents |
-| resiliencehub | resiliencehub/test | 1 | account | resiliencehub:GetTest, resiliencehub:ListTests |
-| resiliencehub | resiliencehub/testrecommendation | 1 | account | resiliencehub:ListTestRecommendations |
-| resiliencehub | resiliencehub/testrun | 1 | account | resiliencehub:GetTestRun, resiliencehub:ListTestRuns |
-| resiliencehub | resiliencehub/testrundependency | 1 | account | resiliencehub:ListTestRunDependencies |
-| resiliencehub | resiliencehub/testrunevent | 1 | account | resiliencehub:ListTestRunEvents |
-| resiliencehub | resiliencehub/testrunsourceevent | 1 | account | resiliencehub:ListTestRunSourceEvents |
-| resiliencehub | resiliencehub/testtemplate | 0 | account | resiliencehub:GetTestTemplate, resiliencehub:ListTestTemplates |
-| resiliencehub | resiliencehub/unsupportedappversionresource | 1 | account | resiliencehub:ListUnsupportedAppVersionResources |
-| resiliencehub | resiliencehub/userjourney | 1 | account | resiliencehub:GetUserJourney, resiliencehub:ListUserJourneys |
-| resource-explorer-2 | resource-explorer-2/ | 2 | account | resource-explorer-2:Search |
-| resource-explorer-2 | resource-explorer-2/streamingaccess | 0 | account | resource-explorer-2:ListStreamingAccessForServices |
-| resource-groups | resource-groups/groupingstatus | 1 | account | resource-groups:ListGroupingStatuses |
-| resource-groups | resource-groups/resource | 0 | account | resource-groups:SearchResources |
-| route53 | route53/change | 0 | account | route53:GetChange |
-| route53 | route53/cidrblock | 1 | account | route53:ListCidrBlocks |
-| route53 | route53/cidrlocation | 1 | account | route53:ListCidrLocations |
-| route53 | route53/trafficpolicyversion | 1 | account | route53:ListTrafficPolicyVersions |
-| route53 | route53/vpcassociationauthorization | 1 | account | route53:ListVPCAssociationAuthorizations |
-| route53-recovery-cluster | route53-recovery-cluster/routingcontrol | 0 | account | route53-recovery-cluster:ListRoutingControls |
-| route53-recovery-control-config | route53-recovery-control-config/associatedroute53healthcheck | 2 | account | route53-recovery-control-config:ListAssociatedRoute53HealthChecks |
-| route53-recovery-readiness | route53-recovery-readiness/cellreadinesssummary | 1 | account | route53-recovery-readiness:GetCellReadinessSummary |
-| route53-recovery-readiness | route53-recovery-readiness/readinesscheckresourcestatus | 1 | account | route53-recovery-readiness:GetReadinessCheckResourceStatus |
-| route53-recovery-readiness | route53-recovery-readiness/readinesscheckstatus | 1 | account | route53-recovery-readiness:GetReadinessCheckStatus |
-| route53-recovery-readiness | route53-recovery-readiness/recoverygroupreadinesssummary | 1 | account | route53-recovery-readiness:GetRecoveryGroupReadinessSummary |
-| route53domains | route53domains/domain | 0 | account | route53domains:ListDomains |
-| route53domains | route53domains/domaindetail | 1 | account | route53domains:GetDomainDetail |
-| route53domains | route53domains/domainsuggestion | 1 | account | route53domains:GetDomainSuggestions |
-| route53resolver | route53resolver/firewallrule | 1 | account | route53resolver:ListFirewallRules |
-| route53resolver | route53resolver/resolverendpointipaddress | 1 | account | route53resolver:ListResolverEndpointIpAddresses |
-| rtbfabric | rtbfabric/certificateassociation | 1 | account | rtbfabric:GetCertificateAssociation, rtbfabric:ListCertificateAssociations |
-| rtbfabric | rtbfabric/inboundexternallink | 1 | account | rtbfabric:GetInboundExternalLink |
-| rtbfabric | rtbfabric/outboundexternallink | 1 | account | rtbfabric:GetOutboundExternalLink |
-| rum | rum/rummetricdefinition | 1 | account | rum:BatchGetRumMetricDefinitions |
-| rum | rum/rummetricsdestination | 1 | account | rum:ListRumMetricsDestinations |
-| s3 | s3/bucketanalyticsconfiguration | 1 | account | s3:GetBucketAnalyticsConfiguration, s3:ListBucketAnalyticsConfigurations |
-| s3 | s3/bucketcor | 1 | account | s3:GetBucketCors |
-| s3 | s3/bucketintelligenttieringconfiguration | 1 | account | s3:GetBucketIntelligentTieringConfiguration, s3:ListBucketIntelligentTieringConfigurations |
-| s3 | s3/bucketinventoryconfiguration | 1 | account | s3:GetBucketInventoryConfiguration, s3:ListBucketInventoryConfigurations |
-| s3 | s3/bucketlifecycleconfiguration | 1 | account | s3:GetBucketLifecycleConfiguration |
-| s3 | s3/bucketmetricsconfiguration | 1 | account | s3:GetBucketMetricsConfiguration, s3:ListBucketMetricsConfigurations |
-| s3 | s3/bucketnotificationconfiguration | 1 | account | s3:GetBucketNotificationConfiguration |
-| s3 | s3/job | 0 | account | s3:DescribeJob, s3:ListJobs |
-| s3 | s3/multipartupload | 1 | account | s3:ListMultipartUploads |
-| s3 | s3/object | 1 | account | s3:GetObject, s3:HeadObject, s3:ListObjects, s3:ListObjectsV2 |
-| s3 | s3/objectannotation | 2 | account | s3:GetObjectAnnotation, s3:ListObjectAnnotations |
-| s3 | s3/objectversion | 1 | account | s3:ListObjectVersions |
-| s3-outposts | s3-outposts/sharedendpoint | 1 | account | s3-outposts:ListSharedEndpoints |
-| s3tables | s3tables/tablereplicationstatus | 2 | account | s3tables:GetTableReplicationStatus |
-| s3vectors | s3vectors/vector | 0 | account | s3vectors:GetVectors, s3vectors:ListVectors |
-| sagemaker | sagemaker/ | 0 | account | sagemaker:Search |
-| sagemaker | sagemaker/aibenchmarkjob | 0 | account | sagemaker:DescribeAIBenchmarkJob, sagemaker:ListAIBenchmarkJobs |
-| sagemaker | sagemaker/airecommendationjob | 0 | account | sagemaker:DescribeAIRecommendationJob, sagemaker:ListAIRecommendationJobs |
-| sagemaker | sagemaker/artifact | 0 | account | sagemaker:DescribeArtifact, sagemaker:ListArtifacts |
-| sagemaker | sagemaker/association | 0 | account | sagemaker:ListAssociations |
-| sagemaker | sagemaker/automljob | 0 | account | sagemaker:DescribeAutoMLJob, sagemaker:DescribeAutoMLJobV2, sagemaker:ListAutoMLJobs |
-| sagemaker | sagemaker/candidate | 1 | account | sagemaker:ListCandidatesForAutoMLJob |
-| sagemaker | sagemaker/clusterevent | 1 | account | sagemaker:DescribeClusterEvent, sagemaker:ListClusterEvents |
-| sagemaker | sagemaker/clusternode | 1 | account | sagemaker:DescribeClusterNode, sagemaker:ListClusterNodes |
-| sagemaker | sagemaker/compilationjob | 0 | account | sagemaker:DescribeCompilationJob, sagemaker:ListCompilationJobs |
-| sagemaker | sagemaker/deployment | 2 | account | sagemaker:GetDeployments |
-| sagemaker | sagemaker/devicefleetreport | 1 | account | sagemaker:GetDeviceFleetReport |
-| sagemaker | sagemaker/edgepackagingjob | 0 | account | sagemaker:DescribeEdgePackagingJob, sagemaker:ListEdgePackagingJobs |
-| sagemaker | sagemaker/hubcontentversion | 3 | account | sagemaker:ListHubContentVersions |
-| sagemaker | sagemaker/humanloop | 0 | account | sagemaker:DescribeHumanLoop, sagemaker:ListHumanLoops |
-| sagemaker | sagemaker/hyperparametertuningjob | 0 | account | sagemaker:DescribeHyperParameterTuningJob, sagemaker:ListHyperParameterTuningJobs |
-| sagemaker | sagemaker/inferencerecommendationsjob | 0 | account | sagemaker:DescribeInferenceRecommendationsJob, sagemaker:ListInferenceRecommendationsJobs |
-| sagemaker | sagemaker/inferencerecommendationsjobstep | 2 | account | sagemaker:ListInferenceRecommendationsJobSteps |
-| sagemaker | sagemaker/job | 0 | account | sagemaker:DescribeJob, sagemaker:ListJobs |
-| sagemaker | sagemaker/labelingjob | 0 | account | sagemaker:DescribeLabelingJob, sagemaker:ListLabelingJobs, sagemaker:ListLabelingJobsForWorkteam |
-| sagemaker | sagemaker/modelcardexportjob | 1 | account | sagemaker:DescribeModelCardExportJob, sagemaker:ListModelCardExportJobs |
-| sagemaker | sagemaker/modelcardversion | 1 | account | sagemaker:ListModelCardVersions |
-| sagemaker | sagemaker/monitoringalert | 1 | account | sagemaker:ListMonitoringAlerts |
-| sagemaker | sagemaker/optimizationjob | 0 | account | sagemaker:DescribeOptimizationJob, sagemaker:ListOptimizationJobs |
-| sagemaker | sagemaker/pipelineexecution | 1 | account | sagemaker:DescribePipelineExecution, sagemaker:ListPipelineExecutions |
-| sagemaker | sagemaker/pipelineparameter | 2 | account | sagemaker:ListPipelineParametersForExecution |
-| sagemaker | sagemaker/pipelineversion | 1 | account | sagemaker:ListPipelineVersions |
-| sagemaker | sagemaker/record | 1 | account | sagemaker:BatchGetRecord, sagemaker:GetRecord, sagemaker:ListRecords |
-| sagemaker | sagemaker/stagedevice | 1 | account | sagemaker:ListStageDevices |
-| sagemaker | sagemaker/trainingjob | 0 | account | sagemaker:DescribeTrainingJob, sagemaker:ListTrainingJobs, sagemaker:ListTrainingJobsForHyperParameterTuningJob |
-| sagemaker | sagemaker/trainingplanextensionhistory | 1 | account | sagemaker:DescribeTrainingPlanExtensionHistory |
-| sagemaker | sagemaker/transformjob | 0 | account | sagemaker:DescribeTransformJob, sagemaker:ListTransformJobs |
-| sagemaker | sagemaker/trialcomponent | 0 | account | sagemaker:DescribeTrialComponent, sagemaker:ListTrialComponents |
-| sagemaker | sagemaker/ultraserver | 1 | account | sagemaker:ListUltraServersByReservedCapacity |
-| sagemaker-geospatial | sagemaker-geospatial/earthobservationjob | 0 | account | sagemaker-geospatial:GetEarthObservationJob, sagemaker-geospatial:ListEarthObservationJobs |
-| sagemaker-geospatial | sagemaker-geospatial/vectorenrichmentjob | 0 | account | sagemaker-geospatial:GetVectorEnrichmentJob, sagemaker-geospatial:ListVectorEnrichmentJobs |
-| schemas | schemas/schemaversion | 2 | account | schemas:ListSchemaVersions |
-| scn | scn/dataintegrationevent | 1 | account | scn:GetDataIntegrationEvent, scn:ListDataIntegrationEvents |
-| scn | scn/dataintegrationflowexecution | 2 | account | scn:GetDataIntegrationFlowExecution, scn:ListDataIntegrationFlowExecutions |
-| sdb | sdb/export | 0 | account | sdb:GetExport, sdb:ListExports |
-| secretsmanager | secretsmanager/secretvalue | 0 | account | secretsmanager:BatchGetSecretValue, secretsmanager:GetSecretValue |
-| secretsmanager | secretsmanager/secretversionid | 1 | account | secretsmanager:ListSecretVersionIds |
-| security-ir | security-ir/comment | 1 | account | security-ir:ListComments |
-| security-ir | security-ir/investigation | 1 | account | security-ir:ListInvestigations |
-| security-ir | security-ir/memberaccountdetail | 1 | account | security-ir:BatchGetMemberAccountDetails |
-| securityagent | securityagent/artifact | 1 | account | securityagent:GetArtifact, securityagent:ListArtifacts |
-| securityagent | securityagent/artifactmetadata | 1 | account | securityagent:BatchGetArtifactMetadata |
-| securityagent | securityagent/codereview | 1 | account | securityagent:BatchGetCodeReviews, securityagent:ListCodeReviews |
-| securityagent | securityagent/codereviewjob | 1 | account | securityagent:BatchGetCodeReviewJobs, securityagent:ListCodeReviewJobsForCodeReview |
-| securityagent | securityagent/codereviewjobtask | 1 | account | securityagent:BatchGetCodeReviewJobTasks, securityagent:ListCodeReviewJobTasks |
-| securityagent | securityagent/discoveredendpoint | 1 | account | securityagent:ListDiscoveredEndpoints |
-| securityagent | securityagent/finding | 1 | account | securityagent:BatchGetFindings, securityagent:ListFindings |
-| securityagent | securityagent/integratedresource | 1 | account | securityagent:ListIntegratedResources |
-| securityagent | securityagent/membership | 1 | account | securityagent:ListMemberships |
-| securityagent | securityagent/pentestjob | 1 | account | securityagent:BatchGetPentestJobs, securityagent:ListPentestJobsForPentest |
-| securityagent | securityagent/pentestjobtask | 1 | account | securityagent:BatchGetPentestJobTasks, securityagent:ListPentestJobTasks |
-| securityagent | securityagent/securityrequirement | 1 | account | securityagent:BatchGetSecurityRequirements, securityagent:ListSecurityRequirements |
-| securityagent | securityagent/threat | 1 | account | securityagent:BatchGetThreats, securityagent:ListThreats |
-| securityagent | securityagent/threatmodel | 1 | account | securityagent:BatchGetThreatModels, securityagent:ListThreatModels |
-| securityagent | securityagent/threatmodeljob | 1 | account | securityagent:BatchGetThreatModelJobs, securityagent:ListThreatModelJobs |
-| securityagent | securityagent/threatmodeljobtask | 1 | account | securityagent:BatchGetThreatModelJobTasks, securityagent:ListThreatModelJobTasks |
-| securityhub | securityhub/actiontarget | 0 | account | securityhub:DescribeActionTargets |
-| securityhub | securityhub/finding | 0 | account | securityhub:GetFindings, securityhub:GetFindingsV2 |
-| securityhub | securityhub/invitation | 0 | account | securityhub:ListInvitations |
-| securityhub | securityhub/member | 0 | account | securityhub:GetMembers, securityhub:ListMembers |
-| securityhub | securityhub/organizationadminaccount | 0 | account | securityhub:ListOrganizationAdminAccounts |
-| securityhub | securityhub/product | 0 | account | securityhub:DescribeProducts, securityhub:DescribeProductsV2 |
-| securityhub | securityhub/standardscontrol | 0 | account | securityhub:DescribeStandardsControls |
-| securityhub | securityhub/standardscontrolassociation | 0 | account | securityhub:BatchGetStandardsControlAssociations, securityhub:ListStandardsControlAssociations |
-| securitylake | securitylake/datalakeorganizationconfiguration | 0 | account | securitylake:GetDataLakeOrganizationConfiguration |
-| serverlessrepo | serverlessrepo/applicationdependency | 1 | account | serverlessrepo:ListApplicationDependencies |
-| serverlessrepo | serverlessrepo/applicationpolicy | 1 | account | serverlessrepo:GetApplicationPolicy |
-| serverlessrepo | serverlessrepo/applicationversion | 1 | account | serverlessrepo:ListApplicationVersions |
-| servicecatalog | servicecatalog/budget | 0 | account | servicecatalog:ListBudgetsForResource |
-| servicecatalog | servicecatalog/launchpath | 1 | account | servicecatalog:ListLaunchPaths |
-| servicecatalog | servicecatalog/portfolioaccess | 1 | account | servicecatalog:ListPortfolioAccess |
-| servicecatalog | servicecatalog/product | 0 | account | servicecatalog:DescribeProduct, servicecatalog:SearchProducts |
-| servicecatalog | servicecatalog/provisionedproductplan | 0 | account | servicecatalog:DescribeProvisionedProductPlan, servicecatalog:ListProvisionedProductPlans |
-| servicecatalog | servicecatalog/serviceactionexecutionparameter | 1 | account | servicecatalog:DescribeServiceActionExecutionParameters |
-| servicequotas | servicequotas/quotautilizationreport | 1 | account | servicequotas:GetQuotaUtilizationReport |
-| servicequotas | servicequotas/requestedservicequotachangehistory | 0 | account | servicequotas:ListRequestedServiceQuotaChangeHistory, servicequotas:ListRequestedServiceQuotaChangeHistoryByQuota |
-| servicequotas | servicequotas/servicequotaincreaserequest | 0 | account | servicequotas:GetServiceQuotaIncreaseRequestFromTemplate, servicequotas:ListServiceQuotaIncreaseRequestsInTemplate |
-| ses | ses/activereceiptruleset | 0 | account | ses:DescribeActiveReceiptRuleSet |
-| ses | ses/addresslistimportjob | 1 | account | ses:GetAddressListImportJob, ses:ListAddressListImportJobs |
-| ses | ses/archiveexport | 1 | account | ses:GetArchiveExport, ses:ListArchiveExports |
-| ses | ses/archivesearch | 1 | account | ses:GetArchiveSearch, ses:ListArchiveSearches |
-| ses | ses/archivesearchresult | 1 | account | ses:GetArchiveSearchResults |
-| ses | ses/contact | 1 | account | ses:GetContact, ses:ListContacts |
-| ses | ses/dedicatedip | 0 | account | ses:GetDedicatedIp, ses:GetDedicatedIps |
-| ses | ses/deliverabilitydashboardoption | 0 | account | ses:GetDeliverabilityDashboardOptions |
-| ses | ses/deliverabilitytestreport | 0 | account | ses:GetDeliverabilityTestReport, ses:ListDeliverabilityTestReports |
-| ses | ses/emailidentitycertificate | 1 | account | ses:ListEmailIdentityCertificates |
-| ses | ses/exportjob | 0 | account | ses:GetExportJob, ses:ListExportJobs |
-| ses | ses/identity | 0 | account | ses:ListIdentities |
-| ses | ses/identitypolicy | 1 | account | ses:GetIdentityPolicies, ses:ListIdentityPolicies |
-| ses | ses/importjob | 0 | account | ses:GetImportJob, ses:ListImportJobs |
-| ses | ses/messageinsight | 1 | account | ses:GetMessageInsights |
-| ses | ses/metricdata | 1 | account | ses:BatchGetMetricData |
-| ses | ses/suppresseddestination | 0 | account | ses:GetSuppressedDestination, ses:ListSuppressedDestinations |
-| ses | ses/tenantresource | 2 | account | ses:ListTenantResources |
-| shield | shield/attack | 0 | account | shield:DescribeAttack, shield:ListAttacks |
-| shield | shield/resource | 1 | account | shield:ListResourcesInProtectionGroup |
-| signer | signer/signingjob | 0 | account | signer:DescribeSigningJob, signer:ListSigningJobs |
-| signin | signin/resourcepermissionstatement | 0 | account | signin:ListResourcePermissionStatements |
-| sms-voice | sms-voice/configurationseteventdestination | 1 | account | sms-voice:GetConfigurationSetEventDestinations |
-| sms-voice | sms-voice/notifyconfiguration | 0 | account | sms-voice:DescribeNotifyConfigurations |
-| sms-voice | sms-voice/pooloriginationidentity | 1 | account | sms-voice:ListPoolOriginationIdentities |
-| sms-voice | sms-voice/rcsagent | 0 | account | sms-voice:DescribeRcsAgents |
-| sms-voice | sms-voice/rcsagentcountrylaunchstatus | 1 | account | sms-voice:DescribeRcsAgentCountryLaunchStatus |
-| sms-voice | sms-voice/registrationassociation | 1 | account | sms-voice:ListRegistrationAssociations |
-| sms-voice | sms-voice/registrationfieldvalue | 1 | account | sms-voice:DescribeRegistrationFieldValues |
-| snow-device-management | snow-device-management/execution | 1 | account | snow-device-management:DescribeExecution, snow-device-management:ListExecutions |
-| snowball | snowball/address | 0 | account | snowball:DescribeAddress, snowball:DescribeAddresses |
-| snowball | snowball/cluster | 0 | account | snowball:DescribeCluster, snowball:ListClusters |
-| snowball | snowball/clusterjob | 1 | account | snowball:ListClusterJobs |
-| snowball | snowball/job | 0 | account | snowball:DescribeJob, snowball:ListJobs |
-| snowball | snowball/longtermpricing | 0 | account | snowball:ListLongTermPricing |
-| snowball | snowball/serviceversion | 1 | account | snowball:ListServiceVersions |
-| sns | sns/endpoint | 1 | account | sns:ListEndpointsByPlatformApplication |
-| sns | sns/platformapplication | 0 | account | sns:ListPlatformApplications |
-| sns | sns/smssandboxphonenumber | 0 | account | sns:ListSMSSandboxPhoneNumbers |
-| social-messaging | social-messaging/whatsappflow | 1 | account | social-messaging:GetWhatsAppFlow, social-messaging:ListWhatsAppFlows |
-| social-messaging | social-messaging/whatsappmessagetemplate | 1 | account | social-messaging:GetWhatsAppMessageTemplate, social-messaging:ListWhatsAppMessageTemplates |
-| social-messaging | social-messaging/whatsapptemplatelibrary | 1 | account | social-messaging:ListWhatsAppTemplateLibrary |
-| sqs | sqs/messagemovetask | 1 | account | sqs:ListMessageMoveTasks |
-| ssm | ssm/activation | 0 | account | ssm:DescribeActivations |
-| ssm | ssm/associationexecution | 1 | account | ssm:DescribeAssociationExecutions |
-| ssm | ssm/associationexecutiontarget | 1 | account | ssm:DescribeAssociationExecutionTargets |
-| ssm | ssm/associationversion | 1 | account | ssm:ListAssociationVersions |
-| ssm | ssm/automationexecution | 0 | account | ssm:DescribeAutomationExecutions, ssm:GetAutomationExecution |
-| ssm | ssm/automationstepexecution | 1 | account | ssm:DescribeAutomationStepExecutions |
-| ssm | ssm/cloudconnector | 0 | account | ssm:GetCloudConnector, ssm:ListCloudConnectors |
-| ssm | ssm/command | 0 | account | ssm:ListCommands |
-| ssm | ssm/complianceitem | 0 | account | ssm:ListComplianceItems |
-| ssm | ssm/documentpermission | 1 | account | ssm:DescribeDocumentPermission |
-| ssm | ssm/documentversion | 1 | account | ssm:ListDocumentVersions |
-| ssm | ssm/effectiveinstanceassociation | 1 | account | ssm:DescribeEffectiveInstanceAssociations |
-| ssm | ssm/instanceassociationsstatus | 1 | account | ssm:DescribeInstanceAssociationsStatus |
-| ssm | ssm/instancepatch | 1 | account | ssm:DescribeInstancePatches |
-| ssm | ssm/instancepatchstate | 0 | account | ssm:DescribeInstancePatchStates, ssm:DescribeInstancePatchStatesForPatchGroup |
-| ssm | ssm/inventory | 0 | account | ssm:GetInventory |
-| ssm | ssm/maintenancewindowexecution | 1 | account | ssm:DescribeMaintenanceWindowExecutions, ssm:GetMaintenanceWindowExecution |
-| ssm | ssm/maintenancewindowexecutiontask | 1 | account | ssm:DescribeMaintenanceWindowExecutionTasks, ssm:GetMaintenanceWindowExecutionTask |
-| ssm | ssm/maintenancewindowexecutiontaskinvocation | 1 | account | ssm:DescribeMaintenanceWindowExecutionTaskInvocations, ssm:GetMaintenanceWindowExecutionTaskInvocation |
-| ssm | ssm/opsitem | 0 | account | ssm:DescribeOpsItems, ssm:GetOpsItem |
-| ssm | ssm/opsitemrelateditem | 0 | account | ssm:ListOpsItemRelatedItems |
-| ssm | ssm/parameterhistory | 1 | account | ssm:GetParameterHistory |
-| ssm | ssm/session | 0 | account | ssm:DescribeSessions |
-| ssm-contacts | ssm-contacts/engagement | 0 | account | ssm-contacts:DescribeEngagement, ssm-contacts:ListEngagements |
-| ssm-contacts | ssm-contacts/page | 1 | account | ssm-contacts:DescribePage, ssm-contacts:ListPagesByContact, ssm-contacts:ListPagesByEngagement |
-| ssm-contacts | ssm-contacts/pagereceipt | 2 | account | ssm-contacts:ListPageReceipts |
-| ssm-contacts | ssm-contacts/pageresolution | 2 | account | ssm-contacts:ListPageResolutions |
-| ssm-contacts | ssm-contacts/previewrotationshift | 1 | account | ssm-contacts:ListPreviewRotationShifts |
-| ssm-contacts | ssm-contacts/rotationoverride | 1 | account | ssm-contacts:GetRotationOverride, ssm-contacts:ListRotationOverrides |
-| ssm-contacts | ssm-contacts/rotationshift | 1 | account | ssm-contacts:ListRotationShifts |
-| ssm-incidents | ssm-incidents/incidentfinding | 2 | account | ssm-incidents:BatchGetIncidentFindings, ssm-incidents:ListIncidentFindings |
-| ssm-incidents | ssm-incidents/incidentrecord | 0 | account | ssm-incidents:GetIncidentRecord, ssm-incidents:ListIncidentRecords |
-| ssm-incidents | ssm-incidents/relateditem | 2 | account | ssm-incidents:ListRelatedItems |
-| ssm-incidents | ssm-incidents/resourcepolicy | 1 | account | ssm-incidents:GetResourcePolicies |
-| ssm-incidents | ssm-incidents/timelineevent | 2 | account | ssm-incidents:GetTimelineEvent, ssm-incidents:ListTimelineEvents |
-| ssm-sap | ssm-sap/configurationcheckoperation | 2 | account | ssm-sap:GetConfigurationCheckOperation, ssm-sap:ListConfigurationCheckOperations |
-| ssm-sap | ssm-sap/operation | 0 | account | ssm-sap:GetOperation, ssm-sap:ListOperations |
-| ssm-sap | ssm-sap/subcheckresult | 1 | account | ssm-sap:ListSubCheckResults |
-| ssm-sap | ssm-sap/subcheckruleresult | 1 | account | ssm-sap:ListSubCheckRuleResults |
-| sso | sso/accountassignmentcreationstatus | 1 | account | sso:DescribeAccountAssignmentCreationStatus, sso:ListAccountAssignmentCreationStatus |
-| sso | sso/accountassignmentdeletionstatus | 1 | account | sso:DescribeAccountAssignmentDeletionStatus, sso:ListAccountAssignmentDeletionStatus |
-| sso | sso/customermanagedpolicyreference | 2 | account | sso:ListCustomerManagedPolicyReferencesInPermissionSet |
-| sso | sso/managedpolicy | 2 | account | sso:ListManagedPoliciesInPermissionSet |
-| sso | sso/permissionsetprovisioningstatus | 1 | account | sso:DescribePermissionSetProvisioningStatus, sso:ListPermissionSetProvisioningStatus |
-| sso | sso/region | 1 | account | sso:DescribeRegion, sso:ListRegions |
-| states | states/execution | 0 | account | states:DescribeExecution, states:ListExecutions |
-| states | states/executionhistory | 2 | account | states:GetExecutionHistory |
-| states | states/maprun | 2 | account | states:DescribeMapRun, states:ListMapRuns |
-| storagegateway | storagegateway/automatictapecreationpolicy | 0 | account | storagegateway:ListAutomaticTapeCreationPolicies |
-| storagegateway | storagegateway/cache | 1 | account | storagegateway:DescribeCache |
-| storagegateway | storagegateway/cachediscsivolume | 2 | account | storagegateway:DescribeCachediSCSIVolumes |
-| storagegateway | storagegateway/chapcredential | 2 | account | storagegateway:DescribeChapCredentials |
-| storagegateway | storagegateway/localdisk | 1 | account | storagegateway:ListLocalDisks |
-| storagegateway | storagegateway/nfsfileshare | 1 | account | storagegateway:DescribeNFSFileShares |
-| storagegateway | storagegateway/smbfileshare | 1 | account | storagegateway:DescribeSMBFileShares |
-| storagegateway | storagegateway/storediscsivolume | 2 | account | storagegateway:DescribeStorediSCSIVolumes |
-| storagegateway | storagegateway/tapearchive | 0 | account | storagegateway:DescribeTapeArchives |
-| storagegateway | storagegateway/taperecoverypoint | 1 | account | storagegateway:DescribeTapeRecoveryPoints |
-| storagegateway | storagegateway/uploadbuffer | 1 | account | storagegateway:DescribeUploadBuffer |
-| storagegateway | storagegateway/volumerecoverypoint | 1 | account | storagegateway:ListVolumeRecoveryPoints |
-| storagegateway | storagegateway/workingstorage | 1 | account | storagegateway:DescribeWorkingStorage |
-| support | support/case | 0 | account | support:DescribeCases |
-| support | support/communication | 1 | account | support:DescribeCommunications |
-| support | support/trustedadvisorcheck | 0 | account | support:DescribeTrustedAdvisorChecks |
-| support | support/trustedadvisorcheckrefreshstatus | 1 | account | support:DescribeTrustedAdvisorCheckRefreshStatuses |
-| support | support/trustedadvisorchecksummary | 1 | account | support:DescribeTrustedAdvisorCheckSummaries |
-| supportauthz | supportauthz/supportpermit | 0 | account | supportauthz:GetSupportPermit, supportauthz:ListSupportPermits |
-| supportauthz | supportauthz/supportpermitrequest | 0 | account | supportauthz:ListSupportPermitRequests |
-| swf | swf/workflowexecutionhistory | 1 | account | swf:GetWorkflowExecutionHistory |
-| synthetics | synthetics/associatedgroup | 1 | account | synthetics:ListAssociatedGroups |
-| synthetics | synthetics/canaryrun | 1 | account | synthetics:GetCanaryRuns |
-| tax | tax/supplementaltaxregistration | 0 | account | tax:ListSupplementalTaxRegistrations |
-| tax | tax/taxregistration | 0 | account | tax:GetTaxRegistration, tax:ListTaxRegistrations |
-| textract | textract/documentanalysis | 1 | account | textract:GetDocumentAnalysis |
-| textract | textract/documenttextdetection | 1 | account | textract:GetDocumentTextDetection |
-| timestream | timestream/batchloadtask | 0 | account | timestream:DescribeBatchLoadTask, timestream:ListBatchLoadTasks |
-| timestream-influxdb | timestream-influxdb/dbbackup | 0 | account | timestream-influxdb:GetDbBackup, timestream-influxdb:ListDbBackups |
-| transcribe | transcribe/callanalyticsjob | 0 | account | transcribe:GetCallAnalyticsJob, transcribe:ListCallAnalyticsJobs |
-| transcribe | transcribe/medicalscribejob | 0 | account | transcribe:GetMedicalScribeJob, transcribe:ListMedicalScribeJobs |
-| transcribe | transcribe/medicaltranscriptionjob | 0 | account | transcribe:GetMedicalTranscriptionJob, transcribe:ListMedicalTranscriptionJobs |
-| transcribe | transcribe/transcriptionjob | 0 | account | transcribe:GetTranscriptionJob, transcribe:ListTranscriptionJobs |
-| transfer | transfer/access | 1 | account | transfer:DescribeAccess, transfer:ListAccesses |
-| transfer | transfer/execution | 1 | account | transfer:DescribeExecution, transfer:ListExecutions |
-| translate | translate/texttranslationjob | 0 | account | translate:DescribeTextTranslationJob, translate:ListTextTranslationJobs |
-| trustedadvisor | trustedadvisor/organizationrecommendationaccount | 1 | account | trustedadvisor:ListOrganizationRecommendationAccounts |
-| trustedadvisor | trustedadvisor/organizationrecommendationresource | 1 | account | trustedadvisor:ListOrganizationRecommendationResources |
-| trustedadvisor | trustedadvisor/recommendation | 0 | account | trustedadvisor:GetRecommendation, trustedadvisor:ListRecommendations, trustedadvisor:ListRecommendationsForResource |
-| trustedadvisor | trustedadvisor/recommendationresource | 1 | account | trustedadvisor:ListRecommendationResources |
-| voiceid | voiceid/fraudster | 1 | account | voiceid:DescribeFraudster, voiceid:ListFraudsters |
-| voiceid | voiceid/fraudsterregistrationjob | 1 | account | voiceid:DescribeFraudsterRegistrationJob, voiceid:ListFraudsterRegistrationJobs |
-| voiceid | voiceid/speaker | 1 | account | voiceid:DescribeSpeaker, voiceid:ListSpeakers |
-| voiceid | voiceid/speakerenrollmentjob | 1 | account | voiceid:DescribeSpeakerEnrollmentJob, voiceid:ListSpeakerEnrollmentJobs |
-| voiceid | voiceid/watchlist | 1 | account | voiceid:DescribeWatchlist, voiceid:ListWatchlists |
-| vpc-lattice | vpc-lattice/servicenetworkvpcendpointassociation | 1 | account | vpc-lattice:ListServiceNetworkVpcEndpointAssociations |
-| waf | waf/loggingconfiguration | 0 | account | waf:GetLoggingConfiguration, waf:ListLoggingConfigurations |
-| waf-regional | waf-regional/loggingconfiguration | 0 | account | waf-regional:GetLoggingConfiguration, waf-regional:ListLoggingConfigurations |
-| wafv2 | wafv2/apikey | 0 | account | wafv2:ListAPIKeys |
-| wafv2 | wafv2/availablemanagedrulegroupversion | 1 | account | wafv2:ListAvailableManagedRuleGroupVersions |
-| wafv2 | wafv2/managedproduct | 1 | account | wafv2:DescribeManagedProductsByVendor |
-| wafv2 | wafv2/managedrulegroup | 1 | account | wafv2:DescribeManagedRuleGroup |
-| wellarchitected | wellarchitected/agentcontext | 1 | account | wellarchitected:GetAgentContext, wellarchitected:ListAgentContexts |
-| wellarchitected | wellarchitected/agentgoal | 1 | account | wellarchitected:GetAgentGoal, wellarchitected:ListAgentGoals |
-| wellarchitected | wellarchitected/agentprofile | 0 | account | wellarchitected:GetAgentProfile, wellarchitected:ListAgentProfiles |
-| wellarchitected | wellarchitected/agentrecommendation | 0 | account | wellarchitected:GetAgentRecommendation, wellarchitected:ListAgentRecommendations |
-| wellarchitected | wellarchitected/agentrecommendationgeneration | 1 | account | wellarchitected:GetAgentRecommendationGeneration, wellarchitected:ListAgentRecommendationGenerations |
-| wellarchitected | wellarchitected/agentrecommendationitem | 1 | account | wellarchitected:ListAgentRecommendationItems |
-| wellarchitected | wellarchitected/answer | 1 | account | wellarchitected:GetAnswer, wellarchitected:ListAnswers |
-| wellarchitected | wellarchitected/checkdetail | 1 | account | wellarchitected:ListCheckDetails |
-| wellarchitected | wellarchitected/checksummary | 1 | account | wellarchitected:ListCheckSummaries |
-| wellarchitected | wellarchitected/lensreview | 1 | account | wellarchitected:GetLensReview, wellarchitected:ListLensReviews |
-| wellarchitected | wellarchitected/lensreviewimprovement | 1 | account | wellarchitected:ListLensReviewImprovements |
-| wellarchitected | wellarchitected/lensshare | 1 | account | wellarchitected:ListLensShares |
-| wellarchitected | wellarchitected/milestone | 1 | account | wellarchitected:GetMilestone, wellarchitected:ListMilestones |
-| wellarchitected | wellarchitected/profileshare | 1 | account | wellarchitected:ListProfileShares |
-| wellarchitected | wellarchitected/reviewtemplateanswer | 1 | account | wellarchitected:GetReviewTemplateAnswer, wellarchitected:ListReviewTemplateAnswers |
-| wellarchitected | wellarchitected/shareinvitation | 0 | account | wellarchitected:ListShareInvitations |
-| wellarchitected | wellarchitected/templateshare | 1 | account | wellarchitected:ListTemplateShares |
-| wellarchitected | wellarchitected/workloadshare | 1 | account | wellarchitected:ListWorkloadShares |
-| wickr | wickr/bot | 1 | account | wickr:GetBot, wickr:ListBots |
-| wickr | wickr/device | 1 | account | wickr:ListDevicesForUser |
-| wickr | wickr/network | 0 | account | wickr:GetNetwork, wickr:ListNetworks |
-| wickr | wickr/networksetting | 1 | account | wickr:GetNetworkSettings |
-| wickr | wickr/securitygroupuser | 1 | account | wickr:ListSecurityGroupUsers |
-| wickr | wickr/user | 1 | account | wickr:GetUser, wickr:ListUsers |
-| wisdom | wisdom/importjob | 1 | account | wisdom:GetImportJob, wisdom:ListImportJobs |
-| wisdom | wisdom/message | 2 | account | wisdom:ListMessages |
-| wisdom | wisdom/model | 1 | account | wisdom:ListModels |
-| wisdom | wisdom/recommendation | 2 | account | wisdom:GetRecommendations |
-| wisdom | wisdom/session | 1 | account | wisdom:GetSession, wisdom:SearchSessions |
-| wisdom | wisdom/span | 2 | account | wisdom:ListSpans |
-| workdocs | workdocs/comment | 1 | account | workdocs:DescribeComments |
-| workdocs | workdocs/documentversion | 1 | account | workdocs:DescribeDocumentVersions, workdocs:GetDocumentVersion |
-| workdocs | workdocs/foldercontent | 1 | account | workdocs:DescribeFolderContents |
-| workdocs | workdocs/notificationsubscription | 1 | account | workdocs:DescribeNotificationSubscriptions |
-| workdocs | workdocs/resourcepermission | 0 | account | workdocs:DescribeResourcePermissions |
-| workdocs | workdocs/user | 0 | account | workdocs:DescribeUsers |
-| workmail | workmail/accesscontrolrule | 1 | account | workmail:ListAccessControlRules |
-| workmail | workmail/availabilityconfiguration | 1 | account | workmail:ListAvailabilityConfigurations |
-| workmail | workmail/defaultretentionpolicy | 1 | account | workmail:GetDefaultRetentionPolicy |
-| workmail | workmail/group | 1 | account | workmail:DescribeGroup, workmail:ListGroups, workmail:ListGroupsForEntity |
-| workmail | workmail/groupmember | 1 | account | workmail:ListGroupMembers |
-| workmail | workmail/impersonationrole | 1 | account | workmail:GetImpersonationRole, workmail:ListImpersonationRoles |
-| workmail | workmail/impersonationroleeffect | 1 | account | workmail:GetImpersonationRoleEffect |
-| workmail | workmail/mailboxexportjob | 1 | account | workmail:DescribeMailboxExportJob, workmail:ListMailboxExportJobs |
-| workmail | workmail/mailboxpermission | 1 | account | workmail:ListMailboxPermissions |
-| workmail | workmail/maildomain | 1 | account | workmail:GetMailDomain, workmail:ListMailDomains |
-| workmail | workmail/mobiledeviceaccesseffect | 1 | account | workmail:GetMobileDeviceAccessEffect |
-| workmail | workmail/mobiledeviceaccessoverride | 1 | account | workmail:GetMobileDeviceAccessOverride, workmail:ListMobileDeviceAccessOverrides |
-| workmail | workmail/mobiledeviceaccessrule | 1 | account | workmail:ListMobileDeviceAccessRules |
-| workmail | workmail/personalaccesstoken | 1 | account | workmail:ListPersonalAccessTokens |
-| workmail | workmail/resource | 1 | account | workmail:DescribeResource, workmail:ListResources |
-| workmail | workmail/resourcedelegate | 1 | account | workmail:ListResourceDelegates |
-| workmail | workmail/user | 1 | account | workmail:DescribeUser, workmail:ListUsers |
-| workspaces | workspaces/applicationassociation | 1 | account | workspaces:DescribeApplicationAssociations |
-| workspaces | workspaces/bundleassociation | 1 | account | workspaces:DescribeBundleAssociations |
-| workspaces | workspaces/clientproperty | 1 | account | workspaces:DescribeClientProperties |
-| workspaces | workspaces/connectclientaddin | 1 | account | workspaces:DescribeConnectClientAddIns |
-| workspaces | workspaces/connectionaliaspermission | 1 | account | workspaces:DescribeConnectionAliasPermissions |
-| workspaces | workspaces/imageassociation | 1 | account | workspaces:DescribeImageAssociations |
-| workspaces | workspaces/workspaceassociation | 1 | account | workspaces:DescribeWorkspaceAssociations |
-| workspaces | workspaces/workspaceimagepermission | 1 | account | workspaces:DescribeWorkspaceImagePermissions |
-| workspaces | workspaces/workspacespoolsession | 1 | account | workspaces:DescribeWorkspacesPoolSessions |
-| workspaces-web | workspaces-web/session | 1 | account | workspaces-web:GetSession, workspaces-web:ListSessions |
-| xray | xray/indexingrule | 0 | account | xray:GetIndexingRules |
-| xray | xray/insightimpactgraph | 1 | account | xray:GetInsightImpactGraph |
-| xray | xray/tracegraph | 1 | account | xray:GetTraceGraph |
+| access-analyzer | access-analyzer/accesspreview | 1 |  | access-analyzer:GetAccessPreview, access-analyzer:ListAccessPreviews |
+| access-analyzer | access-analyzer/accesspreviewfinding | 1 |  | access-analyzer:ListAccessPreviewFindings |
+| access-analyzer | access-analyzer/analyzedresource | 1 |  | access-analyzer:GetAnalyzedResource, access-analyzer:ListAnalyzedResources |
+| access-analyzer | access-analyzer/policygeneration | 0 |  | access-analyzer:ListPolicyGenerations |
+| account | account/region | 0 |  | account:ListRegions |
+| account-access | account-access/application | 0 |  | account-access:GetApplication, account-access:ListApplications |
+| account-access | account-access/entitlement | 1 |  | account-access:GetEntitlement, account-access:ListEntitlements |
+| acm | acm/acmeaccount | 1 |  | acm:DescribeAcmeAccount, acm:ListAcmeAccounts |
+| acm | acm/acmedomainvalidation | 1 |  | acm:DescribeAcmeDomainValidation, acm:ListAcmeDomainValidations |
+| acm | acm/acmeendpoint | 0 |  | acm:DescribeAcmeEndpoint, acm:ListAcmeEndpoints |
+| acm | acm/acmeexternalaccountbinding | 1 |  | acm:DescribeAcmeExternalAccountBinding, acm:ListAcmeExternalAccountBindings |
+| acm | acm/certificatedomainvalidation | 1 |  | acm:ListCertificateDomainValidations |
+| aco-automation | aco-automation/account | 0 |  | aco-automation:ListAccounts |
+| aco-automation | aco-automation/automationevent | 0 |  | aco-automation:GetAutomationEvent, aco-automation:ListAutomationEvents |
+| aco-automation | aco-automation/automationeventstep | 1 |  | aco-automation:ListAutomationEventSteps |
+| aco-automation | aco-automation/automationrule | 0 |  | aco-automation:GetAutomationRule, aco-automation:ListAutomationRules |
+| agent-registry | agent-registry/discoverableregistryrecord | 0 |  | agent-registry:BatchGetDiscoverableRegistryRecord, agent-registry:ListDiscoverableRegistryRecords, agent-registry:SearchDiscoverableRegistryRecords |
+| agent-registry | agent-registry/registry | 0 |  | agent-registry:GetRegistry, agent-registry:ListRegistries |
+| agent-registry | agent-registry/registryrecord | 1 |  | agent-registry:GetRegistryRecord, agent-registry:ListRegistryRecords |
+| aidevops | aidevops/asset | 1 |  | aidevops:GetAsset, aidevops:ListAssets |
+| aidevops | aidevops/backlogtask | 1 |  | aidevops:GetBacklogTask, aidevops:ListBacklogTasks |
+| aidevops | aidevops/chat | 1 |  | aidevops:ListChats |
+| aidevops | aidevops/execution | 1 |  | aidevops:ListExecutions |
+| aidevops | aidevops/goal | 1 |  | aidevops:ListGoals |
+| aidevops | aidevops/journalrecord | 1 |  | aidevops:ListJournalRecords |
+| aidevops | aidevops/pendingmessage | 1 |  | aidevops:ListPendingMessages |
+| aidevops | aidevops/recommendation | 1 |  | aidevops:GetRecommendation, aidevops:ListRecommendations |
+| aidevops | aidevops/trigger | 1 |  | aidevops:GetTrigger, aidevops:ListTriggers |
+| aidevops | aidevops/webhook | 2 |  | aidevops:ListWebhooks |
+| airflow-serverless | airflow-serverless/taskinstance | 1 |  | airflow-serverless:GetTaskInstance, airflow-serverless:ListTaskInstances |
+| airflow-serverless | airflow-serverless/workflowrun | 1 |  | airflow-serverless:GetWorkflowRun, airflow-serverless:ListWorkflowRuns |
+| airflow-serverless | airflow-serverless/workflowversion | 1 |  | airflow-serverless:ListWorkflowVersions |
+| amplify | amplify/artifact | 1 |  | amplify:ListArtifacts |
+| amplify | amplify/job | 2 |  | amplify:GetJob, amplify:ListJobs |
+| amplifybackend | amplifybackend/backendjob | 1 |  | amplifybackend:GetBackendJob, amplifybackend:ListBackendJobs |
+| amplifyuibuilder | amplifyuibuilder/codegenjob | 1 |  | amplifyuibuilder:GetCodegenJob, amplifyuibuilder:ListCodegenJobs |
+| apigateway | apigateway/portal | 0 |  | apigateway:GetPortal, apigateway:ListPortals |
+| apigateway | apigateway/portalproduct | 0 |  | apigateway:GetPortalProduct, apigateway:ListPortalProducts |
+| apigateway | apigateway/productpage | 1 |  | apigateway:GetProductPage, apigateway:ListProductPages |
+| apigateway | apigateway/productrestendpointpage | 1 |  | apigateway:GetProductRestEndpointPage, apigateway:ListProductRestEndpointPages |
+| app-integrations | app-integrations/applicationassociation | 1 |  | app-integrations:ListApplicationAssociations |
+| app-integrations | app-integrations/dataintegrationassociation | 1 |  | app-integrations:ListDataIntegrationAssociations |
+| app-integrations | app-integrations/eventintegrationassociation | 1 |  | app-integrations:ListEventIntegrationAssociations |
+| appconfig | appconfig/experimentdefinition | 0 |  | appconfig:GetExperimentDefinition, appconfig:ListExperimentDefinitions |
+| appconfig | appconfig/experimentrun | 2 |  | appconfig:GetExperimentRun, appconfig:ListExperimentRuns |
+| appflow | appflow/connectorentity | 0 |  | appflow:DescribeConnectorEntity, appflow:ListConnectorEntities |
+| appflow | appflow/flowexecutionrecord | 1 |  | appflow:DescribeFlowExecutionRecords |
+| application-autoscaling | application-autoscaling/scheduledaction | 0 |  | application-autoscaling:DescribeScheduledActions |
+| application-signals | application-signals/instrumentationconfiguration | 0 |  | application-signals:GetInstrumentationConfiguration, application-signals:ListInstrumentationConfigurations |
+| application-signals | application-signals/servicelevelobjectivebudgetreport | 1 |  | application-signals:BatchGetServiceLevelObjectiveBudgetReport |
+| applicationinsights | applicationinsights/component | 1 |  | applicationinsights:DescribeComponent, applicationinsights:ListComponents |
+| applicationinsights | applicationinsights/logpattern | 1 |  | applicationinsights:DescribeLogPattern, applicationinsights:ListLogPatterns |
+| applicationinsights | applicationinsights/problem | 0 |  | applicationinsights:DescribeProblem, applicationinsights:ListProblems |
+| applicationinsights | applicationinsights/workload | 1 |  | applicationinsights:DescribeWorkload, applicationinsights:ListWorkloads |
+| apprunner | apprunner/customdomain | 2 |  | apprunner:DescribeCustomDomains |
+| apprunner | apprunner/operation | 2 |  | apprunner:ListOperations |
+| appstream | appstream/associatedstack | 1 |  | appstream:ListAssociatedStacks |
+| appstream | appstream/exportimagetask | 0 |  | appstream:GetExportImageTask, appstream:ListExportImageTasks |
+| appstream | appstream/imagepermission | 1 |  | appstream:DescribeImagePermissions |
+| appstream | appstream/session | 1 |  | appstream:DescribeSessions |
+| appstream | appstream/softwareassociation | 1 |  | appstream:DescribeSoftwareAssociations |
+| appstream | appstream/usagereportsubscription | 0 |  | appstream:DescribeUsageReportSubscriptions |
+| arc-region-switch | arc-region-switch/planevaluationstatus | 1 |  | arc-region-switch:GetPlanEvaluationStatus |
+| arc-region-switch | arc-region-switch/planexecution | 1 |  | arc-region-switch:GetPlanExecution, arc-region-switch:ListPlanExecutions |
+| arc-region-switch | arc-region-switch/planexecutionevent | 1 |  | arc-region-switch:ListPlanExecutionEvents |
+| arc-region-switch | arc-region-switch/route53healthcheck | 1 |  | arc-region-switch:ListRoute53HealthChecks, arc-region-switch:ListRoute53HealthChecksInRegion |
+| arc-zonal-shift | arc-zonal-shift/zonalshift | 0 |  | arc-zonal-shift:ListZonalShifts |
+| artifact | artifact/complianceinquiry | 0 |  | artifact:ListComplianceInquiries |
+| artifact | artifact/reportversion | 1 |  | artifact:ListReportVersions |
+| athena | athena/calculationexecution | 1 |  | athena:GetCalculationExecution, athena:ListCalculationExecutions |
+| athena | athena/database | 1 |  | athena:GetDatabase, athena:ListDatabases |
+| athena | athena/executor | 2 |  | athena:ListExecutors |
+| athena | athena/notebookmetadata | 1 |  | athena:GetNotebookMetadata, athena:ListNotebookMetadata |
+| athena | athena/notebooksession | 1 |  | athena:ListNotebookSessions |
+| athena | athena/queryexecution | 0 |  | athena:BatchGetQueryExecution, athena:GetQueryExecution, athena:ListQueryExecutions |
+| athena | athena/session | 1 |  | athena:GetSession, athena:ListSessions |
+| athena | athena/tablemetadata | 1 |  | athena:GetTableMetadata, athena:ListTableMetadata |
+| auditmanager | auditmanager/assessmentcontrolinsight | 1 |  | auditmanager:ListAssessmentControlInsightsByControlDomain |
+| auditmanager | auditmanager/assessmentreport | 0 |  | auditmanager:ListAssessmentReports |
+| auditmanager | auditmanager/changelog | 1 |  | auditmanager:GetChangeLogs |
+| auditmanager | auditmanager/delegation | 0 |  | auditmanager:GetDelegations |
+| auditmanager | auditmanager/evidence | 2 |  | auditmanager:GetEvidence, auditmanager:GetEvidenceByEvidenceFolder |
+| auditmanager | auditmanager/evidencefolder | 1 |  | auditmanager:GetEvidenceFolder, auditmanager:GetEvidenceFoldersByAssessment, auditmanager:GetEvidenceFoldersByAssessmentControl |
+| autoscaling | autoscaling/instancerefresh | 1 |  | autoscaling:DescribeInstanceRefreshes |
+| autoscaling | autoscaling/loadbalancer | 1 |  | autoscaling:DescribeLoadBalancers |
+| autoscaling | autoscaling/loadbalancertargetgroup | 1 |  | autoscaling:DescribeLoadBalancerTargetGroups |
+| autoscaling | autoscaling/notificationconfiguration | 0 |  | autoscaling:DescribeNotificationConfigurations |
+| autoscaling | autoscaling/trafficsource | 1 |  | autoscaling:DescribeTrafficSources |
+| autoscaling-plans | autoscaling-plans/scalingplanresource | 1 |  | autoscaling-plans:DescribeScalingPlanResources |
+| aws-marketplace | aws-marketplace/agreement | 0 |  | aws-marketplace:DescribeAgreement, aws-marketplace:SearchAgreements |
+| aws-marketplace | aws-marketplace/agreementcancellationrequest | 0 |  | aws-marketplace:GetAgreementCancellationRequest, aws-marketplace:ListAgreementCancellationRequests |
+| aws-marketplace | aws-marketplace/agreemententitlement | 1 |  | aws-marketplace:GetAgreementEntitlements |
+| aws-marketplace | aws-marketplace/agreementinvoicelineitem | 1 |  | aws-marketplace:ListAgreementInvoiceLineItems |
+| aws-marketplace | aws-marketplace/agreementpaymentrequest | 0 |  | aws-marketplace:GetAgreementPaymentRequest, aws-marketplace:ListAgreementPaymentRequests |
+| aws-marketplace | aws-marketplace/assessment | 1 |  | aws-marketplace:DescribeAssessment, aws-marketplace:ListAssessments |
+| aws-marketplace | aws-marketplace/billingadjustmentrequest | 0 |  | aws-marketplace:GetBillingAdjustmentRequest, aws-marketplace:ListBillingAdjustmentRequests |
+| aws-marketplace | aws-marketplace/changeset | 1 |  | aws-marketplace:DescribeChangeSet, aws-marketplace:ListChangeSets |
+| aws-marketplace | aws-marketplace/entity | 1 |  | aws-marketplace:DescribeEntity, aws-marketplace:ListEntities |
+| aws-marketplace | aws-marketplace/listing | 0 |  | aws-marketplace:GetListing, aws-marketplace:SearchListings |
+| aws-marketplace | aws-marketplace/offer | 1 |  | aws-marketplace:GetOffer |
+| aws-marketplace | aws-marketplace/offerset | 1 |  | aws-marketplace:GetOfferSet |
+| aws-marketplace | aws-marketplace/product | 1 |  | aws-marketplace:GetProduct |
+| aws-marketplace | aws-marketplace/purchaseoption | 0 |  | aws-marketplace:ListPurchaseOptions |
+| awsssoportal | awsssoportal/accountrole | 1 |  | awsssoportal:ListAccountRoles |
+| b2bi | b2bi/transformerjob | 1 |  | b2bi:GetTransformerJob |
+| backup | backup/backupaccesspoint | 0 |  | backup:DescribeBackupAccessPoint, backup:ListBackupAccessPoints, backup:ListBackupAccessPointsByRecoveryPoint, backup:ListBackupAccessPointsByResource |
+| backup | backup/backupjob | 0 |  | backup:DescribeBackupJob, backup:ListBackupJobs |
+| backup | backup/backupplanversion | 1 |  | backup:ListBackupPlanVersions |
+| backup | backup/copyjob | 0 |  | backup:DescribeCopyJob, backup:ListCopyJobs |
+| backup | backup/indexedrecoverypoint | 0 |  | backup:ListIndexedRecoveryPoints |
+| backup | backup/protectedresource | 0 |  | backup:DescribeProtectedResource, backup:ListProtectedResources, backup:ListProtectedResourcesByBackupVault |
+| backup | backup/reportjob | 0 |  | backup:DescribeReportJob, backup:ListReportJobs |
+| backup | backup/restoreaccessbackupvault | 1 |  | backup:ListRestoreAccessBackupVaults |
+| backup | backup/restorejob | 0 |  | backup:DescribeRestoreJob, backup:ListRestoreJobs, backup:ListRestoreJobsByProtectedResource |
+| backup | backup/scanjob | 0 |  | backup:DescribeScanJob, backup:ListScanJobs |
+| backup-gateway | backup-gateway/hypervisorpropertymapping | 1 |  | backup-gateway:GetHypervisorPropertyMappings |
+| backup-search | backup-search/searchjob | 0 |  | backup-search:GetSearchJob, backup-search:ListSearchJobs |
+| backup-search | backup-search/searchjobbackup | 1 |  | backup-search:ListSearchJobBackups |
+| backup-search | backup-search/searchresultexportjob | 0 |  | backup-search:GetSearchResultExportJob, backup-search:ListSearchResultExportJobs |
+| batch | batch/job | 0 |  | batch:DescribeJobs, batch:ListJobs, batch:ListJobsByConsumableResource |
+| batch | batch/servicejob | 0 |  | batch:DescribeServiceJob, batch:ListServiceJobs |
+| bcm-data-exports | bcm-data-exports/execution | 1 |  | bcm-data-exports:GetExecution, bcm-data-exports:ListExecutions |
+| bcm-data-exports | bcm-data-exports/table | 0 |  | bcm-data-exports:GetTable, bcm-data-exports:ListTables |
+| bcm-pricing-calculator | bcm-pricing-calculator/billestimatecommitment | 1 |  | bcm-pricing-calculator:ListBillEstimateCommitments |
+| bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputcommitmentmodification | 1 |  | bcm-pricing-calculator:ListBillEstimateInputCommitmentModifications |
+| bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputusagemodification | 1 |  | bcm-pricing-calculator:ListBillEstimateInputUsageModifications |
+| bcm-pricing-calculator | bcm-pricing-calculator/billestimatelineitem | 1 |  | bcm-pricing-calculator:ListBillEstimateLineItems |
+| bcm-pricing-calculator | bcm-pricing-calculator/billscenariocommitmentmodification | 1 |  | bcm-pricing-calculator:ListBillScenarioCommitmentModifications |
+| bcm-pricing-calculator | bcm-pricing-calculator/billscenariousagemodification | 1 |  | bcm-pricing-calculator:ListBillScenarioUsageModifications |
+| bcm-pricing-calculator | bcm-pricing-calculator/workloadestimateusage | 1 |  | bcm-pricing-calculator:ListWorkloadEstimateUsage |
+| bedrock | bedrock/advancedpromptoptimizationjob | 0 |  | bedrock:GetAdvancedPromptOptimizationJob, bedrock:ListAdvancedPromptOptimizationJobs |
+| bedrock | bedrock/agentactiongroup | 1 |  | bedrock:GetAgentActionGroup, bedrock:ListAgentActionGroups |
+| bedrock | bedrock/agentcollaborator | 1 |  | bedrock:GetAgentCollaborator, bedrock:ListAgentCollaborators |
+| bedrock | bedrock/agentknowledgebase | 1 |  | bedrock:GetAgentKnowledgeBase, bedrock:ListAgentKnowledgeBases |
+| bedrock | bedrock/agentversion | 1 |  | bedrock:GetAgentVersion, bedrock:ListAgentVersions |
+| bedrock | bedrock/asyncinvoke | 0 |  | bedrock:GetAsyncInvoke, bedrock:ListAsyncInvokes |
+| bedrock | bedrock/automatedreasoningpolicybuildworkflow | 1 |  | bedrock:GetAutomatedReasoningPolicyBuildWorkflow, bedrock:ListAutomatedReasoningPolicyBuildWorkflows |
+| bedrock | bedrock/automatedreasoningpolicytestcase | 1 |  | bedrock:GetAutomatedReasoningPolicyTestCase, bedrock:ListAutomatedReasoningPolicyTestCases |
+| bedrock | bedrock/automatedreasoningpolicytestresult | 1 |  | bedrock:GetAutomatedReasoningPolicyTestResult, bedrock:ListAutomatedReasoningPolicyTestResults |
+| bedrock | bedrock/dataautomationlibraryingestionjob | 0 |  | bedrock:GetDataAutomationLibraryIngestionJob, bedrock:ListDataAutomationLibraryIngestionJobs |
+| bedrock | bedrock/evaluationjob | 0 |  | bedrock:GetEvaluationJob, bedrock:ListEvaluationJobs |
+| bedrock | bedrock/flowexecution | 2 |  | bedrock:GetFlowExecution, bedrock:ListFlowExecutions |
+| bedrock | bedrock/foundationmodelagreementoffer | 1 |  | bedrock:ListFoundationModelAgreementOffers |
+| bedrock | bedrock/ingestionjob | 1 |  | bedrock:GetIngestionJob, bedrock:ListIngestionJobs |
+| bedrock | bedrock/invocation | 1 |  | bedrock:ListInvocations |
+| bedrock | bedrock/invocationstep | 1 |  | bedrock:GetInvocationStep, bedrock:ListInvocationSteps |
+| bedrock | bedrock/knowledgebasedocument | 1 |  | bedrock:GetKnowledgeBaseDocuments, bedrock:ListKnowledgeBaseDocuments |
+| bedrock | bedrock/modelcopyjob | 0 |  | bedrock:GetModelCopyJob, bedrock:ListModelCopyJobs |
+| bedrock | bedrock/modelcustomizationjob | 0 |  | bedrock:GetModelCustomizationJob, bedrock:ListModelCustomizationJobs |
+| bedrock | bedrock/modelimportjob | 0 |  | bedrock:GetModelImportJob, bedrock:ListModelImportJobs |
+| bedrock | bedrock/modelinvocationjob | 0 |  | bedrock:GetModelInvocationJob, bedrock:ListModelInvocationJobs |
+| bedrock | bedrock/session | 0 |  | bedrock:GetSession, bedrock:ListSessions |
+| bedrock-agentcore | bedrock-agentcore/abtest | 0 |  | bedrock-agentcore:GetABTest, bedrock-agentcore:ListABTests |
+| bedrock-agentcore | bedrock-agentcore/actor | 1 |  | bedrock-agentcore:ListActors |
+| bedrock-agentcore | bedrock-agentcore/agentruntimeversion | 1 |  | bedrock-agentcore:ListAgentRuntimeVersions, bedrock-agentcore:ListAgentRuntimeVersionsByCapacityProvider |
+| bedrock-agentcore | bedrock-agentcore/batchevaluation | 0 |  | bedrock-agentcore:GetBatchEvaluation, bedrock-agentcore:ListBatchEvaluations |
+| bedrock-agentcore | bedrock-agentcore/browsersession | 1 |  | bedrock-agentcore:GetBrowserSession, bedrock-agentcore:ListBrowserSessions |
+| bedrock-agentcore | bedrock-agentcore/capacityprovider | 0 |  | bedrock-agentcore:GetCapacityProvider, bedrock-agentcore:ListCapacityProviders |
+| bedrock-agentcore | bedrock-agentcore/codeinterpretersession | 1 |  | bedrock-agentcore:GetCodeInterpreterSession, bedrock-agentcore:ListCodeInterpreterSessions |
+| bedrock-agentcore | bedrock-agentcore/configurationbundleversion | 1 |  | bedrock-agentcore:GetConfigurationBundleVersion, bedrock-agentcore:ListConfigurationBundleVersions |
+| bedrock-agentcore | bedrock-agentcore/consentportal | 0 |  | bedrock-agentcore:GetConsentPortal, bedrock-agentcore:ListConsentPortals |
+| bedrock-agentcore | bedrock-agentcore/event | 1 |  | bedrock-agentcore:GetEvent, bedrock-agentcore:ListEvents |
+| bedrock-agentcore | bedrock-agentcore/gatewayratelimit | 1 |  | bedrock-agentcore:GetGatewayRateLimit, bedrock-agentcore:ListGatewayRateLimits |
+| bedrock-agentcore | bedrock-agentcore/gatewayrule | 1 |  | bedrock-agentcore:GetGatewayRule, bedrock-agentcore:ListGatewayRules |
+| bedrock-agentcore | bedrock-agentcore/harnessversion | 1 |  | bedrock-agentcore:ListHarnessVersions |
+| bedrock-agentcore | bedrock-agentcore/memoryextractionjob | 1 |  | bedrock-agentcore:ListMemoryExtractionJobs |
+| bedrock-agentcore | bedrock-agentcore/memoryrecord | 1 |  | bedrock-agentcore:GetMemoryRecord, bedrock-agentcore:ListMemoryRecords, bedrock-agentcore:RetrieveMemoryRecords |
+| bedrock-agentcore | bedrock-agentcore/paymentinstrument | 1 |  | bedrock-agentcore:GetPaymentInstrument, bedrock-agentcore:ListPaymentInstruments |
+| bedrock-agentcore | bedrock-agentcore/paymentsession | 1 |  | bedrock-agentcore:GetPaymentSession, bedrock-agentcore:ListPaymentSessions |
+| bedrock-agentcore | bedrock-agentcore/policygenerationasset | 2 |  | bedrock-agentcore:ListPolicyGenerationAssets |
+| bedrock-agentcore | bedrock-agentcore/policygenerationsummary | 1 |  | bedrock-agentcore:GetPolicyGenerationSummary, bedrock-agentcore:ListPolicyGenerationSummaries |
+| bedrock-agentcore | bedrock-agentcore/policysummary | 1 |  | bedrock-agentcore:GetPolicySummary, bedrock-agentcore:ListPolicySummaries |
+| bedrock-agentcore | bedrock-agentcore/recommendation | 0 |  | bedrock-agentcore:GetRecommendation, bedrock-agentcore:ListRecommendations |
+| bedrock-agentcore | bedrock-agentcore/session | 1 |  | bedrock-agentcore:ListSessions |
+| billing | billing/billingpreference | 0 |  | billing:GetBillingPreferences |
+| billing | billing/credit | 1 |  | billing:GetCredits |
+| billing | billing/creditallocationhistory | 1 |  | billing:GetCreditAllocationHistory |
+| billingconductor | billingconductor/billinggroupcostreport | 0 |  | billingconductor:GetBillingGroupCostReport, billingconductor:ListBillingGroupCostReports |
+| billingconductor | billingconductor/customlineitemversion | 1 |  | billingconductor:ListCustomLineItemVersions |
+| billingconductor | billingconductor/pricingplansassociatedwithpricingrule | 1 |  | billingconductor:ListPricingPlansAssociatedWithPricingRule |
+| billingconductor | billingconductor/pricingrulesassociatedtopricingplan | 1 |  | billingconductor:ListPricingRulesAssociatedToPricingPlan |
+| billingconductor | billingconductor/resourcesassociatedtocustomlineitem | 1 |  | billingconductor:ListResourcesAssociatedToCustomLineItem |
+| braket | braket/device | 0 |  | braket:GetDevice, braket:SearchDevices |
+| braket | braket/job | 0 |  | braket:GetJob, braket:SearchJobs |
+| braket | braket/quantumtask | 0 |  | braket:GetQuantumTask, braket:SearchQuantumTasks |
+| cases | cases/allrelateditem | 1 |  | cases:SearchAllRelatedItems |
+| cases | cases/case | 1 |  | cases:GetCase, cases:ListCasesForContact, cases:SearchCases |
+| cases | cases/caseauditevent | 2 |  | cases:GetCaseAuditEvents |
+| cases | cases/relateditem | 2 |  | cases:SearchRelatedItems |
+| cassandra | cassandra/stream | 0 |  | cassandra:GetStream, cassandra:ListStreams |
+| ce | ce/anomaly | 1 |  | ce:GetAnomalies |
+| ce | ce/commitmentpurchaseanalysis | 0 |  | ce:GetCommitmentPurchaseAnalysis, ce:ListCommitmentPurchaseAnalyses |
+| ce | ce/savingsplanspurchaserecommendationgeneration | 0 |  | ce:ListSavingsPlansPurchaseRecommendationGeneration |
+| chatbot | chatbot/chimewebhookconfiguration | 0 |  | chatbot:DescribeChimeWebhookConfigurations |
+| chatbot | chatbot/microsoftteamsconfiguredteam | 0 |  | chatbot:ListMicrosoftTeamsConfiguredTeams |
+| chatbot | chatbot/microsoftteamsuseridentity | 0 |  | chatbot:ListMicrosoftTeamsUserIdentities |
+| chatbot | chatbot/slackuseridentity | 0 |  | chatbot:DescribeSlackUserIdentities |
+| chime | chime/account | 0 |  | chime:GetAccount, chime:ListAccounts |
+| chime | chime/appinstanceuserendpoint | 3 |  | chime:DescribeAppInstanceUserEndpoint, chime:ListAppInstanceUserEndpoints |
+| chime | chime/attendee | 2 |  | chime:GetAttendee, chime:ListAttendees |
+| chime | chime/bot | 0 |  | chime:GetBot, chime:ListBots |
+| chime | chime/channel | 2 |  | chime:DescribeChannel, chime:ListChannels, chime:SearchChannels |
+| chime | chime/channelsassociatedwithchannelflow | 3 |  | chime:ListChannelsAssociatedWithChannelFlow |
+| chime | chime/mediacapturepipeline | 0 |  | chime:GetMediaCapturePipeline, chime:ListMediaCapturePipelines |
+| chime | chime/messagingstreamingconfiguration | 2 |  | chime:GetMessagingStreamingConfigurations |
+| chime | chime/phonenumber | 0 |  | chime:GetPhoneNumber, chime:ListPhoneNumbers |
+| chime | chime/phonenumberorder | 0 |  | chime:GetPhoneNumberOrder, chime:ListPhoneNumberOrders |
+| chime | chime/proxysession | 2 |  | chime:GetProxySession, chime:ListProxySessions |
+| chime | chime/room | 0 |  | chime:GetRoom, chime:ListRooms |
+| chime | chime/roommembership | 1 |  | chime:ListRoomMemberships |
+| chime | chime/siprule | 0 |  | chime:GetSipRule, chime:ListSipRules |
+| chime | chime/user | 0 |  | chime:GetUser, chime:ListUsers |
+| chime | chime/voiceconnectorgroup | 0 |  | chime:GetVoiceConnectorGroup, chime:ListVoiceConnectorGroups |
+| cleanrooms | cleanrooms/analysislogexport | 1 |  | cleanrooms:GetAnalysisLogExport, cleanrooms:ListAnalysisLogExports |
+| cleanrooms | cleanrooms/collaborationanalysistemplate | 1 |  | cleanrooms:BatchGetCollaborationAnalysisTemplate, cleanrooms:GetCollaborationAnalysisTemplate, cleanrooms:ListCollaborationAnalysisTemplates |
+| cleanrooms | cleanrooms/collaborationchangerequest | 1 |  | cleanrooms:GetCollaborationChangeRequest, cleanrooms:ListCollaborationChangeRequests |
+| cleanrooms | cleanrooms/collaborationconfiguredaudiencemodelassociation | 1 |  | cleanrooms:GetCollaborationConfiguredAudienceModelAssociation, cleanrooms:ListCollaborationConfiguredAudienceModelAssociations |
+| cleanrooms | cleanrooms/collaborationidnamespaceassociation | 1 |  | cleanrooms:GetCollaborationIdNamespaceAssociation, cleanrooms:ListCollaborationIdNamespaceAssociations |
+| cleanrooms | cleanrooms/collaborationprivacybudget | 1 |  | cleanrooms:ListCollaborationPrivacyBudgets |
+| cleanrooms | cleanrooms/collaborationprivacybudgettemplate | 1 |  | cleanrooms:GetCollaborationPrivacyBudgetTemplate, cleanrooms:ListCollaborationPrivacyBudgetTemplates |
+| cleanrooms | cleanrooms/intermediatetable | 1 |  | cleanrooms:GetIntermediateTable, cleanrooms:ListIntermediateTables |
+| cleanrooms | cleanrooms/intermediatetableversion | 2 |  | cleanrooms:ListIntermediateTableVersions |
+| cleanrooms | cleanrooms/member | 1 |  | cleanrooms:ListMembers |
+| cleanrooms | cleanrooms/privacybudget | 1 |  | cleanrooms:ListPrivacyBudgets |
+| cleanrooms | cleanrooms/protectedjob | 1 |  | cleanrooms:GetProtectedJob, cleanrooms:ListProtectedJobs |
+| cleanrooms | cleanrooms/protectedquery | 1 |  | cleanrooms:GetProtectedQuery, cleanrooms:ListProtectedQueries |
+| cleanrooms | cleanrooms/schema | 1 |  | cleanrooms:BatchGetSchema, cleanrooms:GetSchema, cleanrooms:ListSchemas |
+| cleanrooms-ml | cleanrooms-ml/audienceexportjob | 0 |  | cleanrooms-ml:ListAudienceExportJobs |
+| cleanrooms-ml | cleanrooms-ml/audiencegenerationjob | 0 |  | cleanrooms-ml:GetAudienceGenerationJob, cleanrooms-ml:ListAudienceGenerationJobs |
+| cleanrooms-ml | cleanrooms-ml/collaborationconfiguredmodelalgorithmassociation | 1 |  | cleanrooms-ml:GetCollaborationConfiguredModelAlgorithmAssociation, cleanrooms-ml:ListCollaborationConfiguredModelAlgorithmAssociations |
+| cleanrooms-ml | cleanrooms-ml/collaborationmlinputchannel | 1 |  | cleanrooms-ml:GetCollaborationMLInputChannel, cleanrooms-ml:ListCollaborationMLInputChannels |
+| cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodel | 1 |  | cleanrooms-ml:GetCollaborationTrainedModel, cleanrooms-ml:ListCollaborationTrainedModels |
+| cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodelexportjob | 2 |  | cleanrooms-ml:ListCollaborationTrainedModelExportJobs |
+| cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodelinferencejob | 1 |  | cleanrooms-ml:ListCollaborationTrainedModelInferenceJobs |
+| cleanrooms-ml | cleanrooms-ml/trainedmodelinferencejob | 1 |  | cleanrooms-ml:GetTrainedModelInferenceJob, cleanrooms-ml:ListTrainedModelInferenceJobs |
+| cleanrooms-ml | cleanrooms-ml/trainedmodelversion | 1 |  | cleanrooms-ml:ListTrainedModelVersions |
+| cloud9 | cloud9/environmentmembership | 0 |  | cloud9:DescribeEnvironmentMemberships |
+| cloudcontrolapi | cloudcontrolapi/resource | 1 |  | cloudcontrolapi:GetResource, cloudcontrolapi:ListResources |
+| clouddirectory | clouddirectory/attachedindice | 1 |  | clouddirectory:ListAttachedIndices |
+| clouddirectory | clouddirectory/index | 1 |  | clouddirectory:ListIndex |
+| clouddirectory | clouddirectory/objectinformation | 1 |  | clouddirectory:GetObjectInformation |
+| clouddirectory | clouddirectory/objectparent | 1 |  | clouddirectory:ListObjectParents |
+| clouddirectory | clouddirectory/objectparentpath | 1 |  | clouddirectory:ListObjectParentPaths |
+| clouddirectory | clouddirectory/objectpolicy | 1 |  | clouddirectory:ListObjectPolicies |
+| clouddirectory | clouddirectory/policyattachment | 1 |  | clouddirectory:ListPolicyAttachments |
+| cloudformation | cloudformation/changeset | 2 |  | cloudformation:DescribeChangeSet, cloudformation:ListChangeSets |
+| cloudformation | cloudformation/changesethook | 2 |  | cloudformation:DescribeChangeSetHooks |
+| cloudformation | cloudformation/resourcescanrelatedresource | 1 |  | cloudformation:ListResourceScanRelatedResources |
+| cloudformation | cloudformation/resourcescanresource | 1 |  | cloudformation:ListResourceScanResources |
+| cloudformation | cloudformation/stackevent | 2 |  | cloudformation:DescribeStackEvents |
+| cloudformation | cloudformation/stackinstanceresourcedrift | 2 |  | cloudformation:ListStackInstanceResourceDrifts |
+| cloudformation | cloudformation/stackrefactor | 0 |  | cloudformation:DescribeStackRefactor, cloudformation:ListStackRefactors |
+| cloudformation | cloudformation/stackrefactoraction | 2 |  | cloudformation:ListStackRefactorActions |
+| cloudformation | cloudformation/stackresourcedrift | 2 |  | cloudformation:DescribeStackResourceDrifts |
+| cloudformation | cloudformation/stacksetautodeploymenttarget | 2 |  | cloudformation:ListStackSetAutoDeploymentTargets |
+| cloudformation | cloudformation/stacksetoperation | 2 |  | cloudformation:DescribeStackSetOperation, cloudformation:ListStackSetOperations |
+| cloudformation | cloudformation/stacksetoperationresult | 2 |  | cloudformation:ListStackSetOperationResults |
+| cloudfront | cloudfront/domainconflict | 1 |  | cloudfront:ListDomainConflicts |
+| cloudtrail | cloudtrail/eventconfiguration | 0 |  | cloudtrail:GetEventConfiguration |
+| cloudtrail | cloudtrail/eventselector | 1 |  | cloudtrail:GetEventSelectors |
+| cloudtrail | cloudtrail/import | 0 |  | cloudtrail:GetImport, cloudtrail:ListImports |
+| cloudtrail | cloudtrail/insightsdata | 1 |  | cloudtrail:ListInsightsData |
+| cloudtrail | cloudtrail/insightselector | 0 |  | cloudtrail:GetInsightSelectors |
+| cloudtrail | cloudtrail/query | 0 |  | cloudtrail:DescribeQuery, cloudtrail:ListQueries |
+| codeartifact | codeartifact/package | 2 |  | codeartifact:DescribePackage, codeartifact:ListPackages |
+| codeartifact | codeartifact/subpackagegroup | 2 |  | codeartifact:ListSubPackageGroups |
+| codebuild | codebuild/build | 0 |  | codebuild:BatchGetBuilds, codebuild:ListBuilds, codebuild:ListBuildsForProject |
+| codebuild | codebuild/buildbatch | 0 |  | codebuild:BatchGetBuildBatches, codebuild:ListBuildBatches, codebuild:ListBuildBatchesForProject |
+| codebuild | codebuild/codecoverage | 1 |  | codebuild:DescribeCodeCoverages |
+| codebuild | codebuild/commandexecution | 1 |  | codebuild:BatchGetCommandExecutions, codebuild:ListCommandExecutionsForSandbox |
+| codebuild | codebuild/report | 0 |  | codebuild:BatchGetReports, codebuild:ListReports, codebuild:ListReportsForReportGroup |
+| codebuild | codebuild/reportgrouptrend | 1 |  | codebuild:GetReportGroupTrend |
+| codebuild | codebuild/sandbox | 0 |  | codebuild:BatchGetSandboxes, codebuild:ListSandboxes, codebuild:ListSandboxesForProject |
+| codebuild | codebuild/testcase | 1 |  | codebuild:DescribeTestCases |
+| codecatalyst | codecatalyst/devenvironment | 1 |  | codecatalyst:GetDevEnvironment, codecatalyst:ListDevEnvironments |
+| codecatalyst | codecatalyst/eventlog | 1 |  | codecatalyst:ListEventLogs |
+| codecatalyst | codecatalyst/project | 1 |  | codecatalyst:GetProject, codecatalyst:ListProjects |
+| codecatalyst | codecatalyst/space | 0 |  | codecatalyst:GetSpace, codecatalyst:ListSpaces |
+| codecatalyst | codecatalyst/workflow | 2 |  | codecatalyst:GetWorkflow, codecatalyst:ListWorkflows |
+| codecatalyst | codecatalyst/workflowrun | 2 |  | codecatalyst:GetWorkflowRun, codecatalyst:ListWorkflowRuns |
+| codecommit | codecommit/approvalruletemplate | 0 |  | codecommit:GetApprovalRuleTemplate, codecommit:ListApprovalRuleTemplates |
+| codecommit | codecommit/associatedapprovalruletemplate | 1 |  | codecommit:ListAssociatedApprovalRuleTemplatesForRepository |
+| codecommit | codecommit/comment | 1 |  | codecommit:GetComment, codecommit:GetCommentsForComparedCommit, codecommit:GetCommentsForPullRequest |
+| codecommit | codecommit/commit | 1 |  | codecommit:BatchGetCommits, codecommit:GetCommit |
+| codecommit | codecommit/filecommithistory | 1 |  | codecommit:ListFileCommitHistory |
+| codecommit | codecommit/folder | 1 |  | codecommit:GetFolder |
+| codecommit | codecommit/pullrequest | 1 |  | codecommit:GetPullRequest, codecommit:ListPullRequests |
+| codecommit | codecommit/pullrequestapprovalstate | 1 |  | codecommit:GetPullRequestApprovalStates |
+| codecommit | codecommit/pullrequestevent | 1 |  | codecommit:DescribePullRequestEvents |
+| codecommit | codecommit/repositorytrigger | 1 |  | codecommit:GetRepositoryTriggers |
+| codeconnections | codeconnections/connection | 0 |  | codeconnections:GetConnection, codeconnections:ListConnections |
+| codeconnections | codeconnections/host | 0 |  | codeconnections:GetHost, codeconnections:ListHosts |
+| codeconnections | codeconnections/repositorylink | 0 |  | codeconnections:GetRepositoryLink, codeconnections:ListRepositoryLinks |
+| codeconnections | codeconnections/syncconfiguration | 0 |  | codeconnections:GetSyncConfiguration, codeconnections:ListSyncConfigurations |
+| codedeploy | codedeploy/deployment | 0 |  | codedeploy:BatchGetDeployments, codedeploy:GetDeployment, codedeploy:ListDeployments |
+| codedeploy | codedeploy/deploymentinstance | 2 |  | codedeploy:BatchGetDeploymentInstances, codedeploy:GetDeploymentInstance, codedeploy:ListDeploymentInstances |
+| codedeploy | codedeploy/deploymenttarget | 1 |  | codedeploy:BatchGetDeploymentTargets, codedeploy:GetDeploymentTarget, codedeploy:ListDeploymentTargets |
+| codedeploy | codedeploy/onpremisesinstance | 0 |  | codedeploy:BatchGetOnPremisesInstances, codedeploy:GetOnPremisesInstance, codedeploy:ListOnPremisesInstances |
+| codeguru-profiler | codeguru-profiler/findingsreport | 1 |  | codeguru-profiler:ListFindingsReports |
+| codeguru-reviewer | codeguru-reviewer/codereview | 0 |  | codeguru-reviewer:DescribeCodeReview, codeguru-reviewer:ListCodeReviews |
+| codeguru-reviewer | codeguru-reviewer/recommendation | 1 |  | codeguru-reviewer:ListRecommendations |
+| codeguru-reviewer | codeguru-reviewer/recommendationfeedback | 1 |  | codeguru-reviewer:DescribeRecommendationFeedback, codeguru-reviewer:ListRecommendationFeedback |
+| codeguru-security | codeguru-security/finding | 1 |  | codeguru-security:BatchGetFindings, codeguru-security:GetFindings |
+| codeguru-security | codeguru-security/scan | 0 |  | codeguru-security:GetScan, codeguru-security:ListScans |
+| codepipeline | codepipeline/actionexecution | 1 |  | codepipeline:ListActionExecutions |
+| codepipeline | codepipeline/deployactionexecutiontarget | 1 |  | codepipeline:ListDeployActionExecutionTargets |
+| codepipeline | codepipeline/pipelineexecution | 1 |  | codepipeline:GetPipelineExecution, codepipeline:ListPipelineExecutions |
+| codepipeline | codepipeline/pipelinestate | 1 |  | codepipeline:GetPipelineState |
+| codepipeline | codepipeline/ruleexecution | 1 |  | codepipeline:ListRuleExecutions |
+| codestar-notifications | codestar-notifications/target | 0 |  | codestar-notifications:ListTargets |
+| cognito-identity | cognito-identity/identity | 0 |  | cognito-identity:DescribeIdentity, cognito-identity:ListIdentities |
+| cognito-idp | cognito-idp/device | 0 |  | cognito-idp:GetDevice, cognito-idp:ListDevices |
+| cognito-idp | cognito-idp/listgroup | 1 |  | cognito-idp:AdminListGroupsForUser |
+| cognito-idp | cognito-idp/user | 0 |  | cognito-idp:GetUser, cognito-idp:ListUsers, cognito-idp:ListUsersInGroup |
+| cognito-idp | cognito-idp/userimportjob | 1 |  | cognito-idp:DescribeUserImportJob, cognito-idp:ListUserImportJobs |
+| cognito-idp | cognito-idp/userpoolclientsecret | 1 |  | cognito-idp:ListUserPoolClientSecrets |
+| cognito-idp | cognito-idp/userpoolreplica | 1 |  | cognito-idp:ListUserPoolReplicas |
+| cognito-sync | cognito-sync/dataset | 2 |  | cognito-sync:DescribeDataset, cognito-sync:ListDatasets |
+| cognito-sync | cognito-sync/record | 3 |  | cognito-sync:ListRecords |
+| comprehend | comprehend/dataset | 0 |  | comprehend:DescribeDataset, comprehend:ListDatasets |
+| comprehend | comprehend/documentclassificationjob | 0 |  | comprehend:DescribeDocumentClassificationJob, comprehend:ListDocumentClassificationJobs |
+| comprehend | comprehend/dominantlanguagedetectionjob | 0 |  | comprehend:DescribeDominantLanguageDetectionJob, comprehend:ListDominantLanguageDetectionJobs |
+| comprehend | comprehend/entitiesdetectionjob | 0 |  | comprehend:DescribeEntitiesDetectionJob, comprehend:ListEntitiesDetectionJobs |
+| comprehend | comprehend/eventsdetectionjob | 0 |  | comprehend:DescribeEventsDetectionJob, comprehend:ListEventsDetectionJobs |
+| comprehend | comprehend/flywheeliterationhistory | 1 |  | comprehend:ListFlywheelIterationHistory |
+| comprehend | comprehend/keyphrasesdetectionjob | 0 |  | comprehend:DescribeKeyPhrasesDetectionJob, comprehend:ListKeyPhrasesDetectionJobs |
+| comprehend | comprehend/piientitiesdetectionjob | 0 |  | comprehend:DescribePiiEntitiesDetectionJob, comprehend:ListPiiEntitiesDetectionJobs |
+| comprehend | comprehend/sentimentdetectionjob | 0 |  | comprehend:DescribeSentimentDetectionJob, comprehend:ListSentimentDetectionJobs |
+| comprehend | comprehend/targetedsentimentdetectionjob | 0 |  | comprehend:DescribeTargetedSentimentDetectionJob, comprehend:ListTargetedSentimentDetectionJobs |
+| comprehend | comprehend/topicsdetectionjob | 0 |  | comprehend:DescribeTopicsDetectionJob, comprehend:ListTopicsDetectionJobs |
+| comprehendmedical | comprehendmedical/entitiesdetectionv2job | 0 |  | comprehendmedical:DescribeEntitiesDetectionV2Job, comprehendmedical:ListEntitiesDetectionV2Jobs |
+| comprehendmedical | comprehendmedical/icd10cminferencejob | 0 |  | comprehendmedical:DescribeICD10CMInferenceJob, comprehendmedical:ListICD10CMInferenceJobs |
+| comprehendmedical | comprehendmedical/phidetectionjob | 0 |  | comprehendmedical:DescribePHIDetectionJob, comprehendmedical:ListPHIDetectionJobs |
+| comprehendmedical | comprehendmedical/rxnorminferencejob | 0 |  | comprehendmedical:DescribeRxNormInferenceJob, comprehendmedical:ListRxNormInferenceJobs |
+| comprehendmedical | comprehendmedical/snomedctinferencejob | 0 |  | comprehendmedical:DescribeSNOMEDCTInferenceJob, comprehendmedical:ListSNOMEDCTInferenceJobs |
+| compute-optimizer | compute-optimizer/autoscalinggrouprecommendation | 0 |  | compute-optimizer:GetAutoScalingGroupRecommendations |
+| compute-optimizer | compute-optimizer/ebsvolumerecommendation | 0 |  | compute-optimizer:GetEBSVolumeRecommendations |
+| compute-optimizer | compute-optimizer/ec2instancerecommendation | 0 |  | compute-optimizer:GetEC2InstanceRecommendations |
+| compute-optimizer | compute-optimizer/ecsservicerecommendation | 0 |  | compute-optimizer:GetECSServiceRecommendations |
+| compute-optimizer | compute-optimizer/enrollmentstatus | 0 |  | compute-optimizer:GetEnrollmentStatus, compute-optimizer:GetEnrollmentStatusesForOrganization |
+| compute-optimizer | compute-optimizer/idlerecommendation | 0 |  | compute-optimizer:GetIdleRecommendations |
+| compute-optimizer | compute-optimizer/lambdafunctionrecommendation | 0 |  | compute-optimizer:GetLambdaFunctionRecommendations |
+| compute-optimizer | compute-optimizer/licenserecommendation | 0 |  | compute-optimizer:GetLicenseRecommendations |
+| compute-optimizer | compute-optimizer/rdsdatabaserecommendation | 0 |  | compute-optimizer:GetRDSDatabaseRecommendations |
+| compute-optimizer | compute-optimizer/recommendationpreference | 0 |  | compute-optimizer:GetRecommendationPreferences |
+| config | config/aggregatecompliance | 1 |  | config:DescribeAggregateComplianceByConfigRules, config:DescribeAggregateComplianceByConformancePacks |
+| config | config/aggregatecompliancedetail | 1 |  | config:GetAggregateComplianceDetailsByConfigRule |
+| config | config/aggregateconfigrulecompliancesummary | 1 |  | config:GetAggregateConfigRuleComplianceSummary |
+| config | config/aggregateconformancepackcompliancesummary | 1 |  | config:GetAggregateConformancePackComplianceSummary |
+| config | config/aggregatediscoveredresource | 1 |  | config:ListAggregateDiscoveredResources |
+| config | config/aggregatediscoveredresourcecount | 1 |  | config:GetAggregateDiscoveredResourceCounts |
+| config | config/aggregateresourceconfig | 1 |  | config:BatchGetAggregateResourceConfig, config:GetAggregateResourceConfig |
+| config | config/compliancedetail | 0 |  | config:GetComplianceDetailsByConfigRule, config:GetComplianceDetailsByResource |
+| config | config/configurationaggregatorsourcesstatus | 1 |  | config:DescribeConfigurationAggregatorSourcesStatus |
+| config | config/conformancepackcompliance | 2 |  | config:DescribeConformancePackCompliance |
+| config | config/conformancepackcompliancedetail | 2 |  | config:GetConformancePackComplianceDetails |
+| config | config/conformancepackcompliancesummary | 2 |  | config:GetConformancePackComplianceSummary |
+| config | config/connector | 0 |  | config:GetConnector, config:ListConnectors |
+| config | config/organizationconfigruledetailedstatus | 1 |  | config:GetOrganizationConfigRuleDetailedStatus |
+| config | config/organizationconformancepackdetailedstatus | 1 |  | config:GetOrganizationConformancePackDetailedStatus |
+| config | config/pendingaggregationrequest | 0 |  | config:DescribePendingAggregationRequests |
+| config | config/remediationexception | 1 |  | config:DescribeRemediationExceptions |
+| config | config/resourceconfig | 0 |  | config:BatchGetResourceConfig |
+| config | config/resourceevaluation | 0 |  | config:ListResourceEvaluations |
+| config | config/retentionconfiguration | 0 |  | config:DescribeRetentionConfigurations |
+| connect | connect/analyticsdataassociation | 1 |  | connect:ListAnalyticsDataAssociations |
+| connect | connect/analyticsdatalakedataset | 1 |  | connect:ListAnalyticsDataLakeDataSets |
+| connect | connect/associatedcontact | 2 |  | connect:ListAssociatedContacts |
+| connect | connect/attachedfilemetadata | 2 |  | connect:BatchGetAttachedFileMetadata |
+| connect | connect/attachedfilesconfiguration | 1 |  | connect:DescribeAttachedFilesConfiguration, connect:ListAttachedFilesConfigurations |
+| connect | connect/childhour | 2 |  | connect:ListChildHoursOfOperations |
+| connect | connect/contact | 1 |  | connect:DescribeContact, connect:SearchContacts |
+| connect | connect/contactevaluation | 1 |  | connect:DescribeContactEvaluation, connect:ListContactEvaluations, connect:SearchContactEvaluations |
+| connect | connect/contactmetric | 2 |  | connect:GetContactMetrics |
+| connect | connect/datatablevalue | 2 |  | connect:ListDataTableValues |
+| connect | connect/defaultvocabulary | 1 |  | connect:ListDefaultVocabularies |
+| connect | connect/entitysecurityprofile | 3 |  | connect:ListEntitySecurityProfiles |
+| connect | connect/evaluationformaiversion | 1 |  | connect:ListEvaluationFormAIVersions |
+| connect | connect/evaluationformversion | 2 |  | connect:ListEvaluationFormVersions |
+| connect | connect/extractiondefinition | 1 |  | connect:DescribeExtractionDefinition, connect:ListExtractionDefinitions |
+| connect | connect/flowassociation | 0 |  | connect:BatchGetFlowAssociation, connect:GetFlowAssociation, connect:ListFlowAssociations |
+| connect | connect/lexbot | 1 |  | connect:ListLexBots |
+| connect | connect/metric | 1 |  | connect:DescribeMetric, connect:ListMetrics, connect:SearchMetrics |
+| connect | connect/queueemailaddress | 2 |  | connect:ListQueueEmailAddresses |
+| connect | connect/queuequickconnect | 2 |  | connect:ListQueueQuickConnects |
+| connect | connect/routingprofilemanualassignmentqueue | 2 |  | connect:ListRoutingProfileManualAssignmentQueues |
+| connect | connect/routingprofilequeue | 2 |  | connect:ListRoutingProfileQueues |
+| connect | connect/securityprofileflowmodule | 2 |  | connect:ListSecurityProfileFlowModules |
+| connect | connect/testcase | 1 |  | connect:DescribeTestCase, connect:ListTestCases, connect:SearchTestCases |
+| connect | connect/testcaseexecution | 1 |  | connect:ListTestCaseExecutions |
+| connect | connect/trafficdistributiongroupuser | 1 |  | connect:ListTrafficDistributionGroupUsers |
+| connect | connect/usecase | 1 |  | connect:ListUseCases |
+| connect | connect/usernotification | 2 |  | connect:ListUserNotifications |
+| connect | connect/userproficiency | 2 |  | connect:ListUserProficiencies |
+| connect | connect/workspaceassociation | 2 |  | connect:SearchWorkspaceAssociations |
+| connect | connect/workspacepage | 2 |  | connect:ListWorkspacePages |
+| connect-campaigns | connect-campaigns/campaignstatebatch | 1 |  | connect-campaigns:GetCampaignStateBatch |
+| controlcatalog | controlcatalog/commoncontrol | 0 |  | controlcatalog:ListCommonControls |
+| controlcatalog | controlcatalog/control | 0 |  | controlcatalog:GetControl, controlcatalog:ListControls |
+| controlcatalog | controlcatalog/domain | 0 |  | controlcatalog:ListDomains |
+| controlcatalog | controlcatalog/objective | 0 |  | controlcatalog:ListObjectives |
+| controltower | controltower/baseline | 0 |  | controltower:GetBaseline, controltower:ListBaselines |
+| cost-optimization-hub | cost-optimization-hub/enrollmentstatus | 0 |  | cost-optimization-hub:ListEnrollmentStatuses |
+| databrew | databrew/jobrun | 1 |  | databrew:DescribeJobRun, databrew:ListJobRuns |
+| databrew | databrew/recipeversion | 1 |  | databrew:ListRecipeVersions |
+| dataexchange | dataexchange/datasetrevision | 1 |  | dataexchange:ListDataSetRevisions |
+| dataexchange | dataexchange/job | 0 |  | dataexchange:GetJob, dataexchange:ListJobs |
+| dataexchange | dataexchange/revisionasset | 2 |  | dataexchange:ListRevisionAssets |
+| datasync | datasync/taskexecution | 0 |  | datasync:DescribeTaskExecution, datasync:ListTaskExecutions |
+| datazone | datazone/account | 1 |  | datazone:ListAccountsInAccountPool |
+| datazone | datazone/accountpool | 1 |  | datazone:GetAccountPool, datazone:ListAccountPools |
+| datazone | datazone/asset | 1 |  | datazone:GetAsset |
+| datazone | datazone/assetfilter | 1 |  | datazone:GetAssetFilter, datazone:ListAssetFilters |
+| datazone | datazone/assetrevision | 1 |  | datazone:ListAssetRevisions |
+| datazone | datazone/dataproduct | 1 |  | datazone:GetDataProduct |
+| datazone | datazone/dataproductrevision | 1 |  | datazone:ListDataProductRevisions |
+| datazone | datazone/datasourcerun | 1 |  | datazone:GetDataSourceRun, datazone:ListDataSourceRuns |
+| datazone | datazone/datasourcerunactivity | 1 |  | datazone:ListDataSourceRunActivities |
+| datazone | datazone/environmentblueprint | 1 |  | datazone:GetEnvironmentBlueprint, datazone:ListEnvironmentBlueprints |
+| datazone | datazone/jobrun | 1 |  | datazone:GetJobRun, datazone:ListJobRuns |
+| datazone | datazone/lineageevent | 1 |  | datazone:GetLineageEvent, datazone:ListLineageEvents |
+| datazone | datazone/lineagenode | 1 |  | datazone:GetLineageNode |
+| datazone | datazone/lineagenodehistory | 1 |  | datazone:ListLineageNodeHistory |
+| datazone | datazone/metadatagenerationrun | 1 |  | datazone:GetMetadataGenerationRun, datazone:ListMetadataGenerationRuns |
+| datazone | datazone/notebook | 1 |  | datazone:GetNotebook, datazone:ListNotebooks |
+| datazone | datazone/notebookrun | 1 |  | datazone:GetNotebookRun, datazone:ListNotebookRuns |
+| datazone | datazone/notification | 1 |  | datazone:ListNotifications |
+| datazone | datazone/policygrant | 1 |  | datazone:ListPolicyGrants |
+| datazone | datazone/subscription | 1 |  | datazone:GetSubscription, datazone:ListSubscriptions |
+| datazone | datazone/subscriptiongrant | 1 |  | datazone:GetSubscriptionGrant, datazone:ListSubscriptionGrants |
+| datazone | datazone/subscriptionrequest | 1 |  | datazone:ListSubscriptionRequests |
+| datazone | datazone/subscriptionrequestdetail | 1 |  | datazone:GetSubscriptionRequestDetails |
+| dax | dax/parameter | 1 |  | dax:DescribeParameters |
+| deadline | deadline/farmmember | 1 |  | deadline:ListFarmMembers |
+| deadline | deadline/fleetmember | 2 |  | deadline:ListFleetMembers |
+| deadline | deadline/job | 0 |  | deadline:BatchGetJob, deadline:GetJob, deadline:ListJobs, deadline:SearchJobs |
+| deadline | deadline/jobmember | 3 |  | deadline:ListJobMembers |
+| deadline | deadline/queuemember | 2 |  | deadline:ListQueueMembers |
+| deadline | deadline/session | 0 |  | deadline:BatchGetSession, deadline:GetSession, deadline:ListSessions, deadline:ListSessionsForWorker |
+| deadline | deadline/sessionaction | 0 |  | deadline:BatchGetSessionAction, deadline:GetSessionAction, deadline:ListSessionActions |
+| deadline | deadline/step | 0 |  | deadline:BatchGetStep, deadline:GetStep, deadline:ListSteps, deadline:SearchSteps |
+| deadline | deadline/stepconsumer | 3 |  | deadline:ListStepConsumers |
+| deadline | deadline/stepdependency | 3 |  | deadline:ListStepDependencies |
+| deadline | deadline/task | 0 |  | deadline:BatchGetTask, deadline:GetTask, deadline:ListTasks, deadline:SearchTasks |
+| deadline | deadline/worker | 0 |  | deadline:BatchGetWorker, deadline:GetWorker, deadline:ListWorkers, deadline:SearchWorkers |
+| detective | detective/graphmemberdatasource | 1 |  | detective:BatchGetGraphMemberDatasources |
+| detective | detective/investigation | 1 |  | detective:GetInvestigation, detective:ListInvestigations |
+| detective | detective/invitation | 0 |  | detective:ListInvitations |
+| detective | detective/membershipdatasource | 1 |  | detective:BatchGetMembershipDatasources |
+| devicefarm | devicefarm/device | 0 |  | devicefarm:GetDevice, devicefarm:ListDevices |
+| devicefarm | devicefarm/job | 0 |  | devicefarm:GetJob, devicefarm:ListJobs |
+| devicefarm | devicefarm/offering | 0 |  | devicefarm:ListOfferings |
+| devicefarm | devicefarm/remoteaccesssession | 1 |  | devicefarm:GetRemoteAccessSession, devicefarm:ListRemoteAccessSessions |
+| devicefarm | devicefarm/run | 0 |  | devicefarm:GetRun, devicefarm:ListRuns |
+| devicefarm | devicefarm/sample | 1 |  | devicefarm:ListSamples |
+| devicefarm | devicefarm/suite | 0 |  | devicefarm:GetSuite, devicefarm:ListSuites |
+| devicefarm | devicefarm/test | 0 |  | devicefarm:GetTest, devicefarm:ListTests |
+| devicefarm | devicefarm/testgridsession | 0 |  | devicefarm:GetTestGridSession, devicefarm:ListTestGridSessions |
+| devicefarm | devicefarm/upload | 0 |  | devicefarm:GetUpload, devicefarm:ListUploads |
+| devops-guru | devops-guru/anomalousloggroup | 1 |  | devops-guru:ListAnomalousLogGroups |
+| devops-guru | devops-guru/anomaly | 0 |  | devops-guru:DescribeAnomaly, devops-guru:ListAnomaliesForInsight |
+| devops-guru | devops-guru/insight | 0 |  | devops-guru:DescribeInsight, devops-guru:ListInsights, devops-guru:SearchInsights |
+| devops-guru | devops-guru/organizationinsight | 0 |  | devops-guru:ListOrganizationInsights, devops-guru:SearchOrganizationInsights |
+| devops-guru | devops-guru/recommendation | 1 |  | devops-guru:ListRecommendations |
+| directconnect | directconnect/connectionsoninterconnect | 1 |  | directconnect:DescribeConnectionsOnInterconnect |
+| directconnect | directconnect/directconnectgatewayassociationproposal | 0 |  | directconnect:DescribeDirectConnectGatewayAssociationProposals |
+| directconnect | directconnect/hostedconnection | 1 |  | directconnect:DescribeHostedConnections |
+| directconnect | directconnect/interconnect | 0 |  | directconnect:DescribeInterconnects |
+| directconnect | directconnect/resiliencygroup | 0 |  | directconnect:GetResiliencyGroup, directconnect:ListResiliencyGroups |
+| directconnect | directconnect/resiliencygroupassociation | 1 |  | directconnect:ListResiliencyGroupAssociations |
+| discovery | discovery/agent | 0 |  | discovery:DescribeAgents |
+| discovery | discovery/configuration | 0 |  | discovery:DescribeConfigurations, discovery:ListConfigurations |
+| discovery | discovery/continuousexport | 0 |  | discovery:DescribeContinuousExports |
+| discovery | discovery/exporttask | 0 |  | discovery:DescribeExportTasks |
+| discovery | discovery/importtask | 0 |  | discovery:DescribeImportTasks |
+| discovery | discovery/serverneighbor | 1 |  | discovery:ListServerNeighbors |
+| dms | dms/connection | 0 |  | dms:DescribeConnections |
+| dms | dms/endpointsetting | 1 |  | dms:DescribeEndpointSettings |
+| dms | dms/extensionpackassociation | 1 |  | dms:DescribeExtensionPackAssociations |
+| dms | dms/fleetadvisorcollector | 0 |  | dms:DescribeFleetAdvisorCollectors |
+| dms | dms/fleetadvisordatabase | 0 |  | dms:DescribeFleetAdvisorDatabases |
+| dms | dms/fleetadvisorlsaanalysis | 0 |  | dms:DescribeFleetAdvisorLsaAnalysis |
+| dms | dms/metadatamodelassessment | 1 |  | dms:DescribeMetadataModelAssessments |
+| dms | dms/metadatamodelconversion | 1 |  | dms:DescribeMetadataModelConversions |
+| dms | dms/metadatamodelcreation | 0 |  | dms:DescribeMetadataModelCreations |
+| dms | dms/metadatamodelexport | 1 |  | dms:DescribeMetadataModelExportsAsScript |
+| dms | dms/metadatamodelexportstotarget | 1 |  | dms:DescribeMetadataModelExportsToTarget |
+| dms | dms/metadatamodelimport | 0 |  | dms:DescribeMetadataModelImports |
+| dms | dms/pendingmaintenanceaction | 0 |  | dms:DescribePendingMaintenanceActions |
+| dms | dms/recommendation | 0 |  | dms:DescribeRecommendations |
+| dms | dms/replication | 0 |  | dms:DescribeReplications |
+| dms | dms/replicationtaskassessmentrun | 0 |  | dms:DescribeReplicationTaskAssessmentRuns |
+| dms | dms/replicationtaskindividualassessment | 0 |  | dms:DescribeReplicationTaskIndividualAssessments |
+| docdb-elastic | docdb-elastic/pendingmaintenanceaction | 0 |  | docdb-elastic:GetPendingMaintenanceAction, docdb-elastic:ListPendingMaintenanceActions |
+| drs | drs/job | 0 |  | drs:DescribeJobs |
+| drs | drs/launchaction | 1 |  | drs:ListLaunchActions |
+| drs | drs/recoveryplan | 0 |  | drs:GetRecoveryPlan, drs:ListRecoveryPlans |
+| drs | drs/recoveryplanexecution | 0 |  | drs:GetRecoveryPlanExecution, drs:ListRecoveryPlanExecutions |
+| drs | drs/recoveryplanexecutionstep | 1 |  | drs:GetRecoveryPlanExecutionStep, drs:ListRecoveryPlanExecutionSteps |
+| drs | drs/recoveryplanstep | 1 |  | drs:GetRecoveryPlanStep, drs:ListRecoveryPlanSteps |
+| drs | drs/recoverysnapshot | 1 |  | drs:DescribeRecoverySnapshots |
+| drs | drs/replicationconfiguration | 1 |  | drs:GetReplicationConfiguration |
+| ds | ds/adassessment | 0 |  | ds:DescribeADAssessment, ds:ListADAssessments |
+| ds | ds/certificate | 1 |  | ds:DescribeCertificate, ds:ListCertificates |
+| ds | ds/conditionalforwarder | 1 |  | ds:DescribeConditionalForwarders |
+| ds | ds/domaincontroller | 1 |  | ds:DescribeDomainControllers |
+| ds | ds/eventtopic | 0 |  | ds:DescribeEventTopics |
+| ds | ds/iproute | 1 |  | ds:ListIpRoutes |
+| ds | ds/logsubscription | 0 |  | ds:ListLogSubscriptions |
+| ds | ds/region | 1 |  | ds:DescribeRegions |
+| ds | ds/schemaextension | 1 |  | ds:ListSchemaExtensions |
+| ds | ds/setting | 1 |  | ds:DescribeSettings |
+| ds | ds/shareddirectory | 1 |  | ds:DescribeSharedDirectories |
+| ds | ds/snapshot | 0 |  | ds:DescribeSnapshots |
+| ds | ds/trust | 0 |  | ds:DescribeTrusts |
+| ds-data | ds-data/group | 1 |  | ds-data:DescribeGroup, ds-data:ListGroups, ds-data:ListGroupsForMember, ds-data:SearchGroups |
+| ds-data | ds-data/groupmember | 1 |  | ds-data:ListGroupMembers |
+| ds-data | ds-data/user | 1 |  | ds-data:DescribeUser, ds-data:ListUsers, ds-data:SearchUsers |
+| dynamodb | dynamodb/contributorinsight | 0 |  | dynamodb:DescribeContributorInsights, dynamodb:ListContributorInsights |
+| dynamodb | dynamodb/export | 0 |  | dynamodb:DescribeExport, dynamodb:ListExports |
+| dynamodb | dynamodb/globaltablesetting | 1 |  | dynamodb:DescribeGlobalTableSettings |
+| dynamodb | dynamodb/import | 0 |  | dynamodb:DescribeImport, dynamodb:ListImports |
+| dynamodb | dynamodb/item | 1 |  | dynamodb:BatchGetItem, dynamodb:GetItem |
+| dynamodb | dynamodb/kinesisstreamingdestination | 1 |  | dynamodb:DescribeKinesisStreamingDestination |
+| dynamodb | dynamodb/record | 2 |  | dynamodb:GetRecords |
+| ec2 | ec2/accountvpcencryptioncontrol | 0 |  | ec2:DescribeAccountVpcEncryptionControl |
+| ec2 | ec2/addresstransfer | 0 |  | ec2:DescribeAddressTransfers |
+| ec2 | ec2/allowedimagessetting | 0 |  | ec2:GetAllowedImagesSettings |
+| ec2 | ec2/applicationstatuscheck | 0 |  | ec2:DescribeApplicationStatusChecks |
+| ec2 | ec2/associatedenclavecertificateiamrole | 1 |  | ec2:GetAssociatedEnclaveCertificateIamRoles |
+| ec2 | ec2/bundletask | 0 |  | ec2:DescribeBundleTasks |
+| ec2 | ec2/byoipcidr | 0 |  | ec2:DescribeByoipCidrs |
+| ec2 | ec2/capacityblockextensionoffering | 1 |  | ec2:DescribeCapacityBlockExtensionOfferings |
+| ec2 | ec2/capacitymanagermetricdimension | 1 |  | ec2:GetCapacityManagerMetricDimensions |
+| ec2 | ec2/capacitymanagermonitoredtagkey | 0 |  | ec2:GetCapacityManagerMonitoredTagKeys |
+| ec2 | ec2/capacityreservationcancellationquote | 0 |  | ec2:DescribeCapacityReservationCancellationQuotes |
+| ec2 | ec2/capacityreservationusage | 1 |  | ec2:GetCapacityReservationUsage |
+| ec2 | ec2/clientvpnconnection | 1 |  | ec2:DescribeClientVpnConnections |
+| ec2 | ec2/coippoolusage | 1 |  | ec2:GetCoipPoolUsage |
+| ec2 | ec2/conversiontask | 0 |  | ec2:DescribeConversionTasks |
+| ec2 | ec2/declarativepoliciesreport | 0 |  | ec2:DescribeDeclarativePoliciesReports |
+| ec2 | ec2/declarativepoliciesreportsummary | 1 |  | ec2:GetDeclarativePoliciesReportSummary |
+| ec2 | ec2/elasticgpu | 0 |  | ec2:DescribeElasticGpus |
+| ec2 | ec2/exportimagetask | 0 |  | ec2:DescribeExportImageTasks |
+| ec2 | ec2/exporttask | 0 |  | ec2:DescribeExportTasks |
+| ec2 | ec2/fastsnapshotrestore | 0 |  | ec2:DescribeFastSnapshotRestores |
+| ec2 | ec2/fleetinstance | 1 |  | ec2:DescribeFleetInstances |
+| ec2 | ec2/group | 1 |  | ec2:GetGroupsForCapacityReservation |
+| ec2 | ec2/hostreservationpurchasepreview | 1 |  | ec2:GetHostReservationPurchasePreview |
+| ec2 | ec2/iaminstanceprofileassociation | 0 |  | ec2:DescribeIamInstanceProfileAssociations |
+| ec2 | ec2/identityidformat | 1 |  | ec2:DescribeIdentityIdFormat |
+| ec2 | ec2/idformat | 0 |  | ec2:DescribeIdFormat |
+| ec2 | ec2/imageancestry | 1 |  | ec2:GetImageAncestry |
+| ec2 | ec2/imageattribute | 1 |  | ec2:DescribeImageAttribute |
+| ec2 | ec2/imagereference | 1 |  | ec2:DescribeImageReferences |
+| ec2 | ec2/imageusagereport | 0 |  | ec2:DescribeImageUsageReports |
+| ec2 | ec2/importimagetask | 0 |  | ec2:DescribeImportImageTasks |
+| ec2 | ec2/importsnapshottask | 0 |  | ec2:DescribeImportSnapshotTasks |
+| ec2 | ec2/instanceattribute | 1 |  | ec2:DescribeInstanceAttribute |
+| ec2 | ec2/instancecreditspecification | 0 |  | ec2:DescribeInstanceCreditSpecifications |
+| ec2 | ec2/instanceeventnotificationattribute | 0 |  | ec2:DescribeInstanceEventNotificationAttributes |
+| ec2 | ec2/instancemetadatadefault | 0 |  | ec2:GetInstanceMetadataDefaults |
+| ec2 | ec2/instancestatus | 0 |  | ec2:DescribeInstanceStatus |
+| ec2 | ec2/ipamaddresshistory | 1 |  | ec2:GetIpamAddressHistory |
+| ec2 | ec2/ipambyoasn | 0 |  | ec2:DescribeIpamByoasn |
+| ec2 | ec2/ipamdiscoveredaccount | 1 |  | ec2:GetIpamDiscoveredAccounts |
+| ec2 | ec2/ipamdiscoveredpublicaddress | 1 |  | ec2:GetIpamDiscoveredPublicAddresses |
+| ec2 | ec2/ipamdiscoveredresourcecidr | 1 |  | ec2:GetIpamDiscoveredResourceCidrs |
+| ec2 | ec2/ipamdiscoveredroute | 1 |  | ec2:GetIpamDiscoveredRoutes |
+| ec2 | ec2/ipaminternetregistryassociation | 0 |  | ec2:DescribeIpamInternetRegistryAssociations |
+| ec2 | ec2/ipampolicyallocationrule | 1 |  | ec2:GetIpamPolicyAllocationRules |
+| ec2 | ec2/ipampolicyorganizationtarget | 1 |  | ec2:GetIpamPolicyOrganizationTargets |
+| ec2 | ec2/ipamprefixlistresolverrule | 1 |  | ec2:GetIpamPrefixListResolverRules |
+| ec2 | ec2/ipamresourcecidr | 1 |  | ec2:GetIpamResourceCidrs |
+| ec2 | ec2/ipamrouteprotectionfinding | 1 |  | ec2:GetIpamRouteProtectionFindings |
+| ec2 | ec2/ipamroutingpolicyregistration | 1 |  | ec2:GetIpamRoutingPolicyRegistrations |
+| ec2 | ec2/ipamroutingpolicyregistrationdelta | 1 |  | ec2:GetIpamRoutingPolicyRegistrationDeltas |
+| ec2 | ec2/macmodificationtask | 0 |  | ec2:DescribeMacModificationTasks |
+| ec2 | ec2/managedprefixlistassociation | 1 |  | ec2:GetManagedPrefixListAssociations |
+| ec2 | ec2/managedresourcevisibility | 0 |  | ec2:GetManagedResourceVisibility |
+| ec2 | ec2/networkinsightsaccessscopeanalysisfinding | 1 |  | ec2:GetNetworkInsightsAccessScopeAnalysisFindings |
+| ec2 | ec2/networkinterfaceattribute | 1 |  | ec2:DescribeNetworkInterfaceAttribute |
+| ec2 | ec2/replacerootvolumetask | 0 |  | ec2:DescribeReplaceRootVolumeTasks |
+| ec2 | ec2/reservedinstancesexchangequote | 1 |  | ec2:GetReservedInstancesExchangeQuote |
+| ec2 | ec2/reservedinstanceslisting | 0 |  | ec2:DescribeReservedInstancesListings |
+| ec2 | ec2/reservedinstancesoffering | 0 |  | ec2:DescribeReservedInstancesOfferings |
+| ec2 | ec2/routeserverassociation | 1 |  | ec2:GetRouteServerAssociations |
+| ec2 | ec2/routeserverpropagation | 1 |  | ec2:GetRouteServerPropagations |
+| ec2 | ec2/routeserverroutingdatabase | 1 |  | ec2:GetRouteServerRoutingDatabase |
+| ec2 | ec2/scheduledinstance | 0 |  | ec2:DescribeScheduledInstances |
+| ec2 | ec2/securitygroupreference | 1 |  | ec2:DescribeSecurityGroupReferences |
+| ec2 | ec2/securitygrouprule | 0 |  | ec2:DescribeSecurityGroupRules |
+| ec2 | ec2/snapshotattribute | 1 |  | ec2:DescribeSnapshotAttribute |
+| ec2 | ec2/spotdatafeedsubscription | 0 |  | ec2:DescribeSpotDatafeedSubscription |
+| ec2 | ec2/spotfleetinstance | 1 |  | ec2:DescribeSpotFleetInstances |
+| ec2 | ec2/stalesecuritygroup | 1 |  | ec2:DescribeStaleSecurityGroups |
+| ec2 | ec2/storeimagetask | 0 |  | ec2:DescribeStoreImageTasks |
+| ec2 | ec2/subnetcidrreservation | 1 |  | ec2:GetSubnetCidrReservations |
+| ec2 | ec2/transitgatewayattachmentpropagation | 1 |  | ec2:GetTransitGatewayAttachmentPropagations |
+| ec2 | ec2/transitgatewaypolicytableassociation | 1 |  | ec2:GetTransitGatewayPolicyTableAssociations |
+| ec2 | ec2/transitgatewaypolicytableentry | 1 |  | ec2:GetTransitGatewayPolicyTableEntries |
+| ec2 | ec2/transitgatewayprefixlistreference | 1 |  | ec2:GetTransitGatewayPrefixListReferences |
+| ec2 | ec2/verifiedaccessendpointtarget | 1 |  | ec2:GetVerifiedAccessEndpointTargets |
+| ec2 | ec2/verifiedaccessinstanceloggingconfiguration | 0 |  | ec2:DescribeVerifiedAccessInstanceLoggingConfigurations |
+| ec2 | ec2/volumeattribute | 1 |  | ec2:DescribeVolumeAttribute |
+| ec2 | ec2/vpcclassiclink | 0 |  | ec2:DescribeVpcClassicLink |
+| ec2 | ec2/vpcclassiclinkdnssupport | 0 |  | ec2:DescribeVpcClassicLinkDnsSupport |
+| ec2 | ec2/vpcendpointconnection | 0 |  | ec2:DescribeVpcEndpointConnections |
+| ec2 | ec2/vpcendpointserviceconfiguration | 0 |  | ec2:DescribeVpcEndpointServiceConfigurations |
+| ec2 | ec2/vpcresourcesblockingencryptionenforcement | 1 |  | ec2:GetVpcResourcesBlockingEncryptionEnforcement |
+| ec2 | ec2/vpnconnectiondevicetype | 0 |  | ec2:GetVpnConnectionDeviceTypes |
+| ecr | ecr/image | 1 |  | ecr:BatchGetImage, ecr:DescribeImages, ecr:ListImages |
+| ecr | ecr/imagereplicationstatus | 1 |  | ecr:DescribeImageReplicationStatus |
+| ecr | ecr/imagesigningstatus | 1 |  | ecr:DescribeImageSigningStatus |
+| ecr | ecr/repositoryscanningconfiguration | 1 |  | ecr:BatchGetRepositoryScanningConfiguration |
+| ecr-public | ecr-public/image | 1 |  | ecr-public:DescribeImages |
+| ecr-public | ecr-public/registry | 0 |  | ecr-public:DescribeRegistries |
+| ecs | ecs/accountsetting | 0 |  | ecs:ListAccountSettings |
+| ecs | ecs/attribute | 1 |  | ecs:ListAttributes |
+| ecs | ecs/daemondeployment | 2 |  | ecs:DescribeDaemonDeployments, ecs:ListDaemonDeployments |
+| ecs | ecs/daemonrevision | 2 |  | ecs:DescribeDaemonRevisions |
+| ecs | ecs/servicedeployment | 2 |  | ecs:DescribeServiceDeployments, ecs:ListServiceDeployments |
+| ecs | ecs/servicerevision | 2 |  | ecs:DescribeServiceRevisions |
+| ecs | ecs/taskprotection | 2 |  | ecs:GetTaskProtection |
+| eks | eks/accesspolicy | 0 |  | eks:ListAccessPolicies |
+| eks | eks/associatedaccesspolicy | 5 |  | eks:ListAssociatedAccessPolicies |
+| eks | eks/clusterversion | 0 |  | eks:DescribeClusterVersions |
+| elasticache | elasticache/cacheparameter | 1 |  | elasticache:DescribeCacheParameters |
+| elasticache | elasticache/reservedcachenodesoffering | 0 |  | elasticache:DescribeReservedCacheNodesOfferings |
+| elasticache | elasticache/updateaction | 0 |  | elasticache:DescribeUpdateActions |
+| elasticbeanstalk | elasticbeanstalk/configurationsetting | 2 |  | elasticbeanstalk:DescribeConfigurationSettings |
+| elasticbeanstalk | elasticbeanstalk/environmentmanagedaction | 0 |  | elasticbeanstalk:DescribeEnvironmentManagedActions |
+| elasticfilesystem | elasticfilesystem/accountpreference | 0 |  | elasticfilesystem:DescribeAccountPreferences |
+| elasticfilesystem | elasticfilesystem/replicationconfiguration | 0 |  | elasticfilesystem:DescribeReplicationConfigurations |
+| elasticloadbalancing | elasticloadbalancing/instancehealth | 2 |  | elasticloadbalancing:DescribeInstanceHealth |
+| elasticloadbalancing | elasticloadbalancing/loadbalancerpolicy | 0 |  | elasticloadbalancing:DescribeLoadBalancerPolicies |
+| elasticloadbalancing | elasticloadbalancing/tag | 0 |  | elasticloadbalancing:DescribeTags |
+| elasticloadbalancing | elasticloadbalancing/truststoreassociation | 2 |  | elasticloadbalancing:DescribeTrustStoreAssociations |
+| elasticmapreduce | elasticmapreduce/bootstrapaction | 1 |  | elasticmapreduce:ListBootstrapActions |
+| elasticmapreduce | elasticmapreduce/instance | 1 |  | elasticmapreduce:ListInstances |
+| elasticmapreduce | elasticmapreduce/jobflow | 0 |  | elasticmapreduce:DescribeJobFlows |
+| elasticmapreduce | elasticmapreduce/notebookexecution | 0 |  | elasticmapreduce:DescribeNotebookExecution, elasticmapreduce:ListNotebookExecutions |
+| elasticmapreduce | elasticmapreduce/session | 1 |  | elasticmapreduce:GetSession, elasticmapreduce:ListSessions |
+| elemental-inference | elemental-inference/dictionary | 0 |  | elemental-inference:GetDictionary, elemental-inference:ListDictionaries |
+| emr-containers | emr-containers/jobrun | 1 |  | emr-containers:DescribeJobRun, emr-containers:ListJobRuns |
+| emr-serverless | emr-serverless/jobrun | 1 |  | emr-serverless:GetJobRun, emr-serverless:ListJobRuns |
+| emr-serverless | emr-serverless/jobrunattempt | 2 |  | emr-serverless:ListJobRunAttempts |
+| emr-serverless | emr-serverless/session | 1 |  | emr-serverless:GetSession, emr-serverless:ListSessions |
+| entityresolution | entityresolution/idmappingjob | 1 |  | entityresolution:GetIdMappingJob, entityresolution:ListIdMappingJobs |
+| entityresolution | entityresolution/matchingjob | 1 |  | entityresolution:GetMatchingJob, entityresolution:ListMatchingJobs |
+| entityresolution | entityresolution/providerservice | 0 |  | entityresolution:GetProviderService, entityresolution:ListProviderServices |
+| es | es/datasourceattachment | 1 |  | es:DescribeDataSourceAttachment, es:ListDataSourceAttachments |
+| es | es/directquerydatasource | 0 |  | es:GetDirectQueryDataSource, es:ListDirectQueryDataSources |
+| es | es/domainmaintenance | 1 |  | es:ListDomainMaintenances |
+| es | es/domainnode | 1 |  | es:DescribeDomainNodes |
+| es | es/elasticsearchdomain | 1 |  | es:DescribeElasticsearchDomain, es:DescribeElasticsearchDomains |
+| es | es/inboundconnection | 0 |  | es:DescribeInboundConnections |
+| es | es/inboundcrossclustersearchconnection | 0 |  | es:DescribeInboundCrossClusterSearchConnections |
+| es | es/insight | 1 |  | es:ListInsights |
+| es | es/insightdetail | 1 |  | es:DescribeInsightDetails |
+| es | es/migration | 1 |  | es:GetMigration, es:ListMigrations |
+| es | es/outboundconnection | 0 |  | es:DescribeOutboundConnections |
+| es | es/outboundcrossclustersearchconnection | 0 |  | es:DescribeOutboundCrossClusterSearchConnections |
+| es | es/package | 0 |  | es:DescribePackages, es:ListPackagesForDomain |
+| es | es/reservedelasticsearchinstanceoffering | 0 |  | es:DescribeReservedElasticsearchInstanceOfferings |
+| es | es/reservedinstanceoffering | 0 |  | es:DescribeReservedInstanceOfferings |
+| es | es/scheduledaction | 1 |  | es:ListScheduledActions |
+| es | es/upgradehistory | 1 |  | es:GetUpgradeHistory |
+| es | es/vpcendpoint | 0 |  | es:DescribeVpcEndpoints, es:ListVpcEndpoints, es:ListVpcEndpointsForDomain |
+| events | events/partnereventsource | 0 |  | events:DescribePartnerEventSource, events:ListPartnerEventSources |
+| events | events/replay | 0 |  | events:DescribeReplay, events:ListReplays |
+| evs | evs/accountsetting | 0 |  | evs:GetAccountSettings |
+| evs | evs/environmentconnector | 1 |  | evs:ListEnvironmentConnectors |
+| evs | evs/environmenthost | 1 |  | evs:ListEnvironmentHosts |
+| evs | evs/environmentvlan | 1 |  | evs:ListEnvironmentVlans |
+| evs | evs/vmentitlement | 1 |  | evs:ListVmEntitlements |
+| finspace | finspace/kxchangeset | 2 |  | finspace:GetKxChangeset, finspace:ListKxChangesets |
+| finspace | finspace/kxclusternode | 2 |  | finspace:ListKxClusterNodes |
+| finspace-api | finspace-api/changeset | 1 |  | finspace-api:GetChangeset, finspace-api:ListChangesets |
+| finspace-api | finspace-api/dataview | 1 |  | finspace-api:GetDataView, finspace-api:ListDataViews |
+| finspace-api | finspace-api/permissiongroup | 0 |  | finspace-api:GetPermissionGroup, finspace-api:ListPermissionGroups, finspace-api:ListPermissionGroupsByUser |
+| finspace-api | finspace-api/user | 0 |  | finspace-api:GetUser, finspace-api:ListUsers, finspace-api:ListUsersByPermissionGroup |
+| fis | fis/action | 0 |  | fis:GetAction, fis:ListActions |
+| fis | fis/experiment | 0 |  | fis:GetExperiment, fis:ListExperiments |
+| fis | fis/experimentresolvedtarget | 1 |  | fis:ListExperimentResolvedTargets |
+| fis | fis/experimenttargetaccountconfiguration | 1 |  | fis:GetExperimentTargetAccountConfiguration, fis:ListExperimentTargetAccountConfigurations |
+| fms | fms/adminaccount | 0 |  | fms:GetAdminAccount, fms:ListAdminAccountsForOrganization |
+| fms | fms/compliancestatus | 1 |  | fms:ListComplianceStatus |
+| fms | fms/discoveredresource | 1 |  | fms:ListDiscoveredResources |
+| fms | fms/resourcesetresource | 1 |  | fms:ListResourceSetResources |
+| forecast | forecast/accuracymetric | 1 |  | forecast:GetAccuracyMetrics |
+| forecast | forecast/autopredictor | 1 |  | forecast:DescribeAutoPredictor |
+| forecast | forecast/datasetimportjob | 0 |  | forecast:DescribeDatasetImportJob, forecast:ListDatasetImportJobs |
+| forecast | forecast/explainabilityexport | 0 |  | forecast:DescribeExplainabilityExport, forecast:ListExplainabilityExports |
+| forecast | forecast/forecastexportjob | 0 |  | forecast:DescribeForecastExportJob, forecast:ListForecastExportJobs |
+| forecast | forecast/monitorevaluation | 1 |  | forecast:ListMonitorEvaluations |
+| forecast | forecast/predictorbacktestexportjob | 0 |  | forecast:DescribePredictorBacktestExportJob, forecast:ListPredictorBacktestExportJobs |
+| forecast | forecast/whatifforecastexport | 0 |  | forecast:DescribeWhatIfForecastExport, forecast:ListWhatIfForecastExports |
+| frauddetector | frauddetector/batchimportjob | 0 |  | frauddetector:GetBatchImportJobs |
+| frauddetector | frauddetector/batchpredictionjob | 0 |  | frauddetector:GetBatchPredictionJobs |
+| frauddetector | frauddetector/detectorversion | 0 |  | frauddetector:GetDetectorVersion |
+| frauddetector | frauddetector/modelversion | 0 |  | frauddetector:DescribeModelVersions, frauddetector:GetModelVersion |
+| fsx | fsx/datarepositorytask | 0 |  | fsx:DescribeDataRepositoryTasks |
+| fsx | fsx/filesystemalias | 1 |  | fsx:DescribeFileSystemAliases |
+| gamelift | gamelift/compute | 1 |  | gamelift:DescribeCompute, gamelift:ListCompute |
+| gamelift | gamelift/computeaccess | 1 |  | gamelift:GetComputeAccess |
+| gamelift | gamelift/containergroupdefinitionversion | 1 |  | gamelift:ListContainerGroupDefinitionVersions |
+| gamelift | gamelift/containergroupportmapping | 1 |  | gamelift:DescribeContainerGroupPortMappings |
+| gamelift | gamelift/fleetcapacity | 0 |  | gamelift:DescribeFleetCapacity |
+| gamelift | gamelift/fleetevent | 1 |  | gamelift:DescribeFleetEvents |
+| gamelift | gamelift/gameserver | 1 |  | gamelift:DescribeGameServer, gamelift:ListGameServers |
+| gamelift | gamelift/gameserverinstance | 1 |  | gamelift:DescribeGameServerInstances |
+| gamelift | gamelift/gamesession | 0 |  | gamelift:DescribeGameSessions, gamelift:SearchGameSessions |
+| gamelift | gamelift/instance | 1 |  | gamelift:DescribeInstances |
+| gamelift | gamelift/matchmaking | 1 |  | gamelift:DescribeMatchmaking |
+| gamelift | gamelift/playerconnectiondetail | 1 |  | gamelift:GetPlayerConnectionDetails |
+| gamelift | gamelift/playersession | 0 |  | gamelift:DescribePlayerSessions |
+| gamelift | gamelift/scalingpolicy | 1 |  | gamelift:DescribeScalingPolicies |
+| gamelift | gamelift/vpcpeeringauthorization | 0 |  | gamelift:DescribeVpcPeeringAuthorizations |
+| gamelift | gamelift/vpcpeeringconnection | 0 |  | gamelift:DescribeVpcPeeringConnections |
+| gameliftstreams | gameliftstreams/applicationshadercach | 1 |  | gameliftstreams:ListApplicationShaderCaches |
+| gameliftstreams | gameliftstreams/streamsession | 0 |  | gameliftstreams:GetStreamSession, gameliftstreams:ListStreamSessions, gameliftstreams:ListStreamSessionsByAccount |
+| gameliftstreams | gameliftstreams/streamurl | 0 |  | gameliftstreams:GetStreamUrl, gameliftstreams:ListStreamUrls |
+| geo | geo/deviceposition | 1 |  | geo:BatchGetDevicePosition, geo:GetDevicePosition, geo:ListDevicePositions |
+| geo | geo/devicepositionhistory | 1 |  | geo:GetDevicePositionHistory |
+| geo | geo/geofence | 1 |  | geo:GetGeofence, geo:ListGeofences |
+| geo | geo/job | 0 |  | geo:GetJob, geo:ListJobs |
+| glacier | glacier/job | 1 |  | glacier:DescribeJob, glacier:ListJobs |
+| glacier | glacier/multipartupload | 1 |  | glacier:ListMultipartUploads |
+| glacier | glacier/provisionedcapacity | 1 |  | glacier:ListProvisionedCapacity |
+| globalaccelerator | globalaccelerator/byoipcidr | 0 |  | globalaccelerator:ListByoipCidrs |
+| globalaccelerator | globalaccelerator/crossaccountresource | 1 |  | globalaccelerator:ListCrossAccountResources |
+| globalaccelerator | globalaccelerator/customroutingaccelerator | 0 |  | globalaccelerator:DescribeCustomRoutingAccelerator, globalaccelerator:ListCustomRoutingAccelerators |
+| globalaccelerator | globalaccelerator/customroutingendpointgroup | 2 |  | globalaccelerator:DescribeCustomRoutingEndpointGroup, globalaccelerator:ListCustomRoutingEndpointGroups |
+| globalaccelerator | globalaccelerator/customroutinglistener | 1 |  | globalaccelerator:DescribeCustomRoutingListener, globalaccelerator:ListCustomRoutingListeners |
+| globalaccelerator | globalaccelerator/customroutingportmapping | 1 |  | globalaccelerator:ListCustomRoutingPortMappings, globalaccelerator:ListCustomRoutingPortMappingsByDestination |
+| glue | glue/blueprintrun | 1 |  | glue:GetBlueprintRun, glue:GetBlueprintRuns |
+| glue | glue/columnstatisticstaskrun | 0 |  | glue:GetColumnStatisticsTaskRun, glue:GetColumnStatisticsTaskRuns, glue:ListColumnStatisticsTaskRuns |
+| glue | glue/crawl | 1 |  | glue:ListCrawls |
+| glue | glue/dataqualityresult | 0 |  | glue:BatchGetDataQualityResult, glue:GetDataQualityResult, glue:ListDataQualityResults |
+| glue | glue/dataqualityrulerecommendationrun | 0 |  | glue:GetDataQualityRuleRecommendationRun, glue:ListDataQualityRuleRecommendationRuns |
+| glue | glue/dataqualityrulesetevaluationrun | 0 |  | glue:BatchGetDataQualityRulesetEvaluationRun, glue:GetDataQualityRulesetEvaluationRun, glue:ListDataQualityRulesetEvaluationRuns |
+| glue | glue/dataqualitystatisticannotation | 0 |  | glue:ListDataQualityStatisticAnnotations |
+| glue | glue/glossaryterm | 0 |  | glue:GetGlossaryTerm, glue:ListGlossaryTerms |
+| glue | glue/inboundintegration | 0 |  | glue:DescribeInboundIntegrations |
+| glue | glue/integrationtableproperty | 0 |  | glue:GetIntegrationTableProperties, glue:ListIntegrationTableProperties |
+| glue | glue/iterableform | 1 |  | glue:BatchGetIterableForms, glue:ListIterableForms |
+| glue | glue/jobrun | 1 |  | glue:GetJobRun, glue:GetJobRuns |
+| glue | glue/materializedviewrefreshtaskrun | 1 |  | glue:GetMaterializedViewRefreshTaskRun, glue:ListMaterializedViewRefreshTaskRuns |
+| glue | glue/mltaskrun | 1 |  | glue:GetMLTaskRun, glue:GetMLTaskRuns |
+| glue | glue/resourcepolicy | 0 |  | glue:GetResourcePolicies, glue:GetResourcePolicy |
+| glue | glue/session | 0 |  | glue:GetSession, glue:ListSessions |
+| glue | glue/statement | 1 |  | glue:GetStatement, glue:ListStatements |
+| glue | glue/unfilteredtablemetadata | 1 |  | glue:GetUnfilteredTableMetadata |
+| glue | glue/workflowrun | 1 |  | glue:GetWorkflowRun, glue:GetWorkflowRuns |
+| greengrass | greengrass/bulkdeployment | 0 |  | greengrass:ListBulkDeployments |
+| greengrass | greengrass/bulkdeploymentdetailedreport | 1 |  | greengrass:ListBulkDeploymentDetailedReports |
+| greengrass | greengrass/clientdevicesassociatedwithcoredevice | 1 |  | greengrass:ListClientDevicesAssociatedWithCoreDevice |
+| greengrass | greengrass/connectivityinfo | 0 |  | greengrass:GetConnectivityInfo |
+| greengrass | greengrass/effectivedeployment | 1 |  | greengrass:ListEffectiveDeployments |
+| greengrass | greengrass/groupcertificateauthority | 1 |  | greengrass:GetGroupCertificateAuthority, greengrass:ListGroupCertificateAuthorities |
+| greengrass | greengrass/installedcomponent | 1 |  | greengrass:ListInstalledComponents |
+| groundstation | groundstation/antenna | 1 |  | groundstation:ListAntennas |
+| groundstation | groundstation/contact | 0 |  | groundstation:DescribeContact, groundstation:ListContacts |
+| groundstation | groundstation/contactversion | 1 |  | groundstation:DescribeContactVersion, groundstation:ListContactVersions |
+| groundstation | groundstation/groundstationreservation | 1 |  | groundstation:ListGroundStationReservations |
+| groundstation | groundstation/satellite | 0 |  | groundstation:GetSatellite, groundstation:ListSatellites |
+| guardduty | guardduty/coverage | 1 |  | guardduty:ListCoverage |
+| guardduty | guardduty/customdetectionrule | 0 |  | guardduty:GetCustomDetectionRule, guardduty:ListCustomDetectionRules |
+| guardduty | guardduty/customdetectionruleassociation | 0 |  | guardduty:GetCustomDetectionRuleAssociation, guardduty:ListCustomDetectionRuleAssociations |
+| guardduty | guardduty/customdetectionruleorgconfiguration | 0 |  | guardduty:GetCustomDetectionRuleOrgConfiguration, guardduty:ListCustomDetectionRuleOrgConfigurations |
+| guardduty | guardduty/finding | 1 |  | guardduty:GetFindings, guardduty:ListFindings |
+| guardduty | guardduty/investigation | 1 |  | guardduty:GetInvestigation, guardduty:ListInvestigations |
+| guardduty | guardduty/invitation | 0 |  | guardduty:ListInvitations |
+| guardduty | guardduty/malwarescan | 0 |  | guardduty:DescribeMalwareScans, guardduty:GetMalwareScan, guardduty:ListMalwareScans |
+| guardduty | guardduty/memberdetector | 1 |  | guardduty:GetMemberDetectors |
+| guardduty | guardduty/organizationadminaccount | 0 |  | guardduty:ListOrganizationAdminAccounts |
+| guardduty | guardduty/organizationconfiguration | 1 |  | guardduty:DescribeOrganizationConfiguration |
+| guardduty | guardduty/remainingfreetrialday | 1 |  | guardduty:GetRemainingFreeTrialDays |
+| health | health/affectedentity | 0 |  | health:DescribeAffectedEntities, health:DescribeAffectedEntitiesForOrganization |
+| health | health/entityaggregate | 0 |  | health:DescribeEntityAggregates, health:DescribeEntityAggregatesForOrganization |
+| health | health/event | 0 |  | health:DescribeEvents, health:DescribeEventsForOrganization |
+| health | health/eventdetail | 0 |  | health:DescribeEventDetails, health:DescribeEventDetailsForOrganization |
+| health-agent | health-agent/domain | 0 |  | health-agent:GetDomain, health-agent:ListDomains |
+| health-agent | health-agent/subscription | 1 |  | health-agent:GetSubscription, health-agent:ListSubscriptions |
+| healthlake | healthlake/datatransformationjob | 0 |  | healthlake:DescribeDataTransformationJob, healthlake:ListDataTransformationJobs |
+| healthlake | healthlake/datatransformationprofile | 0 |  | healthlake:GetDataTransformationProfile, healthlake:ListDataTransformationProfiles |
+| healthlake | healthlake/datatransformationprofileversion | 1 |  | healthlake:ListDataTransformationProfileVersions |
+| healthlake | healthlake/fhirexportjob | 1 |  | healthlake:DescribeFHIRExportJob, healthlake:ListFHIRExportJobs |
+| healthlake | healthlake/fhirimportjob | 1 |  | healthlake:DescribeFHIRImportJob, healthlake:ListFHIRImportJobs |
+| iam | iam/attachedgrouppolicy | 1 |  | iam:ListAttachedGroupPolicies |
+| iam | iam/attachedrolepolicy | 1 |  | iam:ListAttachedRolePolicies |
+| iam | iam/attacheduserpolicy | 1 |  | iam:ListAttachedUserPolicies |
+| iam | iam/delegationrequest | 0 |  | iam:GetDelegationRequest, iam:ListDelegationRequests |
+| iam | iam/entity | 1 |  | iam:ListEntitiesForPolicy |
+| iam | iam/loginprofile | 0 |  | iam:GetLoginProfile |
+| iam | iam/mfadevice | 0 |  | iam:GetMFADevice, iam:ListMFADevices |
+| iam | iam/organizationsaccessreport | 1 |  | iam:GetOrganizationsAccessReport |
+| iam | iam/policyversion | 1 |  | iam:GetPolicyVersion, iam:ListPolicyVersions |
+| iam | iam/servicelastaccesseddetail | 1 |  | iam:GetServiceLastAccessedDetails |
+| iam | iam/servicespecificcredential | 0 |  | iam:ListServiceSpecificCredentials |
+| iam | iam/signingcertificate | 0 |  | iam:ListSigningCertificates |
+| iam | iam/sshpublickey | 0 |  | iam:GetSSHPublicKey, iam:ListSSHPublicKeys |
+| imagebuilder | imagebuilder/imagepackage | 3 |  | imagebuilder:ListImagePackages |
+| imagebuilder | imagebuilder/imagepipelineimage | 1 |  | imagebuilder:ListImagePipelineImages |
+| imagebuilder | imagebuilder/lifecycleexecution | 0 |  | imagebuilder:GetLifecycleExecution, imagebuilder:ListLifecycleExecutions |
+| imagebuilder | imagebuilder/lifecycleexecutionresource | 1 |  | imagebuilder:ListLifecycleExecutionResources |
+| imagebuilder | imagebuilder/workflowexecution | 0 |  | imagebuilder:GetWorkflowExecution, imagebuilder:ListWorkflowExecutions |
+| imagebuilder | imagebuilder/workflowstepexecution | 0 |  | imagebuilder:GetWorkflowStepExecution, imagebuilder:ListWorkflowStepExecutions |
+| inspector | inspector/assessmentrun | 0 |  | inspector:DescribeAssessmentRuns, inspector:ListAssessmentRuns |
+| inspector | inspector/assessmentrunagent | 1 |  | inspector:ListAssessmentRunAgents |
+| inspector | inspector/assessmenttarget | 0 |  | inspector:DescribeAssessmentTargets, inspector:ListAssessmentTargets |
+| inspector | inspector/assessmenttemplate | 0 |  | inspector:DescribeAssessmentTemplates, inspector:ListAssessmentTemplates |
+| inspector | inspector/exclusion | 0 |  | inspector:DescribeExclusions, inspector:ListExclusions |
+| inspector | inspector/resourcegroup | 0 |  | inspector:DescribeResourceGroups |
+| inspector2 | inspector2/cisscanresultsaggregated | 1 |  | inspector2:ListCisScanResultsAggregatedByChecks, inspector2:ListCisScanResultsAggregatedByTargetResource |
+| inspector2 | inspector2/cluster | 2 |  | inspector2:GetClustersForImage |
+| inspector2 | inspector2/codesnippet | 1 |  | inspector2:BatchGetCodeSnippet |
+| inspector2 | inspector2/connector | 0 |  | inspector2:ListConnectors |
+| inspector2 | inspector2/connectorscanconfiguration | 0 |  | inspector2:ListConnectorScanConfigurations |
+| inspector2 | inspector2/delegatedadminaccount | 0 |  | inspector2:GetDelegatedAdminAccount, inspector2:ListDelegatedAdminAccounts |
+| inspector2 | inspector2/finding | 0 |  | inspector2:ListFindings |
+| inspector2 | inspector2/findingdetail | 1 |  | inspector2:BatchGetFindingDetails |
+| inspector2 | inspector2/freetrialinfo | 1 |  | inspector2:BatchGetFreeTrialInfo |
+| inspector2 | inspector2/memberec2deepinspectionstatus | 0 |  | inspector2:BatchGetMemberEc2DeepInspectionStatus |
+| internetmonitor | internetmonitor/healthevent | 1 |  | internetmonitor:GetHealthEvent, internetmonitor:ListHealthEvents |
+| internetmonitor | internetmonitor/internetevent | 0 |  | internetmonitor:GetInternetEvent, internetmonitor:ListInternetEvents |
+| internetmonitor | internetmonitor/queryresult | 1 |  | internetmonitor:GetQueryResults |
+| invoicing | invoicing/invoiceprofile | 1 |  | invoicing:BatchGetInvoiceProfile |
+| invoicing | invoicing/procurementportalpreference | 0 |  | invoicing:GetProcurementPortalPreference, invoicing:ListProcurementPortalPreferences |
+| invoicing | invoicing/procurementportalsupplier | 1 |  | invoicing:ListProcurementPortalSuppliers |
+| iot | iot/auditmitigationactionsexecution | 1 |  | iot:ListAuditMitigationActionsExecutions |
+| iot | iot/auditmitigationactionstask | 0 |  | iot:DescribeAuditMitigationActionsTask, iot:ListAuditMitigationActionsTasks |
+| iot | iot/auditsuppression | 0 |  | iot:DescribeAuditSuppression, iot:ListAuditSuppressions |
+| iot | iot/audittask | 0 |  | iot:DescribeAuditTask, iot:ListAuditTasks |
+| iot | iot/commandexecution | 0 |  | iot:GetCommandExecution, iot:ListCommandExecutions |
+| iot | iot/detectmitigationactionstask | 0 |  | iot:DescribeDetectMitigationActionsTask, iot:ListDetectMitigationActionsTasks |
+| iot | iot/jobexecution | 1 |  | iot:DescribeJobExecution, iot:ListJobExecutionsForJob, iot:ListJobExecutionsForThing |
+| iot | iot/policyversion | 1 |  | iot:GetPolicyVersion, iot:ListPolicyVersions |
+| iot | iot/principalpolicy | 0 |  | iot:ListPrincipalPolicies |
+| iot | iot/principalthing | 1 |  | iot:ListPrincipalThings, iot:ListPrincipalThingsV2 |
+| iot | iot/provisioningtemplateversion | 1 |  | iot:DescribeProvisioningTemplateVersion, iot:ListProvisioningTemplateVersions |
+| iot | iot/relatedresource | 1 |  | iot:ListRelatedResourcesForAuditFinding |
+| iot | iot/sbomvalidationresult | 2 |  | iot:ListSbomValidationResults |
+| iot | iot/thingregistrationtask | 0 |  | iot:DescribeThingRegistrationTask, iot:ListThingRegistrationTasks |
+| iot | iot/violationevent | 1 |  | iot:ListViolationEvents |
+| iot-jobs-data | iot-jobs-data/pendingjobexecution | 1 |  | iot-jobs-data:GetPendingJobExecutions |
+| iotdeviceadvisor | iotdeviceadvisor/suiterun | 0 |  | iotdeviceadvisor:GetSuiteRun, iotdeviceadvisor:ListSuiteRuns |
+| iotfleetwise | iotfleetwise/decodermanifestnetworkinterface | 1 |  | iotfleetwise:ListDecoderManifestNetworkInterfaces |
+| iotfleetwise | iotfleetwise/decodermanifestsignal | 1 |  | iotfleetwise:ListDecoderManifestSignals |
+| iotfleetwise | iotfleetwise/vehiclestatus | 1 |  | iotfleetwise:GetVehicleStatus |
+| iotmanagedintegrations | iotmanagedintegrations/cloudconnector | 0 |  | iotmanagedintegrations:GetCloudConnector, iotmanagedintegrations:ListCloudConnectors |
+| iotmanagedintegrations | iotmanagedintegrations/connectordestination | 0 |  | iotmanagedintegrations:GetConnectorDestination, iotmanagedintegrations:ListConnectorDestinations |
+| iotmanagedintegrations | iotmanagedintegrations/destination | 0 |  | iotmanagedintegrations:GetDestination, iotmanagedintegrations:ListDestinations |
+| iotmanagedintegrations | iotmanagedintegrations/devicediscovery | 0 |  | iotmanagedintegrations:GetDeviceDiscovery, iotmanagedintegrations:ListDeviceDiscoveries |
+| iotmanagedintegrations | iotmanagedintegrations/eventlogconfiguration | 0 |  | iotmanagedintegrations:GetEventLogConfiguration, iotmanagedintegrations:ListEventLogConfigurations |
+| iotmanagedintegrations | iotmanagedintegrations/managedthingschema | 1 |  | iotmanagedintegrations:ListManagedThingSchemas |
+| iotmanagedintegrations | iotmanagedintegrations/managedthingstate | 1 |  | iotmanagedintegrations:GetManagedThingState |
+| iotmanagedintegrations | iotmanagedintegrations/notificationconfiguration | 0 |  | iotmanagedintegrations:GetNotificationConfiguration, iotmanagedintegrations:ListNotificationConfigurations |
+| iotmanagedintegrations | iotmanagedintegrations/otataskconfiguration | 0 |  | iotmanagedintegrations:GetOtaTaskConfiguration, iotmanagedintegrations:ListOtaTaskConfigurations |
+| iotmanagedintegrations | iotmanagedintegrations/otataskexecution | 1 |  | iotmanagedintegrations:ListOtaTaskExecutions |
+| iotsitewise | iotsitewise/action | 1 |  | iotsitewise:DescribeAction, iotsitewise:ListActions |
+| iotsitewise | iotsitewise/application | 0 |  | iotsitewise:DescribeApplication, iotsitewise:ListApplications |
+| iotsitewise | iotsitewise/assetcompositemodel | 1 |  | iotsitewise:DescribeAssetCompositeModel |
+| iotsitewise | iotsitewise/assetmodelcompositemodel | 1 |  | iotsitewise:DescribeAssetModelCompositeModel, iotsitewise:ListAssetModelCompositeModels |
+| iotsitewise | iotsitewise/assetmodelinterfacerelationship | 1 |  | iotsitewise:DescribeAssetModelInterfaceRelationship |
+| iotsitewise | iotsitewise/assetmodelproperty | 1 |  | iotsitewise:ListAssetModelProperties |
+| iotsitewise | iotsitewise/assetproperty | 1 |  | iotsitewise:DescribeAssetProperty, iotsitewise:ListAssetProperties |
+| iotsitewise | iotsitewise/assetpropertyaggregate | 1 |  | iotsitewise:BatchGetAssetPropertyAggregates, iotsitewise:GetAssetPropertyAggregates |
+| iotsitewise | iotsitewise/assetpropertyvalue | 0 |  | iotsitewise:BatchGetAssetPropertyValue, iotsitewise:GetAssetPropertyValue |
+| iotsitewise | iotsitewise/assetpropertyvaluehistory | 0 |  | iotsitewise:BatchGetAssetPropertyValueHistory, iotsitewise:GetAssetPropertyValueHistory |
+| iotsitewise | iotsitewise/associatedasset | 1 |  | iotsitewise:ListAssociatedAssets |
+| iotsitewise | iotsitewise/bulkimportjob | 0 |  | iotsitewise:DescribeBulkImportJob, iotsitewise:ListBulkImportJobs |
+| iotsitewise | iotsitewise/compositionrelationship | 1 |  | iotsitewise:ListCompositionRelationships |
+| iotsitewise | iotsitewise/computationmodeldatabindingusage | 1 |  | iotsitewise:ListComputationModelDataBindingUsages |
+| iotsitewise | iotsitewise/datasetdatasegment | 1 |  | iotsitewise:ListDatasetDataSegments |
+| iotsitewise | iotsitewise/datasetdatasegmentrelationship | 1 |  | iotsitewise:ListDatasetDataSegmentRelationships |
+| iotsitewise | iotsitewise/datasetexportjob | 1 |  | iotsitewise:DescribeDatasetExportJob, iotsitewise:ListDatasetExportJobs |
+| iotsitewise | iotsitewise/enrichmentjob | 1 |  | iotsitewise:DescribeEnrichmentJob, iotsitewise:ListEnrichmentJobs |
+| iotsitewise | iotsitewise/execution | 0 |  | iotsitewise:DescribeExecution, iotsitewise:ListExecutions |
+| iotsitewise | iotsitewise/pipeline | 1 |  | iotsitewise:DescribePipeline, iotsitewise:ListPipelines |
+| iotsitewise | iotsitewise/pipelineexecution | 2 |  | iotsitewise:DescribePipelineExecution, iotsitewise:ListPipelineExecutions |
+| iotsitewise | iotsitewise/projectasset | 1 |  | iotsitewise:ListProjectAssets |
+| iotsitewise | iotsitewise/query | 1 |  | iotsitewise:DescribeQuery, iotsitewise:ListQueries |
+| iotsitewise | iotsitewise/search | 1 |  | iotsitewise:DescribeSearch, iotsitewise:ListSearches |
+| iotsitewise | iotsitewise/searchresult | 1 |  | iotsitewise:GetSearchResults |
+| iotsitewise | iotsitewise/task | 1 |  | iotsitewise:DescribeTask, iotsitewise:ListTasks |
+| iotsitewise | iotsitewise/timesery | 0 |  | iotsitewise:DescribeTimeSeries, iotsitewise:ListTimeSeries |
+| iotsitewise | iotsitewise/workspace | 0 |  | iotsitewise:DescribeWorkspace, iotsitewise:ListWorkspaces |
+| iotthingsgraph | iotthingsgraph/flowexecution | 1 |  | iotthingsgraph:SearchFlowExecutions |
+| iotthingsgraph | iotthingsgraph/flowexecutionmessage | 1 |  | iotthingsgraph:ListFlowExecutionMessages |
+| iotthingsgraph | iotthingsgraph/thing | 1 |  | iotthingsgraph:SearchThings |
+| iottwinmaker | iottwinmaker/component | 2 |  | iottwinmaker:ListComponents |
+| iottwinmaker | iottwinmaker/metadatatransferjob | 0 |  | iottwinmaker:GetMetadataTransferJob, iottwinmaker:ListMetadataTransferJobs |
+| iottwinmaker | iottwinmaker/property | 2 |  | iottwinmaker:ListProperties |
+| iottwinmaker | iottwinmaker/syncresource | 2 |  | iottwinmaker:ListSyncResources |
+| iotwireless | iotwireless/eventconfiguration | 0 |  | iotwireless:GetEventConfigurationByResourceTypes, iotwireless:ListEventConfigurations |
+| iotwireless | iotwireless/loglevel | 0 |  | iotwireless:GetLogLevelsByResourceTypes |
+| iotwireless | iotwireless/positionconfiguration | 0 |  | iotwireless:GetPositionConfiguration, iotwireless:ListPositionConfigurations |
+| iotwireless | iotwireless/queuedmessage | 0 |  | iotwireless:ListQueuedMessages |
+| ivs | ivs/composition | 0 |  | ivs:GetComposition, ivs:ListCompositions |
+| ivs | ivs/participant | 1 |  | ivs:GetParticipant, ivs:ListParticipants |
+| ivs | ivs/participantevent | 1 |  | ivs:ListParticipantEvents |
+| ivs | ivs/participantreplica | 1 |  | ivs:ListParticipantReplicas |
+| ivs | ivs/stagesession | 1 |  | ivs:GetStageSession, ivs:ListStageSessions |
+| ivs | ivs/stream | 0 |  | ivs:GetStream, ivs:ListStreams |
+| ivs | ivs/streamsession | 1 |  | ivs:GetStreamSession, ivs:ListStreamSessions |
+| kafka | kafka/channel | 2 |  | kafka:DescribeChannel, kafka:ListChannels |
+| kafka | kafka/clientvpcconnection | 2 |  | kafka:ListClientVpcConnections |
+| kafka | kafka/clusteroperation | 0 |  | kafka:DescribeClusterOperation, kafka:DescribeClusterOperationV2, kafka:ListClusterOperations, kafka:ListClusterOperationsV2 |
+| kafka | kafka/node | 2 |  | kafka:ListNodes |
+| kafka | kafka/topic | 2 |  | kafka:DescribeTopic, kafka:ListTopics |
+| kafkaconnect | kafkaconnect/connectoroperation | 2 |  | kafkaconnect:DescribeConnectorOperation, kafkaconnect:ListConnectorOperations |
+| kendra | kendra/datasourcesyncjob | 2 |  | kendra:ListDataSourceSyncJobs |
+| kendra | kendra/documentstatus | 1 |  | kendra:BatchGetDocumentStatus |
+| kendra | kendra/entitypersona | 2 |  | kendra:ListEntityPersonas |
+| kendra | kendra/experienceentity | 2 |  | kendra:ListExperienceEntities |
+| kendra | kendra/groupsolderthanorderingid | 2 |  | kendra:ListGroupsOlderThanOrderingId |
+| kendra | kendra/principalmapping | 2 |  | kendra:DescribePrincipalMapping |
+| kendra | kendra/querysuggestion | 1 |  | kendra:GetQuerySuggestions |
+| kinesis | kinesis/channel | 0 |  | kinesis:DescribeChannel, kinesis:ListChannels |
+| kinesis | kinesis/record | 1 |  | kinesis:GetRecords |
+| kinesis | kinesis/shard | 0 |  | kinesis:ListShards |
+| kinesisanalytics | kinesisanalytics/applicationoperation | 1 |  | kinesisanalytics:DescribeApplicationOperation, kinesisanalytics:ListApplicationOperations |
+| kinesisanalytics | kinesisanalytics/applicationsnapshot | 1 |  | kinesisanalytics:DescribeApplicationSnapshot, kinesisanalytics:ListApplicationSnapshots |
+| kinesisanalytics | kinesisanalytics/applicationversion | 1 |  | kinesisanalytics:DescribeApplicationVersion, kinesisanalytics:ListApplicationVersions |
+| kinesisvideo | kinesisvideo/edgeagentconfiguration | 1 |  | kinesisvideo:ListEdgeAgentConfigurations |
+| kms | kms/customkeystore | 0 |  | kms:DescribeCustomKeyStores |
+| kms | kms/keyrotation | 1 |  | kms:ListKeyRotations |
+| lakeformation | lakeformation/lakeformationidentitycenterconfiguration | 0 |  | lakeformation:DescribeLakeFormationIdentityCenterConfiguration |
+| lakeformation | lakeformation/lakeformationoptin | 0 |  | lakeformation:ListLakeFormationOptIns |
+| lakeformation | lakeformation/lftagexpression | 0 |  | lakeformation:GetLFTagExpression, lakeformation:ListLFTagExpressions |
+| lakeformation | lakeformation/transaction | 0 |  | lakeformation:DescribeTransaction, lakeformation:ListTransactions |
+| lambda | lambda/durableexecution | 1 |  | lambda:GetDurableExecution, lambda:ListDurableExecutionsByFunction |
+| lambda | lambda/durableexecutionhistory | 4 |  | lambda:GetDurableExecutionHistory |
+| lambda | lambda/durableexecutionstate | 4 |  | lambda:GetDurableExecutionState |
+| lambda | lambda/functionconfiguration | 1 |  | lambda:GetFunctionConfiguration |
+| lambda | lambda/managedmicrovmimageversion | 1 |  | lambda:ListManagedMicrovmImageVersions |
+| lambda | lambda/microvm | 0 |  | lambda:GetMicrovm, lambda:ListMicrovms |
+| lambda | lambda/microvmimage | 0 |  | lambda:GetMicrovmImage, lambda:ListMicrovmImages |
+| lambda | lambda/microvmimagebuild | 1 |  | lambda:GetMicrovmImageBuild, lambda:ListMicrovmImageBuilds |
+| lambda | lambda/microvmimageversion | 1 |  | lambda:GetMicrovmImageVersion, lambda:ListMicrovmImageVersions |
+| lambda | lambda/networkconnector | 0 |  | lambda:GetNetworkConnector, lambda:ListNetworkConnectors |
+| lambda | lambda/provisionedconcurrencyconfig | 1 |  | lambda:GetProvisionedConcurrencyConfig, lambda:ListProvisionedConcurrencyConfigs |
+| launchwizard | launchwizard/deploymentpatternversion | 1 |  | launchwizard:GetDeploymentPatternVersion, launchwizard:ListDeploymentPatternVersions |
+| launchwizard | launchwizard/workloaddeploymentpattern | 1 |  | launchwizard:GetWorkloadDeploymentPattern, launchwizard:ListWorkloadDeploymentPatterns |
+| lex | lex/botaliasreplica | 1 |  | lex:ListBotAliasReplicas |
+| lex | lex/botanalyzerhistory | 1 |  | lex:ListBotAnalyzerHistory |
+| lex | lex/botchannelassociation | 3 |  | lex:GetBotChannelAssociation, lex:GetBotChannelAssociations |
+| lex | lex/botlocale | 1 |  | lex:DescribeBotLocale, lex:ListBotLocales |
+| lex | lex/botrecommendation | 1 |  | lex:DescribeBotRecommendation, lex:ListBotRecommendations |
+| lex | lex/botresourcegeneration | 1 |  | lex:DescribeBotResourceGeneration, lex:ListBotResourceGenerations |
+| lex | lex/customvocabularyitem | 1 |  | lex:ListCustomVocabularyItems |
+| lex | lex/export | 0 |  | lex:DescribeExport, lex:GetExport, lex:ListExports |
+| lex | lex/import | 0 |  | lex:DescribeImport, lex:GetImport, lex:ListImports |
+| lex | lex/intent | 0 |  | lex:DescribeIntent, lex:GetIntent, lex:GetIntents, lex:ListIntents |
+| lex | lex/intentpath | 1 |  | lex:ListIntentPaths |
+| lex | lex/intentversion | 1 |  | lex:GetIntentVersions |
+| lex | lex/migration | 0 |  | lex:GetMigration, lex:GetMigrations |
+| lex | lex/recommendedintent | 1 |  | lex:ListRecommendedIntents |
+| lex | lex/session | 2 |  | lex:GetSession |
+| lex | lex/sessionanalyticsdata | 1 |  | lex:ListSessionAnalyticsData |
+| lex | lex/slot | 1 |  | lex:DescribeSlot, lex:ListSlots |
+| lex | lex/slottype | 0 |  | lex:DescribeSlotType, lex:GetSlotType, lex:GetSlotTypes, lex:ListSlotTypes |
+| lex | lex/slottypeversion | 1 |  | lex:GetSlotTypeVersions |
+| lex | lex/testexecution | 0 |  | lex:DescribeTestExecution, lex:ListTestExecutions |
+| lex | lex/testsetrecord | 1 |  | lex:ListTestSetRecords |
+| lex | lex/utteranceanalyticsdata | 1 |  | lex:ListUtteranceAnalyticsData |
+| license-manager | license-manager/asset | 1 |  | license-manager:ListAssetsForLicenseAssetGroup |
+| license-manager | license-manager/association | 1 |  | license-manager:ListAssociationsForLicenseConfiguration |
+| license-manager | license-manager/failure | 1 |  | license-manager:ListFailuresForLicenseConfigurationOperations |
+| license-manager | license-manager/licenseconversiontask | 0 |  | license-manager:GetLicenseConversionTask, license-manager:ListLicenseConversionTasks |
+| license-manager | license-manager/licensespecification | 0 |  | license-manager:ListLicenseSpecificationsForResource |
+| license-manager | license-manager/licenseversion | 1 |  | license-manager:ListLicenseVersions |
+| license-manager | license-manager/receivedgrant | 0 |  | license-manager:ListReceivedGrants, license-manager:ListReceivedGrantsForOrganization |
+| license-manager | license-manager/servicesetting | 0 |  | license-manager:GetServiceSettings |
+| license-manager | license-manager/token | 0 |  | license-manager:ListTokens |
+| license-manager | license-manager/usage | 1 |  | license-manager:ListUsageForLicenseConfiguration |
+| lightsail | lightsail/autosnapshot | 0 |  | lightsail:GetAutoSnapshots |
+| lightsail | lightsail/bucketaccesskey | 1 |  | lightsail:GetBucketAccessKeys |
+| lightsail | lightsail/bucketbundle | 0 |  | lightsail:GetBucketBundles |
+| lightsail | lightsail/cloudformationstackrecord | 0 |  | lightsail:GetCloudFormationStackRecords |
+| lightsail | lightsail/costestimate | 1 |  | lightsail:GetCostEstimate |
+| lightsail | lightsail/distributionbundle | 0 |  | lightsail:GetDistributionBundles |
+| lightsail | lightsail/exportsnapshotrecord | 0 |  | lightsail:GetExportSnapshotRecords |
+| lightsail | lightsail/relationaldatabaseparameter | 1 |  | lightsail:GetRelationalDatabaseParameters |
+| lightsail | lightsail/setuphistory | 1 |  | lightsail:GetSetupHistory |
+| logs | logs/anomaly | 0 |  | logs:ListAnomalies |
+| logs | logs/exporttask | 0 |  | logs:DescribeExportTasks |
+| logs | logs/fieldindex | 1 |  | logs:DescribeFieldIndexes |
+| logs | logs/importtask | 0 |  | logs:DescribeImportTasks |
+| logs | logs/importtaskbatch | 1 |  | logs:DescribeImportTaskBatches |
+| logs | logs/indexpolicy | 1 |  | logs:DescribeIndexPolicies |
+| logs | logs/logfield | 1 |  | logs:GetLogFields |
+| logs | logs/scheduledqueryhistory | 1 |  | logs:GetScheduledQueryHistory |
+| logs | logs/source | 1 |  | logs:ListSourcesForS3TableIntegration |
+| logs | logs/syslogconfiguration | 0 |  | logs:ListSyslogConfigurations |
+| lookoutequipment | lookoutequipment/dataingestionjob | 0 |  | lookoutequipment:DescribeDataIngestionJob, lookoutequipment:ListDataIngestionJobs |
+| lookoutequipment | lookoutequipment/inferenceevent | 2 |  | lookoutequipment:ListInferenceEvents |
+| lookoutequipment | lookoutequipment/inferenceexecution | 2 |  | lookoutequipment:ListInferenceExecutions |
+| lookoutequipment | lookoutequipment/label | 2 |  | lookoutequipment:DescribeLabel, lookoutequipment:ListLabels |
+| lookoutequipment | lookoutequipment/retrainingscheduler | 0 |  | lookoutequipment:DescribeRetrainingScheduler, lookoutequipment:ListRetrainingSchedulers |
+| lookoutequipment | lookoutequipment/sensorstatistic | 2 |  | lookoutequipment:ListSensorStatistics |
+| m2 | m2/batchjobexecution | 1 |  | m2:GetBatchJobExecution, m2:ListBatchJobExecutions |
+| m2 | m2/batchjobrestartpoint | 1 |  | m2:ListBatchJobRestartPoints |
+| m2 | m2/dataset | 1 |  | m2:ListDataSets |
+| m2 | m2/datasetexporthistory | 1 |  | m2:ListDataSetExportHistory |
+| m2 | m2/datasetimporthistory | 1 |  | m2:ListDataSetImportHistory |
+| machinelearning | machinelearning/batchprediction | 0 |  | machinelearning:DescribeBatchPredictions, machinelearning:GetBatchPrediction |
+| machinelearning | machinelearning/datasource | 0 |  | machinelearning:DescribeDataSources, machinelearning:GetDataSource |
+| machinelearning | machinelearning/evaluation | 0 |  | machinelearning:DescribeEvaluations, machinelearning:GetEvaluation |
+| machinelearning | machinelearning/mlmodel | 0 |  | machinelearning:DescribeMLModels, machinelearning:GetMLModel |
+| macie2 | macie2/automateddiscoveryaccount | 0 |  | macie2:ListAutomatedDiscoveryAccounts |
+| macie2 | macie2/classificationscope | 0 |  | macie2:GetClassificationScope, macie2:ListClassificationScopes |
+| macie2 | macie2/invitation | 0 |  | macie2:ListInvitations |
+| macie2 | macie2/organizationadminaccount | 0 |  | macie2:ListOrganizationAdminAccounts |
+| macie2 | macie2/resourceprofiledetection | 0 |  | macie2:ListResourceProfileDetections |
+| macie2 | macie2/sensitivityinspectiontemplate | 0 |  | macie2:GetSensitivityInspectionTemplate, macie2:ListSensitivityInspectionTemplates |
+| managedblockchain | managedblockchain/invitation | 0 |  | managedblockchain:ListInvitations |
+| managedblockchain | managedblockchain/proposalvote | 1 |  | managedblockchain:ListProposalVotes |
+| mediaconnect | mediaconnect/entitlement | 0 |  | mediaconnect:ListEntitlements |
+| mediaconnect | mediaconnect/flowsourcemetadata | 2 |  | mediaconnect:DescribeFlowSourceMetadata |
+| mediaconnect | mediaconnect/gatewayinstance | 0 |  | mediaconnect:DescribeGatewayInstance, mediaconnect:ListGatewayInstances |
+| mediaconnect | mediaconnect/offering | 0 |  | mediaconnect:DescribeOffering, mediaconnect:ListOfferings |
+| mediaconvert | mediaconvert/job | 0 |  | mediaconvert:GetJob, mediaconvert:ListJobs, mediaconvert:SearchJobs |
+| medialive | medialive/alert | 1 |  | medialive:ListAlerts |
+| medialive | medialive/clusteralert | 1 |  | medialive:ListClusterAlerts |
+| medialive | medialive/inputdevicetransfer | 0 |  | medialive:ListInputDeviceTransfers |
+| medialive | medialive/multiplexalert | 1 |  | medialive:ListMultiplexAlerts |
+| medialive | medialive/offering | 0 |  | medialive:DescribeOffering, medialive:ListOfferings |
+| medialive | medialive/schedule | 1 |  | medialive:DescribeSchedule |
+| medialive | medialive/thumbnail | 1 |  | medialive:DescribeThumbnails |
+| mediapackage | mediapackage/harvestjob | 0 |  | mediapackage:DescribeHarvestJob, mediapackage:ListHarvestJobs |
+| mediapackagev2 | mediapackagev2/harvestjob | 1 |  | mediapackagev2:GetHarvestJob, mediapackagev2:ListHarvestJobs |
+| mediastore | mediastore/container | 0 |  | mediastore:DescribeContainer, mediastore:ListContainers |
+| mediastore | mediastore/object | 1 |  | mediastore:DescribeObject, mediastore:GetObject |
+| medical-imaging | medical-imaging/dicomimportjob | 1 |  | medical-imaging:GetDICOMImportJob, medical-imaging:ListDICOMImportJobs |
+| medical-imaging | medical-imaging/imageset | 1 |  | medical-imaging:GetImageSet, medical-imaging:SearchImageSets |
+| medical-imaging | medical-imaging/imagesetversion | 2 |  | medical-imaging:ListImageSetVersions |
+| memorydb | memorydb/multiregionparameter | 1 |  | memorydb:DescribeMultiRegionParameters |
+| memorydb | memorydb/parameter | 1 |  | memorydb:DescribeParameters |
+| memorydb | memorydb/reservednodesoffering | 0 |  | memorydb:DescribeReservedNodesOfferings |
+| mgh | mgh/applicationstate | 0 |  | mgh:DescribeApplicationState, mgh:ListApplicationStates |
+| mgh | mgh/createdartifact | 2 |  | mgh:ListCreatedArtifacts |
+| mgh | mgh/discoveredresource | 2 |  | mgh:ListDiscoveredResources |
+| mgh | mgh/homeregioncontrol | 0 |  | mgh:DescribeHomeRegionControls |
+| mgh | mgh/migrationtask | 0 |  | mgh:DescribeMigrationTask, mgh:ListMigrationTasks |
+| mgh | mgh/sourceresource | 2 |  | mgh:ListSourceResources |
+| mgn | mgn/export | 0 |  | mgn:ListExports |
+| mgn | mgn/import | 0 |  | mgn:ListImports |
+| mgn | mgn/importfileenrichment | 0 |  | mgn:ListImportFileEnrichments |
+| mgn | mgn/job | 0 |  | mgn:DescribeJobs |
+| mgn | mgn/networkmigrationanalysis | 1 |  | mgn:ListNetworkMigrationAnalyses |
+| mgn | mgn/networkmigrationanalysisresult | 1 |  | mgn:ListNetworkMigrationAnalysisResults |
+| mgn | mgn/networkmigrationcodegeneration | 1 |  | mgn:ListNetworkMigrationCodeGenerations |
+| mgn | mgn/networkmigrationcodegenerationsegment | 1 |  | mgn:ListNetworkMigrationCodeGenerationSegments |
+| mgn | mgn/networkmigrationdeployedstack | 1 |  | mgn:ListNetworkMigrationDeployedStacks |
+| mgn | mgn/networkmigrationdeployment | 1 |  | mgn:ListNetworkMigrationDeployments |
+| mgn | mgn/networkmigrationexecution | 1 |  | mgn:ListNetworkMigrationExecutions |
+| mgn | mgn/networkmigrationmappersegment | 1 |  | mgn:ListNetworkMigrationMapperSegments |
+| mgn | mgn/networkmigrationmappersegmentconstruct | 1 |  | mgn:GetNetworkMigrationMapperSegmentConstruct, mgn:ListNetworkMigrationMapperSegmentConstructs |
+| mgn | mgn/networkmigrationmapping | 1 |  | mgn:ListNetworkMigrationMappings |
+| mgn | mgn/networkmigrationmappingupdate | 1 |  | mgn:ListNetworkMigrationMappingUpdates |
+| mgn | mgn/replicationconfiguration | 1 |  | mgn:GetReplicationConfiguration |
+| mgn | mgn/sourceserveraction | 1 |  | mgn:ListSourceServerActions |
+| mgn | mgn/templateaction | 1 |  | mgn:ListTemplateActions |
+| migrationhub-orchestrator | migrationhub-orchestrator/plugin | 0 |  | migrationhub-orchestrator:ListPlugins |
+| migrationhub-orchestrator | migrationhub-orchestrator/templatestep | 1 |  | migrationhub-orchestrator:GetTemplateStep, migrationhub-orchestrator:ListTemplateSteps |
+| migrationhub-orchestrator | migrationhub-orchestrator/workflowstep | 1 |  | migrationhub-orchestrator:GetWorkflowStep, migrationhub-orchestrator:ListWorkflowSteps |
+| migrationhub-strategy | migrationhub-strategy/applicationcomponentdetail | 1 |  | migrationhub-strategy:GetApplicationComponentDetails |
+| migrationhub-strategy | migrationhub-strategy/assessment | 0 |  | migrationhub-strategy:GetAssessment |
+| migrationhub-strategy | migrationhub-strategy/collector | 0 |  | migrationhub-strategy:ListCollectors |
+| migrationhub-strategy | migrationhub-strategy/importfiletask | 0 |  | migrationhub-strategy:GetImportFileTask, migrationhub-strategy:ListImportFileTask |
+| mobiletargeting | mobiletargeting/channel | 0 |  | mobiletargeting:GetChannels |
+| mobiletargeting | mobiletargeting/exportjob | 1 |  | mobiletargeting:GetExportJob, mobiletargeting:GetExportJobs |
+| mobiletargeting | mobiletargeting/importjob | 1 |  | mobiletargeting:GetImportJob, mobiletargeting:GetImportJobs |
+| mobiletargeting | mobiletargeting/journey | 1 |  | mobiletargeting:GetJourney, mobiletargeting:ListJourneys |
+| mobiletargeting | mobiletargeting/recommenderconfiguration | 0 |  | mobiletargeting:GetRecommenderConfiguration, mobiletargeting:GetRecommenderConfigurations |
+| monitoring | monitoring/alarmcontributor | 1 |  | monitoring:DescribeAlarmContributors |
+| mpa | mpa/policyversion | 0 |  | mpa:GetPolicyVersion, mpa:ListPolicyVersions |
+| mpa | mpa/resourcepolicy | 0 |  | mpa:GetResourcePolicy, mpa:ListResourcePolicies |
+| mpa | mpa/session | 0 |  | mpa:GetSession, mpa:ListSessions |
+| mq | mq/sharedresource | 2 |  | mq:DescribeSharedResources |
+| mturk-requester | mturk-requester/assignment | 0 |  | mturk-requester:GetAssignment, mturk-requester:ListAssignmentsForHIT |
+| mturk-requester | mturk-requester/hit | 0 |  | mturk-requester:GetHIT, mturk-requester:ListHITs, mturk-requester:ListHITsForQualificationType |
+| mturk-requester | mturk-requester/workerswithqualificationtype | 1 |  | mturk-requester:ListWorkersWithQualificationType |
+| neptune-db | neptune-db/loaderjob | 0 |  | neptune-db:ListLoaderJobs |
+| neptune-db | neptune-db/mldataprocessingjob | 0 |  | neptune-db:GetMLDataProcessingJob, neptune-db:ListMLDataProcessingJobs |
+| neptune-db | neptune-db/mlendpoint | 0 |  | neptune-db:GetMLEndpoint, neptune-db:ListMLEndpoints |
+| neptune-db | neptune-db/mlmodeltrainingjob | 0 |  | neptune-db:GetMLModelTrainingJob, neptune-db:ListMLModelTrainingJobs |
+| neptune-db | neptune-db/mlmodeltransformjob | 0 |  | neptune-db:GetMLModelTransformJob, neptune-db:ListMLModelTransformJobs |
+| neptune-graph | neptune-graph/exporttask | 0 |  | neptune-graph:GetExportTask, neptune-graph:ListExportTasks |
+| neptune-graph | neptune-graph/importtask | 0 |  | neptune-graph:GetImportTask, neptune-graph:ListImportTasks |
+| network-firewall | network-firewall/analysisreport | 0 |  | network-firewall:ListAnalysisReports |
+| network-firewall | network-firewall/containerassociation | 0 |  | network-firewall:DescribeContainerAssociation, network-firewall:ListContainerAssociations |
+| network-firewall | network-firewall/flowoperation | 1 |  | network-firewall:DescribeFlowOperation, network-firewall:ListFlowOperations |
+| network-firewall | network-firewall/proxy | 0 |  | network-firewall:DescribeProxy, network-firewall:ListProxies |
+| networkflowmonitor | networkflowmonitor/queryresultsmonitortopcontributor | 1 |  | networkflowmonitor:GetQueryResultsMonitorTopContributors |
+| networkflowmonitor | networkflowmonitor/queryresultsworkloadinsightstopcontributor | 1 |  | networkflowmonitor:GetQueryResultsWorkloadInsightsTopContributors |
+| networkmanager | networkmanager/attachmentroutingpolicyassociation | 1 |  | networkmanager:ListAttachmentRoutingPolicyAssociations |
+| networkmanager | networkmanager/connectpeerassociation | 1 |  | networkmanager:GetConnectPeerAssociations |
+| networkmanager | networkmanager/corenetworkchangeset | 1 |  | networkmanager:GetCoreNetworkChangeSet |
+| networkmanager | networkmanager/corenetworkpolicyversion | 1 |  | networkmanager:ListCoreNetworkPolicyVersions |
+| networkmanager | networkmanager/networkresource | 1 |  | networkmanager:GetNetworkResources |
+| networkmanager | networkmanager/networkroute | 1 |  | networkmanager:GetNetworkRoutes |
+| networkmanager | networkmanager/networktelemetry | 1 |  | networkmanager:GetNetworkTelemetry |
+| networkmanager | networkmanager/transitgatewayconnectpeerassociation | 1 |  | networkmanager:GetTransitGatewayConnectPeerAssociations |
+| notifications | notifications/managednotificationchildevent | 1 |  | notifications:GetManagedNotificationChildEvent, notifications:ListManagedNotificationChildEvents |
+| notifications | notifications/managednotificationevent | 0 |  | notifications:GetManagedNotificationEvent, notifications:ListManagedNotificationEvents |
+| notifications | notifications/memberaccount | 1 |  | notifications:ListMemberAccounts |
+| notifications | notifications/notificationevent | 0 |  | notifications:GetNotificationEvent, notifications:ListNotificationEvents |
+| nova-act | nova-act/act | 1 |  | nova-act:ListActs |
+| nova-act | nova-act/session | 2 |  | nova-act:ListSessions |
+| nova-act | nova-act/workflowrun | 1 |  | nova-act:GetWorkflowRun, nova-act:ListWorkflowRuns |
+| oam | oam/attachedlink | 1 |  | oam:ListAttachedLinks |
+| odb | odb/autonomousdatabaseclone | 1 |  | odb:ListAutonomousDatabaseClones |
+| odb | odb/autonomousdatabasepeer | 1 |  | odb:ListAutonomousDatabasePeers |
+| odb | odb/autonomousvirtualmachine | 1 |  | odb:ListAutonomousVirtualMachines |
+| odb | odb/dbserver | 1 |  | odb:GetDbServer, odb:ListDbServers |
+| odb | odb/exadbvmcluster | 0 |  | odb:GetExadbVmCluster, odb:ListExadbVmClusters |
+| odb | odb/exascaledbstoragevault | 0 |  | odb:GetExascaleDbStorageVault, odb:ListExascaleDbStorageVaults |
+| omics | omics/annotationimportjob | 0 |  | omics:GetAnnotationImportJob, omics:ListAnnotationImportJobs |
+| omics | omics/batch | 0 |  | omics:GetBatch, omics:ListBatch |
+| omics | omics/multipartreadsetupload | 1 |  | omics:ListMultipartReadSetUploads |
+| omics | omics/readset | 1 |  | omics:GetReadSet, omics:ListReadSets |
+| omics | omics/readsetactivationjob | 1 |  | omics:GetReadSetActivationJob, omics:ListReadSetActivationJobs |
+| omics | omics/readsetexportjob | 1 |  | omics:GetReadSetExportJob, omics:ListReadSetExportJobs |
+| omics | omics/readsetimportjob | 1 |  | omics:GetReadSetImportJob, omics:ListReadSetImportJobs |
+| omics | omics/referenceimportjob | 1 |  | omics:GetReferenceImportJob, omics:ListReferenceImportJobs |
+| omics | omics/run | 0 |  | omics:GetRun, omics:ListRuns, omics:ListRunsInBatch |
+| omics | omics/runtask | 1 |  | omics:GetRunTask, omics:ListRunTasks |
+| omics | omics/share | 0 |  | omics:GetShare, omics:ListShares |
+| omics | omics/variantimportjob | 0 |  | omics:GetVariantImportJob, omics:ListVariantImportJobs |
+| organizations | organizations/awsserviceaccess | 0 |  | organizations:ListAWSServiceAccessForOrganization |
+| organizations | organizations/children | 2 |  | organizations:ListChildren |
+| organizations | organizations/handshake | 0 |  | organizations:DescribeHandshake, organizations:ListHandshakesForAccount, organizations:ListHandshakesForOrganization |
+| osis | osis/pipelineendpointconnection | 0 |  | osis:ListPipelineEndpointConnections |
+| outposts | outposts/asset | 1 |  | outposts:ListAssets |
+| outposts | outposts/assetinstance | 1 |  | outposts:ListAssetInstances |
+| outposts | outposts/blockinginstance | 1 |  | outposts:ListBlockingInstancesForCapacityTask |
+| outposts | outposts/capacitytask | 0 |  | outposts:GetCapacityTask, outposts:ListCapacityTasks |
+| outposts | outposts/order | 0 |  | outposts:GetOrder, outposts:ListOrders |
+| outposts | outposts/outpostbillinginformation | 1 |  | outposts:GetOutpostBillingInformation |
+| outposts | outposts/quote | 0 |  | outposts:GetQuote, outposts:ListQuotes |
+| partnercentral | partnercentral/marketplacerevenueshare | 1 |  | partnercentral:GetMarketplaceRevenueShare, partnercentral:ListMarketplaceRevenueShares |
+| partnercentral | partnercentral/marketplacerevenueshareallocation | 2 |  | partnercentral:GetMarketplaceRevenueShareAllocation, partnercentral:ListMarketplaceRevenueShareAllocations |
+| partnercentral | partnercentral/revenueattribution | 1 |  | partnercentral:GetRevenueAttribution, partnercentral:ListRevenueAttributions |
+| partnercentral | partnercentral/revenueattributionallocation | 2 |  | partnercentral:GetRevenueAttributionAllocation, partnercentral:ListRevenueAttributionAllocations |
+| partnercentral | partnercentral/revenueattributionallocationstask | 2 |  | partnercentral:GetRevenueAttributionAllocationsTask |
+| partnercentral-selling | partnercentral-selling/awsopportunitysummary | 1 |  | partnercentral-selling:GetAwsOpportunitySummary |
+| partnercentral-selling | partnercentral-selling/prospecting | 0 |  | partnercentral-selling:GetProspectingFromEngagementTask, partnercentral-selling:ListProspectingFromEngagementTasks |
+| partnercentral-selling | partnercentral-selling/resourcesnapshot | 1 |  | partnercentral-selling:GetResourceSnapshot, partnercentral-selling:ListResourceSnapshots |
+| personalize | personalize/batchinferencejob | 0 |  | personalize:DescribeBatchInferenceJob, personalize:ListBatchInferenceJobs |
+| personalize | personalize/batchsegmentjob | 0 |  | personalize:DescribeBatchSegmentJob, personalize:ListBatchSegmentJobs |
+| personalize | personalize/datadeletionjob | 0 |  | personalize:DescribeDataDeletionJob, personalize:ListDataDeletionJobs |
+| personalize | personalize/datasetexportjob | 0 |  | personalize:DescribeDatasetExportJob, personalize:ListDatasetExportJobs |
+| personalize | personalize/datasetimportjob | 0 |  | personalize:DescribeDatasetImportJob, personalize:ListDatasetImportJobs |
+| personalize | personalize/personalizedranking | 1 |  | personalize:GetPersonalizedRanking |
+| personalize | personalize/solutionversion | 0 |  | personalize:DescribeSolutionVersion, personalize:ListSolutionVersions |
+| pi | pi/performanceanalysisreport | 3 |  | pi:GetPerformanceAnalysisReport, pi:ListPerformanceAnalysisReports |
+| pi | pi/performanceanalysisreportrecommendation | 3 |  | pi:ListPerformanceAnalysisReportRecommendations |
+| polly | polly/speechsynthesistask | 0 |  | polly:GetSpeechSynthesisTask, polly:ListSpeechSynthesisTasks |
+| pricingplanmanager | pricingplanmanager/subscription | 0 |  | pricingplanmanager:GetSubscription, pricingplanmanager:ListSubscriptions |
+| profile | profile/accountintegration | 2 |  | profile:ListAccountIntegrations |
+| profile | profile/calculatedattribute | 1 |  | profile:BatchGetCalculatedAttributeForProfile, profile:GetCalculatedAttributeForProfile, profile:ListCalculatedAttributesForProfile |
+| profile | profile/identityresolutionjob | 1 |  | profile:GetIdentityResolutionJob, profile:ListIdentityResolutionJobs |
+| profile | profile/match | 1 |  | profile:GetMatches |
+| profile | profile/objecttypeattribute | 2 |  | profile:ListObjectTypeAttributes |
+| profile | profile/profile | 1 |  | profile:BatchGetProfile, profile:SearchProfiles |
+| profile | profile/profilehistoryrecord | 1 |  | profile:GetProfileHistoryRecord, profile:ListProfileHistoryRecords |
+| profile | profile/profileobject | 2 |  | profile:ListProfileObjects |
+| profile | profile/rulebasedmatch | 1 |  | profile:ListRuleBasedMatches |
+| profile | profile/segmentmembership | 2 |  | profile:GetSegmentMembership |
+| profile | profile/segmentsubscriptionevent | 2 |  | profile:ListSegmentSubscriptionEvents |
+| profile | profile/similarprofile | 1 |  | profile:GetSimilarProfiles |
+| profile | profile/stream | 1 |  | profile:GetStreamForSegments |
+| profile | profile/uploadjob | 1 |  | profile:GetUploadJob, profile:ListUploadJobs |
+| profile | profile/workflow | 1 |  | profile:GetWorkflow, profile:ListWorkflows |
+| qapps | qapps/libraryitem | 1 |  | qapps:GetLibraryItem, qapps:ListLibraryItems |
+| qapps | qapps/qappsessiondata | 3 |  | qapps:ListQAppSessionData |
+| qbusiness | qbusiness/attachment | 1 |  | qbusiness:ListAttachments |
+| qbusiness | qbusiness/conversation | 1 |  | qbusiness:ListConversations |
+| qbusiness | qbusiness/document | 2 |  | qbusiness:ListDocuments |
+| qbusiness | qbusiness/group | 2 |  | qbusiness:GetGroup, qbusiness:ListGroups |
+| qbusiness | qbusiness/message | 1 |  | qbusiness:ListMessages |
+| qbusiness | qbusiness/pluginaction | 2 |  | qbusiness:ListPluginActions |
+| qbusiness | qbusiness/relevantcontent | 1 |  | qbusiness:SearchRelevantContent |
+| qbusiness | qbusiness/user | 1 |  | qbusiness:GetUser |
+| quicksight | quicksight/app | 0 |  | quicksight:DescribeApp, quicksight:ListApps, quicksight:SearchApps |
+| quicksight | quicksight/approvalpolicy | 0 |  | quicksight:DescribeApprovalPolicy, quicksight:ListApprovalPolicies |
+| quicksight | quicksight/assetbundleexportjob | 0 |  | quicksight:DescribeAssetBundleExportJob, quicksight:ListAssetBundleExportJobs |
+| quicksight | quicksight/assetbundleimportjob | 0 |  | quicksight:DescribeAssetBundleImportJob, quicksight:ListAssetBundleImportJobs |
+| quicksight | quicksight/dashboardversion | 1 |  | quicksight:ListDashboardVersions |
+| quicksight | quicksight/dlpsetting | 0 |  | quicksight:DescribeDlpSetting, quicksight:ListDlpSettings |
+| quicksight | quicksight/foldermember | 1 |  | quicksight:ListFolderMembers |
+| quicksight | quicksight/groupmembership | 1 |  | quicksight:DescribeGroupMembership, quicksight:ListGroupMemberships |
+| quicksight | quicksight/ingestion | 1 |  | quicksight:DescribeIngestion, quicksight:ListIngestions |
+| quicksight | quicksight/keyregistration | 1 |  | quicksight:DescribeKeyRegistration |
+| quicksight | quicksight/limitsprofile | 0 |  | quicksight:DescribeLimitsProfile, quicksight:ListLimitsProfiles |
+| quicksight | quicksight/selfupgrade | 1 |  | quicksight:ListSelfUpgrades |
+| quicksight | quicksight/spaceresource | 1 |  | quicksight:ListSpaceResources |
+| quicksight | quicksight/templatealias | 1 |  | quicksight:DescribeTemplateAlias, quicksight:ListTemplateAliases |
+| quicksight | quicksight/templateversion | 1 |  | quicksight:ListTemplateVersions |
+| quicksight | quicksight/themealias | 1 |  | quicksight:DescribeThemeAlias, quicksight:ListThemeAliases |
+| quicksight | quicksight/themeversion | 1 |  | quicksight:ListThemeVersions |
+| quicksight | quicksight/topicrefreshschedule | 1 |  | quicksight:DescribeTopicRefreshSchedule, quicksight:ListTopicRefreshSchedules |
+| quicksight | quicksight/topicreviewedanswer | 1 |  | quicksight:ListTopicReviewedAnswers |
+| quicksight | quicksight/usergroup | 1 |  | quicksight:ListUserGroups |
+| quicksight | quicksight/usersindexcapacity | 1 |  | quicksight:ListUsersIndexCapacity |
+| ram | ram/pendinginvitationresource | 1 |  | ram:ListPendingInvitationResources |
+| ram | ram/permissionassociation | 0 |  | ram:ListPermissionAssociations |
+| ram | ram/resourceshareinvitation | 0 |  | ram:GetResourceShareInvitations |
+| rds | rds/certificate | 0 |  | rds:DescribeCertificates |
+| rds | rds/dbclusterbacktrack | 1 |  | rds:DescribeDBClusterBacktracks |
+| rds | rds/dbclusterparameter | 1 |  | rds:DescribeDBClusterParameters |
+| rds | rds/dblogfile | 1 |  | rds:DescribeDBLogFiles |
+| rds | rds/dbparameter | 1 |  | rds:DescribeDBParameters |
+| rds | rds/dbproxytarget | 1 |  | rds:DescribeDBProxyTargets |
+| rds | rds/dbrecommendation | 0 |  | rds:DescribeDBRecommendations |
+| rds | rds/exporttask | 0 |  | rds:DescribeExportTasks |
+| rds | rds/optiongroupoption | 1 |  | rds:DescribeOptionGroupOptions |
+| rds | rds/pendingmaintenanceaction | 0 |  | rds:DescribePendingMaintenanceActions |
+| rds | rds/reserveddbinstancesoffering | 0 |  | rds:DescribeReservedDBInstancesOfferings |
+| redshift | redshift/authenticationprofile | 0 |  | redshift:DescribeAuthenticationProfiles |
+| redshift | redshift/clusterdbrevision | 0 |  | redshift:DescribeClusterDbRevisions |
+| redshift | redshift/clusterparameter | 1 |  | redshift:DescribeClusterParameters |
+| redshift | redshift/clustersecuritygroup | 0 |  | redshift:DescribeClusterSecurityGroups |
+| redshift | redshift/customdomainassociation | 0 |  | redshift:DescribeCustomDomainAssociations |
+| redshift | redshift/inboundintegration | 0 |  | redshift:DescribeInboundIntegrations |
+| redshift | redshift/partner | 1 |  | redshift:DescribePartners |
+| redshift | redshift/qev2idcapplication | 0 |  | redshift:DescribeQev2IdcApplications |
+| redshift | redshift/reservednodeexchangeoffering | 1 |  | redshift:GetReservedNodeExchangeOfferings |
+| redshift | redshift/reservednodeoffering | 0 |  | redshift:DescribeReservedNodeOfferings |
+| redshift-data | redshift-data/statement | 0 |  | redshift-data:DescribeStatement, redshift-data:ListStatements |
+| redshift-data | redshift-data/table | 1 |  | redshift-data:DescribeTable, redshift-data:ListTables |
+| redshift-serverless | redshift-serverless/customdomainassociation | 0 |  | redshift-serverless:GetCustomDomainAssociation, redshift-serverless:ListCustomDomainAssociations |
+| redshift-serverless | redshift-serverless/reservation | 0 |  | redshift-serverless:GetReservation, redshift-serverless:ListReservations |
+| redshift-serverless | redshift-serverless/scheduledaction | 0 |  | redshift-serverless:GetScheduledAction, redshift-serverless:ListScheduledActions |
+| redshift-serverless | redshift-serverless/snapshotcopyconfiguration | 0 |  | redshift-serverless:ListSnapshotCopyConfigurations |
+| redshift-serverless | redshift-serverless/usagelimit | 0 |  | redshift-serverless:GetUsageLimit, redshift-serverless:ListUsageLimits |
+| refactor-spaces | refactor-spaces/environmentvpc | 1 |  | refactor-spaces:ListEnvironmentVpcs |
+| rekognition | rekognition/datasetlabel | 3 |  | rekognition:ListDatasetLabels |
+| rekognition | rekognition/face | 1 |  | rekognition:ListFaces, rekognition:SearchFaces, rekognition:SearchFacesByImage |
+| rekognition | rekognition/mediaanalysisjob | 0 |  | rekognition:GetMediaAnalysisJob, rekognition:ListMediaAnalysisJobs |
+| rekognition | rekognition/projectpolicy | 2 |  | rekognition:ListProjectPolicies |
+| rekognition | rekognition/user | 1 |  | rekognition:ListUsers, rekognition:SearchUsers, rekognition:SearchUsersByImage |
+| repostspace | repostspace/channel | 1 |  | repostspace:GetChannel, repostspace:ListChannels |
+| resiliencehub | resiliencehub/alarmrecommendation | 1 |  | resiliencehub:ListAlarmRecommendations |
+| resiliencehub | resiliencehub/appassessmentcompliancedrift | 1 |  | resiliencehub:ListAppAssessmentComplianceDrifts |
+| resiliencehub | resiliencehub/appassessmentresourcedrift | 1 |  | resiliencehub:ListAppAssessmentResourceDrifts |
+| resiliencehub | resiliencehub/appcomponentcompliance | 1 |  | resiliencehub:ListAppComponentCompliances |
+| resiliencehub | resiliencehub/appcomponentrecommendation | 1 |  | resiliencehub:ListAppComponentRecommendations |
+| resiliencehub | resiliencehub/appinputsource | 1 |  | resiliencehub:ListAppInputSources |
+| resiliencehub | resiliencehub/appversion | 1 |  | resiliencehub:DescribeAppVersion, resiliencehub:ListAppVersions |
+| resiliencehub | resiliencehub/appversionresource | 1 |  | resiliencehub:DescribeAppVersionResource, resiliencehub:ListAppVersionResources |
+| resiliencehub | resiliencehub/appversionresourcemapping | 1 |  | resiliencehub:ListAppVersionResourceMappings |
+| resiliencehub | resiliencehub/assertion | 1 |  | resiliencehub:ListAssertions |
+| resiliencehub | resiliencehub/dependency | 0 |  | resiliencehub:ListDependencies |
+| resiliencehub | resiliencehub/failuremodeassessment | 1 |  | resiliencehub:ListFailureModeAssessments |
+| resiliencehub | resiliencehub/failuremodefinding | 1 |  | resiliencehub:GetFailureModeFinding, resiliencehub:ListFailureModeFindings |
+| resiliencehub | resiliencehub/inputsource | 1 |  | resiliencehub:ListInputSources |
+| resiliencehub | resiliencehub/policy | 0 |  | resiliencehub:GetPolicy, resiliencehub:ListPolicies |
+| resiliencehub | resiliencehub/report | 0 |  | resiliencehub:ListReports |
+| resiliencehub | resiliencehub/resolvedtestruntargetresource | 1 |  | resiliencehub:ListResolvedTestRunTargetResources |
+| resiliencehub | resiliencehub/resource | 1 |  | resiliencehub:ListResources |
+| resiliencehub | resiliencehub/resourcegroupingrecommendation | 0 |  | resiliencehub:ListResourceGroupingRecommendations |
+| resiliencehub | resiliencehub/service | 0 |  | resiliencehub:GetService, resiliencehub:ListServices |
+| resiliencehub | resiliencehub/serviceevent | 1 |  | resiliencehub:ListServiceEvents |
+| resiliencehub | resiliencehub/servicefunction | 1 |  | resiliencehub:ListServiceFunctions |
+| resiliencehub | resiliencehub/servicetopologyedge | 1 |  | resiliencehub:ListServiceTopologyEdges |
+| resiliencehub | resiliencehub/soprecommendation | 1 |  | resiliencehub:ListSopRecommendations |
+| resiliencehub | resiliencehub/system | 0 |  | resiliencehub:GetSystem, resiliencehub:ListSystems |
+| resiliencehub | resiliencehub/systemevent | 1 |  | resiliencehub:ListSystemEvents |
+| resiliencehub | resiliencehub/test | 1 |  | resiliencehub:GetTest, resiliencehub:ListTests |
+| resiliencehub | resiliencehub/testrecommendation | 1 |  | resiliencehub:ListTestRecommendations |
+| resiliencehub | resiliencehub/testrun | 1 |  | resiliencehub:GetTestRun, resiliencehub:ListTestRuns |
+| resiliencehub | resiliencehub/testrundependency | 1 |  | resiliencehub:ListTestRunDependencies |
+| resiliencehub | resiliencehub/testrunevent | 1 |  | resiliencehub:ListTestRunEvents |
+| resiliencehub | resiliencehub/testrunsourceevent | 1 |  | resiliencehub:ListTestRunSourceEvents |
+| resiliencehub | resiliencehub/testtemplate | 0 |  | resiliencehub:GetTestTemplate, resiliencehub:ListTestTemplates |
+| resiliencehub | resiliencehub/unsupportedappversionresource | 1 |  | resiliencehub:ListUnsupportedAppVersionResources |
+| resiliencehub | resiliencehub/userjourney | 1 |  | resiliencehub:GetUserJourney, resiliencehub:ListUserJourneys |
+| resource-explorer-2 | resource-explorer-2/streamingaccess | 0 |  | resource-explorer-2:ListStreamingAccessForServices |
+| resource-groups | resource-groups/groupingstatus | 1 |  | resource-groups:ListGroupingStatuses |
+| resource-groups | resource-groups/resource | 0 |  | resource-groups:SearchResources |
+| route53 | route53/change | 0 |  | route53:GetChange |
+| route53 | route53/cidrblock | 1 |  | route53:ListCidrBlocks |
+| route53 | route53/cidrlocation | 1 |  | route53:ListCidrLocations |
+| route53 | route53/trafficpolicyversion | 1 |  | route53:ListTrafficPolicyVersions |
+| route53 | route53/vpcassociationauthorization | 1 |  | route53:ListVPCAssociationAuthorizations |
+| route53-recovery-cluster | route53-recovery-cluster/routingcontrol | 0 |  | route53-recovery-cluster:ListRoutingControls |
+| route53-recovery-control-config | route53-recovery-control-config/associatedroute53healthcheck | 2 |  | route53-recovery-control-config:ListAssociatedRoute53HealthChecks |
+| route53-recovery-readiness | route53-recovery-readiness/cellreadinesssummary | 1 |  | route53-recovery-readiness:GetCellReadinessSummary |
+| route53-recovery-readiness | route53-recovery-readiness/readinesscheckresourcestatus | 1 |  | route53-recovery-readiness:GetReadinessCheckResourceStatus |
+| route53-recovery-readiness | route53-recovery-readiness/readinesscheckstatus | 1 |  | route53-recovery-readiness:GetReadinessCheckStatus |
+| route53-recovery-readiness | route53-recovery-readiness/recoverygroupreadinesssummary | 1 |  | route53-recovery-readiness:GetRecoveryGroupReadinessSummary |
+| route53domains | route53domains/domain | 0 |  | route53domains:ListDomains |
+| route53domains | route53domains/domaindetail | 1 |  | route53domains:GetDomainDetail |
+| route53domains | route53domains/domainsuggestion | 1 |  | route53domains:GetDomainSuggestions |
+| route53resolver | route53resolver/firewallrule | 1 |  | route53resolver:ListFirewallRules |
+| route53resolver | route53resolver/resolverendpointipaddress | 1 |  | route53resolver:ListResolverEndpointIpAddresses |
+| rtbfabric | rtbfabric/certificateassociation | 1 |  | rtbfabric:GetCertificateAssociation, rtbfabric:ListCertificateAssociations |
+| rtbfabric | rtbfabric/inboundexternallink | 1 |  | rtbfabric:GetInboundExternalLink |
+| rtbfabric | rtbfabric/outboundexternallink | 1 |  | rtbfabric:GetOutboundExternalLink |
+| rum | rum/rummetricdefinition | 1 |  | rum:BatchGetRumMetricDefinitions |
+| rum | rum/rummetricsdestination | 1 |  | rum:ListRumMetricsDestinations |
+| s3 | s3/bucketanalyticsconfiguration | 1 |  | s3:GetBucketAnalyticsConfiguration, s3:ListBucketAnalyticsConfigurations |
+| s3 | s3/bucketcor | 1 |  | s3:GetBucketCors |
+| s3 | s3/bucketintelligenttieringconfiguration | 1 |  | s3:GetBucketIntelligentTieringConfiguration, s3:ListBucketIntelligentTieringConfigurations |
+| s3 | s3/bucketinventoryconfiguration | 1 |  | s3:GetBucketInventoryConfiguration, s3:ListBucketInventoryConfigurations |
+| s3 | s3/bucketlifecycleconfiguration | 1 |  | s3:GetBucketLifecycleConfiguration |
+| s3 | s3/bucketmetricsconfiguration | 1 |  | s3:GetBucketMetricsConfiguration, s3:ListBucketMetricsConfigurations |
+| s3 | s3/bucketnotificationconfiguration | 1 |  | s3:GetBucketNotificationConfiguration |
+| s3 | s3/job | 0 |  | s3:DescribeJob, s3:ListJobs |
+| s3 | s3/multipartupload | 1 |  | s3:ListMultipartUploads |
+| s3 | s3/object | 1 |  | s3:GetObject, s3:HeadObject, s3:ListObjects, s3:ListObjectsV2 |
+| s3 | s3/objectannotation | 2 |  | s3:GetObjectAnnotation, s3:ListObjectAnnotations |
+| s3 | s3/objectversion | 1 |  | s3:ListObjectVersions |
+| s3-outposts | s3-outposts/sharedendpoint | 1 |  | s3-outposts:ListSharedEndpoints |
+| s3tables | s3tables/tablereplicationstatus | 2 |  | s3tables:GetTableReplicationStatus |
+| s3vectors | s3vectors/vector | 0 |  | s3vectors:GetVectors, s3vectors:ListVectors |
+| sagemaker | sagemaker/aibenchmarkjob | 0 |  | sagemaker:DescribeAIBenchmarkJob, sagemaker:ListAIBenchmarkJobs |
+| sagemaker | sagemaker/airecommendationjob | 0 |  | sagemaker:DescribeAIRecommendationJob, sagemaker:ListAIRecommendationJobs |
+| sagemaker | sagemaker/artifact | 0 |  | sagemaker:DescribeArtifact, sagemaker:ListArtifacts |
+| sagemaker | sagemaker/association | 0 |  | sagemaker:ListAssociations |
+| sagemaker | sagemaker/automljob | 0 |  | sagemaker:DescribeAutoMLJob, sagemaker:DescribeAutoMLJobV2, sagemaker:ListAutoMLJobs |
+| sagemaker | sagemaker/candidate | 1 |  | sagemaker:ListCandidatesForAutoMLJob |
+| sagemaker | sagemaker/clusterevent | 1 |  | sagemaker:DescribeClusterEvent, sagemaker:ListClusterEvents |
+| sagemaker | sagemaker/clusternode | 1 |  | sagemaker:DescribeClusterNode, sagemaker:ListClusterNodes |
+| sagemaker | sagemaker/compilationjob | 0 |  | sagemaker:DescribeCompilationJob, sagemaker:ListCompilationJobs |
+| sagemaker | sagemaker/deployment | 2 |  | sagemaker:GetDeployments |
+| sagemaker | sagemaker/devicefleetreport | 1 |  | sagemaker:GetDeviceFleetReport |
+| sagemaker | sagemaker/edgepackagingjob | 0 |  | sagemaker:DescribeEdgePackagingJob, sagemaker:ListEdgePackagingJobs |
+| sagemaker | sagemaker/hubcontentversion | 3 |  | sagemaker:ListHubContentVersions |
+| sagemaker | sagemaker/humanloop | 0 |  | sagemaker:DescribeHumanLoop, sagemaker:ListHumanLoops |
+| sagemaker | sagemaker/hyperparametertuningjob | 0 |  | sagemaker:DescribeHyperParameterTuningJob, sagemaker:ListHyperParameterTuningJobs |
+| sagemaker | sagemaker/inferencerecommendationsjob | 0 |  | sagemaker:DescribeInferenceRecommendationsJob, sagemaker:ListInferenceRecommendationsJobs |
+| sagemaker | sagemaker/inferencerecommendationsjobstep | 2 |  | sagemaker:ListInferenceRecommendationsJobSteps |
+| sagemaker | sagemaker/job | 0 |  | sagemaker:DescribeJob, sagemaker:ListJobs |
+| sagemaker | sagemaker/labelingjob | 0 |  | sagemaker:DescribeLabelingJob, sagemaker:ListLabelingJobs, sagemaker:ListLabelingJobsForWorkteam |
+| sagemaker | sagemaker/modelcardexportjob | 1 |  | sagemaker:DescribeModelCardExportJob, sagemaker:ListModelCardExportJobs |
+| sagemaker | sagemaker/modelcardversion | 1 |  | sagemaker:ListModelCardVersions |
+| sagemaker | sagemaker/monitoringalert | 1 |  | sagemaker:ListMonitoringAlerts |
+| sagemaker | sagemaker/optimizationjob | 0 |  | sagemaker:DescribeOptimizationJob, sagemaker:ListOptimizationJobs |
+| sagemaker | sagemaker/pipelineexecution | 1 |  | sagemaker:DescribePipelineExecution, sagemaker:ListPipelineExecutions |
+| sagemaker | sagemaker/pipelineparameter | 2 |  | sagemaker:ListPipelineParametersForExecution |
+| sagemaker | sagemaker/pipelineversion | 1 |  | sagemaker:ListPipelineVersions |
+| sagemaker | sagemaker/record | 1 |  | sagemaker:BatchGetRecord, sagemaker:GetRecord, sagemaker:ListRecords |
+| sagemaker | sagemaker/stagedevice | 1 |  | sagemaker:ListStageDevices |
+| sagemaker | sagemaker/trainingjob | 0 |  | sagemaker:DescribeTrainingJob, sagemaker:ListTrainingJobs, sagemaker:ListTrainingJobsForHyperParameterTuningJob |
+| sagemaker | sagemaker/trainingplanextensionhistory | 1 |  | sagemaker:DescribeTrainingPlanExtensionHistory |
+| sagemaker | sagemaker/transformjob | 0 |  | sagemaker:DescribeTransformJob, sagemaker:ListTransformJobs |
+| sagemaker | sagemaker/trialcomponent | 0 |  | sagemaker:DescribeTrialComponent, sagemaker:ListTrialComponents |
+| sagemaker | sagemaker/ultraserver | 1 |  | sagemaker:ListUltraServersByReservedCapacity |
+| sagemaker-geospatial | sagemaker-geospatial/earthobservationjob | 0 |  | sagemaker-geospatial:GetEarthObservationJob, sagemaker-geospatial:ListEarthObservationJobs |
+| sagemaker-geospatial | sagemaker-geospatial/vectorenrichmentjob | 0 |  | sagemaker-geospatial:GetVectorEnrichmentJob, sagemaker-geospatial:ListVectorEnrichmentJobs |
+| schemas | schemas/schemaversion | 2 |  | schemas:ListSchemaVersions |
+| scn | scn/dataintegrationevent | 1 |  | scn:GetDataIntegrationEvent, scn:ListDataIntegrationEvents |
+| scn | scn/dataintegrationflowexecution | 2 |  | scn:GetDataIntegrationFlowExecution, scn:ListDataIntegrationFlowExecutions |
+| sdb | sdb/export | 0 |  | sdb:GetExport, sdb:ListExports |
+| secretsmanager | secretsmanager/secretvalue | 0 |  | secretsmanager:BatchGetSecretValue, secretsmanager:GetSecretValue |
+| secretsmanager | secretsmanager/secretversionid | 1 |  | secretsmanager:ListSecretVersionIds |
+| security-ir | security-ir/comment | 1 |  | security-ir:ListComments |
+| security-ir | security-ir/investigation | 1 |  | security-ir:ListInvestigations |
+| security-ir | security-ir/memberaccountdetail | 1 |  | security-ir:BatchGetMemberAccountDetails |
+| securityagent | securityagent/artifact | 1 |  | securityagent:GetArtifact, securityagent:ListArtifacts |
+| securityagent | securityagent/artifactmetadata | 1 |  | securityagent:BatchGetArtifactMetadata |
+| securityagent | securityagent/codereview | 1 |  | securityagent:BatchGetCodeReviews, securityagent:ListCodeReviews |
+| securityagent | securityagent/codereviewjob | 1 |  | securityagent:BatchGetCodeReviewJobs, securityagent:ListCodeReviewJobsForCodeReview |
+| securityagent | securityagent/codereviewjobtask | 1 |  | securityagent:BatchGetCodeReviewJobTasks, securityagent:ListCodeReviewJobTasks |
+| securityagent | securityagent/discoveredendpoint | 1 |  | securityagent:ListDiscoveredEndpoints |
+| securityagent | securityagent/finding | 1 |  | securityagent:BatchGetFindings, securityagent:ListFindings |
+| securityagent | securityagent/integratedresource | 1 |  | securityagent:ListIntegratedResources |
+| securityagent | securityagent/membership | 1 |  | securityagent:ListMemberships |
+| securityagent | securityagent/pentestjob | 1 |  | securityagent:BatchGetPentestJobs, securityagent:ListPentestJobsForPentest |
+| securityagent | securityagent/pentestjobtask | 1 |  | securityagent:BatchGetPentestJobTasks, securityagent:ListPentestJobTasks |
+| securityagent | securityagent/securityrequirement | 1 |  | securityagent:BatchGetSecurityRequirements, securityagent:ListSecurityRequirements |
+| securityagent | securityagent/threat | 1 |  | securityagent:BatchGetThreats, securityagent:ListThreats |
+| securityagent | securityagent/threatmodel | 1 |  | securityagent:BatchGetThreatModels, securityagent:ListThreatModels |
+| securityagent | securityagent/threatmodeljob | 1 |  | securityagent:BatchGetThreatModelJobs, securityagent:ListThreatModelJobs |
+| securityagent | securityagent/threatmodeljobtask | 1 |  | securityagent:BatchGetThreatModelJobTasks, securityagent:ListThreatModelJobTasks |
+| securityhub | securityhub/actiontarget | 0 |  | securityhub:DescribeActionTargets |
+| securityhub | securityhub/finding | 0 |  | securityhub:GetFindings, securityhub:GetFindingsV2 |
+| securityhub | securityhub/invitation | 0 |  | securityhub:ListInvitations |
+| securityhub | securityhub/member | 0 |  | securityhub:GetMembers, securityhub:ListMembers |
+| securityhub | securityhub/organizationadminaccount | 0 |  | securityhub:ListOrganizationAdminAccounts |
+| securityhub | securityhub/product | 0 |  | securityhub:DescribeProducts, securityhub:DescribeProductsV2 |
+| securityhub | securityhub/standardscontrol | 0 |  | securityhub:DescribeStandardsControls |
+| securityhub | securityhub/standardscontrolassociation | 0 |  | securityhub:BatchGetStandardsControlAssociations, securityhub:ListStandardsControlAssociations |
+| securitylake | securitylake/datalakeorganizationconfiguration | 0 |  | securitylake:GetDataLakeOrganizationConfiguration |
+| serverlessrepo | serverlessrepo/applicationdependency | 1 |  | serverlessrepo:ListApplicationDependencies |
+| serverlessrepo | serverlessrepo/applicationpolicy | 1 |  | serverlessrepo:GetApplicationPolicy |
+| serverlessrepo | serverlessrepo/applicationversion | 1 |  | serverlessrepo:ListApplicationVersions |
+| servicecatalog | servicecatalog/budget | 0 |  | servicecatalog:ListBudgetsForResource |
+| servicecatalog | servicecatalog/launchpath | 1 |  | servicecatalog:ListLaunchPaths |
+| servicecatalog | servicecatalog/portfolioaccess | 1 |  | servicecatalog:ListPortfolioAccess |
+| servicecatalog | servicecatalog/provisionedproductplan | 0 |  | servicecatalog:DescribeProvisionedProductPlan, servicecatalog:ListProvisionedProductPlans |
+| servicecatalog | servicecatalog/serviceactionexecutionparameter | 1 |  | servicecatalog:DescribeServiceActionExecutionParameters |
+| servicequotas | servicequotas/quotautilizationreport | 1 |  | servicequotas:GetQuotaUtilizationReport |
+| servicequotas | servicequotas/requestedservicequotachangehistory | 0 |  | servicequotas:ListRequestedServiceQuotaChangeHistory, servicequotas:ListRequestedServiceQuotaChangeHistoryByQuota |
+| servicequotas | servicequotas/servicequotaincreaserequest | 0 |  | servicequotas:GetServiceQuotaIncreaseRequestFromTemplate, servicequotas:ListServiceQuotaIncreaseRequestsInTemplate |
+| ses | ses/activereceiptruleset | 0 |  | ses:DescribeActiveReceiptRuleSet |
+| ses | ses/addresslistimportjob | 1 |  | ses:GetAddressListImportJob, ses:ListAddressListImportJobs |
+| ses | ses/archiveexport | 1 |  | ses:GetArchiveExport, ses:ListArchiveExports |
+| ses | ses/archivesearch | 1 |  | ses:GetArchiveSearch, ses:ListArchiveSearches |
+| ses | ses/archivesearchresult | 1 |  | ses:GetArchiveSearchResults |
+| ses | ses/contact | 1 |  | ses:GetContact, ses:ListContacts |
+| ses | ses/dedicatedip | 0 |  | ses:GetDedicatedIp, ses:GetDedicatedIps |
+| ses | ses/deliverabilitydashboardoption | 0 |  | ses:GetDeliverabilityDashboardOptions |
+| ses | ses/deliverabilitytestreport | 0 |  | ses:GetDeliverabilityTestReport, ses:ListDeliverabilityTestReports |
+| ses | ses/emailidentitycertificate | 1 |  | ses:ListEmailIdentityCertificates |
+| ses | ses/exportjob | 0 |  | ses:GetExportJob, ses:ListExportJobs |
+| ses | ses/identity | 0 |  | ses:ListIdentities |
+| ses | ses/identitypolicy | 1 |  | ses:GetIdentityPolicies, ses:ListIdentityPolicies |
+| ses | ses/importjob | 0 |  | ses:GetImportJob, ses:ListImportJobs |
+| ses | ses/messageinsight | 1 |  | ses:GetMessageInsights |
+| ses | ses/metricdata | 1 |  | ses:BatchGetMetricData |
+| ses | ses/suppresseddestination | 0 |  | ses:GetSuppressedDestination, ses:ListSuppressedDestinations |
+| ses | ses/tenantresource | 2 |  | ses:ListTenantResources |
+| shield | shield/attack | 0 |  | shield:DescribeAttack, shield:ListAttacks |
+| shield | shield/resource | 1 |  | shield:ListResourcesInProtectionGroup |
+| signer | signer/signingjob | 0 |  | signer:DescribeSigningJob, signer:ListSigningJobs |
+| signin | signin/resourcepermissionstatement | 0 |  | signin:ListResourcePermissionStatements |
+| sms-voice | sms-voice/configurationseteventdestination | 1 |  | sms-voice:GetConfigurationSetEventDestinations |
+| sms-voice | sms-voice/notifyconfiguration | 0 |  | sms-voice:DescribeNotifyConfigurations |
+| sms-voice | sms-voice/pooloriginationidentity | 1 |  | sms-voice:ListPoolOriginationIdentities |
+| sms-voice | sms-voice/rcsagent | 0 |  | sms-voice:DescribeRcsAgents |
+| sms-voice | sms-voice/rcsagentcountrylaunchstatus | 1 |  | sms-voice:DescribeRcsAgentCountryLaunchStatus |
+| sms-voice | sms-voice/registrationassociation | 1 |  | sms-voice:ListRegistrationAssociations |
+| sms-voice | sms-voice/registrationfieldvalue | 1 |  | sms-voice:DescribeRegistrationFieldValues |
+| snow-device-management | snow-device-management/execution | 1 |  | snow-device-management:DescribeExecution, snow-device-management:ListExecutions |
+| snowball | snowball/address | 0 |  | snowball:DescribeAddress, snowball:DescribeAddresses |
+| snowball | snowball/cluster | 0 |  | snowball:DescribeCluster, snowball:ListClusters |
+| snowball | snowball/clusterjob | 1 |  | snowball:ListClusterJobs |
+| snowball | snowball/job | 0 |  | snowball:DescribeJob, snowball:ListJobs |
+| snowball | snowball/longtermpricing | 0 |  | snowball:ListLongTermPricing |
+| snowball | snowball/serviceversion | 1 |  | snowball:ListServiceVersions |
+| sns | sns/endpoint | 1 |  | sns:ListEndpointsByPlatformApplication |
+| sns | sns/platformapplication | 0 |  | sns:ListPlatformApplications |
+| sns | sns/smssandboxphonenumber | 0 |  | sns:ListSMSSandboxPhoneNumbers |
+| social-messaging | social-messaging/whatsappflow | 1 |  | social-messaging:GetWhatsAppFlow, social-messaging:ListWhatsAppFlows |
+| social-messaging | social-messaging/whatsappmessagetemplate | 1 |  | social-messaging:GetWhatsAppMessageTemplate, social-messaging:ListWhatsAppMessageTemplates |
+| social-messaging | social-messaging/whatsapptemplatelibrary | 1 |  | social-messaging:ListWhatsAppTemplateLibrary |
+| sqs | sqs/messagemovetask | 1 |  | sqs:ListMessageMoveTasks |
+| ssm | ssm/activation | 0 |  | ssm:DescribeActivations |
+| ssm | ssm/associationexecution | 1 |  | ssm:DescribeAssociationExecutions |
+| ssm | ssm/associationexecutiontarget | 1 |  | ssm:DescribeAssociationExecutionTargets |
+| ssm | ssm/associationversion | 1 |  | ssm:ListAssociationVersions |
+| ssm | ssm/automationexecution | 0 |  | ssm:DescribeAutomationExecutions, ssm:GetAutomationExecution |
+| ssm | ssm/automationstepexecution | 1 |  | ssm:DescribeAutomationStepExecutions |
+| ssm | ssm/cloudconnector | 0 |  | ssm:GetCloudConnector, ssm:ListCloudConnectors |
+| ssm | ssm/command | 0 |  | ssm:ListCommands |
+| ssm | ssm/complianceitem | 0 |  | ssm:ListComplianceItems |
+| ssm | ssm/documentpermission | 1 |  | ssm:DescribeDocumentPermission |
+| ssm | ssm/documentversion | 1 |  | ssm:ListDocumentVersions |
+| ssm | ssm/effectiveinstanceassociation | 1 |  | ssm:DescribeEffectiveInstanceAssociations |
+| ssm | ssm/instanceassociationsstatus | 1 |  | ssm:DescribeInstanceAssociationsStatus |
+| ssm | ssm/instancepatch | 1 |  | ssm:DescribeInstancePatches |
+| ssm | ssm/instancepatchstate | 0 |  | ssm:DescribeInstancePatchStates, ssm:DescribeInstancePatchStatesForPatchGroup |
+| ssm | ssm/inventory | 0 |  | ssm:GetInventory |
+| ssm | ssm/maintenancewindowexecution | 1 |  | ssm:DescribeMaintenanceWindowExecutions, ssm:GetMaintenanceWindowExecution |
+| ssm | ssm/maintenancewindowexecutiontask | 1 |  | ssm:DescribeMaintenanceWindowExecutionTasks, ssm:GetMaintenanceWindowExecutionTask |
+| ssm | ssm/maintenancewindowexecutiontaskinvocation | 1 |  | ssm:DescribeMaintenanceWindowExecutionTaskInvocations, ssm:GetMaintenanceWindowExecutionTaskInvocation |
+| ssm | ssm/opsitem | 0 |  | ssm:DescribeOpsItems, ssm:GetOpsItem |
+| ssm | ssm/opsitemrelateditem | 0 |  | ssm:ListOpsItemRelatedItems |
+| ssm | ssm/parameterhistory | 1 |  | ssm:GetParameterHistory |
+| ssm | ssm/session | 0 |  | ssm:DescribeSessions |
+| ssm-contacts | ssm-contacts/engagement | 0 |  | ssm-contacts:DescribeEngagement, ssm-contacts:ListEngagements |
+| ssm-contacts | ssm-contacts/page | 1 |  | ssm-contacts:DescribePage, ssm-contacts:ListPagesByContact, ssm-contacts:ListPagesByEngagement |
+| ssm-contacts | ssm-contacts/pagereceipt | 2 |  | ssm-contacts:ListPageReceipts |
+| ssm-contacts | ssm-contacts/pageresolution | 2 |  | ssm-contacts:ListPageResolutions |
+| ssm-contacts | ssm-contacts/previewrotationshift | 1 |  | ssm-contacts:ListPreviewRotationShifts |
+| ssm-contacts | ssm-contacts/rotationoverride | 1 |  | ssm-contacts:GetRotationOverride, ssm-contacts:ListRotationOverrides |
+| ssm-contacts | ssm-contacts/rotationshift | 1 |  | ssm-contacts:ListRotationShifts |
+| ssm-incidents | ssm-incidents/incidentfinding | 2 |  | ssm-incidents:BatchGetIncidentFindings, ssm-incidents:ListIncidentFindings |
+| ssm-incidents | ssm-incidents/incidentrecord | 0 |  | ssm-incidents:GetIncidentRecord, ssm-incidents:ListIncidentRecords |
+| ssm-incidents | ssm-incidents/relateditem | 2 |  | ssm-incidents:ListRelatedItems |
+| ssm-incidents | ssm-incidents/resourcepolicy | 1 |  | ssm-incidents:GetResourcePolicies |
+| ssm-incidents | ssm-incidents/timelineevent | 2 |  | ssm-incidents:GetTimelineEvent, ssm-incidents:ListTimelineEvents |
+| ssm-sap | ssm-sap/configurationcheckoperation | 2 |  | ssm-sap:GetConfigurationCheckOperation, ssm-sap:ListConfigurationCheckOperations |
+| ssm-sap | ssm-sap/operation | 0 |  | ssm-sap:GetOperation, ssm-sap:ListOperations |
+| ssm-sap | ssm-sap/subcheckresult | 1 |  | ssm-sap:ListSubCheckResults |
+| ssm-sap | ssm-sap/subcheckruleresult | 1 |  | ssm-sap:ListSubCheckRuleResults |
+| sso | sso/accountassignmentcreationstatus | 1 |  | sso:DescribeAccountAssignmentCreationStatus, sso:ListAccountAssignmentCreationStatus |
+| sso | sso/accountassignmentdeletionstatus | 1 |  | sso:DescribeAccountAssignmentDeletionStatus, sso:ListAccountAssignmentDeletionStatus |
+| sso | sso/customermanagedpolicyreference | 2 |  | sso:ListCustomerManagedPolicyReferencesInPermissionSet |
+| sso | sso/managedpolicy | 2 |  | sso:ListManagedPoliciesInPermissionSet |
+| sso | sso/permissionsetprovisioningstatus | 1 |  | sso:DescribePermissionSetProvisioningStatus, sso:ListPermissionSetProvisioningStatus |
+| sso | sso/region | 1 |  | sso:DescribeRegion, sso:ListRegions |
+| states | states/execution | 0 |  | states:DescribeExecution, states:ListExecutions |
+| states | states/executionhistory | 2 |  | states:GetExecutionHistory |
+| states | states/maprun | 2 |  | states:DescribeMapRun, states:ListMapRuns |
+| storagegateway | storagegateway/automatictapecreationpolicy | 0 |  | storagegateway:ListAutomaticTapeCreationPolicies |
+| storagegateway | storagegateway/cache | 1 |  | storagegateway:DescribeCache |
+| storagegateway | storagegateway/cachediscsivolume | 2 |  | storagegateway:DescribeCachediSCSIVolumes |
+| storagegateway | storagegateway/chapcredential | 2 |  | storagegateway:DescribeChapCredentials |
+| storagegateway | storagegateway/localdisk | 1 |  | storagegateway:ListLocalDisks |
+| storagegateway | storagegateway/nfsfileshare | 1 |  | storagegateway:DescribeNFSFileShares |
+| storagegateway | storagegateway/smbfileshare | 1 |  | storagegateway:DescribeSMBFileShares |
+| storagegateway | storagegateway/storediscsivolume | 2 |  | storagegateway:DescribeStorediSCSIVolumes |
+| storagegateway | storagegateway/tapearchive | 0 |  | storagegateway:DescribeTapeArchives |
+| storagegateway | storagegateway/taperecoverypoint | 1 |  | storagegateway:DescribeTapeRecoveryPoints |
+| storagegateway | storagegateway/uploadbuffer | 1 |  | storagegateway:DescribeUploadBuffer |
+| storagegateway | storagegateway/volumerecoverypoint | 1 |  | storagegateway:ListVolumeRecoveryPoints |
+| storagegateway | storagegateway/workingstorage | 1 |  | storagegateway:DescribeWorkingStorage |
+| support | support/case | 0 |  | support:DescribeCases |
+| support | support/communication | 1 |  | support:DescribeCommunications |
+| support | support/trustedadvisorcheck | 0 |  | support:DescribeTrustedAdvisorChecks |
+| support | support/trustedadvisorcheckrefreshstatus | 1 |  | support:DescribeTrustedAdvisorCheckRefreshStatuses |
+| support | support/trustedadvisorchecksummary | 1 |  | support:DescribeTrustedAdvisorCheckSummaries |
+| supportauthz | supportauthz/supportpermit | 0 |  | supportauthz:GetSupportPermit, supportauthz:ListSupportPermits |
+| supportauthz | supportauthz/supportpermitrequest | 0 |  | supportauthz:ListSupportPermitRequests |
+| swf | swf/workflowexecutionhistory | 1 |  | swf:GetWorkflowExecutionHistory |
+| synthetics | synthetics/associatedgroup | 1 |  | synthetics:ListAssociatedGroups |
+| synthetics | synthetics/canaryrun | 1 |  | synthetics:GetCanaryRuns |
+| tax | tax/supplementaltaxregistration | 0 |  | tax:ListSupplementalTaxRegistrations |
+| tax | tax/taxregistration | 0 |  | tax:GetTaxRegistration, tax:ListTaxRegistrations |
+| textract | textract/documentanalysis | 1 |  | textract:GetDocumentAnalysis |
+| textract | textract/documenttextdetection | 1 |  | textract:GetDocumentTextDetection |
+| timestream | timestream/batchloadtask | 0 |  | timestream:DescribeBatchLoadTask, timestream:ListBatchLoadTasks |
+| timestream-influxdb | timestream-influxdb/dbbackup | 0 |  | timestream-influxdb:GetDbBackup, timestream-influxdb:ListDbBackups |
+| transcribe | transcribe/callanalyticsjob | 0 |  | transcribe:GetCallAnalyticsJob, transcribe:ListCallAnalyticsJobs |
+| transcribe | transcribe/medicalscribejob | 0 |  | transcribe:GetMedicalScribeJob, transcribe:ListMedicalScribeJobs |
+| transcribe | transcribe/medicaltranscriptionjob | 0 |  | transcribe:GetMedicalTranscriptionJob, transcribe:ListMedicalTranscriptionJobs |
+| transcribe | transcribe/transcriptionjob | 0 |  | transcribe:GetTranscriptionJob, transcribe:ListTranscriptionJobs |
+| transfer | transfer/access | 1 |  | transfer:DescribeAccess, transfer:ListAccesses |
+| transfer | transfer/execution | 1 |  | transfer:DescribeExecution, transfer:ListExecutions |
+| translate | translate/texttranslationjob | 0 |  | translate:DescribeTextTranslationJob, translate:ListTextTranslationJobs |
+| trustedadvisor | trustedadvisor/organizationrecommendationaccount | 1 |  | trustedadvisor:ListOrganizationRecommendationAccounts |
+| trustedadvisor | trustedadvisor/organizationrecommendationresource | 1 |  | trustedadvisor:ListOrganizationRecommendationResources |
+| trustedadvisor | trustedadvisor/recommendation | 0 |  | trustedadvisor:GetRecommendation, trustedadvisor:ListRecommendations, trustedadvisor:ListRecommendationsForResource |
+| trustedadvisor | trustedadvisor/recommendationresource | 1 |  | trustedadvisor:ListRecommendationResources |
+| voiceid | voiceid/fraudster | 1 |  | voiceid:DescribeFraudster, voiceid:ListFraudsters |
+| voiceid | voiceid/fraudsterregistrationjob | 1 |  | voiceid:DescribeFraudsterRegistrationJob, voiceid:ListFraudsterRegistrationJobs |
+| voiceid | voiceid/speaker | 1 |  | voiceid:DescribeSpeaker, voiceid:ListSpeakers |
+| voiceid | voiceid/speakerenrollmentjob | 1 |  | voiceid:DescribeSpeakerEnrollmentJob, voiceid:ListSpeakerEnrollmentJobs |
+| voiceid | voiceid/watchlist | 1 |  | voiceid:DescribeWatchlist, voiceid:ListWatchlists |
+| vpc-lattice | vpc-lattice/servicenetworkvpcendpointassociation | 1 |  | vpc-lattice:ListServiceNetworkVpcEndpointAssociations |
+| waf | waf/loggingconfiguration | 0 |  | waf:GetLoggingConfiguration, waf:ListLoggingConfigurations |
+| waf-regional | waf-regional/loggingconfiguration | 0 |  | waf-regional:GetLoggingConfiguration, waf-regional:ListLoggingConfigurations |
+| wafv2 | wafv2/apikey | 0 |  | wafv2:ListAPIKeys |
+| wafv2 | wafv2/availablemanagedrulegroupversion | 1 |  | wafv2:ListAvailableManagedRuleGroupVersions |
+| wafv2 | wafv2/managedproduct | 1 |  | wafv2:DescribeManagedProductsByVendor |
+| wafv2 | wafv2/managedrulegroup | 1 |  | wafv2:DescribeManagedRuleGroup |
+| wellarchitected | wellarchitected/agentcontext | 1 |  | wellarchitected:GetAgentContext, wellarchitected:ListAgentContexts |
+| wellarchitected | wellarchitected/agentgoal | 1 |  | wellarchitected:GetAgentGoal, wellarchitected:ListAgentGoals |
+| wellarchitected | wellarchitected/agentprofile | 0 |  | wellarchitected:GetAgentProfile, wellarchitected:ListAgentProfiles |
+| wellarchitected | wellarchitected/agentrecommendation | 0 |  | wellarchitected:GetAgentRecommendation, wellarchitected:ListAgentRecommendations |
+| wellarchitected | wellarchitected/agentrecommendationgeneration | 1 |  | wellarchitected:GetAgentRecommendationGeneration, wellarchitected:ListAgentRecommendationGenerations |
+| wellarchitected | wellarchitected/agentrecommendationitem | 1 |  | wellarchitected:ListAgentRecommendationItems |
+| wellarchitected | wellarchitected/answer | 1 |  | wellarchitected:GetAnswer, wellarchitected:ListAnswers |
+| wellarchitected | wellarchitected/checkdetail | 1 |  | wellarchitected:ListCheckDetails |
+| wellarchitected | wellarchitected/checksummary | 1 |  | wellarchitected:ListCheckSummaries |
+| wellarchitected | wellarchitected/lensreview | 1 |  | wellarchitected:GetLensReview, wellarchitected:ListLensReviews |
+| wellarchitected | wellarchitected/lensreviewimprovement | 1 |  | wellarchitected:ListLensReviewImprovements |
+| wellarchitected | wellarchitected/lensshare | 1 |  | wellarchitected:ListLensShares |
+| wellarchitected | wellarchitected/milestone | 1 |  | wellarchitected:GetMilestone, wellarchitected:ListMilestones |
+| wellarchitected | wellarchitected/profileshare | 1 |  | wellarchitected:ListProfileShares |
+| wellarchitected | wellarchitected/reviewtemplateanswer | 1 |  | wellarchitected:GetReviewTemplateAnswer, wellarchitected:ListReviewTemplateAnswers |
+| wellarchitected | wellarchitected/shareinvitation | 0 |  | wellarchitected:ListShareInvitations |
+| wellarchitected | wellarchitected/templateshare | 1 |  | wellarchitected:ListTemplateShares |
+| wellarchitected | wellarchitected/workloadshare | 1 |  | wellarchitected:ListWorkloadShares |
+| wickr | wickr/bot | 1 |  | wickr:GetBot, wickr:ListBots |
+| wickr | wickr/device | 1 |  | wickr:ListDevicesForUser |
+| wickr | wickr/network | 0 |  | wickr:GetNetwork, wickr:ListNetworks |
+| wickr | wickr/networksetting | 1 |  | wickr:GetNetworkSettings |
+| wickr | wickr/securitygroupuser | 1 |  | wickr:ListSecurityGroupUsers |
+| wickr | wickr/user | 1 |  | wickr:GetUser, wickr:ListUsers |
+| wisdom | wisdom/importjob | 1 |  | wisdom:GetImportJob, wisdom:ListImportJobs |
+| wisdom | wisdom/message | 2 |  | wisdom:ListMessages |
+| wisdom | wisdom/model | 1 |  | wisdom:ListModels |
+| wisdom | wisdom/recommendation | 2 |  | wisdom:GetRecommendations |
+| wisdom | wisdom/session | 1 |  | wisdom:GetSession, wisdom:SearchSessions |
+| wisdom | wisdom/span | 2 |  | wisdom:ListSpans |
+| workdocs | workdocs/comment | 1 |  | workdocs:DescribeComments |
+| workdocs | workdocs/documentversion | 1 |  | workdocs:DescribeDocumentVersions, workdocs:GetDocumentVersion |
+| workdocs | workdocs/foldercontent | 1 |  | workdocs:DescribeFolderContents |
+| workdocs | workdocs/notificationsubscription | 1 |  | workdocs:DescribeNotificationSubscriptions |
+| workdocs | workdocs/resourcepermission | 0 |  | workdocs:DescribeResourcePermissions |
+| workdocs | workdocs/user | 0 |  | workdocs:DescribeUsers |
+| workmail | workmail/accesscontrolrule | 1 |  | workmail:ListAccessControlRules |
+| workmail | workmail/availabilityconfiguration | 1 |  | workmail:ListAvailabilityConfigurations |
+| workmail | workmail/defaultretentionpolicy | 1 |  | workmail:GetDefaultRetentionPolicy |
+| workmail | workmail/group | 1 |  | workmail:DescribeGroup, workmail:ListGroups, workmail:ListGroupsForEntity |
+| workmail | workmail/groupmember | 1 |  | workmail:ListGroupMembers |
+| workmail | workmail/impersonationrole | 1 |  | workmail:GetImpersonationRole, workmail:ListImpersonationRoles |
+| workmail | workmail/impersonationroleeffect | 1 |  | workmail:GetImpersonationRoleEffect |
+| workmail | workmail/mailboxexportjob | 1 |  | workmail:DescribeMailboxExportJob, workmail:ListMailboxExportJobs |
+| workmail | workmail/mailboxpermission | 1 |  | workmail:ListMailboxPermissions |
+| workmail | workmail/maildomain | 1 |  | workmail:GetMailDomain, workmail:ListMailDomains |
+| workmail | workmail/mobiledeviceaccesseffect | 1 |  | workmail:GetMobileDeviceAccessEffect |
+| workmail | workmail/mobiledeviceaccessoverride | 1 |  | workmail:GetMobileDeviceAccessOverride, workmail:ListMobileDeviceAccessOverrides |
+| workmail | workmail/mobiledeviceaccessrule | 1 |  | workmail:ListMobileDeviceAccessRules |
+| workmail | workmail/personalaccesstoken | 1 |  | workmail:ListPersonalAccessTokens |
+| workmail | workmail/resource | 1 |  | workmail:DescribeResource, workmail:ListResources |
+| workmail | workmail/resourcedelegate | 1 |  | workmail:ListResourceDelegates |
+| workmail | workmail/user | 1 |  | workmail:DescribeUser, workmail:ListUsers |
+| workspaces | workspaces/applicationassociation | 1 |  | workspaces:DescribeApplicationAssociations |
+| workspaces | workspaces/bundleassociation | 1 |  | workspaces:DescribeBundleAssociations |
+| workspaces | workspaces/clientproperty | 1 |  | workspaces:DescribeClientProperties |
+| workspaces | workspaces/connectclientaddin | 1 |  | workspaces:DescribeConnectClientAddIns |
+| workspaces | workspaces/connectionaliaspermission | 1 |  | workspaces:DescribeConnectionAliasPermissions |
+| workspaces | workspaces/imageassociation | 1 |  | workspaces:DescribeImageAssociations |
+| workspaces | workspaces/workspaceassociation | 1 |  | workspaces:DescribeWorkspaceAssociations |
+| workspaces | workspaces/workspaceimagepermission | 1 |  | workspaces:DescribeWorkspaceImagePermissions |
+| workspaces | workspaces/workspacespoolsession | 1 |  | workspaces:DescribeWorkspacesPoolSessions |
+| workspaces-web | workspaces-web/session | 1 |  | workspaces-web:GetSession, workspaces-web:ListSessions |
+| xray | xray/indexingrule | 0 |  | xray:GetIndexingRules |
+| xray | xray/insightimpactgraph | 1 |  | xray:GetInsightImpactGraph |
+| xray | xray/tracegraph | 1 |  | xray:GetTraceGraph |
 
 
 ## AZURE
 
-**Coverage:** 19.7% (386/1959 listable) · depth0 49.6% · depth1 3.9% · depth2 5.9% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 1785 · disco-only 8 (0 unexplained)
+**Coverage:** 19.7% (386/1959 listable) · depth0 49.6% · depth1 3.9% · depth2 5.9% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 1693 · disco-only 8 (0 unexplained)
 
 Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 
@@ -2284,7 +2280,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.apimanagement | microsoft.apimanagement/service/gateways/apis | 2 | resource-group | armapimanagement:GatewayAPI.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/gateways/certificateauthorities | 2 | resource-group | armapimanagement:GatewayCertificateAuthority.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/gateways/hostnameconfigurations | 2 | resource-group | armapimanagement:GatewayHostnameConfiguration.ListByService |
-| microsoft.apimanagement | microsoft.apimanagement/service/groups | 1 | resource-group | armapimanagement:Group.ListByService |
+| microsoft.apimanagement | microsoft.apimanagement/service/groups | 1 | resource-group | armapimanagement:Group.ListByService, armapimanagement:UserGroup.List |
 | microsoft.apimanagement | microsoft.apimanagement/service/groups/users | 2 | resource-group | armapimanagement:GroupUser.List |
 | microsoft.apimanagement | microsoft.apimanagement/service/identityproviders | 1 | resource-group | armapimanagement:IdentityProvider.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/loggers | 1 | resource-group | armapimanagement:Logger.ListByService |
@@ -2299,7 +2295,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.apimanagement | microsoft.apimanagement/service/portalconfigs | 1 | resource-group | armapimanagement:PortalConfig.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/portalrevisions | 1 | resource-group | armapimanagement:PortalRevision.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/privateendpointconnections | 1 | resource-group | armapimanagement:PrivateEndpointConnection.ListByService |
-| microsoft.apimanagement | microsoft.apimanagement/service/products | 1 | resource-group | armapimanagement:Product.ListByService |
+| microsoft.apimanagement | microsoft.apimanagement/service/products | 1 | resource-group | armapimanagement:APIProduct.ListByApis, armapimanagement:Product.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/products/apilinks | 2 | resource-group | armapimanagement:ProductAPILink.ListByProduct |
 | microsoft.apimanagement | microsoft.apimanagement/service/products/apis | 2 | resource-group | armapimanagement:ProductAPI.ListByProduct |
 | microsoft.apimanagement | microsoft.apimanagement/service/products/grouplinks | 2 | resource-group | armapimanagement:ProductGroupLink.ListByProduct |
@@ -2307,7 +2303,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.apimanagement | microsoft.apimanagement/service/products/policies | 2 | resource-group | armapimanagement:ProductPolicy.ListByProduct |
 | microsoft.apimanagement | microsoft.apimanagement/service/products/tags | 2 | resource-group | armapimanagement:Tag.ListByProduct |
 | microsoft.apimanagement | microsoft.apimanagement/service/schemas | 1 | resource-group | armapimanagement:GlobalSchema.ListByService |
-| microsoft.apimanagement | microsoft.apimanagement/service/subscriptions | 1 | resource-group | armapimanagement:Subscription.List |
+| microsoft.apimanagement | microsoft.apimanagement/service/subscriptions | 1 | resource-group | armapimanagement:ProductSubscriptions.List, armapimanagement:Subscription.List |
 | microsoft.apimanagement | microsoft.apimanagement/service/tags | 1 | resource-group | armapimanagement:Tag.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/tags/apilinks | 2 | resource-group | armapimanagement:TagAPILink.ListByProduct |
 | microsoft.apimanagement | microsoft.apimanagement/service/tags/operationlinks | 2 | resource-group | armapimanagement:TagOperationLink.ListByProduct |
@@ -2381,8 +2377,8 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.authorization | microsoft.authorization/denyassignments | 0 | extension | armauthorization:DenyAssignments.List, armauthorization:DenyAssignments.ListForResource, armauthorization:DenyAssignments.ListForResourceGroup, armauthorization:DenyAssignments.ListForScope |
 | microsoft.authorization | microsoft.authorization/locks | 0 | extension | armlocks:ManagementLocks.ListAtResourceGroupLevel, armlocks:ManagementLocks.ListAtResourceLevel, armlocks:ManagementLocks.ListAtSubscriptionLevel, armlocks:ManagementLocks.ListByScope |
 | microsoft.authorization | microsoft.authorization/policydefinitions/versions | 1 | tenant | armpolicy:DefinitionVersions.List, armpolicy:DefinitionVersions.ListBuiltIn, armpolicy:DefinitionVersions.ListByManagementGroup |
-| microsoft.authorization | microsoft.authorization/policyenrollments | 0 | management-group | armpolicy:Enrollments.List, armpolicy:Enrollments.ListForManagementGroup, armpolicy:Enrollments.ListForResource, armpolicy:Enrollments.ListForResourceGroup |
-| microsoft.authorization | microsoft.authorization/policyexemptions | 0 | management-group | armpolicy:Exemptions.List, armpolicy:Exemptions.ListForManagementGroup, armpolicy:Exemptions.ListForResource, armpolicy:Exemptions.ListForResourceGroup |
+| microsoft.authorization | microsoft.authorization/policyenrollments | 0 | extension | armpolicy:Enrollments.List, armpolicy:Enrollments.ListForManagementGroup, armpolicy:Enrollments.ListForResource, armpolicy:Enrollments.ListForResourceGroup |
+| microsoft.authorization | microsoft.authorization/policyexemptions | 0 | extension | armpolicy:Exemptions.List, armpolicy:Exemptions.ListForManagementGroup, armpolicy:Exemptions.ListForResource, armpolicy:Exemptions.ListForResourceGroup |
 | microsoft.authorization | microsoft.authorization/policysetdefinitions/versions | 1 | tenant | armpolicy:SetDefinitionVersions.List, armpolicy:SetDefinitionVersions.ListBuiltIn, armpolicy:SetDefinitionVersions.ListByManagementGroup |
 | microsoft.authorization | microsoft.authorization/roleassignmentschedulerequests | 0 | extension | armauthorization:RoleAssignmentScheduleRequests.ListForScope |
 | microsoft.authorization | microsoft.authorization/roleeligibilityschedulerequests | 0 | extension | armauthorization:RoleEligibilityScheduleRequests.ListForScope |
@@ -2475,21 +2471,21 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.billing | microsoft.billing/billingaccounts/billingprofiles/invoicesections/transfers | 3 | tenant | armbilling:Transfers.List |
 | microsoft.billing | microsoft.billing/billingaccounts/billingroleassignments | 1 | tenant | armbilling:RoleAssignments.ListByBillingAccount |
 | microsoft.billing | microsoft.billing/billingaccounts/billingsubscriptionaliases | 1 | tenant | armbilling:SubscriptionsAliases.ListByBillingAccount |
-| microsoft.billing | microsoft.billing/billingaccounts/billingsubscriptions | 1 | tenant | armbilling:Subscriptions.ListByBillingAccount |
+| microsoft.billing | microsoft.billing/billingaccounts/billingsubscriptions | 1 | tenant | armbilling:Subscriptions.ListByBillingAccount, armbilling:Subscriptions.ListByCustomer, armbilling:Subscriptions.ListByCustomerAtBillingAccount, armbilling:Subscriptions.ListByEnrollmentAccount, armbilling:Subscriptions.ListByInvoiceSection |
 | microsoft.billing | microsoft.billing/billingaccounts/departments/billingroleassignments | 2 | tenant | armbilling:RoleAssignments.ListByDepartment |
 | microsoft.billing | microsoft.billing/billingaccounts/enrollmentaccounts/billingroleassignments | 2 | tenant | armbilling:RoleAssignments.ListByEnrollmentAccount |
-| microsoft.billing | microsoft.billing/billingaccounts/products | 1 | tenant | armbilling:Products.ListByBillingAccount |
-| microsoft.billing | microsoft.billing/billingaccounts/reservationorders/reservations | 2 | tenant | armbilling:Reservations.ListByReservationOrder |
-| microsoft.billing | microsoft.billing/billingaccounts/savingsplanorders/savingsplans | 2 | tenant | armbilling:SavingsPlans.ListBySavingsPlanOrder |
-| microsoft.billing | microsoft.billing/billingrequests | 0 | tenant | armbilling:Requests.ListByUser |
+| microsoft.billing | microsoft.billing/billingaccounts/products | 1 | tenant | armbilling:Products.ListByBillingAccount, armbilling:Products.ListByBillingProfile, armbilling:Products.ListByCustomer, armbilling:Products.ListByInvoiceSection |
+| microsoft.billing | microsoft.billing/billingaccounts/reservationorders/reservations | 2 | tenant | armbilling:Reservations.ListByBillingAccount, armbilling:Reservations.ListByBillingProfile, armbilling:Reservations.ListByReservationOrder |
+| microsoft.billing | microsoft.billing/billingaccounts/savingsplanorders/savingsplans | 2 | tenant | armbilling:SavingsPlans.ListByBillingAccount, armbilling:SavingsPlans.ListBySavingsPlanOrder |
+| microsoft.billing | microsoft.billing/billingrequests | 0 | tenant | armbilling:Requests.ListByBillingAccount, armbilling:Requests.ListByBillingProfile, armbilling:Requests.ListByCustomer, armbilling:Requests.ListByInvoiceSection, armbilling:Requests.ListByUser |
 | microsoft.billing | microsoft.billing/paymentmethods | 0 | tenant | armbilling:PaymentMethods.ListByUser |
-| microsoft.billingbenefits | microsoft.billingbenefits/conditionalcredits | 0 | subscription | armbillingbenefits:ConditionalCredits.ListByResourceGroup, armbillingbenefits:ConditionalCredits.ListBySubscription |
-| microsoft.billingbenefits | microsoft.billingbenefits/credits | 0 | subscription | armbillingbenefits:Credits.ListByResourceGroup, armbillingbenefits:Credits.ListBySubscription |
+| microsoft.billingbenefits | microsoft.billingbenefits/conditionalcredits | 0 | subscription | armbillingbenefits:ConditionalCredits.ListByResourceGroup, armbillingbenefits:ConditionalCredits.ListBySubscription, armbillingbenefits:ConditionalCredits.ScopeList |
+| microsoft.billingbenefits | microsoft.billingbenefits/credits | 0 | subscription | armbillingbenefits:Credits.ListApplicable, armbillingbenefits:Credits.ListByResourceGroup, armbillingbenefits:Credits.ListBySubscription |
 | microsoft.billingbenefits | microsoft.billingbenefits/credits/sources | 1 | resource-group | armbillingbenefits:Sources.ListByCredit |
-| microsoft.billingbenefits | microsoft.billingbenefits/discounts | 0 | subscription | armbillingbenefits:Discounts.ResourceGroupList, armbillingbenefits:Discounts.SubscriptionList |
+| microsoft.billingbenefits | microsoft.billingbenefits/discounts | 0 | subscription | armbillingbenefits:Discounts.ResourceGroupList, armbillingbenefits:Discounts.ScopeList, armbillingbenefits:Discounts.SubscriptionList |
 | microsoft.billingbenefits | microsoft.billingbenefits/freeservices | 0 | subscription | armbillingbenefits:FreeServices.ListByResourceGroup, armbillingbenefits:FreeServices.ListBySubscription |
 | microsoft.billingbenefits | microsoft.billingbenefits/maccs | 0 | subscription | armbillingbenefits:Maccs.ListByResourceGroup, armbillingbenefits:Maccs.ListBySubscription |
-| microsoft.billingbenefits | microsoft.billingbenefits/savingsplanorders/savingsplans | 1 | tenant | armbillingbenefits:SavingsPlan.List |
+| microsoft.billingbenefits | microsoft.billingbenefits/savingsplanorders/savingsplans | 1 | tenant | armbillingbenefits:SavingsPlan.List, armbillingbenefits:SavingsPlan.ListAll |
 | microsoft.billingtrust | microsoft.billingtrust/assessments/default/rules | 0 | extension | armbillingtrust:Rules.List |
 | microsoft.blockchain | microsoft.blockchain/blockchainmembers | 0 | subscription | armblockchain:Members.List, armblockchain:Members.ListAll |
 | microsoft.blockchain | microsoft.blockchain/blockchainmembers/transactionnodes | 1 | resource-group | armblockchain:TransactionNodes.List |
@@ -2508,7 +2504,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.cache | microsoft.cache/redisenterprise/databases/accesspolicyassignments | 2 | resource-group | armredisenterprise:AccessPolicyAssignment.List |
 | microsoft.cache | microsoft.cache/redisenterprise/privateendpointconnections | 1 | resource-group | armredisenterprise:PrivateEndpointConnections.List |
 | microsoft.capacity | microsoft.capacity/reservationorders | 0 | tenant | armreservations:ReservationOrder.List |
-| microsoft.capacity | microsoft.capacity/reservationorders/reservations | 1 | tenant | armreservations:Reservation.List |
+| microsoft.capacity | microsoft.capacity/reservationorders/reservations | 1 | tenant | armreservations:Reservation.List, armreservations:Reservation.ListAll, armreservations:Reservation.ListRevisions |
 | microsoft.capacity | microsoft.capacity/resourceproviders/servicelimits | 1 | subscription | armreservations:Quota.List |
 | microsoft.cdn | microsoft.cdn/edgeactions | 0 | subscription | armedgeactions:Client.ListByResourceGroup, armedgeactions:Client.ListBySubscription |
 | microsoft.cdn | microsoft.cdn/edgeactions/executionfilters | 1 | resource-group | armedgeactions:EdgeActionExecutionFilters.ListByEdgeAction |
@@ -2529,8 +2525,8 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.certificateregistration | microsoft.certificateregistration/certificateorders/certificates | 1 | resource-group | armcertificateregistration:AppServiceCertificateOrders.ListCertificates |
 | microsoft.chaos | microsoft.chaos/privateaccesses | 0 | subscription | armchaos:PrivateAccesses.List, armchaos:PrivateAccesses.ListAll |
 | microsoft.chaos | microsoft.chaos/privateaccesses/privateendpointconnections | 1 | resource-group | armchaos:PrivateAccesses.ListPrivateEndpointConnections |
-| microsoft.chaos | microsoft.chaos/targets | 0 | resource-group | armchaos:Targets.List |
-| microsoft.chaos | microsoft.chaos/targets/capabilities | 1 | resource-group | armchaos:Capabilities.List |
+| microsoft.chaos | microsoft.chaos/targets | 0 | extension | armchaos:Targets.List |
+| microsoft.chaos | microsoft.chaos/targets/capabilities | 1 | extension | armchaos:Capabilities.List |
 | microsoft.chaos | microsoft.chaos/workspaces | 0 | subscription | armchaos:Workspaces.List, armchaos:Workspaces.ListAll |
 | microsoft.chaos | microsoft.chaos/workspaces/connections | 1 | resource-group | armchaos:Connections.ListAll |
 | microsoft.chaos | microsoft.chaos/workspaces/scenarios | 1 | resource-group | armchaos:Scenarios.ListAll |
@@ -2721,7 +2717,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.datamigration | microsoft.datamigration/services/projects/tasks | 2 | resource-group | armdatamigration:Tasks.List |
 | microsoft.datamigration | microsoft.datamigration/services/servicetasks | 1 | resource-group | armdatamigration:ServiceTasks.List |
 | microsoft.datamigration | microsoft.datamigration/sqlmigrationservices | 0 | subscription | armdatamigration:SQLMigrationServices.ListByResourceGroup, armdatamigration:SQLMigrationServices.ListBySubscription |
-| microsoft.dataprotection | microsoft.dataprotection/backupvaults/backupinstances | 1 | resource-group | armdataprotection:BackupInstances.List |
+| microsoft.dataprotection | microsoft.dataprotection/backupvaults/backupinstances | 1 | resource-group | armdataprotection:BackupInstances.List, armdataprotection:BackupInstancesExtensionRouting.List |
 | microsoft.dataprotection | microsoft.dataprotection/backupvaults/backuppolicies | 1 | resource-group | armdataprotection:BackupPolicies.List |
 | microsoft.dataprotection | microsoft.dataprotection/backupvaults/backupresourceguardproxies | 1 | resource-group | armdataprotection:DppResourceGuardProxy.List |
 | microsoft.datareplication | microsoft.datareplication/replicationfabrics/fabricagents | 1 | resource-group | armrecoveryservicesdatareplication:FabricAgent.List |
@@ -2737,7 +2733,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.datashare | microsoft.datashare/accounts/sharesubscriptions | 1 | resource-group | armdatashare:ShareSubscriptions.ListByAccount |
 | microsoft.datashare | microsoft.datashare/accounts/sharesubscriptions/datasetmappings | 2 | resource-group | armdatashare:DataSetMappings.ListByShareSubscription |
 | microsoft.datashare | microsoft.datashare/accounts/sharesubscriptions/triggers | 2 | resource-group | armdatashare:Triggers.ListByShareSubscription |
-| microsoft.dbformariadb | microsoft.dbformariadb/servers | 0 | subscription | armmariadb:Servers.List, armmariadb:Servers.ListByResourceGroup |
+| microsoft.dbformariadb | microsoft.dbformariadb/servers | 0 | subscription | armmariadb:Replicas.ListByServer, armmariadb:Servers.List, armmariadb:Servers.ListByResourceGroup |
 | microsoft.dbformariadb | microsoft.dbformariadb/servers/configurations | 1 | resource-group | armmariadb:Configurations.ListByServer |
 | microsoft.dbformariadb | microsoft.dbformariadb/servers/databases | 1 | resource-group | armmariadb:Databases.ListByServer |
 | microsoft.dbformariadb | microsoft.dbformariadb/servers/firewallrules | 1 | resource-group | armmariadb:FirewallRules.ListByServer |
@@ -2753,7 +2749,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.dbformysql | microsoft.dbformysql/flexibleservers/firewallrules | 1 | resource-group | armmysqlflexibleservers:FirewallRules.ListByServer |
 | microsoft.dbformysql | microsoft.dbformysql/flexibleservers/maintenances | 1 | resource-group | armmysqlflexibleservers:Maintenances.List |
 | microsoft.dbformysql | microsoft.dbformysql/flexibleservers/privateendpointconnections | 1 | resource-group | armmysqlflexibleservers:PrivateEndpointConnections.ListByServer |
-| microsoft.dbformysql | microsoft.dbformysql/servers | 0 | subscription | armmysql:Servers.List, armmysql:Servers.ListByResourceGroup |
+| microsoft.dbformysql | microsoft.dbformysql/servers | 0 | subscription | armmysql:Replicas.ListByServer, armmysql:Servers.List, armmysql:Servers.ListByResourceGroup |
 | microsoft.dbformysql | microsoft.dbformysql/servers/configurations | 1 | resource-group | armmysql:Configurations.ListByServer |
 | microsoft.dbformysql | microsoft.dbformysql/servers/databases | 1 | resource-group | armmysql:Databases.ListByServer |
 | microsoft.dbformysql | microsoft.dbformysql/servers/firewallrules | 1 | resource-group | armmysql:FirewallRules.ListByServer |
@@ -2773,7 +2769,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servergroupsv2/firewallrules | 1 | resource-group | armcosmosforpostgresql:FirewallRules.ListByCluster, armpostgresqlhsc:FirewallRules.ListByCluster |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servergroupsv2/privateendpointconnections | 1 | resource-group | armcosmosforpostgresql:PrivateEndpointConnections.ListByCluster, armpostgresqlhsc:PrivateEndpointConnections.ListByCluster |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servergroupsv2/roles | 1 | resource-group | armcosmosforpostgresql:Roles.ListByCluster, armpostgresqlhsc:Roles.ListByCluster |
-| microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers | 0 | subscription | armpostgresql:Servers.List, armpostgresql:Servers.ListByResourceGroup |
+| microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers | 0 | subscription | armpostgresql:Replicas.ListByServer, armpostgresql:Servers.List, armpostgresql:Servers.ListByResourceGroup |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers/configurations | 1 | resource-group | armpostgresql:Configurations.ListByServer |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers/databases | 1 | resource-group | armpostgresql:Databases.ListByServer |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers/firewallrules | 1 | resource-group | armpostgresql:FirewallRules.ListByServer |
@@ -2795,7 +2791,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.desktopvirtualization | microsoft.desktopvirtualization/hostpools/msixpackages | 1 | resource-group | armdesktopvirtualization:MSIXPackages.List |
 | microsoft.desktopvirtualization | microsoft.desktopvirtualization/hostpools/privateendpointconnections | 1 | resource-group | armdesktopvirtualization:PrivateEndpointConnections.ListByHostPool |
 | microsoft.desktopvirtualization | microsoft.desktopvirtualization/hostpools/sessionhosts | 1 | resource-group | armdesktopvirtualization:SessionHosts.List |
-| microsoft.desktopvirtualization | microsoft.desktopvirtualization/hostpools/sessionhosts/usersessions | 2 | resource-group | armdesktopvirtualization:UserSessions.List |
+| microsoft.desktopvirtualization | microsoft.desktopvirtualization/hostpools/sessionhosts/usersessions | 2 | resource-group | armdesktopvirtualization:UserSessions.List, armdesktopvirtualization:UserSessions.ListByHostPool |
 | microsoft.desktopvirtualization | microsoft.desktopvirtualization/scalingplans/personalschedules | 1 | resource-group | armdesktopvirtualization:ScalingPlanPersonalSchedules.List |
 | microsoft.desktopvirtualization | microsoft.desktopvirtualization/scalingplans/pooledschedules | 1 | resource-group | armdesktopvirtualization:ScalingPlanPooledSchedules.List |
 | microsoft.desktopvirtualization | microsoft.desktopvirtualization/workspaces/privateendpointconnections | 1 | resource-group | armdesktopvirtualization:PrivateEndpointConnections.ListByWorkspace |
@@ -2926,7 +2922,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.elasticsan | microsoft.elasticsan/elasticsans/volumegroups/volumes | 2 | resource-group | armelasticsan:Volumes.ListByVolumeGroup |
 | microsoft.engagementfabric | microsoft.engagementfabric/accounts | 0 | subscription | armengagementfabric:Accounts.List, armengagementfabric:Accounts.ListByResourceGroup |
 | microsoft.engagementfabric | microsoft.engagementfabric/accounts/channels | 1 | resource-group | armengagementfabric:Channels.ListByAccount |
-| microsoft.eventgrid | microsoft.eventgrid/domains/eventsubscriptions | 1 | resource-group | armeventgrid:DomainEventSubscriptions.List |
+| microsoft.eventgrid | microsoft.eventgrid/domains/eventsubscriptions | 1 | resource-group | armeventgrid:DomainEventSubscriptions.List, armeventgrid:EventSubscriptions.ListGlobalByResourceGroupForTopicType, armeventgrid:EventSubscriptions.ListGlobalBySubscriptionForTopicType, armeventgrid:EventSubscriptions.ListRegionalByResourceGroupForTopicType, armeventgrid:EventSubscriptions.ListRegionalBySubscriptionForTopicType |
 | microsoft.eventgrid | microsoft.eventgrid/domains/topics | 1 | resource-group | armeventgrid:DomainTopics.ListByDomain |
 | microsoft.eventgrid | microsoft.eventgrid/domains/topics/eventsubscriptions | 2 | resource-group | armeventgrid:DomainTopicEventSubscriptions.List |
 | microsoft.eventgrid | microsoft.eventgrid/namespaces/cacertificates | 1 | resource-group | armeventgrid:CaCertificates.ListByNamespace |
@@ -2951,7 +2947,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.eventhub | microsoft.eventhub/namespaces/privateendpointconnections | 1 | resource-group | armeventhub:PrivateEndpointConnections.List |
 | microsoft.eventhub | microsoft.eventhub/namespaces/schemagroups | 1 | resource-group | armeventhub:SchemaRegistry.ListByNamespace |
 | microsoft.extendedlocation | microsoft.extendedlocation/customlocations/resourcesyncrules | 1 | resource-group | armextendedlocation:ResourceSyncRules.ListByCustomLocationID |
-| microsoft.features | microsoft.features/featureproviders/subscriptionfeatureregistrations | 1 | subscription | armfeatures:SubscriptionFeatureRegistrations.ListBySubscription |
+| microsoft.features | microsoft.features/featureproviders/subscriptionfeatureregistrations | 1 | subscription | armfeatures:SubscriptionFeatureRegistrations.ListAllBySubscription, armfeatures:SubscriptionFeatureRegistrations.ListBySubscription |
 | microsoft.fileshares | microsoft.fileshares/fileshares/filesharesnapshots | 1 | resource-group | armfileshares:FileShareSnapshots.ListByFileShare |
 | microsoft.fileshares | microsoft.fileshares/fileshares/privateendpointconnections | 1 | resource-group | armfileshares:PrivateEndpointConnections.ListByFileShare |
 | microsoft.fluidrelay | microsoft.fluidrelay/fluidrelayservers/fluidrelaycontainers | 1 | resource-group | armfluidrelay:Containers.ListByFluidRelayServers |
@@ -2987,7 +2983,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.hybridconnectivity | microsoft.hybridconnectivity/solutionconfigurations | 0 | extension | armhybridconnectivity:SolutionConfigurations.List |
 | microsoft.hybridcontainerservice | microsoft.hybridcontainerservice/provisionedclusterinstances/default/agentpools | 0 | extension | armhybridcontainerservice:AgentPool.ListByProvisionedCluster |
 | microsoft.hybriddata | microsoft.hybriddata/datamanagers | 0 | subscription | armhybriddatamanager:DataManagers.List, armhybriddatamanager:DataManagers.ListByResourceGroup |
-| microsoft.hybriddata | microsoft.hybriddata/datamanagers/dataservices/jobdefinitions | 2 | resource-group | armhybriddatamanager:JobDefinitions.ListByDataService |
+| microsoft.hybriddata | microsoft.hybriddata/datamanagers/dataservices/jobdefinitions | 2 | resource-group | armhybriddatamanager:JobDefinitions.ListByDataManager, armhybriddatamanager:JobDefinitions.ListByDataService |
 | microsoft.hybriddata | microsoft.hybriddata/datamanagers/datastores | 1 | resource-group | armhybriddatamanager:DataStores.ListByDataManager |
 | microsoft.hybridnetwork | microsoft.hybridnetwork/configurationgroupvalues | 0 | subscription | armhybridnetwork:ConfigurationGroupValues.ListByResourceGroup, armhybridnetwork:ConfigurationGroupValues.ListBySubscription |
 | microsoft.hybridnetwork | microsoft.hybridnetwork/publishers | 0 | subscription | armhybridnetwork:Publishers.ListByResourceGroup, armhybridnetwork:Publishers.ListBySubscription |
@@ -3016,7 +3012,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.insights | microsoft.insights/components/proactivedetectionconfigs | 1 | resource-group | armapplicationinsights:ProactiveDetectionConfigurations.List |
 | microsoft.insights | microsoft.insights/components/workitemconfigs | 1 | resource-group | armapplicationinsights:WorkItemConfigurations.List |
 | microsoft.insights | microsoft.insights/datacollectionendpoints | 0 | subscription | armmonitor:DataCollectionEndpoints.ListByResourceGroup, armmonitor:DataCollectionEndpoints.ListBySubscription |
-| microsoft.insights | microsoft.insights/datacollectionruleassociations | 0 | extension | armmonitor:DataCollectionRuleAssociations.ListByResource |
+| microsoft.insights | microsoft.insights/datacollectionruleassociations | 0 | extension | armmonitor:DataCollectionRuleAssociations.ListByDataCollectionEndpoint, armmonitor:DataCollectionRuleAssociations.ListByResource, armmonitor:DataCollectionRuleAssociations.ListByRule |
 | microsoft.insights | microsoft.insights/datacollectionrules | 0 | subscription | armmonitor:DataCollectionRules.ListByResourceGroup, armmonitor:DataCollectionRules.ListBySubscription |
 | microsoft.insights | microsoft.insights/logprofiles | 0 | subscription | armmonitor:LogProfiles.List |
 | microsoft.insights | microsoft.insights/metricalerts | 0 | subscription | armmonitor:MetricAlerts.ListByResourceGroup, armmonitor:MetricAlerts.ListBySubscription |
@@ -3025,7 +3021,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.insights | microsoft.insights/privatelinkscopes/scopedresources | 1 | resource-group | armmonitor:PrivateLinkScopedResources.ListByPrivateLinkScope |
 | microsoft.insights | microsoft.insights/scheduledqueryrules | 0 | subscription | armmonitor:ScheduledQueryRules.ListByResourceGroup, armmonitor:ScheduledQueryRules.ListBySubscription |
 | microsoft.insights | microsoft.insights/tenantactiongroups | 0 | management-group | armmonitor:TenantActionGroups.ListByManagementGroupID |
-| microsoft.insights | microsoft.insights/webtests | 0 | subscription | armapplicationinsights:WebTests.List, armapplicationinsights:WebTests.ListByResourceGroup |
+| microsoft.insights | microsoft.insights/webtests | 0 | subscription | armapplicationinsights:WebTests.List, armapplicationinsights:WebTests.ListByComponent, armapplicationinsights:WebTests.ListByResourceGroup |
 | microsoft.insights | microsoft.insights/workbooks | 0 | subscription | armapplicationinsights:Workbooks.ListByResourceGroup, armapplicationinsights:Workbooks.ListBySubscription |
 | microsoft.insights | microsoft.insights/workbooktemplates | 0 | resource-group | armapplicationinsights:WorkbookTemplates.ListByResourceGroup |
 | microsoft.integrationspaces | microsoft.integrationspaces/spaces/applications | 1 | resource-group | armintegrationspaces:Applications.ListBySpace |
@@ -3053,11 +3049,11 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.keyvault | microsoft.keyvault/vaults/keys | 1 | resource-group | armkeyvault:Keys.List |
 | microsoft.keyvault | microsoft.keyvault/vaults/privateendpointconnections | 1 | resource-group | armkeyvault:PrivateEndpointConnections.ListByResource |
 | microsoft.keyvault | microsoft.keyvault/vaults/secrets | 1 | resource-group | armkeyvault:Secrets.List |
-| microsoft.kubernetesconfiguration | microsoft.kubernetesconfiguration/extensions | 0 | resource-group | armextensions:Client.List, armkubernetesconfiguration:Extensions.List |
-| microsoft.kubernetesconfiguration | microsoft.kubernetesconfiguration/fluxconfigurations | 0 | resource-group | armfluxconfigurations:Client.List, armkubernetesconfiguration:FluxConfigurations.List |
+| microsoft.kubernetesconfiguration | microsoft.kubernetesconfiguration/extensions | 0 | extension | armextensions:Client.List, armkubernetesconfiguration:Extensions.List |
+| microsoft.kubernetesconfiguration | microsoft.kubernetesconfiguration/fluxconfigurations | 0 | extension | armfluxconfigurations:Client.List, armkubernetesconfiguration:FluxConfigurations.List |
 | microsoft.kubernetesconfiguration | microsoft.kubernetesconfiguration/privatelinkscopes | 0 | subscription | armprivatelinkscopes:Client.List, armprivatelinkscopes:Client.ListByResourceGroup |
 | microsoft.kubernetesconfiguration | microsoft.kubernetesconfiguration/privatelinkscopes/privateendpointconnections | 1 | resource-group | armprivatelinkscopes:PrivateEndpointConnections.ListByPrivateLinkScope |
-| microsoft.kubernetesconfiguration | microsoft.kubernetesconfiguration/sourcecontrolconfigurations | 0 | resource-group | armkubernetesconfiguration:SourceControlConfigurations.List |
+| microsoft.kubernetesconfiguration | microsoft.kubernetesconfiguration/sourcecontrolconfigurations | 0 | extension | armkubernetesconfiguration:SourceControlConfigurations.List |
 | microsoft.kubernetesruntime | microsoft.kubernetesruntime/bgppeers | 0 | extension | armcontainerorchestratorruntime:BgpPeers.List |
 | microsoft.kubernetesruntime | microsoft.kubernetesruntime/loadbalancers | 0 | extension | armcontainerorchestratorruntime:LoadBalancers.List |
 | microsoft.kubernetesruntime | microsoft.kubernetesruntime/services | 0 | extension | armcontainerorchestratorruntime:Services.List |
@@ -3119,7 +3115,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.machinelearningservices | microsoft.machinelearningservices/workspaces/components/versions | 2 | resource-group | armmachinelearning:ComponentVersions.List |
 | microsoft.machinelearningservices | microsoft.machinelearningservices/workspaces/computes | 1 | resource-group | armmachinelearning:Compute.List, armmachinelearningservices:Compute.List |
 | microsoft.machinelearningservices | microsoft.machinelearningservices/workspaces/connections | 1 | resource-group | armmachinelearning:WorkspaceConnections.List, armmachinelearningservices:WorkspaceConnections.List |
-| microsoft.machinelearningservices | microsoft.machinelearningservices/workspaces/connections/deployments | 2 | resource-group | armmachinelearning:Connection.ListDeployments |
+| microsoft.machinelearningservices | microsoft.machinelearningservices/workspaces/connections/deployments | 2 | resource-group | armmachinelearning:Connection.ListDeployments, armmachinelearning:EndpointDeployment.GetInWorkspace |
 | microsoft.machinelearningservices | microsoft.machinelearningservices/workspaces/connections/raiblocklists | 2 | resource-group | armmachinelearning:ConnectionRaiBlocklists.List |
 | microsoft.machinelearningservices | microsoft.machinelearningservices/workspaces/connections/raiblocklists/raiblocklistitems | 3 | resource-group | armmachinelearning:ConnectionRaiBlocklistItems.List |
 | microsoft.machinelearningservices | microsoft.machinelearningservices/workspaces/connections/raipolicies | 2 | resource-group | armmachinelearning:ConnectionRaiPolicies.List |
@@ -3164,7 +3160,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.managednetworkfabric | microsoft.managednetworkfabric/networkfabrics/networktonetworkinterconnects | 1 | resource-group | armmanagednetworkfabric:NetworkToNetworkInterconnects.ListByNetworkFabric |
 | microsoft.managednetworkfabric | microsoft.managednetworkfabric/networkmonitors | 0 | subscription | armmanagednetworkfabric:NetworkMonitors.ListByResourceGroup, armmanagednetworkfabric:NetworkMonitors.ListBySubscription |
 | microsoft.managedops | microsoft.managedops/managedops | 0 | subscription | armmanagedops:Client.List |
-| microsoft.management | microsoft.management/subscriptions | 0 | tenant | armmanagementgroups:ManagementGroupSubscriptions.GetSubscriptionsUnderManagementGroup |
+| microsoft.management | microsoft.management/subscriptions | 0 | management-group | armmanagementgroups:ManagementGroupSubscriptions.GetSubscriptionsUnderManagementGroup |
 | microsoft.managementpartner | microsoft.managementpartner/partners | 0 | tenant | armmanagementpartner:Partners.Get |
 | microsoft.maps | microsoft.maps/accounts/creators | 1 | resource-group | armmaps:Creators.ListByAccount |
 | microsoft.maps | microsoft.maps/accounts/privateendpointconnections | 1 | resource-group | armmaps:PrivateEndpointConnections.ListByAccount |
@@ -3184,7 +3180,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.migrate | microsoft.migrate/assessmentprojects/aksassessments | 1 | resource-group | armmigrationassessment:AksAssessmentOperations.ListByAssessmentProject |
 | microsoft.migrate | microsoft.migrate/assessmentprojects/businesscases | 1 | resource-group | armmigrationassessment:BusinessCaseOperations.ListByAssessmentProject |
 | microsoft.migrate | microsoft.migrate/assessmentprojects/groups | 1 | resource-group | armmigrate:Groups.ListByProject, armmigrationassessment:GroupsOperations.ListByAssessmentProject |
-| microsoft.migrate | microsoft.migrate/assessmentprojects/groups/assessments | 2 | resource-group | armmigrate:Assessments.ListByGroup, armmigrationassessment:AssessmentsOperations.ListByGroup |
+| microsoft.migrate | microsoft.migrate/assessmentprojects/groups/assessments | 2 | resource-group | armmigrate:Assessments.ListByGroup, armmigrate:Assessments.ListByProject, armmigrationassessment:AssessmentsOperations.ListByGroup |
 | microsoft.migrate | microsoft.migrate/assessmentprojects/groups/avsassessments | 2 | resource-group | armmigrationassessment:AvsAssessmentsOperations.ListByGroup |
 | microsoft.migrate | microsoft.migrate/assessmentprojects/groups/sqlassessments | 2 | resource-group | armmigrationassessment:SQLAssessmentV2Operations.ListByGroup |
 | microsoft.migrate | microsoft.migrate/assessmentprojects/groups/webappassessments | 2 | resource-group | armmigrationassessment:WebAppAssessmentV2Operations.ListByGroup |
@@ -3219,7 +3215,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.netapp | microsoft.netapp/elasticaccounts/elasticbackupvaults | 1 | resource-group | armnetapp:ElasticBackupVaults.ListByElasticAccount |
 | microsoft.netapp | microsoft.netapp/elasticaccounts/elasticbackupvaults/elasticbackups | 2 | resource-group | armnetapp:ElasticBackups.ListByVault |
 | microsoft.netapp | microsoft.netapp/elasticaccounts/elasticcapacitypools | 1 | resource-group | armnetapp:ElasticCapacityPools.ListByElasticAccount |
-| microsoft.netapp | microsoft.netapp/elasticaccounts/elasticcapacitypools/elasticvolumes | 2 | resource-group | armnetapp:ElasticVolumes.ListByElasticPool |
+| microsoft.netapp | microsoft.netapp/elasticaccounts/elasticcapacitypools/elasticvolumes | 2 | resource-group | armnetapp:ElasticSnapshotPolicies.ListElasticVolumes, armnetapp:ElasticVolumes.ListByElasticPool |
 | microsoft.netapp | microsoft.netapp/elasticaccounts/elasticcapacitypools/elasticvolumes/elasticsnapshots | 3 | resource-group | armnetapp:ElasticSnapshots.ListByElasticVolume |
 | microsoft.netapp | microsoft.netapp/elasticaccounts/elasticsnapshotpolicies | 1 | resource-group | armnetapp:ElasticSnapshotPolicies.ListByElasticAccount |
 | microsoft.netapp | microsoft.netapp/netappaccounts/backuppolicies | 1 | resource-group | armnetapp:BackupPolicies.List |
@@ -3227,7 +3223,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.netapp | microsoft.netapp/netappaccounts/backupvaults/backups | 2 | resource-group | armnetapp:Backups.ListByVault |
 | microsoft.netapp | microsoft.netapp/netappaccounts/capacitypools | 1 | resource-group | armnetapp:Pools.List |
 | microsoft.netapp | microsoft.netapp/netappaccounts/capacitypools/caches | 2 | resource-group | armnetapp:Caches.List |
-| microsoft.netapp | microsoft.netapp/netappaccounts/capacitypools/volumes | 2 | resource-group | armnetapp:Volumes.List |
+| microsoft.netapp | microsoft.netapp/netappaccounts/capacitypools/volumes | 2 | resource-group | armnetapp:SnapshotPolicies.ListVolumes, armnetapp:Volumes.List |
 | microsoft.netapp | microsoft.netapp/netappaccounts/capacitypools/volumes/buckets | 3 | resource-group | armnetapp:Buckets.List |
 | microsoft.netapp | microsoft.netapp/netappaccounts/capacitypools/volumes/snapshots | 3 | resource-group | armnetapp:Snapshots.List |
 | microsoft.netapp | microsoft.netapp/netappaccounts/capacitypools/volumes/subvolumes | 3 | resource-group | armnetapp:Subvolumes.ListByVolume |
@@ -3374,22 +3370,22 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.providerhub | microsoft.providerhub/providerregistrations/resourcetyperegistrations/resourcetyperegistrations/skus | 3 | subscription | armproviderhub:SKUs.ListByResourceTypeRegistrationsNestedResourceTypeFirst |
 | microsoft.providerhub | microsoft.providerhub/providerregistrations/resourcetyperegistrations/skus | 2 | subscription | armproviderhub:SKUs.ListByResourceTypeRegistrations |
 | microsoft.purview | microsoft.purview/accounts/kafkaconfigurations | 1 | resource-group | armpurview:KafkaConfigurations.ListByAccount |
-| microsoft.purview | microsoft.purview/accounts/privateendpointconnections | 1 | resource-group | armpurview:PrivateEndpointConnections.ListByAccount |
+| microsoft.purview | microsoft.purview/accounts/privateendpointconnections | 1 | resource-group | armpurview:IngestionPrivateEndpointConnections.List, armpurview:PrivateEndpointConnections.ListByAccount |
 | microsoft.quota | microsoft.quota/groupquotas | 0 | management-group | armquota:GroupQuotas.List |
 | microsoft.quota | microsoft.quota/groupquotas/subscriptions | 1 | management-group | armquota:GroupQuotaSubscriptions.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/backuppolicies | 1 | resource-group | armrecoveryservicesbackup:BackupPolicies.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/backupresourceguardproxies | 1 | resource-group | armrecoveryservicesbackup:ResourceGuardProxies.Get |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationalertsettings | 1 | resource-group | armrecoveryservicessiterecovery:ReplicationAlertSettings.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics | 1 | resource-group | armrecoveryservicessiterecovery:ReplicationFabrics.List |
-| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationnetworks/replicationnetworkmappings | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationNetworkMappings.ListByReplicationNetworks |
-| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers | 2 | resource-group | armrecoveryservicessiterecovery:ReplicationProtectionContainers.ListByReplicationFabrics |
-| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers/replicationmigrationitems | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationMigrationItems.ListByReplicationProtectionContainers |
-| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers/replicationprotecteditems | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationProtectedItems.ListByReplicationProtectionContainers |
-| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers/replicationprotectionclusters | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationProtectionClusters.ListByReplicationProtectionContainers |
-| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers/replicationprotectioncontainermappings | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationProtectionContainerMappings.ListByReplicationProtectionContainers |
-| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationrecoveryservicesproviders | 2 | resource-group | armrecoveryservicessiterecovery:ReplicationRecoveryServicesProviders.ListByReplicationFabrics |
-| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationstorageclassifications/replicationstorageclassificationmappings | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationStorageClassificationMappings.ListByReplicationStorageClassifications |
-| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationvcenters | 2 | resource-group | armrecoveryservicessiterecovery:ReplicationvCenters.ListByReplicationFabrics |
+| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationnetworks/replicationnetworkmappings | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationNetworkMappings.List, armrecoveryservicessiterecovery:ReplicationNetworkMappings.ListByReplicationNetworks |
+| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers | 2 | resource-group | armrecoveryservicessiterecovery:ReplicationProtectionContainers.List, armrecoveryservicessiterecovery:ReplicationProtectionContainers.ListByReplicationFabrics |
+| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers/replicationmigrationitems | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationMigrationItems.List, armrecoveryservicessiterecovery:ReplicationMigrationItems.ListByReplicationProtectionContainers |
+| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers/replicationprotecteditems | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationProtectedItems.List, armrecoveryservicessiterecovery:ReplicationProtectedItems.ListByReplicationProtectionContainers |
+| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers/replicationprotectionclusters | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationProtectionClusters.List, armrecoveryservicessiterecovery:ReplicationProtectionClusters.ListByReplicationProtectionContainers |
+| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationprotectioncontainers/replicationprotectioncontainermappings | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationProtectionContainerMappings.List, armrecoveryservicessiterecovery:ReplicationProtectionContainerMappings.ListByReplicationProtectionContainers |
+| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationrecoveryservicesproviders | 2 | resource-group | armrecoveryservicessiterecovery:ReplicationRecoveryServicesProviders.List, armrecoveryservicessiterecovery:ReplicationRecoveryServicesProviders.ListByReplicationFabrics |
+| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationstorageclassifications/replicationstorageclassificationmappings | 3 | resource-group | armrecoveryservicessiterecovery:ReplicationStorageClassificationMappings.List, armrecoveryservicessiterecovery:ReplicationStorageClassificationMappings.ListByReplicationStorageClassifications |
+| microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationfabrics/replicationvcenters | 2 | resource-group | armrecoveryservicessiterecovery:ReplicationvCenters.List, armrecoveryservicessiterecovery:ReplicationvCenters.ListByReplicationFabrics |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationpolicies | 1 | resource-group | armrecoveryservicessiterecovery:ReplicationPolicies.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationprotectionintents | 1 | resource-group | armrecoveryservicessiterecovery:ReplicationProtectionIntents.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/replicationrecoveryplans | 1 | resource-group | armrecoveryservicessiterecovery:ReplicationRecoveryPlans.List |
@@ -3442,7 +3438,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.security | microsoft.security/securityconnectors/devops/default/azuredevopsorgs/projects/repos | 3 | resource-group | armsecurity:AzureDevOpsRepos.List |
 | microsoft.security | microsoft.security/securitycontacts | 0 | subscription | armsecurity:Contacts.List |
 | microsoft.security | microsoft.security/securitystandards | 0 | extension | armsecurity:ArmSecurityStandards.List |
-| microsoft.security | microsoft.security/servervulnerabilityassessments | 0 | resource-group | armsecurity:ServerVulnerabilityAssessment.ListByExtendedResource |
+| microsoft.security | microsoft.security/servervulnerabilityassessments | 0 | extension | armsecurity:ServerVulnerabilityAssessment.ListByExtendedResource |
 | microsoft.security | microsoft.security/servervulnerabilityassessmentssettings | 0 | subscription | armsecurity:ServerVulnerabilityAssessmentsSettings.ListBySubscription |
 | microsoft.security | microsoft.security/settings | 0 | subscription | armsecurity:Settings.List |
 | microsoft.security | microsoft.security/sqlvulnerabilityassessments/default/baselinerules | 0 | extension | armsecurity:SQLVulnerabilityAssessmentBaselineRules.List |
@@ -3452,10 +3448,10 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.securitydevops | microsoft.securitydevops/azuredevopsconnectors | 0 | subscription | armsecuritydevops:AzureDevOpsConnector.ListByResourceGroup, armsecuritydevops:AzureDevOpsConnector.ListBySubscription |
 | microsoft.securitydevops | microsoft.securitydevops/azuredevopsconnectors/orgs | 1 | resource-group | armsecuritydevops:AzureDevOpsOrg.List |
 | microsoft.securitydevops | microsoft.securitydevops/azuredevopsconnectors/orgs/projects | 2 | resource-group | armsecuritydevops:AzureDevOpsProject.List |
-| microsoft.securitydevops | microsoft.securitydevops/azuredevopsconnectors/orgs/projects/repos | 3 | resource-group | armsecuritydevops:AzureDevOpsRepo.List |
+| microsoft.securitydevops | microsoft.securitydevops/azuredevopsconnectors/orgs/projects/repos | 3 | resource-group | armsecuritydevops:AzureDevOpsRepo.List, armsecuritydevops:AzureDevOpsRepo.ListByConnector |
 | microsoft.securitydevops | microsoft.securitydevops/githubconnectors | 0 | subscription | armsecuritydevops:GitHubConnector.ListByResourceGroup, armsecuritydevops:GitHubConnector.ListBySubscription |
 | microsoft.securitydevops | microsoft.securitydevops/githubconnectors/owners | 1 | resource-group | armsecuritydevops:GitHubOwner.List |
-| microsoft.securitydevops | microsoft.securitydevops/githubconnectors/owners/repos | 2 | resource-group | armsecuritydevops:GitHubRepo.List |
+| microsoft.securitydevops | microsoft.securitydevops/githubconnectors/owners/repos | 2 | resource-group | armsecuritydevops:GitHubRepo.List, armsecuritydevops:GitHubRepo.ListByConnector |
 | microsoft.securityinsights | microsoft.securityinsights/alertrules | 0 | resource-group | armsecurityinsights:AlertRules.List |
 | microsoft.securityinsights | microsoft.securityinsights/alertrules/actions | 1 | resource-group | armsecurityinsights:Actions.ListByAlertRule |
 | microsoft.securityinsights | microsoft.securityinsights/automationrules | 0 | resource-group | armsecurityinsights:AutomationRules.List |
@@ -3489,7 +3485,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.securityinsights | microsoft.securityinsights/workspacemanagerconfigurations | 0 | resource-group | armsecurityinsights:WorkspaceManagerConfigurations.List |
 | microsoft.securityinsights | microsoft.securityinsights/workspacemanagergroups | 0 | resource-group | armsecurityinsights:WorkspaceManagerGroups.List |
 | microsoft.securityinsights | microsoft.securityinsights/workspacemanagermembers | 0 | resource-group | armsecurityinsights:WorkspaceManagerMembers.List |
-| microsoft.serialconsole | microsoft.serialconsole/serialports | 0 | subscription | armserialconsole:SerialPorts.List, armserialconsole:SerialPorts.ListBySubscriptions |
+| microsoft.serialconsole | microsoft.serialconsole/serialports | 0 | extension | armserialconsole:SerialPorts.List, armserialconsole:SerialPorts.ListBySubscriptions |
 | microsoft.servicebus | microsoft.servicebus/namespaces/authorizationrules | 1 | resource-group | armservicebus:Namespaces.ListAuthorizationRules |
 | microsoft.servicebus | microsoft.servicebus/namespaces/disasterrecoveryconfigs | 1 | resource-group | armservicebus:DisasterRecoveryConfigs.List |
 | microsoft.servicebus | microsoft.servicebus/namespaces/migrationconfigurations | 1 | resource-group | armservicebus:MigrationConfigs.List |
@@ -3536,8 +3532,8 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.signalrservice | microsoft.signalrservice/webpubsub/replicas/sharedprivatelinkresources | 2 | resource-group | armwebpubsub:ReplicaSharedPrivateLinkResources.List |
 | microsoft.signalrservice | microsoft.signalrservice/webpubsub/sharedprivatelinkresources | 1 | resource-group | armwebpubsub:SharedPrivateLinkResources.List |
 | microsoft.sql | microsoft.sql/instancefailovergroups | 0 | resource-group | armsql:InstanceFailoverGroups.ListByLocation |
-| microsoft.sql | microsoft.sql/longtermretentionmanagedinstances/longtermretentiondatabases/longtermretentionmanagedinstancebackups | 2 | subscription | armsql:LongTermRetentionManagedInstanceBackups.ListByDatabase, armsql:LongTermRetentionManagedInstanceBackups.ListByResourceGroupDatabase |
-| microsoft.sql | microsoft.sql/longtermretentionservers/longtermretentiondatabases/longtermretentionbackups | 2 | subscription | armsql:LongTermRetentionBackups.ListByDatabase, armsql:LongTermRetentionBackups.ListByResourceGroupDatabase |
+| microsoft.sql | microsoft.sql/longtermretentionmanagedinstances/longtermretentiondatabases/longtermretentionmanagedinstancebackups | 2 | subscription | armsql:LongTermRetentionManagedInstanceBackups.ListByDatabase, armsql:LongTermRetentionManagedInstanceBackups.ListByInstance, armsql:LongTermRetentionManagedInstanceBackups.ListByLocation, armsql:LongTermRetentionManagedInstanceBackups.ListByResourceGroupDatabase, armsql:LongTermRetentionManagedInstanceBackups.ListByResourceGroupInstance, armsql:LongTermRetentionManagedInstanceBackups.ListByResourceGroupLocation |
+| microsoft.sql | microsoft.sql/longtermretentionservers/longtermretentiondatabases/longtermretentionbackups | 2 | subscription | armsql:LongTermRetentionBackups.ListByDatabase, armsql:LongTermRetentionBackups.ListByLocation, armsql:LongTermRetentionBackups.ListByResourceGroupDatabase, armsql:LongTermRetentionBackups.ListByResourceGroupLocation, armsql:LongTermRetentionBackups.ListByResourceGroupServer, armsql:LongTermRetentionBackups.ListByServer |
 | microsoft.sql | microsoft.sql/managedinstances/advancedthreatprotectionsettings | 1 | resource-group | armsql:ManagedInstanceAdvancedThreatProtectionSettings.ListByInstance |
 | microsoft.sql | microsoft.sql/managedinstances/azureadonlyauthentications | 1 | resource-group | armsql:ManagedInstanceAzureADOnlyAuthentications.ListByInstance |
 | microsoft.sql | microsoft.sql/managedinstances/databases/advancedthreatprotectionsettings | 2 | resource-group | armsql:ManagedDatabaseAdvancedThreatProtectionSettings.ListByDatabase |
@@ -3570,7 +3566,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.sql | microsoft.sql/servers/ipv6firewallrules | 1 | resource-group | armsql:IPv6FirewallRules.ListByServer |
 | microsoft.sql | microsoft.sql/servers/jobagents/credentials | 2 | resource-group | armsql:JobCredentials.ListByAgent |
 | microsoft.sql | microsoft.sql/servers/jobagents/jobs | 2 | resource-group | armsql:Jobs.ListByAgent |
-| microsoft.sql | microsoft.sql/servers/jobagents/jobs/executions | 3 | resource-group | armsql:JobExecutions.ListByJob |
+| microsoft.sql | microsoft.sql/servers/jobagents/jobs/executions | 3 | resource-group | armsql:JobExecutions.ListByAgent, armsql:JobExecutions.ListByJob, armsql:JobTargetExecutions.ListByJobExecution |
 | microsoft.sql | microsoft.sql/servers/jobagents/jobs/steps | 3 | resource-group | armsql:JobSteps.ListByJob |
 | microsoft.sql | microsoft.sql/servers/jobagents/privateendpoints | 2 | resource-group | armsql:JobPrivateEndpoints.ListByAgent |
 | microsoft.sql | microsoft.sql/servers/jobagents/targetgroups | 2 | resource-group | armsql:JobTargetGroups.ListByAgent |
@@ -3579,7 +3575,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.sql | microsoft.sql/servers/sqlvulnerabilityassessments | 1 | resource-group | armsql:VulnerabilityAssessmentsSettings.ListByServer |
 | microsoft.sql | microsoft.sql/servers/sqlvulnerabilityassessments/baselines | 2 | resource-group | armsql:VulnerabilityAssessmentBaseline.ListBySQLVulnerabilityAssessment |
 | microsoft.sql | microsoft.sql/servers/sqlvulnerabilityassessments/baselines/rules | 3 | resource-group | armsql:VulnerabilityAssessmentRuleBaseline.ListByBaseline |
-| microsoft.sql | microsoft.sql/servertrustgroups | 0 | resource-group | armsql:ServerTrustGroups.ListByLocation |
+| microsoft.sql | microsoft.sql/servertrustgroups | 0 | resource-group | armsql:ServerTrustGroups.ListByInstance, armsql:ServerTrustGroups.ListByLocation |
 | microsoft.sqlvirtualmachine | microsoft.sqlvirtualmachine/sqlvirtualmachinegroups/availabilitygrouplisteners | 1 | resource-group | armsqlvirtualmachine:AvailabilityGroupListeners.ListByGroup |
 | microsoft.storage | microsoft.storage/storageaccounts/advancedplatformmetrics | 1 | resource-group | armstorage:AdvancedPlatformMetrics.List |
 | microsoft.storage | microsoft.storage/storageaccounts/blobservices/default/containers | 1 | resource-group | armstorage:BlobContainers.List |
@@ -3615,18 +3611,18 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 | microsoft.storsimple | microsoft.storsimple/managers | 0 | subscription | armstorsimple1200series:Managers.List, armstorsimple1200series:Managers.ListByResourceGroup, armstorsimple8000series:Managers.List, armstorsimple8000series:Managers.ListByResourceGroup |
 | microsoft.storsimple | microsoft.storsimple/managers/accesscontrolrecords | 1 | resource-group | armstorsimple1200series:AccessControlRecords.ListByManager, armstorsimple8000series:AccessControlRecords.ListByManager |
 | microsoft.storsimple | microsoft.storsimple/managers/bandwidthsettings | 1 | resource-group | armstorsimple8000series:BandwidthSettings.ListByManager |
-| microsoft.storsimple | microsoft.storsimple/managers/devices | 1 | resource-group | armstorsimple1200series:Devices.ListByManager, armstorsimple8000series:Devices.ListByManager |
+| microsoft.storsimple | microsoft.storsimple/managers/devices | 1 | resource-group | armstorsimple1200series:Devices.ListByManager, armstorsimple1200series:Devices.ListFailoverTarget, armstorsimple8000series:Devices.ListByManager |
 | microsoft.storsimple | microsoft.storsimple/managers/devices/backuppolicies | 2 | resource-group | armstorsimple8000series:BackupPolicies.ListByDevice |
 | microsoft.storsimple | microsoft.storsimple/managers/devices/backuppolicies/schedules | 3 | resource-group | armstorsimple8000series:BackupSchedules.ListByBackupPolicy |
-| microsoft.storsimple | microsoft.storsimple/managers/devices/backups | 2 | resource-group | armstorsimple1200series:Backups.ListByDevice, armstorsimple8000series:Backups.ListByDevice |
+| microsoft.storsimple | microsoft.storsimple/managers/devices/backups | 2 | resource-group | armstorsimple1200series:Backups.ListByDevice, armstorsimple1200series:Backups.ListByManager, armstorsimple8000series:Backups.ListByDevice |
 | microsoft.storsimple | microsoft.storsimple/managers/devices/backupschedulegroups | 2 | resource-group | armstorsimple1200series:BackupScheduleGroups.ListByDevice |
 | microsoft.storsimple | microsoft.storsimple/managers/devices/chapsettings | 2 | resource-group | armstorsimple1200series:ChapSettings.ListByDevice |
-| microsoft.storsimple | microsoft.storsimple/managers/devices/fileservers | 2 | resource-group | armstorsimple1200series:FileServers.ListByDevice |
-| microsoft.storsimple | microsoft.storsimple/managers/devices/fileservers/shares | 3 | resource-group | armstorsimple1200series:FileShares.ListByFileServer |
-| microsoft.storsimple | microsoft.storsimple/managers/devices/iscsiservers | 2 | resource-group | armstorsimple1200series:IscsiServers.ListByDevice |
-| microsoft.storsimple | microsoft.storsimple/managers/devices/iscsiservers/disks | 3 | resource-group | armstorsimple1200series:IscsiDisks.ListByIscsiServer |
+| microsoft.storsimple | microsoft.storsimple/managers/devices/fileservers | 2 | resource-group | armstorsimple1200series:FileServers.ListByDevice, armstorsimple1200series:FileServers.ListByManager |
+| microsoft.storsimple | microsoft.storsimple/managers/devices/fileservers/shares | 3 | resource-group | armstorsimple1200series:FileShares.ListByDevice, armstorsimple1200series:FileShares.ListByFileServer |
+| microsoft.storsimple | microsoft.storsimple/managers/devices/iscsiservers | 2 | resource-group | armstorsimple1200series:IscsiServers.ListByDevice, armstorsimple1200series:IscsiServers.ListByManager |
+| microsoft.storsimple | microsoft.storsimple/managers/devices/iscsiservers/disks | 3 | resource-group | armstorsimple1200series:IscsiDisks.ListByDevice, armstorsimple1200series:IscsiDisks.ListByIscsiServer |
 | microsoft.storsimple | microsoft.storsimple/managers/devices/volumecontainers | 2 | resource-group | armstorsimple8000series:VolumeContainers.ListByDevice |
-| microsoft.storsimple | microsoft.storsimple/managers/devices/volumecontainers/volumes | 3 | resource-group | armstorsimple8000series:Volumes.ListByVolumeContainer |
+| microsoft.storsimple | microsoft.storsimple/managers/devices/volumecontainers/volumes | 3 | resource-group | armstorsimple8000series:Volumes.ListByDevice, armstorsimple8000series:Volumes.ListByVolumeContainer |
 | microsoft.storsimple | microsoft.storsimple/managers/storageaccountcredentials | 1 | resource-group | armstorsimple1200series:StorageAccountCredentials.ListByManager, armstorsimple8000series:StorageAccountCredentials.ListByManager |
 | microsoft.storsimple | microsoft.storsimple/managers/storagedomains | 1 | resource-group | armstorsimple1200series:StorageDomains.ListByManager |
 | microsoft.streamanalytics | microsoft.streamanalytics/clusters/privateendpoints | 1 | resource-group | armstreamanalytics:PrivateEndpoints.ListByCluster |
@@ -3789,7 +3785,7 @@ Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 
 ## GCP
 
-**Coverage:** 23.3% (235/1009 listable) · depth0 27.6% · depth1 18.3% · depth2 11.8% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 841 · disco-only 1 (0 unexplained)
+**Coverage:** 23.3% (235/1009 listable) · depth0 27.6% · depth1 18.4% · depth2 11.7% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 834 · disco-only 1 (0 unexplained)
 
 Pins: google.golang.org/api@v0.292.0
 
@@ -3975,12 +3971,12 @@ Pins: google.golang.org/api@v0.292.0
 | agentregistry | agentregistry/bindings | 0 | project | agentregistry:projects.locations.bindings.list |
 | agentregistry | agentregistry/services | 0 | project | agentregistry:projects.locations.services.list |
 | aiplatform | aiplatform/agents | 0 | project | aiplatform:projects.locations.agents.list |
-| aiplatform | aiplatform/batchpredictionjobs | 0 | global | aiplatform:batchPredictionJobs.list, aiplatform:projects.locations.batchPredictionJobs.list |
+| aiplatform | aiplatform/batchpredictionjobs | 0 | project | aiplatform:batchPredictionJobs.list, aiplatform:projects.locations.batchPredictionJobs.list |
 | aiplatform | aiplatform/cachedcontents | 0 | project | aiplatform:projects.locations.cachedContents.list |
 | aiplatform | aiplatform/customjobs | 0 | project | aiplatform:projects.locations.customJobs.list |
 | aiplatform | aiplatform/datalabelingjobs | 0 | project | aiplatform:projects.locations.dataLabelingJobs.list |
-| aiplatform | aiplatform/datasets | 0 | global | aiplatform:datasets.list, aiplatform:projects.locations.datasets.list |
-| aiplatform | aiplatform/datasets/datasetversions | 1 | global | aiplatform:datasets.datasetVersions.list, aiplatform:projects.locations.datasets.datasetVersions.list |
+| aiplatform | aiplatform/datasets | 0 | project | aiplatform:datasets.list, aiplatform:projects.locations.datasets.list |
+| aiplatform | aiplatform/datasets/datasetversions | 1 | project | aiplatform:datasets.datasetVersions.list, aiplatform:projects.locations.datasets.datasetVersions.list |
 | aiplatform | aiplatform/datasets/savedqueries | 1 | project | aiplatform:projects.locations.datasets.savedQueries.list |
 | aiplatform | aiplatform/deploymentresourcepools | 0 | project | aiplatform:projects.locations.deploymentResourcePools.list |
 | aiplatform | aiplatform/endpoints | 0 | project | aiplatform:projects.locations.endpoints.list |
@@ -4036,7 +4032,7 @@ Pins: google.golang.org/api@v0.292.0
 | alloydb | alloydb/clusters | 0 | project | alloydb:projects.locations.clusters.list |
 | alloydb | alloydb/clusters/instances | 1 | project | alloydb:projects.locations.clusters.instances.list |
 | alloydb | alloydb/clusters/users | 1 | project | alloydb:projects.locations.clusters.users.list |
-| analyticshub | analyticshub/dataexchanges | 0 | org | analyticshub:organizations.locations.dataExchanges.list, analyticshub:projects.locations.dataExchanges.list |
+| analyticshub | analyticshub/dataexchanges | 0 | project | analyticshub:organizations.locations.dataExchanges.list, analyticshub:projects.locations.dataExchanges.list |
 | analyticshub | analyticshub/dataexchanges/listings | 1 | project | analyticshub:projects.locations.dataExchanges.listings.list |
 | analyticshub | analyticshub/dataexchanges/querytemplates | 1 | project | analyticshub:projects.locations.dataExchanges.queryTemplates.list |
 | analyticshub | analyticshub/subscriptions | 0 | project | analyticshub:projects.locations.subscriptions.list |
@@ -4167,7 +4163,7 @@ Pins: google.golang.org/api@v0.292.0
 | chromemanagement | chromemanagement/profiles | 0 | tenant | chromemanagement:customers.profiles.list |
 | chromemanagement | chromemanagement/profiles/commands | 1 | tenant | chromemanagement:customers.profiles.commands.list |
 | chromemanagement | chromemanagement/telemetry/notificationconfigs | 0 | tenant | chromemanagement:customers.telemetry.notificationConfigs.list |
-| cloudbilling | cloudbilling/billingaccounts | 0 | billing-account | cloudbilling:billingAccounts.list, cloudbilling:organizations.billingAccounts.list |
+| cloudbilling | cloudbilling/billingaccounts | 0 | org | cloudbilling:billingAccounts.list, cloudbilling:organizations.billingAccounts.list |
 | cloudbilling | cloudbilling/subaccounts | 0 | billing-account | cloudbilling:billingAccounts.subAccounts.list |
 | cloudbuild | cloudbuild/bitbucketserverconfigs | 0 | project | cloudbuild:projects.locations.bitbucketServerConfigs.list |
 | cloudbuild | cloudbuild/builds | 0 | project | cloudbuild:projects.builds.list, cloudbuild:projects.locations.builds.list |
@@ -4283,11 +4279,11 @@ Pins: google.golang.org/api@v0.292.0
 | dataplex | dataplex/glossaries/categories | 1 | project | dataplex:projects.locations.glossaries.categories.list |
 | dataplex | dataplex/glossaries/terms | 1 | project | dataplex:projects.locations.glossaries.terms.list |
 | dataplex | dataplex/lakes | 0 | project | dataplex:projects.locations.lakes.list |
-| dataplex | dataplex/lakes/assets | 1 | project | dataplex:projects.locations.lakes.zones.assets.list |
-| dataplex | dataplex/lakes/entities | 1 | project | dataplex:projects.locations.lakes.zones.entities.list |
-| dataplex | dataplex/lakes/entities/partitions | 2 | project | dataplex:projects.locations.lakes.zones.entities.partitions.list |
 | dataplex | dataplex/lakes/tasks | 1 | project | dataplex:projects.locations.lakes.tasks.list |
 | dataplex | dataplex/lakes/zones | 1 | project | dataplex:projects.locations.lakes.zones.list |
+| dataplex | dataplex/lakes/zones/assets | 2 | project | dataplex:projects.locations.lakes.zones.assets.list |
+| dataplex | dataplex/lakes/zones/entities | 2 | project | dataplex:projects.locations.lakes.zones.entities.list |
+| dataplex | dataplex/lakes/zones/entities/partitions | 3 | project | dataplex:projects.locations.lakes.zones.entities.partitions.list |
 | dataplex | dataplex/metadatafeeds | 0 | project | dataplex:projects.locations.metadataFeeds.list |
 | dataplex | dataplex/metadatajobs | 0 | project | dataplex:projects.locations.metadataJobs.list |
 | datastore | datastore/indexes | 0 | project | datastore:projects.indexes.list |
@@ -4369,23 +4365,23 @@ Pins: google.golang.org/api@v0.292.0
 | discoveryengine | discoveryengine/datastores/sessions | 1 | project | discoveryengine:projects.locations.dataStores.sessions.list |
 | discoveryengine | discoveryengine/datastores/sitesearchengine/targetsites | 1 | project | discoveryengine:projects.locations.dataStores.siteSearchEngine.targetSites.list |
 | discoveryengine | discoveryengine/identitymappingstores | 0 | project | discoveryengine:projects.locations.identityMappingStores.list |
-| dlp | dlp/connections | 0 | org | dlp:organizations.locations.connections.list, dlp:projects.locations.connections.list |
+| dlp | dlp/connections | 0 | project | dlp:organizations.locations.connections.list, dlp:projects.locations.connections.list |
 | dlp | dlp/contentpolicies | 0 | project | dlp:projects.locations.contentPolicies.list |
-| dlp | dlp/deidentifytemplates | 0 | org | dlp:organizations.deidentifyTemplates.list, dlp:organizations.locations.deidentifyTemplates.list, dlp:projects.deidentifyTemplates.list, dlp:projects.locations.deidentifyTemplates.list |
-| dlp | dlp/discoveryconfigs | 0 | org | dlp:organizations.locations.discoveryConfigs.list, dlp:projects.locations.discoveryConfigs.list |
-| dlp | dlp/dlpjobs | 0 | org | dlp:organizations.locations.dlpJobs.list, dlp:projects.dlpJobs.list, dlp:projects.locations.dlpJobs.list |
-| dlp | dlp/filestoredataprofiles | 0 | org | dlp:organizations.locations.fileStoreDataProfiles.list, dlp:projects.locations.fileStoreDataProfiles.list |
-| dlp | dlp/inspecttemplates | 0 | org | dlp:organizations.inspectTemplates.list, dlp:organizations.locations.inspectTemplates.list, dlp:projects.inspectTemplates.list, dlp:projects.locations.inspectTemplates.list |
-| dlp | dlp/jobtriggers | 0 | org | dlp:organizations.locations.jobTriggers.list, dlp:projects.jobTriggers.list, dlp:projects.locations.jobTriggers.list |
-| dlp | dlp/storedinfotypes | 0 | org | dlp:organizations.locations.storedInfoTypes.list, dlp:organizations.storedInfoTypes.list, dlp:projects.locations.storedInfoTypes.list, dlp:projects.storedInfoTypes.list |
-| dlp | dlp/tabledataprofiles | 0 | org | dlp:organizations.locations.tableDataProfiles.list, dlp:projects.locations.tableDataProfiles.list |
+| dlp | dlp/deidentifytemplates | 0 | project | dlp:organizations.deidentifyTemplates.list, dlp:organizations.locations.deidentifyTemplates.list, dlp:projects.deidentifyTemplates.list, dlp:projects.locations.deidentifyTemplates.list |
+| dlp | dlp/discoveryconfigs | 0 | project | dlp:organizations.locations.discoveryConfigs.list, dlp:projects.locations.discoveryConfigs.list |
+| dlp | dlp/dlpjobs | 0 | project | dlp:organizations.locations.dlpJobs.list, dlp:projects.dlpJobs.list, dlp:projects.locations.dlpJobs.list |
+| dlp | dlp/filestoredataprofiles | 0 | project | dlp:organizations.locations.fileStoreDataProfiles.list, dlp:projects.locations.fileStoreDataProfiles.list |
+| dlp | dlp/inspecttemplates | 0 | project | dlp:organizations.inspectTemplates.list, dlp:organizations.locations.inspectTemplates.list, dlp:projects.inspectTemplates.list, dlp:projects.locations.inspectTemplates.list |
+| dlp | dlp/jobtriggers | 0 | project | dlp:organizations.locations.jobTriggers.list, dlp:projects.jobTriggers.list, dlp:projects.locations.jobTriggers.list |
+| dlp | dlp/storedinfotypes | 0 | project | dlp:organizations.locations.storedInfoTypes.list, dlp:organizations.storedInfoTypes.list, dlp:projects.locations.storedInfoTypes.list, dlp:projects.storedInfoTypes.list |
+| dlp | dlp/tabledataprofiles | 0 | project | dlp:organizations.locations.tableDataProfiles.list, dlp:projects.locations.tableDataProfiles.list |
 | dns | dns/changes | 1 | project | dns:changes.list |
 | documentai | documentai/processors | 0 | project | documentai:projects.locations.processors.list |
 | documentai | documentai/processors/processorversions | 1 | project | documentai:projects.locations.processors.processorVersions.list |
 | documentai | documentai/schemas | 0 | project | documentai:projects.locations.schemas.list |
 | documentai | documentai/schemas/schemaversions | 1 | project | documentai:projects.locations.schemas.schemaVersions.list |
 | domains | domains/registrations | 0 | project | domains:projects.locations.registrations.list |
-| essentialcontacts | essentialcontacts/contacts | 0 | folder | essentialcontacts:folders.contacts.list, essentialcontacts:organizations.contacts.list, essentialcontacts:projects.contacts.list |
+| essentialcontacts | essentialcontacts/contacts | 0 | project | essentialcontacts:folders.contacts.list, essentialcontacts:organizations.contacts.list, essentialcontacts:projects.contacts.list |
 | eventarc | eventarc/channelconnections | 0 | project | eventarc:projects.locations.channelConnections.list |
 | eventarc | eventarc/channels | 0 | project | eventarc:projects.locations.channels.list |
 | eventarc | eventarc/enrollments | 0 | project | eventarc:projects.locations.enrollments.list |
@@ -4417,7 +4413,7 @@ Pins: google.golang.org/api@v0.292.0
 | gkebackup | gkebackup/restoreplans | 0 | project | gkebackup:projects.locations.restorePlans.list |
 | gkebackup | gkebackup/restoreplans/restores | 1 | project | gkebackup:projects.locations.restorePlans.restores.list |
 | gkehub | gkehub/features | 0 | project | gkehub:projects.locations.features.list |
-| gkehub | gkehub/fleets | 0 | org | gkehub:organizations.locations.fleets.list, gkehub:projects.locations.fleets.list |
+| gkehub | gkehub/fleets | 0 | project | gkehub:organizations.locations.fleets.list, gkehub:projects.locations.fleets.list |
 | gkehub | gkehub/memberships | 0 | project | gkehub:projects.locations.memberships.list |
 | gkehub | gkehub/memberships/bindings | 1 | project | gkehub:projects.locations.memberships.bindings.list |
 | gkehub | gkehub/memberships/features | 1 | project | gkehub:projects.locations.memberships.features.list |
@@ -4478,7 +4474,7 @@ Pins: google.golang.org/api@v0.292.0
 | jobs | jobs/tenants | 0 | project | jobs:projects.tenants.list |
 | jobs | jobs/tenants/companies | 1 | project | jobs:projects.tenants.companies.list |
 | jobs | jobs/tenants/jobs | 1 | project | jobs:projects.tenants.jobs.list |
-| logging | logging/logs | 0 | billing-account | logging:billingAccounts.logs.list, logging:folders.logs.list, logging:logs.list, logging:organizations.logs.list, logging:projects.logs.list |
+| logging | logging/logs | 0 | project | logging:billingAccounts.logs.list, logging:folders.logs.list, logging:logs.list, logging:organizations.logs.list, logging:projects.logs.list |
 | looker | looker/instances | 0 | project | looker:projects.locations.instances.list |
 | looker | looker/instances/backups | 1 | project | looker:projects.locations.instances.backups.list |
 | managedidentities | managedidentities/domains | 0 | project | managedidentities:projects.locations.global.domains.list |
@@ -4517,7 +4513,7 @@ Pins: google.golang.org/api@v0.292.0
 | ml | ml/studies | 0 | project | ml:projects.locations.studies.list |
 | ml | ml/studies/trials | 1 | project | ml:projects.locations.studies.trials.list |
 | monitoring | monitoring/metricdescriptors | 0 | project | monitoring:projects.metricDescriptors.list |
-| monitoring | monitoring/timeseries | 0 | folder | monitoring:folders.timeSeries.list, monitoring:organizations.timeSeries.list, monitoring:projects.timeSeries.list |
+| monitoring | monitoring/timeseries | 0 | project | monitoring:folders.timeSeries.list, monitoring:organizations.timeSeries.list, monitoring:projects.timeSeries.list |
 | netapp | netapp/activedirectories | 0 | project | netapp:projects.locations.activeDirectories.list |
 | netapp | netapp/backuppolicies | 0 | project | netapp:projects.locations.backupPolicies.list |
 | netapp | netapp/backupvaults | 0 | project | netapp:projects.locations.backupVaults.list |
@@ -4546,15 +4542,15 @@ Pins: google.golang.org/api@v0.292.0
 | networkconnectivity | networkconnectivity/transports | 0 | project | networkconnectivity:projects.locations.transports.list |
 | networkmanagement | networkmanagement/connectivitytests | 0 | project | networkmanagement:projects.locations.global.connectivityTests.list |
 | networkmanagement | networkmanagement/networkmonitoringproviders | 0 | project | networkmanagement:projects.locations.networkMonitoringProviders.list |
-| networkmanagement | networkmanagement/vpcflowlogsconfigs | 0 | org | networkmanagement:organizations.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.list |
-| networksecurity | networksecurity/addressgroups | 0 | org | networksecurity:organizations.locations.addressGroups.list, networksecurity:projects.locations.addressGroups.list |
+| networkmanagement | networkmanagement/vpcflowlogsconfigs | 0 | project | networkmanagement:organizations.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.list |
+| networksecurity | networksecurity/addressgroups | 0 | project | networksecurity:organizations.locations.addressGroups.list, networksecurity:projects.locations.addressGroups.list |
 | networksecurity | networksecurity/authorizationpolicies | 0 | project | networksecurity:projects.locations.authorizationPolicies.list |
 | networksecurity | networksecurity/authzpolicies | 0 | project | networksecurity:projects.locations.authzPolicies.list |
 | networksecurity | networksecurity/backendauthenticationconfigs | 0 | project | networksecurity:projects.locations.backendAuthenticationConfigs.list |
 | networksecurity | networksecurity/clienttlspolicies | 0 | project | networksecurity:projects.locations.clientTlsPolicies.list |
 | networksecurity | networksecurity/dnsthreatdetectors | 0 | project | networksecurity:projects.locations.dnsThreatDetectors.list |
 | networksecurity | networksecurity/firewallendpointassociations | 0 | project | networksecurity:projects.locations.firewallEndpointAssociations.list |
-| networksecurity | networksecurity/firewallendpoints | 0 | org | networksecurity:organizations.locations.firewallEndpoints.list, networksecurity:projects.locations.firewallEndpoints.list |
+| networksecurity | networksecurity/firewallendpoints | 0 | project | networksecurity:organizations.locations.firewallEndpoints.list, networksecurity:projects.locations.firewallEndpoints.list |
 | networksecurity | networksecurity/gatewaysecuritypolicies | 0 | project | networksecurity:projects.locations.gatewaySecurityPolicies.list |
 | networksecurity | networksecurity/gatewaysecuritypolicies/rules | 1 | project | networksecurity:projects.locations.gatewaySecurityPolicies.rules.list |
 | networksecurity | networksecurity/interceptdeploymentgroups | 0 | project | networksecurity:projects.locations.interceptDeploymentGroups.list |
@@ -4567,8 +4563,8 @@ Pins: google.golang.org/api@v0.292.0
 | networksecurity | networksecurity/mirroringendpointgroups | 0 | project | networksecurity:projects.locations.mirroringEndpointGroups.list |
 | networksecurity | networksecurity/sacattachments | 0 | project | networksecurity:projects.locations.sacAttachments.list |
 | networksecurity | networksecurity/sacrealms | 0 | project | networksecurity:projects.locations.sacRealms.list |
-| networksecurity | networksecurity/securityprofilegroups | 0 | org | networksecurity:organizations.locations.securityProfileGroups.list, networksecurity:projects.locations.securityProfileGroups.list |
-| networksecurity | networksecurity/securityprofiles | 0 | org | networksecurity:organizations.locations.securityProfiles.list, networksecurity:projects.locations.securityProfiles.list |
+| networksecurity | networksecurity/securityprofilegroups | 0 | project | networksecurity:organizations.locations.securityProfileGroups.list, networksecurity:projects.locations.securityProfileGroups.list |
+| networksecurity | networksecurity/securityprofiles | 0 | project | networksecurity:organizations.locations.securityProfiles.list, networksecurity:projects.locations.securityProfiles.list |
 | networksecurity | networksecurity/servertlspolicies | 0 | project | networksecurity:projects.locations.serverTlsPolicies.list |
 | networksecurity | networksecurity/tlsinspectionpolicies | 0 | project | networksecurity:projects.locations.tlsInspectionPolicies.list |
 | networksecurity | networksecurity/urllists | 0 | project | networksecurity:projects.locations.urlLists.list |
@@ -4610,10 +4606,10 @@ Pins: google.golang.org/api@v0.292.0
 | oracledatabase | oracledatabase/odbnetworks | 0 | project | oracledatabase:projects.locations.odbNetworks.list |
 | oracledatabase | oracledatabase/odbnetworks/odbsubnets | 1 | project | oracledatabase:projects.locations.odbNetworks.odbSubnets.list |
 | orgpolicy | orgpolicy/customconstraints | 0 | org | orgpolicy:organizations.customConstraints.list |
-| orgpolicy | orgpolicy/policies | 0 | folder | orgpolicy:folders.policies.list, orgpolicy:organizations.policies.list, orgpolicy:projects.policies.list |
+| orgpolicy | orgpolicy/policies | 0 | project | orgpolicy:folders.policies.list, orgpolicy:organizations.policies.list, orgpolicy:projects.policies.list |
 | osconfig | osconfig/ospolicyassignments | 0 | project | osconfig:projects.locations.osPolicyAssignments.list |
 | osconfig | osconfig/patchdeployments | 0 | project | osconfig:projects.patchDeployments.list |
-| osconfig | osconfig/policyorchestrators | 0 | folder | osconfig:folders.locations.global.policyOrchestrators.list, osconfig:organizations.locations.global.policyOrchestrators.list, osconfig:projects.locations.global.policyOrchestrators.list |
+| osconfig | osconfig/policyorchestrators | 0 | project | osconfig:folders.locations.global.policyOrchestrators.list, osconfig:organizations.locations.global.policyOrchestrators.list, osconfig:projects.locations.global.policyOrchestrators.list |
 | parallelstore | parallelstore/instances | 0 | project | parallelstore:projects.locations.instances.list |
 | parametermanager | parametermanager/parameters | 0 | project | parametermanager:projects.locations.parameters.list |
 | parametermanager | parametermanager/parameters/versions | 1 | project | parametermanager:projects.locations.parameters.versions.list |
@@ -4655,14 +4651,14 @@ Pins: google.golang.org/api@v0.292.0
 | securesourcemanager | securesourcemanager/repositories/issues/issuecomments | 2 | project | securesourcemanager:projects.locations.repositories.issues.issueComments.list |
 | securesourcemanager | securesourcemanager/repositories/pullrequests | 1 | project | securesourcemanager:projects.locations.repositories.pullRequests.list |
 | securesourcemanager | securesourcemanager/repositories/pullrequests/pullrequestcomments | 2 | project | securesourcemanager:projects.locations.repositories.pullRequests.pullRequestComments.list |
-| securitycenter | securitycenter/bigqueryexports | 0 | folder | securitycenter:folders.bigQueryExports.list, securitycenter:organizations.bigQueryExports.list, securitycenter:projects.bigQueryExports.list |
-| securitycenter | securitycenter/eventthreatdetectionsettings/custommodules | 0 | folder | securitycenter:folders.eventThreatDetectionSettings.customModules.list, securitycenter:organizations.eventThreatDetectionSettings.customModules.list, securitycenter:projects.eventThreatDetectionSettings.customModules.list |
-| securitycenter | securitycenter/muteconfigs | 0 | folder | securitycenter:folders.muteConfigs.list, securitycenter:organizations.muteConfigs.list, securitycenter:projects.muteConfigs.list |
-| securitycenter | securitycenter/notificationconfigs | 0 | folder | securitycenter:folders.notificationConfigs.list, securitycenter:organizations.notificationConfigs.list, securitycenter:projects.notificationConfigs.list |
+| securitycenter | securitycenter/bigqueryexports | 0 | project | securitycenter:folders.bigQueryExports.list, securitycenter:organizations.bigQueryExports.list, securitycenter:projects.bigQueryExports.list |
+| securitycenter | securitycenter/eventthreatdetectionsettings/custommodules | 0 | project | securitycenter:folders.eventThreatDetectionSettings.customModules.list, securitycenter:organizations.eventThreatDetectionSettings.customModules.list, securitycenter:projects.eventThreatDetectionSettings.customModules.list |
+| securitycenter | securitycenter/muteconfigs | 0 | project | securitycenter:folders.muteConfigs.list, securitycenter:organizations.muteConfigs.list, securitycenter:projects.muteConfigs.list |
+| securitycenter | securitycenter/notificationconfigs | 0 | project | securitycenter:folders.notificationConfigs.list, securitycenter:organizations.notificationConfigs.list, securitycenter:projects.notificationConfigs.list |
 | securitycenter | securitycenter/resourcevalueconfigs | 0 | org | securitycenter:organizations.resourceValueConfigs.list |
-| securitycenter | securitycenter/securityhealthanalyticssettings/custommodules | 0 | folder | securitycenter:folders.securityHealthAnalyticsSettings.customModules.list, securitycenter:organizations.securityHealthAnalyticsSettings.customModules.list, securitycenter:projects.securityHealthAnalyticsSettings.customModules.list |
-| securitycenter | securitycenter/sources | 0 | folder | securitycenter:folders.sources.list, securitycenter:organizations.sources.list, securitycenter:projects.sources.list |
-| securitycenter | securitycenter/sources/findings | 1 | folder | securitycenter:folders.sources.findings.list, securitycenter:organizations.sources.findings.list, securitycenter:projects.sources.findings.list |
+| securitycenter | securitycenter/securityhealthanalyticssettings/custommodules | 0 | project | securitycenter:folders.securityHealthAnalyticsSettings.customModules.list, securitycenter:organizations.securityHealthAnalyticsSettings.customModules.list, securitycenter:projects.securityHealthAnalyticsSettings.customModules.list |
+| securitycenter | securitycenter/sources | 0 | project | securitycenter:folders.sources.list, securitycenter:organizations.sources.list, securitycenter:projects.sources.list |
+| securitycenter | securitycenter/sources/findings | 1 | project | securitycenter:folders.sources.findings.list, securitycenter:organizations.sources.findings.list, securitycenter:projects.sources.findings.list |
 | securityposture | securityposture/posturedeployments | 0 | org | securityposture:organizations.locations.postureDeployments.list |
 | securityposture | securityposture/postures | 0 | org | securityposture:organizations.locations.postures.list |
 | servicedirectory | servicedirectory/namespaces | 0 | project | servicedirectory:projects.locations.namespaces.list |

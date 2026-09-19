@@ -136,7 +136,7 @@ provider-specific because the SDKs are; everything after extraction is shared.
 |---|---|---|---|
 | Source of truth | Smithy model per service + Service Reference catalog (per-action `IsList`/`IsWrite`, target resources, ARN formats) | `urlPath := "..."` literals in generated `*_client.go` request builders | Discovery `*-api.json`: `methods`, `flatPath`/`path`, `parameters[].pattern`, `schemas` |
 | Service join key | `aws.auth#sigv4.name` == Service Reference name | ARM namespace after the last `providers/` segment | Discovery API name |
-| What is a lister | `IsList` from the catalog, or a List/Describe with a collection output that no `IsWrite` action claims | `http.MethodGet` builder whose response has `Value []*T` | Method key `list` or `aggregatedList` |
+| What is a lister | `IsList` from the catalog, or a List/Describe with a collection output that no `IsWrite` action claims | any `http.MethodGet` builder whose stripped path does not end in a `{param}` (the paged `Value []*T` shape is typical, not required: ~307 singleton/action GETs come in this way and all land in `excluded`) | Method key `list` or `aggregatedList` |
 | Key | `<service>/<noun>` where noun = op name minus verb, identity-folded | namespace + static path segments after scope pairs are stripped | `<api>/<collection path>`, lower-cased |
 | Depth / parent | Target resources from the catalog, then the subject's own ARN variables, then required id-shaped inputs | `{param}` segments between statics | `{param}` segments between statics; `{+parent}` expanded from the pattern |
 | Class | Catalog resource with an ARN → resource; child with ids → resource; `Get` without collection → attribute; noun with a non-tagging write → resource; else catalog | Item path has PUT/PATCH/DELETE → resource; GET only → catalog; no item path → non-resource | `insert`/`create` or `delete` → resource; `get` only → catalog; else non-resource |
@@ -187,7 +187,7 @@ that names an op no anchor calls is a diagnostic, and the pairing tests fail on 
 | `derived` | A dispatcher with no anchor of its own, paired with what its callees list | yes |
 | `label` | A label literal with no call anywhere | no |
 | `other` | A call to a non-candidate op (`Get`, writes) | no, but explains a type |
-| `skew` | A call the pinned SDK does not ship | no; bump the pin |
+| `skew` | A call the pinned SDK snapshot does not ship | no; see the note below |
 
 Every emitted type ends up in exactly one of: paired, or *unpaired* with a reason —
 `non-sdk` (the file imports no SDK module: Entra over raw Graph HTTP), `other-op:<label>`,
@@ -307,8 +307,9 @@ flowchart LR
 
 Reading an `uncovered` row: `Key` is the resource, `Ops` the exact SDK operation(s) to call, `Depth`
 and `Parent` tell you whether the listing needs a parent id (a depth-1 child is listed inside the
-parent's scanner loop), `Scope` says whether it is per region, per account, per subscription or
-per project, and `Signals` explains why the extractor believes it is a resource. If a row looks
+parent's scanner loop), `Scope` is provider-specific — Azure names the ARM
+scope and GCP the cloud container, while AWS leaves it empty because a listing there is
+per region or per account with nothing in the model to tell them apart — and `Signals` explains why the extractor believes it is a resource. If a row looks
 wrong — a catalog classified as a resource, a child parented to the wrong thing — fix the rule in
 `<p>/extract.go` and add the shape to the fixture; never add a skip list or an alias map. The
 reconciliation that retired the old hand lists showed the lists were wrong more often than the
@@ -322,8 +323,14 @@ extractor.
   diagnostic that fails the pairing tests, which is how 22 Azure label typos were found.
 - **Identity is `Ident` only.** Do not introduce a second comparison; the old `CanonSingular` keys
   split `RestApi`/`RestApis` into two candidates.
-- **sdk-skew is real.** The Azure monorepo HEAD differs from the `go.mod` majors; a scanner calling an
-  op the pin lacks is reported as `skew`, not as a scanner bug. Bumping the pin is the fix.
+- **sdk-skew is real, and it runs both ways.** `AzureSDKRef` is the monorepo's HEAD, which differs
+  from the `go.mod` majors: a scanner calling an op the snapshot lacks is reported as `skew`, not as
+  a scanner bug. When the op is newer than the snapshot, bump the pin. When the op was *deleted
+  upstream* — `armcompute`'s CloudServices clients, the whole `armappplatform` module — bumping moves
+  the snapshot further away; the fix is a `go.mod` major bump and retiring the scanner. The Azure
+  pairing test logs the imported `arm` modules the snapshot no longer holds. Do not pin Azure per
+  `go.mod`: the denominator is deliberately the upstream API surface, and matching it to the
+  imported versions would delete ~769 rows and inflate the percentage.
 - **A pin bump moves the denominator.** Compare percentages only across identical pins; the
   baseline ratchet already does.
 - **Never link a cloud SDK here.** Extractors read source files; that keeps the package usable

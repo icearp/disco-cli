@@ -37,7 +37,7 @@ func TestElement_PrefersCollectionNoun(t *testing.T) {
 	    "serviceKmsKeyName": {"type": "string", "description": "The KMS key resource name."}
 	  }}
 	}`)
-	if got := ss.element("ListJobsResponse", "jobs"); got != "Job" {
+	if got := ss.element("ListJobsResponse", "jobs", map[string]bool{}); got != "Job" {
 		t.Fatalf("element = %q, want Job", got)
 	}
 	want := []string{"environment.serviceKmsKeyName", "replaceJobId"}
@@ -57,7 +57,19 @@ func TestElement_RichestWhenNounMatchesNothing(t *testing.T) {
 	  "Thin": {"properties": {"name": {"type": "string"}}},
 	  "Fat": {"properties": {"name": {"type": "string"}, "networkUrl": {"type": "string"}, "zone": {"type": "string"}}}
 	}`)
-	if got := ss.element("Resp", "widgets"); got != "Fat" {
+	if got := ss.element("Resp", "widgets", map[string]bool{}); got != "Fat" {
 		t.Errorf("element = %q, want Fat", got)
+	}
+}
+
+// TestElement_SelfReferentialSchema: a schema whose additionalProperties point
+// back at itself terminates. Without the seen set this recurses until the
+// stack overflows, which aborts the whole command.
+func TestElement_SelfReferentialSchema(t *testing.T) {
+	ss := newSchemaSet(t, `{
+	  "Node": {"properties": {"children": {"type": "object", "additionalProperties": {"$ref": "Node"}}}}
+	}`)
+	if got := ss.element("Node", "nodes", map[string]bool{}); got != "" {
+		t.Errorf("element = %q, want empty", got)
 	}
 }

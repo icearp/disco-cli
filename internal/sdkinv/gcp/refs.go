@@ -70,11 +70,16 @@ func (ss *schemaSet) get(name string) *schema {
 // failedLocation beside jobs), so the one named after the collection wins,
 // then the richest item schema, then the alphabetically first. Taking the
 // first outright gave dataflow/jobs FailedLocation's zero refs over Job's 17.
-func (ss *schemaSet) element(response, noun string) string {
+func (ss *schemaSet) element(response, noun string, seen map[string]bool) string {
 	s := ss.get(response)
-	if s == nil {
+	// Self-referential schemas exist in the cache (discovery JsonSchema,
+	// BackendRule, dataflow BoundedTrieNode); none is reachable from a list
+	// response today, and an unguarded recursion would abort the command.
+	if s == nil || seen[response] {
 		return ""
 	}
+	seen[response] = true
+	defer delete(seen, response)
 	names := make([]string, 0, len(s.Properties))
 	for n := range s.Properties {
 		names = append(names, n)
@@ -101,7 +106,7 @@ func (ss *schemaSet) element(response, noun string) string {
 	for _, n := range names {
 		p := s.Properties[n]
 		if p.Type == "object" && p.AdditionalProperties != nil && p.AdditionalProperties.Ref != "" {
-			if el := ss.element(p.AdditionalProperties.Ref, noun); el != "" {
+			if el := ss.element(p.AdditionalProperties.Ref, noun, seen); el != "" {
 				return el
 			}
 		}
@@ -112,12 +117,13 @@ func (ss *schemaSet) element(response, noun string) string {
 // refsOf lists the properties on a listed element that name other
 // resources, at any depth up to refDepth.
 func (ss *schemaSet) refsOf(response, noun string) []string {
-	el := ss.element(response, noun)
+	seen := map[string]bool{}
+	el := ss.element(response, noun, seen)
 	if el == "" {
 		return nil
 	}
 	refs := map[string]bool{}
-	ss.walk(el, "", 0, refs, map[string]bool{})
+	ss.walk(el, "", 0, refs, seen)
 	if len(refs) == 0 {
 		return nil
 	}

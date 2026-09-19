@@ -70,7 +70,13 @@ func canonService(s string) string { return sdkinv.Canon(s) }
 // the Service-Reference "Resource" suffix when a non-empty stem remains (so
 // "Resources" stays "resource", never collapses to ""). The stem is an
 // internal matching identity, never displayed.
+// The suffix is trimmed on the raw name, before Ident, because Ident ends in
+// a trailing e/s strip: trimming after it left "ThemeResource" as "theme"
+// while the candidate leaf "theme" reduced to "them", and the two never met.
 func canonResource(s string) string {
+	if stem := strings.TrimSuffix(s, "Resource"); stem != "" && stem != s {
+		s = stem
+	}
 	s = sdkinv.Ident(s)
 	if stem := strings.TrimSuffix(s, "resourc"); stem != "" && stem != s {
 		s = stem

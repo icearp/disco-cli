@@ -9,7 +9,13 @@ type Segment struct {
 }
 
 // ParseTemplate splits "/a/{b}/c" into segments; "{+x}" and "{x}" are params.
+// A query string is cut first: a segment is a param only when it both opens
+// and closes with braces, so "{apiId}?export=true" parsed as a static and the
+// item GET it belongs to was admitted as a collection.
 func ParseTemplate(tmpl string) []Segment {
+	if i := strings.IndexByte(tmpl, '?'); i >= 0 {
+		tmpl = tmpl[:i]
+	}
 	parts := strings.Split(strings.Trim(tmpl, "/"), "/")
 	out := make([]Segment, 0, len(parts))
 	for _, p := range parts {

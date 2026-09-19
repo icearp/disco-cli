@@ -129,12 +129,7 @@ var ownFields = map[string]bool{"ID": true, "Name": true, "Type": true, "Locatio
 // ARM resources: a sub-resource struct (only an ID, or named *Reference /
 // *SubResource) or an ID-suffixed string, at any depth up to refDepth.
 func refsOf(m models, listResult string) []string {
-	var element string
-	for _, f := range m[listResult] {
-		if f.name == "Value" && strings.HasPrefix(f.typ, "[]*") {
-			element = f.typ[3:]
-		}
-	}
+	element := elementOf(m, listResult)
 	if element == "" {
 		return nil
 	}
@@ -149,6 +144,17 @@ func refsOf(m models, listResult string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// elementOf names the model a list result enumerates. Two listers that
+// enumerate the same element under different parents list the same resource.
+func elementOf(m models, listResult string) string {
+	for _, f := range m[listResult] {
+		if f.name == "Value" && strings.HasPrefix(f.typ, "[]*") {
+			return f.typ[3:]
+		}
+	}
+	return ""
 }
 
 func walkRefs(m models, typ, prefix string, depth int, refs map[string]bool) {

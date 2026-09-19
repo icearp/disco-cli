@@ -425,9 +425,20 @@ func assignPairedTypes(row *Row, paired map[string]bool, c sdkinv.Candidate, acc
 	}
 }
 
-// opCells lists a candidate's op labels and its scope. Sibling models and
-// per-version GCP documents repeat a label, so 930 rows rendered a duplicated
-// ops cell; Ops is never read back, so the fold is presentation only.
+// scopeSpecificity ranks a candidate's scopes narrowest-first. A GCP
+// collection listable per project and per organization is scanned per project,
+// and ops sort by label, so "billingAccounts." and "folders." outranked
+// "projects." on 117 rows. An unranked scope is widest.
+var scopeSpecificity = map[string]int{
+	string(sdkinv.ScopeProject): 8, string(sdkinv.ScopeResourceGroup): 7, string(sdkinv.ScopeSubscription): 7,
+	string(sdkinv.ScopeAccount): 6, string(sdkinv.ScopeRegion): 6, string(sdkinv.ScopeOrg): 5,
+	string(sdkinv.ScopeFolder): 4, string(sdkinv.ScopeBillingAccount): 3, string(sdkinv.ScopeManagementGroup): 3,
+	string(sdkinv.ScopeTenant): 2, string(sdkinv.ScopeExtension): 2, string(sdkinv.ScopeGlobal): 1,
+}
+
+// opCells lists a candidate's op labels and its narrowest scope. Sibling
+// models and per-version GCP documents repeat a label, so 930 rows rendered a
+// duplicated ops cell; Ops is never read back, so the fold is presentation only.
 func opCells(ops []sdkinv.Operation) ([]string, string) {
 	var labels []string
 	scope := ""
@@ -435,8 +446,8 @@ func opCells(ops []sdkinv.Operation) ([]string, string) {
 		if !slices.Contains(labels, op.Label) {
 			labels = append(labels, op.Label)
 		}
-		if scope == "" {
-			scope = string(op.Scope)
+		if s := string(op.Scope); s != "" && (scope == "" || scopeSpecificity[s] > scopeSpecificity[scope]) {
+			scope = s
 		}
 	}
 	return labels, scope
