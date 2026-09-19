@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -180,11 +181,12 @@ func Register(e Extractor) {
 	registry[e.Name()] = e
 }
 
-// Get returns the extractor registered under name.
+// Get returns the extractor registered under name, which is lower-cased and
+// trimmed here so every caller agrees (see coverage.Get).
 func Get(name string) (Extractor, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
-	e, ok := registry[name]
+	e, ok := registry[strings.ToLower(strings.TrimSpace(name))]
 	return e, ok
 }
 

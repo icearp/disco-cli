@@ -37,24 +37,52 @@ var scannerSigs = map[string]scannerSig{
 	},
 }
 
+// scaffoldOpts carry what the generator can only learn from the live package:
+// whether the service is already registered (emitting a second
+// registerService panics the provider at init, and a second func scan<Svc> is
+// a compile error) and which disco type strings already exist.
+type scaffoldOpts struct {
+	serviceRegistered bool
+	scanFnExists      bool
+	existingTypes     map[string]bool
+}
+
 // genScaffold renders a self-contained <svc>_scanners.go: the Type* consts,
 // the registerType descriptors (each annotated with the SDK list ops, depth
 // and scope the candidate was derived from), a registerService call, and a
 // stub scanner returning (0,0,nil). It compiles as-is; the human fills the
 // body and later lifts the consts into <provider>_types.go.
-func genScaffold(provName, service string, rows []coverage.Row) string {
+//
+// An error means the emitted source would not compile or would redeclare an
+// existing type; the caller prints it and writes nothing.
+func genScaffold(provName, service string, rows []coverage.Row, opts scaffoldOpts) (string, error) {
 	sig, ok := scannerSigs[provName]
 	if !ok {
 		// Unknown provider signature: emit descriptors only, no scanner skeleton.
 		sig = scannerSig{imports: []string{"github.com/icearp/disco-cli/internal/restype"}}
 	}
 	svcFn := pascal(service)
+	emitScanner := sig.sig != "" && !opts.serviceRegistered && !opts.scanFnExists
 
 	var consts, descs strings.Builder
+	var conflicts []string
+	seen := map[string]bool{}
 	for _, r := range rows {
-		res := resourceSegment(r.Key)
-		discoType := provName + ":" + service + ":" + kebab(res)
-		constName := "Type" + svcFn + pascal(res)
+		segs := resourceSegments(r.Key, service)
+		discoType := provName + ":" + service + ":" + strings.Join(segs, ":")
+		constName := "Type" + svcFn
+		for _, seg := range segs {
+			constName += pascal(seg)
+		}
+		switch {
+		case seen[discoType]:
+			conflicts = append(conflicts, fmt.Sprintf("%s: %s would be declared twice", r.Key, discoType))
+			continue
+		case opts.existingTypes[discoType]:
+			conflicts = append(conflicts, fmt.Sprintf("%s: %s is already declared by this provider", r.Key, discoType))
+			continue
+		}
+		seen[discoType] = true
 		fmt.Fprintf(&consts, "\t%s = %q\n", constName, discoType)
 		fmt.Fprintf(&descs, "\t// %s: ops %s; depth %d", r.Key, strings.Join(r.Ops, ", "), r.Depth)
 		if r.Parent != "" {
@@ -69,12 +97,21 @@ func genScaffold(provName, service string, rows []coverage.Row) string {
 		fmt.Fprintf(&descs, "\n\tregisterType(restype.Descriptor{Type: %s, Service: %q})\n", constName, service)
 	}
 
+	if len(conflicts) > 0 {
+		return "", fmt.Errorf("scaffold would not compile:\n  %s", strings.Join(conflicts, "\n  "))
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "package %s\n\n", provName)
 	b.WriteString("// Code scaffolded by cmd/disco-scaffold — VERIFY before use.\n")
 	b.WriteString("// Const names + disco type strings are best-effort derived from the SDK\n")
 	b.WriteString("// candidate key; reconcile them with <provider>_types.go naming conventions,\n")
-	b.WriteString("// then move the consts there. The scanner body is a TODO stub returning (0,0,nil).\n\n")
+	b.WriteString("// then move the consts there. The scanner body is a TODO stub returning (0,0,nil).\n")
+	if sig.sig != "" && !emitScanner {
+		// A second registerService for a registered name panics every provider
+		// at init, and a second func scan<Svc> does not compile.
+		fmt.Fprintf(&b, "//\n// %s is already scanned by this package (registerService and/or\n// func scan%s exist), so neither is emitted: wire these types into the\n// existing scanner instead.\n", provName+":"+service, svcFn)
+	}
+	b.WriteString("\n")
 	if len(sig.imports) > 0 {
 		b.WriteString("import (\n")
 		for _, imp := range sig.imports {
@@ -85,11 +122,11 @@ func genScaffold(provName, service string, rows []coverage.Row) string {
 	fmt.Fprintf(&b, "const (\n%s)\n\n", consts.String())
 	b.WriteString("func init() {\n")
 	b.WriteString(descs.String())
-	if sig.sig != "" {
+	if emitScanner {
 		fmt.Fprintf(&b, "\tregisterService(serviceEntry{name: %q, fn: scan%s})\n", provName+":"+service, svcFn)
 	}
 	b.WriteString("}\n")
-	if sig.sig != "" {
+	if emitScanner {
 		fmt.Fprintf(&b, "\nfunc scan%s%s {\n", svcFn, sig.sig)
 		fmt.Fprintf(&b, "\t// TODO: "+sig.body+"\n", svcFn)
 		b.WriteString("\treturn 0, 0, nil\n}\n")
@@ -97,15 +134,47 @@ func genScaffold(provName, service string, rows []coverage.Row) string {
 	// gofmt the result so the emitted file is drop-in clean. On the (unexpected)
 	// event of a syntax error, return the raw source so the human can debug it.
 	if formatted, err := format.Source([]byte(b.String())); err == nil {
-		return string(formatted)
+		return string(formatted), nil
 	}
-	return b.String()
+	return b.String(), nil
 }
 
-// resourceSegment is the singular resource noun of a candidate key: the last
-// path segment ("compute/regiondisks" -> "regiondisk", "kms/grant" -> "grant").
-func resourceSegment(key string) string {
-	return sdkinv.Singular(key[strings.LastIndex(key, "/")+1:])
+// resourceSegments are a candidate key's path below the service, each
+// singularised for display. The parent segments belong in both the type string
+// and the const name: azure children are colon-paths by convention, and
+// dropping the parent made virtualmachines/runcommands and
+// virtualmachinescalesets/virtualmachines/runcommands one declaration twice.
+func resourceSegments(key, service string) []string {
+	path := key
+	if rest, ok := strings.CutPrefix(key, service+"/"); ok {
+		path = rest
+	} else if i := strings.Index(key, "/"); i >= 0 {
+		path = key[i+1:]
+	}
+	segs := strings.Split(path, "/")
+	out := make([]string, 0, len(segs))
+	for _, sg := range segs {
+		if sg != "" {
+			out = append(out, kebab(displaySingular(sg)))
+		}
+	}
+	return out
+}
+
+// displaySingular is the spelling shown in a committed const and type string.
+// sdkinv.Singular is an equality stem and says so: it answers "timeseries"
+// with "timesery" and "thesauri" with "thesauri", which is right for a
+// comparison and wrong in generated source, so the shapes it cannot spell are
+// left as the SDK spells them.
+func displaySingular(s string) string {
+	l := strings.ToLower(s)
+	switch {
+	case strings.HasSuffix(l, "series"), strings.HasSuffix(l, "species"), strings.HasSuffix(l, "data"), strings.HasSuffix(l, "metadata"):
+		return s
+	case strings.HasSuffix(l, "i"), strings.HasSuffix(l, "ices"):
+		return s // "thesauri", "indices": Latin plurals Singular cannot spell
+	}
+	return sdkinv.Singular(s)
 }
 
 // splitWords breaks an identifier into lowercase word tokens across camelCase,

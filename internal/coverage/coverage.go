@@ -8,6 +8,7 @@ package coverage
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
@@ -123,11 +124,13 @@ func Register(p Provider) {
 	registry[p.Name()] = p
 }
 
-// Get returns the registered Provider by name.
+// Get returns the registered Provider by name, which is lower-cased and
+// trimmed here so every caller agrees: "AWS" resolved for `coverage sdk status`
+// and failed for `coverage services`.
 func Get(name string) (Provider, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
-	p, ok := registry[name]
+	p, ok := registry[strings.ToLower(strings.TrimSpace(name))]
 	return p, ok
 }
 

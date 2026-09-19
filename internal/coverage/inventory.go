@@ -242,6 +242,44 @@ func CrossCheck(m *Matrix, u *sdkinv.Universe, registry []UpstreamType, cc Cross
 	sortRows(m.Rows)
 }
 
+// serviceNames are the names a row answers to: the SDK service spelling and
+// the disco type's own service segment. They differ often enough to matter —
+// "cloudwatch" is "monitoring" in the Smithy model, and 67 AWS disco service
+// names matched no row when only the SDK spelling counted.
+func serviceNames(r Row) []string {
+	out := []string{strings.ToLower(r.Service)}
+	for _, t := range append([]string{r.DiscoType}, r.DiscoTypes...) {
+		parts := strings.Split(t, ":")
+		if len(parts) >= 2 && parts[1] != "" && !slices.Contains(out, strings.ToLower(parts[1])) {
+			out = append(out, strings.ToLower(parts[1]))
+		}
+	}
+	return out
+}
+
+// UnmatchedServices names the --services values no row answers to, so a
+// zero-row filter beside an unchanged summary line can be explained.
+func UnmatchedServices(rows []Row, services []string) []string {
+	var out []string
+	for _, s := range services {
+		want := strings.ToLower(strings.TrimSpace(s))
+		if want == "" {
+			continue
+		}
+		matched := false
+		for _, r := range rows {
+			if slices.Contains(serviceNames(r), want) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // Filter keeps the rows matching filter ("all", a bucket, or "gaps" =
 // uncovered ∪ unexplained disco-only) and, when services is non-empty, one of
 // the named services. Summaries are untouched: percent is computed before
@@ -249,7 +287,7 @@ func CrossCheck(m *Matrix, u *sdkinv.Universe, registry []UpstreamType, cc Cross
 func Filter(rows []Row, filter string, services []string) []Row {
 	allowed := map[string]bool{}
 	for _, s := range services {
-		allowed[strings.ToLower(s)] = true
+		allowed[strings.ToLower(strings.TrimSpace(s))] = true
 	}
 	out := make([]Row, 0, len(rows))
 	for _, r := range rows {
@@ -268,7 +306,7 @@ func Filter(rows []Row, filter string, services []string) []Row {
 				continue
 			}
 		}
-		if len(allowed) > 0 && !allowed[strings.ToLower(r.Service)] {
+		if len(allowed) > 0 && !slices.ContainsFunc(serviceNames(r), func(n string) bool { return allowed[n] }) {
 			continue
 		}
 		out = append(out, r)

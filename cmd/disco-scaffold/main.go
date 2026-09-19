@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -100,12 +101,32 @@ func run(argv []string, stdout, stderr *os.File) int {
 		return 0
 	}
 
-	src := genScaffold(provName, service, uncovered)
+	pkgDir := filepath.Join(*sourceRoot, "internal", "providers", provName)
+	opts, err := inspectPackage(pkgDir, provName+":"+service, "scan"+pascal(service))
+	if err != nil {
+		fmt.Fprintf(stderr, "inspect %s: %v\n", pkgDir, err)
+		return 1
+	}
+	for _, d := range prov.Emits() {
+		opts.existingTypes[d.DiscoType] = true
+	}
+	if opts.serviceRegistered || opts.scanFnExists {
+		fmt.Fprintf(stderr, "%s:%s is already scanned here — emitting types only, no registerService and no scan%s stub\n", provName, service, pascal(service))
+	}
+	src, err := genScaffold(provName, service, uncovered, opts)
+	if err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
+		return 1
+	}
 	if !*write {
 		fmt.Fprint(stdout, src)
 		return 0
 	}
-	path := filepath.Join("internal", "providers", provName, service+"_scanners.go")
+	if *sourceRoot == "" {
+		fmt.Fprintln(stderr, "--write needs --source-root (it names the checkout to write into)")
+		return 2
+	}
+	path := filepath.Join(pkgDir, service+"_scanners.go")
 	if _, err := os.Stat(path); err == nil && !*force {
 		fmt.Fprintf(stderr, "%s already exists — refusing to overwrite (pass --force)\n", path)
 		return 1
@@ -131,6 +152,36 @@ func inventory(ctx context.Context, prov coverage.Provider, cache sdkinv.Cache, 
 		return coverage.Matrix{}, err
 	}
 	return coverage.BuildInventory(in), nil
+}
+
+// inspectPackage reads the provider package for the two things the generator
+// cannot infer: a registerService already claiming this name (a duplicate
+// panics every provider at init) and an existing func of the stub's name
+// (gcp:spanner's scanner lives in databases_scanners.go, so the emitted stub
+// would not compile). Source, not the registry: a service registered with no
+// types of its own is invisible to Emits().
+func inspectPackage(dir, serviceName, fnName string) (scaffoldOpts, error) {
+	opts := scaffoldOpts{existingTypes: map[string]bool{}}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return opts, err
+	}
+	registration := "name: " + strconv.Quote(serviceName)
+	decl := "func " + fnName + "("
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		raw, rerr := os.ReadFile(filepath.Join(dir, name))
+		if rerr != nil {
+			return opts, rerr
+		}
+		src := string(raw)
+		opts.serviceRegistered = opts.serviceRegistered || strings.Contains(src, registration)
+		opts.scanFnExists = opts.scanFnExists || strings.Contains(src, decl)
+	}
+	return opts, nil
 }
 
 // splitService picks the requested service's resource rows: uncovered (a

@@ -22,9 +22,41 @@ Drift-detection cmd, split into five subcommands. Bare `disco coverage` prints h
 - `disco coverage regions` — diff each provider's static `RegionNames` slice against the cloud's live SDK region list. `--regions <r1,r2>` post-filters the diff to those regions; full live list still fetched. A failed region-list fetch is always fatal (exit 2, like `services`); `--check-strict` exits 1 on any non-covered row.
 - `disco coverage resolvers` — implemented by AWS, Azure, and GCP (any provider whose coverage.Provider also satisfies `coverage.ResolverAuditor`). `--providers` selects which (unset = every auditing provider; naming one without support errors). Default mode lists every registered resolver with its EdgeDecl count + service segments touched; `--only-unannotated` omits annotated resolvers. `--missing` flips to the orphan-type inventory (emitted disco types never appearing as `EdgeDecl.Source`). `--services ec2,s3` filters to resolvers (or orphan types) touching named services.
 - `disco coverage verify` (`cmd/coverage_verify.go`) — `--scan-id` takes `latest`, a full id or the 8-char prefix `disco scans` prints (`isScanIDPrefix`/`resolveScanIDPrefix`, like every other scan-id-taking command); `latest` stays `LatestCompleteScan`. Compares the types one scan stored (`store.TypesForScan`: rows it discovered **or** re-verified) with `Emits()`. `emitted-undeclared` rows (a stored type no scanner declares) return `errCoverageUndeclared` **after** rendering, exit 1, no JSON error envelope (rows are the payload, like `check`). `declared-not-emitted` rows carry one reason, first match wins: `out-of-scope` (provider not in `scans.scope.providers`), `scan-error: <code> (<region>)` (`scans.errors` entry whose service is `scan` — the provider's whole Scan failed — or, when the provider stored nothing, any error of that provider (`aws:load-accounts` on an expired login — the label is no scanner service), or is one of the type's names from `typeServiceNames`: the scanner services registered from the type's own file (`coverage.ServiceMapper`), its declared `Service`, its type segment; scanner names like `aws:sso-admin` and declared services like `sso` differ for dozens of services, `TestEveryEmittedTypeHasScannerService` guards the join), `warning: <label> (<region>): <msg>` (`scans.warnings` entry whose op label pairs to the type via the SDK cache + scanner source; with the pairing present only a label paired to the type matches — a label it does not know is a store-level warning such as a native-id collision, not an op; without the pairing a label joins by service prefix), else `no rows`. Reasons are derived in this order: provider out of scope, service out of `scope.<provider>.services` (a `--services`-filtered scan is not an empty account), recorded errors, recorded warnings, then the fallbacks — `nothing stored: <provider> recorded no rows and no failure` when the provider stored nothing without recording a failure, `no rows (scan limited to regions: …)` when `scope.<provider>.regions` narrowed the run, else `no rows`. Errors match in two passes — exact service and whole-scan first, the stored-nothing provider-prefix fallback second — because one loop let the first provider-prefixed entry answer for every type. `scan` and `scan:interrupted` are whole-scan (the latter carries no provider, so it explains every provider of the scan); `scan:subscription` deliberately is not, so one unreachable Azure subscription does not answer for the tenant-scoped types. A reason renders code, service, region-or-scope and the truncated message: the code alone is the literal `Error` whenever the runner could not read one. Persisted entries are `<provider>:<service|label>` — `stripProvider` removes the prefix, twice when a scanner already prefixed it. `--scan-id latest` (default) = `LatestCompleteScan` (completed/partial, never running); `--providers` defaults to the scan's scope so a single-provider scan is not buried under 2,000 out-of-scope rows. Unrelated to `disco verify` (snapshot archives) — keep both help texts saying so.
-- `disco coverage sdk fetch|status` (`cmd/coverage_sdk.go`) — `status` prints the table on stdout and, on stderr, any content-pin disagreement plus the reason a present directory reads as `absent` (wrong provider/ref, or a different source spec). Populates/inspects the SDK source cache the coverage denominator derives from (`internal/sdkinv`, blank-imported via `internal/sdkinv/all`). Persistent `--sdk-cache` (default `$XDG_CACHE_HOME/disco/sdk`); `fetch --providers/--force`. `resetCoverageFlags` recurses one level so these subcommands' `--providers` reset too.
+- `disco coverage sdk fetch|status` (`cmd/coverage_sdk.go`) — both validate `--output` up front
+  (`table` or `json`; the parent's markdown/csv/jsonl have no meaning for a cache listing and used
+  to print the table and exit 0) and emit the `maybeStructuredError` envelope, so `-o json | jq`
+  sees a parseable failure. `status` prints the table on stdout and, on stderr, any content-pin disagreement plus the reason a present directory reads as `absent` (wrong provider/ref, or a different source spec). Populates/inspects the SDK source cache the coverage denominator derives from (`internal/sdkinv`, blank-imported via `internal/sdkinv/all`). Persistent `--sdk-cache` (default `$XDG_CACHE_HOME/disco/sdk`); `fetch --providers/--force`. `resetCoverageFlags` recurses one level so these subcommands' `--providers` reset too.
+
+`--providers` values are lower-cased and trimmed inside `coverage.Get` / `sdkinv.Get`, not at the
+call sites: `--providers AWS` resolved for `coverage sdk status` and failed for `coverage services`.
+`--services` on `coverage services` matches the row's SDK service **or** the disco type's service
+segment (`--services cloudwatch` finds `monitoring/alarm`), and a value matching no row is named on
+stderr — the headline above the table is unfiltered, so a zero-row table otherwise reads as a
+coverage claim.
+
+`--source-root` defaults to the cwd when `go.mod`'s first line names this module, whitespace
+trimmed: a CRLF checkout failed the test, silently turning pairing off (AWS 43.2% against 50.4%,
+hundreds of baseline regressions). `.gitattributes` pins `*.go`/`go.mod`/`go.sum` to LF.
 
 Plural flags throughout: `--providers` (StringSlice; empty = all), `--regions` (StringSlice; semantics differ per subcommand — see above), `--services` (StringSlice; cross-cutting filter on services + resolvers subcommands). Tests must call `resetCoverageFlags(t)` before each `cmd.Execute()` because pflag StringSlice values accumulate across consecutive runs.
+
+## `cmd/disco-scaffold` emits only what the package does not already have
+
+The generator reads the provider package before writing: a `registerService`
+already claiming `<prov>:<svc>` (a duplicate panics every provider at init) or an existing
+`func scan<Svc>` (gcp:spanner's scanner lives in `databases_scanners.go`) suppresses **both** the
+registration and the stub, and the header says why — 34 AWS, 123 Azure and 5 GCP services used to
+scaffold a file that killed the package. Type strings and const names carry every key segment below
+the service (`azure:microsoft.compute:virtualmachinescalesets:virtualmachines:runcommands`), because
+the leaf alone declared `virtualmachines/runcommands` and
+`virtualmachinescalesets/virtualmachines/runcommands` identically — and `format.Source` parses a
+duplicate const happily. A type string the provider already declares, or two rows declaring one
+string, refuses the whole scaffold with the conflicting keys named. `--write` joins `--source-root`
+(both the path and the existing-file guard) and is refused when it is empty.
+
+`displaySingular` in `gen.go` is the spelling helper: `sdkinv.Singular` is an equality stem that
+answers "timeseries" with "timesery", which is right for a comparison and wrong in committed source,
+so shapes it cannot spell stay as the SDK spells them.
 
 ## Resume
 

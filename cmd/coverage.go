@@ -154,7 +154,7 @@ func init() {
 	coverageServicesCmd.Flags().StringSlice("subscriptions", nil, "--cross-check only: Azure subscription ID(s); first is used, empty = autodetect")
 	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: "+strings.Join(coverage.Filters, ", ")+" (gaps = uncovered + unexplained disco-only)")
 	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion(coverage.Filters...))
-	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
+	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (SDK spelling or disco service segment; a value matching nothing is reported)")
 	coverageServicesCmd.Flags().Duration("timeout", 3*time.Minute, "--cross-check only: per-provider live-fetch timeout (GCP walks every Discovery doc)")
 	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on unexplained disco-only rows. A missing SDK cache or failed registry fetch always exits 2.")
 	coverageServicesCmd.Flags().String("baseline", "", "Compare the unfiltered matrices with this baseline JSON; exit 1 on a regression (see 'make check-coverage')")
@@ -204,7 +204,12 @@ var (
 // other directory would be a different program.
 func defaultSourceRoot() string {
 	raw, err := os.ReadFile("go.mod")
-	if err != nil || !strings.HasPrefix(string(raw), "module github.com/icearp/disco-cli\n") {
+	// The first line, whitespace-trimmed: a CRLF checkout (git for Windows
+	// defaults to core.autocrlf=true) failed the prefix test, and the run then
+	// reported AWS 43.2% against 50.4% with hundreds of baseline regressions.
+	// .gitattributes pins go.mod to LF; this reads the file either way.
+	first, _, _ := strings.Cut(string(raw), "\n")
+	if err != nil || strings.TrimSpace(first) != "module github.com/icearp/disco-cli" {
 		return ""
 	}
 	wd, err := os.Getwd()
@@ -293,6 +298,17 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	drifts, err := baselineStep(o, matrices)
 	if err != nil {
 		return err
+	}
+	if len(o.services) > 0 {
+		unmatched := o.services
+		for _, m := range matrices {
+			unmatched = coverage.UnmatchedServices(m.Rows, unmatched)
+		}
+		if len(unmatched) > 0 {
+			// The summary line above is unfiltered, so a zero-row table beside
+			// a 50% headline otherwise reads as a coverage claim.
+			fmt.Fprintf(os.Stderr, "--services matched no row: %s\n", strings.Join(unmatched, ", "))
+		}
 	}
 	for i := range matrices {
 		matrices[i].Rows = coverage.Filter(matrices[i].Rows, o.filter, o.services)

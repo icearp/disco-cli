@@ -68,14 +68,28 @@ func sdkCacheFromFlags(cmd *cobra.Command) sdkinv.Cache {
 	return sdkinv.Cache{Root: root}
 }
 
+// sdkOutputFormats are what these two subcommands render; the parent's
+// --output also offers markdown/csv/jsonl, which have no meaning for a cache
+// listing and used to print the table and exit 0.
+func checkSDKOutput(cmd *cobra.Command) error {
+	switch outputFormat(cmd) {
+	case "table", "json":
+		return nil
+	default:
+		return fmt.Errorf("unknown --output format %q (supported: table, json)", outputFormat(cmd))
+	}
+}
+
 // resolveExtractors maps --providers to registered extractors; empty = all.
+// sdkinv.Get lower-cases and trims, so "AWS" and " aws " resolve here exactly
+// as they do for `coverage services`.
 func resolveExtractors(names []string) ([]sdkinv.Extractor, error) {
 	if len(names) == 0 {
 		names = sdkinv.Names()
 	}
 	out := make([]sdkinv.Extractor, 0, len(names))
 	for _, n := range names {
-		e, ok := sdkinv.Get(strings.ToLower(strings.TrimSpace(n)))
+		e, ok := sdkinv.Get(n)
 		if !ok {
 			return nil, fmt.Errorf("unknown provider %q (known: %s)", n, strings.Join(sdkinv.Names(), ", "))
 		}
@@ -84,7 +98,19 @@ func resolveExtractors(names []string) ([]sdkinv.Extractor, error) {
 	return out, nil
 }
 
-func runCoverageSDKFetch(cmd *cobra.Command, _ []string) error {
+// sdkFetchRow is one provider's fetch outcome under -o json.
+type sdkFetchRow struct {
+	Provider string `json:"provider"`
+	Ref      string `json:"ref"`
+	State    string `json:"state"` // "fetched" | "present"
+	Dir      string `json:"dir"`
+}
+
+func runCoverageSDKFetch(cmd *cobra.Command, _ []string) (rerr error) {
+	defer func() { maybeStructuredError(outputFormat(cmd), rerr) }()
+	if err := checkSDKOutput(cmd); err != nil {
+		return err
+	}
 	names, _ := cmd.Flags().GetStringSlice("providers")
 	force, _ := cmd.Flags().GetBool("force")
 	exts, err := resolveExtractors(names)
@@ -93,6 +119,7 @@ func runCoverageSDKFetch(cmd *cobra.Command, _ []string) error {
 	}
 	cache := sdkCacheFromFlags(cmd)
 	logf := func(format string, args ...any) { fmt.Fprintf(os.Stderr, format+"\n", args...) }
+	rows := make([]sdkFetchRow, 0, len(exts))
 	for _, e := range exts {
 		dir, fetched, err := cache.Ensure(cmd.Context(), e, sdkinv.EnsureOptions{Force: force, Log: logf})
 		if err != nil {
@@ -102,7 +129,15 @@ func runCoverageSDKFetch(cmd *cobra.Command, _ []string) error {
 		if fetched {
 			state = "fetched"
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s@%s\t%s\t%s\n", e.Name(), e.Ref(), state, dir)
+		rows = append(rows, sdkFetchRow{Provider: e.Name(), Ref: e.Ref(), State: state, Dir: dir})
+	}
+	if outputFormat(cmd) == "json" {
+		enc := json.NewEncoder(cmd.OutOrStdout())
+		enc.SetIndent("", "  ")
+		return enc.Encode(rows)
+	}
+	for _, r := range rows {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s@%s\t%s\t%s\n", r.Provider, r.Ref, r.State, r.Dir)
 	}
 	return nil
 }
@@ -146,7 +181,11 @@ func pinNotes(e sdkinv.Extractor, m *sdkinv.Manifest) []string {
 	return out
 }
 
-func runCoverageSDKStatus(cmd *cobra.Command, _ []string) error {
+func runCoverageSDKStatus(cmd *cobra.Command, _ []string) (rerr error) {
+	defer func() { maybeStructuredError(outputFormat(cmd), rerr) }()
+	if err := checkSDKOutput(cmd); err != nil {
+		return err
+	}
 	names, _ := cmd.Flags().GetStringSlice("providers")
 	exts, err := resolveExtractors(names)
 	if err != nil {
