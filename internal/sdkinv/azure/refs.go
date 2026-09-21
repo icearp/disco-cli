@@ -146,6 +146,27 @@ func refsOf(m models, listResult string) []string {
 	return out
 }
 
+// armEnvelope reports whether a model carries the ARM proxy-resource envelope:
+// SystemData, or both ID and Type. It is what separates a listing of resources
+// the subscription owns from a published catalog of the provider's own data.
+func armEnvelope(m models, element string) bool {
+	if element == "" {
+		return false
+	}
+	var hasID, hasType bool
+	for _, f := range m[element] {
+		switch f.name {
+		case "SystemData":
+			return true
+		case "ID":
+			hasID = true
+		case "Type":
+			hasType = true
+		}
+	}
+	return hasID && hasType
+}
+
 // elementOf names the model a list result enumerates. Two listers that
 // enumerate the same element under different parents list the same resource.
 func elementOf(m models, listResult string) string {

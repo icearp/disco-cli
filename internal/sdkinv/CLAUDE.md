@@ -259,8 +259,16 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 - Scope pairs (`subscriptions/{}`, `resourceGroups/{}`, `locations/{}`, `managementGroups/{}`)
   strip only when more path follows, so a trailing container (`resourceGroups`) stays a
   candidate; `{scope}` as first param → `extension` scope (role assignments).
-- Class from item-path methods: PUT/PATCH/DELETE → resource; GET/HEAD only → catalog; none →
-  non-resource.
+- Class from item-path methods: PUT/PATCH/DELETE → resource (`item-write`); GET/HEAD only →
+  catalog (`item-read-only`); none → non-resource (`no-item-path`). **Exception** (`arm-envelope`):
+  a GET-only collection whose element carries the ARM proxy-resource envelope (`SystemData`, or
+  `ID`+`Type`) **and** is a child or lives at subscription/resource-group scope is a resource.
+  517 of 572 catalog rows carried that envelope and 434 were children — the very shape the AWS
+  extractor calls a resource — so the two providers' denominators rested on different rules and
+  504 real gaps never reached the report. Both halves are load-bearing: the envelope alone
+  admits `microsoft.authorization/provideroperations` and `microsoft.advisor/metadata`, and
+  dropping the GET/HEAD requirement admits the generic `/subscriptions/{id}/resources` lister
+  (a live test guards that one).
 - `scopeOf` reads scope pairs from the **whole** template (a `managementGroups/{}` pair sits after
   the namespace in microsoft.management's own paths) but decides `extension` on the prefix before
   the namespace only — a `providers/{param}` pair there is the parent the caller names.

@@ -104,7 +104,14 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		return elementOf(modelsFor(b.module), b.result)
 	})
 	for _, e := range entries {
-		c, ok := classify(e)
+		c, ok := classify(e, func() bool {
+			for _, b := range e.collection {
+				if b.result != "" && armEnvelope(modelsFor(b.module), elementOf(modelsFor(b.module), b.result)) {
+					return true
+				}
+			}
+			return false
+		})
 		if !ok {
 			continue
 		}
@@ -336,7 +343,17 @@ func scopeOf(segs []sdkinv.Segment, nsIdx int) sdkinv.Scope {
 	return sc
 }
 
-func classify(e *entry) (sdkinv.Candidate, bool) {
+// classify decides the class from the item-path verbs, with one exception: a
+// collection whose element carries the ARM proxy-resource envelope is a
+// resource even when the SDK exposes only a read on the item path. 517 of 572
+// catalog rows
+// carry that envelope and 434 are children — exactly what the AWS extractor
+// calls a resource — so excluding them made the two providers' denominators
+// rest on different rules and hid 504 real gaps. The envelope alone is not
+// enough (microsoft.authorization/provideroperations and
+// microsoft.advisor/metadata are genuine provider catalogs), so it counts only
+// with a second discriminator: a child, or a scope narrower than the tenant.
+func classify(e *entry, hasEnvelope func() bool) (sdkinv.Candidate, bool) {
 	if len(e.collection) == 0 {
 		return sdkinv.Candidate{}, false
 	}
@@ -352,6 +369,9 @@ func classify(e *entry) (sdkinv.Candidate, bool) {
 	switch {
 	case e.itemMethods["PUT"] || e.itemMethods["PATCH"] || e.itemMethods["DELETE"]:
 		c.Class, c.Rule = sdkinv.ClassResource, "item-write"
+	case (e.itemMethods["GET"] || e.itemMethods["HEAD"]) &&
+		(len(e.parents) > 0 || ownedScope[e.scope]) && hasEnvelope():
+		c.Class, c.Rule = sdkinv.ClassResource, "arm-envelope"
 	case e.itemMethods["GET"] || e.itemMethods["HEAD"]:
 		c.Class, c.Rule = sdkinv.ClassCatalog, "item-read-only"
 	default:
@@ -372,6 +392,13 @@ func classify(e *entry) (sdkinv.Candidate, bool) {
 		c.Ops = append(c.Ops, opFor(b, e.namespace, e.parents, e.scope))
 	}
 	return c, true
+}
+
+// ownedScope names the scopes a subscription's own resources live in. A
+// tenant-wide or extension listing is the provider talking about itself.
+var ownedScope = map[sdkinv.Scope]bool{
+	sdkinv.ScopeSubscription:  true,
+	sdkinv.ScopeResourceGroup: true,
 }
 
 func mergeRefs(a, b []string) []string {
