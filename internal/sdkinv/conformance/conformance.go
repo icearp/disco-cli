@@ -94,15 +94,11 @@ func sortedKeys(cs []sdkinv.Candidate) bool {
 // checkCandidate asserts one candidate's own shape.
 func checkCandidate(t *testing.T, name string, c sdkinv.Candidate) {
 	t.Helper()
-	if c.Provider != name || c.Service == "" || !strings.HasPrefix(c.Key, c.Service+"/") {
-		t.Errorf("%s: malformed candidate %+v", name, c)
+	if c.Provider != name {
+		t.Errorf("%s: candidate %s carries provider %q", name, c.Key, c.Provider)
 	}
-	// An empty segment means a noun the extractor never found; the key then
-	// matches no type and no registry entry (sagemaker:Search keyed "sagemaker/").
-	for _, seg := range strings.Split(c.Key, "/") {
-		if seg == "" {
-			t.Errorf("%s: key %q has an empty segment", name, c.Key)
-		}
+	if why := sdkinv.ValidateKey(c.Key, c.Service); why != "" {
+		t.Errorf("%s: malformed key %q (service %q): %s", name, c.Key, c.Service, why)
 	}
 	if c.Class == "" || len(c.Ops) == 0 {
 		t.Errorf("%s: %s has class %q and %d ops", name, c.Key, c.Class, len(c.Ops))

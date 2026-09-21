@@ -388,13 +388,16 @@ func serviceKey(m *smithyModel) (string, string) {
 		if raw, ok := sh.Traits["aws.api#service"]; ok {
 			_ = json.Unmarshal(raw, &svc)
 		}
+		// Lower-cased: the Service Reference names its documents in lower case,
+		// and one model spells its signing name IoTSecuredTunneling, which keyed
+		// two candidates no type or registry entry could ever match.
 		switch {
 		case sigv4.Name != "":
-			return sigv4.Name, svc.SDKID
+			return strings.ToLower(sigv4.Name), svc.SDKID
 		case svc.ArnNamespace != "":
-			return svc.ArnNamespace, svc.SDKID
+			return strings.ToLower(svc.ArnNamespace), svc.SDKID
 		default:
-			return svc.EndpointPrefix, svc.SDKID
+			return strings.ToLower(svc.EndpointPrefix), svc.SDKID
 		}
 	}
 	return "", ""
@@ -412,11 +415,25 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 		diag = fmt.Sprintf("service %q absent from the Service Reference; classification falls back to SDK shape", svc)
 	}
 	module := fmt.Sprintf("aws-sdk-go-v2@%s/%s%s", sdkinv.AWSSDKRef, smithyModelsDir, file)
-	for id, sh := range m.Shapes {
+	// Sorted shape ids: a model can carry two operation shapes of one name in
+	// different namespaces (healthlake), and map order then decided which one's
+	// Required survived — two of three consecutive extractions disagreed.
+	ids := make([]string, 0, len(m.Shapes))
+	for id := range m.Shapes {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	seenOps := map[string]bool{} // op name + module: the duplicate shapes above
+	for _, id := range ids {
+		sh := m.Shapes[id]
 		if sh.Type != "operation" {
 			continue
 		}
 		op := id[strings.LastIndex(id, "#")+1:]
+		if seenOps[op] {
+			continue
+		}
+		seenOps[op] = true
 		o := analyzeOp(m, sh)
 		verb, noun := splitVerb(op)
 		nounCanon := sdkinv.Ident(noun)

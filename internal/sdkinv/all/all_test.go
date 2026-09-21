@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -56,6 +57,42 @@ func TestAllExtractorsConform(t *testing.T) {
 		e, _ := sdkinv.Get(n)
 		t.Run(n, func(t *testing.T) {
 			conformance.Check(t, e, filepath.Join("..", n, "testdata", "cache"))
+		})
+	}
+}
+
+// TestLiveUniverseWellFormed runs the key contract and the determinism check
+// against the real caches, not the fixtures: "resource-explorer-2/",
+// "sagemaker/", "*/features" and "datazone/domain/" all shipped in
+// docs/coverage.md while every fixture passed, and two extractions of the AWS
+// cache in one process used to disagree on healthlake's Required.
+func TestLiveUniverseWellFormed(t *testing.T) {
+	cache := sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}
+	for _, n := range sdkinv.Names() {
+		e, _ := sdkinv.Get(n)
+		dir := cache.Dir(n, e.Ref())
+		if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err != nil {
+			t.Skipf("%s SDK cache not fetched", n)
+		}
+		t.Run(n, func(t *testing.T) {
+			u, err := e.Extract(context.Background(), dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bad := 0
+			for _, c := range u.Candidates {
+				if why := sdkinv.ValidateKey(c.Key, c.Service); why != "" && bad < 10 {
+					bad++
+					t.Errorf("malformed key %q (service %q): %s", c.Key, c.Service, why)
+				}
+			}
+			again, err := e.Extract(context.Background(), dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(u, again) {
+				t.Error("two extractions of the live cache disagree")
+			}
 		})
 	}
 }

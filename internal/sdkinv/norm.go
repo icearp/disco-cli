@@ -1,6 +1,7 @@
 package sdkinv
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 	"unicode"
@@ -125,11 +126,60 @@ func SortCandidates(cs []Candidate) {
 // SortOps orders operations by label then module.
 func SortOps(ops []Operation) {
 	sort.Slice(ops, func(a, b int) bool {
-		if ops[a].Label != ops[b].Label {
-			return ops[a].Label < ops[b].Label
+		x, y := ops[a], ops[b]
+		// Label+Module alone is not a total order: one Smithy model can carry
+		// two operation shapes with the same name in different namespaces
+		// (healthlake), differing only in Required, and an unstable sort then
+		// flipped their order between runs of the same binary.
+		switch {
+		case x.Label != y.Label:
+			return x.Label < y.Label
+		case x.Module != y.Module:
+			return x.Module < y.Module
+		case x.Name != y.Name:
+			return x.Name < y.Name
+		case x.Path != y.Path:
+			return x.Path < y.Path
+		case x.IsList != y.IsList:
+			return y.IsList
+		case x.Paged != y.Paged:
+			return y.Paged
 		}
-		return ops[a].Module < ops[b].Module
+		return strings.Join(x.Required, ",")+"\x00"+strings.Join(x.Targets, ",") <
+			strings.Join(y.Required, ",")+"\x00"+strings.Join(y.Targets, ",")
 	})
+}
+
+// keyBadRe are the shapes a candidate key must never contain: a template
+// placeholder, a query fragment or an empty segment mean the extractor keyed
+// something it did not parse, and the key then matches no type and no registry
+// entry.
+var keyBadRe = regexp.MustCompile(`[{}?=$]|//`)
+
+// serviceRe is the shape of a service segment: lower-case, digits, dot, dash,
+// underscore (Discovery names one API prod_tt_sasportal).
+var serviceRe = regexp.MustCompile(`^[a-z0-9._-]+$`)
+
+// ValidateKey reports why a candidate key is malformed, or "" when it is well
+// formed. Extractors run it over the live universe, not only the fixtures:
+// every shape below shipped in docs/coverage.md at some point.
+func ValidateKey(key, service string) string {
+	switch {
+	case service == "":
+		return "empty service"
+	case !serviceRe.MatchString(service):
+		return "service outside [a-z0-9.-]+"
+	case !strings.HasPrefix(key, service+"/"):
+		return "key does not start with the service"
+	case keyBadRe.MatchString(key):
+		return "key carries a placeholder, query fragment or empty segment"
+	}
+	for _, seg := range strings.Split(key, "/") {
+		if seg == "" {
+			return "key has an empty segment"
+		}
+	}
+	return ""
 }
 
 // StrongerClass returns the class that wins when two ops describe one key:

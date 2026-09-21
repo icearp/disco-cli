@@ -1957,7 +1957,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
 ## AZURE
 
-**Coverage:** 19.7% (386/1959 listable) · depth0 49.6% · depth1 3.9% · depth2 5.9% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 1693 · disco-only 8 (0 unexplained)
+**Coverage:** 19.7% (386/1959 listable) · depth0 49.6% · depth1 3.9% · depth2 5.9% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 1691 · disco-only 8 (0 unexplained)
 
 Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 

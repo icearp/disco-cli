@@ -178,10 +178,13 @@ func index(entries map[string]*entry, b builder) bool {
 	case nsIdx >= 0:
 		ns := segs[nsIdx+1]
 		if ns.Param {
-			namespace = "*"
-		} else {
-			namespace = strings.ToLower(ns.Text)
+			// The namespace is whatever the caller passes
+			// (".../providers/{resourceProviderNamespace}/resourceTypes"), so
+			// there is no resource provider to key: "*/resourcetypes" matched
+			// no type and no ARM registry entry.
+			return false
 		}
+		namespace = strings.ToLower(ns.Text)
 		rest = segs[nsIdx+2:]
 	case armOwnModules[b.module]:
 		namespace = armOwnNamespace
@@ -214,7 +217,7 @@ func index(entries map[string]*entry, b builder) bool {
 	if b.method != "GET" {
 		return false
 	}
-	sc := scopeOf(segs, nsIdx, namespace)
+	sc := scopeOf(segs, nsIdx)
 	if e.scope == "" || scopeRank[sc] > scopeRank[e.scope] {
 		e.scope = sc
 	}
@@ -304,10 +307,7 @@ var scopeRank = map[sdkinv.Scope]int{
 // microsoft.management's own paths and read as tenant. Extension is decided on
 // the prefix alone (nsIdx is the namespace's "providers", -1 for ARM's own
 // modules), or the trailing providers pair of a features listing would claim it.
-func scopeOf(segs []sdkinv.Segment, nsIdx int, namespace string) sdkinv.Scope {
-	if namespace == "*" {
-		return sdkinv.ScopeExtension
-	}
+func scopeOf(segs []sdkinv.Segment, nsIdx int) sdkinv.Scope {
 	sc := sdkinv.ScopeTenant
 	for i, s := range segs {
 		if s.Param && i == 0 {
