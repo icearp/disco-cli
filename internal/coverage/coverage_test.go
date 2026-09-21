@@ -13,7 +13,7 @@ import (
 
 func cand(service, key string, class sdkinv.Class, depth int, signals ...string) sdkinv.Candidate {
 	c := sdkinv.Candidate{
-		Provider: "aws", Service: service, Key: key, Class: class, Depth: depth, Signals: signals,
+		Provider: "aws", Service: service, Key: key, Class: class, Depth: depth, Signals: signals, Rule: "sr-resource",
 		Ops: []sdkinv.Operation{{Label: service + ":List" + key[strings.LastIndex(key, "/")+1:], Scope: sdkinv.ScopeRegion}},
 	}
 	if depth > 0 {
@@ -237,7 +237,7 @@ func TestRenderers(t *testing.T) {
 	}
 	for _, want := range []string{
 		"## AWS", "**Coverage:** 83.3% (5/6 listable)", "depth0 80.0%", "depth1 100.0%", "Pins: aws-sdk-go-v2@release-1",
-		"| ec2 | 1 | 1 | 50.0 |", "### Uncovered (listable, no scanner) (1)", "| ec2 | ec2/volume | 0 | region | ec2:Listvolume |", "### Disco-only", "explained: non-sdk",
+		"| ec2 | 1 | 1 | 50.0 |", "### Uncovered (listable, no scanner) (1)", "| ec2 | ec2/volume | 0 | region | sr-resource | ec2:Listvolume |", "| sr-resource | 5 | 1 | 83.3 |", "The denominator is every candidate", "### Disco-only", "explained: non-sdk",
 	} {
 		if !strings.Contains(md.String(), want) {
 			t.Errorf("markdown lacks %q:\n%s", want, md.String())

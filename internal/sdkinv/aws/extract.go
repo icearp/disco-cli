@@ -147,6 +147,7 @@ type entry struct {
 	// grandparent and a parent for one op set.
 	cands   []parentCand
 	class   sdkinv.Class
+	rule    string // the classification rule that decided class
 	signals map[string]bool
 	ops     []sdkinv.Operation
 	refs    map[string]bool
@@ -702,7 +703,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 				signals["sr:parent-noun"] = true
 			}
 		}
-		class := classify(classIn{isList: isList, noun: noun, namespaces: namespaces}, o, sr, nounCanon, lin, signals)
+		class, rule := classify(classIn{isList: isList, noun: noun, namespaces: namespaces}, o, sr, nounCanon, lin, signals)
 		key := svc + "/" + nounCanon
 		if class == sdkinv.ClassAttribute && lin.parent != "" && !lin.self {
 			key = svc + "/" + lin.parent + "/" + nounCanon
@@ -719,7 +720,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 			}
 		}
 		en.place(lin)
-		en.class = sdkinv.StrongerClass(en.class, class)
+		en.admit(class, rule)
 		for _, r := range refsOf(m, sh, nounCanon) {
 			en.refs[r] = true
 		}
@@ -735,6 +736,19 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 }
 
 // place is where an operation's subject sits in the resource tree.
+// admit folds one operation's classification in, keeping the rule that decided
+// the class the entry ends up with. A stronger class replaces the rule; an
+// equal class keeps the alphabetically first, so the row does not depend on
+// the order the models were read in.
+func (en *entry) admit(class sdkinv.Class, rule string) {
+	switch stronger := sdkinv.StrongerClass(en.class, class); {
+	case en.class == "" || stronger != en.class:
+		en.class, en.rule = stronger, rule
+	case class == en.class && (en.rule == "" || rule < en.rule):
+		en.rule = rule
+	}
+}
+
 // place folds one op's lineage into the entry. Several ops land on one key
 // (ListResolvers, ListResolversByFunction); the shallowest lineage wins, ties
 // by parent identity then by its display, so the pick does not follow the
@@ -1009,10 +1023,12 @@ func foreignTargets(lin place, nounCanon string) int {
 // shapeName is a Smithy shape id's local name ("com.amazonaws.sqs#Queue" → "Queue").
 func shapeName(id string) string { return id[strings.LastIndex(id, "#")+1:] }
 
-func classify(cl classIn, o opShape, sr *srService, nounCanon string, lin place, signals map[string]bool) sdkinv.Class {
+// classify decides the class and names the rule that decided it. The rule
+// ships on the candidate so a report can state what its denominator admits.
+func classify(cl classIn, o opShape, sr *srService, nounCanon string, lin place, signals map[string]bool) (sdkinv.Class, string) {
 	if !cl.isList {
 		signals["detail-read"] = true
-		return sdkinv.ClassAttribute
+		return sdkinv.ClassAttribute, "detail-read"
 	}
 	if sr != nil {
 		// The catalog names the subject, not the payload: ListClusterSummaries
@@ -1032,14 +1048,14 @@ func classify(cl classIn, o opShape, sr *srService, nounCanon string, lin place,
 				continue
 			}
 			signals["sr:resource="+name] = true
-			return sdkinv.ClassResource
+			return sdkinv.ClassResource, "sr-resource"
 		}
 	}
 	// Cross-cutting counts the resources an operation reaches *besides* its own
 	// subject and the ancestors its lineage already names.
 	if others := foreignTargets(lin, nounCanon); others >= crossCuttingTargets {
 		signals["cross-cutting"] = true
-		return sdkinv.ClassAttribute
+		return sdkinv.ClassAttribute, "cross-cutting"
 	}
 	// A single-subject read the catalog does not call a listing, over a noun
 	// that is already singular, reads one parent's setting: GetFunctionConfiguration,
@@ -1047,26 +1063,26 @@ func classify(cl classIn, o opShape, sr *srService, nounCanon string, lin place,
 	// (516 covered rows) and stays; only this corner of it is sub-state.
 	if signals["shape-list"] && lin.self && sdkinv.CanonSingular(cl.noun) == sdkinv.Canon(cl.noun) {
 		signals["single-subject-read"] = true
-		return sdkinv.ClassAttribute
+		return sdkinv.ClassAttribute, "single-subject-read"
 	}
 	if lin.depth > 0 {
 		if !o.hasIDs {
 			signals["id-less-collection"] = true
-			return sdkinv.ClassAttribute
+			return sdkinv.ClassAttribute, "id-less-collection"
 		}
 		signals["child-uncatalogued"] = true
-		return sdkinv.ClassResource
+		return sdkinv.ClassResource, "child-uncatalogued"
 	}
 	if sr != nil && sr.writeNoun[nounCanon] {
 		signals["writable-noun"] = true
-		return sdkinv.ClassResource
+		return sdkinv.ClassResource, "writable-noun"
 	}
 	if sr != nil && sr.mutableNoun[nounCanon] {
 		signals["mutable"] = true
 	}
 	if o.listMembers == 0 {
 		signals["no-collection"] = true
-		return sdkinv.ClassNonResource
+		return sdkinv.ClassNonResource, "no-collection"
 	}
 	// Positive evidence beats the catalog fallback, which otherwise excludes
 	// every listing of a service the Service Reference does not carry: an
@@ -1075,13 +1091,13 @@ func classify(cl classIn, o opShape, sr *srService, nounCanon string, lin place,
 	switch {
 	case o.elemARN:
 		signals["element-arn"] = true
-		return sdkinv.ClassResource
+		return sdkinv.ClassResource, "element-arn"
 	case o.elemTime:
 		signals["element-created"] = true
-		return sdkinv.ClassResource
+		return sdkinv.ClassResource, "element-created"
 	}
 	signals["read-only"] = true
-	return sdkinv.ClassCatalog
+	return sdkinv.ClassCatalog, "read-only"
 }
 
 // pickParent chooses the nearest ancestor among catalog targets: the deepest
@@ -1151,7 +1167,7 @@ func foldLegacyNouns(entries map[string]*entry, words map[string]map[string]bool
 			}
 			target.nouns = append(target.nouns, en.nouns...)
 			target.ops = append(target.ops, en.ops...)
-			target.class = sdkinv.StrongerClass(target.class, en.class)
+			target.admit(en.class, en.rule)
 			target.signals["legacy-noun"] = true
 			for sig := range en.signals {
 				target.signals[sig] = true
@@ -1243,6 +1259,7 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 			key = en.service + "/" + parentDisplay(entries, en) + "/" + disp
 		}
 		if dup := byKey[key]; dup != nil { // two identities with one display: fold the ops
+			dup.admit(en.class, en.rule)
 			dup.ops = append(dup.ops, en.ops...)
 			for s := range en.signals {
 				dup.signals[s] = true
@@ -1256,7 +1273,7 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 	}
 	out := make([]sdkinv.Candidate, 0, len(byKey))
 	for key, en := range byKey {
-		c := sdkinv.Candidate{Provider: "aws", Service: en.service, Key: key, Depth: en.depth, Class: en.class, Ops: en.ops}
+		c := sdkinv.Candidate{Provider: "aws", Service: en.service, Key: key, Depth: en.depth, Class: en.class, Rule: en.rule, Ops: en.ops}
 		if en.depth > 0 && en.parentID != "" {
 			// Two identities can render to one display and fold together here,
 			// which turned apigateway/methodresponse into its own parent.

@@ -56,8 +56,19 @@ type Row struct {
 	Parent     string   `json:"parent,omitempty"`
 	Scope      string   `json:"scope,omitempty"`
 	Reason     string   `json:"reason,omitempty"`
-	Signals    []string `json:"signals,omitempty"`
-	Refs       []string `json:"refs,omitempty"` // candidate element fields naming other resources
+	// Rule is the extractor's classification rule that admitted (or excluded)
+	// this candidate, so a percentage can be read against what it counts.
+	Rule    string   `json:"rule,omitempty"`
+	Signals []string `json:"signals,omitempty"`
+	Refs    []string `json:"refs,omitempty"` // candidate element fields naming other resources
+}
+
+// RuleSummary is the covered/uncovered split of one admitting rule.
+type RuleSummary struct {
+	Rule      string  `json:"rule"`
+	Covered   int     `json:"covered"`
+	Uncovered int     `json:"uncovered"`
+	Percent   float64 `json:"percent"`
 }
 
 // DepthSummary is the covered/uncovered split at one candidate depth.
@@ -78,6 +89,10 @@ type Summary struct {
 	Unexplained int            `json:"unexplained"`
 	Percent     float64        `json:"percent"`
 	ByDepth     []DepthSummary `json:"byDepth"`
+	// ByRule splits the same covered/uncovered totals by the extractor rule
+	// that admitted each candidate, so a percentage can be read against what
+	// it counts. Computed before any --filter, which drops rows.
+	ByRule []RuleSummary `json:"byRule,omitempty"`
 }
 
 // ServiceSummary is the covered/uncovered split for one service.
@@ -146,7 +161,7 @@ func BuildInventory(in Inputs) Matrix {
 	}
 	accounted := map[string]bool{}
 	for _, c := range in.Universe.Candidates {
-		row := Row{Provider: in.Provider, Service: c.Service, Key: c.Key, Depth: c.Depth, Parent: c.Parent, Signals: c.Signals, Refs: c.Refs}
+		row := Row{Provider: in.Provider, Service: c.Service, Key: c.Key, Depth: c.Depth, Parent: c.Parent, Rule: c.Rule, Signals: c.Signals, Refs: c.Refs}
 		row.Ops, row.Scope = opCells(c.Ops)
 		paired, listed := types[c.Key]
 		switch {
@@ -325,9 +340,20 @@ func summarize(rows []Row) (Summary, []ServiceSummary) {
 	var s Summary
 	depth := map[int]*DepthSummary{}
 	svc := map[string]*ServiceSummary{}
+	rule := map[string]*RuleSummary{}
 	for _, r := range rows {
 		switch r.Bucket {
 		case BucketCovered, BucketUncovered:
+			ru := rule[r.Rule]
+			if ru == nil {
+				ru = &RuleSummary{Rule: r.Rule}
+				rule[r.Rule] = ru
+			}
+			if r.Bucket == BucketCovered {
+				ru.Covered++
+			} else {
+				ru.Uncovered++
+			}
 			d := depth[r.Depth]
 			if d == nil {
 				d = &DepthSummary{Depth: r.Depth}
@@ -364,6 +390,19 @@ func summarize(rows []Row) (Summary, []ServiceSummary) {
 		s.ByDepth = append(s.ByDepth, *d)
 	}
 	sort.Slice(s.ByDepth, func(i, j int) bool { return s.ByDepth[i].Depth < s.ByDepth[j].Depth })
+	for _, r := range rule {
+		r.Percent = percent(r.Covered, r.Uncovered)
+		s.ByRule = append(s.ByRule, *r)
+	}
+	// Biggest slice of the denominator first: that is the rule the headline
+	// mostly measures.
+	sort.Slice(s.ByRule, func(i, j int) bool {
+		a, b := s.ByRule[i], s.ByRule[j]
+		if ai, bi := a.Covered+a.Uncovered, b.Covered+b.Uncovered; ai != bi {
+			return ai > bi
+		}
+		return a.Rule < b.Rule
+	})
 	services := make([]ServiceSummary, 0, len(svc))
 	for _, v := range svc {
 		v.Percent = percent(v.Covered, v.Uncovered)

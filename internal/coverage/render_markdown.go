@@ -31,6 +31,12 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 	if _, err := fmt.Fprintf(w, "Pins: %s\n\n", pinsLine(m.Pins)); err != nil {
 		return err
 	}
+	if _, err := fmt.Fprint(w, denominatorNote); err != nil {
+		return err
+	}
+	if err := renderRuleTable(w, m); err != nil {
+		return err
+	}
 	if len(m.Services) > 0 {
 		if _, err := fmt.Fprintln(w, "| Service | Covered | Uncovered | % |\n|---|---|---|---|"); err != nil {
 			return err
@@ -50,8 +56,10 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 		headers []string
 		cells   func(Row) []string
 	}{
-		{BucketUncovered, "Uncovered (listable, no scanner)", []string{"Service", "Key", "Depth", "Scope", "Ops"}, func(r Row) []string {
-			return []string{r.Service, r.Key, fmt.Sprint(r.Depth), r.Scope, strings.Join(r.Ops, ", ")}
+		// The admitting rule travels with the row: a gap list is only
+		// actionable if the reader can see why each row is in it.
+		{BucketUncovered, "Uncovered (listable, no scanner)", []string{"Service", "Key", "Depth", "Scope", "Rule", "Ops"}, func(r Row) []string {
+			return []string{r.Service, r.Key, fmt.Sprint(r.Depth), r.Scope, r.Rule, strings.Join(r.Ops, ", ")}
 		}},
 		{BucketDiscoOnly, "Disco-only (emitted type with no candidate)", []string{"Service", "Disco type", "Reason"}, func(r Row) []string {
 			return []string{r.Service, r.DiscoType, r.Reason}
@@ -90,6 +98,37 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 }
 
 // Headline is the one-line summary printed above every report.
+// denominatorNote states what the percentage counts. Without it the headline
+// is not falsifiable from the report: the rule that admitted a row lived in
+// the JSON signals only.
+const denominatorNote = "The denominator is every candidate the provider's own SDK can list that the " +
+	"extractor classified `resource` — not every API operation, and not a curated list. " +
+	"Attributes (detail reads), catalogs (provider-published, read-only) and non-resources are " +
+	"outside it and are listed below. Each row names the rule that classified it; the table " +
+	"below gives the coverage of each rule, so a rule that admits rows no scanner can close is " +
+	"visible as a low percentage rather than as a smaller number.\n\n"
+
+// renderRuleTable splits the headline by admitting rule.
+func renderRuleTable(w io.Writer, m Matrix) error {
+	if len(m.Summary.ByRule) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(w, "| Admitting rule | Covered | Uncovered | % |\n|---|---|---|---|"); err != nil {
+		return err
+	}
+	for _, r := range m.Summary.ByRule {
+		name := r.Rule
+		if name == "" {
+			name = "(unnamed)"
+		}
+		if _, err := fmt.Fprintf(w, "| %s | %d | %d | %.1f |\n", name, r.Covered, r.Uncovered, r.Percent); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprintln(w)
+	return err
+}
+
 func Headline(m Matrix) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "**Coverage:** %.1f%% (%d/%d listable)", m.Summary.Percent, m.Summary.Covered, m.Summary.Covered+m.Summary.Uncovered)

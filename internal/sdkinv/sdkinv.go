@@ -64,14 +64,18 @@ type Operation struct {
 
 // Candidate is one SDK-listable resource, the unit of the coverage denominator.
 type Candidate struct {
-	Provider string      `json:"provider"`
-	Service  string      `json:"service"`
-	Key      string      `json:"key"` // "<service>/<resource path>", provider-shaped
-	Depth    int         `json:"depth"`
-	Parent   string      `json:"parent,omitempty"`
-	Class    Class       `json:"class"`
-	Ops      []Operation `json:"ops"`
-	Signals  []string    `json:"signals,omitempty"` // audit trail of the rules that fired
+	Provider string `json:"provider"`
+	Service  string `json:"service"`
+	Key      string `json:"key"` // "<service>/<resource path>", provider-shaped
+	Depth    int    `json:"depth"`
+	Parent   string `json:"parent,omitempty"`
+	Class    Class  `json:"class"`
+	// Rule names the classification rule that decided Class, so a report can
+	// say what its denominator admits instead of only how big it is. Every
+	// extractor sets it; the values are that provider's own rule names.
+	Rule    string      `json:"rule,omitempty"`
+	Ops     []Operation `json:"ops"`
+	Signals []string    `json:"signals,omitempty"` // audit trail of the rules that fired
 	// Refs are dotted field paths on the listed element that name other
 	// resources (VpcId, properties.networkProfile.networkInterfaces,
 	// networkInterfaces.subnetwork): hints for which resolver edges a scanner

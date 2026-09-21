@@ -5,6 +5,21 @@ universe (`internal/sdkinv`); the numerator is the static pairing of scanner SDK
 the types they store (`internal/sdkinv/pairing`). Per-provider glue in
 `internal/providers/<p>/<p>_coverage.go` registers via `coverage.Register` from init.
 
+## The admitting rule travels with the row (#127)
+
+Every candidate carries `Rule`: the extractor rule that decided its class
+(`sr-resource`, `child-uncatalogued`, `writable-noun`, `element-arn`,
+`element-created` for AWS; `item-write` / `item-read-only` / `no-item-path` for Azure;
+`create` / `delete-only` / `get-only` / `list-only` / `operation-node` for GCP). It reaches
+`Row.Rule`, `Summary.ByRule` and the markdown report.
+
+`Summary.ByRule` is computed in `BuildInventory`, **before** any `Filter`, because
+`make gen-coverage` renders with `--filter gaps` and a table built from the filtered rows
+reported every rule at 0% covered. `docs/coverage.md` states the denominator's definition in
+its header and prints the per-rule table under it: at the 2026-09 pins AWS reads
+`sr-resource` 80.3% against `child-uncatalogued` 13.2%, which is the whole point — a weak rule
+is visible as a low percentage instead of silently inflating one headline number.
+
 ## Provider contract
 
 - `Provider` = `Name()` + `Emits()` only. Optional: `CrossChecker` (`CrossCheck`, `RegistryKey`,

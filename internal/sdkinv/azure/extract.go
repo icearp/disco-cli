@@ -351,11 +351,11 @@ func classify(e *entry) (sdkinv.Candidate, bool) {
 	}
 	switch {
 	case e.itemMethods["PUT"] || e.itemMethods["PATCH"] || e.itemMethods["DELETE"]:
-		c.Class = sdkinv.ClassResource
+		c.Class, c.Rule = sdkinv.ClassResource, "item-write"
 	case e.itemMethods["GET"] || e.itemMethods["HEAD"]:
-		c.Class = sdkinv.ClassCatalog
+		c.Class, c.Rule = sdkinv.ClassCatalog, "item-read-only"
 	default:
-		c.Class = sdkinv.ClassNonResource
+		c.Class, c.Rule = sdkinv.ClassNonResource, "no-item-path"
 	}
 	for m := range e.itemMethods {
 		c.Signals = append(c.Signals, "item:"+m)

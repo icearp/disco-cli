@@ -98,6 +98,7 @@ type entry struct {
 	parents  []string
 	parent   string
 	class    sdkinv.Class
+	rule     string // the classification rule that decided class
 	signals  map[string]bool
 	ops      map[string]sdkinv.Operation // by label+module
 	versions map[string]bool
@@ -332,7 +333,12 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []s
 			en.parents = rp.Parents
 			en.parent = parentKey(dc, docPath, rp.Parents, segs)
 		}
-		en.class = sdkinv.StrongerClass(en.class, classify(l.node, en.signals))
+		class, rule := classify(l.node, en.signals)
+		if stronger := sdkinv.StrongerClass(en.class, class); en.class == "" || stronger != en.class {
+			en.class, en.rule = stronger, rule
+		} else if class == en.class && (en.rule == "" || rule < en.rule) {
+			en.rule = rule
+		}
 		// A lister at the document root has no resource node, so there is no
 		// collection noun to prefer an element by.
 		noun := ""
@@ -515,7 +521,7 @@ func parentKey(dc *doc, docPath, parents []string, segs []sdkinv.Segment) string
 // returns a long-running Operation are job records, not resources; creatable
 // nodes are resources; delete-only nodes are records the caller cannot
 // create; get-only nodes are catalogs.
-func classify(node *resource, signals map[string]bool) sdkinv.Class {
+func classify(node *resource, signals map[string]bool) (sdkinv.Class, string) {
 	has := func(names ...string) bool {
 		for _, n := range names {
 			if _, ok := node.Methods[n]; ok {
@@ -527,19 +533,19 @@ func classify(node *resource, signals map[string]bool) sdkinv.Class {
 	switch {
 	case isOperationNode(node):
 		signals["operation"] = true
-		return sdkinv.ClassNonResource
+		return sdkinv.ClassNonResource, "operation-node"
 	case has("insert", "create"):
 		signals["create"] = true
-		return sdkinv.ClassResource
+		return sdkinv.ClassResource, "create"
 	case has("delete"):
 		signals["delete-only"] = true
-		return sdkinv.ClassResource
+		return sdkinv.ClassResource, "delete-only"
 	case has("get"):
 		signals["get-only"] = true
-		return sdkinv.ClassCatalog
+		return sdkinv.ClassCatalog, "get-only"
 	default:
 		signals["list-only"] = true
-		return sdkinv.ClassNonResource
+		return sdkinv.ClassNonResource, "list-only"
 	}
 }
 
@@ -562,7 +568,7 @@ func hasParam(m *method, name string) bool {
 }
 
 func toCandidate(key string, en *entry) sdkinv.Candidate {
-	c := sdkinv.Candidate{Provider: "gcp", Service: en.api, Key: key, Depth: en.depth, Class: en.class}
+	c := sdkinv.Candidate{Provider: "gcp", Service: en.api, Key: key, Depth: en.depth, Class: en.class, Rule: en.rule}
 	if en.depth > 0 {
 		c.Parent = en.parent
 	}
