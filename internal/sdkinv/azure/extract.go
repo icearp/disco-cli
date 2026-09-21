@@ -57,6 +57,10 @@ type entry struct {
 	collection  []builder // GET on the collection path
 	itemMethods map[string]bool
 	alternate   bool // holds a lister folded in from an alternate path
+	// viaLocation / viaOther record how this collection's listers reach it:
+	// through a "locations/{location}" pair, which the key strips and ARM
+	// keeps in the type name, or by some other path.
+	viaLocation, viaOther bool
 }
 
 func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error) {
@@ -203,6 +207,17 @@ func index(entries map[string]*entry, b builder) bool {
 	if len(rp.Statics) == 0 {
 		return false
 	}
+	// ARM keeps "locations" in the type name (Microsoft.Network/locations/…)
+	// while the resource path spells it as a scope pair the key strips, so
+	// record that it was there: without it 15 resource keys can never match
+	// the registry and each one shows up as drift on both sides.
+	locationScoped := false
+	for i, sg := range rest {
+		if !sg.Param && strings.EqualFold(sg.Text, "locations") && i+1 < len(rest) && rest[i+1].Param {
+			locationScoped = true
+			break
+		}
+	}
 	statics := make([]string, len(rp.Statics))
 	for i, s := range rp.Statics {
 		statics[i] = strings.ToLower(s)
@@ -227,6 +242,14 @@ func index(entries map[string]*entry, b builder) bool {
 	sc := scopeOf(segs, nsIdx)
 	if e.scope == "" || scopeRank[sc] > scopeRank[e.scope] {
 		e.scope = sc
+	}
+	// Only when *every* lister reaches the collection through a location does
+	// ARM keep "locations" in the type name; a sibling ListBySubscription
+	// proves it does not.
+	if locationScoped {
+		e.viaLocation = true
+	} else {
+		e.viaOther = true
 	}
 	e.collection = append(e.collection, b)
 	return true
@@ -386,6 +409,9 @@ func classify(e *entry, hasEnvelope func() bool) (sdkinv.Candidate, bool) {
 	if e.alternate {
 		c.Signals = append(c.Signals, "alternate-lister")
 	}
+	if e.viaLocation && !e.viaOther {
+		c.Signals = append(c.Signals, stripedLocationSignal)
+	}
 	c.Signals = append(c.Signals, "scope:"+string(e.scope))
 	sort.Strings(c.Signals)
 	for _, b := range e.collection {
@@ -393,6 +419,11 @@ func classify(e *entry, hasEnvelope func() bool) (sdkinv.Candidate, bool) {
 	}
 	return c, true
 }
+
+// stripedLocationSignal marks a candidate whose path reached it through a
+// "locations/{location}" pair. internal/providers/azure reads it to rebuild the
+// ARM type name for the registry cross-check.
+const stripedLocationSignal = "scope-pair:locations"
 
 // ownedScope names the scopes a subscription's own resources live in. A
 // tenant-wide or extension listing is the provider talking about itself.

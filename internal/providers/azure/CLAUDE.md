@@ -602,3 +602,14 @@ For error injection use `azfake.PagerResponder.AddResponseError(http.StatusForbi
 
 - `forvar` (Go 1.22+): drop `i, x := i, x` shadows in goroutines — per-iteration scope built-in.
 - Project gofmt config rewrites `init()` one-liners to multiline; run `gofmt -w .` before each commit to avoid post-commit linter drift.
+
+## Cross-check keys are not candidate keys (#123)
+
+`RegistryKey` rebuilds the ARM type name from a candidate key: it drops a singleton instance id
+(`blobservices/default/containers` → `blobServices/containers`) and restores the `locations`
+segment the extractor strips as a scope pair, which `internal/sdkinv/azure` flags with
+`scope-pair:locations` (set only when *every* lister reaches the collection through a location —
+a sibling `ListBySubscription` proves ARM keeps no `locations` in the type). Without both, 34
+keys could never match `Providers/List` and each one produced a false drift row on both sides.
+`--cross-check` needs a live subscription, so this is verified against the key shapes, not against
+ARM.
