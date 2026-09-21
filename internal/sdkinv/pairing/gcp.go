@@ -63,7 +63,12 @@ func (gcpResolver) LabelAliases(c sdkinv.Candidate, op sdkinv.Operation) []strin
 				kept = append(kept, n)
 			}
 		}
-		nodes = kept
+		// An aggregatedList registered on a sibling collection (the Compute
+		// regional twins) shares no node with this key, and filtering then
+		// leaves nothing to build an alias from.
+		if len(kept) > 0 {
+			nodes = kept
+		}
 	}
 	path := strings.Join(nodes, ".")
 	return []string{op.Label, op.Service + ":" + path + "." + method, op.Service + ":" + nodes[len(nodes)-1] + "." + method}

@@ -119,21 +119,23 @@ func TestExtract_Live(t *testing.T) {
 		depth int
 		scope sdkinv.Scope
 	}{
-		"compute/instances":                  {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
-		"compute/zones":                      {sdkinv.ClassCatalog, 0, sdkinv.ScopeProject},
-		"compute/machinetypes":               {sdkinv.ClassCatalog, 0, sdkinv.ScopeProject},
-		"compute/globaloperations":           {sdkinv.ClassNonResource, 0, sdkinv.ScopeProject},
-		"compute/regiondisks":                {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
-		"run/jobs/executions":                {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
-		"storage/buckets":                    {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
-		"storage/notifications":              {sdkinv.ClassResource, 1, sdkinv.ScopeGlobal},
-		"sqladmin/databases":                 {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
-		"cloudkms/keyrings/cryptokeys":       {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
-		"cloudresourcemanager/projects":      {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
-		"container/clusters":                 {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
-		"cloudidentity/groups":               {sdkinv.ClassResource, 0, sdkinv.ScopeGlobal},
-		"admin/users":                        {sdkinv.ClassResource, 0, sdkinv.ScopeGlobal},
-		"cloudresourcemanager/organizations": {sdkinv.ClassCatalog, 0, sdkinv.ScopeOrg},
+		"compute/instances":             {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
+		"compute/zones":                 {sdkinv.ClassCatalog, 0, sdkinv.ScopeProject},
+		"compute/machinetypes":          {sdkinv.ClassCatalog, 0, sdkinv.ScopeProject},
+		"compute/globaloperations":      {sdkinv.ClassNonResource, 0, sdkinv.ScopeProject},
+		"compute/regiondisks":           {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
+		"run/jobs/executions":           {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
+		"storage/buckets":               {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
+		"storage/notifications":         {sdkinv.ClassResource, 1, sdkinv.ScopeGlobal},
+		"sqladmin/databases":            {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
+		"cloudkms/keyrings/cryptokeys":  {sdkinv.ClassResource, 1, sdkinv.ScopeProject},
+		"cloudresourcemanager/projects": {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
+		"container/clusters":            {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
+		"cloudidentity/groups":          {sdkinv.ClassResource, 0, sdkinv.ScopeGlobal},
+		"admin/users":                   {sdkinv.ClassResource, 0, sdkinv.ScopeGlobal},
+		// An organization can be patched and undeleted, so it is not the
+		// provider's read-only catalog (#44).
+		"cloudresourcemanager/organizations": {sdkinv.ClassResource, 0, sdkinv.ScopeOrg},
 		"monitoring/alertpolicies":           {sdkinv.ClassResource, 0, sdkinv.ScopeProject},
 	}
 	for k, w := range anchors {

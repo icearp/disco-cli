@@ -4511,7 +4511,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 ## GCP
 
-**Coverage:** 23.3% (235/1009 listable) · depth0 27.6% · depth1 18.4% · depth2 11.7% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 834 · disco-only 1 (0 unexplained)
+**Coverage:** 22.9% (239/1042 listable) · depth0 26.9% · depth1 18.3% · depth2 13.3% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 840 · disco-only 1 (0 unexplained)
 
 Pins: google.golang.org/api@v0.292.0
 
@@ -4519,50 +4519,52 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| create | 224 | 725 | 23.6 |
+| create | 224 | 735 | 23.4 |
 | delete-only | 11 | 49 | 18.3 |
+| mutable | 4 | 19 | 17.4 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
 | aiplatform | 0 | 58 | 0.0 |
-| apigee | 0 | 45 | 0.0 |
-| dialogflow | 0 | 43 | 0.0 |
+| apigee | 0 | 46 | 0.0 |
+| dialogflow | 0 | 44 | 0.0 |
 | contactcenterinsights | 0 | 28 | 0.0 |
+| discoveryengine | 0 | 27 | 0.0 |
 | dataplex | 0 | 25 | 0.0 |
-| discoveryengine | 0 | 25 | 0.0 |
 | networksecurity | 0 | 25 | 0.0 |
+| admin | 1 | 19 | 5.0 |
 | networkservices | 0 | 19 | 0.0 |
-| admin | 1 | 18 | 5.3 |
-| networkconnectivity | 0 | 15 | 0.0 |
+| networkconnectivity | 0 | 16 | 0.0 |
+| vmwareengine | 0 | 14 | 0.0 |
 | apihub | 0 | 12 | 0.0 |
 | integrations | 0 | 12 | 0.0 |
-| vmwareengine | 0 | 12 | 0.0 |
 | gkehub | 0 | 11 | 0.0 |
+| healthcare | 0 | 11 | 0.0 |
 | managedkafka | 0 | 11 | 0.0 |
 | netapp | 0 | 11 | 0.0 |
 | oracledatabase | 0 | 11 | 0.0 |
 | dlp | 0 | 10 | 0.0 |
-| healthcare | 0 | 10 | 0.0 |
 | migrationcenter | 0 | 10 | 0.0 |
 | vmmigration | 0 | 10 | 0.0 |
 | apigeeregistry | 0 | 9 | 0.0 |
 | ces | 0 | 9 | 0.0 |
+| compute | 90 | 9 | 90.9 |
 | appengine | 0 | 8 | 0.0 |
 | connectors | 0 | 8 | 0.0 |
 | securesourcemanager | 0 | 8 | 0.0 |
 | securitycenter | 0 | 8 | 0.0 |
 | clouddeploy | 0 | 7 | 0.0 |
-| compute | 89 | 7 | 92.7 |
+| dataform | 0 | 7 | 0.0 |
 | eventarc | 0 | 7 | 0.0 |
 | identitytoolkit | 0 | 7 | 0.0 |
 | saasservicemgmt | 0 | 7 | 0.0 |
+| backupdr | 0 | 6 | 0.0 |
+| baremetalsolution | 0 | 6 | 0.0 |
 | datacatalog | 0 | 6 | 0.0 |
-| dataform | 0 | 6 | 0.0 |
 | gkebackup | 0 | 6 | 0.0 |
 | gkeonprem | 0 | 6 | 0.0 |
 | redis | 0 | 6 | 0.0 |
 | translate | 0 | 6 | 0.0 |
-| backupdr | 0 | 5 | 0.0 |
 | beyondcorp | 0 | 5 | 0.0 |
 | datamigration | 0 | 5 | 0.0 |
 | developerconnect | 0 | 5 | 0.0 |
@@ -4570,27 +4572,28 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | metastore | 0 | 5 | 0.0 |
 | ml | 0 | 5 | 0.0 |
 | notebooks | 0 | 5 | 0.0 |
+| privateca | 0 | 5 | 0.0 |
+| retail | 0 | 5 | 0.0 |
 | alloydb | 0 | 4 | 0.0 |
 | analyticshub | 0 | 4 | 0.0 |
 | apphub | 0 | 4 | 0.0 |
 | bigqueryreservation | 0 | 4 | 0.0 |
 | chromemanagement | 0 | 4 | 0.0 |
+| contentwarehouse | 0 | 4 | 0.0 |
 | datastream | 0 | 4 | 0.0 |
 | documentai | 0 | 4 | 0.0 |
+| firebaseappdistribution | 0 | 4 | 0.0 |
 | firebaseapphosting | 0 | 4 | 0.0 |
 | parametermanager | 0 | 4 | 0.0 |
-| privateca | 0 | 4 | 0.0 |
-| retail | 0 | 4 | 0.0 |
 | workloadmanager | 0 | 4 | 0.0 |
 | apigateway | 0 | 3 | 0.0 |
-| baremetalsolution | 0 | 3 | 0.0 |
 | biglake | 0 | 3 | 0.0 |
 | cloudbuild | 5 | 3 | 62.5 |
 | cloudsupport | 0 | 3 | 0.0 |
 | config | 0 | 3 | 0.0 |
-| contentwarehouse | 0 | 3 | 0.0 |
 | datalineage | 0 | 3 | 0.0 |
 | file | 0 | 3 | 0.0 |
+| firebaseappcheck | 0 | 3 | 0.0 |
 | firebasedataconnect | 0 | 3 | 0.0 |
 | health | 0 | 3 | 0.0 |
 | iam | 12 | 3 | 80.0 |
@@ -4598,6 +4601,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | managedidentities | 0 | 3 | 0.0 |
 | networkmanagement | 0 | 3 | 0.0 |
 | osconfig | 0 | 3 | 0.0 |
+| pubsublite | 0 | 3 | 0.0 |
 | servicedirectory | 0 | 3 | 0.0 |
 | vision | 0 | 3 | 0.0 |
 | workstations | 0 | 3 | 0.0 |
@@ -4606,14 +4610,14 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | androiddeviceprovisioning | 0 | 2 | 0.0 |
 | artifactregistry | 5 | 2 | 71.4 |
 | bigquerydatatransfer | 0 | 2 | 0.0 |
+| cloudasset | 0 | 2 | 0.0 |
 | cloudbilling | 0 | 2 | 0.0 |
 | cloudiot | 0 | 2 | 0.0 |
 | cloudtasks | 0 | 2 | 0.0 |
 | containeranalysis | 0 | 2 | 0.0 |
 | datafusion | 0 | 2 | 0.0 |
-| firebaseappcheck | 0 | 2 | 0.0 |
-| firebaseappdistribution | 0 | 2 | 0.0 |
 | firebaserules | 0 | 2 | 0.0 |
+| firestore | 4 | 2 | 66.7 |
 | looker | 0 | 2 | 0.0 |
 | monitoring | 8 | 2 | 80.0 |
 | observability | 0 | 2 | 0.0 |
@@ -4645,7 +4649,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dns | 5 | 1 | 83.3 |
 | domains | 0 | 1 | 0.0 |
 | essentialcontacts | 0 | 1 | 0.0 |
-| firestore | 4 | 1 | 80.0 |
 | hypercomputecluster | 0 | 1 | 0.0 |
 | ids | 0 | 1 | 0.0 |
 | logging | 8 | 1 | 88.9 |
@@ -4653,6 +4656,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | parallelstore | 0 | 1 | 0.0 |
 | policysimulator | 0 | 1 | 0.0 |
 | rapidmigrationassessment | 0 | 1 | 0.0 |
+| resourcesettings | 0 | 1 | 0.0 |
 | run | 9 | 1 | 90.0 |
 | sourcerepo | 0 | 1 | 0.0 |
 | spanner | 6 | 1 | 85.7 |
@@ -4668,22 +4672,23 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bigtableadmin | 9 | 0 | 100.0 |
 | certificatemanager | 6 | 0 | 100.0 |
 | cloudfunctions | 1 | 0 | 100.0 |
-| cloudidentity | 9 | 0 | 100.0 |
-| cloudresourcemanager | 7 | 0 | 100.0 |
+| cloudidentity | 10 | 0 | 100.0 |
+| cloudresourcemanager | 8 | 0 | 100.0 |
 | container | 2 | 0 | 100.0 |
 | dataflow | 2 | 0 | 100.0 |
 | dataproc | 7 | 0 | 100.0 |
 | pubsub | 4 | 0 | 100.0 |
-| secretmanager | 1 | 0 | 100.0 |
+| secretmanager | 2 | 0 | 100.0 |
 | sqladmin | 5 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (774)
+### Uncovered (listable, no scanner) (803)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
 | admin | admin/asps | 1 | global | delete-only | admin:asps.list |
 | admin | admin/chrome/printers | 0 | tenant | create | admin:customers.chrome.printers.list |
 | admin | admin/chrome/printservers | 0 | tenant | create | admin:customers.chrome.printServers.list |
+| admin | admin/chromeosdevices | 0 | tenant | mutable | admin:chromeosdevices.list |
 | admin | admin/domainaliases | 0 | tenant | create | admin:domainAliases.list |
 | admin | admin/domains | 0 | tenant | create | admin:domains.list |
 | admin | admin/groups | 0 | global | create | admin:groups.list |
@@ -4801,6 +4806,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | apigee | apigee/environments/queries | 1 | org | create | apigee:organizations.environments.queries.list |
 | apigee | apigee/environments/resourcefiles | 1 | org | create | apigee:organizations.environments.resourcefiles.list |
 | apigee | apigee/environments/securityactions | 1 | org | create | apigee:organizations.environments.securityActions.list |
+| apigee | apigee/environments/securityincidents | 1 | org | mutable | apigee:organizations.environments.securityIncidents.list |
 | apigee | apigee/environments/securityreports | 1 | org | create | apigee:organizations.environments.securityReports.list |
 | apigee | apigee/environments/traceconfig/overrides | 1 | org | create | apigee:organizations.environments.traceConfig.overrides.list |
 | apigee | apigee/hostqueries | 0 | org | create | apigee:organizations.hostQueries.list |
@@ -4859,10 +4865,14 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | backupdr | backupdr/backupplanassociations | 0 | project | create | backupdr:projects.locations.backupPlanAssociations.list |
 | backupdr | backupdr/backupplans | 0 | project | create | backupdr:projects.locations.backupPlans.list |
 | backupdr | backupdr/backupvaults | 0 | project | create | backupdr:projects.locations.backupVaults.list |
+| backupdr | backupdr/backupvaults/datasources | 1 | project | mutable | backupdr:projects.locations.backupVaults.dataSources.list |
 | backupdr | backupdr/backupvaults/datasources/backups | 2 | project | delete-only | backupdr:projects.locations.backupVaults.dataSources.backups.list |
 | backupdr | backupdr/managementservers | 0 | project | create | backupdr:projects.locations.managementServers.list |
+| baremetalsolution | baremetalsolution/instances | 0 | project | mutable | baremetalsolution:projects.locations.instances.list |
+| baremetalsolution | baremetalsolution/networks | 0 | project | mutable | baremetalsolution:projects.locations.networks.list |
 | baremetalsolution | baremetalsolution/nfsshares | 0 | project | create | baremetalsolution:projects.locations.nfsShares.list |
 | baremetalsolution | baremetalsolution/sshkeys | 0 | project | create | baremetalsolution:projects.locations.sshKeys.list |
+| baremetalsolution | baremetalsolution/volumes | 0 | project | mutable | baremetalsolution:projects.locations.volumes.list |
 | baremetalsolution | baremetalsolution/volumes/snapshots | 1 | project | create | baremetalsolution:projects.locations.volumes.snapshots.list |
 | beyondcorp | beyondcorp/appconnections | 0 | project | create | beyondcorp:projects.locations.appConnections.list |
 | beyondcorp | beyondcorp/appconnectors | 0 | project | create | beyondcorp:projects.locations.appConnectors.list |
@@ -4896,6 +4906,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | chromemanagement | chromemanagement/profiles | 0 | tenant | delete-only | chromemanagement:customers.profiles.list |
 | chromemanagement | chromemanagement/profiles/commands | 1 | tenant | create | chromemanagement:customers.profiles.commands.list |
 | chromemanagement | chromemanagement/telemetry/notificationconfigs | 0 | tenant | create | chromemanagement:customers.telemetry.notificationConfigs.list |
+| cloudasset | cloudasset/feeds | 0 | project | create | cloudasset:feeds.list |
+| cloudasset | cloudasset/savedqueries | 0 | project | create | cloudasset:savedQueries.list |
 | cloudbilling | cloudbilling/billingaccounts | 0 | org | create | cloudbilling:billingAccounts.list, cloudbilling:organizations.billingAccounts.list |
 | cloudbilling | cloudbilling/subaccounts | 0 | billing-account | create | cloudbilling:billingAccounts.subAccounts.list |
 | cloudbuild | cloudbuild/bitbucketserverconfigs | 0 | project | create | cloudbuild:projects.locations.bitbucketServerConfigs.list |
@@ -4920,13 +4932,15 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cloudtasks | cloudtasks/queues | 0 | project | create | cloudtasks:projects.locations.queues.list |
 | cloudtasks | cloudtasks/queues/tasks | 1 | project | create | cloudtasks:projects.locations.queues.tasks.list |
 | composer | composer/environments/userworkloadssecrets | 1 | project | create | composer:projects.locations.environments.userWorkloadsSecrets.list |
-| compute | compute/firewallpolicies | 0 | global | create | compute:firewallPolicies.list |
-| compute | compute/globalvmextensionpolicies | 0 | project | create | compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.list |
+| compute | compute/firewallpolicies | 0 | project | create | compute:firewallPolicies.list, compute:networkFirewallPolicies.aggregatedList |
+| compute | compute/globalvmextensionpolicies | 0 | project | create | compute:folderGlobalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.list, compute:organizationGlobalVmExtensionPolicies.aggregatedList |
 | compute | compute/licenses | 0 | project | create | compute:licenses.list |
-| compute | compute/organizationsecuritypolicies | 0 | global | create | compute:organizationSecurityPolicies.list |
+| compute | compute/organizationsecuritypolicies | 0 | project | create | compute:organizationSecurityPolicies.list, compute:securityPolicies.aggregatedList |
+| compute | compute/previewfeatures | 0 | project | mutable | compute:previewFeatures.list |
+| compute | compute/reservationslots | 3 | project | mutable | compute:reservationSlots.list |
 | compute | compute/rolloutplans | 0 | project | create | compute:rolloutPlans.list |
 | compute | compute/rollouts | 0 | project | delete-only | compute:rollouts.list |
-| compute | compute/zonevmextensionpolicies | 0 | project | create | compute:zoneVmExtensionPolicies.list |
+| compute | compute/zonevmextensionpolicies | 0 | project | create | compute:folderGlobalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.aggregatedList, compute:organizationGlobalVmExtensionPolicies.aggregatedList, compute:zoneVmExtensionPolicies.list |
 | config | config/deploymentgroups | 0 | project | create | config:projects.locations.deploymentGroups.list |
 | config | config/deployments | 0 | project | create | config:projects.locations.deployments.list |
 | config | config/previews | 0 | project | create | config:projects.locations.previews.list |
@@ -4968,6 +4982,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | contactcenterinsights | contactcenterinsights/views | 0 | project | create | contactcenterinsights:projects.locations.views.list |
 | containeranalysis | containeranalysis/notes | 0 | project | create | containeranalysis:projects.locations.notes.list, containeranalysis:projects.notes.list |
 | containeranalysis | containeranalysis/occurrences | 0 | project | create | containeranalysis:projects.locations.occurrences.list, containeranalysis:projects.occurrences.list |
+| contentwarehouse | contentwarehouse/documents | 0 | project | create | contentwarehouse:projects.locations.documents.search |
 | contentwarehouse | contentwarehouse/documentschemas | 0 | project | create | contentwarehouse:projects.locations.documentSchemas.list |
 | contentwarehouse | contentwarehouse/rulesets | 0 | project | create | contentwarehouse:projects.locations.ruleSets.list |
 | contentwarehouse | contentwarehouse/synonymsets | 0 | project | create | contentwarehouse:projects.locations.synonymSets.list |
@@ -4983,6 +4998,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dataform | dataform/repositories/workflowconfigs | 1 | project | create | dataform:projects.locations.repositories.workflowConfigs.list |
 | dataform | dataform/repositories/workflowinvocations | 1 | project | create | dataform:projects.locations.repositories.workflowInvocations.list |
 | dataform | dataform/repositories/workspaces | 1 | project | create | dataform:projects.locations.repositories.workspaces.list |
+| dataform | dataform/teamfolders | 0 | project | create | dataform:projects.locations.teamFolders.search |
 | datafusion | datafusion/instances | 0 | project | create | datafusion:projects.locations.instances.list |
 | datafusion | datafusion/instances/dnspeerings | 1 | project | create | datafusion:projects.locations.instances.dnsPeerings.list |
 | datalineage | datalineage/processes | 0 | project | create | datalineage:projects.locations.processes.list |
@@ -5060,6 +5076,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dialogflow | dialogflow/agents/tools/versions | 2 | project | create | dialogflow:projects.locations.agents.tools.versions.list |
 | dialogflow | dialogflow/agents/transitionroutegroups | 1 | project | create | dialogflow:projects.locations.agents.transitionRouteGroups.list |
 | dialogflow | dialogflow/agents/webhooks | 1 | project | create | dialogflow:projects.locations.agents.webhooks.list |
+| dialogflow | dialogflow/answerrecords | 0 | project | mutable | dialogflow:projects.answerRecords.list, dialogflow:projects.locations.answerRecords.list |
 | dialogflow | dialogflow/conversationdatasets | 0 | project | create | dialogflow:projects.conversationDatasets.list, dialogflow:projects.locations.conversationDatasets.list |
 | dialogflow | dialogflow/conversationmodels | 0 | project | create | dialogflow:projects.conversationModels.list, dialogflow:projects.locations.conversationModels.list |
 | dialogflow | dialogflow/conversationmodels/evaluations | 1 | project | create | dialogflow:projects.conversationModels.evaluations.list, dialogflow:projects.locations.conversationModels.evaluations.list |
@@ -5081,6 +5098,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | discoveryengine | discoveryengine/collections/datastores/schemas | 2 | project | create | discoveryengine:projects.locations.collections.dataStores.schemas.list |
 | discoveryengine | discoveryengine/collections/datastores/servingconfigs | 2 | project | create | discoveryengine:projects.locations.collections.dataStores.servingConfigs.list |
 | discoveryengine | discoveryengine/collections/datastores/sessions | 2 | project | create | discoveryengine:projects.locations.collections.dataStores.sessions.list |
+| discoveryengine | discoveryengine/collections/datastores/sitesearchengine/sitemaps | 2 | project | create | discoveryengine:projects.locations.collections.dataStores.siteSearchEngine.sitemaps.fetch |
 | discoveryengine | discoveryengine/collections/datastores/sitesearchengine/targetsites | 2 | project | create | discoveryengine:projects.locations.collections.dataStores.siteSearchEngine.targetSites.list |
 | discoveryengine | discoveryengine/collections/engines | 1 | project | create | discoveryengine:projects.locations.collections.engines.list |
 | discoveryengine | discoveryengine/collections/engines/assistants | 2 | project | create | discoveryengine:projects.locations.collections.engines.assistants.list |
@@ -5096,6 +5114,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | discoveryengine | discoveryengine/datastores/schemas | 1 | project | create | discoveryengine:projects.locations.dataStores.schemas.list |
 | discoveryengine | discoveryengine/datastores/servingconfigs | 1 | project | create | discoveryengine:projects.locations.dataStores.servingConfigs.list |
 | discoveryengine | discoveryengine/datastores/sessions | 1 | project | create | discoveryengine:projects.locations.dataStores.sessions.list |
+| discoveryengine | discoveryengine/datastores/sitesearchengine/sitemaps | 1 | project | create | discoveryengine:projects.locations.dataStores.siteSearchEngine.sitemaps.fetch |
 | discoveryengine | discoveryengine/datastores/sitesearchengine/targetsites | 1 | project | create | discoveryengine:projects.locations.dataStores.siteSearchEngine.targetSites.list |
 | discoveryengine | discoveryengine/identitymappingstores | 0 | project | create | discoveryengine:projects.locations.identityMappingStores.list |
 | dlp | dlp/connections | 0 | project | create | dlp:organizations.locations.connections.list, dlp:projects.locations.connections.list |
@@ -5126,9 +5145,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | file | file/instances | 0 | project | create | file:projects.locations.instances.list |
 | file | file/instances/snapshots | 1 | project | create | file:projects.locations.instances.snapshots.list |
 | firebaseappcheck | firebaseappcheck/apps/debugtokens | 1 | project | create | firebaseappcheck:projects.apps.debugTokens.list |
+| firebaseappcheck | firebaseappcheck/services | 0 | project | mutable | firebaseappcheck:projects.services.list |
 | firebaseappcheck | firebaseappcheck/services/resourcepolicies | 1 | project | create | firebaseappcheck:projects.services.resourcePolicies.list |
+| firebaseappdistribution | firebaseappdistribution/apps/releases | 1 | project | mutable | firebaseappdistribution:projects.apps.releases.list |
 | firebaseappdistribution | firebaseappdistribution/apps/releases/feedbackreports | 2 | project | delete-only | firebaseappdistribution:projects.apps.releases.feedbackReports.list |
 | firebaseappdistribution | firebaseappdistribution/groups | 0 | project | create | firebaseappdistribution:projects.groups.list |
+| firebaseappdistribution | firebaseappdistribution/testers | 0 | project | mutable | firebaseappdistribution:projects.testers.list |
 | firebaseapphosting | firebaseapphosting/backends | 0 | project | create | firebaseapphosting:projects.locations.backends.list |
 | firebaseapphosting | firebaseapphosting/backends/builds | 1 | project | create | firebaseapphosting:projects.locations.backends.builds.list |
 | firebaseapphosting | firebaseapphosting/backends/domains | 1 | project | create | firebaseapphosting:projects.locations.backends.domains.list |
@@ -5138,6 +5160,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | firebasedataconnect | firebasedataconnect/services/schemas | 1 | project | create | firebasedataconnect:projects.locations.services.schemas.list |
 | firebaserules | firebaserules/releases | 0 | project | create | firebaserules:projects.releases.list |
 | firebaserules | firebaserules/rulesets | 0 | project | create | firebaserules:projects.rulesets.list |
+| firestore | firestore/databases/collectiongroups/fields | 2 | project | mutable | firestore:projects.databases.collectionGroups.fields.list |
 | firestore | firestore/databases/collectiongroups/indexes | 2 | project | create | firestore:projects.databases.collectionGroups.indexes.list |
 | gkebackup | gkebackup/backupchannels | 0 | project | create | gkebackup:projects.locations.backupChannels.list |
 | gkebackup | gkebackup/backupplans | 0 | project | create | gkebackup:projects.locations.backupPlans.list |
@@ -5173,6 +5196,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | healthcare | healthcare/datasets/consentstores/userdatamappings | 2 | project | create | healthcare:projects.locations.datasets.consentStores.userDataMappings.list |
 | healthcare | healthcare/datasets/dicomstores | 1 | project | create | healthcare:projects.locations.datasets.dicomStores.list |
 | healthcare | healthcare/datasets/fhirstores | 1 | project | create | healthcare:projects.locations.datasets.fhirStores.list |
+| healthcare | healthcare/datasets/fhirstores/fhir | 2 | project | create | healthcare:projects.locations.datasets.fhirStores.fhir.search |
 | healthcare | healthcare/datasets/hl7v2stores | 1 | project | create | healthcare:projects.locations.datasets.hl7V2Stores.list |
 | healthcare | healthcare/datasets/hl7v2stores/messages | 2 | project | create | healthcare:projects.locations.datasets.hl7V2Stores.messages.list |
 | hypercomputecluster | hypercomputecluster/clusters | 0 | project | create | hypercomputecluster:projects.locations.clusters.list |
@@ -5260,6 +5284,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | netapp | netapp/volumes/snapshots | 1 | project | create | netapp:projects.locations.volumes.snapshots.list |
 | networkconnectivity | networkconnectivity/automateddnsrecords | 0 | project | create | networkconnectivity:projects.locations.automatedDnsRecords.list |
 | networkconnectivity | networkconnectivity/hubs | 0 | project | create | networkconnectivity:projects.locations.global.hubs.list |
+| networkconnectivity | networkconnectivity/hubs/groups | 1 | project | mutable | networkconnectivity:projects.locations.global.hubs.groups.list |
 | networkconnectivity | networkconnectivity/internalranges | 0 | project | create | networkconnectivity:projects.locations.internalRanges.list |
 | networkconnectivity | networkconnectivity/multiclouddatatransferconfigs | 0 | project | create | networkconnectivity:projects.locations.multicloudDataTransferConfigs.list |
 | networkconnectivity | networkconnectivity/multiclouddatatransferconfigs/destinations | 1 | project | create | networkconnectivity:projects.locations.multicloudDataTransferConfigs.destinations.list |
@@ -5351,8 +5376,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | policysimulator | policysimulator/orgpolicyviolationspreviews | 0 | org | create | policysimulator:organizations.locations.orgPolicyViolationsPreviews.list |
 | privateca | privateca/capools | 0 | project | create | privateca:projects.locations.caPools.list |
 | privateca | privateca/capools/certificateauthorities | 1 | project | create | privateca:projects.locations.caPools.certificateAuthorities.list |
+| privateca | privateca/capools/certificateauthorities/certificaterevocationlists | 2 | project | mutable | privateca:projects.locations.caPools.certificateAuthorities.certificateRevocationLists.list |
 | privateca | privateca/capools/certificates | 1 | project | create | privateca:projects.locations.caPools.certificates.list |
 | privateca | privateca/certificatetemplates | 0 | project | create | privateca:projects.locations.certificateTemplates.list |
+| pubsublite | pubsublite/reservations | 0 | project | create | pubsublite:admin.projects.locations.reservations.list |
+| pubsublite | pubsublite/subscriptions | 0 | project | create | pubsublite:admin.projects.locations.subscriptions.list |
+| pubsublite | pubsublite/topics | 0 | project | create | pubsublite:admin.projects.locations.topics.list |
 | rapidmigrationassessment | rapidmigrationassessment/collectors | 0 | project | create | rapidmigrationassessment:projects.locations.collectors.list |
 | recaptchaenterprise | recaptchaenterprise/firewallpolicies | 0 | project | create | recaptchaenterprise:projects.firewallpolicies.list |
 | recaptchaenterprise | recaptchaenterprise/keys | 0 | project | create | recaptchaenterprise:projects.keys.list |
@@ -5362,6 +5391,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | redis | redis/clusters/tokenauthusers | 1 | project | delete-only | redis:projects.locations.clusters.tokenAuthUsers.list |
 | redis | redis/clusters/tokenauthusers/authtokens | 2 | project | delete-only | redis:projects.locations.clusters.tokenAuthUsers.authTokens.list |
 | redis | redis/instances | 0 | project | create | redis:projects.locations.instances.list |
+| resourcesettings | resourcesettings/settings | 0 | project | mutable | resourcesettings:folders.settings.list, resourcesettings:organizations.settings.list, resourcesettings:projects.settings.list |
+| retail | retail/catalogs | 0 | project | mutable | retail:projects.locations.catalogs.list |
 | retail | retail/catalogs/branches/products | 2 | project | create | retail:projects.locations.catalogs.branches.products.list |
 | retail | retail/catalogs/controls | 1 | project | create | retail:projects.locations.catalogs.controls.list |
 | retail | retail/catalogs/models | 1 | project | create | retail:projects.locations.catalogs.models.list |
@@ -5440,6 +5471,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vmwareengine | vmwareengine/privateclouds/hcxactivationkeys | 1 | project | create | vmwareengine:projects.locations.privateClouds.hcxActivationKeys.list |
 | vmwareengine | vmwareengine/privateclouds/loggingservers | 1 | project | create | vmwareengine:projects.locations.privateClouds.loggingServers.list |
 | vmwareengine | vmwareengine/privateclouds/managementdnszonebindings | 1 | project | create | vmwareengine:projects.locations.privateClouds.managementDnsZoneBindings.list |
+| vmwareengine | vmwareengine/privateclouds/subnets | 1 | project | mutable | vmwareengine:projects.locations.privateClouds.subnets.list |
+| vmwareengine | vmwareengine/privateclouds/upgrades | 1 | project | mutable | vmwareengine:projects.locations.privateClouds.upgrades.list |
 | vmwareengine | vmwareengine/privateconnections | 0 | project | create | vmwareengine:projects.locations.privateConnections.list |
 | vmwareengine | vmwareengine/vmwareenginenetworks | 0 | project | create | vmwareengine:projects.locations.vmwareEngineNetworks.list |
 | vpcaccess | vpcaccess/connectors | 0 | project | create | vpcaccess:projects.locations.connectors.list |

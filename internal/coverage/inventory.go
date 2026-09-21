@@ -229,10 +229,20 @@ func CrossCheck(m *Matrix, u *sdkinv.Universe, registry []UpstreamType, cc Cross
 	candidates := map[string]sdkinv.Candidate{}
 	known := map[string]bool{}
 	services := map[string]bool{}
+	// candidate-only is judged on the *bucket*, not the class: a preview-only
+	// candidate is bucketed excluded before the class switch runs, so reading
+	// the class alone made the same report call a row out of scope and then
+	// report it as drift (20 of 34 live GCP rows).
+	counted := map[string]bool{}
+	for _, r := range m.Rows {
+		if r.Bucket == BucketCovered || r.Bucket == BucketUncovered {
+			counted[r.Key] = true
+		}
+	}
 	for _, c := range u.Candidates {
 		known[cc.RegistryKey(c)] = true
 		services[strings.ToLower(c.Service)] = true
-		if c.Class == sdkinv.ClassResource {
+		if counted[c.Key] {
 			candidates[cc.RegistryKey(c)] = c
 		}
 	}

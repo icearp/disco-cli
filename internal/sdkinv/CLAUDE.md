@@ -291,8 +291,15 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 
 ### GCP (`gcp/extract.go`)
 
-- API included iff some lister's template root is a cloud root (`projects`, `organizations`,
-  `folders`, `billingAccounts`, `customers`); 192 of 654 docs qualify. Roots that are the
+- API included iff some lister is cloud-rooted (`cloudRooted`): the template's first segment is a
+  cloud root (`projects`, `organizations`, `folders`, `billingAccounts`, `customers`), **or** the
+  template is param-first and a path parameter's *description* names one of those formats (Cloud
+  Asset and Service Usage expand `{+parent}` to a generic `{id}/{id}` because the parameter takes
+  any container), **or** a leading static sits directly in front of a cloud root (Pub/Sub Lite's
+  `admin/projects/{p}/…`, stripped from the template and the doc path by `dropGroupingRoot`).
+  A cloud root **deeper** in the path is deliberately not enough: it admits DFA reporting, Tag
+  Manager and the Cloud Channel reseller API (110 rows). Service Networking stays out for that
+  reason — its project appears only below `services/{service}`. Roots that are the
   listed collection (`cloudresourcemanager/projects`) keep their own scope.
 - Keys are lower-cased so one collection reached through several versions is one candidate
   (run v1 `namespaces.workerpools` + v2 `projects.locations.workerPools` → `run/workerpools`).
@@ -320,8 +327,24 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   rejects depth 0 *with* a parent, and `TestExtract_Live` asserts every parent resolves.
 - Operation nodes detected by response `$ref` suffix (`Operation`, `ListOperationsResponse`),
   never by method-name rules (`run` executions have `cancel`).
-- Class: `insert|create` → resource; `delete` only → resource; `get` only → catalog; else
-  non-resource. Alpha/beta-only collections carry `preview-only`.
+- Class: `insert|create` → resource; `delete` only → resource; `patch|update|destroy|undelete` →
+  resource (`mutable`: README defines catalog as provider-published and read-only, and a node the
+  caller can patch or destroy is neither — `setIamPolicy` alone is too weak and would pull in four
+  genuine catalogs); `get` only → catalog; else non-resource. Alpha/beta-only collections carry
+  `preview-only`.
+- Listers are `list` and `aggregatedList`, plus `search`/`fetch`/`listPolicies` **only on a node
+  with no `list`** (`altListers`): `cloudresourcemanager/organizations` is reachable by `search`
+  in v1 and v3 and `list` only in v1beta1. A shape-based lister rule mints 313 bogus rows from
+  filtered sub-views (`listUsable`, `listManagedInstances`).
+- An `aggregatedList` is registered on every sibling collection of the same document whose
+  element schema matches, under `aggregated-by:<node>` (39 rows, the Compute regional and global
+  twins): the response is a map of scoped lists, and disco lists the regional types through that
+  one call. Method names are walked **sorted** — map order otherwise decided which lister
+  recorded a node's element, and two extractions disagreed.
+- A node with `create` and no `get`/`delete`/`patch` anywhere stays a resource. Only three
+  candidates are in that state and two (`cloudbilling/subaccounts`,
+  `androiddeviceprovisioning/partners/customers`) are genuine resources, so the rule that would
+  drop `monitoring/timeseries` costs more than it saves (#48, recorded not shipped).
 
 ## Pairing (Phase 3, `pairing/`)
 

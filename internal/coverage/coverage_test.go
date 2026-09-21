@@ -221,8 +221,10 @@ func TestCrossCheck(t *testing.T) {
 	if drift["ec2/volume"] != ReasonCandidateOnly || drift["kms/grant"] != ReasonCandidateOnly {
 		t.Errorf("candidate-only rows missing: %v", drift)
 	}
-	if _, ok := drift["run/gadgets"]; !ok {
-		t.Error("preview resource candidate not cross-checked")
+	// A preview-only candidate is bucketed excluded, so it is out of scope for
+	// the report and must not come back as drift (#119).
+	if _, ok := drift["run/gadgets"]; ok {
+		t.Error("preview-only candidate reported as drift while excluded")
 	}
 	if got := Filter(m.Rows, "registry-drift", nil); len(got) != len(drift) {
 		t.Errorf("filter registry-drift = %d rows, want %d", len(got), len(drift))

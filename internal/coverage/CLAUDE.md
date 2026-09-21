@@ -124,3 +124,10 @@ baseline; `skip-unmatched` 194 — CFN-only or retired services with no Smithy m
 `alias-orphan` 2 — the `CloudServices*` sdk-skew; ledger-absent rows were ledger errors
 (`microsoft.storage/storagetasks` lives under `microsoft.storageactions`, `hybridnetwork/devices`
 left the SDK, `admin Transfer` was never scanned).
+
+## Cross-check drift reads buckets, not classes (#119)
+
+`CrossCheck` builds the candidate-only set from rows bucketed `covered`/`uncovered`. Reading
+`Class == ClassResource` instead made the same report exclude a `preview-only` candidate as out
+of scope and then re-report it as drift — 20 of 34 live GCP rows. `preview-only` is a signal, not
+a class, so nothing else removes them.
