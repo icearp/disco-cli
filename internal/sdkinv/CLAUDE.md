@@ -208,6 +208,17 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   (`ListClusterSummaries` lists clusters), and an `Associate`/`Attach`/`Register` write stamps
   `<noun>association` and `<noun>attachment` as write nouns, because that is the noun the lister
   spells (`AssociateResolverRule` → `resolverruleassociation`).
+- Folding (Phase 8 step 6): a noun that is the service's own name plus an existing candidate's
+  noun folds into that candidate under a `legacy-noun` signal — `elasticsearch-service.json` and
+  `opensearch.json` both sign as `es`, so `es/elasticsearchdomain` was a permanently uncovered
+  duplicate of the covered `es/domain`. Only a **service word** strips (the join key, the ARN
+  namespace, the endpoint prefix, the `sdkId`'s words), and never one that names a resource of
+  the service itself (`connect/contact`, `bedrock/agent`) — stripping any shared prefix would
+  collide `lambda/functionurlconfig` with unrelated candidates. A candidate whose ops come from
+  several model files carries `multi-module:<files>`: sibling models share a signing name
+  (docdb, neptune and rds all sign as `rds`), and `lex/bot` is covered partly by Lex Classic ops
+  the v2 scanner never calls. Splitting on `endpointPrefix` only separates some of them, so the
+  row says so instead.
 - Identity vs display: entries merge on `Ident` (`svc/<ident>`, attributes `svc/<parent
   ident>/<ident>`); `assemble` renders keys last. `entry.display()` = the one spelling
   singularised, else the spelling another spelling singularises to (`analysis` over

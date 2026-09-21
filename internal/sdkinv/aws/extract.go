@@ -186,7 +186,10 @@ func (en *entry) display() string {
 	case bestSingular != "":
 		return bestSingular
 	}
-	return best
+	// No spelling is another's singular: singularise the shortest rather than
+	// ship it plural. Folding a legacy noun in (es/elasticsearchversions beside
+	// es/versions) leaves exactly this case.
+	return sdkinv.Singular(best)
 }
 
 func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error) {
@@ -215,6 +218,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		return nil, fmt.Errorf("no Smithy models under %s", modelDir)
 	}
 	entries := map[string]*entry{}
+	words := map[string]map[string]bool{} // service -> the words its own name is made of
 	for _, f := range files {
 		raw, rerr := os.ReadFile(f)
 		if rerr != nil {
@@ -225,6 +229,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: filepath.Base(f), Message: jerr.Error()})
 			continue
 		}
+		collectServiceWords(words, &m)
 		diag, other := indexModel(entries, &m, sr, filepath.Base(f))
 		if diag != "" {
 			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: filepath.Base(f), Message: diag})
@@ -232,6 +237,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		u.Other = append(u.Other, other...)
 	}
 	mergeDetailReads(entries)
+	foldLegacyNouns(entries, words)
 	resolveTree(entries)
 	u.Candidates = assemble(entries)
 	sdkinv.SortCandidates(u.Candidates)
@@ -1098,6 +1104,67 @@ func pickParent(sr *srService, targets, required []string) string {
 	return best
 }
 
+// collectServiceWords records the words a service names itself by: the join
+// key, the ARN namespace, the endpoint prefix and the sdkId's words.
+// "Elasticsearch Service" is how es spells itself in the legacy model.
+func collectServiceWords(words map[string]map[string]bool, m *smithyModel) {
+	svc, sdkID := serviceKey(m)
+	if svc == "" {
+		return
+	}
+	if words[svc] == nil {
+		words[svc] = map[string]bool{}
+	}
+	for n := range modelNamespaces(m, svc) {
+		words[svc][sdkinv.Ident(n)] = true
+	}
+	for _, w := range strings.Fields(sdkID) {
+		words[svc][sdkinv.Ident(w)] = true
+	}
+}
+
+// foldLegacyNouns merges a candidate whose noun is the bare noun prefixed with
+// the service's own name into that bare noun: elasticsearch-service.json and
+// opensearch.json both sign as "es", so es/elasticsearchdomain and es/domain
+// were two candidates for one set of domains, one of them permanently
+// uncovered. Only a *service word* strips, never any shared prefix — stripping
+// "Function" from Lambda's nouns would collide lambda/functionurlconfig with
+// unrelated candidates.
+func foldLegacyNouns(entries map[string]*entry, words map[string]map[string]bool) {
+	for _, id := range slices.Sorted(maps.Keys(entries)) {
+		en := entries[id]
+		svc, noun, ok := strings.Cut(id, "/")
+		if !ok || strings.Contains(noun, "/") {
+			continue // attributes keep their parent segment
+		}
+		for _, w := range slices.Sorted(maps.Keys(words[svc])) {
+			rest := strings.TrimPrefix(noun, w)
+			target := entries[svc+"/"+rest]
+			if w == "" || rest == noun || rest == "" || target == nil || target == en {
+				continue
+			}
+			if entries[svc+"/"+w] != nil {
+				// The word names a resource of this service too (connect has
+				// contacts, bedrock has agents), so the prefix is part of the
+				// noun, not the service's own name.
+				continue
+			}
+			target.nouns = append(target.nouns, en.nouns...)
+			target.ops = append(target.ops, en.ops...)
+			target.class = sdkinv.StrongerClass(target.class, en.class)
+			target.signals["legacy-noun"] = true
+			for sig := range en.signals {
+				target.signals[sig] = true
+			}
+			for r := range en.refs {
+				target.refs[r] = true
+			}
+			delete(entries, id)
+			break
+		}
+	}
+}
+
 // resolveTree fixes parentage and depth once every entry exists. Indexing sees
 // one operation at a time, so it can only propose the parent that operation's
 // catalog targets name — often a grandparent, a scope slot or an asynchronous
@@ -1200,6 +1267,15 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 		for s := range en.signals {
 			c.Signals = append(c.Signals, s)
 		}
+		// Sibling models share a signing name (docdb, neptune and rds all sign
+		// as "rds"), so one candidate can carry ops from several SDK modules.
+		// Splitting on endpointPrefix only separates some of them; saying so on
+		// the row is what a reader needs — three covered rows (lex/bot,
+		// lex/botalias, lex/botversion) rest on Lex Classic ops folded in
+		// beside lexmodelsv2's.
+		if modules := opModules(c.Ops); len(modules) > 1 {
+			c.Signals = append(c.Signals, "multi-module:"+strings.Join(modules, ","))
+		}
 		sort.Strings(c.Signals)
 		for r := range en.refs {
 			c.Refs = append(c.Refs, r)
@@ -1209,6 +1285,16 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 		out = append(out, c)
 	}
 	return out
+}
+
+// opModules is the distinct SDK modules a candidate's operations come from,
+// named by their model file, sorted.
+func opModules(ops []sdkinv.Operation) []string {
+	seen := map[string]bool{}
+	for _, o := range ops {
+		seen[o.Module[strings.LastIndex(o.Module, "/")+1:]] = true
+	}
+	return slices.Sorted(maps.Keys(seen))
 }
 
 // shorter orders display forms: fewer characters first, then lexically.

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 48.7% (1678/3444 listable) · depth0 67.2% · depth1 24.6% · depth2 24.3% · depth3 12.5% · depth5 0.0% · depth6 0.0% · attribute 1390 · excluded 539 · disco-only 0 (0 unexplained)
+**Coverage:** 48.7% (1677/3441 listable) · depth0 67.2% · depth1 24.7% · depth2 24.3% · depth3 12.5% · depth5 0.0% · depth6 0.0% · attribute 1390 · excluded 537 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -19,18 +19,18 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | config | 10 | 22 | 31.2 |
 | dms | 11 | 22 | 33.3 |
 | lex | 4 | 21 | 16.0 |
-| ses | 20 | 20 | 50.0 |
 | wellarchitected | 4 | 20 | 16.7 |
 | glue | 24 | 19 | 55.8 |
+| ses | 19 | 19 | 50.0 |
 | chime | 11 | 18 | 37.9 |
 | gamelift | 12 | 18 | 40.0 |
 | workmail | 1 | 18 | 5.3 |
 | iot | 29 | 17 | 63.0 |
 | mgn | 8 | 17 | 32.0 |
-| es | 3 | 16 | 15.8 |
 | securityagent | 7 | 16 | 30.4 |
 | aws-marketplace | 0 | 15 | 0.0 |
 | cloudformation | 7 | 15 | 31.8 |
+| es | 3 | 15 | 16.7 |
 | profile | 12 | 15 | 44.4 |
 | cleanrooms | 9 | 14 | 39.1 |
 | deadline | 13 | 14 | 48.1 |
@@ -346,7 +346,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1766)
+### Uncovered (listable, no scanner) (1764)
 
 | Service | Key | Depth | Scope | Ops |
 | --- | --- | --- | --- | --- |
@@ -1047,7 +1047,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | es | es/directquerydatasource | 0 |  | es:GetDirectQueryDataSource, es:ListDirectQueryDataSources |
 | es | es/domainmaintenance | 1 |  | es:ListDomainMaintenances |
 | es | es/domainnode | 1 |  | es:DescribeDomainNodes |
-| es | es/elasticsearchdomain | 1 |  | es:DescribeElasticsearchDomain, es:DescribeElasticsearchDomains |
 | es | es/inboundconnection | 0 |  | es:DescribeInboundConnections |
 | es | es/inboundcrossclustersearchconnection | 0 |  | es:DescribeInboundCrossClusterSearchConnections |
 | es | es/insight | 1 |  | es:ListInsights |
@@ -1901,7 +1900,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | ses | ses/deliverabilitytestreport | 0 |  | ses:GetDeliverabilityTestReport, ses:ListDeliverabilityTestReports |
 | ses | ses/emailidentitycertificate | 1 |  | ses:ListEmailIdentityCertificates |
 | ses | ses/exportjob | 0 |  | ses:GetExportJob, ses:ListExportJobs |
-| ses | ses/identity | 0 |  | ses:ListIdentities |
 | ses | ses/identitypolicy | 1 |  | ses:GetIdentityPolicies, ses:ListIdentityPolicies |
 | ses | ses/importjob | 0 |  | ses:GetImportJob, ses:ListImportJobs |
 | ses | ses/messageinsight | 1 |  | ses:GetMessageInsights |
