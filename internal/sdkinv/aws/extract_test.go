@@ -44,7 +44,6 @@ func TestExtract_Fixture(t *testing.T) {
 		"widgets/widget":                  {sdkinv.ClassResource, 0, "", []string{"GetWidget", "ListWidgets", "ListWidgetsV2"}},
 		"widgets/widget/widgetencryption": {sdkinv.ClassAttribute, 1, "widgets/widget", []string{"GetWidgetEncryption"}},
 		"widgets/grant":                   {sdkinv.ClassResource, 1, "widgets/widget", []string{"ListGrants"}},
-		"widgets/widget/tag":              {sdkinv.ClassAttribute, 1, "widgets/widget", []string{"ListTagsForResource"}},
 		"widgets/zone":                    {sdkinv.ClassCatalog, 0, "", []string{"DescribeZones"}},
 		"widgets/accountsetting":          {sdkinv.ClassAttribute, 0, "", []string{"GetAccountSettings"}},
 		// A List verb over a primitive list is a listing: WidgetTypes is a
@@ -106,8 +105,10 @@ func TestExtract_Fixture(t *testing.T) {
 	if g := got["widgets/grant"]; !slices.Contains(g.Signals, "child-uncatalogued") || !slices.Equal(g.Ops[0].Targets, []string{"widget"}) {
 		t.Errorf("grant = %+v", g)
 	}
-	if tg := got["widgets/widget/tag"]; !slices.Contains(tg.Signals, "cross-cutting") {
-		t.Errorf("tag signals = %v", tg.Signals)
+	// "tag" is a non-subject: ListTagsForResource keys no candidate and ships
+	// as an Other op for pairing (#22).
+	if tg, ok := got["widgets/widget/tag"]; ok {
+		t.Errorf("tag is a candidate: %+v", tg)
 	}
 	if gd := got["widgets/gadget"]; !slices.Contains(gd.Signals, "writable-noun") {
 		t.Errorf("gadget signals = %v", gd.Signals)
@@ -209,7 +210,6 @@ func TestExtract_Live(t *testing.T) {
 		"ec2/instancetype":           {sdkinv.ClassCatalog, 0, ""},
 		"ec2/region":                 {sdkinv.ClassCatalog, 0, ""},
 		"ec2/accountattribute":       {sdkinv.ClassCatalog, 0, ""},
-		"ec2/tag":                    {sdkinv.ClassCatalog, 0, ""},
 		"iam/accountsummary":         {sdkinv.ClassNonResource, 0, ""},
 		"lambda/function":            {sdkinv.ClassResource, 0, ""},
 		"logs/loggroup":              {sdkinv.ClassResource, 0, ""},
@@ -218,6 +218,10 @@ func TestExtract_Live(t *testing.T) {
 		"route53/resourcerecordset":  {sdkinv.ClassResource, 1, "route53/hostedzone"},
 		"dynamodb/table":             {sdkinv.ClassResource, 0, ""},
 		"apigateway/restapi":         {sdkinv.ClassResource, 0, ""},
+	}
+	// "tag" names no subject, so DescribeTags keys no candidate (#22).
+	if c, ok := got["ec2/tag"]; ok {
+		t.Errorf("ec2/tag is a candidate: %+v", c)
 	}
 	for k, w := range anchors {
 		c, ok := got[k]

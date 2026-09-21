@@ -74,11 +74,15 @@ type srService struct {
 	actions   map[string]srAction
 	opAction  map[string]string   // SDK operation name -> IAM action name
 	resources map[string][]string // resource name -> ARN id variables beyond partition/region/account
-	writeNoun map[string]bool     // Ident(noun of an IsWrite action) -> true
-	resCanon  map[string]string   // Ident(resource name) -> resource name
-	idStem    map[string][]string // stem of a resource's own ARN id variable ("bucket" from BucketName) -> resource names, sorted
-	name      string              // the catalog document's own service name
-	ops       map[string]bool     // every SDK operation name the document lists
+	writeNoun map[string]bool     // Ident(noun of a lifecycle IsWrite action) -> true
+	// mutableNoun holds the nouns only a setting verb writes (Update, Modify,
+	// Enable, Export): a toggle, not a resource.
+	mutableNoun map[string]bool
+	resCanon    map[string]string   // Ident(resource name) -> resource name
+	resNS       map[string]string   // Ident(resource name) -> the ARN's service namespace
+	idStem      map[string][]string // stem of a resource's own ARN id variable ("bucket" from BucketName) -> resource names, sorted
+	name        string              // the catalog document's own service name
+	ops         map[string]bool     // every SDK operation name the document lists
 }
 
 type srAction struct {
@@ -100,6 +104,8 @@ var (
 	// It is deliberately anchored at both ends: a case-insensitive *suffix*
 	// rule would swallow "domain" for "main" and "certificate" for "cate".
 	idWordRe = regexp.MustCompile(`(?i)^(id|ids|arn|arns|name|names|identifier|identifiers)$`)
+	// genericNoun is the noun that names no subject of its own.
+	genericNoun = sdkinv.Ident("tag")
 	// selfStems are id-like member stems that name the operation's own subject.
 	selfStems = map[string]bool{"": true, sdkinv.Ident("resource"): true, sdkinv.Ident("target"): true}
 	versionRe = regexp.MustCompile(`V\d+$`)
@@ -121,8 +127,11 @@ var (
 	// resource types reads a facet of them (tags, policies), not a resource.
 	crossCuttingTargets = 3
 	joinVerbs           = map[string]bool{"Associate": true, "Attach": true, "Register": true}
-	listVerbs           = map[string]bool{"List": true, "Describe": true, "Get": true, "Search": true, "BatchGet": true}
-	detailVerbs         = map[string]bool{"Get": true, "Describe": true, "Head": true}
+	// lifecycleVerbs create or destroy the noun. Only these make a noun a
+	// resource; everything else changes an existing one.
+	lifecycleVerbs = map[string]bool{"Create": true, "Delete": true, "Put": true, "Add": true, "Import": true, "Provision": true, "Allocate": true, "Register": true, "Associate": true, "Attach": true, "Copy": true, "Restore": true, "Launch": true, "Run": true, "Publish": true}
+	listVerbs      = map[string]bool{"List": true, "Describe": true, "Get": true, "Search": true, "BatchGet": true}
+	detailVerbs    = map[string]bool{"Get": true, "Describe": true, "Head": true}
 )
 
 type entry struct {
@@ -308,7 +317,7 @@ func serviceReferenceVersion(indexPath string) (string, error) {
 }
 
 func indexSR(d *srDoc) *srService {
-	s := &srService{actions: map[string]srAction{}, opAction: map[string]string{}, resources: map[string][]string{}, writeNoun: map[string]bool{}, resCanon: map[string]string{}, idStem: map[string][]string{}, name: d.Name, ops: map[string]bool{}}
+	s := &srService{actions: map[string]srAction{}, opAction: map[string]string{}, resources: map[string][]string{}, writeNoun: map[string]bool{}, mutableNoun: map[string]bool{}, resCanon: map[string]string{}, resNS: map[string]string{}, idStem: map[string][]string{}, name: d.Name, ops: map[string]bool{}}
 	for _, a := range d.Actions {
 		act := srAction{isList: a.Annotations.Properties.IsList, isWrite: a.Annotations.Properties.IsWrite}
 		for _, r := range a.Resources {
@@ -318,6 +327,15 @@ func indexSR(d *srDoc) *srService {
 		// Tagging-only writes (CreateTags) do not make "tag" a resource noun.
 		if act.isWrite && !a.Annotations.Properties.IsTaggingOnly {
 			verb, noun := splitVerb(a.Name)
+			if !lifecycleVerbs[verb] {
+				// Update, Modify, Enable, Set, Export, Start: the noun is
+				// something you change, not something you create. Admitting it
+				// as a resource made 134 settings and toggles permanent
+				// denominator ballast (ec2/idformat via ModifyIdFormat,
+				// eks/clusterversion via UpdateClusterVersion).
+				s.mutableNoun[sdkinv.Ident(noun)] = true
+				continue
+			}
 			s.writeNoun[sdkinv.Ident(noun)] = true
 			// AssociateResolverRule creates a resolver rule *association*,
 			// which is the noun its lister spells; stamping only the bare noun
@@ -361,6 +379,9 @@ func indexSR(d *srDoc) *srService {
 			if cur, ok := s.resCanon[id]; !ok || len(r.Name) < len(cur) {
 				s.resCanon[id] = r.Name
 			}
+			if ns := arnNamespaceOf(r.ARNFormats[0]); ns != "" {
+				s.resNS[id] = ns
+			}
 		}
 		if len(vars) > 0 {
 			// Several resources can share an id stem (glue's Job and
@@ -395,6 +416,32 @@ func (s *srService) stemResource(stem, nounCanon string) string {
 		}
 	}
 	return best
+}
+
+// modelNamespaces is every ARN namespace this model can legitimately own: its
+// join key plus the sigv4, arnNamespace and endpointPrefix spellings. es and
+// servicecatalog disagree with their own catalog ARNs, so this is a test for
+// *foreign* namespaces, never an allowlist of services.
+func modelNamespaces(m *smithyModel, svc string) map[string]bool {
+	out := map[string]bool{svc: true}
+	for _, sh := range m.Shapes {
+		if sh.Type != "service" {
+			continue
+		}
+		var svcTrait struct {
+			ArnNamespace   string `json:"arnNamespace"`
+			EndpointPrefix string `json:"endpointPrefix"`
+		}
+		if raw, ok := sh.Traits["aws.api#service"]; ok {
+			_ = json.Unmarshal(raw, &svcTrait)
+		}
+		for _, n := range []string{svcTrait.ArnNamespace, svcTrait.EndpointPrefix} {
+			if n != "" {
+				out[strings.ToLower(n)] = true
+			}
+		}
+	}
+	return out
 }
 
 // modelOps is every operation name a Smithy model ships.
@@ -445,6 +492,18 @@ func arnScopeVar(name string) bool {
 		}
 	}
 	return false
+}
+
+// arnNamespaceOf is the service segment of an ARN format
+// ("arn:${Partition}:ec2:…" → "ec2"). ec2.json genuinely carries a resource
+// named "group" whose ARN lives in the resource-groups namespace, and matching
+// on the noun alone admitted ec2/group from it.
+func arnNamespaceOf(format string) string {
+	parts := strings.SplitN(format, ":", 4)
+	if len(parts) < 3 {
+		return ""
+	}
+	return strings.ToLower(parts[2])
 }
 
 // pickAction chooses the IAM action an SDK operation is authorised by when
@@ -550,6 +609,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 	if svc == "" {
 		return "no service shape with a signing name", nil
 	}
+	namespaces := modelNamespaces(m, svc)
 	var other []sdkinv.Operation
 	sr := srAll[svc]
 	diag := ""
@@ -593,9 +653,13 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 		verb, noun := splitVerb(op)
 		nounCanon := sdkinv.Ident(noun)
 		o := analyzeOp(m, sh, noun, nounCanon)
-		if nounCanon == "" {
+		if nounCanon == "" || nounCanon == genericNoun {
 			// An op that is all verb (sagemaker:Search) names no collection;
 			// keying it yields "sagemaker/", a key nothing can ever match.
+			// "tag" is the same kind of non-subject as the "resource" and
+			// "target" of selfStems: ListTagsForResources describes whatever
+			// it is called with, and route53/tag reached the numerator
+			// attributed to aws:route53:cidr-collection.
 			other = append(other, sdkinv.Operation{Service: svc, Name: op, Label: svc + ":" + op, Required: o.required, Module: module})
 			continue
 		}
@@ -632,7 +696,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 				signals["sr:parent-noun"] = true
 			}
 		}
-		class := classify(isList, o, sr, nounCanon, lin, signals)
+		class := classify(classIn{isList: isList, noun: noun, namespaces: namespaces}, o, sr, nounCanon, lin, signals)
 		key := svc + "/" + nounCanon
 		if class == sdkinv.ClassAttribute && lin.parent != "" && !lin.self {
 			key = svc + "/" + lin.parent + "/" + nounCanon
@@ -898,28 +962,86 @@ func soleStructure(m *smithyModel, out *shape) *shape {
 	return only
 }
 
+// ownsNamespace reports whether an ARN namespace belongs to this model. A
+// namespace that is a prefix of one of the model's own (or the other way
+// round) is the same family under a longer name --
+// route53-recovery-control-config's safety rules carry
+// route53-recovery-control ARNs -- and only an unrelated namespace is foreign.
+func ownsNamespace(own map[string]bool, ns string) bool {
+	for n := range own {
+		if strings.HasPrefix(n, ns) || strings.HasPrefix(ns, n) {
+			return true
+		}
+	}
+	return false
+}
+
+// classIn carries what classify needs about the operation itself.
+type classIn struct {
+	isList     bool
+	noun       string          // the operation's noun as the SDK spells it
+	namespaces map[string]bool // ARN namespaces this model owns
+}
+
+// foreignTargets counts the catalog resources an operation is authorised
+// against that are neither its own subject nor an ancestor its lineage names.
+// Counting all of them demoted real children: identitystore's
+// ListGroupMemberships is authorised against AllGroupMemberships, Group and
+// Identitystore, which is the membership, its parent and the store.
+func foreignTargets(lin place, nounCanon string) int {
+	n := 0
+	for _, t := range lin.targets {
+		id := sdkinv.Ident(t)
+		if id == nounCanon || id == lin.parent || strings.HasSuffix(nounCanon, id) {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
 // shapeName is a Smithy shape id's local name ("com.amazonaws.sqs#Queue" → "Queue").
 func shapeName(id string) string { return id[strings.LastIndex(id, "#")+1:] }
 
-func classify(isList bool, o opShape, sr *srService, nounCanon string, lin place, signals map[string]bool) sdkinv.Class {
-	if !isList {
+func classify(cl classIn, o opShape, sr *srService, nounCanon string, lin place, signals map[string]bool) sdkinv.Class {
+	if !cl.isList {
 		signals["detail-read"] = true
-		return sdkinv.ClassAttribute
-	}
-	if len(lin.targets) >= crossCuttingTargets {
-		signals["cross-cutting"] = true
 		return sdkinv.ClassAttribute
 	}
 	if sr != nil {
 		// The catalog names the subject, not the payload: ListClusterSummaries
 		// is a listing of clusters. Try the spelled noun first so the signal
-		// records the exact match when there is one.
+		// records the exact match when there is one. This comes before the
+		// cross-cutting test: a depth-2 resource is legitimately authorised
+		// against its grandparent, its parent and itself.
 		for _, n := range []string{nounCanon, nounStem(nounCanon)} {
-			if name, ok := sr.resCanon[n]; ok {
-				signals["sr:resource="+name] = true
-				return sdkinv.ClassResource
+			name, ok := sr.resCanon[n]
+			if !ok {
+				continue
 			}
+			if ns := sr.resNS[n]; ns != "" && !ownsNamespace(cl.namespaces, ns) {
+				// The catalog resource is another service's: ec2.json carries
+				// a "group" whose ARN is resource-groups'.
+				signals["sr:foreign-namespace="+ns] = true
+				continue
+			}
+			signals["sr:resource="+name] = true
+			return sdkinv.ClassResource
 		}
+	}
+	// Cross-cutting counts the resources an operation reaches *besides* its own
+	// subject and the ancestors its lineage already names.
+	if others := foreignTargets(lin, nounCanon); others >= crossCuttingTargets {
+		signals["cross-cutting"] = true
+		return sdkinv.ClassAttribute
+	}
+	// A single-subject read the catalog does not call a listing, over a noun
+	// that is already singular, reads one parent's setting: GetFunctionConfiguration,
+	// DescribeOrganizationConfiguration. The shape-list override is load-bearing
+	// (516 covered rows) and stays; only this corner of it is sub-state.
+	if signals["shape-list"] && lin.self && sdkinv.CanonSingular(cl.noun) == sdkinv.Canon(cl.noun) {
+		signals["single-subject-read"] = true
+		return sdkinv.ClassAttribute
 	}
 	if lin.depth > 0 {
 		if !o.hasIDs {
@@ -932,6 +1054,9 @@ func classify(isList bool, o opShape, sr *srService, nounCanon string, lin place
 	if sr != nil && sr.writeNoun[nounCanon] {
 		signals["writable-noun"] = true
 		return sdkinv.ClassResource
+	}
+	if sr != nil && sr.mutableNoun[nounCanon] {
+		signals["mutable"] = true
 	}
 	if o.listMembers == 0 {
 		signals["no-collection"] = true

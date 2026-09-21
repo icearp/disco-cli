@@ -177,13 +177,33 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   document that authorises every operation of the model, recorded as `sr:document=<name>`.
   Without it CloudWatch's dashboards, insight rules, mute rules and anomaly detectors were
   `catalog` and excluded although disco stores all of them.
-- Class: cross-cutting (≥3 targets, `ListTagsForResource`) → attribute; SR resource with an
-  ARN matching the noun → resource; child with id-bearing collection → resource
-  (`child-uncatalogued`, e.g. `kms/grant`); child without ids → attribute; noun with an
-  `IsWrite` non-tagging action → resource (`writable-noun`); no collection → non-resource;
-  an element carrying its own ARN or a creation timestamp → resource (`element-arn` /
-  `element-created`, the evidence that beats the catalog fallback for a service the catalog does
-  not carry); else catalog (`ec2/instancetype`, `ec2/accountattribute`, `ec2/tag`).
+- Ballast rules (Phase 8 step 5). `writeNoun` fills from **lifecycle** verbs only
+  (Create/Delete/Put/Add/Import/Provision/Allocate/Register/Associate/Attach/Copy/Restore/
+  Launch/Run/Publish); a setting verb (Update, Modify, Enable, Set, Export, Start) records a
+  `mutable` signal instead, because `ModifyIdFormat` does not make `ec2/idformat` a resource a
+  scanner could ever close (99 rows left the denominator). The cost is measured and accepted:
+  seven rows disco does store (`ssm/instanceinformation`, `iot/v2loggingoption`,
+  `lakeformation/permission`, `shield/emergencycontactsetting`,
+  `securityhub/configurationpolicyassociation` and two ec2 options) are now `excluded`; they keep
+  their `discoType` and their `scanner-lists` signal, so the evidence is visible, not lost.
+- `tag` is a **non-subject** like `resource`/`target` in `selfStems`: an op whose noun is `tag`
+  keys no candidate and ships as an `Other` op (`route53/tag` was a covered row attributed to
+  `aws:route53:cidr-collection`). `ec2/tag` is therefore no longer a candidate — the old
+  catalog example.
+- Class: cross-cutting counts only the targets that are neither the subject nor an ancestor its
+  lineage names (55 rows → 9; `identitystore:ListGroupMemberships` is authorised against the
+  membership, its group and the store); the SR-resource test runs **before** it. A catalog
+  resource whose ARN namespace is unrelated to the model's own is not this service's
+  (`ec2/group` carries a `resource-groups` ARN); a namespace that is a prefix of the model's, or
+  vice versa, is the same family under a longer name (route53-recovery-control-config's safety
+  rules). Order after that: SR resource with an owned ARN → resource; cross-cutting → attribute;
+  a single-subject read the catalog does not call a listing, over an already singular noun →
+  attribute (`single-subject-read`, sub-state such as `lambda/functionconfiguration`); child with
+  id-bearing collection → resource (`child-uncatalogued`, e.g. `kms/grant`); child without ids →
+  attribute; noun with a lifecycle `IsWrite` action → resource (`writable-noun`); no collection →
+  non-resource; an element carrying its own ARN or a creation timestamp → resource
+  (`element-arn` / `element-created`, the evidence that beats the catalog fallback for a service
+  the catalog does not carry); else catalog (`ec2/instancetype`, `ec2/accountattribute`).
   The `resCanon` lookup retries with the descriptor suffix stripped
   (`ListClusterSummaries` lists clusters), and an `Associate`/`Attach`/`Register` write stamps
   `<noun>association` and `<noun>attachment` as write nouns, because that is the noun the lister
