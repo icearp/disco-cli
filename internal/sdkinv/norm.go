@@ -22,31 +22,78 @@ func Canon(s string) string {
 	return b.String()
 }
 
+// irregular maps a plural whose singular no suffix rule can reach onto that
+// singular, and an invariant noun onto itself. It is matched as a suffix, so
+// compounds work ("attachedIndices" → "attachedindex", "revenueStatistics
+// TimeSeries" → unchanged). Linguistic and closed: nothing here names a cloud
+// resource, and every entry carries a norm_test pair. Longest match wins.
+var irregular = map[string]string{
+	"indices": "index", "appendices": "appendix", "vertices": "vertex", "matrices": "matrix",
+	"apices": "apex", "helices": "helix",
+	"thesauri": "thesaurus", "radii": "radius", "foci": "focus", "nuclei": "nucleus",
+	"lenses": "lens", // the one "-nses" that is not "-nse"; see Singular
+	"series": "series", "species": "species", "ephemeris": "ephemeris",
+}
+
+// applyIrregular rewrites the longest irregular suffix of s. The bool says an
+// entry matched, which is not the same as the string changing: "series" maps
+// to itself and must still stop the suffix rules from answering "sery".
+func applyIrregular(s string) (string, bool) {
+	best, want := "", ""
+	for plural, singular := range irregular {
+		if len(plural) > len(best) && strings.HasSuffix(s, plural) {
+			best, want = plural, singular
+		}
+	}
+	if best == "" {
+		return s, false
+	}
+	return s[:len(s)-len(best)] + want, true
+}
+
 // Singular strips a plural suffix for *equality* purposes only. Both sides of
 // every comparison pass through it, so an imperfect stem ("indexes" →
 // "indexe") still compares equal to itself; never use the result for display.
 func Singular(s string) string {
+	if out, ok := applyIrregular(s); ok {
+		return out
+	}
 	switch {
 	case strings.HasSuffix(s, "ies") && len(s) > 3:
 		return s[:len(s)-3] + "y"
 	case strings.HasSuffix(s, "yses") && len(s) > 4: // analyses
 		return s[:len(s)-2] + "is"
-	case strings.HasSuffix(s, "sses"), strings.HasSuffix(s, "xes"), strings.HasSuffix(s, "ches"), strings.HasSuffix(s, "shes"):
+	case strings.HasSuffix(s, "ches") && len(s) > 4:
+		// "-ches" hides "-che" (cache, niche) and "-ch" (batch, branch,
+		// speech, beach). A single vowel other than "e" before the "ch" is the
+		// "-che" shape; a vowel pair is not (beaches, approaches).
+		if isVowel(s[len(s)-5]) && s[len(s)-5] != 'e' && (len(s) < 6 || !isVowel(s[len(s)-6])) {
+			return s[:len(s)-1]
+		}
+		return s[:len(s)-2]
+	case strings.HasSuffix(s, "sses"), strings.HasSuffix(s, "xes"), strings.HasSuffix(s, "shes"):
 		return s[:len(s)-2]
 	case strings.HasSuffix(s, "ses") && len(s) > 3:
-		// "-ses" hides two shapes: an "-s" singular (status, alias, lens)
-		// and an "-se" singular (database, case, release); the letter before
-		// the stem's "s" tells them apart well enough for SDK nouns.
-		if stem := s[:len(s)-3]; strings.HasSuffix(stem, "u") || strings.HasSuffix(stem, "ia") || strings.HasSuffix(stem, "n") {
+		// "-ses" hides two shapes: an "-s" singular (status, alias) and an
+		// "-se" singular (database, case, release, license); the letter before
+		// the stem's "s" tells them apart well enough for SDK nouns. "n" is
+		// deliberately not in the first set — "licenses" is "license" and
+		// "lenses" is the single exception, handled above.
+		if stem := s[:len(s)-3]; strings.HasSuffix(stem, "u") || strings.HasSuffix(stem, "ia") {
 			return s[:len(s)-2]
 		}
 		return s[:len(s)-1]
-	case strings.HasSuffix(s, "ss"), strings.HasSuffix(s, "us"), strings.HasSuffix(s, "sis"), strings.HasSuffix(s, "ias"):
+	case strings.HasSuffix(s, "ss"), strings.HasSuffix(s, "us"), strings.HasSuffix(s, "is"), strings.HasSuffix(s, "ias"):
+		// Already singular: access, status, analysis, ephemeris, alias.
 		return s
 	case strings.HasSuffix(s, "s") && len(s) > 1:
 		return s[:len(s)-1]
 	}
 	return s
+}
+
+func isVowel(c byte) bool {
+	return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u'
 }
 
 // CanonSingular is Canon followed by Singular.
@@ -57,7 +104,9 @@ func CanonSingular(s string) string { return Singular(Canon(s)) }
 // Singular cannot know the stem ("caches"/"cache", "aliases"/"alias",
 // "statuses"/"status", "accesses"/"access"). Never display it.
 func Ident(s string) string {
-	c := Canon(s)
+	// The irregular plurals first: "indices" shares no suffix-rule stem with
+	// "index", so qbusiness counted one index collection twice.
+	c, _ := applyIrregular(Canon(s))
 	switch {
 	case strings.HasSuffix(c, "ies") && len(c) > 3:
 		return c[:len(c)-3] + "y"

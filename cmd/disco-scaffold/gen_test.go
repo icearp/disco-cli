@@ -48,9 +48,10 @@ func TestResourceSegments(t *testing.T) {
 		{"microsoft.network/virtualnetworks/subnets", "microsoft.network", []string{"virtualnetwork", "subnet"}},
 		{"microsoft.compute/virtualmachinescalesets/virtualmachines/runcommands", "microsoft.compute", []string{"virtualmachinescaleset", "virtualmachine", "runcommand"}},
 		{"compute/regiondisks", "compute", []string{"regiondisk"}},
-		// Shapes Singular can only stem, never spell.
+		// Shapes only the irregular table spells (sdkinv.Singular, #16).
 		{"monitoring/timeseries", "monitoring", []string{"timeseries"}},
-		{"kendra/thesauri", "kendra", []string{"thesauri"}},
+		{"kendra/thesaurus", "kendra", []string{"thesaurus"}},
+		{"qbusiness/indices", "qbusiness", []string{"index"}},
 	}
 	for _, c := range cases {
 		if got := resourceSegments(c.key, c.service); !slices.Equal(got, c.want) {

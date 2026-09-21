@@ -54,9 +54,10 @@ duplicate const happily. A type string the provider already declares, or two row
 string, refuses the whole scaffold with the conflicting keys named. `--write` joins `--source-root`
 (both the path and the existing-file guard) and is refused when it is empty.
 
-`displaySingular` in `gen.go` is the spelling helper: `sdkinv.Singular` is an equality stem that
-answers "timeseries" with "timesery", which is right for a comparison and wrong in committed source,
-so shapes it cannot spell stay as the SDK spells them.
+Segment spelling comes straight from `sdkinv.Singular`, which since the identity fix (#16) spells the
+irregulars the SDK nouns actually use ("timeseries", "thesaurus", "index"). The scaffold kept its own
+`displaySingular` shim until then; do not reintroduce one — a spelling `Singular` gets wrong belongs
+in that package's `irregular` table with a `norm_test` pair.
 
 ## Resume
 

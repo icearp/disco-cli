@@ -403,6 +403,25 @@ func serviceKey(m *smithyModel) (string, string) {
 	return "", ""
 }
 
+// opIsLister decides whether an op enumerates a collection, recording which
+// evidence decided it. The catalog's IsList is incomplete
+// (backup-gateway:ListGateways, batch:DescribeComputeEnvironments carry
+// false): a read verb over a collection output is a lister whatever the
+// annotation says.
+func opIsLister(act srAction, hasAct bool, o opShape, verb string, signals map[string]bool) bool {
+	shapeList := listVerbs[verb] && o.listMembers >= 1
+	if !hasAct {
+		signals["fallback"] = true
+		return shapeList
+	}
+	signals["sr:action"] = true
+	isList := act.isList || (shapeList && !act.isWrite)
+	if !act.isList && isList {
+		signals["shape-list"] = true
+	}
+	return isList
+}
+
 func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srService, file string) (string, []sdkinv.Operation) {
 	svc, _ := serviceKey(m)
 	if svc == "" {
@@ -451,22 +470,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 				act, hasAct = sr.actions[op]
 			}
 		}
-		// The catalog's IsList is incomplete (backup-gateway:ListGateways,
-		// batch:DescribeComputeEnvironments carry false): a read verb over a
-		// collection output is a lister whatever the annotation says.
-		shapeList := listVerbs[verb] && o.listMembers >= 1
-		var isList bool
-		switch {
-		case hasAct:
-			isList = act.isList || (shapeList && !act.isWrite)
-			signals["sr:action"] = true
-			if !act.isList && isList {
-				signals["shape-list"] = true
-			}
-		default:
-			isList = shapeList
-			signals["fallback"] = true
-		}
+		isList := opIsLister(act, hasAct, o, verb, signals)
 		if !isList && (o.listMembers != 0 || !detailVerbs[verb]) {
 			// Writes, actions, batch reads: never a candidate.
 			other = append(other, sdkinv.Operation{Service: svc, Name: op, Label: svc + ":" + op, Required: o.required, Module: module})

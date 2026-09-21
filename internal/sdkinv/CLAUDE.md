@@ -67,16 +67,24 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   build from a map, including `Signals`).
 - `StrongerClass` ranks resource > catalog > non-resource > attribute: a detail read (Get)
   merged onto a lister's key never outranks the lister.
-- `Ident` is the only identity (`-ies`→`y`, `-yses`→`-ysis`, then every trailing `e`/`s`
-  dropped): `caches`/`cache`, `aliases`/`alias`, `statuses`/`status`, `analyses`/`analysis` meet
-  there and nowhere else. Never show an Ident (`alias`→`alia`).
-- `Singular` is display only: keeps `-sis`/`-ss`/`-us`/`-ias`, `-ies`→`y`, `-yses`→`-ysis`,
-  `-sses/-xes/-ches/-shes`→`-es`, `-ses` after `u`/`ia`/`n`→`-s` (status, alias, lens) else `-se`
-  (database, case), else `-s`. No inflector dep. Any new rule needs a `norm_test` pair; the old
-  `CanonSingular` keys shipped `bedrock/flowalia`, `wellarchitected/len`, `config/…statuse` and
-  split `RestApi`/`RestApis` into two candidates before the live keys were audited.
-- Live counts (pins in `pins.go`): AWS 5555 candidates / 354 services (3247 resource);
-  Azure 3652 (1959 resource); GCP 1843 / 191 APIs (1151 resource). Each live test logs these;
+- `irregular` is a closed, purely linguistic suffix table (`indices`→`index`, `thesauri`→`thesaurus`,
+  `series`/`species`/`ephemeris` invariant, `lenses`→`lens`) consulted first by **both** `Singular`
+  and `Ident`. It is matched as a suffix, so compounds work (`attachedIndices`,
+  `revenueStatisticsTimeSeries`). Nothing in it may name a cloud resource — that would be the
+  hand-maintained list this subsystem exists to avoid — and every entry carries a `norm_test` pair.
+- `Ident` is the only identity (irregulars, `-ies`→`y`, `-yses`→`-ysis`, then every trailing `e`/`s`
+  dropped): `caches`/`cache`, `aliases`/`alias`, `statuses`/`status`, `analyses`/`analysis`,
+  `indices`/`index` meet there and nowhere else. Never show an Ident (`alias`→`alia`). Without the
+  irregulars `qbusiness/index` and `qbusiness/indice` were two covered rows for one collection.
+- `Singular` is display only: irregulars, then keeps `-ss`/`-us`/`-is`/`-ias`, `-ies`→`y`,
+  `-yses`→`-ysis`, `-sses/-xes/-shes`→`-es`, `-ches` after a single non-`e` vowel→`-e` (cache,
+  niche) else `-es` (batch, beach, approach), `-ses` after `u`/`ia`→`-s` (status, alias) else
+  `-se` (database, case, license), else `-s`. No inflector dep. Any new rule needs a `norm_test`
+  pair; the keys shipped before this was audited include `bedrock/flowalia`, `wellarchitected/len`,
+  `config/…statuse`, `iotsitewise/timesery`, `kendra/thesauri` and
+  `gameliftstreams/applicationshadercach`, and `RestApi`/`RestApis` were two candidates.
+- Live counts (pins in `pins.go`): AWS 5551 candidates / 354 services (3246 resource);
+  Azure 3650 (1959 resource); GCP 1843 / 191 APIs (1140 resource). Each live test logs these;
   a large swing after a pin bump is the signal to re-check anchors.
 - `Candidate.Refs` (Phase 6, `<p>/refs.go`): dotted paths on the listed element that name other
   resources, sorted and unique, own id excluded, depth-bounded. Refs are a **hint**: they rank

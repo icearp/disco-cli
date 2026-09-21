@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.4% (1637/3247 listable) · depth0 68.1% · depth1 26.0% · depth2 27.5% · depth3 12.5% · depth4 0.0% · depth5 0.0% · attribute 1660 · excluded 648 · disco-only 0 (0 unexplained)
+**Coverage:** 50.4% (1636/3246 listable) · depth0 68.1% · depth1 26.0% · depth2 27.5% · depth3 12.5% · depth4 0.0% · depth5 0.0% · attribute 1659 · excluded 646 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -61,7 +61,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | drs | 5 | 8 | 38.5 |
 | forecast | 8 | 8 | 50.0 |
 | networkmanager | 12 | 8 | 60.0 |
-| qbusiness | 10 | 8 | 55.6 |
+| qbusiness | 9 | 8 | 52.9 |
 | securityhub | 9 | 8 | 52.9 |
 | bcm-pricing-calculator | 3 | 7 | 30.0 |
 | clouddirectory | 2 | 7 | 22.2 |
@@ -581,7 +581,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | cleanrooms-ml | cleanrooms-ml/trainedmodelversion | 1 |  | cleanrooms-ml:ListTrainedModelVersions |
 | cloud9 | cloud9/environmentmembership | 0 |  | cloud9:DescribeEnvironmentMemberships |
 | cloudcontrolapi | cloudcontrolapi/resource | 1 |  | cloudcontrolapi:GetResource, cloudcontrolapi:ListResources |
-| clouddirectory | clouddirectory/attachedindice | 1 |  | clouddirectory:ListAttachedIndices |
+| clouddirectory | clouddirectory/attachedindex | 1 |  | clouddirectory:ListAttachedIndices |
 | clouddirectory | clouddirectory/index | 1 |  | clouddirectory:ListIndex |
 | clouddirectory | clouddirectory/objectinformation | 1 |  | clouddirectory:GetObjectInformation |
 | clouddirectory | clouddirectory/objectparent | 1 |  | clouddirectory:ListObjectParents |
@@ -1063,7 +1063,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | gamelift | gamelift/scalingpolicy | 1 |  | gamelift:DescribeScalingPolicies |
 | gamelift | gamelift/vpcpeeringauthorization | 0 |  | gamelift:DescribeVpcPeeringAuthorizations |
 | gamelift | gamelift/vpcpeeringconnection | 0 |  | gamelift:DescribeVpcPeeringConnections |
-| gameliftstreams | gameliftstreams/applicationshadercach | 1 |  | gameliftstreams:ListApplicationShaderCaches |
+| gameliftstreams | gameliftstreams/applicationshadercache | 1 |  | gameliftstreams:ListApplicationShaderCaches |
 | gameliftstreams | gameliftstreams/streamsession | 0 |  | gameliftstreams:GetStreamSession, gameliftstreams:ListStreamSessions, gameliftstreams:ListStreamSessionsByAccount |
 | gameliftstreams | gameliftstreams/streamurl | 0 |  | gameliftstreams:GetStreamUrl, gameliftstreams:ListStreamUrls |
 | geo | geo/deviceposition | 1 |  | geo:BatchGetDevicePosition, geo:GetDevicePosition, geo:ListDevicePositions |
@@ -1230,7 +1230,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | iotsitewise | iotsitewise/search | 1 |  | iotsitewise:DescribeSearch, iotsitewise:ListSearches |
 | iotsitewise | iotsitewise/searchresult | 1 |  | iotsitewise:GetSearchResults |
 | iotsitewise | iotsitewise/task | 1 |  | iotsitewise:DescribeTask, iotsitewise:ListTasks |
-| iotsitewise | iotsitewise/timesery | 0 |  | iotsitewise:DescribeTimeSeries, iotsitewise:ListTimeSeries |
+| iotsitewise | iotsitewise/timeseries | 0 |  | iotsitewise:DescribeTimeSeries, iotsitewise:ListTimeSeries |
 | iotsitewise | iotsitewise/workspace | 0 |  | iotsitewise:DescribeWorkspace, iotsitewise:ListWorkspaces |
 | iotthingsgraph | iotthingsgraph/flowexecution | 1 |  | iotthingsgraph:SearchFlowExecutions |
 | iotthingsgraph | iotthingsgraph/flowexecutionmessage | 1 |  | iotthingsgraph:ListFlowExecutionMessages |

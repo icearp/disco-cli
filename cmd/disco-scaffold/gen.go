@@ -155,26 +155,10 @@ func resourceSegments(key, service string) []string {
 	out := make([]string, 0, len(segs))
 	for _, sg := range segs {
 		if sg != "" {
-			out = append(out, kebab(displaySingular(sg)))
+			out = append(out, kebab(sdkinv.Singular(sg)))
 		}
 	}
 	return out
-}
-
-// displaySingular is the spelling shown in a committed const and type string.
-// sdkinv.Singular is an equality stem and says so: it answers "timeseries"
-// with "timesery" and "thesauri" with "thesauri", which is right for a
-// comparison and wrong in generated source, so the shapes it cannot spell are
-// left as the SDK spells them.
-func displaySingular(s string) string {
-	l := strings.ToLower(s)
-	switch {
-	case strings.HasSuffix(l, "series"), strings.HasSuffix(l, "species"), strings.HasSuffix(l, "data"), strings.HasSuffix(l, "metadata"):
-		return s
-	case strings.HasSuffix(l, "i"), strings.HasSuffix(l, "ices"):
-		return s // "thesauri", "indices": Latin plurals Singular cannot spell
-	}
-	return sdkinv.Singular(s)
 }
 
 // splitWords breaks an identifier into lowercase word tokens across camelCase,
