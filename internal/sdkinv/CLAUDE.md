@@ -163,11 +163,31 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
     251 candidates whose depth was not their parent's plus one. Do not deepen an entry from a
     proposal of a deeper lineage: `route53/hostedzone` and `lambda/function` are listed both
     ways, and the shallow listing is the truth.
+- Admission evidence (Phase 8 step 4): a member is id-like by the PascalCase suffix **or** by the
+  whole word in any case (`id`, `arn`, `name` — AppSync, DataZone, Bedrock, EKS, Grafana, Lex and
+  Cognito model them lower-case, and 65 child collections were demoted as id-less). A list of
+  primitives counts as a collection when its name is id-like or stems to the op's noun
+  (`sqs:ListQueues` answers `QueueUrls []string`, and `aws:sqs:queue` was in neither the
+  numerator nor the denominator). A payload wrapping its collection one level down
+  (`GetApps` → `ApplicationsResponse.Item[]`) counts only when the op noun is plural or the inner
+  collection is that noun — a blind descent turns all 399 single-structure read outputs into
+  listings (`wrapped-list` signal).
+- A service the catalog files under another name (`cloudwatch`→`monitoring`, `cloudcontrol`→
+  `cloudformation`, the IoT data planes) joins by **operation-name containment**: the smallest
+  document that authorises every operation of the model, recorded as `sr:document=<name>`.
+  Without it CloudWatch's dashboards, insight rules, mute rules and anomaly detectors were
+  `catalog` and excluded although disco stores all of them.
 - Class: cross-cutting (≥3 targets, `ListTagsForResource`) → attribute; SR resource with an
   ARN matching the noun → resource; child with id-bearing collection → resource
   (`child-uncatalogued`, e.g. `kms/grant`); child without ids → attribute; noun with an
   `IsWrite` non-tagging action → resource (`writable-noun`); no collection → non-resource;
-  else catalog (`ec2/instancetype`, `ec2/accountattribute`, `ec2/tag`).
+  an element carrying its own ARN or a creation timestamp → resource (`element-arn` /
+  `element-created`, the evidence that beats the catalog fallback for a service the catalog does
+  not carry); else catalog (`ec2/instancetype`, `ec2/accountattribute`, `ec2/tag`).
+  The `resCanon` lookup retries with the descriptor suffix stripped
+  (`ListClusterSummaries` lists clusters), and an `Associate`/`Attach`/`Register` write stamps
+  `<noun>association` and `<noun>attachment` as write nouns, because that is the noun the lister
+  spells (`AssociateResolverRule` → `resolverruleassociation`).
 - Identity vs display: entries merge on `Ident` (`svc/<ident>`, attributes `svc/<parent
   ident>/<ident>`); `assemble` renders keys last. `entry.display()` = the one spelling
   singularised, else the spelling another spelling singularises to (`analysis` over

@@ -77,6 +77,8 @@ type srService struct {
 	writeNoun map[string]bool     // Ident(noun of an IsWrite action) -> true
 	resCanon  map[string]string   // Ident(resource name) -> resource name
 	idStem    map[string][]string // stem of a resource's own ARN id variable ("bucket" from BucketName) -> resource names, sorted
+	name      string              // the catalog document's own service name
+	ops       map[string]bool     // every SDK operation name the document lists
 }
 
 type srAction struct {
@@ -91,6 +93,13 @@ var (
 	// quicksight/* children of a non-existent quicksight/awsaccount.
 	scopeParams = map[string]bool{"maxresults": true, "maxitems": true, "limit": true, "pagesize": true, "nexttoken": true, "marker": true, "pagetoken": true, "dryrun": true, "accountid": true, "awsaccountid": true, "region": true}
 	idLikeRe    = regexp.MustCompile(`(Id|Ids|ID|IDs|Arn|Arns|ARN|ARNs|Name|Names|Identifier|Identifiers)$`)
+	// idWordRe is the whole member: AppSync, DataZone, Bedrock, EKS, Grafana,
+	// Lex and Cognito model their members `id`, `arn` and `name`, which the
+	// PascalCase suffix rule never matches, so their child collections were
+	// demoted to attributes as id-less (65 rows, four of them stored types).
+	// It is deliberately anchored at both ends: a case-insensitive *suffix*
+	// rule would swallow "domain" for "main" and "certificate" for "cate".
+	idWordRe = regexp.MustCompile(`(?i)^(id|ids|arn|arns|name|names|identifier|identifiers)$`)
 	// selfStems are id-like member stems that name the operation's own subject.
 	selfStems = map[string]bool{"": true, sdkinv.Ident("resource"): true, sdkinv.Ident("target"): true}
 	versionRe = regexp.MustCompile(`V\d+$`)
@@ -100,9 +109,18 @@ var (
 	// guard at the call site keeps ImportAsProvisionedProduct intact.
 	qualifierRe = regexp.MustCompile(`(For|By|In|Of|Within|From|As)[A-Z]`)
 	arnVarRe    = regexp.MustCompile(`\$\{([A-Za-z0-9_]+)\}`)
+	// arnMemberRe / createdRe are the evidence that a listed element is a
+	// durable resource rather than a catalog row: it has an ARN, or it records
+	// when it was created.
+	arnMemberRe = regexp.MustCompile(`(?i)(^|[a-z0-9])arns?$`)
+	createdRe   = regexp.MustCompile(`(?i)creat`)
+	// descriptorRe names the shape of a listing member rather than its
+	// subject: QueueUrls, InstanceIds, ClusterSummaries, TableDetails.
+	descriptorRe = regexp.MustCompile(`(?i)(urls?|ids?|arns?|names?|summaries|summary|metadata|details?|list|infos?)$`)
 	// crossCuttingTargets: a list action authorised against this many distinct
 	// resource types reads a facet of them (tags, policies), not a resource.
 	crossCuttingTargets = 3
+	joinVerbs           = map[string]bool{"Associate": true, "Attach": true, "Register": true}
 	listVerbs           = map[string]bool{"List": true, "Describe": true, "Get": true, "Search": true, "BatchGet": true}
 	detailVerbs         = map[string]bool{"Get": true, "Describe": true, "Head": true}
 )
@@ -290,7 +308,7 @@ func serviceReferenceVersion(indexPath string) (string, error) {
 }
 
 func indexSR(d *srDoc) *srService {
-	s := &srService{actions: map[string]srAction{}, opAction: map[string]string{}, resources: map[string][]string{}, writeNoun: map[string]bool{}, resCanon: map[string]string{}, idStem: map[string][]string{}}
+	s := &srService{actions: map[string]srAction{}, opAction: map[string]string{}, resources: map[string][]string{}, writeNoun: map[string]bool{}, resCanon: map[string]string{}, idStem: map[string][]string{}, name: d.Name, ops: map[string]bool{}}
 	for _, a := range d.Actions {
 		act := srAction{isList: a.Annotations.Properties.IsList, isWrite: a.Annotations.Properties.IsWrite}
 		for _, r := range a.Resources {
@@ -299,12 +317,22 @@ func indexSR(d *srDoc) *srService {
 		s.actions[a.Name] = act
 		// Tagging-only writes (CreateTags) do not make "tag" a resource noun.
 		if act.isWrite && !a.Annotations.Properties.IsTaggingOnly {
-			_, noun := splitVerb(a.Name)
+			verb, noun := splitVerb(a.Name)
 			s.writeNoun[sdkinv.Ident(noun)] = true
+			// AssociateResolverRule creates a resolver rule *association*,
+			// which is the noun its lister spells; stamping only the bare noun
+			// left every association and attachment lister in the catalog
+			// fallback, 18 rows outside the denominator and seven of them
+			// stored by a disco scanner.
+			if joinVerbs[verb] {
+				s.writeNoun[sdkinv.Ident(noun+"association")] = true
+				s.writeNoun[sdkinv.Ident(noun+"attachment")] = true
+			}
 		}
 	}
 	for _, o := range d.Operations {
 		s.opAction[o.Name] = pickAction(d.Name, o.Name, o.AuthorizedActions)
+		s.ops[o.Name] = true
 	}
 	for _, r := range d.Resources {
 		var vars []string
@@ -364,6 +392,42 @@ func (s *srService) stemResource(stem, nounCanon string) string {
 			return n
 		case best == "" || shorter(n, best):
 			best = n
+		}
+	}
+	return best
+}
+
+// modelOps is every operation name a Smithy model ships.
+func modelOps(m *smithyModel) map[string]bool {
+	out := map[string]bool{}
+	for id, sh := range m.Shapes {
+		if sh.Type == "operation" {
+			out[shapeName(id)] = true
+		}
+	}
+	return out
+}
+
+// matchSRByOps finds the catalog document that authorises every operation of a
+// model, smallest first, so the join survives a service the catalog files
+// under another name. Nil when no document covers the model, or when the model
+// has no operations to match on.
+func matchSRByOps(srAll map[string]*srService, ops map[string]bool) *srService {
+	if len(ops) == 0 {
+		return nil
+	}
+	var best *srService
+	for _, name := range slices.Sorted(maps.Keys(srAll)) {
+		sr := srAll[name]
+		covered := true
+		for op := range ops {
+			if !sr.ops[op] {
+				covered = false
+				break
+			}
+		}
+		if covered && (best == nil || len(sr.ops) < len(best.ops)) {
+			best = sr
 		}
 	}
 	return best
@@ -489,8 +553,22 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 	var other []sdkinv.Operation
 	sr := srAll[svc]
 	diag := ""
+	srMatched := ""
 	if sr == nil {
-		diag = fmt.Sprintf("service %q absent from the Service Reference; classification falls back to SDK shape", svc)
+		// The catalog files 14 services under a name no Smithy signing name
+		// produces (cloudwatch is "monitoring", cloudcontrol is filed under
+		// cloudformation). A document that authorises every one of this
+		// model's operations is that service's document whatever it is
+		// called; the smallest such document wins, so a superset service
+		// cannot claim a smaller one's model.
+		sr = matchSRByOps(srAll, modelOps(m))
+		switch {
+		case sr != nil:
+			srMatched = sr.name
+			diag = fmt.Sprintf("service %q absent from the Service Reference; joined to %q by operation names", svc, sr.name)
+		default:
+			diag = fmt.Sprintf("service %q absent from the Service Reference; classification falls back to SDK shape", svc)
+		}
 	}
 	module := fmt.Sprintf("aws-sdk-go-v2@%s/%s%s", sdkinv.AWSSDKRef, smithyModelsDir, file)
 	// Sorted shape ids: a model can carry two operation shapes of one name in
@@ -512,9 +590,9 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 			continue
 		}
 		seenOps[op] = true
-		o := analyzeOp(m, sh)
 		verb, noun := splitVerb(op)
 		nounCanon := sdkinv.Ident(noun)
+		o := analyzeOp(m, sh, noun, nounCanon)
 		if nounCanon == "" {
 			// An op that is all verb (sagemaker:Search) names no collection;
 			// keying it yields "sagemaker/", a key nothing can ever match.
@@ -522,6 +600,12 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 			continue
 		}
 		signals := map[string]bool{}
+		if o.wrapped {
+			signals["wrapped-list"] = true
+		}
+		if srMatched != "" {
+			signals["sr:document="+srMatched] = true
+		}
 		act, hasAct := srAction{}, false
 		if sr != nil {
 			act, hasAct = sr.actions[sr.opAction[op]]
@@ -663,7 +747,7 @@ func lineage(sr *srService, act srAction, hasAct bool, o opShape, nounCanon stri
 			lin.targets = append(lin.targets, stem)
 			disp[stem] = sdkinv.Canon(res)
 			lin.depth = max(lin.depth, len(sr.resources[res]))
-		case idLikeRe.MatchString(r):
+		case idLike(r):
 			lin.targets = append(lin.targets, stem)
 			disp[stem] = memberDisp(r)
 			lin.depth = max(lin.depth, 1)
@@ -685,19 +769,46 @@ func jobHandle(sr *srService, stem string) bool {
 	return stem == sdkinv.Ident("job") && (sr == nil || sr.resCanon[stem] == "")
 }
 
+// nounStem is a member or noun with its descriptor suffix removed, as an
+// identity: "QueueUrls" → "queue", "ClusterSummaries" → "cluster". The suffix
+// only strips when something is left, so "Names" stays "name".
+func nounStem(name string) string {
+	stripped := descriptorRe.ReplaceAllString(name, "")
+	if stripped == "" {
+		return sdkinv.Ident(name)
+	}
+	return sdkinv.Ident(stripped)
+}
+
+// idLike reports whether a member name says "this is an identifier": the
+// PascalCase suffix, or the whole member in any case.
+func idLike(name string) bool { return idLikeRe.MatchString(name) || idWordRe.MatchString(name) }
+
 // memberStem is the identity of the noun a member or ARN variable names:
-// "KeyId" → Ident("key"), "Name" → "". memberDisp is its display form.
-func memberStem(name string) string { return sdkinv.Ident(idLikeRe.ReplaceAllString(name, "")) }
-func memberDisp(name string) string { return sdkinv.Canon(idLikeRe.ReplaceAllString(name, "")) }
+// "KeyId" → Ident("key"), "Name" → "", "id" → "". memberDisp is its display
+// form.
+func memberStem(name string) string { return sdkinv.Ident(stripID(name)) }
+func memberDisp(name string) string { return sdkinv.Canon(stripID(name)) }
+
+func stripID(name string) string {
+	if idWordRe.MatchString(name) {
+		return ""
+	}
+	return idLikeRe.ReplaceAllString(name, "")
+}
 
 type opShape struct {
 	required    []string
 	paged       bool
 	listMembers int  // output members that are collections (structs, or id-named primitives like TableNames)
 	hasIDs      bool // some collection element carries an id-like member
+	elemARN     bool // some collection element carries an ARN member
+	elemTime    bool // some collection element carries a creation timestamp
+	wrapped     bool // the collection sits one level down, inside a single payload structure
+	namesNoun   bool // one collection is the operation's own noun
 }
 
-func analyzeOp(m *smithyModel, sh *shape) opShape {
+func analyzeOp(m *smithyModel, sh *shape, noun, nounCanon string) opShape {
 	var o opShape
 	_, o.paged = sh.Traits["smithy.api#paginated"]
 	if sh.Input != nil {
@@ -710,31 +821,85 @@ func analyzeOp(m *smithyModel, sh *shape) opShape {
 			sort.Strings(o.required)
 		}
 	}
-	if sh.Output != nil {
-		if out := m.Shapes[sh.Output.Target]; out != nil {
-			for name, mem := range out.Members {
-				t := m.Shapes[mem.Target]
-				if t == nil || t.Type != "list" || t.Member == nil {
-					continue
-				}
-				el := m.Shapes[t.Member.Target]
-				switch {
-				case el != nil && el.Type == "structure":
-					o.listMembers++
-					for f := range el.Members {
-						if idLikeRe.MatchString(f) {
-							o.hasIDs = true
-						}
-					}
-				case idLikeRe.MatchString(name):
-					o.listMembers++
-					o.hasIDs = true
+	if sh.Output == nil {
+		return o
+	}
+	out := m.Shapes[sh.Output.Target]
+	if out == nil {
+		return o
+	}
+	o.scanCollections(m, out, nounCanon)
+	if o.listMembers > 0 {
+		return o
+	}
+	// A wrapped payload: GetApps answers ApplicationsResponse{Item []}. Only
+	// the op's own collection counts — a blind descent turns all 399
+	// single-structure read outputs into listings — so the noun must be plural
+	// or the inner collection must be this noun's.
+	inner := soleStructure(m, out)
+	if inner == nil {
+		return o
+	}
+	probe := opShape{}
+	probe.scanCollections(m, inner, nounCanon)
+	if probe.listMembers == 0 || (sdkinv.CanonSingular(noun) == sdkinv.Canon(noun) && !probe.namesNoun) {
+		return o
+	}
+	probe.required, probe.paged, probe.wrapped = o.required, o.paged, true
+	return probe
+}
+
+// scanCollections records what a payload structure's list members say about
+// the subject: how many there are, whether their elements carry ids, an ARN or
+// a creation timestamp, and whether one of them is this operation's own noun.
+func (o *opShape) scanCollections(m *smithyModel, out *shape, nounCanon string) {
+	for name, mem := range out.Members {
+		t := m.Shapes[mem.Target]
+		if t == nil || t.Type != "list" || t.Member == nil {
+			continue
+		}
+		el := m.Shapes[t.Member.Target]
+		switch {
+		case el != nil && el.Type == "structure":
+			o.listMembers++
+			for f, fm := range el.Members {
+				o.hasIDs = o.hasIDs || idLike(f)
+				o.elemARN = o.elemARN || arnMemberRe.MatchString(f)
+				if ft := m.Shapes[fm.Target]; ft != nil && ft.Type == "timestamp" && createdRe.MatchString(f) {
+					o.elemTime = true
 				}
 			}
+		case idLike(name) || nounStem(name) == nounCanon:
+			// sqs:ListQueues answers QueueUrls []string: a collection of
+			// primitives whose member name is not id-like but is this noun.
+			o.listMembers++
+			o.hasIDs = true
+		default:
+			continue
 		}
+		o.namesNoun = o.namesNoun || nounStem(name) == nounCanon || (el != nil && sdkinv.Ident(shapeName(t.Member.Target)) == nounCanon)
 	}
-	return o
 }
+
+// soleStructure is the one structure member of a payload, or nil when the
+// payload has none or several.
+func soleStructure(m *smithyModel, out *shape) *shape {
+	var only *shape
+	for _, mem := range out.Members {
+		t := m.Shapes[mem.Target]
+		if t == nil || t.Type != "structure" {
+			continue
+		}
+		if only != nil {
+			return nil
+		}
+		only = t
+	}
+	return only
+}
+
+// shapeName is a Smithy shape id's local name ("com.amazonaws.sqs#Queue" → "Queue").
+func shapeName(id string) string { return id[strings.LastIndex(id, "#")+1:] }
 
 func classify(isList bool, o opShape, sr *srService, nounCanon string, lin place, signals map[string]bool) sdkinv.Class {
 	if !isList {
@@ -746,9 +911,14 @@ func classify(isList bool, o opShape, sr *srService, nounCanon string, lin place
 		return sdkinv.ClassAttribute
 	}
 	if sr != nil {
-		if name, ok := sr.resCanon[nounCanon]; ok {
-			signals["sr:resource="+name] = true
-			return sdkinv.ClassResource
+		// The catalog names the subject, not the payload: ListClusterSummaries
+		// is a listing of clusters. Try the spelled noun first so the signal
+		// records the exact match when there is one.
+		for _, n := range []string{nounCanon, nounStem(nounCanon)} {
+			if name, ok := sr.resCanon[n]; ok {
+				signals["sr:resource="+name] = true
+				return sdkinv.ClassResource
+			}
 		}
 	}
 	if lin.depth > 0 {
@@ -766,6 +936,18 @@ func classify(isList bool, o opShape, sr *srService, nounCanon string, lin place
 	if o.listMembers == 0 {
 		signals["no-collection"] = true
 		return sdkinv.ClassNonResource
+	}
+	// Positive evidence beats the catalog fallback, which otherwise excludes
+	// every listing of a service the Service Reference does not carry: an
+	// element with its own ARN, or a record of when it was created, is a
+	// resource the account owns, not a published catalog row.
+	switch {
+	case o.elemARN:
+		signals["element-arn"] = true
+		return sdkinv.ClassResource
+	case o.elemTime:
+		signals["element-created"] = true
+		return sdkinv.ClassResource
 	}
 	signals["read-only"] = true
 	return sdkinv.ClassCatalog
@@ -884,7 +1066,11 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 	for key, en := range byKey {
 		c := sdkinv.Candidate{Provider: "aws", Service: en.service, Key: key, Depth: en.depth, Class: en.class, Ops: en.ops}
 		if en.depth > 0 && en.parentID != "" {
-			c.Parent = en.service + "/" + parentDisplay(entries, en)
+			// Two identities can render to one display and fold together here,
+			// which turned apigateway/methodresponse into its own parent.
+			if p := en.service + "/" + parentDisplay(entries, en); p != key {
+				c.Parent = p
+			}
 		}
 		for s := range en.signals {
 			c.Signals = append(c.Signals, s)

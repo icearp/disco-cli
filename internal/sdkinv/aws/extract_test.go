@@ -47,9 +47,14 @@ func TestExtract_Fixture(t *testing.T) {
 		"widgets/widget/tag":              {sdkinv.ClassAttribute, 1, "widgets/widget", []string{"ListTagsForResource"}},
 		"widgets/zone":                    {sdkinv.ClassCatalog, 0, "", []string{"DescribeZones"}},
 		"widgets/accountsetting":          {sdkinv.ClassAttribute, 0, "", []string{"GetAccountSettings"}},
-		"widgets/widgettype":              {sdkinv.ClassNonResource, 0, "", []string{"ListWidgetTypes"}},
-		"widgets/gadget":                  {sdkinv.ClassResource, 0, "", []string{"DescribeGadgets"}},
-		"widgets/gizmo":                   {sdkinv.ClassResource, 0, "", []string{"ListGizmos"}},
+		// A List verb over a primitive list is a listing: WidgetTypes is a
+		// published catalog, SprocketUrls the sqs:ListQueues shape whose
+		// member name is neither id-like nor the bare noun (#1).
+		"widgets/widgettype":   {sdkinv.ClassCatalog, 0, "", []string{"ListWidgetTypes"}},
+		"widgets/sprocket":     {sdkinv.ClassResource, 0, "", []string{"ListSprockets"}},
+		"widgets/widgethealth": {sdkinv.ClassNonResource, 0, "", []string{"ListWidgetHealth"}},
+		"widgets/gadget":       {sdkinv.ClassResource, 0, "", []string{"DescribeGadgets"}},
+		"widgets/gizmo":        {sdkinv.ClassResource, 0, "", []string{"ListGizmos"}},
 		// Two spellings of the noun (aliases / alias) and of the parent
 		// (gizmo / gizmos): the key keeps the "s" of alias and the parent
 		// names the gizmo candidate.

@@ -210,6 +210,30 @@
     }
    },
    "Resources": []
+  },
+  {
+   "Name": "ListSprockets",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "ListWidgetHealth",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
   }
  ],
  "Operations": [
@@ -333,6 +357,24 @@
      "Service": "widgets"
     }
    ]
+  },
+  {
+   "Name": "ListSprockets",
+   "AuthorizedActions": [
+    {
+     "Name": "ListSprockets",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListWidgetHealth",
+   "AuthorizedActions": [
+    {
+     "Name": "ListWidgetHealth",
+     "Service": "widgets"
+    }
+   ]
   }
  ],
  "Resources": [
@@ -352,6 +394,12 @@
    "Name": "alias",
    "ARNFormats": [
     "arn:${Partition}:widgets:${Region}:${Account}:gizmos/${GizmosId}/alias/${AliasName}"
+   ]
+  },
+  {
+   "Name": "sprocket",
+   "ARNFormats": [
+    "arn:${Partition}:widgets:${Region}:${Account}:sprocket/${SprocketId}"
    ]
   }
  ]

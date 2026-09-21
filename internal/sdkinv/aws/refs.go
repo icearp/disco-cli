@@ -124,7 +124,7 @@ var tokenNameRe = regexp.MustCompile(`(?:Token|ETag|Etag|RequestId|RequestID|Rev
 // isRefMember: an id-like member that is neither the element's own identity
 // nor a bookkeeping token.
 func isRefMember(name string, depth int, nounCanon string) bool {
-	return idLikeRe.MatchString(name) && !tokenNameRe.MatchString(name) && !ownID(name, depth, nounCanon)
+	return idLike(name) && !tokenNameRe.MatchString(name) && !ownID(name, depth, nounCanon)
 }
 
 // ownID is the element's own identity: a bare Arn/Id/Name, or one stemmed

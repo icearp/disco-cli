@@ -614,6 +614,50 @@
      "target": "smithy.api#String"
     }
    }
+  },
+  "ns#ListSprockets": {
+   "type": "operation",
+   "input": {
+    "target": "ns#ListSprocketsRequest"
+   },
+   "output": {
+    "target": "ns#ListSprocketsResponse"
+   },
+   "traits": {}
+  },
+  "ns#ListSprocketsRequest": {
+   "type": "structure",
+   "members": {}
+  },
+  "ns#ListSprocketsResponse": {
+   "type": "structure",
+   "members": {
+    "SprocketUrls": {
+     "target": "ns#StringList"
+    }
+   }
+  },
+  "ns#ListWidgetHealth": {
+   "type": "operation",
+   "input": {
+    "target": "ns#ListWidgetHealthRequest"
+   },
+   "output": {
+    "target": "ns#ListWidgetHealthResponse"
+   },
+   "traits": {}
+  },
+  "ns#ListWidgetHealthRequest": {
+   "type": "structure",
+   "members": {}
+  },
+  "ns#ListWidgetHealthResponse": {
+   "type": "structure",
+   "members": {
+    "Status": {
+     "target": "smithy.api#String"
+    }
+   }
   }
  }
 }
