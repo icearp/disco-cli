@@ -145,6 +145,24 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   (`object` → `${BucketName}/${ObjectName}` → depth 1, parent bucket). Otherwise the deepest
   target is the parent. Without targets, required members whose stem matches a catalogued
   resource's own id (`Bucket`, `VolumeId`) or look id-like name the ancestors (`required-id`).
+  - An ARN variable is scope, not a level, when its name is or ends in partition/region/account
+    (`${AwsAccountId}`) — **except the last**, which is the subject's own id whatever it is
+    called (organizations' account resource ends `${AccountId}`). `scopeParams` is keyed
+    lower-case for the same reason: three spellings of the account member put 15 QuickSight rows
+    under a phantom `quicksight/awsaccount`.
+  - A bare `job` stem with no catalogued `job` resource is an asynchronous handle, not a parent
+    (`job-handle` signal): Rekognition's `JobId` names a Start… call. `JobRun`/`JobQueue` are
+    real resources and keep their parentage.
+  - One id stem can name several resources (glue `Job`/`JobRun`); `stemResource` keeps them all
+    and picks by the operation's own noun, then the shortest name — the last read used to win.
+  - `resolveTree` runs after every entry exists, because indexing sees one operation at a time.
+    An entry any operation lists top-level stays depth 0; otherwise, among the proposals of its
+    **shallowest** lineage, one that is itself an entry beats one that is not, deepest first, and
+    an entry is never its own parent. Depth is then the resolved parent's depth + 1, memoised
+    and cycle-guarded — ARN variable counting made `stack/${StackName}/${Id}` two levels and left
+    251 candidates whose depth was not their parent's plus one. Do not deepen an entry from a
+    proposal of a deeper lineage: `route53/hostedzone` and `lambda/function` are listed both
+    ways, and the shallow listing is the truth.
 - Class: cross-cutting (≥3 targets, `ListTagsForResource`) → attribute; SR resource with an
   ARN matching the noun → resource; child with id-bearing collection → resource
   (`child-uncatalogued`, e.g. `kms/grant`); child without ids → attribute; noun with an

@@ -76,7 +76,7 @@ type srService struct {
 	resources map[string][]string // resource name -> ARN id variables beyond partition/region/account
 	writeNoun map[string]bool     // Ident(noun of an IsWrite action) -> true
 	resCanon  map[string]string   // Ident(resource name) -> resource name
-	idStem    map[string]string   // stem of a resource's own ARN id variable ("bucket" from BucketName) -> resource name
+	idStem    map[string][]string // stem of a resource's own ARN id variable ("bucket" from BucketName) -> resource names, sorted
 }
 
 type srAction struct {
@@ -86,7 +86,10 @@ type srAction struct {
 
 var (
 	// scopeParams are input members that shape paging or scope, never identity.
-	scopeParams = map[string]bool{"MaxResults": true, "MaxItems": true, "Limit": true, "PageSize": true, "NextToken": true, "Marker": true, "PageToken": true, "DryRun": true, "AccountId": true, "Region": true}
+	// Keys are lower-cased: the models spell the account slot AccountId,
+	// AwsAccountId and awsAccountId, and a case-sensitive lookup made
+	// quicksight/* children of a non-existent quicksight/awsaccount.
+	scopeParams = map[string]bool{"maxresults": true, "maxitems": true, "limit": true, "pagesize": true, "nexttoken": true, "marker": true, "pagetoken": true, "dryrun": true, "accountid": true, "awsaccountid": true, "region": true}
 	idLikeRe    = regexp.MustCompile(`(Id|Ids|ID|IDs|Arn|Arns|ARN|ARNs|Name|Names|Identifier|Identifiers)$`)
 	// selfStems are id-like member stems that name the operation's own subject.
 	selfStems = map[string]bool{"": true, sdkinv.Ident("resource"): true, sdkinv.Ident("target"): true}
@@ -111,10 +114,21 @@ type entry struct {
 	depth      int
 	parentID   string // Ident of the parent noun, "" at depth 0
 	parentDisp string // display form of the parent noun when no entry resolves it
-	class      sdkinv.Class
-	signals    map[string]bool
-	ops        []sdkinv.Operation
-	refs       map[string]bool
+	// cands are every parent one of this entry's operations proposed, kept so
+	// resolveTree can prefer one that is itself a candidate. place() picks the
+	// shallowest for the pre-resolution depth; the catalog often names a
+	// grandparent and a parent for one op set.
+	cands   []parentCand
+	class   sdkinv.Class
+	signals map[string]bool
+	ops     []sdkinv.Operation
+	refs    map[string]bool
+}
+
+// parentCand is one operation's proposal for an entry's parent.
+type parentCand struct {
+	id, disp string
+	depth    int // the lineage depth that proposal implies for this entry
 }
 
 // display is the noun shown in the key. With one spelling it is that noun
@@ -191,6 +205,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		u.Other = append(u.Other, other...)
 	}
 	mergeDetailReads(entries)
+	resolveTree(entries)
 	u.Candidates = assemble(entries)
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)
@@ -275,7 +290,7 @@ func serviceReferenceVersion(indexPath string) (string, error) {
 }
 
 func indexSR(d *srDoc) *srService {
-	s := &srService{actions: map[string]srAction{}, opAction: map[string]string{}, resources: map[string][]string{}, writeNoun: map[string]bool{}, resCanon: map[string]string{}, idStem: map[string]string{}}
+	s := &srService{actions: map[string]srAction{}, opAction: map[string]string{}, resources: map[string][]string{}, writeNoun: map[string]bool{}, resCanon: map[string]string{}, idStem: map[string][]string{}}
 	for _, a := range d.Actions {
 		act := srAction{isList: a.Annotations.Properties.IsList, isWrite: a.Annotations.Properties.IsWrite}
 		for _, r := range a.Resources {
@@ -294,13 +309,17 @@ func indexSR(d *srDoc) *srService {
 	for _, r := range d.Resources {
 		var vars []string
 		for _, f := range r.ARNFormats {
+			all := arnVarRe.FindAllStringSubmatch(f, -1)
 			var v []string
-			for _, m := range arnVarRe.FindAllStringSubmatch(f, -1) {
-				switch m[1] {
-				case "Partition", "Region", "Account":
-				default:
-					v = append(v, m[1])
+			for i, m := range all {
+				// The last variable is the subject's own id whatever it is
+				// named (organizations spells its account resource's id
+				// ${AccountId}); every earlier partition/region/account
+				// variable is the ARN's scope, not a level of nesting.
+				if i < len(all)-1 && arnScopeVar(m[1]) {
+					continue
 				}
+				v = append(v, m[1])
 			}
 			if len(v) > len(vars) {
 				vars = v
@@ -316,12 +335,52 @@ func indexSR(d *srDoc) *srService {
 			}
 		}
 		if len(vars) > 0 {
+			// Several resources can share an id stem (glue's Job and
+			// JobRun both end ${JobName}); keep them all and let the
+			// operation's own noun choose, instead of the last read winning.
 			if stem := memberStem(vars[len(vars)-1]); stem != "" {
-				s.idStem[stem] = r.Name
+				s.idStem[stem] = append(s.idStem[stem], r.Name)
 			}
 		}
 	}
+	for stem := range s.idStem {
+		sort.Strings(s.idStem[stem])
+	}
 	return s
+}
+
+// stemResource names the catalog resource an id member refers to. With several
+// sharing the stem, the operation's own noun decides, then the shortest name,
+// so the pick is the same whatever order the catalog was read in.
+func (s *srService) stemResource(stem, nounCanon string) string {
+	names := s.idStem[stem]
+	if len(names) == 0 {
+		return ""
+	}
+	best := ""
+	for _, n := range names {
+		switch {
+		case sdkinv.Ident(n) == nounCanon:
+			return n
+		case best == "" || shorter(n, best):
+			best = n
+		}
+	}
+	return best
+}
+
+// arnScopeVar reports whether an ARN variable names the partition, region or
+// account the resource lives in rather than a level above it. chime, datasync,
+// sso and organizations spell the account slot ${AccountId}, which an exact
+// match against "Account" left counting as a level.
+func arnScopeVar(name string) bool {
+	l := strings.ToLower(name)
+	for _, suffix := range []string{"partition", "region", "account"} {
+		if strings.HasSuffix(strings.TrimSuffix(strings.TrimSuffix(l, "id"), "name"), suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 // pickAction chooses the IAM action an SDK operation is authorised by when
@@ -530,6 +589,7 @@ func (en *entry) place(lin place) {
 	parent := ""
 	if lin.depth > 0 && lin.parent != "" {
 		parent = lin.parent
+		en.cands = append(en.cands, parentCand{id: parent, disp: lin.parentDisp, depth: lin.depth})
 	}
 	switch {
 	case en.depth < 0 || lin.depth < en.depth:
@@ -587,13 +647,22 @@ func lineage(sr *srService, act srAction, hasAct bool, o opShape, nounCanon stri
 	disp := map[string]string{}
 	for _, r := range o.required {
 		stem := memberStem(r)
+		res := ""
+		if sr != nil {
+			res = sr.stemResource(stem, nounCanon)
+		}
 		switch {
 		case selfStems[stem] || stem == nounCanon:
 			lin.self = true
-		case sr != nil && sr.idStem[stem] != "":
+		case jobHandle(sr, stem):
+			// An asynchronous handle, not a resource: Rekognition's JobId
+			// names a StartCelebrityRecognition call, and reading it as a
+			// parent hung 19 result collections under a phantom job.
+			signals["job-handle"] = true
+		case res != "":
 			lin.targets = append(lin.targets, stem)
-			disp[stem] = sdkinv.Canon(sr.idStem[stem])
-			lin.depth = max(lin.depth, len(sr.resources[sr.idStem[stem]]))
+			disp[stem] = sdkinv.Canon(res)
+			lin.depth = max(lin.depth, len(sr.resources[res]))
 		case idLikeRe.MatchString(r):
 			lin.targets = append(lin.targets, stem)
 			disp[stem] = memberDisp(r)
@@ -607,6 +676,13 @@ func lineage(sr *srService, act srAction, hasAct bool, o opShape, nounCanon stri
 		signals["required-id"] = true
 	}
 	return lin
+}
+
+// jobHandle reports whether an id member names an asynchronous job the catalog
+// does not publish as a resource. The stem must be exactly "job": glue's
+// JobRun and batch's JobQueue are real catalogued resources.
+func jobHandle(sr *srService, stem string) bool {
+	return stem == sdkinv.Ident("job") && (sr == nil || sr.resCanon[stem] == "")
 }
 
 // memberStem is the identity of the noun a member or ARN variable names:
@@ -627,7 +703,7 @@ func analyzeOp(m *smithyModel, sh *shape) opShape {
 	if sh.Input != nil {
 		if in := m.Shapes[sh.Input.Target]; in != nil {
 			for name, mem := range in.Members {
-				if _, req := mem.Traits["smithy.api#required"]; req && !scopeParams[name] {
+				if _, req := mem.Traits["smithy.api#required"]; req && !scopeParams[strings.ToLower(name)] {
 					o.required = append(o.required, name)
 				}
 			}
@@ -713,6 +789,70 @@ func pickParent(sr *srService, targets, required []string) string {
 		}
 	}
 	return best
+}
+
+// resolveTree fixes parentage and depth once every entry exists. Indexing sees
+// one operation at a time, so it can only propose the parent that operation's
+// catalog targets name — often a grandparent, a scope slot or an asynchronous
+// job handle, and 465 rows named a parent that was no candidate at all.
+// Here the whole service is visible: a proposal that is itself an entry beats
+// one that is not, the deepest such proposal wins, and an entry is never its
+// own parent. Depth then follows the resolved parent rather than the ARN's
+// variable count, which counts stack/${StackName}/${Id} as two levels.
+func resolveTree(entries map[string]*entry) {
+	for _, id := range slices.Sorted(maps.Keys(entries)) {
+		en := entries[id]
+		if en.parentID == "" {
+			continue // some operation lists this resource top-level; that wins
+		}
+		self := id[strings.LastIndex(id, "/")+1:]
+		best, bestScore := parentCand{}, -1
+		for _, c := range en.cands {
+			// Only the shallowest lineage's proposals: an operation that
+			// reaches the resource through its grandparent must not deepen a
+			// resource another operation lists one level up.
+			if c.id == "" || c.id == self || c.depth != en.depth {
+				continue
+			}
+			score := 0
+			if p := entries[en.service+"/"+c.id]; p != nil {
+				score = 2 + 2*p.depth
+			}
+			// Ties by the proposal's own depth, then by identity, so the pick
+			// does not follow the order the models happened to be read in.
+			if score > bestScore || (score == bestScore && (c.depth > best.depth || (c.depth == best.depth && c.id < best.id))) {
+				best, bestScore = c, score
+			}
+		}
+		if bestScore < 0 { // every proposal was the entry itself
+			en.parentID, en.parentDisp, en.depth = "", "", 0
+			continue
+		}
+		en.parentID, en.parentDisp = best.id, best.disp
+	}
+	// Depth from the resolved parent, memoised. A cycle (two entries naming
+	// each other) keeps the indexed depths rather than looping.
+	depth := map[string]int{}
+	var resolve func(id string, seen map[string]bool) int
+	resolve = func(id string, seen map[string]bool) int {
+		if d, ok := depth[id]; ok {
+			return d
+		}
+		en := entries[id]
+		d := en.depth
+		if pid := en.service + "/" + en.parentID; en.parentID != "" && !seen[id] {
+			if _, ok := entries[pid]; ok {
+				seen[id] = true
+				d = resolve(pid, seen) + 1
+				delete(seen, id)
+			}
+		}
+		depth[id] = d
+		return d
+	}
+	for _, id := range slices.Sorted(maps.Keys(entries)) {
+		entries[id].depth = resolve(id, map[string]bool{})
+	}
 }
 
 // assemble turns identity-keyed entries into candidates keyed by display

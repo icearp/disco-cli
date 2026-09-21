@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.4% (1636/3246 listable) · depth0 68.1% · depth1 26.0% · depth2 27.5% · depth3 12.5% · depth4 0.0% · depth5 0.0% · attribute 1659 · excluded 646 · disco-only 0 (0 unexplained)
+**Coverage:** 50.1% (1636/3263 listable) · depth0 67.7% · depth1 25.8% · depth2 26.5% · depth3 22.2% · attribute 1645 · excluded 643 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -15,15 +15,15 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | ssm | 10 | 23 | 30.3 |
 | bedrock | 20 | 22 | 47.6 |
 | bedrock-agentcore | 25 | 22 | 53.2 |
+| dms | 11 | 22 | 33.3 |
 | lex | 4 | 22 | 15.4 |
-| quicksight | 22 | 21 | 51.2 |
+| quicksight | 22 | 22 | 50.0 |
 | config | 10 | 20 | 33.3 |
 | glue | 22 | 19 | 53.7 |
 | es | 3 | 18 | 14.3 |
 | mgn | 8 | 18 | 30.8 |
 | ses | 20 | 18 | 52.6 |
 | wellarchitected | 4 | 18 | 18.2 |
-| dms | 11 | 17 | 39.3 |
 | workmail | 1 | 17 | 5.6 |
 | chime | 11 | 16 | 40.7 |
 | gamelift | 12 | 16 | 42.9 |
@@ -33,7 +33,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | aws-marketplace | 0 | 14 | 0.0 |
 | cleanrooms | 9 | 14 | 39.1 |
 | ds | 1 | 13 | 7.1 |
-| iam | 14 | 13 | 51.9 |
+| rekognition | 4 | 13 | 23.5 |
 | storagegateway | 8 | 13 | 38.1 |
 | cloudformation | 7 | 12 | 36.8 |
 | deadline | 12 | 12 | 50.0 |
@@ -41,6 +41,8 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | omics | 11 | 12 | 47.8 |
 | s3 | 8 | 12 | 40.0 |
 | comprehend | 4 | 11 | 26.7 |
+| iam | 14 | 11 | 56.0 |
+| inspector2 | 5 | 11 | 31.2 |
 | lambda | 10 | 11 | 47.6 |
 | rds | 21 | 11 | 65.6 |
 | aidevops | 4 | 10 | 28.6 |
@@ -48,13 +50,13 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | codecommit | 1 | 10 | 9.1 |
 | compute-optimizer | 0 | 10 | 0.0 |
 | devicefarm | 7 | 10 | 41.2 |
-| inspector2 | 5 | 10 | 33.3 |
 | iotmanagedintegrations | 5 | 10 | 33.3 |
 | license-manager | 5 | 10 | 33.3 |
 | logs | 15 | 10 | 60.0 |
 | redshift | 15 | 10 | 60.0 |
 | cleanrooms-ml | 7 | 9 | 43.8 |
 | lightsail | 17 | 9 | 65.4 |
+| securityhub | 9 | 9 | 50.0 |
 | workspaces | 7 | 9 | 43.8 |
 | athena | 5 | 8 | 38.5 |
 | codebuild | 4 | 8 | 33.3 |
@@ -62,7 +64,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | forecast | 8 | 8 | 50.0 |
 | networkmanager | 12 | 8 | 60.0 |
 | qbusiness | 9 | 8 | 52.9 |
-| securityhub | 9 | 8 | 52.9 |
 | bcm-pricing-calculator | 3 | 7 | 30.0 |
 | clouddirectory | 2 | 7 | 22.2 |
 | dynamodb | 4 | 7 | 36.4 |
@@ -110,7 +111,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | neptune-db | 0 | 5 | 0.0 |
 | partnercentral | 0 | 5 | 0.0 |
 | redshift-serverless | 6 | 5 | 54.5 |
-| rekognition | 4 | 5 | 44.4 |
 | route53 | 10 | 5 | 66.7 |
 | servicecatalog | 12 | 5 | 70.6 |
 | ssm-incidents | 2 | 5 | 28.6 |
@@ -145,14 +145,15 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | notifications | 5 | 4 | 55.6 |
 | route53-recovery-readiness | 4 | 4 | 50.0 |
 | ssm-sap | 3 | 4 | 42.9 |
+| textract | 2 | 4 | 33.3 |
 | transcribe | 5 | 4 | 55.6 |
 | trustedadvisor | 1 | 4 | 20.0 |
 | wafv2 | 6 | 4 | 60.0 |
 | agent-registry | 0 | 3 | 0.0 |
 | airflow-serverless | 1 | 3 | 25.0 |
 | app-integrations | 3 | 3 | 50.0 |
+| artifact | 2 | 3 | 40.0 |
 | backup-search | 0 | 3 | 0.0 |
-| billing | 1 | 3 | 25.0 |
 | braket | 1 | 3 | 25.0 |
 | ce | 4 | 3 | 57.1 |
 | codeguru-reviewer | 0 | 3 | 0.0 |
@@ -194,9 +195,9 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | appflow | 3 | 2 | 60.0 |
 | application-signals | 1 | 2 | 33.3 |
 | apprunner | 6 | 2 | 75.0 |
-| artifact | 2 | 2 | 50.0 |
 | batch | 7 | 2 | 77.8 |
 | bcm-data-exports | 1 | 2 | 33.3 |
+| billing | 1 | 2 | 33.3 |
 | codeartifact | 3 | 2 | 60.0 |
 | codeguru-security | 0 | 2 | 0.0 |
 | cognito-sync | 0 | 2 | 0.0 |
@@ -207,6 +208,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | events | 8 | 2 | 80.0 |
 | finspace | 8 | 2 | 80.0 |
 | fsx | 7 | 2 | 77.8 |
+| geo-places | 0 | 2 | 0.0 |
 | health-agent | 0 | 2 | 0.0 |
 | kms | 4 | 2 | 66.7 |
 | launchwizard | 1 | 2 | 33.3 |
@@ -227,7 +229,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | supportauthz | 0 | 2 | 0.0 |
 | synthetics | 2 | 2 | 50.0 |
 | tax | 0 | 2 | 0.0 |
-| textract | 2 | 2 | 50.0 |
 | transfer | 9 | 2 | 81.8 |
 | account | 0 | 1 | 0.0 |
 | amplifybackend | 0 | 1 | 0.0 |
@@ -235,7 +236,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | application-autoscaling | 2 | 1 | 66.7 |
 | arc-zonal-shift | 1 | 1 | 50.0 |
 | autoscaling-plans | 1 | 1 | 50.0 |
-| awsssoportal | 0 | 1 | 0.0 |
 | b2bi | 4 | 1 | 80.0 |
 | backup-gateway | 3 | 1 | 75.0 |
 | cassandra | 2 | 1 | 66.7 |
@@ -339,7 +339,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1610)
+### Uncovered (listable, no scanner) (1627)
 
 | Service | Key | Depth | Scope | Ops |
 | --- | --- | --- | --- | --- |
@@ -387,7 +387,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | app-integrations | app-integrations/dataintegrationassociation | 1 |  | app-integrations:ListDataIntegrationAssociations |
 | app-integrations | app-integrations/eventintegrationassociation | 1 |  | app-integrations:ListEventIntegrationAssociations |
 | appconfig | appconfig/experimentdefinition | 0 |  | appconfig:GetExperimentDefinition, appconfig:ListExperimentDefinitions |
-| appconfig | appconfig/experimentrun | 2 |  | appconfig:GetExperimentRun, appconfig:ListExperimentRuns |
+| appconfig | appconfig/experimentrun | 1 |  | appconfig:GetExperimentRun, appconfig:ListExperimentRuns |
 | appflow | appflow/connectorentity | 0 |  | appflow:DescribeConnectorEntity, appflow:ListConnectorEntities |
 | appflow | appflow/flowexecutionrecord | 1 |  | appflow:DescribeFlowExecutionRecords |
 | application-autoscaling | application-autoscaling/scheduledaction | 0 |  | application-autoscaling:DescribeScheduledActions |
@@ -397,8 +397,8 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | applicationinsights | applicationinsights/logpattern | 1 |  | applicationinsights:DescribeLogPattern, applicationinsights:ListLogPatterns |
 | applicationinsights | applicationinsights/problem | 0 |  | applicationinsights:DescribeProblem, applicationinsights:ListProblems |
 | applicationinsights | applicationinsights/workload | 1 |  | applicationinsights:DescribeWorkload, applicationinsights:ListWorkloads |
-| apprunner | apprunner/customdomain | 2 |  | apprunner:DescribeCustomDomains |
-| apprunner | apprunner/operation | 2 |  | apprunner:ListOperations |
+| apprunner | apprunner/customdomain | 1 |  | apprunner:DescribeCustomDomains |
+| apprunner | apprunner/operation | 1 |  | apprunner:ListOperations |
 | appstream | appstream/associatedstack | 1 |  | appstream:ListAssociatedStacks |
 | appstream | appstream/exportimagetask | 0 |  | appstream:GetExportImageTask, appstream:ListExportImageTasks |
 | appstream | appstream/imagepermission | 1 |  | appstream:DescribeImagePermissions |
@@ -411,6 +411,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | arc-region-switch | arc-region-switch/route53healthcheck | 1 |  | arc-region-switch:ListRoute53HealthChecks, arc-region-switch:ListRoute53HealthChecksInRegion |
 | arc-zonal-shift | arc-zonal-shift/zonalshift | 0 |  | arc-zonal-shift:ListZonalShifts |
 | artifact | artifact/complianceinquiry | 0 |  | artifact:ListComplianceInquiries |
+| artifact | artifact/complianceinquiryquery | 1 |  | artifact:ListComplianceInquiryQueries |
 | artifact | artifact/reportversion | 1 |  | artifact:ListReportVersions |
 | athena | athena/calculationexecution | 1 |  | athena:GetCalculationExecution, athena:ListCalculationExecutions |
 | athena | athena/database | 1 |  | athena:GetDatabase, athena:ListDatabases |
@@ -446,7 +447,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | aws-marketplace | aws-marketplace/offerset | 1 |  | aws-marketplace:GetOfferSet |
 | aws-marketplace | aws-marketplace/product | 1 |  | aws-marketplace:GetProduct |
 | aws-marketplace | aws-marketplace/purchaseoption | 0 |  | aws-marketplace:ListPurchaseOptions |
-| awsssoportal | awsssoportal/accountrole | 1 |  | awsssoportal:ListAccountRoles |
 | b2bi | b2bi/transformerjob | 1 |  | b2bi:GetTransformerJob |
 | backup | backup/backupaccesspoint | 0 |  | backup:DescribeBackupAccessPoint, backup:ListBackupAccessPoints, backup:ListBackupAccessPointsByRecoveryPoint, backup:ListBackupAccessPointsByResource |
 | backup | backup/backupjob | 0 |  | backup:DescribeBackupJob, backup:ListBackupJobs |
@@ -518,8 +518,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | bedrock-agentcore | bedrock-agentcore/recommendation | 0 |  | bedrock-agentcore:GetRecommendation, bedrock-agentcore:ListRecommendations |
 | bedrock-agentcore | bedrock-agentcore/session | 1 |  | bedrock-agentcore:ListSessions |
 | billing | billing/billingpreference | 0 |  | billing:GetBillingPreferences |
-| billing | billing/credit | 1 |  | billing:GetCredits |
-| billing | billing/creditallocationhistory | 1 |  | billing:GetCreditAllocationHistory |
+| billing | billing/credit | 0 |  | billing:GetCredits |
 | billingconductor | billingconductor/billinggroupcostreport | 0 |  | billingconductor:GetBillingGroupCostReport, billingconductor:ListBillingGroupCostReports |
 | billingconductor | billingconductor/customlineitemversion | 1 |  | billingconductor:ListCustomLineItemVersions |
 | billingconductor | billingconductor/pricingplansassociatedwithpricingrule | 1 |  | billingconductor:ListPricingPlansAssociatedWithPricingRule |
@@ -541,16 +540,16 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | chatbot | chatbot/microsoftteamsuseridentity | 0 |  | chatbot:ListMicrosoftTeamsUserIdentities |
 | chatbot | chatbot/slackuseridentity | 0 |  | chatbot:DescribeSlackUserIdentities |
 | chime | chime/account | 0 |  | chime:GetAccount, chime:ListAccounts |
-| chime | chime/appinstanceuserendpoint | 3 |  | chime:DescribeAppInstanceUserEndpoint, chime:ListAppInstanceUserEndpoints |
-| chime | chime/attendee | 2 |  | chime:GetAttendee, chime:ListAttendees |
+| chime | chime/appinstanceuserendpoint | 2 |  | chime:DescribeAppInstanceUserEndpoint, chime:ListAppInstanceUserEndpoints |
+| chime | chime/attendee | 1 |  | chime:GetAttendee, chime:ListAttendees |
 | chime | chime/bot | 0 |  | chime:GetBot, chime:ListBots |
-| chime | chime/channel | 2 |  | chime:DescribeChannel, chime:ListChannels, chime:SearchChannels |
-| chime | chime/channelsassociatedwithchannelflow | 3 |  | chime:ListChannelsAssociatedWithChannelFlow |
+| chime | chime/channel | 1 |  | chime:DescribeChannel, chime:ListChannels, chime:SearchChannels |
+| chime | chime/channelsassociatedwithchannelflow | 2 |  | chime:ListChannelsAssociatedWithChannelFlow |
 | chime | chime/mediacapturepipeline | 0 |  | chime:GetMediaCapturePipeline, chime:ListMediaCapturePipelines |
-| chime | chime/messagingstreamingconfiguration | 2 |  | chime:GetMessagingStreamingConfigurations |
+| chime | chime/messagingstreamingconfiguration | 1 |  | chime:GetMessagingStreamingConfigurations |
 | chime | chime/phonenumber | 0 |  | chime:GetPhoneNumber, chime:ListPhoneNumbers |
 | chime | chime/phonenumberorder | 0 |  | chime:GetPhoneNumberOrder, chime:ListPhoneNumberOrders |
-| chime | chime/proxysession | 2 |  | chime:GetProxySession, chime:ListProxySessions |
+| chime | chime/proxysession | 1 |  | chime:GetProxySession, chime:ListProxySessions |
 | chime | chime/room | 0 |  | chime:GetRoom, chime:ListRooms |
 | chime | chime/roommembership | 1 |  | chime:ListRoomMemberships |
 | chime | chime/siprule | 0 |  | chime:GetSipRule, chime:ListSipRules |
@@ -578,7 +577,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodelexportjob | 2 |  | cleanrooms-ml:ListCollaborationTrainedModelExportJobs |
 | cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodelinferencejob | 1 |  | cleanrooms-ml:ListCollaborationTrainedModelInferenceJobs |
 | cleanrooms-ml | cleanrooms-ml/trainedmodelinferencejob | 1 |  | cleanrooms-ml:GetTrainedModelInferenceJob, cleanrooms-ml:ListTrainedModelInferenceJobs |
-| cleanrooms-ml | cleanrooms-ml/trainedmodelversion | 1 |  | cleanrooms-ml:ListTrainedModelVersions |
+| cleanrooms-ml | cleanrooms-ml/trainedmodelversion | 2 |  | cleanrooms-ml:ListTrainedModelVersions |
 | cloud9 | cloud9/environmentmembership | 0 |  | cloud9:DescribeEnvironmentMemberships |
 | cloudcontrolapi | cloudcontrolapi/resource | 1 |  | cloudcontrolapi:GetResource, cloudcontrolapi:ListResources |
 | clouddirectory | clouddirectory/attachedindex | 1 |  | clouddirectory:ListAttachedIndices |
@@ -588,18 +587,18 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | clouddirectory | clouddirectory/objectparentpath | 1 |  | clouddirectory:ListObjectParentPaths |
 | clouddirectory | clouddirectory/objectpolicy | 1 |  | clouddirectory:ListObjectPolicies |
 | clouddirectory | clouddirectory/policyattachment | 1 |  | clouddirectory:ListPolicyAttachments |
-| cloudformation | cloudformation/changeset | 2 |  | cloudformation:DescribeChangeSet, cloudformation:ListChangeSets |
-| cloudformation | cloudformation/changesethook | 2 |  | cloudformation:DescribeChangeSetHooks |
+| cloudformation | cloudformation/changeset | 1 |  | cloudformation:DescribeChangeSet, cloudformation:ListChangeSets |
+| cloudformation | cloudformation/changesethook | 1 |  | cloudformation:DescribeChangeSetHooks |
 | cloudformation | cloudformation/resourcescanrelatedresource | 1 |  | cloudformation:ListResourceScanRelatedResources |
 | cloudformation | cloudformation/resourcescanresource | 1 |  | cloudformation:ListResourceScanResources |
-| cloudformation | cloudformation/stackevent | 2 |  | cloudformation:DescribeStackEvents |
-| cloudformation | cloudformation/stackinstanceresourcedrift | 2 |  | cloudformation:ListStackInstanceResourceDrifts |
+| cloudformation | cloudformation/stackevent | 1 |  | cloudformation:DescribeStackEvents |
+| cloudformation | cloudformation/stackinstanceresourcedrift | 1 |  | cloudformation:ListStackInstanceResourceDrifts |
 | cloudformation | cloudformation/stackrefactor | 0 |  | cloudformation:DescribeStackRefactor, cloudformation:ListStackRefactors |
-| cloudformation | cloudformation/stackrefactoraction | 2 |  | cloudformation:ListStackRefactorActions |
-| cloudformation | cloudformation/stackresourcedrift | 2 |  | cloudformation:DescribeStackResourceDrifts |
-| cloudformation | cloudformation/stacksetautodeploymenttarget | 2 |  | cloudformation:ListStackSetAutoDeploymentTargets |
-| cloudformation | cloudformation/stacksetoperation | 2 |  | cloudformation:DescribeStackSetOperation, cloudformation:ListStackSetOperations |
-| cloudformation | cloudformation/stacksetoperationresult | 2 |  | cloudformation:ListStackSetOperationResults |
+| cloudformation | cloudformation/stackrefactoraction | 1 |  | cloudformation:ListStackRefactorActions |
+| cloudformation | cloudformation/stackresourcedrift | 1 |  | cloudformation:DescribeStackResourceDrifts |
+| cloudformation | cloudformation/stacksetautodeploymenttarget | 1 |  | cloudformation:ListStackSetAutoDeploymentTargets |
+| cloudformation | cloudformation/stacksetoperation | 1 |  | cloudformation:DescribeStackSetOperation, cloudformation:ListStackSetOperations |
+| cloudformation | cloudformation/stacksetoperationresult | 1 |  | cloudformation:ListStackSetOperationResults |
 | cloudfront | cloudfront/domainconflict | 1 |  | cloudfront:ListDomainConflicts |
 | cloudtrail | cloudtrail/eventconfiguration | 0 |  | cloudtrail:GetEventConfiguration |
 | cloudtrail | cloudtrail/eventselector | 1 |  | cloudtrail:GetEventSelectors |
@@ -607,7 +606,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | cloudtrail | cloudtrail/insightsdata | 1 |  | cloudtrail:ListInsightsData |
 | cloudtrail | cloudtrail/insightselector | 0 |  | cloudtrail:GetInsightSelectors |
 | cloudtrail | cloudtrail/query | 0 |  | cloudtrail:DescribeQuery, cloudtrail:ListQueries |
-| codeartifact | codeartifact/package | 2 |  | codeartifact:DescribePackage, codeartifact:ListPackages |
+| codeartifact | codeartifact/package | 1 |  | codeartifact:DescribePackage, codeartifact:ListPackages |
 | codeartifact | codeartifact/subpackagegroup | 2 |  | codeartifact:ListSubPackageGroups |
 | codebuild | codebuild/build | 0 |  | codebuild:BatchGetBuilds, codebuild:ListBuilds, codebuild:ListBuildsForProject |
 | codebuild | codebuild/buildbatch | 0 |  | codebuild:BatchGetBuildBatches, codebuild:ListBuildBatches, codebuild:ListBuildBatchesForProject |
@@ -621,8 +620,8 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | codecatalyst | codecatalyst/eventlog | 1 |  | codecatalyst:ListEventLogs |
 | codecatalyst | codecatalyst/project | 1 |  | codecatalyst:GetProject, codecatalyst:ListProjects |
 | codecatalyst | codecatalyst/space | 0 |  | codecatalyst:GetSpace, codecatalyst:ListSpaces |
-| codecatalyst | codecatalyst/workflow | 2 |  | codecatalyst:GetWorkflow, codecatalyst:ListWorkflows |
-| codecatalyst | codecatalyst/workflowrun | 2 |  | codecatalyst:GetWorkflowRun, codecatalyst:ListWorkflowRuns |
+| codecatalyst | codecatalyst/workflow | 1 |  | codecatalyst:GetWorkflow, codecatalyst:ListWorkflows |
+| codecatalyst | codecatalyst/workflowrun | 1 |  | codecatalyst:GetWorkflowRun, codecatalyst:ListWorkflowRuns |
 | codecommit | codecommit/approvalruletemplate | 0 |  | codecommit:GetApprovalRuleTemplate, codecommit:ListApprovalRuleTemplates |
 | codecommit | codecommit/associatedapprovalruletemplate | 1 |  | codecommit:ListAssociatedApprovalRuleTemplatesForRepository |
 | codecommit | codecommit/comment | 1 |  | codecommit:GetComment, codecommit:GetCommentsForComparedCommit, codecommit:GetCommentsForPullRequest |
@@ -697,9 +696,9 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | config | config/aggregateresourceconfig | 1 |  | config:BatchGetAggregateResourceConfig, config:GetAggregateResourceConfig |
 | config | config/compliancedetail | 0 |  | config:GetComplianceDetailsByConfigRule, config:GetComplianceDetailsByResource |
 | config | config/configurationaggregatorsourcesstatus | 1 |  | config:DescribeConfigurationAggregatorSourcesStatus |
-| config | config/conformancepackcompliance | 2 |  | config:DescribeConformancePackCompliance |
-| config | config/conformancepackcompliancedetail | 2 |  | config:GetConformancePackComplianceDetails |
-| config | config/conformancepackcompliancesummary | 2 |  | config:GetConformancePackComplianceSummary |
+| config | config/conformancepackcompliance | 1 |  | config:DescribeConformancePackCompliance |
+| config | config/conformancepackcompliancedetail | 1 |  | config:GetConformancePackComplianceDetails |
+| config | config/conformancepackcompliancesummary | 1 |  | config:GetConformancePackComplianceSummary |
 | config | config/connector | 0 |  | config:GetConnector, config:ListConnectors |
 | config | config/organizationconfigruledetailedstatus | 1 |  | config:GetOrganizationConfigRuleDetailedStatus |
 | config | config/organizationconformancepackdetailedstatus | 1 |  | config:GetOrganizationConformancePackDetailedStatus |
@@ -713,7 +712,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | connect | connect/associatedcontact | 2 |  | connect:ListAssociatedContacts |
 | connect | connect/attachedfilemetadata | 2 |  | connect:BatchGetAttachedFileMetadata |
 | connect | connect/attachedfilesconfiguration | 1 |  | connect:DescribeAttachedFilesConfiguration, connect:ListAttachedFilesConfigurations |
-| connect | connect/childhour | 2 |  | connect:ListChildHoursOfOperations |
+| connect | connect/childhour | 1 |  | connect:ListChildHoursOfOperations |
 | connect | connect/contact | 1 |  | connect:DescribeContact, connect:SearchContacts |
 | connect | connect/contactevaluation | 1 |  | connect:DescribeContactEvaluation, connect:ListContactEvaluations, connect:SearchContactEvaluations |
 | connect | connect/contactmetric | 2 |  | connect:GetContactMetrics |
@@ -723,7 +722,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | connect | connect/evaluationformaiversion | 1 |  | connect:ListEvaluationFormAIVersions |
 | connect | connect/evaluationformversion | 2 |  | connect:ListEvaluationFormVersions |
 | connect | connect/extractiondefinition | 1 |  | connect:DescribeExtractionDefinition, connect:ListExtractionDefinitions |
-| connect | connect/flowassociation | 0 |  | connect:BatchGetFlowAssociation, connect:GetFlowAssociation, connect:ListFlowAssociations |
+| connect | connect/flowassociation | 1 |  | connect:BatchGetFlowAssociation, connect:GetFlowAssociation, connect:ListFlowAssociations |
 | connect | connect/lexbot | 1 |  | connect:ListLexBots |
 | connect | connect/metric | 1 |  | connect:DescribeMetric, connect:ListMetrics, connect:SearchMetrics |
 | connect | connect/queueemailaddress | 2 |  | connect:ListQueueEmailAddresses |
@@ -779,13 +778,13 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | deadline | deadline/farmmember | 1 |  | deadline:ListFarmMembers |
 | deadline | deadline/fleetmember | 2 |  | deadline:ListFleetMembers |
 | deadline | deadline/job | 0 |  | deadline:BatchGetJob, deadline:GetJob, deadline:ListJobs, deadline:SearchJobs |
-| deadline | deadline/jobmember | 3 |  | deadline:ListJobMembers |
+| deadline | deadline/jobmember | 1 |  | deadline:ListJobMembers |
 | deadline | deadline/queuemember | 2 |  | deadline:ListQueueMembers |
 | deadline | deadline/session | 0 |  | deadline:BatchGetSession, deadline:GetSession, deadline:ListSessions, deadline:ListSessionsForWorker |
 | deadline | deadline/sessionaction | 0 |  | deadline:BatchGetSessionAction, deadline:GetSessionAction, deadline:ListSessionActions |
 | deadline | deadline/step | 0 |  | deadline:BatchGetStep, deadline:GetStep, deadline:ListSteps, deadline:SearchSteps |
-| deadline | deadline/stepconsumer | 3 |  | deadline:ListStepConsumers |
-| deadline | deadline/stepdependency | 3 |  | deadline:ListStepDependencies |
+| deadline | deadline/stepconsumer | 1 |  | deadline:ListStepConsumers |
+| deadline | deadline/stepdependency | 1 |  | deadline:ListStepDependencies |
 | deadline | deadline/task | 0 |  | deadline:BatchGetTask, deadline:GetTask, deadline:ListTasks, deadline:SearchTasks |
 | deadline | deadline/worker | 0 |  | deadline:BatchGetWorker, deadline:GetWorker, deadline:ListWorkers, deadline:SearchWorkers |
 | detective | detective/graphmemberdatasource | 1 |  | detective:BatchGetGraphMemberDatasources |
@@ -825,17 +824,22 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | dms | dms/fleetadvisorcollector | 0 |  | dms:DescribeFleetAdvisorCollectors |
 | dms | dms/fleetadvisordatabase | 0 |  | dms:DescribeFleetAdvisorDatabases |
 | dms | dms/fleetadvisorlsaanalysis | 0 |  | dms:DescribeFleetAdvisorLsaAnalysis |
+| dms | dms/metadatamodel | 1 |  | dms:DescribeMetadataModel |
 | dms | dms/metadatamodelassessment | 1 |  | dms:DescribeMetadataModelAssessments |
+| dms | dms/metadatamodelchildren | 1 |  | dms:DescribeMetadataModelChildren |
 | dms | dms/metadatamodelconversion | 1 |  | dms:DescribeMetadataModelConversions |
-| dms | dms/metadatamodelcreation | 0 |  | dms:DescribeMetadataModelCreations |
+| dms | dms/metadatamodelcreation | 1 |  | dms:DescribeMetadataModelCreations |
 | dms | dms/metadatamodelexport | 1 |  | dms:DescribeMetadataModelExportsAsScript |
 | dms | dms/metadatamodelexportstotarget | 1 |  | dms:DescribeMetadataModelExportsToTarget |
-| dms | dms/metadatamodelimport | 0 |  | dms:DescribeMetadataModelImports |
+| dms | dms/metadatamodelimport | 1 |  | dms:DescribeMetadataModelImports |
 | dms | dms/pendingmaintenanceaction | 0 |  | dms:DescribePendingMaintenanceActions |
 | dms | dms/recommendation | 0 |  | dms:DescribeRecommendations |
 | dms | dms/replication | 0 |  | dms:DescribeReplications |
+| dms | dms/replicationinstancetasklog | 1 |  | dms:DescribeReplicationInstanceTaskLogs |
+| dms | dms/replicationtablestatistic | 1 |  | dms:DescribeReplicationTableStatistics |
 | dms | dms/replicationtaskassessmentrun | 0 |  | dms:DescribeReplicationTaskAssessmentRuns |
 | dms | dms/replicationtaskindividualassessment | 0 |  | dms:DescribeReplicationTaskIndividualAssessments |
+| dms | dms/tablestatistic | 1 |  | dms:DescribeTableStatistics |
 | docdb-elastic | docdb-elastic/pendingmaintenanceaction | 0 |  | docdb-elastic:GetPendingMaintenanceAction, docdb-elastic:ListPendingMaintenanceActions |
 | drs | drs/job | 0 |  | drs:DescribeJobs |
 | drs | drs/launchaction | 1 |  | drs:ListLaunchActions |
@@ -867,7 +871,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | dynamodb | dynamodb/import | 0 |  | dynamodb:DescribeImport, dynamodb:ListImports |
 | dynamodb | dynamodb/item | 1 |  | dynamodb:BatchGetItem, dynamodb:GetItem |
 | dynamodb | dynamodb/kinesisstreamingdestination | 1 |  | dynamodb:DescribeKinesisStreamingDestination |
-| dynamodb | dynamodb/record | 2 |  | dynamodb:GetRecords |
+| dynamodb | dynamodb/record | 1 |  | dynamodb:GetRecords |
 | ec2 | ec2/accountvpcencryptioncontrol | 0 |  | ec2:DescribeAccountVpcEncryptionControl |
 | ec2 | ec2/addresstransfer | 0 |  | ec2:DescribeAddressTransfers |
 | ec2 | ec2/allowedimagessetting | 0 |  | ec2:GetAllowedImagesSettings |
@@ -962,13 +966,13 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | ecr-public | ecr-public/registry | 0 |  | ecr-public:DescribeRegistries |
 | ecs | ecs/accountsetting | 0 |  | ecs:ListAccountSettings |
 | ecs | ecs/attribute | 1 |  | ecs:ListAttributes |
-| ecs | ecs/daemondeployment | 2 |  | ecs:DescribeDaemonDeployments, ecs:ListDaemonDeployments |
-| ecs | ecs/daemonrevision | 2 |  | ecs:DescribeDaemonRevisions |
-| ecs | ecs/servicedeployment | 2 |  | ecs:DescribeServiceDeployments, ecs:ListServiceDeployments |
-| ecs | ecs/servicerevision | 2 |  | ecs:DescribeServiceRevisions |
-| ecs | ecs/taskprotection | 2 |  | ecs:GetTaskProtection |
+| ecs | ecs/daemondeployment | 1 |  | ecs:DescribeDaemonDeployments, ecs:ListDaemonDeployments |
+| ecs | ecs/daemonrevision | 1 |  | ecs:DescribeDaemonRevisions |
+| ecs | ecs/servicedeployment | 1 |  | ecs:DescribeServiceDeployments, ecs:ListServiceDeployments |
+| ecs | ecs/servicerevision | 1 |  | ecs:DescribeServiceRevisions |
+| ecs | ecs/taskprotection | 1 |  | ecs:GetTaskProtection |
 | eks | eks/accesspolicy | 0 |  | eks:ListAccessPolicies |
-| eks | eks/associatedaccesspolicy | 5 |  | eks:ListAssociatedAccessPolicies |
+| eks | eks/associatedaccesspolicy | 2 |  | eks:ListAssociatedAccessPolicies |
 | eks | eks/clusterversion | 0 |  | eks:DescribeClusterVersions |
 | elasticache | elasticache/cacheparameter | 1 |  | elasticache:DescribeCacheParameters |
 | elasticache | elasticache/reservedcachenodesoffering | 0 |  | elasticache:DescribeReservedCacheNodesOfferings |
@@ -977,10 +981,10 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | elasticbeanstalk | elasticbeanstalk/environmentmanagedaction | 0 |  | elasticbeanstalk:DescribeEnvironmentManagedActions |
 | elasticfilesystem | elasticfilesystem/accountpreference | 0 |  | elasticfilesystem:DescribeAccountPreferences |
 | elasticfilesystem | elasticfilesystem/replicationconfiguration | 0 |  | elasticfilesystem:DescribeReplicationConfigurations |
-| elasticloadbalancing | elasticloadbalancing/instancehealth | 2 |  | elasticloadbalancing:DescribeInstanceHealth |
+| elasticloadbalancing | elasticloadbalancing/instancehealth | 1 |  | elasticloadbalancing:DescribeInstanceHealth |
 | elasticloadbalancing | elasticloadbalancing/loadbalancerpolicy | 0 |  | elasticloadbalancing:DescribeLoadBalancerPolicies |
 | elasticloadbalancing | elasticloadbalancing/tag | 0 |  | elasticloadbalancing:DescribeTags |
-| elasticloadbalancing | elasticloadbalancing/truststoreassociation | 2 |  | elasticloadbalancing:DescribeTrustStoreAssociations |
+| elasticloadbalancing | elasticloadbalancing/truststoreassociation | 1 |  | elasticloadbalancing:DescribeTrustStoreAssociations |
 | elasticmapreduce | elasticmapreduce/bootstrapaction | 1 |  | elasticmapreduce:ListBootstrapActions |
 | elasticmapreduce | elasticmapreduce/instance | 1 |  | elasticmapreduce:ListInstances |
 | elasticmapreduce | elasticmapreduce/jobflow | 0 |  | elasticmapreduce:DescribeJobFlows |
@@ -1070,9 +1074,11 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | geo | geo/devicepositionhistory | 1 |  | geo:GetDevicePositionHistory |
 | geo | geo/geofence | 1 |  | geo:GetGeofence, geo:ListGeofences |
 | geo | geo/job | 0 |  | geo:GetJob, geo:ListJobs |
+| geo-places | geo-places/nearby | 1 |  | geo-places:SearchNearby |
+| geo-places | geo-places/place | 1 |  | geo-places:GetPlace |
 | glacier | glacier/job | 1 |  | glacier:DescribeJob, glacier:ListJobs |
 | glacier | glacier/multipartupload | 1 |  | glacier:ListMultipartUploads |
-| glacier | glacier/provisionedcapacity | 1 |  | glacier:ListProvisionedCapacity |
+| glacier | glacier/provisionedcapacity | 0 |  | glacier:ListProvisionedCapacity |
 | globalaccelerator | globalaccelerator/byoipcidr | 0 |  | globalaccelerator:ListByoipCidrs |
 | globalaccelerator | globalaccelerator/crossaccountresource | 1 |  | globalaccelerator:ListCrossAccountResources |
 | globalaccelerator | globalaccelerator/customroutingaccelerator | 0 |  | globalaccelerator:DescribeCustomRoutingAccelerator, globalaccelerator:ListCustomRoutingAccelerators |
@@ -1140,13 +1146,11 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | iam | iam/entity | 1 |  | iam:ListEntitiesForPolicy |
 | iam | iam/loginprofile | 0 |  | iam:GetLoginProfile |
 | iam | iam/mfadevice | 0 |  | iam:GetMFADevice, iam:ListMFADevices |
-| iam | iam/organizationsaccessreport | 1 |  | iam:GetOrganizationsAccessReport |
 | iam | iam/policyversion | 1 |  | iam:GetPolicyVersion, iam:ListPolicyVersions |
-| iam | iam/servicelastaccesseddetail | 1 |  | iam:GetServiceLastAccessedDetails |
 | iam | iam/servicespecificcredential | 0 |  | iam:ListServiceSpecificCredentials |
 | iam | iam/signingcertificate | 0 |  | iam:ListSigningCertificates |
 | iam | iam/sshpublickey | 0 |  | iam:GetSSHPublicKey, iam:ListSSHPublicKeys |
-| imagebuilder | imagebuilder/imagepackage | 3 |  | imagebuilder:ListImagePackages |
+| imagebuilder | imagebuilder/imagepackage | 1 |  | imagebuilder:ListImagePackages |
 | imagebuilder | imagebuilder/imagepipelineimage | 1 |  | imagebuilder:ListImagePipelineImages |
 | imagebuilder | imagebuilder/lifecycleexecution | 0 |  | imagebuilder:GetLifecycleExecution, imagebuilder:ListLifecycleExecutions |
 | imagebuilder | imagebuilder/lifecycleexecutionresource | 1 |  | imagebuilder:ListLifecycleExecutionResources |
@@ -1158,8 +1162,9 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | inspector | inspector/assessmenttemplate | 0 |  | inspector:DescribeAssessmentTemplates, inspector:ListAssessmentTemplates |
 | inspector | inspector/exclusion | 0 |  | inspector:DescribeExclusions, inspector:ListExclusions |
 | inspector | inspector/resourcegroup | 0 |  | inspector:DescribeResourceGroups |
+| inspector2 | inspector2/cisscanresultdetail | 1 |  | inspector2:GetCisScanResultDetails |
 | inspector2 | inspector2/cisscanresultsaggregated | 1 |  | inspector2:ListCisScanResultsAggregatedByChecks, inspector2:ListCisScanResultsAggregatedByTargetResource |
-| inspector2 | inspector2/cluster | 2 |  | inspector2:GetClustersForImage |
+| inspector2 | inspector2/cluster | 1 |  | inspector2:GetClustersForImage |
 | inspector2 | inspector2/codesnippet | 1 |  | inspector2:BatchGetCodeSnippet |
 | inspector2 | inspector2/connector | 0 |  | inspector2:ListConnectors |
 | inspector2 | inspector2/connectorscanconfiguration | 0 |  | inspector2:ListConnectorScanConfigurations |
@@ -1233,7 +1238,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | iotsitewise | iotsitewise/timeseries | 0 |  | iotsitewise:DescribeTimeSeries, iotsitewise:ListTimeSeries |
 | iotsitewise | iotsitewise/workspace | 0 |  | iotsitewise:DescribeWorkspace, iotsitewise:ListWorkspaces |
 | iotthingsgraph | iotthingsgraph/flowexecution | 1 |  | iotthingsgraph:SearchFlowExecutions |
-| iotthingsgraph | iotthingsgraph/flowexecutionmessage | 1 |  | iotthingsgraph:ListFlowExecutionMessages |
+| iotthingsgraph | iotthingsgraph/flowexecutionmessage | 2 |  | iotthingsgraph:ListFlowExecutionMessages |
 | iotthingsgraph | iotthingsgraph/thing | 1 |  | iotthingsgraph:SearchThings |
 | iottwinmaker | iottwinmaker/component | 2 |  | iottwinmaker:ListComponents |
 | iottwinmaker | iottwinmaker/metadatatransferjob | 0 |  | iottwinmaker:GetMetadataTransferJob, iottwinmaker:ListMetadataTransferJobs |
@@ -1250,12 +1255,12 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | ivs | ivs/stagesession | 1 |  | ivs:GetStageSession, ivs:ListStageSessions |
 | ivs | ivs/stream | 0 |  | ivs:GetStream, ivs:ListStreams |
 | ivs | ivs/streamsession | 1 |  | ivs:GetStreamSession, ivs:ListStreamSessions |
-| kafka | kafka/channel | 2 |  | kafka:DescribeChannel, kafka:ListChannels |
-| kafka | kafka/clientvpcconnection | 2 |  | kafka:ListClientVpcConnections |
+| kafka | kafka/channel | 1 |  | kafka:DescribeChannel, kafka:ListChannels |
+| kafka | kafka/clientvpcconnection | 1 |  | kafka:ListClientVpcConnections |
 | kafka | kafka/clusteroperation | 0 |  | kafka:DescribeClusterOperation, kafka:DescribeClusterOperationV2, kafka:ListClusterOperations, kafka:ListClusterOperationsV2 |
-| kafka | kafka/node | 2 |  | kafka:ListNodes |
-| kafka | kafka/topic | 2 |  | kafka:DescribeTopic, kafka:ListTopics |
-| kafkaconnect | kafkaconnect/connectoroperation | 2 |  | kafkaconnect:DescribeConnectorOperation, kafkaconnect:ListConnectorOperations |
+| kafka | kafka/node | 1 |  | kafka:ListNodes |
+| kafka | kafka/topic | 1 |  | kafka:DescribeTopic, kafka:ListTopics |
+| kafkaconnect | kafkaconnect/connectoroperation | 1 |  | kafkaconnect:DescribeConnectorOperation, kafkaconnect:ListConnectorOperations |
 | kendra | kendra/datasourcesyncjob | 2 |  | kendra:ListDataSourceSyncJobs |
 | kendra | kendra/documentstatus | 1 |  | kendra:BatchGetDocumentStatus |
 | kendra | kendra/entitypersona | 2 |  | kendra:ListEntityPersonas |
@@ -1277,8 +1282,8 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | lakeformation | lakeformation/lftagexpression | 0 |  | lakeformation:GetLFTagExpression, lakeformation:ListLFTagExpressions |
 | lakeformation | lakeformation/transaction | 0 |  | lakeformation:DescribeTransaction, lakeformation:ListTransactions |
 | lambda | lambda/durableexecution | 1 |  | lambda:GetDurableExecution, lambda:ListDurableExecutionsByFunction |
-| lambda | lambda/durableexecutionhistory | 4 |  | lambda:GetDurableExecutionHistory |
-| lambda | lambda/durableexecutionstate | 4 |  | lambda:GetDurableExecutionState |
+| lambda | lambda/durableexecutionhistory | 2 |  | lambda:GetDurableExecutionHistory |
+| lambda | lambda/durableexecutionstate | 2 |  | lambda:GetDurableExecutionState |
 | lambda | lambda/functionconfiguration | 1 |  | lambda:GetFunctionConfiguration |
 | lambda | lambda/managedmicrovmimageversion | 1 |  | lambda:ListManagedMicrovmImageVersions |
 | lambda | lambda/microvm | 0 |  | lambda:GetMicrovm, lambda:ListMicrovms |
@@ -1307,7 +1312,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | lex | lex/sessionanalyticsdata | 1 |  | lex:ListSessionAnalyticsData |
 | lex | lex/slot | 1 |  | lex:DescribeSlot, lex:ListSlots |
 | lex | lex/slottype | 0 |  | lex:DescribeSlotType, lex:GetSlotType, lex:GetSlotTypes, lex:ListSlotTypes |
-| lex | lex/slottypeversion | 1 |  | lex:GetSlotTypeVersions |
+| lex | lex/slottypeversion | 2 |  | lex:GetSlotTypeVersions |
 | lex | lex/testexecution | 0 |  | lex:DescribeTestExecution, lex:ListTestExecutions |
 | lex | lex/testsetrecord | 1 |  | lex:ListTestSetRecords |
 | lex | lex/utteranceanalyticsdata | 1 |  | lex:ListUtteranceAnalyticsData |
@@ -1341,11 +1346,11 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | logs | logs/source | 1 |  | logs:ListSourcesForS3TableIntegration |
 | logs | logs/syslogconfiguration | 0 |  | logs:ListSyslogConfigurations |
 | lookoutequipment | lookoutequipment/dataingestionjob | 0 |  | lookoutequipment:DescribeDataIngestionJob, lookoutequipment:ListDataIngestionJobs |
-| lookoutequipment | lookoutequipment/inferenceevent | 2 |  | lookoutequipment:ListInferenceEvents |
-| lookoutequipment | lookoutequipment/inferenceexecution | 2 |  | lookoutequipment:ListInferenceExecutions |
-| lookoutequipment | lookoutequipment/label | 2 |  | lookoutequipment:DescribeLabel, lookoutequipment:ListLabels |
+| lookoutequipment | lookoutequipment/inferenceevent | 1 |  | lookoutequipment:ListInferenceEvents |
+| lookoutequipment | lookoutequipment/inferenceexecution | 1 |  | lookoutequipment:ListInferenceExecutions |
+| lookoutequipment | lookoutequipment/label | 1 |  | lookoutequipment:DescribeLabel, lookoutequipment:ListLabels |
 | lookoutequipment | lookoutequipment/retrainingscheduler | 0 |  | lookoutequipment:DescribeRetrainingScheduler, lookoutequipment:ListRetrainingSchedulers |
-| lookoutequipment | lookoutequipment/sensorstatistic | 2 |  | lookoutequipment:ListSensorStatistics |
+| lookoutequipment | lookoutequipment/sensorstatistic | 1 |  | lookoutequipment:ListSensorStatistics |
 | m2 | m2/batchjobexecution | 1 |  | m2:GetBatchJobExecution, m2:ListBatchJobExecutions |
 | m2 | m2/batchjobrestartpoint | 1 |  | m2:ListBatchJobRestartPoints |
 | m2 | m2/dataset | 1 |  | m2:ListDataSets |
@@ -1364,7 +1369,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | managedblockchain | managedblockchain/invitation | 0 |  | managedblockchain:ListInvitations |
 | managedblockchain | managedblockchain/proposalvote | 1 |  | managedblockchain:ListProposalVotes |
 | mediaconnect | mediaconnect/entitlement | 0 |  | mediaconnect:ListEntitlements |
-| mediaconnect | mediaconnect/flowsourcemetadata | 2 |  | mediaconnect:DescribeFlowSourceMetadata |
+| mediaconnect | mediaconnect/flowsourcemetadata | 1 |  | mediaconnect:DescribeFlowSourceMetadata |
 | mediaconnect | mediaconnect/gatewayinstance | 0 |  | mediaconnect:DescribeGatewayInstance, mediaconnect:ListGatewayInstances |
 | mediaconnect | mediaconnect/offering | 0 |  | mediaconnect:DescribeOffering, mediaconnect:ListOfferings |
 | mediaconvert | mediaconvert/job | 0 |  | mediaconvert:GetJob, mediaconvert:ListJobs, mediaconvert:SearchJobs |
@@ -1386,11 +1391,11 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | memorydb | memorydb/parameter | 1 |  | memorydb:DescribeParameters |
 | memorydb | memorydb/reservednodesoffering | 0 |  | memorydb:DescribeReservedNodesOfferings |
 | mgh | mgh/applicationstate | 0 |  | mgh:DescribeApplicationState, mgh:ListApplicationStates |
-| mgh | mgh/createdartifact | 2 |  | mgh:ListCreatedArtifacts |
-| mgh | mgh/discoveredresource | 2 |  | mgh:ListDiscoveredResources |
+| mgh | mgh/createdartifact | 1 |  | mgh:ListCreatedArtifacts |
+| mgh | mgh/discoveredresource | 1 |  | mgh:ListDiscoveredResources |
 | mgh | mgh/homeregioncontrol | 0 |  | mgh:DescribeHomeRegionControls |
 | mgh | mgh/migrationtask | 0 |  | mgh:DescribeMigrationTask, mgh:ListMigrationTasks |
-| mgh | mgh/sourceresource | 2 |  | mgh:ListSourceResources |
+| mgh | mgh/sourceresource | 1 |  | mgh:ListSourceResources |
 | mgn | mgn/export | 0 |  | mgn:ListExports |
 | mgn | mgn/import | 0 |  | mgn:ListImports |
 | mgn | mgn/importfileenrichment | 0 |  | mgn:ListImportFileEnrichments |
@@ -1425,7 +1430,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | mpa | mpa/policyversion | 0 |  | mpa:GetPolicyVersion, mpa:ListPolicyVersions |
 | mpa | mpa/resourcepolicy | 0 |  | mpa:GetResourcePolicy, mpa:ListResourcePolicies |
 | mpa | mpa/session | 0 |  | mpa:GetSession, mpa:ListSessions |
-| mq | mq/sharedresource | 2 |  | mq:DescribeSharedResources |
+| mq | mq/sharedresource | 1 |  | mq:DescribeSharedResources |
 | mturk-requester | mturk-requester/assignment | 0 |  | mturk-requester:GetAssignment, mturk-requester:ListAssignmentsForHIT |
 | mturk-requester | mturk-requester/hit | 0 |  | mturk-requester:GetHIT, mturk-requester:ListHITs, mturk-requester:ListHITsForQualificationType |
 | mturk-requester | mturk-requester/workerswithqualificationtype | 1 |  | mturk-requester:ListWorkersWithQualificationType |
@@ -1539,9 +1544,11 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | quicksight | quicksight/dlpsetting | 0 |  | quicksight:DescribeDlpSetting, quicksight:ListDlpSettings |
 | quicksight | quicksight/foldermember | 1 |  | quicksight:ListFolderMembers |
 | quicksight | quicksight/groupmembership | 1 |  | quicksight:DescribeGroupMembership, quicksight:ListGroupMemberships |
+| quicksight | quicksight/identitypropagationconfig | 0 |  | quicksight:ListIdentityPropagationConfigs |
 | quicksight | quicksight/ingestion | 1 |  | quicksight:DescribeIngestion, quicksight:ListIngestions |
-| quicksight | quicksight/keyregistration | 1 |  | quicksight:DescribeKeyRegistration |
+| quicksight | quicksight/keyregistration | 0 |  | quicksight:DescribeKeyRegistration |
 | quicksight | quicksight/limitsprofile | 0 |  | quicksight:DescribeLimitsProfile, quicksight:ListLimitsProfiles |
+| quicksight | quicksight/rolemembership | 0 |  | quicksight:ListRoleMemberships |
 | quicksight | quicksight/selfupgrade | 1 |  | quicksight:ListSelfUpgrades |
 | quicksight | quicksight/spaceresource | 1 |  | quicksight:ListSpaceResources |
 | quicksight | quicksight/templatealias | 1 |  | quicksight:DescribeTemplateAlias, quicksight:ListTemplateAliases |
@@ -1551,7 +1558,6 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | quicksight | quicksight/topicrefreshschedule | 1 |  | quicksight:DescribeTopicRefreshSchedule, quicksight:ListTopicRefreshSchedules |
 | quicksight | quicksight/topicreviewedanswer | 1 |  | quicksight:ListTopicReviewedAnswers |
 | quicksight | quicksight/usergroup | 1 |  | quicksight:ListUserGroups |
-| quicksight | quicksight/usersindexcapacity | 1 |  | quicksight:ListUsersIndexCapacity |
 | ram | ram/pendinginvitationresource | 1 |  | ram:ListPendingInvitationResources |
 | ram | ram/permissionassociation | 0 |  | ram:ListPermissionAssociations |
 | ram | ram/resourceshareinvitation | 0 |  | ram:GetResourceShareInvitations |
@@ -1584,10 +1590,18 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | redshift-serverless | redshift-serverless/snapshotcopyconfiguration | 0 |  | redshift-serverless:ListSnapshotCopyConfigurations |
 | redshift-serverless | redshift-serverless/usagelimit | 0 |  | redshift-serverless:GetUsageLimit, redshift-serverless:ListUsageLimits |
 | refactor-spaces | refactor-spaces/environmentvpc | 1 |  | refactor-spaces:ListEnvironmentVpcs |
+| rekognition | rekognition/celebrityrecognition | 0 |  | rekognition:GetCelebrityRecognition |
+| rekognition | rekognition/contentmoderation | 0 |  | rekognition:GetContentModeration |
 | rekognition | rekognition/datasetlabel | 3 |  | rekognition:ListDatasetLabels |
 | rekognition | rekognition/face | 1 |  | rekognition:ListFaces, rekognition:SearchFaces, rekognition:SearchFacesByImage |
+| rekognition | rekognition/facedetection | 0 |  | rekognition:GetFaceDetection |
+| rekognition | rekognition/facesearch | 0 |  | rekognition:GetFaceSearch |
+| rekognition | rekognition/labeldetection | 0 |  | rekognition:GetLabelDetection |
 | rekognition | rekognition/mediaanalysisjob | 0 |  | rekognition:GetMediaAnalysisJob, rekognition:ListMediaAnalysisJobs |
-| rekognition | rekognition/projectpolicy | 2 |  | rekognition:ListProjectPolicies |
+| rekognition | rekognition/persontracking | 0 |  | rekognition:GetPersonTracking |
+| rekognition | rekognition/projectpolicy | 1 |  | rekognition:ListProjectPolicies |
+| rekognition | rekognition/segmentdetection | 0 |  | rekognition:GetSegmentDetection |
+| rekognition | rekognition/textdetection | 0 |  | rekognition:GetTextDetection |
 | rekognition | rekognition/user | 1 |  | rekognition:ListUsers, rekognition:SearchUsers, rekognition:SearchUsersByImage |
 | repostspace | repostspace/channel | 1 |  | repostspace:GetChannel, repostspace:ListChannels |
 | resiliencehub | resiliencehub/alarmrecommendation | 1 |  | resiliencehub:ListAlarmRecommendations |
@@ -1662,7 +1676,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | s3 | s3/objectannotation | 2 |  | s3:GetObjectAnnotation, s3:ListObjectAnnotations |
 | s3 | s3/objectversion | 1 |  | s3:ListObjectVersions |
 | s3-outposts | s3-outposts/sharedendpoint | 1 |  | s3-outposts:ListSharedEndpoints |
-| s3tables | s3tables/tablereplicationstatus | 2 |  | s3tables:GetTableReplicationStatus |
+| s3tables | s3tables/tablereplicationstatus | 1 |  | s3tables:GetTableReplicationStatus |
 | s3vectors | s3vectors/vector | 0 |  | s3vectors:GetVectors, s3vectors:ListVectors |
 | sagemaker | sagemaker/aibenchmarkjob | 0 |  | sagemaker:DescribeAIBenchmarkJob, sagemaker:ListAIBenchmarkJobs |
 | sagemaker | sagemaker/airecommendationjob | 0 |  | sagemaker:DescribeAIRecommendationJob, sagemaker:ListAIRecommendationJobs |
@@ -1673,14 +1687,14 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | sagemaker | sagemaker/clusterevent | 1 |  | sagemaker:DescribeClusterEvent, sagemaker:ListClusterEvents |
 | sagemaker | sagemaker/clusternode | 1 |  | sagemaker:DescribeClusterNode, sagemaker:ListClusterNodes |
 | sagemaker | sagemaker/compilationjob | 0 |  | sagemaker:DescribeCompilationJob, sagemaker:ListCompilationJobs |
-| sagemaker | sagemaker/deployment | 2 |  | sagemaker:GetDeployments |
+| sagemaker | sagemaker/deployment | 1 |  | sagemaker:GetDeployments |
 | sagemaker | sagemaker/devicefleetreport | 1 |  | sagemaker:GetDeviceFleetReport |
 | sagemaker | sagemaker/edgepackagingjob | 0 |  | sagemaker:DescribeEdgePackagingJob, sagemaker:ListEdgePackagingJobs |
-| sagemaker | sagemaker/hubcontentversion | 3 |  | sagemaker:ListHubContentVersions |
+| sagemaker | sagemaker/hubcontentversion | 2 |  | sagemaker:ListHubContentVersions |
 | sagemaker | sagemaker/humanloop | 0 |  | sagemaker:DescribeHumanLoop, sagemaker:ListHumanLoops |
 | sagemaker | sagemaker/hyperparametertuningjob | 0 |  | sagemaker:DescribeHyperParameterTuningJob, sagemaker:ListHyperParameterTuningJobs |
 | sagemaker | sagemaker/inferencerecommendationsjob | 0 |  | sagemaker:DescribeInferenceRecommendationsJob, sagemaker:ListInferenceRecommendationsJobs |
-| sagemaker | sagemaker/inferencerecommendationsjobstep | 2 |  | sagemaker:ListInferenceRecommendationsJobSteps |
+| sagemaker | sagemaker/inferencerecommendationsjobstep | 1 |  | sagemaker:ListInferenceRecommendationsJobSteps |
 | sagemaker | sagemaker/job | 0 |  | sagemaker:DescribeJob, sagemaker:ListJobs |
 | sagemaker | sagemaker/labelingjob | 0 |  | sagemaker:DescribeLabelingJob, sagemaker:ListLabelingJobs, sagemaker:ListLabelingJobsForWorkteam |
 | sagemaker | sagemaker/modelcardexportjob | 1 |  | sagemaker:DescribeModelCardExportJob, sagemaker:ListModelCardExportJobs |
@@ -1726,11 +1740,12 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | securityagent | securityagent/threatmodeljobtask | 1 |  | securityagent:BatchGetThreatModelJobTasks, securityagent:ListThreatModelJobTasks |
 | securityhub | securityhub/actiontarget | 0 |  | securityhub:DescribeActionTargets |
 | securityhub | securityhub/finding | 0 |  | securityhub:GetFindings, securityhub:GetFindingsV2 |
+| securityhub | securityhub/findinghistory | 1 |  | securityhub:GetFindingHistory |
 | securityhub | securityhub/invitation | 0 |  | securityhub:ListInvitations |
 | securityhub | securityhub/member | 0 |  | securityhub:GetMembers, securityhub:ListMembers |
 | securityhub | securityhub/organizationadminaccount | 0 |  | securityhub:ListOrganizationAdminAccounts |
 | securityhub | securityhub/product | 0 |  | securityhub:DescribeProducts, securityhub:DescribeProductsV2 |
-| securityhub | securityhub/standardscontrol | 0 |  | securityhub:DescribeStandardsControls |
+| securityhub | securityhub/standardscontrol | 1 |  | securityhub:DescribeStandardsControls |
 | securityhub | securityhub/standardscontrolassociation | 0 |  | securityhub:BatchGetStandardsControlAssociations, securityhub:ListStandardsControlAssociations |
 | securitylake | securitylake/datalakeorganizationconfiguration | 0 |  | securitylake:GetDataLakeOrganizationConfiguration |
 | serverlessrepo | serverlessrepo/applicationdependency | 1 |  | serverlessrepo:ListApplicationDependencies |
@@ -1761,7 +1776,7 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | ses | ses/messageinsight | 1 |  | ses:GetMessageInsights |
 | ses | ses/metricdata | 1 |  | ses:BatchGetMetricData |
 | ses | ses/suppresseddestination | 0 |  | ses:GetSuppressedDestination, ses:ListSuppressedDestinations |
-| ses | ses/tenantresource | 2 |  | ses:ListTenantResources |
+| ses | ses/tenantresource | 1 |  | ses:ListTenantResources |
 | shield | shield/attack | 0 |  | shield:DescribeAttack, shield:ListAttacks |
 | shield | shield/resource | 1 |  | shield:ListResourcesInProtectionGroup |
 | signer | signer/signingjob | 0 |  | signer:DescribeSigningJob, signer:ListSigningJobs |
@@ -1817,15 +1832,15 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | ssm-contacts | ssm-contacts/previewrotationshift | 1 |  | ssm-contacts:ListPreviewRotationShifts |
 | ssm-contacts | ssm-contacts/rotationoverride | 1 |  | ssm-contacts:GetRotationOverride, ssm-contacts:ListRotationOverrides |
 | ssm-contacts | ssm-contacts/rotationshift | 1 |  | ssm-contacts:ListRotationShifts |
-| ssm-incidents | ssm-incidents/incidentfinding | 2 |  | ssm-incidents:BatchGetIncidentFindings, ssm-incidents:ListIncidentFindings |
+| ssm-incidents | ssm-incidents/incidentfinding | 1 |  | ssm-incidents:BatchGetIncidentFindings, ssm-incidents:ListIncidentFindings |
 | ssm-incidents | ssm-incidents/incidentrecord | 0 |  | ssm-incidents:GetIncidentRecord, ssm-incidents:ListIncidentRecords |
-| ssm-incidents | ssm-incidents/relateditem | 2 |  | ssm-incidents:ListRelatedItems |
+| ssm-incidents | ssm-incidents/relateditem | 1 |  | ssm-incidents:ListRelatedItems |
 | ssm-incidents | ssm-incidents/resourcepolicy | 1 |  | ssm-incidents:GetResourcePolicies |
-| ssm-incidents | ssm-incidents/timelineevent | 2 |  | ssm-incidents:GetTimelineEvent, ssm-incidents:ListTimelineEvents |
-| ssm-sap | ssm-sap/configurationcheckoperation | 2 |  | ssm-sap:GetConfigurationCheckOperation, ssm-sap:ListConfigurationCheckOperations |
+| ssm-incidents | ssm-incidents/timelineevent | 1 |  | ssm-incidents:GetTimelineEvent, ssm-incidents:ListTimelineEvents |
+| ssm-sap | ssm-sap/configurationcheckoperation | 1 |  | ssm-sap:GetConfigurationCheckOperation, ssm-sap:ListConfigurationCheckOperations |
 | ssm-sap | ssm-sap/operation | 0 |  | ssm-sap:GetOperation, ssm-sap:ListOperations |
 | ssm-sap | ssm-sap/subcheckresult | 1 |  | ssm-sap:ListSubCheckResults |
-| ssm-sap | ssm-sap/subcheckruleresult | 1 |  | ssm-sap:ListSubCheckRuleResults |
+| ssm-sap | ssm-sap/subcheckruleresult | 2 |  | ssm-sap:ListSubCheckRuleResults |
 | sso | sso/accountassignmentcreationstatus | 1 |  | sso:DescribeAccountAssignmentCreationStatus, sso:ListAccountAssignmentCreationStatus |
 | sso | sso/accountassignmentdeletionstatus | 1 |  | sso:DescribeAccountAssignmentDeletionStatus, sso:ListAccountAssignmentDeletionStatus |
 | sso | sso/customermanagedpolicyreference | 2 |  | sso:ListCustomerManagedPolicyReferencesInPermissionSet |
@@ -1833,16 +1848,16 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | sso | sso/permissionsetprovisioningstatus | 1 |  | sso:DescribePermissionSetProvisioningStatus, sso:ListPermissionSetProvisioningStatus |
 | sso | sso/region | 1 |  | sso:DescribeRegion, sso:ListRegions |
 | states | states/execution | 0 |  | states:DescribeExecution, states:ListExecutions |
-| states | states/executionhistory | 2 |  | states:GetExecutionHistory |
-| states | states/maprun | 2 |  | states:DescribeMapRun, states:ListMapRuns |
+| states | states/executionhistory | 1 |  | states:GetExecutionHistory |
+| states | states/maprun | 1 |  | states:DescribeMapRun, states:ListMapRuns |
 | storagegateway | storagegateway/automatictapecreationpolicy | 0 |  | storagegateway:ListAutomaticTapeCreationPolicies |
 | storagegateway | storagegateway/cache | 1 |  | storagegateway:DescribeCache |
-| storagegateway | storagegateway/cachediscsivolume | 2 |  | storagegateway:DescribeCachediSCSIVolumes |
+| storagegateway | storagegateway/cachediscsivolume | 1 |  | storagegateway:DescribeCachediSCSIVolumes |
 | storagegateway | storagegateway/chapcredential | 2 |  | storagegateway:DescribeChapCredentials |
 | storagegateway | storagegateway/localdisk | 1 |  | storagegateway:ListLocalDisks |
 | storagegateway | storagegateway/nfsfileshare | 1 |  | storagegateway:DescribeNFSFileShares |
 | storagegateway | storagegateway/smbfileshare | 1 |  | storagegateway:DescribeSMBFileShares |
-| storagegateway | storagegateway/storediscsivolume | 2 |  | storagegateway:DescribeStorediSCSIVolumes |
+| storagegateway | storagegateway/storediscsivolume | 1 |  | storagegateway:DescribeStorediSCSIVolumes |
 | storagegateway | storagegateway/tapearchive | 0 |  | storagegateway:DescribeTapeArchives |
 | storagegateway | storagegateway/taperecoverypoint | 1 |  | storagegateway:DescribeTapeRecoveryPoints |
 | storagegateway | storagegateway/uploadbuffer | 1 |  | storagegateway:DescribeUploadBuffer |
@@ -1860,8 +1875,10 @@ Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 | synthetics | synthetics/canaryrun | 1 |  | synthetics:GetCanaryRuns |
 | tax | tax/supplementaltaxregistration | 0 |  | tax:ListSupplementalTaxRegistrations |
 | tax | tax/taxregistration | 0 |  | tax:GetTaxRegistration, tax:ListTaxRegistrations |
-| textract | textract/documentanalysis | 1 |  | textract:GetDocumentAnalysis |
-| textract | textract/documenttextdetection | 1 |  | textract:GetDocumentTextDetection |
+| textract | textract/documentanalysis | 0 |  | textract:GetDocumentAnalysis |
+| textract | textract/documenttextdetection | 0 |  | textract:GetDocumentTextDetection |
+| textract | textract/expenseanalysis | 0 |  | textract:GetExpenseAnalysis |
+| textract | textract/lendinganalysis | 0 |  | textract:GetLendingAnalysis |
 | timestream | timestream/batchloadtask | 0 |  | timestream:DescribeBatchLoadTask, timestream:ListBatchLoadTasks |
 | timestream-influxdb | timestream-influxdb/dbbackup | 0 |  | timestream-influxdb:GetDbBackup, timestream-influxdb:ListDbBackups |
 | transcribe | transcribe/callanalyticsjob | 0 |  | transcribe:GetCallAnalyticsJob, transcribe:ListCallAnalyticsJobs |
