@@ -256,6 +256,12 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   namespace for `*`. `providers` is in `scopeNames`, so the trailing `providers/{param}` pair of
   that form strips instead of keying `microsoft.features/providers/features`.
   `armresources`/`armsubscriptions` own paths without `providers/` (`microsoft.resources/resourcegroups`).
+- A trailing static singleton (`default`, `current`) after a collection name is the **item id**,
+  not another collection (`sdkinv.singletonIDs`, applied in `StripScopes`): `.../blobServices/default`
+  is the one blob service. Reading it as a collection discarded the PUT on that path into
+  `Universe.Other`, so 114 rows were `no-item-path` non-resources while the cache plainly showed
+  GET+PUT, and 171 keys carried a `default` segment no scanner could ever match. It is a grammar
+  rule about ARM ids; do not extend it into a list of resource names.
 - Scope pairs (`subscriptions/{}`, `resourceGroups/{}`, `locations/{}`, `managementGroups/{}`)
   strip only when more path follows, so a trailing container (`resourceGroups`) stays a
   candidate; `{scope}` as first param → `extension` scope (role assignments).
@@ -272,6 +278,10 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 - `scopeOf` reads scope pairs from the **whole** template (a `managementGroups/{}` pair sits after
   the namespace in microsoft.management's own paths) but decides `extension` on the prefix before
   the namespace only — a `providers/{param}` pair there is the parent the caller names.
+- A collection every one of whose listers is reached through a `locations/{location}` pair
+  carries `scope-pair:locations`: the key strips the pair and the ARM type name keeps it, so
+  `internal/providers/azure`'s `RegistryKey` puts it back for `--cross-check`. A sibling lister
+  on a path without the pair clears it — then ARM has no `locations` in the type either.
 - A lister with no item path whose result element matches a same-module entry that does write is
   folded into that entry as an extra op under the `alternate-lister` signal (87 rows, e.g.
   `microsoft.sql/servers/replicationlinks` into `…/servers/databases/replicationlinks`). Judged on

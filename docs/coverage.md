@@ -2128,7 +2128,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 ## AZURE
 
-**Coverage:** 16.1% (395/2449 listable) · depth0 45.2% · depth1 3.2% · depth2 4.5% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 1201 · disco-only 8 (0 unexplained)
+**Coverage:** 15.8% (398/2515 listable) · depth0 44.1% · depth1 3.2% · depth2 4.2% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 1009 · disco-only 8 (0 unexplained)
 
 Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 
@@ -2136,96 +2136,98 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| item-write | 386 | 1573 | 19.7 |
-| arm-envelope | 9 | 481 | 1.8 |
+| item-write | 388 | 1618 | 19.3 |
+| arm-envelope | 10 | 499 | 2.0 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
-| microsoft.apimanagement | 1 | 105 | 0.9 |
-| microsoft.network | 57 | 97 | 37.0 |
-| microsoft.web | 9 | 86 | 9.5 |
+| microsoft.apimanagement | 1 | 107 | 0.9 |
+| microsoft.network | 57 | 100 | 36.3 |
+| microsoft.web | 10 | 88 | 10.2 |
 | microsoft.sql | 41 | 76 | 35.0 |
-| microsoft.security | 1 | 52 | 1.9 |
+| microsoft.security | 1 | 57 | 1.7 |
 | microsoft.machinelearningservices | 2 | 50 | 3.8 |
 | microsoft.migrate | 1 | 45 | 2.2 |
 | microsoft.synapse | 2 | 41 | 4.7 |
 | microsoft.billing | 0 | 38 | 0.0 |
 | microsoft.documentdb | 4 | 37 | 9.8 |
 | microsoft.securityinsights | 0 | 37 | 0.0 |
+| microsoft.containerservice | 3 | 32 | 8.6 |
+| microsoft.recoveryservices | 1 | 32 | 3.0 |
 | microsoft.app | 5 | 31 | 13.9 |
-| microsoft.containerservice | 3 | 31 | 8.8 |
-| microsoft.recoveryservices | 1 | 31 | 3.1 |
 | microsoft.cognitiveservices | 2 | 29 | 6.5 |
 | microsoft.dbforpostgresql | 2 | 29 | 6.5 |
 | microsoft.insights | 1 | 29 | 3.3 |
+| microsoft.avs | 1 | 28 | 3.4 |
 | microsoft.automation | 1 | 26 | 3.7 |
-| microsoft.avs | 1 | 26 | 3.7 |
 | microsoft.dbformysql | 1 | 25 | 3.8 |
 | microsoft.devcenter | 3 | 25 | 10.7 |
 | microsoft.edge | 0 | 25 | 0.0 |
-| microsoft.netapp | 1 | 24 | 4.0 |
-| oracle.database | 0 | 24 | 0.0 |
+| microsoft.netapp | 1 | 25 | 3.8 |
+| oracle.database | 0 | 25 | 0.0 |
+| microsoft.storage | 1 | 20 | 4.8 |
 | microsoft.authorization | 5 | 19 | 20.8 |
 | microsoft.compute | 26 | 19 | 57.8 |
 | microsoft.containerregistry | 1 | 18 | 5.3 |
-| microsoft.eventgrid | 8 | 18 | 30.8 |
+| microsoft.eventgrid | 9 | 18 | 33.3 |
 | microsoft.logic | 3 | 18 | 14.3 |
 | microsoft.m365securityandcompliance | 0 | 18 | 0.0 |
 | microsoft.storsimple | 0 | 18 | 0.0 |
 | microsoft.devtestlab | 2 | 17 | 10.5 |
+| microsoft.azurestackhci | 8 | 16 | 33.3 |
 | microsoft.cdn | 2 | 16 | 11.1 |
 | microsoft.chaos | 1 | 15 | 6.2 |
-| microsoft.storage | 1 | 15 | 6.2 |
 | microsoft.customerinsights | 0 | 14 | 0.0 |
+| paloaltonetworks.cloudngfw | 0 | 14 | 0.0 |
 | microsoft.dataprotection | 2 | 13 | 13.3 |
 | microsoft.dbformariadb | 0 | 13 | 0.0 |
 | microsoft.discovery | 0 | 13 | 0.0 |
 | microsoft.hybridnetwork | 1 | 13 | 7.1 |
+| microsoft.servicebus | 1 | 13 | 7.1 |
 | microsoft.servicefabric | 2 | 13 | 13.3 |
 | microsoft.signalrservice | 2 | 13 | 13.3 |
 | microsoft.azureresiliencemanagement | 1 | 12 | 7.7 |
-| microsoft.azurestackhci | 8 | 12 | 40.0 |
+| microsoft.databoxedge | 1 | 12 | 7.7 |
 | microsoft.datafactory | 1 | 12 | 7.7 |
 | microsoft.iotoperations | 1 | 12 | 7.7 |
-| microsoft.servicebus | 1 | 12 | 7.7 |
 | microsoft.testbase | 0 | 12 | 0.0 |
-| paloaltonetworks.cloudngfw | 0 | 12 | 0.0 |
+| microsoft.eventhub | 2 | 11 | 15.4 |
 | microsoft.operationalinsights | 2 | 11 | 15.4 |
 | microsoft.providerhub | 0 | 11 | 0.0 |
-| microsoft.databoxedge | 1 | 10 | 9.1 |
+| microsoft.cache | 2 | 10 | 16.7 |
 | microsoft.datareplication | 2 | 10 | 16.7 |
-| microsoft.eventhub | 2 | 10 | 16.7 |
+| microsoft.deviceregistry | 3 | 10 | 23.1 |
 | microsoft.kusto | 1 | 10 | 9.1 |
 | purestorage.block | 0 | 10 | 0.0 |
 | microsoft.billingbenefits | 0 | 9 | 0.0 |
-| microsoft.cache | 2 | 9 | 18.2 |
 | microsoft.desktopvirtualization | 5 | 9 | 35.7 |
-| microsoft.deviceregistry | 3 | 9 | 25.0 |
 | microsoft.hybridcompute | 2 | 9 | 18.2 |
 | microsoft.keyvault | 2 | 9 | 18.2 |
 | microsoft.managednetworkfabric | 17 | 9 | 65.4 |
 | microsoft.media | 0 | 9 | 0.0 |
 | microsoft.mission | 0 | 9 | 0.0 |
+| microsoft.resources | 1 | 9 | 10.0 |
+| microsoft.confluent | 0 | 8 | 0.0 |
 | microsoft.datashare | 1 | 8 | 11.1 |
 | microsoft.healthcareapis | 2 | 8 | 20.0 |
 | microsoft.networkcloud | 13 | 8 | 61.9 |
-| microsoft.resources | 1 | 8 | 11.1 |
 | microsoft.vmwarecloudsimple | 0 | 8 | 0.0 |
+| microsoft.workloads | 2 | 8 | 20.0 |
 | microsoft.advisor | 0 | 7 | 0.0 |
 | microsoft.apicenter | 1 | 7 | 12.5 |
 | microsoft.batch | 1 | 7 | 12.5 |
 | microsoft.computelimit | 0 | 7 | 0.0 |
-| microsoft.confluent | 0 | 7 | 0.0 |
 | microsoft.costmanagement | 0 | 7 | 0.0 |
 | microsoft.datamigration | 1 | 7 | 12.5 |
 | microsoft.devices | 2 | 7 | 22.2 |
 | microsoft.hybriddata | 0 | 7 | 0.0 |
+| microsoft.iotsecurity | 0 | 7 | 0.0 |
 | microsoft.kubernetesconfiguration | 0 | 7 | 0.0 |
 | microsoft.redhatopenshift | 1 | 7 | 12.5 |
 | microsoft.relay | 1 | 7 | 12.5 |
 | microsoft.securitydevops | 0 | 7 | 0.0 |
 | microsoft.servicefabricmesh | 0 | 7 | 0.0 |
-| microsoft.workloads | 2 | 7 | 22.2 |
+| commvault.contentstore | 0 | 6 | 0.0 |
 | microsoft.azuresphere | 1 | 6 | 14.3 |
 | microsoft.datalakeanalytics | 0 | 6 | 0.0 |
 | microsoft.deploymentmanager | 0 | 6 | 0.0 |
@@ -2233,29 +2235,32 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.storagecache | 1 | 6 | 14.3 |
 | microsoft.storagemover | 1 | 6 | 14.3 |
 | microsoft.storagesync | 1 | 6 | 14.3 |
-| commvault.contentstore | 0 | 5 | 0.0 |
 | microsoft.appcomplianceautomation | 0 | 5 | 0.0 |
 | microsoft.appconfiguration | 1 | 5 | 16.7 |
 | microsoft.cloudhealth | 1 | 5 | 16.7 |
 | microsoft.communication | 2 | 5 | 28.6 |
 | microsoft.dashboard | 1 | 5 | 16.7 |
+| microsoft.datadog | 0 | 5 | 0.0 |
+| microsoft.devhub | 1 | 5 | 16.7 |
 | microsoft.hybridconnectivity | 1 | 5 | 16.7 |
+| microsoft.hybridcontainerservice | 1 | 5 | 16.7 |
 | microsoft.integrationspaces | 1 | 5 | 16.7 |
-| microsoft.iotsecurity | 0 | 5 | 0.0 |
 | microsoft.logz | 0 | 5 | 0.0 |
 | microsoft.marketplace | 0 | 5 | 0.0 |
 | microsoft.notificationhubs | 1 | 5 | 16.7 |
 | microsoft.servicenetworking | 1 | 5 | 16.7 |
 | microsoft.support | 0 | 5 | 0.0 |
 | nginx.nginxplus | 0 | 5 | 0.0 |
+| dynatrace.observability | 0 | 4 | 0.0 |
 | microsoft.agfoodplatform | 0 | 4 | 0.0 |
 | microsoft.botservice | 1 | 4 | 20.0 |
 | microsoft.capacity | 0 | 4 | 0.0 |
+| microsoft.connectedvmwarevsphere | 7 | 4 | 63.6 |
 | microsoft.databasewatcher | 1 | 4 | 20.0 |
-| microsoft.datadog | 0 | 4 | 0.0 |
 | microsoft.datalakestore | 0 | 4 | 0.0 |
 | microsoft.deviceupdate | 1 | 4 | 20.0 |
 | microsoft.digitaltwins | 1 | 4 | 20.0 |
+| microsoft.durabletask | 1 | 4 | 20.0 |
 | microsoft.elasticsan | 1 | 4 | 20.0 |
 | microsoft.hardwaresecuritymodules | 1 | 4 | 20.0 |
 | microsoft.hdinsight | 1 | 4 | 20.0 |
@@ -2269,28 +2274,29 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.peering | 3 | 4 | 42.9 |
 | microsoft.powerbi | 0 | 4 | 0.0 |
 | microsoft.quota | 1 | 4 | 20.0 |
+| microsoft.scvmm | 5 | 4 | 55.6 |
 | microsoft.streamanalytics | 2 | 4 | 33.3 |
 | microsoft.timeseriesinsights | 0 | 4 | 0.0 |
-| dynatrace.observability | 0 | 3 | 0.0 |
 | microsoft.aadiam | 0 | 3 | 0.0 |
 | microsoft.alertsmanagement | 0 | 3 | 0.0 |
-| microsoft.automanage | 2 | 3 | 40.0 |
+| microsoft.automanage | 3 | 3 | 50.0 |
 | microsoft.blueprint | 2 | 3 | 40.0 |
 | microsoft.containerinstance | 1 | 3 | 25.0 |
 | microsoft.databricks | 2 | 3 | 40.0 |
-| microsoft.devhub | 1 | 3 | 25.0 |
-| microsoft.durabletask | 1 | 3 | 25.0 |
+| microsoft.education | 0 | 3 | 0.0 |
 | microsoft.elastic | 1 | 3 | 25.0 |
 | microsoft.fileshares | 1 | 3 | 25.0 |
 | microsoft.iotfirmwaredefense | 1 | 3 | 25.0 |
 | microsoft.maps | 1 | 3 | 25.0 |
 | microsoft.mixedreality | 0 | 3 | 0.0 |
+| microsoft.networkanalytics | 0 | 3 | 0.0 |
 | microsoft.orbital | 1 | 3 | 25.0 |
 | microsoft.programmableconnectivity | 0 | 3 | 0.0 |
 | microsoft.purview | 1 | 3 | 25.0 |
 | microsoft.search | 1 | 3 | 25.0 |
 | microsoft.servicelinker | 0 | 3 | 0.0 |
 | microsoft.standbypool | 2 | 3 | 40.0 |
+| microsoft.subscription | 0 | 3 | 0.0 |
 | microsoft.visualstudio | 0 | 3 | 0.0 |
 | mongodb.atlas | 0 | 3 | 0.0 |
 | newrelic.observability | 0 | 3 | 0.0 |
@@ -2299,6 +2305,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.applink | 0 | 2 | 0.0 |
 | microsoft.azuredata | 0 | 2 | 0.0 |
 | microsoft.azureplaywrightservice | 1 | 2 | 33.3 |
+| microsoft.billingtrust | 0 | 2 | 0.0 |
 | microsoft.blockchain | 0 | 2 | 0.0 |
 | microsoft.certificateregistration | 1 | 2 | 33.3 |
 | microsoft.computeschedule | 0 | 2 | 0.0 |
@@ -2308,7 +2315,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.engagementfabric | 0 | 2 | 0.0 |
 | microsoft.features | 0 | 2 | 0.0 |
 | microsoft.hanaonazure | 0 | 2 | 0.0 |
-| microsoft.networkanalytics | 0 | 2 | 0.0 |
+| microsoft.management | 1 | 2 | 33.3 |
 | microsoft.operationsmanagement | 1 | 2 | 33.3 |
 | microsoft.portal | 0 | 2 | 0.0 |
 | microsoft.powerplatform | 2 | 2 | 50.0 |
@@ -2324,28 +2331,23 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.attestation | 1 | 1 | 50.0 |
 | microsoft.azurearcdata | 4 | 1 | 80.0 |
 | microsoft.baremetalinfrastructure | 1 | 1 | 50.0 |
-| microsoft.billingtrust | 0 | 1 | 0.0 |
 | microsoft.codesigning | 1 | 1 | 50.0 |
 | microsoft.computebulkactions | 0 | 1 | 0.0 |
 | microsoft.confidentialledger | 1 | 1 | 50.0 |
-| microsoft.connectedvmwarevsphere | 7 | 1 | 87.5 |
 | microsoft.consumption | 0 | 1 | 0.0 |
 | microsoft.customerlockbox | 0 | 1 | 0.0 |
 | microsoft.customproviders | 1 | 1 | 50.0 |
 | microsoft.datacatalog | 0 | 1 | 0.0 |
 | microsoft.dependencymap | 1 | 1 | 50.0 |
 | microsoft.devops | 0 | 1 | 0.0 |
-| microsoft.education | 0 | 1 | 0.0 |
 | microsoft.extendedlocation | 1 | 1 | 50.0 |
 | microsoft.fluidrelay | 1 | 1 | 50.0 |
 | microsoft.guestconfiguration | 0 | 1 | 0.0 |
 | microsoft.healthdataaiservices | 1 | 1 | 50.0 |
-| microsoft.hybridcontainerservice | 1 | 1 | 50.0 |
 | microsoft.importexport | 0 | 1 | 0.0 |
 | microsoft.maintenance | 3 | 1 | 75.0 |
 | microsoft.managedidentity | 1 | 1 | 50.0 |
 | microsoft.managedops | 0 | 1 | 0.0 |
-| microsoft.management | 1 | 1 | 50.0 |
 | microsoft.managementpartner | 0 | 1 | 0.0 |
 | microsoft.networkfunction | 1 | 1 | 50.0 |
 | microsoft.openenergyplatform | 0 | 1 | 0.0 |
@@ -2353,10 +2355,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.resourcegraph | 0 | 1 | 0.0 |
 | microsoft.resourcehealth | 0 | 1 | 0.0 |
 | microsoft.saas | 1 | 1 | 50.0 |
-| microsoft.scvmm | 5 | 1 | 83.3 |
 | microsoft.serialconsole | 0 | 1 | 0.0 |
 | microsoft.sqlvirtualmachine | 2 | 1 | 66.7 |
-| microsoft.subscription | 0 | 1 | 0.0 |
 | microsoft.weightsandbiases | 0 | 1 | 0.0 |
 | microsoft.windowsesu | 0 | 1 | 0.0 |
 | microsoft.windowsiot | 0 | 1 | 0.0 |
@@ -2386,7 +2386,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.storageactions | 1 | 0 | 100.0 |
 | microsoft.storagediscovery | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (2054)
+### Uncovered (listable, no scanner) (2117)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -2396,9 +2396,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | commvault.contentstore | commvault.contentstore/cloudaccounts/plans | 1 | resource-group | item-write | armcommvaultcontentstore:Plans.ListByCloudAccount |
 | commvault.contentstore | commvault.contentstore/cloudaccounts/protectiongroups | 1 | resource-group | item-write | armcommvaultcontentstore:ProtectionGroups.ListByCloudAccount |
 | commvault.contentstore | commvault.contentstore/cloudaccounts/protectiongroups/protecteditems | 2 | resource-group | arm-envelope | armcommvaultcontentstore:ProtectedItems.ListByProtectionGroup |
+| commvault.contentstore | commvault.contentstore/cloudaccounts/rolemappings | 1 | resource-group | item-write | armcommvaultcontentstore:RoleMappings.List |
 | commvault.contentstore | commvault.contentstore/cloudaccounts/storages | 1 | resource-group | item-write | armcommvaultcontentstore:Storages.ListByCloudAccount |
 | dell.storage | dell.storage/filesystems | 0 | subscription | item-write | armdellstorage:FileSystems.ListByResourceGroup, armdellstorage:FileSystems.ListBySubscription |
 | dynatrace.observability | dynatrace.observability/monitors | 0 | subscription | item-write | armdynatrace:Monitors.ListByResourceGroup, armdynatrace:Monitors.ListBySubscriptionID |
+| dynatrace.observability | dynatrace.observability/monitors/monitoredsubscriptions | 1 | resource-group | item-write | armdynatrace:MonitoredSubscriptions.List |
 | dynatrace.observability | dynatrace.observability/monitors/singlesignonconfigurations | 1 | resource-group | item-write | armdynatrace:SingleSignOn.List |
 | dynatrace.observability | dynatrace.observability/monitors/tagrules | 1 | resource-group | item-write | armdynatrace:TagRules.List |
 | informatica.datamanagement | informatica.datamanagement/organizations | 0 | subscription | item-write | arminformaticadatamgmt:Organizations.ListByResourceGroup, arminformaticadatamgmt:Organizations.ListBySubscription |
@@ -2451,6 +2453,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.apimanagement | microsoft.apimanagement/service/apis/tagdescriptions | 2 | resource-group | item-write | armapimanagement:APITagDescription.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/apis/tags | 2 | resource-group | item-write | armapimanagement:Tag.ListByAPI |
 | microsoft.apimanagement | microsoft.apimanagement/service/apis/tools | 2 | resource-group | item-write | armapimanagement:APITool.ListByAPI |
+| microsoft.apimanagement | microsoft.apimanagement/service/apis/wikis | 2 | resource-group | item-write | armapimanagement:APIWikis.List |
 | microsoft.apimanagement | microsoft.apimanagement/service/apiversionsets | 1 | resource-group | item-write | armapimanagement:APIVersionSet.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/authorizationproviders | 1 | resource-group | item-write | armapimanagement:AuthorizationProvider.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/authorizationproviders/authorizations | 2 | resource-group | item-write | armapimanagement:Authorization.ListByAuthorizationProvider |
@@ -2493,6 +2496,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.apimanagement | microsoft.apimanagement/service/products/groups | 2 | resource-group | item-write | armapimanagement:ProductGroup.ListByProduct |
 | microsoft.apimanagement | microsoft.apimanagement/service/products/policies | 2 | resource-group | item-write | armapimanagement:ProductPolicy.ListByProduct |
 | microsoft.apimanagement | microsoft.apimanagement/service/products/tags | 2 | resource-group | item-write | armapimanagement:Tag.ListByProduct |
+| microsoft.apimanagement | microsoft.apimanagement/service/products/wikis | 2 | resource-group | item-write | armapimanagement:ProductWikis.List |
 | microsoft.apimanagement | microsoft.apimanagement/service/schemas | 1 | resource-group | item-write | armapimanagement:GlobalSchema.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/settings | 1 | resource-group | arm-envelope | armapimanagement:TenantSettings.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/subscriptions | 1 | resource-group | item-write | armapimanagement:ProductSubscriptions.List, armapimanagement:Subscription.List |
@@ -2638,6 +2642,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.avs | microsoft.avs/privateclouds/clusters/virtualmachines | 2 | resource-group | arm-envelope | armavs:VirtualMachines.List |
 | microsoft.avs | microsoft.avs/privateclouds/globalreachconnections | 1 | resource-group | item-write | armavs:GlobalReachConnections.List |
 | microsoft.avs | microsoft.avs/privateclouds/hcxenterprisesites | 1 | resource-group | item-write | armavs:HcxEnterpriseSites.List |
+| microsoft.avs | microsoft.avs/privateclouds/iscsipaths | 1 | resource-group | item-write | armavs:IscsiPaths.ListByPrivateCloud |
 | microsoft.avs | microsoft.avs/privateclouds/licenses | 1 | resource-group | item-write | armavs:Licenses.List |
 | microsoft.avs | microsoft.avs/privateclouds/maintenances | 1 | resource-group | arm-envelope | armavs:Maintenances.List |
 | microsoft.avs | microsoft.avs/privateclouds/provisionednetworks | 1 | resource-group | arm-envelope | armavs:ProvisionedNetworks.List |
@@ -2645,15 +2650,16 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.avs | microsoft.avs/privateclouds/scriptexecutions | 1 | resource-group | item-write | armavs:ScriptExecutions.List |
 | microsoft.avs | microsoft.avs/privateclouds/scriptpackages | 1 | resource-group | arm-envelope | armavs:ScriptPackages.List |
 | microsoft.avs | microsoft.avs/privateclouds/scriptpackages/scriptcmdlets | 2 | resource-group | arm-envelope | armavs:ScriptCmdlets.List |
-| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/default/dhcpconfigurations | 1 | resource-group | item-write | armavs:WorkloadNetworks.ListDhcp |
-| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/default/dnsservices | 1 | resource-group | item-write | armavs:WorkloadNetworks.ListDNSServices |
-| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/default/dnszones | 1 | resource-group | item-write | armavs:WorkloadNetworks.ListDNSZones |
-| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/default/gateways | 1 | resource-group | arm-envelope | armavs:WorkloadNetworks.ListGateways |
-| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/default/portmirroringprofiles | 1 | resource-group | item-write | armavs:WorkloadNetworks.ListPortMirroring |
-| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/default/publicips | 1 | resource-group | item-write | armavs:WorkloadNetworks.ListPublicIPs |
-| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/default/segments | 1 | resource-group | item-write | armavs:WorkloadNetworks.ListSegments |
-| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/default/virtualmachines | 1 | resource-group | arm-envelope | armavs:WorkloadNetworks.ListVirtualMachines |
-| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/default/vmgroups | 1 | resource-group | item-write | armavs:WorkloadNetworks.ListVMGroups |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks | 1 | resource-group | arm-envelope | armavs:WorkloadNetworks.List |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/dhcpconfigurations | 2 | resource-group | item-write | armavs:WorkloadNetworks.ListDhcp |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/dnsservices | 2 | resource-group | item-write | armavs:WorkloadNetworks.ListDNSServices |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/dnszones | 2 | resource-group | item-write | armavs:WorkloadNetworks.ListDNSZones |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/gateways | 2 | resource-group | arm-envelope | armavs:WorkloadNetworks.ListGateways |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/portmirroringprofiles | 2 | resource-group | item-write | armavs:WorkloadNetworks.ListPortMirroring |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/publicips | 2 | resource-group | item-write | armavs:WorkloadNetworks.ListPublicIPs |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/segments | 2 | resource-group | item-write | armavs:WorkloadNetworks.ListSegments |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/virtualmachines | 2 | resource-group | arm-envelope | armavs:WorkloadNetworks.ListVirtualMachines |
+| microsoft.avs | microsoft.avs/privateclouds/workloadnetworks/vmgroups | 2 | resource-group | item-write | armavs:WorkloadNetworks.ListVMGroups |
 | microsoft.azurearcdata | microsoft.azurearcdata/datacontrollers/activedirectoryconnectors | 1 | resource-group | item-write | armazurearcdata:ActiveDirectoryConnectors.List |
 | microsoft.azuredata | microsoft.azuredata/sqlserverregistrations | 0 | subscription | item-write | armazuredata:SQLServerRegistrations.List, armazuredata:SQLServerRegistrations.ListByResourceGroup |
 | microsoft.azuredata | microsoft.azuredata/sqlserverregistrations/sqlservers | 1 | resource-group | item-write | armazuredata:SQLServers.ListByResourceGroup |
@@ -2685,10 +2691,14 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.azurestackhci | microsoft.azurestackhci/clusters/securitysettings | 1 | resource-group | item-write | armazurestackhci:SecuritySettings.ListByClusters |
 | microsoft.azurestackhci | microsoft.azurestackhci/clusters/updates | 1 | resource-group | item-write | armazurestackhci:Updates.List |
 | microsoft.azurestackhci | microsoft.azurestackhci/clusters/updates/updateruns | 2 | resource-group | item-write | armazurestackhci:UpdateRuns.List |
+| microsoft.azurestackhci | microsoft.azurestackhci/clusters/updatesummaries | 1 | resource-group | item-write | armazurestackhci:UpdateSummaries.List |
 | microsoft.azurestackhci | microsoft.azurestackhci/edgedevices | 0 | extension | item-write | armazurestackhci:EdgeDevices.List |
 | microsoft.azurestackhci | microsoft.azurestackhci/edgedevices/jobs | 1 | extension | item-write | armazurestackhci:EdgeDeviceJobs.ListByEdgeDevice |
 | microsoft.azurestackhci | microsoft.azurestackhci/networksecuritygroups/securityrules | 1 | resource-group | item-write | armazurestackhcivm:SecurityRules.ListByNetworkSecurityGroup |
 | microsoft.azurestackhci | microsoft.azurestackhci/validatedsolutionrecipes | 0 | subscription | arm-envelope | armazurestackhci:ValidatedSolutionRecipes.ListBySubscriptionLocationResource |
+| microsoft.azurestackhci | microsoft.azurestackhci/virtualmachineinstances | 0 | extension | item-write | armazurestackhcivm:VirtualMachineInstances.List |
+| microsoft.azurestackhci | microsoft.azurestackhci/virtualmachineinstances/guestagents | 1 | extension | item-write | armazurestackhcivm:GuestAgents.ListByVirtualMachineInstance |
+| microsoft.azurestackhci | microsoft.azurestackhci/virtualmachineinstances/hybrididentitymetadata | 1 | extension | arm-envelope | armazurestackhcivm:HybridIdentityMetadata.ListByVirtualMachineInstance |
 | microsoft.baremetalinfrastructure | microsoft.baremetalinfrastructure/baremetalstorageinstances | 0 | subscription | item-write | armbaremetalinfrastructure:AzureBareMetalStorageInstances.ListByResourceGroup, armbaremetalinfrastructure:AzureBareMetalStorageInstances.ListBySubscription |
 | microsoft.batch | microsoft.batch/batchaccounts/applications | 1 | resource-group | item-write | armbatch:Application.List |
 | microsoft.batch | microsoft.batch/batchaccounts/applications/versions | 2 | resource-group | item-write | armbatch:ApplicationPackage.List |
@@ -2717,8 +2727,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.billing | microsoft.billing/billingaccounts/billingroledefinitions | 1 | tenant | arm-envelope | armbilling:RoleDefinition.ListByBillingAccount |
 | microsoft.billing | microsoft.billing/billingaccounts/billingsubscriptionaliases | 1 | tenant | item-write | armbilling:SubscriptionsAliases.ListByBillingAccount |
 | microsoft.billing | microsoft.billing/billingaccounts/billingsubscriptions | 1 | tenant | item-write | armbilling:Subscriptions.ListByBillingAccount, armbilling:Subscriptions.ListByCustomer, armbilling:Subscriptions.ListByCustomerAtBillingAccount, armbilling:Subscriptions.ListByEnrollmentAccount, armbilling:Subscriptions.ListByInvoiceSection |
+| microsoft.billing | microsoft.billing/billingaccounts/billingsubscriptions/invoices | 2 | tenant | arm-envelope | armbilling:Invoices.ListByBillingSubscription |
 | microsoft.billing | microsoft.billing/billingaccounts/customers | 1 | tenant | arm-envelope | armbilling:Customers.ListByBillingAccount |
-| microsoft.billing | microsoft.billing/billingaccounts/default/billingsubscriptions/invoices | 1 | tenant | arm-envelope | armbilling:Invoices.ListByBillingSubscription |
 | microsoft.billing | microsoft.billing/billingaccounts/departments | 1 | tenant | arm-envelope | armbilling:Departments.ListByBillingAccount |
 | microsoft.billing | microsoft.billing/billingaccounts/departments/billingroleassignments | 2 | tenant | item-write | armbilling:RoleAssignments.ListByDepartment |
 | microsoft.billing | microsoft.billing/billingaccounts/departments/billingroledefinitions | 2 | tenant | arm-envelope | armbilling:RoleDefinition.ListByDepartment |
@@ -2744,7 +2754,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.billingbenefits | microsoft.billingbenefits/maccs | 0 | subscription | item-write | armbillingbenefits:Maccs.ListByResourceGroup, armbillingbenefits:Maccs.ListBySubscription |
 | microsoft.billingbenefits | microsoft.billingbenefits/maccs/contributors | 1 | resource-group | arm-envelope | armbillingbenefits:Contributors.ListFromPrimary |
 | microsoft.billingbenefits | microsoft.billingbenefits/savingsplanorders/savingsplans | 1 | tenant | item-write | armbillingbenefits:SavingsPlan.List, armbillingbenefits:SavingsPlan.ListAll |
-| microsoft.billingtrust | microsoft.billingtrust/assessments/default/rules | 0 | extension | item-write | armbillingtrust:Rules.List |
+| microsoft.billingtrust | microsoft.billingtrust/assessments | 0 | extension | item-write | armbillingtrust:Assessments.List |
+| microsoft.billingtrust | microsoft.billingtrust/assessments/rules | 1 | extension | item-write | armbillingtrust:Rules.List |
 | microsoft.blockchain | microsoft.blockchain/blockchainmembers | 0 | subscription | item-write | armblockchain:Members.List, armblockchain:Members.ListAll |
 | microsoft.blockchain | microsoft.blockchain/blockchainmembers/transactionnodes | 1 | resource-group | item-write | armblockchain:TransactionNodes.List |
 | microsoft.blueprint | microsoft.blueprint/blueprintassignments/assignmentoperations | 1 | extension | arm-envelope | armblueprint:AssignmentOperations.List |
@@ -2762,6 +2773,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.cache | microsoft.cache/redis/privateendpointconnections | 1 | resource-group | item-write | armredis:PrivateEndpointConnections.List |
 | microsoft.cache | microsoft.cache/redisenterprise/databases | 1 | resource-group | item-write | armredisenterprise:Databases.ListByCluster |
 | microsoft.cache | microsoft.cache/redisenterprise/databases/accesspolicyassignments | 2 | resource-group | item-write | armredisenterprise:AccessPolicyAssignment.List |
+| microsoft.cache | microsoft.cache/redisenterprise/migrations | 1 | resource-group | item-write | armredisenterprise:Migrations.List |
 | microsoft.cache | microsoft.cache/redisenterprise/privateendpointconnections | 1 | resource-group | item-write | armredisenterprise:PrivateEndpointConnections.List |
 | microsoft.capacity | microsoft.capacity/reservationorders | 0 | tenant | item-write | armreservations:ReservationOrder.List |
 | microsoft.capacity | microsoft.capacity/reservationorders/reservations | 1 | tenant | item-write | armreservations:Reservation.List, armreservations:Reservation.ListAll, armreservations:Reservation.ListRevisions |
@@ -2870,6 +2882,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.computeschedule | microsoft.computeschedule/scheduledactions | 0 | subscription | item-write | armcomputeschedule:ScheduledActions.ListByResourceGroup, armcomputeschedule:ScheduledActions.ListBySubscription |
 | microsoft.computeschedule | microsoft.computeschedule/scheduledactions/occurrences | 1 | resource-group | arm-envelope | armcomputeschedule:Occurrences.ListByScheduledAction |
 | microsoft.confidentialledger | microsoft.confidentialledger/managedccfs | 0 | subscription | item-write | armconfidentialledger:ManagedCCF.ListByResourceGroup, armconfidentialledger:ManagedCCF.ListBySubscription |
+| microsoft.confluent | microsoft.confluent/agreements | 0 | subscription | item-write | armconfluent:MarketplaceAgreements.List |
 | microsoft.confluent | microsoft.confluent/organizations | 0 | subscription | item-write | armconfluent:Organization.ListByResourceGroup, armconfluent:Organization.ListBySubscription |
 | microsoft.confluent | microsoft.confluent/organizations/environments | 1 | resource-group | item-write | armconfluent:Organization.ListEnvironments |
 | microsoft.confluent | microsoft.confluent/organizations/environments/clusters | 2 | resource-group | item-write | armconfluent:Organization.ListClusters |
@@ -2880,6 +2893,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.connectedcache | microsoft.connectedcache/enterprisemcccustomers/enterprisemcccachenodes | 1 | resource-group | item-write | armconnectedcache:EnterpriseMccCacheNodesOperations.ListByEnterpriseMccCustomerResource |
 | microsoft.connectedcache | microsoft.connectedcache/ispcustomers/ispcachenodes | 1 | resource-group | item-write | armconnectedcache:IspCacheNodesOperations.ListByIspCustomerResource |
 | microsoft.connectedvmwarevsphere | microsoft.connectedvmwarevsphere/vcenters/inventoryitems | 1 | resource-group | item-write | armconnectedvmware:InventoryItems.ListByVCenter |
+| microsoft.connectedvmwarevsphere | microsoft.connectedvmwarevsphere/virtualmachineinstances | 0 | extension | item-write | armconnectedvmware:VirtualMachineInstances.List |
+| microsoft.connectedvmwarevsphere | microsoft.connectedvmwarevsphere/virtualmachineinstances/guestagents | 1 | extension | item-write | armconnectedvmware:VMInstanceGuestAgents.List |
+| microsoft.connectedvmwarevsphere | microsoft.connectedvmwarevsphere/virtualmachineinstances/hybrididentitymetadata | 1 | extension | arm-envelope | armconnectedvmware:VMInstanceHybridIdentityMetadata.List |
 | microsoft.consumption | microsoft.consumption/budgets | 0 | extension | item-write | armconsumption:Budgets.List |
 | microsoft.containerinstance | microsoft.containerinstance/containergroupprofiles | 0 | subscription | item-write | armcontainerinstance:CGProfiles.ListByResourceGroup, armcontainerinstance:CGProfiles.ListBySubscription |
 | microsoft.containerinstance | microsoft.containerinstance/containergroupprofiles/revisions | 1 | resource-group | arm-envelope | armcontainerinstance:CGProfile.ListAllRevisions |
@@ -2907,6 +2923,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.containerservice | microsoft.containerservice/aimanagers/namespaces | 1 | resource-group | item-write | armcontainerserviceaimanager:AIManagerNamespaces.ListByAIManager |
 | microsoft.containerservice | microsoft.containerservice/aimanagers/namespaces/modeldeployments | 2 | resource-group | item-write | armcontainerserviceaimanager:ModelDeployments.ListByAIManagerNamespace |
 | microsoft.containerservice | microsoft.containerservice/aimodels | 0 | subscription | arm-envelope | armcontainerserviceaimanager:AIModels.List |
+| microsoft.containerservice | microsoft.containerservice/deploymentsafeguards | 0 | extension | item-write | armdeploymentsafeguards:Client.List |
 | microsoft.containerservice | microsoft.containerservice/fleets/autoupgradeprofiles | 1 | resource-group | item-write | armcontainerservicefleet:AutoUpgradeProfiles.ListByFleet |
 | microsoft.containerservice | microsoft.containerservice/fleets/clustermeshprofiles | 1 | resource-group | item-write | armcontainerservicefleet:ClusterMeshProfiles.ListByFleet |
 | microsoft.containerservice | microsoft.containerservice/fleets/gates | 1 | resource-group | item-write | armcontainerservicefleet:Gates.ListByFleet |
@@ -2967,8 +2984,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.databasewatcher | microsoft.databasewatcher/watchers/targets | 1 | resource-group | item-write | armdatabasewatcher:Targets.ListByWatcher |
 | microsoft.databoxedge | microsoft.databoxedge/databoxedgedevices/alerts | 1 | resource-group | arm-envelope | armdataboxedge:Alerts.ListByDataBoxEdgeDevice |
 | microsoft.databoxedge | microsoft.databoxedge/databoxedgedevices/bandwidthschedules | 1 | resource-group | item-write | armdataboxedge:BandwidthSchedules.ListByDataBoxEdgeDevice |
+| microsoft.databoxedge | microsoft.databoxedge/databoxedgedevices/orders | 1 | resource-group | item-write | armdataboxedge:Orders.ListByDataBoxEdgeDevice |
 | microsoft.databoxedge | microsoft.databoxedge/databoxedgedevices/roles | 1 | resource-group | item-write | armdataboxedge:Roles.ListByDataBoxEdgeDevice |
 | microsoft.databoxedge | microsoft.databoxedge/databoxedgedevices/roles/addons | 2 | resource-group | item-write | armdataboxedge:Addons.ListByRole |
+| microsoft.databoxedge | microsoft.databoxedge/databoxedgedevices/roles/monitoringconfig | 2 | resource-group | item-write | armdataboxedge:MonitoringConfig.List |
 | microsoft.databoxedge | microsoft.databoxedge/databoxedgedevices/shares | 1 | resource-group | item-write | armdataboxedge:Shares.ListByDataBoxEdgeDevice |
 | microsoft.databoxedge | microsoft.databoxedge/databoxedgedevices/storageaccountcredentials | 1 | resource-group | item-write | armdataboxedge:StorageAccountCredentials.ListByDataBoxEdgeDevice |
 | microsoft.databoxedge | microsoft.databoxedge/databoxedgedevices/storageaccounts | 1 | resource-group | item-write | armdataboxedge:StorageAccounts.ListByDataBoxEdgeDevice |
@@ -2979,6 +2998,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.databricks | microsoft.databricks/workspaces/privatelinkresources | 1 | resource-group | arm-envelope | armdatabricks:PrivateLinkResources.List |
 | microsoft.databricks | microsoft.databricks/workspaces/virtualnetworkpeerings | 1 | resource-group | item-write | armdatabricks:VNetPeering.ListByWorkspace |
 | microsoft.datacatalog | microsoft.datacatalog/catalogs | 0 | resource-group | item-write | armdatacatalog:ADCCatalogs.ListtByResourceGroup |
+| microsoft.datadog | microsoft.datadog/agreements | 0 | subscription | item-write | armdatadog:MarketplaceAgreements.List |
 | microsoft.datadog | microsoft.datadog/monitors | 0 | subscription | item-write | armdatadog:Monitors.List, armdatadog:Monitors.ListByResourceGroup |
 | microsoft.datadog | microsoft.datadog/monitors/monitoredsubscriptions | 1 | resource-group | item-write | armdatadog:MonitoredSubscriptions.List |
 | microsoft.datadog | microsoft.datadog/monitors/singlesignonconfigurations | 1 | resource-group | item-write | armdatadog:SingleSignOnConfigurations.List |
@@ -3153,12 +3173,15 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.devcenter | microsoft.devcenter/projects/images/versions | 2 | resource-group | arm-envelope | armdevcenter:ImageVersions.ListByProject |
 | microsoft.devcenter | microsoft.devcenter/projects/pools | 1 | resource-group | item-write | armdevcenter:Pools.ListByProject |
 | microsoft.devcenter | microsoft.devcenter/projects/pools/schedules | 2 | resource-group | item-write | armdevcenter:Schedules.ListByPool |
+| microsoft.devhub | microsoft.devhub/adooauth | 0 | subscription | arm-envelope | armdevhub:ADOOAuth.List |
+| microsoft.devhub | microsoft.devhub/githuboauth | 0 | subscription | arm-envelope | armdevhub:DeveloperHubService.ListGitHubOAuth |
 | microsoft.devhub | microsoft.devhub/iacprofiles | 0 | subscription | item-write | armdevhub:IacProfiles.List, armdevhub:IacProfiles.ListByResourceGroup |
 | microsoft.devhub | microsoft.devhub/templates | 0 | subscription | arm-envelope | armdevhub:Template.List |
 | microsoft.devhub | microsoft.devhub/templates/versions | 1 | subscription | arm-envelope | armdevhub:VersionedTemplate.List |
 | microsoft.deviceregistry | microsoft.deviceregistry/namespaces | 0 | subscription | item-write | armdeviceregistry:Namespaces.ListByResourceGroup, armdeviceregistry:Namespaces.ListBySubscription |
 | microsoft.deviceregistry | microsoft.deviceregistry/namespaces/assets | 1 | resource-group | item-write | armdeviceregistry:NamespaceAssets.ListByResourceGroup |
-| microsoft.deviceregistry | microsoft.deviceregistry/namespaces/credentials/default/policies | 1 | resource-group | item-write | armdeviceregistry:Policies.ListByResourceGroup |
+| microsoft.deviceregistry | microsoft.deviceregistry/namespaces/credentials | 1 | resource-group | item-write | armdeviceregistry:Credentials.ListByResourceGroup |
+| microsoft.deviceregistry | microsoft.deviceregistry/namespaces/credentials/policies | 2 | resource-group | item-write | armdeviceregistry:Policies.ListByResourceGroup |
 | microsoft.deviceregistry | microsoft.deviceregistry/namespaces/devices | 1 | resource-group | item-write | armdeviceregistry:NamespaceDevices.ListByResourceGroup |
 | microsoft.deviceregistry | microsoft.deviceregistry/namespaces/discoveredassets | 1 | resource-group | item-write | armdeviceregistry:NamespaceDiscoveredAssets.ListByResourceGroup |
 | microsoft.deviceregistry | microsoft.deviceregistry/namespaces/discovereddevices | 1 | resource-group | item-write | armdeviceregistry:NamespaceDiscoveredDevices.ListByResourceGroup |
@@ -3252,6 +3275,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.domainregistration | microsoft.domainregistration/topleveldomains | 0 | subscription | arm-envelope | armdomainregistration:TopLevelDomains.List |
 | microsoft.durabletask | microsoft.durabletask/schedulers/privateendpointconnections | 1 | resource-group | item-write | armdurabletask:Schedulers.ListPrivateEndpointConnections |
 | microsoft.durabletask | microsoft.durabletask/schedulers/privatelinkresources | 1 | resource-group | arm-envelope | armdurabletask:Schedulers.ListPrivateLinks |
+| microsoft.durabletask | microsoft.durabletask/schedulers/retentionpolicies | 1 | resource-group | item-write | armdurabletask:RetentionPolicies.ListByScheduler |
 | microsoft.durabletask | microsoft.durabletask/schedulers/taskhubs | 1 | resource-group | item-write | armdurabletask:TaskHubs.ListByScheduler |
 | microsoft.edge | microsoft.edge/configtemplates | 0 | subscription | item-write | armworkloadorchestration:ConfigTemplates.ListByResourceGroup, armworkloadorchestration:ConfigTemplates.ListBySubscription |
 | microsoft.edge | microsoft.edge/configtemplates/versions | 1 | resource-group | arm-envelope | armworkloadorchestration:ConfigTemplateVersions.ListByConfigTemplate |
@@ -3278,7 +3302,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.edge | microsoft.edge/targets/solutions/instances | 2 | resource-group | item-write | armworkloadorchestration:Instances.ListBySolution |
 | microsoft.edge | microsoft.edge/targets/solutions/instances/histories | 3 | resource-group | arm-envelope | armworkloadorchestration:InstanceHistories.ListByInstance |
 | microsoft.edge | microsoft.edge/targets/solutions/versions | 2 | resource-group | item-write | armworkloadorchestration:SolutionVersions.ListBySolution |
-| microsoft.education | microsoft.education/labs/default/students | 0 | tenant | item-write | armeducation:Students.List |
+| microsoft.education | microsoft.education/labs | 0 | tenant | item-write | armeducation:Labs.List, armeducation:Labs.ListAll |
+| microsoft.education | microsoft.education/labs/joinrequests | 1 | tenant | arm-envelope | armeducation:JoinRequests.List |
+| microsoft.education | microsoft.education/labs/students | 1 | tenant | item-write | armeducation:Students.List |
 | microsoft.elastic | microsoft.elastic/monitors/monitoredsubscriptions | 1 | resource-group | item-write | armelastic:MonitoredSubscriptions.List |
 | microsoft.elastic | microsoft.elastic/monitors/openaiintegrations | 1 | resource-group | item-write | armelastic:OpenAI.List |
 | microsoft.elastic | microsoft.elastic/monitors/tagrules | 1 | resource-group | item-write | armelastic:TagRules.List |
@@ -3313,6 +3339,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.eventhub | microsoft.eventhub/namespaces/eventhubs | 1 | resource-group | item-write | armeventhub:EventHubs.ListByNamespace |
 | microsoft.eventhub | microsoft.eventhub/namespaces/eventhubs/authorizationrules | 2 | resource-group | item-write | armeventhub:EventHubs.ListAuthorizationRules |
 | microsoft.eventhub | microsoft.eventhub/namespaces/eventhubs/consumergroups | 2 | resource-group | item-write | armeventhub:ConsumerGroups.ListByEventHub |
+| microsoft.eventhub | microsoft.eventhub/namespaces/networkrulesets | 1 | resource-group | item-write | armeventhub:Namespaces.ListNetworkRuleSet |
 | microsoft.eventhub | microsoft.eventhub/namespaces/networksecurityperimeterconfigurations | 1 | resource-group | arm-envelope | armeventhub:NetworkSecurityPerimeterConfiguration.List |
 | microsoft.eventhub | microsoft.eventhub/namespaces/privateendpointconnections | 1 | resource-group | item-write | armeventhub:PrivateEndpointConnections.List |
 | microsoft.eventhub | microsoft.eventhub/namespaces/schemagroups | 1 | resource-group | item-write | armeventhub:SchemaRegistry.ListByNamespace |
@@ -3363,7 +3390,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.hybridconnectivity | microsoft.hybridconnectivity/solutionconfigurations | 0 | extension | item-write | armhybridconnectivity:SolutionConfigurations.List |
 | microsoft.hybridconnectivity | microsoft.hybridconnectivity/solutionconfigurations/inventory | 1 | extension | arm-envelope | armhybridconnectivity:Inventory.ListBySolutionConfiguration |
 | microsoft.hybridconnectivity | microsoft.hybridconnectivity/solutiontypes | 0 | subscription | arm-envelope | armhybridconnectivity:SolutionTypes.ListByResourceGroup, armhybridconnectivity:SolutionTypes.ListBySubscription |
-| microsoft.hybridcontainerservice | microsoft.hybridcontainerservice/provisionedclusterinstances/default/agentpools | 0 | extension | item-write | armhybridcontainerservice:AgentPool.ListByProvisionedCluster |
+| microsoft.hybridcontainerservice | microsoft.hybridcontainerservice/kubernetesversions | 0 | extension | item-write | armhybridcontainerservice:KubernetesVersions.List |
+| microsoft.hybridcontainerservice | microsoft.hybridcontainerservice/provisionedclusterinstances | 0 | extension | item-write | armhybridcontainerservice:ProvisionedClusterInstances.List |
+| microsoft.hybridcontainerservice | microsoft.hybridcontainerservice/provisionedclusterinstances/agentpools | 1 | extension | item-write | armhybridcontainerservice:AgentPool.ListByProvisionedCluster |
+| microsoft.hybridcontainerservice | microsoft.hybridcontainerservice/provisionedclusterinstances/hybrididentitymetadata | 1 | extension | item-write | armhybridcontainerservice:HybridIdentityMetadata.ListByCluster |
+| microsoft.hybridcontainerservice | microsoft.hybridcontainerservice/skus | 0 | extension | item-write | armhybridcontainerservice:VMSKUs.List |
 | microsoft.hybriddata | microsoft.hybriddata/datamanagers | 0 | subscription | item-write | armhybriddatamanager:DataManagers.List, armhybriddatamanager:DataManagers.ListByResourceGroup |
 | microsoft.hybriddata | microsoft.hybriddata/datamanagers/dataservices | 1 | resource-group | arm-envelope | armhybriddatamanager:DataServices.ListByDataManager |
 | microsoft.hybriddata | microsoft.hybriddata/datamanagers/dataservices/jobdefinitions | 2 | resource-group | item-write | armhybriddatamanager:JobDefinitions.ListByDataManager, armhybriddatamanager:JobDefinitions.ListByDataService |
@@ -3438,11 +3469,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.iotoperations | microsoft.iotoperations/instances/dataflowprofiles/dataflowgraphs | 2 | resource-group | item-write | armiotoperations:DataflowGraph.ListByDataflowProfile |
 | microsoft.iotoperations | microsoft.iotoperations/instances/dataflowprofiles/dataflows | 2 | resource-group | item-write | armiotoperations:Dataflow.ListByResourceGroup |
 | microsoft.iotoperations | microsoft.iotoperations/instances/registryendpoints | 1 | resource-group | item-write | armiotoperations:RegistryEndpoint.ListByInstanceResource |
+| microsoft.iotsecurity | microsoft.iotsecurity/defendersettings | 0 | subscription | item-write | armiotsecurity:DefenderSettings.List |
 | microsoft.iotsecurity | microsoft.iotsecurity/devicegroups | 0 | subscription | item-write | armiotsecurity:DeviceGroups.List |
 | microsoft.iotsecurity | microsoft.iotsecurity/devicegroups/devices | 1 | subscription | arm-envelope | armiotsecurity:Devices.List |
 | microsoft.iotsecurity | microsoft.iotsecurity/locations | 0 | subscription | arm-envelope | armiotsecurity:Locations.List |
 | microsoft.iotsecurity | microsoft.iotsecurity/onpremisesensors | 0 | subscription | item-write | armiotsecurity:OnPremiseSensors.List |
 | microsoft.iotsecurity | microsoft.iotsecurity/sensors | 0 | extension | item-write | armiotsecurity:Sensors.List |
+| microsoft.iotsecurity | microsoft.iotsecurity/sites | 0 | extension | item-write | armiotsecurity:Sites.List |
 | microsoft.keyvault | microsoft.keyvault/deletedmanagedhsms | 0 | subscription | arm-envelope | armkeyvault:ManagedHsms.ListDeleted |
 | microsoft.keyvault | microsoft.keyvault/deletedvaults | 0 | subscription | arm-envelope | armkeyvault:Vaults.ListDeleted |
 | microsoft.keyvault | microsoft.keyvault/managedhsms/keys | 1 | resource-group | item-write | armkeyvault:ManagedHsmKeys.List |
@@ -3588,6 +3621,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.managednetworkfabric | microsoft.managednetworkfabric/networkfabricskus | 0 | subscription | arm-envelope | armmanagednetworkfabric:NetworkFabricSKUs.ListBySubscription |
 | microsoft.managednetworkfabric | microsoft.managednetworkfabric/networkmonitors | 0 | subscription | item-write | armmanagednetworkfabric:NetworkMonitors.ListByResourceGroup, armmanagednetworkfabric:NetworkMonitors.ListBySubscription |
 | microsoft.managedops | microsoft.managedops/managedops | 0 | subscription | item-write | armmanagedops:Client.List |
+| microsoft.management | microsoft.management/settings | 0 | management-group | item-write | armmanagementgroups:HierarchySettings.List |
 | microsoft.management | microsoft.management/subscriptions | 0 | management-group | item-write | armmanagementgroups:ManagementGroupSubscriptions.GetSubscriptionsUnderManagementGroup |
 | microsoft.managementpartner | microsoft.managementpartner/partners | 0 | tenant | item-write | armmanagementpartner:Partners.Get |
 | microsoft.maps | microsoft.maps/accounts/creators | 1 | resource-group | item-write | armmaps:Creators.ListByAccount |
@@ -3692,6 +3726,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.netapp | microsoft.netapp/netappaccounts/snapshotpolicies | 1 | resource-group | item-write | armnetapp:SnapshotPolicies.List |
 | microsoft.netapp | microsoft.netapp/netappaccounts/volumegroups | 1 | resource-group | item-write | armnetapp:VolumeGroups.ListByNetAppAccount |
 | microsoft.netapp | microsoft.netapp/quotalimits | 0 | subscription | arm-envelope | armnetapp:ResourceQuotaLimits.List |
+| microsoft.netapp | microsoft.netapp/regioninfos | 0 | subscription | arm-envelope | armnetapp:ResourceRegionInfos.List |
 | microsoft.network | microsoft.network/applicationgateways/privateendpointconnections | 1 | resource-group | item-write | armnetwork:ApplicationGatewayPrivateEndpointConnections.List |
 | microsoft.network | microsoft.network/applicationsecuritygroups/addressprefixsets | 1 | resource-group | item-write | armnetwork:AddressPrefixSets.List |
 | microsoft.network | microsoft.network/authenticationpolicies | 0 | subscription | item-write | armnetwork:AuthenticationPolicies.List, armnetwork:AuthenticationPolicies.ListAll |
@@ -3703,6 +3738,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.network | microsoft.network/dnsresolverpolicies/virtualnetworklinks | 1 | resource-group | item-write | armdnsresolver:PolicyVirtualNetworkLinks.List |
 | microsoft.network | microsoft.network/dnsresolvers/inboundendpoints | 1 | resource-group | item-write | armdnsresolver:InboundEndpoints.List |
 | microsoft.network | microsoft.network/dnsresolvers/outboundendpoints | 1 | resource-group | item-write | armdnsresolver:OutboundEndpoints.List |
+| microsoft.network | microsoft.network/dnszones/dnssecconfigs | 1 | resource-group | item-write | armdns:DnssecConfigs.ListByDNSZone |
 | microsoft.network | microsoft.network/expressroutecircuits/authorizations | 1 | resource-group | item-write | armnetwork:ExpressRouteCircuitAuthorizations.List |
 | microsoft.network | microsoft.network/expressroutecircuits/peerings | 1 | resource-group | item-write | armnetwork:ExpressRouteCircuitPeerings.List |
 | microsoft.network | microsoft.network/expressroutecircuits/peerings/connections | 2 | resource-group | item-write | armnetwork:ExpressRouteCircuitConnections.List |
@@ -3717,6 +3753,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.network | microsoft.network/expressrouteproviderports | 0 | subscription | arm-envelope | armnetwork:ExpressRouteProviderPortsLocation.List |
 | microsoft.network | microsoft.network/firewallpolicies/kubeselectorgroups | 1 | resource-group | item-write | armnetwork:FirewallPolicyKubeSelectorGroups.List |
 | microsoft.network | microsoft.network/firewallpolicies/rulecollectiongroups | 1 | resource-group | item-write | armnetwork:FirewallPolicyRuleCollectionGroups.List |
+| microsoft.network | microsoft.network/firewallpolicies/signatureoverrides | 1 | resource-group | item-write | armnetwork:FirewallPolicyIdpsSignaturesOverrides.List |
 | microsoft.network | microsoft.network/firstpartyservicetags | 0 | subscription | item-write | armnetwork:FirstPartyServiceTags.List, armnetwork:FirstPartyServiceTags.ListAll |
 | microsoft.network | microsoft.network/frontdoors/frontendendpoints | 1 | resource-group | arm-envelope | armfrontdoor:FrontendEndpoints.ListByFrontDoor |
 | microsoft.network | microsoft.network/frontdoors/rulesengines | 1 | resource-group | item-write | armfrontdoor:RulesEngines.ListByFrontDoor |
@@ -3787,10 +3824,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.network | microsoft.network/vpngateways/natrules | 1 | resource-group | item-write | armnetwork:NatRules.ListByVPNGateway |
 | microsoft.network | microsoft.network/vpngateways/vpnconnections | 1 | resource-group | item-write | armnetwork:VPNConnections.ListByVPNGateway |
 | microsoft.network | microsoft.network/vpngateways/vpnconnections/vpnlinkconnections | 2 | resource-group | arm-envelope | armnetwork:VPNLinkConnections.ListByVPNConnection |
+| microsoft.network | microsoft.network/vpngateways/vpnconnections/vpnlinkconnections/sharedkeys | 3 | resource-group | item-write | armnetwork:VPNLinkConnections.GetAllSharedKeys |
 | microsoft.network | microsoft.network/vpnserverconfigurations/configurationpolicygroups | 1 | resource-group | item-write | armnetwork:ConfigurationPolicyGroups.ListByVPNServerConfiguration |
 | microsoft.network | microsoft.network/vpnsites/vpnsitelinks | 1 | resource-group | arm-envelope | armnetwork:VPNSiteLinks.ListByVPNSite |
 | microsoft.networkanalytics | microsoft.networkanalytics/dataproducts | 0 | subscription | item-write | armnetworkanalytics:DataProducts.ListByResourceGroup, armnetworkanalytics:DataProducts.ListBySubscription |
 | microsoft.networkanalytics | microsoft.networkanalytics/dataproducts/datatypes | 1 | resource-group | item-write | armnetworkanalytics:DataTypes.ListByDataProduct |
+| microsoft.networkanalytics | microsoft.networkanalytics/dataproductscatalogs | 0 | subscription | arm-envelope | armnetworkanalytics:DataProductsCatalogs.ListByResourceGroup, armnetworkanalytics:DataProductsCatalogs.ListBySubscription |
 | microsoft.networkcloud | microsoft.networkcloud/accessbridges | 0 | subscription | item-write | armnetworkcloud:AccessBridges.ListByResourceGroup, armnetworkcloud:AccessBridges.ListBySubscription |
 | microsoft.networkcloud | microsoft.networkcloud/clusters/baremetalmachinekeysets | 1 | resource-group | item-write | armnetworkcloud:BareMetalMachineKeySets.ListByCluster |
 | microsoft.networkcloud | microsoft.networkcloud/clusters/bmckeysets | 1 | resource-group | item-write | armnetworkcloud:BmcKeySets.ListByCluster |
@@ -3861,6 +3900,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.quota | microsoft.quota/groupquotas/subscriptionrequests | 1 | management-group | arm-envelope | armquota:GroupQuotaSubscriptionRequests.List |
 | microsoft.quota | microsoft.quota/groupquotas/subscriptions | 1 | management-group | item-write | armquota:GroupQuotaSubscriptions.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/deletedvaults | 0 | subscription | arm-envelope | armrecoveryservices:DeletedVaults.ListBySubscriptionID |
+| microsoft.recoveryservices | microsoft.recoveryservices/replicationeligibilityresults | 0 | resource-group | arm-envelope | armrecoveryservicessiterecovery:ReplicationEligibilityResults.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/backupengines | 1 | resource-group | arm-envelope | armrecoveryservicesbackup:BackupEngines.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/backupfabrics/protectioncontainers/protecteditems/recoverypoints | 4 | resource-group | arm-envelope | armrecoveryservicesbackup:RecoveryPoints.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/backupjobs | 1 | resource-group | arm-envelope | armrecoveryservicesbackup:BackupJobs.List |
@@ -3910,6 +3950,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.resources | microsoft.resources/builtintemplatespecs/versions | 1 | tenant | arm-envelope | armtemplatespecs:TemplateSpecVersions.ListBuiltIns |
 | microsoft.resources | microsoft.resources/deployments | 0 | extension | item-write | armdeployments:Deployments.ListAtManagementGroupScope, armdeployments:Deployments.ListAtScope, armdeployments:Deployments.ListAtSubscriptionScope, armdeployments:Deployments.ListAtTenantScope, armdeployments:Deployments.ListByResourceGroup |
 | microsoft.resources | microsoft.resources/deploymentscripts | 0 | subscription | item-write | armdeploymentscripts:Client.ListByResourceGroup, armdeploymentscripts:Client.ListBySubscription |
+| microsoft.resources | microsoft.resources/deploymentscripts/logs | 1 | resource-group | arm-envelope | armdeploymentscripts:Client.GetLogs |
 | microsoft.resources | microsoft.resources/deploymentstacks | 0 | management-group | item-write | armdeploymentstacks:Client.ListAtManagementGroup, armdeploymentstacks:Client.ListAtResourceGroup, armdeploymentstacks:Client.ListAtSubscription |
 | microsoft.resources | microsoft.resources/deploymentstackswhatifresults | 0 | management-group | item-write | armdeploymentstacks:WhatIfResultsAtManagementGroup.List, armdeploymentstacks:WhatIfResultsAtResourceGroup.List, armdeploymentstacks:WhatIfResultsAtSubscription.List |
 | microsoft.resources | microsoft.resources/tagnames | 0 | subscription | item-write | armresources:Tags.List |
@@ -3918,6 +3959,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.saas | microsoft.saas/saasresources | 0 | tenant | item-write | armsaas:Resources.List |
 | microsoft.scheduler | microsoft.scheduler/jobcollections | 0 | subscription | item-write | armscheduler:JobCollections.ListByResourceGroup, armscheduler:JobCollections.ListBySubscription |
 | microsoft.scheduler | microsoft.scheduler/jobcollections/jobs | 1 | resource-group | item-write | armscheduler:Jobs.List |
+| microsoft.scvmm | microsoft.scvmm/virtualmachineinstances | 0 | extension | item-write | armscvmm:VirtualMachineInstances.List |
+| microsoft.scvmm | microsoft.scvmm/virtualmachineinstances/guestagents | 1 | extension | item-write | armscvmm:GuestAgents.ListByVirtualMachineInstance |
+| microsoft.scvmm | microsoft.scvmm/virtualmachineinstances/hybrididentitymetadata | 1 | extension | arm-envelope | armscvmm:VMInstanceHybridIdentityMetadatas.ListByVirtualMachineInstance |
 | microsoft.scvmm | microsoft.scvmm/vmmservers/inventoryitems | 1 | resource-group | item-write | armscvmm:InventoryItems.ListByVmmServer |
 | microsoft.search | microsoft.search/searchservices/networksecurityperimeterconfigurations | 1 | resource-group | arm-envelope | armsearch:NetworkSecurityPerimeterConfigurations.ListByService |
 | microsoft.search | microsoft.search/searchservices/privateendpointconnections | 1 | resource-group | item-write | armsearch:PrivateEndpointConnections.ListByService |
@@ -3941,10 +3985,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.security | microsoft.security/governancerules | 0 | extension | item-write | armsecurity:GovernanceRules.List |
 | microsoft.security | microsoft.security/informationprotectionpolicies | 0 | extension | item-write | armsecurity:InformationProtectionPolicies.List |
 | microsoft.security | microsoft.security/iotsecuritysolutions | 0 | subscription | item-write | armsecurity:IotSecuritySolution.ListByResourceGroup, armsecurity:IotSecuritySolution.ListBySubscription |
-| microsoft.security | microsoft.security/iotsecuritysolutions/analyticsmodels/default/aggregatedalerts | 1 | resource-group | arm-envelope | armsecurity:IotSecuritySolutionsAnalyticsAggregatedAlert.List |
-| microsoft.security | microsoft.security/iotsecuritysolutions/analyticsmodels/default/aggregatedrecommendations | 1 | resource-group | arm-envelope | armsecurity:IotSecuritySolutionsAnalyticsRecommendation.List |
+| microsoft.security | microsoft.security/iotsecuritysolutions/analyticsmodels | 1 | resource-group | arm-envelope | armsecurity:IotSecuritySolutionAnalytics.List |
+| microsoft.security | microsoft.security/iotsecuritysolutions/analyticsmodels/aggregatedalerts | 2 | resource-group | arm-envelope | armsecurity:IotSecuritySolutionsAnalyticsAggregatedAlert.List |
+| microsoft.security | microsoft.security/iotsecuritysolutions/analyticsmodels/aggregatedrecommendations | 2 | resource-group | arm-envelope | armsecurity:IotSecuritySolutionsAnalyticsRecommendation.List |
 | microsoft.security | microsoft.security/jitnetworkaccesspolicies | 0 | subscription | item-write | armsecurity:JitNetworkAccessPolicies.List, armsecurity:JitNetworkAccessPolicies.ListByRegion, armsecurity:JitNetworkAccessPolicies.ListByResourceGroup, armsecurity:JitNetworkAccessPolicies.ListByResourceGroupAndRegion |
 | microsoft.security | microsoft.security/locations | 0 | subscription | arm-envelope | armsecurity:Locations.List |
+| microsoft.security | microsoft.security/mdeonboardings | 0 | subscription | arm-envelope | armsecurity:MdeOnboardings.List |
 | microsoft.security | microsoft.security/pricings/securityoperators | 1 | subscription | item-write | armsecurity:Operators.List |
 | microsoft.security | microsoft.security/privatelinks | 0 | subscription | item-write | armsecurity:PrivateLinks.List, armsecurity:PrivateLinks.ListBySubscription |
 | microsoft.security | microsoft.security/privatelinks/privateendpointconnections | 1 | resource-group | item-write | armsecurity:PrivateEndpointConnections.List |
@@ -3954,21 +4000,24 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.security | microsoft.security/regulatorycompliancestandards/regulatorycompliancecontrols/regulatorycomplianceassessments | 2 | subscription | arm-envelope | armsecurity:RegulatoryComplianceAssessments.List |
 | microsoft.security | microsoft.security/securescores | 0 | subscription | arm-envelope | armsecurity:SecureScores.List |
 | microsoft.security | microsoft.security/securityconnectors | 0 | subscription | item-write | armsecurity:Connectors.List, armsecurity:Connectors.ListByResourceGroup |
-| microsoft.security | microsoft.security/securityconnectors/devops/default/azuredevopsorgs | 1 | resource-group | item-write | armsecurity:AzureDevOpsOrgs.List |
-| microsoft.security | microsoft.security/securityconnectors/devops/default/azuredevopsorgs/projects | 2 | resource-group | item-write | armsecurity:AzureDevOpsProjects.List |
-| microsoft.security | microsoft.security/securityconnectors/devops/default/azuredevopsorgs/projects/repos | 3 | resource-group | item-write | armsecurity:AzureDevOpsRepos.List |
-| microsoft.security | microsoft.security/securityconnectors/devops/default/githubowners | 1 | resource-group | arm-envelope | armsecurity:GitHubOwners.List |
-| microsoft.security | microsoft.security/securityconnectors/devops/default/githubowners/repos | 2 | resource-group | arm-envelope | armsecurity:GitHubRepos.List |
-| microsoft.security | microsoft.security/securityconnectors/devops/default/gitlabgroups | 1 | resource-group | arm-envelope | armsecurity:GitLabGroups.List |
-| microsoft.security | microsoft.security/securityconnectors/devops/default/gitlabgroups/projects | 2 | resource-group | arm-envelope | armsecurity:GitLabProjects.List |
+| microsoft.security | microsoft.security/securityconnectors/devops | 1 | resource-group | item-write | armsecurity:DevOpsConfigurations.List |
+| microsoft.security | microsoft.security/securityconnectors/devops/azuredevopsorgs | 2 | resource-group | item-write | armsecurity:AzureDevOpsOrgs.List |
+| microsoft.security | microsoft.security/securityconnectors/devops/azuredevopsorgs/projects | 3 | resource-group | item-write | armsecurity:AzureDevOpsProjects.List |
+| microsoft.security | microsoft.security/securityconnectors/devops/azuredevopsorgs/projects/repos | 4 | resource-group | item-write | armsecurity:AzureDevOpsRepos.List |
+| microsoft.security | microsoft.security/securityconnectors/devops/githubowners | 2 | resource-group | arm-envelope | armsecurity:GitHubOwners.List |
+| microsoft.security | microsoft.security/securityconnectors/devops/githubowners/repos | 3 | resource-group | arm-envelope | armsecurity:GitHubRepos.List |
+| microsoft.security | microsoft.security/securityconnectors/devops/gitlabgroups | 2 | resource-group | arm-envelope | armsecurity:GitLabGroups.List |
+| microsoft.security | microsoft.security/securityconnectors/devops/gitlabgroups/projects | 3 | resource-group | arm-envelope | armsecurity:GitLabProjects.List |
 | microsoft.security | microsoft.security/securitycontacts | 0 | subscription | item-write | armsecurity:Contacts.List |
 | microsoft.security | microsoft.security/securitysolutions | 0 | subscription | arm-envelope | armsecurity:Solutions.List |
 | microsoft.security | microsoft.security/securitystandards | 0 | extension | item-write | armsecurity:ArmSecurityStandards.List |
+| microsoft.security | microsoft.security/sensitivitysettings | 0 | tenant | item-write | armsecurity:SensitivitySettings.List |
 | microsoft.security | microsoft.security/servervulnerabilityassessments | 0 | extension | item-write | armsecurity:ServerVulnerabilityAssessment.ListByExtendedResource |
 | microsoft.security | microsoft.security/servervulnerabilityassessmentssettings | 0 | subscription | item-write | armsecurity:ServerVulnerabilityAssessmentsSettings.ListBySubscription |
 | microsoft.security | microsoft.security/settings | 0 | subscription | item-write | armsecurity:Settings.List |
-| microsoft.security | microsoft.security/sqlvulnerabilityassessments/default/baselinerules | 0 | extension | item-write | armsecurity:SQLVulnerabilityAssessmentBaselineRules.List |
-| microsoft.security | microsoft.security/sqlvulnerabilityassessments/default/scans/scanresults | 1 | extension | arm-envelope | armsecurity:SQLVulnerabilityAssessmentScanResults.List |
+| microsoft.security | microsoft.security/sqlvulnerabilityassessments/baselinerules | 1 | extension | item-write | armsecurity:SQLVulnerabilityAssessmentBaselineRules.List |
+| microsoft.security | microsoft.security/sqlvulnerabilityassessments/scans | 1 | extension | arm-envelope | armsecurity:SQLVulnerabilityAssessmentScans.List |
+| microsoft.security | microsoft.security/sqlvulnerabilityassessments/scans/scanresults | 2 | extension | arm-envelope | armsecurity:SQLVulnerabilityAssessmentScanResults.List |
 | microsoft.security | microsoft.security/standardassignments | 0 | extension | item-write | armsecurity:StandardAssignments.List |
 | microsoft.security | microsoft.security/standards | 0 | subscription | item-write | armsecurity:Standards.List, armsecurity:Standards.ListBySubscription |
 | microsoft.security | microsoft.security/tasks | 0 | subscription | arm-envelope | armsecurity:Tasks.List, armsecurity:Tasks.ListByHomeRegion, armsecurity:Tasks.ListByResourceGroup |
@@ -4023,6 +4072,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.servicebus | microsoft.servicebus/namespaces/disasterrecoveryconfigs | 1 | resource-group | item-write | armservicebus:DisasterRecoveryConfigs.List |
 | microsoft.servicebus | microsoft.servicebus/namespaces/disasterrecoveryconfigs/authorizationrules | 2 | resource-group | arm-envelope | armservicebus:DisasterRecoveryConfigs.ListAuthorizationRules |
 | microsoft.servicebus | microsoft.servicebus/namespaces/migrationconfigurations | 1 | resource-group | item-write | armservicebus:MigrationConfigs.List |
+| microsoft.servicebus | microsoft.servicebus/namespaces/networkrulesets | 1 | resource-group | item-write | armservicebus:Namespaces.ListNetworkRuleSets |
 | microsoft.servicebus | microsoft.servicebus/namespaces/networksecurityperimeterconfigurations | 1 | resource-group | arm-envelope | armservicebus:NetworkSecurityPerimeterConfiguration.List |
 | microsoft.servicebus | microsoft.servicebus/namespaces/privateendpointconnections | 1 | resource-group | item-write | armservicebus:PrivateEndpointConnections.List |
 | microsoft.servicebus | microsoft.servicebus/namespaces/queues | 1 | resource-group | item-write | armservicebus:Queues.ListByNamespace |
@@ -4154,19 +4204,24 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.standbypool | microsoft.standbypool/standbyvirtualmachinepools/standbyvirtualmachines | 1 | resource-group | arm-envelope | armstandbypool:StandbyVirtualMachines.ListByStandbyVirtualMachinePoolResource |
 | microsoft.storage | microsoft.storage/deletedaccounts | 0 | subscription | arm-envelope | armstorage:DeletedAccounts.List |
 | microsoft.storage | microsoft.storage/storageaccounts/advancedplatformmetrics | 1 | resource-group | item-write | armstorage:AdvancedPlatformMetrics.List |
-| microsoft.storage | microsoft.storage/storageaccounts/blobservices/default/containers | 1 | resource-group | item-write | armstorage:BlobContainers.List |
+| microsoft.storage | microsoft.storage/storageaccounts/blobservices | 1 | resource-group | item-write | armstorage:BlobServices.List |
+| microsoft.storage | microsoft.storage/storageaccounts/blobservices/containers | 2 | resource-group | item-write | armstorage:BlobContainers.List |
 | microsoft.storage | microsoft.storage/storageaccounts/connectors | 1 | resource-group | item-write | armstorage:Connectors.ListByStorageAccount |
 | microsoft.storage | microsoft.storage/storageaccounts/datashares | 1 | resource-group | item-write | armstorage:DataShares.ListByStorageAccount |
 | microsoft.storage | microsoft.storage/storageaccounts/encryptionscopes | 1 | resource-group | item-write | armstorage:EncryptionScopes.List |
-| microsoft.storage | microsoft.storage/storageaccounts/fileservices/default/shares | 1 | resource-group | item-write | armstorage:FileShares.List |
+| microsoft.storage | microsoft.storage/storageaccounts/fileservices | 1 | resource-group | item-write | armstorage:FileServices.List |
+| microsoft.storage | microsoft.storage/storageaccounts/fileservices/shares | 2 | resource-group | item-write | armstorage:FileShares.List |
+| microsoft.storage | microsoft.storage/storageaccounts/fileservices/usages | 2 | resource-group | arm-envelope | armstorage:FileServices.ListServiceUsages |
 | microsoft.storage | microsoft.storage/storageaccounts/inventorypolicies | 1 | resource-group | item-write | armstorage:BlobInventoryPolicies.List |
 | microsoft.storage | microsoft.storage/storageaccounts/localusers | 1 | resource-group | item-write | armstorage:LocalUsers.List |
 | microsoft.storage | microsoft.storage/storageaccounts/networksecurityperimeterconfigurations | 1 | resource-group | arm-envelope | armstorage:NetworkSecurityPerimeterConfigurations.List |
 | microsoft.storage | microsoft.storage/storageaccounts/objectreplicationpolicies | 1 | resource-group | item-write | armstorage:ObjectReplicationPolicies.List |
 | microsoft.storage | microsoft.storage/storageaccounts/privateendpointconnections | 1 | resource-group | item-write | armstorage:PrivateEndpointConnections.List |
-| microsoft.storage | microsoft.storage/storageaccounts/queueservices/default/queues | 1 | resource-group | item-write | armstorage:Queue.List |
+| microsoft.storage | microsoft.storage/storageaccounts/queueservices | 1 | resource-group | item-write | armstorage:QueueServices.List |
+| microsoft.storage | microsoft.storage/storageaccounts/queueservices/queues | 2 | resource-group | item-write | armstorage:Queue.List |
 | microsoft.storage | microsoft.storage/storageaccounts/storagetaskassignments | 1 | resource-group | item-write | armstorage:TaskAssignments.List |
-| microsoft.storage | microsoft.storage/storageaccounts/tableservices/default/tables | 1 | resource-group | item-write | armstorage:Table.List |
+| microsoft.storage | microsoft.storage/storageaccounts/tableservices | 1 | resource-group | item-write | armstorage:TableServices.List |
+| microsoft.storage | microsoft.storage/storageaccounts/tableservices/tables | 2 | resource-group | item-write | armstorage:Table.List |
 | microsoft.storagecache | microsoft.storagecache/amlfilesystems | 0 | subscription | item-write | armstoragecache:AmlFilesystems.List, armstoragecache:AmlFilesystems.ListByResourceGroup |
 | microsoft.storagecache | microsoft.storagecache/amlfilesystems/autoexportjobs | 1 | resource-group | item-write | armstoragecache:AutoExportJobs.ListByAmlFilesystem |
 | microsoft.storagecache | microsoft.storagecache/amlfilesystems/autoimportjobs | 1 | resource-group | item-write | armstoragecache:AutoImportJobs.ListByAmlFilesystem |
@@ -4210,6 +4265,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.streamanalytics | microsoft.streamanalytics/streamingjobs/inputs | 1 | resource-group | item-write | armstreamanalytics:Inputs.ListByStreamingJob |
 | microsoft.streamanalytics | microsoft.streamanalytics/streamingjobs/outputs | 1 | resource-group | item-write | armstreamanalytics:Outputs.ListByStreamingJob |
 | microsoft.subscription | microsoft.subscription/aliases | 0 | tenant | item-write | armsubscription:Alias.List |
+| microsoft.subscription | microsoft.subscription/changetenantrequest | 0 | subscription | item-write | armsubscription:Subscriptions.ListTargetDirectory |
+| microsoft.subscription | microsoft.subscription/policies | 0 | tenant | item-write | armsubscription:Policy.ListPolicyForTenant |
 | microsoft.support | microsoft.support/fileworkspaces/files | 1 | tenant | item-write | armsupport:Files.List, armsupport:FilesNoSubscription.List |
 | microsoft.support | microsoft.support/services/problemclassifications | 1 | tenant | arm-envelope | armsupport:ProblemClassifications.List |
 | microsoft.support | microsoft.support/supporttickets | 0 | tenant | item-write | armsupport:Tickets.List, armsupport:TicketsNoSubscription.List |
@@ -4325,6 +4382,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.web | microsoft.web/sites/processes/modules | 2 | resource-group | arm-envelope | armappservice:WebApps.ListProcessModules |
 | microsoft.web | microsoft.web/sites/publiccertificates | 1 | resource-group | item-write | armappservice:WebApps.ListPublicCertificates |
 | microsoft.web | microsoft.web/sites/recommendations | 1 | resource-group | arm-envelope | armappservice:Recommendations.ListRecommendedRulesForWebApp |
+| microsoft.web | microsoft.web/sites/resourcehealthmetadata | 1 | resource-group | arm-envelope | armappservice:ResourceHealthMetadata.ListBySite |
 | microsoft.web | microsoft.web/sites/sitecontainers | 1 | resource-group | item-write | armappservice:WebApps.ListSiteContainers |
 | microsoft.web | microsoft.web/sites/siteextensions | 1 | resource-group | item-write | armappservice:WebApps.ListSiteExtensions |
 | microsoft.web | microsoft.web/sites/slots/backups | 2 | resource-group | item-write | armappservice:WebApps.ListBackupsSlot |
@@ -4351,6 +4409,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.web | microsoft.web/sites/slots/processes | 2 | resource-group | item-write | armappservice:WebApps.ListProcessesSlot |
 | microsoft.web | microsoft.web/sites/slots/processes/modules | 3 | resource-group | arm-envelope | armappservice:WebApps.ListProcessModulesSlot |
 | microsoft.web | microsoft.web/sites/slots/publiccertificates | 2 | resource-group | item-write | armappservice:WebApps.ListPublicCertificatesSlot |
+| microsoft.web | microsoft.web/sites/slots/resourcehealthmetadata | 2 | resource-group | arm-envelope | armappservice:ResourceHealthMetadata.ListBySiteSlot |
 | microsoft.web | microsoft.web/sites/slots/sitecontainers | 2 | resource-group | item-write | armappservice:WebApps.ListSiteContainersSlot |
 | microsoft.web | microsoft.web/sites/slots/siteextensions | 2 | resource-group | item-write | armappservice:WebApps.ListSiteExtensionsSlot |
 | microsoft.web | microsoft.web/sites/slots/triggeredwebjobs | 2 | resource-group | item-write | armappservice:WebApps.ListTriggeredWebJobsSlot |
@@ -4378,6 +4437,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.windowsiot | microsoft.windowsiot/deviceservices | 0 | subscription | item-write | armwindowsiot:Services.List, armwindowsiot:Services.ListByResourceGroup |
 | microsoft.workloadmonitor | microsoft.workloadmonitor/monitors/history | 1 | extension | arm-envelope | armworkloadmonitor:HealthMonitors.ListStateChanges |
 | microsoft.workloads | microsoft.workloads/monitors/providerinstances | 1 | resource-group | item-write | armworkloads:ProviderInstances.List |
+| microsoft.workloads | microsoft.workloads/monitors/saplandscapemonitor | 1 | resource-group | item-write | armworkloads:SapLandscapeMonitor.List |
 | microsoft.workloads | microsoft.workloads/sapdiscoverysites | 0 | subscription | item-write | armmigrationdiscoverysap:SapDiscoverySites.ListByResourceGroup, armmigrationdiscoverysap:SapDiscoverySites.ListBySubscription |
 | microsoft.workloads | microsoft.workloads/sapdiscoverysites/sapinstances | 1 | resource-group | item-write | armmigrationdiscoverysap:SapInstances.ListBySapDiscoverySite |
 | microsoft.workloads | microsoft.workloads/sapdiscoverysites/sapinstances/serverinstances | 2 | resource-group | item-write | armmigrationdiscoverysap:ServerInstances.ListBySapInstance |
@@ -4418,9 +4478,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | oracle.database | oracle.database/giversions | 0 | subscription | arm-envelope | armoracledatabase:GiVersions.ListByLocation |
 | oracle.database | oracle.database/giversions/giminorversions | 1 | subscription | arm-envelope | armoracledatabase:GiMinorVersions.ListByParent |
 | oracle.database | oracle.database/networkanchors | 0 | subscription | item-write | armoracledatabase:NetworkAnchors.ListByResourceGroup, armoracledatabase:NetworkAnchors.ListBySubscription |
+| oracle.database | oracle.database/oraclesubscriptions | 0 | subscription | item-write | armoracledatabase:OracleSubscriptions.ListBySubscription |
 | oracle.database | oracle.database/resourceanchors | 0 | subscription | item-write | armoracledatabase:ResourceAnchors.ListByResourceGroup, armoracledatabase:ResourceAnchors.ListBySubscription |
 | oracle.database | oracle.database/systemversions | 0 | subscription | arm-envelope | armoracledatabase:SystemVersions.ListByLocation |
 | paloaltonetworks.cloudngfw | paloaltonetworks.cloudngfw/firewalls | 0 | subscription | item-write | armpanngfw:Firewalls.ListByResourceGroup, armpanngfw:Firewalls.ListBySubscription |
+| paloaltonetworks.cloudngfw | paloaltonetworks.cloudngfw/firewalls/metrics | 1 | resource-group | item-write | armpanngfw:MetricsObjectFirewall.ListByFirewalls |
+| paloaltonetworks.cloudngfw | paloaltonetworks.cloudngfw/firewalls/statuses | 1 | resource-group | arm-envelope | armpanngfw:FirewallStatus.ListByFirewalls |
 | paloaltonetworks.cloudngfw | paloaltonetworks.cloudngfw/globalrulestacks | 0 | tenant | item-write | armpanngfw:GlobalRulestack.List |
 | paloaltonetworks.cloudngfw | paloaltonetworks.cloudngfw/globalrulestacks/certificates | 1 | tenant | item-write | armpanngfw:CertificateObjectGlobalRulestack.List |
 | paloaltonetworks.cloudngfw | paloaltonetworks.cloudngfw/globalrulestacks/fqdnlists | 1 | tenant | item-write | armpanngfw:FqdnListGlobalRulestack.List |
