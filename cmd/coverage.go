@@ -472,11 +472,18 @@ func renderServiceMatrices(w io.Writer, outputFmt string, matrices []coverage.Ma
 	switch outputFmt {
 	case "json":
 		return coverage.RenderJSON(w, matrices)
+	// The row streams carry the matrix's pairing flag on every row: JSON has
+	// it once per matrix, but a CSV or JSONL consumer sees only rows, and an
+	// unpaired run's covered/uncovered split is a name match that reads
+	// several points low on AWS and GCP.
 	case "jsonl":
 		enc := json.NewEncoder(w)
 		for _, m := range matrices {
 			for _, r := range m.Rows {
-				if err := enc.Encode(r); err != nil {
+				if err := enc.Encode(struct {
+					coverage.Row
+					Pairing bool `json:"pairing"`
+				}{r, m.Pairing}); err != nil {
 					return err
 				}
 			}
@@ -484,10 +491,10 @@ func renderServiceMatrices(w io.Writer, outputFmt string, matrices []coverage.Ma
 		return nil
 	case "csv":
 		cw := csv.NewWriter(w)
-		_ = cw.Write([]string{"provider", "service", "key", "disco_type", "bucket", "depth", "parent", "scope", "reason", "ops"})
+		_ = cw.Write([]string{"provider", "service", "key", "disco_type", "bucket", "depth", "parent", "scope", "reason", "ops", "pairing"})
 		for _, m := range matrices {
 			for _, r := range m.Rows {
-				_ = cw.Write([]string{r.Provider, r.Service, r.Key, r.DiscoType, string(r.Bucket), strconv.Itoa(r.Depth), r.Parent, r.Scope, r.Reason, strings.Join(r.Ops, " ")})
+				_ = cw.Write([]string{r.Provider, r.Service, r.Key, r.DiscoType, string(r.Bucket), strconv.Itoa(r.Depth), r.Parent, r.Scope, r.Reason, strings.Join(r.Ops, " "), strconv.FormatBool(m.Pairing)})
 			}
 		}
 		cw.Flush()

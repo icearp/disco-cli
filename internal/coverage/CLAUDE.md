@@ -112,9 +112,10 @@ locally. Keep ignore patterns narrow (`*.out`, `coverage.html`).
 here and by GCP's `RegistryKey`/`CanonicalKey`: `Singular` alone splits "caches"/"cache" and
 "aliases"/"alias". Never display an Ident; keys come from the extractor.
 
-## Live numbers (2026-09-16 pins, pairing on)
+## Live numbers (2026-09-26, pins in `docs/coverage.md`, pairing on)
 
-AWS 50.4% (1637/3247), Azure 19.7% (386/1959), GCP 23.3% (235/1009); zero unexplained. Azure
+AWS 48.7% (1677/3441), Azure 15.8% (398/2515), GCP 22.9% (239/1042); zero unexplained. Pairing
+off (an installed binary): AWS 41.3%, Azure 15.7%, GCP 18.5%. Azure
 carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 1 (`other-op`). The
 Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
 
@@ -122,9 +123,10 @@ Azure/GCP extractors emit no `attribute` class (their detail reads are item path
 
 `aws_skips.go`, `Descriptor.Upstream`/`Uncatalogued`, `azureAPITypeMap`, `serviceRenames`,
 GCP `singularizeExceptions` and the Discovery allowlist are gone; the pairing tests replace
-them. The one-time reconcile report (Phase 4) found: AWS `skip-contradicted` 198 — ephemeral,
-retired or catalog rows the SDK still lists, now honest `uncovered` rows for the Phase 8
-baseline; `skip-unmatched` 194 — CFN-only or retired services with no Smithy model; Azure
+them. The one-time reconcile report (Phase 4) found: AWS skip-labelled keys in the uncovered
+denominator = 198 depth-0 (`skip-contradicted`) + 67 child (`skip-is-child`, the same kind of
+thing one level down) = 265 — ephemeral, retired or catalog rows the SDK still lists, now
+`uncovered` rows for the Phase 8 baseline; `skip-unmatched` 194 — CFN-only or retired services with no Smithy model; Azure
 `alias-orphan` 2 — the `CloudServices*` sdk-skew; ledger-absent rows were ledger errors
 (`microsoft.storage/storagetasks` lives under `microsoft.storageactions`, `hybridnetwork/devices`
 left the SDK, `admin Transfer` was never scanned).

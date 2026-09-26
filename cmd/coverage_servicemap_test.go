@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/coverage"
@@ -21,9 +20,13 @@ var coreStoredTypes = map[string]bool{
 // declared type by the scan-record entry of the scanner service that stores
 // it, joined through the type's file, declared service or type segment
 // (typeServiceNames). Every emitted type must reach a registered service
-// through one of them, and every file-derived name must be a real scanner
-// service; otherwise the row silently reads "no rows" instead of
-// "scan-error".
+// through one of them; otherwise the row silently reads "no rows" instead of
+// "scan-error". The file-derived names need no check of their own:
+// TypeServices only ever returns names registerService, registerOrgService or
+// registerTenantService noted, and the org/tenant scanners report errors
+// under those same literals. (A check against ServiceNames() could never
+// fire: it lists only the per-scope services and was escaped by a prefix
+// test every name passed.)
 func TestEveryEmittedTypeHasScannerService(t *testing.T) {
 	for _, p := range coverage.All() {
 		m, ok := p.(coverage.ServiceMapper)
@@ -44,11 +47,6 @@ func TestEveryEmittedTypeHasScannerService(t *testing.T) {
 			svcs := byType[d.DiscoType]
 			if len(svcs) == 0 && !known[p.Name()+":"+d.Service] && !known[p.Name()+":"+discoServiceSegment(d.DiscoType)] && !coreStoredTypes[d.DiscoType] {
 				t.Errorf("%s: %s reaches no registered scanner service", p.Name(), d.DiscoType)
-			}
-			for _, s := range svcs {
-				if !known[s] && !strings.HasPrefix(s, p.Name()+":") {
-					t.Errorf("%s: %s maps to unknown scanner service %q", p.Name(), d.DiscoType, s)
-				}
 			}
 		}
 	}

@@ -146,8 +146,12 @@ func TestCoverageServices_FiltersAndFormats(t *testing.T) {
 	}{
 		{"table", "uncovered", "aws: **Coverage:** 0.0%"},
 		{"markdown", "gaps", "### Uncovered"},
-		{"csv", "all", "provider,service,key,disco_type,bucket,depth,parent,scope,reason,ops"},
+		{"csv", "all", "provider,service,key,disco_type,bucket,depth,parent,scope,reason,ops,pairing"},
 		{"jsonl", "uncovered", `"bucket":"uncovered"`},
+		// --source-root= turns pairing off; a row stream must say so on
+		// every row (#85).
+		{"csv", "uncovered", ",false\n"},
+		{"jsonl", "uncovered", `"pairing":false`},
 	} {
 		resetCoverageFlags(t)
 		out, err := captureStdout(t, func() error {

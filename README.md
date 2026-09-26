@@ -196,6 +196,14 @@ percentage drops under the same pins. `resolvers --only-unannotated` surfaces re
 zero declared `EdgeDecl`, the candidate sweep targets for closing graph gaps, and
 `coverage verify` checks a finished scan's stored types against what the scanners declare.
 
+The numerator needs disco's own source. Run from a checkout (or with `--source-root <checkout>`),
+the scanners are paired with their SDK calls; an installed binary has no source to read, so it
+falls back to matching candidates by name and prints a lower percentage. At the 2026-09 pins
+that is AWS 41.3% against 48.7% paired, and GCP 18.5% against 22.9%; Azure barely moves. Resources disco does
+scan then show up as gaps. Every run without pairing warns on stderr, `-o json` carries
+`"pairing": false` per provider, and CSV / JSONL carry a `pairing` column / field on every row.
+`--baseline`, `--write-baseline` and `--check-strict` refuse to run without pairing.
+
 ```bash
 make check-coverage                                              # the CI ratchet
 disco coverage services --providers aws --filter gaps            # what AWS lists that disco does not scan

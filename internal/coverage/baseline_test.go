@@ -1,6 +1,8 @@
 package coverage
 
 import (
+	"bytes"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -133,8 +135,7 @@ func TestMergeKeepsProvidersNotRewritten(t *testing.T) {
 	}
 }
 
-// TestBaselineRoundTrip: the file survives write → read unchanged and is
-// byte-stable across two writes.
+// TestBaselineRoundTrip: the file survives write → read unchanged.
 func TestBaselineRoundTrip(t *testing.T) {
 	b := NewBaseline([]Matrix{baselineMatrix(map[string]string{"sdk": "v1"}, []string{"s3/bucket", "ec2/instance"}, []string{"ec2/fleet"}, nil)})
 	path := filepath.Join(t.TempDir(), "b.json")
@@ -153,5 +154,31 @@ func TestBaselineRoundTrip(t *testing.T) {
 	}
 	if _, err := ReadBaseline(filepath.Join(t.TempDir(), "missing.json")); err == nil {
 		t.Error("missing file must error")
+	}
+}
+
+// TestBaselineBytesIgnoreInputOrder is the property `make gen-coverage`
+// depends on: NewBaseline → WriteBaseline over the same matrices supplied in a
+// different order, with rows in a different order, writes identical bytes,
+// so the committed baseline diffs only when the numbers do.
+func TestBaselineBytesIgnoreInputOrder(t *testing.T) {
+	pins := map[string]string{"sdk": "v1", "sr": "x"}
+	aws := baselineMatrix(pins, []string{"s3/bucket", "ec2/instance"}, []string{"kms/grant", "ec2/fleet"}, []string{"aws:x:z", "aws:x:y"})
+	awsRev := baselineMatrix(pins, []string{"ec2/instance", "s3/bucket"}, []string{"ec2/fleet", "kms/grant"}, []string{"aws:x:y", "aws:x:z"})
+	gcp := baselineMatrix(pins, []string{"compute/instance"}, nil, nil)
+	gcp.Provider = "gcp"
+	write := func(ms ...Matrix) []byte {
+		path := filepath.Join(t.TempDir(), "b.json")
+		if err := WriteBaseline(path, NewBaseline(ms)); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	if a, b := write(aws, gcp), write(gcp, awsRev); !bytes.Equal(a, b) {
+		t.Errorf("baseline bytes depend on input order:\n%s\n---\n%s", a, b)
 	}
 }

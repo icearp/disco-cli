@@ -95,9 +95,9 @@ types or ops.
 | Class | Rule of thumb | Counted in % | Examples |
 |---|---|---|---|
 | `resource` | Listable and persistent; something can be created or deleted | yes | `ec2/instance`, `kms/grant` |
-| `attribute` | A `Get` of one parent's setting, no collection | no (listed) | `iam/accountpasswordpolicy`, `s3/bucket/encryption` |
-| `catalog` | Provider-published, read-only | no | `ec2/instancetype`, `compute/zones`, `microsoft.compute/resourceskus` |
-| `non-resource` | Operations, metrics, history, account attributes | no | `ec2/accountattribute`, `*/operations` |
+| `attribute` | A `Get` of one parent's setting, no collection | no (listed) | `iam/accountpasswordpolicy`, `s3/bucket/bucketencryption` |
+| `catalog` | Provider-published, read-only | no | `ec2/instancetype`, `compute/zones`, `microsoft.servicefabric/managedclusterversions` |
+| `non-resource` | Operations, metrics, history, account attributes | no | `iam/accountsummary`, `*/operations` |
 
 `Universe.Other` holds every SDK operation that is **not** a candidate op (writes, item reads,
 actions). Pairing needs it: a scanner that builds a type from a `Get` pairs with an `other` op and

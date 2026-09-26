@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -68,6 +69,7 @@ func TestAllExtractorsConform(t *testing.T) {
 // cache in one process used to disagree on healthlake's Required.
 func TestLiveUniverseWellFormed(t *testing.T) {
 	cache := sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}
+	classOf := map[string]sdkinv.Class{}
 	for _, n := range sdkinv.Names() {
 		e, _ := sdkinv.Get(n)
 		dir := cache.Dir(n, e.Ref())
@@ -81,6 +83,7 @@ func TestLiveUniverseWellFormed(t *testing.T) {
 			}
 			bad := 0
 			for _, c := range u.Candidates {
+				classOf[c.Key] = c.Class
 				if why := sdkinv.ValidateKey(c.Key, c.Service); why != "" && bad < 10 {
 					bad++
 					t.Errorf("malformed key %q (service %q): %s", c.Key, c.Service, why)
@@ -94,6 +97,37 @@ func TestLiveUniverseWellFormed(t *testing.T) {
 				t.Error("two extractions of the live cache disagree")
 			}
 		})
+	}
+	checkReadmeClassExamples(t, classOf)
+}
+
+// classRowRe matches a row of the class table in ../README.md: the class
+// name, then its worked examples in the last cell.
+var classRowRe = regexp.MustCompile("(?m)^\\| `([a-z-]+)` \\|.*\\| ([^|]*`[^|]*) \\|$")
+
+// checkReadmeClassExamples pins the README's worked class examples to the
+// extractor's output. microsoft.compute/resourceskus and s3/bucket/encryption
+// were never keys, and ec2/accountattribute had moved class, all while the
+// README said a surprising row could be explained from it.
+func checkReadmeClassExamples(t *testing.T, classOf map[string]sdkinv.Class) {
+	raw, err := os.ReadFile(filepath.Join("..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := classRowRe.FindAllStringSubmatch(string(raw), -1)
+	if len(rows) < 4 {
+		t.Fatalf("found %d class rows in the README table", len(rows))
+	}
+	for _, row := range rows {
+		for _, ex := range strings.Split(row[2], ",") {
+			key := strings.Trim(strings.TrimSpace(ex), "`")
+			if strings.Contains(key, "*") {
+				continue
+			}
+			if got, ok := classOf[key]; !ok || string(got) != row[1] {
+				t.Errorf("README example %s: class %q (present %v), want %s", key, got, ok, row[1])
+			}
+		}
 	}
 }
 
