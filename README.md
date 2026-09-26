@@ -18,6 +18,12 @@ A scan takes a few minutes. After that, queries run sub-second against a few-tho
 
 The queryable verbs speak JSON, JSONL, CSV, SARIF, DOT, and Mermaid. `resources -o json`, `graph complete -o json`, and `check -o json` produce identical bytes across runs (same SHA-256), so they're safe to commit, diff, and feed into CI. `disco check --output sarif` drops straight into GitHub code scanning. `disco snapshot` packs the DB into a single file with a manifest and inner-DB hash for handoff, and `disco coverage services --check-strict` flags new cloud resource types disco doesn't yet scan.
 
+## Hosted
+
+`disco` is complete on its own: MIT-licensed, runs on your machine, scans into a single local file, and answers every query offline afterward. It has no telemetry and no paid edition. Several of the verbs below are CLI-only and have no hosted equivalent today: shortest-path queries between two resources, scan-to-scan diff, orphan detection, per-key tag-coverage, OPA/Rego evaluation with SARIF output and exit-code gating, and byte-identical JSON output.
+
+[Disco Cloud](https://discocloud.io) is a hosted service built on this scanner, for teams that would rather not run it themselves. It adds hosting isolated per organization, guided connection for AWS and Google Cloud, scans that run on its infrastructure instead of a laptop, a web UI, SSO, webhooks, an audit log, and cost allocation. Azure accounts are scanned the same way but are connected by arrangement rather than self-serve today. It is free for 3 cloud accounts with no card and no trial clock, and priced per cloud account rather than per seat above that.
+
 ## Install
 
 Build needs Go. No C toolchain: the SQLite driver is pure Go (`modernc.org/sqlite`), so `CGO_ENABLED=0` is required. The Makefile sets it.
