@@ -2,9 +2,11 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2"
+	kav2types "github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -27,8 +29,12 @@ func scanKinesisAnalyticsV2(ctx context.Context, acct *account, region string, s
 	client := kinesisanalyticsv2.NewFromConfig(acct.cfg, func(o *kinesisanalyticsv2.Options) { o.Region = region })
 
 	pager := kinesisanalyticsv2.NewListApplicationsPaginator(client, &kinesisanalyticsv2.ListApplicationsInput{})
-	var appNames []string
-	var appBatch []*store.Resource
+	// Each application is stored once per scan. The store has no in-place
+	// update: a second upsert of the same ARN with different attributes is a
+	// version split, so writing the summary and then the detail body added two
+	// versions per application on every scan. The summary is kept only as the
+	// fallback row when the detail read is denied or empty.
+	var summaries []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -43,9 +49,8 @@ func scanKinesisAnalyticsV2(ctx context.Context, acct *account, region string, s
 			if arn == "" || name == "" {
 				continue
 			}
-			appNames = append(appNames, name)
 			status := string(s.ApplicationStatus)
-			appBatch = append(appBatch, &store.Resource{
+			summaries = append(summaries, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeKAV2Application, NativeID: arn,
 				Name: s.ApplicationName, Region: &region, Status: &status,
@@ -53,33 +58,32 @@ func scanKinesisAnalyticsV2(ctx context.Context, acct *account, region string, s
 			})
 		}
 	}
-	t, i, ferr := upsertBatch(st, appBatch, "kinesisanalyticsv2 applications")
-	if ferr != nil {
-		return 0, 0, ferr
-	}
-	total += t
-	inserted += i
 
-	for _, name := range appNames {
-		nm := name
+	// A failed detail read still stores the application from its summary and
+	// moves on; the failure is returned once every application is stored.
+	var describeErrs []error
+	for _, summary := range summaries {
+		nm := *summary.Name
 		out, derr := client.DescribeApplication(ctx, &kinesisanalyticsv2.DescribeApplicationInput{ApplicationName: &nm})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				continue
-			}
-			return total, inserted, fmt.Errorf("kinesisanalyticsv2:DescribeApplication: %w", derr)
+		if derr != nil && !isAccessDenied(derr) {
+			describeErrs = append(describeErrs, fmt.Errorf("kinesisanalyticsv2:DescribeApplication %s: %w", nm, derr))
 		}
-		d := out.ApplicationDetail
-		if d == nil {
+		var d *kav2types.ApplicationDetail
+		if derr == nil {
+			d = out.ApplicationDetail
+		}
+		if d == nil || sv(d.ApplicationARN) == "" {
+			t, i, ferr := upsertBatch(st, []*store.Resource{summary}, "kinesisanalyticsv2 applications")
+			if ferr != nil {
+				return total, inserted, ferr
+			}
+			total += t
+			inserted += i
 			continue
 		}
 		appARN := sv(d.ApplicationARN)
-		if appARN == "" {
-			continue
-		}
-		// Re-upsert parent with detail body so resolvers see ServiceExecutionRole +
-		// CloudWatchLoggingOptionDescriptions[]; UpsertResources ON CONFLICT updates
-		// the attributes column.
+		// The detail body is the application row: resolvers read
+		// ServiceExecutionRole and CloudWatchLoggingOptionDescriptions from it.
 		appStatus := string(d.ApplicationStatus)
 		var subBatch []*store.Resource
 		subBatch = append(subBatch, &store.Resource{
@@ -131,12 +135,12 @@ func scanKinesisAnalyticsV2(ctx context.Context, acct *account, region string, s
 				})
 			}
 		}
-		t, i, ferr = upsertBatch(st, subBatch, "kinesisanalyticsv2 application-children")
+		t, i, ferr := upsertBatch(st, subBatch, "kinesisanalyticsv2 application-children")
 		if ferr != nil {
 			return total, inserted, ferr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+	return total, inserted, errors.Join(describeErrs...)
 }
