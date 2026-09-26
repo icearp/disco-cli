@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDLMLifecyclePolicy, Service: "dlm", Upstream: "AWS::DLM::LifecyclePolicy", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDLMLifecyclePolicy, Service: "dlm"})
 	registerService(serviceEntry{
 		name: "aws:dlm",
 		fn:   scanDLM,

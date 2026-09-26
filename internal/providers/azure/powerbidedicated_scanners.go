@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePowerBIDedicatedCapacity, Service: "microsoft.powerbidedicated", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePowerBIDedicatedAutoScaleVCore, Service: "microsoft.powerbidedicated", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePowerBIDedicatedCapacity, Service: "microsoft.powerbidedicated"})
+	registerType(restype.Descriptor{Type: TypePowerBIDedicatedAutoScaleVCore, Service: "microsoft.powerbidedicated"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.powerbidedicated",
 		fn:   scanPowerBIDedicated,

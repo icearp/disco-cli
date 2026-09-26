@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOutpostsSite, Service: "outposts", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOutpostsSite, Service: "outposts"})
 	registerType(restype.Descriptor{Type: TypeOutpostsOutpost, Service: "outposts"})
 	registerService(serviceEntry{
 		name: "aws:outposts",

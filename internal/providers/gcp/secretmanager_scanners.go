@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSecret, Service: "secretmanager", Upstream: "secretmanager.googleapis.com/Secret", Redact: []redact.Rule{{Path: "payload.data", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeSecretVersion, Service: "secretmanager", Upstream: "secretmanager.googleapis.com/Version"})
+	registerType(restype.Descriptor{Type: TypeSecret, Service: "secretmanager", Redact: []redact.Rule{{Path: "payload.data", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSecretVersion, Service: "secretmanager"})
 	registerService(serviceEntry{
 		name: "gcp:secretmanager",
 		fn:   scanSecrets,

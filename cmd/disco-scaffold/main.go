@@ -1,19 +1,19 @@
-// disco-scaffold is a forward-only dev tool: it reads a provider's live
-// upstream catalog (via the already-wired coverage.Provider.Fetch), subtracts
-// the types disco already scans, and emits restype.Descriptor-shaped stubs for
-// the *uncovered* types so a new scanner is born in the unified shape.
+// disco-scaffold is a forward-only dev tool: it derives a provider's listable
+// resource universe from the SDK source cache (internal/sdkinv), subtracts the
+// candidates disco's scanners already list (internal/sdkinv/pairing), and
+// emits restype.Descriptor-shaped stubs for the *uncovered* candidates so a
+// new scanner is born in the unified shape.
 //
 // It never rewrites existing files. --write drops a self-contained
 // <svc>_scanners.go into the provider package (refusing to clobber an existing
 // one unless --force); without --write it prints the same content to stdout.
 //
 //	go run ./cmd/disco-scaffold gcp:artifactregistry
-//	go run ./cmd/disco-scaffold aws:ec2 --regions us-east-1 --profile audit
 //	go run ./cmd/disco-scaffold aws:qbusiness --write
 //
 // The SDK->store.Resource field mapping and the resolver edges stay human
-// judgment — the stub scanner returns (0,0,nil) with a TODO. Every upstream
-// type already covered is logged, so the tool can never silently skip one.
+// judgment — the stub scanner returns (0,0,nil) with a TODO. Every candidate
+// already covered is logged, so the tool can never silently skip one.
 package main
 
 import (
@@ -23,11 +23,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/icearp/disco-cli/internal/coverage"
 	_ "github.com/icearp/disco-cli/internal/providers/all" // register providers + coverage impls
+	"github.com/icearp/disco-cli/internal/sdkinv"
+	_ "github.com/icearp/disco-cli/internal/sdkinv/all" // register SDK extractors + pairing resolvers
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
@@ -35,9 +38,8 @@ func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 func run(argv []string, stdout, stderr *os.File) int {
 	fs := flag.NewFlagSet("disco-scaffold", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	regions := fs.String("regions", "", "comma-separated regions for the upstream Fetch (AWS CloudFormation)")
-	profile := fs.String("profile", "", "AWS profile for the upstream Fetch")
-	subscription := fs.String("subscription", "", "Azure subscription id for the upstream Fetch")
+	cacheRoot := fs.String("sdk-cache", sdkinv.DefaultCacheRoot(), "SDK source cache directory (populate with 'disco coverage sdk fetch')")
+	sourceRoot := fs.String("source-root", ".", "disco-cli checkout whose scanners are paired; empty = name matching only")
 	write := fs.Bool("write", false, "write <svc>_scanners.go into the provider package instead of stdout")
 	force := fs.Bool("force", false, "with --write, overwrite an existing file")
 	fs.Usage = func() {
@@ -77,38 +79,54 @@ func run(argv []string, stdout, stderr *os.File) int {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	opts := coverage.FetchOptions{Profile: *profile, Subscription: *subscription}
-	if *regions != "" {
-		opts.Regions = strings.Split(*regions, ",")
-	}
-	upstream, err := prov.Fetch(ctx, opts)
+	m, err := inventory(ctx, prov, sdkinv.Cache{Root: *cacheRoot}, *sourceRoot)
 	if err != nil {
-		fmt.Fprintf(stderr, "fetch upstream catalog for %s: %v\n", provName, err)
+		fmt.Fprintf(stderr, "build %s inventory: %v\n", provName, err)
 		return 1
 	}
 
-	uncovered, covered := classifyService(prov, upstream, service)
+	uncovered, covered := splitService(m, service)
 	if len(uncovered) == 0 && len(covered) == 0 {
-		fmt.Fprintf(stderr, "no upstream types found for service %q under provider %q — check the service segment\n", service, provName)
+		fmt.Fprintf(stderr, "no listable candidates for service %q under provider %q — check the service segment\n", service, provName)
 		return 1
 	}
-	// No silent caps: report every already-covered type so a run can never be
-	// mistaken for "nothing to do" when it actually skipped covered rows.
+	// No silent caps: report every already-covered candidate so a run can never
+	// be mistaken for "nothing to do" when it actually skipped covered rows.
 	fmt.Fprintf(stderr, "%s:%s — %d uncovered, %d already covered (skipped)\n", provName, service, len(uncovered), len(covered))
 	for _, r := range covered {
-		fmt.Fprintf(stderr, "  skip (covered): %s\n", r.UpstreamKey)
+		fmt.Fprintf(stderr, "  skip (covered): %s -> %s\n", r.Key, r.DiscoType)
 	}
 	if len(uncovered) == 0 {
 		fmt.Fprintf(stderr, "service %q is fully covered — nothing to scaffold\n", service)
 		return 0
 	}
 
-	src := genScaffold(provName, service, uncovered, prov)
+	pkgDir := filepath.Join(*sourceRoot, "internal", "providers", provName)
+	opts, err := inspectPackage(pkgDir, provName+":"+service, "scan"+pascal(service))
+	if err != nil {
+		fmt.Fprintf(stderr, "inspect %s: %v\n", pkgDir, err)
+		return 1
+	}
+	for _, d := range prov.Emits() {
+		opts.existingTypes[d.DiscoType] = true
+	}
+	if opts.serviceRegistered || opts.scanFnExists {
+		fmt.Fprintf(stderr, "%s:%s is already scanned here — emitting types only, no registerService and no scan%s stub\n", provName, service, pascal(service))
+	}
+	src, err := genScaffold(provName, service, uncovered, opts)
+	if err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
+		return 1
+	}
 	if !*write {
 		fmt.Fprint(stdout, src)
 		return 0
 	}
-	path := filepath.Join("internal", "providers", provName, service+"_scanners.go")
+	if *sourceRoot == "" {
+		fmt.Fprintln(stderr, "--write needs --source-root (it names the checkout to write into)")
+		return 2
+	}
+	path := filepath.Join(pkgDir, service+"_scanners.go")
 	if _, err := os.Stat(path); err == nil && !*force {
 		fmt.Fprintf(stderr, "%s already exists — refusing to overwrite (pass --force)\n", path)
 		return 1
@@ -121,18 +139,54 @@ func run(argv []string, stdout, stderr *os.File) int {
 	return 0
 }
 
-// classifyService builds the coverage matrix and splits the requested service's
-// rows into uncovered (a genuine gap) and covered (already scanned) buckets.
-func classifyService(prov coverage.Provider, upstream []coverage.UpstreamType, service string) (uncovered, covered []coverage.Row) {
-	var skips map[string]string
-	var canonical func(string) string
-	if sk, ok := prov.(coverage.Skipper); ok {
-		skips = sk.Skips()
+// inventory is the same derivation `disco coverage services` performs: the
+// universe from the cache, pairings from the scanner source when a checkout
+// is given.
+func inventory(ctx context.Context, prov coverage.Provider, cache sdkinv.Cache, sourceRoot string) (coverage.Matrix, error) {
+	scannerDir := ""
+	if sourceRoot != "" {
+		scannerDir = filepath.Join(sourceRoot, "internal", "providers", prov.Name())
 	}
-	if ck, ok := prov.(coverage.CanonicalKeyer); ok {
-		canonical = ck.CanonicalKey
+	in, err := coverage.InputsFromCache(ctx, cache, prov.Name(), prov.Emits(), scannerDir)
+	if err != nil {
+		return coverage.Matrix{}, err
 	}
-	m := coverage.Build(prov.Name(), prov.Emits(), prov.Aliases(), prov.AlgorithmicKey, upstream, skips, canonical)
+	return coverage.BuildInventory(in), nil
+}
+
+// inspectPackage reads the provider package for the two things the generator
+// cannot infer: a registerService already claiming this name (a duplicate
+// panics every provider at init) and an existing func of the stub's name
+// (gcp:spanner's scanner lives in databases_scanners.go, so the emitted stub
+// would not compile). Source, not the registry: a service registered with no
+// types of its own is invisible to Emits().
+func inspectPackage(dir, serviceName, fnName string) (scaffoldOpts, error) {
+	opts := scaffoldOpts{existingTypes: map[string]bool{}}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return opts, err
+	}
+	registration := "name: " + strconv.Quote(serviceName)
+	decl := "func " + fnName + "("
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		raw, rerr := os.ReadFile(filepath.Join(dir, name))
+		if rerr != nil {
+			return opts, rerr
+		}
+		src := string(raw)
+		opts.serviceRegistered = opts.serviceRegistered || strings.Contains(src, registration)
+		opts.scanFnExists = opts.scanFnExists || strings.Contains(src, decl)
+	}
+	return opts, nil
+}
+
+// splitService picks the requested service's resource rows: uncovered (a
+// genuine gap, scaffolded) and covered (already scanned, reported).
+func splitService(m coverage.Matrix, service string) (uncovered, covered []coverage.Row) {
 	for _, r := range m.Rows {
 		if r.Service != service {
 			continue
@@ -144,8 +198,8 @@ func classifyService(prov coverage.Provider, upstream []coverage.UpstreamType, s
 			covered = append(covered, r)
 		}
 	}
-	sort.Slice(uncovered, func(i, j int) bool { return uncovered[i].UpstreamKey < uncovered[j].UpstreamKey })
-	sort.Slice(covered, func(i, j int) bool { return covered[i].UpstreamKey < covered[j].UpstreamKey })
+	sort.Slice(uncovered, func(i, j int) bool { return uncovered[i].Key < uncovered[j].Key })
+	sort.Slice(covered, func(i, j int) bool { return covered[i].Key < covered[j].Key })
 	return uncovered, covered
 }
 

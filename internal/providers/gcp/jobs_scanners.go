@@ -13,9 +13,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCloudRunJob, Service: "run", Upstream: "run.googleapis.com/Job", Redact: []redact.Rule{{Path: "template.template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeCloudRunExecution, Service: "run", Upstream: "run.googleapis.com/Execution", Redact: []redact.Rule{{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeBatchJob, Service: "batch", Upstream: "batch.googleapis.com/Job"})
+	registerType(restype.Descriptor{Type: TypeCloudRunJob, Service: "run", Redact: []redact.Rule{{Path: "template.template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeCloudRunExecution, Service: "run", Redact: []redact.Rule{{Path: "template.containers[*].env[*].value", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeBatchJob, Service: "batch"})
 	registerService(serviceEntry{
 		name: "gcp:cloudrunjobs",
 		fn:   scanCloudRunJobs,

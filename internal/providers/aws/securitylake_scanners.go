@@ -40,9 +40,9 @@ func isSecurityLakeNotEnabled(err error) bool {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSecurityLakeDataLake, Service: "security-lake", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityLakeSubscriber, Service: "security-lake", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityLakeAwsLogSource, Service: "security-lake", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityLakeDataLake, Service: "security-lake"})
+	registerType(restype.Descriptor{Type: TypeSecurityLakeSubscriber, Service: "security-lake"})
+	registerType(restype.Descriptor{Type: TypeSecurityLakeAwsLogSource, Service: "security-lake"})
 	registerService(serviceEntry{
 		name: "aws:security-lake",
 		fn:   scanSecurityLake,

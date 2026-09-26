@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSWFDomain, Service: "swf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSWFDomain, Service: "swf"})
 	registerService(serviceEntry{
 		name: "aws:swf",
 		fn:   scanSWF,

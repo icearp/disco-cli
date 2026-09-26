@@ -46,7 +46,7 @@ func scanBeanstalkApplicationVersions(ctx context.Context, client elasticbeansta
 
 // scanBeanstalkPlatforms discovers custom platform versions (PlatformOwner=self).
 // The AWS-managed platform catalogue is intentionally excluded — it is a
-// read-only catalog, not an account resource. Leaf.
+// read-only catalog, not an account resource. edge-less.
 func scanBeanstalkPlatforms(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	filterType, op := "PlatformOwner", "="
 	in := &elasticbeanstalk.ListPlatformVersionsInput{

@@ -12,9 +12,9 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeComprehendDocumentClassifier, Service: "comprehend"})
-	registerType(restype.Descriptor{Type: TypeComprehendEntityRecognizer, Service: "comprehend", Upstream: "AWS::comprehend::entity-recognizer"})
-	registerType(restype.Descriptor{Type: TypeComprehendDocumentClassifierEndpoint, Service: "comprehend", Upstream: "AWS::comprehend::document-classifier-endpoint"})
-	registerType(restype.Descriptor{Type: TypeComprehendEntityRecognizerEndpoint, Service: "comprehend", Upstream: "AWS::comprehend::entity-recognizer-endpoint"})
+	registerType(restype.Descriptor{Type: TypeComprehendEntityRecognizer, Service: "comprehend"})
+	registerType(restype.Descriptor{Type: TypeComprehendDocumentClassifierEndpoint, Service: "comprehend"})
+	registerType(restype.Descriptor{Type: TypeComprehendEntityRecognizerEndpoint, Service: "comprehend"})
 	registerType(restype.Descriptor{Type: TypeComprehendFlywheel, Service: "comprehend"})
 	registerService(serviceEntry{
 		name: "aws:comprehend",

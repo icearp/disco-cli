@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOSISPipeline, Service: "osis", Upstream: "AWS::OSIS::Pipeline", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeOSISPipelineBlueprint, Service: "osis", Upstream: "AWS::osis::pipeline-blueprint", Leaf: true, Managed: true})
-	registerType(restype.Descriptor{Type: TypeOSISPipelineEndpoint, Service: "osis", Upstream: "AWS::osis::pipeline-endpoint"})
+	registerType(restype.Descriptor{Type: TypeOSISPipeline, Service: "osis"})
+	registerType(restype.Descriptor{Type: TypeOSISPipelineBlueprint, Service: "osis", Managed: true})
+	registerType(restype.Descriptor{Type: TypeOSISPipelineEndpoint, Service: "osis"})
 	registerService(serviceEntry{
 		name: "aws:osis",
 		fn:   scanOSIS,

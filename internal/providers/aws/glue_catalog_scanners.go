@@ -13,7 +13,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeGlueCrawler, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueConnection, Service: "glue"})
-	registerType(restype.Descriptor{Type: TypeGlueClassifier, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueClassifier, Service: "glue"})
 }
 
 func scanGlueCatalog(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

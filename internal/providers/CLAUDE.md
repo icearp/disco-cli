@@ -4,11 +4,11 @@ Cross-provider conventions. AWS-specific guidance: see `aws/CLAUDE.md`.
 
 ## Splitting high-complexity resolvers/scanners
 
-When a resolver/scanner trips gocognit (>80) and the shape is "for each resource → emit edges per N target families", extract one helper per family and bundle the per-type id sets in a single `*TargetSets` struct rather than passing many maps. Main loop only dispatches; mutation lives in each helper. Precedents: `openSearchTargetSets` (aws/opensearch_resolvers.go), `diagTargetIndexes` (azure/monitor_resolvers.go).
+When a resolver/scanner trips gocyclo (>30, `.golangci.yaml`) and the shape is "for each resource → emit edges per N target families", extract one helper per family and bundle the per-type id sets in a single `*TargetSets` struct rather than passing many maps. Main loop only dispatches; mutation lives in each helper. Precedents: `openSearchTargetSets` (aws/opensearch_resolvers.go), `diagTargetIndexes` (azure/monitor_resolvers.go).
 
 ## Resolver-side reference-discovered placeholders
 
-Resolvers needing to insert resources (e.g. cross-tenant references for R5) get scanID via `<row>.DiscoveredBy` from any resource they list — resolver signature carries no scanID. Three-phase pattern: collect pending edges + distinct referenced-tenant keys in pass 1; `InsertResourcesIfAbsent(placeholders)` in pass 2; emit `UpsertRelationship` in pass 3. Pre-insert before edge emit or FK on `relationships.to_id` blows up. The placeholder is a **real self-node type** with empty `{}` attributes at the exact natural key the target's own scanner uses (`aws:iam:account`/`arn:aws:iam::<id>:root`, `azure:microsoft.resources:subscriptions`/`/subscriptions/<id>`, `gcp:cloudresourcemanager:project`/`<id>`) — NOT a synthetic stub type. Use `InsertResourcesIfAbsent`, never `UpsertResources`, so a later (or concurrent) direct scan of that account/sub/project version-populates the row instead of the placeholder clobbering it back to `{}`. `region=global` still applies for the AWS account self-node; the Azure/GCP self-nodes leave region unset to mirror their scanners. See store/CLAUDE.md "Reference-discovered placeholders". Precedent: `resolveIAMRoleCrossAccountTrust` + `resolveOrganizationsManagementAccount` (aws), `resolveAuthorizationRelationships` (azure), `resolveIAMPolicyRelationships` (gcp).
+Resolvers that must insert a target (cross-tenant references) take scanID from `<row>.DiscoveredBy` of any listed resource. Pass 1 collects pending edges and referenced tenant keys; pass 2 `InsertResourcesIfAbsent(placeholders)` (never `UpsertResources`, so a later direct scan version-populates the row) so `to_id` names an existing row (nothing in the DB enforces it since 006); pass 3 emits `UpsertRelationship`. The placeholder is the **real self-node type** at its scanner's natural key with `{}` attributes — not a synthetic stub. See store/CLAUDE.md "Reference-discovered placeholders". Precedent: `resolveIAMRoleCrossAccountTrust` + `resolveOrganizationsManagementAccount` (aws), `resolveAuthorizationRelationships` (azure), `resolveIAMPolicyRelationships` (gcp).
 
 ## Persist API contract
 
@@ -39,8 +39,7 @@ would be a benign per-service warning while the scan reported success having sto
 
 Keep it a report-and-continue (`ReportError`, don't propagate): `ReportError` already drives
 `res.Partial` → `errScanPartial` under `--fail-on-error`, so the exit code is non-zero without
-aborting sibling services. GCP's default arm propagates via errgroup; the store-write arm
-deliberately does not, matching AWS/Azure.
+aborting sibling services. Every arm of every provider now reports and continues.
 
 ## Errors never abort scan
 
@@ -51,7 +50,7 @@ Provider scanners must NOT propagate per-service / per-region / per-resolver err
 - `Scan()` returns `nil` even when individual services failed; load-credentials / load-accounts failures also report-and-return-nil.
 - `cmd/scan.go` collects errors via `OnError` and renders one grouped block at end. Inline `FAILED:` lines no longer printed.
 
-Replace `errgroup.WithContext` with plain `sync.WaitGroup` for per-service fan-out — errgroup cancels siblings on first error, which we explicitly do not want. Precedent: `aws/aws.go` `scanRegion` + `scanAccount` phase 1a.
+Replace `errgroup.WithContext` with plain `sync.WaitGroup` for per-service fan-out — errgroup cancels siblings on first error, which we explicitly do not want. Precedent: `aws/aws_scanner.go` `scanRegion` + `scanAccount` phase 1a. GCP was the last holdout (a transient 500 or the per-service timeout in one project cancelled every service in every project **and** phase 2, so the run kept its phase-1 rows and lost every relationship edge); `TestScanProject_OneServiceFailureDoesNotCancelSiblings` guards it.
 
 ## Provider registry (`registry.go`)
 
@@ -75,37 +74,64 @@ Optional capability interfaces a Scanner may implement: `ServiceFilterer` (`--se
 
 Default `go build` compiles every provider. `go build -tags 'slim aws'` compiles only the named provider(s) — excluded providers' SDKs are never linked (smaller binary, for provider-specific containers). The opt-in lives in `internal/providers/all/`: one `<name>.go` per provider, gated `//go:build !slim || <name>` (references only `slim` plus its own tag, never siblings, so providers stay decoupled). `all/all.go` is an untagged, import-less package stub that keeps `all` importable when every provider is tagged out (`-tags slim` alone → no providers). `-tags 'slim aws gcp'` selects a subset. cmd must never import a provider package directly — route provider-specific cmd needs through a registry interface (precedent: `coverage.ResolverAuditor` for `disco coverage resolvers`) so slim builds degrade gracefully.
 
-## Declaring redaction rules
+## Declaring redaction and volatile-field rules
 
-Per-provider `redact.go` (e.g. `internal/providers/aws/redact.go`) declares per-type rules in an `init()` block: `redact.Register(redact.TypeRules{Type: TypeFoo, Attributes: []redact.Rule{{Path: "Bar.Baz", Mode: redact.RedactScalar}}})`. Path syntax: dotted literals; `*` map-key wildcard; `[*]` array wildcard. Modes: `RedactScalar` (leaf only) or `RedactSubtree` (every scalar descendant).
+Both are fields on the type's `registerType` descriptor: `Redact: []redact.Rule{{Path: "Bar.Baz", Mode: redact.RedactScalar}}` and `Volatile: []string{"Bar.Baz"}`. `restype` forwards them to the engines; nothing calls `redact.Register` / `volatile.Register` directly.
 
-Adding a new resource type whose SDK response carries credentials, tokens, init-script payload, plaintext env vars, or connection strings: register a rule alongside `registerService`. Rules are NOT inferred — without one, the field ships unredacted. Pointer-shape fields (ARNs, KeyVault reference URIs) are preserved by **omission** — don't add a rule then add a shape-allowlist escape; just don't add the rule.
+- **Redact** replaces a secret with `[REDACTED]`. Path syntax: dotted literals, `*` map-key wildcard, `[*]` array wildcard. Modes: `RedactScalar` (leaf only) or `RedactSubtree` (every scalar descendant). Rules are NOT inferred — a new type whose SDK response carries credentials, tokens, init-script payload, plaintext env vars or connection strings ships unredacted without one. Pointer-shape fields (ARNs, KeyVault reference URIs) are preserved by **omission**: don't add a rule and then a shape-allowlist escape.
+- **Volatile** removes a key the API changes on every read regardless of real change (CloudWatch Logs `UploadSequenceToken`), so it cannot version-split an unchanged resource. Paths are dot-separated literal keys (no wildcards). `Store.UpsertResources` runs `volatile.Apply` right after `redact.Apply`. Never mark a field that changes on real activity (IAM `RoleLastUsed.LastUsedDate`, log-group `StoredBytes`) — that is a legitimate version trigger.
 
-Per-provider `redact_test.go` constructs sample SDK responses via `json.Marshal` of real SDK types and asserts the sensitive field comes back `[REDACTED]`. SDK field renames break the test on `go mod tidy` — cheap drift catch.
-
-## Declaring volatile-field rules
-
-Some cloud APIs return a field that changes on every read independent of any real resource change — e.g. CloudWatch Logs `DescribeLogStreams` returns a fresh, deprecated `UploadSequenceToken` every call regardless of activity. Stored, it version-splits an unchanged resource on every scan (the scan output shows it as "changed" with nothing actually changed). Declare it volatile so the store **drops** the key before the version comparison: per-provider `<provider>_volatile.go` (e.g. `internal/providers/aws/aws_volatile.go`) registers in `init()` via `volatile.Register(volatile.TypeRules{Type: TypeFoo, Paths: []string{"Bar.Baz"}})`. Paths are dot-separated literal keys (no wildcards yet). `Store.UpsertResources` runs `volatile.Apply` right after `redact.Apply`.
-
-This is distinct from redaction: redaction replaces a secret with `[REDACTED]` (a stable value); volatile **removes** the key entirely, so no stale value is left in the DB. Only register a field that is genuinely activity-independent noise — a field that changes on real activity (IAM `RoleLastUsed.LastUsedDate`, log-group `StoredBytes`) is a legitimate version trigger and must NOT be dropped. Per-provider `<provider>_volatile_test.go` asserts the key is removed from a real SDK-typed payload (SDK-rename drift catch), plus a store-level test that a token-only change does not split while a real change still does.
+Tests: `<p>_redact_test.go` and `aws_volatile_test.go` build payloads from real SDK types (`json.Marshal`), so an SDK field rename breaks them on `go mod tidy`.
 
 ## Provider file naming
 
-Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS scanners + resolvers self-register via `registerService` / `registerResolver` (see `aws_services.go`) called from each file's `init()` — no manual wire-up in `aws.go`.
+Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS scanners + resolvers self-register via `registerService` / `registerResolver` (`<p>_registry.go`) called from each file's `init()` — no central wire-up.
 
 ## Shared utilities (`internal/util`)
 
 `util.MustJSON(v any) string`, `util.Sv(p *string) string`, `util.AllResources` (= `math.MaxUint32`, used as `Limit` in `ListResources` to fetch all rows). Each provider keeps unexported one-liner wrappers (`mustJSON`, `sv`) delegating to `util` — call sites clean, logic centralized.
 
-## Scanner `emits []coverage.TypeDecl` is coverage truth source
+## `registerType` is the coverage truth source
 
-Every `registerService` / `registerOrgService` / `registerTenantService` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType, Uncatalogued, Leaf}}`. Coverage matrix (`disco coverage`) reads this. `KnownTypes()` no longer exists — emits + alias map are the source of truth.
+Every file that upserts a disco type declares it with `registerType(restype.Descriptor{Type, Service, …})` from its `init()`; `CollectEmits()` turns the descriptors into the provider's `[]coverage.TypeDecl`. `disco coverage services` pairs these with the SDK calls the scanner makes (`internal/sdkinv/pairing`); there is no alias map, no upstream key and no skip list — a type is covered because its scanner calls the SDK op that lists it. `KnownTypes()` no longer exists.
 
-There is no `Synthetic` flag. Cross-tenant references are modelled as real self-node types (`aws:iam:account`, `azure:microsoft.resources:subscriptions`, `gcp:cloudresourcemanager:project`) inserted as empty-attribute placeholders — see "Resolver-side reference-discovered placeholders" above. They emit/bucket like any other real type.
+A scanner is paired with a type only when it **stores** it: the pairing walker credits a
+`Type*` identifier to a function's SDK call only if that function, or something it reaches,
+builds a `store.Resource` or calls `UpsertResource(s)`/`InsertResourcesIfAbsent`. Naming a type
+in a `store.ResourceFilter`, a `case` clause or a comparison — what a resolver does — is not
+storing it, and such a function's op pairs as `sidecar` (still covered, no type credited). The
+walker also only follows a call that is handed something the caller produced, so a helper
+invoked with nothing but the caller's own `(ctx, st, scanID)` is not credited with this
+listing's rows. Op-label literals must match the provider's grammar exactly —
+`arm<module>:<Client>.<Op>` on Azure — or the pairing test fails with `label-malformed`.
 
-`Uncatalogued: true` is for **real resources disco scans via the SDK** that no upstream registry catalogs — `aws:kms:grant`, `securityhub:standards-subscription`, Detective/Inspector members, all Entra identities, the Azure SQL/network proxy children, the `aws:iam:account` self-node. They bucket as `uncatalogued` (not `upstream-missing`), so they don't trip `--check-strict`, and they auto-upgrade to `covered` if the registry later lists them (e.g. `gcp:iam:policy` and `aws:guardduty:member` are already `covered` — their keys match the registry, so they carry no flag). The line is "can the SDK scan it?": yes → `Uncatalogued` (or `covered` if catalogued).
+`registerType` / `registerService` (and the org/tenant variants) also record their caller's file
+through `restype.Origin` (`runtime.Caller(2)`, so call them only from a scanner file's `init()`,
+never through a wrapper): `coverage verify` joins a scan-record error under a scanner service
+name (`aws:sso-admin`) to the types registered in the same file, because declared services
+(`sso`) and scanner names differ for dozens of services. Types in helper files with no
+`registerService` join by declared service or type segment instead; `cmd`'s
+`TestEveryEmittedTypeHasScannerService` fails when a type reaches no scanner service by any of
+the three (the GCP hierarchy types are the accepted exception — a whole-scan failure covers them). When a file registers several scanners, the descriptor's declared `Service` narrows the join (`apigateway`/`apigatewayv2`, the three GCP database services), compared on a normalised form — provider prefix, separators and a leading `cloud` dropped — so `run` reaches `gcp:cloudrun`; a type matching none of its file's scanners stays unclaimed rather than attributed to all.
 
-Terminal types whose scanner upserts rows but for which no resolver will ever wire outbound edges (account/region singletons, third-party catalogue mirrors, config-only policy bodies) get `Leaf: true` so `disco coverage resolvers --missing` filters them out. Drop the flag in the same commit that ships an outbound resolver — `TestLeafTypesNotResolverSources` (in `internal/providers/aws/coverage_leaves_test.go`) catches the contradiction. Non-serviceEntry upsert sites (hierarchy scanners, ec2_*/compute_*/sql_* child files) declare via `registerExtraEmits(coverage.TypeDecl{...})` from the same file's init(). Per-provider `CollectEmits()` aggregates and dedupes for the `coverage.Provider` impl.
+Cross-tenant references are real self-node types inserted as placeholders (see "Resolver-side reference-discovered placeholders"). A real SDK-scanned type no registry lists (`aws:kms:grant`, Entra identities) is simply paired with its SDK call; a type built from a non-list op or a non-SDK client shows as `disco-only: explained`, never a strict failure.
+
+Whether a type can have outbound edges is derived, not flagged: `disco coverage resolvers --missing` lists orphan types with the reference fields on their SDK-listed element (`Candidate.Refs`), richest first. Refs are a **hint, not proof** — using their absence as a hide gate once hid 477 real gaps. If a refs row looks wrong, fix the derivation in `internal/sdkinv/<p>/refs.go`; don't add a hand flag.
+
+Retired, do not recreate: `KnownTypes`, `Aliases()`/alias maps, `Descriptor.Upstream`/`Uncatalogued`/`Synthetic`/`Leaf`, `*_skips.go`, `*_type_mirror_test.go`, `<p>_redact.go`, `<p>_volatile.go`, `registerExtraEmits`, `serviceRenames`.
+
+## Resolver EdgeDecl contract
+
+`registerResolver(fn, emits ...EdgeDecl)` is variadic: every resolver lists each `{Source, Target, Kind}` triple it upserts, or it is invisible to `disco coverage resolvers` and the gap analysis. Dynamic-dispatch resolvers (e.g. an EventBridge target classifier) declare one EdgeDecl per type the dispatch table can yield. A cross-tenant self-node (`aws:iam:account` for an out-of-scope account) is a valid Target; the resolver inserts its placeholder first (see above). `RecordHierarchyBatch` pairs produce `parent → child contains` rows — declare them as `EdgeDecl{Parent, Child, store.RelContains}`. Read-only / sidecar-populator resolvers register with no edges and show in `--only-unannotated` as intentional no-ops.
+
+## Add a new service scanner
+
+1. `Type*` const in `<p>_types.go`.
+2. `registerType` descriptor plus `registerService` in the scanner file's own `init()` (`restype.Origin` records the caller's file).
+3. Append the service name to `expected*Services` in `<p>_scanner_test.go`.
+4. Op-label literals in the provider's grammar, or `<p>_pairing_test.go` fails.
+5. Resolver registered with its `EdgeDecl`s, plus `<service>_resolvers_test.go`.
+6. `make gen-coverage` and commit the `docs/coverage*` diff.
 
 ## Embedding child data in parent attributes
 
@@ -137,11 +163,8 @@ an account now silently **merge** into one version chain, not coexist. Two desig
    guard), never a substitution.
 3. **Prefer a shape consistent with the type's siblings.** native_id shows in disco
    output/DBs; a full `https://…` SelfLink URL is a jarring shape next to short path ids.
-   GCS bucket children key on a synthesized relative path `{bucket}/{collection}/{name}`
-   (`storage:notification` = `{bucket}/notificationConfigs/{id}`, and the ACL / managed-
-   folder / folder collision fixes follow it: `{bucket}/acl/{entity}`,
-   `{bucket}/managedFolders/{name}`, `{bucket}/folders/{name}`). The collection segment is
-   the disambiguator the raw Id lacked — same effect as SelfLink, without the URL shape.
+   Synthesize a relative path whose collection segment disambiguates (e.g. GCP bucket
+   children, `gcp/CLAUDE.md`).
 
 Per-type source, in order: (1) the API's own unique value — canonical resource name / ARN
 / selfLink where that IS the type's natural id (Compute `inst.SelfLink`, `sa.Name`);
@@ -154,7 +177,7 @@ the suffix to recover the parent ARN. **GCP caveat:** the unique field must be t
 by* (resolvers recompute a target's ResourceID from the ref-string) — `.SelfLink` only when
 that IS the cross-referenced form (Compute) or the type is never an edge Target; types
 referenced by relative name (`.Name` / `projects/...`) keep that form. See
-`project_gcp_cross_api_selflink_mismatch`. A scan-time detector
+comments in `gcp/monitoring_resolvers.go`, `gcp/compute_storage_resolvers.go`. A scan-time detector
 (`store.UpsertResources`) warns if two types map to one native_id in a single run.
 
 ## Non-resource config fetches → sidecar on `account`
@@ -165,18 +188,16 @@ Pattern for edges needing non-resource config: stash on `account` struct during 
 
 ## Synthetic-resource removal audit
 
-Before deleting a `Type*` constant, grep for downstream consumers: (1) resolvers reading the type (`grep -rn TypeX`), (2) hierarchy closure parents (`RecordHierarchyBatch` callers), (3) rules / sidecar reads, (4) `emits` decls + alias maps in `coverage.go`. Zero hits beyond the scanner's own upsert = safe to remove. Edit sites: type constant in `<provider>_types.go`, scanner upsert call, scanner's `emits` decl, alias-map entry in `<provider>/coverage.go`, test fixtures, `ROADMAP.md` historical entry. Existing DB rows left as cruft — no migration unless edge-bearing. Precedent: `aws:shield:subscription` removed (zero consumers); contrast `aws:macie:session` kept (Security Hub product-sub resolver + Macie children hierarchy parent).
+Before deleting a `Type*` constant, grep for downstream consumers: (1) resolvers reading the type (`grep -rn TypeX`), (2) hierarchy closure parents (`RecordHierarchyBatch` callers), (3) rules / sidecar reads, (4) `registerType` descriptors. Zero hits beyond the scanner's own upsert = safe to remove. Edit sites: type constant in `<provider>_types.go`, scanner upsert call, `registerType` descriptor, test fixtures. Existing DB rows left as cruft — no migration unless edge-bearing. Precedent: `aws:shield:subscription` removed (zero consumers); contrast `aws:macie:session` kept (Security Hub product-sub resolver + Macie children hierarchy parent).
 
 ## Testing
-
-Test files exist for: `store/`, `internal/util/`, all three provider packages.
 
 ### Writing tests for new services
 
 Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.go`. Pattern:
 
 1. Call `newTestStore(t)` — opens temp-file SQLite DB, inserts required test scan record.
-2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources, FK error no obvious diagnosis. Helper does **not** set `Name`; for resolvers building name-keyed index (e.g. KeyPair by `(region, Name)`), bypass + call `st.UpsertResource(&Resource{..., Name: &name})` direct.
+2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources — a phantom edge, or a `contains` row gated out with a ScanWarning, with no obvious diagnosis. Helper does **not** set `Name`; for resolvers building name-keyed index (e.g. KeyPair by `(region, Name)`), bypass + call `st.UpsertResource(&Resource{..., Name: &name})` direct.
 3. Call resolver function direct (tests same package, e.g. `package aws`).
 4. Assert via `st.RelationshipsFrom(id)`.
 
@@ -188,15 +209,15 @@ When the production scanner emits a `RecordHierarchyBatch` pair that the resolve
 
 ### SDK-typed attrs builders over hand-rolled JSON
 
-Resolver tests should construct attrs via `json.Marshal` of the real SDK struct, not hand-rolled JSON literals. Azure `arm*` types use custom `MarshalJSON` with `populate("camelCaseKey", ...)` — JSON shape is invisible on struct tags, so a string literal that drifts from the SDK silently passes. Helper: `marshalAttrs(t, v)` in `internal/providers/azure/attrs_testhelper_test.go`. AWS equivalent: `wrapped_attrs_testhelper_test.go`.
+Resolver tests should construct attrs via `json.Marshal` of the real SDK struct, not hand-rolled JSON literals. Azure `arm*` types use custom `MarshalJSON` with `populate("camelCaseKey", ...)` — JSON shape is invisible on struct tags, so a string literal that drifts from the SDK silently passes. Helper: `marshalAttrs(t, v)` in `azure_testhelpers_test.go` / `gcp_testhelpers_test.go`; AWS wrapper builders (`elbv2LBAttrs`, …) in `aws_testhelpers_test.go`.
 
 ### Registration tests
 
-`<provider>/registration_test.go` holds `expectedAWSServices` / `expectedAzureServices` / `expectedGCPServices` — authoritative list of registered service names. **Update when adding new service scanner.** Test fails if service registered but not listed, or listed but not registered.
+`<p>_scanner_test.go` holds `expectedAWSServices` / `expectedAzureServices` (+ `expectedAzureTenantServices`) / `expectedGCPServices` (+ `expectedGCPOrgServices`) — authoritative list of registered service names. **Update when adding new service scanner.** Test fails if service registered but not listed, or listed but not registered.
 
 ### Test-seam pattern for helpers that build their own clients
 
-Production helpers that internally construct API clients (via ADC / `clientOptions` / `azidentity.DefaultAzureCredential`) can't be aimed at httptest fakes or SDK fake transports. Split into thin outer wrapper + inner `*In` / `*WithClient` core that takes the pre-resolved values (region list, client, customer ID). Tests call the inner core directly; production code uses the outer wrapper. Precedent: `gcpRegionFanoutScan` / `gcpRegionFanoutScanIn` in `gcp/gcp.go`; Azure `scanX` / `scanXWithClient` in `compute_disks_scanners.go`.
+Production helpers that internally construct API clients (via ADC / `clientOptions` / `azidentity.DefaultAzureCredential`) can't be aimed at httptest fakes or SDK fake transports. Split into thin outer wrapper + inner `*In` / `*WithClient` core that takes the pre-resolved values (region list, client, customer ID). Tests call the inner core directly; production code uses the outer wrapper. Precedent: `gcpRegionFanoutScan` / `gcpRegionFanoutScanIn` in `gcp/gcp_scan_helpers.go`; Azure `scanX` / `scanXWithClient` in `compute_disks_scanners.go`.
 
 ## List ops with required input filters
 
@@ -208,8 +229,8 @@ Some `List*` ops return only `{Arn, Name, Status}` summaries — DataSync `ListL
 
 ## Generic-file layout per provider
 
-All three provider packages share the layout `<provider>_<concern>.go` for generic glue: `scanner` (orchestration, dispatcher caps, util wrappers), `registry` (`registerService` + emits aggregator), `config`, `types`, `errors`, `regions`, `redact`, `coverage`, plus per-provider extras `arn` (AWS) / `armid` (Azure), `tags` (AWS, Azure), `concurrency` (AWS, Azure), `scan_helpers` (Azure, GCP), `hierarchy` (GCP). Test files mirror the production file: `<provider>_<concern>_test.go`. Shared test infrastructure collapses into one `<provider>_testhelpers_test.go`. When adding a new generic concern, follow this layout — don't reintroduce the kitchen-sink `<provider>.go` shape that all three packages just got out of.
+All three provider packages share the layout `<provider>_<concern>.go` for generic glue: `scanner` (orchestration, dispatcher caps, util wrappers), `registry` (`registerService` + emits aggregator), `config`, `types`, `errors`, `regions`, `coverage`, plus per-provider extras `arn` (AWS) / `armid` (Azure), `tags` (AWS, Azure), `concurrency` (AWS, Azure), `scan_helpers` (Azure, GCP), `hierarchy` (GCP). Test files mirror the production file: `<provider>_<concern>_test.go`. Shared test infrastructure collapses into one `<provider>_testhelpers_test.go`. When adding a new generic concern, follow this layout — don't reintroduce the kitchen-sink `<provider>.go` shape that all three packages just got out of.
 
 ## Orphan-Type-constant guard
 
-Each `<provider>_types_test.go` runs `TestEveryTypeConstantIsUsed`: AST-walks `<provider>_types.go` for `Type*` const declarations, walks the rest of the package for `ast.Ident` references, errors on any constant declared but referenced nowhere else. Catches retired-service cruft. Adding a `Type*` const must come paired with at least one consumer (scanner emits decl, resolver edge target, sidecar lookup) or the test fails. The test is the only signal — no build error.
+Each `<provider>_types_test.go` runs `TestEveryTypeConstantIsUsed`: AST-walks `<provider>_types.go` for `Type*` const declarations, walks the rest of the package for `ast.Ident` references, errors on any constant declared but referenced nowhere else. Catches retired-service cruft. Adding a `Type*` const must come paired with at least one consumer (`registerType` descriptor, resolver edge target, sidecar lookup) or the test fails. The test is the only signal — no build error.

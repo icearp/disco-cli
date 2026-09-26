@@ -8,13 +8,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/icearp/disco-cli/internal/providers"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -111,14 +111,12 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 
 	// Phase 1b: scan all project-scoped resources in parallel across projects.
 	filter := s.serviceFilter
-	g, ctx := errgroup.WithContext(ctx)
+	var projWG sync.WaitGroup
 	for i := range projects {
 		p := &projects[i]
-		g.Go(func() error { return scanProject(ctx, p, filter, st, scanID) })
+		projWG.Go(func() { scanProject(ctx, p, filter, st, scanID) })
 	}
-	if err := g.Wait(); err != nil {
-		return err
-	}
+	projWG.Wait()
 
 	// Phase 2: resolve relationships now that all resources are in the DB.
 	st.ReportResolveStart("gcp")
@@ -189,19 +187,25 @@ func resolveOrgRelationships(ctx context.Context, st *store.Store) {
 
 // scanProject runs all per-project service scanners in parallel, bounded by
 // maxConcurrentServices to avoid API rate limits.
-func scanProject(ctx context.Context, p *project, services []string, st *store.Store, scanID string) error {
+//
+// A plain WaitGroup, not an errgroup: errgroup cancels its siblings on the
+// first error, so one service timing out in one project used to abort every
+// other service in every project and take phase 2 — every relationship edge —
+// with it. Failures are reported and skipped, as in the AWS and Azure
+// dispatchers (providers/CLAUDE.md "Errors never abort scan").
+func scanProject(ctx context.Context, p *project, services []string, st *store.Store, scanID string) {
 	sem := semaphore.NewWeighted(maxConcurrentServices)
-	g, gctx := errgroup.WithContext(ctx)
+	var wg sync.WaitGroup
 	for _, svc := range filteredServices(services) {
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
+		wg.Go(func() {
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return
 			}
 			defer sem.Release(1)
-			svcCtx, cancel := context.WithTimeout(gctx, serviceTimeout)
+			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			var newC, changedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC), scanID)
+			total, _, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 			if err != nil {
 				// First rung, ahead of every skip: a failed store write is not a
 				// GCP-side condition and must never be reported as one. Mirrors
@@ -211,27 +215,33 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 						Provider: "gcp", Service: svc.name, Scope: p.ID, Message: err.Error(),
 					})
 					st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
-					return nil
+					return
 				}
 				if errors.Is(err, errServiceDisabled) {
 					// GCP API not enabled in this project — surface as
 					// "(project: disabled)" suffix instead of a warning.
 					st.ReportService(svc.name, p.ID, 0, 0, 0, 0, store.ServiceDisabled)
-					return nil
+					return
 				}
 				if errors.Is(err, errBillingDisabled) {
 					// Project billing off (self-enableable) — surface as
 					// "(project: billing disabled)" instead of a warning/error.
 					st.ReportService(svc.name, p.ID, 0, 0, 0, 0, store.ServiceBillingDisabled)
-					return nil
+					return
 				}
-				return err
+				// Anything else — a transient 500, the per-service timeout —
+				// is this service's failure in this project, and is recorded
+				// under both so a reader can tell which of the two it was.
+				st.ReportError(store.ScanError{
+					Provider: "gcp", Service: svc.name, Scope: p.ID, Message: err.Error(),
+				})
+				st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
+				return
 			}
 			st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
-			return nil
 		})
 	}
-	return g.Wait()
+	wg.Wait()
 }
 
 // filteredServices returns the services to run. When filter is non-empty, only

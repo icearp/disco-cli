@@ -10,13 +10,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMediaTailorChannel, Service: "mediatailor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaTailorChannel, Service: "mediatailor"})
 	registerType(restype.Descriptor{Type: TypeMediaTailorChannelPolicy, Service: "mediatailor"})
 	registerType(restype.Descriptor{Type: TypeMediaTailorLiveSource, Service: "mediatailor"})
-	registerType(restype.Descriptor{Type: TypeMediaTailorPlaybackConfiguration, Service: "mediatailor", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaTailorPrefetchSchedule, Service: "mediatailor", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaTailorProgram, Service: "mediatailor", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaTailorSourceLocation, Service: "mediatailor", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaTailorPlaybackConfiguration, Service: "mediatailor"})
+	registerType(restype.Descriptor{Type: TypeMediaTailorPrefetchSchedule, Service: "mediatailor"})
+	registerType(restype.Descriptor{Type: TypeMediaTailorProgram, Service: "mediatailor"})
+	registerType(restype.Descriptor{Type: TypeMediaTailorSourceLocation, Service: "mediatailor"})
 	registerType(restype.Descriptor{Type: TypeMediaTailorVodSource, Service: "mediatailor"})
 	registerService(serviceEntry{
 		name: "aws:mediatailor",
@@ -285,7 +285,7 @@ func scanMTPlaybackConfigurations(ctx context.Context, client mediatailorAPI, ac
 
 // scanMTPrefetchSchedules — ListPrefetchSchedules requires
 // PlaybackConfigurationName; fan out over scanned playback configs.
-// PrefetchSchedule carries a real distinct ARN (Leaf).
+// PrefetchSchedule carries a real distinct ARN (edge-less).
 func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, pcName string) (int, int, error) {
 	pcn := pcName
 	pager := mediatailor.NewListPrefetchSchedulesPaginator(client, &mediatailor.ListPrefetchSchedulesInput{PlaybackConfigurationName: &pcn})
@@ -316,7 +316,7 @@ func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *a
 
 // scanMTPrograms — GetChannelSchedule requires ChannelName; fan out over
 // scanned channels. Each ScheduleEntry is a program carrying a real distinct
-// ARN (Leaf).
+// ARN (edge-less).
 func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channelName string) (int, int, error) {
 	cn := channelName
 	pager := mediatailor.NewGetChannelSchedulePaginator(client, &mediatailor.GetChannelScheduleInput{ChannelName: &cn})

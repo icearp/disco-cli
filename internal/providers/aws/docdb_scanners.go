@@ -11,11 +11,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDocDBCluster, Service: "docdb", Upstream: "AWS::DocDB::DBCluster"})
-	registerType(restype.Descriptor{Type: TypeDocDBInstance, Service: "docdb", Upstream: "AWS::DocDB::DBInstance", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDocDBDBClusterParameterGroup, Service: "docdb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDocDBEventSubscription, Service: "docdb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDocDBGlobalCluster, Service: "docdb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDocDBCluster, Service: "docdb"})
+	registerType(restype.Descriptor{Type: TypeDocDBInstance, Service: "docdb"})
+	registerType(restype.Descriptor{Type: TypeDocDBDBClusterParameterGroup, Service: "docdb"})
+	registerType(restype.Descriptor{Type: TypeDocDBEventSubscription, Service: "docdb"})
+	registerType(restype.Descriptor{Type: TypeDocDBGlobalCluster, Service: "docdb"})
 	registerService(serviceEntry{
 		name: "aws:docdb",
 		fn:   scanDocDB,

@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeStorageStorageAccount, Service: "microsoft.storage"})
-	registerType(restype.Descriptor{Type: TypeStorageStorageTask, Service: "microsoft.storage", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageStorageTask, Service: "microsoft.storage"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.storage",
 		fn:   scanStorage,

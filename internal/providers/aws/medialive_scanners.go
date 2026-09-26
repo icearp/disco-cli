@@ -14,20 +14,20 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeMediaLiveChannel, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveChannelPlacementGroup, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveCloudWatchAlarmTemplate, Service: "medialive"})
-	registerType(restype.Descriptor{Type: TypeMediaLiveCloudWatchAlarmTemplateGroup, Service: "medialive", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveCloudWatchAlarmTemplateGroup, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveCluster, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveEventBridgeRuleTemplate, Service: "medialive"})
-	registerType(restype.Descriptor{Type: TypeMediaLiveEventBridgeRuleTemplateGroup, Service: "medialive", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveEventBridgeRuleTemplateGroup, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveInput, Service: "medialive"})
-	registerType(restype.Descriptor{Type: TypeMediaLiveInputDevice, Service: "medialive", Upstream: "AWS::medialive::input-device", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveInputDevice, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveInputSecurityGroup, Service: "medialive"})
-	registerType(restype.Descriptor{Type: TypeMediaLiveNode, Service: "medialive", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaLiveReservation, Service: "medialive", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMediaLiveMultiplex, Service: "medialive", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveNode, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveReservation, Service: "medialive"})
+	registerType(restype.Descriptor{Type: TypeMediaLiveMultiplex, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveMultiplexProgram, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveNetwork, Service: "medialive"})
 	registerType(restype.Descriptor{Type: TypeMediaLiveSdiSource, Service: "medialive"})
-	registerType(restype.Descriptor{Type: TypeMediaLiveSignalMap, Service: "medialive", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaLiveSignalMap, Service: "medialive"})
 	registerService(serviceEntry{
 		name: "aws:medialive",
 		fn:   scanMediaLive,
@@ -407,7 +407,7 @@ func scanMLInputDevices(ctx context.Context, client mediaLiveAPI, acct *account,
 
 // scanMLNodes fans ListNodes out over the clusters from scanMLClusters
 // (ListNodes requires a ClusterId). DescribeNodeSummary carries a real
-// distinct node ARN, used directly as NativeID (Leaf).
+// distinct node ARN, used directly as NativeID (edge-less).
 func scanMLNodes(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, clusterIDs []string) (int, int, error) {
 	if len(clusterIDs) == 0 {
 		return 0, 0, nil

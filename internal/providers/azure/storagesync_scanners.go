@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeStorageSyncService, Service: "microsoft.storagesync", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStorageSyncService, Service: "microsoft.storagesync"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.storagesync",
 		fn:   scanStorageSync,

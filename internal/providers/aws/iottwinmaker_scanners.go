@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTTwinMakerWorkspace, Service: "iottwinmaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTTwinMakerWorkspace, Service: "iottwinmaker"})
 	registerType(restype.Descriptor{Type: TypeIoTTwinMakerComponentType, Service: "iottwinmaker"})
 	registerType(restype.Descriptor{Type: TypeIoTTwinMakerEntity, Service: "iottwinmaker"})
 	registerType(restype.Descriptor{Type: TypeIoTTwinMakerScene, Service: "iottwinmaker"})

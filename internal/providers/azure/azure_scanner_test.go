@@ -423,7 +423,7 @@ func TestTenantPhase_ClosesChannelOnPanic(t *testing.T) {
 		// Same shape as the tenant goroutine in Scan: close deferred first (runs
 		// last, after the panic is recovered), reportPanic deferred second.
 		defer close(entraDone)
-		defer reportPanic(st, "entra", "tenant")
+		defer reportPanic(st, entraServiceName, "tenant")
 		runTenantServices(context.Background(), nil, nil, wifConfig{}, nil, st, "scan-id")
 	})
 

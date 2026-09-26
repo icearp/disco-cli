@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePinpointApp, Service: "pinpoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePinpointApp, Service: "pinpoint"})
 	registerType(restype.Descriptor{Type: TypePinpointApplicationSettings, Service: "pinpoint"})
 	registerType(restype.Descriptor{Type: TypePinpointEventStream, Service: "pinpoint"})
 	registerType(restype.Descriptor{Type: TypePinpointCampaign, Service: "pinpoint"})
@@ -25,10 +25,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypePinpointGCMChannel, Service: "pinpoint"})
 	registerType(restype.Descriptor{Type: TypePinpointSMSChannel, Service: "pinpoint"})
 	registerType(restype.Descriptor{Type: TypePinpointVoiceChannel, Service: "pinpoint"})
-	registerType(restype.Descriptor{Type: TypePinpointEmailTemplate, Service: "pinpoint", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePinpointInAppTemplate, Service: "pinpoint", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePinpointPushTemplate, Service: "pinpoint", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePinpointSmsTemplate, Service: "pinpoint", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePinpointEmailTemplate, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointInAppTemplate, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointPushTemplate, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointSmsTemplate, Service: "pinpoint"})
 	registerService(serviceEntry{
 		name: "aws:pinpoint",
 		fn:   scanPinpoint,

@@ -210,7 +210,7 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			var newC, changedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, acct, "", st.WithUpsertCounters(&newC, &changedC), scanID)
+			total, _, err := svc.fn(svcCtx, acct, "", st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 			if err != nil {
 				switch classifyServiceError(err) {
 				case outcomeDisabled:
@@ -374,7 +374,7 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			var newC, changedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, acct, region, st.WithUpsertCounters(&newC, &changedC), scanID)
+			total, _, err := svc.fn(svcCtx, acct, region, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 			if err != nil {
 				switch classifyServiceError(err) {
 				case outcomeDisabled:

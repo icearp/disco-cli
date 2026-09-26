@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeSageMakerCluster, Service: "sagemaker"})
-	registerType(restype.Descriptor{Type: TypeSageMakerWorkteam, Service: "sagemaker", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSageMakerWorkteam, Service: "sagemaker"})
 }
 
 // sagemakerMiscAPI is the narrow surface for the misc family —

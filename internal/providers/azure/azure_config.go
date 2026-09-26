@@ -83,6 +83,11 @@ func loadSubscriptions(ctx context.Context, override []string, wif wifConfig) ([
 // more force here, and nothing enforced it for this one.
 var ErrFederatedEnumeration = errors.New("azure: federated credential requires an explicit subscription pin; refusing to enumerate (fail-closed)")
 
+// ErrNoSubscriptions reports that enumeration succeeded and listed nothing:
+// the credential can reach no subscription at all. A tenant can legitimately
+// hold none, so the message says what was observed rather than diagnosing it.
+var ErrNoSubscriptions = errors.New("azure: the credential reached no subscriptions; nothing to scan (pin them with --subscriptions, or check which tenant the credential belongs to)")
+
 // enumerateScope discovers the subscriptions a credential can reach, refusing
 // under federation. See [ErrFederatedEnumeration].
 func enumerateScope(ctx context.Context, cred azcore.TokenCredential, wif wifConfig) ([]subscription, error) {
@@ -168,6 +173,12 @@ func enumerateSubscriptions(ctx context.Context, cred azcore.TokenCredential) ([
 			}
 			subs = append(subs, sub)
 		}
+	}
+	// Fail closed like the pin and config paths above. Returning (nil, nil)
+	// produced a completed scan with no rows, no error and no warning, so a
+	// credential pointed at the wrong tenant looked exactly like an empty one.
+	if len(subs) == 0 {
+		return nil, ErrNoSubscriptions
 	}
 	return subs, nil
 }

@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeHybridNetworkFunction, Service: "microsoft.hybridnetwork", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeHybridNetworkDevice, Service: "microsoft.hybridnetwork", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHybridNetworkFunction, Service: "microsoft.hybridnetwork"})
+	registerType(restype.Descriptor{Type: TypeHybridNetworkDevice, Service: "microsoft.hybridnetwork"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.hybridnetwork",
 		fn:   scanHybridNetwork,

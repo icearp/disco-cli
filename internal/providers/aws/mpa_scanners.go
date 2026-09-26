@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMPAApprovalTeam, Service: "mpa", Upstream: "AWS::MPA::ApprovalTeam", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMPAIdentitySource, Service: "mpa", Upstream: "AWS::MPA::IdentitySource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMPAApprovalTeam, Service: "mpa"})
+	registerType(restype.Descriptor{Type: TypeMPAIdentitySource, Service: "mpa"})
 	registerService(serviceEntry{
 		name: "aws:mpa",
 		fn:   scanMPA,

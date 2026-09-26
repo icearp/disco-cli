@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMaintenanceConfiguration, Service: "microsoft.maintenance", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMaintenanceConfigAssignment, Service: "microsoft.maintenance", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMaintenancePublicConfiguration, Service: "microsoft.maintenance", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMaintenanceConfiguration, Service: "microsoft.maintenance"})
+	registerType(restype.Descriptor{Type: TypeMaintenanceConfigAssignment, Service: "microsoft.maintenance"})
+	registerType(restype.Descriptor{Type: TypeMaintenancePublicConfiguration, Service: "microsoft.maintenance"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.maintenance",
 		fn:   scanMaintenance,

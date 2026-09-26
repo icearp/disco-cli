@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSecurityIRCase, Service: "security-ir", Upstream: "AWS::security-ir::case", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSecurityIRMembership, Service: "security-ir", Upstream: "AWS::security-ir::membership", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSecurityIRCase, Service: "security-ir"})
+	registerType(restype.Descriptor{Type: TypeSecurityIRMembership, Service: "security-ir"})
 	registerService(serviceEntry{
 		name: "aws:security-ir",
 		fn:   scanSecurityIR,

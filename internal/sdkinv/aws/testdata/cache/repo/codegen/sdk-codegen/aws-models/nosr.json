@@ -1,0 +1,87 @@
+{
+ "smithy": "2.0",
+ "shapes": {
+  "ns#NoSR": {
+   "type": "service",
+   "version": "2020-01-01",
+   "operations": [
+    {
+     "target": "ns#ListThings"
+    },
+    {
+     "target": "ns#GetThing"
+    }
+   ],
+   "traits": {
+    "aws.auth#sigv4": {
+     "name": "nosr"
+    }
+   }
+  },
+  "ns#Thing": {
+   "type": "structure",
+   "members": {
+    "ThingId": {
+     "target": "smithy.api#String"
+    }
+   }
+  },
+  "ns#ThingList": {
+   "type": "list",
+   "member": {
+    "target": "ns#Thing"
+   }
+  },
+  "ns#ListThings": {
+   "type": "operation",
+   "input": {
+    "target": "ns#ListThingsRequest"
+   },
+   "output": {
+    "target": "ns#ListThingsResponse"
+   },
+   "traits": {}
+  },
+  "ns#ListThingsRequest": {
+   "type": "structure",
+   "members": {}
+  },
+  "ns#ListThingsResponse": {
+   "type": "structure",
+   "members": {
+    "Things": {
+     "target": "ns#ThingList"
+    }
+   }
+  },
+  "ns#GetThing": {
+   "type": "operation",
+   "input": {
+    "target": "ns#GetThingRequest"
+   },
+   "output": {
+    "target": "ns#GetThingResponse"
+   },
+   "traits": {}
+  },
+  "ns#GetThingRequest": {
+   "type": "structure",
+   "members": {
+    "ThingId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   }
+  },
+  "ns#GetThingResponse": {
+   "type": "structure",
+   "members": {
+    "Thing": {
+     "target": "ns#Thing"
+    }
+   }
+  }
+ }
+}

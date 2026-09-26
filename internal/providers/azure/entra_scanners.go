@@ -19,10 +19,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEntraUser, Service: "graph", Uncatalogued: true})
-	registerType(restype.Descriptor{Type: TypeEntraGroup, Service: "graph", Uncatalogued: true})
-	registerType(restype.Descriptor{Type: TypeEntraServicePrincipal, Service: "graph", Uncatalogued: true})
-	registerType(restype.Descriptor{Type: TypeEntraApplication, Service: "graph", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeEntraUser, Service: "graph"})
+	registerType(restype.Descriptor{Type: TypeEntraGroup, Service: "graph"})
+	registerType(restype.Descriptor{Type: TypeEntraServicePrincipal, Service: "graph"})
+	registerType(restype.Descriptor{Type: TypeEntraApplication, Service: "graph"})
 	// Entra ID types are real identities scanned via Microsoft Graph; ARM
 	// Providers/List can't see them (Graph isn't an ARM RP), so uncatalogued
 	// rather than synthetic.

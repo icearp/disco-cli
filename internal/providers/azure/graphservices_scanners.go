@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGraphServicesAccount, Service: "microsoft.graphservices", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGraphServicesAccount, Service: "microsoft.graphservices"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.graphservices",
 		fn:   scanGraphServices,

@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeS3ExpressDirectoryBucket, Service: "s3express", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3ExpressAccessPoint, Service: "s3express", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeS3ExpressBucketPolicy, Service: "s3express", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeS3ExpressDirectoryBucket, Service: "s3express"})
+	registerType(restype.Descriptor{Type: TypeS3ExpressAccessPoint, Service: "s3express"})
+	registerType(restype.Descriptor{Type: TypeS3ExpressBucketPolicy, Service: "s3express"})
 	registerService(serviceEntry{
 		name: "aws:s3express",
 		fn:   scanS3Express,

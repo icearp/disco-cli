@@ -3,7 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -11,20 +11,22 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
 func init() { coverage.Register(&coverageProvider{}) }
 
-// coverageProvider implements coverage.Provider for Azure. Upstream truth =
-// ARM `Providers/List?$expand=resourceTypes`; coverage truth = CollectEmits()
-// in services.go, unioning every registerService / registerTenantService
-// emits decl plus extraEmits from compute / sql child scanner files and
-// resourcegroups.
+// coverageProvider implements coverage.Provider for Azure: the types its
+// scanners emit (CollectEmits) and, for --cross-check, the live ARM
+// `Providers/List?$expand=resourceTypes` registry (CrossCheck).
 type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "azure" }
 
 func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
+
+// TypeServices implements coverage.ServiceMapper from the registration files.
+func (coverageProvider) TypeServices() map[string][]string { return typeOrigin.TypeServices() }
 
 // ListResolvers implements coverage.ResolverAuditor by adapting the package's
 // ListResolvers() registry view into the neutral coverage shape, so cmd can
@@ -54,60 +56,48 @@ func (coverageProvider) ResolverEdgeSources() []string {
 	return out
 }
 
-// Aliases inverts azureAPITypeMap (types.go): that map is upstream→disco
-// for live scanner scans; coverage needs the reverse. Built once at
-// process start.
-//
-// ARM type keys are stored lowercased ("microsoft.compute/virtualmachines")
-// to match coverage.Build's lowercased lookup. Multi-segment children
-// (e.g. "microsoft.network/virtualnetworks/subnets") preserved verbatim.
-//
-// azureAPITypeMap is intentionally many-to-one for a few documented aliases
-// (e.g. "microsoft.connectedcache/enterprisecustomers" and ".../enterprisemcccustomers"
-// both map to TypeConnectedCacheEnterpriseCustomer). A plain `range` picks
-// whichever upstream key Go's randomized map iteration visits last, so the
-// "covered" key flips between runs. Sort candidates and take the shortest
-// (tie-break lexicographic) as the canonical alias, deterministically.
-func (coverageProvider) Aliases() map[string]string {
-	candidates := make(map[string][]string, len(azureAPITypeMap))
-	for upstream, disco := range azureAPITypeMap {
-		candidates[disco] = append(candidates[disco], upstream)
+// RegistryKey turns a candidate key into the ARM type it should match
+// ("microsoft.compute/virtualmachines/extensions", lowercased). Two shapes
+// differ from the key: ARM omits a singleton instance id that the path spells
+// out ("blobServices/default/containers" is "blobServices/containers"), and it
+// keeps the "locations" segment the extractor strips as a scope pair. Without
+// both, 34 keys could never match and each produced a false drift row on both
+// sides of the comparison.
+func (coverageProvider) RegistryKey(c sdkinv.Candidate) string {
+	ns, path, ok := strings.Cut(c.Key, "/")
+	if !ok {
+		return c.Key
 	}
-	out := make(map[string]string, len(candidates))
-	for disco, upstreams := range candidates {
-		sort.Slice(upstreams, func(i, j int) bool {
-			if len(upstreams[i]) != len(upstreams[j]) {
-				return len(upstreams[i]) < len(upstreams[j])
-			}
-			return upstreams[i] < upstreams[j]
-		})
-		out[disco] = upstreams[0]
+	segs := strings.Split(path, "/")
+	out := make([]string, 0, len(segs)+1)
+	if slices.Contains(c.Signals, armLocationScopeSignal) {
+		out = append(out, "locations")
 	}
-	return out
+	for _, sg := range segs {
+		if armSingletonID[sg] {
+			continue
+		}
+		out = append(out, sg)
+	}
+	return ns + "/" + strings.Join(out, "/")
 }
 
-// AlgorithmicKey is the fallback for disco types missing from the alias map:
-// e.g. disco "azure:microsoft.compute:galleries:images:versions" -> ARM key
-// "microsoft.compute/galleries/images/versions" by stripping kebab dashes
-// (ARM segments have no separators) and turning the disco ':' sub-resource
-// separators back into ARM '/' hierarchy. Mostly exists so future types
-// compile-check without an alias entry.
-func (coverageProvider) AlgorithmicKey(discoType string) string {
-	parts := strings.SplitN(discoType, ":", 3)
-	if len(parts) != 3 {
-		return discoType
-	}
-	ns, kind := parts[1], parts[2]
-	kind = strings.ReplaceAll(kind, "-", "")
-	kind = strings.ReplaceAll(kind, ":", "/")
-	return ns + "/" + kind
-}
+// armLocationScopeSignal is set by internal/sdkinv/azure on a candidate whose
+// path reached it through a "locations/{location}" pair.
+const armLocationScopeSignal = "scope-pair:locations"
 
-// Fetch pages ARM Providers/List with $expand=resourceTypes and returns
+// armSingletonID are ARM's names for the one instance of a singleton child;
+// they are ids in a path and absent from the type name.
+var armSingletonID = map[string]bool{"default": true, "current": true}
+
+// CanonicalKey lowercases: ARM identifiers are case-insensitive.
+func (coverageProvider) CanonicalKey(r coverage.UpstreamType) string { return strings.ToLower(r.Key) }
+
+// CrossCheck pages ARM Providers/List with $expand=resourceTypes and returns
 // every fully-qualified Azure resource type ("microsoft.compute/virtualmachines"
 // lowercased). Auto-detects first available subscription when opts.Subscription
 // is empty.
-func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) ([]coverage.UpstreamType, error) {
+func (coverageProvider) CrossCheck(ctx context.Context, opts coverage.FetchOptions) ([]coverage.UpstreamType, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, fmt.Errorf("azure credential: %w", err)

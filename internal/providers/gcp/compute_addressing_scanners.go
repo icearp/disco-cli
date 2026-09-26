@@ -8,7 +8,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Wave 3 of the GCP type-coverage buildout (docs/gcp-type-coverage.md): the
+// Wave 3 of the GCP type-coverage buildout (the 2026-07 type-coverage audit): the
 // Compute Engine addressing domain. New phases of the existing "gcp:compute"
 // service. No resolver this wave — Address/PublicDelegatedPrefix reference
 // their consumers via bare self-link strings (Address.Users[]) whose target
@@ -18,7 +18,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeComputeAddress, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeGlobalAddress, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputePublicAdvertisedPrefix, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputePublicAdvertisedPrefix, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputePublicDelegatedPrefix, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeGlobalPublicDelegatedPrefix, Service: "compute"})
 }

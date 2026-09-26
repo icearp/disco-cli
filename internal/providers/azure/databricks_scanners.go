@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeDatabricksWorkspace, Service: "microsoft.databricks"})
-	registerType(restype.Descriptor{Type: TypeDatabricksAccessConnector, Service: "microsoft.databricks", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDatabricksAccessConnector, Service: "microsoft.databricks"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.databricks",
 		fn:   scanDatabricks,

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeMachineLearningWorkspace, Service: "microsoft.machinelearningservices"})
-	registerType(restype.Descriptor{Type: TypeMachineLearningRegistry, Service: "microsoft.machinelearningservices", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMachineLearningRegistry, Service: "microsoft.machinelearningservices"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.machinelearningservices",
 		fn:   scanMachineLearning,

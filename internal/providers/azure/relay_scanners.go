@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRelayNamespace, Service: "microsoft.relay", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRelayNamespace, Service: "microsoft.relay"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.relay",
 		fn:   scanRelay,

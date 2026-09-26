@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSFNStateMachine, Service: "stepfunctions", Upstream: "AWS::StepFunctions::StateMachine"})
-	registerType(restype.Descriptor{Type: TypeSFNActivity, Service: "stepfunctions", Upstream: "AWS::StepFunctions::Activity", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSFNStateMachine, Service: "stepfunctions"})
+	registerType(restype.Descriptor{Type: TypeSFNActivity, Service: "stepfunctions"})
 	registerType(restype.Descriptor{Type: TypeSFNStateMachineAlias, Service: "stepfunctions"})
 	registerType(restype.Descriptor{Type: TypeSFNStateMachineVersion, Service: "stepfunctions"})
 	registerService(serviceEntry{

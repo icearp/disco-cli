@@ -29,6 +29,21 @@ type ScanWarning struct {
 	Service  string // e.g. "kms:ListKeys", "compute"
 	Scope    string // accountID[/region] or subscriptionID or projectID
 	Message  string // err.Error()
+	// ServiceName is the registered scanner service the warning belongs to
+	// ("azure:microsoft.compute"), which Service alone does not give: an
+	// Azure op label is "arm<module>:<Client>.<Method>" and no rule turns
+	// that into the registered name (armappservice, armcosmos and
+	// armresources all disagree with it). Set by WithWarningService at the
+	// dispatch site, so a scanner reporting a skip needs to know nothing.
+	// Empty means "this warning names no service" — a store-level warning
+	// such as a native-id collision, which explains no missing type.
+	ServiceName string
+	// storeLevel marks a warning raised by the store itself rather than by a
+	// scanner. Such a warning fires from inside whichever service happened to
+	// be writing, so WithWarningService would stamp that service's name onto
+	// it and a consumer would read "this service was skipped" from a message
+	// about two rows colliding. Unexported: only this package can set it.
+	storeLevel bool
 }
 
 // ScanNotice is a by-design decision a scan made that the operator should see
@@ -130,6 +145,7 @@ type Store struct {
 	relBuf            *relBuffer                                                                                // non-nil only in scoped copies returned by BeginRelBuffer
 	nativeIDSeen      *sync.Map                                                                                 // key r.ID → nativeIDSighting; per-writable-pool collision detector (see noteNativeIDType). Shared across scoped copies.
 	writeFailStreak   *atomic.Int64                                                                             // consecutive connection-level write failures; opens the withWriteRetry circuit at writeCircuitTrip. Pointer so scoped copies share one breaker.
+	warnService       string                                                                                    // non-empty only in scoped copies returned by WithWarningService; stamped onto ScanWarning.ServiceName
 }
 
 // ReportService invokes OnServiceComplete if set, called after each service
@@ -149,6 +165,17 @@ func (s *Store) ReportService(service, scope string, total, newCount, changed, e
 	if s.OnServiceComplete != nil {
 		s.OnServiceComplete(service, scope, total, newCount, changed, errCount, status)
 	}
+}
+
+// WithWarningService returns a shallow copy of the Store whose ReportWarning
+// stamps ServiceName on every warning that does not carry one. The dispatch
+// loop knows the registered service name; the scanner five frames down knows
+// only its op label, and threading the name through every list helper would
+// touch every call site. Mirrors WithUpsertCounters.
+func (s *Store) WithWarningService(name string) *Store {
+	s2 := *s
+	s2.warnService = name
+	return &s2
 }
 
 // WithRelCounter returns a shallow copy of the Store with activeCounter set.
@@ -226,6 +253,9 @@ func (s *Store) ReportResolveComplete(provider string, edges int) {
 // warnings can be collected and rendered as a single grouped block rather
 // than interleaving with aligned progress output.
 func (s *Store) ReportWarning(w ScanWarning) {
+	if w.ServiceName == "" && !w.storeLevel {
+		w.ServiceName = s.warnService
+	}
 	if s.OnWarn != nil {
 		s.OnWarn(w)
 	}

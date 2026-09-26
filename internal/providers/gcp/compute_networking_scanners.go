@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Wave 4 of the GCP type-coverage buildout (docs/gcp-type-coverage.md): the
+// Wave 4 of the GCP type-coverage buildout (the 2026-07 type-coverage audit): the
 // Compute Engine networking-core domain. New phases of the existing
 // "gcp:compute" service. No resolvers this wave — these types reference
 // networks/subnetworks/backends via bare self-link strings scattered across
@@ -19,22 +19,22 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeRoute, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRouter, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeVpnGateway, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeExternalVpnGateway, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeExternalVpnGateway, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeTargetVpnGateway, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeVpnTunnel, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeNetworkAttachment, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeNetworkEndpointGroup, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionNetworkEndpointGroup, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeGlobalNetworkEndpointGroup, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeGlobalNetworkEndpointGroup, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeNetworkFirewallPolicy, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionNetworkFirewallPolicy, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeNetworkProfile, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeNetworkProfile, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeNodeGroup, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeNodeTemplate, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeNodeTemplate, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputePacketMirroring, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeServiceAttachment, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeNetworkEdgeSecurityService, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeCrossSiteNetwork, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeCrossSiteNetwork, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeWireGroup, Service: "compute"})
 }
 

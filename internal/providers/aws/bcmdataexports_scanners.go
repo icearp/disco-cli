@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBCMDataExportsExport, Service: "bcmdataexports", Upstream: "AWS::BCMDataExports::Export"})
+	registerType(restype.Descriptor{Type: TypeBCMDataExportsExport, Service: "bcmdataexports"})
 	registerService(serviceEntry{
 		name: "aws:bcmdataexports",
 		fn:   scanBCMDataExports,

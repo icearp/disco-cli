@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSignerSigningProfile, Service: "signer", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSignerSigningProfile, Service: "signer"})
 	registerType(restype.Descriptor{Type: TypeSignerProfilePermission, Service: "signer"})
 	registerService(serviceEntry{
 		name: "aws:signer",

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCloudSearchDomain, Service: "cloudsearch", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCloudSearchDomain, Service: "cloudsearch"})
 	registerService(serviceEntry{
 		name: "aws:cloudsearch",
 		fn:   scanCloudSearch,

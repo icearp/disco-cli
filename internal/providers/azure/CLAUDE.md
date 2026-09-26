@@ -4,39 +4,15 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 ## Discover what's not yet covered
 
-`disco coverage services --providers azure --filter uncovered` — diff ARM Providers/List vs scanner `emits` decls (deduped via the alias map in `azure_coverage.go`, which inverts `azureAPITypeMap`). Other filters: `covered`, `uncatalogued`, `upstream-missing`. `--check-strict` exits non-zero on any `upstream-missing` (alias-map drift). Subscription auto-detected; pass `--subscriptions` to override.
-
-**ARM `Providers/List` never enumerates proxy child types.** Deep child/proxy resourceTypes (e.g. `microsoft.sql/managedinstances/keys`, `…/managedinstances/databases/transparentdataencryption`, `microsoft.network/virtualnetworks/subnets`, `microsoft.sql/servers/devopsauditsettings`) are real, scannable ARM resources but absent from the registry view, so they'd false-flag as `upstream-missing`. Their emit decls carry `Uncatalogued: true` to bucket them as `uncatalogued` instead (they are all SDK-scanned). (ARM is inconsistent — it *does* list some children like `managedinstances/vulnerabilityassessments`, which stay non-uncatalogued/covered; only flag the ones a live run shows missing.) Entra identities (Graph, not an ARM RP) are `Uncatalogued` for the same reason.
-
-**A clean `--check-strict` needs the preview RPs registered.** Three top-level RPs disco scans are absent until registered in the coverage subscription: `Microsoft.AzureLargeInstance`, `Microsoft.HardwareSecurityModules`, `Microsoft.OnlineExperimentation`. These are listable once registered; run `az provider register --namespace <RP>` for each so they bucket as `covered`.
+Coverage commands and buckets: `internal/coverage/CLAUDE.md`. Azure specifics: ARM `Providers/List` never enumerates proxy child types (`microsoft.sql/managedinstances/keys`, `…/virtualnetworks/subnets`), so they read `candidate-only` under `--cross-check` — the SDK, not the registry, is the truth. Entra identities (Graph, not an ARM RP) are `disco-only: explained: non-sdk`.
 
 ## Adding a new type — 3 spots
 
-1. `azure_types.go`: `Type*` const **and** entry in `azureAPITypeMap` (lowercase ARM key like `microsoft.foo/bars`).
+1. `azure_types.go`: `Type*` const (`azure:<namespace>:<kebab collection>[:<child>]`; the pairing test only needs the scanner to call the `arm*` list op).
 2. `azure_scanner_test.go`: append service name to `expectedAzureServices`.
 3. New `<svc>_scanners.go` self-registers the service via `init() { registerService(serviceEntry{name, fn}) }` and declares each type it upserts via `registerType(restype.Descriptor{...})` in the same `init()`. Resolvers via `registerResolver(fn)` from `<svc>_resolvers.go`.
 
-### Unified per-type declaration via `registerType`
-
-`registerType(restype.Descriptor{...})` in `azure_registry.go` is the single-site
-declaration for coverage emit (`Service` + `Leaf`/`Uncatalogued`), redaction
-rules (`Redact`), and the unconditional `Managed` flag (the store stamps
-`ManagedByProvider` by type — used only by `TypeNetworkCloudRackSKU`; the
-built-in role/policy/set-definition types stay scanner-set because they are
-managed only for tenant built-ins, not custom defs). It forwards field rules
-into the shared redact/volatile/managed engines and routes the coverage decl
-through `descriptorEmits`.
-
-**Aliases are NOT on the descriptor.** Azure keeps them in `azureAPITypeMap`
-(`azure_types.go`) because that map is both the alias source AND the
-`azure_type_mirror_test.go` truth, and it carries *multiple* upstream keys per
-disco type (which a single `Descriptor.Upstream` can't represent). `Aliases()`
-inverts it as before — leave it alone.
-
-**Azure is fully migrated** — every type is declared via `registerType`;
-`azure_redact.go` and the legacy `serviceEntry.emits` / `registerExtraEmits`
-paths are gone. `TestNoDoubleDeclaredTypes` guards against a type declared via
-both paths; the mirror/leaf/redact tests guard naming and redaction.
+Types are declared via `registerType` (see `../CLAUDE.md`). Azure delta: `Managed` is used only by `TypeNetworkCloudRackSKU`; built-in role/policy/set definitions stay scanner-set (managed only for tenant built-ins). Guards: `TestNoDoubleDeclaredTypes`, `azure_pairing_test.go`.
 
 ## Service names align to the ARM namespace: `azure:microsoft.<namespace>`
 
@@ -47,13 +23,31 @@ its `emits`, e.g. `microsoft.documentdb` — NOT the friendly `cosmos`). One reg
 namespace**: the registry panics on duplicate names (`azure_registry.go`).
 - If several scanners share a namespace (e.g. dns/frontdoor/private-endpoints are all
   `microsoft.network`), **merge** them under one `serviceEntry` whose `fn` runs each via
-  `azRunPhases(...)` and whose `emits` is the union — secondary files keep their `scanX` fn but
-  declare emits via `registerExtraEmits(...)` instead of a second `registerService`. Precedent:
+  `azRunPhases(...)` and whose `emits` is the union — secondary files keep their `scanX` fn and
+  declare their types with `registerType` instead of a second `registerService`. Precedent:
   `network_scanners.go::scanNetworkNamespace`, `cosmos_scanners.go::scanDocumentDBNamespace`.
 - If one scanner spans two namespaces, **split** it into one registration each. Precedent:
   `containerapps_scanners.go` (`microsoft.app` + `microsoft.containerinstance`).
 Tenant-scope `microsoft.entra` (Graph) is the lone non-ARM-RP exception, registered via
 `registerTenantService` and excluded from `expectedAzureServices`.
+
+Dispatch-level reporting must use those registered names too — `entraServiceName` and
+`resourcesServiceName` in `azure_scanner.go`, never the ad-hoc `"entra"` / `"resourcegroups"`
+they replaced. A label no service is registered under joins to no declared type, so the failure
+it records explains nothing. A failure of one subscription's whole scan is
+`subscriptionScanService` (`scan:subscription`), deliberately not the runner's provider-wide
+`scan`: with the bare label every declared type, tenant-scoped ones included, was blamed on one
+unreachable subscription.
+
+Warnings carry their service without knowing it: the dispatch loop passes
+`st.WithWarningService(svc.name)`, so a scanner keeps reporting op labels
+(`armnetwork:VirtualWans.List`) and the registered name rides along. Nothing turns an `arm<module>`
+prefix into `microsoft.<ns>` — armappservice, armcosmos and armresources each disagree — so that
+field is the only join a consumer has.
+
+`enumerateSubscriptions` fails with `ErrNoSubscriptions` when ARM lists none, like the pin and
+config paths. Returning an empty slice produced a completed scan with no rows, no error and no
+warning, so a credential pointed at the wrong tenant was indistinguishable from an empty one.
 
 ## Resolver-edge metadata: `EdgeDecl`
 
@@ -65,9 +59,8 @@ Target = the type the edge points at; Kind = a `store.Rel*` constant. Audit + co
 resolver is invisible to gap analysis. Cross-cutting central resolvers whose source is *every*
 resource type (`resolveManagedIdentityConsumers`, `resolveExtendedLocationConsumers`) stay
 unannotated **on purpose** — per-type Source enumeration is meaningless and would pollute the
-`--missing` per-service inventory; they carry a comment saying so. `TestLeafTypesNotResolverSources`
-(`azure_coverage_test.go`) fails if a type flagged `Leaf: true` on its emits decl appears as an
-`EdgeDecl.Source` — drop the Leaf flag in the same commit that ships the resolver.
+`--missing` per-service inventory; they carry a comment saying so. There is no leaf flag: a type
+leaves `--missing` when a resolver's `EdgeDecl` names it.
 
 ## Helpers (reuse before reinventing)
 
@@ -84,8 +77,8 @@ unannotated **on purpose** — per-type Source enumeration is meaningless and wo
 - `upsertVNetAttachment(st, fromID, subnetID, vnetByID)` — resolve a subnet ARM ID to its parent VNet (via `vnetIDFromSubnetID`) and emit `from -[attached-to]-> VNet` when in scope. `vnetByID` is a lowercased VNet `nativeIDIndex`. Shared by resolvers carrying VNet-injection subnet refs (kusto, appplatform, hdinsight). Lives in `kusto_resolvers.go`.
 - `vaultNameFromKeyURI(s)` — parse full Key Vault key URI (`https://v.vault.azure.net/keys/k/v`). Used by ACR / Cosmos / MySQL CMEK.
 - `vaultNameFromVaultURI(s)` — parse vault DNS root (`https://v.vault.azure.net/`). Used by Event Hubs / Service Bus CMEK. **Pick right one per service** — wrong choice silently produces zero edges.
-- `skipIfAccessDenied(st, svc, sub.ID, err)` — log scan warning, continue (returns nil). **A 401 is skipped exactly like a 403**, and that is unchanged everywhere except the one gate below — but the equivalence is NOT in this function, which tests only `isProviderUnavailable` and warns on everything else (it would warn on a 500 just as readily). It lives in `isSkippableScanError`, which nearly every caller consults BEFORE calling this — two do not (`management_scanners.go`'s Entities.List, `operationsmanagement_scanners.go`), guarding on `isAccessDenied` instead, so a deserialization error or an unregistered RP is not skipped there. A scanner that consults neither falls to the dispatcher's `default:` arm and becomes a `ScanError`; nothing enforces the convention. Re-derive the exceptions with `grep -n isAccessDenied internal/providers/azure/*.go`, not from this sentence.
-- `subscriptionUnreachable(probeErr, rgListed)` — the only place a 401 changes what is SCANNED rather than what is reported. (`redactCredentialError` also treats every 401 specially, but that governs the message text on the scan record, not whether the subscription is scanned — different axis, see the redaction section.) `scanSubscription` refuses the whole subscription when the resource-provider probe answers 401 **and** the resource-group list did not succeed, returning one `ScanError` (via `unreachableSubscriptionError`) instead of letting every registered per-subscription scanner record its own near-identical warning, which overflowed the persisted array. **The "200" in the incident record is `scanrun.maxPersistedWarnings`, the CAP with its truncation marker set — never quote it as a call count**; regenerate the population with `grep -h 'registerService(serviceEntry{' internal/providers/azure/*.go | wc -l` (NOT `grep -c`, which prints one count per file over a glob and no total), and note it bounds the calls only loosely either way. A CONJUNCTION on purpose: a successful RG list proves the token was accepted for this subscription, so a lone providers-endpoint 401 must not cost the customer every row they can see. What it cannot rule out is a 401 both calls share for a reason other than a missing delegation — one cycle reported unreachable, healed by the next clean scan. The two calls DO share one frozen token and a retry inside the scan IS futile — but because of `newCachingCredential` (`azure_credential.go`), not because azcore never refreshes. azcore's policy calls `Expire()` on any 401 (`runtime/policy_bearer_token.go`, `handleChallenge`) and refreshes on its own schedule — `shouldRefresh` uses its five-minute early window only when `RefreshOn` is zero, which azidentity's confidential client leaves it only when the token response carried no `refresh_in` (the only thing MSAL fills it from), so quoting "five minutes early" as azcore's fixed behaviour is wrong; `Expire()` clears only the policy's copy, and the next `GetToken` reads disco's cache and gets the same token back, since it has no invalidation path. **Read the credential the scan was handed before reasoning about token lifetime** — a correction written off the module cache alone reversed this claim once and was wrong. `unreachableSubscriptionError` carries the ARM error CODE and never the body, which names the issuer presented — under federation, disco's own directory — and this message lands on the CUSTOMER's scan record. It is also the SaaS's health signal: disco-saas records a non-healthy account for a partial scan that wrote no `resources` row outside the customer's Entra directory — the directory carve-out matters, because on a Graph-consented workspace the tenant phase stamps directory objects with the DIRECTORY's guid and a plain "wrote nothing" test reads healthy for a subscription that refused every read.
+- `skipIfAccessDenied(st, svc, sub.ID, err)` — records a warning, returns nil; special-cases only `isProviderUnavailable`. The 401≡403 skip lives in `isSkippableScanError`, which callers check first (exceptions: `grep -n isAccessDenied internal/providers/azure/*.go`); an unguarded error hits the dispatcher's `default:` → `ScanError`.
+- `subscriptionUnreachable(probeErr, rgListed)` — refuses a whole subscription only when the providers probe is 401 **and** the RG list failed (a listed RG proves the token works). One `ScanError` via `unreachableSubscriptionError`, carrying the ARM code, never the body (it names disco's issuer and lands on the customer's record); disco-saas reads that partial-with-no-rows scan as unhealthy (rows stamped with the Entra directory's guid don't count, so a Graph-consented workspace can't read healthy for a refused subscription). This is the only place a 401 changes what is scanned rather than how it is reported. In-scan retry is futile: `newCachingCredential` has no invalidation path (azcore `Expire()` clears only the policy copy). `scanrun.maxPersistedWarnings` (200) is a cap, not a call count.
 - `azClientOptions` — shared `*arm.ClientOptions` with retry tuned for ARM throttling. Pass to every arm* `NewXClient(...)`.
 
 ## ARM IDs are case-insensitive
@@ -102,7 +95,7 @@ Helpers extracting segments from ARM IDs (subscription guid, RG name, resource n
 
 Built-in role definitions, built-in policy definitions, and built-in policy set definitions are tenant-identical Microsoft-shipped resources. The tenant service `scanAuthorizationBuiltins` fetches them once per scan (`RoleDefinitions.List` with `$filter=type eq 'BuiltInRole'`, iterating subscriptions until one is authorized; `armpolicy` `NewListBuiltInPager` for policy/set defs) and stores them under the tenant GUID. The per-sub scanners (`scanRoleDefinitionsInto`, `scanPolicy`) skip built-ins when `sub.tenantID != ""` — role: `RoleType=="BuiltInRole"`; policy: **only** `PolicyTypeBuiltIn` (Static/NotSpecified are NOT returned by `ListBuiltIn`, so they stay per-sub). Custom definitions always stay per-sub.
 
-Role-definition ARM IDs are returned scope-prefixed (`/subscriptions/{sub}/...`); the tenant copy is stored with a scope-stripped NativeID (`roleDefSuffix`) and resolvers FK via the scope-independent `normalizeRoleDefKey` (matches custom + built-in uniformly). Built-in policy-definition IDs are already scope-free, stored verbatim. `resolveAuthorizationRelationships` builds its role-def index over sub.ID + tenantID accounts (`buildRoleDefIndex`); `resolvePolicyRelationships` merges tenant-account built-in policy/set defs into its per-sub index. When `tenantID` is empty (resolution failed), all of this degrades to per-sub storage with no data loss. Custom role/policy definitions and role/policy **assignments** are genuinely per-sub and never deduplicated.
+Role-definition ARM IDs are returned scope-prefixed (`/subscriptions/{sub}/...`); the tenant copy is stored with a scope-stripped NativeID (`roleDefSuffix`) and resolvers join via the scope-independent `normalizeRoleDefKey` (matches custom + built-in uniformly). Built-in policy-definition IDs are already scope-free, stored verbatim. `resolveAuthorizationRelationships` builds its role-def index over sub.ID + tenantID accounts (`buildRoleDefIndex`); `resolvePolicyRelationships` merges tenant-account built-in policy/set defs into its per-sub index. When `tenantID` is empty (resolution failed), all of this degrades to per-sub storage with no data loss. Custom role/policy definitions and role/policy **assignments** are genuinely per-sub and never deduplicated.
 
 ## Microsoft Graph (Entra ID) via raw REST + azcore token
 
@@ -114,412 +107,49 @@ Resolvers needing API access (not just DB reads) register via `registerAPIResolv
 
 Cross-cutting resolvers iterate diagnosable resources via an explicit type allowlist (`diagnosableTypes` in `monitor_resolvers.go`) — calling Microsoft.Insights APIs on non-diagnosable types returns 404/400 per call. Extend the allowlist when new scanners land for diagnosable types; consult learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories for the master list.
 
-### `armmonitor` must stay >= v0.13.0 (v0.12.0 is the broken one)
+### `armmonitor` must stay >= v0.13.0
 
-`monitor_resolvers.go` uses `armmonitor.NewDiagnosticSettingsClient` / `DiagnosticSettingsResource` — the modern resource-level Diagnostic Settings API (`Microsoft.Insights/diagnosticSettings`, api-version `2021-05-01-preview`): multiple named settings per resource, `List`, and destinations (storage / Event Hub / Log Analytics) the resolver walks to emit edges.
-
-**v0.12.0 removed it.** Between v0.11.0 and v0.12.0 the package switched code generators from AutoRest (Swagger) to TypeSpec (`tsp-location.yaml` → `Microsoft.Insights/Insights`), and the TypeSpec port dropped the `2021-05-01-preview` api-version entirely. v0.12.0's `ServiceDiagnosticSettings` is NOT a successor — it's the *legacy* `2016-09-01` `/diagnosticSettings/service` singleton (no `List`, no `Delete`, one unnamed setting), a functional downgrade. The modern API is still live in Azure (documented on learn.microsoft.com under `rest-monitor-2021-05-01-preview`); there is no `armmonitor/v2` and no dedicated `armdiagnosticsettings`/`arminsights` module that exposes it.
-
-**v0.13.0 restored it** (verified 2026-08-05 in the module cache: `diagnosticsettings_client.go` says `Generated from API version 2021-05-01-preview` and carries `NewListPager` + `Delete`), so the repo now runs v0.13.0 and the old v0.11.0 pin is gone. v0.12.0 remains the one bad release. Keep the floor at v0.13.0.
-
-The trap this leaves behind is a reasoning one: a green build is what tells you a bump is safe here, because v0.12.0's replacement had *different type names* and would not compile. That will not hold for every future Azure bump — a regen that keeps the names and changes the semantics compiles fine. Check the generated api-version comment, not just the build.
+Keep `armmonitor` ≥ v0.13.0. v0.12.0's TypeSpec regen dropped the `2021-05-01-preview` Diagnostic Settings API (`NewListPager`/`Delete`) that `monitor_resolvers.go` needs. On a bump, check the generated api-version comment, not just the build.
 
 ## Identity → MSI edges centralized
 
 `managedidentity_resolvers.go::resolveManagedIdentityConsumers` walks every Azure resource's `identity.userAssignedIdentities` map. New scanners storing native SDK responses verbatim get MSI-consumer edges automatically — do NOT add per-service identity-map resolvers.
 
-## Federated credential, and why tenant scope switches off with it
+## Federated credential (WIF) and tenant scope
 
-`wif.go` swaps `DefaultAzureCredential` for an AWS-to-Entra exchange when
-`DISCO_AZURE_WIF_CLIENT_ID` + `DISCO_AZURE_WIF_TENANT_ID` are set: `sts:GetWebIdentityToken`
-signs a JWT asserting the caller's AWS identity, `azidentity.NewClientAssertionCredential`
-presents it against a federated identity credential. Every link of the default chain fails in a
-distroless Fargate task, which is what this exists for. **`SigningAlgorithm` is required and must
-be `RS256`** — Entra supports nothing else for token exchange, AWS's own examples use ES384, and
-the mismatch surfaces only at exchange time. `retryCredential` retries `AADSTS70021:` (matched
-*with* the colon, or it would also match — and so keep retrying — the permanent `AADSTS700213`), which Microsoft documents as
-an expected transient while a federated credential replicates.
+`wif.go`: `DISCO_AZURE_WIF_CLIENT_ID` + `_TENANT_ID` → `sts:GetWebIdentityToken` → `azidentity.NewClientAssertionCredential` (distroless Fargate; the default chain fails there). `SigningAlgorithm` must be `RS256` (Entra accepts nothing else; fails only at exchange). `retryCredential` retries `AADSTS70021:` — keep the colon, or it also retries the permanent `AADSTS700213`.
 
-**Under this credential the tenant phase is suppressed by default, and that is a correctness
-requirement, not a permissions accommodation.** (Suppressed, not skipped wholesale — the Entra
-services can be redirected to a named directory; see the `DISCO_AZURE_GRAPH_TENANT_ID` paragraphs
-below, and read the rest of this paragraph as the default it changes.) Azure Lighthouse delegates SUBSCRIPTION scope: the
-token's authority is *disco's* tenant and ARM resolves the delegation, so every tenant-scope API
-answers about disco's own directory. Note the gate keys on `configured()` — "the WIF contract is
-set" — not on "the identity is foreign to the scanned tenant", which nothing here can check. So it
-also fires for a standalone operator federating into their OWN tenant, where the skip is a real
-capability loss and is unnecessary. Deliberate: prose says so (`azure_scanner.go`'s LongDescription,
-`cmd/config.go`) instead of the customer-visible message claiming a topology. Closing it wanted a
-positive check rather than a knob, and both halves now have one — `scanEntra` refuses to store
-anything when the token's `tid` is not the directory the scan was configured for, and
-`bindSubscriptions` refuses the scan unless ARM reports every scanned subscription as reachable by
-this credential and owned by `DISCO_AZURE_SUBSCRIPTION_TENANT_ID`. Neither narrows this gate: it
-still keys on `configured()`, so the ambient-managing-identity direction has the ARM binding
-(opt-in) and no tenant-scope suppression at all. Every registered tenant service would have
-(`grep -n 'registerTenantService' *.go`), plus `tenantDisplayName`, `tenantIDFromCredScope` and the
-management-group Entities list in `stitchTopHierarchy` — a DIFFERENT call from
-`scanManagementTenant`'s flat list, and it keys on `tenantScopeEnabled` DIRECTLY rather
-than on the per-service gate below — correct, because it is an ARM call that no token can
-redirect, but it does mean two functions now answer "is tenant scope open" for different
-callers. All of them **succeed**
-rather than 403, so the customer's inventory silently gains disco's users, groups, service
-principals, applications and management groups, with no warning anywhere. The gate is `tenantServiceRunnable`
-(`tenant_scanners.go`), asked per service by BOTH `runTenantServices` and
-`reportTenantScopeSkipped` so the two can never disagree and no service falls through both. A tenant
-service added later is refused under federation without being named — `graphScoped` is opt-in, and
-the default is the suppression.
+Invariants (each was a shipped defect):
+- **Tenant phase is suppressed under federation by default — correctness, not permissions.** Under Lighthouse the token authority is disco's tenant, so tenant-scope APIs *succeed* and answer about disco's directory. Gate = `tenantServiceRunnable` (`tenant_scanners.go`), asked by both `runTenantServices` and `reportTenantScopeSkipped`; a new tenant service is refused unless `graphScoped`. It keys on `wifConfig.configured()`, so it also fires for own-tenant federation (documented capability loss — say so in help text; never claim a topology in a scan message, Solution Rule 9). Besides the registered tenant services, `tenantDisplayName` and `tenantIDFromCredScope` are tenant-scope too. `stitchTopHierarchy` takes the whole `wifConfig`, skips only the Entities call, and keys on `tenantScopeEnabled` directly.
+- **Tenant-wide is decided by URL, not phase.** Re-derive the set from ARM URL templates with no `{subscriptionId}`/`{scope}`. `GET /subscriptions`: `enumerateScope` refuses under federation (subscriptions must be named; an invisible pin warns) and `scanSubscriptionResource` filters the page to the scanned subscription — unfiltered it wrote other customers' subscriptions under this customer's account. `azure_coverage.go` still uses `DefaultAzureCredential`; moving it to `newAzureCredential` needs the same filter. `managed:true` is no containment for a misattributed tenant-wide row.
+- Under federation `Scan` leaves `subscription.tenantID` empty (the `tid` names disco's tenant; a value makes per-sub scanners skip built-in role/policy defs).
+- Positive binding: `bindSubscriptions` refuses unless ARM reports every scanned subscription reachable and owned by `DISCO_AZURE_SUBSCRIPTION_TENANT_ID`; `scanEntra` stores nothing when the Graph token's `tid` ≠ the configured directory. The proof is the token's `tid`, never the variable.
+- `partiallyConfigured` refuses a half-set contract — the WIF pair (a silent fallback would re-enable the tenant phase via `tenantScopeEnabled`), and `DISCO_AZURE_GRAPH_TENANT_ID` alone (which would otherwise *enable* every tenant service against an ambient credential). `DISCO_AZURE_SUBSCRIPTION_TENANT_ID` is the one uncounted variable (stated in `ErrIncompleteWIFConfig`). `TestIncompleteWIFConfig_NamesEveryCountedVariable` reflects over `wifConfig` fields.
+- `DISCO_AZURE_GRAPH_TENANT_ID` (GUID only; `graphTenantGUID` rejects `common`/`organizations`) reopens **graphScoped services only** and needs both halves: `credentialOptions` allow-lists exactly that tenant (never `"*"`), and `graphClient` threads it as `TokenRequestOptions.TenantID`. Never admit ARM tenant phases (`TestTenantServiceRunnable_GraphConsentUngatesGraphAlone`).
 
-**That grep is not the whole set.** A call is tenant-wide because of its URL, not because of the
-phase that registered it, so `GET /subscriptions` sits inside the per-SUBSCRIPTION fan-out and is
-covered by `enumerateScope` + `subscriptionResourceBatch`. The other instance we knew of,
-armautomanage's `BestPractices.ListByTenant`, was left ungated because its payload is Microsoft's
-own catalog — judged on the wrong axis. The harm was not the payload but the ATTRIBUTION: the row
-was stamped with the scanned subscription and so asserted a successful read of a subscription that
-had refused everything else. `managed:true` did not contain that: it hides a row from default
-listings and does nothing to a consumer that asks for managed rows. That scanner is gone, so no
-live example remains and the set is
-UNENUMERATED rather than empty. Re-derive it from ARM URL templates carrying no
-`{subscriptionId}`/`{scope}` segment, not from the registry.
+### Credential-error redaction
+`redactCredentialError` (first branch of `formatAzureError`) keys on error TYPE and HTTP **401**, never a code list: every `*azcore.ResponseError` 401 renders `azure token rejected for this scope ({code}); see scanner logs`, body dropped (it names disco's tenant/role); code via `armAuthCode` (AADSTS from message, else ARM code). A 403 (`AuthorizationFailed`) is never redacted (`TestRedactCredentialError_DoesNotRedactAnOrdinaryARMError`). Graph arm keys on `graphErr.status == 401` (`TestReportEntraErr_KeepsAConsentDenialReadable`); it is live because `graphErr` has no `Unwrap`. `scanBodyForAADSTS` is the fallback for untyped MSAL/STS errors — a false-positive gate, not a cost gate; its `*azcore.ResponseError` 401 disjunct is dead (the first net returns earlier) but kept as the predicate's contract. Never trigger on the `azure wif:` prefix (config refusals must stay readable).
 
-Consequences to keep in step. `Scan` must also skip stamping `subscription.tenantID` — the
-`tid` claim names disco's tenant, and a non-empty value makes the per-sub scanners skip built-in
-role/policy definitions on the assumption a tenant service is storing them, which would silently
-drop them from the scan. Leaving it empty selects the documented per-sub fallback: no data lost.
-`stitchTopHierarchy` takes the whole `wifConfig` rather than a boolean — so the caller cannot hand
-it a decision that disagrees with the rest of the scan — and skips only the Entities call while the
-store-derived tiers still record.
+### Graph transport
+- `graphHTTPClient` refuses every redirect (it shares the ARM pool's transport, not its `http.Client`) and `get` refuses a 3xx status explicitly (`ErrUseLastResponse` returns a decodable body). net/http would forward `Authorization` to subdomains and across https→http. `azHTTPClient` (ARM) still follows redirects — known, out-of-scope gap.
+- `@odata.nextLink` must pass `sameGraphHost`: scheme + parsed host + port vs `baseURL` (scheme compared to base, so httptest needs no escape hatch), via `asciiHostEqual` (not `EqualFold`: U+017F folds to `s`).
+- **Never classify text the remote side can write** (URLs, hosts, `Location` headers, IPv6 zones). Refusals are typed (`foreignLinkError`, `oversizePageError`, `tooManyPagesError`, …; messages via `hostOnly`) and listed in `neverAConsentFailure`; `reportEntraErr` resolves type *before* `formatAzureError`/substring matching (else an `AADSTS…` host is rewritten as a credential failure and lands in `loggedCredentialErrors`); status comes from `graphErr.status`, not `" 403"` in the body. A new error type minted against a Graph response must join `neverAConsentFailure` — nothing enforces it.
+- Bounds: `maxGraphErrorBody` (at read); `sanitizeForScanRecord` chokepoint (`reportEntra`, `reportPanic`); `maxGraphPageBody` 64 MiB via `*io.LimitedReader` seeded at cap+1 (`N==0` ⇒ over cap); `maxGraphPages` (a `var` only for tests; `iterateGraph`'s cycle-key size is an open gap). The repeated-link guard catches exact repeats only; the general bound is `serviceTimeout` in `runTenantServices` (cancel deferred in a wrapper — a test service panics on purpose).
 
-And **the `GET /subscriptions` calls are tenant-wide while the gate covers only the tenant PHASE**
-(`grep -n 'NewSubscriptionsClient' *.go` for the live set). `enumerateScope` refuses under
-federation, so naming subscriptions — by `--subscriptions` or the config list — becomes mandatory
-(and a pin the credential cannot see is warned about, not reported as an empty success);
-`scanSubscriptionResource` filters the page to the subscription being scanned, and unfiltered it
-wrote every delegated subscription, i.e. OTHER CUSTOMERS' ids and display names, under the current
-customer's `AccountID`. `azure_coverage.go` keeps its own copy of this shape on
-`DefaultAzureCredential`; it never touches the federated credential today, and pointing it at
-`newAzureCredential` means giving it the same filter.
+### Skip reporting
+Suppressed tenant phase = one notice per service + ONE phase warning. Notices are constants chosen by kind (ARM `armSkipNotice` / `dedupOnly` `dedupSkipNotice` / Graph) and, for Graph, by state via `graphSkipNotice(wif)` (`graphSkipNoticeUnnamed`, `graphSkipNoticeMalformed`); loss notices carry `directoryLossPrefix`, the dedup one must not. The warning's advice comes from `graphTenantAdvice` (consented → none; malformed → name the shape; unset → name the variable; shared text `graphWhichDirectory`), each clause gated on `skippedARM`/`skippedGraph`. Re-derive the set from the `const` block, not a count here.
 
-A **credential** failure is redacted before it reaches the scan record (`redactCredentialError`,
-with the raw cause on stderr): the text carries disco's tenant GUID in the authority URL, and — when
-the assertion callback fails, where there is no HTTP body at all — disco's AWS role ARN. It triggers
-on the error TYPE, because the cases that leak most carry no `AADSTS` code. `scanBodyForAADSTS` is
-the second, narrower net, for a credential failure arriving as some other type. It is NOT a cost
-gate, though it reads like one: `runtime.NewResponseError` passes `respErr.Error()` to `log.Write`
-as an argument, so an `*azcore.ResponseError` has already rendered itself and memoized the result
-before disco sees it — there is no dump left to avoid. It is a FALSE-POSITIVE gate. Redaction throws
-the message away, so an ARM failure that merely MENTIONS `AADSTS` would cost the customer the action
-and scope they lack permission on. So an `*azcore.ResponseError` is answered from what ARM
-classified it as. `scanBodyForAADSTS` answers an `AADSTS` code in
-`ErrorCode` from the CODE alone — no message search, the code IS the answer — and reads the message
-in three source expressions: the shared `case` body, reached both by an `*azcore.ResponseError` with
-no parsed code and by one with a 401 (on paper only); the `*graphErr` arm; and — the one easiest to
-miss, since it is the bare `return` past both `errors.As` blocks — EVERY other error type, from the
-text alone. Its 401 disjunct — the second half of that case, not an arm of its own — is now DEAD for that type: the
-FIRST net added later answers every `*azcore.ResponseError` 401 in `redactCredentialError` and
-returns before `scanBodyForAADSTS` runs. The disjunct is kept as part of the predicate's own
-contract, not as a live path, and the `*graphErr` 401 arm below IS live, since `graphErr` carries no
-`Unwrap` and so never satisfies `errors.As` for `*azcore.ResponseError`. That reordering is not a
-regression: the message test never fired for the case that matters anyway — ARM's own
-`InvalidAuthenticationTokenTenant` for an undelegated subscription carries no `AADSTS` token — observed on the live 2026-08-26 never-delegated-subscription incident, not a general claim about ARM — only
-the issuer URL. **The first net makes the 401 case unconditional.** It drops the body of every ARM 401 — every
-`*azcore.ResponseError` 401, which is the bound the sentence above states and this one used to lose —
-rather than of a named code family; a `*graphErr` 401 whose body carries no `AADSTS` token is
-outside it and still reaches the record through `sanitizeForScanRecord`. It reports an `AADSTS` code
-from the message when there is one and the ARM code otherwise, via `armAuthCode`, which BOTH 401
-paths now share — the gate took `respErr.ErrorCode` alone until round 3, so a code-less 401 carrying
-`AADSTS700213` rendered the specific code through the formatter and the bare `Unauthorized` literal
-through the gate, which is the only sentence written about a refused subscription. It lives in the
-SHARED formatter rather than at the unreachable-subscription gate — on the
-same scan the resource-group list answers the same 401 through `skipIfAccessDenied`, so closing only
-the gate left that copy live. Both narrowings were shipped and both were wrong: keying on an
-`InvalidAuthenticationToken` prefix left `ExpiredAuthenticationToken`, `AuthenticationFailed` and
-`InvalidAuthenticationInfo` storing their bodies verbatim, and preferring the ARM code over an `AADSTS`
-one downgraded a diagnostic the message path already produced.
-
-The test is the STATUS, not a list of codes — a list is a hand-maintained allow-list on
-a disclosure boundary and Microsoft adds codes, while `AuthorizationFailed`, the one error that must
-never be redacted, is a 403.
-`TestRedactCredentialError_DoesNotRedactAnOrdinaryARMError` pins that direction, since nothing else
-can see it. Graph has its own arm on the same shape, keyed on `*graphErr.status == 401`, because
-`reportEntraErr` routes through `formatAzureError`: without it a Graph **403** — whose body says
-`Authorization_RequestDenied`, the customer's missing consent — fell to the bare substring fallback
-and was collapsed if it mentioned `AADSTS` anywhere
-(`TestReportEntraErr_KeepsAConsentDenialReadable`). It deliberately does NOT
-trigger on the `azure wif:` prefix: every pre-exchange CONFIG refusal carries that too, and
-collapsing those to "authentication failed" is exactly what the eager `AWS_REGION` check exists to
-prevent — two guards in one change cancelling.
-
-**The phase warning's trailing ADVICE clause varies by state (`graphTenantAdvice`), because the two
-SUPPRESSED states fail closed identically and only the message can tell them apart** (the third is
-not a fail-closed state at all — the services run, and the advice must be silent there): a consented
-directory gets no advice at all (those services RAN and are not in the skipped list, so repeating
-their remedy tells an operator to do what they have done), a value set but not a GUID names the
-shape (otherwise it reads exactly like unset, and that is the one case where naming the shape is
-the whole diagnosis), and unset names the variable. Each clause of that warning is gated on the KIND it explains
-(`skippedARM` / `skippedGraph`), not on the wifConfig: `--services` can exclude either kind, so an
-unconditional ARM justification explains a Graph-only list with a fact that the very next clause
-contradicts, and unconditional advice tells an operator how to re-enable a service the run never
-asked for.
-
-The suppressed tenant phase reports **a notice per service plus ONE warning for the phase**. Both
-halves of `store.ScanNotice`'s contract bind at once: coverage genuinely changed (so a notice alone
-would sit outside the warning count, and `scanrun` persists warnings while discarding notices), but
-this fires on every federated scan forever, and per-service fan-out would grow the count as tenant
-services are added.
-
-**The skip notices are constants and a selector, and they split on two axes.** By KIND: an ARM
-phase offers no remedy through this credential because an ARM call names no directory, a `dedupOnly`
-phase lost nothing at all (the per-subscription scanners store the same rows), and the Graph phase's
-cause is actionable. Then the Graph one splits again by STATE, because suppression has two —
-`graphSkipNoticeUnnamed` and `graphSkipNoticeMalformed`, picked by `graphSkipNotice(wif)` on the same
-discriminator `graphTenantAdvice` uses for the phase warning. Both states fail closed identically, so
-only the message distinguishes them, and the unnamed wording told an operator who HAD set the
-variable that nothing was named — pointing them at a warning that said the opposite. Re-derive that
-set from the `const` block; it has been "three notices" in this file while the code had four.
-
-**A CONSTANT IS NOT A CONTENT ORACLE — this is the correction to what that paragraph used to say.**
-A test comparing a message against the constant the production code emits pins which BRANCH ran and
-says nothing about what the message SAYS, so rewriting that constant's VALUE into the forbidden
-claim satisfies it. Measured: the assertion "a dedupOnly service is not told its results may describe
-a different directory" was first written as a grep for a phrase, went vacuous when the phrase was
-reworded, was "fixed" by comparing against `dedupSkipNotice` — and the mutant that gives
-`dedupSkipNotice` the old directory-loss sentence PASSED. Three things settle it and the third is the
-only one with content: a STRUCTURAL check derived from production (`directoryLossPrefix`, which every
-loss notice carries and the dedup one must not), an identity check against the constant, and a
-POSITIVE assertion on the wording itself. Positive is the only kind that goes red on a reword, and
-going red on a reword is the point — the reword is when the claim needs re-reading.
-
-**And a POSITIVE assertion is not automatically a content check — a list of tokens the message must
-mention is a VOCABULARY check, and the two read identically.** The advice test asserted that the
-operator guidance names `DISCO_AZURE_WIF_TENANT_ID`, "OWN tenant", "Lighthouse", "CUSTOMER" and
-"inventory", which is every noun in the sentence and none of its polarity: replacing "and never
-`DISCO_AZURE_WIF_TENANT_ID`" with "and usually" — inverting the one security instruction the message
-carries, for the one value that passes every check in this package and discloses disco's own
-directory — left all five present and the package green.
-
-**Asserting the PREDICATE is not the fix either, and that correction was itself falsified in one
-round.** `"never "+env` was added, and the next mutant SWAPPED the two branch labels — Lighthouse
-gets "the same value as", the operator's own tenant gets "and never" — which keeps every token
-including the predicate, still tells a Lighthouse MSP to point Graph at disco's own directory, and
-was green package-wide. A security instruction has an ARGUMENT (here: which federation mode), and a
-mutant moves the argument. **Assert the PAIRING**: split the string at the two audience labels and
-check each clause carries its own verb and not the other's, in EITHER order — requiring one label to
-come first reports a correct Lighthouse-first rewrite as a swap, and a guard that fails with the
-wrong diagnosis gets suppressed rather than read.
-
-**Then stop refining WHAT is asserted and ask WHICH VALUE — that escalation ran three rounds up a
-dead axis.** grep, predicate, pairing are three sharpenings of one assertion against
-`graphTenantAdvice`'s RETURN VALUE, and all three were made in tests that call the helper directly.
-Nothing asserted the guidance against `warnings[0].Message`. So replacing the one call site,
-`msg += graphTenantAdvice(wif)`, with a one-line "set the variable" sentence deleted the whole
-which-directory guidance — prohibition included — from the only surface a customer sees, and was
-green package-wide: **a test on a helper's return value cannot see the helper's call being deleted.**
-Assert on the rendering the audience receives; a fragment-level pin is a supplement to that, never a
-substitute. The tell that this gap exists is a doc comment saying "read the assembled string, do not
-trust the suite" — that sentence names an assertion somebody chose not to write.
-
-**An ABSENCE has no predicate, so a negative guard cannot be made structural the way a pairing can —
-bound its SIZE instead.** Forbidding the words a retired claim used is a vocabulary check however it
-is framed: "cannot be confirmed to be" was reworded to "may not belong to" and carried none of
-`confirm`/`verif`/`prove`. What survives paraphrase is that a second causal clause has to be spelled
-somehow and every spelling is long, so the warning lead's prose carries a measured byte bound (110
-today, 140 allowed) alongside the verb list. Say in the comment which half is which; the framing is
-what a later round trusts.
-
-The same shape hides in a negative: a guard grepping the literal a previous round RETIRED is
-satisfied by re-adding the same claim reworded, so pin the structural property instead. Pick that
-property from the CLAIM, not from a word the claim happens to use — forbidding "directory" in the
-warning lead failed twice over, since this codebase says "tenant" and "directory" interchangeably
-(so the reworded re-add walked through) and the docs call the service "Entra ID directory objects"
-(so the obvious next edit would have gone red naming something that had not happened). The verb is
-what survives paraphrase: the lead is asserted to carry no "confirm"/"verif"/"prove".
-
-**Sharing a string between two callers re-creates, on the caller that did not have it, whatever
-defect the other caller's context was hiding.** `graphWhichDirectory` was extracted from the unset
-arm and appended to the malformed one; it opened "WHICH directory that is", whose "that" resolved
-against a preceding clause the unset arm supplied and the malformed arm did not — reintroducing on
-one side the dangling reference an earlier round had fixed on the other. The inverse shipped in the
-same edit: the anti-sufficiency clause stayed arm-local while the shared text's doc argued the
-property for both, so the malformed state — whose operator is about to retype a value — was told
-which directory to name and never what naming it buys. When text is shared, move the clauses that
-make it self-contained INTO it, and re-read every caller's assembled output, not the arms.
-
-A **half-set** `DISCO_AZURE_WIF_CLIENT_ID`/`_TENANT_ID` pair is refused (`partiallyConfigured`)
-rather than falling back. `tenantScopeEnabled` reads `configured()` too, so a silent fall back would
-re-enable the whole tenant phase and unpin enumeration off one typo'd variable name.
-
-**`DISCO_AZURE_GRAPH_TENANT_ID` reopens the GRAPH half only, and it is two changes rather than
-one — either alone is broken.** `azidentity`'s `resolveTenant` returns the credential's DEFAULT
-tenant whenever a request specifies none, and ERRORS when a request names a tenant that is neither
-the credential's own nor listed in `AdditionallyAllowedTenants`. So the variable sets both:
-`credentialOptions` puts the named directory in the allow list (exactly one entry, never `"*"`) and
-`graphClient` threads it as `policy.TokenRequestOptions.TenantID` on every Graph token. Threading
-without the allow list fails every acquisition; allow-listing without the threading is the version
-that was cut from the previous phase, which would ungate the scanners while every token still
-targeted disco's tenant — the disclosure above, switched on by a variable promising the opposite.
-
-**Only `graphScoped` services are reopened, and the asymmetry is not a conservatism.** A Graph token
-can name the directory it is for; a tenant-root ARM call answers about whichever directory the
-credential authenticated in and has no such parameter, so there is nothing to point and nothing to
-check. Widening `tenantServiceRunnable` to admit the ARM phases is the way this becomes a
-cross-customer disclosure again, which is what
-`TestTenantServiceRunnable_GraphConsentUngatesGraphAlone` exists to catch.
-
-**A `@odata.nextLink` is now checked against the configured Graph ORIGIN before it is followed.**
-A nextLink is a fresh REQUEST, not a redirect, so net/http's rule about dropping `Authorization`
-across hosts never applied to it — `graphClient.get` would present the bearer to whatever host the
-response body named. Do not read that as "the redirect case was covered by net/http": it was not,
-and it was worse — see the redirect paragraph below. That was true before this change; what changed is the token's value, now a
-CUSTOMER's directory under `Directory.Read.All` rather than disco's own. `sameGraphHost` compares
-scheme and parsed HOST against `baseURL`, never a string prefix
-(`https://graph.microsoft.com.evil.example` carries the right prefix). Scheme is compared to base
-rather than hardcoded to https so the httptest servers need no test-only escape hatch, and
-production — where `baseURL` is a `const` https literal — still refuses a downgrade. The host
-comparison is ASCII-only (`asciiHostEqual`), NOT `strings.EqualFold`: that applies Unicode simple
-folding, where U+017F folds to `s`, and `url.Parse` passes any byte >= 0x80 into `Host`
-unvalidated — so `EqualFold` answers true for `graph.microſoft.com`. The origin includes the PORT,
-so a `:443`-qualified link against a bare-host base is refused; Graph emits none, and refusing is
-the safe direction.
-
-**The refusal is its own ERROR TYPE (`foreignLinkError`), and `reportEntraErr` tests that type
-BEFORE its substring block.** The first version echoed the URL verbatim, so a nextLink of
-`https://evil.example/Authorization_RequestDenied` demoted the refusal to the routine
-missing-consent WARNING — the strongest evidence of a tampered Graph response, filed as a
-permission the customer had simply not granted. **Restricting the message to the parsed HOST was
-NOT sufficient, which is the part worth remembering**: `url.Parse` admits
-`Authorization_RequestDenied.evil.example` as a host outright (`shouldEscape` permits
-alphanumerics and `-`, `_`, `.`, `~`), and an IPv6 ZONE admits SPACES (`encodeZone` exempts `' '`),
-so `https://[fe80::1%25%20401]/x` yields the host `[fe80::1% 401]`, matching `" 401"`. Both
-measured. Sanitising the text of an error is not a control when something else classifies it;
-moving classification off the text is. `graphErr` keeps splicing the response BODY into the same
-substring channel, and that is correct — the body is the classifier's intended input and the reason
-it exists. The rule is not "nothing remote reaches the classifier", it is **"an error the
-classifier was not written to read must not be classified by reading it"**.
-
-**Two more text classifiers see the same errors, and both were live defects rather than
-hypotheticals.** Ordering the type test AFTER `msg := formatAzureError(err)` closed nothing:
-`scanBodyForAADSTS`'s last arm matches `"AADSTS"` in ANY error type — deliberately, because MSAL
-and STS return untyped credential errors and that arm is what catches them — so a host of
-`AADSTS700016.evil.example` rewrote the refusal as `azure authentication failed (AADSTS700016)`,
-dropped the host an operator would act on, wrote the attacker's host to stderr and left an
-attacker-chosen key in the never-cleared `loggedCredentialErrors` map. `reportEntraErr` therefore
-resolves the type BEFORE it formats. And `sameGraphHost` constrains a nextLink's scheme and host
-and nothing else, so `http.Client.Do`'s `*url.Error` carried the attacker's PATH and QUERY into the
-substring block — a tampered link the attacker then refuses to answer demoted a transport failure
-to the same warning.
-
-**Stripping the URL from that cause was NOT the fix, and believing it was is the mistake worth
-recording.** The unwrapped cause carries text the SERVER chooses: Go parses the `Location` header
-BEFORE it consults `CheckRedirect`, so an unparseable one renders as `failed to parse Location
-header "/v1.0/Authorization_RequestDenied%zz"` — measured, and classified as the missing-consent
-warning. A malformed response header line does the same with no redirect at all. There is no
-sanitising a channel the remote side writes into; the only fix is that `reportEntraErr` never reads
-it. `neverAConsentFailure` holds every type this package mints against a Graph response and is
-where the next one belongs — the rule is one line of code, not a habit. Re-derive the set from the
-function rather than from a count here: it read "all four" while the function held six, because the
-change that added `oversizePageError` and `tooManyPagesError` wired them in and left the sentence
-alone. Nothing enforces membership, so a seventh escapes silently.
-
-**Bounding that text is a CHOKEPOINT, not a property of each type, and getting that wrong shipped
-once.** `sanitizeForScanRecord` has TWO callers — `reportEntra` for Graph-derived text, and `reportPanic` for a recovered panic value (added with the unreachable-subscription work; it was the last path into `store.ScanError` passing neither chokepoint). The first attempt
-bounded one type's `Error()`, which left `graphErr` — the response BODY, the largest remote-chosen
-string of the lot — going through `formatAzureError`'s pass-through arm untouched, and `hostOnly`'s
-doc claiming a bound it did not have (a 20 kB host parses fine, measured). The body is capped a
-second time at the READ (`maxGraphErrorBody`), because the record's bound cannot stop an
-`io.ReadAll` holding it in memory first — two guards, two separate tests, and the read cap's mutant
-survived the record test.
-
-**A field the response carries as a TYPE must not be re-derived from its text.** `reportEntraErr`
-read the status with `strings.Contains(raw, " 403")`, which matches anywhere in the 8 KiB body the
-remote side wrote — so a 500 whose body said `Error 403` was filed as the routine missing-consent
-WARNING and the real fault never surfaced as one. `graphErr` carries `status` as an int; the code
-STRINGS (`Authorization_RequestDenied`, `Insufficient privileges`) still come from the body and
-should, because those are Graph's own diagnosis. Same claim as the paragraph above, one field
-further in: sanitising the channel is not the fix, not reading the channel for something it does
-not own is.
-
-**Two byte caps and a page cap, and the repeated-link refusal is NOT the loop's bound.** The ERROR
-body was capped while the SUCCESS body — the path that decodes into memory and then goes back for
-another page — was not; `maxGraphPageBody` (64 MiB) closes that, constructed as a `*io.LimitedReader` for the
-HANDLE — `io.LimitReader` RETURNS one, so the two truncate identically — because reading `N` back is
-what distinguishes "the page hit the cap" from a TRUNCATION-shaped malformed body — both reach
-`json.Decoder` as `io.ErrUnexpectedEOF`, while a syntactically invalid body arrives as
-`*json.SyntaxError` and was never confusable. `N` is seeded at the cap PLUS ONE, so `N == 0` means
-strictly more than the cap was delivered and the refusal's stated limit is always true — a body of
-exactly the cap leaves `N == 1` and cannot reach the branch. It does not establish that size is WHY
-the decode failed, so an over-cap body that was also malformed is reported as too large. `maxGraphPages` (200k) bounds the page
-count — the COUNT of `iterateGraph`'s cycle-detection keys and NOT their size, since a key is a
-whole nextLink and nothing caps a nextLink's length; the map's worst case is that product, which is
-an open gap stated at the constant rather than closed by it. It is a `var` only so a test can lower it — 200k round trips is not an observable, and a
-test re-deriving the bound would agree with itself whether or not `iterateGraph` still consulted it.
-**The repeated-link guard names an exact repeat and nothing else**: a server incrementing
-`$skiptoken` produces a fresh URL every time and walks straight past it. What bounds the general
-case is the `serviceTimeout` `runTenantServices` now applies — every (subscription, service) pair
-already had one and the tenant phase had none, so a service that never returned hung the whole scan
-on `wg.Wait()`. That deadline's `cancel()` is DEFERRED inside a wrapper func: `runTenantServices`
-does not recover, `azure_scanner_test.go` registers a tenant service that panics on purpose, and
-`go vet`'s lostcancel cannot see a call the panic jumps over.
-
-**`sameGraphHost` guards the response BODY; the redirect was the unguarded half, and the worse
-one.** It reads `@odata.nextLink`, so a 3xx went unexamined — and `azHTTPClient` had no
-`CheckRedirect`, so it was followed. Measured on the unfixed client: a 302 from the Graph host to
-another origin had the foreign response DECODED and stored as the customer's directory objects,
-**with the bearer forwarded to that origin**. net/http's rule is LOOSER than "same host":
-`shouldCopyHeaderOnRedirect` calls `isDomainOrSubdomain`, so `Authorization` survives a hop to a
-SUBDOMAIN (`evil.graph.microsoft.com`), and it reads `url.Hostname()`, so scheme and port are
-ignored and an https→http downgrade on the same host puts a `Directory.Read.All` token on the wire
-in clear — the exact shape `sameGraphHost` refuses by name for a nextLink. `graphHTTPClient` refuses
-every redirect; it shares the ARM pool's TRANSPORT and not its `http.Client`. **`azHTTPClient`
-itself is unchanged and ARM still follows redirects** — azcore ships no redirect policy, so the
-foreign-body half of this hazard is open there and is deliberately out of scope for a Graph change;
-do not read the Graph fix as covering it. Note
-`ErrUseLastResponse` hands the 3xx BODY back, and a 3xx body is decodable if the server says so — so
-`get` must refuse the status explicitly, or a redirect whose body is valid JSON is parsed as the
-page. Both halves are mutation-proved; the second survived a test whose redirect body was
-`http.Redirect`'s HTML.
-
-`DISCO_AZURE_GRAPH_TENANT_ID`'s value is required to be a GUID (`graphTenantGUID`). The
-multi-tenant aliases `common` and
-`organizations` are exactly what must not be accepted — they resolve to whatever directory the
-token happens to come back for, which is the property being pinned.
-
-**`DISCO_AZURE_GRAPH_TENANT_ID` is REFUSED when half-set, like every other counted variable in the
-contract, and it is the member whose omission from that check would be worst.** (`DISCO_AZURE_SUBSCRIPTION_TENANT_ID`
-is the one variable `partiallyConfigured` does NOT count, and the exception is stated in
-`ErrIncompleteWIFConfig` itself: it opens nothing and is meant to work against an ambient
-credential. `TestIncompleteWIFConfig_NamesEveryCountedVariable` pins the message against the
-predicate, since that list is hand-written over a live set — and it reflects over `wifConfig`'s
-FIELDS as well, because a table checked only against itself catches a removal and never an
-addition.) Alone it is not
-inert: `configured()` is false, so `tenantScopeEnabled()` is TRUE, every tenant service runs, and
-`scanEntra` reads whatever directory an ambient credential authenticated in with no pin at all —
-the disclosure the variable is advertised to prevent, switched on by setting it. The realistic
-arrival is a deployment still holding `AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET` for a Lighthouse
-managing principal while a rename drops the WIF pair.
-
-**One JOINING is deliberately untested and says so at the site.** `credentialOptions` is asserted
-in isolation and `graphClient`'s threading is asserted at the token, but nothing reaches
-`newFederatedCredential` without AWS STS — so reverting its options argument to `nil` is green
-across the suite. Recorded in a comment there rather than propped up with a seam built only for a
-test, because the failure is fail-closed and loud: every Graph acquisition would error.
-
-**The `loadSubscriptions` -> `bindSubscriptions` joining has the opposite treatment**, because its
-failure is SILENT: deleting the call leaves every behavioural test green and every scan unbound.
-`TestLoadSubscriptions_CallsTheBinding` parses `azure_config.go` with `go/ast` and asserts the call
-exists and that its error leaves the function. Source-level because `loadSubscriptions` builds a
-credential before it reaches the binding, so there is no seam short of one built only for a test.
-Prefer this shape whenever a guard's removal is invisible rather than loud.
-
-**The proof is the `tid`, never the variable.** `scanEntra` reads the tenant id from the token that
-came back rather than echoing what it asked for, and refuses to store anything if the two disagree:
-every row it writes is keyed by that id, so a mismatch that proceeded would file one directory's
-identities under another's account id, and an append-only inventory cannot be corrected afterwards.
-The disagreement can only mean something upstream is wrong, so a warning and zero rows is the
-answer, not a best effort.
+### Testing customer-visible security text
+- Assert on the rendered surface (`warnings[0].Message`), not a helper's return — deleting the call site is otherwise green.
+- Comparing to the emitting constant pins the branch, not the content; add a positive wording assertion.
+- For an instruction with an argument (which audience), assert the label↔verb *pairing*, in either order.
+- Absences: ban verbs (`confirm`/`verif`/`prove`) and bound the lead's bytes (≤140); word bans lose to paraphrase.
+- Shared strings must be self-contained; re-read every caller's assembled output.
+- A guard whose removal is silent gets a source-level test (`TestLoadSubscriptions_CallsTheBinding`, `go/ast`); a fail-loud joining (`newFederatedCredential` options) may stay untested with a site comment.
 
 ## Subscription-scoped vs tenant-scoped
 
-Every per-sub scanner runs via `scanSubscription`. Tenant-scope services (Entra ID via Microsoft Graph SDK, etc.) register via `registerTenantService(tenantServiceEntry{...})` in `tenant_scanners.go` — fn fires ONCE per scan, receives `[]subscription` + cred. Dispatch via `runTenantServices` in `tenant_scanners.go`. `Scan` runs the tenant phase **concurrently** with the per-sub fan-out (in the same `WaitGroup`) and gates only each subscription's phase-2 resolvers on it via `waitForTenant(ctx, entraDone)` — the tenant phase's only consumer is the phase-2 authorization resolver, so its latency hides behind phase-1 scanning instead of preceding it. New tenant services that other resolvers depend on inherit this join for free; a tenant service whose data a *phase-1* scanner needs would require widening the gate. Tenant-scope resources are stored under the tenant GUID (`subscription.tenantID`, resolved once in `Scan` from the ARM token's `tid` claim and stamped onto every subscription — **but not under a federated credential**, where the stamp is deliberately left empty; see the federation section above. That stays true even when `DISCO_AZURE_GRAPH_TENANT_ID` lets the Entra phase run — consenting to a directory does not fill the stamp, and could not: the stamp's source is an ARM token, which names disco's directory, while `scanEntra` resolves its own id from the GRAPH token it pinned, and under Lighthouse those are different directories) so a multi-subscription scan keeps a single copy — precedent: `scanManagementTenant` (management groups), `scanAuthorizationBuiltins` (built-in role/policy/set definitions). When `tenantID` is empty (resolution failed) these fall back to per-subscription storage — reachable only for a NON-federated operator, since under federation `tenantServiceRunnable` refuses every non-`graphScoped` tenant service outright and the fallback is never reached. The fallback stamps the FIRST subscription's id on tenant-wide rows, which mislabels them; tracked as icearp/disco-cli#12. **Hybrid pattern** (precedent: `scanSubscriptionResource` for `microsoft.resources`/`TypeSubscription`): a tenant-wide ARM API can still run *inside* `scanSubscription` if you accept per-sub duplication — `ResourceID` hash includes account_id so per-sub resolvers FK locally — **and you filter the response to the scanned scope**, which is the half that was missing. Its `GET /subscriptions` answers for the whole tenant, so under a delegated credential the unfiltered loop wrote other customers' subscription ids and display names under this customer's account. Unfiltered, per-sub duplication and cross-customer disclosure are the same bug. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
+Per-sub scanners run via `scanSubscription`; tenant services via `registerTenantService` (`tenant_scanners.go`), once per scan through `runTenantServices`, concurrently with the per-sub fan-out. Only phase-2 resolvers wait (`waitForTenant`); a tenant service a phase-1 scanner needs would require widening that gate. Tenant rows are stored under `subscription.tenantID` (the ARM token `tid`; empty under federation, and `DISCO_AZURE_GRAPH_TENANT_ID` does not fill it). Precedents: `scanManagementTenant` (management groups), `scanAuthorizationBuiltins` (built-in role/policy/set definitions). An empty `tenantID` falls back to per-sub storage stamped with the first subscription's id (mislabel, icearp/disco-cli#12). Hybrid: a tenant-wide ARM call may run inside `scanSubscription` only if its response is filtered to the scanned subscription (precedent `scanSubscriptionResource`); `ResourceID` includes the account id, so per-sub duplicates resolve within their own account. AccessDenied is tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
 
 ## Generic helpers split by concern
 
@@ -549,8 +179,7 @@ another quota-bearing namespace, extend `quotaProviderNamespaces` — nothing el
 **Quotas are NOT resources and register no type.** `scanQuotaLimits` writes
 `store.Quota` rows into the `quotas` table (disco migration 017) via
 `UpsertQuotas`; `TestQuotaLimitsDeclareNoResourceType` fails if a `registerType`
-comes back, and it also asserts `azureAPITypeMap` no longer maps
-`microsoft.quota/quotas`. The service registration must survive alongside the
+comes back. The service registration must survive alongside the
 absent type — dropping that stops quotas being scanned at all. Identity is
 `(provider, subscription, region, namespace, quota name)`, where the quota name
 is the resource provider's own `Properties.Name.Value` (e.g.
@@ -581,15 +210,21 @@ Every RG-scoped resource must emit `rgHierarchyPair` (resource → RG closure). 
 
 ## Scanner-level tests via SDK fake transport
 
-Each `arm*` module ships generated `fake.<Type>Server` (e.g. `armcomputefake.DisksServer`) plus `NewXServerTransport`. Pattern: split scanner into `scanX(ctx, sub, cred, st, scanID)` (production wrapper) + `scanXWithClient(ctx, sub, st, scanID, client)` (testable body). Test constructs client via `armcompute.NewDisksClient(subID, fakeCred(), fakeClientOptions(t, transport))` and calls the body directly. Helpers in `fake_testhelper_test.go`: `fakeCred()` returns `*azfake.TokenCredential{}`, `fakeClientOptions` collapses retries (MaxRetries=0). Precedent: `compute_disks_scanners_test.go` covers happy path, multi-page pagination, 403 AccessDenied.
+Each `arm*` module ships generated `fake.<Type>Server` (e.g. `armcomputefake.DisksServer`) plus `NewXServerTransport`. Pattern: split scanner into `scanX(ctx, sub, cred, st, scanID)` (production wrapper) + `scanXWithClient(ctx, sub, st, scanID, client)` (testable body). Test constructs client via `armcompute.NewDisksClient(subID, fakeCred(), fakeClientOptions(t, transport))` and calls the body directly. Helpers in `azure_testhelpers_test.go`: `fakeCred()` returns `*azfake.TokenCredential{}`, `fakeClientOptions` collapses retries (MaxRetries=0). Precedent: `compute_disks_scanners_test.go` covers happy path, multi-page pagination, 403 AccessDenied.
 
 For error injection use `azfake.PagerResponder.AddResponseError(http.StatusForbidden, "AuthorizationFailed")` — produces an `azcore.ResponseError` the `isAccessDenied` check recognises.
 
 ## Error formatting — always `formatAzureError`
 
-`azcore.ResponseError.Error()` dumps the request line (method, scheme, host, escaped path — no headers, no query) plus the response status and the full ARM error body — multi-KB per warning. It renders no part of the REQUEST beyond that line — no headers, so no `Authorization: Bearer`; no request body, so no client-assertion JWT — which is why neither can reach the store or stderr through this path. **Never** pass `err.Error()` directly into `store.ScanWarning.Message` / `store.ScanError.Message`. Use `formatAzureError(err)` (in `azure_errors.go`) — narrows to `"{statusCode} {errorCode}: {message}"` matching AWS/GCP brevity. Falls back to `err.Error()` for non-`*azcore.ResponseError` (store / JSON / I/O errors), so it's safe at every site — **except** that it collapses a CREDENTIAL failure to its diagnostic code first, ahead of every other branch, because that text names disco's own tenant and AWS role rather than anything the customer scanned (`redactCredentialError`). **A 401 does NOT render in that shape** and has not since the ARM-token-rejection redaction: it becomes `azure token rejected for this scope ({code}); see scanner logs`, with the body dropped. Regenerate the call-site set rather than reading a frozen list here — `grep -n 'formatAzureError(' internal/providers/azure/*.go | grep -v -e '_test\.go' -e 'func formatAzureError'` — since the list this section carried named five and read as complete. Do NOT exclude `azure_errors.go` from that sweep: `skipIfAccessDenied` calls the formatter from inside it, and that is the site this section's own redaction discussion is about.
+`azcore.ResponseError.Error()` dumps the request line (method, scheme, host, escaped path — no headers, no query) plus the response status and the full ARM error body — multi-KB per warning. It renders no part of the REQUEST beyond that line — no headers, so no `Authorization: Bearer`; no request body, so no client-assertion JWT — which is why neither can reach the store or stderr through this path. **Never** pass `err.Error()` directly into `store.ScanWarning.Message` / `store.ScanError.Message`. Use `formatAzureError(err)` (in `azure_errors.go`) — narrows to `"{statusCode} {errorCode}: {message}"` matching AWS/GCP brevity. Falls back to `err.Error()` for non-`*azcore.ResponseError` (store / JSON / I/O errors), so it's safe at every site — **except** that it collapses a CREDENTIAL failure to its diagnostic code first, ahead of every other branch, because that text names disco's own tenant and AWS role rather than anything the customer scanned (`redactCredentialError`). **A 401 does NOT render in that shape** and has not since the ARM-token-rejection redaction: it becomes `azure token rejected for this scope ({code}); see scanner logs`, with the body dropped. Call sites: `grep -n 'formatAzureError(' internal/providers/azure/*.go | grep -v -e '_test\.go' -e 'func formatAzureError'`.
 
-## Lint gotchas
+## Cross-check keys are not candidate keys (#123)
 
-- `forvar` (Go 1.22+): drop `i, x := i, x` shadows in goroutines — per-iteration scope built-in.
-- Project gofmt config rewrites `init()` one-liners to multiline; run `gofmt -w .` before each commit to avoid post-commit linter drift.
+`RegistryKey` rebuilds the ARM type name from a candidate key: it drops a singleton instance id
+(`blobservices/default/containers` → `blobServices/containers`) and restores the `locations`
+segment the extractor strips as a scope pair, which `internal/sdkinv/azure` flags with
+`scope-pair:locations` (set only when *every* lister reaches the collection through a location —
+a sibling `ListBySubscription` proves ARM keeps no `locations` in the type). Without both, 34
+keys could never match `Providers/List` and each one produced a false drift row on both sides.
+`--cross-check` needs a live subscription, so this is verified against the key shapes, not against
+ARM.

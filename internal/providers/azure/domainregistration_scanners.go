@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDomain, Service: "microsoft.domainregistration", Leaf: true, Redact: []redact.Rule{{Path: "properties.authCode", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeDomain, Service: "microsoft.domainregistration", Redact: []redact.Rule{{Path: "properties.authCode", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.domainregistration",
 		fn:   scanDomainRegistration,

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeEventHubNamespace, Service: "microsoft.eventhub"})
-	registerType(restype.Descriptor{Type: TypeEventHubCluster, Service: "microsoft.eventhub", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventHubCluster, Service: "microsoft.eventhub"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.eventhub",
 		fn:   scanEventHub,

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWorkspacesInstancesWorkspaceInstance, Service: "workspaces-instances", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkspacesInstancesWorkspaceInstance, Service: "workspaces-instances"})
 	registerService(serviceEntry{
 		name: "aws:workspaces-instances",
 		fn:   scanWorkspacesInstances,

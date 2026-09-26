@@ -10,23 +10,23 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLightsailInstance, Service: "lightsail", Upstream: "AWS::Lightsail::Instance"})
-	registerType(restype.Descriptor{Type: TypeLightsailDatabase, Service: "lightsail", Upstream: "AWS::Lightsail::Database", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLightsailContainerService, Service: "lightsail", Upstream: "AWS::Lightsail::Container", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailInstance, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailDatabase, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailContainerService, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailAlarm, Service: "lightsail"})
-	registerType(restype.Descriptor{Type: TypeLightsailBucket, Service: "lightsail", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailBucket, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailCertificate, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailDatabaseSnapshot, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailDisk, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailDiskSnapshot, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailDistribution, Service: "lightsail"})
-	registerType(restype.Descriptor{Type: TypeLightsailDomain, Service: "lightsail", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailDomain, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailInstanceSnapshot, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailLoadBalancer, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailLoadBalancerTLSCertificate, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailStaticIP, Service: "lightsail"})
-	registerType(restype.Descriptor{Type: TypeLightsailKeyPair, Service: "lightsail", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLightsailContactMethod, Service: "lightsail", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLightsailKeyPair, Service: "lightsail"})
+	registerType(restype.Descriptor{Type: TypeLightsailContactMethod, Service: "lightsail"})
 	registerService(serviceEntry{
 		name: "aws:lightsail",
 		fn:   scanLightsail,

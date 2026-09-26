@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePowerPlatformEnterprisePolicy, Service: "microsoft.powerplatform", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePowerPlatformAccount, Service: "microsoft.powerplatform", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePowerPlatformEnterprisePolicy, Service: "microsoft.powerplatform"})
+	registerType(restype.Descriptor{Type: TypePowerPlatformAccount, Service: "microsoft.powerplatform"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.powerplatform",
 		fn:   scanPowerPlatform,

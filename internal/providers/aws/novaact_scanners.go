@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNovaActWorkflowDefinition, Service: "nova-act", Upstream: "AWS::NovaAct::WorkflowDefinition", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNovaActWorkflowDefinition, Service: "nova-act"})
 	registerService(serviceEntry{
 		name: "aws:nova-act",
 		fn:   scanNovaAct,

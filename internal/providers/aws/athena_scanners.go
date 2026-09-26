@@ -14,9 +14,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAthenaWorkgroup, Service: "athena", Upstream: "AWS::Athena::WorkGroup"})
-	registerType(restype.Descriptor{Type: TypeAthenaDataCatalog, Service: "athena", Upstream: "AWS::Athena::DataCatalog"})
-	registerType(restype.Descriptor{Type: TypeAthenaCapacityReservation, Service: "athena", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAthenaWorkgroup, Service: "athena"})
+	registerType(restype.Descriptor{Type: TypeAthenaDataCatalog, Service: "athena"})
+	registerType(restype.Descriptor{Type: TypeAthenaCapacityReservation, Service: "athena"})
 	registerType(restype.Descriptor{Type: TypeAthenaNamedQuery, Service: "athena"})
 	registerType(restype.Descriptor{Type: TypeAthenaPreparedStatement, Service: "athena"})
 	registerService(serviceEntry{

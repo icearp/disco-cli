@@ -22,7 +22,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeIoTFWDecoderManifest, Service: "iotfleetwise"})
 	registerType(restype.Descriptor{Type: TypeIoTFWFleet, Service: "iotfleetwise"})
 	registerType(restype.Descriptor{Type: TypeIoTFWModelManifest, Service: "iotfleetwise"})
-	registerType(restype.Descriptor{Type: TypeIoTFWSignalCatalog, Service: "iotfleetwise", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTFWSignalCatalog, Service: "iotfleetwise"})
 	registerType(restype.Descriptor{Type: TypeIoTFWStateTemplate, Service: "iotfleetwise"})
 	registerType(restype.Descriptor{Type: TypeIoTFWVehicle, Service: "iotfleetwise"})
 	registerService(serviceEntry{

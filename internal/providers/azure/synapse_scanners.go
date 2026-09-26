@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeSynapseWorkspace, Service: "microsoft.synapse"})
-	registerType(restype.Descriptor{Type: TypeSynapsePrivateLinkHub, Service: "microsoft.synapse", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSynapsePrivateLinkHub, Service: "microsoft.synapse"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.synapse",
 		fn:   scanSynapse,

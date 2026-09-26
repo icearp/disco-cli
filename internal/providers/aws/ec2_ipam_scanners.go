@@ -12,13 +12,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2IPAM, Service: "ec2", Upstream: "AWS::EC2::IPAM", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2IPAMScope, Service: "ec2", Upstream: "AWS::EC2::IPAMScope"})
-	registerType(restype.Descriptor{Type: TypeEC2IPAMPool, Service: "ec2", Upstream: "AWS::EC2::IPAMPool"})
-	registerType(restype.Descriptor{Type: TypeEC2IPAMPoolCIDR, Service: "ec2", Upstream: "AWS::EC2::IPAMPoolCidr"})
-	registerType(restype.Descriptor{Type: TypeEC2IPAMAllocation, Service: "ec2", Upstream: "AWS::EC2::IPAMAllocation"})
-	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscovery, Service: "ec2", Upstream: "AWS::EC2::IPAMResourceDiscovery", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscoveryAssociation, Service: "ec2", Upstream: "AWS::EC2::IPAMResourceDiscoveryAssociation"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAM, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMScope, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMPool, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMPoolCIDR, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMAllocation, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscovery, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscoveryAssociation, Service: "ec2"})
 }
 
 // scanEC2IPAM discovers all IPAM-related EC2 resources in parallel.

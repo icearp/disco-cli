@@ -10,18 +10,18 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWAFWebACL, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFRule, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFRuleGroup, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFRateBasedRule, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFIPSet, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFByteMatchSet, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFGeoMatchSet, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFRegexMatchSet, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFRegexPatternSet, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFSizeConstraintSet, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFSQLInjectionMatchSet, Service: "waf", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWAFXSSMatchSet, Service: "waf", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWAFWebACL, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFRule, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFRuleGroup, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFRateBasedRule, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFIPSet, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFByteMatchSet, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFGeoMatchSet, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFRegexMatchSet, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFRegexPatternSet, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFSizeConstraintSet, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFSQLInjectionMatchSet, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFXSSMatchSet, Service: "waf"})
 	registerService(serviceEntry{
 		name:   "aws:waf",
 		global: true,

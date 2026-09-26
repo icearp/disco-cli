@@ -11,7 +11,7 @@ import (
 // Resolver Wave R24 (continued — see compute_networking_resolvers.go header):
 // Reservation and FutureReservation, the 2 remaining orphans in
 // `compute_reservation_scanners.go` (ReservationBlock/ReservationSubBlock are
-// `Leaf: true` already — no outbound fields per that file's own header).
+// edge-less already — no outbound fields per that file's own header).
 //
 // Reservation.Commitment / LinkedCommitments[] are full self-link URLs
 // (verified via `go doc`: "Output only... Full or partial URL to a parent

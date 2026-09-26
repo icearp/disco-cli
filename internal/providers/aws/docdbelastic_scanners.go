@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDocDBElasticCluster, Service: "doc-db-elastic", Upstream: "AWS::DocDBElastic::Cluster"})
-	registerType(restype.Descriptor{Type: TypeDocDBElasticClusterSnapshot, Service: "doc-db-elastic", Upstream: "AWS::docdb-elastic::cluster-snapshot"})
+	registerType(restype.Descriptor{Type: TypeDocDBElasticCluster, Service: "doc-db-elastic"})
+	registerType(restype.Descriptor{Type: TypeDocDBElasticClusterSnapshot, Service: "doc-db-elastic"})
 	registerService(serviceEntry{
 		name: "aws:doc-db-elastic",
 		fn:   scanDocDBElastic,

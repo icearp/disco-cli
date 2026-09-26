@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGreengrassV2ComponentVersion, Service: "greengrass-v2", Upstream: "AWS::GreengrassV2::ComponentVersion", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeGreengrassV2Deployment, Service: "greengrass-v2", Upstream: "AWS::GreengrassV2::Deployment"})
-	registerType(restype.Descriptor{Type: TypeGreengrassV2Component, Service: "greengrass-v2", Upstream: "AWS::greengrass::component", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeGreengrassV2CoreDevice, Service: "greengrass-v2", Upstream: "AWS::greengrass::coreDevice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGreengrassV2ComponentVersion, Service: "greengrass-v2"})
+	registerType(restype.Descriptor{Type: TypeGreengrassV2Deployment, Service: "greengrass-v2"})
+	registerType(restype.Descriptor{Type: TypeGreengrassV2Component, Service: "greengrass-v2"})
+	registerType(restype.Descriptor{Type: TypeGreengrassV2CoreDevice, Service: "greengrass-v2"})
 	registerService(serviceEntry{
 		name: "aws:greengrass-v2",
 		fn:   scanGreengrassV2,

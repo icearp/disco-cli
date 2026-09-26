@@ -13,9 +13,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeECSCluster, Service: "ecs", Upstream: "AWS::ECS::Cluster", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeECSService, Service: "ecs", Upstream: "AWS::ECS::Service"})
-	registerType(restype.Descriptor{Type: TypeECSTaskDefinition, Service: "ecs", Upstream: "AWS::ECS::TaskDefinition"})
+	registerType(restype.Descriptor{Type: TypeECSCluster, Service: "ecs"})
+	registerType(restype.Descriptor{Type: TypeECSService, Service: "ecs"})
+	registerType(restype.Descriptor{Type: TypeECSTaskDefinition, Service: "ecs"})
 	registerType(restype.Descriptor{Type: TypeECSCapacityProvider, Service: "ecs"})
 	registerType(restype.Descriptor{Type: TypeECSClusterCapacityProviderAssociations, Service: "ecs"})
 	registerType(restype.Descriptor{Type: TypeECSTaskSet, Service: "ecs"})

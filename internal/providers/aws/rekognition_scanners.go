@@ -14,9 +14,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRekognitionCollection, Service: "rekognition", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRekognitionProject, Service: "rekognition", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRekognitionStreamProcessor, Service: "rekognition", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRekognitionCollection, Service: "rekognition"})
+	registerType(restype.Descriptor{Type: TypeRekognitionProject, Service: "rekognition"})
+	registerType(restype.Descriptor{Type: TypeRekognitionStreamProcessor, Service: "rekognition"})
 	registerType(restype.Descriptor{Type: TypeRekognitionProjectVersion, Service: "rekognition"})
 	registerType(restype.Descriptor{Type: TypeRekognitionDataset, Service: "rekognition"})
 	registerService(serviceEntry{

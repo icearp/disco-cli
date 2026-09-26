@@ -13,8 +13,8 @@ import (
 const bcmDashboardsRegion = "us-east-1"
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBCMDashboardsDashboard, Service: "bcmdashboards", Upstream: "AWS::bcm-dashboards::dashboard", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBCMDashboardsScheduledReport, Service: "bcmdashboards", Upstream: "AWS::bcm-dashboards::scheduled-report"})
+	registerType(restype.Descriptor{Type: TypeBCMDashboardsDashboard, Service: "bcmdashboards"})
+	registerType(restype.Descriptor{Type: TypeBCMDashboardsScheduledReport, Service: "bcmdashboards"})
 	registerService(serviceEntry{
 		name:   "aws:bcmdashboards",
 		global: true,

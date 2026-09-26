@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSocialMessagingWaba, Service: "social-messaging", Upstream: "AWS::social-messaging::waba", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSocialMessagingPhoneNumberID, Service: "social-messaging", Upstream: "AWS::social-messaging::phone-number-id"})
+	registerType(restype.Descriptor{Type: TypeSocialMessagingWaba, Service: "social-messaging"})
+	registerType(restype.Descriptor{Type: TypeSocialMessagingPhoneNumberID, Service: "social-messaging"})
 	registerService(serviceEntry{
 		name: "aws:social-messaging",
 		fn:   scanSocialMessaging,

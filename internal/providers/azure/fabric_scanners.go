@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeFabricCapacity, Service: "microsoft.fabric", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeFabricCapacity, Service: "microsoft.fabric"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.fabric",
 		fn:   scanFabric,

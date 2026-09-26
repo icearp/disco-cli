@@ -14,9 +14,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCassandraKeyspace, Service: "cassandra", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCassandraKeyspace, Service: "cassandra"})
 	registerType(restype.Descriptor{Type: TypeCassandraTable, Service: "cassandra"})
-	registerType(restype.Descriptor{Type: TypeCassandraType, Service: "cassandra", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCassandraType, Service: "cassandra"})
 	registerService(serviceEntry{
 		name: "aws:cassandra",
 		fn:   scanCassandra,

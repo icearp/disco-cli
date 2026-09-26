@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeConnectedCacheEnterpriseCustomer, Service: "microsoft.connectedcache", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConnectedCacheIspCustomer, Service: "microsoft.connectedcache", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectedCacheEnterpriseCustomer, Service: "microsoft.connectedcache"})
+	registerType(restype.Descriptor{Type: TypeConnectedCacheIspCustomer, Service: "microsoft.connectedcache"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.connectedcache",
 		fn:   scanConnectedCache,

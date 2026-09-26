@@ -1,34 +1,132 @@
 # CLAUDE.md — `internal/coverage/`
 
-Coverage matrix engine for `disco coverage`. Per-provider impl in `internal/providers/<p>/coverage.go` registers via `coverage.Register(...)` from init.
+Coverage matrix engine for `disco coverage services`. The denominator is the SDK-derived
+universe (`internal/sdkinv`); the numerator is the static pairing of scanner SDK calls with
+the types they store (`internal/sdkinv/pairing`). Per-provider glue in
+`internal/providers/<p>/<p>_coverage.go` registers via `coverage.Register` from init.
 
-## Adding a provider
+## The admitting rule travels with the row (#127)
 
-1. Implement `coverage.Provider` (Name, Fetch, Emits, Aliases, AlgorithmicKey).
-2. Sweep every scanner's `registerService` to add `emits []coverage.TypeDecl{{Service, DiscoType, Uncatalogued, Leaf}}`.
-3. Build alias map for known disco↔upstream mismatches; algorithmic fallback covers the rest.
-4. Flag SDK-scanned types absent from the registry `Uncatalogued`, so they don't trip `upstream-missing`.
+Every candidate carries `Rule`: the extractor rule that decided its class
+(`sr-resource`, `child-uncatalogued`, `writable-noun`, `element-arn`,
+`element-created` for AWS; `item-write` / `item-read-only` / `no-item-path` for Azure;
+`create` / `delete-only` / `get-only` / `list-only` / `operation-node` for GCP). It reaches
+`Row.Rule`, `Summary.ByRule` and the markdown report.
 
-## Bucket semantics
+`Summary.ByRule` is computed in `BuildInventory`, **before** any `Filter`, because
+`make gen-coverage` renders with `--filter gaps` and a table built from the filtered rows
+reported every rule at 0% covered. `docs/coverage.md` states the denominator's definition in
+its header and prints the per-rule table under it: at the 2026-09 pins AWS reads
+`sr-resource` 80.3% against `child-uncatalogued` 13.2%, which is the whole point — a weak rule
+is visible as a low percentage instead of silently inflating one headline number.
 
-- `covered` — disco emits + upstream registry has it.
-- `uncovered` — upstream has it, no disco scanner, and not deliberately skipped. A genuine, actionable gap.
-- `not-scannable` — upstream has it, no disco scanner, but the provider declared the key in `Skips()` (the optional `coverage.Skipper` interface) because it is not independently discoverable: a CFN sub-resource/association type with no standalone List API, an ephemeral task/quote/report record, or a preview service with no public SDK. Carries a per-entry `Reason`. Checked only on the leftover-upstream (no-match) path, so a key gains a real scanner later simply by being emitted (it then buckets `covered`) — remove its skip entry in that same commit. Does NOT trip `--check-strict`. AWS declares these in `internal/providers/aws/aws_skips.go`. (Cross-catalog **duplicates** are NOT skipped here — they collapse automatically; see below.)
-- **Cross-catalog duplicates** — AWS's upstream is CloudFormation ∪ Service Reference, which spell one resource two ways (`AWS::Amplify::App` vs `AWS::amplify::apps`). An unmatched upstream key whose canonical identity (`coverage.CanonicalKeyer`, implemented by `aws_coverage.go::CanonicalKey`) equals an already-covered key's identity buckets **`covered`** with a `Reason` of `"duplicate of <covered key>"`, so the SR/CFN twin never shows as an actionable gap. `disco coverage services --filter duplicate` lists every such collapse for auditing (it is the covered rows carrying a Reason). No impl of the interface → no canonical dedup (Azure/GCP are single-catalog). Hazard guarded against: the normalizer singularizes before stripping the SR `Resource` suffix and never reduces a segment to empty (`Resources`→`resource`, not `""`); services are not de-pluralized (`aidevops` stays `aidevops`). Genuine service renames (CFN `MWAA` ↔ SR `airflow`) live in a small `serviceRenames` map.
-- `uncatalogued` — a **real resource disco scans** via the SDK that no upstream registry lists (e.g. `aws:kms:grant`, GuardDuty/Detective/Inspector members, Azure Entra identities + SQL/network proxy children). Checked only on the no-match path, so it **auto-upgrades to `covered`** if the registry later lists the key (this is why `gcp:iam:policy` lands `covered` — Discovery's `iam.googleapis.com/Policy` matches it). Does NOT trip `--check-strict`.
-- `upstream-missing` — disco emits but upstream registry doesn't list, and the type is not uncatalogued. Drift signal: alias-map typo, retired API, or scanner targeting obsolete type. `--check-strict` exits non-zero on any.
+## Provider contract
 
-There is no synthetic bucket. Cross-tenant references (foreign account/sub/project) are modelled as **real self-node types** (`aws:iam:account`, `azure:microsoft.resources:subscriptions`, `gcp:cloudresourcemanager:project`), inserted as empty-attribute placeholders that version-populate when scanned — see store/CLAUDE.md "Reference-discovered placeholders". They bucket like any other real type.
+- `Provider` = `Name()` + `Emits()` only. Optional: `CrossChecker` (`CrossCheck`, `RegistryKey`,
+  `CanonicalKey` — drives `--cross-check`), `RegionLister`, `ResolverAuditor`, `ServiceMapper`
+  (`TypeServices()`: disco type → scanner service names registered from the same file, via
+  `restype.Origin`; `coverage verify` joins `scans.errors` through it).
+- `Inputs.Paired` is set explicitly by `InputsFromCache`; a walk that parsed but anchored nothing
+  is a paired run with no pairings, not "no source".
+- `InputsFromCache(ctx, cache, provider, emits, scannerDir)` is the one derivation path shared by
+  `cmd/coverage.go`, `cmd/disco-scaffold` and the reconcile tests; an empty `scannerDir` means
+  "name matching only" (`Matrix.Pairing=false`, disco-only rows carry `pairing-unavailable`).
+- `BuildInventory(Inputs) Matrix` computes the summary **before** any filter; `Filter` only
+  narrows `Rows`. Never recompute percentages from filtered rows.
 
-## GCP Discovery quirks
+## Bucket semantics (`inventory.go`)
 
-- Fetch all versions of each relevant API (v1+v2 expose different collections, e.g. cloudbuild Trigger in v1, Connection in v2). Dedupe by upstream key.
-- `singularize` strips trailing `s`/`ies` only — irregular plurals (Indexes→Index) need alias-map entry, not heuristic patches.
-- Discovery resource collection name → singular → PascalCase. Walk recurses through nested `resources` tree.
+- `covered` — resource candidate with an `emits`/`sidecar`/`derived` pairing to one of its ops,
+  or (reason `matched-by-name`) an emitted type whose `sdkinv.Ident` equals the candidate's.
+  A name match yields when the pairing ran and reported that type `unexplained`: it set
+  `accounted[t]`, suppressing the disco-only row and with it `Summary.Unexplained` — the only
+  number `--check-strict` exits on. `other-op` and `sdk-skew` explanations still name-match.
+  A `sidecar` pairing with no types is still covered (reason `sidecar`): the scanner lists it.
+  `label` pairings prove nothing (no SDK call) and never cover.
+- `uncovered` — resource candidate no scanner lists. The only actionable gap. AWS skip-labelled
+  keys in the uncovered denominator were 198 depth-0 + 67 child = 265 — ephemeral, retired or
+  catalog rows the SDK still lists, now honest `uncovered` rows.
+- `attribute` — `ClassAttribute` (Get + id, no collection). Not in `%`.
+- `excluded` — catalog / non-resource / `preview-only`; reason carries the rule. Not in `%`.
+  An excluded row a scanner provably lists keeps its `discoType` and gains the `scanner-lists`
+  signal; `--filter scanner-lists` is that worklist, and the markdown Excluded section prints the
+  type. The class rule still wins the bucket — re-bucketing these would inflate the percent
+  before the rules are fixed; discarding the evidence hid real classifier bugs.
+- `disco-only` — emitted type no candidate accounts for. Reason `explained: <unpaired reason>`
+  (`non-sdk`, `other-op:<label>`, `sdk-skew:<op>`), `pairing-unavailable`, or `unexplained`
+  (the only one `--check-strict` fails on).
+- `registry-drift` — only with `--cross-check`. Drift proper: `registry-only` (live registry key,
+  within a service the universe knows, matching no candidate of any class) / `candidate-only`
+  (covered/uncovered candidate the registry lacks). Explained by construction, kept visible:
+  `unlistable` (GCP get-only node), `cfn-only` (CFN type with no SR twin), `near-name` (unique
+  same-service prefix/suffix stem pair; twin in a `near-name:<key>` signal),
+  `child-of-registered` (parent's registry id seen), `service-unregistered` (registry has nothing
+  for the service). Identities compare via `RegistryKey(candidate)` vs
+  `CanonicalKey(UpstreamType)`, after `r.Service` is mapped through `Universe.ServiceAliases`.
+  Registry services with no counterpart are returned by `CrossCheck` and printed on stderr.
+- `Row.Refs` copies `Candidate.Refs`; `TypeRefs(matrix)` unions them per paired disco type for
+  `resolvers --missing`. Refs are hints (id/ARN/URL-shaped element fields, own id excluded), never
+  a bucket input. `TypeRefs` gives a row's refs to `Row.DiscoType`, and to a `Row.DiscoTypes` entry
+  **only** when it matches the candidate's ident or shares its leaf: the five `aws:docdb:*` orphans
+  do share `rds/dbinstance`'s leaf and were starved of its 44 refs, while a dispatcher's derived
+  pairing spans a whole service and must not hand every network type the app gateway's 280 fields.
+- `Row.Ops` folds repeated labels (sibling AWS models, per-version GCP documents): 930 rows
+  rendered a duplicated ops cell. `Ops` is never read back, so the fold is presentation only.
+- `Row.Scope` is the **narrowest** scope among the candidate's ops (`scopeSpecificity`: project >
+  resource-group/subscription > account/region > org > folder > billing-account/management-group >
+  tenant/extension > global). Ops sort by label, so taking `Ops[0]` printed `billingAccounts.` or
+  `folders.` on 117 GCP rows that a project-scoped lister also serves. AWS ops carry no scope at
+  all, by rule (`internal/sdkinv/CLAUDE.md`), and the renderers dash an empty value.
+- Unit of coverage is the candidate: one op → N types counts once; N ops → one type marks every
+  candidate covered. `Row.DiscoType` is the type to display — identity match, else shared leaf —
+  and `Row.DiscoTypes` the whole set when more than one is paired. With several paired and neither
+  tier matching there is no answer, so `bestType` returns `""` and the row carries reason
+  `multi-type`; the alphabetically first was a coin toss that showed the diagnostic-settings
+  dispatcher as `azure:microsoft.apimanagement:service` (40 rows). **The covered bucket therefore
+  keys on `len(paired) > 0`, never on `DiscoType != ""`** — clearing the display type must not cost
+  a row its bucket.
 
-## Per-provider upstream sources
+## Baseline ratchet (`baseline.go`)
 
-The "upstream registry" a provider diffs against is not one fixed API:
+`NewBaseline(unfiltered matrices)` records per provider: pins, percent, covered/uncovered counts
+and keys, unexplained disco types (sorted, byte-stable). `CompareBaseline` is fatal on a covered
+key now uncovered (under any pins — a scanner lost a listing), a percent drop under identical
+pins, or a new unexplained type; a covered key that is no longer a candidate at all is `regressed` under the same pins (the
+universe cannot shrink by itself) and `gone-since-baseline` under new ones; a pin bump only
+reports `pins-changed` + `new-since-baseline` / `gone-since-baseline` keys, never the percent,
+because a larger universe with the same scanners can only lower it. Rows are sorted in
+`BuildInventory`, so `docs/coverage.md` is byte-stable (verified: two `make gen-coverage` runs
+`cmp` equal).
+`ProviderBaseline.Pairing` records whether the scanner source was paired; a mode-mixed compare
+is fatal (`pairing-mode`) because name matching alone reports ~7 points less on AWS. A provider
+absent from the file is fatal (`no-baseline`) — nothing would guard it. An uncovered key leaving
+the universe is reported (`denominator-shrunk`): it raises the percent, so no other check fires.
+`--write-baseline` **merges** into the existing file (`coverage.Merge`), so a `--providers`-narrowed
+run cannot silently drop the ratchet for the providers it did not compute.
+`make gen-coverage` accepts; `make check-coverage` enforces (plus a diff of `docs/coverage.md`).
+`docs/coverage.md` is generated and committed; keep `.gitignore` narrow (`*.out`, `coverage.html`)
+— a bare `coverage.*` once ignored it and made CI's diff a no-op.
 
-- **AWS**: union of CloudFormation ListTypes (creds) ∪ the credential-free AWS Service Reference catalog (`internal/providers/aws/aws_servicereference.go`). Neither alone is complete — CFN omits SDK-real resources, SR omits CFN-modeled ones. `Fetch` appends both into one `[]UpstreamType`; `Build` dedupes case-insensitively. Detail: `internal/providers/aws/CLAUDE.md` §"Coverage upstream".
-- **Azure**: ARM provider/resource-type list. **GCP**: Discovery documents (see quirks above).
+## Identity
+
+`sdkinv.Ident` is the only cross-source equality; its rules are in `internal/sdkinv/CLAUDE.md`.
+GCP's `RegistryKey`/`CanonicalKey` also compare through `Ident`.
+
+## Live numbers (2026-09-26, pins in `docs/coverage.md`, pairing on)
+
+AWS 48.7% (1677/3441), Azure 15.8% (398/2515), GCP 22.9% (239/1042); zero unexplained. Pairing
+off (an installed binary): AWS 41.3%, Azure 15.7%, GCP 18.5%. Azure
+carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 1 (`other-op`). The
+Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
+
+## Cross-check drift reads buckets, not classes (#119)
+
+`CrossCheck` builds the candidate-only set from rows bucketed `covered`/`uncovered`. Reading
+`Class == ClassResource` instead made the same report exclude a `preview-only` candidate as out
+of scope and then re-report it as drift — 20 of 34 live GCP rows. `preview-only` is a signal, not
+a class, so nothing else removes them.
+
+Candidates are `map[string][]Candidate`: siblings sharing a leaf identity (GCP leaf, AWS folded
+`…Resource`) each get a row (#79). Measure drift changes with a scratch `_test.go` in the provider
+package calling `InputsFromCache` → `BuildInventory` → `CrossCheck` (AWS SR half is credential-free;
+the CFN half needs live creds); delete it before commit.

@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// RenderMarkdown writes a per-provider markdown matrix (covered / uncovered /
-// uncatalogued / upstream-missing). Suitable for `disco coverage
-// -o markdown` piped into docs/coverage.md or pasted into the README.
+// RenderMarkdown writes one section per provider: the headline percentage,
+// the per-service table (largest gaps first) and the bucket tables.
+// Suitable for `disco coverage services -o markdown > docs/coverage.md`.
 func RenderMarkdown(w io.Writer, matrices []Matrix) error {
 	for i, m := range matrices {
 		if i > 0 {
@@ -25,76 +25,134 @@ func RenderMarkdown(w io.Writer, matrices []Matrix) error {
 }
 
 func renderMatrixMarkdown(w io.Writer, m Matrix) error {
-	if _, err := fmt.Fprintf(w, "## %s\n\n", strings.ToUpper(m.Provider)); err != nil {
+	if _, err := fmt.Fprintf(w, "## %s\n\n%s\n\n", strings.ToUpper(m.Provider), Headline(m)); err != nil {
 		return err
 	}
-
-	covered, uncovered, notScannable, uncatalogued, missing := splitByBucket(m.Rows)
-
-	counts := fmt.Sprintf("**Covered:** %d &nbsp;·&nbsp; **Uncovered:** %d &nbsp;·&nbsp; **Not-scannable:** %d &nbsp;·&nbsp; **Uncatalogued:** %d &nbsp;·&nbsp; **Upstream-missing:** %d\n\n",
-		len(covered), len(uncovered), len(notScannable), len(uncatalogued), len(missing))
-	if _, err := io.WriteString(w, counts); err != nil {
+	if _, err := fmt.Fprintf(w, "Pins: %s\n\n", pinsLine(m.Pins)); err != nil {
 		return err
 	}
-
-	if len(covered) > 0 {
-		if err := mdSection(w, "Covered", []string{"Service", "Disco type", "Upstream key"}, covered, func(r Row) []string {
-			return []string{r.Service, r.DiscoType, r.UpstreamKey}
-		}); err != nil {
+	if _, err := fmt.Fprint(w, denominatorNote); err != nil {
+		return err
+	}
+	if err := renderRuleTable(w, m); err != nil {
+		return err
+	}
+	if len(m.Services) > 0 {
+		if _, err := fmt.Fprintln(w, "| Service | Covered | Uncovered | % |\n|---|---|---|---|"); err != nil {
+			return err
+		}
+		for _, s := range m.Services {
+			if _, err := fmt.Fprintf(w, "| %s | %d | %d | %.1f |\n", s.Service, s.Covered, s.Uncovered, s.Percent); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(w); err != nil {
 			return err
 		}
 	}
-	if len(uncovered) > 0 {
-		if err := mdSection(w, "Uncovered (in upstream registry, no disco scanner)",
-			[]string{"Service", "Upstream key"}, uncovered, func(r Row) []string {
-				return []string{r.Service, r.UpstreamKey}
-			}); err != nil {
-			return err
-		}
+	sections := []struct {
+		bucket  Bucket
+		title   string
+		headers []string
+		cells   func(Row) []string
+	}{
+		// The admitting rule travels with the row: a gap list is only
+		// actionable if the reader can see why each row is in it.
+		{BucketUncovered, "Uncovered (listable, no scanner)", []string{"Service", "Key", "Depth", "Scope", "Rule", "Ops"}, func(r Row) []string {
+			return []string{r.Service, r.Key, fmt.Sprint(r.Depth), r.Scope, r.Rule, strings.Join(r.Ops, ", ")}
+		}},
+		{BucketDiscoOnly, "Disco-only (emitted type with no candidate)", []string{"Service", "Disco type", "Reason"}, func(r Row) []string {
+			return []string{r.Service, r.DiscoType, r.Reason}
+		}},
+		{BucketRegistryDrift, "Registry drift (--cross-check)", []string{"Service", "Key", "Reason"}, func(r Row) []string {
+			return []string{r.Service, r.Key, r.Reason}
+		}},
+		{BucketCovered, "Covered", []string{"Service", "Key", "Disco type", "Depth"}, func(r Row) []string {
+			return []string{r.Service, r.Key, r.DiscoType, fmt.Sprint(r.Depth)}
+		}},
+		{BucketAttribute, "Attributes (detail reads, not counted)", []string{"Service", "Key", "Disco type", "Ops"}, func(r Row) []string {
+			return []string{r.Service, r.Key, r.DiscoType, strings.Join(r.Ops, ", ")}
+		}},
+		// The disco type column is what makes a wrong class rule visible: an
+		// excluded row a scanner provably lists and stores is a classifier
+		// bug, and printing only service/key/reason hid 93 of them.
+		{BucketExcluded, "Excluded (catalog, non-resource, preview-only)", []string{"Service", "Key", "Reason", "Disco type"}, func(r Row) []string {
+			return []string{r.Service, r.Key, r.Reason, discoTypeCell(r)}
+		}},
 	}
-	if len(notScannable) > 0 {
-		if err := mdSection(w, "Not-scannable (deliberately unscanned — sub-resource, ephemeral, no SDK, or duplicate)",
-			[]string{"Service", "Upstream key", "Reason"}, notScannable, func(r Row) []string {
-				return []string{r.Service, r.UpstreamKey, r.Reason}
-			}); err != nil {
-			return err
+	for _, s := range sections {
+		var rows []Row
+		for _, r := range m.Rows {
+			if r.Bucket == s.bucket {
+				rows = append(rows, r)
+			}
 		}
-	}
-	if len(uncatalogued) > 0 {
-		if err := mdSection(w, "Uncatalogued (disco scans it; no upstream registry catalogs it)",
-			[]string{"Service", "Disco type"}, uncatalogued, func(r Row) []string {
-				return []string{r.Service, r.DiscoType}
-			}); err != nil {
-			return err
+		if len(rows) == 0 {
+			continue
 		}
-	}
-	if len(missing) > 0 {
-		if err := mdSection(w, "Upstream-missing (drift signal — disco emits but upstream registry does not list)",
-			[]string{"Service", "Disco type", "Expected upstream key"}, missing, func(r Row) []string {
-				return []string{r.Service, r.DiscoType, r.UpstreamKey}
-			}); err != nil {
+		if err := mdSection(w, s.title, s.headers, rows, s.cells); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func splitByBucket(rows []Row) (covered, uncovered, notScannable, uncatalogued, missing []Row) {
-	for _, r := range rows {
-		switch r.Bucket {
-		case BucketCovered:
-			covered = append(covered, r)
-		case BucketUncovered:
-			uncovered = append(uncovered, r)
-		case BucketNotScannable:
-			notScannable = append(notScannable, r)
-		case BucketUncatalogued:
-			uncatalogued = append(uncatalogued, r)
-		case BucketUpstreamMissing:
-			missing = append(missing, r)
+// Headline is the one-line summary printed above every report.
+// denominatorNote states what the percentage counts. Without it the headline
+// is not falsifiable from the report: the rule that admitted a row lived in
+// the JSON signals only.
+const denominatorNote = "The denominator is every candidate the provider's own SDK can list that the " +
+	"extractor classified `resource` — not every API operation, and not a curated list. " +
+	"Attributes (detail reads), catalogs (provider-published, read-only) and non-resources are " +
+	"outside it and are listed below. Each row names the rule that classified it; the table " +
+	"below gives the coverage of each rule, so a rule that admits rows no scanner can close is " +
+	"visible as a low percentage rather than as a smaller number.\n\n"
+
+// renderRuleTable splits the headline by admitting rule.
+func renderRuleTable(w io.Writer, m Matrix) error {
+	if len(m.Summary.ByRule) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(w, "| Admitting rule | Covered | Uncovered | % |\n|---|---|---|---|"); err != nil {
+		return err
+	}
+	for _, r := range m.Summary.ByRule {
+		name := r.Rule
+		if name == "" {
+			name = "(unnamed)"
+		}
+		if _, err := fmt.Fprintf(w, "| %s | %d | %d | %.1f |\n", name, r.Covered, r.Uncovered, r.Percent); err != nil {
+			return err
 		}
 	}
-	return
+	_, err := fmt.Fprintln(w)
+	return err
+}
+
+func Headline(m Matrix) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "**Coverage:** %.1f%% (%d/%d listable)", m.Summary.Percent, m.Summary.Covered, m.Summary.Covered+m.Summary.Uncovered)
+	for _, d := range m.Summary.ByDepth {
+		fmt.Fprintf(&b, " · depth%d %.1f%%", d.Depth, d.Percent)
+	}
+	fmt.Fprintf(&b, " · attribute %d · excluded %d · disco-only %d (%d unexplained)", m.Summary.Attribute, m.Summary.Excluded, m.Summary.DiscoOnly, m.Summary.Unexplained)
+	if !m.Pairing {
+		b.WriteString(" · pairing unavailable: name matching only")
+	}
+	return b.String()
+}
+
+func pinsLine(pins map[string]string) string {
+	keys := make([]string, 0, len(pins))
+	for k := range pins {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+"@"+pins[k])
+	}
+	return strings.Join(parts, ", ")
 }
 
 func mdSection(w io.Writer, title string, headers []string, rows []Row, cells func(Row) []string) error {
@@ -111,27 +169,24 @@ func mdSection(w io.Writer, title string, headers []string, rows []Row, cells fu
 	if _, err := fmt.Fprintln(w, "| "+strings.Join(sep, " | ")+" |"); err != nil {
 		return err
 	}
-	// Group by service, then sorted within group.
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].Service != rows[j].Service {
-			return rows[i].Service < rows[j].Service
-		}
-		ki, kj := rows[i].DiscoType, rows[j].DiscoType
-		if ki == "" {
-			ki = rows[i].UpstreamKey
-		}
-		if kj == "" {
-			kj = rows[j].UpstreamKey
-		}
-		return ki < kj
-	})
 	for _, r := range rows {
 		if _, err := fmt.Fprintln(w, "| "+strings.Join(cells(r), " | ")+" |"); err != nil {
 			return err
 		}
 	}
-	if _, err := fmt.Fprintln(w); err != nil {
-		return err
+	_, err := fmt.Fprintln(w)
+	return err
+}
+
+// discoTypeCell names the type an excluded row is paired with; with several
+// paired and no winner (ReasonMultiType) the first of the set stands in, since
+// the point of the column is that the row is scanned at all.
+func discoTypeCell(r Row) string {
+	if r.DiscoType != "" {
+		return r.DiscoType
 	}
-	return nil
+	if len(r.DiscoTypes) > 0 {
+		return r.DiscoTypes[0] + " (+" + fmt.Sprint(len(r.DiscoTypes)-1) + ")"
+	}
+	return ""
 }

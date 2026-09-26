@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePolicyInsightsRemediation, Service: "microsoft.policyinsights", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePolicyInsightsAttestation, Service: "microsoft.policyinsights", Leaf: true})
+	registerType(restype.Descriptor{Type: TypePolicyInsightsRemediation, Service: "microsoft.policyinsights"})
+	registerType(restype.Descriptor{Type: TypePolicyInsightsAttestation, Service: "microsoft.policyinsights"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.policyinsights",
 		fn:   scanPolicyInsights,

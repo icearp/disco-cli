@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEventSchemasDiscoverer, Service: "event-schemas", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEventSchemasRegistry, Service: "event-schemas", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEventSchemasRegistryPolicy, Service: "event-schemas", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEventSchemasDiscoverer, Service: "event-schemas"})
+	registerType(restype.Descriptor{Type: TypeEventSchemasRegistry, Service: "event-schemas"})
+	registerType(restype.Descriptor{Type: TypeEventSchemasRegistryPolicy, Service: "event-schemas"})
 	registerType(restype.Descriptor{Type: TypeEventSchemasSchema, Service: "event-schemas"})
 	registerService(serviceEntry{
 		name: "aws:event-schemas",

@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCodeArtifactDomain, Service: "codeartifact", Upstream: "AWS::CodeArtifact::Domain"})
-	registerType(restype.Descriptor{Type: TypeCodeArtifactRepository, Service: "codeartifact", Upstream: "AWS::CodeArtifact::Repository"})
-	registerType(restype.Descriptor{Type: TypeCodeArtifactPackageGroup, Service: "codeartifact", Upstream: "AWS::CodeArtifact::PackageGroup"})
+	registerType(restype.Descriptor{Type: TypeCodeArtifactDomain, Service: "codeartifact"})
+	registerType(restype.Descriptor{Type: TypeCodeArtifactRepository, Service: "codeartifact"})
+	registerType(restype.Descriptor{Type: TypeCodeArtifactPackageGroup, Service: "codeartifact"})
 	registerService(serviceEntry{
 		name: "aws:codeartifact",
 		fn:   scanCodeArtifact,

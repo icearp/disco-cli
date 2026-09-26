@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeACMPrivateCA, Service: "acmpca", Upstream: "AWS::ACMPCA::CertificateAuthority"})
-	registerType(restype.Descriptor{Type: TypeACMPCAPermission, Service: "acmpca", Upstream: "AWS::ACMPCA::Permission", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeACMPrivateCA, Service: "acmpca"})
+	registerType(restype.Descriptor{Type: TypeACMPCAPermission, Service: "acmpca"})
 	registerService(serviceEntry{
 		name: "aws:acm-pca",
 		fn:   scanACMPCA,

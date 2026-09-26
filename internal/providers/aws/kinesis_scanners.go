@@ -12,9 +12,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeKinesisStream, Service: "kinesis", Upstream: "AWS::Kinesis::Stream"})
+	registerType(restype.Descriptor{Type: TypeKinesisStream, Service: "kinesis"})
 	registerType(restype.Descriptor{Type: TypeKinesisStreamConsumer, Service: "kinesis"})
-	registerType(restype.Descriptor{Type: TypeKinesisResourcePolicy, Service: "kinesis", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKinesisResourcePolicy, Service: "kinesis"})
 	registerService(serviceEntry{
 		name: "aws:kinesis",
 		fn:   scanKinesis,

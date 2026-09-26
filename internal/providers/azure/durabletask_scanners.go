@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDurableTaskScheduler, Service: "microsoft.durabletask", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDurableTaskScheduler, Service: "microsoft.durabletask"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.durabletask",
 		fn:   scanDurableTask,

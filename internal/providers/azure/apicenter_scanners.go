@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAPICenterService, Service: "microsoft.apicenter", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAPICenterService, Service: "microsoft.apicenter"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.apicenter",
 		fn:   scanAPICenter,

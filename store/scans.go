@@ -264,12 +264,20 @@ func (s *Store) PartialScan(id string, scanErr string) error {
 }
 
 // ScanErrorEntry is one structured failure row appended to scans.errors.
-// service / region narrow the failure scope for UI grouping/filtering; code
-// mirrors the AWS API error code (or a synthesised "transient" / "auth" /
-// "throttle" for non-AWS providers); message is human-readable but terse.
+// service / region / scope narrow the failure for UI grouping and filtering;
+// code is the API error code when one can be read out of the message and the
+// literal "Error" otherwise; message is human-readable but terse.
+//
+// Scope is the scanner's original scope string, kept verbatim like
+// [ScanWarningEntry.Scope]. Without it a per-subscription Azure failure and a
+// failure of the whole provider are the same row, and `coverage verify` then
+// blames every declared type — including the tenant-scoped ones — on one
+// subscription it could not reach. Region is filled for AWS only, where the
+// scope is "<account>/<region>"; other providers' scopes carry no region.
 type ScanErrorEntry struct {
 	Service string `json:"service"`
 	Region  string `json:"region"`
+	Scope   string `json:"scope,omitempty"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
@@ -320,7 +328,12 @@ type ScanWarningEntry struct {
 	Service string `json:"service"`
 	Region  string `json:"region"`
 	Scope   string `json:"scope"`
-	Message string `json:"message"`
+	// ServiceName is the registered scanner service the warning came from,
+	// when the scan recorded one (see [ScanWarning.ServiceName]). It is what
+	// lets a consumer join an op-label warning to a service; an empty value
+	// means the warning names no service.
+	ServiceName string `json:"serviceName,omitempty"`
+	Message     string `json:"message"`
 }
 
 // AppendScanWarning appends one structured entry to scans.warnings, with the
@@ -433,4 +446,25 @@ func (s *Store) ListScans() ([]Scan, error) {
 		}
 	}
 	return scans, nil
+}
+
+// ProviderType is one (provider, disco type) pair a scan stored rows for.
+type ProviderType struct {
+	Provider string `json:"provider"`
+	Type     string `json:"type"`
+}
+
+// TypesForScan lists the distinct resource types a scan touched: rows it
+// inserted (discovered_by) or re-verified (verified_by). Both axes count
+// because an unchanged resource keeps its original discovered_by and only
+// moves verified_by forward, yet the scanner still emitted it.
+func (s *Store) TypesForScan(scanID string) ([]ProviderType, error) {
+	var out []ProviderType
+	// reference_only rows are resolver placeholders (InsertResourcesIfAbsent),
+	// carrying this scan id although no scanner listed them. Counting one as
+	// an emitted type would report a scanner that never ran as having run.
+	err := s.selectAll(&out, `SELECT DISTINCT provider, type FROM resources
+		WHERE (discovered_by = ? OR verified_by = ?) AND NOT reference_only
+		ORDER BY provider, type`, scanID, scanID)
+	return out, err
 }

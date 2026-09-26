@@ -1,6 +1,9 @@
 package azure
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 // TestResolveSubscriptionScope_PinSkipsEnumeration verifies an explicit pin
 // uses exactly the supplied IDs and never reaches the ARM enumerator.
@@ -117,5 +120,17 @@ func TestResolveSubscriptionScope_NilEmptyConfigEnumerates(t *testing.T) {
 	}
 	if len(subs) != 1 || subs[0].ID != "enum-sub" {
 		t.Fatalf("got %+v, want enumerated", subs)
+	}
+}
+
+// A credential that reaches no subscription must not look like a healthy scan
+// of an empty tenant: the pin and config paths already fail closed on zero,
+// and enumeration returning (nil, nil) was the one way through.
+func TestResolveSubscriptionScope_EnumerateEmptyIsError(t *testing.T) {
+	_, err := resolveSubscriptionScope(nil, providerCfg{}, func() ([]subscription, error) {
+		return nil, ErrNoSubscriptions
+	})
+	if !errors.Is(err, ErrNoSubscriptions) {
+		t.Fatalf("err = %v, want ErrNoSubscriptions", err)
 	}
 }

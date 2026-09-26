@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBQConnection, Service: "bigqueryconnection", Upstream: "bigqueryconnection.googleapis.com/Connection"})
+	registerType(restype.Descriptor{Type: TypeBQConnection, Service: "bigqueryconnection"})
 	registerService(serviceEntry{
 		name: "gcp:bigqueryconnection",
 		fn:   scanBQConnections,

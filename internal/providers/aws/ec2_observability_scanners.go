@@ -9,12 +9,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2FlowLog, Service: "ec2", Upstream: "AWS::EC2::FlowLog"})
-	registerType(restype.Descriptor{Type: TypeEC2PrefixList, Service: "ec2", Upstream: "AWS::EC2::PrefixList", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsPath, Service: "ec2", Upstream: "AWS::EC2::NetworkInsightsPath"})
-	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAnalysis, Service: "ec2", Upstream: "AWS::EC2::NetworkInsightsAnalysis"})
-	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAccessScope, Service: "ec2", Upstream: "AWS::EC2::NetworkInsightsAccessScope", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAccessScopeAnalysis, Service: "ec2", Upstream: "AWS::EC2::NetworkInsightsAccessScopeAnalysis"})
+	registerType(restype.Descriptor{Type: TypeEC2FlowLog, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2PrefixList, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsPath, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAnalysis, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAccessScope, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2NetworkInsightsAccessScopeAnalysis, Service: "ec2"})
 }
 
 // scanEC2Observability discovers observability and policy types: flow logs,

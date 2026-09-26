@@ -24,11 +24,8 @@ import (
 
 // Descriptor is the single source of truth for one disco resource type.
 type Descriptor struct {
-	Type         string // disco type, e.g. "gcp:artifactregistry:repository" — the key
-	Service      string // disco service segment, e.g. "artifactregistry"
-	Upstream     string // upstream catalog key; "" => rely on AlgorithmicKey fallback
-	Uncatalogued bool   // real SDK-scanned type no upstream registry lists
-	Leaf         bool   // intentionally edge-less; filtered from --missing-resolvers
+	Type    string // disco type, e.g. "gcp:artifactregistry:repository" — the key
+	Service string // disco service segment, e.g. "artifactregistry"
 	// Managed marks a type as UNCONDITIONALLY provider-managed; the store stamps
 	// ManagedByProvider by type. Do NOT set for types whose managed status is a
 	// per-row runtime decision — those stay scanner-set.
@@ -51,9 +48,7 @@ func Emit(d Descriptor) coverage.TypeDecl {
 		managed.Register(d.Type)
 	}
 	return coverage.TypeDecl{
-		Service:      d.Service,
-		DiscoType:    d.Type,
-		Uncatalogued: d.Uncatalogued,
-		Leaf:         d.Leaf,
+		Service:   d.Service,
+		DiscoType: d.Type,
 	}
 }

@@ -11,10 +11,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeComputeInstance, Service: "compute", Upstream: "compute.googleapis.com/Instance"})
-	registerType(restype.Descriptor{Type: TypeComputeNetwork, Service: "compute", Upstream: "compute.googleapis.com/Network"})
-	registerType(restype.Descriptor{Type: TypeComputeSubnet, Service: "compute", Upstream: "compute.googleapis.com/Subnetwork"})
-	registerType(restype.Descriptor{Type: TypeComputeFirewall, Service: "compute", Upstream: "compute.googleapis.com/Firewall"})
+	registerType(restype.Descriptor{Type: TypeComputeInstance, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeNetwork, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeSubnet, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeFirewall, Service: "compute"})
 	registerService(serviceEntry{
 		name: "gcp:compute",
 		fn:   scanCompute,

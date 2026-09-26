@@ -13,13 +13,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOrganization, Service: "organizations", Upstream: "AWS::Organizations::Organization"})
-	registerType(restype.Descriptor{Type: TypeOrganizationsAccount, Service: "organizations", Upstream: "AWS::Organizations::Account", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeOrganizationsOU, Service: "organizations", Upstream: "AWS::Organizations::OrganizationalUnit", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeOrganizationsSCP, Service: "organizations", Upstream: "AWS::Organizations::Policy"})
-	registerType(restype.Descriptor{Type: TypeOrganizationsResourcePolicy, Service: "organizations", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeOrganizationsRoot, Service: "organizations", Leaf: true, Managed: true})
-	registerType(restype.Descriptor{Type: TypeOrganizationsResponsibilityTransfer, Service: "organizations", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOrganization, Service: "organizations"})
+	registerType(restype.Descriptor{Type: TypeOrganizationsAccount, Service: "organizations"})
+	registerType(restype.Descriptor{Type: TypeOrganizationsOU, Service: "organizations"})
+	registerType(restype.Descriptor{Type: TypeOrganizationsSCP, Service: "organizations"})
+	registerType(restype.Descriptor{Type: TypeOrganizationsResourcePolicy, Service: "organizations"})
+	registerType(restype.Descriptor{Type: TypeOrganizationsRoot, Service: "organizations", Managed: true})
+	registerType(restype.Descriptor{Type: TypeOrganizationsResponsibilityTransfer, Service: "organizations"})
 	registerService(serviceEntry{
 		name:   "aws:organizations",
 		global: true,

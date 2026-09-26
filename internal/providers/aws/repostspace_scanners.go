@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRepostspaceSpace, Service: "repostspace", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRepostspaceSpace, Service: "repostspace"})
 	registerService(serviceEntry{
 		name: "aws:repostspace",
 		fn:   scanRepostspace,

@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDAXCluster, Service: "dax", Upstream: "AWS::DAX::Cluster"})
-	registerType(restype.Descriptor{Type: TypeDAXParameterGroup, Service: "dax", Upstream: "AWS::DAX::ParameterGroup", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDAXSubnetGroup, Service: "dax", Upstream: "AWS::DAX::SubnetGroup"})
+	registerType(restype.Descriptor{Type: TypeDAXCluster, Service: "dax"})
+	registerType(restype.Descriptor{Type: TypeDAXParameterGroup, Service: "dax"})
+	registerType(restype.Descriptor{Type: TypeDAXSubnetGroup, Service: "dax"})
 	registerService(serviceEntry{
 		name: "aws:dax",
 		fn:   scanDAX,

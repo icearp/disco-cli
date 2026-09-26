@@ -11,16 +11,16 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBackupVault, Service: "backup", Upstream: "AWS::Backup::BackupVault"})
-	registerType(restype.Descriptor{Type: TypeBackupLogicallyAirGappedVault, Service: "backup", Upstream: "AWS::Backup::LogicallyAirGappedBackupVault"})
-	registerType(restype.Descriptor{Type: TypeBackupPlan, Service: "backup", Upstream: "AWS::Backup::BackupPlan"})
-	registerType(restype.Descriptor{Type: TypeBackupSelection, Service: "backup", Upstream: "AWS::Backup::BackupSelection"})
-	registerType(restype.Descriptor{Type: TypeBackupFramework, Service: "backup", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBackupReportPlan, Service: "backup", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBackupRestoreTestingPlan, Service: "backup", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBackupRestoreTestingSelection, Service: "backup", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBackupTieringConfiguration, Service: "backup", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBackupLegalHold, Service: "backup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBackupVault, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupLogicallyAirGappedVault, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupPlan, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupSelection, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupFramework, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupReportPlan, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupRestoreTestingPlan, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupRestoreTestingSelection, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupTieringConfiguration, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupLegalHold, Service: "backup"})
 	registerType(restype.Descriptor{Type: TypeBackupRecoveryPoint, Service: "backup"})
 	registerService(serviceEntry{
 		name: "aws:backup",

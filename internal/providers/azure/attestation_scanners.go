@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAttestationProvider, Service: "microsoft.attestation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAttestationProvider, Service: "microsoft.attestation"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.attestation",
 		fn:   scanAttestation,

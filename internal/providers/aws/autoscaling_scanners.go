@@ -14,12 +14,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAutoScalingGroup, Service: "autoscaling", Upstream: "AWS::AutoScaling::AutoScalingGroup"})
-	registerType(restype.Descriptor{Type: TypeAutoScalingLaunchConfiguration, Service: "autoscaling", Upstream: "AWS::AutoScaling::LaunchConfiguration"})
-	registerType(restype.Descriptor{Type: TypeAutoScalingLifecycleHook, Service: "autoscaling", Upstream: "AWS::AutoScaling::LifecycleHook"})
-	registerType(restype.Descriptor{Type: TypeAutoScalingScalingPolicy, Service: "autoscaling", Upstream: "AWS::AutoScaling::ScalingPolicy"})
-	registerType(restype.Descriptor{Type: TypeAutoScalingScheduledAction, Service: "autoscaling", Upstream: "AWS::AutoScaling::ScheduledAction"})
-	registerType(restype.Descriptor{Type: TypeAutoScalingWarmPool, Service: "autoscaling", Upstream: "AWS::AutoScaling::WarmPool"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingGroup, Service: "autoscaling"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingLaunchConfiguration, Service: "autoscaling"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingLifecycleHook, Service: "autoscaling"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingScalingPolicy, Service: "autoscaling"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingScheduledAction, Service: "autoscaling"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingWarmPool, Service: "autoscaling"})
 	registerService(serviceEntry{
 		name: "aws:autoscaling",
 		fn:   scanAutoScaling,

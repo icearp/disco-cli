@@ -8,7 +8,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Wave 6 of the GCP type-coverage buildout (docs/gcp-type-coverage.md): the
+// Wave 6 of the GCP type-coverage buildout (the 2026-07 type-coverage audit): the
 // remaining load-balancing / health-check / SSL-TLS domain, on top of the
 // pre-existing "gcp:loadbalancing" service (ForwardingRule, TargetHTTP(S)Proxy,
 // URLMap, BackendService, BackendBucket). New phases of "gcp:compute". No
@@ -16,19 +16,19 @@ import (
 // compute_networking_scanners.go.
 func init() {
 	registerType(restype.Descriptor{Type: TypeComputeGlobalForwardingRule, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeHealthCheck, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeRegionHealthCheck, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeHealthCheck, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionHealthCheck, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionCompositeHealthCheck, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeRegionHealthAggregationPolicy, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeRegionHealthAggregationPolicy, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionHealthCheckService, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionHealthSource, Service: "compute"})
-	registerType(restype.Descriptor{Type: TypeComputeRegionNotificationEndpoint, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeHTTPHealthCheck, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeHTTPSHealthCheck, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeSslCertificate, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeRegionSslCertificate, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeSslPolicy, Service: "compute", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeComputeRegionSslPolicy, Service: "compute", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeComputeRegionNotificationEndpoint, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeHTTPHealthCheck, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeHTTPSHealthCheck, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeSslCertificate, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionSslCertificate, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeSslPolicy, Service: "compute"})
+	registerType(restype.Descriptor{Type: TypeComputeRegionSslPolicy, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeTargetSslProxy, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeTargetTCPProxy, Service: "compute"})
 	registerType(restype.Descriptor{Type: TypeComputeRegionTargetTCPProxy, Service: "compute"})

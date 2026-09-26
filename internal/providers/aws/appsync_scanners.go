@@ -16,7 +16,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAppSyncAPIKey, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncChannelNamespace, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncDataSource, Service: "appsync"})
-	registerType(restype.Descriptor{Type: TypeAppSyncDomainName, Service: "appsync", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppSyncDomainName, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncDomainNameAPIAssociation, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncFunctionConfiguration, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncGraphQLApi, Service: "appsync"})

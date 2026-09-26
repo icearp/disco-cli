@@ -11,10 +11,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeECSContainerInstance, Service: "ecs", Upstream: "AWS::ecs::container-instance"})
+	registerType(restype.Descriptor{Type: TypeECSContainerInstance, Service: "ecs"})
 	registerType(restype.Descriptor{Type: TypeECSTask, Service: "ecs"})
-	registerType(restype.Descriptor{Type: TypeECSDaemon, Service: "ecs", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeECSDaemonTaskDefinition, Service: "ecs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECSDaemon, Service: "ecs"})
+	registerType(restype.Descriptor{Type: TypeECSDaemonTaskDefinition, Service: "ecs"})
 }
 
 type ecsComputeExtAPI interface {

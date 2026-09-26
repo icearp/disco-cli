@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDevCenter, Service: "microsoft.devcenter", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDevCenterProject, Service: "microsoft.devcenter", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDevCenterNetworkConnection, Service: "microsoft.devcenter", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDevCenter, Service: "microsoft.devcenter"})
+	registerType(restype.Descriptor{Type: TypeDevCenterProject, Service: "microsoft.devcenter"})
+	registerType(restype.Descriptor{Type: TypeDevCenterNetworkConnection, Service: "microsoft.devcenter"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.devcenter",
 		fn:   scanDevCenter,

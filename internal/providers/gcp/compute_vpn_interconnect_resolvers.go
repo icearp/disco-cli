@@ -97,7 +97,7 @@ func resolveVpnRelationships(p *project, st *store.Store) error {
 // wire-group → the interconnects its wires' endpoints terminate on;
 // NetworkEdgeSecurityService → the Cloud Armor SecurityPolicy it wraps.
 // Interconnect itself carries no outbound resolver-worthy self-link (all
-// fields describe the physical circuit) and is Leaf-flagged accordingly.
+// fields describe the physical circuit) and is edge-less accordingly.
 func resolveInterconnectRelationships(p *project, st *store.Store) error {
 	scanned, err := scannedIDSet(p, st,
 		TypeComputeInterconnect, TypeComputeRouter,

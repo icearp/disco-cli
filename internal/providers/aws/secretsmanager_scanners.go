@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSecretsManagerSecret, Service: "secretsmanager", Upstream: "AWS::SecretsManager::Secret", Redact: []redact.Rule{{Path: "SecretString", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSecretsManagerSecret, Service: "secretsmanager", Redact: []redact.Rule{{Path: "SecretString", Mode: redact.RedactScalar}}})
 	registerType(restype.Descriptor{Type: TypeSecretsManagerResourcePolicy, Service: "secretsmanager"})
 	registerType(restype.Descriptor{Type: TypeSecretsManagerRotationSchedule, Service: "secretsmanager"})
 	registerService(serviceEntry{

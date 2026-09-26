@@ -12,15 +12,15 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeECRRepository, Service: "ecr", Upstream: "AWS::ECR::Repository"})
-	registerType(restype.Descriptor{Type: TypeECRPublicRepository, Service: "ecr", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeECRPullThroughCacheRule, Service: "ecr", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeECRPullTimeUpdateExclusion, Service: "ecr", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeECRRegistryPolicy, Service: "ecr", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeECRRegistryScanningConfig, Service: "ecr", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeECRRepository, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRPublicRepository, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRPullThroughCacheRule, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRPullTimeUpdateExclusion, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRRegistryPolicy, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRRegistryScanningConfig, Service: "ecr", Managed: true})
 	registerType(restype.Descriptor{Type: TypeECRReplicationConfiguration, Service: "ecr", Managed: true})
-	registerType(restype.Descriptor{Type: TypeECRRepositoryCreationTemplate, Service: "ecr", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeECRSigningConfiguration, Service: "ecr", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeECRRepositoryCreationTemplate, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRSigningConfiguration, Service: "ecr"})
 	registerService(serviceEntry{
 		name: "aws:ecr",
 		fn:   scanECR,

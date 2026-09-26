@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAppIntegrationsApplication, Service: "appintegrations", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAppIntegrationsDataIntegration, Service: "appintegrations", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppIntegrationsApplication, Service: "appintegrations"})
+	registerType(restype.Descriptor{Type: TypeAppIntegrationsDataIntegration, Service: "appintegrations"})
 	registerType(restype.Descriptor{Type: TypeAppIntegrationsEventIntegration, Service: "appintegrations"})
 	registerService(serviceEntry{
 		name: "aws:appintegrations",

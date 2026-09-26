@@ -13,9 +13,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOpenSearchDomain, Service: "opensearchservice", Upstream: "AWS::OpenSearchService::Domain"})
-	registerType(restype.Descriptor{Type: TypeOpenSearchApplication, Service: "opensearchservice", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeOpenSearchDataSource, Service: "opensearchservice", Upstream: "AWS::es::datasource"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchDomain, Service: "opensearchservice"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchApplication, Service: "opensearchservice"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchDataSource, Service: "opensearchservice"})
 	registerService(serviceEntry{
 		name: "aws:opensearch",
 		fn:   scanOpenSearch,

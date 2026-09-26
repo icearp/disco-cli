@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeInvoicingInvoiceUnit, Service: "invoicing", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeInvoicingInvoiceUnit, Service: "invoicing"})
 	registerService(serviceEntry{
 		name:   "aws:invoicing",
 		global: true,

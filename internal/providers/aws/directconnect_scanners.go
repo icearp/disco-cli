@@ -11,9 +11,9 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeDirectConnectConnection, Service: "directconnect"})
-	registerType(restype.Descriptor{Type: TypeDirectConnectDirectConnectGateway, Service: "directconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDirectConnectDirectConnectGateway, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectDirectConnectGatewayAssociation, Service: "directconnect"})
-	registerType(restype.Descriptor{Type: TypeDirectConnectLag, Service: "directconnect", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDirectConnectLag, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectPrivateVirtualInterface, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectPublicVirtualInterface, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectTransitVirtualInterface, Service: "directconnect"})

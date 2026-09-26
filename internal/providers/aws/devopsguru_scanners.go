@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDevOpsGuruNotificationChannel, Service: "devops-guru", Upstream: "AWS::DevOpsGuru::NotificationChannel", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDevOpsGuruResourceCollection, Service: "devops-guru", Upstream: "AWS::DevOpsGuru::ResourceCollection", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDevOpsGuruLogAnomalyDetectionIntegration, Service: "devops-guru", Upstream: "AWS::DevOpsGuru::LogAnomalyDetectionIntegration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDevOpsGuruNotificationChannel, Service: "devops-guru"})
+	registerType(restype.Descriptor{Type: TypeDevOpsGuruResourceCollection, Service: "devops-guru"})
+	registerType(restype.Descriptor{Type: TypeDevOpsGuruLogAnomalyDetectionIntegration, Service: "devops-guru"})
 	registerService(serviceEntry{
 		name: "aws:devops-guru",
 		fn:   scanDevOpsGuru,

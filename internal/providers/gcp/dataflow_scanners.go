@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataflowJob, Service: "dataflow", Upstream: "dataflow.googleapis.com/Job"})
-	registerType(restype.Descriptor{Type: TypeDataflowSnapshot, Service: "dataflow", Upstream: "dataflow.googleapis.com/Snapshot"})
+	registerType(restype.Descriptor{Type: TypeDataflowJob, Service: "dataflow"})
+	registerType(restype.Descriptor{Type: TypeDataflowSnapshot, Service: "dataflow"})
 	registerService(serviceEntry{
 		name: "gcp:dataflow",
 		fn:   scanDataflow,

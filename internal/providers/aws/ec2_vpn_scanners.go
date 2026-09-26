@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2CustomerGateway, Service: "ec2", Upstream: "AWS::EC2::CustomerGateway", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2VPNGateway, Service: "ec2", Upstream: "AWS::EC2::VPNGateway"})
-	registerType(restype.Descriptor{Type: TypeEC2VPNConnection, Service: "ec2", Upstream: "AWS::EC2::VPNConnection"})
+	registerType(restype.Descriptor{Type: TypeEC2CustomerGateway, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2VPNGateway, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2VPNConnection, Service: "ec2"})
 }
 
 // scanEC2VPN discovers VPN types: customer gateways, VPN gateways, and VPN connections.

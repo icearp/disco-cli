@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTIndex, Service: "iot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTJob, Service: "iot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTOTAUpdate, Service: "iot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTStream, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTIndex, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTJob, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTOTAUpdate, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTStream, Service: "iot"})
 }
 
 type iotInventoryAPI interface {

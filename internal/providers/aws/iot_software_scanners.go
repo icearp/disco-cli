@@ -13,8 +13,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTSoftwarePackage, Service: "iot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTSoftwarePackageVersion, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTSoftwarePackage, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTSoftwarePackageVersion, Service: "iot"})
 }
 
 type iotSoftwareAPI interface {

@@ -12,9 +12,9 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeLocationAPIKey, Service: "location"})
 	registerType(restype.Descriptor{Type: TypeLocationGeofenceCollection, Service: "location"})
-	registerType(restype.Descriptor{Type: TypeLocationMap, Service: "location", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLocationPlaceIndex, Service: "location", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLocationRouteCalculator, Service: "location", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLocationMap, Service: "location"})
+	registerType(restype.Descriptor{Type: TypeLocationPlaceIndex, Service: "location"})
+	registerType(restype.Descriptor{Type: TypeLocationRouteCalculator, Service: "location"})
 	registerType(restype.Descriptor{Type: TypeLocationTracker, Service: "location"})
 	registerType(restype.Descriptor{Type: TypeLocationTrackerConsumer, Service: "location"})
 	registerService(serviceEntry{

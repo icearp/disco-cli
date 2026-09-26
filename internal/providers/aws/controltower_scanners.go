@@ -15,9 +15,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeControlTowerLandingZone, Service: "controltower", Upstream: "AWS::ControlTower::LandingZone", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeControlTowerEnabledBaseline, Service: "controltower", Upstream: "AWS::ControlTower::EnabledBaseline"})
-	registerType(restype.Descriptor{Type: TypeControlTowerEnabledControl, Service: "controltower", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeControlTowerLandingZone, Service: "controltower"})
+	registerType(restype.Descriptor{Type: TypeControlTowerEnabledBaseline, Service: "controltower"})
+	registerType(restype.Descriptor{Type: TypeControlTowerEnabledControl, Service: "controltower"})
 	registerService(serviceEntry{
 		name: "aws:controltower",
 		fn:   scanControlTower,

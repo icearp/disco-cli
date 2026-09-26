@@ -23,7 +23,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSQLServerVulnAssessment, Service: "microsoft.sql"})
 	registerType(restype.Descriptor{Type: TypeSQLServerAuditingSettings, Service: "microsoft.sql"})
 	registerType(restype.Descriptor{Type: TypeSQLServerExtAuditingSettings, Service: "microsoft.sql"})
-	registerType(restype.Descriptor{Type: TypeSQLServerDevOpsAuditSettings, Service: "microsoft.sql", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeSQLServerDevOpsAuditSettings, Service: "microsoft.sql"})
 	registerType(restype.Descriptor{Type: TypeSQLServerDNSAlias, Service: "microsoft.sql"})
 	registerType(restype.Descriptor{Type: TypeSQLSyncAgent, Service: "microsoft.sql"})
 	registerType(restype.Descriptor{Type: TypeSQLVirtualNetworkRule, Service: "microsoft.sql"})

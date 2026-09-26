@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEKSAnywhereSubscription, Service: "eks", Upstream: "AWS::eks::eks-anywhere-subscription", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEKSAnywhereSubscription, Service: "eks"})
 }
 
 type eksAnywhereAPI interface {
@@ -19,7 +19,7 @@ type eksAnywhereAPI interface {
 
 // scanEKSAnywhereSubscriptions discovers EKS Anywhere support subscriptions
 // (account-wide). The clusters they cover run on-prem, not in AWS, so the
-// subscription is Leaf.
+// subscription is edge-less.
 func scanEKSAnywhereSubscriptions(ctx context.Context, client eksAnywhereAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	p := eks.NewListEksAnywhereSubscriptionsPaginator(client, &eks.ListEksAnywhereSubscriptionsInput{})
 	var batch []*store.Resource

@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSignalR, Service: "microsoft.signalrservice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSignalR, Service: "microsoft.signalrservice"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.signalrservice",
 		fn:   scanSignalRServiceNamespace,
@@ -24,7 +24,7 @@ func scanSignalR(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsignalr:NewClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armsignalr:SignalR.ListBySubscription", TypeSignalR, sub, st, scanID,
+	return azSimpleScan(ctx, "armsignalr:Client.ListBySubscription", TypeSignalR, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
 		func(p armsignalr.ClientListBySubscriptionResponse) []*armsignalr.ResourceInfo { return p.Value },
 		func(r *armsignalr.ResourceInfo) azTrackedBase {

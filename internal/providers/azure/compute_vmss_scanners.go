@@ -52,9 +52,9 @@ func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredentia
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:VMSS.ListAll", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSets.ListAll", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:VMSS.ListAll: %w", err)
+			return 0, 0, fmt.Errorf("armcompute:VirtualMachineScaleSets.ListAll: %w", err)
 		}
 		for _, v := range page.Value {
 			if v.ID == nil {
@@ -191,9 +191,9 @@ func scanVMSSExtensions(ctx context.Context, sub *subscription, cred azcore.Toke
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:VMSSExtensions.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSetExtensions.List", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:VMSSExtensions.List %s/%s: %w", v.rg, v.name, err)
+			return 0, 0, fmt.Errorf("armcompute:VirtualMachineScaleSetExtensions.List %s/%s: %w", v.rg, v.name, err)
 		}
 		for _, ext := range page.Value {
 			if ext.ID == nil {
@@ -243,9 +243,9 @@ func scanVMSSVMs(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:VMSSVMs.List", sub.ID, err)
+				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSetVMs.List", sub.ID, err)
 			}
-			return 0, 0, nil, fmt.Errorf("armcompute:VMSSVMs.List %s/%s: %w", v.rg, v.name, err)
+			return 0, 0, nil, fmt.Errorf("armcompute:VirtualMachineScaleSetVMs.List %s/%s: %w", v.rg, v.name, err)
 		}
 		for _, vm := range page.Value {
 			if vm.ID == nil || vm.InstanceID == nil {
@@ -301,9 +301,9 @@ func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred azcore.To
 	resp, err := client.List(ctx, vm.rg, vm.vmssName, vm.instanceID, nil)
 	if err != nil {
 		if isSkippableScanError(err) {
-			return 0, 0, skipIfAccessDenied(st, "armcompute:VMSSVMExtensions.List", sub.ID, err)
+			return 0, 0, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSetVMExtensions.List", sub.ID, err)
 		}
-		return 0, 0, fmt.Errorf("armcompute:VMSSVMExtensions.List %s/%s/%s: %w", vm.rg, vm.vmssName, vm.instanceID, err)
+		return 0, 0, fmt.Errorf("armcompute:VirtualMachineScaleSetVMExtensions.List %s/%s/%s: %w", vm.rg, vm.vmssName, vm.instanceID, err)
 	}
 
 	var batch []*store.Resource

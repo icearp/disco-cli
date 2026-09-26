@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeStandbyVMPool, Service: "microsoft.standbypool", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeStandbyContainerGroupPool, Service: "microsoft.standbypool", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeStandbyVMPool, Service: "microsoft.standbypool"})
+	registerType(restype.Descriptor{Type: TypeStandbyContainerGroupPool, Service: "microsoft.standbypool"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.standbypool",
 		fn:   scanStandbyPool,

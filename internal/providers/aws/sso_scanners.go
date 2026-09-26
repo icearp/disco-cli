@@ -16,16 +16,16 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSSOInstance, Service: "sso", Upstream: "AWS::SSO::Instance"})
-	registerType(restype.Descriptor{Type: TypeSSOPermissionSet, Service: "sso", Upstream: "AWS::SSO::PermissionSet", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSSOAccountAssignment, Service: "sso", Upstream: "AWS::SSO::Assignment"})
+	registerType(restype.Descriptor{Type: TypeSSOInstance, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOPermissionSet, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOAccountAssignment, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOApplication, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOApplicationAssignment, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOInstanceAccessControlAttributeConfiguration, Service: "sso"})
-	registerType(restype.Descriptor{Type: TypeSSOApplicationProvider, Service: "sso", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeSSOApplicationProvider, Service: "sso", Managed: true})
 	registerType(restype.Descriptor{Type: TypeSSOTrustedTokenIssuer, Service: "sso"})
-	registerType(restype.Descriptor{Type: TypeIdentityStoreUser, Service: "identitystore", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIdentityStoreGroup, Service: "identitystore", Upstream: "AWS::IdentityStore::Group", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIdentityStoreUser, Service: "identitystore"})
+	registerType(restype.Descriptor{Type: TypeIdentityStoreGroup, Service: "identitystore"})
 	registerType(restype.Descriptor{Type: TypeIdentityStoreGroupMembership, Service: "identitystore"})
 	registerService(serviceEntry{
 		name: "aws:sso-admin",

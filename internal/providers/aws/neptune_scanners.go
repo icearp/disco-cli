@@ -11,12 +11,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNeptuneCluster, Service: "neptune", Upstream: "AWS::Neptune::DBCluster"})
-	registerType(restype.Descriptor{Type: TypeNeptuneInstance, Service: "neptune", Upstream: "AWS::Neptune::DBInstance", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNeptuneDBClusterParameterGroup, Service: "neptune", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNeptuneDBParameterGroup, Service: "neptune", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNeptuneEventSubscription, Service: "neptune", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNeptuneGlobalCluster, Service: "neptune", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNeptuneCluster, Service: "neptune"})
+	registerType(restype.Descriptor{Type: TypeNeptuneInstance, Service: "neptune"})
+	registerType(restype.Descriptor{Type: TypeNeptuneDBClusterParameterGroup, Service: "neptune"})
+	registerType(restype.Descriptor{Type: TypeNeptuneDBParameterGroup, Service: "neptune"})
+	registerType(restype.Descriptor{Type: TypeNeptuneEventSubscription, Service: "neptune"})
+	registerType(restype.Descriptor{Type: TypeNeptuneGlobalCluster, Service: "neptune"})
 	registerService(serviceEntry{
 		name: "aws:neptune",
 		fn:   scanNeptune,

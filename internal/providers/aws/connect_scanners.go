@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	// Connect emits are declared per family file via registerExtraEmits;
+	// Connect types are declared per family file via registerType;
 	// scanConnect fans out to family scanners (core, routing, flows,
 	// users, integration, workspace, datatable).
 	registerService(serviceEntry{name: "aws:connect", fn: scanConnect})

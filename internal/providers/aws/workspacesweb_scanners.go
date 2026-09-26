@@ -17,7 +17,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeWSWNetworkSettings, Service: "workspaces-web"})
 	registerType(restype.Descriptor{Type: TypeWSWPortal, Service: "workspaces-web"})
 	registerType(restype.Descriptor{Type: TypeWSWSessionLogger, Service: "workspaces-web"})
-	registerType(restype.Descriptor{Type: TypeWSWTrustStore, Service: "workspaces-web", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWSWTrustStore, Service: "workspaces-web"})
 	registerType(restype.Descriptor{Type: TypeWSWUserAccessLoggingSettings, Service: "workspaces-web"})
 	registerType(restype.Descriptor{Type: TypeWSWUserSettings, Service: "workspaces-web"})
 	registerService(serviceEntry{

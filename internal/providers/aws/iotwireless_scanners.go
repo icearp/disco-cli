@@ -11,16 +11,16 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeIoTWirelessDestination, Service: "iotwireless"})
-	registerType(restype.Descriptor{Type: TypeIoTWirelessDeviceProfile, Service: "iotwireless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTWirelessFuotaTask, Service: "iotwireless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTWirelessMulticastGroup, Service: "iotwireless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTWirelessNetworkAnalyzerConfiguration, Service: "iotwireless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTWirelessPartnerAccount, Service: "iotwireless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTWirelessServiceProfile, Service: "iotwireless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTWirelessTaskDefinition, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessDeviceProfile, Service: "iotwireless"})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessFuotaTask, Service: "iotwireless"})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessMulticastGroup, Service: "iotwireless"})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessNetworkAnalyzerConfiguration, Service: "iotwireless"})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessPartnerAccount, Service: "iotwireless"})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessServiceProfile, Service: "iotwireless"})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessTaskDefinition, Service: "iotwireless"})
 	registerType(restype.Descriptor{Type: TypeIoTWirelessWirelessDevice, Service: "iotwireless"})
-	registerType(restype.Descriptor{Type: TypeIoTWirelessWirelessDeviceImportTask, Service: "iotwireless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTWirelessWirelessGateway, Service: "iotwireless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessWirelessDeviceImportTask, Service: "iotwireless"})
+	registerType(restype.Descriptor{Type: TypeIoTWirelessWirelessGateway, Service: "iotwireless"})
 	registerService(serviceEntry{
 		name: "aws:iotwireless",
 		fn:   scanIoTWireless,

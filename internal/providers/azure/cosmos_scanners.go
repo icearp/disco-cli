@@ -12,8 +12,8 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeCosmosDatabaseAccount, Service: "microsoft.documentdb"})
-	registerType(restype.Descriptor{Type: TypeCosmosCassandraCluster, Service: "microsoft.documentdb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCosmosRestorableDatabaseAccount, Service: "microsoft.documentdb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCosmosCassandraCluster, Service: "microsoft.documentdb"})
+	registerType(restype.Descriptor{Type: TypeCosmosRestorableDatabaseAccount, Service: "microsoft.documentdb"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.documentdb",
 		fn:   scanDocumentDBNamespace,

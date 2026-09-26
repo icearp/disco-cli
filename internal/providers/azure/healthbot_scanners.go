@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeHealthBot, Service: "microsoft.healthbot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHealthBot, Service: "microsoft.healthbot"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.healthbot",
 		fn:   scanHealthBot,

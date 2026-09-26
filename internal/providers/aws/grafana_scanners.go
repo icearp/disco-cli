@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGrafanaWorkspace, Service: "grafana", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGrafanaWorkspace, Service: "grafana"})
 	registerService(serviceEntry{
 		name: "aws:grafana",
 		fn:   scanGrafana,

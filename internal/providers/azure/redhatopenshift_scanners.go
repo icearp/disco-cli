@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOpenShiftCluster, Service: "microsoft.redhatopenshift", Leaf: true, Redact: []redact.Rule{{Path: "properties.servicePrincipalProfile.clientSecret", Mode: redact.RedactScalar}, {Path: "properties.clusterProfile.pullSecret", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeOpenShiftCluster, Service: "microsoft.redhatopenshift", Redact: []redact.Rule{{Path: "properties.servicePrincipalProfile.clientSecret", Mode: redact.RedactScalar}, {Path: "properties.clusterProfile.pullSecret", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.redhatopenshift",
 		fn:   scanRedHatOpenShift,

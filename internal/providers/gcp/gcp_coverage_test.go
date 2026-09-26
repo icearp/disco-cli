@@ -2,6 +2,8 @@ package gcp
 
 import (
 	"context"
+	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,15 +14,17 @@ import (
 // discoveryFake serves a Discovery API list whose per-API doc URLs point back
 // at itself, so a test can control whether an individual doc fetch succeeds or
 // fails. docStatus/docBody govern the "/compute" doc response.
-func discoveryFake(t *testing.T, docStatus int, docBody string) *httptest.Server {
+func discoveryFake(t *testing.T, docStatus int, docBody string, api ...string) *httptest.Server {
 	t.Helper()
+	name := "compute" // scanned: a doc failure is fatal
+	if len(api) > 0 {
+		name = api[0]
+	}
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	mux.HandleFunc("/apis", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		// "compute" is in relevantAPISet()'s always-on list, so it survives the
-		// allow filter and gets a doc fetch.
-		_, _ = w.Write([]byte(`{"items":[{"name":"compute","discoveryRestUrl":"` + srv.URL + `/compute","preferred":true}]}`))
+		_, _ = w.Write([]byte(`{"items":[{"name":"` + name + `","discoveryRestUrl":"` + srv.URL + `/compute","version":"v1","preferred":true}]}`))
 	})
 	mux.HandleFunc("/compute", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -41,9 +45,23 @@ func TestCoverageFetch_PerAPIDocFailurePropagates(t *testing.T) {
 	discoveryListURL = srv.URL + "/apis"
 	t.Cleanup(func() { discoveryListURL = orig })
 
-	_, err := coverageProvider{}.Fetch(context.Background(), coverage.FetchOptions{})
+	_, err := coverageProvider{}.CrossCheck(context.Background(), coverage.FetchOptions{})
 	if err == nil {
 		t.Fatal("per-API doc fetch failure must propagate as a Fetch error, got nil")
+	}
+}
+
+// TestCoverageFetch_UnscannedDocFailureSkipped: a broken doc for an API no
+// scanner emits (the list advertises retired APIs) is skipped, not fatal.
+func TestCoverageFetch_UnscannedDocFailureSkipped(t *testing.T) {
+	srv := discoveryFake(t, http.StatusNotFound, `{"error":"gone"}`, "poly")
+	orig := discoveryListURL
+	discoveryListURL = srv.URL + "/apis"
+	t.Cleanup(func() { discoveryListURL = orig })
+
+	out, err := coverageProvider{}.CrossCheck(context.Background(), coverage.FetchOptions{})
+	if err != nil || len(out) != 0 {
+		t.Fatalf("unscanned API doc failure must be skipped, got %d types, err %v", len(out), err)
 	}
 }
 
@@ -56,7 +74,7 @@ func TestCoverageFetch_AllDocsOKNoError(t *testing.T) {
 	discoveryListURL = srv.URL + "/apis"
 	t.Cleanup(func() { discoveryListURL = orig })
 
-	out, err := coverageProvider{}.Fetch(context.Background(), coverage.FetchOptions{})
+	out, err := coverageProvider{}.CrossCheck(context.Background(), coverage.FetchOptions{})
 	if err != nil {
 		t.Fatalf("all docs OK should not error: %v", err)
 	}
@@ -65,50 +83,21 @@ func TestCoverageFetch_AllDocsOKNoError(t *testing.T) {
 	}
 }
 
-func TestSingularize(t *testing.T) {
-	cases := map[string]string{
-		"addresses": "address",
-		"aliases":   "alias",
-		"boxes":     "box",
-		"branches":  "branch",
-		"indexes":   "index",
-		"instances": "instance",
-		"policies":  "policy",
-		"keys":      "key",
-		"services":  "service",
-		"disks":     "disk",
-		// Exception: "databases" ends in the identical "-ases" suffix as
-		// "aliases" but its true singular ends in a silent "e", not a
-		// sibilant — no suffix-only rule distinguishes them.
-		"databases": "database",
-		// Exception: "snoozes" ends in "-zes"; the sibilant-stem rule reads
-		// "snooz" (ends in "z") as a genuine sibilant stem and strips "-es",
-		// but the true singular is "snooze" (silent-e word, "+s" plural).
-		"snoozes": "snooze",
+// TestWalkResourceCollections_Unlistable pins #120: a node with only a get is
+// kept (it is a real registry type) but marked unlistable, because the
+// universe is built from listers and could never hold it.
+func TestWalkResourceCollections_Unlistable(t *testing.T) {
+	doc := &discoveryDoc{Resources: map[string]discoveryResource{
+		"keys":    {Methods: map[string]json.RawMessage{"get": nil, "list": nil}},
+		"aliases": {Methods: map[string]json.RawMessage{"get": nil}},
+		"ops":     {Methods: map[string]json.RawMessage{"cancel": nil}},
+	}}
+	got := map[string]string{}
+	for _, u := range walkResourceCollections("apigee", doc) {
+		got[u.Key] = u.Reason
 	}
-	for in, want := range cases {
-		if got := singularize(in); got != want {
-			t.Errorf("singularize(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
-// TestLeafTypesNotResolverSources guards against marking a type as leaf
-// (Leaf: true on the scanner's emits decl) when a resolver actually emits
-// edges from it. Such a misclassification silently hides the type from
-// `disco coverage resolvers --missing` without a resolver existing —
-// bug-attractant. Mirrors aws.TestLeafTypesNotResolverSources.
-func TestLeafTypesNotResolverSources(t *testing.T) {
-	sources := make(map[string]bool)
-	for _, s := range ResolverEdgeSources() {
-		sources[s] = true
-	}
-	for _, decl := range CollectEmits() {
-		if !decl.Leaf {
-			continue
-		}
-		if sources[decl.DiscoType] {
-			t.Errorf("emits[%q] flagged Leaf: true but type appears as resolver source — drop the Leaf flag or remove the resolver", decl.DiscoType)
-		}
+	want := map[string]string{"apigee.googleapis.com/keys": "", "apigee.googleapis.com/aliases": coverage.ReasonUnlistable}
+	if !maps.Equal(got, want) {
+		t.Errorf("walk = %v, want %v", got, want)
 	}
 }

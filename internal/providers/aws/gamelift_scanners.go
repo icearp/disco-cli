@@ -11,16 +11,16 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeGameLiftAlias, Service: "gamelift"})
-	registerType(restype.Descriptor{Type: TypeGameLiftBuild, Service: "gamelift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGameLiftBuild, Service: "gamelift"})
 	registerType(restype.Descriptor{Type: TypeGameLiftContainerFleet, Service: "gamelift"})
-	registerType(restype.Descriptor{Type: TypeGameLiftContainerGroupDefinition, Service: "gamelift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGameLiftContainerGroupDefinition, Service: "gamelift"})
 	registerType(restype.Descriptor{Type: TypeGameLiftFleet, Service: "gamelift"})
 	registerType(restype.Descriptor{Type: TypeGameLiftGameServerGroup, Service: "gamelift"})
 	registerType(restype.Descriptor{Type: TypeGameLiftGameSessionQueue, Service: "gamelift"})
-	registerType(restype.Descriptor{Type: TypeGameLiftLocation, Service: "gamelift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGameLiftLocation, Service: "gamelift"})
 	registerType(restype.Descriptor{Type: TypeGameLiftMatchmakingConfiguration, Service: "gamelift"})
-	registerType(restype.Descriptor{Type: TypeGameLiftMatchmakingRuleSet, Service: "gamelift", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeGameLiftScript, Service: "gamelift", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGameLiftMatchmakingRuleSet, Service: "gamelift"})
+	registerType(restype.Descriptor{Type: TypeGameLiftScript, Service: "gamelift"})
 	registerService(serviceEntry{
 		name: "aws:gamelift",
 		fn:   scanGameLift,

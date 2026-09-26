@@ -11,7 +11,7 @@ import (
 // Resolver Wave R18 of the resolver-implementation backlog (ROADMAP.md
 // "Resolver buildout"): the two Tags-service types that have a real outbound
 // reference (`crm_tags_scanners.go` also emits TagKey/TagValue/TagHold, all
-// already Leaf — no outbound field of their own). TagBinding.Parent /
+// already edge-less — no outbound field of their own). TagBinding.Parent /
 // TagBinding's own scan scope is always the host project (see
 // scanCRMLiensAndBindings — Tags are only scanned at project scope today),
 // so that reference is already covered by the scanner's own

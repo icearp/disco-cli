@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicyStore, Service: "verifiedpermissions", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicyStore, Service: "verifiedpermissions"})
 	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicy, Service: "verifiedpermissions"})
 	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicyTemplate, Service: "verifiedpermissions"})
 	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsIdentitySource, Service: "verifiedpermissions"})

@@ -13,13 +13,13 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeMemoryDBACL, Service: "memorydb"})
 	registerType(restype.Descriptor{Type: TypeMemoryDBCluster, Service: "memorydb"})
-	registerType(restype.Descriptor{Type: TypeMemoryDBMultiRegionCluster, Service: "memorydb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMemoryDBMultiRegionParameterGroup, Service: "memorydb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMemoryDBParameterGroup, Service: "memorydb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMemoryDBReservedNode, Service: "memorydb", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMemoryDBSnapshot, Service: "memorydb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMemoryDBMultiRegionCluster, Service: "memorydb"})
+	registerType(restype.Descriptor{Type: TypeMemoryDBMultiRegionParameterGroup, Service: "memorydb"})
+	registerType(restype.Descriptor{Type: TypeMemoryDBParameterGroup, Service: "memorydb"})
+	registerType(restype.Descriptor{Type: TypeMemoryDBReservedNode, Service: "memorydb"})
+	registerType(restype.Descriptor{Type: TypeMemoryDBSnapshot, Service: "memorydb"})
 	registerType(restype.Descriptor{Type: TypeMemoryDBSubnetGroup, Service: "memorydb"})
-	registerType(restype.Descriptor{Type: TypeMemoryDBUser, Service: "memorydb", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMemoryDBUser, Service: "memorydb"})
 	registerService(serviceEntry{
 		name: "aws:memorydb",
 		fn:   scanMemoryDB,

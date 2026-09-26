@@ -12,10 +12,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSQLInstance, Service: "sqladmin", Upstream: "sqladmin.googleapis.com/Instance", Redact: []redact.Rule{{Path: "rootPassword", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeSQLInstance, Service: "sqladmin", Redact: []redact.Rule{{Path: "rootPassword", Mode: redact.RedactScalar}}})
 	registerType(restype.Descriptor{Type: TypeSQLBackupRun, Service: "sqladmin"})
-	registerType(restype.Descriptor{Type: TypeSQLDatabase, Service: "sqladmin", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSQLSslCert, Service: "sqladmin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSQLDatabase, Service: "sqladmin"})
+	registerType(restype.Descriptor{Type: TypeSQLSslCert, Service: "sqladmin"})
 	registerType(restype.Descriptor{Type: TypeSQLUser, Service: "sqladmin", Redact: []redact.Rule{{Path: "password", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "gcp:sql",

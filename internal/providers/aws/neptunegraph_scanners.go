@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNeptuneGraphGraph, Service: "neptune-graph", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNeptuneGraphGraph, Service: "neptune-graph"})
 	registerType(restype.Descriptor{Type: TypeNeptuneGraphGraphSnapshot, Service: "neptune-graph"})
 	registerType(restype.Descriptor{Type: TypeNeptuneGraphPrivateGraphEndpoint, Service: "neptune-graph"})
 	registerService(serviceEntry{

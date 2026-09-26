@@ -9,8 +9,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2SpotInstanceRequest, Service: "ec2", Upstream: "AWS::ec2::spot-instances-request"})
-	registerType(restype.Descriptor{Type: TypeEC2InstanceEventWindow, Service: "ec2", Upstream: "AWS::ec2::instance-event-window"})
+	registerType(restype.Descriptor{Type: TypeEC2SpotInstanceRequest, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2InstanceEventWindow, Service: "ec2"})
 }
 
 // scanEC2ComputeExtra discovers Spot instance requests and instance event

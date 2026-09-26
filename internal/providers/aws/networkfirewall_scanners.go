@@ -13,14 +13,14 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNetworkFirewallFirewall, Service: "networkfirewall", Upstream: "AWS::NetworkFirewall::Firewall"})
-	registerType(restype.Descriptor{Type: TypeNetworkFirewallFirewallPolicy, Service: "networkfirewall", Upstream: "AWS::NetworkFirewall::FirewallPolicy"})
-	registerType(restype.Descriptor{Type: TypeNetworkFirewallRuleGroup, Service: "networkfirewall", Upstream: "AWS::NetworkFirewall::RuleGroup"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallFirewall, Service: "networkfirewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallFirewallPolicy, Service: "networkfirewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallRuleGroup, Service: "networkfirewall"})
 	registerType(restype.Descriptor{Type: TypeNetworkFirewallLoggingConfiguration, Service: "networkfirewall"})
 	registerType(restype.Descriptor{Type: TypeNetworkFirewallTLSInspectionConfiguration, Service: "networkfirewall"})
 	registerType(restype.Descriptor{Type: TypeNetworkFirewallVpcEndpointAssociation, Service: "networkfirewall"})
-	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyConfiguration, Service: "networkfirewall", Upstream: "AWS::network-firewall::ProxyConfiguration", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyRuleGroup, Service: "networkfirewall", Upstream: "AWS::network-firewall::ProxyRuleGroup", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyConfiguration, Service: "networkfirewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyRuleGroup, Service: "networkfirewall"})
 	registerService(serviceEntry{
 		name: "aws:network-firewall",
 		fn:   scanNetworkFirewall,

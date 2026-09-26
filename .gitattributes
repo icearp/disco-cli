@@ -1,0 +1,6 @@
+# go.mod is sniffed line-by-line to decide whether the working directory is a
+# disco checkout (cmd/coverage.go defaultSourceRoot); a CRLF checkout turns
+# scanner pairing off and the coverage numbers drop ~7 points.
+go.mod text eol=lf
+go.sum text eol=lf
+*.go text eol=lf

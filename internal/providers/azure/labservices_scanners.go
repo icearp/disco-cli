@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLabServicesLab, Service: "microsoft.labservices", Leaf: true, Redact: []redact.Rule{{Path: "properties.virtualMachineProfile.adminUser.password", Mode: redact.RedactScalar}, {Path: "properties.virtualMachineProfile.nonAdminUser.password", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeLabServicesLabPlan, Service: "microsoft.labservices", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLabServicesLab, Service: "microsoft.labservices", Redact: []redact.Rule{{Path: "properties.virtualMachineProfile.adminUser.password", Mode: redact.RedactScalar}, {Path: "properties.virtualMachineProfile.nonAdminUser.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeLabServicesLabPlan, Service: "microsoft.labservices"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.labservices",
 		fn:   scanLabServices,

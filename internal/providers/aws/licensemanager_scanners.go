@@ -18,12 +18,12 @@ func isLicenseManagerNotSetUp(err error) bool {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLicenseManagerLicense, Service: "license-manager", Upstream: "AWS::LicenseManager::License", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerGrant, Service: "license-manager", Upstream: "AWS::LicenseManager::Grant"})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerLicenseConfiguration, Service: "license-manager", Upstream: "AWS::license-manager::license-configuration", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerReportGenerator, Service: "license-manager", Upstream: "AWS::license-manager::report-generator", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerLicenseAssetGroup, Service: "license-manager", Upstream: "AWS::license-manager::license-asset-group", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerLicenseAssetRuleset, Service: "license-manager", Upstream: "AWS::license-manager::license-asset-ruleset", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerLicense, Service: "license-manager"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerGrant, Service: "license-manager"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerLicenseConfiguration, Service: "license-manager"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerReportGenerator, Service: "license-manager"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerLicenseAssetGroup, Service: "license-manager"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerLicenseAssetRuleset, Service: "license-manager"})
 	registerService(serviceEntry{
 		name:   "aws:license-manager",
 		global: true,

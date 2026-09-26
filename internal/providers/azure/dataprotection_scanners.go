@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataProtectionBackupVault, Service: "microsoft.dataprotection", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDataProtectionResourceGuard, Service: "microsoft.dataprotection", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataProtectionBackupVault, Service: "microsoft.dataprotection"})
+	registerType(restype.Descriptor{Type: TypeDataProtectionResourceGuard, Service: "microsoft.dataprotection"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.dataprotection",
 		fn:   scanDataProtection,

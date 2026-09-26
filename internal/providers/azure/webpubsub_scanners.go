@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWebPubSub, Service: "microsoft.signalrservice", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWebPubSub, Service: "microsoft.signalrservice"})
 }
 
 // scanWebPubSub discovers Azure Web PubSub resources.
@@ -20,7 +20,7 @@ func scanWebPubSub(ctx context.Context, sub *subscription, cred azcore.TokenCred
 	if err != nil {
 		return 0, 0, fmt.Errorf("armwebpubsub:NewClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armwebpubsub:WebPubSub.ListBySubscription", TypeWebPubSub, sub, st, scanID,
+	return azSimpleScan(ctx, "armwebpubsub:Client.ListBySubscription", TypeWebPubSub, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
 		func(p armwebpubsub.ClientListBySubscriptionResponse) []*armwebpubsub.ResourceInfo { return p.Value },
 		func(r *armwebpubsub.ResourceInfo) azTrackedBase {

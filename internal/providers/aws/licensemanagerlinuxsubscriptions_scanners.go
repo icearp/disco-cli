@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLicenseManagerLinuxSubscriptionsSubscriptionProvider, Service: "license-manager-linux-subscriptions", Upstream: "AWS::license-manager-linux-subscriptions::subscription-provider", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerLinuxSubscriptionsSubscriptionProvider, Service: "license-manager-linux-subscriptions"})
 	registerService(serviceEntry{
 		name: "aws:license-manager-linux-subscriptions",
 		fn:   scanLicenseManagerLinuxSubscriptions,

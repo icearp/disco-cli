@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeSchedulerSchedule, Service: "scheduler"})
-	registerType(restype.Descriptor{Type: TypeSchedulerScheduleGroup, Service: "scheduler", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSchedulerScheduleGroup, Service: "scheduler"})
 	registerService(serviceEntry{
 		name: "aws:scheduler",
 		fn:   scanScheduler,

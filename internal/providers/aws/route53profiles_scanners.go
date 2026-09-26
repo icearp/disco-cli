@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRoute53ProfilesProfile, Service: "route53-profiles", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRoute53ProfilesProfileAssociation, Service: "route53-profiles", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeRoute53ProfilesProfileResourceAssociation, Service: "route53-profiles", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ProfilesProfile, Service: "route53-profiles"})
+	registerType(restype.Descriptor{Type: TypeRoute53ProfilesProfileAssociation, Service: "route53-profiles"})
+	registerType(restype.Descriptor{Type: TypeRoute53ProfilesProfileResourceAssociation, Service: "route53-profiles"})
 	registerService(serviceEntry{
 		name: "aws:route53-profiles",
 		fn:   scanRoute53Profiles,

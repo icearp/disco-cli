@@ -10,12 +10,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCertManagerCertificate, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/Certificate"})
-	registerType(restype.Descriptor{Type: TypeCertManagerMap, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/CertificateMap", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCertManagerMapEntry, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/CertificateMapEntry"})
-	registerType(restype.Descriptor{Type: TypeCertManagerDNSAuth, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/DnsAuthorization", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCertManagerIssuanceConfig, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/CertificateIssuanceConfig", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCertManagerTrustConfig, Service: "certificatemanager", Upstream: "certificatemanager.googleapis.com/TrustConfig", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeCertManagerCertificate, Service: "certificatemanager"})
+	registerType(restype.Descriptor{Type: TypeCertManagerMap, Service: "certificatemanager"})
+	registerType(restype.Descriptor{Type: TypeCertManagerMapEntry, Service: "certificatemanager"})
+	registerType(restype.Descriptor{Type: TypeCertManagerDNSAuth, Service: "certificatemanager"})
+	registerType(restype.Descriptor{Type: TypeCertManagerIssuanceConfig, Service: "certificatemanager"})
+	registerType(restype.Descriptor{Type: TypeCertManagerTrustConfig, Service: "certificatemanager"})
 	registerService(serviceEntry{
 		name: "gcp:certificatemanager",
 		fn:   scanCertificateManager,

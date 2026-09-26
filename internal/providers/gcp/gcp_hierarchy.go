@@ -11,14 +11,20 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOrganization, Service: "cloudresourcemanager", Upstream: "cloudresourcemanager.googleapis.com/Organization", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeFolder, Service: "cloudresourcemanager", Upstream: "cloudresourcemanager.googleapis.com/Folder", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeProject, Service: "cloudresourcemanager", Upstream: "cloudresourcemanager.googleapis.com/Project", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOrganization, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeFolder, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeProject, Service: "cloudresourcemanager"})
 	// scanHierarchy runs direct from gcp.go (not via registerService) — it
 	// fires once before per-project fan-out and emits the project/folder/
-	// organization rows resolvers anchor against. Declared via
-	// registerExtraEmits so the coverage matrix still picks up its emits.
+	// organization rows resolvers anchor against. Declared via registerType
+	// so the coverage matrix still picks up its types.
 }
+
+// hierarchyService labels the hierarchy walk's warnings. scanHierarchy runs
+// direct from gcp.go rather than through registerService, so it has no
+// registered service name of its own; this is the name `coverage verify`
+// joins its warnings to the three hierarchy types by.
+const hierarchyService = "cloudresourcemanager"
 
 // scanHierarchy discovers the GCP org → folder → project tree and populates
 // the hierarchy_closure table. It must run before any project-scoped resources
@@ -40,6 +46,10 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		proj, err := crmSvc.Projects.Get(fmt.Sprintf("projects/%s", p.ID)).Context(ctx).Do()
 		if err != nil {
 			if isPermissionDenied(err) {
+				// A bare continue left the project out of projCache, so its
+				// row was never upserted and the scan recorded nothing at
+				// all — the operator saw a clean run missing a project.
+				_ = skipIfDenied(st, hierarchyService, p.ID, err)
 				continue
 			}
 			return nil, fmt.Errorf("cloudresourcemanager:GetProject %s: %w", p.ID, err)
@@ -61,6 +71,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		org, err := crmSvc.Organizations.Get(orgName).Context(ctx).Do()
 		if err != nil {
 			if isPermissionDenied(err) {
+				_ = skipIfDenied(st, hierarchyService, orgName, err)
 				continue
 			}
 			return nil, fmt.Errorf("cloudresourcemanager:GetOrganization %s: %w", orgName, err)
@@ -92,6 +103,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		folder, err := crmSvc.Folders.Get(folderName).Context(ctx).Do()
 		if err != nil {
 			if isPermissionDenied(err) {
+				_ = skipIfDenied(st, hierarchyService, folderName, err)
 				continue
 			}
 			return nil, fmt.Errorf("cloudresourcemanager:GetFolder %s: %w", folderName, err)

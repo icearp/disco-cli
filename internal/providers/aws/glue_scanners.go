@@ -13,11 +13,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGlueDatabase, Service: "glue", Upstream: "AWS::Glue::Database"})
-	registerType(restype.Descriptor{Type: TypeGlueTable, Service: "glue", Upstream: "AWS::Glue::Table"})
+	registerType(restype.Descriptor{Type: TypeGlueDatabase, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueTable, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGluePartition, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueTableOptimizer, Service: "glue"})
-	registerType(restype.Descriptor{Type: TypeGlueBlueprint, Service: "glue", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlueBlueprint, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueUserDefinedFunction, Service: "glue"})
 	registerService(serviceEntry{
 		name: "aws:glue",

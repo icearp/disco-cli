@@ -24,11 +24,11 @@ func msToRFC3339(ms int64) *string {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBQDataset, Service: "bigquery", Upstream: "bigquery.googleapis.com/Dataset"})
-	registerType(restype.Descriptor{Type: TypeBQTable, Service: "bigquery", Upstream: "bigquery.googleapis.com/Table", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBQModel, Service: "bigquery", Upstream: "bigquery.googleapis.com/Model", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBQRoutine, Service: "bigquery", Upstream: "bigquery.googleapis.com/Routine"})
-	registerType(restype.Descriptor{Type: TypeBQRowAccessPolicy, Service: "bigquery", Upstream: "bigquery.googleapis.com/RowAccessPolicy"})
+	registerType(restype.Descriptor{Type: TypeBQDataset, Service: "bigquery"})
+	registerType(restype.Descriptor{Type: TypeBQTable, Service: "bigquery"})
+	registerType(restype.Descriptor{Type: TypeBQModel, Service: "bigquery"})
+	registerType(restype.Descriptor{Type: TypeBQRoutine, Service: "bigquery"})
+	registerType(restype.Descriptor{Type: TypeBQRowAccessPolicy, Service: "bigquery"})
 	registerService(serviceEntry{
 		name: "gcp:bigquery",
 		fn:   scanBigQuery,
@@ -65,11 +65,11 @@ type rowAccessPolicyAttrs struct {
 // Tables.Get's full schema/proto fetch, a row access policy list call is
 // cheap and is the only way to discover a security-relevant resource type
 // that has no independent enumeration path — accepted per the type-coverage
-// buildout's audit (docs/gcp-type-coverage.md).
+// buildout's audit (the 2026-07 type-coverage audit).
 //
 // Resolver Wave R27 confirmed via `go doc` that this same List-shape gap
 // (internal/providers/CLAUDE.md "List-only summary scanners block resolver
-// work") also covers Model and Routine, flagged `Leaf: true` alongside Table:
+// work") also covers Model and Routine, flagged edge-less alongside Table:
 //   - `ListModelsResponse`'s own doc: "Only the following fields are
 //     populated: model_reference, model_type, creation_time,
 //     last_modified_time and labels" — `EncryptionConfiguration` (the only
@@ -87,13 +87,13 @@ type rowAccessPolicyAttrs struct {
 //     `DefinitionBody`/`ImportedLibraries` remain informational only (SQL
 //     text / `gs://` object paths, no matching scanned-resource type).
 //
-// Table/Model/Routine all stay `Leaf: true` for now — Table/Model would need
+// Table/Model/Routine all stay edge-less for now — Table/Model would need
 // a per-row `.Get` fan-out (Tables.Get / Models.Get) to become resolvable,
 // same cost tradeoff as the Table note above (thousands of calls per
 // dataset), deferred until rule-engine demand justifies it. Routine's only
 // resolvable fields (`RemoteFunctionOptions.Connection`,
 // `SparkOptions.Connection`) both target BigQuery Connections, which disco
-// doesn't scan yet — dropping Routine's `Leaf` flag is a future wave's job,
+// doesn't scan yet — dropping Routine's `edge-less` flag is a future wave's job,
 // paired with adding that scanner.
 //
 // `RowAccessPolicy.Grantees` is doc'd "Optional. Input only." (go doc

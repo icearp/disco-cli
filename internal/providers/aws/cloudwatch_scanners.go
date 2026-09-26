@@ -14,14 +14,14 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCloudWatchAlarm, Service: "cloudwatch", Upstream: "AWS::CloudWatch::Alarm"})
-	registerType(restype.Descriptor{Type: TypeCloudWatchCompositeAlarm, Service: "cloudwatch", Upstream: "AWS::CloudWatch::CompositeAlarm"})
-	registerType(restype.Descriptor{Type: TypeCloudWatchAlarmMuteRule, Service: "cloudwatch", Upstream: "AWS::CloudWatch::AlarmMuteRule", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudWatchAnomalyDetector, Service: "cloudwatch", Upstream: "AWS::CloudWatch::AnomalyDetector", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudWatchDashboard, Service: "cloudwatch", Upstream: "AWS::CloudWatch::Dashboard", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudWatchInsightRule, Service: "cloudwatch", Upstream: "AWS::CloudWatch::InsightRule", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCloudWatchMetricStream, Service: "cloudwatch", Upstream: "AWS::CloudWatch::MetricStream"})
-	registerType(restype.Descriptor{Type: TypeCloudWatchOTelEnrichment, Service: "cloudwatch", Leaf: true, Managed: true})
+	registerType(restype.Descriptor{Type: TypeCloudWatchAlarm, Service: "cloudwatch"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchCompositeAlarm, Service: "cloudwatch"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchAlarmMuteRule, Service: "cloudwatch"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchAnomalyDetector, Service: "cloudwatch"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchDashboard, Service: "cloudwatch"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchInsightRule, Service: "cloudwatch"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchMetricStream, Service: "cloudwatch"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchOTelEnrichment, Service: "cloudwatch", Managed: true})
 	registerService(serviceEntry{
 		name: "aws:cloudwatch",
 		fn:   scanCloudWatch,

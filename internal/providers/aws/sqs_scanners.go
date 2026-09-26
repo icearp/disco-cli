@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSQSQueue, Service: "sqs", Upstream: "AWS::SQS::Queue"})
+	registerType(restype.Descriptor{Type: TypeSQSQueue, Service: "sqs"})
 	registerService(serviceEntry{
 		name: "aws:sqs",
 		fn:   scanSQS,

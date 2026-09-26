@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeNetworkManagerGlobalNetwork, Service: "networkmanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerGlobalNetwork, Service: "networkmanager"})
 	registerType(restype.Descriptor{Type: TypeNetworkManagerCoreNetwork, Service: "networkmanager"})
 	registerType(restype.Descriptor{Type: TypeNetworkManagerSite, Service: "networkmanager"})
 	registerType(restype.Descriptor{Type: TypeNetworkManagerDevice, Service: "networkmanager"})
@@ -27,7 +27,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeNetworkManagerTransitGatewayPeering, Service: "networkmanager"})
 	registerType(restype.Descriptor{Type: TypeNetworkManagerConnectPeer, Service: "networkmanager"})
 	registerType(restype.Descriptor{Type: TypeNetworkManagerCoreNetworkPrefixListAssociation, Service: "networkmanager"})
-	registerType(restype.Descriptor{Type: TypeNetworkManagerConnection, Service: "networkmanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkManagerConnection, Service: "networkmanager"})
 	registerService(serviceEntry{
 		name:   "aws:networkmanager",
 		global: true,

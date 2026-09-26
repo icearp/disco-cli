@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDeviceRegistryAsset, Service: "microsoft.deviceregistry", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDeviceRegistryAssetEndpointProfile, Service: "microsoft.deviceregistry", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDeviceRegistryBillingContainer, Service: "microsoft.deviceregistry", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDeviceRegistryAsset, Service: "microsoft.deviceregistry"})
+	registerType(restype.Descriptor{Type: TypeDeviceRegistryAssetEndpointProfile, Service: "microsoft.deviceregistry"})
+	registerType(restype.Descriptor{Type: TypeDeviceRegistryBillingContainer, Service: "microsoft.deviceregistry"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.deviceregistry",
 		fn:   scanDeviceRegistry,

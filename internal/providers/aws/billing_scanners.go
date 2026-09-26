@@ -14,7 +14,7 @@ import (
 const billingRegion = "us-east-1"
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBillingView, Service: "billing", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBillingView, Service: "billing"})
 	registerService(serviceEntry{
 		name:   "aws:billing",
 		global: true,

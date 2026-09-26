@@ -11,11 +11,11 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeIoTAccountAuditConfiguration, Service: "iot", Managed: true})
-	registerType(restype.Descriptor{Type: TypeIoTScheduledAudit, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTScheduledAudit, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTMitigationAction, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTSecurityProfile, Service: "iot"})
-	registerType(restype.Descriptor{Type: TypeIoTCustomMetric, Service: "iot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTDimension, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTCustomMetric, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTDimension, Service: "iot"})
 }
 
 // iotDefenderAPI is the narrow surface used by the Defender family — IoT

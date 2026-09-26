@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataReplicationFabric, Service: "microsoft.datareplication", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDataReplicationVault, Service: "microsoft.datareplication", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataReplicationFabric, Service: "microsoft.datareplication"})
+	registerType(restype.Descriptor{Type: TypeDataReplicationVault, Service: "microsoft.datareplication"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.datareplication",
 		fn:   scanDataReplication,

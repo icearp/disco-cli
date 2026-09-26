@@ -12,14 +12,14 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAzureStackHCICluster, Service: "microsoft.azurestackhci", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAzureStackHCIGalleryImage, Service: "microsoft.azurestackhci", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAzureStackHCILogicalNetwork, Service: "microsoft.azurestackhci", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAzureStackHCIMarketplaceGalleryImage, Service: "microsoft.azurestackhci", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAzureStackHCINetworkInterface, Service: "microsoft.azurestackhci", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAzureStackHCINetworkSecurityGroup, Service: "microsoft.azurestackhci", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAzureStackHCIStorageContainer, Service: "microsoft.azurestackhci", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAzureStackHCIVirtualHardDisk, Service: "microsoft.azurestackhci", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCICluster, Service: "microsoft.azurestackhci"})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCIGalleryImage, Service: "microsoft.azurestackhci"})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCILogicalNetwork, Service: "microsoft.azurestackhci"})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCIMarketplaceGalleryImage, Service: "microsoft.azurestackhci"})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCINetworkInterface, Service: "microsoft.azurestackhci"})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCINetworkSecurityGroup, Service: "microsoft.azurestackhci"})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCIStorageContainer, Service: "microsoft.azurestackhci"})
+	registerType(restype.Descriptor{Type: TypeAzureStackHCIVirtualHardDisk, Service: "microsoft.azurestackhci"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azurestackhci",
 		fn:   scanAzureStackHCI,

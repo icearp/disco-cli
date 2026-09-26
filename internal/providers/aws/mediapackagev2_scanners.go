@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMediaPackageV2ChannelGroup, Service: "mediapackagev2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMediaPackageV2ChannelGroup, Service: "mediapackagev2"})
 	registerType(restype.Descriptor{Type: TypeMediaPackageV2Channel, Service: "mediapackagev2"})
 	registerType(restype.Descriptor{Type: TypeMediaPackageV2ChannelPolicy, Service: "mediapackagev2"})
 	registerType(restype.Descriptor{Type: TypeMediaPackageV2OriginEndpoint, Service: "mediapackagev2"})

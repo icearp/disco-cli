@@ -9,8 +9,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayPolicyTable, Service: "ec2", Upstream: "AWS::ec2::transit-gateway-policy-table"})
-	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayRouteTableAnnouncement, Service: "ec2", Upstream: "AWS::ec2::transit-gateway-route-table-announcement"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayPolicyTable, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2TransitGatewayRouteTableAnnouncement, Service: "ec2"})
 }
 
 // scanEC2TGWExtra discovers Transit Gateway policy tables and route-table

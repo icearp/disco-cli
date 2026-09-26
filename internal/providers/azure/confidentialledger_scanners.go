@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeConfidentialLedger, Service: "microsoft.confidentialledger", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConfidentialLedger, Service: "microsoft.confidentialledger"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.confidentialledger",
 		fn:   scanConfidentialLedger,

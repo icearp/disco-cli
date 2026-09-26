@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/cloudresourcemanager/v3"
 )
 
-// Wave 8b of the GCP type-coverage buildout (docs/gcp-type-coverage.md):
+// Wave 8b of the GCP type-coverage buildout (the 2026-07 type-coverage audit):
 // Cloud Resource Manager Tags + Liens.
 //
 // A TagKey/TagValue/TagHold tree can be parented by EITHER an organization OR
@@ -21,15 +21,15 @@ import (
 // lacked org-level tag permissions). Lien/TagBinding/EffectiveTag are
 // project-scoped only — GCP has no org-level Lien/TagBinding endpoint.
 func init() {
-	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLien, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeLien, Service: "cloudresourcemanager"})
 	registerType(restype.Descriptor{Type: TypeTagBinding, Service: "cloudresourcemanager"})
 	registerType(restype.Descriptor{Type: TypeEffectiveTag, Service: "cloudresourcemanager"})
-	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeTagKey, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeTagValue, Service: "cloudresourcemanager"})
+	registerType(restype.Descriptor{Type: TypeTagHold, Service: "cloudresourcemanager"})
 	registerOrgService(orgServiceEntry{
 		name: "gcp:cloudresourcemanager-tags",
 		fn:   scanCRMTags,
@@ -226,7 +226,7 @@ func crmProjectFullResourceName(projectNumber string) (name string, ok bool) {
 // a feature most commonly used at the project/folder/org level for
 // cost-allocation and IAM-condition tagging. Scoped down to the project
 // resource itself — same judgment call as Wave 7's ReservationSlot
-// deferral (see docs/gcp-type-coverage.md).
+// deferral (2026-07 type-coverage audit).
 func scanCRMLiensAndBindings(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := cloudresourcemanager.NewService(ctx, opts...)

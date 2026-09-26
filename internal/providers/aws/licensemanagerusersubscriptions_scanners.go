@@ -11,10 +11,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsIdentityProvider, Service: "license-manager-user-subscriptions", Upstream: "AWS::license-manager-user-subscriptions::identity-provider", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsLicenseServerEndpoint, Service: "license-manager-user-subscriptions", Upstream: "AWS::license-manager-user-subscriptions::license-server-endpoint", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsProductSubscription, Service: "license-manager-user-subscriptions", Upstream: "AWS::license-manager-user-subscriptions::product-subscription", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsInstanceUser, Service: "license-manager-user-subscriptions", Upstream: "AWS::license-manager-user-subscriptions::instance-user", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsIdentityProvider, Service: "license-manager-user-subscriptions"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsLicenseServerEndpoint, Service: "license-manager-user-subscriptions"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsProductSubscription, Service: "license-manager-user-subscriptions"})
+	registerType(restype.Descriptor{Type: TypeLicenseManagerUserSubscriptionsInstanceUser, Service: "license-manager-user-subscriptions"})
 	registerService(serviceEntry{
 		name: "aws:license-manager-user-subscriptions",
 		fn:   scanLicenseManagerUserSubscriptions,

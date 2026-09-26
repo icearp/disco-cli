@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEKSCluster, Service: "eks", Upstream: "AWS::EKS::Cluster"})
+	registerType(restype.Descriptor{Type: TypeEKSCluster, Service: "eks"})
 	registerType(restype.Descriptor{Type: TypeEKSAccessEntry, Service: "eks"})
 	registerType(restype.Descriptor{Type: TypeEKSAddon, Service: "eks"})
 	registerType(restype.Descriptor{Type: TypeEKSCapability, Service: "eks"})

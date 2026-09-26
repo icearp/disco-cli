@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBedrockBlueprint, Service: "bedrock", Upstream: "AWS::bedrock::blueprint", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBedrockDataAutomationProject, Service: "bedrock", Upstream: "AWS::bedrock::data-automation-project", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBedrockDataAutomationLibrary, Service: "bedrock", Upstream: "AWS::bedrock::data-automation-library", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBedrockBlueprint, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockDataAutomationProject, Service: "bedrock"})
+	registerType(restype.Descriptor{Type: TypeBedrockDataAutomationLibrary, Service: "bedrock"})
 }
 
 // bedrockDataAutomationAPI is the narrow bedrockdataautomation surface used by

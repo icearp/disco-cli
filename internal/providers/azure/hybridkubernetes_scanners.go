@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeKubernetesConnectedCluster, Service: "microsoft.kubernetes", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKubernetesConnectedCluster, Service: "microsoft.kubernetes"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.kubernetes",
 		fn:   scanHybridKubernetes,

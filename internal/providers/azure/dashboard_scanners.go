@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDashboardGrafana, Service: "microsoft.dashboard", Leaf: true, Redact: []redact.Rule{{Path: "properties.grafanaConfigurations.smtp.password", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeDashboardGrafana, Service: "microsoft.dashboard", Redact: []redact.Rule{{Path: "properties.grafanaConfigurations.smtp.password", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.dashboard",
 		fn:   scanDashboard,

@@ -33,9 +33,9 @@ func isMigrationRequiredIAMDeny(err error) bool {
 const bcmPricingCalculatorRegion = "us-east-1"
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeBcmPricingCalculatorBillScenario, Service: "bcmpricingcalculator", Upstream: "AWS::BcmPricingCalculator::BillScenario", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBcmPricingCalculatorBillEstimate, Service: "bcmpricingcalculator", Upstream: "AWS::bcm-pricing-calculator::bill-estimate", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeBcmPricingCalculatorWorkloadEstimate, Service: "bcmpricingcalculator", Upstream: "AWS::bcm-pricing-calculator::workload-estimate", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeBcmPricingCalculatorBillScenario, Service: "bcmpricingcalculator"})
+	registerType(restype.Descriptor{Type: TypeBcmPricingCalculatorBillEstimate, Service: "bcmpricingcalculator"})
+	registerType(restype.Descriptor{Type: TypeBcmPricingCalculatorWorkloadEstimate, Service: "bcmpricingcalculator"})
 	registerService(serviceEntry{
 		name:   "aws:bcmpricingcalculator",
 		global: true,

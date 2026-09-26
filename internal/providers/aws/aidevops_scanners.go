@@ -13,7 +13,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAidevopsAgentSpace, Service: "aidevops"})
 	registerType(restype.Descriptor{Type: TypeAidevopsService, Service: "aidevops"})
 	registerType(restype.Descriptor{Type: TypeAidevopsAssociations, Service: "aidevops"})
-	registerType(restype.Descriptor{Type: TypeAidevopsPrivateConnection, Service: "aidevops", Upstream: "AWS::aidevops::private-connection"})
+	registerType(restype.Descriptor{Type: TypeAidevopsPrivateConnection, Service: "aidevops"})
 	registerService(serviceEntry{
 		name: "aws:aidevops",
 		fn:   scanAidevops,

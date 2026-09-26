@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTDeviceAdvisorSuiteDefinition, Service: "iot-core-device-advisor", Upstream: "AWS::IoTCoreDeviceAdvisor::SuiteDefinition", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTDeviceAdvisorSuiteDefinition, Service: "iot-core-device-advisor"})
 	registerService(serviceEntry{
 		name: "aws:iot-core-device-advisor",
 		fn:   scanIoTDeviceAdvisor,

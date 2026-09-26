@@ -1,0 +1,406 @@
+{
+ "Name": "widgets",
+ "Actions": [
+  {
+   "Name": "ListWidgets",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "GetWidget",
+   "Annotations": {
+    "Properties": {
+     "IsList": false,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": [
+    {
+     "Name": "widget"
+    }
+   ]
+  },
+  {
+   "Name": "GetWidgetEncryption",
+   "Annotations": {
+    "Properties": {
+     "IsList": false,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": [
+    {
+     "Name": "widget"
+    }
+   ]
+  },
+  {
+   "Name": "ListGrants",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": [
+    {
+     "Name": "widget"
+    }
+   ]
+  },
+  {
+   "Name": "ListTagsForResource",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": [
+    {
+     "Name": "widget"
+    },
+    {
+     "Name": "grant"
+    },
+    {
+     "Name": "zone"
+    }
+   ]
+  },
+  {
+   "Name": "DescribeZones",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "GetAccountSettings",
+   "Annotations": {
+    "Properties": {
+     "IsList": false,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "ListWidgetTypes",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "DescribeGadgets",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "CreateGadget",
+   "Annotations": {
+    "Properties": {
+     "IsList": false,
+     "IsWrite": true,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "CreateWidget",
+   "Annotations": {
+    "Properties": {
+     "IsList": false,
+     "IsWrite": true,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "TagResource",
+   "Annotations": {
+    "Properties": {
+     "IsList": false,
+     "IsWrite": true,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": true
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "ListAliases",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": [
+    {
+     "Name": "gizmo"
+    }
+   ]
+  },
+  {
+   "Name": "GetAlias",
+   "Annotations": {
+    "Properties": {
+     "IsList": false,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": [
+    {
+     "Name": "alias"
+    }
+   ]
+  },
+  {
+   "Name": "ListGizmos",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "ListSprockets",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  },
+  {
+   "Name": "ListWidgetHealth",
+   "Annotations": {
+    "Properties": {
+     "IsList": true,
+     "IsWrite": false,
+     "IsPermissionManagement": false,
+     "IsTaggingOnly": false
+    }
+   },
+   "Resources": []
+  }
+ ],
+ "Operations": [
+  {
+   "Name": "ListWidgets",
+   "AuthorizedActions": [
+    {
+     "Name": "ListWidgets",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListWidgetsV2",
+   "AuthorizedActions": [
+    {
+     "Name": "GetWidget",
+     "Service": "widgets"
+    },
+    {
+     "Name": "ListWidgets",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "GetWidget",
+   "AuthorizedActions": [
+    {
+     "Name": "GetWidget",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "GetWidgetEncryption",
+   "AuthorizedActions": [
+    {
+     "Name": "GetWidgetEncryption",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListGrants",
+   "AuthorizedActions": [
+    {
+     "Name": "ListGrants",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListTagsForResource",
+   "AuthorizedActions": [
+    {
+     "Name": "ListTagsForResource",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "DescribeZones",
+   "AuthorizedActions": [
+    {
+     "Name": "DescribeZones",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "GetAccountSettings",
+   "AuthorizedActions": [
+    {
+     "Name": "GetAccountSettings",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListWidgetTypes",
+   "AuthorizedActions": [
+    {
+     "Name": "ListWidgetTypes",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "DescribeGadgets",
+   "AuthorizedActions": [
+    {
+     "Name": "DescribeGadgets",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListAliases",
+   "AuthorizedActions": [
+    {
+     "Name": "ListAliases",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "GetAlias",
+   "AuthorizedActions": [
+    {
+     "Name": "GetAlias",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListGizmos",
+   "AuthorizedActions": [
+    {
+     "Name": "ListGizmos",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListSprockets",
+   "AuthorizedActions": [
+    {
+     "Name": "ListSprockets",
+     "Service": "widgets"
+    }
+   ]
+  },
+  {
+   "Name": "ListWidgetHealth",
+   "AuthorizedActions": [
+    {
+     "Name": "ListWidgetHealth",
+     "Service": "widgets"
+    }
+   ]
+  }
+ ],
+ "Resources": [
+  {
+   "Name": "widget",
+   "ARNFormats": [
+    "arn:${Partition}:widgets:${Region}:${Account}:widget/${WidgetId}"
+   ]
+  },
+  {
+   "Name": "gizmo",
+   "ARNFormats": [
+    "arn:${Partition}:widgets:${Region}:${Account}:gizmo/${GizmoId}"
+   ]
+  },
+  {
+   "Name": "alias",
+   "ARNFormats": [
+    "arn:${Partition}:widgets:${Region}:${Account}:gizmos/${GizmosId}/alias/${AliasName}"
+   ]
+  },
+  {
+   "Name": "sprocket",
+   "ARNFormats": [
+    "arn:${Partition}:widgets:${Region}:${Account}:sprocket/${SprocketId}"
+   ]
+  }
+ ]
+}

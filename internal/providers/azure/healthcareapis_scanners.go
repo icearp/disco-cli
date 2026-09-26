@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeHealthcareAPIsService, Service: "microsoft.healthcareapis", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeHealthcareAPIsWorkspace, Service: "microsoft.healthcareapis", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeHealthcareAPIsService, Service: "microsoft.healthcareapis"})
+	registerType(restype.Descriptor{Type: TypeHealthcareAPIsWorkspace, Service: "microsoft.healthcareapis"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.healthcareapis",
 		fn:   scanHealthcareAPIs,

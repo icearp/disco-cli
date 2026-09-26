@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSSMSAPApplication, Service: "systems-manager-sap", Upstream: "AWS::SystemsManagerSAP::Application", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeSystemsManagerSAPComponent, Service: "systems-manager-sap", Upstream: "AWS::ssm-sap::component"})
-	registerType(restype.Descriptor{Type: TypeSystemsManagerSAPDatabase, Service: "systems-manager-sap", Upstream: "AWS::ssm-sap::database"})
+	registerType(restype.Descriptor{Type: TypeSSMSAPApplication, Service: "systems-manager-sap"})
+	registerType(restype.Descriptor{Type: TypeSystemsManagerSAPComponent, Service: "systems-manager-sap"})
+	registerType(restype.Descriptor{Type: TypeSystemsManagerSAPDatabase, Service: "systems-manager-sap"})
 	registerService(serviceEntry{
 		name: "aws:systems-manager-sap",
 		fn:   scanSSMSAP,

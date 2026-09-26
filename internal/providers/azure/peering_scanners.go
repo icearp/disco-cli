@@ -12,9 +12,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePeeringPeering, Service: "microsoft.peering", Leaf: true, Redact: []redact.Rule{{Path: "properties.direct.connections[*].bgpSession.md5AuthenticationKey", Mode: redact.RedactScalar}, {Path: "properties.exchange.connections[*].bgpSession.md5AuthenticationKey", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypePeeringPeerAsn, Service: "microsoft.peering", Leaf: true})
-	registerType(restype.Descriptor{Type: TypePeeringPeeringService, Service: "microsoft.peering", Leaf: true, Redact: []redact.Rule{{Path: "properties.logAnalyticsWorkspaceProperties.key", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypePeeringPeering, Service: "microsoft.peering", Redact: []redact.Rule{{Path: "properties.direct.connections[*].bgpSession.md5AuthenticationKey", Mode: redact.RedactScalar}, {Path: "properties.exchange.connections[*].bgpSession.md5AuthenticationKey", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypePeeringPeerAsn, Service: "microsoft.peering"})
+	registerType(restype.Descriptor{Type: TypePeeringPeeringService, Service: "microsoft.peering", Redact: []redact.Rule{{Path: "properties.logAnalyticsWorkspaceProperties.key", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.peering",
 		fn:   scanPeering,

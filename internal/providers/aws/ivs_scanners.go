@@ -11,13 +11,13 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIVSAdConfiguration, Service: "ivs", Upstream: "AWS::ivs::Ad-Configuration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSAdConfiguration, Service: "ivs"})
 	registerType(restype.Descriptor{Type: TypeIVSChannel, Service: "ivs"})
-	registerType(restype.Descriptor{Type: TypeIVSEncoderConfiguration, Service: "ivs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSEncoderConfiguration, Service: "ivs"})
 	registerType(restype.Descriptor{Type: TypeIVSIngestConfiguration, Service: "ivs"})
-	registerType(restype.Descriptor{Type: TypeIVSPlaybackKeyPair, Service: "ivs", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIVSPlaybackRestrictionPolicy, Service: "ivs", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIVSPublicKey, Service: "ivs", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSPlaybackKeyPair, Service: "ivs"})
+	registerType(restype.Descriptor{Type: TypeIVSPlaybackRestrictionPolicy, Service: "ivs"})
+	registerType(restype.Descriptor{Type: TypeIVSPublicKey, Service: "ivs"})
 	registerType(restype.Descriptor{Type: TypeIVSRecordingConfiguration, Service: "ivs"})
 	registerType(restype.Descriptor{Type: TypeIVSStage, Service: "ivs"})
 	registerType(restype.Descriptor{Type: TypeIVSStorageConfiguration, Service: "ivs"})

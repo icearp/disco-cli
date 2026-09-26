@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	// Compute emits are declared per category file via registerExtraEmits
+	// Compute types are declared per category file via registerType
 	// (compute_vms, compute_vmss, compute_disks, compute_galleries,
 	// compute_dedicated, compute_infra, compute_cloudservices); scanCompute
 	// itself upserts nothing.

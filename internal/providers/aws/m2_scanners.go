@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeM2Application, Service: "m2", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeM2Environment, Service: "m2", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeM2Application, Service: "m2"})
+	registerType(restype.Descriptor{Type: TypeM2Environment, Service: "m2"})
 	registerType(restype.Descriptor{Type: TypeM2Deployment, Service: "m2"})
 	registerService(serviceEntry{
 		name: "aws:m2",

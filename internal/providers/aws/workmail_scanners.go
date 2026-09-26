@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWorkMailOrganization, Service: "workmail", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkMailOrganization, Service: "workmail"})
 	registerService(serviceEntry{
 		name: "aws:workmail",
 		fn:   scanWorkMail,

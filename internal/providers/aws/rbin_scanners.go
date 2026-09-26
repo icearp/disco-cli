@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeRbinRule, Service: "rbin", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeRbinRule, Service: "rbin"})
 	registerService(serviceEntry{
 		name: "aws:rbin",
 		fn:   scanRbin,

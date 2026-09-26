@@ -24,7 +24,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeIoTSWAsset, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWAssetModel, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWComputationModel, Service: "iotsitewise"})
-	registerType(restype.Descriptor{Type: TypeIoTSWDashboard, Service: "iotsitewise", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTSWDashboard, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWDataset, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWGateway, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWPortal, Service: "iotsitewise"})

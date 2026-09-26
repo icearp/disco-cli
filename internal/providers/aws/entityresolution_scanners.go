@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEntityResolutionIDMappingWorkflow, Service: "entityresolution", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEntityResolutionIDNamespace, Service: "entityresolution", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEntityResolutionIDMappingWorkflow, Service: "entityresolution"})
+	registerType(restype.Descriptor{Type: TypeEntityResolutionIDNamespace, Service: "entityresolution"})
 	registerType(restype.Descriptor{Type: TypeEntityResolutionMatchingWorkflow, Service: "entityresolution"})
-	registerType(restype.Descriptor{Type: TypeEntityResolutionSchemaMapping, Service: "entityresolution", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEntityResolutionSchemaMapping, Service: "entityresolution"})
 	registerType(restype.Descriptor{Type: TypeEntityResolutionPolicyStatement, Service: "entityresolution"})
 	registerService(serviceEntry{
 		name: "aws:entityresolution",

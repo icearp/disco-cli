@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEdgeZonesExtendedZone, Service: "microsoft.edgezones", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeEdgeZonesExtendedZone, Service: "microsoft.edgezones"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.edgezones",
 		fn:   scanEdgeZones,

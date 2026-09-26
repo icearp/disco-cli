@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeComputeFleet, Service: "microsoft.azurefleet", Leaf: true, Redact: []redact.Rule{{Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.adminPassword", Mode: redact.RedactScalar}, {Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.customData", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeComputeFleet, Service: "microsoft.azurefleet", Redact: []redact.Rule{{Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.adminPassword", Mode: redact.RedactScalar}, {Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.customData", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name: "azure:microsoft.azurefleet",
 		fn:   scanComputeFleet,

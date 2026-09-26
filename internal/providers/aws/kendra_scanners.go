@@ -20,10 +20,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeKendraIndex, Service: "kendra"})
 	registerType(restype.Descriptor{Type: TypeKendraDataSource, Service: "kendra"})
 	registerType(restype.Descriptor{Type: TypeKendraFaq, Service: "kendra"})
-	registerType(restype.Descriptor{Type: TypeKendraAccessControlConfiguration, Service: "kendra", Upstream: "AWS::kendra::access-control-configuration"})
+	registerType(restype.Descriptor{Type: TypeKendraAccessControlConfiguration, Service: "kendra"})
 	registerType(restype.Descriptor{Type: TypeKendraExperience, Service: "kendra"})
-	registerType(restype.Descriptor{Type: TypeKendraFeaturedResultsSet, Service: "kendra", Upstream: "AWS::kendra::featured-results-set"})
-	registerType(restype.Descriptor{Type: TypeKendraQuerySuggestionsBlockList, Service: "kendra", Upstream: "AWS::kendra::query-suggestions-block-list"})
+	registerType(restype.Descriptor{Type: TypeKendraFeaturedResultsSet, Service: "kendra"})
+	registerType(restype.Descriptor{Type: TypeKendraQuerySuggestionsBlockList, Service: "kendra"})
 	registerType(restype.Descriptor{Type: TypeKendraThesaurus, Service: "kendra"})
 	registerService(serviceEntry{
 		name: "aws:kendra",

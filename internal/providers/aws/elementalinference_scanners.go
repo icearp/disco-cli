@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeElementalInferenceFeed, Service: "elemental-inference", Upstream: "AWS::ElementalInference::Feed", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeElementalInferenceFeed, Service: "elemental-inference"})
 	registerService(serviceEntry{
 		name: "aws:elemental-inference",
 		fn:   scanElementalInference,

@@ -10,14 +10,14 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspace, Service: "work-spaces", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWorkSpacesConnectionAlias, Service: "work-spaces", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspacesPool, Service: "work-spaces", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWorkSpacesDirectory, Service: "work-spaces", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceBundle, Service: "work-spaces", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceImage, Service: "work-spaces", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceIPGroup, Service: "work-spaces", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceApplication, Service: "work-spaces", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspace, Service: "work-spaces"})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesConnectionAlias, Service: "work-spaces"})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspacesPool, Service: "work-spaces"})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesDirectory, Service: "work-spaces"})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceBundle, Service: "work-spaces"})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceImage, Service: "work-spaces"})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceIPGroup, Service: "work-spaces"})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceApplication, Service: "work-spaces"})
 	registerService(serviceEntry{
 		name: "aws:work-spaces",
 		fn:   scanWorkSpaces,

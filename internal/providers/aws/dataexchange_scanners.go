@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataExchangeDataSets, Service: "dataexchange", Upstream: "AWS::dataexchange::data-sets", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeDataExchangeDataGrants, Service: "dataexchange", Upstream: "AWS::dataexchange::data-grants"})
-	registerType(restype.Descriptor{Type: TypeDataExchangeEventActions, Service: "dataexchange", Upstream: "AWS::dataexchange::event-actions"})
+	registerType(restype.Descriptor{Type: TypeDataExchangeDataSets, Service: "dataexchange"})
+	registerType(restype.Descriptor{Type: TypeDataExchangeDataGrants, Service: "dataexchange"})
+	registerType(restype.Descriptor{Type: TypeDataExchangeEventActions, Service: "dataexchange"})
 	registerService(serviceEntry{
 		name: "aws:dataexchange",
 		fn:   scanDataExchange,

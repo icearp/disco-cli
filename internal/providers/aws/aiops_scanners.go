@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAIOpsInvestigationGroup, Service: "aiops", Upstream: "AWS::AIOps::InvestigationGroup"})
+	registerType(restype.Descriptor{Type: TypeAIOpsInvestigationGroup, Service: "aiops"})
 	registerService(serviceEntry{
 		name: "aws:aiops",
 		fn:   scanAIOps,

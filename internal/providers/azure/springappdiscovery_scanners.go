@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSpringbootSite, Service: "microsoft.offazurespringboot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSpringbootSite, Service: "microsoft.offazurespringboot"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.offazurespringboot",
 		fn:   scanSpringAppDiscovery,

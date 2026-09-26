@@ -61,7 +61,7 @@ func scanManagementInto(ctx context.Context, accountID string, st *store.Store, 
 	// scopeRef satisfies azPageScan's *subscription parameter (used only for the
 	// AccessDenied scope label, never for the stored AccountID).
 	scopeRef := &subscription{ID: accountID, Name: "tenant"}
-	return azPageScan(ctx, "armmanagementgroups:List", scopeRef, st,
+	return azPageScan(ctx, "armmanagementgroups:Client.List", scopeRef, st,
 		client.NewListPager(nil),
 		func(page armmanagementgroups.ClientListResponse) ([]*store.Resource, [][2]string) {
 			var batch []*store.Resource

@@ -14,9 +14,7 @@ import (
 )
 
 // registeredDescriptors holds every type declared via the unified registerType
-// path. Source for the TestNoDoubleDeclaredTypes guard. Azure aliases stay in
-// azureAPITypeMap (it is both the alias source and the mirror-test truth, and
-// carries multiple upstream keys per type), so descriptors set no Upstream.
+// path. Source for the TestNoDoubleDeclaredTypes guard.
 var registeredDescriptors []restype.Descriptor
 
 // descriptorEmits accumulates the coverage decls produced by registerType,
@@ -28,7 +26,12 @@ var descriptorEmits []coverage.TypeDecl
 // and forwards its field rules into the shared redact/volatile/managed engines
 // via restype.Emit, whose coverage decl joins descriptorEmits so CollectEmits
 // surfaces it. Call from the init() of the file owning the type's upsert.
+// typeOrigin links each type to the scanner service registered from the same
+// file; see restype.Origin.
+var typeOrigin restype.Origin
+
 func registerType(d restype.Descriptor) {
+	typeOrigin.NoteType(d.Type, d.Service)
 	registeredDescriptors = append(registeredDescriptors, d)
 	descriptorEmits = append(descriptorEmits, restype.Emit(d))
 }
@@ -71,6 +74,7 @@ var registeredServices []serviceEntry
 // duplicate name — catches copy-paste errors that would otherwise silently
 // scan a service twice.
 func registerService(e serviceEntry) {
+	typeOrigin.NoteService(e.name)
 	for _, s := range registeredServices {
 		if s.name == e.name {
 			panic("disco: duplicate Azure service registration: " + e.name)

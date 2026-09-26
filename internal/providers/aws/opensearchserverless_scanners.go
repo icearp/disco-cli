@@ -11,12 +11,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOSSAccessPolicy, Service: "opensearchserverless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOSSAccessPolicy, Service: "opensearchserverless"})
 	registerType(restype.Descriptor{Type: TypeOSSCollection, Service: "opensearchserverless"})
-	registerType(restype.Descriptor{Type: TypeOSSCollectionGroup, Service: "opensearchserverless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeOSSLifecyclePolicy, Service: "opensearchserverless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeOSSSecurityConfig, Service: "opensearchserverless", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeOSSSecurityPolicy, Service: "opensearchserverless", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOSSCollectionGroup, Service: "opensearchserverless"})
+	registerType(restype.Descriptor{Type: TypeOSSLifecyclePolicy, Service: "opensearchserverless"})
+	registerType(restype.Descriptor{Type: TypeOSSSecurityConfig, Service: "opensearchserverless"})
+	registerType(restype.Descriptor{Type: TypeOSSSecurityPolicy, Service: "opensearchserverless"})
 	registerType(restype.Descriptor{Type: TypeOSSVpcEndpoint, Service: "opensearchserverless"})
 	registerService(serviceEntry{
 		name: "aws:opensearchserverless",

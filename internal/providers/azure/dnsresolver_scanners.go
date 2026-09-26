@@ -14,10 +14,10 @@ import (
 // but ships in its own SDK module (armdnsresolver), registering as its own
 // disco service. All four types expose a subscription-wide NewListPager.
 func init() {
-	registerType(restype.Descriptor{Type: TypeNetworkDNSResolver, Service: "microsoft.network", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkDNSForwardingRuleset, Service: "microsoft.network", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkDNSResolverDomainList, Service: "microsoft.network", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkDNSResolverPolicy, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkDNSResolver, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkDNSForwardingRuleset, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkDNSResolverDomainList, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkDNSResolverPolicy, Service: "microsoft.network"})
 }
 
 func scanDNSResolver(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {

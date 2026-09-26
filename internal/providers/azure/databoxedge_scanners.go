@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeDataBoxEdgeDevice, Service: "microsoft.databoxedge", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeDataBoxEdgeDevice, Service: "microsoft.databoxedge"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.databoxedge",
 		fn:   scanDataBoxEdge,

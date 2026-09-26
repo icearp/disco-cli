@@ -33,6 +33,7 @@ var registeredServices []serviceEntry
 // Panics on duplicate name — catches copy-paste errors that would otherwise
 // silently scan a service twice.
 func registerService(e serviceEntry) {
+	typeOrigin.NoteService(e.name)
 	for _, s := range registeredServices {
 		if s.name == e.name {
 			panic("disco: duplicate GCP service registration: " + e.name)
@@ -73,21 +74,14 @@ var descriptorEmits []coverage.TypeDecl
 // and forwards its field rules into the shared redact/volatile/managed engines
 // via restype.Emit, whose coverage decl joins descriptorEmits so CollectEmits
 // surfaces it. Call from the init() of the file owning the type's upsert.
+// typeOrigin links each type to the scanner service registered from the same
+// file; see restype.Origin.
+var typeOrigin restype.Origin
+
 func registerType(d restype.Descriptor) {
+	typeOrigin.NoteType(d.Type, d.Service)
 	registeredDescriptors = append(registeredDescriptors, d)
 	descriptorEmits = append(descriptorEmits, restype.Emit(d))
-}
-
-// descriptorAliases returns the disco-type -> upstream-key overrides declared
-// via registerType (empty Upstream falls through to AlgorithmicKey).
-func descriptorAliases() map[string]string {
-	out := make(map[string]string, len(registeredDescriptors))
-	for _, d := range registeredDescriptors {
-		if d.Upstream != "" {
-			out[d.Type] = d.Upstream
-		}
-	}
-	return out
 }
 
 // CollectEmits returns the deduped union of every emits decl registered
@@ -119,6 +113,7 @@ var registeredOrgServices []orgServiceEntry
 // registerOrgService adds an org/folder-scope service to the registry.
 // Panics on duplicate name to catch copy-paste errors at init time.
 func registerOrgService(e orgServiceEntry) {
+	typeOrigin.NoteService(e.name)
 	for _, s := range registeredOrgServices {
 		if s.name == e.name {
 			panic("disco: duplicate GCP org service registration: " + e.name)
@@ -133,7 +128,17 @@ func registerOrgService(e orgServiceEntry) {
 // propagated (matches scanProject's per-service convention). Skipped when no
 // org/folder scopes were resolved (e.g. user only has project-level creds).
 func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st *store.Store, scanID string) {
-	if len(scopes) == 0 || len(registeredOrgServices) == 0 {
+	if len(registeredOrgServices) == 0 {
+		return
+	}
+	// No scope resolved means every org- and folder-scoped service was
+	// skipped. Returning in silence made that indistinguishable from an
+	// organization holding none of those resources.
+	if len(scopes) == 0 {
+		st.ReportNotice(store.ScanNotice{
+			Provider: "gcp", Service: "org-services", Scope: "org",
+			Message: "no organization or folder scope resolved (the credential reached no parent of the scanned projects); org- and folder-scoped services were skipped",
+		})
 		return
 	}
 	allowed := serviceFilterSet(filter)
@@ -142,7 +147,7 @@ func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st 
 			continue
 		}
 		var newC, changedC atomic.Int64
-		total, _, err := svc.fn(ctx, scopes, st.WithUpsertCounters(&newC, &changedC), scanID)
+		total, _, err := svc.fn(ctx, scopes, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 		if err != nil {
 			// API-not-enabled at org scope (accesscontextmanager, org-policy,
 			// etc.) returns errServiceDisabled — mirrors scanProject, surfaces

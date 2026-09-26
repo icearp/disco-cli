@@ -12,12 +12,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTable, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayRouteTable", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRoute, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayRoute"})
-	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayVirtualInterface, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayVirtualInterface"})
-	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayVirtualInterfaceGroup, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayVirtualInterfaceGroup", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTableVPCAssociation, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayRouteTableVPCAssociation"})
-	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTableVIGAssociation, Service: "ec2", Upstream: "AWS::EC2::LocalGatewayRouteTableVirtualInterfaceGroupAssociation"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTable, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRoute, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayVirtualInterface, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayVirtualInterfaceGroup, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTableVPCAssociation, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2LocalGatewayRouteTableVIGAssociation, Service: "ec2"})
 }
 
 // scanEC2LocalGateway discovers all Local Gateway resources in parallel.

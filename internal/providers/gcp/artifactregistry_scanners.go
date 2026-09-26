@@ -15,11 +15,11 @@ func init() {
 		name: "gcp:artifactregistry",
 		fn:   scanArtifactRegistry,
 	})
-	registerType(restype.Descriptor{Type: TypeArtifactRepository, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Repository"})
-	registerType(restype.Descriptor{Type: TypeArtifactPackage, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Package", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeArtifactTag, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Tag", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeArtifactRule, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Rule"})
-	registerType(restype.Descriptor{Type: TypeArtifactAttachment, Service: "artifactregistry", Upstream: "artifactregistry.googleapis.com/Attachment"})
+	registerType(restype.Descriptor{Type: TypeArtifactRepository, Service: "artifactregistry"})
+	registerType(restype.Descriptor{Type: TypeArtifactPackage, Service: "artifactregistry"})
+	registerType(restype.Descriptor{Type: TypeArtifactTag, Service: "artifactregistry"})
+	registerType(restype.Descriptor{Type: TypeArtifactRule, Service: "artifactregistry"})
+	registerType(restype.Descriptor{Type: TypeArtifactAttachment, Service: "artifactregistry"})
 }
 
 // maxConcurrentArtifactFanout caps the per-Repository (Packages/Rules/
@@ -30,7 +30,7 @@ const maxConcurrentArtifactFanout = 10
 // location via the `locations/-` wildcard, then fans out per repository for
 // Packages, Rules, and Attachments, then per package for Tags.
 //
-// Deliberately NOT scanned (see docs/gcp-type-coverage.md Wave 11b for the
+// Deliberately NOT scanned (see the 2026-07 type-coverage audit, Wave 11b for the
 // full reasoning): Version, and the format-specific per-artifact views
 // DockerImage/MavenArtifact/NpmPackage/PythonPackage, all share the same
 // cardinality profile — one row per pushed image/artifact rather than per

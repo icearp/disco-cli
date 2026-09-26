@@ -13,12 +13,12 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAppRunnerService, Service: "apprunner", Upstream: "AWS::AppRunner::Service"})
-	registerType(restype.Descriptor{Type: TypeAppRunnerVPCConnector, Service: "apprunner", Upstream: "AWS::AppRunner::VpcConnector"})
-	registerType(restype.Descriptor{Type: TypeAppRunnerAutoScalingConfiguration, Service: "apprunner", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeAppRunnerObservabilityConfiguration, Service: "apprunner", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppRunnerService, Service: "apprunner"})
+	registerType(restype.Descriptor{Type: TypeAppRunnerVPCConnector, Service: "apprunner"})
+	registerType(restype.Descriptor{Type: TypeAppRunnerAutoScalingConfiguration, Service: "apprunner"})
+	registerType(restype.Descriptor{Type: TypeAppRunnerObservabilityConfiguration, Service: "apprunner"})
 	registerType(restype.Descriptor{Type: TypeAppRunnerVpcIngressConnection, Service: "apprunner"})
-	registerType(restype.Descriptor{Type: TypeAppRunnerConnection, Service: "apprunner", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAppRunnerConnection, Service: "apprunner"})
 	registerService(serviceEntry{
 		name: "aws:apprunner",
 		fn:   scanAppRunner,

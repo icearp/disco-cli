@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeElasticSan, Service: "microsoft.elasticsan", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeElasticSan, Service: "microsoft.elasticsan"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.elasticsan",
 		fn:   scanElasticSan,

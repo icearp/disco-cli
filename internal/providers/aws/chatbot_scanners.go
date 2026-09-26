@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeChatbotCustomAction, Service: "chatbot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeChatbotSlackChannelConfiguration, Service: "chatbot", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeChatbotMicrosoftTeamsChannelConfiguration, Service: "chatbot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChatbotCustomAction, Service: "chatbot"})
+	registerType(restype.Descriptor{Type: TypeChatbotSlackChannelConfiguration, Service: "chatbot"})
+	registerType(restype.Descriptor{Type: TypeChatbotMicrosoftTeamsChannelConfiguration, Service: "chatbot"})
 	registerService(serviceEntry{
 		name:   "aws:chatbot",
 		global: true,

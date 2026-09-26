@@ -13,14 +13,14 @@ import (
 // leaf: they describe the migration pipeline (source servers, waves, templates)
 // and carry no outbound edges to other scanned AWS resource types.
 func init() {
-	registerType(restype.Descriptor{Type: TypeMGNSourceServer, Service: "mgn", Upstream: "AWS::mgn::SourceServerResource", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNApplication, Service: "mgn", Upstream: "AWS::mgn::ApplicationResource", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNWave, Service: "mgn", Upstream: "AWS::mgn::WaveResource", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNConnector, Service: "mgn", Upstream: "AWS::mgn::ConnectorResource", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNLaunchConfigurationTemplate, Service: "mgn", Upstream: "AWS::mgn::LaunchConfigurationTemplateResource", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNReplicationConfigurationTemplate, Service: "mgn", Upstream: "AWS::mgn::ReplicationConfigurationTemplateResource", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNVcenterClient, Service: "mgn", Upstream: "AWS::mgn::VcenterClientResource", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMGNNetworkMigrationDefinition, Service: "mgn", Upstream: "AWS::mgn::NetworkMigrationDefinitionResource", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMGNSourceServer, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNApplication, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNWave, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNConnector, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNLaunchConfigurationTemplate, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNReplicationConfigurationTemplate, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNVcenterClient, Service: "mgn"})
+	registerType(restype.Descriptor{Type: TypeMGNNetworkMigrationDefinition, Service: "mgn"})
 	registerService(serviceEntry{
 		name: "aws:mgn",
 		fn:   scanMGN,

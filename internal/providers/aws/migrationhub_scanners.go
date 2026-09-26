@@ -11,10 +11,10 @@ import (
 
 // AWS Migration Hub — migration tracking. Only progress-update-streams are
 // persistent, independently-listable resources; migration tasks hung off
-// each stream are ephemeral state (skipped in aws_skips.go). Leaf: no
+// each stream are ephemeral state, not scanned. edge-less: no
 // outbound edges to other scanned AWS types.
 func init() {
-	registerType(restype.Descriptor{Type: TypeMigrationHubProgressUpdateStream, Service: "migrationhub", Upstream: "AWS::mgh::progressUpdateStream", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeMigrationHubProgressUpdateStream, Service: "migrationhub"})
 	registerService(serviceEntry{
 		name: "aws:migrationhub",
 		fn:   scanMigrationHub,

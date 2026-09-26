@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIVSChatRoom, Service: "ivs-chat", Upstream: "AWS::IVSChat::Room", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIVSChatLoggingConfiguration, Service: "ivs-chat", Upstream: "AWS::IVSChat::LoggingConfiguration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIVSChatRoom, Service: "ivs-chat"})
+	registerType(restype.Descriptor{Type: TypeIVSChatLoggingConfiguration, Service: "ivs-chat"})
 	registerService(serviceEntry{
 		name: "aws:ivs-chat",
 		fn:   scanIVSChat,

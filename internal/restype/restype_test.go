@@ -12,17 +12,12 @@ import (
 
 func TestEmitReturnsCoverageDecl(t *testing.T) {
 	got := Emit(Descriptor{
-		Type:         "test:svc:full",
-		Service:      "svc",
-		Upstream:     "Test::Svc::Full",
-		Uncatalogued: true,
-		Leaf:         true,
+		Type:    "test:svc:full",
+		Service: "svc",
 	})
 	want := coverage.TypeDecl{
-		Service:      "svc",
-		DiscoType:    "test:svc:full",
-		Uncatalogued: true,
-		Leaf:         true,
+		Service:   "svc",
+		DiscoType: "test:svc:full",
 	}
 	if got != want {
 		t.Fatalf("TypeDecl = %+v, want %+v", got, want)

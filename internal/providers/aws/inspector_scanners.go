@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeInspector2Filter, Service: "inspectorv2", Upstream: "AWS::InspectorV2::Filter", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeInspector2Member, Service: "inspectorv2", Uncatalogued: true})
-	registerType(restype.Descriptor{Type: TypeInspector2CisScanConfiguration, Service: "inspectorv2", Upstream: "AWS::InspectorV2::CisScanConfiguration", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityIntegration, Service: "inspectorv2", Upstream: "AWS::InspectorV2::CodeSecurityIntegration", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityScanConfiguration, Service: "inspectorv2", Upstream: "AWS::InspectorV2::CodeSecurityScanConfiguration", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeInspector2Filter, Service: "inspectorv2"})
+	registerType(restype.Descriptor{Type: TypeInspector2Member, Service: "inspectorv2"})
+	registerType(restype.Descriptor{Type: TypeInspector2CisScanConfiguration, Service: "inspectorv2"})
+	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityIntegration, Service: "inspectorv2"})
+	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityScanConfiguration, Service: "inspectorv2"})
 	registerService(serviceEntry{
 		name: "aws:inspector2",
 		fn:   scanInspector2,

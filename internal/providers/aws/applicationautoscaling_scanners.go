@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeApplicationAutoScalingScalableTarget, Service: "application-autoscaling", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeApplicationAutoScalingScalableTarget, Service: "application-autoscaling"})
 	registerType(restype.Descriptor{Type: TypeApplicationAutoScalingScalingPolicy, Service: "application-autoscaling"})
 	registerService(serviceEntry{
 		name: "aws:application-autoscaling",

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSSMQuickSetupConfigurationManager, Service: "ssm-quick-setup", Upstream: "AWS::SSMQuickSetup::ConfigurationManager"})
+	registerType(restype.Descriptor{Type: TypeSSMQuickSetupConfigurationManager, Service: "ssm-quick-setup"})
 	registerService(serviceEntry{
 		name: "aws:ssm-quick-setup",
 		fn:   scanSSMQuickSetup,

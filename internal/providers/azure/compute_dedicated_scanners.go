@@ -98,9 +98,9 @@ func scanHostGroupChain(ctx context.Context, sub *subscription, cred azcore.Toke
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:HostGroups.ListBySubscription", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:DedicatedHostGroups.ListBySubscription", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:HostGroups.ListBySubscription: %w", err)
+			return 0, 0, fmt.Errorf("armcompute:DedicatedHostGroups.ListBySubscription: %w", err)
 		}
 		for _, hg := range page.Value {
 			if hg.ID == nil {
@@ -343,9 +343,9 @@ func scanCapacityReservations(ctx context.Context, sub *subscription, client *ar
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:CapacityReservations.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:CapacityReservations.ListByCapacityReservationGroup", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:CapacityReservations.List %s/%s: %w", crg.rg, crg.name, err)
+			return 0, 0, fmt.Errorf("armcompute:CapacityReservations.ListByCapacityReservationGroup %s/%s: %w", crg.rg, crg.name, err)
 		}
 		for _, cr := range page.Value {
 			if cr.ID == nil {

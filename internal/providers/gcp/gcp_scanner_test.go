@@ -2,7 +2,9 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/icearp/disco-cli/store"
@@ -156,5 +158,44 @@ func TestFilteredServices_Unknown(t *testing.T) {
 	got := filteredServices([]string{"gcp:nonexistent"})
 	if len(got) != 0 {
 		t.Errorf("filteredServices([gcp:nonexistent]): got %d results, want 0", len(got))
+	}
+}
+
+// One service failing must not take its siblings with it. The dispatcher used
+// an errgroup, so a transient 500 or the per-service timeout cancelled every
+// other service in every project and phase 2 never ran — the scan kept its
+// phase-1 rows and lost every relationship edge.
+func TestScanProject_OneServiceFailureDoesNotCancelSiblings(t *testing.T) {
+	st := newTestStore(t)
+	var errs []store.ScanError
+	st.OnError = func(e store.ScanError) { errs = append(errs, e) }
+
+	var mu sync.Mutex
+	ran := map[string]bool{}
+	record := func(name string) {
+		mu.Lock()
+		defer mu.Unlock()
+		ran[name] = true
+	}
+	saved := registeredServices
+	t.Cleanup(func() { registeredServices = saved })
+	registeredServices = []serviceEntry{
+		{name: "gcp:boom", fn: func(context.Context, *project, *store.Store, string) (int, int, error) {
+			record("gcp:boom")
+			return 0, 0, errors.New("500 backend error")
+		}},
+		{name: "gcp:fine", fn: func(context.Context, *project, *store.Store, string) (int, int, error) {
+			record("gcp:fine")
+			return 3, 3, nil
+		}},
+	}
+
+	scanProject(context.Background(), &project{ID: "proj-1"}, nil, st, "scan-1")
+
+	if !ran["gcp:boom"] || !ran["gcp:fine"] {
+		t.Fatalf("ran = %v; both services must run", ran)
+	}
+	if len(errs) != 1 || errs[0].Service != "gcp:boom" || errs[0].Scope != "proj-1" {
+		t.Fatalf("errors = %+v; want one gcp:boom failure scoped to proj-1", errs)
 	}
 }

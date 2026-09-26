@@ -11,16 +11,16 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeOmicsAnnotationStore, Service: "omics"})
-	registerType(restype.Descriptor{Type: TypeOmicsConfiguration, Service: "omics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOmicsConfiguration, Service: "omics"})
 	registerType(restype.Descriptor{Type: TypeOmicsReferenceStore, Service: "omics"})
-	registerType(restype.Descriptor{Type: TypeOmicsRunGroup, Service: "omics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOmicsRunGroup, Service: "omics"})
 	registerType(restype.Descriptor{Type: TypeOmicsSequenceStore, Service: "omics"})
 	registerType(restype.Descriptor{Type: TypeOmicsVariantStore, Service: "omics"})
-	registerType(restype.Descriptor{Type: TypeOmicsWorkflow, Service: "omics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOmicsWorkflow, Service: "omics"})
 	registerType(restype.Descriptor{Type: TypeOmicsWorkflowVersion, Service: "omics"})
 	registerType(restype.Descriptor{Type: TypeOmicsAnnotationStoreVersion, Service: "omics"})
 	registerType(restype.Descriptor{Type: TypeOmicsReference, Service: "omics"})
-	registerType(restype.Descriptor{Type: TypeOmicsRunCache, Service: "omics", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOmicsRunCache, Service: "omics"})
 	registerService(serviceEntry{
 		name: "aws:omics",
 		fn:   scanOmics,
@@ -297,7 +297,7 @@ func scanOmicsReferences(ctx context.Context, client omicsAPI, acct *account, re
 	return upsertBatch(st, batch, "omics references")
 }
 
-// scanOmicsRunCaches lists run caches account-wide. Leaf — no outbound edges.
+// scanOmicsRunCaches lists run caches account-wide. edge-less — no outbound edges.
 func scanOmicsRunCaches(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := omics.NewListRunCachesPaginator(client, &omics.ListRunCachesInput{})
 	var batch []*store.Resource

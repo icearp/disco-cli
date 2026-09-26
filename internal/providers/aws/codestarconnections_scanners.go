@@ -11,10 +11,10 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsConnection, Service: "codestar-connections", Upstream: "AWS::CodeStarConnections::Connection", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsHost, Service: "codestar-connections", Upstream: "AWS::codestar-connections::Host"})
-	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsRepositoryLink, Service: "codestar-connections", Upstream: "AWS::CodeStarConnections::RepositoryLink"})
-	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsSyncConfiguration, Service: "codestar-connections", Upstream: "AWS::CodeStarConnections::SyncConfiguration"})
+	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsConnection, Service: "codestar-connections"})
+	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsHost, Service: "codestar-connections"})
+	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsRepositoryLink, Service: "codestar-connections"})
+	registerType(restype.Descriptor{Type: TypeCodeStarConnectionsSyncConfiguration, Service: "codestar-connections"})
 	registerService(serviceEntry{
 		name: "aws:codestar-connections",
 		fn:   scanCodeStarConnections,

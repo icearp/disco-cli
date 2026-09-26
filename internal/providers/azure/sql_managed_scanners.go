@@ -16,18 +16,15 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeSQLManagedInstance, Service: "microsoft.sql"})
 	registerType(restype.Descriptor{Type: TypeSQLManagedDatabase, Service: "microsoft.sql"})
-	registerType(restype.Descriptor{Type: TypeSQLManagedDatabaseSecAlert, Service: "microsoft.sql", Uncatalogued: true})
-	registerType(restype.Descriptor{Type: TypeSQLManagedDatabaseTDE, Service: "microsoft.sql", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeSQLManagedDatabaseSecAlert, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLManagedDatabaseTDE, Service: "microsoft.sql"})
 	registerType(restype.Descriptor{Type: TypeSQLManagedDatabaseVA, Service: "microsoft.sql"})
 	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceAdmin, Service: "microsoft.sql"})
-	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceEP, Service: "microsoft.sql", Uncatalogued: true})
-	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceKey, Service: "microsoft.sql", Uncatalogued: true})
-	registerType(restype.Descriptor{Type: TypeSQLManagedInstancePEC, Service: "microsoft.sql", Uncatalogued: true})
+	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceEP, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceKey, Service: "microsoft.sql"})
+	registerType(restype.Descriptor{Type: TypeSQLManagedInstancePEC, Service: "microsoft.sql"})
 	registerType(restype.Descriptor{Type: TypeSQLManagedInstanceVA, Service: "microsoft.sql"})
-	registerType(restype.Descriptor{Type: TypeSQLManagedServerSecurityAlert, Service: "microsoft.sql", Uncatalogued: true})
-	// Uncatalogued flags mark proxy child types disco scans that ARM
-	// Providers/List never lists as standalone resourceTypes (see
-	// azure/CLAUDE.md) — real resources absent from the upstream registry.
+	registerType(restype.Descriptor{Type: TypeSQLManagedServerSecurityAlert, Service: "microsoft.sql"})
 }
 
 // sqlManagedInstance holds the fields we need after listing managed instances.

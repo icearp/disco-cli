@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOnlineExperimentationWorkspace, Service: "microsoft.onlineexperimentation", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeOnlineExperimentationWorkspace, Service: "microsoft.onlineexperimentation"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.onlineexperimentation",
 		fn:   scanOnlineExperimentation,

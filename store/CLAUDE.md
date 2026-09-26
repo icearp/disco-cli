@@ -4,11 +4,11 @@ SQLite persistence layer (`modernc.org/sqlite`, CGO-free). Tables, edges, scrubb
 
 ## Tables
 
-Seven: `resources`, `quotas`, `relationships`, `hierarchy_closure`, `scans`, `scan_checkpoints`, plus `schema_migrations` (migration runner bookkeeping; not user-visible).
+Nine: `resources`, `quotas`, `relationships`, `hierarchy_closure`, `scans`, `scan_checkpoints`, `check_runs`, `findings`, plus `schema_migrations` (migration runner bookkeeping; not user-visible).
 
 - **`quotas`** (migration 017): one row per version of one service quota limit. Separate from `resources` because a quota is a limit *value*, not a provisioned thing: nothing creates it, it has no graph edges, and it is queried by service and by proximity to the limit rather than by name-ordered page slice. On a real account they were ~90% of every row in `resources`, so they dominated every index whether or not anyone read them. Identity is `(provider, account_id, region, service_code, quota_code, dimension_key)` — `region` is part of it, so unlike `resources.region` it is NOT NULL, and a partition-wide limit uses the `'global'` sentinel; `dimension_key` is empty on an undimensioned limit and names the dimension set otherwise, because one quota code can carry a different value per dimension set (every GCP `DimensionsInfo`, an AWS quota context). Same version-chain shape as `resources` (per-row UUIDv7 `id`, deterministic `QuotaID` hash in `root_id`, current row has `superseded_by IS NULL`), and `value` is a real NUMERIC so "which limits am I near" and "which have I raised" are expressible in SQL. Three indexes, each with a named reader in the migration header — do not seed it with resource-shaped ones. `description` (migration 018) is the provider's own prose for what a limit governs — AWS populates it on every row, Azure and GCP report none — and is display-only, so like `name` and `service_name` it updates in place rather than splitting a chain. API: `UpsertQuotas`, `ListQuotas`, `GetQuota`, `ResolveQuota`, `GetQuotaVersions`. Unlike `UpsertResources` this runs on `s.ext()`, so it works inside a caller-owned `WrapTx` transaction where `s.db` is nil.
 
-- **`scan_checkpoints`** (migration 002): per-(scan, provider, service, scope) opaque continuation tokens. Schema is generic — `last_token` is whatever cursor shape the upstream SDK exposes (AWS NextToken, Azure pager continuation, GCP pageToken). API: `SaveCheckpoint`, `GetCheckpoint`, `ListCheckpoints`, `DeleteScanCheckpoints`. disco persists checkpoints; a future incremental scanner can consume them on `disco scan --resume`. `splitStatements` (the SQLite runner only — see § Migrations) is dollar-quote (`$$`, `$tag$`) and `--`-comment aware, so plpgsql function bodies and inline `;` in `--` comments are safe inside migrations.
+- **`scan_checkpoints`** (migration 001): per-(scan, provider, service, scope) opaque continuation tokens. Schema is generic — `last_token` is whatever cursor shape the upstream SDK exposes (AWS NextToken, Azure pager continuation, GCP pageToken). API: `SaveCheckpoint`, `GetCheckpoint`, `ListCheckpoints`, `DeleteScanCheckpoints`. disco persists checkpoints; a future incremental scanner can consume them on `disco scan --resume`. `splitStatements` (the SQLite runner only — see § Migrations) is dollar-quote (`$$`, `$tag$`) and `--`-comment aware, so plpgsql function bodies and inline `;` in `--` comments are safe inside migrations.
 
 
 - **`resources`**: one row per attribute-snapshot of a cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. PK `id` is a per-row UUIDv7, the deterministic `ResourceID` hash lives in `root_id`, and the current row in a chain has `superseded_by IS NULL`. `UpsertResources` auto-handles version splits (see resource-versioning rule below). No `parent_id` column — hierarchy via `RecordHierarchyBatch(pairs)` only.
@@ -20,7 +20,7 @@ Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interp
 
 ## Edge kinds
 
-- `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but some resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service touched; no "fix" without sweeping all tests.
+- `contains` — hierarchy edge (VPC→subnet, KMS key→alias). Always parent→child; `newTestStore` cleanup fails any `contains` edge that runs against `hierarchy_closure` (`ReversedContainsEdges`).
 - `attached-to` — structural membership (instance → VPC/subnet, ESM → function)
 - `uses` — runtime dep, no lifecycle coupling (instance → security-group, function → KMS key, service → subnet in awsvpc mode)
 - `assumes` — IAM trust (function → execution role, task-def → task/exec role)
@@ -34,9 +34,9 @@ IAM principals (users/roles/groups, service accounts) are edge **destinations**:
 
 ## Secret scrubbing
 
-`UpsertResources` calls `redact.Apply(r.Type, r.AttributesJSON)` (in `internal/redact`) on every row before insert. Provider packages register per-type rules in their `init()` blocks (see `internal/providers/<p>/redact.go`). Each rule names a JSON path inside `AttributesJSON` and a mode — `RedactScalar` (leaf only) or `RedactSubtree` (every scalar descendant). Path syntax: dotted literals, `*` for map-key wildcard, `[*]` for array wildcard. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
+`UpsertResources` calls `redact.Apply(r.Type, r.AttributesJSON)` (in `internal/redact`) on every row before insert. Provider packages declare per-type rules on the type descriptor's `Redact` field (`restype.Descriptor{..., Redact: []redact.Rule{...}}`), tested in `<p>_redact_test.go`. Each rule names a JSON path inside `AttributesJSON` and a mode — `RedactScalar` (leaf only) or `RedactSubtree` (every scalar descendant). Path syntax: dotted literals, `*` for map-key wildcard, `[*]` for array wildcard. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
 
-Immediately after redaction, `UpsertResources` calls `volatile.Apply(r.Type, r.AttributesJSON)` (in `internal/volatile`), which **removes** provider-declared volatile keys (e.g. CloudWatch Logs `UploadSequenceToken`, which AWS rotates every read) so they don't version-split an otherwise-unchanged resource. Both passes run before the `jsonEqual` version comparison. Volatile removes the key (vs redact's `[REDACTED]` placeholder); see `internal/providers/CLAUDE.md` "Declaring volatile-field rules".
+Immediately after redaction, `UpsertResources` calls `volatile.Apply(r.Type, r.AttributesJSON)` (in `internal/volatile`), which **removes** provider-declared volatile keys (e.g. CloudWatch Logs `UploadSequenceToken`, which AWS rotates every read) so they don't version-split an otherwise-unchanged resource. Both passes run before the `jsonEqual` version comparison. Volatile removes the key (vs redact's `[REDACTED]` placeholder); see `internal/providers/CLAUDE.md` "Declaring redaction and volatile-field rules".
 
 Pointer-style fields (ARNs, KeyVault reference URIs, CredentialsArn / SecretArn / TokenSourceArn) are preserved by **omission** — no rule targets them. Adding edge support for a previously-redacted pointer field means dropping or narrowing the rule, not adding a shape allowlist.
 
@@ -44,7 +44,7 @@ Redact state is pinned at scan time. Editing rules only affects rows upserted af
 
 AWS access key IDs (AKIA…) are public-ish identifiers, not credentials — IAM console, CloudTrail, `ListAccessKeys` all surface them unredacted. The `aws:iam:access-key` rule targets only `SecretAccessKey`, leaving `AccessKeyId` clear so it matches Name/NativeID.
 
-**No CI gate** on rule coverage — adding a new resource type whose SDK response carries credentials/tokens leaks unless the author registers a rule alongside `registerService`. Reviewers must catch this. Per-provider `redact_test.go` files use real SDK types, so SDK field renames break the test on `go mod tidy` (cheap drift catch without a global harness).
+**No CI gate** on rule coverage — a new type whose SDK response carries credentials/tokens leaks unless its descriptor sets `Redact`. Provider-level rules: `internal/providers/CLAUDE.md`.
 
 ## Edge endpoints are checked in Go, not by the database
 
@@ -76,7 +76,7 @@ SQL files in `migrations/` (SQLite) and `migrations/pg/` (Postgres) embedded at 
 
 ## `region = "global"` is the canonical non-regional sentinel
 
-Resources scoped above any single region — AWS IAM/Route53/CloudFront/S3/Organizations/etc., Azure tenant-scope (Entra ID), GCP org/folder-scope — carry `region = "global"`, not NULL. Each provider package exposes a package-level `regionGlobal *string` pointer (`internal/providers/<p>/<p>.go`); global scanners set `Resource.Region = regionGlobal` directly on the literal. Single sentinel pointer per package keeps the call sites trivial. (Cross-tenant placeholders mirror whatever region the real self-node scanner uses — AWS account → `global`, Azure subscription / GCP project → unset, matching their scanners.)
+Resources scoped above any single region — AWS IAM/Route53/CloudFront/S3/Organizations/etc., Azure tenant-scope (Entra ID), GCP org/folder-scope — carry `region = "global"`, not NULL. Each provider package exposes a package-level `regionGlobal *string` pointer (`internal/providers/<p>/<p>_scanner.go`); global scanners set `Resource.Region = regionGlobal` directly on the literal. Single sentinel pointer per package keeps the call sites trivial. (Cross-tenant placeholders mirror whatever region the real self-node scanner uses — AWS account → `global`, Azure subscription / GCP project → unset, matching their scanners.)
 
 `ResourceFilter.Regions` exact-match filter folds "global" rows in by default — `--regions us-east-1` matches both us-east-1 AND global rows because users intuit a regional filter as "what's scoped to here", and globals sit logically in every region. `ResourceFilter.SkipGlobals=true` opts out (wired as `--exclude-global-region` on `disco resources` / `summary` / `tag-coverage`; the `--skip-globals` name is reserved for scan's service-discovery skip). The empty-Regions + SkipGlobals path emits `region != "global"` so callers can blanket-exclude globals without naming a region.
 
@@ -84,77 +84,47 @@ Resources scoped above any single region — AWS IAM/Route53/CloudFront/S3/Organ
 
 ## Resource versioning
 
-Resources are immutable per attribute-snapshot. A scan that finds
-**unchanged** attributes + tags advances `verified_at` / `verified_by`
-on the current row. A scan that finds **changed** attributes or tags
-inserts a NEW row with a fresh UUIDv7 id, links it back via
-`previous_version_id`, and marks the old row `superseded_by = new.id`.
-Top-level columns (name / region / zone / status / managed) still
-update in place — they don't trigger a split. Caller-facing identity
-is the deterministic `ResourceID` hash, stored in `root_id` and
-exposed as `Resource.ID` via the `root_id AS id` projection hook
-(`resources_hooks.go`). Per-version row PKs are internal, surfaced
-only on `ResourceVersion.VersionRowID`.
+Resources are immutable per attribute-snapshot. A scan that finds **unchanged** attributes + tags
+advances `verified_at` / `verified_by` on the current row. A scan that finds **changed** attributes
+or tags inserts a NEW row with a fresh UUIDv7 id, links it back via `previous_version_id`, and marks
+the old row `superseded_by = new.id`. Top-level columns (name / region / zone / status / managed)
+update in place without a split. Caller-facing identity is the deterministic `ResourceID` hash in
+`root_id`, exposed as `Resource.ID` via the `root_id AS id` projection hook (`resources_hooks.go`);
+per-version row PKs surface only on `ResourceVersion.VersionRowID`.
 
-Reads filter to the current row of each chain via
-`applyCurrentVersionPredicate()` (`WHERE superseded_by IS NULL`).
-Writes order matters: a version split UPDATEs the old row's
-`superseded_by` BEFORE inserting the new row, so the partial unique
-index `idx_resources_current_by_natural_key` (over
-`(provider, account_id, native_id) WHERE superseded_by IS
-NULL`) never sees two current rows simultaneously.
+Reads filter to the current row via `applyCurrentVersionPredicate()` (`WHERE superseded_by IS NULL`).
+Write order matters: a split UPDATEs the old row's `superseded_by` BEFORE inserting the new row, so
+the partial unique index `idx_resources_current_by_natural_key` (`(provider, account_id, native_id)
+WHERE superseded_by IS NULL`) never sees two current rows.
 
-**Changed-detection canonicalizes embedded JSON.** `jsonEqual`
-(`resources_versioning.go`) decides unchanged-vs-split by parsing both
-`AttributesJSON`/`TagsJSON` blobs and re-marshalling through
-`canonicalizeJSONValue`, which recursively normalizes key order **including
-inside string leaves that are themselves JSON** (an IAM/KMS policy document
-embedded as an opaque string). AWS returns those policy strings with
-`Condition`-map keys in non-deterministic order; without this an unchanged
-KMS key (and S3/SNS/SQS resource policies, IAM assume-role docs) would
-version-split on every scan. A genuinely different policy still produces
-different canonical bytes, so real changes are still detected. When adding a
-field whose value is an opaque embedded-JSON string, no special handling is
-needed — canonicalization already covers it.
+**Changed-detection canonicalizes embedded JSON.** `jsonEqual` (`resources_versioning.go`) re-marshals
+both blobs through `canonicalizeJSONValue`, which normalizes key order recursively **including inside
+string leaves that are themselves JSON** (IAM/KMS/S3/SNS/SQS policy documents, whose `Condition` keys
+AWS returns in non-deterministic order). Without it those resources split on every scan. A new
+opaque embedded-JSON field needs no special handling.
 
-**`new` vs `changed` reporting.** `UpsertResources` returns `inserted` (=
-first-discoveries + version-splits) for backward compatibility, but the scan
-progress line attributes the two separately via scoped atomic counters:
-`Store.WithUpsertCounters(newC, changedC)` returns a shallow-copy `*Store`
-(mirrors `WithRelCounter`) whose `UpsertResources` bumps `newC` on a
-first-discovery and `changedC` on a version split. Provider dispatchers bind
-a pair per per-service scan and pass them to `ReportService(service, scope,
-total, new, changed, errCount, disabled)` — so the count splits per (service,
-scope) without threading a second value through every scanner's
-`(total, inserted, err)` signature. The scanner-returned `inserted` is no
-longer what drives the progress line's "new" column.
+**`new` vs `changed` reporting.** `UpsertResources` returns `inserted` (first-discoveries +
+splits). `Store.WithUpsertCounters(newC, changedC)` returns a shallow-copy `*Store` (like
+`WithRelCounter`) that bumps `newC` on a first discovery and `changedC` on a split; dispatchers bind a
+pair per service scan and pass them to `ReportService`, so the progress line splits per (service,
+scope) without changing every scanner's `(total, inserted, err)` signature.
 
-Relationships reference `root_id` (the deterministic hash), not
-per-version row ids. FK to `resources(id)` is dropped (SQLite
-recreates `relationships` + `hierarchy_closure` without the FK
-clause; PG's ALTER TABLE DROP CONSTRAINT in the 006 migration).
-`resourceExistsTx` uses `resourceIDColumn()` + `currentVersionWhereSQL()`
-so the hierarchy gating fires correctly.
+Relationships reference `root_id`, not per-version row ids; `006` dropped the FKs to `resources(id)`.
+`resourceExistsTx` uses `resourceIDColumn()` + `currentVersionWhereSQL()` so hierarchy gating works.
 
-**Type-separation rule:** `Resource` in `resources.go` is the base row
-type. Every versioning-only field lives on `ResourceVersion` in
-`resources_versioning.go` via embedding —
-`type ResourceVersion struct { Resource; VerifiedAt *string; ... }`.
-Adding a field to `Resource` cascades to `ResourceVersion` for free.
-The invariant test (`resources_merge_invariant_test.go`) fails the
-build if a PR accidentally puts `db:"verified_at"` etc. on `Resource`.
+**Type separation:** `Resource` (`resources.go`) is the base row; versioning-only fields live on
+`ResourceVersion` (`resources_versioning.go`), which embeds `Resource`.
+`resources_merge_invariant_test.go` fails if `db:"verified_at"` etc. lands on `Resource`.
 
-UUIDv7 is generated app-side via `uuid.NewV7()` (`github.com/google/uuid`
-v1.6+). PG 17.7 lacks native `uuidv7()` (PG 18 only); the future
-migration path to `uuid` column type when PG 18 ships is a single
-`ALTER TABLE ... TYPE uuid USING ...::uuid` per column.
+UUIDv7 is generated app-side via `uuid.NewV7()` (`github.com/google/uuid`); PG 17 has no native
+`uuidv7()`.
 
 ## UpsertResources verify-path scope
 
 There is no `ON CONFLICT … DO UPDATE` on `resources`: the verify path is a plain
 `UPDATE` and a changed resource is a version SPLIT (an `UPDATE` of the
 predecessor's `superseded_by` plus a full `INSERT`), both in `upsertResourcesTx`
-(`resources_upsert.go`). Read off the statement at `resources_upsert.go:210`, the verify `UPDATE` writes
+(`resources_upsert.go`). The verify `UPDATE` writes
 `verified_at`, `verified_by`, `name`, `region`, `zone`, `status`,
 `account_name`, `managed_by_provider`, and clears `deleted_at`/`deleted_by` (a
 re-seen resource lifts its archival tombstone). It does **not** write `tags` or
@@ -196,7 +166,7 @@ type and no marker column — the version chain is the whole mechanism.
 
 `store.ListResources(store.ResourceFilter{...})` — filter struct is `ResourceFilter`, not `ListFilter`. Multi-type filter is `Types []string`, not `Type string`. Two zero-value defaults bite: `IncludeManaged=false` silently filters provider-managed rows, and `Limit=0` falls back to 500. Passing `ResourceFilter{}` is NOT "give me everything" — set `IncludeManaged: true` and either a large `Limit` or paginate via `Offset` for whole-table reads.
 
-Canonical "read every resource" idiom: `store.GraphAll` (`graph.go:451`) page-loops `ListResources` with `IncludeManaged: true` + `Limit: 5000` until an empty page returns. Reuse that shape from CLI commands that must evaluate the full population (e.g. `cmd/check.loadAllResources`).
+Canonical "read every resource" idiom: `store.GraphAll` (`graph.go`) page-loops `ListResources` with `IncludeManaged: true` + `Limit: 5000` until an empty page returns. Reuse that shape from CLI commands that must evaluate the full population (e.g. `cmd/check.loadAllResources`).
 
 ## Wire shape ≠ storage shape
 
@@ -216,13 +186,43 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 `store` must not import `internal/policy` (or other downstream packages). Doing so creates `cmd → policy → store → policy` cycle. Keep store types bare (string/pointer fields, no `policy.Finding`); conversion between store rows and wire types lives in cmd-side helpers (`storedFindingToFinding`, `findingToStored` in `cmd/findings.go`).
 
-## `Scan.StartedAt` in storage = RFC3339 since v0.31.0, and older rows keep the zoneless shape
+## `Scan.StartedAt` in storage = RFC3339; older rows keep the zoneless shape
 
-`CreateScan` stamps `started_at` via `nowExpr` (`dialect.go`), which since v0.31.0 returns **RFC3339** (`2026-07-28T20:47:08Z`) on both dialects; the DB column carries that shape verbatim. It emitted a zoneless `YYYY-MM-DD HH:MM:SS` before, which is why readers stay tolerant: consumers doing `time.Time` math on `Scan.StartedAt` (or `Checkpoint.UpdatedAt`) use `store.ParseTimestamp(s) (time.Time, bool)`, which accepts both shapes, or `store.ToRFC3339(s)` for the string form. Do not hardcode either layout at a call site — **nothing rewrites the old rows** (`migrations/pg/016` is deliberately empty; it shipped a rewrite in v0.31.0 and gave it up in v0.31.1, because disco-saas FORCEs RLS on these tables and its migration connection sets no `app.workspace_id`, so the DML `42704`'d on every already-provisioned tenant schema), so a store written across the v0.31.0 boundary holds BOTH shapes at once. Every caller treats a parse failure as "no timestamp" rather than an error, so a too-strict parse fails silently.
+`CreateScan` stamps `started_at` via `nowExpr` (`dialect.go`), which returns **RFC3339** (`2026-07-28T20:47:08Z`) on both dialects; older rows hold a zoneless `YYYY-MM-DD HH:MM:SS`. **Nothing rewrites old rows** (`migrations/pg/016` is deliberately empty), so a store can hold both shapes at once. Consumers doing `time.Time` math on `Scan.StartedAt` (or `Checkpoint.UpdatedAt`) use `store.ParseTimestamp(s) (time.Time, bool)`, which accepts both, or `store.ToRFC3339(s)` for the string form; never hardcode a layout at a call site. Every caller treats a parse failure as "no timestamp" rather than an error, so a too-strict parse fails silently.
 
 The trailing `Z` is load-bearing, not cosmetic: disco-saas casts these TEXT columns with `::timestamptz`, and a zoneless string resolves against the session `TimeZone` instead of UTC. These columns are also compared and ordered **as TEXT** (here, and by a keyset cursor and an evidence-range filter in the SaaS), so both dialects must render identical bytes — pinned by `TestNowExpr_WritesRFC3339OnBothDialects` under `withDialects`.
 
 **Wire shape is RFC3339.** `Scan.MarshalJSON` (added F5 fix) projects `startedAt` / `finishedAt` to RFC3339 before emitting, so `disco scans -o json` and `disco summary -o json | jq '.asOf'` carry parseable timestamps that match resource-row `discoveredAt` / `verifiedAt`. The wire envelope uses camelCase keys and drops the SQLite `*JSON` columns (`ProvidersJSON`, `ScopeJSON`, `MetaJSON`) in favour of parsed `providers` / `scope` / `meta` objects. Don't reach into `scans -o json` consumers expecting the legacy PascalCase shape.
+
+## `TypesForScan(scanID)` = distinct (provider, type) a scan touched
+
+`SELECT DISTINCT provider, type FROM resources WHERE (discovered_by = ? OR verified_by = ?) AND
+NOT reference_only` — both scan FKs, because a re-verify run inserts nothing yet proves the
+scanner still emits the type; `NOT reference_only` because `InsertResourcesIfAbsent` stamps the
+scan id onto resolver placeholders, and one of those counted as a type the scan emitted.
+Feeds `disco coverage verify`; SQLite + PG tests share `testTypesForScan`. Do not build scan
+introspection on `scan_checkpoints` — it has no reader and its writers are incidental.
+
+## A scan record's warnings and errors are what `coverage verify` reasons from
+
+`ScanWarning.ServiceName` is the registered scanner service a warning came from, distinct from
+`Service`, which is an op label (`armnetwork:VirtualWans.List`). Nothing turns an Azure op label
+into `microsoft.<ns>` — armappservice, armcosmos and armresources each disagree — so the name is
+stamped at the dispatch site by `Store.WithWarningService(name)`, a shallow-copy scoped store
+like `WithUpsertCounters`. Scanners keep reporting op labels and know nothing about it. An empty
+`ServiceName` means the warning names no service (a store-level native-id collision), and
+`coverage verify` then lets it explain no missing type.
+
+A warning the store itself raises — a native-id collision, a missing hierarchy endpoint, a
+recovered write — sets the unexported `storeLevel` and is never stamped: it fires from inside
+whichever service happened to be writing, and stamping that service's name makes a message about
+two colliding rows read as "this service was skipped". Found live: the collision warning explained
+every `aws:organizations:*` type until `storeLevel` existed.
+
+`ScanErrorEntry.Scope` exists for the same reason in the error direction: without it a
+per-subscription Azure failure and a failure of the whole provider are the same row. `Region` is
+parsed from the scope for AWS only — a GCP skip scope is `project/scope/name`, whose last segment
+is a table or an instance group, not a region.
 
 ## `scans.resource_count` = totalSeen, not totalNew
 
@@ -292,34 +292,19 @@ COMMIT
 
 ### Connection pool is always bounded
 
-`OpenPostgres` always calls `boundPool` — there is no unbounded path. Size resolves by
-precedence: `WithMaxConns(n)` → `DISCO_PG_MAX_CONNS` → `pgDefaultMaxConns` (10). Malformed or
-non-positive values at either layer fall through to the next rather than erroring; a typo in
-deployment config must not stop a scan, and the fallback is still bounded.
+`OpenPostgres` always calls `boundPool`; there is no unbounded path. Size precedence:
+`WithMaxConns(n)` → `DISCO_PG_MAX_CONNS` → `pgDefaultMaxConns` (10). Malformed or non-positive values
+at either layer fall through to the next rather than erroring. The default exists because
+`database/sql`'s zero value is unlimited and one AWS scan fans out ~50 batch-upserting goroutines —
+enough cold dials (TLS + IAM token each) to exhaust RDS `max_connections` and time out store writes.
+`MaxIdleConns = MaxOpenConns` so a bursty writer does not re-dial every batch; `pgConnMaxIdleTime`
+(90s) is the release valve so a finished task drains fast. Neither lifetime bound may be 0 (0 means
+unbounded) — `TestPGLifetimeBoundsAreNeverUnbounded`. disco cannot know `max_connections` divided
+across tasks, so a multi-task deployment should pass an explicit `WithMaxConns`.
 
-**Why a default exists at all.** `database/sql`'s zero value is *unlimited*, and disco is a very
-concurrent writer: the AWS scanner alone fans out `maxConcurrentServices × maxConcurrentRegions`
-(10 × 5 = 50) service goroutines, each batch-upserting. Unbounded, one scan can demand ~50
-simultaneous cold connections — TLS handshake each, plus an IAM token mint per dial under
-`DISCO_PG_IAM_AUTH` — enough to exhaust a modest RDS `max_connections` or queue past the write
-deadline. That was a real production failure, and it surfaced as store-write timeouts.
-
-**`MaxIdleConns` tracks `MaxOpenConns`** (changed from the old `min(n, 2)`). Holding idle far
-below open makes a bursty writer re-dial constantly — return 10, keep 2, re-handshake 8 on the
-next batch — and re-dialing is the expensive operation. The cost is that a task holds up to `n`
-idle conns after finishing instead of 2, which matters behind RDS Proxy where a pinned connection
-maps 1:1 onto a backend one. `pgConnMaxIdleTime` is the release valve and is deliberately short
-(90s, down from 5m): mid-scan the conns are hot and never idle that long, so reuse is unaffected,
-but a finished task drains fast. Neither lifetime constant may be zero — 0 means "no bound".
-`TestPGLifetimeBoundsAreNeverUnbounded` pins all of that.
-
-**disco owns the floor; the deployment owns the number.** disco can't know RDS `max_connections`
-divided across concurrent scanner tasks, so a multi-task deployment (disco-saas) should pass an
-explicit `WithMaxConns` rather than inherit the default.
-
-### RDS Proxy session-pinning trade-off
-
-A `WithAfterConnect` hook that issues session-scoped `SET`/`set_config` (`is_local=false`) at conn open is treated by RDS Proxy as session pinning — that conn stops participating in multiplexing for its lifetime. For one-shot single-tenant containers this is fine (every conn serves the same tenant; pinning is the same as not pinning). A deploy sharing a Proxy across tenants should instead set GUCs as `SET LOCAL` inside a per-query transaction (the `WrapTx` request-path shape above) and skip the AfterConnect hook.
+**RDS Proxy pinning:** a `WithAfterConnect` hook that sets session GUCs (`SET`/`set_config` with
+`is_local=false`) pins that connection for its lifetime. Fine for a one-shot single-tenant
+container; a Proxy shared across tenants should use `SET LOCAL` inside a `WrapTx` transaction instead.
 
 ### Migration parity
 
@@ -357,13 +342,9 @@ Guarded by `TestResourceWriteTxHelpersPublishNoSharedCounters`.
 the first failed statement aborts it and every later command returns 25P02, so a retry could only
 bury the real cause. Retry is a pool-backed-store behavior.
 
-**Reproducing a write failure locally.** `applyPragmas` sets no `busy_timeout`, so SQLite returns
-`SQLITE_BUSY` immediately rather than waiting — hold an exclusive lock from another process
-(`sqlite3` connection, `BEGIN EXCLUSIVE`) against the scan's DB and every concurrent write fails
-at once. A lock held past the retry budget (~300ms) produces the hard-error path; a ~200ms lock
-produces `store write … recovered after 2 attempts` with the data still persisted. Start the lock
-*after* the scan begins: `CreateScan` and `PartialScan` are startup/finalize writes outside
-`withWriteRetry`, so locking first just fails the run at `create scan record`.
+**Reproducing a write failure locally.** SQLite has no `busy_timeout`, so an exclusive lock
+(`BEGIN EXCLUSIVE` from another `sqlite3` process) taken *after* the scan starts fails writes at once:
+held past ~300ms it hits the hard-error path, ~200ms yields `recovered after 2 attempts`.
 
 `isRetryableDBError` classifies **connection** failures only — PG SQLSTATE `08*`/`57P01-03`/`53300`,
 SQLite `SQLITE_BUSY`/`SQLITE_LOCKED` (compare `Code() & 0xff`; extended codes carry detail in the

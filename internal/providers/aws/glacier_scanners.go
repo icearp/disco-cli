@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGlacierVault, Service: "glacier", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeGlacierVault, Service: "glacier"})
 	registerService(serviceEntry{
 		name: "aws:glacier",
 		fn:   scanGlacier,

@@ -57,9 +57,10 @@ func (s *Store) noteNativeIDType(r *Resource) {
 	if v, ok := s.nativeIDSeen.Load(r.ID); ok {
 		if prev := v.(nativeIDSighting); prev.scanID == r.DiscoveredBy && prev.typ != r.Type {
 			s.ReportWarning(ScanWarning{
-				Provider: r.Provider,
-				Service:  r.Type,
-				Scope:    r.AccountID,
+				Provider:   r.Provider,
+				Service:    r.Type,
+				Scope:      r.AccountID,
+				storeLevel: true,
 				Message: fmt.Sprintf("native_id %q maps to both types %q and %q; identity excludes type, so one will supersede the other — give them distinct native_ids",
 					r.NativeID, prev.typ, r.Type),
 			})

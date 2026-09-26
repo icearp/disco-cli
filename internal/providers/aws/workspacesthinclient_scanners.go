@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeWorkSpacesThinClientEnvironment, Service: "workspaces-thin-client", Upstream: "AWS::WorkSpacesThinClient::Environment", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesThinClientEnvironment, Service: "workspaces-thin-client"})
 	registerService(serviceEntry{
 		name: "aws:workspaces-thin-client",
 		fn:   scanWorkSpacesThinClient,

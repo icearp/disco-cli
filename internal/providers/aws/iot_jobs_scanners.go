@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTCommand, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTCommand, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTJobTemplate, Service: "iot"})
-	registerType(restype.Descriptor{Type: TypeIoTFleetMetric, Service: "iot", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTFleetMetric, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTProvisioningTemplate, Service: "iot"})
 }
 

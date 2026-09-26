@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeMQBroker, Service: "mq", Upstream: "AWS::AmazonMQ::Broker"})
-	registerType(restype.Descriptor{Type: TypeMQConfiguration, Service: "mq", Upstream: "AWS::AmazonMQ::Configuration", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeMQConfigurationAssociation, Service: "mq", Upstream: "AWS::AmazonMQ::ConfigurationAssociation"})
+	registerType(restype.Descriptor{Type: TypeMQBroker, Service: "mq"})
+	registerType(restype.Descriptor{Type: TypeMQConfiguration, Service: "mq"})
+	registerType(restype.Descriptor{Type: TypeMQConfigurationAssociation, Service: "mq"})
 	registerService(serviceEntry{
 		name: "aws:mq",
 		fn:   scanMQ,

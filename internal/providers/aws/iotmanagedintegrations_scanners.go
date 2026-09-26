@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsAccountAssociation, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::account-association", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsCredentialLocker, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::credential-locker", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsManagedThing, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::managed-thing", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsOtaTask, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::ota-task", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsProvisioningProfile, Service: "iotmanagedintegrations", Upstream: "AWS::iotmanagedintegrations::provisioning-profile", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsAccountAssociation, Service: "iotmanagedintegrations"})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsCredentialLocker, Service: "iotmanagedintegrations"})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsManagedThing, Service: "iotmanagedintegrations"})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsOtaTask, Service: "iotmanagedintegrations"})
+	registerType(restype.Descriptor{Type: TypeIoTManagedIntegrationsProvisioningProfile, Service: "iotmanagedintegrations"})
 	registerService(serviceEntry{
 		name: "aws:iotmanagedintegrations",
 		fn:   scanIoTManagedIntegrations,

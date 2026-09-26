@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeKinesisVideoStream, Service: "kinesis-video", Upstream: "AWS::KinesisVideo::Stream", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeKinesisVideoSignalingChannel, Service: "kinesis-video", Upstream: "AWS::KinesisVideo::SignalingChannel", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeKinesisVideoStream, Service: "kinesis-video"})
+	registerType(restype.Descriptor{Type: TypeKinesisVideoSignalingChannel, Service: "kinesis-video"})
 	registerService(serviceEntry{
 		name: "aws:kinesis-video",
 		fn:   scanKinesisVideo,

@@ -11,8 +11,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeConnectVocabulary, Service: "connect", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeConnectAuthenticationProfile, Service: "connect", Upstream: "AWS::connect::authentication-profile", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeConnectVocabulary, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectAuthenticationProfile, Service: "connect"})
 }
 
 // connectExtraAPI is the narrow surface for the extra per-instance leaf

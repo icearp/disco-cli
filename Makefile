@@ -1,3 +1,4 @@
+SHELL    := /bin/bash
 BINARY   := disco
 DIST_DIR := dist
 GO       := CGO_ENABLED=0
@@ -27,7 +28,7 @@ SYFT_VERSION ?= v1.49.0
 # (vuln.go.dev) is queried live at run time — the pin fixes the tool, not the data.
 GOVULNCHECK_VERSION ?= v1.6.0
 
-.PHONY: all deps fmt lint vet test build check-migrations gen-regions clean dist sbom vulncheck
+.PHONY: all deps fmt lint vet test build check-migrations gen-regions sdk-fetch gen-coverage check-coverage clean dist sbom vulncheck
 
 check-migrations:
 	./scripts/check-migrations.sh
@@ -38,6 +39,47 @@ check-migrations:
 # CI, which runs go test and no make targets.
 gen-regions:
 	go generate ./internal/providers/aws/awsregions/...
+
+# sdk-fetch populates $XDG_CACHE_HOME/disco/sdk with the pinned SDK sources the
+# coverage denominator is derived from (internal/sdkinv/pins.go). No-op when
+# the pinned snapshots are already present.
+sdk-fetch:
+	$(GO) go run $(TAGFLAG) . coverage sdk fetch
+
+# gen-coverage regenerates the committed coverage report (docs/coverage.md, the
+# gaps only) and the baseline the ratchet compares against. Run it to accept a
+# pin bump or a deliberate change in what is covered; the diff is the review.
+# The report lands in a temp file and is moved into place only after the run
+# succeeded: `> docs/coverage.md` truncates the committed report before the
+# command has produced a byte, so a failed run left an empty report behind.
+gen-coverage: sdk-fetch
+	@mkdir -p docs $(DIST_DIR)
+	$(GO) go run $(TAGFLAG) . coverage services -o markdown --filter gaps \
+		--write-baseline docs/coverage-baseline.json > $(DIST_DIR)/coverage.md.new
+	@mv $(DIST_DIR)/coverage.md.new docs/coverage.md
+
+# check-coverage is the CI ratchet: exit 1 on a covered key turning uncovered,
+# a percent drop under the same pins, an emitted type losing its SDK pairing
+# (--check-strict), or a stale docs/coverage.md under the same pins. Growth
+# under a pin bump (the Service Reference catalog is unversioned, so a cache
+# rebuild can move its content pin) is reported, not failed — the push-to-main
+# job regenerates, or accept locally with gen-coverage. Needs bash for <().
+check-coverage: sdk-fetch
+	@mkdir -p $(DIST_DIR)
+	$(GO) go run $(TAGFLAG) . coverage services -o markdown --filter gaps \
+		--baseline docs/coverage-baseline.json --check-strict > $(DIST_DIR)/coverage.md.tmp
+	@if [ ! -f docs/coverage.md ]; then \
+		echo "docs/coverage.md is missing: run 'make gen-coverage' and commit the result" >&2; exit 1; \
+	fi; \
+	old=$$(grep -c '^Pins:' docs/coverage.md); new=$$(grep -c '^Pins:' $(DIST_DIR)/coverage.md.tmp); \
+	if [ "$$old" -eq 0 ] || [ "$$new" -ne "$$old" ]; then \
+		echo "coverage report shape changed ($$old -> $$new 'Pins:' lines): a report with no pins cannot be compared, run 'make gen-coverage' and review the diff" >&2; exit 1; \
+	elif ! diff <(grep '^Pins:' docs/coverage.md) <(grep '^Pins:' $(DIST_DIR)/coverage.md.tmp) >/dev/null; then \
+		echo "SDK pins moved; docs/coverage.md is regenerated on the next push to main (or run 'make gen-coverage')" >&2; \
+	elif ! diff -u docs/coverage.md $(DIST_DIR)/coverage.md.tmp; then \
+		echo "docs/coverage.md is stale: run 'make gen-coverage' and commit the result" >&2; exit 1; \
+	fi
+	@rm -f $(DIST_DIR)/coverage.md.tmp
 
 all: fmt vet test build
 

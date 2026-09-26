@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeChaosExperiment, Service: "microsoft.chaos", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeChaosExperiment, Service: "microsoft.chaos"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.chaos",
 		fn:   scanChaos,

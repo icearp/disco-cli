@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAnalysisServicesServer, Service: "microsoft.analysisservices", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeAnalysisServicesServer, Service: "microsoft.analysisservices"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.analysisservices",
 		fn:   scanAnalysisServices,

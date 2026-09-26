@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeSearchService, Service: "microsoft.search", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeSearchService, Service: "microsoft.search"})
 	registerService(serviceEntry{
 		name: "azure:microsoft.search",
 		fn:   scanSearch,

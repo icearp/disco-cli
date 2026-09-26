@@ -16,10 +16,10 @@ import (
 // disco service. The managed-ruleset catalogue is Azure-supplied and
 // undeletable (managed=true).
 func init() {
-	registerType(restype.Descriptor{Type: TypeNetworkFrontDoor, Service: "microsoft.network", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkFrontDoorWAFPolicy, Service: "microsoft.network", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkFrontDoorWAFManagedRuleset, Service: "microsoft.network", Leaf: true})
-	registerType(restype.Descriptor{Type: TypeNetworkExperimentProfile, Service: "microsoft.network", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeNetworkFrontDoor, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkFrontDoorWAFPolicy, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkFrontDoorWAFManagedRuleset, Service: "microsoft.network"})
+	registerType(restype.Descriptor{Type: TypeNetworkExperimentProfile, Service: "microsoft.network"})
 }
 
 func scanFrontDoor(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeResourceGroupsGroup, Service: "resource-groups", Leaf: true})
+	registerType(restype.Descriptor{Type: TypeResourceGroupsGroup, Service: "resource-groups"})
 	registerType(restype.Descriptor{Type: TypeResourceGroupsTagSyncTask, Service: "resource-groups"})
 	registerService(serviceEntry{
 		name: "aws:resource-groups",
