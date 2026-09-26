@@ -83,49 +83,23 @@ Storage: `modernc.org/sqlite` — pure-Go SQLite transpile. Cross-platform singl
 
 ### text/template defeats linker DCE (binary-size landmine)
 
-`text/template` (and `html/template`) execution calls `reflect.Value.MethodByName` with a
-non-constant name inside `text/template.(*state).evalField`. The Go linker treats any
-**reachable** non-constant `MethodByName` as a signal to disable per-method dead-code
-elimination for the **entire binary** — one whole-link-unit `reflectSeen` flag in
-`cmd/link/internal/ld/deadcode.go`. Once tripped, the full AWS SDK v2 method surface is
-retained: the `-tags "slim aws"` build balloons from ~199MB to ~780MB (default build worse).
-This is per-link-invocation, so it is a property of *this* binary's reachable graph.
+Any reachable `text/template`/`html/template` execution (non-constant `reflect.Value.MethodByName`)
+disables per-method DCE for the whole binary; the full AWS SDK surface is retained (`slim aws`
+219MB → ~780MB). **Never make `text/template`/`html/template` reachable from disco**; use
+`strings.NewReplacer`/`fmt.Sprintf` (precedent `cmd/graph.go:nodeLabel`). Known sources, all
+closed — keep them closed; they are independent, and any one reopened alone kills DCE:
 
-Rule: **never make `text/template`/`html/template` reachable from disco's own code.** For any
-label/format templating over a fixed field set, use `strings.NewReplacer` / `fmt.Sprintf`
-instead (precedent: `cmd/graph.go:nodeLabel`, `--label-template`).
+1. `--label-template` — plain substitution.
+2. OPA schema-error formatter — fixed in OPA **v1.19.0** (`internal/methodlesstemplate`). Never go
+   below; verify by file (`internal/gojsonschema/errors_dce_test.go` exists, `errors.go` imports
+   `internal/methodlesstemplate`), not version string — the real `v1.18.2` tag lacks the fix.
+3. grpc → `golang.org/x/net/trace` `init()` → `html/template`, reachable whatever the runtime
+   `grpc.EnableTracing` says. Fixed by `-tags grpcnotrace`, always on in `Makefile` `TAGFLAG` and
+   every `dist` target.
 
-Three known reachable call sites — **all now closed**:
-1. `cmd/graph.go:nodeLabel` (`--label-template`) — **fixed** (plain substitution).
-2. OPA's vendored `internal/gojsonschema.formatErrorDescription`, reachable via
-   `policy.NewEngine → ast.Compiler.Compile → Compiler.init → loadSchema` — **fixed upstream**.
-   OPA merged a self-vendored methodless copy of `text/template` (`internal/methodlesstemplate`)
-   for the schema-error formatter, released in **v1.19.0**. `go.mod` pinned an unreleased
-   main-branch pseudo-version until then; that pin is gone. **Never go below v1.19.0.**
-   Beware the version arithmetic: the pseudo-version sorted as `v1.18.2-0.…`, but the real
-   `v1.18.2` tag does NOT contain the fix — it was cut without that commit. Verify by file
-   (`internal/gojsonschema/errors_dce_test.go` exists, `errors.go` imports
-   `internal/methodlesstemplate`), never by comparing version strings.
-3. `google.golang.org/grpc` (pulled in transitively by the GCP SDK) imports
-   `golang.org/x/net/trace`, whose `init()` unconditionally calls
-   `http.HandleFunc("/debug/requests", Traces)` / `http.HandleFunc("/debug/events", Events)` —
-   reachable regardless of the runtime `grpc.EnableTracing` bool, and `trace.Events` →
-   `RenderEvents` → `html/template.Execute` → `text/template.execute`. This is **independent**
-   of #2 and was masked by it: fixing #2 alone only dropped the default build from ~942MB to
-   ~899MB, because #3 alone is enough to keep DCE dead. grpc ships exactly the build tag needed:
-   `-tags grpcnotrace` (`trace_notrace.go`, `//go:build grpcnotrace`) strips the `x/net/trace`
-   wiring entirely. Baked into `Makefile`'s `TAGFLAG` (always on, on top of any `TAGS=`) and into
-   every `dist` target. Fixing #2 and #3 together took the default build from ~942MB to ~294MB,
-   and `slim aws` from ~780MB (broken) to ~232MB. Re-measured 2026-08-05 on OPA v1.19.0:
-   **279MB default, 219MB `slim aws`** — both slightly smaller, so a jump back toward 780MB is
-   the regression signal, not a few MB of drift.
-
-Guard when investigating: `go build -tags grpcnotrace -ldflags=-dumpdep 2>deps.txt` then
-`grep -c ' -> text/template.(\*Template).execute$' deps.txt` — must be `0`. `go tool nm <binary> |
-grep -c evalField` is **not** a reliable health check on its own anymore: OPA's
-`internal/methodlesstemplate` package reuses the same method names (`evalField`,
-`evalFieldChain`) in its non-reflect copy, so a nonzero count there is expected and harmless —
-only a nonzero `dumpdep` hit on `text/template.(*Template).execute` means DCE is actually dead.
+Baseline (2026-08-05): 279MB default, 219MB `slim aws`; a jump toward 780MB is the regression signal.
+Guard: `go build -tags grpcnotrace -ldflags=-dumpdep 2>deps.txt; grep -c ' -> text/template.(\*Template).execute$' deps.txt`
+must be `0`. `go tool nm | grep evalField` is not a health check (OPA's methodless copy reuses the name).
 
 ### Data flow
 
@@ -177,12 +151,12 @@ Single build, no feature gating — everything ships in this one binary.
 
 - Bundled OPA Rego packs follow `<provider>-<framework>` naming under `internal/policy/<name>/`, surfaced via `disco check --packs <name>`. Ships `aws-waf` (5-rule AWS Well-Architected sample pack, one or two rules per pillar). Curated full packs — Well-Architected (complete), CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001 — and future `azure-waf` / `gcp-waf` are not yet bundled.
 - Findings persistence: `disco check --persist` writes a check run + findings to the DB; `disco findings list/runs` query them (migration `002_findings.sql`). The tables stay empty until `--persist` is used. Drift analytics (`findings diff`, heatmaps, retention, ticket sync) can build atop the same schema.
-- Evidence snapshots: `disco snapshot <output-file>` + `disco verify <archive>` produce/verify single-file archives (`.zip`, `.tar.gz`/`.tgz`, `.tar.xz`/`.txz` — format from extension; xz via pure-Go `github.com/ulikunitz/xz`). Manifest at `disco-snapshot/v1` shape (tool_version, db_sha256-of-inner-DB, generated_at, scans[] — each entry carries id/started_at/finished_at/scope). The `disco snapshot --signing-payload` / `disco verify --signature` ed25519 flow closes the unsigned-manifest gap; cosign/Sigstore-witnessed signing is a future follow-up.
+- Evidence snapshots: `disco snapshot` / `disco verify` produce and verify single-file archives (`disco-snapshot/v1` manifest, optional ed25519 signature); details in `cmd/CLAUDE.md`.
 - Release SBOMs: each tagged release attaches a per-binary CycloneDX (`.cdx.json`) + SPDX (`.spdx.json`) SBOM beside the `.sha256` sidecar, generated by `syft` from the binary's Go buildinfo. `make sbom` reproduces them locally into `dist/`. Generated from the **raw binary before upx/xz** so the SBOM derives straight from the Go build (stdlib `go version -m` can't read a upx-packed binary — syft happens to see through it, but we don't rely on that); both the Makefile target and the CI step (`.github/workflows/release.yaml`) run before the compression steps. `SYFT_VERSION` is pinned in both places (keep in sync), and the emitted spec versions are pinned in the `-o` selectors (`cyclonedx-json@1.7`, `spdx-json@2.3`) so a syft bump can't silently reshape the output. syft is invoked via `go run …@version`, never added to disco's go.mod. Not embedded in the `disco snapshot` evidence archive (yet) — a signed-SBOM follow-up.
 - Release vuln gate: the CI `test` job runs `govulncheck` against the shipped build config (`-tags grpcnotrace`, `CGO_ENABLED=0`); a **reachable** known vuln exits non-zero, failing `test` so `build`/`release` never run (release-blocking via the existing `build: needs: test`). Runs once per tag — the vuln DB (vuln.go.dev) is queried live, so pinning `GOVULNCHECK_VERSION` (kept in sync between `Makefile` and `.github/workflows/release.yaml`) fixes the tool, not the data. `make vulncheck` mirrors it locally. Tool invoked via `go run …@version`, never in go.mod. Release-gate only for now — a continuous push/PR/cron workflow (catching vulns disclosed between tags) is a deliberate follow-up.
-  - **Binary mode, not source mode** (`-mode binary` over a freshly built binary). Source mode (`govulncheck ./...`) builds whole-program SSA over disco's ~496-module graph — three full cloud SDKs — and needs **>23GB**, OOMing a 31GB workstation. Binary mode reads the symbol table instead: still symbol-level reachability, fits in <8GB. Measured, not assumed.
-  - The scanned binary must be built **without `-w -s`**. `-s` strips the symbol table entirely (measured: 218530 symbols → `no symbol section`), and govulncheck does **not** error on that — it silently falls back to module granularity and reports whole modules as reachable, still under a `=== Symbol Results ===` header. The failure mode is therefore a **spurious red**, not a silent miss: the stripped build flags `golang.org/x/crypto/openpgp` as reachable (wildcard `openpgp/*` "symbols") where the unstripped build correctly reports it as required-but-not-called. Both `make vulncheck` and the CI step assert `go tool nm <binary>` succeeds first so this fails legibly instead of looking like a real finding someone would paper over with `continue-on-error`. `make vulncheck` depends on `build` (whose `$(LDFLAGS)` omits `-w -s`), not `dist`; CI builds a throwaway `vulnscan-target`. Stripping removes debug data, not code, so reachability computed on the unstripped binary holds for the shipped stripped one.
-  - The `go` directive in `go.mod` is a **security floor**, not just a language-version pin — most reachable findings here are stdlib vulns fixed by a toolchain patch release. Bumping `go.mod` is the fix when the gate goes red on `Standard library` entries (precedent: 1.25.8 → 1.25.12 cleared 12 reachable stdlib vulns, worst GO-2026-5856 ECH privacy leak in `crypto/tls`; 1.25.12 → 1.25.13 cleared 6). **The Dockerfile's `GO_VERSION` is part of the bump** — the golang images set `GOTOOLCHAIN=local`, so a builder older than the `go` directive refuses `go mod download` outright, and a floating `1.25` tag inside a discontinued alpine variant stays frozen (1.25-alpine3.21 is still 1.25.5).
+  - **Binary mode, not source mode** (`-mode binary` over a freshly built binary). Source mode builds whole-program SSA over three cloud SDKs and needs **>23GB**; binary mode reads the symbol table (still symbol-level reachability) and fits in <8GB.
+  - Never scan a **`-w -s` stripped** binary. govulncheck does not error on a missing symbol table; it silently falls back to module granularity and reports whole modules reachable — a **spurious red** (e.g. `x/crypto/openpgp`) someone would paper over with `continue-on-error`. Both `make vulncheck` (depends on `build`, not `dist`) and the CI step (throwaway `vulnscan-target`) assert `go tool nm <binary>` succeeds first. Stripping removes debug data, not code, so the unstripped result holds for the shipped binary.
+  - The `go` directive in `go.mod` is a **security floor**: most reachable findings are stdlib vulns fixed by a toolchain patch release, so bumping `go.mod` is the fix when the gate goes red on `Standard library` entries. **Bump the Dockerfile's `GO_VERSION` with it** — the golang images set `GOTOOLCHAIN=local`, so an older builder refuses `go mod download`, and a floating tag on a discontinued alpine variant stays frozen.
 
 ## Go lint conventions
 

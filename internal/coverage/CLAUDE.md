@@ -43,13 +43,15 @@ is visible as a low percentage instead of silently inflating one headline number
   number `--check-strict` exits on. `other-op` and `sdk-skew` explanations still name-match.
   A `sidecar` pairing with no types is still covered (reason `sidecar`): the scanner lists it.
   `label` pairings prove nothing (no SDK call) and never cover.
-- `uncovered` — resource candidate no scanner lists. The only actionable gap.
+- `uncovered` — resource candidate no scanner lists. The only actionable gap. AWS skip-labelled
+  keys in the uncovered denominator were 198 depth-0 + 67 child = 265 — ephemeral, retired or
+  catalog rows the SDK still lists, now honest `uncovered` rows.
 - `attribute` — `ClassAttribute` (Get + id, no collection). Not in `%`.
 - `excluded` — catalog / non-resource / `preview-only`; reason carries the rule. Not in `%`.
   An excluded row a scanner provably lists keeps its `discoType` and gains the `scanner-lists`
   signal; `--filter scanner-lists` is that worklist, and the markdown Excluded section prints the
-  type. The class rule still wins the bucket — re-bucketing these before the rules are fixed
-  would move AWS 50.34% → 51.08% — but discarding the evidence hid 93 classifier bugs.
+  type. The class rule still wins the bucket — re-bucketing these would inflate the percent
+  before the rules are fixed; discarding the evidence hid real classifier bugs.
 - `disco-only` — emitted type no candidate accounts for. Reason `explained: <unpaired reason>`
   (`non-sdk`, `other-op:<label>`, `sdk-skew:<op>`), `pairing-unavailable`, or `unexplained`
   (the only one `--check-strict` fails on).
@@ -102,15 +104,13 @@ the universe is reported (`denominator-shrunk`): it raises the percent, so no ot
 `--write-baseline` **merges** into the existing file (`coverage.Merge`), so a `--providers`-narrowed
 run cannot silently drop the ratchet for the providers it did not compute.
 `make gen-coverage` accepts; `make check-coverage` enforces (plus a diff of `docs/coverage.md`).
-`docs/coverage.md` is generated but **committed** — `.gitignore`'s `coverage.*` swallowed it and
-both the stale-report diff and the CI regen job were no-ops against a file that existed only
-locally. Keep ignore patterns narrow (`*.out`, `coverage.html`).
+`docs/coverage.md` is generated and committed; keep `.gitignore` narrow (`*.out`, `coverage.html`)
+— a bare `coverage.*` once ignored it and made CI's diff a no-op.
 
 ## Identity
 
-`sdkinv.Ident` (Canon, `-ies`→`y`, `-yses`→`-ysis`, trailing `e`/`s` run stripped) is the only cross-source equality used
-here and by GCP's `RegistryKey`/`CanonicalKey`: `Singular` alone splits "caches"/"cache" and
-"aliases"/"alias". Never display an Ident; keys come from the extractor.
+`sdkinv.Ident` is the only cross-source equality; its rules are in `internal/sdkinv/CLAUDE.md`.
+GCP's `RegistryKey`/`CanonicalKey` also compare through `Ident`.
 
 ## Live numbers (2026-09-26, pins in `docs/coverage.md`, pairing on)
 
@@ -118,18 +118,6 @@ AWS 48.7% (1677/3441), Azure 15.8% (398/2515), GCP 22.9% (239/1042); zero unexpl
 off (an installed binary): AWS 41.3%, Azure 15.7%, GCP 18.5%. Azure
 carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 1 (`other-op`). The
 Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
-
-## Retired hand lists (Phase 5)
-
-`aws_skips.go`, `Descriptor.Upstream`/`Uncatalogued`, `azureAPITypeMap`, `serviceRenames`,
-GCP `singularizeExceptions` and the Discovery allowlist are gone; the pairing tests replace
-them. The one-time reconcile report (Phase 4) found: AWS skip-labelled keys in the uncovered
-denominator = 198 depth-0 (`skip-contradicted`) + 67 child (`skip-is-child`, the same kind of
-thing one level down) = 265 — ephemeral, retired or catalog rows the SDK still lists, now
-`uncovered` rows for the Phase 8 baseline; `skip-unmatched` 194 — CFN-only or retired services with no Smithy model; Azure
-`alias-orphan` 2 — the `CloudServices*` sdk-skew; ledger-absent rows were ledger errors
-(`microsoft.storage/storagetasks` lives under `microsoft.storageactions`, `hybridnetwork/devices`
-left the SDK, `admin Transfer` was never scanned).
 
 ## Cross-check drift reads buckets, not classes (#119)
 

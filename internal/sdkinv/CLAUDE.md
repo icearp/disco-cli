@@ -12,15 +12,15 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   wrong-spec directory refetches instead of being read. **Changing a source's `Keep` or `Expand`
   MUST bump its `KeepID`/`ExpandID`** (funcs cannot be hashed; the `all` guard test only checks
   the id is non-empty). Widening `keepARMFile` at an unchanged `AzureSDKRef` once left every
-  cache holding the old narrower file set, silently reporting Azure 19.52% instead of 19.70%.
-- `aws@<tag>/repo/codegen/sdk-codegen/aws-models/*.json` (431 Smithy models) +
-  `service-reference/index.json` and `<service>.json` (456 docs).
+  cache stale and silently served the old, narrower Azure file set.
+- `aws@<tag>/repo/codegen/sdk-codegen/aws-models/*.json` (Smithy models) +
+  `service-reference/index.json` and `<service>.json`.
 - `azure@<sha>/repo/sdk/resourcemanager/<rp>/arm<rp>/{*_client.go,models.go,response_types.go,responses.go}`.
   Filter anchors on `sdk/resourcemanager/` — the monorepo also ships `profile/*/resourcemanager` copies.
   Monorepo HEAD holds one major per module dir (majors are tags), so no version picking.
-- `gcp@<ver>/api/<api>/<ver>/<api>-api.json` (654 Discovery docs), copied from GOMODCACHE when
+- `gcp@<ver>/api/<api>/<ver>/<api>-api.json` (Discovery docs), copied from GOMODCACHE when
   present, else the module zip from proxy.golang.org.
-- Full fetch ≈ 26 s / 435 MB. Rerun is a no-op; `--force` refetches.
+- Full fetch is hundreds of MB. Rerun is a no-op; `--force` refetches.
 
 ## Pins (`pins.go`)
 
@@ -48,17 +48,17 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   deadline aborts a healthy slow download. Bodies are wrapped in `idleReader`, which cancels the
   request after 60 s with no byte and reports `transfer stalled: …` rather than `context canceled`.
 
-## Catalog facts (verified 2026-09-16)
+## Catalog facts
 
 - Smithy service shape: `aws.auth#sigv4.name` equals the Service Reference service name (join key);
   `aws.api#service` carries `sdkId`/`arnNamespace`/`cloudFormationName`. Ops carry
   `smithy.api#required` on input members and `smithy.api#paginated`. Resource shapes are rare
-  (lambda 11, ec2/s3/rds 0) — never rely on them.
+  (ec2/s3/rds have none) — never rely on them.
 - Service Reference doc: `Actions[].Annotations.Properties.{IsList,IsWrite}`, `Actions[].Resources[]`
   (targets), `Operations[].AuthorizedActions` (SDK op → IAM action, e.g. `ListObjectsV2`→`ListBucket`),
   `Resources[].ARNFormats`.
 
-## Extractors (Phase 2, verified against live caches 2026-09-16)
+## Extractors
 
 - Contract: `internal/sdkinv/conformance.Check` runs against `internal/sdkinv/<name>/testdata/cache`
   for every registered extractor (`TestAllExtractorsConform` in `all`). A fixture must hold
@@ -83,37 +83,35 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   pair; the keys shipped before this was audited include `bedrock/flowalia`, `wellarchitected/len`,
   `config/…statuse`, `iotsitewise/timesery`, `kendra/thesauri` and
   `gameliftstreams/applicationshadercach`, and `RestApi`/`RestApis` were two candidates.
-- Live counts (pins in `pins.go`): AWS 5551 candidates / 354 services (3246 resource);
-  Azure 3650 (1959 resource); GCP 1843 / 191 APIs (1140 resource). Each live test logs these;
-  a large swing after a pin bump is the signal to re-check anchors.
-- `Candidate.Refs` (Phase 6, `<p>/refs.go`): dotted paths on the listed element that name other
+- Live counts: see each `TestExtract_Live` log and the `docs/coverage.md` headline (resource +
+  attribute + excluded); a large swing after a pin bump means re-check the anchors.
+- `Candidate.Refs` (`<p>/refs.go`): dotted paths on the listed element that name other
   resources, sorted and unique, own id excluded, depth-bounded. Refs are a **hint**: they rank
   `coverage resolvers --missing`, never bucket a row, and their absence is not proof of a derived
   leaf (`internal/providers/CLAUDE.md`). Recall matters more than precision.
   - **AWS**: Smithy output → collection element; a detail read has no collection, so its elements
     are **every** structure member of the output, and `flatRefs` additionally takes the output's
     own id-like primitives — `GetEnvironment` answers with `vpcId`/`subnetIds`/`loadBalancerArn`
-    beside a `storageConfigurations` list, and walking only the structures loses all three
-    (recognising only the single-structure shape left 1,275 detail reads refless). A ref must
+    beside a `storageConfigurations` list, and walking only the structures loses all three. A ref must
     target a `string`: enum, integer and long targets are never refs (`State.Name`), and
     `tokenNameRe` drops `*Token`/`*ETag`/`*RequestId`/`*RevisionId` names. Own id = bare
     `Arn/Id/Name` or a suffix-of-noun stem at depth 0, **plus an exact-noun stem at every depth**
     (`DescribeInstances`' element is `Reservation`, so `Instances.InstanceId` arrives at depth 1).
-    Never extend the loose suffix rule below depth 0: it matches 682 genuine cross-resource refs.
+    Never extend the loose suffix rule below depth 0: it matches genuine cross-resource refs.
   - **Azure**: each `<op>HandleResponse` body is bounded at the **next top-level `func`** before
     the `&result.X` search — unbounded, a HEAD op's tag-only decoder swallowed the following
     function and stole its result type, and non-overlapping matches then left the real lister with
-    none (106 listers, 66 in armapimanagement). The models table is `models.go` **or** the older
+    none (mostly in armapimanagement). The models table is `models.go` **or** the older
     `zz_generated_models.go` (whose fields carry a struct tag, hence the cut at the first backtick),
     plus `response_types.go`: a bare `<X>Array []*X` response field is registered as a synthetic
     list result so `refsOf` resolves it like a real `*ListResult`. String refs = `*ID`/`*IDs`, the
     exact name `ManagedBy`, and `*URI`/`*URL` **only** under a `keyvault`/`encryptionkey` path — a
-    bare URI/URL suffix pulls in a hundred data-plane endpoints and sign-on URLs. Envelope
+    bare URI/URL suffix pulls in data-plane endpoints and sign-on URLs. Envelope
     `ID/Name/Type/Location/Tags` skipped.
   - **GCP**: `response.$ref` → the array-of-`$ref` property whose `Ident` matches the collection
     noun, else the richest item schema, else alphabetical (aggregated lists: the map value's
     array). Taking the first outright gave `dataflow/jobs` `FailedLocation`'s zero refs over
-    `Job`'s 17. Then string properties named `*Link/*Url/*Id/*Ref/*Account/*Network` or described
+    `Job`'s many. Then string properties named `*Link/*Url/*Id/*Ref/*Account/*Network` or described
     as a URL / resource name / service account / KMS; `$`-prefixed names are JSON-schema keys, not
     refs, and `selfLink/id/name/kind/displayName/generateName/clientOperationId/revisionId` are the
     element's own. Schemas decode lazily from `json.RawMessage`, and `element` shares `walk`'s
@@ -129,14 +127,14 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 
 - Join key = Smithy `aws.auth#sigv4.name`; shared signing names (rds/neptune/docdb, s3/s3control,
   apigateway/apigatewayv2) land ops from several models on one key — `Operation.Module` tells them
-  apart; pairing (Phase 3) disambiguates by import.
+  apart; pairing disambiguates by import.
 - Service Reference `Operations[].AuthorizedActions` binds an op to an action only by same name
   or same verb (`ListObjectsV2`→`ListBucket`). A generic action (apigateway's `GET`) binds nothing,
-  so the Smithy shape decides `IsList` (signal `fallback`). 14 services are absent from the
+  so the Smithy shape decides `IsList` (signal `fallback`). Some services are absent from the
   catalog entirely (cloudwatch=`monitoring`, tagging, sso portal, partner central…).
 - SR `IsList` is incomplete (backup-gateway `ListGateways`, batch `DescribeComputeEnvironments`
   are false): a List/Describe op with a collection output is a lister unless the bound action
-  `IsWrite` (signal `shape-list`). Trusting SR alone left 269 scanner types unpaired.
+  `IsWrite` (signal `shape-list`). Trusting SR alone left scanner types unpaired.
 - Candidates: IsList ops, plus non-list Get/Describe/Head with no collection output (attribute).
   Writes, actions and batch reads are never candidates.
 - Lineage: catalog targets count only when the op has a required input (a lister with none is
@@ -148,7 +146,7 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   - An ARN variable is scope, not a level, when its name is or ends in partition/region/account
     (`${AwsAccountId}`) — **except the last**, which is the subject's own id whatever it is
     called (organizations' account resource ends `${AccountId}`). `scopeParams` is keyed
-    lower-case for the same reason: three spellings of the account member put 15 QuickSight rows
+    lower-case for the same reason: three spellings of the account member put QuickSight rows
     under a phantom `quicksight/awsaccount`.
   - A bare `job` stem with no catalogued `job` resource is an asynchronous handle, not a parent
     (`job-handle` signal): Rekognition's `JobId` names a Start… call. `JobRun`/`JobQueue` are
@@ -160,29 +158,28 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
     **shallowest** lineage, one that is itself an entry beats one that is not, deepest first, and
     an entry is never its own parent. Depth is then the resolved parent's depth + 1, memoised
     and cycle-guarded — ARN variable counting made `stack/${StackName}/${Id}` two levels and left
-    251 candidates whose depth was not their parent's plus one. Do not deepen an entry from a
+    candidates whose depth was not their parent's plus one. Do not deepen an entry from a
     proposal of a deeper lineage: `route53/hostedzone` and `lambda/function` are listed both
     ways, and the shallow listing is the truth.
-- Admission evidence (Phase 8 step 4): a member is id-like by the PascalCase suffix **or** by the
+- Admission evidence: a member is id-like by the PascalCase suffix **or** by the
   whole word in any case (`id`, `arn`, `name` — AppSync, DataZone, Bedrock, EKS, Grafana, Lex and
-  Cognito model them lower-case, and 65 child collections were demoted as id-less). A list of
+  Cognito model them lower-case, and child collections were demoted as id-less). A list of
   primitives counts as a collection when its name is id-like or stems to the op's noun
   (`sqs:ListQueues` answers `QueueUrls []string`, and `aws:sqs:queue` was in neither the
   numerator nor the denominator). A payload wrapping its collection one level down
   (`GetApps` → `ApplicationsResponse.Item[]`) counts only when the op noun is plural or the inner
-  collection is that noun — a blind descent turns all 399 single-structure read outputs into
-  listings (`wrapped-list` signal).
+  collection is that noun — a blind descent turns every single-structure read output into a
+  listing (`wrapped-list` signal).
 - A service the catalog files under another name (`cloudwatch`→`monitoring`, `cloudcontrol`→
   `cloudformation`, the IoT data planes) joins by **operation-name containment**: the smallest
   document that authorises every operation of the model, recorded as `sr:document=<name>`.
   Without it CloudWatch's dashboards, insight rules, mute rules and anomaly detectors were
   `catalog` and excluded although disco stores all of them.
-- Ballast rules (Phase 8 step 5). `writeNoun` fills from **lifecycle** verbs only
+- Ballast rules. `writeNoun` fills from **lifecycle** verbs only
   (Create/Delete/Put/Add/Import/Provision/Allocate/Register/Associate/Attach/Copy/Restore/
   Launch/Run/Publish); a setting verb (Update, Modify, Enable, Set, Export, Start) records a
   `mutable` signal instead, because `ModifyIdFormat` does not make `ec2/idformat` a resource a
-  scanner could ever close (99 rows left the denominator). The cost is measured and accepted:
-  seven rows disco does store (`ssm/instanceinformation`, `iot/v2loggingoption`,
+  scanner could ever close. The cost is measured and accepted: some rows disco does store (`ssm/instanceinformation`, `iot/v2loggingoption`,
   `lakeformation/permission`, `shield/emergencycontactsetting`,
   `securityhub/configurationpolicyassociation` and two ec2 options) are now `excluded`; they keep
   their `discoType` and their `scanner-lists` signal, so the evidence is visible, not lost.
@@ -191,7 +188,7 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   `aws:route53:cidr-collection`). `ec2/tag` is therefore no longer a candidate — the old
   catalog example.
 - Class: cross-cutting counts only the targets that are neither the subject nor an ancestor its
-  lineage names (55 rows → 9; `identitystore:ListGroupMemberships` is authorised against the
+  lineage names (`identitystore:ListGroupMemberships` is authorised against the
   membership, its group and the store); the SR-resource test runs **before** it. A catalog
   resource whose ARN namespace is unrelated to the model's own is not this service's
   (`ec2/group` carries a `resource-groups` ARN); a namespace that is a prefix of the model's, or
@@ -208,7 +205,7 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   (`ListClusterSummaries` lists clusters), and an `Associate`/`Attach`/`Register` write stamps
   `<noun>association` and `<noun>attachment` as write nouns, because that is the noun the lister
   spells (`AssociateResolverRule` → `resolverruleassociation`).
-- Folding (Phase 8 step 6): a noun that is the service's own name plus an existing candidate's
+- Folding: a noun that is the service's own name plus an existing candidate's
   noun folds into that candidate under a `legacy-noun` signal — `elasticsearch-service.json` and
   `opensearch.json` both sign as `es`, so `es/elasticsearchdomain` was a permanently uncovered
   duplicate of the covered `es/domain`. Only a **service word** strips (the join key, the ARN
@@ -224,7 +221,7 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   singularised, else the spelling another spelling singularises to (`analysis` over
   `analyses`), else the shortest; the catalog's own name joins the spellings (`resCanon` keeps
   the shortest catalog name per identity — SR lists `RestApi` and `RestApis`). `Parent` is
-  the parent entry's display when one exists, else the lineage's spelling; ~250 live parents
+  the parent entry's display when one exists, else the lineage's spelling; a parent may
   name no candidate (an id member with no lister) and that is accepted.
 - Determinism: `entry.place` folds lineages by shallowest depth, then smallest parent ident,
   then shortest parent display (`GetLink` says `gateway`, `ListLinks` says
@@ -259,8 +256,8 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 - A trailing static singleton (`default`, `current`) after a collection name is the **item id**,
   not another collection (`sdkinv.singletonIDs`, applied in `StripScopes`): `.../blobServices/default`
   is the one blob service. Reading it as a collection discarded the PUT on that path into
-  `Universe.Other`, so 114 rows were `no-item-path` non-resources while the cache plainly showed
-  GET+PUT, and 171 keys carried a `default` segment no scanner could ever match. It is a grammar
+  `Universe.Other`, so those rows were `no-item-path` non-resources while the cache plainly showed
+  GET+PUT, and keys carried a `default` segment no scanner could ever match. It is a grammar
   rule about ARM ids; do not extend it into a list of resource names.
 - Scope pairs (`subscriptions/{}`, `resourceGroups/{}`, `locations/{}`, `managementGroups/{}`)
   strip only when more path follows, so a trailing container (`resourceGroups`) stays a
@@ -269,9 +266,9 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   catalog (`item-read-only`); none → non-resource (`no-item-path`). **Exception** (`arm-envelope`):
   a GET-only collection whose element carries the ARM proxy-resource envelope (`SystemData`, or
   `ID`+`Type`) **and** is a child or lives at subscription/resource-group scope is a resource.
-  517 of 572 catalog rows carried that envelope and 434 were children — the very shape the AWS
-  extractor calls a resource — so the two providers' denominators rested on different rules and
-  504 real gaps never reached the report. Both halves are load-bearing: the envelope alone
+  Most catalog rows carried that envelope and were children — the very shape the AWS extractor
+  calls a resource — so without it the two providers' denominators rested on different rules and
+  real gaps never reached the report. Both halves are load-bearing: the envelope alone
   admits `microsoft.authorization/provideroperations` and `microsoft.advisor/metadata`, and
   dropping the GET/HEAD requirement admits the generic `/subscriptions/{id}/resources` lister
   (a live test guards that one).
@@ -283,10 +280,10 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   `internal/providers/azure`'s `RegistryKey` puts it back for `--cross-check`. A sibling lister
   on a path without the pair clears it — then ARM has no `locations` in the type either.
 - A lister with no item path whose result element matches a same-module entry that does write is
-  folded into that entry as an extra op under the `alternate-lister` signal (87 rows, e.g.
+  folded into that entry as an extra op under the `alternate-lister` signal (e.g.
   `microsoft.sql/servers/replicationlinks` into `…/servers/databases/replicationlinks`). Judged on
   its own path an alternate has no write verb and read as a non-resource.
-- `index()` admits any collection GET, paged or not: ~307 singleton/action GETs come in this way
+- `index()` admits any collection GET, paged or not: singleton/action GETs come in this way
   and all land in `excluded`. The README says so; do not read `Value []*T` as an enforced rule.
 
 ### GCP (`gcp/extract.go`)
@@ -298,7 +295,7 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   any container), **or** a leading static sits directly in front of a cloud root (Pub/Sub Lite's
   `admin/projects/{p}/…`, stripped from the template and the doc path by `dropGroupingRoot`).
   A cloud root **deeper** in the path is deliberately not enough: it admits DFA reporting, Tag
-  Manager and the Cloud Channel reseller API (110 rows). Service Networking stays out for that
+  Manager and the Cloud Channel reseller API. Service Networking stays out for that
   reason — its project appears only below `services/{service}`. Roots that are the
   listed collection (`cloudresourcemanager/projects`) keep their own scope.
 - Keys are lower-cased so one collection reached through several versions is one candidate
@@ -319,7 +316,7 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   (storage buckets), else `global`.
 - Two Discovery documents can be one service (`sql` and `sqladmin` both answer at
   `sqladmin.googleapis.com`): documents are grouped by rootUrl + servicePath + canonicalName and
-  the name matching the rootUrl's host label wins. rootUrl alone is shared by 31 documents — never
+  the name matching the rootUrl's host label wins. rootUrl alone is shared by many documents — never
   collapse on it.
 - `Parent` is resolved to the nearest ancestor prefix that is itself a candidate and cleared when
   none is; the document tree nests nodes that list nothing (`appengine/apps`). `Depth` stays the
@@ -334,19 +331,19 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   `preview-only`.
 - Listers are `list` and `aggregatedList`, plus `search`/`fetch`/`listPolicies` **only on a node
   with no `list`** (`altListers`): `cloudresourcemanager/organizations` is reachable by `search`
-  in v1 and v3 and `list` only in v1beta1. A shape-based lister rule mints 313 bogus rows from
+  in v1 and v3 and `list` only in v1beta1. A shape-based lister rule mints bogus rows from
   filtered sub-views (`listUsable`, `listManagedInstances`).
 - An `aggregatedList` is registered on every sibling collection of the same document whose
-  element schema matches, under `aggregated-by:<node>` (39 rows, the Compute regional and global
+  element schema matches, under `aggregated-by:<node>` (the Compute regional and global
   twins): the response is a map of scoped lists, and disco lists the regional types through that
   one call. Method names are walked **sorted** — map order otherwise decided which lister
   recorded a node's element, and two extractions disagreed.
-- A node with `create` and no `get`/`delete`/`patch` anywhere stays a resource. Only three
-  candidates are in that state and two (`cloudbilling/subaccounts`,
+- A node with `create` and no `get`/`delete`/`patch` anywhere stays a resource. Few
+  candidates are in that state and most (`cloudbilling/subaccounts`,
   `androiddeviceprovisioning/partners/customers`) are genuine resources, so the rule that would
   drop `monitoring/timeseries` costs more than it saves (#48, recorded not shipped).
 
-## Pairing (Phase 3, `pairing/`)
+## Pairing (`pairing/`)
 
 - `pairing.Scan(ctx, cache, provider, dir)` = extract from the cache + `Walk` + `Unpaired`;
   wraps `sdkinv.ErrNotFetched` so `internal/providers/<p>/<p>_pairing_test.go` skips without
@@ -366,7 +363,7 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   its storing driver sits one hop up and never sees the constant. Relationship and hierarchy
   writes are deliberately not the signal — a resolver names its source types in a
   `store.ResourceFilter` and writes edges alone, and counting those made
-  `microsoft.insights/diagnosticsettings` claim 30 foreign types. Without a store in reach the
+  `microsoft.insights/diagnosticsettings` claim foreign types. Without a store in reach the
   anchor still stands, so the candidate stays **covered as `sidecar`**; only the credited types go.
 - **Fed callees only.** `reachableTypes` walks `walkFedCallees`: a callee counts when the call
   hands it something the caller produced (a local, a field of one, a composite, a call result),
@@ -402,31 +399,26 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 - A **promoted** anchor — one a typeless listing helper contributed, not one this function calls
   — is credited only with what this function's own flow stores, never with what a *caller* passed
   in. The `cur == f` inflow rule is right for a helper that genuinely lists and stores and wrong
-  here: it gave `microsoft.resources/resourcegroups` five types from unrelated callers of the
+  here: it gave `microsoft.resources/resourcegroups` types from unrelated callers of the
   same fan-out helper.
 - Unpaired reasons: `non-sdk` (every file referencing the const imports no SDK module —
   Entra over Graph), `other-op:<label>`, `sdk-skew:<op>`, else `unexplained` (fatal). A `label`
   pairing does **not** count as paired (it proves no SDK call, which is why `inventory.go`'s
   `pairingKinds` excludes it), and `derived` yields to `other-op`/`sdk-skew`: evidence by
   proximity must not displace a named op.
-- sdk-skew runs both ways. `AzureSDKRef` is monorepo HEAD: an op newer than the snapshot is fixed
-  by bumping the pin, an op **deleted upstream** (armcompute CloudServices, the whole
-  armappplatform module) is not — bumping moves further away, and the fix is a `go.mod` major bump
-  plus retiring the scanner. `TestScannerOpLabelsResolve` logs the imported `arm` modules the
-  snapshot no longer holds. Never pin Azure per `go.mod`: that deletes ~769 rows and inflates the
-  percentage.
-- sdk-skew is real and expected: the Azure monorepo HEAD differs from the go.mod majors
-  (armcompute `CloudServices*`, armsubscription `Subscriptions.List`, armappplatform absent,
-  postgresql flexible servers, edgeorder); GCP `serviceusage.services.list`. 24 Azure + 1 GCP
-  at the 2026-09-16 pins. Which direction the fix runs is the bullet above.
+- sdk-skew is expected and runs both ways, because `AzureSDKRef` is monorepo HEAD, not the
+  go.mod majors. An op newer than the snapshot → bump the pin. An op **deleted upstream**
+  (armcompute `CloudServices*`, the whole armappplatform module) → bumping moves further away;
+  the fix is a `go.mod` major bump plus retiring the scanner. `TestScannerOpLabelsResolve` logs
+  the imported `arm` modules the snapshot no longer holds. Never pin Azure per `go.mod`: that
+  deletes rows and inflates the percentage.
 - Azure: a receiver binds from `armX.New<Y>Client(`, a client-factory `cf.New<Y>Client()`, a
   `*armX.<Y>Client` parameter or struct field, or a package-local interface seam whose method
   signatures mention `armX.<Y>Client…Response/Options` (`TypeOwner`). An unbound pager resolves
   only when exactly one imported client has that op. Any `List*` on a bound client anchors
   even when the pin lacks it (generated clients have no other methods; skew surfaces in Walk).
   Label form is `armX:<Y>.<Op>` with the
-  `Client` suffix dropped and bare `Client` kept (`armredis:Client.ListBySubscription`) — 22
-  scanner labels were typos against this form and were corrected in Phase 3. `LooseLabelGrammar`
+  `Client` suffix dropped and bare `Client` kept (`armredis:Client.ListBySubscription`). `LooseLabelGrammar`
   (the optional `LooseLabeller` half of the `Resolver` interface, Azure only) catches the near
   miss `arm<module>:<Op>` with the `Client.` dropped, which the strict grammar made invisible —
   an off-grammar literal is simply not a label, so a typo read as "this function names no op".
