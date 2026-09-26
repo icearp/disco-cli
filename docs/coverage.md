@@ -2,7 +2,7 @@
 
 **Coverage:** 48.7% (1677/3441 listable) · depth0 67.2% · depth1 24.7% · depth2 24.3% · depth3 12.5% · depth5 0.0% · depth6 0.0% · attribute 1390 · excluded 537 · disco-only 0 (0 unexplained)
 
-Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
+Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@7f6a77022992
 
 The denominator is every candidate the provider's own SDK can list that the extractor classified `resource` — not every API operation, and not a curated list. Attributes (detail reads), catalogs (provider-published, read-only) and non-resources are outside it and are listed below. Each row names the rule that classified it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is visible as a low percentage rather than as a smaller number.
 
