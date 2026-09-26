@@ -355,7 +355,7 @@ type lambdaFunctionAttrs struct {
 }
 ```
 
-Embedding (not nesting) flattens the SDK fields back to top level so existing resolvers reading `Role`/`KMSKeyArn`/`VpcConfig` keep working. Sibling key (`Code` here) carries the enrichment. Cheaper than the "Re-upsert parent with Describe body via ON CONFLICT" pattern when only one or two fields are needed and the Describe call is conditional. Precedent: `lambdaFunctionAttrs` (lambda_scanners.go).
+Embedding (not nesting) flattens the SDK fields back to top level so existing resolvers reading `Role`/`KMSKeyArn`/`VpcConfig` keep working. Sibling key (`Code` here) carries the enrichment. Cheaper than a per-row Describe when only one or two fields are needed and the Describe call is conditional. Precedent: `lambdaFunctionAttrs` (lambda_scanners.go).
 
 ## ARN slot indexing after `strings.Split(arn, ":")`
 
@@ -433,9 +433,9 @@ Some sub-APIs work in subset of regions only. The rejection comes back as `Inval
 
 Before relying on AWS docs (or existing scanner code) for which region a global service lives in, probe with `getent hosts <svc>.<region>.amazonaws.com` across candidate regions — only the correct endpoint resolves; others return NXDOMAIN. Session live-scan revealed three scanner errors this way: `route53-recovery-readiness` + `route53-recovery-control` are us-west-2 only (not us-east-1), and `route53globalresolver` is us-east-2 only on the `.api.aws` TLD.
 
-## Re-upsert parent with Describe body via ON CONFLICT
+## One upsert per resource per scan
 
-Scanner pattern when (1) `List*` is upserted first to enumerate children, then (2) `Describe*` per parent fans out to emit child rows. Parent attrs end up as the list-summary shape — strip-of-detail. To wire parent-side resolvers (e.g. `ServiceExecutionRole`, `CloudWatchLoggingOptions[]` on KDA app), append the parent row to the second-pass batch with `mustJSON(detailBody)`. UpsertResources ON CONFLICT updates `attributes`, so the second upsert replaces the summary JSON in place. Precedent: `scanKinesisAnalyticsV1` / `scanKinesisAnalyticsV2` (kinesisanalytics{,v2}_scanners.go). Cheaper than a third API round-trip.
+`resources` has no ON CONFLICT DO UPDATE: a second upsert of the same resource in one scan with different attributes is a version split (see `store/CLAUDE.md`). Build the row once from the detail (`Describe*`) body.
 
 ## AWS-default identification heuristics (ManagedByProvider)
 
@@ -472,7 +472,7 @@ When AWS retires a service to new customers (existing customers keep access), li
 
 ## Two-pass scanner: keep total == inserted via skip-set dedup
 
-Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second is an ON CONFLICT update. Surfaces as `(1520 total, 1508 new)` → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue` (commit 14cbee2).
+Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second upsert is a verify or split, not an insert. Surfaces as `(1520 total, 1508 new)` → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue` (commit 14cbee2).
 
 ## `--regions all` sentinel expands to the full region list
 
