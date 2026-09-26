@@ -219,6 +219,13 @@ func TestExtract_Live(t *testing.T) {
 		"dynamodb/table":             {sdkinv.ClassResource, 0, ""},
 		"apigateway/restapi":         {sdkinv.ClassResource, 0, ""},
 	}
+	// The names the registries use for a service, derived from the model's
+	// own traits and the operation-name join (#117).
+	for alias, svc := range map[string]string{"pinpoint": "mobiletargeting", "apigatewayv2": "apigateway", "cloudwatch": "monitoring", "emr": "elasticmapreduce"} {
+		if got := u.ServiceAliases[alias]; got != svc {
+			t.Errorf("ServiceAliases[%s] = %q, want %q", alias, got, svc)
+		}
+	}
 	// "tag" names no subject, so DescribeTags keys no candidate (#22).
 	if c, ok := got["ec2/tag"]; ok {
 		t.Errorf("ec2/tag is a candidate: %+v", c)

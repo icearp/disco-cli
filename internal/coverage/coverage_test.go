@@ -3,6 +3,7 @@ package coverage
 import (
 	"bytes"
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -189,42 +190,47 @@ func (fakeCrossChecker) CrossCheck(context.Context, FetchOptions) ([]UpstreamTyp
 	return nil, nil
 }
 func (fakeCrossChecker) RegistryKey(c sdkinv.Candidate) string { return c.Key }
-func (fakeCrossChecker) CanonicalKey(k string) string          { return strings.ToLower(k) }
+func (fakeCrossChecker) CanonicalKey(r UpstreamType) string    { return strings.ToLower(r.Key) }
 
 func TestCrossCheck(t *testing.T) {
 	in := testInputs()
+	in.Universe.ServiceAliases = map[string]string{"keymgmt": "kms"}
 	m := BuildInventory(in)
-	CrossCheck(&m, in.Universe, []UpstreamType{
+	dropped := CrossCheck(&m, in.Universe, []UpstreamType{
 		{Key: "EC2/Instance", Service: "ec2"},
 		{Key: "ec2/instance", Service: "ec2"}, // same identity: one row at most
 		{Key: "ec2/phantom", Service: "ec2"},
 		{Key: "ec2/instancetype", Service: "ec2"}, // catalog candidate: known to the universe, so not drift
 		{Key: "zzz/thing", Service: "zzz"},        // service outside the universe: excluded by rule, not drift
+		{Key: "ec2/gizmo", Service: "ec2", Reason: ReasonUnlistable},
+		{Key: "ec2/widget", Service: "ec2", Reason: ReasonCFNOnly},
+		{Key: "ec2/widget", Service: "ec2"},  // a reasonless twin is the stronger claim
+		{Key: "kms/key", Service: "KeyMgmt"}, // reached through the alias
+		{Key: "kms/aliasname", Service: "kms"},
 	}, fakeCrossChecker{})
+	if !slices.Equal(dropped, []string{"zzz"}) {
+		t.Errorf("dropped = %v, want [zzz]", dropped)
+	}
 	drift := map[string]string{}
 	for _, r := range m.Rows {
 		if r.Bucket == BucketRegistryDrift {
 			drift[r.Key] = r.Reason
 		}
 	}
-	if drift["ec2/phantom"] != ReasonRegistryOnly {
-		t.Errorf("registry-only row missing: %v", drift)
+	want := map[string]string{
+		"ec2/phantom":   ReasonRegistryOnly,
+		"ec2/gizmo":     ReasonUnlistable,
+		"ec2/widget":    ReasonRegistryOnly,
+		"ec2/volume":    ReasonCandidateOnly,
+		"kms/grant":     ReasonChildOfRegistered, // its parent kms/key is registered
+		"kms/alias":     ReasonNearName,          // twinned with kms/aliasname
+		"kms/aliasname": ReasonNearName,
+		"s3/bucket":     ReasonServiceUnregistered,
 	}
-	for _, k := range []string{"ec2/instancetype", "zzz/thing"} {
-		if _, ok := drift[k]; ok {
-			t.Errorf("%s reported as drift", k)
-		}
-	}
-	if _, ok := drift["ec2/instance"]; ok {
-		t.Error("matched registry key reported as drift")
-	}
-	if drift["ec2/volume"] != ReasonCandidateOnly || drift["kms/grant"] != ReasonCandidateOnly {
-		t.Errorf("candidate-only rows missing: %v", drift)
-	}
-	// A preview-only candidate is bucketed excluded, so it is out of scope for
-	// the report and must not come back as drift (#119).
-	if _, ok := drift["run/gadgets"]; ok {
-		t.Error("preview-only candidate reported as drift while excluded")
+	// Exact: run/gadgets is preview-only and excluded, so it must not come
+	// back as drift (#119).
+	if !maps.Equal(drift, want) {
+		t.Errorf("drift = %v\nwant    %v", drift, want)
 	}
 	if got := Filter(m.Rows, "registry-drift", nil); len(got) != len(drift) {
 		t.Errorf("filter registry-drift = %d rows, want %d", len(got), len(drift))

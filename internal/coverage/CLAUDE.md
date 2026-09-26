@@ -53,11 +53,15 @@ is visible as a low percentage instead of silently inflating one headline number
 - `disco-only` — emitted type no candidate accounts for. Reason `explained: <unpaired reason>`
   (`non-sdk`, `other-op:<label>`, `sdk-skew:<op>`), `pairing-unavailable`, or `unexplained`
   (the only one `--check-strict` fails on).
-- `registry-drift` — only with `--cross-check`: `registry-only` (live registry key, within a
-  service the universe knows, matching no candidate of any class) / `candidate-only` (resource
-  candidate the registry lacks). Identities compare via `RegistryKey(candidate)` vs
-  `CanonicalKey(registryKey)`. Registry entries for services outside the universe (non-cloud
-  GCP APIs, CFN service renames) are excluded by rule, not drift.
+- `registry-drift` — only with `--cross-check`. Drift proper: `registry-only` (live registry key,
+  within a service the universe knows, matching no candidate of any class) / `candidate-only`
+  (covered/uncovered candidate the registry lacks). Explained by construction, kept visible:
+  `unlistable` (GCP get-only node), `cfn-only` (CFN type with no SR twin), `near-name` (unique
+  same-service prefix/suffix stem pair; twin in a `near-name:<key>` signal),
+  `child-of-registered` (parent's registry id seen), `service-unregistered` (registry has nothing
+  for the service). Identities compare via `RegistryKey(candidate)` vs
+  `CanonicalKey(UpstreamType)`, after `r.Service` is mapped through `Universe.ServiceAliases`.
+  Registry services with no counterpart are returned by `CrossCheck` and printed on stderr.
 - `Row.Refs` copies `Candidate.Refs`; `TypeRefs(matrix)` unions them per paired disco type for
   `resolvers --missing`. Refs are hints (id/ARN/URL-shaped element fields, own id excluded), never
   a bucket input. `TypeRefs` gives a row's refs to `Row.DiscoType`, and to a `Row.DiscoTypes` entry
@@ -131,3 +135,8 @@ left the SDK, `admin Transfer` was never scanned).
 `Class == ClassResource` instead made the same report exclude a `preview-only` candidate as out
 of scope and then re-report it as drift — 20 of 34 live GCP rows. `preview-only` is a signal, not
 a class, so nothing else removes them.
+
+Candidates are `map[string][]Candidate`: siblings sharing a leaf identity (GCP leaf, AWS folded
+`…Resource`) each get a row (#79). Measure drift changes with a scratch `_test.go` in the provider
+package calling `InputsFromCache` → `BuildInventory` → `CrossCheck` (AWS SR half is credential-free;
+the CFN half needs live creds); delete it before commit.

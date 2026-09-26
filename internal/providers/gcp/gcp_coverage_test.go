@@ -2,6 +2,8 @@ package gcp
 
 import (
 	"context"
+	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -78,5 +80,24 @@ func TestCoverageFetch_AllDocsOKNoError(t *testing.T) {
 	}
 	if len(out) == 0 {
 		t.Error("want at least one upstream type from the fetchable collection, got 0")
+	}
+}
+
+// TestWalkResourceCollections_Unlistable pins #120: a node with only a get is
+// kept (it is a real registry type) but marked unlistable, because the
+// universe is built from listers and could never hold it.
+func TestWalkResourceCollections_Unlistable(t *testing.T) {
+	doc := &discoveryDoc{Resources: map[string]discoveryResource{
+		"keys":    {Methods: map[string]json.RawMessage{"get": nil, "list": nil}},
+		"aliases": {Methods: map[string]json.RawMessage{"get": nil}},
+		"ops":     {Methods: map[string]json.RawMessage{"cancel": nil}},
+	}}
+	got := map[string]string{}
+	for _, u := range walkResourceCollections("apigee", doc) {
+		got[u.Key] = u.Reason
+	}
+	want := map[string]string{"apigee.googleapis.com/keys": "", "apigee.googleapis.com/aliases": coverage.ReasonUnlistable}
+	if !maps.Equal(got, want) {
+		t.Errorf("walk = %v, want %v", got, want)
 	}
 }

@@ -101,6 +101,11 @@ type Universe struct {
 	// a typo.
 	Other       []Operation  `json:"other,omitempty"`
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
+	// ServiceAliases maps another spelling of a service (Canon form) onto the
+	// Service the candidates carry, for registries that name services
+	// differently (AWS CloudFormation's "ApiGatewayV2" is the SDK's
+	// "apigateway"). Derived from the SDK's own metadata, never hand-kept.
+	ServiceAliases map[string]string `json:"serviceAliases,omitempty"`
 }
 
 // Kind selects how a FetchSource is retrieved.

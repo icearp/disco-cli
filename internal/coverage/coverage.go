@@ -25,7 +25,12 @@ type TypeDecl struct {
 // --cross-check.
 type UpstreamType struct {
 	Key     string // registry identifier, provider-specific shape
-	Service string // grouping bucket for rendering
+	Service string // the registry's service spelling; CrossCheck maps it through Universe.ServiceAliases
+	// Reason replaces "registry-only" when the entry is absent from the
+	// universe for a reason the registry itself shows: a GCP node with no
+	// lister ("unlistable"), an AWS type only CloudFormation publishes
+	// ("cfn-only"). Such an entry is information, not drift.
+	Reason string
 }
 
 // FetchOptions carry per-invocation knobs for the live registry and region
@@ -58,7 +63,7 @@ type ServiceMapper interface {
 type CrossChecker interface {
 	CrossCheck(ctx context.Context, opts FetchOptions) ([]UpstreamType, error)
 	RegistryKey(c sdkinv.Candidate) string
-	CanonicalKey(upstreamKey string) string
+	CanonicalKey(r UpstreamType) string
 }
 
 // RegionLister is implemented by Provider impls that can fetch the cloud's

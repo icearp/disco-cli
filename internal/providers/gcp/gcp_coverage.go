@@ -50,8 +50,8 @@ func (coverageProvider) RegistryKey(c sdkinv.Candidate) string {
 }
 
 // CanonicalKey maps "<api>.googleapis.com/<Resource>" onto RegistryKey's shape.
-func (coverageProvider) CanonicalKey(upstreamKey string) string {
-	api, res, _ := strings.Cut(upstreamKey, "/")
+func (coverageProvider) CanonicalKey(r coverage.UpstreamType) string {
+	api, res, _ := strings.Cut(r.Key, "/")
 	return strings.TrimSuffix(api, ".googleapis.com") + "/" + sdkinv.Ident(res)
 }
 
@@ -136,15 +136,18 @@ func (coverageProvider) CrossCheck(ctx context.Context, _ coverage.FetchOptions)
 	}
 
 	// Dedupe across versions by full upstream key — same API across v1/v2
-	// often reports the same resource collection twice. Service segment of
-	// the first occurrence wins.
-	seen := make(map[string]bool, len(out))
+	// often reports the same resource collection twice. A version that lists
+	// the collection outranks one that only gets it.
+	idx := make(map[string]int, len(out))
 	deduped := out[:0]
 	for _, u := range out {
-		if seen[u.Key] {
+		if i, dup := idx[u.Key]; dup {
+			if u.Reason == "" {
+				deduped[i].Reason = ""
+			}
 			continue
 		}
-		seen[u.Key] = true
+		idx[u.Key] = len(deduped)
 		deduped = append(deduped, u)
 	}
 	return deduped, nil
@@ -219,7 +222,9 @@ func fetchDiscoveryDoc(ctx context.Context, client *http.Client, url string) (*d
 // walkResourceCollections recursively walks a Discovery doc's resources tree
 // and emits one UpstreamType per fetchable collection — any node carrying a
 // `get` or `list` method, matching GCP's notion of a resource type in
-// tooling like gcloud + asset inventory.
+// tooling like gcloud + asset inventory. A node with only a `get` is kept
+// but marked unlistable: the universe is built from listers, so it could
+// never hold that node, and 104 of 156 live registry-only rows were those.
 //
 // The key keeps the collection's own spelling ("forwardingRules");
 // CanonicalKey reduces it to the equality stem.
@@ -230,8 +235,12 @@ func walkResourceCollections(api string, doc *discoveryDoc) []coverage.UpstreamT
 	var out []coverage.UpstreamType
 	var walk func(name string, r discoveryResource)
 	walk = func(name string, r discoveryResource) {
-		if hasFetchMethod(r.Methods) {
-			out = append(out, coverage.UpstreamType{Key: api + ".googleapis.com/" + name, Service: api})
+		if fetch, list := fetchMethods(r.Methods); fetch {
+			u := coverage.UpstreamType{Key: api + ".googleapis.com/" + name, Service: api}
+			if !list {
+				u.Reason = coverage.ReasonUnlistable
+			}
+			out = append(out, u)
 		}
 		for childName, child := range r.Resources {
 			walk(childName, child)
@@ -243,17 +252,18 @@ func walkResourceCollections(api string, doc *discoveryDoc) []coverage.UpstreamT
 	return out
 }
 
-func hasFetchMethod(methods map[string]json.RawMessage) bool {
-	if len(methods) == 0 {
-		return false
-	}
+// fetchMethods reports whether a node can be read at all and whether it can
+// be listed.
+func fetchMethods(methods map[string]json.RawMessage) (fetch, list bool) {
 	for k := range methods {
 		switch strings.ToLower(k) {
-		case "get", "list", "aggregatedlist":
-			return true
+		case "list", "aggregatedlist":
+			fetch, list = true, true
+		case "get":
+			fetch = true
 		}
 	}
-	return false
+	return fetch, list
 }
 
 // FetchRegions calls compute.Regions.List for the first accessible project

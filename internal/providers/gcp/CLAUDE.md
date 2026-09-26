@@ -28,7 +28,7 @@ resolver sources. `Descriptor.Upstream` and `gcp_type_mirror_test.go` are gone.
 
 ## Discover what's not yet covered
 
-`disco coverage services --providers gcp --filter uncovered` — every cloud-rooted Discovery collection with a `list`/`aggregatedList` method that no scanner pairs with (`internal/coverage/CLAUDE.md`). Offline from the pinned `google.golang.org/api` docs in the SDK cache. `--cross-check` walks every live Discovery doc (~650, no allowlist; `--timeout` default 3m) and reports `registry-drift`; a dropped doc is always fatal (exit 2 via `errCoverageRegistryUnreachable`) so a partial registry never masquerades as drift.
+`disco coverage services --providers gcp --filter uncovered` — every cloud-rooted Discovery collection with a `list`/`aggregatedList` method that no scanner pairs with (`internal/coverage/CLAUDE.md`). Offline from the pinned `google.golang.org/api` docs in the SDK cache. `--cross-check` walks every live Discovery doc (~650, no allowlist; `--timeout` default 3m) and reports `registry-drift`; a dropped doc is always fatal (exit 2 via `errCoverageRegistryUnreachable`) so a partial registry never masquerades as drift. A node with `get` but no `list`/`aggregatedList` is reported `unlistable`, not `registry-only` — the universe is built from listers and can never hold it.
 
 ## Resolver-edge metadata: `EdgeDecl`
 

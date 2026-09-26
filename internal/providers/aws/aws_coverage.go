@@ -87,14 +87,15 @@ func canonResource(s string) string {
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic
 // identity so a CloudFormation spelling and its Service-Reference twin collapse
 // to one resource (e.g. AWS::Amplify::App and AWS::amplify::apps both →
-// "amplify::app"). `coverage services --cross-check` compares it with
-// RegistryKey so the SR/CFN twins collapse onto one candidate.
-func (coverageProvider) CanonicalKey(upstreamKey string) string {
-	parts := strings.SplitN(upstreamKey, "::", 3)
+// "amplify::app"). The service comes from r.Service, which CrossCheck has
+// already mapped through the universe's aliases (CFN "ApiGatewayV2" is
+// "apigateway"), so a renamed service still meets its candidates.
+func (coverageProvider) CanonicalKey(r coverage.UpstreamType) string {
+	parts := strings.SplitN(r.Key, "::", 3)
 	if len(parts) != 3 {
-		return strings.ToLower(upstreamKey)
+		return strings.ToLower(r.Key)
 	}
-	return canonService(parts[1]) + "::" + canonResource(parts[2])
+	return canonService(r.Service) + "::" + canonResource(parts[2])
 }
 
 // RegistryKey is the candidate's identity in CanonicalKey's namespace, so a
@@ -170,8 +171,34 @@ func (coverageProvider) CrossCheck(ctx context.Context, opts coverage.FetchOptio
 	if err != nil {
 		return nil, fmt.Errorf("service reference fetch: %w", err)
 	}
-	out = append(out, srTypes...)
-	return out, nil
+	return append(markCFNOnly(out, srTypes), srTypes...), nil
+}
+
+// markCFNOnly gives a CloudFormation type with no Service Reference twin the
+// cfn-only reason, and spells a CFN service the way the Service Reference
+// does. CFN stays in the union — its nouns match disco keys the SR renames
+// (elasticache/cachecluster is the SR's "cluster") — but most CFN-only types
+// are template constructs with no list API (SecurityGroupIngress,
+// VPCGatewayAttachment), so reporting them as registry-only overstated drift.
+func markCFNOnly(cfn, sr []coverage.UpstreamType) []coverage.UpstreamType {
+	var p coverageProvider
+	srKeys := map[string]bool{}
+	srSvc := map[string]string{}
+	for _, r := range sr {
+		srKeys[p.CanonicalKey(r)] = true
+		srSvc[canonService(r.Service)] = r.Service
+	}
+	for i, r := range cfn {
+		if !srKeys[p.CanonicalKey(r)] {
+			cfn[i].Reason = coverage.ReasonCFNOnly
+		}
+		if svc, ok := srSvc[canonService(r.Service)]; ok {
+			cfn[i].Service = svc
+		} else {
+			cfn[i].Service = strings.ToLower(r.Service)
+		}
+	}
+	return cfn
 }
 
 // FetchRegions calls ec2:DescribeRegions(AllRegions=true) and returns the

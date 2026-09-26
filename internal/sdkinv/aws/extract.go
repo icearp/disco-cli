@@ -219,7 +219,8 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		return nil, fmt.Errorf("no Smithy models under %s", modelDir)
 	}
 	entries := map[string]*entry{}
-	words := map[string]map[string]bool{} // service -> the words its own name is made of
+	words := map[string]map[string]bool{}   // service -> the words its own name is made of
+	aliases := map[string]map[string]bool{} // Canon(spelling) -> services that answer to it
 	for _, f := range files {
 		raw, rerr := os.ReadFile(f)
 		if rerr != nil {
@@ -231,6 +232,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 			continue
 		}
 		collectServiceWords(words, &m)
+		collectServiceAliases(aliases, &m)
 		diag, other := indexModel(entries, &m, sr, filepath.Base(f))
 		if diag != "" {
 			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: filepath.Base(f), Message: diag})
@@ -241,9 +243,65 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 	foldLegacyNouns(entries, words)
 	resolveTree(entries)
 	u.Candidates = assemble(entries)
+	u.ServiceAliases = serviceAliases(aliases, u.Candidates)
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)
 	return u, nil
+}
+
+// collectServiceAliases records every name a model's service trait gives it —
+// arnNamespace, endpointPrefix and sdkId beside the signing name the
+// candidates carry — which is how CloudFormation ("Pinpoint", "EMR") and the
+// Service Reference ("cloudwatch") name the same service.
+func collectServiceAliases(aliases map[string]map[string]bool, m *smithyModel) {
+	svc, sdkID := serviceKey(m)
+	if svc == "" {
+		return
+	}
+	names := []string{sdkID}
+	for n := range modelNamespaces(m, svc) {
+		names = append(names, n)
+	}
+	for _, n := range names {
+		if c := sdkinv.Canon(n); c != "" {
+			if aliases[c] == nil {
+				aliases[c] = map[string]bool{}
+			}
+			aliases[c][svc] = true
+		}
+	}
+}
+
+// serviceAliases keeps the unambiguous aliases of services that have
+// candidates: a spelling that is itself a candidate service, or that two
+// services answer to, names nothing reliably.
+// A Service Reference document joined by operation names is an alias too.
+func serviceAliases(aliases map[string]map[string]bool, cands []sdkinv.Candidate) map[string]string {
+	primary := map[string]bool{}
+	for _, c := range cands {
+		primary[sdkinv.Canon(c.Service)] = true
+		for _, sig := range c.Signals {
+			if doc, ok := strings.CutPrefix(sig, "sr:document="); ok {
+				c2 := sdkinv.Canon(doc)
+				if aliases[c2] == nil {
+					aliases[c2] = map[string]bool{}
+				}
+				aliases[c2][c.Service] = true
+			}
+		}
+	}
+	out := map[string]string{}
+	for a, svcs := range aliases {
+		if primary[a] || len(svcs) != 1 {
+			continue
+		}
+		for svc := range svcs {
+			if primary[sdkinv.Canon(svc)] {
+				out[a] = svc
+			}
+		}
+	}
+	return out
 }
 
 // mergeDetailReads folds an attribute keyed <svc>/<parent>/<noun> into the

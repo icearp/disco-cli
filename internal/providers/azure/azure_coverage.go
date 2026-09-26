@@ -91,7 +91,7 @@ const armLocationScopeSignal = "scope-pair:locations"
 var armSingletonID = map[string]bool{"default": true, "current": true}
 
 // CanonicalKey lowercases: ARM identifiers are case-insensitive.
-func (coverageProvider) CanonicalKey(upstreamKey string) string { return strings.ToLower(upstreamKey) }
+func (coverageProvider) CanonicalKey(r coverage.UpstreamType) string { return strings.ToLower(r.Key) }
 
 // CrossCheck pages ARM Providers/List with $expand=resourceTypes and returns
 // every fully-qualified Azure resource type ("microsoft.compute/virtualmachines"

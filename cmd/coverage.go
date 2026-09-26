@@ -64,7 +64,10 @@ Bucket model:
                  it is explained (no SDK, built from a non-list op, SDK skew).
   - registry-drift  only with --cross-check: the live registry (CloudFormation
                  + Service Reference, ARM Providers, Discovery) and the SDK
-                 universe disagree.
+                 universe disagree. registry-only and candidate-only are
+                 the drift; unlistable, cfn-only, near-name,
+                 child-of-registered and service-unregistered name a
+                 disagreement the two models explain by construction.
 
 Percent = covered / (covered + uncovered), computed before --filter, per
 provider, per service and per depth. Pins are printed with every report:
@@ -428,7 +431,9 @@ func buildServiceMatrices(ctx context.Context, o servicesOptions) ([]coverage.Ma
 					fetchFailures = append(fetchFailures, p.Name())
 					continue
 				}
-				coverage.CrossCheck(&m, in.Universe, registry, cc)
+				if dropped := coverage.CrossCheck(&m, in.Universe, registry, cc); len(dropped) > 0 {
+					fmt.Fprintf(os.Stderr, "  %s: %d registry services have no SDK counterpart and were not compared: %s\n", p.Name(), len(dropped), strings.Join(dropped, " "))
+				}
 			}
 		}
 		matrices = append(matrices, m)

@@ -1,6 +1,7 @@
 package coverage
 
 import (
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -34,6 +35,19 @@ const (
 	// coin toss. DiscoTypes carries the whole set.
 	ReasonMultiType     = "multi-type"
 	ReasonCandidateOnly = "candidate-only"
+	// Drift rows the comparison explains rather than reports. The registry
+	// models ARN-bearing types, not listable collections, so a child
+	// collection whose parent it knows can only ever read as drift, and a
+	// service it has nothing for is unmodelled rather than missing.
+	ReasonChildOfRegistered   = "child-of-registered"
+	ReasonServiceUnregistered = "service-unregistered"
+	// ReasonNearName pairs a registry-only row with a candidate-only row that
+	// names the same resource differently; see pairNearNames.
+	ReasonNearName = "near-name"
+	// ReasonUnlistable and ReasonCFNOnly are registry entries the universe
+	// cannot hold by construction; see UpstreamType.Reason.
+	ReasonUnlistable = "unlistable"
+	ReasonCFNOnly    = "cfn-only"
 )
 
 // SignalScannerLists marks an excluded row a scanner demonstrably lists and
@@ -221,50 +235,140 @@ func BuildInventory(in Inputs) Matrix {
 
 // CrossCheck appends registry-drift rows: registry keys with no candidate and
 // resource candidates with no registry key. Identities come from the
-// provider's CrossChecker so the two spellings compare.
-func CrossCheck(m *Matrix, u *sdkinv.Universe, registry []UpstreamType, cc CrossChecker) {
+// provider's CrossChecker so the two spellings compare. It returns the
+// registry services left out because the universe has no counterpart, so the
+// caller can say what the comparison did not cover.
+func CrossCheck(m *Matrix, u *sdkinv.Universe, registry []UpstreamType, cc CrossChecker) []string {
 	// registry-only is judged against every candidate class and only within
 	// services the SDK universe knows: a registry's catalog/operation nodes
 	// and the APIs the universe excludes by rule are not drift.
-	candidates := map[string]sdkinv.Candidate{}
 	known := map[string]bool{}
-	services := map[string]bool{}
+	services := map[string]string{} // Canon(service) -> the universe's spelling
+	byKey := map[string]sdkinv.Candidate{}
+	for _, c := range u.Candidates {
+		known[cc.RegistryKey(c)] = true
+		services[sdkinv.Canon(c.Service)] = c.Service
+		byKey[c.Key] = c
+	}
 	// candidate-only is judged on the *bucket*, not the class: a preview-only
 	// candidate is bucketed excluded before the class switch runs, so reading
 	// the class alone made the same report call a row out of scope and then
-	// report it as drift (20 of 34 live GCP rows).
-	counted := map[string]bool{}
+	// report it as drift (20 of 34 live GCP rows). Several candidates can share
+	// one identity (the GCP leaf, AWS's folded "Resource" suffix); each is its
+	// own row.
+	candidates := map[string][]sdkinv.Candidate{}
 	for _, r := range m.Rows {
 		if r.Bucket == BucketCovered || r.Bucket == BucketUncovered {
-			counted[r.Key] = true
+			c := byKey[r.Key]
+			candidates[cc.RegistryKey(c)] = append(candidates[cc.RegistryKey(c)], c)
 		}
 	}
-	for _, c := range u.Candidates {
-		known[cc.RegistryKey(c)] = true
-		services[strings.ToLower(c.Service)] = true
-		if counted[c.Key] {
-			candidates[cc.RegistryKey(c)] = c
-		}
-	}
-	seen := map[string]bool{}
+	seen := map[string]UpstreamType{}
+	registered := map[string]bool{} // universe services the registry has entries for
+	dropped := map[string]bool{}
 	for _, r := range registry {
-		id := cc.CanonicalKey(r.Key)
-		if seen[id] {
+		svc, ok := services[sdkinv.Canon(r.Service)]
+		if !ok {
+			svc, ok = u.ServiceAliases[sdkinv.Canon(r.Service)]
+		}
+		if !ok {
+			dropped[r.Service] = true
 			continue
 		}
-		seen[id] = true
-		if known[id] || !services[strings.ToLower(r.Service)] {
-			continue
+		registered[svc] = true
+		r.Service = svc
+		id := cc.CanonicalKey(r)
+		// The same identity can arrive from two registries or two API
+		// versions; an entry with no reason of its own is the stronger claim.
+		if prev, dup := seen[id]; !dup || (prev.Reason != "" && r.Reason == "") {
+			seen[id] = r
 		}
-		m.Rows = append(m.Rows, Row{Provider: m.Provider, Service: r.Service, Key: r.Key, Bucket: BucketRegistryDrift, Reason: ReasonRegistryOnly})
 	}
-	for id, c := range candidates {
-		if seen[id] {
+	var regOnly, candOnly []int
+	for _, id := range slices.Sorted(maps.Keys(seen)) {
+		r := seen[id]
+		if known[id] {
 			continue
 		}
-		m.Rows = append(m.Rows, Row{Provider: m.Provider, Service: c.Service, Key: c.Key, Depth: c.Depth, Bucket: BucketRegistryDrift, Reason: ReasonCandidateOnly})
+		reason := ReasonRegistryOnly
+		if r.Reason != "" {
+			reason = r.Reason
+		}
+		if reason == ReasonRegistryOnly {
+			regOnly = append(regOnly, len(m.Rows))
+		}
+		m.Rows = append(m.Rows, Row{Provider: m.Provider, Service: r.Service, Key: r.Key, Bucket: BucketRegistryDrift, Reason: reason})
 	}
+	for _, id := range slices.Sorted(maps.Keys(candidates)) {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		for _, c := range candidates[id] {
+			reason := ReasonCandidateOnly
+			switch {
+			case !registered[c.Service]:
+				reason = ReasonServiceUnregistered
+			case c.Parent != "" && seenParent(seen, byKey, cc, c.Parent):
+				reason = ReasonChildOfRegistered
+			default:
+				candOnly = append(candOnly, len(m.Rows))
+			}
+			m.Rows = append(m.Rows, Row{Provider: m.Provider, Service: c.Service, Key: c.Key, Depth: c.Depth, Parent: c.Parent, Bucket: BucketRegistryDrift, Reason: reason})
+		}
+	}
+	pairNearNames(m.Rows, regOnly, candOnly)
 	sortRows(m.Rows)
+	return slices.Sorted(maps.Keys(dropped))
+}
+
+func seenParent(seen map[string]UpstreamType, byKey map[string]sdkinv.Candidate, cc CrossChecker, parent string) bool {
+	p, ok := byKey[parent]
+	if !ok {
+		return false
+	}
+	_, ok = seen[cc.RegistryKey(p)]
+	return ok
+}
+
+// pairNearNames files a registry-only row and a candidate-only row of one
+// service as near-name twins when one leaf's stem is a prefix or suffix of
+// the other's and neither has another such partner: autoscaling/policy and
+// AWS::AutoScaling::ScalingPolicy are one resource named twice, not two
+// drifts. The twin's key rides along as a signal so the pairing can be
+// checked; nothing is dropped.
+func pairNearNames(rows []Row, regOnly, candOnly []int) {
+	near := func(a, b string) bool {
+		if len(a) > len(b) {
+			a, b = b, a
+		}
+		return len(a) >= 4 && (strings.HasPrefix(b, a) || strings.HasSuffix(b, a))
+	}
+	partners := map[int][]int{}
+	for _, ri := range regOnly {
+		rl := sdkinv.Ident(leaf(rows[ri].Key))
+		for _, ci := range candOnly {
+			if rows[ci].Service == rows[ri].Service && near(rl, sdkinv.Ident(leaf(rows[ci].Key))) {
+				partners[ri] = append(partners[ri], ci)
+				partners[ci] = append(partners[ci], ri)
+			}
+		}
+	}
+	for _, ri := range regOnly {
+		if len(partners[ri]) != 1 {
+			continue
+		}
+		ci := partners[ri][0]
+		if len(partners[ci]) != 1 {
+			continue
+		}
+		rows[ri].Reason, rows[ri].Signals = ReasonNearName, []string{"near-name:" + rows[ci].Key}
+		rows[ci].Reason, rows[ci].Signals = ReasonNearName, []string{"near-name:" + rows[ri].Key}
+	}
+}
+
+// leaf is a key's last segment in any provider's spelling ("a/b", "AWS::s::r").
+func leaf(key string) string {
+	return key[strings.LastIndexAny(key, "/:")+1:]
 }
 
 // serviceNames are the names a row answers to: the SDK service spelling and
