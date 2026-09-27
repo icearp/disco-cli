@@ -1,6 +1,9 @@
 package azure
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // ARM resource-ID parsing helpers, one per ID shape, so a naming/case drift
 // fixes in one place instead of scattering logic across resolvers and
@@ -69,4 +72,32 @@ func vnetIDFromSubnetID(subnetID string) string {
 		return ""
 	}
 	return subnetID[:idx]
+}
+
+// repairARMID rebuilds a subscription-scoped ID for list results whose `id`
+// Azure itself returns with empty segments, e.g. azureFirewallFqdnTags and
+// expressRouteServiceProviders answer with
+// "/subscriptions//resourceGroups//providers/Microsoft.Network/azureFirewallFqdnTags/"
+// for every item. Stored as-is, every item shares one NativeID and each scan
+// writes them as successive versions of a single resource. Well-formed IDs,
+// and IDs with no provider path or no name to rebuild from, are returned
+// unchanged.
+func repairARMID(subID, id, name string) string {
+	if !strings.Contains(id, "//") && !strings.HasSuffix(id, "/") {
+		return id
+	}
+	i := strings.LastIndex(strings.ToLower(id), "/providers/")
+	if i < 0 || name == "" {
+		return id
+	}
+	segs := strings.Split(strings.Trim(id[i+len("/providers/"):], "/"), "/")
+	// Namespace, then alternating type/name pairs: an even count means the
+	// trailing name is missing.
+	if len(segs)%2 == 0 {
+		segs = append(segs, name)
+	}
+	if slices.Contains(segs, "") {
+		return id
+	}
+	return "/subscriptions/" + subID + "/providers/" + strings.Join(segs, "/")
 }

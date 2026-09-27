@@ -134,6 +134,7 @@ func azTrackedRows[T any](sub *subscription, scanID, rtype string, items []*T, e
 		if b.id == "" {
 			continue
 		}
+		b.id = repairARMID(sub.ID, b.id, b.name)
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
 			Type: rtype, NativeID: b.id,

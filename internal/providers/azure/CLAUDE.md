@@ -87,6 +87,10 @@ Azure stores IDs as-returned (whatever case user typed at create time). Resolver
 
 Helpers extracting segments from ARM IDs (subscription guid, RG name, resource name) must return the *lowercased* segment, not the original mixed-case slice — caller-side `strings.EqualFold` works but each call site is easy to miss. Precedent: `subscriptionFromScope` in `authorization_resolvers.go`.
 
+## Azure can return malformed IDs
+
+Some list results carry an `id` with empty segments, e.g. `azureFirewallFqdnTags` and `expressRouteServiceProviders` return `/subscriptions//resourceGroups//providers/Microsoft.Network/<type>/` for every item. Stored raw, the list collapses onto one NativeID and each scan writes the items as successive versions of one resource. `azTrackedRows` runs every ID through `repairARMID`, which rebuilds `/subscriptions/<sub>/providers/<ns>/<type>/<name>`. A scanner building rows by hand must call it too. Symptom: a fresh `--db` scan that reports `changed` > 0.
+
 ## PE target IDs carry sub-resource suffixes
 
 `privateLinkServiceConnections[].privateLinkServiceId` often points at sub-path (e.g. `/storageAccounts/foo/blobServices/default`) not stored resource. Resolver pattern: progressively trim `/`-segments from right until one matches index. See `privateendpoints_resolvers.go::resolvePrivateEndpointRelationships`.
