@@ -58,7 +58,10 @@ is visible as a low percentage instead of silently inflating one headline number
 - `registry-drift` — only with `--cross-check`. Drift proper: `registry-only` (live registry key,
   within a service the universe knows, matching no candidate of any class) / `candidate-only`
   (covered/uncovered candidate the registry lacks). Explained by construction, kept visible:
-  `unlistable` (GCP get-only node), `cfn-only` (CFN type with no SR twin), `near-name` (unique
+  `unlistable` (GCP get-only node), `cfn-only` (CFN type with no SR twin), `arm-operation` /
+  `location-scoped` (Azure ARM RPC endpoints: `operations`, `checknameavailability`, async-operation tracking,
+  anything under `locations/`; the registry marks them no other way — capabilities `None` covers ~670 real proxy
+  types too, so do not key on it), `near-name` (unique
   same-service prefix/suffix stem pair; twin in a `near-name:<key>` signal),
   `child-of-registered` (parent's registry id seen), `service-unregistered` (registry has nothing
   for the service). Identities compare via `RegistryKey(candidate)` vs

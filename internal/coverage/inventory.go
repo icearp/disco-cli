@@ -48,6 +48,11 @@ const (
 	// cannot hold by construction; see UpstreamType.Reason.
 	ReasonUnlistable = "unlistable"
 	ReasonCFNOnly    = "cfn-only"
+	// ReasonARMOperation and ReasonLocationScoped are Azure registry entries
+	// that are ARM RPC endpoints rather than resources: operation lists and
+	// async-operation tracking, and types under locations/{location}.
+	ReasonARMOperation   = "arm-operation"
+	ReasonLocationScoped = "location-scoped"
 )
 
 // SignalScannerLists marks an excluded row a scanner demonstrably lists and
