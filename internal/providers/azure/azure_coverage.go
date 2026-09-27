@@ -196,5 +196,5 @@ func detectFirstSubscriptionForCoverage(ctx context.Context, cred azcore.TokenCr
 			}
 		}
 	}
-	return "", fmt.Errorf("no accessible Azure subscriptions; pass --subscription to specify one")
+	return "", fmt.Errorf("no accessible Azure subscriptions; pass --subscriptions to specify one")
 }
