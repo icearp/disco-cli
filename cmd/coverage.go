@@ -65,9 +65,10 @@ Bucket model:
   - registry-drift  only with --cross-check: the live registry (CloudFormation
                  + Service Reference, ARM Providers, Discovery) and the SDK
                  universe disagree. registry-only and candidate-only are
-                 the drift; unlistable, cfn-only, near-name,
-                 child-of-registered and service-unregistered name a
-                 disagreement the two models explain by construction.
+                 the drift; unlistable, cfn-only, arm-operation,
+                 location-scoped, near-name, child-of-registered and
+                 service-unregistered name a disagreement the two models
+                 explain by construction.
 
 Percent = covered / (covered + uncovered), computed before --filter, per
 provider, per service and per depth. Pins are printed with every report:

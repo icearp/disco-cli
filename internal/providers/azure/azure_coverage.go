@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -134,12 +135,37 @@ func (coverageProvider) CrossCheck(ctx context.Context, opts coverage.FetchOptio
 				if rt.ResourceType == nil {
 					continue
 				}
-				key := ns + "/" + strings.ToLower(*rt.ResourceType)
-				out = append(out, coverage.UpstreamType{Key: key, Service: ns})
+				typ := strings.ToLower(*rt.ResourceType)
+				out = append(out, coverage.UpstreamType{Key: ns + "/" + typ, Service: ns, Reason: armEndpointReason(typ)})
 			}
 		}
 	}
 	return out, nil
+}
+
+// armAsyncOperationRe matches ARM's async-operation tracking segments:
+// ".../operationResults", ".../operationStatuses" and the per-feature
+// "...AzureAsyncOperation" variants.
+var armAsyncOperationRe = regexp.MustCompile(`(operations?(results?|status(es)?)|asyncoperations?)$`)
+
+// armEndpointReason files registry types that are ARM RPC endpoints, not
+// customer resources: the provider's "operations" list, checkNameAvailability,
+// async-operation tracking (and the status trees under it), and anything under
+// a location. The registry
+// lists them next to real types without any marker (their capabilities are
+// "None", like hundreds of real proxy types), so only the ARM grammar
+// identifies them. Nothing is dropped: a matched candidate still pairs
+// first, and an unmatched one is labelled rather than counted as drift.
+func armEndpointReason(typ string) string {
+	segs := strings.Split(typ, "/")
+	switch {
+	case typ == "operations", segs[len(segs)-1] == "checknameavailability",
+		slices.ContainsFunc(segs, armAsyncOperationRe.MatchString):
+		return coverage.ReasonARMOperation
+	case slices.Contains(segs, "locations"):
+		return coverage.ReasonLocationScoped
+	}
+	return ""
 }
 
 // FetchRegions calls armsubscription.SubscriptionsClient.NewListLocationsPager
