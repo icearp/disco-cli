@@ -24,7 +24,8 @@ and do not batch phases together:
 
 **Rewriting an extractor:** build the new one beside the old, diff both universes per candidate
 (key, class, rule, parent, depth) with a throwaway live-cache test, classify every changed row,
-then swap and delete the old code and the diff test in the same commit.
+mutation-check every rule against the fixture (see `internal/sdkinv/CLAUDE.md`), then swap and
+delete the old code and the diff test in the same commit.
 
 **After the final phase.** Run the `claude-md-management:claude-md-improver` skill across
 the repo's `CLAUDE.md` files to optimize them, then commit that pass separately.

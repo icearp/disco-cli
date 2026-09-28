@@ -106,3 +106,18 @@ func TestUnaccounted(t *testing.T) {
 		t.Errorf("conflicts = %v", conflicts)
 	}
 }
+
+func TestSplitVerb(t *testing.T) {
+	for _, c := range []struct{ in, path, verb string }{
+		{"v1/organizations:search", "v1/organizations", "search"},
+		{"v1/{+name}:fetch", "v1/{+name}", "fetch"},
+		{"projects/{p}/instances/{i}", "projects/{p}/instances/{i}", ""},
+		{"v1/{name=projects/*}:get", "v1/{name=projects/*}", "get"},
+		{"a:b/c", "a:b/c", ""}, // only the final segment carries a verb
+		{"x/{a:b}", "x/{a:b}", ""},
+	} {
+		if p, v := SplitVerb(c.in); p != c.path || v != c.verb {
+			t.Errorf("SplitVerb(%q) = %q, %q; want %q, %q", c.in, p, v, c.path, c.verb)
+		}
+	}
+}

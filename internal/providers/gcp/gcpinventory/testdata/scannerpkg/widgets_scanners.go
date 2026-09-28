@@ -46,13 +46,15 @@ func describeWidget(ctx context.Context, svc *widgets.Service, name string, st *
 	return nil
 }
 
+// widgetSvc: the chain spells the field "widgetsvc", so binding compares
+// canonically, not by LowerFirst.
 type gizmoScan struct {
-	svc *widgets.Service
-	st  *store.Store
+	widgetSvc *widgets.Service
+	st        *store.Store
 }
 
 func (s *gizmoScan) scanGizmos(ctx context.Context, project string) error {
-	err := s.svc.Gizmos.AggregatedList(project).Pages(ctx, func(page *widgets.GizmoAggregatedList) error {
+	err := s.widgetSvc.Gizmos.AggregatedList(project).Pages(ctx, func(page *widgets.GizmoAggregatedList) error {
 		for _, g := range page.Items {
 			s.st.Put(&store.Resource{Type: TypeGizmo, NativeID: g.Name})
 		}
@@ -73,7 +75,7 @@ func (s *gizmoScan) run(ctx context.Context, projects []string) error {
 }
 
 func (s *gizmoScan) scanZone(ctx context.Context, project string) error {
-	resp, err := s.svc.Zones.List(project).Do()
+	resp, err := s.widgetSvc.Zones.List(project).Do()
 	if err != nil {
 		return err
 	}
@@ -121,3 +123,15 @@ func forEachItem(ctx context.Context, items []string, f func(context.Context, st
 }
 
 func skipIfDenied(st *store.Store, op string, err error) error { return err }
+
+// pageETag reads a response page: a bound SDK type that is not a *Service,
+// so Header.Get is no Discovery method and raises no sdk-skew.
+func pageETag(page *widgets.ListWidgetsResponse) string {
+	return page.Header.Get("ETag")
+}
+
+// twinLabel names an op two candidates share (the aggregated twins) and
+// calls nothing: it resolves through the label fallback, not label-no-op.
+func twinLabel(st *store.Store) error {
+	return skipIfDenied(st, "widgets:gizmos.aggregatedList", nil)
+}

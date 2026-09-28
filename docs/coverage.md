@@ -4423,7 +4423,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 ## GCP
 
-**Coverage:** 22.9% (239/1042 listable) · depth0 26.9% · depth1 18.3% · depth2 13.3% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 840 · disco-only 1 (0 unexplained)
+**Coverage:** 23.2% (240/1034 listable) · depth0 28.0% · depth1 18.6% · depth2 11.1% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 626 · disco-only 5 (0 unexplained)
 
 Pins: google.golang.org/api@v0.292.0
 
@@ -4431,54 +4431,56 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| create | 224 | 735 | 23.4 |
-| delete-only | 11 | 49 | 18.3 |
-| mutable | 4 | 19 | 17.4 |
+| create | 224 | 731 | 23.5 |
+| delete-only | 9 | 41 | 18.0 |
+| mutable | 5 | 21 | 19.2 |
+| created-elsewhere | 2 | 1 | 66.7 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
 | aiplatform | 0 | 58 | 0.0 |
-| apigee | 0 | 46 | 0.0 |
 | dialogflow | 0 | 44 | 0.0 |
+| apigee | 0 | 43 | 0.0 |
 | contactcenterinsights | 0 | 28 | 0.0 |
-| discoveryengine | 0 | 27 | 0.0 |
+| discoveryengine | 0 | 26 | 0.0 |
 | dataplex | 0 | 25 | 0.0 |
 | networksecurity | 0 | 25 | 0.0 |
-| admin | 1 | 19 | 5.0 |
+| admin | 1 | 20 | 4.8 |
 | networkservices | 0 | 19 | 0.0 |
 | networkconnectivity | 0 | 16 | 0.0 |
 | vmwareengine | 0 | 14 | 0.0 |
-| apihub | 0 | 12 | 0.0 |
-| integrations | 0 | 12 | 0.0 |
+| apihub | 0 | 13 | 0.0 |
 | gkehub | 0 | 11 | 0.0 |
-| healthcare | 0 | 11 | 0.0 |
-| managedkafka | 0 | 11 | 0.0 |
 | netapp | 0 | 11 | 0.0 |
 | oracledatabase | 0 | 11 | 0.0 |
+| compute | 92 | 10 | 90.2 |
 | dlp | 0 | 10 | 0.0 |
+| healthcare | 0 | 10 | 0.0 |
 | migrationcenter | 0 | 10 | 0.0 |
 | vmmigration | 0 | 10 | 0.0 |
 | apigeeregistry | 0 | 9 | 0.0 |
 | ces | 0 | 9 | 0.0 |
-| compute | 90 | 9 | 90.9 |
 | appengine | 0 | 8 | 0.0 |
 | connectors | 0 | 8 | 0.0 |
+| integrations | 0 | 8 | 0.0 |
+| saasservicemgmt | 0 | 8 | 0.0 |
 | securesourcemanager | 0 | 8 | 0.0 |
-| securitycenter | 0 | 8 | 0.0 |
 | clouddeploy | 0 | 7 | 0.0 |
 | dataform | 0 | 7 | 0.0 |
 | eventarc | 0 | 7 | 0.0 |
 | identitytoolkit | 0 | 7 | 0.0 |
-| saasservicemgmt | 0 | 7 | 0.0 |
+| managedkafka | 0 | 7 | 0.0 |
+| securitycenter | 0 | 7 | 0.0 |
 | backupdr | 0 | 6 | 0.0 |
 | baremetalsolution | 0 | 6 | 0.0 |
 | datacatalog | 0 | 6 | 0.0 |
+| datamigration | 0 | 6 | 0.0 |
 | gkebackup | 0 | 6 | 0.0 |
 | gkeonprem | 0 | 6 | 0.0 |
 | redis | 0 | 6 | 0.0 |
 | translate | 0 | 6 | 0.0 |
 | beyondcorp | 0 | 5 | 0.0 |
-| datamigration | 0 | 5 | 0.0 |
+| datastream | 0 | 5 | 0.0 |
 | developerconnect | 0 | 5 | 0.0 |
 | jobs | 0 | 5 | 0.0 |
 | metastore | 0 | 5 | 0.0 |
@@ -4490,19 +4492,18 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | analyticshub | 0 | 4 | 0.0 |
 | apphub | 0 | 4 | 0.0 |
 | bigqueryreservation | 0 | 4 | 0.0 |
-| chromemanagement | 0 | 4 | 0.0 |
-| contentwarehouse | 0 | 4 | 0.0 |
-| datastream | 0 | 4 | 0.0 |
+| cloudsupport | 0 | 4 | 0.0 |
 | documentai | 0 | 4 | 0.0 |
 | firebaseappdistribution | 0 | 4 | 0.0 |
 | firebaseapphosting | 0 | 4 | 0.0 |
+| osconfig | 0 | 4 | 0.0 |
 | parametermanager | 0 | 4 | 0.0 |
 | workloadmanager | 0 | 4 | 0.0 |
 | apigateway | 0 | 3 | 0.0 |
 | biglake | 0 | 3 | 0.0 |
 | cloudbuild | 5 | 3 | 62.5 |
-| cloudsupport | 0 | 3 | 0.0 |
 | config | 0 | 3 | 0.0 |
+| contentwarehouse | 0 | 3 | 0.0 |
 | datalineage | 0 | 3 | 0.0 |
 | file | 0 | 3 | 0.0 |
 | firebaseappcheck | 0 | 3 | 0.0 |
@@ -4512,14 +4513,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iap | 0 | 3 | 0.0 |
 | managedidentities | 0 | 3 | 0.0 |
 | networkmanagement | 0 | 3 | 0.0 |
-| osconfig | 0 | 3 | 0.0 |
 | pubsublite | 0 | 3 | 0.0 |
 | servicedirectory | 0 | 3 | 0.0 |
+| servicemanagement | 0 | 3 | 0.0 |
 | vision | 0 | 3 | 0.0 |
 | workstations | 0 | 3 | 0.0 |
 | agentidentity | 0 | 2 | 0.0 |
 | agentregistry | 0 | 2 | 0.0 |
-| androiddeviceprovisioning | 0 | 2 | 0.0 |
 | artifactregistry | 5 | 2 | 71.4 |
 | bigquerydatatransfer | 0 | 2 | 0.0 |
 | cloudasset | 0 | 2 | 0.0 |
@@ -4531,18 +4531,17 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | firebaserules | 0 | 2 | 0.0 |
 | firestore | 4 | 2 | 66.7 |
 | looker | 0 | 2 | 0.0 |
-| monitoring | 8 | 2 | 80.0 |
 | observability | 0 | 2 | 0.0 |
 | orgpolicy | 0 | 2 | 0.0 |
 | recaptchaenterprise | 0 | 2 | 0.0 |
-| script | 0 | 2 | 0.0 |
 | securityposture | 0 | 2 | 0.0 |
+| servicenetworking | 0 | 2 | 0.0 |
 | speech | 0 | 2 | 0.0 |
 | storage | 8 | 2 | 80.0 |
 | storagetransfer | 0 | 2 | 0.0 |
 | tpu | 0 | 2 | 0.0 |
 | transcoder | 0 | 2 | 0.0 |
-| webcontentpublisher | 0 | 2 | 0.0 |
+| websecurityscanner | 0 | 2 | 0.0 |
 | apikeys | 0 | 1 | 0.0 |
 | assuredworkloads | 0 | 1 | 0.0 |
 | bigquery | 5 | 1 | 83.3 |
@@ -4550,7 +4549,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | billingbudgets | 0 | 1 | 0.0 |
 | binaryauthorization | 1 | 1 | 50.0 |
 | blockchainnodeengine | 0 | 1 | 0.0 |
+| cloudcommerceprocurement | 0 | 1 | 0.0 |
 | cloudcontrolspartner | 0 | 1 | 0.0 |
+| clouddebugger | 0 | 1 | 0.0 |
 | cloudkms | 7 | 1 | 87.5 |
 | cloudprofiler | 0 | 1 | 0.0 |
 | cloudscheduler | 0 | 1 | 0.0 |
@@ -4563,19 +4564,20 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | essentialcontacts | 0 | 1 | 0.0 |
 | hypercomputecluster | 0 | 1 | 0.0 |
 | ids | 0 | 1 | 0.0 |
-| logging | 8 | 1 | 88.9 |
 | memcache | 0 | 1 | 0.0 |
+| monitoring | 8 | 1 | 88.9 |
 | parallelstore | 0 | 1 | 0.0 |
 | policysimulator | 0 | 1 | 0.0 |
 | rapidmigrationassessment | 0 | 1 | 0.0 |
 | resourcesettings | 0 | 1 | 0.0 |
-| run | 9 | 1 | 90.0 |
+| run | 8 | 1 | 88.9 |
+| serviceconsumermanagement | 0 | 1 | 0.0 |
 | sourcerepo | 0 | 1 | 0.0 |
 | spanner | 6 | 1 | 85.7 |
+| sqladmin | 5 | 1 | 83.3 |
 | storagebatchoperations | 0 | 1 | 0.0 |
 | testing | 0 | 1 | 0.0 |
 | vpcaccess | 0 | 1 | 0.0 |
-| websecurityscanner | 0 | 1 | 0.0 |
 | workflowexecutions | 0 | 1 | 0.0 |
 | workflows | 0 | 1 | 0.0 |
 | accesscontextmanager | 5 | 0 | 100.0 |
@@ -4589,11 +4591,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | container | 2 | 0 | 100.0 |
 | dataflow | 2 | 0 | 100.0 |
 | dataproc | 7 | 0 | 100.0 |
+| logging | 8 | 0 | 100.0 |
 | pubsub | 4 | 0 | 100.0 |
 | secretmanager | 2 | 0 | 100.0 |
-| sqladmin | 5 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (803)
+### Uncovered (listable, no scanner) (794)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -4615,10 +4617,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | admin | admin/roles | 0 | tenant | create | admin:roles.list |
 | admin | admin/schemas | 0 | tenant | create | admin:schemas.list |
 | admin | admin/tokens | 1 | global | delete-only | admin:tokens.list |
+| admin | admin/transfers | 0 | global | create | admin:transfers.list |
 | admin | admin/users/aliases | 1 | global | create | admin:users.aliases.list |
 | agentidentity | agentidentity/authproviders | 0 | project | create | agentidentity:projects.locations.authProviders.list |
 | agentidentity | agentidentity/authproviders/authorizations | 1 | project | delete-only | agentidentity:projects.locations.authProviders.authorizations.list |
-| agentregistry | agentregistry/bindings | 0 | project | create | agentregistry:projects.locations.bindings.list |
+| agentregistry | agentregistry/bindings | 0 | project | create | agentregistry:projects.locations.bindings.fetchAvailable, agentregistry:projects.locations.bindings.list |
 | agentregistry | agentregistry/services | 0 | project | create | agentregistry:projects.locations.services.list |
 | aiplatform | aiplatform/agents | 0 | project | create | aiplatform:projects.locations.agents.list |
 | aiplatform | aiplatform/batchpredictionjobs | 0 | project | create | aiplatform:batchPredictionJobs.list, aiplatform:projects.locations.batchPredictionJobs.list |
@@ -4644,7 +4647,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aiplatform | aiplatform/hyperparametertuningjobs | 0 | project | create | aiplatform:projects.locations.hyperparameterTuningJobs.list |
 | aiplatform | aiplatform/indexendpoints | 0 | project | create | aiplatform:projects.locations.indexEndpoints.list |
 | aiplatform | aiplatform/indexes | 0 | project | create | aiplatform:projects.locations.indexes.list |
-| aiplatform | aiplatform/memorybanks/memories | 1 | project | create | aiplatform:projects.locations.memoryBanks.memories.list |
 | aiplatform | aiplatform/metadatastores | 0 | project | create | aiplatform:projects.locations.metadataStores.list |
 | aiplatform | aiplatform/metadatastores/artifacts | 1 | project | create | aiplatform:projects.locations.metadataStores.artifacts.list |
 | aiplatform | aiplatform/metadatastores/contexts | 1 | project | create | aiplatform:projects.locations.metadataStores.contexts.list |
@@ -4652,6 +4654,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aiplatform | aiplatform/metadatastores/metadataschemas | 1 | project | create | aiplatform:projects.locations.metadataStores.metadataSchemas.list |
 | aiplatform | aiplatform/modeldeploymentmonitoringjobs | 0 | project | create | aiplatform:projects.locations.modelDeploymentMonitoringJobs.list |
 | aiplatform | aiplatform/models | 0 | project | delete-only | aiplatform:projects.locations.models.list |
+| aiplatform | aiplatform/models/evaluations | 1 | project | create | aiplatform:projects.locations.models.evaluations.list |
 | aiplatform | aiplatform/nasjobs | 0 | project | create | aiplatform:projects.locations.nasJobs.list |
 | aiplatform | aiplatform/notebookexecutionjobs | 0 | project | create | aiplatform:projects.locations.notebookExecutionJobs.list |
 | aiplatform | aiplatform/notebookruntimes | 0 | project | delete-only | aiplatform:projects.locations.notebookRuntimes.list |
@@ -4660,9 +4663,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aiplatform | aiplatform/persistentresources | 0 | project | create | aiplatform:projects.locations.persistentResources.list |
 | aiplatform | aiplatform/pipelinejobs | 0 | project | create | aiplatform:projects.locations.pipelineJobs.list |
 | aiplatform | aiplatform/ragcorpora | 0 | project | create | aiplatform:projects.locations.ragCorpora.list |
-| aiplatform | aiplatform/ragcorpora/ragfiles | 1 | project | delete-only | aiplatform:projects.locations.ragCorpora.ragFiles.list |
+| aiplatform | aiplatform/ragcorpora/ragfiles | 1 | project | create | aiplatform:projects.locations.ragCorpora.ragFiles.list |
 | aiplatform | aiplatform/reasoningengines | 0 | project | create | aiplatform:projects.locations.reasoningEngines.list, aiplatform:reasoningEngines.list |
-| aiplatform | aiplatform/reasoningengines/memories | 1 | project | create | aiplatform:projects.locations.reasoningEngines.memories.list, aiplatform:reasoningEngines.memories.list |
+| aiplatform | aiplatform/reasoningengines/memories | 1 | project | create | aiplatform:projects.locations.memoryBanks.memories.list, aiplatform:projects.locations.reasoningEngines.memories.list, aiplatform:reasoningEngines.memories.list |
 | aiplatform | aiplatform/reasoningengines/sandboxenvironments | 1 | project | create | aiplatform:projects.locations.reasoningEngines.sandboxEnvironments.list, aiplatform:reasoningEngines.sandboxEnvironments.list |
 | aiplatform | aiplatform/reasoningengines/sandboxenvironmentsnapshots | 1 | project | delete-only | aiplatform:projects.locations.reasoningEngines.sandboxEnvironmentSnapshots.list, aiplatform:reasoningEngines.sandboxEnvironmentSnapshots.list |
 | aiplatform | aiplatform/reasoningengines/sandboxenvironmenttemplates | 1 | project | create | aiplatform:projects.locations.reasoningEngines.sandboxEnvironmentTemplates.list, aiplatform:reasoningEngines.sandboxEnvironmentTemplates.list |
@@ -4682,61 +4685,56 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | alloydb | alloydb/clusters | 0 | project | create | alloydb:projects.locations.clusters.list |
 | alloydb | alloydb/clusters/instances | 1 | project | create | alloydb:projects.locations.clusters.instances.list |
 | alloydb | alloydb/clusters/users | 1 | project | create | alloydb:projects.locations.clusters.users.list |
-| analyticshub | analyticshub/dataexchanges | 0 | project | create | analyticshub:organizations.locations.dataExchanges.list, analyticshub:projects.locations.dataExchanges.list |
+| analyticshub | analyticshub/dataexchanges | 0 | project | create | analyticshub:projects.locations.dataExchanges.list |
 | analyticshub | analyticshub/dataexchanges/listings | 1 | project | create | analyticshub:projects.locations.dataExchanges.listings.list |
 | analyticshub | analyticshub/dataexchanges/querytemplates | 1 | project | create | analyticshub:projects.locations.dataExchanges.queryTemplates.list |
 | analyticshub | analyticshub/subscriptions | 0 | project | delete-only | analyticshub:projects.locations.subscriptions.list |
-| androiddeviceprovisioning | androiddeviceprovisioning/configurations | 0 | tenant | create | androiddeviceprovisioning:customers.configurations.list |
-| androiddeviceprovisioning | androiddeviceprovisioning/partners/customers | 1 | global | create | androiddeviceprovisioning:partners.customers.list |
 | apigateway | apigateway/apis | 0 | project | create | apigateway:projects.locations.apis.list |
 | apigateway | apigateway/apis/configs | 1 | project | create | apigateway:projects.locations.apis.configs.list |
 | apigateway | apigateway/gateways | 0 | project | create | apigateway:projects.locations.gateways.list |
-| apigee | apigee/analytics/datastores | 0 | org | create | apigee:organizations.analytics.datastores.list |
-| apigee | apigee/apimserviceextensions | 0 | org | create | apigee:organizations.apimServiceExtensions.list |
-| apigee | apigee/apiproducts | 0 | org | create | apigee:organizations.apiproducts.list |
-| apigee | apigee/apiproducts/attributes | 1 | org | delete-only | apigee:organizations.apiproducts.attributes.list |
-| apigee | apigee/apiproducts/rateplans | 1 | org | create | apigee:organizations.apiproducts.rateplans.list |
-| apigee | apigee/apis | 0 | org | create | apigee:organizations.apis.list |
-| apigee | apigee/apis/keyvaluemaps/entries | 2 | org | create | apigee:organizations.apis.keyvaluemaps.entries.list |
-| apigee | apigee/appgroups | 0 | org | create | apigee:organizations.appgroups.list |
-| apigee | apigee/appgroups/apps | 1 | org | create | apigee:organizations.appgroups.apps.list |
-| apigee | apigee/appgroups/subscriptions | 1 | org | create | apigee:organizations.appgroups.subscriptions.list |
-| apigee | apigee/datacollectors | 0 | org | create | apigee:organizations.datacollectors.list |
-| apigee | apigee/developers | 0 | org | create | apigee:organizations.developers.list |
-| apigee | apigee/developers/apps | 1 | org | create | apigee:organizations.developers.apps.list |
-| apigee | apigee/developers/apps/attributes | 2 | org | delete-only | apigee:organizations.developers.apps.attributes.list |
-| apigee | apigee/developers/attributes | 1 | org | delete-only | apigee:organizations.developers.attributes.list |
-| apigee | apigee/developers/subscriptions | 1 | org | create | apigee:organizations.developers.subscriptions.list |
-| apigee | apigee/dnszones | 0 | org | create | apigee:organizations.dnsZones.list |
-| apigee | apigee/endpointattachments | 0 | org | create | apigee:organizations.endpointAttachments.list |
-| apigee | apigee/envgroups | 0 | org | create | apigee:organizations.envgroups.list |
-| apigee | apigee/envgroups/attachments | 1 | org | create | apigee:organizations.envgroups.attachments.list |
-| apigee | apigee/environments/analytics/exports | 1 | org | create | apigee:organizations.environments.analytics.exports.list |
-| apigee | apigee/environments/apis/revisions/debugsessions | 3 | org | create | apigee:organizations.environments.apis.revisions.debugsessions.list |
-| apigee | apigee/environments/archivedeployments | 1 | org | create | apigee:organizations.environments.archiveDeployments.list |
-| apigee | apigee/environments/keyvaluemaps/entries | 2 | org | create | apigee:organizations.environments.keyvaluemaps.entries.list |
-| apigee | apigee/environments/queries | 1 | org | create | apigee:organizations.environments.queries.list |
-| apigee | apigee/environments/resourcefiles | 1 | org | create | apigee:organizations.environments.resourcefiles.list |
-| apigee | apigee/environments/securityactions | 1 | org | create | apigee:organizations.environments.securityActions.list |
-| apigee | apigee/environments/securityincidents | 1 | org | mutable | apigee:organizations.environments.securityIncidents.list |
-| apigee | apigee/environments/securityreports | 1 | org | create | apigee:organizations.environments.securityReports.list |
-| apigee | apigee/environments/traceconfig/overrides | 1 | org | create | apigee:organizations.environments.traceConfig.overrides.list |
-| apigee | apigee/hostqueries | 0 | org | create | apigee:organizations.hostQueries.list |
-| apigee | apigee/hostsecurityreports | 0 | org | create | apigee:organizations.hostSecurityReports.list |
-| apigee | apigee/instances | 0 | org | create | apigee:organizations.instances.list |
-| apigee | apigee/instances/attachments | 1 | org | create | apigee:organizations.instances.attachments.list |
-| apigee | apigee/instances/nataddresses | 1 | org | create | apigee:organizations.instances.natAddresses.list |
-| apigee | apigee/keyvaluemaps/entries | 1 | org | create | apigee:organizations.keyvaluemaps.entries.list |
-| apigee | apigee/organizations | 0 | org | create | apigee:organizations.list |
-| apigee | apigee/reports | 0 | org | create | apigee:organizations.reports.list |
-| apigee | apigee/securityfeedback | 0 | org | create | apigee:organizations.securityFeedback.list |
-| apigee | apigee/securitymonitoringconditions | 0 | org | create | apigee:organizations.securityMonitoringConditions.list |
-| apigee | apigee/securityprofiles | 0 | org | create | apigee:organizations.securityProfiles.list |
-| apigee | apigee/securityprofilesv2 | 0 | org | create | apigee:organizations.securityProfilesV2.list |
-| apigee | apigee/sharedflows | 0 | org | create | apigee:organizations.sharedflows.list |
-| apigee | apigee/sites/apicategories | 1 | org | create | apigee:organizations.sites.apicategories.list |
-| apigee | apigee/sites/apidocs | 1 | org | create | apigee:organizations.sites.apidocs.list |
-| apigee | apigee/spaces | 0 | org | create | apigee:organizations.spaces.list |
+| apigee | apigee/organizations/analytics/datastores | 1 | org | create | apigee:organizations.analytics.datastores.list |
+| apigee | apigee/organizations/apimserviceextensions | 1 | org | create | apigee:organizations.apimServiceExtensions.list |
+| apigee | apigee/organizations/apiproducts | 1 | org | create | apigee:organizations.apiproducts.list |
+| apigee | apigee/organizations/apiproducts/attributes | 2 | org | create | apigee:organizations.apiproducts.attributes.list |
+| apigee | apigee/organizations/apiproducts/rateplans | 2 | org | create | apigee:organizations.apiproducts.rateplans.list |
+| apigee | apigee/organizations/apis | 1 | org | create | apigee:organizations.apis.list |
+| apigee | apigee/organizations/apis/keyvaluemaps/entries | 3 | org | create | apigee:organizations.apis.keyvaluemaps.entries.list |
+| apigee | apigee/organizations/appgroups | 1 | org | create | apigee:organizations.appgroups.list |
+| apigee | apigee/organizations/appgroups/apps | 2 | org | create | apigee:organizations.appgroups.apps.list |
+| apigee | apigee/organizations/appgroups/subscriptions | 2 | org | create | apigee:organizations.appgroups.subscriptions.list |
+| apigee | apigee/organizations/datacollectors | 1 | org | create | apigee:organizations.datacollectors.list |
+| apigee | apigee/organizations/developers | 1 | org | create | apigee:organizations.developers.list |
+| apigee | apigee/organizations/developers/apps | 2 | org | create | apigee:organizations.developers.apps.list |
+| apigee | apigee/organizations/developers/apps/attributes | 3 | org | create | apigee:organizations.developers.apps.attributes.list |
+| apigee | apigee/organizations/developers/attributes | 2 | org | create | apigee:organizations.developers.attributes.list |
+| apigee | apigee/organizations/developers/subscriptions | 2 | org | create | apigee:organizations.developers.subscriptions.list |
+| apigee | apigee/organizations/dnszones | 1 | org | create | apigee:organizations.dnsZones.list |
+| apigee | apigee/organizations/endpointattachments | 1 | org | create | apigee:organizations.endpointAttachments.list |
+| apigee | apigee/organizations/envgroups | 1 | org | create | apigee:organizations.envgroups.list |
+| apigee | apigee/organizations/envgroups/attachments | 2 | org | create | apigee:organizations.envgroups.attachments.list |
+| apigee | apigee/organizations/environments/analytics/exports | 2 | org | create | apigee:organizations.environments.analytics.exports.list |
+| apigee | apigee/organizations/environments/archivedeployments | 2 | org | create | apigee:organizations.environments.archiveDeployments.list |
+| apigee | apigee/organizations/environments/keyvaluemaps/entries | 3 | org | create | apigee:organizations.environments.keyvaluemaps.entries.list |
+| apigee | apigee/organizations/environments/queries | 2 | org | create | apigee:organizations.environments.queries.list |
+| apigee | apigee/organizations/environments/securityactions | 2 | org | create | apigee:organizations.environments.securityActions.list |
+| apigee | apigee/organizations/environments/securityincidents | 2 | org | mutable | apigee:organizations.environments.securityIncidents.list |
+| apigee | apigee/organizations/environments/securityreports | 2 | org | create | apigee:organizations.environments.securityReports.list |
+| apigee | apigee/organizations/environments/traceconfig/overrides | 2 | org | create | apigee:organizations.environments.traceConfig.overrides.list |
+| apigee | apigee/organizations/hostqueries | 1 | org | create | apigee:organizations.hostQueries.list |
+| apigee | apigee/organizations/hostsecurityreports | 1 | org | create | apigee:organizations.hostSecurityReports.list |
+| apigee | apigee/organizations/instances | 1 | org | create | apigee:organizations.instances.list |
+| apigee | apigee/organizations/instances/attachments | 2 | org | create | apigee:organizations.instances.attachments.list |
+| apigee | apigee/organizations/instances/nataddresses | 2 | org | create | apigee:organizations.instances.natAddresses.list |
+| apigee | apigee/organizations/keyvaluemaps/entries | 2 | org | create | apigee:organizations.keyvaluemaps.entries.list |
+| apigee | apigee/organizations/reports | 1 | org | create | apigee:organizations.reports.list |
+| apigee | apigee/organizations/securityfeedback | 1 | org | create | apigee:organizations.securityFeedback.list |
+| apigee | apigee/organizations/securitymonitoringconditions | 1 | org | create | apigee:organizations.securityMonitoringConditions.list |
+| apigee | apigee/organizations/securityprofiles | 1 | org | create | apigee:organizations.securityProfiles.list |
+| apigee | apigee/organizations/securityprofilesv2 | 1 | org | create | apigee:organizations.securityProfilesV2.list |
+| apigee | apigee/organizations/sharedflows | 1 | org | create | apigee:organizations.sharedflows.list |
+| apigee | apigee/organizations/sites/apicategories | 2 | org | create | apigee:organizations.sites.apicategories.list |
+| apigee | apigee/organizations/sites/apidocs | 2 | org | create | apigee:organizations.sites.apidocs.list |
+| apigee | apigee/organizations/spaces | 1 | org | create | apigee:organizations.spaces.list |
 | apigeeregistry | apigeeregistry/apis | 0 | project | create | apigeeregistry:projects.locations.apis.list |
 | apigeeregistry | apigeeregistry/apis/artifacts | 1 | project | create | apigeeregistry:projects.locations.apis.artifacts.list |
 | apigeeregistry | apigeeregistry/apis/deployments | 1 | project | create | apigeeregistry:projects.locations.apis.deployments.list |
@@ -4748,6 +4746,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | apigeeregistry | apigeeregistry/artifacts | 0 | project | create | apigeeregistry:projects.locations.artifacts.list |
 | apihub | apihub/apis | 0 | project | create | apihub:projects.locations.apis.list |
 | apihub | apihub/apis/versions | 1 | project | create | apihub:projects.locations.apis.versions.list |
+| apihub | apihub/apis/versions/operations | 2 | project | create | apihub:projects.locations.apis.versions.operations.list |
 | apihub | apihub/apis/versions/specs | 2 | project | create | apihub:projects.locations.apis.versions.specs.list |
 | apihub | apihub/attributes | 0 | project | create | apihub:projects.locations.attributes.list |
 | apihub | apihub/curations | 0 | project | create | apihub:projects.locations.curations.list |
@@ -4774,19 +4773,19 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | artifactregistry | artifactregistry/repositories/files | 1 | project | delete-only | artifactregistry:projects.locations.repositories.files.list |
 | artifactregistry | artifactregistry/repositories/packages/versions | 2 | project | delete-only | artifactregistry:projects.locations.repositories.packages.versions.list |
 | assuredworkloads | assuredworkloads/workloads | 0 | org | create | assuredworkloads:organizations.locations.workloads.list |
-| backupdr | backupdr/backupplanassociations | 0 | project | create | backupdr:projects.locations.backupPlanAssociations.list |
+| backupdr | backupdr/backupplanassociations | 0 | project | create | backupdr:projects.locations.backupPlanAssociations.fetchForResourceType, backupdr:projects.locations.backupPlanAssociations.list |
 | backupdr | backupdr/backupplans | 0 | project | create | backupdr:projects.locations.backupPlans.list |
-| backupdr | backupdr/backupvaults | 0 | project | create | backupdr:projects.locations.backupVaults.list |
+| backupdr | backupdr/backupvaults | 0 | project | create | backupdr:projects.locations.backupVaults.fetchUsable, backupdr:projects.locations.backupVaults.list |
 | backupdr | backupdr/backupvaults/datasources | 1 | project | mutable | backupdr:projects.locations.backupVaults.dataSources.list |
-| backupdr | backupdr/backupvaults/datasources/backups | 2 | project | delete-only | backupdr:projects.locations.backupVaults.dataSources.backups.list |
+| backupdr | backupdr/backupvaults/datasources/backups | 2 | project | delete-only | backupdr:projects.locations.backupVaults.dataSources.backups.fetchForResourceType, backupdr:projects.locations.backupVaults.dataSources.backups.list |
 | backupdr | backupdr/managementservers | 0 | project | create | backupdr:projects.locations.managementServers.list |
 | baremetalsolution | baremetalsolution/instances | 0 | project | mutable | baremetalsolution:projects.locations.instances.list |
-| baremetalsolution | baremetalsolution/networks | 0 | project | mutable | baremetalsolution:projects.locations.networks.list |
+| baremetalsolution | baremetalsolution/networks | 0 | project | mutable | baremetalsolution:projects.locations.networks.list, baremetalsolution:projects.locations.networks.listNetworkUsage |
 | baremetalsolution | baremetalsolution/nfsshares | 0 | project | create | baremetalsolution:projects.locations.nfsShares.list |
 | baremetalsolution | baremetalsolution/sshkeys | 0 | project | create | baremetalsolution:projects.locations.sshKeys.list |
 | baremetalsolution | baremetalsolution/volumes | 0 | project | mutable | baremetalsolution:projects.locations.volumes.list |
 | baremetalsolution | baremetalsolution/volumes/snapshots | 1 | project | create | baremetalsolution:projects.locations.volumes.snapshots.list |
-| beyondcorp | beyondcorp/appconnections | 0 | project | create | beyondcorp:projects.locations.appConnections.list |
+| beyondcorp | beyondcorp/appconnections | 0 | project | create | beyondcorp:projects.locations.appConnections.list, beyondcorp:projects.locations.appConnections.resolve |
 | beyondcorp | beyondcorp/appconnectors | 0 | project | create | beyondcorp:projects.locations.appConnectors.list |
 | beyondcorp | beyondcorp/appgateways | 0 | project | create | beyondcorp:projects.locations.appGateways.list |
 | beyondcorp | beyondcorp/securitygateways | 0 | project | create | beyondcorp:projects.locations.securityGateways.list |
@@ -4814,18 +4813,16 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ces | ces/apps/tools | 1 | project | create | ces:projects.locations.apps.tools.list |
 | ces | ces/apps/toolsets | 1 | project | create | ces:projects.locations.apps.toolsets.list |
 | ces | ces/apps/versions | 1 | project | create | ces:projects.locations.apps.versions.list |
-| chromemanagement | chromemanagement/connectorconfigs | 0 | tenant | create | chromemanagement:customers.connectorConfigs.list |
-| chromemanagement | chromemanagement/profiles | 0 | tenant | delete-only | chromemanagement:customers.profiles.list |
-| chromemanagement | chromemanagement/profiles/commands | 1 | tenant | create | chromemanagement:customers.profiles.commands.list |
-| chromemanagement | chromemanagement/telemetry/notificationconfigs | 0 | tenant | create | chromemanagement:customers.telemetry.notificationConfigs.list |
-| cloudasset | cloudasset/feeds | 0 | project | create | cloudasset:feeds.list |
-| cloudasset | cloudasset/savedqueries | 0 | project | create | cloudasset:savedQueries.list |
+| cloudasset | cloudasset/feeds | 0 | unscoped | create | cloudasset:feeds.list |
+| cloudasset | cloudasset/savedqueries | 0 | unscoped | create | cloudasset:savedQueries.list |
 | cloudbilling | cloudbilling/billingaccounts | 0 | org | create | cloudbilling:billingAccounts.list, cloudbilling:organizations.billingAccounts.list |
-| cloudbilling | cloudbilling/subaccounts | 0 | billing-account | create | cloudbilling:billingAccounts.subAccounts.list |
+| cloudbilling | cloudbilling/billingaccounts/subaccounts | 1 | billing-account | create | cloudbilling:billingAccounts.subAccounts.list |
 | cloudbuild | cloudbuild/bitbucketserverconfigs | 0 | project | create | cloudbuild:projects.locations.bitbucketServerConfigs.list |
 | cloudbuild | cloudbuild/builds | 0 | project | create | cloudbuild:projects.builds.list, cloudbuild:projects.locations.builds.list |
 | cloudbuild | cloudbuild/gitlabconfigs | 0 | project | create | cloudbuild:projects.locations.gitLabConfigs.list |
+| cloudcommerceprocurement | cloudcommerceprocurement/providers/entitlements | 1 | global | mutable | cloudcommerceprocurement:providers.entitlements.list |
 | cloudcontrolspartner | cloudcontrolspartner/customers | 0 | org | create | cloudcontrolspartner:organizations.locations.customers.list |
+| clouddebugger | clouddebugger/debuggees/breakpoints | 1 | global | delete-only | clouddebugger:controller.debuggees.breakpoints.list, clouddebugger:debugger.debuggees.breakpoints.list |
 | clouddeploy | clouddeploy/customtargettypes | 0 | project | create | clouddeploy:projects.locations.customTargetTypes.list |
 | clouddeploy | clouddeploy/deliverypipelines | 0 | project | create | clouddeploy:projects.locations.deliveryPipelines.list |
 | clouddeploy | clouddeploy/deliverypipelines/automations | 1 | project | create | clouddeploy:projects.locations.deliveryPipelines.automations.list |
@@ -4838,25 +4835,27 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cloudkms | cloudkms/singletenanthsminstances/proposals | 1 | project | create | cloudkms:projects.locations.singleTenantHsmInstances.proposals.list |
 | cloudprofiler | cloudprofiler/profiles | 0 | project | create | cloudprofiler:projects.profiles.list |
 | cloudscheduler | cloudscheduler/jobs | 0 | project | create | cloudscheduler:projects.locations.jobs.list |
-| cloudsupport | cloudsupport/cases | 0 | project | create | cloudsupport:cases.list |
-| cloudsupport | cloudsupport/cases/comments | 1 | project | create | cloudsupport:cases.comments.list |
+| cloudsupport | cloudsupport/cases | 0 | unscoped | create | cloudsupport:cases.list, cloudsupport:cases.search |
+| cloudsupport | cloudsupport/cases/attachments | 1 | unscoped | create | cloudsupport:cases.attachments.list |
+| cloudsupport | cloudsupport/cases/comments | 1 | unscoped | create | cloudsupport:cases.comments.list |
 | cloudsupport | cloudsupport/supporteventsubscriptions | 0 | org | create | cloudsupport:organizations.supportEventSubscriptions.list |
 | cloudtasks | cloudtasks/queues | 0 | project | create | cloudtasks:projects.locations.queues.list |
 | cloudtasks | cloudtasks/queues/tasks | 1 | project | create | cloudtasks:projects.locations.queues.tasks.list |
 | composer | composer/environments/userworkloadssecrets | 1 | project | create | composer:projects.locations.environments.userWorkloadsSecrets.list |
-| compute | compute/firewallpolicies | 0 | project | create | compute:firewallPolicies.list, compute:networkFirewallPolicies.aggregatedList |
-| compute | compute/globalvmextensionpolicies | 0 | project | create | compute:folderGlobalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.list, compute:organizationGlobalVmExtensionPolicies.aggregatedList |
+| compute | compute/firewallpolicies | 0 | global | create | compute:firewallPolicies.list |
+| compute | compute/globalvmextensionpolicies | 0 | project | create | compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.list, compute:globalVmExtensionPolicies.listVmExtensions |
+| compute | compute/hosts | 0 | project | mutable | compute:hosts.list |
 | compute | compute/licenses | 0 | project | create | compute:licenses.list |
-| compute | compute/organizationsecuritypolicies | 0 | project | create | compute:organizationSecurityPolicies.list, compute:securityPolicies.aggregatedList |
+| compute | compute/organizationsecuritypolicies | 0 | global | create | compute:organizationSecurityPolicies.list |
 | compute | compute/previewfeatures | 0 | project | mutable | compute:previewFeatures.list |
 | compute | compute/reservationslots | 3 | project | mutable | compute:reservationSlots.list |
 | compute | compute/rolloutplans | 0 | project | create | compute:rolloutPlans.list |
 | compute | compute/rollouts | 0 | project | delete-only | compute:rollouts.list |
-| compute | compute/zonevmextensionpolicies | 0 | project | create | compute:folderGlobalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.aggregatedList, compute:organizationGlobalVmExtensionPolicies.aggregatedList, compute:zoneVmExtensionPolicies.list |
+| compute | compute/zonevmextensionpolicies | 0 | project | create | compute:globalVmExtensionPolicies.aggregatedList, compute:zoneVmExtensionPolicies.list, compute:zoneVmExtensionPolicies.listVmExtensions |
 | config | config/deploymentgroups | 0 | project | create | config:projects.locations.deploymentGroups.list |
 | config | config/deployments | 0 | project | create | config:projects.locations.deployments.list |
 | config | config/previews | 0 | project | create | config:projects.locations.previews.list |
-| connectors | connectors/connections | 0 | project | create | connectors:projects.locations.connections.list |
+| connectors | connectors/connections | 0 | project | create | connectors:projects.locations.connections.list, connectors:projects.locations.connections.search |
 | connectors | connectors/connections/enduserauthentications | 1 | project | create | connectors:projects.locations.connections.endUserAuthentications.list |
 | connectors | connectors/connections/entitytypes/entities | 2 | project | create | connectors:projects.locations.connections.entityTypes.entities.list |
 | connectors | connectors/connections/eventsubscriptions | 1 | project | create | connectors:projects.locations.connections.eventSubscriptions.list |
@@ -4868,7 +4867,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | contactcenterinsights | contactcenterinsights/assessmentrules | 0 | project | create | contactcenterinsights:projects.locations.assessmentRules.list |
 | contactcenterinsights | contactcenterinsights/assistantsessions | 0 | project | create | contactcenterinsights:projects.locations.assistantSessions.list |
 | contactcenterinsights | contactcenterinsights/authorizedviewsets | 0 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.list |
-| contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews | 1 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.list |
+| contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews | 1 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.list, contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.search |
 | contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews/conversations | 2 | project | delete-only | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.conversations.list |
 | contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews/conversations/assessments | 3 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.conversations.assessments.list |
 | contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews/conversations/assessments/notes | 4 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.conversations.assessments.notes.list |
@@ -4892,9 +4891,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | contactcenterinsights | contactcenterinsights/qascorecards/revisions | 1 | project | create | contactcenterinsights:projects.locations.qaScorecards.revisions.list |
 | contactcenterinsights | contactcenterinsights/qascorecards/revisions/qaquestions | 2 | project | create | contactcenterinsights:projects.locations.qaScorecards.revisions.qaQuestions.list |
 | contactcenterinsights | contactcenterinsights/views | 0 | project | create | contactcenterinsights:projects.locations.views.list |
-| containeranalysis | containeranalysis/notes | 0 | project | create | containeranalysis:projects.locations.notes.list, containeranalysis:projects.notes.list |
+| containeranalysis | containeranalysis/notes | 0 | project | create | containeranalysis:projects.locations.notes.list, containeranalysis:projects.notes.list, containeranalysis:providers.notes.list |
 | containeranalysis | containeranalysis/occurrences | 0 | project | create | containeranalysis:projects.locations.occurrences.list, containeranalysis:projects.occurrences.list |
-| contentwarehouse | contentwarehouse/documents | 0 | project | create | contentwarehouse:projects.locations.documents.search |
 | contentwarehouse | contentwarehouse/documentschemas | 0 | project | create | contentwarehouse:projects.locations.documentSchemas.list |
 | contentwarehouse | contentwarehouse/rulesets | 0 | project | create | contentwarehouse:projects.locations.ruleSets.list |
 | contentwarehouse | contentwarehouse/synonymsets | 0 | project | create | contentwarehouse:projects.locations.synonymSets.list |
@@ -4920,6 +4918,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datamigration | datamigration/conversionworkspaces | 0 | project | create | datamigration:projects.locations.conversionWorkspaces.list |
 | datamigration | datamigration/conversionworkspaces/mappingrules | 1 | project | create | datamigration:projects.locations.conversionWorkspaces.mappingRules.list |
 | datamigration | datamigration/migrationjobs | 0 | project | create | datamigration:projects.locations.migrationJobs.list |
+| datamigration | datamigration/migrationjobs/objects | 1 | project | create | datamigration:projects.locations.migrationJobs.objects.list |
 | datamigration | datamigration/privateconnections | 0 | project | create | datamigration:projects.locations.privateConnections.list |
 | datapipelines | datapipelines/pipelines | 0 | project | create | datapipelines:projects.locations.pipelines.list |
 | dataplex | dataplex/aspecttypes | 0 | project | create | dataplex:projects.locations.aspectTypes.list |
@@ -4952,20 +4951,21 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datastream | datastream/privateconnections | 0 | project | create | datastream:projects.locations.privateConnections.list |
 | datastream | datastream/privateconnections/routes | 1 | project | create | datastream:projects.locations.privateConnections.routes.list |
 | datastream | datastream/streams | 0 | project | create | datastream:projects.locations.streams.list |
+| datastream | datastream/streams/objects | 1 | project | create | datastream:projects.locations.streams.objects.list |
 | deploymentmanager | deploymentmanager/deployments | 0 | project | create | deploymentmanager:deployments.list |
 | developerconnect | developerconnect/accountconnectors | 0 | project | create | developerconnect:projects.locations.accountConnectors.list |
 | developerconnect | developerconnect/accountconnectors/users | 1 | project | delete-only | developerconnect:projects.locations.accountConnectors.users.list |
 | developerconnect | developerconnect/connections | 0 | project | create | developerconnect:projects.locations.connections.list |
 | developerconnect | developerconnect/connections/gitrepositorylinks | 1 | project | create | developerconnect:projects.locations.connections.gitRepositoryLinks.list |
 | developerconnect | developerconnect/insightsconfigs | 0 | project | create | developerconnect:projects.locations.insightsConfigs.list |
+| dialogflow | dialogflow/agent | 0 | project | create | dialogflow:projects.agent.search, dialogflow:projects.locations.agent.search |
 | dialogflow | dialogflow/agent/entitytypes | 0 | project | create | dialogflow:projects.agent.entityTypes.list, dialogflow:projects.locations.agent.entityTypes.list |
 | dialogflow | dialogflow/agent/environments | 0 | project | create | dialogflow:projects.agent.environments.list, dialogflow:projects.locations.agent.environments.list |
-| dialogflow | dialogflow/agent/environments/users/sessions/contexts | 3 | project | create | dialogflow:projects.agent.environments.users.sessions.contexts.list, dialogflow:projects.locations.agent.environments.users.sessions.contexts.list |
+| dialogflow | dialogflow/agent/environments/users/sessions/contexts | 3 | project | create | dialogflow:projects.agent.environments.users.sessions.contexts.list, dialogflow:projects.agent.sessions.contexts.list, dialogflow:projects.locations.agent.environments.users.sessions.contexts.list, dialogflow:projects.locations.agent.sessions.contexts.list |
 | dialogflow | dialogflow/agent/environments/users/sessions/entitytypes | 3 | project | create | dialogflow:projects.agent.environments.users.sessions.entityTypes.list, dialogflow:projects.locations.agent.environments.users.sessions.entityTypes.list |
 | dialogflow | dialogflow/agent/intents | 0 | project | create | dialogflow:projects.agent.intents.list, dialogflow:projects.locations.agent.intents.list |
 | dialogflow | dialogflow/agent/knowledgebases | 0 | project | create | dialogflow:projects.agent.knowledgeBases.list |
 | dialogflow | dialogflow/agent/knowledgebases/documents | 1 | project | create | dialogflow:projects.agent.knowledgeBases.documents.list |
-| dialogflow | dialogflow/agent/sessions/contexts | 1 | project | create | dialogflow:projects.agent.sessions.contexts.list, dialogflow:projects.locations.agent.sessions.contexts.list |
 | dialogflow | dialogflow/agent/sessions/entitytypes | 1 | project | create | dialogflow:projects.agent.sessions.entityTypes.list, dialogflow:projects.locations.agent.sessions.entityTypes.list |
 | dialogflow | dialogflow/agent/versions | 0 | project | create | dialogflow:projects.agent.versions.list, dialogflow:projects.locations.agent.versions.list |
 | dialogflow | dialogflow/agents | 0 | project | create | dialogflow:projects.locations.agents.list |
@@ -5003,7 +5003,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dialogflow | dialogflow/siptrunks | 0 | project | create | dialogflow:projects.locations.sipTrunks.list |
 | dialogflow | dialogflow/tools | 0 | project | create | dialogflow:projects.locations.tools.list |
 | discoveryengine | discoveryengine/cmekconfigs | 0 | project | delete-only | discoveryengine:projects.locations.cmekConfigs.list |
-| discoveryengine | discoveryengine/collections/datastores | 1 | project | create | discoveryengine:projects.locations.collections.dataStores.list |
 | discoveryengine | discoveryengine/collections/datastores/branches/documents | 3 | project | create | discoveryengine:projects.locations.collections.dataStores.branches.documents.list |
 | discoveryengine | discoveryengine/collections/datastores/controls | 2 | project | create | discoveryengine:projects.locations.collections.dataStores.controls.list |
 | discoveryengine | discoveryengine/collections/datastores/conversations | 2 | project | create | discoveryengine:projects.locations.collections.dataStores.conversations.list |
@@ -5019,7 +5018,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | discoveryengine | discoveryengine/collections/engines/conversations | 2 | project | create | discoveryengine:projects.locations.collections.engines.conversations.list |
 | discoveryengine | discoveryengine/collections/engines/servingconfigs | 2 | project | create | discoveryengine:projects.locations.collections.engines.servingConfigs.list |
 | discoveryengine | discoveryengine/collections/engines/sessions | 2 | project | create | discoveryengine:projects.locations.collections.engines.sessions.list |
-| discoveryengine | discoveryengine/datastores | 0 | project | create | discoveryengine:projects.locations.dataStores.list |
+| discoveryengine | discoveryengine/datastores | 0 | project | create | discoveryengine:projects.locations.collections.dataStores.list, discoveryengine:projects.locations.dataStores.list |
 | discoveryengine | discoveryengine/datastores/branches/documents | 2 | project | create | discoveryengine:projects.locations.dataStores.branches.documents.list |
 | discoveryengine | discoveryengine/datastores/controls | 1 | project | create | discoveryengine:projects.locations.dataStores.controls.list |
 | discoveryengine | discoveryengine/datastores/conversations | 1 | project | create | discoveryengine:projects.locations.dataStores.conversations.list |
@@ -5029,11 +5028,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | discoveryengine | discoveryengine/datastores/sitesearchengine/sitemaps | 1 | project | create | discoveryengine:projects.locations.dataStores.siteSearchEngine.sitemaps.fetch |
 | discoveryengine | discoveryengine/datastores/sitesearchengine/targetsites | 1 | project | create | discoveryengine:projects.locations.dataStores.siteSearchEngine.targetSites.list |
 | discoveryengine | discoveryengine/identitymappingstores | 0 | project | create | discoveryengine:projects.locations.identityMappingStores.list |
-| dlp | dlp/connections | 0 | project | create | dlp:organizations.locations.connections.list, dlp:projects.locations.connections.list |
+| dlp | dlp/connections | 0 | project | create | dlp:organizations.locations.connections.list, dlp:organizations.locations.connections.search, dlp:projects.locations.connections.list, dlp:projects.locations.connections.search |
 | dlp | dlp/contentpolicies | 0 | project | create | dlp:projects.locations.contentPolicies.list |
 | dlp | dlp/deidentifytemplates | 0 | project | create | dlp:organizations.deidentifyTemplates.list, dlp:organizations.locations.deidentifyTemplates.list, dlp:projects.deidentifyTemplates.list, dlp:projects.locations.deidentifyTemplates.list |
 | dlp | dlp/discoveryconfigs | 0 | project | create | dlp:organizations.locations.discoveryConfigs.list, dlp:projects.locations.discoveryConfigs.list |
-| dlp | dlp/dlpjobs | 0 | project | create | dlp:organizations.locations.dlpJobs.list, dlp:projects.dlpJobs.list, dlp:projects.locations.dlpJobs.list |
+| dlp | dlp/dlpjobs | 0 | project | create | dlp:projects.dlpJobs.list, dlp:projects.locations.dlpJobs.list |
 | dlp | dlp/filestoredataprofiles | 0 | project | delete-only | dlp:organizations.locations.fileStoreDataProfiles.list, dlp:projects.locations.fileStoreDataProfiles.list |
 | dlp | dlp/inspecttemplates | 0 | project | create | dlp:organizations.inspectTemplates.list, dlp:organizations.locations.inspectTemplates.list, dlp:projects.inspectTemplates.list, dlp:projects.locations.inspectTemplates.list |
 | dlp | dlp/jobtriggers | 0 | project | create | dlp:organizations.locations.jobTriggers.list, dlp:projects.jobTriggers.list, dlp:projects.locations.jobTriggers.list |
@@ -5045,7 +5044,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | documentai | documentai/schemas | 0 | project | create | documentai:projects.locations.schemas.list |
 | documentai | documentai/schemas/schemaversions | 1 | project | create | documentai:projects.locations.schemas.schemaVersions.list |
 | domains | domains/registrations | 0 | project | delete-only | domains:projects.locations.registrations.list |
-| essentialcontacts | essentialcontacts/contacts | 0 | project | create | essentialcontacts:folders.contacts.list, essentialcontacts:organizations.contacts.list, essentialcontacts:projects.contacts.list |
+| essentialcontacts | essentialcontacts/contacts | 0 | project | create | essentialcontacts:folders.contacts.compute, essentialcontacts:folders.contacts.list, essentialcontacts:organizations.contacts.compute, essentialcontacts:organizations.contacts.list, essentialcontacts:projects.contacts.compute, essentialcontacts:projects.contacts.list |
 | eventarc | eventarc/channelconnections | 0 | project | create | eventarc:projects.locations.channelConnections.list |
 | eventarc | eventarc/channels | 0 | project | create | eventarc:projects.locations.channels.list |
 | eventarc | eventarc/enrollments | 0 | project | create | eventarc:projects.locations.enrollments.list |
@@ -5081,14 +5080,14 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | gkebackup | gkebackup/restoreplans | 0 | project | create | gkebackup:projects.locations.restorePlans.list |
 | gkebackup | gkebackup/restoreplans/restores | 1 | project | create | gkebackup:projects.locations.restorePlans.restores.list |
 | gkehub | gkehub/features | 0 | project | create | gkehub:projects.locations.features.list |
-| gkehub | gkehub/fleets | 0 | project | create | gkehub:organizations.locations.fleets.list, gkehub:projects.locations.fleets.list |
-| gkehub | gkehub/memberships | 0 | project | create | gkehub:projects.locations.memberships.list |
+| gkehub | gkehub/fleets | 0 | project | create | gkehub:projects.locations.fleets.list |
+| gkehub | gkehub/memberships | 0 | project | create | gkehub:projects.locations.memberships.list, gkehub:projects.locations.memberships.listAdmin |
 | gkehub | gkehub/memberships/bindings | 1 | project | create | gkehub:projects.locations.memberships.bindings.list |
 | gkehub | gkehub/memberships/features | 1 | project | create | gkehub:projects.locations.memberships.features.list |
 | gkehub | gkehub/memberships/rbacrolebindings | 1 | project | create | gkehub:projects.locations.memberships.rbacrolebindings.list |
 | gkehub | gkehub/rollouts | 0 | project | delete-only | gkehub:projects.locations.rollouts.list |
 | gkehub | gkehub/rolloutsequences | 0 | project | create | gkehub:projects.locations.rolloutSequences.list |
-| gkehub | gkehub/scopes | 0 | project | create | gkehub:projects.locations.scopes.list |
+| gkehub | gkehub/scopes | 0 | project | create | gkehub:projects.locations.scopes.list, gkehub:projects.locations.scopes.listPermitted |
 | gkehub | gkehub/scopes/namespaces | 1 | project | create | gkehub:projects.locations.scopes.namespaces.list |
 | gkehub | gkehub/scopes/rbacrolebindings | 1 | project | create | gkehub:projects.locations.scopes.rbacrolebindings.list |
 | gkeonprem | gkeonprem/baremetaladminclusters | 0 | project | create | gkeonprem:projects.locations.bareMetalAdminClusters.list |
@@ -5108,9 +5107,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | healthcare | healthcare/datasets/consentstores/userdatamappings | 2 | project | create | healthcare:projects.locations.datasets.consentStores.userDataMappings.list |
 | healthcare | healthcare/datasets/dicomstores | 1 | project | create | healthcare:projects.locations.datasets.dicomStores.list |
 | healthcare | healthcare/datasets/fhirstores | 1 | project | create | healthcare:projects.locations.datasets.fhirStores.list |
-| healthcare | healthcare/datasets/fhirstores/fhir | 2 | project | create | healthcare:projects.locations.datasets.fhirStores.fhir.search |
 | healthcare | healthcare/datasets/hl7v2stores | 1 | project | create | healthcare:projects.locations.datasets.hl7V2Stores.list |
-| healthcare | healthcare/datasets/hl7v2stores/messages | 2 | project | create | healthcare:projects.locations.datasets.hl7V2Stores.messages.list |
+| healthcare | healthcare/datasets/hl7v2stores/messages | 2 | project | create | healthcare:projects.locations.datasets.hl7V2Stores.messages.batchGet, healthcare:projects.locations.datasets.hl7V2Stores.messages.list |
 | hypercomputecluster | hypercomputecluster/clusters | 0 | project | create | hypercomputecluster:projects.locations.clusters.list |
 | iam | iam/workforcepools/providers/keys | 2 | global | create | iam:locations.workforcePools.providers.keys.list |
 | iam | iam/workforcepools/providers/scimtenants/tokens | 3 | global | create | iam:locations.workforcePools.providers.scimTenants.tokens.list |
@@ -5126,24 +5124,19 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | identitytoolkit | identitytoolkit/tenants/inboundsamlconfigs | 1 | project | create | identitytoolkit:projects.tenants.inboundSamlConfigs.list |
 | identitytoolkit | identitytoolkit/tenants/oauthidpconfigs | 1 | project | create | identitytoolkit:projects.tenants.oauthIdpConfigs.list |
 | ids | ids/endpoints | 0 | project | create | ids:projects.locations.endpoints.list |
-| integrations | integrations/authconfigs | 0 | project | create | integrations:projects.locations.authConfigs.list |
-| integrations | integrations/certificates | 0 | project | create | integrations:projects.locations.certificates.list |
-| integrations | integrations/integrations | 0 | project | delete-only | integrations:projects.locations.integrations.list |
+| integrations | integrations/authconfigs | 0 | project | create | integrations:projects.locations.authConfigs.list, integrations:projects.locations.products.authConfigs.list |
+| integrations | integrations/certificates | 0 | project | create | integrations:projects.locations.certificates.list, integrations:projects.locations.products.certificates.list |
+| integrations | integrations/integrations | 0 | project | delete-only | integrations:projects.locations.integrations.list, integrations:projects.locations.products.integrations.list |
 | integrations | integrations/integrations/versions | 1 | project | create | integrations:projects.locations.integrations.versions.list |
-| integrations | integrations/products/authconfigs | 1 | project | create | integrations:projects.locations.products.authConfigs.list |
-| integrations | integrations/products/certificates | 1 | project | create | integrations:projects.locations.products.certificates.list |
-| integrations | integrations/products/integrations | 1 | project | delete-only | integrations:projects.locations.products.integrations.list |
 | integrations | integrations/products/integrations/versions | 2 | project | create | integrations:projects.locations.products.integrations.versions.list |
-| integrations | integrations/products/sfdcinstances | 1 | project | create | integrations:projects.locations.products.sfdcInstances.list |
 | integrations | integrations/products/sfdcinstances/sfdcchannels | 2 | project | create | integrations:projects.locations.products.sfdcInstances.sfdcChannels.list |
-| integrations | integrations/sfdcinstances | 0 | project | create | integrations:projects.locations.sfdcInstances.list |
+| integrations | integrations/sfdcinstances | 0 | project | create | integrations:projects.locations.products.sfdcInstances.list, integrations:projects.locations.sfdcInstances.list |
 | integrations | integrations/sfdcinstances/sfdcchannels | 1 | project | create | integrations:projects.locations.sfdcInstances.sfdcChannels.list |
-| jobs | jobs/companies | 0 | project | create | jobs:projects.companies.list |
-| jobs | jobs/jobs | 0 | project | create | jobs:projects.jobs.list |
+| jobs | jobs/companies | 0 | project | create | jobs:companies.list, jobs:projects.companies.list |
+| jobs | jobs/jobs | 0 | project | create | jobs:jobs.list, jobs:projects.jobs.list |
 | jobs | jobs/tenants | 0 | project | create | jobs:projects.tenants.list |
 | jobs | jobs/tenants/companies | 1 | project | create | jobs:projects.tenants.companies.list |
 | jobs | jobs/tenants/jobs | 1 | project | create | jobs:projects.tenants.jobs.list |
-| logging | logging/logs | 0 | project | delete-only | logging:billingAccounts.logs.list, logging:folders.logs.list, logging:logs.list, logging:organizations.logs.list, logging:projects.logs.list |
 | looker | looker/instances | 0 | project | create | looker:projects.locations.instances.list |
 | looker | looker/instances/backups | 1 | project | create | looker:projects.locations.instances.backups.list |
 | managedidentities | managedidentities/domains | 0 | project | create | managedidentities:projects.locations.global.domains.list |
@@ -5156,10 +5149,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | managedkafka | managedkafka/connectclusters | 0 | project | create | managedkafka:projects.locations.connectClusters.list |
 | managedkafka | managedkafka/connectclusters/connectors | 1 | project | create | managedkafka:projects.locations.connectClusters.connectors.list |
 | managedkafka | managedkafka/schemaregistries | 0 | project | create | managedkafka:projects.locations.schemaRegistries.list |
-| managedkafka | managedkafka/schemaregistries/contexts/subjects | 2 | project | delete-only | managedkafka:projects.locations.schemaRegistries.contexts.subjects.list |
-| managedkafka | managedkafka/schemaregistries/contexts/subjects/versions | 3 | project | create | managedkafka:projects.locations.schemaRegistries.contexts.subjects.versions.list |
-| managedkafka | managedkafka/schemaregistries/subjects | 1 | project | delete-only | managedkafka:projects.locations.schemaRegistries.subjects.list |
-| managedkafka | managedkafka/schemaregistries/subjects/versions | 2 | project | create | managedkafka:projects.locations.schemaRegistries.subjects.versions.list |
 | memcache | memcache/instances | 0 | project | create | memcache:projects.locations.instances.list |
 | metastore | metastore/federations | 0 | project | create | metastore:projects.locations.federations.list |
 | metastore | metastore/services | 0 | project | create | metastore:projects.locations.services.list |
@@ -5182,7 +5171,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ml | ml/studies | 0 | project | create | ml:projects.locations.studies.list |
 | ml | ml/studies/trials | 1 | project | create | ml:projects.locations.studies.trials.list |
 | monitoring | monitoring/metricdescriptors | 0 | project | create | monitoring:projects.metricDescriptors.list |
-| monitoring | monitoring/timeseries | 0 | project | create | monitoring:folders.timeSeries.list, monitoring:organizations.timeSeries.list, monitoring:projects.timeSeries.list |
 | netapp | netapp/activedirectories | 0 | project | create | netapp:projects.locations.activeDirectories.list |
 | netapp | netapp/backuppolicies | 0 | project | create | netapp:projects.locations.backupPolicies.list |
 | netapp | netapp/backupvaults | 0 | project | create | netapp:projects.locations.backupVaults.list |
@@ -5212,7 +5200,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | networkconnectivity | networkconnectivity/transports | 0 | project | create | networkconnectivity:projects.locations.transports.list |
 | networkmanagement | networkmanagement/connectivitytests | 0 | project | create | networkmanagement:projects.locations.global.connectivityTests.list |
 | networkmanagement | networkmanagement/networkmonitoringproviders | 0 | project | create | networkmanagement:projects.locations.networkMonitoringProviders.list |
-| networkmanagement | networkmanagement/vpcflowlogsconfigs | 0 | project | create | networkmanagement:organizations.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.list |
+| networkmanagement | networkmanagement/vpcflowlogsconfigs | 0 | project | create | networkmanagement:organizations.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.queryOrgVpcFlowLogsConfigs |
 | networksecurity | networksecurity/addressgroups | 0 | project | create | networksecurity:organizations.locations.addressGroups.list, networksecurity:projects.locations.addressGroups.list |
 | networksecurity | networksecurity/authorizationpolicies | 0 | project | create | networksecurity:projects.locations.authorizationPolicies.list |
 | networksecurity | networksecurity/authzpolicies | 0 | project | create | networksecurity:projects.locations.authzPolicies.list |
@@ -5279,6 +5267,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | orgpolicy | orgpolicy/policies | 0 | project | create | orgpolicy:folders.policies.list, orgpolicy:organizations.policies.list, orgpolicy:projects.policies.list |
 | osconfig | osconfig/ospolicyassignments | 0 | project | create | osconfig:projects.locations.osPolicyAssignments.list |
 | osconfig | osconfig/patchdeployments | 0 | project | create | osconfig:projects.patchDeployments.list |
+| osconfig | osconfig/patchjobs | 0 | project | create | osconfig:projects.patchJobs.list |
 | osconfig | osconfig/policyorchestrators | 0 | project | create | osconfig:folders.locations.global.policyOrchestrators.list, osconfig:organizations.locations.global.policyOrchestrators.list, osconfig:projects.locations.global.policyOrchestrators.list |
 | parallelstore | parallelstore/instances | 0 | project | create | parallelstore:projects.locations.instances.list |
 | parametermanager | parametermanager/parameters | 0 | project | create | parametermanager:projects.locations.parameters.list |
@@ -5316,9 +5305,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | saasservicemgmt | saasservicemgmt/saas | 0 | project | create | saasservicemgmt:projects.locations.saas.list |
 | saasservicemgmt | saasservicemgmt/tenants | 0 | project | create | saasservicemgmt:projects.locations.tenants.list |
 | saasservicemgmt | saasservicemgmt/unitkinds | 0 | project | create | saasservicemgmt:projects.locations.unitKinds.list |
+| saasservicemgmt | saasservicemgmt/unitoperations | 0 | project | create | saasservicemgmt:projects.locations.unitOperations.list |
 | saasservicemgmt | saasservicemgmt/units | 0 | project | create | saasservicemgmt:projects.locations.units.list |
-| script | script/deployments | 0 | project | create | script:projects.deployments.list |
-| script | script/versions | 0 | project | create | script:projects.versions.list |
 | securesourcemanager | securesourcemanager/instances | 0 | project | create | securesourcemanager:projects.locations.instances.list |
 | securesourcemanager | securesourcemanager/repositories | 0 | project | create | securesourcemanager:projects.locations.repositories.list |
 | securesourcemanager | securesourcemanager/repositories/branchrules | 1 | project | create | securesourcemanager:projects.locations.repositories.branchRules.list |
@@ -5328,22 +5316,28 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securesourcemanager | securesourcemanager/repositories/pullrequests | 1 | project | create | securesourcemanager:projects.locations.repositories.pullRequests.list |
 | securesourcemanager | securesourcemanager/repositories/pullrequests/pullrequestcomments | 2 | project | create | securesourcemanager:projects.locations.repositories.pullRequests.pullRequestComments.list |
 | securitycenter | securitycenter/bigqueryexports | 0 | project | create | securitycenter:folders.bigQueryExports.list, securitycenter:organizations.bigQueryExports.list, securitycenter:projects.bigQueryExports.list |
-| securitycenter | securitycenter/eventthreatdetectionsettings/custommodules | 0 | project | create | securitycenter:folders.eventThreatDetectionSettings.customModules.list, securitycenter:organizations.eventThreatDetectionSettings.customModules.list, securitycenter:projects.eventThreatDetectionSettings.customModules.list |
+| securitycenter | securitycenter/eventthreatdetectionsettings/custommodules | 0 | project | create | securitycenter:folders.eventThreatDetectionSettings.customModules.list, securitycenter:folders.eventThreatDetectionSettings.customModules.listDescendant, securitycenter:organizations.eventThreatDetectionSettings.customModules.list, securitycenter:organizations.eventThreatDetectionSettings.customModules.listDescendant, securitycenter:projects.eventThreatDetectionSettings.customModules.list, securitycenter:projects.eventThreatDetectionSettings.customModules.listDescendant |
 | securitycenter | securitycenter/muteconfigs | 0 | project | create | securitycenter:folders.muteConfigs.list, securitycenter:organizations.muteConfigs.list, securitycenter:projects.muteConfigs.list |
 | securitycenter | securitycenter/notificationconfigs | 0 | project | create | securitycenter:folders.notificationConfigs.list, securitycenter:organizations.notificationConfigs.list, securitycenter:projects.notificationConfigs.list |
 | securitycenter | securitycenter/resourcevalueconfigs | 0 | org | delete-only | securitycenter:organizations.resourceValueConfigs.list |
-| securitycenter | securitycenter/securityhealthanalyticssettings/custommodules | 0 | project | create | securitycenter:folders.securityHealthAnalyticsSettings.customModules.list, securitycenter:organizations.securityHealthAnalyticsSettings.customModules.list, securitycenter:projects.securityHealthAnalyticsSettings.customModules.list |
-| securitycenter | securitycenter/sources | 0 | project | create | securitycenter:folders.sources.list, securitycenter:organizations.sources.list, securitycenter:projects.sources.list |
-| securitycenter | securitycenter/sources/findings | 1 | project | create | securitycenter:folders.sources.findings.list, securitycenter:organizations.sources.findings.list, securitycenter:projects.sources.findings.list |
+| securitycenter | securitycenter/securityhealthanalyticssettings/custommodules | 0 | project | create | securitycenter:folders.securityHealthAnalyticsSettings.customModules.list, securitycenter:folders.securityHealthAnalyticsSettings.customModules.listDescendant, securitycenter:organizations.securityHealthAnalyticsSettings.customModules.list, securitycenter:organizations.securityHealthAnalyticsSettings.customModules.listDescendant, securitycenter:projects.securityHealthAnalyticsSettings.customModules.list, securitycenter:projects.securityHealthAnalyticsSettings.customModules.listDescendant |
+| securitycenter | securitycenter/sources | 0 | org | create | securitycenter:organizations.sources.list |
 | securityposture | securityposture/posturedeployments | 0 | org | create | securityposture:organizations.locations.postureDeployments.list |
 | securityposture | securityposture/postures | 0 | org | create | securityposture:organizations.locations.postures.list |
+| serviceconsumermanagement | serviceconsumermanagement/services/tenancyunits | 1 | global | create | serviceconsumermanagement:services.tenancyUnits.list |
 | servicedirectory | servicedirectory/namespaces | 0 | project | create | servicedirectory:projects.locations.namespaces.list |
 | servicedirectory | servicedirectory/namespaces/services | 1 | project | create | servicedirectory:projects.locations.namespaces.services.list |
 | servicedirectory | servicedirectory/namespaces/services/endpoints | 2 | project | create | servicedirectory:projects.locations.namespaces.services.endpoints.list |
+| servicemanagement | servicemanagement/services | 0 | global | create | servicemanagement:services.list |
+| servicemanagement | servicemanagement/services/configs | 1 | global | create | servicemanagement:services.configs.list |
+| servicemanagement | servicemanagement/services/rollouts | 1 | global | create | servicemanagement:services.rollouts.list |
+| servicenetworking | servicenetworking/services/connections | 1 | global | create | servicenetworking:services.connections.list |
+| servicenetworking | servicenetworking/services/global/networks/peereddnsdomains | 2 | global | create | servicenetworking:services.projects.global.networks.peeredDnsDomains.list |
 | sourcerepo | sourcerepo/repos | 0 | project | create | sourcerepo:projects.repos.list |
 | spanner | spanner/instances/databases/sessions | 2 | project | create | spanner:projects.instances.databases.sessions.list |
 | speech | speech/customclasses | 0 | project | create | speech:projects.locations.customClasses.list |
 | speech | speech/phrasesets | 0 | project | create | speech:projects.locations.phraseSets.list |
+| sqladmin | sqladmin/backups | 0 | project | create | sqladmin:Backups.ListBackups, sqladmin:backups.listBackups |
 | storage | storage/objectaccesscontrols | 2 | global | create | storage:objectAccessControls.list |
 | storage | storage/objects | 1 | global | create | storage:objects.list |
 | storagebatchoperations | storagebatchoperations/jobs | 0 | project | create | storagebatchoperations:projects.locations.jobs.list |
@@ -5388,9 +5382,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vmwareengine | vmwareengine/privateconnections | 0 | project | create | vmwareengine:projects.locations.privateConnections.list |
 | vmwareengine | vmwareengine/vmwareenginenetworks | 0 | project | create | vmwareengine:projects.locations.vmwareEngineNetworks.list |
 | vpcaccess | vpcaccess/connectors | 0 | project | create | vpcaccess:projects.locations.connectors.list |
-| webcontentpublisher | webcontentpublisher/publications | 0 | org | create | webcontentpublisher:organizations.publications.list |
-| webcontentpublisher | webcontentpublisher/publications/ctas | 1 | org | create | webcontentpublisher:organizations.publications.ctas.list |
 | websecurityscanner | websecurityscanner/scanconfigs | 0 | project | create | websecurityscanner:projects.scanConfigs.list |
+| websecurityscanner | websecurityscanner/scanconfigs/scanruns | 1 | project | created-elsewhere | websecurityscanner:projects.scanConfigs.scanRuns.list |
 | workflowexecutions | workflowexecutions/workflows/executions | 1 | project | create | workflowexecutions:projects.locations.workflows.executions.list |
 | workflows | workflows/workflows | 0 | project | create | workflows:projects.locations.workflows.list |
 | workloadmanager | workloadmanager/deployments | 0 | project | create | workloadmanager:projects.locations.deployments.list |
@@ -5398,6 +5391,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workloadmanager | workloadmanager/evaluations | 0 | project | create | workloadmanager:projects.locations.evaluations.list |
 | workloadmanager | workloadmanager/evaluations/executions | 1 | project | delete-only | workloadmanager:projects.locations.evaluations.executions.list |
 | workstations | workstations/workstationclusters | 0 | project | create | workstations:projects.locations.workstationClusters.list |
-| workstations | workstations/workstationclusters/workstationconfigs | 1 | project | create | workstations:projects.locations.workstationClusters.workstationConfigs.list |
-| workstations | workstations/workstationclusters/workstationconfigs/workstations | 2 | project | create | workstations:projects.locations.workstationClusters.workstationConfigs.workstations.list |
+| workstations | workstations/workstationclusters/workstationconfigs | 1 | project | create | workstations:projects.locations.workstationClusters.workstationConfigs.list, workstations:projects.locations.workstationClusters.workstationConfigs.listUsable |
+| workstations | workstations/workstationclusters/workstationconfigs/workstations | 2 | project | create | workstations:projects.locations.workstationClusters.workstationConfigs.workstations.list, workstations:projects.locations.workstationClusters.workstationConfigs.workstations.listUsable |
 

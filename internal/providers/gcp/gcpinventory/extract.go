@@ -10,23 +10,27 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
-// Discovery document subset. Schemas stay raw and decode one at a time on
-// the ref walk (refs.go).
+// Discovery document subset. Schemas stay raw and decode one at a time
+// (refs.go).
 type doc struct {
-	Name          string                     `json:"name"`
-	Version       string                     `json:"version"`
-	RootURL       string                     `json:"rootUrl"`
-	ServicePath   string                     `json:"servicePath"`
-	CanonicalName string                     `json:"canonicalName"`
-	Methods       map[string]*method         `json:"methods"`
-	Resources     map[string]*resource       `json:"resources"`
-	Schemas       map[string]json.RawMessage `json:"schemas"`
+	Name          string `json:"name"`
+	Version       string `json:"version"`
+	RootURL       string `json:"rootUrl"`
+	ServicePath   string `json:"servicePath"`
+	CanonicalName string `json:"canonicalName"`
+	Auth          struct {
+		OAuth2 struct {
+			Scopes map[string]json.RawMessage `json:"scopes"`
+		} `json:"oauth2"`
+	} `json:"auth"`
+	Methods   map[string]*method         `json:"methods"`
+	Resources map[string]*resource       `json:"resources"`
+	Schemas   map[string]json.RawMessage `json:"schemas"`
 }
 
 // identity is what makes two Discovery documents the same service: sql and
@@ -43,517 +47,192 @@ type resource struct {
 }
 
 type method struct {
-	Path       string           `json:"path"`
-	FlatPath   string           `json:"flatPath"`
-	HTTPMethod string           `json:"httpMethod"`
-	Parameters map[string]param `json:"parameters"`
-	Response   struct {
-		Ref string `json:"$ref"`
-	} `json:"response"`
+	Path           string           `json:"path"`
+	FlatPath       string           `json:"flatPath"`
+	HTTPMethod     string           `json:"httpMethod"`
+	ParameterOrder []string         `json:"parameterOrder"`
+	Parameters     map[string]param `json:"parameters"`
+	Request        bodyRef          `json:"request"`
+	Response       bodyRef          `json:"response"`
+}
+
+type bodyRef struct {
+	Ref string `json:"$ref"`
 }
 
 type param struct {
-	Required    bool   `json:"required"`
-	Location    string `json:"location"`
-	Pattern     string `json:"pattern"`
-	Description string `json:"description"`
+	Required bool   `json:"required"`
+	Location string `json:"location"`
+	Pattern  string `json:"pattern"`
 }
 
-// altListers enumerate a collection under another name. Narrow on purpose: a
-// shape-based rule mints 313 bogus rows from filtered sub-views such as
-// listUsable and listManagedInstances.
-var altListers = map[string]bool{"search": true, "fetch": true, "listPolicies": true}
+// cloudPlatformScope is the OAuth scope that authorizes the Google Cloud
+// APIs. An API whose documents accept it is cloud infrastructure; youtube,
+// adsense and DFA reporting do not.
+const cloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
 
-// cloudRoots are the tenancy containers Google Cloud / Workspace list within.
-// An API belongs to the universe only when at least one lister is rooted in
-// one of them; APIs rooted elsewhere (youtube channels, adsense accounts) are
-// not cloud infrastructure.
+// cloudRoots is the declared tenancy vocabulary: the containers a listing
+// enumerates within, keyed by the lowercase path segment. It names the scope a
+// listing reports, and which "<root>/{id}" pairs are containers rather than
+// parents. Discovery has no structured tenancy marker, so this is the
+// provider's declaration, like any provider's Scopes.
 var cloudRoots = map[string]sdkinv.Scope{
 	"projects": ScopeProject, "organizations": ScopeOrg, "folders": ScopeFolder,
 	"billingaccounts": ScopeBillingAccount, "customers": ScopeTenant, "customer": ScopeTenant,
 }
 
+// placements are the declared location containers inside a tenancy root.
+var placements = map[string]bool{"locations": true, "zones": true, "regions": true}
+
 // scopeVocab is the Discovery scope vocabulary, narrowest first.
 var scopeVocab = []sdkinv.Scope{
-	ScopeProject, ScopeOrg, ScopeFolder, ScopeBillingAccount, ScopeTenant, ScopeGlobal,
+	ScopeProject, ScopeOrg, ScopeFolder, ScopeBillingAccount, ScopeTenant, ScopeGlobal, ScopeUnscoped,
 }
 
-// scopeNames (lowercase) are stripped as "<scope>/{param}" pairs; literals
-// are bare segments that carry no hierarchy.
-var (
-	scopeNames = map[string]bool{
-		"projects": true, "organizations": true, "folders": true, "billingaccounts": true, "customers": true, "customer": true,
-		"locations": true, "zones": true, "regions": true,
-	}
-	// zonesRegions strips only in the compute shape; see scopesFor.
-	scopeNamesNoZone = func() map[string]bool {
-		out := map[string]bool{}
-		for k, v := range scopeNames {
-			if k != "zones" && k != "regions" {
-				out[k] = v
-			}
-		}
-		return out
-	}()
-	literals = map[string]bool{"global": true, "aggregated": true}
-	// knativeRoot is run v1's project alias: "namespaces/{namespace}/services".
-	// Only a leading pair is a scope; "namespaces" under a real root (iam
-	// workload identity pools) is a resource collection.
-	knativeRoot = "namespaces"
-	versionRe   = regexp.MustCompile(`^v\d`)
-	paramRe     = regexp.MustCompile(`\[\^/\]\+`)
-)
+var paramRe = regexp.MustCompile(`\[\^/\]\+`)
 
-type entry struct {
-	api      string
-	docPath  []string // resource node names from the document tree, scope nodes removed
-	depth    int
-	parents  []string
-	parent   string
-	class    sdkinv.Class
-	rule     string // the classification rule that decided class
-	signals  map[string]bool
-	ops      map[string]sdkinv.Operation // by label+module
-	versions map[string]bool
-	refs     map[string]bool
+// docMethod is one Discovery method with its path template parsed: the
+// service prefix stripped and a custom verb cut off.
+type docMethod struct {
+	path   []string // resource node names, outermost first
+	name   string
+	m      *method
+	segs   []sdkinv.Segment
+	prefix []string // static segments the prefix strip removed
+	verb   string
+	norm   string // segs with every param spelled "{}"
 }
 
-func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error) {
-	root := filepath.Join(dir, "api")
-	u := &sdkinv.Universe{Provider: "gcp", Pins: map[string]string{modulePath: e.Ref()}}
-	entries := map[string]*entry{}
-	excluded := map[string]bool{}
-	identities := map[string][]string{} // service identity -> document names
-	var skipped []string                // "<api>/<version>" documents with no cloud-rooted lister
-	var uncloud []sdkinv.Drop           // their ops, reason decided once every version is read
-	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(p, "-api.json") {
-			return err
-		}
-		raw, rerr := os.ReadFile(p)
-		if rerr != nil {
-			return rerr
-		}
-		var dc doc
-		if jerr := json.Unmarshal(raw, &dc); jerr != nil {
-			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: p, Message: jerr.Error()})
-			return nil
-		}
-		rel, _ := filepath.Rel(root, p)
-		if dc.RootURL != "" {
-			identities[dc.identity()] = append(identities[dc.identity()], dc.Name)
-		}
-		docDir := filepath.ToSlash(filepath.Dir(rel))
-		u.SourceOps = append(u.SourceOps, sourceOps(&dc, docDir, e.Ref())...)
-		cloud, others, drops := indexDoc(entries, &dc, docDir, e.Ref())
-		if !cloud {
-			excluded[dc.Name] = true
-			skipped = append(skipped, dc.Name+"/"+dc.Version)
-		}
-		for _, d := range drops {
-			if d.Reason == "" {
-				uncloud = append(uncloud, d)
-			} else {
-				u.Dropped = append(u.Dropped, d)
-			}
-		}
-		u.Other = append(u.Other, others...)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	aliases, aliasOps := dropAliasDocs(entries, identities)
-	for _, o := range aliasOps {
-		u.Dropped = append(u.Dropped, sdkinv.Drop{Op: o, Reason: "alias-document"})
-	}
-	if len(aliases) > 0 {
-		u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{
-			Severity: "info", Source: "discovery",
-			Message: fmt.Sprintf("alias documents dropped for duplicating another API's service: %s", strings.Join(aliases, " ")),
-		})
-		kept := u.Other[:0]
-		for _, o := range u.Other {
-			if slices.Contains(aliases, o.Service) {
-				u.Dropped = append(u.Dropped, sdkinv.Drop{Op: o, Reason: "alias-document"})
-			} else {
-				kept = append(kept, o)
-			}
-		}
-		u.Other = kept
-	}
-	// An API rooted in a cloud container in one version is in the universe in
-	// every version, so the exclusion is dropped for those — but this version's
-	// own listers are not indexed, and neither are its other ops.
-	for _, en := range entries {
-		delete(excluded, en.api)
-	}
-	u.Dropped = append(u.Dropped, uncloudDrops(uncloud, excluded, aliases)...)
-	var dropped []string
-	for _, av := range skipped {
-		if api, _, _ := strings.Cut(av, "/"); !excluded[api] {
-			dropped = append(dropped, av)
-		}
-	}
-	if len(dropped) > 0 {
-		sort.Strings(dropped)
-		u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{
-			Severity: "info", Source: "discovery",
-			Message: fmt.Sprintf("%d document versions of universe APIs have no cloud-rooted lister and are not indexed: %s", len(dropped), strings.Join(dropped, " ")),
-		})
-	}
-	// Parent must name a candidate key (README, conformance). The document
-	// tree nests nodes that are not listable themselves (appengine/apps), so
-	// walk up to the nearest ancestor that is a candidate, and clear it when
-	// none is; Depth stays the template's parent-id count either way.
-	for _, en := range entries {
-		for en.parent != "" && entries[en.parent] == nil {
-			cut := strings.LastIndex(en.parent, "/")
-			if cut < 0 || !strings.Contains(en.parent[:cut], "/") {
-				en.parent = ""
-				break
-			}
-			en.parent = en.parent[:cut]
-		}
-	}
-	if len(excluded) > 0 {
-		names := make([]string, 0, len(excluded))
-		for n := range excluded {
-			names = append(names, n)
-		}
-		sort.Strings(names)
-		u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "info", Source: "discovery", Message: fmt.Sprintf("%d non-cloud APIs excluded: %s", len(names), strings.Join(names, " "))})
-	}
-	for key, en := range entries {
-		u.Candidates = append(u.Candidates, toCandidate(key, en))
-	}
-	sdkinv.SortCandidates(u.Candidates)
-	// Non-cloud APIs are outside the universe entirely, other ops included.
-	kept := u.Other[:0]
-	for _, o := range u.Other {
-		if excluded[o.Service] {
-			u.Dropped = append(u.Dropped, sdkinv.Drop{Op: o, Reason: "non-cloud-api"})
-		} else {
-			kept = append(kept, o)
-		}
-	}
-	u.Other = kept
-	sdkinv.SortOps(u.Other)
-	sdkinv.SortOpRefs(u.SourceOps)
-	sdkinv.SortDrops(u.Dropped)
-	u.Scopes = slices.Clone(scopeVocab)
-	return u, nil
+func (dm *docMethod) label(api string) string {
+	return api + ":" + strings.Join(append(slices.Clone(dm.path), dm.name), ".")
 }
 
-// dropAliasDocs removes the entries of every document name that shares a
-// service identity with another: the name matching the rootUrl's own host
-// label wins, else the alphabetically first. Returns the names dropped and the
-// candidate ops that went with them.
-func dropAliasDocs(entries map[string]*entry, identities map[string][]string) ([]string, []sdkinv.Operation) {
-	dropped := map[string]bool{}
-	for id, names := range identities {
-		uniq := map[string]bool{}
-		for _, n := range names {
-			uniq[n] = true
-		}
-		if len(uniq) < 2 {
-			continue
-		}
-		sorted := make([]string, 0, len(uniq))
-		for n := range uniq {
-			sorted = append(sorted, n)
-		}
-		sort.Strings(sorted)
-		host, _, _ := strings.Cut(strings.TrimPrefix(strings.SplitN(id, "\x00", 2)[0], "https://"), ".")
-		keep := sorted[0]
-		if slices.Contains(sorted, host) {
-			keep = host
-		}
-		for _, n := range sorted {
-			if n != keep {
-				dropped[n] = true
-			}
-		}
-	}
-	if len(dropped) == 0 {
-		return nil, nil
-	}
-	var ops []sdkinv.Operation
-	for k, en := range entries {
-		if dropped[en.api] {
-			for _, o := range en.ops {
-				ops = append(ops, o)
-			}
-			delete(entries, k)
-		}
-	}
-	out := make([]string, 0, len(dropped))
-	for n := range dropped {
-		out = append(out, n)
-	}
-	sort.Strings(out)
-	return out, ops
+// docIndex is one document version's methods, indexed by path template.
+type docIndex struct {
+	dc      *doc
+	module  string
+	methods []*docMethod
+	byNorm  map[string][]*docMethod
+	schemas *schemaSet
+	handles map[string]bool // schemas a DELETE answers: the document's change records
 }
 
-type lister struct {
-	docPath []string
-	name    string // "list" | "aggregatedList"
-	m       *method
-	node    *resource
-}
-
-// indexDoc files every list method of one document version. Returns false
-// when no lister is rooted in a cloud container (API excluded).
-// collectListers walks a document's resource tree and splits its methods into
-// the listers that can key a candidate and everything else, which ships as
-// Universe.Other for pairing.
-func collectListers(dc *doc, docDir, ref string) ([]lister, []sdkinv.Operation) {
-	var listers []lister
-	var others []sdkinv.Operation
+func newDocIndex(dc *doc, module string) *docIndex {
+	x := &docIndex{dc: dc, module: module, byNorm: map[string][]*docMethod{}, schemas: &schemaSet{raw: dc.Schemas}}
+	add := func(path []string, name string, m *method) {
+		dm := &docMethod{path: path, name: name, m: m}
+		dm.segs, dm.prefix, dm.verb = template(dc, m)
+		dm.norm = normPath(dm.segs)
+		x.methods = append(x.methods, dm)
+		x.byNorm[dm.norm] = append(x.byNorm[dm.norm], dm)
+	}
+	for _, mn := range slices.Sorted(maps.Keys(dc.Methods)) {
+		add(nil, mn, dc.Methods[mn])
+	}
 	var walk func(res map[string]*resource, path []string)
 	walk = func(res map[string]*resource, path []string) {
 		for _, n := range slices.Sorted(maps.Keys(res)) {
-			r := res[n]
-			p := append(append([]string{}, path...), n)
-			_, hasList := r.Methods["list"]
-			// Sorted: map order decided which lister of a node was indexed
-			// first, and with #47 that decided which element the node was
-			// recorded as enumerating — two extractions disagreed.
-			for _, mn := range slices.Sorted(maps.Keys(r.Methods)) {
-				m := r.Methods[mn]
-				// search/fetch/listPolicies enumerate a collection the node
-				// has no list for (iam/policies, cloudresourcemanager
-				// organizations in v1 and v3). A node that also has a list is
-				// not admitted twice: the search is then a filtered view.
-				if mn == "list" || mn == "aggregatedList" || (!hasList && altListers[mn]) {
-					listers = append(listers, lister{docPath: p, name: mn, m: m, node: r})
-					continue
-				}
-				others = append(others, methodOp(dc, p, mn, m, docDir, ref))
+			p := append(slices.Clone(path), n)
+			for _, mn := range slices.Sorted(maps.Keys(res[n].Methods)) {
+				add(p, mn, res[n].Methods[mn])
 			}
-			walk(r.Resources, p)
+			walk(res[n].Resources, p)
 		}
 	}
 	walk(dc.Resources, nil)
-	return listers, others
+	x.handles = map[string]bool{}
+	for _, dm := range x.methods {
+		if dm.m.HTTPMethod == "DELETE" && dm.m.Response.Ref != "" {
+			x.handles[dm.m.Response.Ref] = true
+		}
+	}
+	return x
 }
 
-// indexDoc also returns the ops it leaves out. When no lister is cloud-rooted
-// that is every op of the document, with an empty reason the caller fills in
-// once it knows whether another version of the API is in the universe.
-func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []sdkinv.Operation, []sdkinv.Drop) {
-	listers, others := collectListers(dc, docDir, ref)
-	drops := rootDrops(dc, docDir, ref)
-
-	cloud := false
-	for _, l := range listers {
-		if cloudRooted(template(l.m, dc.Version), l.m) {
-			cloud = true
-			break
-		}
-	}
-	if !cloud {
-		for _, l := range listers {
-			others = append(others, methodOp(dc, l.docPath, l.name, l.m, docDir, ref))
-		}
-		for _, o := range others {
-			drops = append(drops, sdkinv.Drop{Op: o})
-		}
-		return false, nil, drops
-	}
-	preview := strings.Contains(dc.Version, "alpha") || strings.Contains(dc.Version, "beta")
-	schemas := &schemaSet{raw: dc.Schemas}
-	// elementOf and aggregated support #47: an aggregatedList enumerates every
-	// scope's collection, so it is also an op of the regional twin. disco
-	// lists the regional Compute types exclusively through the base call, and
-	// nine rows rested on the name-match fallback for it.
-	elementOf := map[string]string{}
-	var aggregated []aggLister
-	for _, l := range listers {
-		tmpl := template(l.m, dc.Version)
-		segs := dropGroupingRoot(dropKnativeRoot(sdkinv.ParseTemplate(tmpl)))
-		knative := len(segs) < len(sdkinv.ParseTemplate(tmpl))
-		scopes := scopesFor(segs)
-		rp := sdkinv.StripScopes(segs, scopes, literals)
-		if rp.Item || len(rp.Statics) == 0 {
-			reason := "lister-on-item-path"
-			if !rp.Item {
-				reason = "lister-without-collection-segment"
-			}
-			drops = append(drops, sdkinv.Drop{Op: methodOp(dc, l.docPath, l.name, l.m, docDir, ref), Reason: reason})
-			continue
-		}
-		docPath := stripScopeNodes(dropGroupingNode(dropKnativeNode(l.docPath), tmpl), scopes)
-		// Lower-cased so one collection reached through several versions
-		// (run v1 "workerpools", v2 "workerPools") is one candidate.
-		key := dc.Name + "/" + strings.ToLower(strings.Join(docPath, "/"))
-		en := entries[key]
-		if en == nil {
-			en = &entry{api: dc.Name, docPath: docPath, signals: map[string]bool{}, ops: map[string]sdkinv.Operation{}, versions: map[string]bool{}, refs: map[string]bool{}}
-			entries[key] = en
-		}
-		en.versions[dc.Version] = true
-		if !preview {
-			en.signals["stable"] = true
-		}
-		scope := scopeOf(segs, tmpl, knative, l.m)
-		en.signals["scope:"+string(scope)] = true
-		if len(rp.Parents) > en.depth || en.parent == "" {
-			en.depth = len(rp.Parents)
-			en.parents = rp.Parents
-			en.parent = parentKey(dc, docPath, rp.Parents, segs)
-		}
-		class, rule := classify(l.node, en.signals)
-		if stronger := sdkinv.StrongerClass(en.class, class); en.class == "" || stronger != en.class {
-			en.class, en.rule = stronger, rule
-		} else if class == en.class && (en.rule == "" || rule < en.rule) {
-			en.rule = rule
-		}
-		// A lister at the document root has no resource node, so there is no
-		// collection noun to prefer an element by.
-		noun := ""
-		if len(docPath) > 0 {
-			noun = docPath[len(docPath)-1]
-		}
-		for _, r := range schemas.refsOf(l.m.Response.Ref, noun) {
-			en.refs[r] = true
-		}
-		var required, targets []string
-		for i, sg := range segs {
-			if sg.Param && i > 0 && !segs[i-1].Param && !scopeNames[strings.ToLower(segs[i-1].Text)] {
-				required = append(required, sg.Text)
-			}
-		}
-		targets = append(targets, rp.Parents...)
-		label := dc.Name + ":" + strings.Join(l.docPath, ".") + "." + l.name
-		module := fmt.Sprintf("%s@%s/%s", modulePath, ref, docDir)
-		op := sdkinv.Operation{
-			Service: dc.Name, Name: strings.Join(l.docPath, ".") + "." + l.name, Label: label,
-			IsList: true, Paged: hasParam(l.m, "pageToken"), Required: required, Targets: targets,
-			Scope: scope, Path: tmpl, Module: module,
-		}
-		en.ops[label+"@"+module] = op
-		if el := schemas.element(l.m.Response.Ref, noun, map[string]bool{}); el != "" {
-			if _, seen := elementOf[key]; !seen {
-				elementOf[key] = el
-			}
-			if l.name == "aggregatedList" {
-				aggregated = append(aggregated, aggLister{key: key, element: el, opKey: label + "@" + module, op: op, leaf: noun})
-			}
-		}
-	}
-	attachAggregated(entries, elementOf, aggregated)
-	return true, others, drops
-}
-
-// rootDrops records the methods declared at the document root, which the
-// resource walk never reaches.
-func rootDrops(dc *doc, docDir, ref string) []sdkinv.Drop {
-	var out []sdkinv.Drop
-	for _, mn := range slices.Sorted(maps.Keys(dc.Methods)) {
-		out = append(out, sdkinv.Drop{Op: methodOp(dc, nil, mn, dc.Methods[mn], docDir, ref), Reason: "document-root-method"})
-	}
-	return out
-}
-
-// uncloudDrops names why a document with no cloud-rooted lister was left out:
-// its API is an alias of another, the whole API is outside the universe, or
-// only this version is.
-func uncloudDrops(ds []sdkinv.Drop, excluded map[string]bool, aliases []string) []sdkinv.Drop {
-	for i := range ds {
-		switch svc := ds[i].Op.Service; {
-		case slices.Contains(aliases, svc):
-			ds[i].Reason = "alias-document"
-		case excluded[svc]:
-			ds[i].Reason = "non-cloud-api"
-		default:
-			ds[i].Reason = "version-without-cloud-rooted-lister"
-		}
-	}
-	return ds
-}
-
-// methodOp is the Operation for one Discovery method at path p ("" at the
-// document root).
-func methodOp(dc *doc, p []string, mn string, m *method, docDir, ref string) sdkinv.Operation {
-	name := strings.Join(append(slices.Clone(p), mn), ".")
+func (x *docIndex) op(dm *docMethod) sdkinv.Operation {
 	return sdkinv.Operation{
-		Service: dc.Name, Name: name, Label: dc.Name + ":" + name,
-		Path: template(m, dc.Version), Module: fmt.Sprintf("%s@%s/%s", modulePath, ref, docDir),
+		Service: x.dc.Name, Name: strings.Join(append(slices.Clone(dm.path), dm.name), "."), Label: dm.label(x.dc.Name),
+		Path: dm.pathText(), Module: x.module,
 	}
 }
 
-// sourceOps enumerates every method a document declares, root included,
-// independent of classification.
-func sourceOps(dc *doc, docDir, ref string) []sdkinv.OpRef {
-	var out []sdkinv.OpRef
-	var walk func(methods map[string]*method, res map[string]*resource, path []string)
-	walk = func(methods map[string]*method, res map[string]*resource, path []string) {
-		for mn, m := range methods {
-			out = append(out, methodOp(dc, path, mn, m, docDir, ref).Ref())
-		}
-		for n, r := range res {
-			walk(r.Methods, r.Resources, append(slices.Clone(path), n))
+// pathText renders the parsed template back, param names and verb kept.
+func (dm *docMethod) pathText() string {
+	parts := make([]string, len(dm.segs))
+	for i, s := range dm.segs {
+		parts[i] = s.Text
+		if s.Param {
+			parts[i] = "{" + s.Text + "}"
 		}
 	}
-	walk(dc.Methods, dc.Resources, nil)
-	return out
+	t := strings.Join(parts, "/")
+	if dm.verb != "" {
+		t += ":" + dm.verb
+	}
+	return t
 }
 
-// aggLister is one aggregatedList call and the element it enumerates.
-type aggLister struct {
-	key, element, opKey, leaf string
-	op                        sdkinv.Operation
-}
-
-// attachAggregated registers an aggregatedList on every sibling collection of
-// the same document that enumerates the same element: the response is a map of
-// scoped lists, so the regional twin is listed by that one call.
-func attachAggregated(entries map[string]*entry, elementOf map[string]string, aggregated []aggLister) {
-	for _, a := range aggregated {
-		for _, key := range slices.Sorted(maps.Keys(elementOf)) {
-			if key == a.key || elementOf[key] != a.element {
-				continue
-			}
-			en := entries[key]
-			if en == nil {
-				continue
-			}
-			if _, dup := en.ops[a.opKey]; dup {
-				continue
-			}
-			en.ops[a.opKey] = a.op
-			en.signals["aggregated-by:"+a.leaf] = true
+// creates is the POST or PUT on the collection path itself: the insert or
+// create of that collection. A custom verb (":search", ":import") says nothing.
+func (x *docIndex) creates(coll string) *docMethod {
+	for _, dm := range x.byNorm[coll] {
+		if dm.verb == "" && (dm.m.HTTPMethod == "POST" || dm.m.HTTPMethod == "PUT") {
+			return dm
 		}
 	}
+	return nil
 }
 
-// template returns the concrete path template: flatPath, else path with
-// {+param} placeholders expanded from the parameter's pattern.
-func template(m *method, version string) string {
+// carries reports that a body is the schema or wraps it one level down
+// (compute's ReservationSubBlocksGetResponse holds the ReservationSubBlock).
+func (x *docIndex) carries(body, ref string) bool {
+	if body == "" || ref == "" {
+		return false
+	}
+	if body == ref {
+		return true
+	}
+	s := x.schemas.get(body)
+	return s != nil && slices.ContainsFunc(slices.Collect(maps.Values(s.Properties)), func(p *schema) bool { return p != nil && p.Ref == ref })
+}
+
+// itemGet is the GET on the collection's item path, if any.
+func (x *docIndex) itemGet(coll string) *docMethod {
+	for _, dm := range x.byNorm[coll+"/{}"] {
+		if dm.verb == "" && dm.m.HTTPMethod == "GET" {
+			return dm
+		}
+	}
+	return nil
+}
+
+// template is a method's path relative to the API: servicePath + flatPath
+// (else path with {+x} expanded from the parameter pattern), with the custom
+// verb cut off and the leading prefix removed. The prefix is every static that
+// another static follows (compute/v1/, admin/directory/v1/, Pub/Sub Lite's
+// admin/, run v1's apis/serving.knative.dev/v1/) plus the document's own
+// version before a param ("v2/{+parent}/cases").
+func template(dc *doc, m *method) (segs []sdkinv.Segment, prefix []string, verb string) {
 	t := m.FlatPath
 	if t == "" {
 		t = m.Path
-		for name, p := range m.Parameters {
-			ph := "{+" + name + "}"
-			if !strings.Contains(t, ph) {
-				continue
+		for _, name := range slices.Sorted(maps.Keys(m.Parameters)) {
+			if ph := "{+" + name + "}"; strings.Contains(t, ph) {
+				t = strings.Replace(t, ph, expandPattern(m.Parameters[name].Pattern, name), 1)
 			}
-			t = strings.Replace(t, ph, expandPattern(p.Pattern, name), 1)
 		}
 	}
-	// Drop the leading service/version prefix ("v1/", "admin/directory/v1/").
-	parts := strings.Split(strings.Trim(t, "/"), "/")
-	for i, p := range parts {
-		// The document's own version too: Deployment Manager's alpha document
-		// spells it "alpha", so "^v\d" stripped nothing and the whole API
-		// dropped out of the universe for not being cloud-rooted.
-		if versionRe.MatchString(p) || p == version {
-			parts = parts[i+1:]
-			break
-		}
+	path, verb := sdkinv.SplitVerb(strings.TrimSuffix(dc.ServicePath, "/") + "/" + strings.TrimPrefix(t, "/"))
+	segs = sdkinv.ParseTemplate(path)
+	for len(segs) > 1 && !segs[0].Param && (!segs[1].Param || isVersion(segs[0].Text, dc.Version)) {
+		prefix = append(prefix, segs[0].Text)
+		segs = segs[1:]
 	}
-	return strings.Join(parts, "/")
+	return segs, prefix, verb
+}
+
+func isVersion(seg, version string) bool {
+	return seg == version || strings.HasSuffix(version, "_"+seg)
 }
 
 // expandPattern turns "^projects/[^/]+/locations/[^/]+$" into
@@ -573,214 +252,219 @@ func expandPattern(pattern, name string) string {
 	return paramRe.ReplaceAllString(p, "{"+name+"}")
 }
 
-// scopesFor narrows "zones"/"regions" to the compute shape
-// "projects/{p}/(zones|regions)/{x}". Dataplex nests assets under
-// "lakes/{lake}/zones/{zone}" where the zone is itself a create-capable
-// collection, and stripping it merged two collections into one key.
-func scopesFor(segs []sdkinv.Segment) map[string]bool {
+func normPath(segs []sdkinv.Segment) string {
+	parts := make([]string, len(segs))
+	for i, s := range segs {
+		parts[i] = s.Text
+		if s.Param {
+			parts[i] = "{}"
+		}
+	}
+	return strings.Join(parts, "/")
+}
+
+// lister is one method admitted as enumerating a collection.
+type lister struct {
+	dm      *docMethod
+	key     string
+	depth   int
+	parents []string // item paths of its non-scope parents, innermost first
+	el      elem
+	how     string // which structural fact confirmed it
+	rp      sdkinv.ResourcePath
+}
+
+// shape splits a template into its scope pairs, literals and resource path. A
+// "<name>/{id}" pair is a scope when name is a declared tenancy root or
+// placement and this document cannot create it: apigee creates organizations
+// and Dataplex creates lake zones, so there they are parents. A static that
+// another static follows mid-path ("global", "aggregated") is a literal.
+func (x *docIndex) shape(segs []sdkinv.Segment) (rp sdkinv.ResourcePath, scopes map[string]bool, parents []string) {
+	scopes, literals := map[string]bool{}, map[string]bool{}
 	for i := 0; i+1 < len(segs); i++ {
-		l := strings.ToLower(segs[i].Text)
-		if segs[i].Param || (l != "zones" && l != "regions") || !segs[i+1].Param {
+		s := segs[i]
+		if s.Param {
 			continue
 		}
-		if i >= 2 && !segs[i-2].Param && strings.EqualFold(segs[i-2].Text, "projects") && segs[i-1].Param {
-			continue
-		}
-		return scopeNamesNoZone
-	}
-	return scopeNames
-}
-
-// cloudRooted decides whether a lister enumerates within a Google Cloud
-// tenancy container. Reading only the first segment dropped four real APIs
-// wholesale: Cloud Asset and Service Usage expand {+parent} to a generic
-// "{id}/{id}" because the parameter accepts any of projects, folders or
-// organizations -- which its own description spells out -- and Pub/Sub Lite
-// puts a static "admin" in front of the project.
-func cloudRooted(tmpl string, m *method) bool {
-	segs := sdkinv.ParseTemplate(tmpl)
-	if len(segs) == 0 {
-		return false
-	}
-	if _, ok := cloudRoots[rootOf(tmpl)]; ok {
-		return true
-	}
-	if segs[0].Param {
-		return genericContainerParam(m)
-	}
-	// A leading static that only groups a cloud root behind it is the API's
-	// own prefix: Pub/Sub Lite spells its project paths "admin/projects/{p}".
-	// Deeper roots are deliberately not accepted — a cloud root anywhere in
-	// the path admits DFA reporting, Tag Manager and the Cloud Channel
-	// reseller API, which are not cloud infrastructure.
-	if len(segs) > 1 && !segs[1].Param {
-		_, ok := cloudRoots[strings.ToLower(segs[1].Text)]
-		return ok
-	}
-	return false
-}
-
-// genericContainerParam reports whether a path parameter accepts a cloud
-// container. The pattern cannot say so (it is "^[^/]+/[^/]+$"); the
-// description names the formats it takes.
-func genericContainerParam(m *method) bool {
-	for _, p := range m.Parameters {
-		if p.Location != "path" {
-			continue
-		}
-		for root := range cloudRoots {
-			if strings.Contains(strings.ToLower(p.Description), root+"/") {
-				return true
-			}
+		lower := strings.ToLower(s.Text)
+		declared := cloudRoots[lower] != "" || placements[lower]
+		switch {
+		case !segs[i+1].Param && declared:
+			// "locations/global": the container's id pinned as a static.
+			scopes[lower], scopes[strings.ToLower(segs[i+1].Text)] = true, true
+			literals[lower], literals[strings.ToLower(segs[i+1].Text)] = true, true
+			i++
+		case !segs[i+1].Param:
+			literals[lower] = true
+		case i+2 < len(segs) && declared && x.creates(normPath(segs[:i+1])) == nil:
+			scopes[lower] = true
 		}
 	}
-	return false
-}
-
-func rootOf(tmpl string) string {
-	seg := strings.SplitN(tmpl, "/", 2)[0]
-	return strings.ToLower(seg)
-}
-
-// scopeOf reads the scope from the template root. knative says the caller
-// already stripped run v1's "namespaces/{namespace}" project alias, and a
-// required project/parent query parameter carries the container for listers
-// whose path does not (storage buckets) — both read as global otherwise, which
-// contradicted the candidate's own scope:project signal on 48 rows.
-func scopeOf(segs []sdkinv.Segment, tmpl string, knative bool, m *method) sdkinv.Scope {
-	if len(segs) > 0 && segs[0].Param {
-		return ScopeProject // generic "{parent}" accepting any container
-	}
-	if sc, ok := cloudRoots[rootOf(tmpl)]; ok {
-		return sc
-	}
-	if knative || requiredProjectQuery(m) {
-		return ScopeProject
-	}
-	return ScopeGlobal
-}
-
-// requiredProjectQuery reports a required query parameter naming the project
-// or the parent container.
-func requiredProjectQuery(m *method) bool {
-	for name, p := range m.Parameters {
-		if p.Required && p.Location == "query" && (name == "project" || name == "parent" || name == "projectId") {
-			return true
+	rp = sdkinv.StripScopes(segs, scopes, literals)
+	for i := len(segs) - 2; i >= 0; i-- {
+		if !segs[i].Param && segs[i+1].Param && i+2 < len(segs) && !scopes[strings.ToLower(segs[i].Text)] {
+			parents = append(parents, normPath(segs[:i+2]))
 		}
 	}
-	return false
+	return rp, scopes, parents
 }
 
-func dropKnativeRoot(segs []sdkinv.Segment) []sdkinv.Segment {
-	if len(segs) > 2 && !segs[0].Param && strings.EqualFold(segs[0].Text, knativeRoot) && segs[1].Param {
-		return segs[2:]
+// listerOf admits a GET on a collection path whose response carries an array
+// of items, when a sibling confirms what the items are: the item path's GET
+// answers the same schema, the collection's create takes it, or (an
+// aggregated list, whose items sit in a per-scope map) some GET answers it.
+// Filtered views (listUsable, searchFeatures) enumerate a schema nothing
+// else in their node reads or writes, and stay in Other.
+func (x *docIndex) listerOf(dm *docMethod) (lister, bool) {
+	if dm.m.HTTPMethod != "GET" || len(dm.segs) == 0 || dm.segs[len(dm.segs)-1].Param || dm.m.Response.Ref == "" {
+		return lister{}, false
 	}
-	return segs
-}
+	noun := dm.segs[len(dm.segs)-1].Text
+	if len(dm.path) > 0 {
+		noun = dm.path[len(dm.path)-1]
+	}
+	el := x.schemas.element(dm.m.Response.Ref, noun, map[string]bool{})
+	create := x.creates(dm.norm)
+	if el.s == nil && create != nil && create.m.Request.Ref != "" && x.schemas.untypedArray(dm.m.Response.Ref) {
+		// admin's Aliases lists items typed "any"; the create body names them.
+		el = elem{ref: create.m.Request.Ref, s: x.schemas.get(create.m.Request.Ref)}
+	}
+	if el.s == nil {
+		return lister{}, false
+	}
+	how := x.confirm(dm.norm, el, create)
 
-// dropGroupingRoot removes a leading static that only groups a cloud root
-// behind it: Pub/Sub Lite's "admin/projects/{p}/..." and "cursor/projects/...".
-// Keeping it put the grouping word in the key, where no ARM-style or disco
-// name could ever match it.
-func dropGroupingRoot(segs []sdkinv.Segment) []sdkinv.Segment {
-	if len(segs) > 1 && !segs[0].Param && !segs[1].Param {
-		if _, ok := cloudRoots[strings.ToLower(segs[1].Text)]; ok {
-			if _, isRoot := cloudRoots[strings.ToLower(segs[0].Text)]; !isRoot {
-				return segs[1:]
-			}
+	if how == "" {
+		return lister{}, false
+	}
+	rp, scopes, parents := x.shape(dm.segs)
+	docPath := dm.path
+	if len(docPath) == 0 {
+		docPath = []string{noun}
+	}
+	// A method on a node that lists below the node's own item
+	// (instances.listVmExtensionStates on instances/{instance}/…) enumerates a
+	// sub-collection, keyed by its own static.
+	if leaf := lastStatic(dm.segs); !strings.EqualFold(leaf, docPath[len(docPath)-1]) && slices.ContainsFunc(dm.segs[:len(dm.segs)-1], func(s sdkinv.Segment) bool {
+		return !s.Param && strings.EqualFold(s.Text, docPath[len(docPath)-1])
+	}) {
+		docPath = append(slices.Clone(docPath), leaf)
+	}
+	// The key is the resource path minus container nodes: scope pairs and
+	// the service prefix. Other literal groupings (admin's "resources",
+	// securitycenter's per-product settings) stay: they tell collections
+	// with one leaf name apart.
+	lead := 0 // leading nodes the prefix strip removed (Pub/Sub Lite's admin)
+	for lead < len(docPath)-1 && slices.ContainsFunc(dm.prefix, func(p string) bool { return strings.EqualFold(p, docPath[lead]) }) {
+		lead++
+	}
+	var keep []string
+	for i, n := range docPath[lead:] {
+		if lower := strings.ToLower(n); i == len(docPath)-lead-1 || !scopes[lower] {
+			keep = append(keep, lower)
 		}
 	}
-	return segs
+	return lister{
+		dm: dm, key: x.dc.Name + "/" + strings.Join(keep, "/"), depth: len(rp.Parents),
+		parents: parents, el: el, how: how, rp: rp,
+	}, true
 }
 
-// dropGroupingNode removes the matching document node for dropGroupingRoot.
-func dropGroupingNode(docPath []string, tmpl string) []string {
-	segs := sdkinv.ParseTemplate(tmpl)
-	if len(docPath) > 1 && len(segs) > 1 && !segs[0].Param && strings.EqualFold(docPath[0], segs[0].Text) {
-		if _, ok := cloudRoots[strings.ToLower(segs[1].Text)]; ok {
-			return docPath[1:]
+// confirm names the sibling that says what a list's items are, "" for none.
+// The item GET decides when there is one, so a filtered view over another
+// schema (searchFeatures on featurestores) never borrows its node's other
+// methods. Without one, a write on the item path that carries the schema, a
+// DELETE on it (integrations list and delete, nothing else), the create body,
+// or for an aggregated list any GET answering the schema confirms.
+func (x *docIndex) confirm(coll string, el elem, create *docMethod) string {
+	if g := x.itemGet(coll); g != nil {
+		if el.ref == "" || x.carries(g.m.Response.Ref, el.ref) || x.carries(el.ref, g.m.Response.Ref) {
+			return "item-get"
 		}
-	}
-	return docPath
-}
-
-func dropKnativeNode(docPath []string) []string {
-	if len(docPath) > 1 && strings.EqualFold(docPath[0], knativeRoot) {
-		return docPath[1:]
-	}
-	return docPath
-}
-
-// stripScopeNodes drops container nodes from a document path, keeping the
-// last node even when it is itself a container collection ("projects",
-// "zones" are real listable collections at the leaf).
-func stripScopeNodes(docPath []string, scopes map[string]bool) []string {
-	out := make([]string, 0, len(docPath))
-	for i, n := range docPath {
-		if i < len(docPath)-1 && (scopes[strings.ToLower(n)] || literals[strings.ToLower(n)]) {
-			continue
-		}
-		out = append(out, n)
-	}
-	return out
-}
-
-// parentKey names the parent candidate: the enclosing document node when the
-// tree is nested, else the top-level collection whose singular matches the
-// parent segment or its parameter (storage "b/{bucket}" → "buckets").
-func parentKey(dc *doc, docPath, parents []string, segs []sdkinv.Segment) string {
-	if len(parents) == 0 {
 		return ""
 	}
-	if len(docPath) > 1 {
-		return dc.Name + "/" + strings.ToLower(strings.Join(docPath[:len(docPath)-1], "/"))
-	}
-	last := parents[len(parents)-1]
-	paramName := ""
-	for i, s := range segs {
-		if !s.Param && s.Text == last && i+1 < len(segs) && segs[i+1].Param {
-			paramName = segs[i+1].Text
+	del := false
+	for _, dm := range x.byNorm[coll+"/{}"] {
+		if dm.verb != "" {
+			continue
 		}
-	}
-	for n := range dc.Resources {
-		cs := sdkinv.CanonSingular(n)
-		if cs == sdkinv.CanonSingular(last) || (paramName != "" && cs == sdkinv.CanonSingular(paramName)) {
-			return dc.Name + "/" + strings.ToLower(n) // keys are lower-cased; Discovery spells nodes camelCase
+		if x.carries(dm.m.Request.Ref, el.ref) || x.carries(dm.m.Response.Ref, el.ref) {
+			return "item-write"
 		}
-	}
-	return dc.Name + "/" + strings.ToLower(last)
-}
-
-// classify reads the sibling methods on the resource node: nodes whose get
-// returns a long-running Operation are job records, not resources; creatable
-// nodes are resources; delete-only nodes are records the caller cannot
-// create; get-only nodes are catalogs.
-func classify(node *resource, signals map[string]bool) (sdkinv.Class, string) {
-	has := func(names ...string) bool {
-		for _, n := range names {
-			if _, ok := node.Methods[n]; ok {
-				return true
-			}
-		}
-		return false
+		del = del || dm.m.HTTPMethod == "DELETE"
 	}
 	switch {
-	case isOperationNode(node):
-		signals["operation"] = true
-		return sdkinv.ClassNonResource, "operation-node"
-	case has("insert", "create"):
+	case del:
+		return "item-delete"
+	case create != nil && (x.carries(create.m.Request.Ref, el.ref) || x.carries(create.m.Response.Ref, el.ref)):
+		return "create-body"
+	case el.viaMap && x.answers(el.ref):
+		return "aggregated"
+	}
+	return ""
+}
+
+// answers reports a GET whose response is the schema.
+func (x *docIndex) answers(ref string) bool {
+	return slices.ContainsFunc(x.methods, func(dm *docMethod) bool {
+		return dm.m.HTTPMethod == "GET" && dm.m.Response.Ref == ref
+	})
+}
+
+// classify reads what the document can do to the collection by HTTP method
+// and path, never by method name: a POST/PUT on the collection creates; a
+// DELETE on the item removes; a PATCH, PUT or POST on the item (or on an
+// item action sub-path) edits, and so
+// a write on another collection answering the item creates it by another
+// route (secrets:addVersion, jobs:snapshot); a GET on the item alone is the
+// provider's read-only catalog. A collection whose items are operation records
+// is a feed. Custom verbs on the item (:approve, :markAccepted) are only a
+// signal. An aggregated list is classified by the collection whose item GET
+// answers its element.
+func (x *docIndex) classify(l lister, signals map[string]bool) (sdkinv.Class, string) {
+	coll := l.dm.norm
+	if l.el.viaMap {
+		coll = x.home(l.el.ref)
+	}
+	del, mutable, get := false, x.edits(coll), false
+	for _, dm := range x.byNorm[coll+"/{}"] {
+		switch {
+		case dm.verb != "":
+			if dm.m.HTTPMethod != "GET" {
+				signals["custom-verb"] = true
+			}
+		case dm.m.HTTPMethod == "DELETE":
+			del = true
+		case dm.m.HTTPMethod == "GET":
+			get = true
+		default:
+			mutable = true
+		}
+	}
+	writers := x.writers(coll, l.el.ref)
+	switch {
+	case coll != "" && x.creates(coll) != nil:
 		signals["create"] = true
 		return sdkinv.ClassResource, "create"
-	case has("delete"):
+	case coll != "" && x.createsByVerb(coll, l.el.ref):
+		// osconfig patchJobs:execute, aiplatform evaluations:import.
+		signals["create-verb"] = true
+		return sdkinv.ClassResource, "create"
+	case isOperation(l.el) || writers < 0 || writers >= 2:
+		signals["operation"] = true
+		return sdkinv.ClassNonResource, "operation-node"
+	case writers == 1:
+		signals["created-elsewhere"] = true
+		return sdkinv.ClassResource, "created-elsewhere"
+	case del:
 		signals["delete-only"] = true
 		return sdkinv.ClassResource, "delete-only"
-	case has("patch", "update", "destroy", "undelete"):
+	case mutable:
 		// README defines catalog as provider-published and read-only, and a
-		// node the caller can patch or destroy is neither. setIamPolicy alone
-		// is too weak — it would pull in four genuine catalogs.
+		// node the caller can edit is neither.
 		signals["mutable"] = true
 		return sdkinv.ClassResource, "mutable"
-	case has("get"):
+	case get:
 		signals["get-only"] = true
 		return sdkinv.ClassCatalog, "get-only"
 	default:
@@ -789,17 +473,504 @@ func classify(node *resource, signals map[string]bool) (sdkinv.Class, string) {
 	}
 }
 
-// isOperationNode: google.longrunning.Operation (and compute's Operation)
-// always surfaces as a schema named "…Operation"; a node whose get returns it
-// enumerates operation records.
-func isOperationNode(node *resource) bool {
-	if g, ok := node.Methods["get"]; ok && strings.HasSuffix(g.Response.Ref, "Operation") {
-		return true
+// createsByVerb reports a custom-verb POST on the collection itself that
+// answers the element: a create under another name.
+func (x *docIndex) createsByVerb(coll, ref string) bool {
+	return slices.ContainsFunc(x.byNorm[coll], func(dm *docMethod) bool {
+		return dm.verb != "" && dm.m.HTTPMethod == "POST" && x.carries(dm.m.Response.Ref, ref)
+	})
+}
+
+// edits reports an action on the item spelled as a sub-path (compute's
+// instances/{i}/start, regionInstanceGroups/{g}/setNamedPorts) answered by
+// the document's change handle: a schema some DELETE answers (Operation).
+// Reads spelled as POSTs (listInstances, testIamPermissions) and setIamPolicy
+// answer something else; a sub-path with an item path below it is a
+// sub-collection, and one with a GET is a singleton (regions/{r}/snapshotSettings). Custom verbs stay a signal: locations/{l}:batchTranslateText
+// answers an Operation too, and a location is still the provider's catalog.
+func (x *docIndex) edits(coll string) bool {
+	if coll == "" {
+		return false
 	}
-	if l, ok := node.Methods["list"]; ok && strings.HasSuffix(l.Response.Ref, "ListOperationsResponse") {
-		return true
+	return slices.ContainsFunc(x.methods, func(dm *docMethod) bool {
+		if dm.m.HTTPMethod == "GET" || dm.m.Response.Ref == "" || !x.handles[dm.m.Response.Ref] {
+			return false
+		}
+		if dm.verb != "" {
+			return false
+		}
+		rest, ok := strings.CutPrefix(dm.norm, coll+"/{}/")
+		return ok && rest != "{}" && !strings.Contains(rest, "/") && len(x.byNorm[dm.norm+"/{}"]) == 0 &&
+			!slices.ContainsFunc(x.byNorm[dm.norm], func(o *docMethod) bool { return o.m.HTTPMethod == "GET" })
+	})
+}
+
+// home is the collection path whose item GET answers the schema, "" for none.
+func (x *docIndex) home(ref string) string {
+	for _, dm := range x.methods {
+		if dm.m.HTTPMethod == "GET" && dm.verb == "" && dm.m.Response.Ref == ref && len(dm.segs) > 0 && dm.segs[len(dm.segs)-1].Param {
+			return strings.TrimSuffix(dm.norm, "/{}")
+		}
+	}
+	return ""
+}
+
+// isOperation: the element has google.longrunning.Operation's shape — done,
+// then response or error.
+func isOperation(e elem) bool {
+	return e.s != nil && e.s.Properties["done"] != nil && (e.s.Properties["response"] != nil || e.s.Properties["error"] != nil)
+}
+
+// writers counts the other collections whose POSTs answer the element; -1
+// when an edit or delete elsewhere answers it. An element a DELETE or PATCH
+// answers is the handle of that change (compute's Operation, dns's
+// managedZones.patch), and so is one that POSTs on two or more other
+// collections answer; one POST is a create by another route.
+func (x *docIndex) writers(coll, ref string) int {
+	if ref == "" {
+		return 0
+	}
+	leaf := coll[strings.LastIndex(coll, "/")+1:]
+	ws := map[string]bool{}
+	for _, dm := range x.methods {
+		if dm.m.HTTPMethod == "GET" || dm.m.Response.Ref != ref {
+			continue
+		}
+		w := lastStatic(dm.segs)
+		if w == leaf {
+			continue
+		}
+		if dm.m.HTTPMethod != "POST" {
+			return -1
+		}
+		ws[w] = true
+	}
+	return len(ws)
+}
+
+func lastStatic(segs []sdkinv.Segment) string {
+	for i := len(segs) - 1; i >= 0; i-- {
+		if !segs[i].Param {
+			return segs[i].Text
+		}
+	}
+	return ""
+}
+
+// scopeOf: the template's tenancy root, else a required query parameter
+// naming one (storage buckets take ?project=), else global when the path
+// holds no container. A path opening on a generic container param
+// (cloudasset "{+parent}/assets" takes any of projects, folders,
+// organizations) is unscoped.
+func scopeOf(dm *docMethod) sdkinv.Scope {
+	if len(dm.segs) == 0 || dm.segs[0].Param {
+		return ScopeUnscoped
+	}
+	if sc, ok := cloudRoots[strings.ToLower(dm.segs[0].Text)]; ok {
+		return sc
+	}
+	for _, name := range slices.Sorted(maps.Keys(dm.m.Parameters)) {
+		p := dm.m.Parameters[name]
+		if !p.Required || p.Location != "query" {
+			continue
+		}
+		stem := strings.TrimSuffix(strings.ToLower(name), "id")
+		for _, root := range slices.Sorted(maps.Keys(cloudRoots)) {
+			if sdkinv.CanonSingular(root) == stem {
+				return cloudRoots[root]
+			}
+		}
+	}
+	return ScopeGlobal
+}
+
+type entry struct {
+	api      string
+	depth    int
+	parents  []string
+	parent   string
+	class    sdkinv.Class
+	rule     string
+	signals  map[string]bool
+	ops      map[string]sdkinv.Operation // by label+module
+	versions map[string]bool
+	refs     map[string]bool
+	elements map[string]bool // element schema names
+}
+
+func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error) {
+	root := filepath.Join(dir, "api")
+	u := &sdkinv.Universe{Provider: "gcp", Pins: map[string]string{modulePath: e.Ref()}}
+	entries := map[string]*entry{}
+	cloud := map[string]bool{}               // API name -> some document accepts cloud-platform
+	identities := map[string][]string{}      // service identity -> document names
+	items := map[string]map[string]string{}  // API -> collection item path -> key
+	var unconfirmed []string                 // list-shaped GETs no sibling confirms
+	byAPI := map[string][]sdkinv.Operation{} // Other, by API, until membership is known
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(p, "-api.json") {
+			return err
+		}
+		raw, rerr := os.ReadFile(p)
+		if rerr != nil {
+			return rerr
+		}
+		var dc doc
+		if jerr := json.Unmarshal(raw, &dc); jerr != nil {
+			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: p, Message: jerr.Error()})
+			return nil
+		}
+		if dc.RootURL != "" {
+			identities[dc.identity()] = append(identities[dc.identity()], dc.Name)
+		}
+		if _, ok := dc.Auth.OAuth2.Scopes[cloudPlatformScope]; ok {
+			cloud[dc.Name] = true
+		}
+		rel, _ := filepath.Rel(root, p)
+		x := newDocIndex(&dc, fmt.Sprintf("%s@%s/%s", modulePath, e.Ref(), filepath.ToSlash(filepath.Dir(rel))))
+		for _, dm := range x.methods {
+			u.SourceOps = append(u.SourceOps, x.op(dm).Ref())
+		}
+		others, unconf := indexDoc(entries, items, x)
+		byAPI[dc.Name] = append(byAPI[dc.Name], others...)
+		unconfirmed = append(unconfirmed, unconf...)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	aliases := dropAliasDocs(entries, identities, byAPI)
+	u.Diagnostics = append(u.Diagnostics, namesDiag("info", "alias documents dropped for duplicating another API's service", aliases)...)
+	for _, api := range aliases {
+		for _, o := range byAPI[api] {
+			u.Dropped = append(u.Dropped, sdkinv.Drop{Op: o, Reason: "alias-document"})
+		}
+		delete(byAPI, api)
+	}
+	var excluded []string
+	for _, api := range slices.Sorted(maps.Keys(byAPI)) {
+		if cloud[api] {
+			u.Other = append(u.Other, byAPI[api]...)
+			continue
+		}
+		excluded = append(excluded, api)
+		for _, o := range byAPI[api] {
+			u.Dropped = append(u.Dropped, sdkinv.Drop{Op: o, Reason: "non-cloud-api"})
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(entries)) {
+		if en := entries[k]; !cloud[en.api] {
+			for _, op := range en.ops {
+				u.Dropped = append(u.Dropped, sdkinv.Drop{Op: op, Reason: "non-cloud-api"})
+			}
+			delete(entries, k)
+		}
+	}
+	u.Diagnostics = append(u.Diagnostics, namesDiag("info", "APIs excluded for not accepting the cloud-platform OAuth scope (non-cloud APIs excluded)", excluded)...)
+	u.Diagnostics = append(u.Diagnostics, namesDiag("info", "list-shaped GETs left in Other: no item GET, create body or aggregated read confirms their items", filterAPIs(unconfirmed, cloud))...)
+	u.Diagnostics = append(u.Diagnostics, foldAliasRoutes(entries, items)...)
+	u.Diagnostics = append(u.Diagnostics, resolveParents(entries, items)...)
+	var unscoped []string
+	for _, k := range slices.Sorted(maps.Keys(entries)) {
+		c := toCandidate(k, entries[k])
+		for _, op := range c.Ops {
+			if op.Scope == ScopeUnscoped {
+				unscoped = append(unscoped, op.Label)
+			}
+		}
+		u.Candidates = append(u.Candidates, c)
+	}
+	u.Diagnostics = append(u.Diagnostics, namesDiag("warn", "listers open on a generic container parameter; scope unscoped", unscoped)...)
+	sdkinv.SortCandidates(u.Candidates)
+	sdkinv.SortOps(u.Other)
+	sdkinv.SortOpRefs(u.SourceOps)
+	sdkinv.SortDrops(u.Dropped)
+	u.Scopes = slices.Clone(scopeVocab)
+	return u, nil
+}
+
+// namesDiag renders one diagnostic naming every item, or none for none.
+func namesDiag(severity, msg string, names []string) []sdkinv.Diagnostic {
+	if len(names) == 0 {
+		return nil
+	}
+	names = slices.Compact(slices.Sorted(slices.Values(names)))
+	return []sdkinv.Diagnostic{{Severity: severity, Source: "discovery", Message: fmt.Sprintf("%d %s: %s", len(names), msg, strings.Join(names, " "))}}
+}
+
+func filterAPIs(labels []string, cloud map[string]bool) []string {
+	var out []string
+	for _, l := range labels {
+		if api, _, _ := strings.Cut(l, ":"); cloud[api] {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// indexDoc files one document version's listers into entries and returns
+// every other method as Other, plus the list-shaped GETs nothing confirmed.
+func indexDoc(entries map[string]*entry, items map[string]map[string]string, x *docIndex) ([]sdkinv.Operation, []string) {
+	var listers []lister
+	var others []sdkinv.Operation
+	var unconfirmed []string
+	for _, dm := range x.methods {
+		if l, ok := x.listerOf(dm); ok {
+			listers = append(listers, l)
+			continue
+		}
+		others = append(others, x.op(dm))
+		if dm.m.HTTPMethod == "GET" && hasParam(dm.m, "pageToken") {
+			unconfirmed = append(unconfirmed, dm.label(x.dc.Name))
+		}
+	}
+	foldSameCollection(listers)
+	api := x.dc.Name
+	if items[api] == nil {
+		items[api] = map[string]string{}
+	}
+	preview := strings.Contains(x.dc.Version, "alpha") || strings.Contains(x.dc.Version, "beta")
+	elementOf := map[string]string{}
+	var aggregated []aggLister
+	for _, l := range listers {
+		if !l.el.viaMap {
+			if k, taken := items[api][l.dm.norm+"/{}"]; !taken || l.key < k {
+				items[api][l.dm.norm+"/{}"] = l.key
+			}
+		}
+		en := entries[l.key]
+		if en == nil {
+			en = &entry{api: api, signals: map[string]bool{}, ops: map[string]sdkinv.Operation{}, versions: map[string]bool{}, refs: map[string]bool{}, elements: map[string]bool{}}
+			entries[l.key] = en
+		}
+		en.versions[x.dc.Version] = true
+		if !preview {
+			en.signals["stable"] = true
+		}
+		scope := scopeOf(l.dm)
+		en.signals["scope:"+string(scope)] = true
+		en.signals["list:"+l.how] = true
+		if l.depth > en.depth || en.parents == nil {
+			en.depth, en.parents = l.depth, l.parents
+		}
+		class, rule := x.classify(l, en.signals)
+		if stronger := sdkinv.StrongerClass(en.class, class); en.class == "" || stronger != en.class {
+			en.class, en.rule = stronger, rule
+		} else if class == en.class && (en.rule == "" || rule < en.rule) {
+			en.rule = rule
+		}
+		for _, r := range x.schemas.refsOf(l.el) {
+			en.refs[r] = true
+		}
+		op := x.op(l.dm)
+		op.IsList, op.Paged, op.Scope = true, hasParam(l.dm.m, "pageToken"), scope
+		op.Required, op.Targets = slices.Clone(l.dm.m.ParameterOrder), l.rp.Parents
+		opKey := op.Label + "@" + op.Module
+		en.ops[opKey] = op
+		if l.el.ref != "" {
+			en.elements[l.el.ref] = true
+			if _, seen := elementOf[l.key]; !seen {
+				elementOf[l.key] = l.el.ref
+			}
+			if l.dm.name == "aggregatedList" || l.el.viaMap {
+				aggregated = append(aggregated, aggLister{key: l.key, element: l.el.ref, opKey: opKey, op: op, leaf: l.key[strings.LastIndex(l.key, "/")+1:]})
+			}
+		}
+	}
+	attachAggregated(entries, elementOf, aggregated)
+	return others, unconfirmed
+}
+
+// foldSameCollection keys a lister under the top-level route of its
+// collection when the document has one: the same element under the same leaf
+// name at depth 0. run v1 lists services as namespaces.services and as
+// projects.locations.services; discoveryengine reaches dataStores directly
+// and through collections. A route through a parent the document lists is a
+// different collection (identitytoolkit's tenant-level IdP configs), and two
+// nested routes are never folded (admin's group and user aliases).
+func foldSameCollection(listers []lister) {
+	top := map[string]lister{}
+	group := func(l lister) string {
+		return l.el.ref + "\x00" + l.key[strings.LastIndex(l.key, "/")+1:]
+	}
+	for _, l := range listers {
+		if l.el.ref == "" || l.depth > 0 {
+			continue
+		}
+		if t, ok := top[group(l)]; !ok || l.key < t.key {
+			top[group(l)] = l
+		}
+	}
+	listed := map[string]bool{}
+	for _, l := range listers {
+		listed[l.dm.norm+"/{}"] = true
+	}
+	for i, l := range listers {
+		if slices.ContainsFunc(l.parents, func(p string) bool { return listed[p] }) {
+			continue
+		}
+		if t, ok := top[group(l)]; ok && l.el.ref != "" && l.depth > 0 {
+			listers[i].key, listers[i].depth, listers[i].parents = t.key, 0, nil
+		}
+	}
+}
+
+// foldAliasRoutes merges a nested collection reached only through a container
+// the API lists nowhere into the one other collection of the API with the same
+// leaf and element. run v1 reaches jobs, executions and worker pools under
+// namespaces/{project}, an alias of the project that v2 spells
+// projects/{p}/locations/{l}; the two documents name the element Job and
+// GoogleCloudRunV2Job, so foldSameCollection, which works inside one document,
+// cannot see it. The elements must agree up to a version prefix
+// (sameElement). A leaf shared by two or more other collections names distinct things
+// and stays.
+func foldAliasRoutes(entries map[string]*entry, items map[string]map[string]string) []sdkinv.Diagnostic {
+	leaf := func(k string) string { return k[strings.LastIndex(k, "/")+1:] }
+	orphan := func(en *entry) bool {
+		return en.depth > 0 && !slices.ContainsFunc(en.parents, func(p string) bool { return items[en.api][p] != "" })
+	}
+	byLeaf := map[string][]string{}
+	for _, k := range slices.Sorted(maps.Keys(entries)) {
+		byLeaf[entries[k].api+"/"+leaf(k)] = append(byLeaf[entries[k].api+"/"+leaf(k)], k)
+	}
+	var folded []string
+	for _, k := range slices.Sorted(maps.Keys(entries)) {
+		en := entries[k]
+		if !orphan(en) {
+			continue
+		}
+		others := slices.DeleteFunc(slices.Clone(byLeaf[en.api+"/"+leaf(k)]), func(o string) bool { return o == k })
+		if len(others) != 1 || orphan(entries[others[0]]) || !sameElement(en.elements, entries[others[0]].elements) {
+			continue
+		}
+		into := entries[others[0]]
+		maps.Copy(into.ops, en.ops)
+		maps.Copy(into.versions, en.versions)
+		maps.Copy(into.refs, en.refs)
+		for sg := range en.signals {
+			into.signals[sg] = true
+		}
+		if stronger := sdkinv.StrongerClass(into.class, en.class); stronger != into.class {
+			into.class, into.rule = stronger, en.rule
+		}
+		for p, v := range items[en.api] {
+			if v == k {
+				items[en.api][p] = others[0]
+			}
+		}
+		delete(entries, k)
+		folded = append(folded, k+"→"+others[0])
+	}
+	return namesDiag("info", "routes through an unlisted container folded into the API's one collection of that name", folded)
+}
+
+// versionTailRe is the end of a versioned schema-name prefix
+// ("googlecloudrunv2", "widgetsv1beta1").
+var versionTailRe = regexp.MustCompile(`v\d+(alpha|beta)?\d*$`)
+
+// sameElement: some element of a is some element of b up to a version
+// prefix (GoogleCloudRunV2Job and Job). Any other prefix names another
+// schema: PublisherModel is not Model.
+func sameElement(a, b map[string]bool) bool {
+	prefixed := func(long, short string) bool {
+		return strings.HasSuffix(long, short) && versionTailRe.MatchString(strings.TrimSuffix(long, short))
+	}
+	for x := range a {
+		for y := range b {
+			ix, iy := sdkinv.Ident(x), sdkinv.Ident(y)
+			if ix == iy || prefixed(ix, iy) || prefixed(iy, ix) {
+				return true
+			}
+		}
 	}
 	return false
+}
+
+// resolveParents points each entry at the collection whose item path is its
+// innermost non-scope parent, else the next one out. The document tree nests
+// nodes that list nothing (appengine/apps), so a parent may not be listable;
+// then Parent stays empty while Depth keeps the template's count.
+func resolveParents(entries map[string]*entry, items map[string]map[string]string) []sdkinv.Diagnostic {
+	var missed []string
+	for _, k := range slices.Sorted(maps.Keys(entries)) {
+		en := entries[k]
+		if en.depth == 0 {
+			continue
+		}
+		for _, pp := range en.parents {
+			if p := items[en.api][pp]; p != "" && p != k {
+				en.parent = p
+				break
+			}
+		}
+		if en.parent == "" {
+			missed = append(missed, k)
+		}
+	}
+	return namesDiag("info", "collections whose parents list nothing (Parent empty, Depth kept)", missed)
+}
+
+// dropAliasDocs removes the entries of every document name that shares a
+// service identity with another: the name matching the rootUrl's own host
+// label wins, else the alphabetically first. Returns the names dropped; their
+// candidate ops move to byAPI so they drop with the rest of the document.
+func dropAliasDocs(entries map[string]*entry, identities map[string][]string, byAPI map[string][]sdkinv.Operation) []string {
+	dropped := map[string]bool{}
+	for _, id := range slices.Sorted(maps.Keys(identities)) {
+		names := slices.Compact(slices.Sorted(slices.Values(identities[id])))
+		if len(names) < 2 {
+			continue
+		}
+		host, _, _ := strings.Cut(strings.TrimPrefix(strings.SplitN(id, "\x00", 2)[0], "https://"), ".")
+		keep := names[0]
+		if slices.Contains(names, host) {
+			keep = host
+		}
+		for _, n := range names {
+			if n != keep {
+				dropped[n] = true
+			}
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(entries)) {
+		if en := entries[k]; dropped[en.api] {
+			for _, ok := range slices.Sorted(maps.Keys(en.ops)) {
+				byAPI[en.api] = append(byAPI[en.api], en.ops[ok])
+			}
+			delete(entries, k)
+		}
+	}
+	return slices.Sorted(maps.Keys(dropped))
+}
+
+// aggLister is one aggregatedList call and the element it enumerates.
+type aggLister struct {
+	key, element, opKey, leaf string
+	op                        sdkinv.Operation
+}
+
+// attachAggregated registers an aggregatedList on every sibling collection of
+// the same document and scope that enumerates the same element: the response
+// is a map of scoped lists, so the regional twin is listed by that one call.
+func attachAggregated(entries map[string]*entry, elementOf map[string]string, aggregated []aggLister) {
+	for _, a := range aggregated {
+		for _, key := range slices.Sorted(maps.Keys(elementOf)) {
+			if key == a.key || elementOf[key] != a.element {
+				continue
+			}
+			en := entries[key]
+			// A project's aggregated list never returns the org- or
+			// folder-level twin (hierarchical firewall policies).
+			if en == nil || !en.signals["scope:"+string(a.op.Scope)] {
+				continue
+			}
+			if _, dup := en.ops[a.opKey]; dup {
+				continue
+			}
+			en.ops[a.opKey] = a.op
+			en.signals["aggregated-by:"+a.leaf] = true
+		}
+	}
 }
 
 func hasParam(m *method, name string) bool {
@@ -816,16 +987,10 @@ func toCandidate(key string, en *entry) sdkinv.Candidate {
 		en.signals["preview-only"] = true
 	}
 	delete(en.signals, "stable")
-	for s := range en.signals {
-		c.Signals = append(c.Signals, s)
+	c.Signals = slices.Sorted(maps.Keys(en.signals))
+	for _, k := range slices.Sorted(maps.Keys(en.ops)) {
+		c.Ops = append(c.Ops, en.ops[k])
 	}
-	sort.Strings(c.Signals)
-	for _, op := range en.ops {
-		c.Ops = append(c.Ops, op)
-	}
-	for r := range en.refs {
-		c.Refs = append(c.Refs, r)
-	}
-	sort.Strings(c.Refs)
+	c.Refs = slices.Sorted(maps.Keys(en.refs))
 	return c
 }

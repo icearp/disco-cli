@@ -1,6 +1,19 @@
 {
+ "kind": "discovery#restDescription",
  "name": "widgets",
  "version": "v1",
+ "canonicalName": "Widgets",
+ "rootUrl": "https://widgets.googleapis.com/",
+ "servicePath": "",
+ "auth": {
+  "oauth2": {
+   "scopes": {
+    "https://www.googleapis.com/auth/cloud-platform": {
+     "description": "See, edit, configure, and delete your Google Cloud data."
+    }
+   }
+  }
+ },
  "resources": {
   "projects": {
    "resources": {
@@ -9,88 +22,282 @@
       "widgets": {
        "methods": {
         "list": {
-         "path": "v1/{+parent}/widgets",
          "httpMethod": "GET",
+         "path": "v1/{+parent}/widgets",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets",
          "parameters": {
           "parent": {
-           "required": true,
            "location": "path",
+           "required": true,
            "pattern": "^projects/[^/]+/locations/[^/]+$"
           },
           "pageToken": {
            "location": "query"
           }
          },
+         "parameterOrder": [
+          "parent"
+         ],
          "response": {
           "$ref": "ListWidgetsResponse"
          }
         },
         "get": {
-         "path": "v1/{+name}",
          "httpMethod": "GET",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}",
          "parameters": {
           "name": {
-           "required": true,
            "location": "path",
+           "required": true,
            "pattern": "^projects/[^/]+/locations/[^/]+/widgets/[^/]+$"
           }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Widget"
          }
         },
         "create": {
-         "path": "v1/{+parent}/widgets",
          "httpMethod": "POST",
+         "path": "v1/{+parent}/widgets",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets",
          "parameters": {
           "parent": {
-           "required": true,
            "location": "path",
+           "required": true,
            "pattern": "^projects/[^/]+/locations/[^/]+$"
           }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "request": {
+          "$ref": "Widget"
+         },
+         "response": {
+          "$ref": "Operation"
          }
         },
         "delete": {
-         "path": "v1/{+name}",
          "httpMethod": "DELETE",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}",
          "parameters": {
           "name": {
-           "required": true,
            "location": "path",
+           "required": true,
            "pattern": "^projects/[^/]+/locations/[^/]+/widgets/[^/]+$"
           }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Operation"
+         }
+        },
+        "snapshot": {
+         "httpMethod": "POST",
+         "path": "v1/{+name}:snapshot",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}:snapshot",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+/widgets/[^/]+$"
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Snapshot"
+         }
+        },
+        "listRevisions": {
+         "httpMethod": "GET",
+         "path": "v1/{+name}/revisions",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}/revisions",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+/widgets/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "ListRevisionsResponse"
+         }
+        },
+        "getRevision": {
+         "httpMethod": "GET",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}/revisions/{revisionsId}",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Revision"
+         }
+        },
+        "searchSprockets": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/widgets:searchSprockets",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets:searchSprockets",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "SearchSprocketsResponse"
          }
         }
        },
        "resources": {
-        "parts": {
+        "hubs": {
          "methods": {
           "list": {
-           "path": "v1/{+parent}/parts",
            "httpMethod": "GET",
+           "path": "v1/{+parent}/hubs",
+           "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}/hubs",
            "parameters": {
             "parent": {
-             "required": true,
              "location": "path",
+             "required": true,
              "pattern": "^projects/[^/]+/locations/[^/]+/widgets/[^/]+$"
+            },
+            "pageToken": {
+             "location": "query"
             }
+           },
+           "parameterOrder": [
+            "parent"
+           ],
+           "response": {
+            "$ref": "ListHubsResponse"
            }
           },
           "get": {
-           "path": "v1/{+name}",
            "httpMethod": "GET",
+           "path": "v1/{+name}",
+           "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}/hubs/{hubsId}",
            "parameters": {
             "name": {
-             "required": true,
-             "location": "path"
+             "location": "path",
+             "required": true
             }
+           },
+           "parameterOrder": [
+            "name"
+           ],
+           "response": {
+            "$ref": "Hub"
+           }
+          }
+         }
+        },
+        "parts": {
+         "methods": {
+          "list": {
+           "httpMethod": "GET",
+           "path": "v1/{+parent}/parts",
+           "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}/parts",
+           "parameters": {
+            "parent": {
+             "location": "path",
+             "required": true,
+             "pattern": "^projects/[^/]+/locations/[^/]+/widgets/[^/]+$"
+            },
+            "pageToken": {
+             "location": "query"
+            }
+           },
+           "parameterOrder": [
+            "parent"
+           ],
+           "response": {
+            "$ref": "ListPartsResponse"
+           }
+          },
+          "get": {
+           "httpMethod": "GET",
+           "path": "v1/{+name}",
+           "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}/parts/{partsId}",
+           "parameters": {
+            "name": {
+             "location": "path",
+             "required": true
+            }
+           },
+           "parameterOrder": [
+            "name"
+           ],
+           "response": {
+            "$ref": "Part"
            }
           },
           "create": {
-           "path": "v1/{+parent}/parts",
            "httpMethod": "POST",
+           "path": "v1/{+parent}/parts",
+           "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}/parts",
            "parameters": {
             "parent": {
-             "required": true,
-             "location": "path"
+             "location": "path",
+             "required": true
             }
+           },
+           "parameterOrder": [
+            "parent"
+           ],
+           "request": {
+            "$ref": "Part"
+           },
+           "response": {
+            "$ref": "Operation"
+           }
+          },
+          "fetch": {
+           "httpMethod": "GET",
+           "path": "v1/{+name}:fetch",
+           "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets/{widgetsId}/parts/{partsId}:fetch",
+           "parameters": {
+            "name": {
+             "location": "path",
+             "required": true
+            },
+            "pageToken": {
+             "location": "query"
+            }
+           },
+           "parameterOrder": [
+            "name"
+           ],
+           "response": {
+            "$ref": "ListPartsResponse"
            }
           }
          }
@@ -100,49 +307,721 @@
       "operations": {
        "methods": {
         "list": {
-         "path": "v1/{+name}/operations",
          "httpMethod": "GET",
+         "path": "v1/{+name}/operations",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/operations",
          "parameters": {
           "name": {
-           "required": true,
            "location": "path",
+           "required": true,
            "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
           }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "ListOperationsResponse"
          }
         },
         "get": {
-         "path": "v1/{+name}",
          "httpMethod": "GET",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}",
          "parameters": {
           "name": {
-           "required": true,
-           "location": "path"
+           "location": "path",
+           "required": true
           }
          },
+         "parameterOrder": [
+          "name"
+         ],
          "response": {
           "$ref": "Operation"
          }
         },
-        "cancel": {
-         "path": "v1/{+name}:cancel",
-         "httpMethod": "POST",
+        "delete": {
+         "httpMethod": "DELETE",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}",
          "parameters": {
           "name": {
-           "required": true,
-           "location": "path"
+           "location": "path",
+           "required": true
           }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Empty"
          }
         },
-        "delete": {
-         "path": "v1/{+name}",
-         "httpMethod": "DELETE",
+        "cancel": {
+         "httpMethod": "POST",
+         "path": "v1/{+name}:cancel",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}:cancel",
          "parameters": {
           "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Empty"
+         }
+        }
+       }
+      },
+      "snapshots": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/snapshots",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/snapshots",
+         "parameters": {
+          "parent": {
+           "location": "path",
            "required": true,
-           "location": "path"
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListSnapshotsResponse"
+         }
+        },
+        "get": {
+         "httpMethod": "GET",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/snapshots/{snapshotsId}",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Snapshot"
+         }
+        }
+       }
+      },
+      "connectors": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/connectors",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/connectors",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListConnectorsResponse"
+         }
+        },
+        "patch": {
+         "httpMethod": "PATCH",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/connectors/{connectorsId}",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "request": {
+          "$ref": "Connector"
+         },
+         "response": {
+          "$ref": "Change"
+         }
+        }
+       }
+      },
+      "changes": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/changes",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/changes",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListChangesResponse"
+         }
+        },
+        "get": {
+         "httpMethod": "GET",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/changes/{changesId}",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Change"
+         }
+        }
+       }
+      },
+      "lakes": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/lakes",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/lakes",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListLakesResponse"
+         }
+        },
+        "get": {
+         "httpMethod": "GET",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/lakes/{lakesId}",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Lake"
+         }
+        },
+        "create": {
+         "httpMethod": "POST",
+         "path": "v1/{+parent}/lakes",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/lakes",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "request": {
+          "$ref": "Lake"
+         },
+         "response": {
+          "$ref": "Operation"
+         }
+        }
+       },
+       "resources": {
+        "zones": {
+         "methods": {
+          "list": {
+           "httpMethod": "GET",
+           "path": "v1/{+parent}/zones",
+           "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/lakes/{lakesId}/zones",
+           "parameters": {
+            "parent": {
+             "location": "path",
+             "required": true
+            },
+            "pageToken": {
+             "location": "query"
+            }
+           },
+           "parameterOrder": [
+            "parent"
+           ],
+           "response": {
+            "$ref": "ListLakeZonesResponse"
+           }
+          },
+          "get": {
+           "httpMethod": "GET",
+           "path": "v1/{+name}",
+           "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/lakes/{lakesId}/zones/{zonesId}",
+           "parameters": {
+            "name": {
+             "location": "path",
+             "required": true
+            }
+           },
+           "parameterOrder": [
+            "name"
+           ],
+           "response": {
+            "$ref": "LakeZone"
+           }
+          },
+          "create": {
+           "httpMethod": "POST",
+           "path": "v1/{+parent}/zones",
+           "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/lakes/{lakesId}/zones",
+           "parameters": {
+            "parent": {
+             "location": "path",
+             "required": true
+            }
+           },
+           "parameterOrder": [
+            "parent"
+           ],
+           "request": {
+            "$ref": "LakeZone"
+           },
+           "response": {
+            "$ref": "Operation"
+           }
+          }
+         },
+         "resources": {
+          "assets": {
+           "methods": {
+            "list": {
+             "httpMethod": "GET",
+             "path": "v1/{+parent}/assets",
+             "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/lakes/{lakesId}/zones/{zonesId}/assets",
+             "parameters": {
+              "parent": {
+               "location": "path",
+               "required": true
+              },
+              "pageToken": {
+               "location": "query"
+              }
+             },
+             "parameterOrder": [
+              "parent"
+             ],
+             "response": {
+              "$ref": "ListDataAssetsResponse"
+             }
+            },
+            "get": {
+             "httpMethod": "GET",
+             "path": "v1/{+name}",
+             "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/lakes/{lakesId}/zones/{zonesId}/assets/{assetsId}",
+             "parameters": {
+              "name": {
+               "location": "path",
+               "required": true
+              }
+             },
+             "parameterOrder": [
+              "name"
+             ],
+             "response": {
+              "$ref": "DataAsset"
+             }
+            },
+            "create": {
+             "httpMethod": "POST",
+             "path": "v1/{+parent}/assets",
+             "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/lakes/{lakesId}/zones/{zonesId}/assets",
+             "parameters": {
+              "parent": {
+               "location": "path",
+               "required": true
+              }
+             },
+             "parameterOrder": [
+              "parent"
+             ],
+             "request": {
+              "$ref": "DataAsset"
+             },
+             "response": {
+              "$ref": "Operation"
+             }
+            }
+           }
           }
          }
         }
+       }
+      },
+      "global": {
+       "resources": {
+        "hubs": {
+         "methods": {
+          "list": {
+           "httpMethod": "GET",
+           "path": "v1/{+parent}/hubs",
+           "flatPath": "v1/projects/{projectsId}/locations/global/hubs",
+           "parameters": {
+            "parent": {
+             "location": "path",
+             "required": true,
+             "pattern": "^projects/[^/]+/locations/global$"
+            },
+            "pageToken": {
+             "location": "query"
+            }
+           },
+           "parameterOrder": [
+            "parent"
+           ],
+           "response": {
+            "$ref": "ListHubsResponse"
+           }
+          },
+          "get": {
+           "httpMethod": "GET",
+           "path": "v1/{+name}",
+           "flatPath": "v1/projects/{projectsId}/locations/global/hubs/{hubsId}",
+           "parameters": {
+            "name": {
+             "location": "path",
+             "required": true
+            }
+           },
+           "parameterOrder": [
+            "name"
+           ],
+           "response": {
+            "$ref": "Hub"
+           }
+          },
+          "create": {
+           "httpMethod": "POST",
+           "path": "v1/{+parent}/hubs",
+           "flatPath": "v1/projects/{projectsId}/locations/global/hubs",
+           "parameters": {
+            "parent": {
+             "location": "path",
+             "required": true
+            }
+           },
+           "parameterOrder": [
+            "parent"
+           ],
+           "request": {
+            "$ref": "Hub"
+           },
+           "response": {
+            "$ref": "Operation"
+           }
+          }
+         }
+        }
+       }
+      },
+      "jobs": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/jobs",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/jobs",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListJobsResponse"
+         }
+        },
+        "get": {
+         "httpMethod": "GET",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/jobs/{jobsId}",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Job"
+         }
+        },
+        "run": {
+         "httpMethod": "POST",
+         "path": "v1/{+parent}/jobs:run",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/jobs:run",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "request": {
+          "$ref": "RunJobRequest"
+         },
+         "response": {
+          "$ref": "Job"
+         }
+        }
+       }
+      },
+      "aliases": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/aliases",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/aliases",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListAliasesResponse"
+         }
+        },
+        "create": {
+         "httpMethod": "POST",
+         "path": "v1/{+parent}/aliases",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/aliases",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "request": {
+          "$ref": "Alias"
+         },
+         "response": {
+          "$ref": "Alias"
+         }
+        }
+       }
+      },
+      "blocks": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/blocks",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/blocks",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListBlocksResponse"
+         }
+        },
+        "get": {
+         "httpMethod": "GET",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/blocks/{blocksId}",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "BlockGetResponse"
+         }
+        }
+       }
+      },
+      "gears": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/gears",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/gears",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListGearsResponse"
+         }
+        },
+        "get": {
+         "httpMethod": "GET",
+         "path": "v1/{+name}",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/gears/{gearsId}",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Gear"
+         }
+        },
+        "create": {
+         "httpMethod": "POST",
+         "path": "v1/{+parent}/gears",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/gears",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "request": {
+          "$ref": "Gear"
+         },
+         "response": {
+          "$ref": "Gear"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "namespaces": {
+   "resources": {
+    "gears": {
+     "methods": {
+      "list": {
+       "httpMethod": "GET",
+       "path": "apis/widgets.dev/v1/{+parent}/gears",
+       "flatPath": "apis/widgets.dev/v1/namespaces/{namespacesId}/gears",
+       "parameters": {
+        "parent": {
+         "location": "path",
+         "required": true,
+         "pattern": "^namespaces/[^/]+$"
+        },
+        "pageToken": {
+         "location": "query"
+        }
+       },
+       "parameterOrder": [
+        "parent"
+       ],
+       "response": {
+        "$ref": "ListGearsResponse"
+       }
+      },
+      "get": {
+       "httpMethod": "GET",
+       "path": "apis/widgets.dev/v1/{+name}",
+       "flatPath": "apis/widgets.dev/v1/namespaces/{namespacesId}/gears/{gearsId}",
+       "parameters": {
+        "name": {
+         "location": "path",
+         "required": true
+        }
+       },
+       "parameterOrder": [
+        "name"
+       ],
+       "response": {
+        "$ref": "Gear"
        }
       }
      }
@@ -152,28 +1031,45 @@
   "zones": {
    "methods": {
     "list": {
+     "httpMethod": "GET",
      "path": "projects/{project}/zones",
      "flatPath": "projects/{project}/zones",
-     "httpMethod": "GET",
      "parameters": {
       "project": {
-       "required": true,
-       "location": "path"
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
       }
+     },
+     "parameterOrder": [
+      "project"
+     ],
+     "response": {
+      "$ref": "ZoneList"
      }
     },
     "get": {
-     "path": "projects/{project}/zones/{zone}",
      "httpMethod": "GET",
+     "path": "projects/{project}/zones/{zone}",
+     "flatPath": "projects/{project}/zones/{zone}",
      "parameters": {
       "project": {
-       "required": true,
-       "location": "path"
+       "location": "path",
+       "required": true
       },
       "zone": {
-       "required": true,
-       "location": "path"
+       "location": "path",
+       "required": true
       }
+     },
+     "parameterOrder": [
+      "project",
+      "zone"
+     ],
+     "response": {
+      "$ref": "Zone"
      }
     }
    }
@@ -181,83 +1077,1043 @@
   "gizmos": {
    "methods": {
     "aggregatedList": {
+     "httpMethod": "GET",
      "path": "projects/{project}/aggregated/gizmos",
      "flatPath": "projects/{project}/aggregated/gizmos",
-     "httpMethod": "GET",
      "parameters": {
       "project": {
-       "required": true,
-       "location": "path"
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
       }
+     },
+     "parameterOrder": [
+      "project"
+     ],
+     "response": {
+      "$ref": "GizmoAggregatedList"
      }
     },
     "list": {
+     "httpMethod": "GET",
      "path": "projects/{project}/zones/{zone}/gizmos",
      "flatPath": "projects/{project}/zones/{zone}/gizmos",
-     "httpMethod": "GET",
      "parameters": {
       "project": {
-       "required": true,
-       "location": "path"
+       "location": "path",
+       "required": true
       },
       "zone": {
-       "required": true,
-       "location": "path"
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
       }
+     },
+     "parameterOrder": [
+      "project",
+      "zone"
+     ],
+     "response": {
+      "$ref": "GizmoList"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/zones/{zone}/gizmos/{gizmo}",
+     "flatPath": "projects/{project}/zones/{zone}/gizmos/{gizmo}",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "gizmo": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "gizmo"
+     ],
+     "response": {
+      "$ref": "Gizmo"
      }
     },
     "insert": {
-     "path": "projects/{project}/zones/{zone}/gizmos",
      "httpMethod": "POST",
-     "parameters": {}
+     "path": "projects/{project}/zones/{zone}/gizmos",
+     "flatPath": "projects/{project}/zones/{zone}/gizmos",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone"
+     ],
+     "request": {
+      "$ref": "Gizmo"
+     },
+     "response": {
+      "$ref": "ComputeOperation"
+     }
+    },
+    "start": {
+     "httpMethod": "POST",
+     "path": "projects/{project}/zones/{zone}/gizmos/{gizmo}/start",
+     "flatPath": "projects/{project}/zones/{zone}/gizmos/{gizmo}/start",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "gizmo": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "gizmo"
+     ],
+     "response": {
+      "$ref": "ComputeOperation"
+     }
+    },
+    "delete": {
+     "httpMethod": "DELETE",
+     "path": "projects/{project}/zones/{zone}/gizmos/{gizmo}",
+     "flatPath": "projects/{project}/zones/{zone}/gizmos/{gizmo}",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "gizmo": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "gizmo"
+     ],
+     "response": {
+      "$ref": "ComputeOperation"
+     }
+    }
+   }
+  },
+  "regionGizmos": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/regions/{region}/gizmos",
+     "flatPath": "projects/{project}/regions/{region}/gizmos",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "region": {
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "region"
+     ],
+     "response": {
+      "$ref": "GizmoList"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/regions/{region}/gizmos/{gizmo}",
+     "flatPath": "projects/{project}/regions/{region}/gizmos/{gizmo}",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "region": {
+       "location": "path",
+       "required": true
+      },
+      "gizmo": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "region",
+      "gizmo"
+     ],
+     "response": {
+      "$ref": "Gizmo"
+     }
+    },
+    "insert": {
+     "httpMethod": "POST",
+     "path": "projects/{project}/regions/{region}/gizmos",
+     "flatPath": "projects/{project}/regions/{region}/gizmos",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "region": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "region"
+     ],
+     "request": {
+      "$ref": "Gizmo"
+     },
+     "response": {
+      "$ref": "ComputeOperation"
+     }
+    }
+   }
+  },
+  "globalOperations": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/global/operations",
+     "flatPath": "projects/{project}/global/operations",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "project"
+     ],
+     "response": {
+      "$ref": "OperationList"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/global/operations/{operation}",
+     "flatPath": "projects/{project}/global/operations/{operation}",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "operation": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "operation"
+     ],
+     "response": {
+      "$ref": "ComputeOperation"
+     }
+    },
+    "delete": {
+     "httpMethod": "DELETE",
+     "path": "projects/{project}/global/operations/{operation}",
+     "flatPath": "projects/{project}/global/operations/{operation}",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "operation": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "operation"
+     ]
+    }
+   }
+  },
+  "admin": {
+   "resources": {
+    "projects": {
+     "resources": {
+      "locations": {
+       "resources": {
+        "topics": {
+         "methods": {
+          "list": {
+           "httpMethod": "GET",
+           "path": "v1/admin/{+parent}/topics",
+           "flatPath": "v1/admin/projects/{projectsId}/locations/{locationsId}/topics",
+           "parameters": {
+            "parent": {
+             "location": "path",
+             "required": true,
+             "pattern": "^projects/[^/]+/locations/[^/]+$"
+            },
+            "pageToken": {
+             "location": "query"
+            }
+           },
+           "parameterOrder": [
+            "parent"
+           ],
+           "response": {
+            "$ref": "ListTopicsResponse"
+           }
+          },
+          "get": {
+           "httpMethod": "GET",
+           "path": "v1/admin/{+name}",
+           "flatPath": "v1/admin/projects/{projectsId}/locations/{locationsId}/topics/{topicsId}",
+           "parameters": {
+            "name": {
+             "location": "path",
+             "required": true
+            }
+           },
+           "parameterOrder": [
+            "name"
+           ],
+           "response": {
+            "$ref": "Topic"
+           }
+          },
+          "create": {
+           "httpMethod": "POST",
+           "path": "v1/admin/{+parent}/topics",
+           "flatPath": "v1/admin/projects/{projectsId}/locations/{locationsId}/topics",
+           "parameters": {
+            "parent": {
+             "location": "path",
+             "required": true,
+             "pattern": "^projects/[^/]+/locations/[^/]+$"
+            }
+           },
+           "parameterOrder": [
+            "parent"
+           ],
+           "request": {
+            "$ref": "Topic"
+           },
+           "response": {
+            "$ref": "Topic"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "policies": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "v1/{+parent}/policies",
+     "parameters": {
+      "parent": {
+       "location": "path",
+       "required": true,
+       "pattern": "^(projects|folders|organizations)/[^/]+$"
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "parent"
+     ],
+     "response": {
+      "$ref": "ListPoliciesResponse"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "v1/{+name}",
+     "parameters": {
+      "name": {
+       "location": "path",
+       "required": true,
+       "pattern": "^(projects|folders|organizations)/[^/]+/policies/[^/]+$"
+      }
+     },
+     "parameterOrder": [
+      "name"
+     ],
+     "response": {
+      "$ref": "Policy"
+     }
+    },
+    "create": {
+     "httpMethod": "POST",
+     "path": "v1/{+parent}/policies",
+     "parameters": {
+      "parent": {
+       "location": "path",
+       "required": true,
+       "pattern": "^(projects|folders|organizations)/[^/]+$"
+      }
+     },
+     "parameterOrder": [
+      "parent"
+     ],
+     "request": {
+      "$ref": "Policy"
+     },
+     "response": {
+      "$ref": "Policy"
+     }
+    }
+   }
+  },
+  "groups": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/zones/{zone}/groups",
+     "flatPath": "projects/{project}/zones/{zone}/groups",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone"
+     ],
+     "response": {
+      "$ref": "GroupList"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/zones/{zone}/groups/{group}",
+     "flatPath": "projects/{project}/zones/{zone}/groups/{group}",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "group": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "group"
+     ],
+     "response": {
+      "$ref": "Group"
+     }
+    },
+    "setPorts": {
+     "httpMethod": "POST",
+     "path": "projects/{project}/zones/{zone}/groups/{group}/setPorts",
+     "flatPath": "projects/{project}/zones/{zone}/groups/{group}/setPorts",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "group": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "group"
+     ],
+     "response": {
+      "$ref": "ComputeOperation"
+     }
+    }
+   }
+  },
+  "hosts": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/zones/{zone}/hosts",
+     "flatPath": "projects/{project}/zones/{zone}/hosts",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone"
+     ],
+     "response": {
+      "$ref": "HostList"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/zones/{zone}/hosts/{host}",
+     "flatPath": "projects/{project}/zones/{zone}/hosts/{host}",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "host": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "host"
+     ],
+     "response": {
+      "$ref": "Host"
+     }
+    },
+    "listMembers": {
+     "httpMethod": "POST",
+     "path": "projects/{project}/zones/{zone}/hosts/{host}/listMembers",
+     "flatPath": "projects/{project}/zones/{zone}/hosts/{host}/listMembers",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "host": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "host"
+     ],
+     "response": {
+      "$ref": "HostList"
+     }
+    },
+    "getSettings": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/zones/{zone}/hosts/{host}/settings",
+     "flatPath": "projects/{project}/zones/{zone}/hosts/{host}/settings",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "host": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "host"
+     ],
+     "response": {
+      "$ref": "ComputeOperation"
+     }
+    },
+    "patchSettings": {
+     "httpMethod": "PATCH",
+     "path": "projects/{project}/zones/{zone}/hosts/{host}/settings",
+     "flatPath": "projects/{project}/zones/{zone}/hosts/{host}/settings",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "zone": {
+       "location": "path",
+       "required": true
+      },
+      "host": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "zone",
+      "host"
+     ],
+     "response": {
+      "$ref": "ComputeOperation"
+     }
+    }
+   }
+  },
+  "organizationGizmos": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "organizations/{organization}/gizmos",
+     "flatPath": "organizations/{organization}/gizmos",
+     "parameters": {
+      "organization": {
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "organization"
+     ],
+     "response": {
+      "$ref": "GizmoList"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "organizations/{organization}/gizmos/{gizmo}",
+     "flatPath": "organizations/{organization}/gizmos/{gizmo}",
+     "parameters": {
+      "organization": {
+       "location": "path",
+       "required": true
+      },
+      "gizmo": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "organization",
+      "gizmo"
+     ],
+     "response": {
+      "$ref": "Gizmo"
+     }
+    }
+   }
+  },
+  "sprocketPools": {
+   "methods": {
+    "aggregatedList": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/aggregated/sprocketPools",
+     "flatPath": "projects/{project}/aggregated/sprocketPools",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "project"
+     ],
+     "response": {
+      "$ref": "SprocketPoolAggregatedList"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "projects/{project}/regions/{region}/sprocketPools/{pool}",
+     "flatPath": "projects/{project}/regions/{region}/sprocketPools/{pool}",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "region": {
+       "location": "path",
+       "required": true
+      },
+      "pool": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "region",
+      "pool"
+     ],
+     "response": {
+      "$ref": "SprocketPool"
+     }
+    },
+    "insert": {
+     "httpMethod": "POST",
+     "path": "projects/{project}/regions/{region}/sprocketPools",
+     "flatPath": "projects/{project}/regions/{region}/sprocketPools",
+     "parameters": {
+      "project": {
+       "location": "path",
+       "required": true
+      },
+      "region": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project",
+      "region"
+     ],
+     "request": {
+      "$ref": "SprocketPool"
+     },
+     "response": {
+      "$ref": "ComputeOperation"
+     }
     }
    }
   },
   "buckets": {
    "methods": {
     "list": {
-     "path": "b",
      "httpMethod": "GET",
+     "path": "b",
      "parameters": {
       "project": {
-       "required": true,
+       "location": "query",
+       "required": true
+      },
+      "pageToken": {
        "location": "query"
       }
+     },
+     "parameterOrder": [
+      "project"
+     ],
+     "response": {
+      "$ref": "Buckets"
      }
     },
     "insert": {
-     "path": "b",
      "httpMethod": "POST",
-     "parameters": {}
+     "path": "b",
+     "parameters": {
+      "project": {
+       "location": "query",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "project"
+     ],
+     "request": {
+      "$ref": "Bucket"
+     },
+     "response": {
+      "$ref": "Bucket"
+     }
     }
    }
   },
   "notifications": {
    "methods": {
     "list": {
-     "path": "b/{bucket}/notificationConfigs",
      "httpMethod": "GET",
+     "path": "b/{bucket}/notificationConfigs",
      "parameters": {
       "bucket": {
-       "required": true,
-       "location": "path"
+       "location": "path",
+       "required": true
       }
+     },
+     "parameterOrder": [
+      "bucket"
+     ],
+     "response": {
+      "$ref": "Notifications"
      }
     },
     "insert": {
-     "path": "b/{bucket}/notificationConfigs",
      "httpMethod": "POST",
+     "path": "b/{bucket}/notificationConfigs",
      "parameters": {
       "bucket": {
-       "required": true,
-       "location": "path"
+       "location": "path",
+       "required": true
       }
+     },
+     "parameterOrder": [
+      "bucket"
+     ],
+     "request": {
+      "$ref": "Notification"
+     },
+     "response": {
+      "$ref": "Notification"
+     }
+    }
+   }
+  },
+  "assets": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "v1/{+parent}/assets",
+     "parameters": {
+      "parent": {
+       "location": "path",
+       "required": true,
+       "pattern": "^[^/]+/[^/]+$"
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "parent"
+     ],
+     "response": {
+      "$ref": "ListAssetsResponse"
+     }
+    },
+    "delete": {
+     "httpMethod": "DELETE",
+     "path": "v1/{+name}",
+     "parameters": {
+      "name": {
+       "location": "path",
+       "required": true,
+       "pattern": "^[^/]+/[^/]+/assets/[^/]+$"
+      }
+     },
+     "parameterOrder": [
+      "name"
+     ],
+     "response": {
+      "$ref": "Empty"
+     }
+    }
+   }
+  },
+  "billingAccounts": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "v1/billingAccounts",
+     "flatPath": "v1/billingAccounts",
+     "parameters": {
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [],
+     "response": {
+      "$ref": "ListBillingAccountsResponse"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "v1/{+name}",
+     "flatPath": "v1/billingAccounts/{billingAccountsId}",
+     "parameters": {
+      "name": {
+       "location": "path",
+       "required": true,
+       "pattern": "^billingAccounts/[^/]+$"
+      }
+     },
+     "parameterOrder": [
+      "name"
+     ],
+     "response": {
+      "$ref": "BillingAccount"
+     }
+    },
+    "create": {
+     "httpMethod": "POST",
+     "path": "v1/billingAccounts",
+     "flatPath": "v1/billingAccounts",
+     "parameters": {},
+     "parameterOrder": [],
+     "request": {
+      "$ref": "BillingAccount"
+     },
+     "response": {
+      "$ref": "BillingAccount"
+     }
+    }
+   },
+   "resources": {
+    "subAccounts": {
+     "methods": {
+      "list": {
+       "httpMethod": "GET",
+       "path": "v1/{+parent}/subAccounts",
+       "flatPath": "v1/billingAccounts/{billingAccountsId}/subAccounts",
+       "parameters": {
+        "parent": {
+         "location": "path",
+         "required": true,
+         "pattern": "^billingAccounts/[^/]+$"
+        },
+        "pageToken": {
+         "location": "query"
+        }
+       },
+       "parameterOrder": [
+        "parent"
+       ],
+       "response": {
+        "$ref": "ListBillingAccountsResponse"
+       }
+      },
+      "create": {
+       "httpMethod": "POST",
+       "path": "v1/{+parent}/subAccounts",
+       "flatPath": "v1/billingAccounts/{billingAccountsId}/subAccounts",
+       "parameters": {
+        "parent": {
+         "location": "path",
+         "required": true,
+         "pattern": "^billingAccounts/[^/]+$"
+        }
+       },
+       "parameterOrder": [
+        "parent"
+       ],
+       "request": {
+        "$ref": "BillingAccount"
+       },
+       "response": {
+        "$ref": "BillingAccount"
+       }
+      }
+     }
+    }
+   }
+  },
+  "organizations": {
+   "methods": {
+    "search": {
+     "httpMethod": "GET",
+     "path": "v1/organizations:search",
+     "flatPath": "v1/organizations:search",
+     "parameters": {
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [],
+     "response": {
+      "$ref": "SearchOrganizationsResponse"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "v1/{+name}",
+     "flatPath": "v1/organizations/{organizationsId}",
+     "parameters": {
+      "name": {
+       "location": "path",
+       "required": true,
+       "pattern": "^organizations/[^/]+$"
+      }
+     },
+     "parameterOrder": [
+      "name"
+     ],
+     "response": {
+      "$ref": "Organization"
      }
     }
    }
   }
  },
  "schemas": {
+  "Empty": {
+   "type": "object",
+   "properties": {}
+  },
   "ListWidgetsResponse": {
    "type": "object",
    "properties": {
@@ -308,11 +2164,722 @@
     }
    }
   },
+  "ListRevisionsResponse": {
+   "type": "object",
+   "properties": {
+    "revisions": {
+     "type": "array",
+     "items": {
+      "$ref": "Revision"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Revision": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Revision name."
+    }
+   }
+  },
+  "SearchSprocketsResponse": {
+   "type": "object",
+   "properties": {
+    "sprockets": {
+     "type": "array",
+     "items": {
+      "$ref": "Sprocket"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Sprocket": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Sprocket name."
+    }
+   }
+  },
+  "ListPartsResponse": {
+   "type": "object",
+   "properties": {
+    "parts": {
+     "type": "array",
+     "items": {
+      "$ref": "Part"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Part": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Part name."
+    }
+   }
+  },
+  "ListOperationsResponse": {
+   "type": "object",
+   "properties": {
+    "operations": {
+     "type": "array",
+     "items": {
+      "$ref": "Operation"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
   "Operation": {
    "type": "object",
    "properties": {
     "name": {
      "type": "string"
+    },
+    "done": {
+     "type": "boolean"
+    },
+    "error": {
+     "type": "object"
+    },
+    "response": {
+     "type": "object"
+    }
+   }
+  },
+  "ListSnapshotsResponse": {
+   "type": "object",
+   "properties": {
+    "snapshots": {
+     "type": "array",
+     "items": {
+      "$ref": "Snapshot"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Snapshot": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Snapshot name."
+    }
+   }
+  },
+  "ListConnectorsResponse": {
+   "type": "object",
+   "properties": {
+    "connectors": {
+     "type": "array",
+     "items": {
+      "$ref": "Connector"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Connector": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Connector name."
+    }
+   }
+  },
+  "ListChangesResponse": {
+   "type": "object",
+   "properties": {
+    "changes": {
+     "type": "array",
+     "items": {
+      "$ref": "Change"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Change": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Change name."
+    },
+    "status": {
+     "type": "string",
+     "description": "Change status."
+    }
+   }
+  },
+  "ListLakesResponse": {
+   "type": "object",
+   "properties": {
+    "lakes": {
+     "type": "array",
+     "items": {
+      "$ref": "Lake"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Lake": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Lake name."
+    }
+   }
+  },
+  "ListLakeZonesResponse": {
+   "type": "object",
+   "properties": {
+    "zones": {
+     "type": "array",
+     "items": {
+      "$ref": "LakeZone"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "LakeZone": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Zone name."
+    }
+   }
+  },
+  "ListDataAssetsResponse": {
+   "type": "object",
+   "properties": {
+    "assets": {
+     "type": "array",
+     "items": {
+      "$ref": "DataAsset"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "DataAsset": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Asset name."
+    }
+   }
+  },
+  "ListHubsResponse": {
+   "type": "object",
+   "properties": {
+    "hubs": {
+     "type": "array",
+     "items": {
+      "$ref": "Hub"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Hub": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Hub name."
+    }
+   }
+  },
+  "ListGearsResponse": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "Gear"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Gear": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Gear name."
+    }
+   }
+  },
+  "ZoneList": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "Zone"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Zone": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Zone name."
+    }
+   }
+  },
+  "GizmoAggregatedList": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "object",
+     "additionalProperties": {
+      "$ref": "GizmosScopedList"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "GizmosScopedList": {
+   "type": "object",
+   "properties": {
+    "gizmos": {
+     "type": "array",
+     "items": {
+      "$ref": "Gizmo"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "GizmoList": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "Gizmo"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Gizmo": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Gizmo name."
+    }
+   }
+  },
+  "OperationList": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "ComputeOperation"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "ComputeOperation": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Operation name."
+    },
+    "status": {
+     "type": "string",
+     "description": "Operation status."
+    }
+   }
+  },
+  "ListJobsResponse": {
+   "type": "object",
+   "properties": {
+    "jobs": {
+     "type": "array",
+     "items": {
+      "$ref": "Job"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Job": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Job name."
+    }
+   }
+  },
+  "RunJobRequest": {
+   "type": "object",
+   "properties": {
+    "template": {
+     "type": "string",
+     "description": "Job template."
+    }
+   }
+  },
+  "ListAliasesResponse": {
+   "type": "object",
+   "properties": {
+    "aliases": {
+     "type": "array",
+     "items": {
+      "type": "any"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Alias": {
+   "type": "object",
+   "properties": {
+    "alias": {
+     "type": "string",
+     "description": "Alias name."
+    }
+   }
+  },
+  "ListBlocksResponse": {
+   "type": "object",
+   "properties": {
+    "blocks": {
+     "type": "array",
+     "items": {
+      "$ref": "Block"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Block": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Block name."
+    }
+   }
+  },
+  "BlockGetResponse": {
+   "type": "object",
+   "properties": {
+    "resource": {
+     "$ref": "Block"
+    }
+   }
+  },
+  "ListTopicsResponse": {
+   "type": "object",
+   "properties": {
+    "topics": {
+     "type": "array",
+     "items": {
+      "$ref": "Topic"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Topic": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Topic name."
+    }
+   }
+  },
+  "ListPoliciesResponse": {
+   "type": "object",
+   "properties": {
+    "policies": {
+     "type": "array",
+     "items": {
+      "$ref": "Policy"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Policy": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Policy name."
+    }
+   }
+  },
+  "GroupList": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "Group"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Group": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Group name."
+    }
+   }
+  },
+  "HostList": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "Host"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Host": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Host name."
+    }
+   }
+  },
+  "SprocketPoolAggregatedList": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "object",
+     "additionalProperties": {
+      "$ref": "SprocketPoolsScopedList"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "SprocketPoolsScopedList": {
+   "type": "object",
+   "properties": {
+    "sprocketPools": {
+     "type": "array",
+     "items": {
+      "$ref": "SprocketPool"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "SprocketPool": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Pool name."
+    }
+   }
+  },
+  "Buckets": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "Bucket"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Bucket": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Bucket name."
+    }
+   }
+  },
+  "Notifications": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "Notification"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Notification": {
+   "type": "object",
+   "properties": {
+    "topic": {
+     "type": "string",
+     "description": "Pub/Sub topic resource name."
+    }
+   }
+  },
+  "ListAssetsResponse": {
+   "type": "object",
+   "properties": {
+    "assets": {
+     "type": "array",
+     "items": {
+      "$ref": "Asset"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Asset": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Asset name."
+    }
+   }
+  },
+  "ListBillingAccountsResponse": {
+   "type": "object",
+   "properties": {
+    "billingAccounts": {
+     "type": "array",
+     "items": {
+      "$ref": "BillingAccount"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "BillingAccount": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Account name."
+    }
+   }
+  },
+  "SearchOrganizationsResponse": {
+   "type": "object",
+   "properties": {
+    "organizations": {
+     "type": "array",
+     "items": {
+      "$ref": "Organization"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Organization": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Organization name."
     }
    }
   }

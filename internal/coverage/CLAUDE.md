@@ -11,7 +11,8 @@ provider's extractor and resolver live in `internal/providers/<p>/<p>inventory`.
 Every candidate carries `Rule`: the extractor rule that decided its class
 (`smithy-resource`, `sr-resource`, `child-uncatalogued`, `element-written`, `element-arn`,
 `element-created` for AWS; `item-write` / `item-read-only` / `no-item-path` for Azure;
-`create` / `delete-only` / `get-only` / `list-only` / `operation-node` for GCP). It reaches
+`create` / `created-elsewhere` / `delete-only` / `mutable` / `get-only` / `list-only` /
+`operation-node` for GCP). It reaches
 `Row.Rule`, `Summary.ByRule` and the markdown report.
 
 `Summary.ByRule` is computed in `BuildInventory`, **before** any `Filter`, because
@@ -118,9 +119,11 @@ GCP's `RegistryKey`/`CanonicalKey` also compare through `Ident`.
 
 ## Live numbers (2026-09-26, pins in `docs/coverage.md`, pairing on)
 
-AWS 48.7% (1677/3441), Azure 15.8% (398/2515), GCP 22.9% (239/1042); zero unexplained. Pairing
+AWS 48.7% (1677/3441), Azure 15.8% (398/2515), GCP 23.2% (240/1034, 2026-09-28); zero unexplained. Pairing
 off (an installed binary): AWS 41.3%, Azure 15.7%, GCP 18.5%. Azure
-carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 1 (`other-op`). The
+carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 5 (`other-op`: IAM
+policy, plus listers no sibling confirms — bigtable hot tablets and the per-cluster memory-layer
+singleton, effective tags, spanner's DDL-defined database roles). The
 Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
 
 ## Cross-check drift reads buckets, not classes (#119)

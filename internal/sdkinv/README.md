@@ -139,16 +139,16 @@ provider-specific because the SDKs are; everything after extraction is shared.
 |---|---|---|---|
 | Source of truth | Smithy model per service + Service Reference catalog (per-action `IsList`/`IsWrite`, target resources, ARN formats) | `urlPath := "..."` literals in generated `*_client.go` request builders | Discovery `*-api.json`: `methods`, `flatPath`/`path`, `parameters[].pattern`, `schemas` |
 | Service join key | `aws.auth#sigv4.name` == Service Reference name | ARM namespace after the last `providers/` segment | Discovery API name |
-| What is a lister | Resource `list` binding, catalog `IsList` without `IsWrite`, then structural rungs (paginated `items`, paged or read-traited collection output); no verb list | any `http.MethodGet` builder whose stripped path does not end in a `{param}` (the paged `Value []*T` shape is typical, not required: ~307 singleton/action GETs come in this way and all land in `excluded`) | Method key `list` or `aggregatedList` |
-| Key | `<service>/<noun>`: the bound Smithy resource name, else the op noun (after the first camel word, qualifier cut), folded by shared element shape | namespace + static path segments after scope pairs are stripped | `<api>/<collection path>`, lower-cased |
-| Depth / parent | Smithy resource tree, then URI labels, then the catalog ARN format's levels, then required id-shaped inputs | `{param}` segments between statics | `{param}` segments between statics; `{+parent}` expanded from the pattern |
-| Class | Not a lister → attribute; Smithy or catalog resource → resource; child with ids → resource; element written, carrying an ARN, or a creation time → resource; tag element → attribute; no collection → non-resource; else catalog | Item path has PUT/PATCH/DELETE → resource; GET only → catalog; no item path → non-resource | `insert`/`create` or `delete` → resource; `get` only → catalog; else non-resource |
-| Scope params (never a parent) | `AccountId`, `Region`, paging members | `subscriptions/{}`, `resourceGroups/{}`, `locations/{}`, `managementGroups/{}`; `{scope}` first → `extension` | `projects/{}`, `organizations/{}`, `folders/{}`, `billingAccounts/{}`; `locations/zones/regions/{}` |
-| Universe filter | Every service with a Smithy model | Everything under `sdk/resourcemanager` | APIs where some lister's root is a cloud root (192 of 654 docs) |
+| What is a lister | Resource `list` binding, catalog `IsList` without `IsWrite`, then structural rungs (paginated `items`, paged or read-traited collection output); no verb list | any `http.MethodGet` builder whose stripped path does not end in a `{param}` (the paged `Value []*T` shape is typical, not required: ~307 singleton/action GETs come in this way and all land in `excluded`) | A GET on a collection path whose response element a sibling confirms (item GET, item write/DELETE, create body, or a GET answering an aggregated map element); no method-name list |
+| Key | `<service>/<noun>`: the bound Smithy resource name, else the op noun (after the first camel word, qualifier cut), folded by shared element shape | namespace + static path segments after scope pairs are stripped | `<api>/<Discovery resource path>` minus prefix and scope nodes, lower-cased; same-collection routes folded |
+| Depth / parent | Smithy resource tree, then URI labels, then the catalog ARN format's levels, then required id-shaped inputs | `{param}` segments between statics | `{param}` segments between non-scope statics; parent matched by item path; `{+parent}` expanded from the pattern |
+| Class | Not a lister → attribute; Smithy or catalog resource → resource; child with ids → resource; element written, carrying an ARN, or a creation time → resource; tag element → attribute; no collection → non-resource; else catalog | Item path has PUT/PATCH/DELETE → resource; GET only → catalog; no item path → non-resource | By HTTP method × path: POST/PUT on the collection, a single other POST writer, DELETE or edit on the item → resource; LRO shape or several writers → non-resource; item GET only → catalog |
+| Scope params (never a parent) | `AccountId`, `Region`, paging members | `subscriptions/{}`, `resourceGroups/{}`, `locations/{}`, `managementGroups/{}`; `{scope}` first → `extension` | declared roots `projects`/`organizations`/`folders`/`billingAccounts`/`customers` and placements `locations`/`zones`/`regions`, each only where the document cannot create it; param-first → `unscoped` |
+| Universe filter | Every service with a Smithy model | Everything under `sdk/resourcemanager` | APIs some document of which accepts the `cloud-platform` OAuth scope (193 APIs) |
 | Refs | Output element members matching `idLikeRe`, own id excluded | `*SubResource`/`*Reference` structs and `*ID` strings on the `Value` element | `*Link/*Url/*Id/*Ref/...` string properties or URL/resource-name descriptions |
 
 Live sizes at the 2026-09 pins: AWS 5399 candidates / 357 services (3336 resources); Azure 3744
-(1959 resources); GCP 1859 / 192 APIs (1151 resources). The live tests log these; a large swing
+(1959 resources); GCP 1660 / 193 APIs (1186 resources). The live tests log these; a large swing
 after a pin bump is the signal to re-check anchors.
 
 ### Identity versus display
@@ -262,7 +262,7 @@ All of it lives in one new SDK-free package, `internal/providers/<p>/<p>inventor
    func init() { sdkinv.Register(extractor{}) }
    ```
 
-   For a REST/OpenAPI-shaped SDK reuse `pathtmpl.go` (`ParseTemplate`, `StripScopes`) the way
+   For a REST/OpenAPI-shaped SDK reuse `pathtmpl.go` (`ParseTemplate`, `SplitVerb`, `StripScopes`) the way
    Azure and GCP do; the rules you must decide are the scope-parameter set, what marks a lister,
    and the class signals (item mutability, catalog markers).
 

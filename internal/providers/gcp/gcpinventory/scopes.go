@@ -10,4 +10,6 @@ const (
 	ScopeBillingAccount sdkinv.Scope = "billing-account"
 	ScopeTenant         sdkinv.Scope = "tenant"
 	ScopeGlobal         sdkinv.Scope = "global"
+	// ScopeUnscoped: the path opens on a param that takes any container.
+	ScopeUnscoped sdkinv.Scope = "unscoped"
 )

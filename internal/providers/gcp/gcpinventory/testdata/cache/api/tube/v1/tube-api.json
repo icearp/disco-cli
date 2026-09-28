@@ -1,9 +1,86 @@
 {
-  "name": "tube", "version": "v1",
-  "resources": {
-    "channels": {"methods": {
-      "list": {"path": "channels", "httpMethod": "GET", "parameters": {}},
-      "insert": {"path": "channels", "httpMethod": "POST", "parameters": {}}
-    }}
+ "kind": "discovery#restDescription",
+ "name": "tube",
+ "version": "v1",
+ "rootUrl": "https://tube.googleapis.com/",
+ "servicePath": "tube/v1/",
+ "auth": {
+  "oauth2": {
+   "scopes": {
+    "https://www.googleapis.com/auth/tube": {}
+   }
   }
+ },
+ "resources": {
+  "channels": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "channels",
+     "parameters": {
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [],
+     "response": {
+      "$ref": "ChannelList"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "channels/{id}",
+     "parameters": {
+      "id": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "id"
+     ],
+     "response": {
+      "$ref": "Channel"
+     }
+    },
+    "insert": {
+     "httpMethod": "POST",
+     "path": "channels",
+     "parameters": {},
+     "parameterOrder": [],
+     "request": {
+      "$ref": "Channel"
+     },
+     "response": {
+      "$ref": "Channel"
+     }
+    }
+   }
+  }
+ },
+ "schemas": {
+  "ChannelList": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "Channel"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Channel": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Channel name."
+    }
+   }
+  }
+ }
 }

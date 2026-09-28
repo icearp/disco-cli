@@ -119,7 +119,7 @@ the three (the GCP hierarchy types are the accepted exception — a whole-scan f
 
 Cross-tenant references are real self-node types inserted as placeholders (see "Resolver-side reference-discovered placeholders"). A real SDK-scanned type no registry lists (`aws:kms:grant`, Entra identities) is simply paired with its SDK call; a type built from a non-list op or a non-SDK client shows as `disco-only: explained`, never a strict failure.
 
-Whether a type can have outbound edges is derived, not flagged: `disco coverage resolvers --missing` lists orphan types with the reference fields on their SDK-listed element (`Candidate.Refs`), richest first. Refs are a **hint, not proof** — using their absence as a hide gate once hid 477 real gaps. If a refs row looks wrong, fix the derivation in `internal/sdkinv/<p>/refs.go`; don't add a hand flag.
+Whether a type can have outbound edges is derived, not flagged: `disco coverage resolvers --missing` lists orphan types with the reference fields on their SDK-listed element (`Candidate.Refs`), richest first. Refs are a **hint, not proof** — using their absence as a hide gate once hid 477 real gaps. If a refs row looks wrong, fix the derivation in `internal/providers/<p>/<p>inventory/refs.go`; don't add a hand flag.
 
 Retired, do not recreate: `KnownTypes`, `Aliases()`/alias maps, `Descriptor.Upstream`/`Uncatalogued`/`Synthetic`/`Leaf`, `*_skips.go`, `*_type_mirror_test.go`, `<p>_redact.go`, `<p>_volatile.go`, `registerExtraEmits`, `serviceRenames`.
 

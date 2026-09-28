@@ -13,10 +13,7 @@ import (
 
 const gcpPrefix = "google.golang.org/api/"
 
-var (
-	gcpLabelRe   = regexp.MustCompile(`^[a-z0-9]+:[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)+$`)
-	gcpListerSet = map[string]bool{"List": true, "AggregatedList": true}
-)
+var gcpLabelRe = regexp.MustCompile(`^[a-z0-9]+:[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)+$`)
 
 type gcpResolver struct{}
 
@@ -25,34 +22,51 @@ func init() { pairing.Register(gcpResolver{}) }
 func (gcpResolver) Name() string                 { return "gcp" }
 func (gcpResolver) LabelGrammar() *regexp.Regexp { return gcpLabelRe }
 
-// ImportKey: the Discovery API name, the first segment under the module.
+// ImportKey: the Discovery API name, the first segment under the module. A
+// helper package (option, googleapi) keys too; it simply has no ops.
 func (gcpResolver) ImportKey(path string) string {
 	rest, ok := strings.CutPrefix(path, gcpPrefix)
 	if !ok {
 		return ""
 	}
 	api, _, _ := strings.Cut(rest, "/")
-	switch api {
-	case "option", "googleapi", "transport", "iterator", "internal", "idtoken", "impersonate":
-		return ""
-	}
 	return api
 }
 
-// OpKey: Module is google.golang.org/api@<ver>/<api>/<...>/<ver>.
+// OpKey: Module is google.golang.org/api@<ver>/<api>/<...>/<ver>. The name is
+// canonical per dotted segment, as Anchors spells a Go selector chain: the
+// generator turns Discovery's iap_tunnel into the Go field IapTunnel.
 func (gcpResolver) OpKey(op sdkinv.Operation) (string, string) {
 	_, rest, _ := strings.Cut(op.Module, "@")
 	_, rest, _ = strings.Cut(rest, "/")
 	api, _, _ := strings.Cut(rest, "/")
-	return api, op.Name
+	return api, canonPath(strings.Split(op.Name, "."))
+}
+
+func canonPath(segs []string) string {
+	out := make([]string, len(segs))
+	for i, s := range segs {
+		out[i] = sdkinv.Canon(s)
+	}
+	return strings.Join(out, ".")
 }
 
 // LabelAliases: scanners label by the scope-stripped path
-// ("run:jobs.executions.list" for projects.locations.jobs.executions.list).
+// ("run:jobs.executions.list" for projects.locations.jobs.executions.list),
+// for Other ops too ("monitoring:groups.members.list").
 func (gcpResolver) LabelAliases(c sdkinv.Candidate, op sdkinv.Operation) []string {
 	method := op.Name[strings.LastIndex(op.Name, ".")+1:]
 	nodes := strings.Split(strings.TrimSuffix(op.Name, "."+method), ".")
-	if c.Key != "" {
+	if c.Key == "" {
+		// An op in Other has no key; drop the declared scope nodes instead.
+		kept := nodes[:0:0]
+		for i, n := range nodes {
+			if lower := strings.ToLower(n); i == len(nodes)-1 || cloudRoots[lower] == "" && !placements[lower] {
+				kept = append(kept, n)
+			}
+		}
+		nodes = kept
+	} else {
 		// The candidate key is the method path without scope nodes, lower-cased;
 		// keep the method path's own spelling of the nodes it retains.
 		keep := map[string]bool{}
@@ -77,7 +91,8 @@ func (gcpResolver) LabelAliases(c sdkinv.Candidate, op sdkinv.Operation) []strin
 }
 
 // receiverBinding resolves the chain root: a bound local, or a struct field
-// (s.svc.Instances → the field svc, which then leaves the chain).
+// (s.svc.Instances → the field svc, which then leaves the chain). Fields are
+// compared canonically, as the chain is.
 func receiverBinding(f *pairing.Func, root ast.Expr, fields *[]string) (pairing.Binding, bool) {
 	if id, ok := root.(*ast.Ident); ok {
 		if b, bound := f.Vars[id.Name]; bound {
@@ -86,7 +101,7 @@ func receiverBinding(f *pairing.Func, root ast.Expr, fields *[]string) (pairing.
 	}
 	if len(*fields) > 0 {
 		for name, b := range f.Fields {
-			if sdkinv.LowerFirst(name) == (*fields)[0] {
+			if sdkinv.Canon(name) == (*fields)[0] {
 				*fields = (*fields)[1:]
 				return b, true
 			}
@@ -99,10 +114,10 @@ func receiverBinding(f *pairing.Func, root ast.Expr, fields *[]string) (pairing.
 // chain, which an interface seam over one call type does not carry.
 func (gcpResolver) TypeOwner(_, _ string) (string, bool) { return "", false }
 
-// LabelOp: "<api>:<method path>".
+// LabelOp: "<api>:<method path>", canonical per segment like OpKey.
 func (gcpResolver) LabelOp(lit string) string {
 	_, op, _ := strings.Cut(lit, ":")
-	return op
+	return canonPath(strings.Split(op, "."))
 }
 
 func (gcpResolver) Constructor(_, fn string) (string, bool) {
@@ -112,9 +127,11 @@ func (gcpResolver) Constructor(_, fn string) (string, bool) {
 	return "", false
 }
 
-// Anchors: svc.A.B.List( / .AggregatedList( and, on a bound service, any
-// other Discovery method (Get, GetIamPolicy, Search) — the selector chain is
-// the method path with each field lower-cased.
+// Anchors: on a bound *Service every call down the resource chain is a
+// Discovery method, so it anchors even when the pinned SDK lacks it (the
+// sdk-skew diagnostic). On an unbound root, a chain naming a candidate op of
+// exactly one imported API anchors there. The selector chain is the method
+// path, canonical per segment.
 func (gcpResolver) Anchors(f *pairing.Func) ([]pairing.Anchor, []pairing.Diagnostic) {
 	var out []pairing.Anchor
 	var diags []pairing.Diagnostic
@@ -134,26 +151,25 @@ func (gcpResolver) Anchors(f *pairing.Func) ([]pairing.Anchor, []pairing.Diagnos
 			if !ok {
 				break
 			}
-			fields = append([]string{sdkinv.LowerFirst(s.Sel.Name)}, fields...)
+			fields = append([]string{sdkinv.Canon(s.Sel.Name)}, fields...)
 			x = s.X
 		}
 		if len(fields) == 0 {
 			return true
 		}
-		name := strings.Join(fields, ".") + "." + sdkinv.LowerFirst(sel.Sel.Name)
+		method := sdkinv.Canon(sel.Sel.Name)
 		if b, bound := receiverBinding(f, x, &fields); bound {
-			if len(fields) == 0 {
-				return true
-			}
-			name = strings.Join(fields, ".") + "." + sdkinv.LowerFirst(sel.Sel.Name)
-			if gcpListerSet[sel.Sel.Name] || f.Ops(b.Module, name) || f.Other(b.Module, name) {
+			name := strings.Join(fields, ".") + "." + method
+			// The generator names every resource-chain type *Service, so a
+			// chain from one is a Discovery method even when the pin lacks it
+			// (sdk-skew). Other bound types (a response page, googleapi.Error)
+			// anchor only on a method the universe knows.
+			if len(fields) > 0 && (strings.HasSuffix(b.Ident, "Service") || f.Ops(b.Module, name) || f.Other(b.Module, name)) {
 				out = append(out, pairing.Anchor{Module: b.Module, Op: name, Line: f.Line(call)})
 			}
 			return true
 		}
-		if !gcpListerSet[sel.Sel.Name] {
-			return true
-		}
+		name := strings.Join(fields, ".") + "." + method
 		var mods []string
 		for _, mod := range f.SDKMods {
 			if f.Ops(mod, name) {

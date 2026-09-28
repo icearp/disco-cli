@@ -2,6 +2,7 @@ package gcpinventory
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -22,6 +23,9 @@ func TestWalkGCP(t *testing.T) {
 	pairingtest.ExpectPairing(t, res, "widgets/widgets", "scanWidgets", "emits", "gcp:widgets:part", "gcp:widgets:widget")
 	pairingtest.ExpectPairing(t, res, "widgets/widgets/parts", "scanParts", "emits", "gcp:widgets:part")
 	pairingtest.ExpectPairing(t, res, "widgets/gizmos", "gizmoScan.scanGizmos", "emits", "gcp:widgets:gizmo")
+	// The aggregated list answers the regional twin too, so the one call
+	// anchors both.
+	pairingtest.ExpectPairing(t, res, "widgets/regiongizmos", "gizmoScan.scanGizmos", "emits", "gcp:widgets:gizmo")
 	pairingtest.ExpectPairing(t, res, "widgets/zones", "gizmoScan.scanZone", "emits", "gcp:widgets:zone")
 	pairingtest.ExpectPairing(t, res, "widgets/buckets", "scanBuckets", "emits", "gcp:widgets:bucket")
 	// A beta-only collection anchors through its own versioned import.
@@ -30,10 +34,13 @@ func TestWalkGCP(t *testing.T) {
 	pairingtest.ExpectPairing(t, res, "widgets:projects.locations.widgets.get", "describeWidget", "other", "gcp:widgets:widget-detail")
 
 	// run's label resolves through the method value it hands the driver.
-	if got := pairingtest.DiagKinds(res); len(got) != 1 || got["label-no-anchor"] != 1 {
+	// No sdk-skew: pageETag's Header.Get is on a response page, not a
+	// *Service. twinLabel's label resolves through the canonical fallback.
+	if got := pairingtest.DiagKinds(res); len(got) != 1 || got["label-no-anchor"] != 2 {
 		t.Errorf("diagnostics = %v", res.Diagnostics)
 	}
-	pairingtest.ExpectDiag(t, res, "label-no-anchor", "widgets_scanners.go", 111)
+	pairingtest.ExpectDiag(t, res, "label-no-anchor", "widgets_scanners.go", 113)
+	pairingtest.ExpectDiag(t, res, "label-no-anchor", "widgets_scanners.go", 136)
 	if len(unpaired) != 1 || unpaired["gcp:widgets:widget-detail"] != "other-op:widgets:projects.locations.widgets.get" {
 		t.Errorf("unpaired = %v", unpaired)
 	}
@@ -41,10 +48,10 @@ func TestWalkGCP(t *testing.T) {
 
 func TestResolverKeys(t *testing.T) {
 	gcp := gcpResolver{}
-	if gcp.ImportKey("google.golang.org/api/option") != "" || gcp.ImportKey("google.golang.org/api/admin/directory/v1") != "admin" {
+	if gcp.ImportKey("google.golang.org/api/option") != "option" || gcp.ImportKey("google.golang.org/api/admin/directory/v1") != "admin" {
 		t.Error("gcp ImportKey")
 	}
-	if mod, _ := gcp.OpKey(sdkinv.Operation{Name: "users.list", Module: "google.golang.org/api@v0.1.0/admin/directory/v1"}); mod != "admin" {
+	if mod, name := gcp.OpKey(sdkinv.Operation{Name: "projects.iap_tunnel.locations.list", Module: "google.golang.org/api@v0.1.0/admin/directory/v1"}); mod != "admin" || name != "projects.iaptunnel.locations.list" {
 		t.Errorf("gcp OpKey = %s", mod)
 	}
 	got := gcp.LabelAliases(sdkinv.Candidate{Service: "cloudkms", Key: "cloudkms/keyrings"},
@@ -52,5 +59,10 @@ func TestResolverKeys(t *testing.T) {
 	want := []string{"cloudkms:projects.locations.keyRings.list", "cloudkms:keyRings.list", "cloudkms:keyRings.list"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("gcp LabelAliases = %v, want %v", got, want)
+	}
+	// An op in Other has no key to filter by; the declared scope nodes drop.
+	got = gcp.LabelAliases(sdkinv.Candidate{}, sdkinv.Operation{Service: "monitoring", Name: "projects.groups.members.list", Label: "monitoring:projects.groups.members.list"})
+	if !slices.Contains(got, "monitoring:groups.members.list") {
+		t.Errorf("gcp LabelAliases (Other) = %v", got)
 	}
 }

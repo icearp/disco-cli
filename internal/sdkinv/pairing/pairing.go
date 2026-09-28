@@ -123,8 +123,9 @@ type Resolver interface {
 	// methods mention that type binds its parameters like the client itself.
 	TypeOwner(module, typeName string) (ident string, ok bool)
 	// LabelOp maps a label literal to the operation name it spells, in the
-	// form an Anchor's Op carries, so a label naming a call the pinned SDK no
-	// longer has reads as skew rather than a typo.
+	// form an Anchor's Op and OpKey carry: a label resolves by it when no alias
+	// matches, and a label naming a call the pinned SDK no longer has reads as
+	// skew rather than a typo.
 	LabelOp(lit string) string
 	Anchors(f *Func) ([]Anchor, []Diagnostic)
 }
@@ -305,8 +306,12 @@ func (f *fn) resolveAnchors(idx *index, res *Result) {
 	f.anchored = map[string]opRef{}
 	f.other = map[string]sdkinv.Operation{}
 	for _, a := range f.anchors {
-		if ref, ok := idx.byKey[a.Module+"\x00"+a.Op]; ok {
-			f.anchored[ref.key] = ref
+		// One op can list several candidates (an aggregated list answers
+		// its regional and global twins), so the call anchors every one.
+		if refs := idx.byKey[a.Module+"\x00"+a.Op]; len(refs) > 0 {
+			for _, ref := range refs {
+				f.anchored[ref.key] = ref
+			}
 			continue
 		}
 		if op, ok := idx.other[a.Module+"\x00"+a.Op]; ok {
@@ -523,7 +528,7 @@ type opRef struct {
 
 type index struct {
 	r       Resolver
-	byKey   map[string]opRef   // module\x00op
+	byKey   map[string][]opRef // module\x00op
 	byLabel map[string][]opRef // candidate ops by every alias form (several when the alias is ambiguous)
 	other   map[string]sdkinv.Operation
 	clients map[string][]string // module\x00op -> client idents
@@ -531,12 +536,12 @@ type index struct {
 }
 
 func indexUniverse(r Resolver, u *sdkinv.Universe) *index {
-	idx := &index{r: r, byKey: map[string]opRef{}, byLabel: map[string][]opRef{}, other: map[string]sdkinv.Operation{}, clients: map[string][]string{}, modules: map[string]bool{}}
+	idx := &index{r: r, byKey: map[string][]opRef{}, byLabel: map[string][]opRef{}, other: map[string]sdkinv.Operation{}, clients: map[string][]string{}, modules: map[string]bool{}}
 	for _, c := range u.Candidates {
 		for _, op := range c.Ops {
 			mod, name := r.OpKey(op)
 			idx.modules[mod] = true
-			idx.byKey[mod+"\x00"+name] = opRef{op, c.Key}
+			idx.byKey[mod+"\x00"+name] = append(idx.byKey[mod+"\x00"+name], opRef{op, c.Key})
 			for _, l := range r.LabelAliases(c, op) {
 				idx.byLabel[l] = append(idx.byLabel[l], opRef{op, c.Key})
 			}
@@ -572,13 +577,23 @@ func (idx *index) resolveLabel(lit string, mods []string, anchored map[string]op
 	if keys := distinctKeys(refs); len(keys) == 1 {
 		return refs[0], true
 	}
-	_, name, _ := strings.Cut(lit, ":")
+	name := idx.r.LabelOp(lit)
 	for _, mod := range mods {
-		if ref, ok := idx.byKey[mod+"\x00"+name]; ok {
-			return ref, true
+		if refs := idx.byKey[mod+"\x00"+name]; len(refs) > 0 {
+			return preferAnchored(refs, anchored), true
 		}
 	}
 	return opRef{}, false
+}
+
+// preferAnchored picks the ref the function anchors, else the first.
+func preferAnchored(refs []opRef, anchored map[string]opRef) opRef {
+	for _, r := range refs {
+		if _, ok := anchored[r.key]; ok {
+			return r
+		}
+	}
+	return refs[0]
 }
 
 func distinctKeys(refs []opRef) map[string]bool {
@@ -594,7 +609,7 @@ func (idx *index) known(lit string, mods []string) bool {
 	if _, ok := idx.other[lit]; ok {
 		return true
 	}
-	_, name, _ := strings.Cut(lit, ":")
+	name := idx.r.LabelOp(lit)
 	for _, mod := range mods {
 		if _, ok := idx.other[mod+"\x00"+name]; ok {
 			return true
@@ -604,8 +619,7 @@ func (idx *index) known(lit string, mods []string) bool {
 }
 
 func (idx *index) has(module, op string) bool {
-	_, ok := idx.byKey[module+"\x00"+op]
-	return ok
+	return len(idx.byKey[module+"\x00"+op]) > 0
 }
 
 func (idx *index) hasOther(module, op string) bool {

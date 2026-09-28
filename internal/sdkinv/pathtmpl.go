@@ -31,6 +31,35 @@ func ParseTemplate(tmpl string) []Segment {
 	return out
 }
 
+// SplitVerb cuts a custom-method suffix ("…/instances/{id}:start",
+// "…/organizations:search") off a path template: the last ':' in the final
+// segment, outside braces. Left on, the verb makes an item path read as a
+// static collection segment.
+func SplitVerb(tmpl string) (path, verb string) {
+	depth := 0
+	cut := -1
+	for i := range len(tmpl) {
+		switch tmpl[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+		case '/':
+			if depth == 0 {
+				cut = -1
+			}
+		case ':':
+			if depth == 0 {
+				cut = i
+			}
+		}
+	}
+	if cut < 0 {
+		return tmpl, ""
+	}
+	return tmpl[:cut], tmpl[cut+1:]
+}
+
 // ResourcePath is the scope-free view of a collection path template.
 type ResourcePath struct {
 	Statics []string // static segments that name collections, outermost first

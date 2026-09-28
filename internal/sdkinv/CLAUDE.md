@@ -54,9 +54,12 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   must agree.
 - Every structural fallback rule needs a fixture case that fails when the rule is removed
   (break the rule, confirm a test goes red). Live anchors cover rules the fixture cannot model.
-- Live drops at current pins: aws 2 (unreachable-from-service: healthlake's second namespace), azure 0, gcp 6,591 (non-cloud-api 6125,
-  version-without-cloud-rooted-lister 414, alias-document 47, document-root-method 3,
-  lister-on-item-path 2).
+  Prove it per rule, not by eye: a scratch script that swaps one condition (`x` → `false`),
+  runs `go test` on the `<p>inventory` and `sdkinv` packages, and restores the file. Any rule
+  whose mutation stays green is untested; the Phase 4 review found 10 such rules.
+- Live drops at current pins: aws 2 (unreachable-from-service: healthlake's second namespace),
+  azure 0, gcp 6,173 (non-cloud-api 6126, alias-document 47). Every other GCP method is a
+  candidate op or Other; nothing drops for its shape.
 - `Universe.Scopes` = provider scope vocabulary, narrowest first; coverage ranks `Row.Scope` by it;
   every op scope must be declared.
 
@@ -99,8 +102,12 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
 
 ## Pairing (`pairing/`)
 
-- `Resolver.LabelOp` maps a label to its anchor-form op name for the skew check; provider naming
-  tokens (Azure's `Client` suffix) live there, never in core. `pairing.Register` panics on
+- `Resolver.LabelOp` maps a label to its anchor-form op name — the exact form `OpKey` returns —
+  for the skew check and the `byKey` label fallback; provider naming tokens (Azure's `Client`
+  suffix, GCP's per-segment canon) live there, never in core. Cutting the label at ":" instead
+  missed every canonical GCP name.
+- `byKey` holds every candidate an op lists (GCP aggregated twins); a call anchors them all and a
+  label fallback prefers the one the function anchors. Last-write-wins credited only one twin. `pairing.Register` panics on
   duplicates; resolvers use exported `(*Func).Line`.
 - `pairing.Scan(ctx, cache, provider, dir)` = extract from the cache + `Walk` + `Unpaired`;
   wraps `sdkinv.ErrNotFetched` so `internal/providers/<p>/<p>_pairing_test.go` skips without
