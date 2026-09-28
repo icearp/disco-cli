@@ -2,14 +2,11 @@ package awsinventory
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -17,182 +14,70 @@ import (
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
-// Smithy JSON AST subset.
-type smithyModel struct {
-	Shapes map[string]*shape `json:"shapes"`
+// opFacts is everything the model and the catalog state about one operation.
+type opFacts struct {
+	id, name string
+	inputs   []string // every input member, required or not
+	idList   bool     // the output lists primitives under an id name (Names, FleetArns)
+	noun     string   // the operation name after its first word, version suffix dropped
+	bind     binding
+	node     *resNode
+	required []string
+	paged    bool
+	read     bool // readonly trait, a GET or HEAD, or a resource read/list binding
+	traited  bool // any read, paging or REST trait at all
+	uri      string
+	iam      string
+	elems    []string // the output's collection element shape ids
+	elem     string   // the listed element: the paginated items, the sole or the written one
+	items    bool     // elem came from the paginated items path
+	wrapped  bool     // the collection sits inside a single payload structure
+	// listShaped: every non-primitive member of the output is a collection. A
+	// read that also answers structures (GetFunctionConfiguration's VpcConfig
+	// beside its Layers) describes one thing, whatever lists it carries.
+	listShaped bool
+	hasIDs     bool
+	elemIDs    []string // id-like member names across the elements
+	elemARN    bool
+	elemTime   bool
+	subject    string // a non-list read's sole structure member, the thing it describes
+	act        srAction
+	hasAct     bool
+	signals    map[string]bool
+	// Decided once the whole model is read.
+	isList   bool
+	evidence string
+	lin      place
+	ident    string
+	disp     string
 }
 
-type shape struct {
-	Type       string                     `json:"type"`
-	Traits     map[string]json.RawMessage `json:"traits"`
-	Members    map[string]*member         `json:"members"` // structure
-	Member     *member                    `json:"member"`  // list
-	Input      *ref                       `json:"input"`   // operation
-	Output     *ref                       `json:"output"`
-	Operations []ref                      `json:"operations"` // service
-}
+func (f *opFacts) coll() bool    { return len(f.elems) > 0 }
+func (f *opFacts) readish() bool { return f.read || (f.hasAct && !f.act.isWrite) }
 
-type member struct {
-	Target string                     `json:"target"`
-	Traits map[string]json.RawMessage `json:"traits"`
-}
-
-type ref struct {
-	Target string `json:"target"`
-}
-
-// Service Reference document subset. Tags are camelCase for the repo lint
-// rule; encoding/json matches object keys case-insensitively, so the
-// catalog's PascalCase keys still decode.
-type srDoc struct {
-	Name    string `json:"name"`
-	Actions []struct {
-		Name        string `json:"name"`
-		Annotations struct {
-			Properties struct {
-				IsList        bool `json:"isList"`
-				IsWrite       bool `json:"isWrite"`
-				IsTaggingOnly bool `json:"isTaggingOnly"`
-			} `json:"properties"`
-		} `json:"annotations"`
-		Resources []struct {
-			Name string `json:"name"`
-		} `json:"resources"`
-	} `json:"actions"`
-	Operations []struct {
-		Name              string                           `json:"name"`
-		AuthorizedActions []struct{ Name, Service string } `json:"authorizedActions"`
-	} `json:"operations"`
-	Resources []struct {
-		Name       string   `json:"name"`
-		ARNFormats []string `json:"arnFormats"`
-	} `json:"resources"`
-}
-
-// srService is one Service Reference document indexed for lookup.
-type srService struct {
-	actions   map[string]srAction
-	opAction  map[string]string   // SDK operation name -> IAM action name
-	resources map[string][]string // resource name -> ARN id variables beyond partition/region/account
-	writeNoun map[string]bool     // Ident(noun of a lifecycle IsWrite action) -> true
-	// mutableNoun holds the nouns only a setting verb writes (Update, Modify,
-	// Enable, Export): a toggle, not a resource.
-	mutableNoun map[string]bool
-	resCanon    map[string]string   // Ident(resource name) -> resource name
-	resNS       map[string]string   // Ident(resource name) -> the ARN's service namespace
-	idStem      map[string][]string // stem of a resource's own ARN id variable ("bucket" from BucketName) -> resource names, sorted
-	name        string              // the catalog document's own service name
-	ops         map[string]bool     // every SDK operation name the document lists
-}
-
-type srAction struct {
-	isList, isWrite bool
-	resources       []string
-}
-
-var (
-	// scopeParams are input members that shape paging or scope, never identity.
-	// Keys are lower-cased: the models spell the account slot AccountId,
-	// AwsAccountId and awsAccountId, and a case-sensitive lookup made
-	// quicksight/* children of a non-existent quicksight/awsaccount.
-	scopeParams = map[string]bool{"maxresults": true, "maxitems": true, "limit": true, "pagesize": true, "nexttoken": true, "marker": true, "pagetoken": true, "dryrun": true, "accountid": true, "awsaccountid": true, "region": true}
-	idLikeRe    = regexp.MustCompile(`(Id|Ids|ID|IDs|Arn|Arns|ARN|ARNs|Name|Names|Identifier|Identifiers)$`)
-	// idWordRe is the whole member: AppSync, DataZone, Bedrock, EKS, Grafana,
-	// Lex and Cognito model their members `id`, `arn` and `name`, which the
-	// PascalCase suffix rule never matches, so their child collections were
-	// demoted to attributes as id-less (65 rows, four of them stored types).
-	// It is deliberately anchored at both ends: a case-insensitive *suffix*
-	// rule would swallow "domain" for "main" and "certificate" for "cate".
-	idWordRe = regexp.MustCompile(`(?i)^(id|ids|arn|arns|name|names|identifier|identifiers)$`)
-	// genericNoun is the noun that names no subject of its own.
-	genericNoun = sdkinv.Ident("tag")
-	// selfStems are id-like member stems that name the operation's own subject.
-	selfStems = map[string]bool{"": true, sdkinv.Ident("resource"): true, sdkinv.Ident("target"): true}
-	versionRe = regexp.MustCompile(`V\d+$`)
-	// qualifierRe cuts the noun at a qualifier: "As" joins the list because
-	// SearchProductsAsAdmin yielded the noun ProductsAsAdmin, which matched
-	// neither the Service Reference resource nor a write noun. The offset>0
-	// guard at the call site keeps ImportAsProvisionedProduct intact.
-	qualifierRe = regexp.MustCompile(`(For|By|In|Of|Within|From|As)[A-Z]`)
-	arnVarRe    = regexp.MustCompile(`\$\{([A-Za-z0-9_]+)\}`)
-	// arnMemberRe / createdRe are the evidence that a listed element is a
-	// durable resource rather than a catalog row: it has an ARN, or it records
-	// when it was created.
-	arnMemberRe = regexp.MustCompile(`(?i)(^|[a-z0-9])arns?$`)
-	createdRe   = regexp.MustCompile(`(?i)creat`)
-	// descriptorRe names the shape of a listing member rather than its
-	// subject: QueueUrls, InstanceIds, ClusterSummaries, TableDetails.
-	descriptorRe = regexp.MustCompile(`(?i)(urls?|ids?|arns?|names?|summaries|summary|metadata|details?|list|infos?)$`)
-	// crossCuttingTargets: a list action authorised against this many distinct
-	// resource types reads a facet of them (tags, policies), not a resource.
-	crossCuttingTargets = 3
-	joinVerbs           = map[string]bool{"Associate": true, "Attach": true, "Register": true}
-	// lifecycleVerbs create or destroy the noun. Only these make a noun a
-	// resource; everything else changes an existing one.
-	lifecycleVerbs = map[string]bool{"Create": true, "Delete": true, "Put": true, "Add": true, "Import": true, "Provision": true, "Allocate": true, "Register": true, "Associate": true, "Attach": true, "Copy": true, "Restore": true, "Launch": true, "Run": true, "Publish": true}
-	listVerbs      = map[string]bool{"List": true, "Describe": true, "Get": true, "Search": true, "BatchGet": true}
-	detailVerbs    = map[string]bool{"Get": true, "Describe": true, "Head": true}
-)
-
-type entry struct {
-	service    string
-	nouns      []string // Canon of every op noun seen, for the display name
-	srName     string   // Canon of the catalog resource name when one matched
-	depth      int
-	parentID   string // Ident of the parent noun, "" at depth 0
-	parentDisp string // display form of the parent noun when no entry resolves it
-	// cands are every parent one of this entry's operations proposed, kept so
-	// resolveTree can prefer one that is itself a candidate. place() picks the
-	// shallowest for the pre-resolution depth; the catalog often names a
-	// grandparent and a parent for one op set.
-	cands   []parentCand
-	class   sdkinv.Class
-	rule    string // the classification rule that decided class
-	signals map[string]bool
-	ops     []sdkinv.Operation
-	refs    map[string]bool
-}
-
-// parentCand is one operation's proposal for an entry's parent.
-type parentCand struct {
-	id, disp string
-	depth    int // the lineage depth that proposal implies for this entry
-}
-
-// display is the noun shown in the key. With one spelling it is that noun
-// singularised (a bare ListAliases). With several, a spelling that another
-// spelling singularises to wins (analysis over analyses, app over apps), else
-// the shortest. Identities (Ident) decide equality; display never does.
-func (en *entry) display() string {
-	spellings := map[string]bool{}
-	for _, n := range append(en.nouns, en.srName) {
-		if n != "" {
-			spellings[n] = true
-		}
+// writeish is an operation known to mutate: the catalog says so, or the model
+// traits it and does not mark it a read. An operation with neither is unknown
+// and writes nothing as evidence.
+func (f *opFacts) writeish() bool {
+	if f.hasAct {
+		return f.act.isWrite
 	}
-	best, bestSingular := "", ""
-	for n := range spellings {
-		if best == "" || shorter(n, best) {
-			best = n
-		}
-		for q := range spellings {
-			if q != n && sdkinv.Singular(q) == n && (bestSingular == "" || shorter(n, bestSingular)) {
-				bestSingular = n
-			}
-		}
-	}
-	switch {
-	case len(spellings) == 1:
-		return sdkinv.Singular(best)
-	case bestSingular != "":
-		return bestSingular
-	}
-	// No spelling is another's singular: singularise the shortest rather than
-	// ship it plural. Folding a legacy noun in (es/elasticsearchversions beside
-	// es/versions) leaves exactly this case.
-	return sdkinv.Singular(best)
+	return f.traited && !f.read
+}
+func (f *opFacts) bound() bool { return f.node != nil && f.bind.role != roleInstance }
+
+// universe accumulates entries across every model file.
+type universe struct {
+	entries map[string]*entry
+	// catalogued is every catalog resource identity per service: a required
+	// id naming neither an entry nor one of these is a handle, not a parent.
+	catalogued map[string]map[string]bool
 }
 
+// Extract derives the universe model-first: Smithy resource bindings,
+// paginated items, URI labels and the Service Reference decide; where the SDK
+// states nothing, a structural rule decides and says so in the candidate's
+// signals.
 func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error) {
 	u := &sdkinv.Universe{Provider: "aws", Pins: map[string]string{"aws-sdk-go-v2": SDKRef}}
 	sr, srVersion, err := loadServiceReference(filepath.Join(dir, "service-reference"))
@@ -200,10 +85,6 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		return nil, err
 	}
 	u.Pins["service-reference"] = srVersion
-	// The catalog is unversioned and served live, so the fetched copy can be
-	// newer than the pin. Report it rather than hide it: the pins printed on
-	// every report and recorded in the baseline are what the numbers were
-	// actually computed from.
 	if srVersion != ServiceReferenceDigest {
 		u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{
 			Severity: "warn", Source: "service-reference/index.json",
@@ -218,9 +99,8 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 	if len(files) == 0 {
 		return nil, fmt.Errorf("no Smithy models under %s", modelDir)
 	}
-	entries := map[string]*entry{}
-	words := map[string]map[string]bool{}   // service -> the words its own name is made of
-	aliases := map[string]map[string]bool{} // Canon(spelling) -> services that answer to it
+	x := &universe{entries: map[string]*entry{}, catalogued: map[string]map[string]bool{}}
+	aliases := map[string]map[string]bool{}
 	for _, f := range files {
 		raw, rerr := os.ReadFile(f)
 		if rerr != nil {
@@ -231,253 +111,889 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: filepath.Base(f), Message: jerr.Error()})
 			continue
 		}
-		module := modelModule(filepath.Base(f))
-		for op := range modelOps(&m) {
-			u.SourceOps = append(u.SourceOps, sdkinv.OpRef{Module: module, Name: op})
+		base := filepath.Base(f)
+		sm := newServiceModel(&m)
+		module := modelModule(base)
+		svc, _ := serviceKey(&m)
+		reached := map[string]bool{}
+		for id := range sm.ops {
+			reached[shapeName(id)] = true
 		}
-		collectServiceWords(words, &m)
+		for name := range modelOps(&m) {
+			u.SourceOps = append(u.SourceOps, sdkinv.OpRef{Module: module, Name: name})
+			switch {
+			case svc == "": // indexModel keys nothing without a service name
+				u.Dropped = append(u.Dropped, sdkinv.Drop{Op: sdkinv.Operation{Name: name, Label: ":" + name, Module: module}, Reason: "no-service-name"})
+			case !reached[name]:
+				u.Dropped = append(u.Dropped, sdkinv.Drop{Op: sdkinv.Operation{Service: svc, Name: name, Label: svc + ":" + name, Module: module}, Reason: "unreachable-from-service"})
+			}
+		}
 		collectServiceAliases(aliases, &m)
-		diag, other := indexModel(entries, &m, sr, filepath.Base(f))
-		if diag != "" {
-			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: filepath.Base(f), Message: diag})
+		diags, other := x.indexModel(sm, sr, base, reached)
+		for _, d := range diags {
+			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: base, Message: d})
 		}
 		u.Other = append(u.Other, other...)
 	}
-	mergeDetailReads(entries)
-	foldLegacyNouns(entries, words)
-	resolveTree(entries)
-	u.Candidates = assemble(entries)
+	mergeDetailReads(x.entries)
+	resolveTree(x.entries, x.catalogued)
+	u.Candidates = assemble(x.entries)
 	u.ServiceAliases = serviceAliases(aliases, u.Candidates)
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)
 	sdkinv.SortOpRefs(u.SourceOps)
+	sdkinv.SortDrops(u.Dropped)
 	return u, nil
 }
 
-// collectServiceAliases records every name a model's service trait gives it —
-// arnNamespace, endpointPrefix and sdkId beside the signing name the
-// candidates carry — which is how CloudFormation ("Pinpoint", "EMR") and the
-// Service Reference ("cloudwatch") name the same service.
-func collectServiceAliases(aliases map[string]map[string]bool, m *smithyModel) {
-	svc, sdkID := serviceKey(m)
-	if svc == "" {
+// joinSR finds the catalog document for a model: by signing name, else by the
+// SDK client name the catalog publishes its operations under, else by the
+// smallest document authorising every operation.
+func joinSR(srAll map[string]*srService, svc, sdkID string, ops map[string]bool) (*srService, string) {
+	if sr := srAll[svc]; sr != nil {
+		return sr, ""
+	}
+	client := strings.ToLower(strings.ReplaceAll(sdkID, " ", "-"))
+	for _, name := range slices.Sorted(maps.Keys(srAll)) {
+		if srAll[name].sdkNames[client] {
+			return srAll[name], fmt.Sprintf("service %q absent from the Service Reference; joined to %q by SDK client name", svc, name)
+		}
+	}
+	if sr := matchSRByOps(srAll, ops); sr != nil {
+		return sr, fmt.Sprintf("service %q absent from the Service Reference; joined to %q by operation names", svc, sr.name)
+	}
+	return nil, fmt.Sprintf("service %q absent from the Service Reference; classification falls back to SDK shape", svc)
+}
+
+// bindAction is the catalog action an operation is authorised by: the model's
+// own iamAction, else the union of every own-service action authorising it —
+// a listing if any lists, a write if any writes.
+func (s *srService) bindAction(op, iam string) (srAction, bool, string) {
+	if a, ok := s.actions[iam]; iam != "" && ok {
+		return a, true, "sr:iam-action"
+	}
+	names := s.opActions[op]
+	if len(names) == 0 {
+		if a, ok := s.actions[op]; ok {
+			return a, true, "sr:action-name"
+		}
+		return srAction{}, false, "sr:unbound"
+	}
+	u, found := srAction{taggingOnly: true}, false
+	for _, n := range names {
+		a, ok := s.actions[n]
+		if !ok {
+			continue
+		}
+		found = true
+		u.isList = u.isList || a.isList
+		u.isWrite = u.isWrite || a.isWrite // an operation any write authorises mutates
+		u.taggingOnly = u.taggingOnly && a.taggingOnly
+		for _, r := range a.resources {
+			if !slices.Contains(u.resources, r) {
+				u.resources = append(u.resources, r)
+			}
+		}
+	}
+	if !found {
+		return srAction{}, false, "sr:unbound"
+	}
+	sort.Strings(u.resources)
+	return u, true, ""
+}
+
+// opNoun is an operation name after its first word, version suffix dropped:
+// "ListObjectsV2" → "Objects". The noun names the candidate only when nothing
+// in the model does.
+func opNoun(op string) string {
+	i := 1
+	for i < len(op) && op[i] >= 'a' && op[i] <= 'z' {
+		i++
+	}
+	return versionRe.ReplaceAllString(op[i:], "")
+}
+
+// cutQualifier drops a trailing qualifier that names one of the operation's
+// input members: the subject is everything before the leftmost short joining
+// word whose remainder the member's name ends with, or ends ("TagsForResource"
+// given ResourceArn → "Tags", "ResourcesForTagOption" given TagOptionId →
+// "Resources", "SourcesForS3TableIntegration" given IntegrationArn →
+// "Sources"). The joining word is recognised by shape alone, a capitalised
+// word of at most three lowercase-tailed letters, so no preposition list is
+// needed. A name word that fits the shape (Vpc, Key, Set) is not cut when the
+// matching input names the subject itself.
+func cutQualifier(noun string, inputs []string) string {
+	words := camelWords(noun)
+	for c := 1; c < len(words)-1; c++ {
+		if !isJoiner(words[c]) {
+			continue
+		}
+		rest := sdkinv.Ident(strings.Join(words[c+1:], ""))
+		subject := sdkinv.Ident(strings.Join(words[:c], ""))
+		for _, in := range inputs {
+			stem := memberStem(in)
+			// An input that opens with the subject is the subject's own id
+			// (ClientVpnEndpointIds for ClientVpnEndpoints): "Vpn" there is a
+			// word of the name, not a joiner.
+			if stem == "" || strings.HasPrefix(stem, subject) {
+				continue
+			}
+			if strings.HasSuffix(rest, stem) || strings.HasSuffix(stem, rest) {
+				return strings.Join(words[:c], "")
+			}
+		}
+	}
+	return noun
+}
+
+func isJoiner(w string) bool {
+	if len(w) > 3 || !isUpper(w[0]) {
+		return false
+	}
+	for i := 1; i < len(w); i++ {
+		if w[i] < 'a' || w[i] > 'z' {
+			return false
+		}
+	}
+	return true
+}
+
+// camelWords splits a PascalCase name, keeping an acronym whole ("HostedZonesByVPC"
+// → Hosted Zones By VPC, "DBClusterId" → DB Cluster Id).
+func camelWords(s string) []string {
+	var words []string
+	start := 0
+	for i := 1; i < len(s); i++ {
+		up, prevUp := isUpper(s[i]), isUpper(s[i-1])
+		nextLow := i+1 < len(s) && s[i+1] >= 'a' && s[i+1] <= 'z'
+		// A plural acronym keeps its "s": HITsFor → HITs For, not HI Ts For.
+		if nextLow && prevUp && s[i+1] == 's' && (i+2 == len(s) || isUpper(s[i+2])) {
+			nextLow = false
+		}
+		if up && (!prevUp || nextLow) {
+			words = append(words, s[start:i])
+			start = i
+		}
+	}
+	if start < len(s) {
+		words = append(words, s[start:])
+	}
+	return words
+}
+
+func isUpper(c byte) bool { return c >= 'A' && c <= 'Z' }
+
+func (x *universe) facts(sm *serviceModel, id string, sr *srService) *opFacts {
+	sh := sm.m.Shapes[id]
+	f := &opFacts{id: id, name: shapeName(id), bind: sm.ops[id], signals: map[string]bool{}}
+	if sh == nil { // a binding to a shape the file lacks: nothing to read
+		f.noun = opNoun(f.name)
+		return f
+	}
+	f.noun = opNoun(f.name)
+	f.node = sm.res[f.bind.res]
+	pag, paged := sm.pagination(sh)
+	f.paged = paged
+	var h httpTrait
+	if decodeTrait(sh.Traits, "smithy.api#http", &h) {
+		f.uri = h.URI
+	}
+	_, ro := sh.Traits["smithy.api#readonly"]
+	f.read = ro || h.Method == "GET" || h.Method == "HEAD" || f.bind.role == "read" || f.bind.role == "list"
+	f.traited = ro || h.Method != "" || paged
+	var iam struct {
+		Name string `json:"name"`
+	}
+	decodeTrait(sh.Traits, "aws.iam#iamAction", &iam)
+	f.iam = iam.Name
+	f.readInputs(sm, sh, pag)
+	if cut := cutQualifier(f.noun, f.inputs); cut != f.noun {
+		f.noun = cut
+		f.signals["noun:qualifier-cut"] = true
+	}
+	f.rebind()
+	if sr != nil {
+		var sig string
+		f.act, f.hasAct, sig = sr.bindAction(f.name, f.iam)
+		if sig != "" {
+			f.signals[sig] = true
+		}
+	}
+	if sh.Output != nil {
+		if out := sm.m.Shapes[sh.Output.Target]; out != nil {
+			f.collection(sm, out, pag)
+		}
+	}
+	return f
+}
+
+// readInputs records every input member and the required ones that identify
+// something: paging and scope members never do.
+func (f *opFacts) readInputs(sm *serviceModel, op *shape, pag paginated) {
+	if op.Input == nil || sm.m.Shapes[op.Input.Target] == nil {
 		return
 	}
-	names := []string{sdkID}
-	for n := range modelNamespaces(m, svc) {
-		names = append(names, n)
+	for name, mem := range sm.m.Shapes[op.Input.Target].Members {
+		f.inputs = append(f.inputs, name)
+		_, req := mem.Traits["smithy.api#required"]
+		if req && name != pag.InputToken && name != pag.PageSize && !scopeParams[strings.ToLower(name)] {
+			f.required = append(f.required, name)
+		}
 	}
-	for _, n := range names {
-		if c := sdkinv.Canon(n); c != "" {
-			if aliases[c] == nil {
-				aliases[c] = map[string]bool{}
-			}
-			aliases[c][svc] = true
+	sort.Strings(f.inputs)
+	sort.Strings(f.required)
+}
+
+// rebind corrects bindings the models file loosely.
+func (f *opFacts) rebind() {
+	if f.node == nil {
+		return
+	}
+	// An instance read named after its resource is that resource's own read
+	// (lambda binds GetFunction as an instance operation of Function).
+	if f.bind.role == roleInstance && f.read && sdkinv.Ident(f.noun) == sdkinv.Ident(f.node.name) {
+		f.bind.role = "read"
+	}
+	// A collection operation that takes the resource's own identifiers acts on
+	// one instance (lambda files GetFunctionConfiguration that way).
+	if f.bind.role == roleCollection && len(f.node.ids) > 0 {
+		all := true
+		for _, id := range f.node.ids {
+			all = all && slices.Contains(f.required, id)
+		}
+		if all {
+			f.bind.role = roleInstance
 		}
 	}
 }
 
-// serviceAliases keeps the unambiguous aliases of services that have
-// candidates: a spelling that is itself a candidate service, or that two
-// services answer to, names nothing reliably.
-// A Service Reference document joined by operation names is an alias too.
-func serviceAliases(aliases map[string]map[string]bool, cands []sdkinv.Candidate) map[string]string {
-	primary := map[string]bool{}
-	for _, c := range cands {
-		primary[sdkinv.Canon(c.Service)] = true
-		for _, sig := range c.Signals {
-			if doc, ok := strings.CutPrefix(sig, "sr:document="); ok {
-				c2 := sdkinv.Canon(doc)
-				if aliases[c2] == nil {
-					aliases[c2] = map[string]bool{}
+// collection finds what the output enumerates: the paginated items, else the
+// structural guess, descending into a sole payload structure only for an
+// operation already known to list (cloudfront's KeyGroupList.Items).
+func (f *opFacts) collection(sm *serviceModel, out *shape, pag paginated) {
+	if pag.Items != "" {
+		if el := sm.itemsElement(out, pag.Items); el != "" {
+			f.items, f.elem, f.elems = true, el, []string{el}
+			f.scanElement(sm.m, el)
+			return
+		}
+	}
+	f.guessCollection(sm.m, out)
+	if !f.coll() && f.subject != "" && (f.bind.role == "list" || f.hasAct && f.act.isList) {
+		if inner := sm.m.Shapes[f.subject]; inner != nil {
+			f.guessCollection(sm.m, inner)
+			f.wrapped = f.coll()
+		}
+	}
+}
+
+// scanElement records what one element says about the subject. A primitive
+// element is the identifier itself.
+func (f *opFacts) scanElement(m *smithyModel, el string) {
+	t := m.Shapes[el]
+	if t == nil || (t.Type != "structure" && t.Type != "union") {
+		f.hasIDs = true
+		return
+	}
+	for name, fm := range t.Members {
+		if idLike(name) {
+			f.hasIDs = true
+			f.elemIDs = append(f.elemIDs, name)
+		}
+		f.elemARN = f.elemARN || (arnMemberRe.MatchString(name) && !slices.ContainsFunc(f.required, func(r string) bool { return strings.EqualFold(r, name) }))
+		if ft := m.Shapes[fm.Target]; ft != nil && ft.Type == "timestamp" && createdRe.MatchString(name) {
+			f.elemTime = true
+		}
+	}
+}
+
+// guessCollection is the structural fallback for an output the paginated
+// trait does not describe: its list and map members of structures, and its
+// lists of primitives named as ids or after the noun.
+func (f *opFacts) guessCollection(m *smithyModel, out *shape) {
+	f.subject = ""
+	var subjects []string
+	for _, name := range slices.Sorted(maps.Keys(out.Members)) {
+		t := m.Shapes[out.Members[name].Target]
+		if t == nil {
+			continue
+		}
+		el := ""
+		switch {
+		case t.Type == "list" && t.Member != nil:
+			el = t.Member.Target
+		case t.Type == "map" && t.Value != nil:
+			el = t.Value.Target
+		case t.Type == "structure":
+			subjects = append(subjects, out.Members[name].Target)
+			continue
+		default:
+			continue
+		}
+		if isStructure(m, el) {
+			f.elems = append(f.elems, el)
+			f.scanElement(m, el)
+		} else if t.Type == "list" && (idLike(name) || (f.noun != "" && strings.HasPrefix(sdkinv.Ident(name), sdkinv.Ident(sdkinv.CanonSingular(f.noun))))) {
+			// Primitives listed under an id name, or under the operation's
+			// noun (sqs:ListQueues answers QueueUrls), each name one element.
+			// A map of primitives is key/value pairs (tags), not elements.
+			f.elems = append(f.elems, el)
+			f.hasIDs = true
+			f.idList = f.idList || idLike(name)
+		}
+	}
+	if len(f.elems) == 1 {
+		f.elem = f.elems[0]
+	}
+	if len(subjects) == 1 {
+		f.subject = subjects[0]
+	}
+	f.listShaped = f.coll() && len(subjects) == 0
+}
+
+// written is what the service's write operations create: the structures they
+// take or return (lists count only of structures), the stems of ids named
+// after the write's own noun, and each write's field names. A write's name is
+// otherwise not evidence: PurchaseReservedInstancesOffering and PutLogEvents
+// name an offering and an event, and telling them from CreateVolume takes a
+// verb list. A write that merely requires an id references the thing, and an
+// element carries its parent's ids too (a StackEvent's StackId), so neither
+// is evidence. Tagging-only writes contribute only their tag shapes.
+type written struct {
+	shapes map[string]bool
+	stems  map[string]bool
+	fields []map[string]string // per write: the member names it takes or answers
+	// tags are the element field sets tagging-only writes take (Tag{Key,Value}).
+	tags []map[string]string
+	sm   *serviceModel
+}
+
+// owns reports whether a listed element is something the account creates: a
+// write takes or returns it, or answers the element's own id (AllocateHosts
+// returns HostIds; snowball's CreateCluster answers the ClusterId a
+// ClusterListEntry carries). An element's own id is stemmed with the start of
+// its shape name — a SpotPrice's AvailabilityZone is someone else's — and an
+// id the lister itself requires is the parent's (a StackEvent's StackId).
+func (w written) owns(f *opFacts) bool {
+	for _, e := range f.elems {
+		if w.isTag(e) {
+			continue
+		}
+		if w.shapes[e] || w.stems[memberStem(shapeName(e))] {
+			return true
+		}
+	}
+	// A write that sets or answers three of the element's own fields makes
+	// the element. Fields the lister filters by and ids of other resources
+	// do not count: they match every write that merely mentions them (glue's CreateClassifier
+	// takes the GrokClassifier/XMLClassifier a Classifier carries; logs'
+	// PutMetricFilter the filterName/filterPattern of a MetricFilter).
+	for _, e := range f.elems {
+		if w.isTag(e) {
+			continue
+		}
+		elem := map[string]string{}
+		fieldNames(w.sm, e, elem)
+		for _, in := range f.inputs {
+			delete(elem, strings.ToLower(in))
+		}
+		own := sdkinv.Ident(shapeName(e))
+		for k, name := range elem {
+			if stem := memberStem(name); idLike(name) && (stem == "" || !strings.HasPrefix(own, stem)) {
+				delete(elem, k)
+			}
+		}
+		for _, fields := range w.fields {
+			n := 0
+			for k := range elem {
+				if _, ok := fields[k]; ok {
+					n++
 				}
-				aliases[c2][c.Service] = true
+			}
+			if n >= 3 {
+				return true
 			}
 		}
 	}
-	out := map[string]string{}
-	for a, svcs := range aliases {
-		if primary[a] || len(svcs) != 1 {
+	for _, id := range f.elemIDs {
+		stem := memberStem(id)
+		if stem == "" || !w.stems[stem] || slices.ContainsFunc(f.required, func(r string) bool { return memberStem(r) == stem }) {
 			continue
 		}
-		for svc := range svcs {
-			if primary[sdkinv.Canon(svc)] {
-				out[a] = svc
+		if slices.ContainsFunc(f.elems, func(e string) bool { return strings.HasPrefix(sdkinv.Ident(shapeName(e)), stem) }) {
+			return true
+		}
+	}
+	return false
+}
+
+// fieldNames adds the lower-cased member names of a structure and of the
+// structures it holds directly: a summary element often wraps the resource
+// one level down (cloudfront's KeyGroupSummary{KeyGroup}).
+func fieldNames(sm *serviceModel, id string, into map[string]string) {
+	sh := sm.m.Shapes[id]
+	if sh == nil {
+		return
+	}
+	for name, mem := range sh.Members {
+		if tokenNameRe.MatchString(name) {
+			continue
+		}
+		into[strings.ToLower(name)] = name
+		if t := sm.m.Shapes[mem.Target]; t != nil && t.Type == "structure" {
+			for inner := range t.Members {
+				if !tokenNameRe.MatchString(inner) {
+					into[strings.ToLower(inner)] = inner
+				}
 			}
+		}
+	}
+}
+
+// tagShapes are the element structures a tagging-only write takes.
+func tagShapes(sm *serviceModel, op *shape) []map[string]string {
+	var out []map[string]string
+	if op.Input == nil || sm.m.Shapes[op.Input.Target] == nil {
+		return nil
+	}
+	for _, mem := range sm.m.Shapes[op.Input.Target].Members {
+		t := sm.m.Shapes[mem.Target]
+		if t == nil || t.Type != "list" || t.Member == nil || !isStructure(sm.m, t.Member.Target) {
+			continue
+		}
+		fields := map[string]string{}
+		for name := range sm.m.Shapes[t.Member.Target].Members {
+			fields[strings.ToLower(name)] = name
+		}
+		if len(fields) >= 2 { // TagKeyOnly{Key} would claim anything with a Key
+			out = append(out, fields)
 		}
 	}
 	return out
 }
 
-// mergeDetailReads folds an attribute keyed <svc>/<parent>/<noun> into the
-// resource <svc>/<noun> when that resource exists: the Get is the resource's
-// own detail read, mis-nested only because the subject id was not
-// recognisable (GetBasePathMapping's BasePath).
-func mergeDetailReads(entries map[string]*entry) {
-	for key, en := range entries {
-		if en.class != sdkinv.ClassAttribute {
-			continue
-		}
-		parts := strings.Split(key, "/")
-		if len(parts) != 3 {
-			continue
-		}
-		res := entries[parts[0]+"/"+parts[2]]
-		if res == nil || res.class != sdkinv.ClassResource {
-			continue
-		}
-		// The detail read's own spelling comes too: it is usually the singular
-		// ("GetAlias" beside "ListAliases"), and dropping it left the key
-		// plural whenever the catalog name was a compound ("function alias").
-		res.nouns = append(res.nouns, en.nouns...)
-		res.ops = append(res.ops, en.ops...)
-		for sig := range en.signals {
-			res.signals[sig] = true
-		}
-		for r := range en.refs {
-			res.refs[r] = true
-		}
-		delete(entries, key)
+// isTag reports whether a shape carries all the fields of a structure a
+// tagging-only write takes (discovery's ConfigurationTag adds the tagged
+// configuration's id to Key/Value, and is still a tag).
+func (w written) isTag(id string) bool {
+	if !isStructure(w.sm.m, id) {
+		return false
 	}
+	elem := map[string]string{}
+	fieldNames(w.sm, id, elem)
+	return slices.ContainsFunc(w.tags, func(tag map[string]string) bool {
+		for k := range tag {
+			if _, ok := elem[k]; !ok {
+				return false
+			}
+		}
+		return true
+	})
 }
 
-func loadServiceReference(dir string) (map[string]*srService, string, error) {
-	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
-	if err != nil {
-		return nil, "", err
-	}
-	out := map[string]*srService{}
-	for _, f := range files {
-		if filepath.Base(f) == "index.json" {
+// tagged reports whether every element is a tag: the listing reads tags.
+func (w written) tagged(f *opFacts) bool {
+	return len(f.elems) > 0 && !slices.ContainsFunc(f.elems, func(e string) bool { return !w.isTag(e) })
+}
+
+func writtenBy(sm *serviceModel, facts []*opFacts) written {
+	w := written{shapes: map[string]bool{}, stems: map[string]bool{}, sm: sm}
+	for _, f := range facts {
+		if !f.writeish() {
 			continue
 		}
-		raw, rerr := os.ReadFile(f)
-		if rerr != nil {
-			return nil, "", rerr
+		sh := sm.m.Shapes[f.id]
+		// A tagging write writes tags, not the resource it tags: its Tag
+		// shape would otherwise own every tag listing.
+		if f.act.taggingOnly {
+			w.tags = append(w.tags, tagShapes(sm, sh)...)
+			continue
 		}
-		var d srDoc
-		if jerr := json.Unmarshal(raw, &d); jerr != nil {
-			return nil, "", fmt.Errorf("%s: %w", f, jerr)
+		fields := map[string]string{}
+		for _, io := range []*ref{sh.Input, sh.Output} {
+			if io != nil {
+				fieldNames(sm, io.Target, fields)
+			}
 		}
-		out[d.Name] = indexSR(&d)
-	}
-	if len(out) == 0 {
-		return nil, "", fmt.Errorf("no Service Reference documents under %s", dir)
-	}
-	ver, err := serviceReferenceVersion(filepath.Join(dir, "index.json"))
-	if err != nil {
-		return nil, "", err
-	}
-	return out, ver, nil
-}
-
-// serviceReferenceVersion pins the unversioned catalog by the digest of its
-// index, which is what ServiceReferenceDigest records. A date
-// derived from the index's newest `modified` stamp looked like a pin but was
-// a property of whenever the cache happened to be built: it moved on 12 of 13
-// consecutive days, and a moved pin turns the ratchet's fatal checks into
-// advisory ones (`gone-since-baseline` instead of `regressed`).
-func serviceReferenceVersion(indexPath string) (string, error) {
-	raw, err := os.ReadFile(indexPath)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:6]), nil
-}
-
-func indexSR(d *srDoc) *srService {
-	s := &srService{actions: map[string]srAction{}, opAction: map[string]string{}, resources: map[string][]string{}, writeNoun: map[string]bool{}, mutableNoun: map[string]bool{}, resCanon: map[string]string{}, resNS: map[string]string{}, idStem: map[string][]string{}, name: d.Name, ops: map[string]bool{}}
-	for _, a := range d.Actions {
-		act := srAction{isList: a.Annotations.Properties.IsList, isWrite: a.Annotations.Properties.IsWrite}
-		for _, r := range a.Resources {
-			act.resources = append(act.resources, r.Name)
-		}
-		s.actions[a.Name] = act
-		// Tagging-only writes (CreateTags) do not make "tag" a resource noun.
-		if act.isWrite && !a.Annotations.Properties.IsTaggingOnly {
-			verb, noun := splitVerb(a.Name)
-			if !lifecycleVerbs[verb] {
-				// Update, Modify, Enable, Set, Export, Start: the noun is
-				// something you change, not something you create. Admitting it
-				// as a resource made 134 settings and toggles permanent
-				// denominator ballast (ec2/idformat via ModifyIdFormat,
-				// eks/clusterversion via UpdateClusterVersion).
-				s.mutableNoun[sdkinv.Ident(noun)] = true
+		w.fields = append(w.fields, fields)
+		for _, io := range []*ref{sh.Input, sh.Output} {
+			if io == nil {
 				continue
 			}
-			s.writeNoun[sdkinv.Ident(noun)] = true
-			// AssociateResolverRule creates a resolver rule *association*,
-			// which is the noun its lister spells; stamping only the bare noun
-			// left every association and attachment lister in the catalog
-			// fallback, 18 rows outside the denominator and seven of them
-			// stored by a disco scanner.
-			if joinVerbs[verb] {
-				s.writeNoun[sdkinv.Ident(noun+"association")] = true
-				s.writeNoun[sdkinv.Ident(noun+"attachment")] = true
+			w.shapes[io.Target] = true
+			o := sm.m.Shapes[io.Target]
+			if o == nil {
+				continue
 			}
-		}
-	}
-	for _, o := range d.Operations {
-		s.opAction[o.Name] = pickAction(d.Name, o.Name, o.AuthorizedActions)
-		s.ops[o.Name] = true
-	}
-	for _, r := range d.Resources {
-		var vars []string
-		for _, f := range r.ARNFormats {
-			all := arnVarRe.FindAllStringSubmatch(f, -1)
-			var v []string
-			for i, m := range all {
-				// The last variable is the subject's own id whatever it is
-				// named (organizations spells its account resource's id
-				// ${AccountId}); every earlier partition/region/account
-				// variable is the ARN's scope, not a level of nesting.
-				if i < len(all)-1 && arnScopeVar(m[1]) {
-					continue
+			for name, mem := range o.Members {
+				t := sm.m.Shapes[mem.Target]
+				switch {
+				case t == nil:
+				case t.Type == "structure":
+					w.shapes[mem.Target] = true
+				case t.Type == "list" && t.Member != nil && isStructure(sm.m, t.Member.Target):
+					w.shapes[t.Member.Target] = true
 				}
-				v = append(v, m[1])
-			}
-			if len(v) > len(vars) {
-				vars = v
-			}
-		}
-		s.resources[r.Name] = vars
-		if len(r.ARNFormats) > 0 { // a resource without an ARN is not addressable
-			// The catalog lists singular and plural forms as separate resources
-			// (RestApi, RestApis); both share one identity, the shorter names it.
-			id := sdkinv.Ident(r.Name)
-			if cur, ok := s.resCanon[id]; !ok || len(r.Name) < len(cur) {
-				s.resCanon[id] = r.Name
-			}
-			if ns := arnNamespaceOf(r.ARNFormats[0]); ns != "" {
-				s.resNS[id] = ns
-			}
-		}
-		if len(vars) > 0 {
-			// Several resources can share an id stem (glue's Job and
-			// JobRun both end ${JobName}); keep them all and let the
-			// operation's own noun choose, instead of the last read winning.
-			if stem := memberStem(vars[len(vars)-1]); stem != "" {
-				s.idStem[stem] = append(s.idStem[stem], r.Name)
+				// Only an id named after the write's own noun is one it
+				// issues (AllocateHosts → HostIds); others are references.
+				if io == sh.Output && idLike(name) {
+					if stem := memberStem(name); stem != "" && stem == sdkinv.Ident(f.noun) {
+						w.stems[stem] = true
+					}
+				}
 			}
 		}
 	}
-	for stem := range s.idStem {
-		sort.Strings(s.idStem[stem])
-	}
-	return s
+	return w
 }
 
-// stemResource names the catalog resource an id member refers to. With several
-// sharing the stem, the operation's own noun decides, then the shortest name,
-// so the pick is the same whatever order the catalog was read in.
-func (s *srService) stemResource(stem, nounCanon string) string {
-	names := s.idStem[stem]
-	if len(names) == 0 {
-		return ""
+// lister decides whether an operation enumerates a collection and names the
+// evidence: a resource's list binding, the catalog's IsList, paginated items
+// on a read, a read over something the account writes, or — only where the
+// catalog binds no action — the structural shape of the output.
+func (f *opFacts) lister(w written) (bool, string) {
+	switch {
+	case f.bind.role == "list":
+		return true, "smithy-list"
+	case f.hasAct && f.act.isList && !f.act.isWrite:
+		return true, "sr-list"
+	case f.items && f.readish():
+		return true, "paginated-items"
+	case f.paged && f.readish() && len(f.elems) > 0:
+		// Paged without naming its items (servicediscovery's ListInstances).
+		return true, "paginated-collection"
+	case f.readish() && f.listShaped && w.owns(f):
+		return true, "written-collection"
+	case f.readish() && f.listShaped && f.idList:
+		// A read answering nothing but a list of ids or names enumerates
+		// them (appstream's ListAssociatedFleets answers Names).
+		return true, "id-list"
+	case f.readish() && f.listShaped && len(f.required) == 0:
+		// Takes nothing and answers only a collection: an enumeration
+		// whatever the catalog says (ses:ListReceiptFilters, cloud9's
+		// ListEnvironments, dynamodb-streams' ListStreams are IsList false).
+		return true, "unfiltered-collection"
+	case !f.hasAct && f.listShaped && (f.read || f.paged):
+		return true, "shape-list"
+	case !f.hasAct && f.listShaped && !f.traited:
+		return true, "untraited"
 	}
+	return false, ""
+}
+
+func (x *universe) indexModel(sm *serviceModel, srAll map[string]*srService, file string, reached map[string]bool) ([]string, []sdkinv.Operation) {
+	svc, sdkID := serviceKey(sm.m)
+	if svc == "" {
+		return []string{"no service shape with a signing name"}, nil
+	}
+	var diags []string
+	sr, diag := joinSR(srAll, svc, sdkID, reached)
+	if diag != "" {
+		diags = append(diags, diag)
+	}
+	namespaces := modelNamespaces(sm.m, svc)
+	if sr != nil {
+		namespaces[sr.name] = true
+		if x.catalogued[svc] == nil {
+			x.catalogued[svc] = map[string]bool{}
+		}
+		for id := range sr.resCanon {
+			x.catalogued[svc][id] = true
+		}
+	}
+	module := modelModule(file)
+	var facts []*opFacts
+	for _, id := range slices.Sorted(maps.Keys(sm.ops)) {
+		f := x.facts(sm, id, sr)
+		if sr != nil && sr != srAll[svc] {
+			f.signals["sr:document="+sr.name] = true
+		}
+		facts = append(facts, f)
+	}
+	w := writtenBy(sm, facts)
+	var cands []*opFacts
+	var other []sdkinv.Operation
+	for _, f := range facts {
+		f.isList, f.evidence = f.lister(w)
+		if !f.isList && (f.listShaped || !f.readish()) {
+			// Writes, actions, and reads of several things at once.
+			other = append(other, sdkinv.Operation{Service: svc, Name: f.name, Label: svc + ":" + f.name, Required: f.required, Module: module})
+			continue
+		}
+		if f.elem == "" {
+			for _, e := range f.elems { // the one of several collections the account writes
+				if w.shapes[e] && !w.isTag(e) {
+					f.elem = e
+					break
+				}
+			}
+		}
+		if f.evidence != "" {
+			f.signals["list:"+f.evidence] = true
+		}
+		f.lin = lineage(sm, f, sr)
+		cands = append(cands, f)
+	}
+	keyByShape(sm.m, cands, sr, newVocab(facts), w)
+	// Element-keyed operations go last so direct namings place first (see add).
+	sort.SliceStable(cands, func(i, j int) bool { return !cands[i].signals["key:element"] && cands[j].signals["key:element"] })
+	for _, f := range cands {
+		op := sdkinv.Operation{Service: svc, Name: f.name, Label: svc + ":" + f.name, IsList: f.isList, Paged: f.paged, Required: f.required, Targets: f.lin.targets, Module: module}
+		if f.ident == "" {
+			other = append(other, op)
+			continue
+		}
+		class, rule := classify(f, sr, namespaces, w)
+		x.add(sm, sr, svc, f, op, class, rule)
+	}
+	return diags, other
+}
+
+// add files one candidate operation under its entry: an attribute nests under
+// its parent's identity, a resource or catalog row stands at the service.
+func (x *universe) add(sm *serviceModel, sr *srService, svc string, f *opFacts, op sdkinv.Operation, class sdkinv.Class, rule string) {
+	key := svc + "/" + f.ident
+	if class == sdkinv.ClassAttribute && f.lin.parent != "" && f.lin.parent != f.ident && !f.lin.self {
+		key = svc + "/" + f.lin.parent + "/" + f.ident
+	}
+	en := x.entries[key]
+	if en == nil {
+		en = &entry{service: svc, depth: -1, signals: map[string]bool{}, refs: map[string]bool{}}
+		x.entries[key] = en
+	}
+	en.nouns = append(en.nouns, f.disp)
+	if sr != nil {
+		if name, ok := sr.resCanon[f.ident]; ok {
+			en.srName = sdkinv.Canon(name)
+		}
+	}
+	// Operations folded in by their element are other ways to reach the
+	// subject (ListRetirableGrants beside ListGrants): they place it only
+	// when nothing named it directly.
+	if !f.signals["key:element"] || en.depth < 0 {
+		en.place(f.lin)
+	}
+	en.admit(class, rule)
+	for _, r := range refsOfElement(sm.m, f) {
+		en.refs[r] = true
+	}
+	for s := range f.signals {
+		en.signals[s] = true
+	}
+	en.ops = append(en.ops, op)
+}
+
+// ownKey names an operation's subject without looking at its siblings: the
+// model's resource, else the operation's own noun. The catalog resource an
+// operation is authorised against is not its subject: DescribeLogStreams is
+// authorised against the log group.
+// vocab is what one model's operation names say about its words: the first
+// word of every operation, and how many operations spell each noun.
+type vocab struct {
+	first map[string]bool
+	nouns map[string]int
+}
+
+func newVocab(facts []*opFacts) vocab {
+	v := vocab{first: map[string]bool{}, nouns: map[string]int{}}
+	for _, f := range facts {
+		v.first[camelWords(f.name)[0]] = true
+		v.nouns[sdkinv.Ident(f.noun)]++
+	}
+	return v
+}
+
+func ownKey(f *opFacts, sr *srService, v vocab) (ident, disp, rule string) {
+	if f.bound() {
+		return sdkinv.Ident(f.node.name), sdkinv.Canon(f.node.name), "key:smithy-resource"
+	}
+	ident = sdkinv.Ident(f.noun)
+	if ident == "" {
+		return "", "", ""
+	}
+	// A child named without its parent misses the catalog (ListVersionsByFunction
+	// says "versions" where the catalog says "function version").
+	if sr != nil && f.lin.parent != "" && sr.resCanon[ident] == "" {
+		if joined := sdkinv.Ident(f.lin.parent + ident); sr.resCanon[joined] != "" {
+			return joined, sdkinv.Canon(f.noun), "key:parent-noun"
+		}
+	}
+	// A noun that opens with words the model uses as operation verbs
+	// (BatchGetProjects → "GetProjects") names what follows, when that is a
+	// catalog resource or another operation's noun. The verbs come from this
+	// model's own operation names, not a list.
+	if v.nouns[ident] <= 1 && (sr == nil || sr.resCanon[ident] == "") {
+		words := camelWords(f.noun)
+		for i := 0; i < len(words)-1 && v.first[words[i]]; i++ {
+			rest := strings.Join(words[i+1:], "")
+			if id := sdkinv.Ident(rest); v.nouns[id] > 0 || (sr != nil && sr.resCanon[id] != "") {
+				return id, sdkinv.Canon(rest), "key:verb-prefix"
+			}
+		}
+	}
+	return ident, sdkinv.Canon(f.noun), "key:op-name"
+}
+
+// keyByShape keys every candidate operation. Operations whose listed element
+// (or, for a read, whose described structure) is one shape name one subject:
+// the model's resource when one of them is bound to it, else the catalogued
+// or shortest of their own keys.
+func keyByShape(m *smithyModel, cands []*opFacts, sr *srService, v vocab, w written) {
+	shapeOf := func(f *opFacts) string {
+		if f.isList {
+			return f.elem
+		}
+		return f.subject
+	}
+	type choice struct{ ident, disp string }
+	best := map[string]choice{}
+	bound := map[string]bool{}
+	for _, f := range cands {
+		var rule string
+		f.ident, f.disp, rule = ownKey(f, sr, v)
+		if rule != "" {
+			f.signals[rule] = true
+		}
+		s := shapeOf(f)
+		// Tags of many resources share one Tag shape; it names none of them.
+		if f.ident == "" || !isStructure(m, s) || w.isTag(s) {
+			continue
+		}
+		cur, seen := best[s]
+		switch {
+		case f.bound() && !bound[s]:
+			best[s], bound[s] = choice{f.ident, f.disp}, true
+		case bound[s]:
+		case !seen || betterKey(f.ident, cur.ident, sr):
+			best[s] = choice{f.ident, f.disp}
+		}
+	}
+	for _, f := range cands {
+		// A catalogued resource keeps its own key though its listing shares a
+		// summary shape (sagemaker's four job definitions all answer
+		// MonitoringJobDefinitionSummary).
+		if c, ok := best[shapeOf(f)]; ok && f.ident != c.ident && !f.bound() && (sr == nil || sr.resCanon[f.ident] == "") {
+			f.ident, f.disp = c.ident, c.disp
+			f.signals["key:element"] = true
+		}
+	}
+}
+
+// betterKey prefers a catalogued identity, then the shorter, then the
+// lexically first, so the pick does not depend on operation order.
+func betterKey(a, b string, sr *srService) bool {
+	if sr != nil {
+		if ca, cb := sr.resCanon[a] != "", sr.resCanon[b] != ""; ca != cb {
+			return ca
+		}
+	}
+	return shorter(a, b)
+}
+
+// isStructure reports whether a shape id names a structure or union: only
+// those identify a subject. Strings and ARNs are shared by everything.
+func isStructure(m *smithyModel, id string) bool {
+	t := m.Shapes[id]
+	return t != nil && (t.Type == "structure" || t.Type == "union")
+}
+
+// lineage derives parent and depth: the resource tree, then the URI's labels,
+// then the catalog's ARN nesting, then — for protocols with none of these —
+// the required id members' names.
+func lineage(sm *serviceModel, f *opFacts, sr *srService) place {
+	var lin place
+	if f.hasAct && len(f.required) > 0 {
+		lin.targets = slices.Clone(f.act.resources)
+	}
+	nounIdent := sdkinv.Ident(f.noun)
+	if n := f.node; n != nil {
+		f.signals["lineage:resource"] = true
+		if f.bind.role == roleInstance {
+			lin.parent, lin.parentDisp, lin.depth = sdkinv.Ident(n.name), sdkinv.Canon(n.name), n.depth+1
+			return lin
+		}
+		lin.self, lin.depth, lin.declared = true, n.depth, true
+		if p := sm.res[n.parent]; p != nil {
+			lin.parent, lin.parentDisp = sdkinv.Ident(p.name), sdkinv.Canon(p.name)
+		}
+		return lin
+	}
+	if levels, endsInLabel := uriLevels(f.uri); len(levels) > 0 {
+		f.signals["lineage:uri"] = true
+		last := levels[len(levels)-1]
+		if !f.isList && endsInLabel && memberStem(last.label) == nounIdent {
+			lin.self = true
+			levels = levels[:len(levels)-1]
+		}
+		if len(levels) == 0 {
+			return lin
+		}
+		p := levels[len(levels)-1]
+		lin.depth = len(levels)
+		if p.seg != "" {
+			lin.parent, lin.parentDisp = sdkinv.Ident(sdkinv.CanonSingular(p.seg)), sdkinv.CanonSingular(p.seg)
+		} else {
+			lin.parent, lin.parentDisp = memberStem(p.label), memberDisp(p.label)
+		}
+		return lin
+	}
+	if sr != nil && f.hasAct && len(f.required) > 0 && len(f.act.resources) > 0 {
+		var parents []string
+		for _, r := range f.act.resources {
+			lv := sr.levels[r]
+			if len(lv) == 0 {
+				continue
+			}
+			if sdkinv.Ident(r) == nounIdent {
+				f.signals["lineage:arn"] = true
+				lin.self, lin.depth = true, len(lv)-1
+				if len(lv) > 1 {
+					lin.parent, lin.parentDisp = memberStem(lv[len(lv)-2]), memberDisp(lv[len(lv)-2])
+				}
+				return lin
+			}
+			parents = append(parents, r)
+		}
+		if len(parents) > 0 {
+			f.signals["lineage:arn"] = true
+			p := pickParent(sr, parents, f.required)
+			lin.parent, lin.parentDisp, lin.depth = sdkinv.Ident(p), sdkinv.Canon(p), len(sr.levels[p])
+			return lin
+		}
+	}
+	disp := map[string]string{}
+	var stems []string
+	for _, r := range f.required {
+		stem := memberStem(r)
+		switch {
+		case stem == "" || strings.HasSuffix(nounIdent, stem):
+			// The noun ends in what the id names (BatchGetFarms given
+			// FarmIds): the operation reads that thing, not its child.
+			lin.self = true
+		case idLike(r):
+			stems = append(stems, stem)
+			disp[stem] = memberDisp(r)
+			if sr != nil {
+				if res := sr.stemResource(stem, nounIdent); res != "" {
+					disp[stem] = sdkinv.Canon(res)
+				}
+			}
+		}
+	}
+	if len(stems) > 0 {
+		sort.Strings(stems)
+		f.signals["lineage:required-id"] = true
+		lin.parent, lin.parentDisp, lin.depth, lin.weak = stems[len(stems)-1], disp[stems[len(stems)-1]], 1, true
+	}
+	return lin
+}
+
+// stemResource names the catalog resource whose own ARN id an id member
+// stems to. With several sharing the stem, the operation's own noun decides,
+// then the shortest name, so the pick is order-independent.
+func (s *srService) stemResource(stem, nounCanon string) string {
 	best := ""
-	for _, n := range names {
+	for _, n := range s.levelStem[stem] {
 		switch {
 		case sdkinv.Ident(n) == nounCanon:
 			return n
@@ -488,692 +1004,12 @@ func (s *srService) stemResource(stem, nounCanon string) string {
 	return best
 }
 
-// modelNamespaces is every ARN namespace this model can legitimately own: its
-// join key plus the sigv4, arnNamespace and endpointPrefix spellings. es and
-// servicecatalog disagree with their own catalog ARNs, so this is a test for
-// *foreign* namespaces, never an allowlist of services.
-func modelNamespaces(m *smithyModel, svc string) map[string]bool {
-	out := map[string]bool{svc: true}
-	for _, sh := range m.Shapes {
-		if sh.Type != "service" {
-			continue
-		}
-		var svcTrait struct {
-			ArnNamespace   string `json:"arnNamespace"`
-			EndpointPrefix string `json:"endpointPrefix"`
-		}
-		if raw, ok := sh.Traits["aws.api#service"]; ok {
-			_ = json.Unmarshal(raw, &svcTrait)
-		}
-		for _, n := range []string{svcTrait.ArnNamespace, svcTrait.EndpointPrefix} {
-			if n != "" {
-				out[strings.ToLower(n)] = true
-			}
-		}
-	}
-	return out
-}
-
-// modelModule is the Operation.Module of every operation in one model file.
-func modelModule(file string) string {
-	return fmt.Sprintf("aws-sdk-go-v2@%s/%s%s", SDKRef, smithyModelsDir, file)
-}
-
-// modelOps is every operation name a Smithy model ships.
-func modelOps(m *smithyModel) map[string]bool {
-	out := map[string]bool{}
-	for id, sh := range m.Shapes {
-		if sh.Type == "operation" {
-			out[shapeName(id)] = true
-		}
-	}
-	return out
-}
-
-// matchSRByOps finds the catalog document that authorises every operation of a
-// model, smallest first, so the join survives a service the catalog files
-// under another name. Nil when no document covers the model, or when the model
-// has no operations to match on.
-func matchSRByOps(srAll map[string]*srService, ops map[string]bool) *srService {
-	if len(ops) == 0 {
-		return nil
-	}
-	var best *srService
-	for _, name := range slices.Sorted(maps.Keys(srAll)) {
-		sr := srAll[name]
-		covered := true
-		for op := range ops {
-			if !sr.ops[op] {
-				covered = false
-				break
-			}
-		}
-		if covered && (best == nil || len(sr.ops) < len(best.ops)) {
-			best = sr
-		}
-	}
-	return best
-}
-
-// arnScopeVar reports whether an ARN variable names the partition, region or
-// account the resource lives in rather than a level above it. chime, datasync,
-// sso and organizations spell the account slot ${AccountId}, which an exact
-// match against "Account" left counting as a level.
-func arnScopeVar(name string) bool {
-	l := strings.ToLower(name)
-	for _, suffix := range []string{"partition", "region", "account"} {
-		if strings.HasSuffix(strings.TrimSuffix(strings.TrimSuffix(l, "id"), "name"), suffix) {
-			return true
-		}
-	}
-	return false
-}
-
-// arnNamespaceOf is the service segment of an ARN format
-// ("arn:${Partition}:ec2:…" → "ec2"). ec2.json genuinely carries a resource
-// named "group" whose ARN lives in the resource-groups namespace, and matching
-// on the noun alone admitted ec2/group from it.
-func arnNamespaceOf(format string) string {
-	parts := strings.SplitN(format, ":", 4)
-	if len(parts) < 3 {
-		return ""
-	}
-	return strings.ToLower(parts[2])
-}
-
-// pickAction chooses the IAM action an SDK operation is authorised by when
-// the catalog lists several (ListObjectsV2 → GetObjectAcl, ListBucket): same
-// name, else same verb. An action sharing neither (apigateway's GET) says
-// nothing about the operation, so none is chosen and the SDK shape decides.
-func pickAction(service, op string, actions []struct{ Name, Service string }) string {
-	verb, _ := splitVerb(op)
-	best, bestRank := "", 0
-	for _, a := range actions {
-		if a.Service != service && len(actions) > 1 {
-			continue
-		}
-		rank := 0
-		switch {
-		case a.Name == op:
-			rank = 2
-		case strings.HasPrefix(a.Name, verb):
-			rank = 1
-		}
-		if rank > bestRank {
-			best, bestRank = a.Name, rank
-		}
-	}
-	return best
-}
-
-// splitVerb separates the leading verb from the noun of an operation name:
-// "DescribeInstances" → ("Describe", "Instances"), "BatchGetProjects" →
-// ("BatchGet", "Projects"), "ListTagsForResource" → ("List", "Tags").
-func splitVerb(op string) (verb, noun string) {
-	i := 1
-	for i < len(op) && op[i] >= 'a' && op[i] <= 'z' {
-		i++
-	}
-	verb, noun = op[:i], op[i:]
-	if verb == "Batch" && noun != "" {
-		v2, n2 := splitVerb(noun)
-		verb, noun = verb+v2, n2
-	}
-	noun = versionRe.ReplaceAllString(noun, "")
-	if loc := qualifierRe.FindStringIndex(noun); loc != nil && loc[0] > 0 {
-		noun = noun[:loc[0]]
-	}
-	return verb, noun
-}
-
-func serviceKey(m *smithyModel) (string, string) {
-	for _, sh := range m.Shapes {
-		if sh.Type != "service" {
-			continue
-		}
-		var sigv4 struct {
-			Name string `json:"name"`
-		}
-		if raw, ok := sh.Traits["aws.auth#sigv4"]; ok {
-			_ = json.Unmarshal(raw, &sigv4)
-		}
-		var svc struct {
-			ArnNamespace   string `json:"arnNamespace"`
-			EndpointPrefix string `json:"endpointPrefix"`
-			SDKID          string `json:"sdkId"`
-		}
-		if raw, ok := sh.Traits["aws.api#service"]; ok {
-			_ = json.Unmarshal(raw, &svc)
-		}
-		// Lower-cased: the Service Reference names its documents in lower case,
-		// and one model spells its signing name IoTSecuredTunneling, which keyed
-		// two candidates no type or registry entry could ever match.
-		switch {
-		case sigv4.Name != "":
-			return strings.ToLower(sigv4.Name), svc.SDKID
-		case svc.ArnNamespace != "":
-			return strings.ToLower(svc.ArnNamespace), svc.SDKID
-		default:
-			return strings.ToLower(svc.EndpointPrefix), svc.SDKID
-		}
-	}
-	return "", ""
-}
-
-// opIsLister decides whether an op enumerates a collection, recording which
-// evidence decided it. The catalog's IsList is incomplete
-// (backup-gateway:ListGateways, batch:DescribeComputeEnvironments carry
-// false): a read verb over a collection output is a lister whatever the
-// annotation says.
-func opIsLister(act srAction, hasAct bool, o opShape, verb string, signals map[string]bool) bool {
-	shapeList := listVerbs[verb] && o.listMembers >= 1
-	if !hasAct {
-		signals["fallback"] = true
-		return shapeList
-	}
-	signals["sr:action"] = true
-	isList := act.isList || (shapeList && !act.isWrite)
-	if !act.isList && isList {
-		signals["shape-list"] = true
-	}
-	return isList
-}
-
-func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srService, file string) (string, []sdkinv.Operation) {
-	svc, _ := serviceKey(m)
-	if svc == "" {
-		return "no service shape with a signing name", nil
-	}
-	namespaces := modelNamespaces(m, svc)
-	var other []sdkinv.Operation
-	sr := srAll[svc]
-	diag := ""
-	srMatched := ""
-	if sr == nil {
-		// The catalog files 14 services under a name no Smithy signing name
-		// produces (cloudwatch is "monitoring", cloudcontrol is filed under
-		// cloudformation). A document that authorises every one of this
-		// model's operations is that service's document whatever it is
-		// called; the smallest such document wins, so a superset service
-		// cannot claim a smaller one's model.
-		sr = matchSRByOps(srAll, modelOps(m))
-		switch {
-		case sr != nil:
-			srMatched = sr.name
-			diag = fmt.Sprintf("service %q absent from the Service Reference; joined to %q by operation names", svc, sr.name)
-		default:
-			diag = fmt.Sprintf("service %q absent from the Service Reference; classification falls back to SDK shape", svc)
-		}
-	}
-	module := modelModule(file)
-	// Sorted shape ids: a model can carry two operation shapes of one name in
-	// different namespaces (healthlake), and map order then decided which one's
-	// Required survived — two of three consecutive extractions disagreed.
-	ids := make([]string, 0, len(m.Shapes))
-	for id := range m.Shapes {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	seenOps := map[string]bool{} // op name + module: the duplicate shapes above
-	for _, id := range ids {
-		sh := m.Shapes[id]
-		if sh.Type != "operation" {
-			continue
-		}
-		op := id[strings.LastIndex(id, "#")+1:]
-		if seenOps[op] {
-			continue
-		}
-		seenOps[op] = true
-		verb, noun := splitVerb(op)
-		nounCanon := sdkinv.Ident(noun)
-		o := analyzeOp(m, sh, noun, nounCanon)
-		if nounCanon == "" || nounCanon == genericNoun {
-			// An op that is all verb (sagemaker:Search) names no collection;
-			// keying it yields "sagemaker/", a key nothing can ever match.
-			// "tag" is the same kind of non-subject as the "resource" and
-			// "target" of selfStems: ListTagsForResources describes whatever
-			// it is called with, and route53/tag reached the numerator
-			// attributed to aws:route53:cidr-collection.
-			other = append(other, sdkinv.Operation{Service: svc, Name: op, Label: svc + ":" + op, Required: o.required, Module: module})
-			continue
-		}
-		signals := map[string]bool{}
-		if o.wrapped {
-			signals["wrapped-list"] = true
-		}
-		if srMatched != "" {
-			signals["sr:document="+srMatched] = true
-		}
-		act, hasAct := srAction{}, false
-		if sr != nil {
-			act, hasAct = sr.actions[sr.opAction[op]]
-			if !hasAct {
-				act, hasAct = sr.actions[op]
-			}
-		}
-		isList := opIsLister(act, hasAct, o, verb, signals)
-		if !isList && (o.listMembers != 0 || !detailVerbs[verb]) {
-			// Writes, actions, batch reads: never a candidate.
-			other = append(other, sdkinv.Operation{Service: svc, Name: op, Label: svc + ":" + op, Required: o.required, Module: module})
-			continue
-		}
-		lin := lineage(sr, act, hasAct, o, nounCanon, signals)
-		// A child collection named without its parent misses the catalog:
-		// ListVersionsByFunction yields "versions" while the Service Reference
-		// names the resource "function version", which a sibling op spelling
-		// "FunctionVersions" does match — one object, two candidate keys, the
-		// second counted as a gap. Retry with the parent prefixed here, before
-		// the key and the class are fixed, not at the srName assignment below.
-		if sr != nil && lin.parent != "" && sr.resCanon[nounCanon] == "" {
-			if joined := sdkinv.Ident(lin.parent + nounCanon); sr.resCanon[joined] != "" {
-				nounCanon = joined
-				signals["sr:parent-noun"] = true
-			}
-		}
-		class, rule := classify(classIn{isList: isList, noun: noun, namespaces: namespaces}, o, sr, nounCanon, lin, signals)
-		key := svc + "/" + nounCanon
-		if class == sdkinv.ClassAttribute && lin.parent != "" && !lin.self {
-			key = svc + "/" + lin.parent + "/" + nounCanon
-		}
-		en := entries[key]
-		if en == nil {
-			en = &entry{service: svc, depth: -1, signals: map[string]bool{}, refs: map[string]bool{}}
-			entries[key] = en
-		}
-		en.nouns = append(en.nouns, sdkinv.Canon(noun))
-		if sr != nil {
-			if name, ok := sr.resCanon[nounCanon]; ok {
-				en.srName = sdkinv.Canon(name)
-			}
-		}
-		en.place(lin)
-		en.admit(class, rule)
-		for _, r := range refsOf(m, sh, nounCanon) {
-			en.refs[r] = true
-		}
-		for s := range signals {
-			en.signals[s] = true
-		}
-		en.ops = append(en.ops, sdkinv.Operation{
-			Service: svc, Name: op, Label: svc + ":" + op, IsList: isList, Paged: o.paged,
-			Required: o.required, Targets: lin.targets, Module: module,
-		})
-	}
-	return diag, other
-}
-
-// place is where an operation's subject sits in the resource tree.
-// admit folds one operation's classification in, keeping the rule that decided
-// the class the entry ends up with. A stronger class replaces the rule; an
-// equal class keeps the alphabetically first, so the row does not depend on
-// the order the models were read in.
-func (en *entry) admit(class sdkinv.Class, rule string) {
-	switch stronger := sdkinv.StrongerClass(en.class, class); {
-	case en.class == "" || stronger != en.class:
-		en.class, en.rule = stronger, rule
-	case class == en.class && (en.rule == "" || rule < en.rule):
-		en.rule = rule
-	}
-}
-
-// place folds one op's lineage into the entry. Several ops land on one key
-// (ListResolvers, ListResolversByFunction); the shallowest lineage wins, ties
-// by parent identity then by its display, so the pick does not follow the
-// model's map order.
-func (en *entry) place(lin place) {
-	parent := ""
-	if lin.depth > 0 && lin.parent != "" {
-		parent = lin.parent
-		en.cands = append(en.cands, parentCand{id: parent, disp: lin.parentDisp, depth: lin.depth})
-	}
-	switch {
-	case en.depth < 0 || lin.depth < en.depth:
-		en.depth, en.parentID, en.parentDisp = lin.depth, parent, lin.parentDisp
-	case lin.depth == en.depth && parent != "" && (en.parentID == "" || parent < en.parentID):
-		en.parentID, en.parentDisp = parent, lin.parentDisp
-	case lin.depth == en.depth && parent != "" && parent == en.parentID && shorter(lin.parentDisp, en.parentDisp):
-		en.parentDisp = lin.parentDisp
-	}
-}
-
-type place struct {
-	targets    []string // catalog resources the operation is authorised against
-	self       bool     // one target is the subject itself
-	depth      int
-	parent     string // Ident of the parent noun, "" when unknown
-	parentDisp string // display form of the parent noun
-}
-
-// lineage derives depth and parent. Catalog targets count only when the
-// operation requires an id: a lister with no required input lists top-level
-// resources and its targets are the listed resources themselves. The
-// subject's own ARN is authoritative when the catalog names it; otherwise
-// the deepest target is the parent. Without catalog targets, required
-// members that name a catalogued resource's id (Bucket, VolumeId) or look
-// like an id name the ancestors.
-func lineage(sr *srService, act srAction, hasAct bool, o opShape, nounCanon string, signals map[string]bool) place {
-	var lin place
-	if hasAct && len(o.required) > 0 && len(act.resources) > 0 {
-		lin.targets = append(lin.targets, act.resources...)
-		sort.Strings(lin.targets)
-		var parents []string
-		for _, r := range act.resources {
-			vars := sr.resources[r]
-			if len(vars) == 0 {
-				continue
-			}
-			if sdkinv.Ident(r) == nounCanon {
-				lin.self = true
-				lin.depth = len(vars) - 1
-				if len(vars) > 1 {
-					lin.parent, lin.parentDisp = memberStem(vars[len(vars)-2]), memberDisp(vars[len(vars)-2])
-				}
-				break
-			}
-			parents = append(parents, r)
-		}
-		if !lin.self && len(parents) > 0 {
-			p := pickParent(sr, parents, o.required)
-			lin.parent, lin.parentDisp = sdkinv.Ident(p), sdkinv.Canon(p)
-			lin.depth = len(sr.resources[p])
-		}
-		return lin
-	}
-	disp := map[string]string{}
-	for _, r := range o.required {
-		stem := memberStem(r)
-		res := ""
-		if sr != nil {
-			res = sr.stemResource(stem, nounCanon)
-		}
-		switch {
-		case selfStems[stem] || stem == nounCanon:
-			lin.self = true
-		case jobHandle(sr, stem):
-			// An asynchronous handle, not a resource: Rekognition's JobId
-			// names a StartCelebrityRecognition call, and reading it as a
-			// parent hung 19 result collections under a phantom job.
-			signals["job-handle"] = true
-		case res != "":
-			lin.targets = append(lin.targets, stem)
-			disp[stem] = sdkinv.Canon(res)
-			lin.depth = max(lin.depth, len(sr.resources[res]))
-		case idLike(r):
-			lin.targets = append(lin.targets, stem)
-			disp[stem] = memberDisp(r)
-			lin.depth = max(lin.depth, 1)
-		}
-	}
-	sort.Strings(lin.targets)
-	if len(lin.targets) > 0 {
-		lin.parent = lin.targets[len(lin.targets)-1]
-		lin.parentDisp = disp[lin.parent]
-		signals["required-id"] = true
-	}
-	return lin
-}
-
-// jobHandle reports whether an id member names an asynchronous job the catalog
-// does not publish as a resource. The stem must be exactly "job": glue's
-// JobRun and batch's JobQueue are real catalogued resources.
-func jobHandle(sr *srService, stem string) bool {
-	return stem == sdkinv.Ident("job") && (sr == nil || sr.resCanon[stem] == "")
-}
-
-// nounStem is a member or noun with its descriptor suffix removed, as an
-// identity: "QueueUrls" → "queue", "ClusterSummaries" → "cluster". The suffix
-// only strips when something is left, so "Names" stays "name".
-func nounStem(name string) string {
-	stripped := descriptorRe.ReplaceAllString(name, "")
-	if stripped == "" {
-		return sdkinv.Ident(name)
-	}
-	return sdkinv.Ident(stripped)
-}
-
-// idLike reports whether a member name says "this is an identifier": the
-// PascalCase suffix, or the whole member in any case.
-func idLike(name string) bool { return idLikeRe.MatchString(name) || idWordRe.MatchString(name) }
-
-// memberStem is the identity of the noun a member or ARN variable names:
-// "KeyId" → Ident("key"), "Name" → "", "id" → "". memberDisp is its display
-// form.
-func memberStem(name string) string { return sdkinv.Ident(stripID(name)) }
-func memberDisp(name string) string { return sdkinv.Canon(stripID(name)) }
-
-func stripID(name string) string {
-	if idWordRe.MatchString(name) {
-		return ""
-	}
-	return idLikeRe.ReplaceAllString(name, "")
-}
-
-type opShape struct {
-	required    []string
-	paged       bool
-	listMembers int  // output members that are collections (structs, or id-named primitives like TableNames)
-	hasIDs      bool // some collection element carries an id-like member
-	elemARN     bool // some collection element carries an ARN member
-	elemTime    bool // some collection element carries a creation timestamp
-	wrapped     bool // the collection sits one level down, inside a single payload structure
-	namesNoun   bool // one collection is the operation's own noun
-}
-
-func analyzeOp(m *smithyModel, sh *shape, noun, nounCanon string) opShape {
-	var o opShape
-	_, o.paged = sh.Traits["smithy.api#paginated"]
-	if sh.Input != nil {
-		if in := m.Shapes[sh.Input.Target]; in != nil {
-			for name, mem := range in.Members {
-				if _, req := mem.Traits["smithy.api#required"]; req && !scopeParams[strings.ToLower(name)] {
-					o.required = append(o.required, name)
-				}
-			}
-			sort.Strings(o.required)
-		}
-	}
-	if sh.Output == nil {
-		return o
-	}
-	out := m.Shapes[sh.Output.Target]
-	if out == nil {
-		return o
-	}
-	o.scanCollections(m, out, nounCanon)
-	if o.listMembers > 0 {
-		return o
-	}
-	// A wrapped payload: GetApps answers ApplicationsResponse{Item []}. Only
-	// the op's own collection counts — a blind descent turns all 399
-	// single-structure read outputs into listings — so the noun must be plural
-	// or the inner collection must be this noun's.
-	inner := soleStructure(m, out)
-	if inner == nil {
-		return o
-	}
-	probe := opShape{}
-	probe.scanCollections(m, inner, nounCanon)
-	if probe.listMembers == 0 || (sdkinv.CanonSingular(noun) == sdkinv.Canon(noun) && !probe.namesNoun) {
-		return o
-	}
-	probe.required, probe.paged, probe.wrapped = o.required, o.paged, true
-	return probe
-}
-
-// scanCollections records what a payload structure's list members say about
-// the subject: how many there are, whether their elements carry ids, an ARN or
-// a creation timestamp, and whether one of them is this operation's own noun.
-func (o *opShape) scanCollections(m *smithyModel, out *shape, nounCanon string) {
-	for name, mem := range out.Members {
-		t := m.Shapes[mem.Target]
-		if t == nil || t.Type != "list" || t.Member == nil {
-			continue
-		}
-		el := m.Shapes[t.Member.Target]
-		switch {
-		case el != nil && el.Type == "structure":
-			o.listMembers++
-			for f, fm := range el.Members {
-				o.hasIDs = o.hasIDs || idLike(f)
-				o.elemARN = o.elemARN || arnMemberRe.MatchString(f)
-				if ft := m.Shapes[fm.Target]; ft != nil && ft.Type == "timestamp" && createdRe.MatchString(f) {
-					o.elemTime = true
-				}
-			}
-		case idLike(name) || nounStem(name) == nounCanon:
-			// sqs:ListQueues answers QueueUrls []string: a collection of
-			// primitives whose member name is not id-like but is this noun.
-			o.listMembers++
-			o.hasIDs = true
-		default:
-			continue
-		}
-		o.namesNoun = o.namesNoun || nounStem(name) == nounCanon || (el != nil && sdkinv.Ident(shapeName(t.Member.Target)) == nounCanon)
-	}
-}
-
-// soleStructure is the one structure member of a payload, or nil when the
-// payload has none or several.
-func soleStructure(m *smithyModel, out *shape) *shape {
-	var only *shape
-	for _, mem := range out.Members {
-		t := m.Shapes[mem.Target]
-		if t == nil || t.Type != "structure" {
-			continue
-		}
-		if only != nil {
-			return nil
-		}
-		only = t
-	}
-	return only
-}
-
-// ownsNamespace reports whether an ARN namespace belongs to this model. A
-// namespace that is a prefix of one of the model's own (or the other way
-// round) is the same family under a longer name --
-// route53-recovery-control-config's safety rules carry
-// route53-recovery-control ARNs -- and only an unrelated namespace is foreign.
-func ownsNamespace(own map[string]bool, ns string) bool {
-	for n := range own {
-		if strings.HasPrefix(n, ns) || strings.HasPrefix(ns, n) {
-			return true
-		}
-	}
-	return false
-}
-
-// classIn carries what classify needs about the operation itself.
-type classIn struct {
-	isList     bool
-	noun       string          // the operation's noun as the SDK spells it
-	namespaces map[string]bool // ARN namespaces this model owns
-}
-
-// foreignTargets counts the catalog resources an operation is authorised
-// against that are neither its own subject nor an ancestor its lineage names.
-// Counting all of them demoted real children: identitystore's
-// ListGroupMemberships is authorised against AllGroupMemberships, Group and
-// Identitystore, which is the membership, its parent and the store.
-func foreignTargets(lin place, nounCanon string) int {
-	n := 0
-	for _, t := range lin.targets {
-		id := sdkinv.Ident(t)
-		if id == nounCanon || id == lin.parent || strings.HasSuffix(nounCanon, id) {
-			continue
-		}
-		n++
-	}
-	return n
-}
-
-// shapeName is a Smithy shape id's local name ("com.amazonaws.sqs#Queue" → "Queue").
-func shapeName(id string) string { return id[strings.LastIndex(id, "#")+1:] }
-
-// classify decides the class and names the rule that decided it. The rule
-// ships on the candidate so a report can state what its denominator admits.
-func classify(cl classIn, o opShape, sr *srService, nounCanon string, lin place, signals map[string]bool) (sdkinv.Class, string) {
-	if !cl.isList {
-		signals["detail-read"] = true
-		return sdkinv.ClassAttribute, "detail-read"
-	}
-	if sr != nil {
-		// The catalog names the subject, not the payload: ListClusterSummaries
-		// is a listing of clusters. Try the spelled noun first so the signal
-		// records the exact match when there is one. This comes before the
-		// cross-cutting test: a depth-2 resource is legitimately authorised
-		// against its grandparent, its parent and itself.
-		for _, n := range []string{nounCanon, nounStem(nounCanon)} {
-			name, ok := sr.resCanon[n]
-			if !ok {
-				continue
-			}
-			if ns := sr.resNS[n]; ns != "" && !ownsNamespace(cl.namespaces, ns) {
-				// The catalog resource is another service's: ec2.json carries
-				// a "group" whose ARN is resource-groups'.
-				signals["sr:foreign-namespace="+ns] = true
-				continue
-			}
-			signals["sr:resource="+name] = true
-			return sdkinv.ClassResource, "sr-resource"
-		}
-	}
-	// Cross-cutting counts the resources an operation reaches *besides* its own
-	// subject and the ancestors its lineage already names.
-	if others := foreignTargets(lin, nounCanon); others >= crossCuttingTargets {
-		signals["cross-cutting"] = true
-		return sdkinv.ClassAttribute, "cross-cutting"
-	}
-	// A single-subject read the catalog does not call a listing, over a noun
-	// that is already singular, reads one parent's setting: GetFunctionConfiguration,
-	// DescribeOrganizationConfiguration. The shape-list override is load-bearing
-	// (516 covered rows) and stays; only this corner of it is sub-state.
-	if signals["shape-list"] && lin.self && sdkinv.CanonSingular(cl.noun) == sdkinv.Canon(cl.noun) {
-		signals["single-subject-read"] = true
-		return sdkinv.ClassAttribute, "single-subject-read"
-	}
-	if lin.depth > 0 {
-		if !o.hasIDs {
-			signals["id-less-collection"] = true
-			return sdkinv.ClassAttribute, "id-less-collection"
-		}
-		signals["child-uncatalogued"] = true
-		return sdkinv.ClassResource, "child-uncatalogued"
-	}
-	if sr != nil && sr.writeNoun[nounCanon] {
-		signals["writable-noun"] = true
-		return sdkinv.ClassResource, "writable-noun"
-	}
-	if sr != nil && sr.mutableNoun[nounCanon] {
-		signals["mutable"] = true
-	}
-	if o.listMembers == 0 {
-		signals["no-collection"] = true
-		return sdkinv.ClassNonResource, "no-collection"
-	}
-	// Positive evidence beats the catalog fallback, which otherwise excludes
-	// every listing of a service the Service Reference does not carry: an
-	// element with its own ARN, or a record of when it was created, is a
-	// resource the account owns, not a published catalog row.
-	switch {
-	case o.elemARN:
-		signals["element-arn"] = true
-		return sdkinv.ClassResource, "element-arn"
-	case o.elemTime:
-		signals["element-created"] = true
-		return sdkinv.ClassResource, "element-created"
-	}
-	signals["read-only"] = true
-	return sdkinv.ClassCatalog, "read-only"
-}
-
 // pickParent chooses the nearest ancestor among catalog targets: the deepest
 // ARN, then the one a required input names.
 func pickParent(sr *srService, targets, required []string) string {
 	best, bestScore := "", -1
 	for _, t := range targets {
-		score := 2 * len(sr.resources[t])
+		score := 2 * len(sr.levels[t])
 		tc := sdkinv.Ident(t)
 		for _, r := range required {
 			if strings.Contains(sdkinv.Canon(r), tc) {
@@ -1188,206 +1024,103 @@ func pickParent(sr *srService, targets, required []string) string {
 	return best
 }
 
-// collectServiceWords records the words a service names itself by: the join
-// key, the ARN namespace, the endpoint prefix and the sdkId's words.
-// "Elasticsearch Service" is how es spells itself in the legacy model.
-func collectServiceWords(words map[string]map[string]bool, m *smithyModel) {
-	svc, sdkID := serviceKey(m)
-	if svc == "" {
-		return
+// arnLevels is the id variables of an ARN format's resource field. The ARN
+// grammar is arn:partition:service:region:account:resource, so only the sixth
+// field nests; its variables are the levels whatever they are called.
+func arnLevels(format string) []string {
+	parts := strings.SplitN(format, ":", 6)
+	if len(parts) < 6 {
+		return nil
 	}
-	if words[svc] == nil {
-		words[svc] = map[string]bool{}
-	}
-	for n := range modelNamespaces(m, svc) {
-		words[svc][sdkinv.Ident(n)] = true
-	}
-	for _, w := range strings.Fields(sdkID) {
-		words[svc][sdkinv.Ident(w)] = true
-	}
-}
-
-// foldLegacyNouns merges a candidate whose noun is the bare noun prefixed with
-// the service's own name into that bare noun: elasticsearch-service.json and
-// opensearch.json both sign as "es", so es/elasticsearchdomain and es/domain
-// were two candidates for one set of domains, one of them permanently
-// uncovered. Only a *service word* strips, never any shared prefix — stripping
-// "Function" from Lambda's nouns would collide lambda/functionurlconfig with
-// unrelated candidates.
-func foldLegacyNouns(entries map[string]*entry, words map[string]map[string]bool) {
-	for _, id := range slices.Sorted(maps.Keys(entries)) {
-		en := entries[id]
-		svc, noun, ok := strings.Cut(id, "/")
-		if !ok || strings.Contains(noun, "/") {
-			continue // attributes keep their parent segment
-		}
-		for _, w := range slices.Sorted(maps.Keys(words[svc])) {
-			rest := strings.TrimPrefix(noun, w)
-			target := entries[svc+"/"+rest]
-			if w == "" || rest == noun || rest == "" || target == nil || target == en {
-				continue
-			}
-			if entries[svc+"/"+w] != nil {
-				// The word names a resource of this service too (connect has
-				// contacts, bedrock has agents), so the prefix is part of the
-				// noun, not the service's own name.
-				continue
-			}
-			target.nouns = append(target.nouns, en.nouns...)
-			target.ops = append(target.ops, en.ops...)
-			target.admit(en.class, en.rule)
-			target.signals["legacy-noun"] = true
-			for sig := range en.signals {
-				target.signals[sig] = true
-			}
-			for r := range en.refs {
-				target.refs[r] = true
-			}
-			delete(entries, id)
-			break
-		}
-	}
-}
-
-// resolveTree fixes parentage and depth once every entry exists. Indexing sees
-// one operation at a time, so it can only propose the parent that operation's
-// catalog targets name — often a grandparent, a scope slot or an asynchronous
-// job handle, and 465 rows named a parent that was no candidate at all.
-// Here the whole service is visible: a proposal that is itself an entry beats
-// one that is not, the deepest such proposal wins, and an entry is never its
-// own parent. Depth then follows the resolved parent rather than the ARN's
-// variable count, which counts stack/${StackName}/${Id} as two levels.
-func resolveTree(entries map[string]*entry) {
-	for _, id := range slices.Sorted(maps.Keys(entries)) {
-		en := entries[id]
-		if en.parentID == "" {
-			continue // some operation lists this resource top-level; that wins
-		}
-		self := id[strings.LastIndex(id, "/")+1:]
-		best, bestScore := parentCand{}, -1
-		for _, c := range en.cands {
-			// Only the shallowest lineage's proposals: an operation that
-			// reaches the resource through its grandparent must not deepen a
-			// resource another operation lists one level up.
-			if c.id == "" || c.id == self || c.depth != en.depth {
-				continue
-			}
-			score := 0
-			if p := entries[en.service+"/"+c.id]; p != nil {
-				score = 2 + 2*p.depth
-			}
-			// Ties by the proposal's own depth, then by identity, so the pick
-			// does not follow the order the models happened to be read in.
-			if score > bestScore || (score == bestScore && (c.depth > best.depth || (c.depth == best.depth && c.id < best.id))) {
-				best, bestScore = c, score
-			}
-		}
-		if bestScore < 0 { // every proposal was the entry itself
-			en.parentID, en.parentDisp, en.depth = "", "", 0
-			continue
-		}
-		en.parentID, en.parentDisp = best.id, best.disp
-	}
-	// Depth from the resolved parent, memoised. A cycle (two entries naming
-	// each other) keeps the indexed depths rather than looping.
-	depth := map[string]int{}
-	var resolve func(id string, seen map[string]bool) int
-	resolve = func(id string, seen map[string]bool) int {
-		if d, ok := depth[id]; ok {
-			return d
-		}
-		en := entries[id]
-		d := en.depth
-		if pid := en.service + "/" + en.parentID; en.parentID != "" && !seen[id] {
-			if _, ok := entries[pid]; ok {
-				seen[id] = true
-				d = resolve(pid, seen) + 1
-				delete(seen, id)
-			}
-		}
-		depth[id] = d
-		return d
-	}
-	for _, id := range slices.Sorted(maps.Keys(entries)) {
-		entries[id].depth = resolve(id, map[string]bool{})
-	}
-}
-
-// assemble turns identity-keyed entries into candidates keyed by display
-// names. A parent renders as its own entry's display when one exists (so
-// Parent always names a candidate key), else as the lineage's display form.
-func assemble(entries map[string]*entry) []sdkinv.Candidate {
-	byKey := map[string]*entry{}
-	for _, id := range slices.Sorted(maps.Keys(entries)) { // fold order decides the kept entry
-		en := entries[id]
-		parts := strings.Split(id, "/")
-		disp := en.display()
-		key := en.service + "/" + disp
-		if len(parts) == 3 { // attribute nested under its parent identity
-			key = en.service + "/" + parentDisplay(entries, en) + "/" + disp
-		}
-		if dup := byKey[key]; dup != nil { // two identities with one display: fold the ops
-			dup.admit(en.class, en.rule)
-			dup.ops = append(dup.ops, en.ops...)
-			for s := range en.signals {
-				dup.signals[s] = true
-			}
-			for r := range en.refs {
-				dup.refs[r] = true
-			}
-			continue
-		}
-		byKey[key] = en
-	}
-	out := make([]sdkinv.Candidate, 0, len(byKey))
-	for key, en := range byKey {
-		c := sdkinv.Candidate{Provider: "aws", Service: en.service, Key: key, Depth: en.depth, Class: en.class, Rule: en.rule, Ops: en.ops}
-		if en.depth > 0 && en.parentID != "" {
-			// Two identities can render to one display and fold together here,
-			// which turned apigateway/methodresponse into its own parent.
-			if p := en.service + "/" + parentDisplay(entries, en); p != key {
-				c.Parent = p
-			}
-		}
-		for s := range en.signals {
-			c.Signals = append(c.Signals, s)
-		}
-		// Sibling models share a signing name (docdb, neptune and rds all sign
-		// as "rds"), so one candidate can carry ops from several SDK modules.
-		// Splitting on endpointPrefix only separates some of them; saying so on
-		// the row is what a reader needs — three covered rows (lex/bot,
-		// lex/botalias, lex/botversion) rest on Lex Classic ops folded in
-		// beside lexmodelsv2's.
-		if modules := opModules(c.Ops); len(modules) > 1 {
-			c.Signals = append(c.Signals, "multi-module:"+strings.Join(modules, ","))
-		}
-		sort.Strings(c.Signals)
-		for r := range en.refs {
-			c.Refs = append(c.Refs, r)
-		}
-		sort.Strings(c.Refs)
-		sdkinv.SortOps(c.Ops)
-		out = append(out, c)
+	var out []string
+	for _, m := range arnVarRe.FindAllStringSubmatch(parts[5], -1) {
+		out = append(out, m[1])
 	}
 	return out
 }
 
-// opModules is the distinct SDK modules a candidate's operations come from,
-// named by their model file, sorted.
-func opModules(ops []sdkinv.Operation) []string {
-	seen := map[string]bool{}
-	for _, o := range ops {
-		seen[o.Module[strings.LastIndex(o.Module, "/")+1:]] = true
+// classify decides the class and names the rule that decided it.
+func classify(f *opFacts, sr *srService, namespaces map[string]bool, w written) (sdkinv.Class, string) {
+	lin, signals := f.lin, f.signals
+	if !f.isList {
+		signals["detail-read"] = true
+		return sdkinv.ClassAttribute, "detail-read"
 	}
-	return slices.Sorted(maps.Keys(seen))
+	if f.bound() {
+		signals["smithy-resource"] = true
+		return sdkinv.ClassResource, "smithy-resource"
+	}
+	if sr != nil {
+		if name, ok := sr.resCanon[f.ident]; ok {
+			if ns := sr.resNS[f.ident]; ns != "" && !ownsNamespace(namespaces, ns) {
+				signals["sr:foreign-namespace="+ns] = true
+			} else {
+				signals["sr:resource="+name] = true
+				return sdkinv.ClassResource, "sr-resource"
+			}
+		}
+	}
+	if others := foreignTargets(lin, f.ident); others >= crossCuttingTargets {
+		signals["cross-cutting"] = true
+		return sdkinv.ClassAttribute, "cross-cutting"
+	}
+	// A structural listing without paging over its own subject reads one
+	// thing's state (GetFunctionConfiguration), not a collection.
+	if (f.evidence == "shape-list" || f.evidence == "untraited" || f.evidence == "written-collection") && !f.paged && lin.self {
+		signals["single-subject-read"] = true
+		return sdkinv.ClassAttribute, "single-subject-read"
+	}
+	if w.tagged(f) {
+		signals["tagging"] = true
+		return sdkinv.ClassAttribute, "tagging"
+	}
+	owned := w.owns(f)
+	if lin.depth > 0 {
+		// An element without an id of its own is a property list (tags,
+		// settings) however it is written.
+		if !f.hasIDs {
+			signals["id-less-collection"] = true
+			return sdkinv.ClassAttribute, "id-less-collection"
+		}
+		signals["child-uncatalogued"] = true
+		return sdkinv.ClassResource, "child-uncatalogued"
+	}
+	if !f.coll() {
+		signals["no-collection"] = true
+		return sdkinv.ClassNonResource, "no-collection"
+	}
+	if owned {
+		signals["element-written"] = true
+		return sdkinv.ClassResource, "element-written"
+	}
+	// An element carrying its own ARN is addressable in the account: the ARN is
+	// AWS's resource-name grammar, and catalog rows (instance types, offerings,
+	// zones) carry none.
+	if f.elemARN {
+		signals["element-arn"] = true
+		return sdkinv.ClassResource, "element-arn"
+	}
+	// A creation timestamp says someone created the element; catalog rows are
+	// published, not created.
+	if f.elemTime {
+		signals["element-created"] = true
+		return sdkinv.ClassResource, "element-created"
+	}
+	signals["read-only"] = true
+	return sdkinv.ClassCatalog, "read-only"
 }
 
-// shorter orders display forms: fewer characters first, then lexically.
-func shorter(a, b string) bool { return len(a) < len(b) || (len(a) == len(b) && a < b) }
-
-func parentDisplay(entries map[string]*entry, en *entry) string {
-	if p := entries[en.service+"/"+en.parentID]; p != nil {
-		return p.display()
+// refsOfElement is refsOf narrowed to the paginated element when the model
+// names it: a side list in the same output is not the listed thing.
+func refsOfElement(m *smithyModel, f *opFacts) []string {
+	if !f.items {
+		return refsOf(m, m.Shapes[f.id], sdkinv.Ident(f.noun))
 	}
-	return en.parentDisp
+	el := m.Shapes[f.elem]
+	if el == nil || (el.Type != "structure" && el.Type != "union") {
+		return nil
+	}
+	refs := map[string]bool{}
+	walkRefs(m, el, "", 0, sdkinv.Ident(f.noun), refs)
+	return slices.Sorted(maps.Keys(refs))
 }

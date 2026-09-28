@@ -49,6 +49,12 @@
     },
     {
      "target": "ns#ListGizmos"
+    },
+    {
+     "target": "ns#ListSprockets"
+    },
+    {
+     "target": "ns#ListWidgetHealth"
     }
    ],
    "traits": {
@@ -566,6 +572,12 @@
     "Alias": {
      "target": "ns#Alias"
     }
+   }
+  },
+  "ns#ListOrphans": {
+   "type": "operation",
+   "output": {
+    "target": "ns#ListGizmosResponse"
    }
   },
   "ns#ListGizmos": {

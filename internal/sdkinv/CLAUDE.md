@@ -49,7 +49,12 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   parse it can never fail. Azure first reused `builderRe` (vacuous); it now walks exported client
   methods (`publicRe`), mapping `Begin<Op>`/`New<Op>Pager` onto builders.
 - Never filter `Other` or delete entries without a `Drop`; the live test names the lost ops.
-- Live drops at current pins: aws 0, azure 0, gcp 6,591 (non-cloud-api 6125,
+- Extractors iterate Go maps in sorted order (shapes, lifecycle roles, candidates): a map-order
+  pick passes most runs and flips output on some. Four hashed `coverage services -o json` runs
+  must agree.
+- Every structural fallback rule needs a fixture case that fails when the rule is removed
+  (break the rule, confirm a test goes red). Live anchors cover rules the fixture cannot model.
+- Live drops at current pins: aws 2 (unreachable-from-service: healthlake's second namespace), azure 0, gcp 6,591 (non-cloud-api 6125,
   version-without-cloud-rooted-lister 414, alias-document 47, document-root-method 3,
   lister-on-item-path 2).
 - `Universe.Scopes` = provider scope vocabulary, narrowest first; coverage ranks `Row.Scope` by it;

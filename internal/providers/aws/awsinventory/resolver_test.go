@@ -1,7 +1,10 @@
 package awsinventory
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -120,5 +123,36 @@ func TestResolverKeys(t *testing.T) {
 	}
 	if got := aws.LabelAliases(sdkinv.Candidate{}, sdkinv.Operation{Service: "access-analyzer", Name: "ListAnalyzers", Label: "access-analyzer:ListAnalyzers"}); got[1] != "accessanalyzer:ListAnalyzers" {
 		t.Errorf("aws LabelAliases = %v", got)
+	}
+	// docdb signs as rds; disco labels it by the model's own name.
+	docdb := sdkinv.Operation{Service: "rds", Name: "DescribeDBClusters", Label: "rds:DescribeDBClusters", Module: "aws-sdk-go-v2@x/codegen/sdk-codegen/aws-models/docdb.json"}
+	if got := aws.LabelAliases(sdkinv.Candidate{}, docdb); !slices.Contains(got, "docdb:DescribeDBClusters") {
+		t.Errorf("aws LabelAliases(docdb) = %v", got)
+	}
+}
+
+// TestModelFileIsSDKPackage holds OpKey's premise: the generator names each
+// model file and Go package after the model's sdkId, so the file name is the
+// package an import resolves to.
+func TestModelFileIsSDKPackage(t *testing.T) {
+	dir := filepath.Join(sdkinv.DefaultCacheRoot(), "aws@"+SDKRef, "repo", smithyModelsDir)
+	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	if len(files) == 0 {
+		t.Skip("aws SDK cache not fetched")
+	}
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m smithyModel
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatal(err)
+		}
+		_, sdkID := serviceKey(&m)
+		want := strings.ToLower(strings.NewReplacer(" ", "", "-", "").Replace(sdkID))
+		if got := modelPackage(f); got != want {
+			t.Errorf("%s: package %q, sdkId %q derives %q", filepath.Base(f), got, sdkID, want)
+		}
 	}
 }

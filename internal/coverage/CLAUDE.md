@@ -9,7 +9,7 @@ provider's extractor and resolver live in `internal/providers/<p>/<p>inventory`.
 ## The admitting rule travels with the row (#127)
 
 Every candidate carries `Rule`: the extractor rule that decided its class
-(`sr-resource`, `child-uncatalogued`, `writable-noun`, `element-arn`,
+(`smithy-resource`, `sr-resource`, `child-uncatalogued`, `element-written`, `element-arn`,
 `element-created` for AWS; `item-write` / `item-read-only` / `no-item-path` for Azure;
 `create` / `delete-only` / `get-only` / `list-only` / `operation-node` for GCP). It reaches
 `Row.Rule`, `Summary.ByRule` and the markdown report.

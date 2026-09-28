@@ -21,9 +21,10 @@ AWS SDK inventory: the extractor that derives the AWS coverage denominator from 
 
 - Smithy service shape: `aws.auth#sigv4.name` equals the Service Reference service name (join key);
   `aws.api#service` carries `sdkId`/`arnNamespace`/`cloudFormationName`. Ops carry
-  `smithy.api#required` on input members and `smithy.api#paginated`. Resource shapes are rare
-  (ec2/s3/rds have none) — never rely on them.
-- Service Reference doc: `Actions[].Annotations.Properties.{IsList,IsWrite}`, `Actions[].Resources[]`
+  `smithy.api#required` on input members and `smithy.api#paginated` (a service-level default
+  merges under each op's own). Resource shapes cover 123 of 431 models (735 shapes; ec2/s3/rds
+  have none): authoritative where present, never assumed.
+- Service Reference doc: `Actions[].Annotations.Properties.{IsList,IsWrite,IsTaggingOnly}`, `Actions[].Resources[]`
   (targets), `Operations[].AuthorizedActions` (SDK op → IAM action, e.g. `ListObjectsV2`→`ListBucket`),
   `Resources[].ARNFormats`.
 
@@ -39,129 +40,107 @@ AWS SDK inventory: the extractor that derives the AWS coverage denominator from 
     (`DescribeInstances`' element is `Reservation`, so `Instances.InstanceId` arrives at depth 1).
     Never extend the loose suffix rule below depth 0: it matches genuine cross-resource refs.
 
-## Extractor (`extract.go`)
+## Extractor (`extract.go`, `model.go`, `catalog.go`)
 
-- Join key = Smithy `aws.auth#sigv4.name`; shared signing names (rds/neptune/docdb, s3/s3control,
-  apigateway/apigatewayv2) land ops from several models on one key — `Operation.Module` tells them
-  apart; pairing disambiguates by import.
-- Service Reference `Operations[].AuthorizedActions` binds an op to an action only by same name
-  or same verb (`ListObjectsV2`→`ListBucket`). A generic action (apigateway's `GET`) binds nothing,
-  so the Smithy shape decides `IsList` (signal `fallback`). Some services are absent from the
-  catalog entirely (cloudwatch=`monitoring`, tagging, sso portal, partner central…).
-- SR `IsList` is incomplete (backup-gateway `ListGateways`, batch `DescribeComputeEnvironments`
-  are false): a List/Describe op with a collection output is a lister unless the bound action
-  `IsWrite` (signal `shape-list`). Trusting SR alone left scanner types unpaired.
-- Candidates: IsList ops, plus non-list Get/Describe/Head with no collection output (attribute).
-  Writes, actions and batch reads are never candidates.
-- Lineage: catalog targets count only when the op has a required input (a lister with none is
-  top-level — `DescribeDBInstances` targets `db` but is depth 0). The subject's own ARN is
-  authoritative: depth = its id variables − 1, parent = the variable before the last
-  (`object` → `${BucketName}/${ObjectName}` → depth 1, parent bucket). Otherwise the deepest
-  target is the parent. Without targets, required members whose stem matches a catalogued
-  resource's own id (`Bucket`, `VolumeId`) or look id-like name the ancestors (`required-id`).
-  - An ARN variable is scope, not a level, when its name is or ends in partition/region/account
-    (`${AwsAccountId}`) — **except the last**, which is the subject's own id whatever it is
-    called (organizations' account resource ends `${AccountId}`). `scopeParams` is keyed
-    lower-case for the same reason: three spellings of the account member put QuickSight rows
-    under a phantom `quicksight/awsaccount`.
-  - A bare `job` stem with no catalogued `job` resource is an asynchronous handle, not a parent
-    (`job-handle` signal): Rekognition's `JobId` names a Start… call. `JobRun`/`JobQueue` are
-    real resources and keep their parentage.
-  - One id stem can name several resources (glue `Job`/`JobRun`); `stemResource` keeps them all
-    and picks by the operation's own noun, then the shortest name — the last read used to win.
-  - `resolveTree` runs after every entry exists, because indexing sees one operation at a time.
-    An entry any operation lists top-level stays depth 0; otherwise, among the proposals of its
-    **shallowest** lineage, one that is itself an entry beats one that is not, deepest first, and
-    an entry is never its own parent. Depth is then the resolved parent's depth + 1, memoised
-    and cycle-guarded — ARN variable counting made `stack/${StackName}/${Id}` two levels and left
-    candidates whose depth was not their parent's plus one. Do not deepen an entry from a
-    proposal of a deeper lineage: `route53/hostedzone` and `lambda/function` are listed both
-    ways, and the shallow listing is the truth.
-- Admission evidence: a member is id-like by the PascalCase suffix **or** by the
-  whole word in any case (`id`, `arn`, `name` — AppSync, DataZone, Bedrock, EKS, Grafana, Lex and
-  Cognito model them lower-case, and child collections were demoted as id-less). A list of
-  primitives counts as a collection when its name is id-like or stems to the op's noun
-  (`sqs:ListQueues` answers `QueueUrls []string`, and `aws:sqs:queue` was in neither the
-  numerator nor the denominator). A payload wrapping its collection one level down
-  (`GetApps` → `ApplicationsResponse.Item[]`) counts only when the op noun is plural or the inner
-  collection is that noun — a blind descent turns every single-structure read output into a
-  listing (`wrapped-list` signal).
-- A service the catalog files under another name (`cloudwatch`→`monitoring`, `cloudcontrol`→
-  `cloudformation`, the IoT data planes) joins by **operation-name containment**: the smallest
-  document that authorises every operation of the model, recorded as `sr:document=<name>`.
-  Without it CloudWatch's dashboards, insight rules, mute rules and anomaly detectors were
-  `catalog` and excluded although disco stores all of them.
-- Ballast rules. `writeNoun` fills from **lifecycle** verbs only
-  (Create/Delete/Put/Add/Import/Provision/Allocate/Register/Associate/Attach/Copy/Restore/
-  Launch/Run/Publish); a setting verb (Update, Modify, Enable, Set, Export, Start) records a
-  `mutable` signal instead, because `ModifyIdFormat` does not make `ec2/idformat` a resource a
-  scanner could ever close. The cost is measured and accepted: some rows disco does store (`ssm/instanceinformation`, `iot/v2loggingoption`,
-  `lakeformation/permission`, `shield/emergencycontactsetting`,
-  `securityhub/configurationpolicyassociation` and two ec2 options) are now `excluded`; they keep
-  their `discoType` and their `scanner-lists` signal, so the evidence is visible, not lost.
-- `tag` is a **non-subject** like `resource`/`target` in `selfStems`: an op whose noun is `tag`
-  keys no candidate and ships as an `Other` op (`route53/tag` was a covered row attributed to
-  `aws:route53:cidr-collection`). `ec2/tag` is therefore no longer a candidate — the old
-  catalog example.
-- Class: cross-cutting counts only the targets that are neither the subject nor an ancestor its
-  lineage names (`identitystore:ListGroupMemberships` is authorised against the
-  membership, its group and the store); the SR-resource test runs **before** it. A catalog
-  resource whose ARN namespace is unrelated to the model's own is not this service's
-  (`ec2/group` carries a `resource-groups` ARN); a namespace that is a prefix of the model's, or
-  vice versa, is the same family under a longer name (route53-recovery-control-config's safety
-  rules). Order after that: SR resource with an owned ARN → resource; cross-cutting → attribute;
-  a single-subject read the catalog does not call a listing, over an already singular noun →
-  attribute (`single-subject-read`, sub-state such as `lambda/functionconfiguration`); child with
-  id-bearing collection → resource (`child-uncatalogued`, e.g. `kms/grant`); child without ids →
-  attribute; noun with a lifecycle `IsWrite` action → resource (`writable-noun`); no collection →
-  non-resource; an element carrying its own ARN or a creation timestamp → resource
-  (`element-arn` / `element-created`, the evidence that beats the catalog fallback for a service
-  the catalog does not carry); else catalog (`ec2/instancetype`, `ec2/accountattribute`).
-  The `resCanon` lookup retries with the descriptor suffix stripped
-  (`ListClusterSummaries` lists clusters), and an `Associate`/`Attach`/`Register` write stamps
-  `<noun>association` and `<noun>attachment` as write nouns, because that is the noun the lister
-  spells (`AssociateResolverRule` → `resolverruleassociation`).
-- Folding: a noun that is the service's own name plus an existing candidate's
-  noun folds into that candidate under a `legacy-noun` signal — `elasticsearch-service.json` and
-  `opensearch.json` both sign as `es`, so `es/elasticsearchdomain` was a permanently uncovered
-  duplicate of the covered `es/domain`. Only a **service word** strips (the join key, the ARN
-  namespace, the endpoint prefix, the `sdkId`'s words), and never one that names a resource of
-  the service itself (`connect/contact`, `bedrock/agent`) — stripping any shared prefix would
-  collide `lambda/functionurlconfig` with unrelated candidates. A candidate whose ops come from
-  several model files carries `multi-module:<files>`: sibling models share a signing name
-  (docdb, neptune and rds all sign as `rds`), and `lex/bot` is covered partly by Lex Classic ops
-  the v2 scanner never calls. Splitting on `endpointPrefix` only separates some of them, so the
-  row says so instead.
-- Identity vs display: entries merge on `Ident` (`svc/<ident>`, attributes `svc/<parent
-  ident>/<ident>`); `assemble` renders keys last. `entry.display()` = the one spelling
-  singularised, else the spelling another spelling singularises to (`analysis` over
-  `analyses`), else the shortest; the catalog's own name joins the spellings (`resCanon` keeps
-  the shortest catalog name per identity — SR lists `RestApi` and `RestApis`). `Parent` is
-  the parent entry's display when one exists, else the lineage's spelling; a parent may
-  name no candidate (an id member with no lister) and that is accepted.
-- Determinism: `entry.place` folds lineages by shallowest depth, then smallest parent ident,
-  then shortest parent display (`GetLink` says `gateway`, `ListLinks` says
-  `respondergateway`, both ident `gateway`); `assemble` folds in sorted id order. Verify with
-  four `disco coverage services -o json` runs hashed — the conformance `DeepEqual` only sees
-  the fixture.
-- `mergeDetailReads` folds `<svc>/<parent>/<noun>` attributes into an existing `<svc>/<noun>`
-  resource (GetBasePathMapping's `BasePath` is not id-like); it carries the detail read's **noun**
-  too, because that spelling is usually the singular the key should show (`GetAlias` beside
-  `ListAliases`).
-- A noun missing from `resCanon` is retried as `Ident(parent+noun)` **before** the key and the
-  class are fixed: `ListVersionsByFunction` says `versions` where the catalog says "function
-  version", and a sibling op spelling `FunctionVersions` keyed the same object a second time.
-- An op whose noun is empty (`sagemaker:Search`) goes to `Universe.Other`: its key would end in
-  `/` and match nothing. `conformance.Check` rejects any empty key segment.
-- `Operation.Scope` is left **empty** for AWS. Nothing in a Smithy model separates a regional
-  listing from an account-wide one (iam and ec2 both declare a `Region` endpoint parameter), and
-  stamping every op `account` made the column say nothing.
-- Scope params (`AccountId`, `Region`, paging members) never denote a parent.
-- SR structs use camelCase tags: `encoding/json` matches keys case-insensitively, so the
-  PascalCase catalog decodes without a tagliatelle exclusion.
+Model-first. Each op's facts come from the model (resource bindings, `paginated`, `readonly`,
+`http`, `iamAction`) and the Service Reference; where neither states the fact, a **structural**
+rule decides and tags the candidate (`Rule`/`Signals`). There are **no verb, preposition or noun
+word lists** — do not add one. Surviving name rules are listed under "Structural fallbacks".
+
+- **Closure.** `newServiceModel` walks `service.operations`/`resources` recursively; an op shape
+  the closure never reaches is `Dropped` as `unreachable-from-service` (healthlake ships a second
+  namespace the Go client lacks); a model with no service name drops as `no-service-name`.
+  `SourceOps` = every op shape, so the accounting invariant holds. Iterate shapes and lifecycle
+  roles in a fixed order: a map-order pick changes the output between runs.
+- **Resource tree.** `nestByIdentifiers` places a top-level resource under the one whose
+  identifiers are the largest strict subset of its own (lambda declares FunctionAlias beside
+  Function). The parent's ids must all be named (a bare `id` says nothing); a tie or an id-less
+  parent nests nothing; the model's own nesting always stands. `keepResourceSuffix` keeps
+  "Resource" when an op spells it (`ListManagedResources`). A lineage from a resource's own lifecycle is `declared` and
+  outranks every op-inferred placement (`entry.place`): deadline's SearchWorkers hangs off Farm, but
+  Worker sits under Fleet. `rebind` fixes loose bindings: an instance read named after its resource
+  is its `read`; a collection op requiring all its own ids is an instance op.
+- **SR join** (`joinSR`): signing name, then SDK client name (lowercased sdkId), then op-name
+  containment (`sr:document=<name>`, e.g. cloudwatch→monitoring). Diagnostics name the fallback.
+- **Action binding** (`bindAction`): `aws.iam#iamAction` first (`sr:iam-action`), else the union of
+  own-service authorising actions — a listing if **any** lists, a write if **any** writes,
+  tagging-only only if all are. Else an SR action named as the op (`sr:action-name`). Nothing
+  bound → `sr:unbound`.
+- **Lister ladder** (`lister`, signal `list:<rung>`): resource `list` binding; SR `IsList` without
+  `IsWrite` (workspaces' `CreateStandbyWorkspaces` is both); paginated `items` on a read; paginated
+  read with any collection (servicediscovery `ListInstances` names no items); read over a written
+  collection; read over an id-named primitive list (`idList`); read over a collection taking no
+  input (ses `ListReceiptFilters`); no catalog action and a list-shaped output that is
+  read-traited, paged, or untraited.
+- **Key**: bound resource name, else the op noun (after the first camel word, `V\d+` dropped),
+  retried as `parent+noun` against the catalog (`ListVersionsByFunction`). A unique uncatalogued
+  noun drops leading model op first-words until it names another op's noun or a catalog resource
+  (`key:verb-prefix`: `BatchGetFarms` → `farm`); ~13 BatchGet keys with no match stay (uncovered).
+  `keyByShape` folds ops over one element shape, never a tag shape and never an op whose own ident
+  is catalogued (that merged distinct resources); election prefers the bound resource, then a
+  catalogued ident, then the shorter. The SR action's resource is **not** a key: `DescribeLogStreams` is authorised against
+  the log group.
+- **Lineage** (`lineage`): resource node → URI labels (`/fleets/{fleetId}`; static segment names
+  the parent) → SR ARN levels (`arnLevels`, positional `SplitN(":", 6)`) → required id-like stems
+  (weak; a weak parent naming neither an entry nor a catalog resource is a handle, dropped). A
+  required id whose stem ends the noun is the subject's own, not a parent (`FarmId` on a farm).
+- **Class** (`classify`), in order: not a lister → attribute `detail-read`; bound → `smithy-resource`;
+  SR resource in an owned ARN namespace → `sr-resource`; ≥3 foreign targets → `cross-cutting`;
+  unpaged structural listing of its own subject → `single-subject-read`; tag element →
+  `tagging`; depth > 0 → `child-uncatalogued` if the element carries an id, else
+  `id-less-collection`; no collection → non-resource; element written → `element-written`;
+  element ARN → `element-arn`; creation timestamp → `element-created`; else catalog `read-only`.
+- **Written** (`writtenBy`/`owns`), from ops known to mutate (`writeish`: SR `IsWrite`, else
+  traited and not read — an untraited op with no catalog action is unknown, never evidence). An
+  element is written when a write takes/answers its shape, answers an id named after the write's
+  own noun (`AllocateHosts`→`HostIds`; a stem from any other id is a reference), or shares **three**
+  fields with it (one level deep; the lister's own inputs, generic ids and other resources' ids
+  excluded). Two fields admitted `ec2/availabilityzone` via `ModifyAvailabilityZoneGroup`. Only
+  structure lists count (a primitive list is ids, not the element), and a tagging-only write
+  contributes tag shapes, never written ones.
+- **Tagging** (`isTag`/`tagged`): an element carrying every field of a structure (≥2 fields) a
+  tagging-only write takes (`Tag{Key,Value}`) reads tags. From the catalog's `IsTaggingOnly`, not
+  the word "tag". Tag shapes are excluded everywhere an element decides identity (`owns`,
+  `keyByShape`, the index element pick) or `iam/role` absorbs `ListRoleTags`.
+- **Admission** (`entry.admit`): a later op replaces an entry's class only with a stronger rule
+  (`ruleRank`: smithy > sr > element-written > element-arn > element-created > child).
+- **Detail fold** (`mergeDetailReads`): attribute `svc/P/N` folds into non-attribute `svc/N`.
+- An attribute whose parent `resolveTree` dropped renders as `svc/N`, never `svc//N`.
+
+### Structural fallbacks (the only name rules; each justified)
+
+- `cutQualifier` (`noun:qualifier-cut`): `TagsForResource` given input `ResourceArn` → `Tags`. The
+  joiner is found by **shape** — a capitalised word of ≤3 letters with a lowercase tail, leftmost,
+  whose remainder an input member's stem ends with (or ends). Never cut when that stem starts with
+  the subject: `ClientVpnEndpoints` given `ClientVpnEndpointId` is a name, not a qualifier.
+  `camelWords` keeps a plural acronym whole (`HITsForQualificationType` → `HITs`).
+- `idLikeRe`/`idWordRe`: SDK member-naming grammar for identifiers (`Id`, `Arn`, `Name`,
+  `Identifier`); lowercase whole words for AppSync/DataZone/Bedrock-style models.
+- `arnMemberRe`: an element member ending `Arn` — ARN is AWS's resource-name grammar.
+- `createdRe`: an element member recording creation — catalog rows are published, not created.
+- `tokenNameRe` (refs): idempotency/concurrency tokens are never refs.
+- `scopeParams`: paging and account/region members never identify.
+- Primitive lists count as collections when named as ids or after the noun (sqs `QueueUrls`);
+  maps of primitives are key/value pairs, never elements.
+
+### Measured cost of dropping word lists (2026-09-28, release-2026-09-15)
+
+49.76% vs 48.74% covered (5399 candidates, 3336 resources). 20 scanned types fell to
+catalog/attribute (e.g. `cloudfront/cloudfrontoriginaccessidentity`, `ses/emailidentity`,
+`workspaces/ipgroup`, `lightsail/bucket`, `securityhub/securitycontrol`) and 10 were gained. The
+old verb lists admitted them; no structural fact does.
+
+- Identity vs display, `resolveTree`, `assemble` and determinism behave as before: entries merge on
+  `Ident`; verify determinism with four hashed `disco coverage services -o json` runs.
+- `Operation.Scope` stays **empty** for AWS: nothing in a model separates regional from
+  account-wide listings.
+- SR structs use camelCase tags: `encoding/json` matches keys case-insensitively.
 
 ## Pairing resolver (`resolver.go`)
 
 - AWS: anchors are `pkg.New<Op>Paginator(`, `pkg.<Op>Input{` and `recv.<Op>(` for any op an
   imported service package ships; receivers need no binding. `LabelAliases` accepts the
-  separator-stripped service (`accessanalyzer:` for `access-analyzer`).
+  separator-stripped service (`accessanalyzer:` for `access-analyzer`) and the model's own name
+  (`docdb:` for an op signing as `rds`). `OpKey` = the model file name minus hyphens, which the
+  generator derives from sdkId exactly as it names the Go package — `TestModelFileIsSDKPackage`
+  holds the two together.

@@ -85,14 +85,17 @@ func walkRefs(m *smithyModel, el *shape, prefix string, depth int, nounCanon str
 			}
 			continue
 		}
+		if t.Type == "map" && t.Value != nil { // a map's values are its elements
+			t = &shape{Type: "list", Member: t.Value}
+		}
 		switch {
-		case t.Type == "structure":
+		case t.Type == "structure" || t.Type == "union":
 			if depth < refDepth {
 				walkRefs(m, t, prefix+name+".", depth+1, nounCanon, refs)
 			}
 		case t.Type == "list" && t.Member != nil:
 			el := m.Shapes[t.Member.Target]
-			if el != nil && el.Type == "structure" {
+			if el != nil && (el.Type == "structure" || el.Type == "union") {
 				if depth < refDepth {
 					walkRefs(m, el, prefix+name+".", depth+1, nounCanon, refs)
 				}

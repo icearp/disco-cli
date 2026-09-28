@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
@@ -46,9 +47,8 @@ func TestExtract_Fixture(t *testing.T) {
 		"widgets/grant":                   {sdkinv.ClassResource, 1, "widgets/widget", []string{"ListGrants"}},
 		"widgets/zone":                    {sdkinv.ClassCatalog, 0, "", []string{"DescribeZones"}},
 		"widgets/accountsetting":          {sdkinv.ClassAttribute, 0, "", []string{"GetAccountSettings"}},
-		// A List verb over a primitive list is a listing: WidgetTypes is a
-		// published catalog, SprocketUrls the sqs:ListQueues shape whose
-		// member name is neither id-like nor the bare noun (#1).
+		// A primitive list named after the noun is a collection: WidgetTypes
+		// is a published catalog, SprocketUrls the sqs:ListQueues shape (#1).
 		"widgets/widgettype":   {sdkinv.ClassCatalog, 0, "", []string{"ListWidgetTypes"}},
 		"widgets/sprocket":     {sdkinv.ClassResource, 0, "", []string{"ListSprockets"}},
 		"widgets/widgethealth": {sdkinv.ClassNonResource, 0, "", []string{"ListWidgetHealth"}},
@@ -58,7 +58,21 @@ func TestExtract_Fixture(t *testing.T) {
 		// (gizmo / gizmos): the key keeps the "s" of alias and the parent
 		// names the gizmo candidate.
 		"widgets/alias": {sdkinv.ClassResource, 1, "widgets/gizmo", []string{"GetAlias", "ListAliases"}},
-		"nosr/thing":    {sdkinv.ClassCatalog, 0, "", []string{"GetThing", "ListThings"}},
+		// Tags carry no id of their own: an attribute of whatever they tag.
+		"widgets/widget/tag": {sdkinv.ClassAttribute, 1, "widgets/widget", []string{"ListTagsForResource"}},
+		// No catalog and no traits: the collection shape alone makes the
+		// listing, and nothing says GetThing reads, so it is not folded in.
+		"nosr/thing": {sdkinv.ClassCatalog, 0, "", []string{"ListThings"}},
+		// gears declares Smithy resource shapes: the model's nesting places
+		// Worker under Fleet although SearchWorkers hangs off Farm; Alias,
+		// declared at the service, nests under Farm by its identifiers.
+		"gears/farm":            {sdkinv.ClassResource, 0, "", []string{"BatchGetFarms", "GetFarm", "ListFarms"}},
+		"gears/fleet":           {sdkinv.ClassResource, 1, "gears/farm", []string{"GetFleet", "ListFleets"}},
+		"gears/worker":          {sdkinv.ClassResource, 2, "gears/fleet", []string{"ListWorkers", "SearchWorkers"}},
+		"gears/alias":           {sdkinv.ClassResource, 1, "gears/farm", []string{"ListAliases"}},
+		"gears/managedresource": {sdkinv.ClassResource, 0, "", []string{"ListManagedResources"}},
+		// Tag{key,value} is what the tagging-only TagResource takes.
+		"gears/tag": {sdkinv.ClassAttribute, 0, "", []string{"ListTagsForResource"}},
 	}
 	if len(got) != len(wants) {
 		t.Errorf("candidates = %d, want %d: %v", len(got), len(wants), slices.Sorted(mapsKeys(got)))
@@ -99,22 +113,37 @@ func TestExtract_Fixture(t *testing.T) {
 			t.Errorf("ListWidgets shape: %+v", o)
 		}
 	}
-	if !slices.Contains(w.Signals, "sr:resource=widget") || slices.Contains(w.Signals, "fallback") {
+	if !slices.Contains(w.Signals, "sr:resource=widget") || slices.Contains(w.Signals, "smithy-resource") {
 		t.Errorf("widget signals = %v", w.Signals)
 	}
 	if g := got["widgets/grant"]; !slices.Contains(g.Signals, "child-uncatalogued") || !slices.Equal(g.Ops[0].Targets, []string{"widget"}) {
 		t.Errorf("grant = %+v", g)
 	}
-	// "tag" is a non-subject: ListTagsForResource keys no candidate and ships
-	// as an Other op for pairing (#22).
-	if tg, ok := got["widgets/widget/tag"]; ok {
-		t.Errorf("tag is a candidate: %+v", tg)
+	if tg := got["widgets/widget/tag"]; !slices.Contains(tg.Signals, "noun:qualifier-cut") || !slices.Contains(tg.Signals, "id-less-collection") {
+		t.Errorf("tag signals = %v", tg.Signals)
 	}
-	if gd := got["widgets/gadget"]; !slices.Contains(gd.Signals, "writable-noun") {
+	if gd := got["widgets/gadget"]; !slices.Contains(gd.Signals, "element-written") {
 		t.Errorf("gadget signals = %v", gd.Signals)
 	}
-	if th := got["nosr/thing"]; !slices.Contains(th.Signals, "fallback") {
-		t.Errorf("nosr signals = %v", th.Signals)
+	if th := got["nosr/thing"]; !slices.Contains(th.Signals, "list:untraited") || !hasOther(u, "nosr:GetThing") {
+		t.Errorf("nosr signals = %v, other = %v", th.Signals, otherLabels(u))
+	}
+	for key, want := range map[string]string{"gears/farm": "smithy-resource", "gears/worker": "smithy-resource", "gears/tag": "tagging"} {
+		if got[key].Rule != want {
+			t.Errorf("%s rule = %q, want %q (signals %v)", key, got[key].Rule, want, got[key].Signals)
+		}
+	}
+	// BatchGetFarms says "GetFarms": the model's own verb opens the noun.
+	if !slices.Contains(got["gears/farm"].Signals, "key:verb-prefix") {
+		t.Errorf("gears/farm signals = %v", got["gears/farm"].Signals)
+	}
+	if !hasOther(u, "gears:TagResource") || !hasOther(u, "gears:CreateFarm") {
+		t.Errorf("gears writes not in Other: %v", otherLabels(u))
+	}
+	// An operation outside the service closure is accounted for as dropped,
+	// never listed.
+	if len(u.Dropped) != 1 || u.Dropped[0].Op.Name != "ListOrphans" || u.Dropped[0].Reason != "unreachable-from-service" {
+		t.Errorf("dropped = %+v", u.Dropped)
 	}
 	// The fixture catalog is not the pinned one, so the pin mismatch is
 	// expected here; what matters is that it is reported rather than silent.
@@ -140,44 +169,112 @@ func mapsKeys(m map[string]sdkinv.Candidate) func(func(string) bool) {
 	}
 }
 
-func TestSplitVerb(t *testing.T) {
-	cases := map[string][2]string{
-		"DescribeInstances":                {"Describe", "Instances"},
-		"ListObjectsV2":                    {"List", "Objects"},
-		"ListTagsForResource":              {"List", "Tags"},
-		"BatchGetProjects":                 {"BatchGet", "Projects"},
-		"ListDistributionsByWebACL":        {"List", "Distributions"},
-		"GetBucketPolicy":                  {"Get", "BucketPolicy"},
-		"ListForms":                        {"List", "Forms"},
-		"DescribeFleetLocationUtilization": {"Describe", "FleetLocationUtilization"},
+func TestCutQualifier(t *testing.T) {
+	cases := []struct {
+		noun   string
+		inputs []string
+		want   string
+	}{
+		{"TagsForResource", []string{"ResourceArn"}, "Tags"},
+		{"HostedZonesByVPC", []string{"VPCId", "VPCRegion"}, "HostedZones"},
+		{"ResourcesForTagOption", []string{"TagOptionId"}, "Resources"},
+		{"SourcesForS3TableIntegration", []string{"IntegrationArn"}, "Sources"},
+		// No input names the tail: the noun is the subject whole.
+		{"AdminAccountsForOrganization", []string{"MaxResults"}, "AdminAccountsForOrganization"},
+		// An acronym never joins, and the subject keeps a word.
+		{"DBClusterSnapshots", []string{"DBClusterIdentifier"}, "DBClusterSnapshots"},
+		{"ForResource", []string{"ResourceArn"}, "ForResource"},
+		// A short name word (Vpn, Key, Out) is not a joiner when the input
+		// names the subject itself.
+		{"ClientVpnEndpoints", []string{"ClientVpnEndpointIds"}, "ClientVpnEndpoints"},
+		{"CustomKeyStores", []string{"CustomKeyStoreId"}, "CustomKeyStores"},
+		{"TransitGatewayVpcAttachments", []string{"TransitGatewayAttachmentIds"}, "TransitGatewayVpcAttachments"},
+		{"OptOutLists", []string{"OptOutListNames"}, "OptOutLists"},
+		{"HITsForQualificationType", []string{"QualificationTypeId"}, "HITs"},
 	}
-	for in, w := range cases {
-		if v, n := splitVerb(in); v != w[0] || n != w[1] {
-			t.Errorf("splitVerb(%q) = (%q, %q); want %v", in, v, n, w)
+	for _, c := range cases {
+		if got := cutQualifier(c.noun, c.inputs); got != c.want {
+			t.Errorf("cutQualifier(%q, %v) = %q; want %q", c.noun, c.inputs, got, c.want)
 		}
 	}
 }
 
-func TestPickAction(t *testing.T) {
-	acts := func(names ...string) []struct{ Name, Service string } {
-		out := make([]struct{ Name, Service string }, 0, len(names))
-		for _, n := range names {
-			out = append(out, struct{ Name, Service string }{n, "s3"})
+func TestCamelWords(t *testing.T) {
+	cases := map[string]string{
+		"HostedZonesByVPC": "Hosted Zones By VPC",
+		"DBClusterId":      "DB Cluster Id",
+		"S3TableBucket":    "S3 Table Bucket",
+		"Tags":             "Tags",
+		"HITsForType":      "HITs For Type",
+	}
+	for in, want := range cases {
+		if got := strings.Join(camelWords(in), " "); got != want {
+			t.Errorf("camelWords(%q) = %q; want %q", in, got, want)
 		}
-		return out
 	}
-	if got := pickAction("s3", "ListObjectsV2", acts("GetObjectAcl", "ListBucket")); got != "ListBucket" {
-		t.Errorf("same-verb action not preferred: %q", got)
+}
+
+func TestBindAction(t *testing.T) {
+	s := &srService{
+		actions: map[string]srAction{
+			"ListBucket":    {isList: true, resources: []string{"bucket"}},
+			"GetObject":     {resources: []string{"object"}},
+			"PutObject":     {isWrite: true, resources: []string{"object"}},
+			"TagResource":   {isWrite: true, taggingOnly: true},
+			"TagBucket":     {isWrite: true, taggingOnly: true},
+			"CreateStandby": {isList: true, isWrite: true},
+		},
+		opActions: map[string][]string{
+			"ListObjectsV2": {"ListBucket"},
+			// The write first: a last-action-wins union would lose it.
+			"CopyObject":    {"PutObject", "GetObject"},
+			"TagEverything": {"TagResource", "TagBucket"},
+			"TagAndWrite":   {"TagResource", "PutObject"},
+		},
 	}
-	if got := pickAction("s3", "GetObject", acts("ListBucket", "GetObject")); got != "GetObject" {
-		t.Errorf("same-name action not preferred: %q", got)
+	if a, ok, sig := s.bindAction("GetObject", "GetObject"); !ok || sig != "sr:iam-action" || a.isWrite {
+		t.Errorf("iamAction not bound first: %+v %v %q", a, ok, sig)
 	}
-	if got := pickAction("apigateway", "GetRestApis", acts("GET")); got != "" {
-		t.Errorf("generic action bound: %q", got)
+	if a, ok, _ := s.bindAction("ListObjectsV2", ""); !ok || !a.isList {
+		t.Errorf("authorised action not bound: %+v %v", a, ok)
 	}
-	other := []struct{ Name, Service string }{{"ListBucket", "s3-object-lambda"}, {"ListBucket", "s3"}}
-	if got := pickAction("s3", "ListObjects", other); got != "ListBucket" {
-		t.Errorf("cross-service action chosen: %q", got)
+	// One write among the authorising actions makes the operation a write.
+	if a, _, _ := s.bindAction("CopyObject", ""); !a.isWrite || !slices.Equal(a.resources, []string{"object"}) {
+		t.Errorf("union lost the write or duplicated targets: %+v", a)
+	}
+	// Tagging-only only when every authorising action is.
+	if a, _, _ := s.bindAction("TagEverything", ""); !a.taggingOnly {
+		t.Errorf("all-tagging union not tagging-only: %+v", a)
+	}
+	if a, _, _ := s.bindAction("TagAndWrite", ""); a.taggingOnly {
+		t.Errorf("mixed union tagging-only: %+v", a)
+	}
+	// Bound by its own name when no operation entry lists it, and says so.
+	if a, ok, sig := s.bindAction("CreateStandby", ""); !ok || sig != "sr:action-name" || !a.isList || !a.isWrite {
+		t.Errorf("same-name action: %+v %v %q", a, ok, sig)
+	}
+	if _, ok, sig := s.bindAction("DeleteBucket", ""); ok || sig != "sr:unbound" {
+		t.Errorf("unknown operation bound: %v %q", ok, sig)
+	}
+}
+
+// TestEntryAdmit: an entry admitted several ways names its strongest rule,
+// whatever order the operations arrive in.
+func TestEntryAdmit(t *testing.T) {
+	for _, order := range [][]string{{"child-uncatalogued", "smithy-resource"}, {"smithy-resource", "child-uncatalogued"}} {
+		en := &entry{}
+		for _, r := range order {
+			en.admit(sdkinv.ClassResource, r)
+		}
+		if en.rule != "smithy-resource" {
+			t.Errorf("admit(%v) rule = %q", order, en.rule)
+		}
+	}
+	en := &entry{}
+	en.admit(sdkinv.ClassAttribute, "detail-read")
+	en.admit(sdkinv.ClassResource, "child-uncatalogued")
+	if en.class != sdkinv.ClassResource || en.rule != "child-uncatalogued" {
+		t.Errorf("stronger class did not take its rule: %s %s", en.class, en.rule)
 	}
 }
 
@@ -218,6 +315,25 @@ func TestExtract_Live(t *testing.T) {
 		"route53/resourcerecordset":  {sdkinv.ClassResource, 1, "route53/hostedzone"},
 		"dynamodb/table":             {sdkinv.ClassResource, 0, ""},
 		"apigateway/restapi":         {sdkinv.ClassResource, 0, ""},
+		// The model's own resource nesting places these (Worker sits under
+		// Fleet although SearchWorkers hangs off Farm; FunctionAlias shares
+		// Function's identifier).
+		"deadline/worker":          {sdkinv.ClassResource, 2, "deadline/fleet"},
+		"lambda/functionalias":     {sdkinv.ClassResource, 1, "lambda/function"},
+		"connect/hoursofoperation": {sdkinv.ClassResource, 1, "connect/instance"},
+		// Each keeps its own catalogued key though all four answer
+		// MonitoringJobDefinitionSummary.
+		"sagemaker/dataqualityjobdefinition":  {sdkinv.ClassResource, 0, ""},
+		"sagemaker/modelqualityjobdefinition": {sdkinv.ClassResource, 0, ""},
+		// Short name words are not joiners.
+		"ec2/clientvpnendpoint":           {sdkinv.ClassResource, 0, ""},
+		"ec2/transitgatewayvpcattachment": {sdkinv.ClassResource, 0, ""},
+		// Paginated with no items path.
+		"servicediscovery/instance": {sdkinv.ClassResource, 1, "servicediscovery/service"},
+		"iam/role/roletag":          {sdkinv.ClassAttribute, 1, "iam/role"},
+		// Published rows no write touches stay out of the denominator.
+		"ec2/availabilityzone":          {sdkinv.ClassCatalog, 0, ""},
+		"ec2/reservedinstancesoffering": {sdkinv.ClassCatalog, 0, ""},
 	}
 	// The names the registries use for a service, derived from the model's
 	// own traits and the operation-name join (#117).
@@ -226,9 +342,16 @@ func TestExtract_Live(t *testing.T) {
 			t.Errorf("ServiceAliases[%s] = %q, want %q", alias, got, svc)
 		}
 	}
-	// "tag" names no subject, so DescribeTags keys no candidate (#22).
-	if c, ok := got["ec2/tag"]; ok {
-		t.Errorf("ec2/tag is a candidate: %+v", c)
+	// A tag has no id of its own: never a resource, wherever it is listed.
+	for k, c := range got {
+		if strings.HasSuffix(k, "/tag") && c.Class == sdkinv.ClassResource {
+			t.Errorf("%s is a resource: %v", k, c.Signals)
+		}
+	}
+	// A report version is its report's version history, not a resource (the
+	// Smithy model folds ListReportVersions into Report).
+	if c, ok := got["artifact/reportversion"]; ok {
+		t.Errorf("artifact/reportversion is a candidate: %+v", c)
 	}
 	for k, w := range anchors {
 		c, ok := got[k]
@@ -242,6 +365,12 @@ func TestExtract_Live(t *testing.T) {
 	}
 	if o := got["s3/object"].Ops; !slices.Contains(opNames(got["s3/object"]), "ListObjectsV2") {
 		t.Errorf("s3/object ops = %v", o)
+	}
+	// Tag listings never fold into a resource through their shared Tag shape.
+	for _, k := range []string{"iam/samlprovider", "iam/role"} {
+		if slices.ContainsFunc(opNames(got[k]), func(o string) bool { return strings.HasSuffix(o, "Tags") }) {
+			t.Errorf("%s carries tag ops: %v", k, opNames(got[k]))
+		}
 	}
 	if slices.Contains(opNames(got["iam/role"]), "CreateRole") {
 		t.Error("write op attached to iam/role")

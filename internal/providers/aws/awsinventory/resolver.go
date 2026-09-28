@@ -35,18 +35,31 @@ func (awsResolver) ImportKey(path string) string {
 	return rest
 }
 
-// OpKey: the Smithy model file name with hyphens removed is the Go package
-// name (iot-data-plane.json → iotdataplane).
+// OpKey: the Go package, which the SDK generator derives from the model's
+// sdkId exactly as it names the model file (IoT Data Plane →
+// iot-data-plane.json → iotdataplane); TestModelFileIsSDKPackage holds the two
+// together.
 func (awsResolver) OpKey(op sdkinv.Operation) (string, string) {
-	file := op.Module[strings.LastIndex(op.Module, "/")+1:]
-	return strings.ReplaceAll(strings.TrimSuffix(file, ".json"), "-", ""), op.Name
+	return modelPackage(op.Module), op.Name
 }
 
-// LabelAliases: disco labels by its own service segment, which may differ
-// from the signing name only in separators (accessanalyzer / access-analyzer).
+// LabelAliases: disco labels by its own service segment, which may be the
+// signing name, the model's own name (docdb and neptune sign as rds), or
+// either without separators (accessanalyzer / access-analyzer).
 func (awsResolver) LabelAliases(_ sdkinv.Candidate, op sdkinv.Operation) []string {
-	return []string{op.Label, sdkinv.Canon(op.Service) + ":" + op.Name}
+	out := []string{op.Label, sdkinv.Canon(op.Service) + ":" + op.Name}
+	if model := modelName(op.Module); model != "" && model != op.Service {
+		out = append(out, model+":"+op.Name, modelPackage(op.Module)+":"+op.Name)
+	}
+	return out
 }
+
+// modelName is the model file's base name, the SDK's kebab-cased sdkId.
+func modelName(module string) string {
+	return strings.TrimSuffix(module[strings.LastIndex(module, "/")+1:], ".json")
+}
+
+func modelPackage(module string) string { return strings.ReplaceAll(modelName(module), "-", "") }
 
 // TypeOwner: AWS anchors resolve by operation name over the imported
 // modules, so seams need no binding.
