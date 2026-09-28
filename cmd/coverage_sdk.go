@@ -9,8 +9,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
-	// Registers the per-provider extractors.
-	_ "github.com/icearp/disco-cli/internal/sdkinv/all"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +26,8 @@ catalogs rather than from a live cloud API:
 
 'fetch' downloads them once into the cache directory (default
 $XDG_CACHE_HOME/disco/sdk), keeping only the files the extractors read.
-'status' shows what is present. Pins live in internal/sdkinv/pins.go; a pin
+'status' shows what is present. Pins live in each provider's
+internal/providers/<p>/<p>inventory/pins.go; a pin
 bump changes the denominator, so every coverage report prints the pins.`,
 	Args: cobra.NoArgs,
 	Run: func(c *cobra.Command, _ []string) {
@@ -150,7 +149,7 @@ type sdkStatusRow struct {
 	Manifest *sdkinv.Manifest      `json:"manifest,omitempty"`
 	Sources  []sdkinv.SourceRecord `json:"-"`
 	// PinNotes name the sources whose fetched content disagrees with the
-	// digest pinned in internal/sdkinv/pins.go.
+	// digest its extractor pins.
 	PinNotes []string `json:"pinNotes,omitempty"`
 	// Notes explain a snapshot directory that exists but does not count as
 	// fetched (wrong provider/ref, or a different source spec).
@@ -174,7 +173,7 @@ func pinNotes(e sdkinv.Extractor, m *sdkinv.Manifest) []string {
 				continue
 			}
 			if got := rec.SHA256[:min(len(rec.SHA256), len(src.PinnedDigest))]; got != src.PinnedDigest {
-				out = append(out, fmt.Sprintf("%s: cached %s, pinned %s (bump the pin in internal/sdkinv/pins.go with the regenerated baseline)", src.Name, got, src.PinnedDigest))
+				out = append(out, fmt.Sprintf("%s: cached %s, pinned %s (bump the %s extractor's pin with the regenerated baseline)", src.Name, got, src.PinnedDigest, e.Name()))
 			}
 		}
 	}

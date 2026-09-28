@@ -226,7 +226,7 @@ For error injection use `azfake.PagerResponder.AddResponseError(http.StatusForbi
 
 `RegistryKey` rebuilds the ARM type name from a candidate key: it drops a singleton instance id
 (`blobservices/default/containers` → `blobServices/containers`) and restores the `locations`
-segment the extractor strips as a scope pair, which `internal/sdkinv/azure` flags with
+segment the extractor strips as a scope pair, which `azureinventory` flags with
 `scope-pair:locations` (set only when *every* lister reaches the collection through a location —
 a sibling `ListBySubscription` proves ARM keeps no `locations` in the type). Without both, 34
 keys could never match `Providers/List` and each one produced a false drift row on both sides.

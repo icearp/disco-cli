@@ -1,6 +1,7 @@
 // Package conformance is the contract every extractor's fixture must satisfy.
-// A new provider passes by registering: TestAllExtractorsConform in
-// internal/sdkinv/all runs Check against internal/sdkinv/<name>/testdata/cache.
+// Each provider's inventory package runs Check against its own
+// testdata/cache; the live-cache test in internal/providers/all runs
+// CheckUniverse against every registered extractor.
 package conformance
 
 import (

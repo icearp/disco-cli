@@ -25,7 +25,7 @@ Drift-detection cmd, split into five subcommands. Bare `disco coverage` prints h
 - `disco coverage sdk fetch|status` (`cmd/coverage_sdk.go`) — both validate `--output` up front
   (`table` or `json`; the parent's markdown/csv/jsonl have no meaning for a cache listing and used
   to print the table and exit 0) and emit the `maybeStructuredError` envelope, so `-o json | jq`
-  sees a parseable failure. `status` prints the table on stdout and, on stderr, any content-pin disagreement plus the reason a present directory reads as `absent` (wrong provider/ref, or a different source spec). Populates/inspects the SDK source cache the coverage denominator derives from (`internal/sdkinv`, blank-imported via `internal/sdkinv/all`). Persistent `--sdk-cache` (default `$XDG_CACHE_HOME/disco/sdk`); `fetch --providers/--force`. `resetCoverageFlags` recurses one level so these subcommands' `--providers` reset too.
+  sees a parseable failure. `status` prints the table on stdout and, on stderr, any content-pin disagreement plus the reason a present directory reads as `absent` (wrong provider/ref, or a different source spec). Populates/inspects the SDK source cache the coverage denominator derives from (`internal/sdkinv`; each provider's extractor registers from `internal/providers/<p>/<p>inventory`, blank-imported via the slim-gated `internal/providers/all/<p>.go`). Persistent `--sdk-cache` (default `$XDG_CACHE_HOME/disco/sdk`); `fetch --providers/--force`. `resetCoverageFlags` recurses one level so these subcommands' `--providers` reset too.
 
 `--providers` values are lower-cased and trimmed inside `coverage.Get` / `sdkinv.Get`, not at the
 call sites: `--providers AWS` resolved for `coverage sdk status` and failed for `coverage services`.

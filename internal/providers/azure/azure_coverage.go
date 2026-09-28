@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/providers/azure/azureinventory"
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
@@ -71,25 +72,17 @@ func (coverageProvider) RegistryKey(c sdkinv.Candidate) string {
 	}
 	segs := strings.Split(path, "/")
 	out := make([]string, 0, len(segs)+1)
-	if slices.Contains(c.Signals, armLocationScopeSignal) {
+	if slices.Contains(c.Signals, azureinventory.LocationScopeSignal) {
 		out = append(out, "locations")
 	}
 	for _, sg := range segs {
-		if armSingletonID[sg] {
+		if azureinventory.IsSingletonID(sg) { // an id in the path, absent from the type name
 			continue
 		}
 		out = append(out, sg)
 	}
 	return ns + "/" + strings.Join(out, "/")
 }
-
-// armLocationScopeSignal is set by internal/sdkinv/azure on a candidate whose
-// path reached it through a "locations/{location}" pair.
-const armLocationScopeSignal = "scope-pair:locations"
-
-// armSingletonID are ARM's names for the one instance of a singleton child;
-// they are ids in a path and absent from the type name.
-var armSingletonID = map[string]bool{"default": true, "current": true}
 
 // CanonicalKey lowercases: ARM identifiers are case-insensitive.
 func (coverageProvider) CanonicalKey(r coverage.UpstreamType) string { return strings.ToLower(r.Key) }

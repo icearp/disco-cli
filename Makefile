@@ -41,7 +41,8 @@ gen-regions:
 	go generate ./internal/providers/aws/awsregions/...
 
 # sdk-fetch populates $XDG_CACHE_HOME/disco/sdk with the pinned SDK sources the
-# coverage denominator is derived from (internal/sdkinv/pins.go). No-op when
+# coverage denominator is derived from (each internal/providers/<p>/<p>inventory/pins.go;
+# a slim build fetches only its compiled providers). No-op when
 # the pinned snapshots are already present.
 sdk-fetch:
 	$(GO) go run $(TAGFLAG) . coverage sdk fetch

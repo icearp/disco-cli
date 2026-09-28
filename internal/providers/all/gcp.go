@@ -7,4 +7,6 @@ import (
 	// Provider. Gated so `-tags slim` without `gcp` excludes it — the gcp SDK
 	// is never linked.
 	_ "github.com/icearp/disco-cli/internal/providers/gcp"
+	// Registers the gcp SDK inventory extractor and pairing resolver.
+	_ "github.com/icearp/disco-cli/internal/providers/gcp/gcpinventory"
 )

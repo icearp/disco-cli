@@ -145,7 +145,8 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 - `internal/providers/aws/CLAUDE.md` — AWS-specific resolver/scanner conventions (ARN helpers, KMS, IAM, ELBv2, Route53, paginators, Smithy, transient errors, etc.)
 - `internal/providers/azure/CLAUDE.md` — Azure-specific helpers (azPageScan, rgHierarchyPair, vault-URI parsers), case-insensitive ARM-ID rule, MSI consumer resolver, sub-scoped vs tenant-scoped pattern
 - `internal/providers/gcp/CLAUDE.md` — GCP-specific (per-project fan-out, scopes-above-project gap, IAM policy synth-resource shape, permission-denied handling, NativeID conventions)
-- `internal/sdkinv/CLAUDE.md` — SDK source cache layout, pins, extractor rules per provider, AST pairing
+- `internal/sdkinv/CLAUDE.md` — provider-neutral core: SDK source cache, accounting invariant, extractor contract, AST pairing walk
+- `internal/providers/<p>/<p>inventory/CLAUDE.md` — per-provider SDK facts: cache layout, pins, extractor rules, refs, pairing resolver
 - `internal/coverage/CLAUDE.md` — coverage buckets and reasons, identity rule, baseline ratchet, live numbers
 
 ## Bundled features of note

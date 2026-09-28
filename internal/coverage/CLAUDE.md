@@ -3,7 +3,8 @@
 Coverage matrix engine for `disco coverage services`. The denominator is the SDK-derived
 universe (`internal/sdkinv`); the numerator is the static pairing of scanner SDK calls with
 the types they store (`internal/sdkinv/pairing`). Per-provider glue in
-`internal/providers/<p>/<p>_coverage.go` registers via `coverage.Register` from init.
+`internal/providers/<p>/<p>_coverage.go` registers via `coverage.Register` from init; each
+provider's extractor and resolver live in `internal/providers/<p>/<p>inventory`.
 
 ## The admitting rule travels with the row (#127)
 

@@ -65,14 +65,17 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 
 Optional capability interfaces a Scanner may implement: `ServiceFilterer` (`--services`), `RegionOverrider` (`--regions`), `ProfileOverrider` (`--profile`), `GlobalsSkipper` (`--skip-globals`), `RoleOverrider` (`SetRoleOverride(roleARN, externalID)` → `--role-arn`/`--external-id`; pins the scan to one AssumeRole target, ignoring config-file accounts; external-id never lands in `scans.scope` JSON).
 
-**Add new provider** (three steps):
+**Add new provider** (four steps):
 1. Create `internal/providers/<name>/` implementing `Scanner`
 2. Call `providers.Register(&MyScanner{})` in package `init()`
-3. Add `internal/providers/all/<name>.go` — `//go:build !slim || <name>`, `package all`, blank-importing the provider package. `cmd` imports only `internal/providers/all`, so this tagged file is the sole wiring point and `cmd` never names a provider.
+3. Create the SDK-free leaf `internal/providers/<name>/<name>inventory/` (extractor, pairing resolver, pins, fixtures; recipe in `internal/sdkinv/README.md` "Adding a provider"). It never imports its parent package or a cloud SDK. Nothing under `internal/sdkinv` changes.
+4. Add `internal/providers/all/<name>.go` — `//go:build !slim || <name>`, `package all`, blank-importing the provider package **and** its `<name>inventory`. `cmd` imports only `internal/providers/all`, so this tagged file is the sole wiring point and `cmd` never names a provider. A slim build therefore knows only its compiled providers' extractors (`coverage sdk fetch|status` list only those).
 
 ## Build-tag opt-in (`slim`)
 
 Default `go build` compiles every provider. `go build -tags 'slim aws'` compiles only the named provider(s) — excluded providers' SDKs are never linked (smaller binary, for provider-specific containers). The opt-in lives in `internal/providers/all/`: one `<name>.go` per provider, gated `//go:build !slim || <name>` (references only `slim` plus its own tag, never siblings, so providers stay decoupled). `all/all.go` is an untagged, import-less package stub that keeps `all` importable when every provider is tagged out (`-tags slim` alone → no providers). `-tags 'slim aws gcp'` selects a subset. cmd must never import a provider package directly — route provider-specific cmd needs through a registry interface (precedent: `coverage.ResolverAuditor` for `disco coverage resolvers`) so slim builds degrade gracefully.
+
+Tests under `internal/providers/all` derive expected provider lists from `providers.Names()`/`sdkinv.Names()`, never literals; verify with `CGO_ENABLED=0 go test -tags 'grpcnotrace slim aws' ./internal/providers/all/`.
 
 ## Declaring redaction and volatile-field rules
 

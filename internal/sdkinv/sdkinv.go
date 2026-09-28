@@ -15,27 +15,11 @@ import (
 	"sync"
 )
 
-// Scope names the container a list operation enumerates within. It is
-// provider-specific and may be empty: AWS leaves it unset because its models
-// carry nothing that separates a regional listing from an account-wide one.
+// Scope names the container a list operation enumerates within. Its values
+// are the provider's own vocabulary (Universe.Scopes) and may be empty when
+// the provider's models carry nothing that separates one listing scope from
+// another.
 type Scope string
-
-// Scope values shared across providers. A provider uses the subset that
-// matches its API model.
-const (
-	ScopeAccount         Scope = "account"
-	ScopeRegion          Scope = "region"
-	ScopeGlobal          Scope = "global"
-	ScopeSubscription    Scope = "subscription"
-	ScopeResourceGroup   Scope = "resource-group"
-	ScopeTenant          Scope = "tenant"
-	ScopeManagementGroup Scope = "management-group"
-	ScopeExtension       Scope = "extension"
-	ScopeProject         Scope = "project"
-	ScopeOrg             Scope = "org"
-	ScopeFolder          Scope = "folder"
-	ScopeBillingAccount  Scope = "billing-account"
-)
 
 // Class is the derived classification of a candidate.
 type Class string

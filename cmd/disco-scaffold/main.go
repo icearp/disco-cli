@@ -28,9 +28,8 @@ import (
 	"time"
 
 	"github.com/icearp/disco-cli/internal/coverage"
-	_ "github.com/icearp/disco-cli/internal/providers/all" // register providers + coverage impls
+	_ "github.com/icearp/disco-cli/internal/providers/all" // register providers, coverage impls, SDK extractors, pairing resolvers
 	"github.com/icearp/disco-cli/internal/sdkinv"
-	_ "github.com/icearp/disco-cli/internal/sdkinv/all" // register SDK extractors + pairing resolvers
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
