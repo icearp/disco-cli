@@ -42,18 +42,8 @@ type ResourcePath struct {
 // what remains names the resource hierarchy. scopes and literals are keyed by
 // lowercase static name (ARM paths spell resourceGroups both ways); a scope's
 // following {param} is a container, not a parent resource.
-// singletonIDs are static segments that are an instance's id, not a collection
-// name. ARM spells the one instance of a singleton child "default" or
-// "current" (.../blobServices/default), and reading it as a collection made
-// the PUT on that exact path an item write on a path nothing listed: 114 rows
-// were excluded as having no item path while the cache showed GET+PUT, and 55
-// more carried the segment inside their key, where no scanner could match it.
-// It is a grammar rule about ARM ids, not a list of resources.
-var singletonIDs = map[string]bool{"default": true, "current": true}
-
 func StripScopes(segs []Segment, scopes map[string]bool, literals map[string]bool) ResourcePath {
 	var rp ResourcePath
-	segs = markSingletons(segs)
 	for i := 0; i < len(segs); i++ {
 		s := segs[i]
 		if s.Param {
@@ -88,12 +78,14 @@ func StripScopes(segs []Segment, scopes map[string]bool, literals map[string]boo
 	return rp
 }
 
-// markSingletons rewrites a static singleton id that follows a collection name
-// into a param, so the rest of the walk treats it as the id it is.
-func markSingletons(segs []Segment) []Segment {
+// MarkIDs rewrites a static segment that follows a collection name into a
+// param when ids (lowercase) says the provider spells an instance's id that
+// way, so StripScopes treats it as the id it is. Which spellings those are is
+// the provider's grammar, not the core's.
+func MarkIDs(segs []Segment, ids map[string]bool) []Segment {
 	var out []Segment
 	for i, s := range segs {
-		if i > 0 && !s.Param && !segs[i-1].Param && singletonIDs[strings.ToLower(s.Text)] {
+		if i > 0 && !s.Param && !segs[i-1].Param && ids[strings.ToLower(s.Text)] {
 			if out == nil {
 				out = append(out, segs...)
 			}

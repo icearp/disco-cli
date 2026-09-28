@@ -11,3 +11,11 @@ func (client *RoleAssignmentsClient) createCreateRequest(ctx context.Context, sc
 	req, err := runtime.NewRequest(ctx, http.MethodPut, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	return req, err
 }
+
+func (client *RoleAssignmentsClient) NewListForScopePager(ctx context.Context) error {
+	return nil
+}
+
+func (client *RoleAssignmentsClient) Create(ctx context.Context) error {
+	return nil
+}

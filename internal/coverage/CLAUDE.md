@@ -75,9 +75,9 @@ is visible as a low percentage instead of silently inflating one headline number
   pairing spans a whole service and must not hand every network type the app gateway's 280 fields.
 - `Row.Ops` folds repeated labels (sibling AWS models, per-version GCP documents): 930 rows
   rendered a duplicated ops cell. `Ops` is never read back, so the fold is presentation only.
-- `Row.Scope` is the **narrowest** scope among the candidate's ops (`scopeSpecificity`: project >
-  resource-group/subscription > account/region > org > folder > billing-account/management-group >
-  tenant/extension > global). Ops sort by label, so taking `Ops[0]` printed `billingAccounts.` or
+- `Row.Scope` is the **narrowest** scope among the candidate's ops, ranked by the provider's own
+  `Universe.Scopes` (narrowest first; an undeclared scope ranks widest). coverage holds no
+  cross-provider scope table. Ops sort by label, so taking `Ops[0]` printed `billingAccounts.` or
   `folders.` on 117 GCP rows that a project-scoped lister also serves. AWS ops carry no scope at
   all, by rule (`internal/sdkinv/CLAUDE.md`), and the renderers dash an empty value.
 - Unit of coverage is the candidate: one op → N types counts once; N ops → one type marks every

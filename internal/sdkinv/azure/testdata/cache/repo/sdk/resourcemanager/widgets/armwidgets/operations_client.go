@@ -5,3 +5,7 @@ func (client *OperationsClient) listCreateRequest(ctx context.Context, options *
 	req, err := runtime.NewRequest(ctx, http.MethodGet, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	return req, err
 }
+
+func (client *OperationsClient) NewListPager(ctx context.Context) error {
+	return nil
+}

@@ -58,6 +58,21 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
   (targets), `Operations[].AuthorizedActions` (SDK op → IAM action, e.g. `ListObjectsV2`→`ListBucket`),
   `Resources[].ARNFormats`.
 
+## Accounting invariant (`Universe.SourceOps` / `Dropped`, `conformance.CheckUniverse`)
+
+- Every source op lands in exactly one of candidate ops (any number of candidates), `Other`, or
+  `Dropped` (with a `Reason`); `sdkinv.Unaccounted` reports missing / extra / conflicting.
+  `CheckUniverse` runs on fixtures **and** live caches (`TestLiveUniverseWellFormed`).
+- Enumerate `SourceOps` by a walk **apart from classification** — derived from the classifier's own
+  parse it can never fail. Azure first reused `builderRe` (vacuous); it now walks exported client
+  methods (`publicRe`), mapping `Begin<Op>`/`New<Op>Pager` onto builders.
+- Never filter `Other` or delete entries without a `Drop`; the live test names the lost ops.
+- Live drops at current pins: aws 0, azure 0, gcp 6,591 (non-cloud-api 6125,
+  version-without-cloud-rooted-lister 414, alias-document 47, document-root-method 3,
+  lister-on-item-path 2).
+- `Universe.Scopes` = provider scope vocabulary, narrowest first; coverage ranks `Row.Scope` by it;
+  every op scope must be declared.
+
 ## Extractors
 
 - Contract: `internal/sdkinv/conformance.Check` runs against `internal/sdkinv/<name>/testdata/cache`
@@ -248,13 +263,17 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 
 - Walk every non-test `.go` under `sdk/resourcemanager` (builders live in `client.go` /
   `api_client.go` too); receiver may be bare `Client` (label `armX:Client.Op`).
+- Request builders are **lowercase-first** (`[a-z]\w*CreateRequest(`): an exported method may end in
+  `CreateRequest` (hdinsight `ValidateClusterCreateRequest`); matching it minted a phantom op.
 - Key = namespace + statics after the last `providers/` segment **whose successor is static**;
   the generic `…/providers/{resourceProviderNamespace}/features` form otherwise discarded the real
   namespace for `*`. `providers` is in `scopeNames`, so the trailing `providers/{param}` pair of
   that form strips instead of keying `microsoft.features/providers/features`.
   `armresources`/`armsubscriptions` own paths without `providers/` (`microsoft.resources/resourcegroups`).
 - A trailing static singleton (`default`, `current`) after a collection name is the **item id**,
-  not another collection (`sdkinv.singletonIDs`, applied in `StripScopes`): `.../blobServices/default`
+  not another collection (`azure.SingletonIDs`, applied through `sdkinv.MarkIDs` before
+  `StripScopes`; the core holds no spellings, and GCP deliberately applies none — the pinned
+  Discovery docs carry no static `default`/`current` id segment): `.../blobServices/default`
   is the one blob service. Reading it as a collection discarded the PUT on that path into
   `Universe.Other`, so those rows were `no-item-path` non-resources while the cache plainly showed
   GET+PUT, and keys carried a `default` segment no scanner could ever match. It is a grammar
@@ -345,6 +364,9 @@ live in `internal/sdkinv/all` (no slim build tags — extractors link no cloud S
 
 ## Pairing (`pairing/`)
 
+- `Resolver.LabelOp` maps a label to its anchor-form op name for the skew check; provider naming
+  tokens (Azure's `Client` suffix) live there, never in core. `pairing.Register` panics on
+  duplicates; resolvers use exported `(*Func).Line`.
 - `pairing.Scan(ctx, cache, provider, dir)` = extract from the cache + `Walk` + `Unpaired`;
   wraps `sdkinv.ErrNotFetched` so `internal/providers/<p>/<p>_pairing_test.go` skips without
   the cache. Those two tests (`TestScannerOpLabelsResolve`, `TestEveryEmittedTypePaired`) are the

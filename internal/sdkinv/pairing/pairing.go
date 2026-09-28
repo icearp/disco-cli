@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
@@ -76,10 +77,9 @@ type Result struct {
 
 // Func is the per-function view a Resolver inspects.
 type Func struct {
-	provider string
-	fset     *token.FileSet
-	Decl     *ast.FuncDecl
-	Imports  map[string]string // local name -> import path
+	fset    *token.FileSet
+	Decl    *ast.FuncDecl
+	Imports map[string]string // local name -> import path
 	// Vars maps a local variable to the (module, ident) it was built from:
 	// "client" -> {armcompute, VirtualMachinesClient}; "svc" -> {compute, Service}.
 	Vars map[string]Binding
@@ -122,16 +122,33 @@ type Resolver interface {
 	// (armquota.ClientListResponse -> Client), so a local interface seam whose
 	// methods mention that type binds its parameters like the client itself.
 	TypeOwner(module, typeName string) (ident string, ok bool)
+	// LabelOp maps a label literal to the operation name it spells, in the
+	// form an Anchor's Op carries, so a label naming a call the pinned SDK no
+	// longer has reads as skew rather than a typo.
+	LabelOp(lit string) string
 	Anchors(f *Func) ([]Anchor, []Diagnostic)
 }
 
-var resolvers = map[string]Resolver{}
+var (
+	mu        sync.RWMutex
+	resolvers = map[string]Resolver{}
+)
 
-// Register adds a provider resolver; called from init.
-func Register(r Resolver) { resolvers[r.Name()] = r }
+// Register adds a provider resolver; called from init. Duplicate names
+// panic, mirroring sdkinv.Register.
+func Register(r Resolver) {
+	mu.Lock()
+	defer mu.Unlock()
+	if _, dup := resolvers[r.Name()]; dup {
+		panic(fmt.Sprintf("pairing: duplicate resolver %q", r.Name()))
+	}
+	resolvers[r.Name()] = r
+}
 
 // Get returns the resolver for a provider.
 func Get(name string) (Resolver, bool) {
+	mu.RLock()
+	defer mu.RUnlock()
 	r, ok := resolvers[name]
 	return r, ok
 }
@@ -172,7 +189,7 @@ type fn struct {
 
 // Walk parses every non-test .go file in dir and pairs it against u.
 func Walk(dir string, u *sdkinv.Universe) (*Result, error) {
-	r, ok := resolvers[u.Provider]
+	r, ok := Get(u.Provider)
 	if !ok {
 		return nil, fmt.Errorf("pairing: no resolver for provider %q", u.Provider)
 	}
@@ -222,7 +239,7 @@ func Walk(dir string, u *sdkinv.Universe) (*Result, error) {
 			}
 			scanBody(f, fd, fset, consts, varTypes, imports, r.LabelGrammar(), loose)
 			fv := &Func{
-				provider: u.Provider, fset: fset, Decl: fd, Imports: imports, Vars: bindLocals(fd, imports, r, seams), Fields: fields[recvType(fd)], SDKMods: mods,
+				fset: fset, Decl: fd, Imports: imports, Vars: bindLocals(fd, imports, r, seams), Fields: fields[recvType(fd)], SDKMods: mods,
 				Ops: idx.has, Other: idx.hasOther, ClientsWith: idx.clientsWith,
 			}
 			f.anchors, f.diags = r.Anchors(fv)
@@ -393,7 +410,7 @@ func (f *fn) emit(fns map[string]*fn, idx *index, res *Result, provider string) 
 		if !ok {
 			switch {
 			case idx.known(lit, f.mods):
-			case skewed(lit, missing):
+			case skewed(idx.r.LabelOp(lit), missing):
 				res.Diagnostics = append(res.Diagnostics, Diagnostic{
 					Kind: "sdk-skew", File: f.file, Line: lines[0],
 					Message: fmt.Sprintf("label %q names an operation the pinned SDK no longer has", lit),
@@ -505,6 +522,7 @@ type opRef struct {
 }
 
 type index struct {
+	r       Resolver
 	byKey   map[string]opRef   // module\x00op
 	byLabel map[string][]opRef // candidate ops by every alias form (several when the alias is ambiguous)
 	other   map[string]sdkinv.Operation
@@ -513,7 +531,7 @@ type index struct {
 }
 
 func indexUniverse(r Resolver, u *sdkinv.Universe) *index {
-	idx := &index{byKey: map[string]opRef{}, byLabel: map[string][]opRef{}, other: map[string]sdkinv.Operation{}, clients: map[string][]string{}, modules: map[string]bool{}}
+	idx := &index{r: r, byKey: map[string]opRef{}, byLabel: map[string][]opRef{}, other: map[string]sdkinv.Operation{}, clients: map[string][]string{}, modules: map[string]bool{}}
 	for _, c := range u.Candidates {
 		for _, op := range c.Ops {
 			mod, name := r.OpKey(op)
@@ -522,8 +540,8 @@ func indexUniverse(r Resolver, u *sdkinv.Universe) *index {
 			for _, l := range r.LabelAliases(c, op) {
 				idx.byLabel[l] = append(idx.byLabel[l], opRef{op, c.Key})
 			}
-			if client, method, ok := strings.Cut(name, "."); ok {
-				idx.clients[mod+"\x00"+method] = append(idx.clients[mod+"\x00"+method], client)
+			if method, ok := strings.CutPrefix(name, op.Client+"."); ok && op.Client != "" {
+				idx.clients[mod+"\x00"+method] = append(idx.clients[mod+"\x00"+method], op.Client)
 			}
 		}
 	}
@@ -1477,19 +1495,15 @@ func SDKFiles(dir string, r Resolver) (map[string]bool, error) {
 	return out, nil
 }
 
-func line(f *Func, n ast.Node) int { return f.fset.Position(n.Pos()).Line }
+// Line is the source line of n within the function's file.
+func (f *Func) Line(n ast.Node) int { return f.fset.Position(n.Pos()).Line }
 
-// skewed reports whether a label names one of the function's SDK calls that
-// the pinned SDK no longer ships (armcompute v6 CloudServices vs HEAD).
-func skewed(lit string, missing []string) bool {
-	_, name, _ := strings.Cut(lit, ":")
-	want := sdkinv.Canon(strings.ReplaceAll(name, "Client", ""))
-	for _, m := range missing {
-		if sdkinv.Canon(strings.ReplaceAll(m, "Client", "")) == want {
-			return true
-		}
-	}
-	return false
+// skewed reports whether a label's operation is one of the function's SDK
+// calls that the pinned SDK no longer ships (armcompute v6 CloudServices vs
+// HEAD).
+func skewed(op string, missing []string) bool {
+	want := sdkinv.Canon(op)
+	return slices.ContainsFunc(missing, func(m string) bool { return sdkinv.Canon(m) == want })
 }
 
 // moduleAbsent reports whether the label's module prefix is one the file

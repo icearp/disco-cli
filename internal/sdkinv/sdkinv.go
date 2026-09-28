@@ -60,6 +60,26 @@ type Operation struct {
 	Scope    Scope    `json:"scope,omitempty"`
 	Path     string   `json:"path,omitempty"` // REST path template where the SDK exposes one
 	Module   string   `json:"module"`         // source module and version/ref
+	// Client is the SDK client type that owns the operation, for SDKs whose
+	// operations hang off several clients per module; Name is then
+	// "<Client>.<method>". Empty when the SDK has one client per module.
+	Client string `json:"client,omitempty"`
+}
+
+// OpRef identifies one SDK operation independent of how it was classified.
+type OpRef struct {
+	Module string `json:"module"`
+	Name   string `json:"name"`
+}
+
+// Ref returns the operation's identity.
+func (o Operation) Ref() OpRef { return OpRef{Module: o.Module, Name: o.Name} }
+
+// Drop is a source operation the extractor deliberately left out of both the
+// candidates and Other, with the rule that left it out.
+type Drop struct {
+	Op     Operation `json:"op"`
+	Reason string    `json:"reason"`
 }
 
 // Candidate is one SDK-listable resource, the unit of the coverage denominator.
@@ -106,6 +126,16 @@ type Universe struct {
 	// differently (AWS CloudFormation's "ApiGatewayV2" is the SDK's
 	// "apigateway"). Derived from the SDK's own metadata, never hand-kept.
 	ServiceAliases map[string]string `json:"serviceAliases,omitempty"`
+	// SourceOps is every operation the fetched sources declare, enumerated by
+	// a walk separate from classification. Each one lands in exactly one of
+	// candidate ops (any number of candidates), Other or Dropped; conformance
+	// checks the accounting, so an extractor cannot lose part of the SDK
+	// without saying so.
+	SourceOps []OpRef `json:"-"`
+	Dropped   []Drop  `json:"dropped,omitempty"`
+	// Scopes is the provider's scope vocabulary, narrowest first, so a report
+	// can pick a candidate's most specific scope without knowing the provider.
+	Scopes []Scope `json:"scopes,omitempty"`
 }
 
 // Kind selects how a FetchSource is retrieved.

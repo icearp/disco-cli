@@ -231,6 +231,10 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 			u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "warn", Source: filepath.Base(f), Message: jerr.Error()})
 			continue
 		}
+		module := modelModule(filepath.Base(f))
+		for op := range modelOps(&m) {
+			u.SourceOps = append(u.SourceOps, sdkinv.OpRef{Module: module, Name: op})
+		}
 		collectServiceWords(words, &m)
 		collectServiceAliases(aliases, &m)
 		diag, other := indexModel(entries, &m, sr, filepath.Base(f))
@@ -246,6 +250,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 	u.ServiceAliases = serviceAliases(aliases, u.Candidates)
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)
+	sdkinv.SortOpRefs(u.SourceOps)
 	return u, nil
 }
 
@@ -509,6 +514,11 @@ func modelNamespaces(m *smithyModel, svc string) map[string]bool {
 	return out
 }
 
+// modelModule is the Operation.Module of every operation in one model file.
+func modelModule(file string) string {
+	return fmt.Sprintf("aws-sdk-go-v2@%s/%s%s", sdkinv.AWSSDKRef, smithyModelsDir, file)
+}
+
 // modelOps is every operation name a Smithy model ships.
 func modelOps(m *smithyModel) map[string]bool {
 	out := map[string]bool{}
@@ -695,7 +705,7 @@ func indexModel(entries map[string]*entry, m *smithyModel, srAll map[string]*srS
 			diag = fmt.Sprintf("service %q absent from the Service Reference; classification falls back to SDK shape", svc)
 		}
 	}
-	module := fmt.Sprintf("aws-sdk-go-v2@%s/%s%s", sdkinv.AWSSDKRef, smithyModelsDir, file)
+	module := modelModule(file)
 	// Sorted shape ids: a model can carry two operation shapes of one name in
 	// different namespaces (healthlake), and map order then decided which one's
 	// Required survived — two of three consecutive extractions disagreed.

@@ -81,6 +81,7 @@ func TestLiveUniverseWellFormed(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			conformance.CheckUniverse(t, n, u)
 			bad := 0
 			for _, c := range u.Candidates {
 				classOf[c.Key] = c.Class

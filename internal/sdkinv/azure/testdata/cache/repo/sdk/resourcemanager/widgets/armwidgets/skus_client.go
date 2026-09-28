@@ -11,3 +11,11 @@ func (client *SKUsClient) getCreateRequest(ctx context.Context, skuName string, 
 	req, err := runtime.NewRequest(ctx, http.MethodGet, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	return req, err
 }
+
+func (client *SKUsClient) NewListPager(ctx context.Context) error {
+	return nil
+}
+
+func (client *SKUsClient) Get(ctx context.Context) error {
+	return nil
+}

@@ -216,10 +216,10 @@ func TestDefaultImportName(t *testing.T) {
 }
 
 func TestSkewedAndModuleAbsent(t *testing.T) {
-	if !skewed("armcompute:CloudServices.ListAll", []string{"CloudServicesClient.ListAll"}) {
+	if !skewed(azureResolver{}.LabelOp("armcompute:CloudServices.ListAll"), []string{"CloudServicesClient.ListAll"}) {
 		t.Error("skewed: client suffix not ignored")
 	}
-	if skewed("armcompute:VirtualMachines.ListAll", []string{"CloudServicesClient.ListAll"}) {
+	if skewed(azureResolver{}.LabelOp("armcompute:VirtualMachines.ListAll"), []string{"CloudServicesClient.ListAll"}) {
 		t.Error("skewed: unrelated op matched")
 	}
 	modules := map[string]bool{"armcompute": true}

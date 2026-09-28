@@ -50,6 +50,12 @@ func (awsResolver) LabelAliases(_ sdkinv.Candidate, op sdkinv.Operation) []strin
 // modules, so seams need no binding.
 func (awsResolver) TypeOwner(_, _ string) (string, bool) { return "", false }
 
+// LabelOp: "<service>:<Operation>".
+func (awsResolver) LabelOp(lit string) string {
+	_, op, _ := strings.Cut(lit, ":")
+	return op
+}
+
 func (awsResolver) Constructor(_, fn string) (string, bool) {
 	if fn == "NewFromConfig" || fn == "New" {
 		return "Client", true
@@ -62,13 +68,13 @@ func (awsResolver) Constructor(_, fn string) (string, bool) {
 func (awsResolver) Anchors(f *Func) ([]Anchor, []Diagnostic) {
 	var out []Anchor
 	add := func(mod, op string, n ast.Node) {
-		out = append(out, Anchor{Module: mod, Op: op, Line: line(f, n)})
+		out = append(out, Anchor{Module: mod, Op: op, Line: f.Line(n)})
 	}
 	ast.Inspect(f.Decl.Body, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.CompositeLit:
 			if sel, ok := x.Type.(*ast.SelectorExpr); ok {
-				if mod := importMod(f, sel.X); mod != "" {
+				if mod := awsImportMod(f, sel.X); mod != "" {
 					if m := awsInputRe.FindStringSubmatch(sel.Sel.Name); m != nil {
 						add(mod, m[1], x)
 					}
@@ -79,7 +85,7 @@ func (awsResolver) Anchors(f *Func) ([]Anchor, []Diagnostic) {
 			if !ok {
 				return true
 			}
-			if mod := importMod(f, sel.X); mod != "" {
+			if mod := awsImportMod(f, sel.X); mod != "" {
 				if m := awsPaginatorRe.FindStringSubmatch(sel.Sel.Name); m != nil {
 					add(mod, m[1], x)
 				}
@@ -96,8 +102,8 @@ func (awsResolver) Anchors(f *Func) ([]Anchor, []Diagnostic) {
 	return out, nil
 }
 
-// importMod returns the module key when e is an SDK import identifier.
-func importMod(f *Func, e ast.Expr) string {
+// awsImportMod returns the module key when e is an SDK import identifier.
+func awsImportMod(f *Func, e ast.Expr) string {
 	id, ok := e.(*ast.Ident)
 	if !ok {
 		return ""
@@ -106,6 +112,5 @@ func importMod(f *Func, e ast.Expr) string {
 	if !ok {
 		return ""
 	}
-	r, _ := Get(f.provider)
-	return r.ImportKey(path)
+	return awsResolver{}.ImportKey(path)
 }

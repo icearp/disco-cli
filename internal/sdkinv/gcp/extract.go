@@ -24,6 +24,7 @@ type doc struct {
 	RootURL       string                     `json:"rootUrl"`
 	ServicePath   string                     `json:"servicePath"`
 	CanonicalName string                     `json:"canonicalName"`
+	Methods       map[string]*method         `json:"methods"`
 	Resources     map[string]*resource       `json:"resources"`
 	Schemas       map[string]json.RawMessage `json:"schemas"`
 }
@@ -70,6 +71,11 @@ var altListers = map[string]bool{"search": true, "fetch": true, "listPolicies": 
 var cloudRoots = map[string]sdkinv.Scope{
 	"projects": sdkinv.ScopeProject, "organizations": sdkinv.ScopeOrg, "folders": sdkinv.ScopeFolder,
 	"billingaccounts": sdkinv.ScopeBillingAccount, "customers": sdkinv.ScopeTenant, "customer": sdkinv.ScopeTenant,
+}
+
+// scopeVocab is the Discovery scope vocabulary, narrowest first.
+var scopeVocab = []sdkinv.Scope{
+	sdkinv.ScopeProject, sdkinv.ScopeOrg, sdkinv.ScopeFolder, sdkinv.ScopeBillingAccount, sdkinv.ScopeTenant, sdkinv.ScopeGlobal,
 }
 
 // scopeNames (lowercase) are stripped as "<scope>/{param}" pairs; literals
@@ -119,6 +125,7 @@ func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, err
 	excluded := map[string]bool{}
 	identities := map[string][]string{} // service identity -> document names
 	var skipped []string                // "<api>/<version>" documents with no cloud-rooted lister
+	var uncloud []sdkinv.Drop           // their ops, reason decided once every version is read
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(p, "-api.json") {
 			return err
@@ -136,10 +143,19 @@ func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, err
 		if dc.RootURL != "" {
 			identities[dc.identity()] = append(identities[dc.identity()], dc.Name)
 		}
-		cloud, others := indexDoc(entries, &dc, filepath.ToSlash(filepath.Dir(rel)), e.Ref())
+		docDir := filepath.ToSlash(filepath.Dir(rel))
+		u.SourceOps = append(u.SourceOps, sourceOps(&dc, docDir, e.Ref())...)
+		cloud, others, drops := indexDoc(entries, &dc, docDir, e.Ref())
 		if !cloud {
 			excluded[dc.Name] = true
 			skipped = append(skipped, dc.Name+"/"+dc.Version)
+		}
+		for _, d := range drops {
+			if d.Reason == "" {
+				uncloud = append(uncloud, d)
+			} else {
+				u.Dropped = append(u.Dropped, d)
+			}
 		}
 		u.Other = append(u.Other, others...)
 		return nil
@@ -147,14 +163,20 @@ func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, err
 	if err != nil {
 		return nil, err
 	}
-	if dropped := dropAliasDocs(entries, identities); len(dropped) > 0 {
+	aliases, aliasOps := dropAliasDocs(entries, identities)
+	for _, o := range aliasOps {
+		u.Dropped = append(u.Dropped, sdkinv.Drop{Op: o, Reason: "alias-document"})
+	}
+	if len(aliases) > 0 {
 		u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{
 			Severity: "info", Source: "discovery",
-			Message: fmt.Sprintf("alias documents dropped for duplicating another API's service: %s", strings.Join(dropped, " ")),
+			Message: fmt.Sprintf("alias documents dropped for duplicating another API's service: %s", strings.Join(aliases, " ")),
 		})
 		kept := u.Other[:0]
 		for _, o := range u.Other {
-			if !slices.Contains(dropped, o.Service) {
+			if slices.Contains(aliases, o.Service) {
+				u.Dropped = append(u.Dropped, sdkinv.Drop{Op: o, Reason: "alias-document"})
+			} else {
 				kept = append(kept, o)
 			}
 		}
@@ -166,6 +188,7 @@ func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, err
 	for _, en := range entries {
 		delete(excluded, en.api)
 	}
+	u.Dropped = append(u.Dropped, uncloudDrops(uncloud, excluded, aliases)...)
 	var dropped []string
 	for _, av := range skipped {
 		if api, _, _ := strings.Cut(av, "/"); !excluded[api] {
@@ -208,19 +231,25 @@ func (e extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, err
 	// Non-cloud APIs are outside the universe entirely, other ops included.
 	kept := u.Other[:0]
 	for _, o := range u.Other {
-		if !excluded[o.Service] {
+		if excluded[o.Service] {
+			u.Dropped = append(u.Dropped, sdkinv.Drop{Op: o, Reason: "non-cloud-api"})
+		} else {
 			kept = append(kept, o)
 		}
 	}
 	u.Other = kept
 	sdkinv.SortOps(u.Other)
+	sdkinv.SortOpRefs(u.SourceOps)
+	sdkinv.SortDrops(u.Dropped)
+	u.Scopes = slices.Clone(scopeVocab)
 	return u, nil
 }
 
 // dropAliasDocs removes the entries of every document name that shares a
 // service identity with another: the name matching the rootUrl's own host
-// label wins, else the alphabetically first. Returns the names dropped.
-func dropAliasDocs(entries map[string]*entry, identities map[string][]string) []string {
+// label wins, else the alphabetically first. Returns the names dropped and the
+// candidate ops that went with them.
+func dropAliasDocs(entries map[string]*entry, identities map[string][]string) ([]string, []sdkinv.Operation) {
 	dropped := map[string]bool{}
 	for id, names := range identities {
 		uniq := map[string]bool{}
@@ -247,10 +276,14 @@ func dropAliasDocs(entries map[string]*entry, identities map[string][]string) []
 		}
 	}
 	if len(dropped) == 0 {
-		return nil
+		return nil, nil
 	}
+	var ops []sdkinv.Operation
 	for k, en := range entries {
 		if dropped[en.api] {
+			for _, o := range en.ops {
+				ops = append(ops, o)
+			}
 			delete(entries, k)
 		}
 	}
@@ -259,7 +292,7 @@ func dropAliasDocs(entries map[string]*entry, identities map[string][]string) []
 		out = append(out, n)
 	}
 	sort.Strings(out)
-	return out
+	return out, ops
 }
 
 type lister struct {
@@ -296,10 +329,7 @@ func collectListers(dc *doc, docDir, ref string) ([]lister, []sdkinv.Operation) 
 					listers = append(listers, lister{docPath: p, name: mn, m: m, node: r})
 					continue
 				}
-				others = append(others, sdkinv.Operation{
-					Service: dc.Name, Name: strings.Join(p, ".") + "." + mn, Label: dc.Name + ":" + strings.Join(p, ".") + "." + mn,
-					Path: template(m, dc.Version), Module: fmt.Sprintf("%s@%s/%s", modulePath, ref, docDir),
-				})
+				others = append(others, methodOp(dc, p, mn, m, docDir, ref))
 			}
 			walk(r.Resources, p)
 		}
@@ -308,8 +338,12 @@ func collectListers(dc *doc, docDir, ref string) ([]lister, []sdkinv.Operation) 
 	return listers, others
 }
 
-func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []sdkinv.Operation) {
+// indexDoc also returns the ops it leaves out. When no lister is cloud-rooted
+// that is every op of the document, with an empty reason the caller fills in
+// once it knows whether another version of the API is in the universe.
+func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []sdkinv.Operation, []sdkinv.Drop) {
 	listers, others := collectListers(dc, docDir, ref)
+	drops := rootDrops(dc, docDir, ref)
 
 	cloud := false
 	for _, l := range listers {
@@ -319,7 +353,13 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []s
 		}
 	}
 	if !cloud {
-		return false, nil
+		for _, l := range listers {
+			others = append(others, methodOp(dc, l.docPath, l.name, l.m, docDir, ref))
+		}
+		for _, o := range others {
+			drops = append(drops, sdkinv.Drop{Op: o})
+		}
+		return false, nil, drops
 	}
 	preview := strings.Contains(dc.Version, "alpha") || strings.Contains(dc.Version, "beta")
 	schemas := &schemaSet{raw: dc.Schemas}
@@ -336,6 +376,11 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []s
 		scopes := scopesFor(segs)
 		rp := sdkinv.StripScopes(segs, scopes, literals)
 		if rp.Item || len(rp.Statics) == 0 {
+			reason := "lister-on-item-path"
+			if !rp.Item {
+				reason = "lister-without-collection-segment"
+			}
+			drops = append(drops, sdkinv.Drop{Op: methodOp(dc, l.docPath, l.name, l.m, docDir, ref), Reason: reason})
 			continue
 		}
 		docPath := stripScopeNodes(dropGroupingNode(dropKnativeNode(l.docPath), tmpl), scopes)
@@ -398,7 +443,61 @@ func indexDoc(entries map[string]*entry, dc *doc, docDir, ref string) (bool, []s
 		}
 	}
 	attachAggregated(entries, elementOf, aggregated)
-	return true, others
+	return true, others, drops
+}
+
+// rootDrops records the methods declared at the document root, which the
+// resource walk never reaches.
+func rootDrops(dc *doc, docDir, ref string) []sdkinv.Drop {
+	var out []sdkinv.Drop
+	for _, mn := range slices.Sorted(maps.Keys(dc.Methods)) {
+		out = append(out, sdkinv.Drop{Op: methodOp(dc, nil, mn, dc.Methods[mn], docDir, ref), Reason: "document-root-method"})
+	}
+	return out
+}
+
+// uncloudDrops names why a document with no cloud-rooted lister was left out:
+// its API is an alias of another, the whole API is outside the universe, or
+// only this version is.
+func uncloudDrops(ds []sdkinv.Drop, excluded map[string]bool, aliases []string) []sdkinv.Drop {
+	for i := range ds {
+		switch svc := ds[i].Op.Service; {
+		case slices.Contains(aliases, svc):
+			ds[i].Reason = "alias-document"
+		case excluded[svc]:
+			ds[i].Reason = "non-cloud-api"
+		default:
+			ds[i].Reason = "version-without-cloud-rooted-lister"
+		}
+	}
+	return ds
+}
+
+// methodOp is the Operation for one Discovery method at path p ("" at the
+// document root).
+func methodOp(dc *doc, p []string, mn string, m *method, docDir, ref string) sdkinv.Operation {
+	name := strings.Join(append(slices.Clone(p), mn), ".")
+	return sdkinv.Operation{
+		Service: dc.Name, Name: name, Label: dc.Name + ":" + name,
+		Path: template(m, dc.Version), Module: fmt.Sprintf("%s@%s/%s", modulePath, ref, docDir),
+	}
+}
+
+// sourceOps enumerates every method a document declares, root included,
+// independent of classification.
+func sourceOps(dc *doc, docDir, ref string) []sdkinv.OpRef {
+	var out []sdkinv.OpRef
+	var walk func(methods map[string]*method, res map[string]*resource, path []string)
+	walk = func(methods map[string]*method, res map[string]*resource, path []string) {
+		for mn, m := range methods {
+			out = append(out, methodOp(dc, path, mn, m, docDir, ref).Ref())
+		}
+		for n, r := range res {
+			walk(r.Methods, r.Resources, append(slices.Clone(path), n))
+		}
+	}
+	walk(dc.Methods, dc.Resources, nil)
+	return out
 }
 
 // aggLister is one aggregatedList call and the element it enumerates.

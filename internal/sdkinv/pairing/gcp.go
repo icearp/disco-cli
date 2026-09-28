@@ -97,6 +97,12 @@ func receiverBinding(f *Func, root ast.Expr, fields *[]string) (Binding, bool) {
 // chain, which an interface seam over one call type does not carry.
 func (gcpResolver) TypeOwner(_, _ string) (string, bool) { return "", false }
 
+// LabelOp: "<api>:<method path>".
+func (gcpResolver) LabelOp(lit string) string {
+	_, op, _ := strings.Cut(lit, ":")
+	return op
+}
+
 func (gcpResolver) Constructor(_, fn string) (string, bool) {
 	if fn == "NewService" || fn == "New" {
 		return "Service", true
@@ -139,7 +145,7 @@ func (gcpResolver) Anchors(f *Func) ([]Anchor, []Diagnostic) {
 			}
 			name = strings.Join(fields, ".") + "." + sdkinv.LowerFirst(sel.Sel.Name)
 			if gcpListerSet[sel.Sel.Name] || f.Ops(b.Module, name) || f.Other(b.Module, name) {
-				out = append(out, Anchor{Module: b.Module, Op: name, Line: line(f, call)})
+				out = append(out, Anchor{Module: b.Module, Op: name, Line: f.Line(call)})
 			}
 			return true
 		}
@@ -154,13 +160,13 @@ func (gcpResolver) Anchors(f *Func) ([]Anchor, []Diagnostic) {
 		}
 		switch len(mods) {
 		case 1:
-			out = append(out, Anchor{Module: mods[0], Op: name, Line: line(f, call)})
+			out = append(out, Anchor{Module: mods[0], Op: name, Line: f.Line(call)})
 		case 0:
 			// Not a Discovery lister the universe knows (a store or helper
 			// method): silent — labels cross-check the real ones.
 		default:
 			diags = append(diags, Diagnostic{
-				Kind: "unresolved-receiver", Line: line(f, call),
+				Kind: "unresolved-receiver", Line: f.Line(call),
 				Message: fmt.Sprintf("%s: service receiver not bound and %d imported APIs have it", name, len(mods)),
 			})
 		}

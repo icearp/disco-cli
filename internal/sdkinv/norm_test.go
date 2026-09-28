@@ -69,3 +69,40 @@ func TestStripScopes(t *testing.T) {
 		}
 	}
 }
+
+func TestMarkIDs(t *testing.T) {
+	segs := ParseTemplate("/storageAccounts/{a}/blobServices/default/containers")
+	if got := StripScopes(segs, nil, nil); got.Item || len(got.Parents) != 1 {
+		t.Errorf("unmarked: %+v", got)
+	}
+	got := StripScopes(MarkIDs(segs, map[string]bool{"default": true}), nil, nil)
+	want := ResourcePath{Statics: []string{"storageAccounts", "blobServices", "containers"}, Parents: []string{"storageAccounts", "blobServices"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("MarkIDs: %+v, want %+v", got, want)
+	}
+	if segs[3].Param {
+		t.Error("MarkIDs mutated its input")
+	}
+}
+
+func TestUnaccounted(t *testing.T) {
+	op := func(n string) Operation { return Operation{Module: "m", Name: n} }
+	u := &Universe{
+		SourceOps:  []OpRef{{"m", "a"}, {"m", "b"}, {"m", "c"}, {"m", "lost"}},
+		Candidates: []Candidate{{Ops: []Operation{op("a")}}, {Ops: []Operation{op("a")}}},
+		Other:      []Operation{op("b"), op("a"), op("stray")},
+		Dropped:    []Drop{{Op: op("c"), Reason: "r"}, {Op: op("b"), Reason: "r"}},
+	}
+	missing, extra, conflicts := Unaccounted(u)
+	if !reflect.DeepEqual(missing, []OpRef{{"m", "lost"}}) {
+		t.Errorf("missing = %v", missing)
+	}
+	if !reflect.DeepEqual(extra, []OpRef{{"m", "stray"}}) {
+		t.Errorf("extra = %v", extra)
+	}
+	// "a" in two candidates is fine; in a candidate and Other is not, nor is
+	// "b" in Other and Dropped.
+	if !reflect.DeepEqual(conflicts, []OpRef{{"m", "a"}, {"m", "b"}}) {
+		t.Errorf("conflicts = %v", conflicts)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -87,6 +88,28 @@ func keys(m map[string]sdkinv.Candidate) []string {
 
 // TestExtract_Live runs against the real fetched cache when present and pins
 // a handful of anchors the plan promised.
+// TestExtract_Accounting: an exported method with no builder is dropped with
+// a reason, and an exported method whose name ends in CreateRequest is not
+// mistaken for a builder of a phantom operation.
+func TestExtract_Accounting(t *testing.T) {
+	u, err := extractor{}.Extract(context.Background(), filepath.Join("testdata", "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var drops []string
+	for _, d := range u.Dropped {
+		drops = append(drops, d.Op.Name+"="+d.Reason)
+	}
+	if want := []string{"TenantThingsClient.Rename=no-request-builder", "WidgetsClient.ValidateWidgetCreateRequest=no-request-builder"}; !reflect.DeepEqual(drops, want) {
+		t.Errorf("dropped = %v, want %v", drops, want)
+	}
+	for _, r := range u.SourceOps {
+		if r.Name == "WidgetsClient.ValidateWidget" {
+			t.Errorf("phantom builder op %v", r)
+		}
+	}
+}
+
 func TestExtract_Live(t *testing.T) {
 	dir := sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}.Dir("azure", sdkinv.AzureSDKRef)
 	if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err != nil {

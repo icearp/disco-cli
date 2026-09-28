@@ -59,3 +59,24 @@ func (client *WidgetsClient) listByResourceGroupHandleResponse(resp *http.Respon
 	}
 	return result, nil
 }
+
+func (client *WidgetsClient) Get(ctx context.Context) error {
+	return nil
+}
+
+func (client *WidgetsClient) BeginCreateOrUpdate(ctx context.Context) error {
+	return nil
+}
+
+func (client *WidgetsClient) BeginDelete(ctx context.Context) error {
+	return nil
+}
+
+func (client *WidgetsClient) InstanceView(ctx context.Context) error {
+	return nil
+}
+
+// An exported method ending in CreateRequest is not a request builder.
+func (client *WidgetsClient) ValidateWidgetCreateRequest(ctx context.Context) error {
+	return nil
+}

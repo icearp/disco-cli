@@ -64,6 +64,9 @@ make check-migrations
 # Populate the SDK source cache the coverage denominator derives from (no-op when present)
 make sdk-fetch            # = disco coverage sdk fetch; see internal/sdkinv/CLAUDE.md
 
+# Before/after equivalence check: capture `disco coverage services -o json` from the repo root
+# (--source-root defaults to cwd; elsewhere pairing is off and output differs spuriously)
+
 # Cold `go build ./...` exceeds 2 min (three cloud SDKs). Build/test/lint scoped packages first
 # (`./internal/sdkinv/... ./cmd/...`), run the full build in the background.
 

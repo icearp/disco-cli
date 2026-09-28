@@ -21,3 +21,16 @@ func (client *TenantThingsClient) checkNameCreateRequest(ctx context.Context, op
 	req, err := runtime.NewRequest(ctx, http.MethodPost, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	return req, err
 }
+
+func (client *TenantThingsClient) Create(ctx context.Context) error {
+	return nil
+}
+
+func (client *TenantThingsClient) CheckName(ctx context.Context) error {
+	return nil
+}
+
+// Rename has no request builder: accounting drops it as no-request-builder.
+func (client *TenantThingsClient) Rename(ctx context.Context) error {
+	return nil
+}

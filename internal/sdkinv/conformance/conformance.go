@@ -15,9 +15,10 @@ import (
 )
 
 // Check extracts fixtureDir twice and asserts the universe is deterministic,
-// complete (every class, depth 0 and depth 1, a parent for every child) and
-// well-formed (keys unique and service-prefixed, labels namespaced, every
-// candidate backed by an operation).
+// complete (every class, depth 0 and depth 1, a parent for every child, every
+// source operation accounted for) and well-formed (keys unique and
+// service-prefixed, labels namespaced, every candidate backed by an
+// operation).
 func Check(t *testing.T, e sdkinv.Extractor, fixtureDir string) {
 	t.Helper()
 	start := time.Now()
@@ -79,6 +80,38 @@ func Check(t *testing.T, e sdkinv.Extractor, fixtureDir string) {
 	}
 	if !sortedKeys(u.Candidates) {
 		t.Errorf("%s: candidates not sorted", e.Name())
+	}
+	CheckUniverse(t, e.Name(), u)
+}
+
+// CheckUniverse holds for fixtures and live caches alike: every operation the
+// sources declare is a candidate op, an Other op or a Drop with a reason,
+// nothing else appears, and every op's scope is in the declared vocabulary.
+func CheckUniverse(t *testing.T, name string, u *sdkinv.Universe) {
+	t.Helper()
+	for _, c := range u.Candidates {
+		for _, o := range c.Ops {
+			if o.Scope != "" && !slices.Contains(u.Scopes, o.Scope) {
+				t.Errorf("%s: %s op %s scope %q is not in the universe's scope vocabulary", name, c.Key, o.Label, o.Scope)
+			}
+		}
+	}
+	if len(u.SourceOps) == 0 {
+		t.Errorf("%s: no source operations enumerated", name)
+	}
+	missing, extra, conflicts := sdkinv.Unaccounted(u)
+	for _, f := range []struct {
+		what string
+		refs []sdkinv.OpRef
+	}{{"silently dropped", missing}, {"not declared by the sources", extra}, {"in more than one of candidates, Other and Dropped", conflicts}} {
+		if len(f.refs) > 0 {
+			t.Errorf("%s: %d operations %s, e.g. %v", name, len(f.refs), f.what, f.refs[:min(len(f.refs), 5)])
+		}
+	}
+	for _, d := range u.Dropped {
+		if d.Reason == "" {
+			t.Errorf("%s: %v dropped without a reason", name, d.Op.Ref())
+		}
 	}
 }
 

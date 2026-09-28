@@ -60,6 +60,18 @@ func (azureResolver) LabelAliases(_ sdkinv.Candidate, op sdkinv.Operation) []str
 	return []string{op.Label}
 }
 
+// LabelOp: labels drop the "Client" suffix of the client type
+// ("armcompute:CloudServices.List" is CloudServicesClient.List); the module's
+// base client is spelled "Client" in both.
+func (azureResolver) LabelOp(lit string) string {
+	_, op, _ := strings.Cut(lit, ":")
+	client, method, ok := strings.Cut(op, ".")
+	if !ok || client == "Client" {
+		return op
+	}
+	return client + "Client." + method
+}
+
 func (azureResolver) TypeOwner(_, typeName string) (string, bool) {
 	m := azureTypeRe.FindStringSubmatch(typeName)
 	if m == nil {
@@ -113,7 +125,7 @@ func (azureResolver) Anchors(f *Func) ([]Anchor, []Diagnostic) {
 			// A pager or any List* on a bound client is an SDK call whether
 			// or not the pinned SDK still has it (skew surfaces in Walk).
 			if paged || f.Ops(b.Module, b.Ident+"."+op) || f.Other(b.Module, b.Ident+"."+op) || strings.HasPrefix(op, "List") {
-				out = append(out, Anchor{Module: b.Module, Op: b.Ident + "." + op, Line: line(f, call)})
+				out = append(out, Anchor{Module: b.Module, Op: b.Ident + "." + op, Line: f.Line(call)})
 			}
 			return true
 		}
@@ -123,7 +135,7 @@ func (azureResolver) Anchors(f *Func) ([]Anchor, []Diagnostic) {
 		var found []Anchor
 		for _, mod := range f.SDKMods {
 			for _, client := range f.ClientsWith(mod, op) {
-				found = append(found, Anchor{Module: mod, Op: client + "." + op, Line: line(f, call)})
+				found = append(found, Anchor{Module: mod, Op: client + "." + op, Line: f.Line(call)})
 			}
 		}
 		switch len(found) {
@@ -131,12 +143,12 @@ func (azureResolver) Anchors(f *Func) ([]Anchor, []Diagnostic) {
 			out = append(out, found[0])
 		case 0:
 			diags = append(diags, Diagnostic{
-				Kind: "unresolved-receiver", Line: line(f, call),
+				Kind: "unresolved-receiver", Line: f.Line(call),
 				Message: fmt.Sprintf("%s.%s: receiver not bound to a client and no imported client has %s", recvName, sel.Sel.Name, op),
 			})
 		default:
 			diags = append(diags, Diagnostic{
-				Kind: "unresolved-receiver", Line: line(f, call),
+				Kind: "unresolved-receiver", Line: f.Line(call),
 				Message: fmt.Sprintf("%s.%s: receiver not bound and %d clients have %s", recvName, sel.Sel.Name, len(found), op),
 			})
 		}

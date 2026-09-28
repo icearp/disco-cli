@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -28,7 +29,12 @@ type builder struct {
 var (
 	// Receiver is "<X>Client" or the bare "Client" (armresources' generic
 	// client, armmanagementgroups); the capture is empty for the latter.
-	builderRe = regexp.MustCompile(`(?m)^func \(client \*(\w*)Client\) (\w+)CreateRequest\(`)
+	// The builder is unexported; an exported method may itself end in
+	// CreateRequest (hdinsight ValidateClusterCreateRequest) and is no builder.
+	builderRe = regexp.MustCompile(`(?m)^func \(client \*(\w*)Client\) ([a-z]\w*)CreateRequest\(`)
+	// publicRe is every exported client method: the operations a caller sees.
+	publicRe  = regexp.MustCompile(`(?m)^func \(client \*(\w*)Client\) ([A-Z]\w*)\(`)
+	pagerRe   = regexp.MustCompile(`^New(\w+)Pager$`)
 	urlPathRe = regexp.MustCompile(`urlPath := "([^"]+)"`)
 	methodRe  = regexp.MustCompile(`http\.Method(\w+)`)
 )
@@ -82,7 +88,11 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		if rerr != nil {
 			return rerr
 		}
-		for _, b := range parseBuilders(string(raw), module) {
+		builders, unparsed := parseBuilders(string(raw), module)
+		src, drops := accountPublic(string(raw), module, builders, unparsed)
+		u.SourceOps = append(u.SourceOps, src...)
+		u.Dropped = append(u.Dropped, drops...)
+		for _, b := range builders {
 			if !index(entries, b) {
 				u.Other = append(u.Other, opFor(b, "", nil, ""))
 			}
@@ -129,13 +139,17 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 	}
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)
+	sdkinv.SortOpRefs(u.SourceOps)
+	sdkinv.SortDrops(u.Dropped)
+	u.Scopes = slices.Clone(scopes)
 	return u, nil
 }
 
 // parseBuilders extracts every request builder in one generated client file.
-func parseBuilders(src, module string) []builder {
+// A builder with no literal urlPath or HTTP method is returned in unparsed.
+func parseBuilders(src, module string) (out, unparsed []builder) {
 	locs := builderRe.FindAllStringSubmatchIndex(src, -1)
-	out := make([]builder, 0, len(locs))
+	out = make([]builder, 0, len(locs))
 	var results map[string]string
 	for i, loc := range locs {
 		end := len(src)
@@ -150,6 +164,7 @@ func parseBuilders(src, module string) []builder {
 		pm := urlPathRe.FindStringSubmatch(body)
 		mm := methodRe.FindStringSubmatch(body)
 		if pm == nil || mm == nil {
+			unparsed = append(unparsed, builder{client: client, op: op, module: module})
 			continue
 		}
 		out = append(out, builder{
@@ -158,7 +173,52 @@ func parseBuilders(src, module string) []builder {
 			result: results[op],
 		})
 	}
-	return out
+	return out, unparsed
+}
+
+// accountPublic enumerates the file's exported client methods apart from the
+// builders (Begin<Op> and New<Op>Pager wrap <op>CreateRequest) and returns
+// them as source ops, each named as its builder's operation. A method with no
+// builder, or whose builder has no literal path or verb, is dropped. A builder
+// no exported method reaches is left out of the source, so accounting fails on
+// it rather than letting it pass unseen.
+func accountPublic(src, module string, builders, unparsed []builder) ([]sdkinv.OpRef, []sdkinv.Drop) {
+	key := func(client, op string) string { return client + "\x00" + sdkinv.Canon(op) }
+	parsed := map[string]builder{}
+	for _, b := range builders {
+		parsed[key(b.client, b.op)] = b
+	}
+	bare := map[string]builder{}
+	for _, b := range unparsed {
+		bare[key(b.client, b.op)] = b
+	}
+	seen := map[string]bool{}
+	var refs []sdkinv.OpRef
+	var drops []sdkinv.Drop
+	for _, m := range publicRe.FindAllStringSubmatch(src, -1) {
+		client, name := m[1], strings.TrimPrefix(m[2], "Begin")
+		if pm := pagerRe.FindStringSubmatch(name); pm != nil {
+			name = pm[1]
+		}
+		k := key(client, name)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		if b, ok := parsed[k]; ok {
+			refs = append(refs, opFor(b, "", nil, "").Ref())
+			continue
+		}
+		b, ok := bare[k]
+		reason := "no-request-path"
+		if !ok {
+			b, reason = builder{client: client, op: name, module: module}, "no-request-builder"
+		}
+		op := opFor(b, "", nil, "")
+		refs = append(refs, op.Ref())
+		drops = append(drops, sdkinv.Drop{Op: op, Reason: reason})
+	}
+	return refs, drops
 }
 
 // index files one builder under its (namespace, type path) entry.
@@ -203,7 +263,7 @@ func index(entries map[string]*entry, b builder) bool {
 	default:
 		return false // action/operation path outside any resource provider; nothing to list
 	}
-	rp := sdkinv.StripScopes(rest, scopeNames, nil)
+	rp := sdkinv.StripScopes(sdkinv.MarkIDs(rest, SingletonIDs), scopeNames, nil)
 	if len(rp.Statics) == 0 {
 		return false
 	}
@@ -240,7 +300,7 @@ func index(entries map[string]*entry, b builder) bool {
 		return false
 	}
 	sc := scopeOf(segs, nsIdx)
-	if e.scope == "" || scopeRank[sc] > scopeRank[e.scope] {
+	if e.scope == "" || scopeRank(sc) > scopeRank(e.scope) {
 		e.scope = sc
 	}
 	// Only when *every* lister reaches the collection through a location does
@@ -324,13 +384,25 @@ func opFor(b builder, namespace string, parents []string, scope sdkinv.Scope) sd
 		Scope:   scope,
 		Path:    b.path,
 		Module:  fmt.Sprintf("azure-sdk-for-go@%s/sdk/resourcemanager/%s", sdkinv.AzureSDKRef, b.module),
+		Client:  b.client + "Client",
 	}
 }
 
-// scopeRank orders scopes widest-first for the collapsed candidate.
-var scopeRank = map[sdkinv.Scope]int{
-	sdkinv.ScopeExtension: 5, sdkinv.ScopeTenant: 4, sdkinv.ScopeManagementGroup: 3, sdkinv.ScopeSubscription: 2, sdkinv.ScopeResourceGroup: 1,
+// SingletonIDs are the static segments ARM spells the one instance of a
+// singleton child with (.../blobServices/default). Reading one as a
+// collection made the PUT on that exact path an item write on a path nothing
+// listed: 114 rows were excluded as having no item path while the cache showed
+// GET+PUT, and 55 more carried the segment inside their key, where no scanner
+// could match it. It is a grammar rule about ARM ids, not a list of resources.
+var SingletonIDs = map[string]bool{"default": true, "current": true}
+
+// scopes is ARM's scope vocabulary, narrowest first.
+var scopes = []sdkinv.Scope{
+	sdkinv.ScopeResourceGroup, sdkinv.ScopeSubscription, sdkinv.ScopeManagementGroup, sdkinv.ScopeTenant, sdkinv.ScopeExtension,
 }
+
+// scopeRank orders scopes widest-first for the collapsed candidate.
+func scopeRank(s sdkinv.Scope) int { return slices.Index(scopes, s) + 1 }
 
 // scopeOf reads the scope from the whole template, not only the segments
 // before the namespace: a managementGroups pair sits after the namespace in
@@ -354,7 +426,7 @@ func scopeOf(segs []sdkinv.Segment, nsIdx int) sdkinv.Scope {
 				return sdkinv.ScopeExtension
 			}
 		case "subscriptions":
-			if scopeRank[sc] > scopeRank[sdkinv.ScopeSubscription] || sc == sdkinv.ScopeTenant {
+			if scopeRank(sc) > scopeRank(sdkinv.ScopeSubscription) || sc == sdkinv.ScopeTenant {
 				sc = sdkinv.ScopeSubscription
 			}
 		case "resourcegroups":

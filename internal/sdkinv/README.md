@@ -53,6 +53,9 @@ classDiagram
         Pins map[source]ref
         Candidates []Candidate
         Other []Operation
+        Dropped []Drop
+        SourceOps []OpRef
+        Scopes []Scope
         Diagnostics
     }
     class Candidate {
@@ -73,6 +76,7 @@ classDiagram
         Required / Targets
         Scope
         Module
+        Client
     }
     Universe "1" --> "*" Candidate
     Candidate "1" --> "1..*" Operation
@@ -243,6 +247,10 @@ flowchart LR
        // read what the SDK ships, build candidates, then:
        //   sort candidates by Key, sort every slice built from a map (Signals, Refs, Ops)
        //   sdkinv.SortOps(u.Other)
+       // account for every operation the sources declare, walked apart from classification:
+       //   u.SourceOps (sdkinv.SortOpRefs) — each lands in a candidate's Ops, u.Other,
+       //   or u.Dropped with a Reason (sdkinv.SortDrops)
+       // declare the scope vocabulary the ops use, narrowest first: u.Scopes
    }
 
    func init() { sdkinv.Register(extractor{}) }
@@ -255,7 +263,9 @@ flowchart LR
 2. **Fixture** at `internal/sdkinv/<p>/testdata/cache/` — a synthetic mini-SDK holding at least one
    resource, one catalog and one non-resource candidate, depth 0 and depth 1, and one candidate
    with refs. `conformance.Check` asserts that plus determinism (two extracts `DeepEqual`), sorted
-   keys, every parent present and every op label containing `:`.
+   keys, every parent present, every op label containing `:`, every source operation accounted for
+   (`conformance.CheckUniverse`, which the live-cache test also runs) and every op scope declared
+   in `Universe.Scopes`.
 
 3. **Register** the package with a blank import in `internal/sdkinv/all/all.go` and add the name to
    `TestExtractorsRegistered`. `TestAllExtractorsConform` now runs your fixture on every
@@ -264,7 +274,8 @@ flowchart LR
 4. **Pairing resolver** (`internal/sdkinv/pairing/<p>.go`, ~100 lines): implement
    `pairing.Resolver` — `LabelGrammar` (the op-label regexp your scanners use), `ImportKey` (SDK
    import path → universe module key), `OpKey`, `LabelAliases` (every literal spelling that names an
-   op), `Constructor`/`TypeOwner` (how a client local gets bound), `Anchors` (the SDK call shapes to
+   op), `Constructor`/`TypeOwner` (how a client local gets bound), `LabelOp` (the op name a label
+   spells, in anchor form, so a stale label reads as SDK skew), `Anchors` (the SDK call shapes to
    recognise) — and `pairing.Register` it from `init()`. Add a synthetic scanner package under
    `pairing/testdata/scannerpkg/<p>/` with one case per rule.
 

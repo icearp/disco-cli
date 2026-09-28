@@ -15,3 +15,7 @@ func (client *WidgetPartsClient) createOrUpdateCreateRequest(ctx context.Context
 	req, err := runtime.NewRequest(ctx, http.MethodPut, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	return req, err
 }
+
+func (client *WidgetPartsClient) BeginCreateOrUpdate(ctx context.Context) error {
+	return nil
+}
