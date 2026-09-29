@@ -53,14 +53,18 @@ func TestResolverKeys(t *testing.T) {
 			t.Errorf("azure ImportKey(%s) = %q, want %q", path, got, want)
 		}
 	}
-	if ident, ok := azure.TypeOwner("armquota", "ClientListResponse"); !ok || ident != "Client" {
-		t.Errorf("azure TypeOwner bare client = %s %v", ident, ok)
-	}
-	if ident, ok := azure.TypeOwner("armsql", "ServersClientListOptions"); !ok || ident != "ServersClient" {
-		t.Errorf("azure TypeOwner = %s %v", ident, ok)
-	}
-	if _, ok := azure.TypeOwner("armsql", "Server"); ok {
-		t.Error("azure TypeOwner: model type bound")
+	clients := []string{"Client", "ClientGroupsClient", "ServersClient"}
+	for typ, want := range map[string]string{
+		"ClientListResponse":             "Client",
+		"ServersClientListOptions":       "ServersClient",
+		"ClientGroupsClientListResponse": "ClientGroupsClient", // longest, not the bare Client
+		"Server":                         "",                   // a model
+		"ServersClient":                  "",                   // the client itself names no op type
+		"UnknownClientListOptions":       "",                   // no known client
+	} {
+		if ident, ok := azure.TypeOwner("armsql", typ, clients); ident != want || ok != (want != "") {
+			t.Errorf("azure TypeOwner(%s) = %q %v, want %q", typ, ident, ok, want)
+		}
 	}
 
 	// Labels drop the client type's "Client" suffix; the base client keeps it.

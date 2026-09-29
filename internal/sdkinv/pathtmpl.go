@@ -106,24 +106,3 @@ func StripScopes(segs []Segment, scopes map[string]bool, literals map[string]boo
 	}
 	return rp
 }
-
-// MarkIDs rewrites a static segment that follows a collection name into a
-// param when ids (lowercase) says the provider spells an instance's id that
-// way, so StripScopes treats it as the id it is. Which spellings those are is
-// the provider's grammar, not the core's.
-func MarkIDs(segs []Segment, ids map[string]bool) []Segment {
-	var out []Segment
-	for i, s := range segs {
-		if i > 0 && !s.Param && !segs[i-1].Param && ids[strings.ToLower(s.Text)] {
-			if out == nil {
-				out = append(out, segs...)
-			}
-			out[i].Param = true
-			continue
-		}
-	}
-	if out == nil {
-		return segs
-	}
-	return out
-}

@@ -46,8 +46,8 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   `Dropped` (with a `Reason`); `sdkinv.Unaccounted` reports missing / extra / conflicting.
   `CheckUniverse` runs on fixtures **and** live caches (`TestLiveUniverseWellFormed` in `internal/providers/all`).
 - Enumerate `SourceOps` by a walk **apart from classification** — derived from the classifier's own
-  parse it can never fail. Azure first reused `builderRe` (vacuous); it now walks exported client
-  methods (`publicRe`), mapping `Begin<Op>`/`New<Op>Pager` onto builders.
+  parse it can never fail. Azure first reused `builderRe` (vacuous); it now starts from every
+  exported client method and follows its calls to the builder, so a method reaching none drops.
 - Never filter `Other` or delete entries without a `Drop`; the live test names the lost ops.
 - Extractors iterate Go maps in sorted order (shapes, lifecycle roles, candidates): a map-order
   pick passes most runs and flips output on some. Four hashed `coverage services -o json` runs
@@ -60,6 +60,12 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
 - Live drops at current pins: aws 2 (unreachable-from-service: healthlake's second namespace),
   azure 0, gcp 6,173 (non-cloud-api 6126, alias-document 47). Every other GCP method is a
   candidate op or Other; nothing drops for its shape.
+- Warn-level `Universe.Diagnostics` are the only channel for surface an extractor could not
+  model (a retired linked module, a module it could not parse). `disco coverage` prints a count
+  per provider and `--verbose` lists them; before that, nothing rendered them.
+- In a rewrite diff, a removed row whose collection has item PUT/PATCH/DELETE is a regression
+  until proven otherwise. The Azure singleton-read rule dropped 5 writable resources, and the
+  diff review accepted it.
 - `Universe.Scopes` = provider scope vocabulary, narrowest first; coverage ranks `Row.Scope` by it;
   every op scope must be declared.
 

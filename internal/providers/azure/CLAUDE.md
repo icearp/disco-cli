@@ -224,11 +224,10 @@ For error injection use `azfake.PagerResponder.AddResponseError(http.StatusForbi
 
 ## Cross-check keys are not candidate keys (#123)
 
-`RegistryKey` rebuilds the ARM type name from a candidate key: it drops a singleton instance id
-(`blobservices/default/containers` → `blobServices/containers`) and restores the `locations`
+`RegistryKey` rebuilds the ARM type name from a candidate key: it restores the `locations`
 segment the extractor strips as a scope pair, which `azureinventory` flags with
 `scope-pair:locations` (set only when *every* lister reaches the collection through a location —
-a sibling `ListBySubscription` proves ARM keeps no `locations` in the type). Without both, 34
-keys could never match `Providers/List` and each one produced a false drift row on both sides.
-`--cross-check` needs a live subscription, so this is verified against the key shapes, not against
-ARM.
+a sibling `ListBySubscription` proves ARM keeps no `locations` in the type). Singleton instance ids
+(`blobServices/default`) never reach a key — the extractor reads them as ids — so nothing drops them
+here. `--cross-check` needs a live subscription, so this is verified against the key shapes, not
+against ARM.

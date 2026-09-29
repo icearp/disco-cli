@@ -121,7 +121,8 @@ type Resolver interface {
 	// TypeOwner reports the client ident a module type belongs to
 	// (armquota.ClientListResponse -> Client), so a local interface seam whose
 	// methods mention that type binds its parameters like the client itself.
-	TypeOwner(module, typeName string) (ident string, ok bool)
+	// clients lists the module's client idents the universe knows, sorted.
+	TypeOwner(module, typeName string, clients []string) (ident string, ok bool)
 	// LabelOp maps a label literal to the operation name it spells, in the
 	// form an Anchor's Op and OpKey carry: a label resolves by it when no alias
 	// matches, and a label naming a call the pinned SDK no longer has reads as
@@ -221,7 +222,7 @@ func Walk(dir string, u *sdkinv.Universe) (*Result, error) {
 	consts := collectConsts(parsed, u.Provider)
 	varTypes := collectVarTypes(parsed, consts)
 	fields := collectFields(parsed, r)
-	seams := collectSeams(parsed, r)
+	seams := collectSeams(parsed, r, idx.moduleClients)
 	res := &Result{Provider: u.Provider, Consts: consts, StoredBy: map[string][]string{}}
 	fns := map[string]*fn{}
 	var order []*fn
@@ -533,10 +534,12 @@ type index struct {
 	other   map[string]sdkinv.Operation
 	clients map[string][]string // module\x00op -> client idents
 	modules map[string]bool
+	// moduleClients lists each module's client idents, sorted, for TypeOwner.
+	moduleClients map[string][]string
 }
 
 func indexUniverse(r Resolver, u *sdkinv.Universe) *index {
-	idx := &index{r: r, byKey: map[string][]opRef{}, byLabel: map[string][]opRef{}, other: map[string]sdkinv.Operation{}, clients: map[string][]string{}, modules: map[string]bool{}}
+	idx := &index{r: r, byKey: map[string][]opRef{}, byLabel: map[string][]opRef{}, other: map[string]sdkinv.Operation{}, clients: map[string][]string{}, modules: map[string]bool{}, moduleClients: map[string][]string{}}
 	for _, c := range u.Candidates {
 		for _, op := range c.Ops {
 			mod, name := r.OpKey(op)
@@ -557,6 +560,26 @@ func indexUniverse(r Resolver, u *sdkinv.Universe) *index {
 			idx.other[l] = op
 		}
 		idx.other[mod+"\x00"+name] = op
+	}
+	seen := map[string]bool{}
+	addClient := func(mod string, op sdkinv.Operation) {
+		if op.Client != "" && !seen[mod+"\x00"+op.Client] {
+			seen[mod+"\x00"+op.Client] = true
+			idx.moduleClients[mod] = append(idx.moduleClients[mod], op.Client)
+		}
+	}
+	for _, c := range u.Candidates {
+		for _, op := range c.Ops {
+			mod, _ := r.OpKey(op)
+			addClient(mod, op)
+		}
+	}
+	for _, op := range u.Other {
+		mod, _ := r.OpKey(op)
+		addClient(mod, op)
+	}
+	for _, cs := range idx.moduleClients {
+		sort.Strings(cs)
 	}
 	return idx
 }
@@ -741,7 +764,7 @@ func collectFields(files []*ast.File, r Resolver) map[string]map[string]Binding 
 
 // collectSeams maps every package-local interface type to the client whose
 // types its method signatures mention (a scanner's narrow test seam).
-func collectSeams(files []*ast.File, r Resolver) map[string]Binding {
+func collectSeams(files []*ast.File, r Resolver, clients map[string][]string) map[string]Binding {
 	out := map[string]Binding{}
 	for _, af := range files {
 		imports, _ := fileImports(r, af)
@@ -773,7 +796,7 @@ func collectSeams(files []*ast.File, r Resolver) map[string]Binding {
 					if mod == "" {
 						return true
 					}
-					if ident, ok := r.TypeOwner(mod, sel.Sel.Name); ok {
+					if ident, ok := r.TypeOwner(mod, sel.Sel.Name, clients[mod]); ok {
 						if _, seen := out[ts.Name.Name]; !seen {
 							out[ts.Name.Name] = Binding{Module: mod, Ident: ident}
 						}

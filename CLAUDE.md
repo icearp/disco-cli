@@ -25,7 +25,9 @@ and do not batch phases together:
 **Rewriting an extractor:** build the new one beside the old, diff both universes per candidate
 (key, class, rule, parent, depth) with a throwaway live-cache test, classify every changed row,
 mutation-check every rule against the fixture (see `internal/sdkinv/CLAUDE.md`), then swap and
-delete the old code and the diff test in the same commit.
+delete the old code and the diff test in the same commit. Measure every review fix against the
+live cache (dump candidates before and after, diff the key/class/rule columns): a one-line gate
+in Azure moved 56 rows.
 
 **After the final phase.** Run the `claude-md-management:claude-md-improver` skill across
 the repo's `CLAUDE.md` files to optimize them, then commit that pass separately.

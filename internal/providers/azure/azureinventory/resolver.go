@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/icearp/disco-cli/internal/sdkinv/pairing"
 
@@ -18,8 +19,7 @@ var (
 	azureLooseLabelRe = regexp.MustCompile(`^arm[a-z0-9]+:[A-Za-z0-9]+$`)
 	azurePagerRe      = regexp.MustCompile(`^New(\w+)Pager$`)
 	azureCtorRe       = regexp.MustCompile(`^New(\w*Client|ClientFactory)$`)
-	armMajorRe        = regexp.MustCompile(`^v\d+[a-z0-9]*$`)        // a module major-version dir (v6)
-	azureTypeRe       = regexp.MustCompile(`^(\w*?Client)[A-Z]\w*$`) // <X>Client<Op>Response, ClientListOptions
+	armMajorRe        = regexp.MustCompile(`^v\d+[a-z0-9]*$`) // a module major-version dir (v6)
 )
 
 type azureResolver struct{}
@@ -75,12 +75,20 @@ func (azureResolver) LabelOp(lit string) string {
 	return client + "Client." + method
 }
 
-func (azureResolver) TypeOwner(_, typeName string) (string, bool) {
-	m := azureTypeRe.FindStringSubmatch(typeName)
-	if m == nil {
-		return "", false
+// TypeOwner: the longest client of the module that prefixes the type name at
+// a word boundary (ServersClientListOptions is ServersClient's). A module
+// with a ClientGroupsClient and a bare Client needs the longest: the shortest
+// "…Client" prefix bound ClientGroupsClientListResponse to Client. A type no
+// known client prefixes (a model) binds nothing.
+func (azureResolver) TypeOwner(_, typeName string, clients []string) (string, bool) {
+	best := ""
+	for _, c := range clients {
+		rest, ok := strings.CutPrefix(typeName, c)
+		if ok && rest != "" && unicode.IsUpper(rune(rest[0])) && len(c) > len(best) {
+			best = c
+		}
 	}
-	return m[1], true
+	return best, best != ""
 }
 
 func (azureResolver) Constructor(_, fn string) (string, bool) {

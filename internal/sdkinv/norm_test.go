@@ -70,21 +70,6 @@ func TestStripScopes(t *testing.T) {
 	}
 }
 
-func TestMarkIDs(t *testing.T) {
-	segs := ParseTemplate("/storageAccounts/{a}/blobServices/default/containers")
-	if got := StripScopes(segs, nil, nil); got.Item || len(got.Parents) != 1 {
-		t.Errorf("unmarked: %+v", got)
-	}
-	got := StripScopes(MarkIDs(segs, map[string]bool{"default": true}), nil, nil)
-	want := ResourcePath{Statics: []string{"storageAccounts", "blobServices", "containers"}, Parents: []string{"storageAccounts", "blobServices"}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("MarkIDs: %+v, want %+v", got, want)
-	}
-	if segs[3].Param {
-		t.Error("MarkIDs mutated its input")
-	}
-}
-
 func TestUnaccounted(t *testing.T) {
 	op := func(n string) Operation { return Operation{Module: "m", Name: n} }
 	u := &Universe{

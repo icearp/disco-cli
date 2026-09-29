@@ -63,8 +63,8 @@ func (fakeResolver) OpKey(op sdkinv.Operation) (string, string) { return op.Modu
 func (fakeResolver) LabelAliases(_ sdkinv.Candidate, op sdkinv.Operation) []string {
 	return []string{op.Label}
 }
-func (fakeResolver) Constructor(_, _ string) (string, bool) { return "", false }
-func (fakeResolver) TypeOwner(_, _ string) (string, bool)   { return "", false }
+func (fakeResolver) Constructor(_, _ string) (string, bool)           { return "", false }
+func (fakeResolver) TypeOwner(_, _ string, _ []string) (string, bool) { return "", false }
 func (fakeResolver) LabelOp(lit string) string {
 	_, op, _ := strings.Cut(lit, ":")
 	return op

@@ -112,7 +112,7 @@ func receiverBinding(f *pairing.Func, root ast.Expr, fields *[]string) (pairing.
 
 // TypeOwner: a Discovery method is reached through the service's resource
 // chain, which an interface seam over one call type does not carry.
-func (gcpResolver) TypeOwner(_, _ string) (string, bool) { return "", false }
+func (gcpResolver) TypeOwner(_, _ string, _ []string) (string, bool) { return "", false }
 
 // LabelOp: "<api>:<method path>", canonical per segment like OpKey.
 func (gcpResolver) LabelOp(lit string) string {

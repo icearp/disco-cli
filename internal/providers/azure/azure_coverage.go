@@ -59,29 +59,21 @@ func (coverageProvider) ResolverEdgeSources() []string {
 }
 
 // RegistryKey turns a candidate key into the ARM type it should match
-// ("microsoft.compute/virtualmachines/extensions", lowercased). Two shapes
-// differ from the key: ARM omits a singleton instance id that the path spells
-// out ("blobServices/default/containers" is "blobServices/containers"), and it
-// keeps the "locations" segment the extractor strips as a scope pair. Without
-// both, 34 keys could never match and each produced a false drift row on both
-// sides of the comparison.
+// ("microsoft.compute/virtualmachines/extensions", lowercased). ARM keeps the
+// "locations" segment the extractor strips as a scope pair, so a candidate
+// reached only through one gets it back; without that, 15 keys could never
+// match and each produced a false drift row on both sides of the comparison.
+// Instance ids (blobServices/default) never reach a key: the extractor reads
+// them as ids.
 func (coverageProvider) RegistryKey(c sdkinv.Candidate) string {
 	ns, path, ok := strings.Cut(c.Key, "/")
 	if !ok {
 		return c.Key
 	}
-	segs := strings.Split(path, "/")
-	out := make([]string, 0, len(segs)+1)
 	if slices.Contains(c.Signals, azureinventory.LocationScopeSignal) {
-		out = append(out, "locations")
+		return ns + "/locations/" + path
 	}
-	for _, sg := range segs {
-		if azureinventory.IsSingletonID(sg) { // an id in the path, absent from the type name
-			continue
-		}
-		out = append(out, sg)
-	}
-	return ns + "/" + strings.Join(out, "/")
+	return c.Key
 }
 
 // CanonicalKey lowercases: ARM identifiers are case-insensitive.

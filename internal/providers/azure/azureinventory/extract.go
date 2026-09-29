@@ -2,57 +2,32 @@ package azureinventory
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"go/scanner"
 	"io/fs"
-	"os"
 	"path/filepath"
-	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
-// builder is one generated <op>CreateRequest method: the ARM path template
-// and HTTP verb the SDK sends for that operation.
-type builder struct {
-	client string // receiver type without the "Client" suffix
-	op     string // exported operation name
-	method string // GET, PUT, ...
-	path   string
-	module string // "<rp>/arm<mod>"
-	paged  bool   // a New<op>Pager wrapper exists
-	result string // list-result model the response decoder fills
-}
-
-var (
-	// Receiver is "<X>Client" or the bare "Client" (armresources' generic
-	// client, armmanagementgroups); the capture is empty for the latter.
-	// The builder is unexported; an exported method may itself end in
-	// CreateRequest (hdinsight ValidateClusterCreateRequest) and is no builder.
-	builderRe = regexp.MustCompile(`(?m)^func \(client \*(\w*)Client\) ([a-z]\w*)CreateRequest\(`)
-	// publicRe is every exported client method: the operations a caller sees.
-	publicRe  = regexp.MustCompile(`(?m)^func \(client \*(\w*)Client\) ([A-Z]\w*)\(`)
-	pagerRe   = regexp.MustCompile(`^New(\w+)Pager$`)
-	urlPathRe = regexp.MustCompile(`urlPath := "([^"]+)"`)
-	methodRe  = regexp.MustCompile(`http\.Method(\w+)`)
-)
-
 // scopeNames are static segments whose following {param} is a container the
-// caller enumerates within, never a parent resource. Lowercase keys.
-// "providers" joins them for the generic form
+// caller enumerates within, never a parent resource: ARM's scope vocabulary.
+// Lowercase keys. "providers" joins them for the generic form
 // ".../providers/{resourceProviderNamespace}/features", whose remainder would
 // otherwise key microsoft.features/providers/features.
 var scopeNames = map[string]bool{
 	"subscriptions": true, "resourcegroups": true, "locations": true, "managementgroups": true, "providers": true,
 }
 
-// armOwnModules are the modules whose paths have no /providers/ segment
-// because they address ARM's own namespace (resource groups, subscriptions).
-var armOwnModules = map[string]bool{"resources/armresources": true, "resources/armsubscriptions": true, "subscription/armsubscription": true}
-
-const armOwnNamespace = "microsoft.resources"
+// armNamespace owns every path that names no resource provider: resource
+// groups, subscriptions, deployments, tags are ARM's own types.
+const armNamespace = "microsoft.resources"
 
 type entry struct {
 	key         string
@@ -60,173 +35,139 @@ type entry struct {
 	statics     []string
 	parents     []string
 	scope       sdkinv.Scope
-	collection  []builder // GET on the collection path
+	collection  []listed // GETs on the collection path
 	itemMethods map[string]bool
-	alternate   bool // holds a lister folded in from an alternate path
+	alternate   bool     // holds a lister folded in from an alternate path
+	singles     []listed // GETs on the collection path answering one model
+	// singleAnswer: the listers are single-model GETs promoted because the
+	// collection is written and nothing else lists it.
+	singleAnswer bool
 	// viaLocation / viaOther record how this collection's listers reach it:
 	// through a "locations/{location}" pair, which the key strips and ARM
 	// keeps in the type name, or by some other path.
 	viaLocation, viaOther bool
 }
 
+// listed is one collection GET, the module that declares it, and how its
+// path reaches the collection.
+type listed struct {
+	b           builder
+	mod         *module
+	scope       sdkinv.Scope
+	viaLocation bool
+}
+
+func (l listed) element() string { return l.mod.shapeOf(l.b.result).element }
+
 func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error) {
 	root := filepath.Join(dir, "repo", "sdk", "resourcemanager")
 	u := &sdkinv.Universe{Provider: "azure", Pins: map[string]string{"azure-sdk-for-go": SDKRef}}
-	entries := map[string]*entry{}
-	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") {
-			return err
-		}
-		rel, _ := filepath.Rel(root, p)
-		rel = filepath.ToSlash(rel)
-		cut := strings.LastIndex(rel, "/")
-		if cut < 0 {
-			return nil // a file directly under sdk/resourcemanager names no module
-		}
-		module := rel[:cut]
-		raw, rerr := os.ReadFile(p)
-		if rerr != nil {
-			return rerr
-		}
-		builders, unparsed := parseBuilders(string(raw), module)
-		src, drops := accountPublic(string(raw), module, builders, unparsed)
-		u.SourceOps = append(u.SourceOps, src...)
-		u.Dropped = append(u.Dropped, drops...)
-		for _, b := range builders {
-			if !index(entries, b) {
-				u.Other = append(u.Other, opFor(b, "", nil, ""))
-			}
-		}
-		return nil
-	})
+	mods, diags, err := parseModules(root)
 	if err != nil {
 		return nil, err
 	}
-	loaded := map[string]models{}
-	modelsFor := func(module string) models {
-		m, seen := loaded[module]
-		if !seen {
-			m = loadModels(root, module)
-			loaded[module] = m
-		}
-		return m
-	}
-	foldAlternateListers(entries, func(b builder) string {
-		if b.result == "" {
-			return ""
-		}
-		return elementOf(modelsFor(b.module), b.result)
-	})
-	for _, e := range entries {
-		c, ok := classify(e, func() bool {
-			for _, b := range e.collection {
-				if b.result != "" && armEnvelope(modelsFor(b.module), elementOf(modelsFor(b.module), b.result)) {
-					return true
+	u.Diagnostics = append(u.Diagnostics, diags...)
+	ids := instanceIDs(mods)
+	entries := map[string]*entry{}
+	for _, m := range mods {
+		u.SourceOps = append(u.SourceOps, m.source...)
+		u.Dropped = append(u.Dropped, m.drops...)
+		for _, b := range m.builders {
+			if ok, why := index(entries, m, b, ids); !ok {
+				u.Other = append(u.Other, opFor(b, "", nil, ""))
+				if why != "" {
+					u.Diagnostics = append(u.Diagnostics, sdkinv.Diagnostic{Severity: "info", Source: m.path, Message: fmt.Sprintf("%s %s: %s", b.method, b.path, why)})
 				}
 			}
-			return false
-		})
+		}
+	}
+	u.Other = append(u.Other, promoteSingles(entries)...)
+	foldAlternateListers(entries)
+	for _, e := range entries {
+		c, ok := classify(e)
 		if !ok {
 			continue
 		}
-		for _, b := range e.collection {
-			if b.result == "" {
-				continue
-			}
-			c.Refs = mergeRefs(c.Refs, refsOf(modelsFor(b.module), b.result))
+		for _, l := range e.collection {
+			c.Refs = mergeRefs(c.Refs, l.mod.refsOf(l.element()))
 		}
 		u.Candidates = append(u.Candidates, c)
 	}
+	u.Diagnostics = append(u.Diagnostics, absentModules(root, linkedModules())...)
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)
 	sdkinv.SortOpRefs(u.SourceOps)
 	sdkinv.SortDrops(u.Dropped)
+	sort.SliceStable(u.Diagnostics, func(i, j int) bool {
+		a, b := u.Diagnostics[i], u.Diagnostics[j]
+		return a.Source+"\x00"+a.Message < b.Source+"\x00"+b.Message
+	})
 	u.Scopes = slices.Clone(scopes)
 	return u, nil
 }
 
-// parseBuilders extracts every request builder in one generated client file.
-// A builder with no literal urlPath or HTTP method is returned in unparsed.
-func parseBuilders(src, module string) (out, unparsed []builder) {
-	locs := builderRe.FindAllStringSubmatchIndex(src, -1)
-	out = make([]builder, 0, len(locs))
-	var results map[string]string
-	for i, loc := range locs {
-		end := len(src)
-		if i+1 < len(locs) {
-			end = locs[i+1][0]
+// parseModules parses every module directory under root in parallel and
+// returns them in path order.
+func parseModules(root string) ([]*module, []sdkinv.Diagnostic, error) {
+	var rels []string
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || !d.IsDir() {
+			return err
 		}
-		body := src[loc[1]:end]
-		client, op := src[loc[2]:loc[3]], sdkinv.UpperFirst(src[loc[4]:loc[5]])
-		if results == nil {
-			results = parseResults(src)
+		rel, _ := filepath.Rel(root, p)
+		if strings.Contains(filepath.ToSlash(rel), "/") { // a file directly under a provider dir names no module
+			rels = append(rels, filepath.ToSlash(rel))
 		}
-		pm := urlPathRe.FindStringSubmatch(body)
-		mm := methodRe.FindStringSubmatch(body)
-		if pm == nil || mm == nil {
-			unparsed = append(unparsed, builder{client: client, op: op, module: module})
-			continue
-		}
-		out = append(out, builder{
-			client: client, op: op, method: strings.ToUpper(mm[1]), path: pm[1], module: module,
-			paged:  strings.Contains(src, "func (client *"+client+"Client) New"+op+"Pager("),
-			result: results[op],
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	sort.Strings(rels)
+	mods := make([]*module, len(rels))
+	errs := make([]error, len(rels))
+	next := make(chan int)
+	var wg sync.WaitGroup
+	for range runtime.GOMAXPROCS(0) {
+		wg.Go(func() {
+			for i := range next {
+				mods[i], errs[i] = parseModule(root, rels[i])
+			}
 		})
 	}
-	return out, unparsed
-}
-
-// accountPublic enumerates the file's exported client methods apart from the
-// builders (Begin<Op> and New<Op>Pager wrap <op>CreateRequest) and returns
-// them as source ops, each named as its builder's operation. A method with no
-// builder, or whose builder has no literal path or verb, is dropped. A builder
-// no exported method reaches is left out of the source, so accounting fails on
-// it rather than letting it pass unseen.
-func accountPublic(src, module string, builders, unparsed []builder) ([]sdkinv.OpRef, []sdkinv.Drop) {
-	key := func(client, op string) string { return client + "\x00" + sdkinv.Canon(op) }
-	parsed := map[string]builder{}
-	for _, b := range builders {
-		parsed[key(b.client, b.op)] = b
+	for i := range rels {
+		next <- i
 	}
-	bare := map[string]builder{}
-	for _, b := range unparsed {
-		bare[key(b.client, b.op)] = b
-	}
-	seen := map[string]bool{}
-	var refs []sdkinv.OpRef
-	var drops []sdkinv.Drop
-	for _, m := range publicRe.FindAllStringSubmatch(src, -1) {
-		client, name := m[1], strings.TrimPrefix(m[2], "Begin")
-		if pm := pagerRe.FindStringSubmatch(name); pm != nil {
-			name = pm[1]
-		}
-		k := key(client, name)
-		if seen[k] {
+	close(next)
+	wg.Wait()
+	out := mods[:0]
+	var diags []sdkinv.Diagnostic
+	for i, m := range mods {
+		// A file go/parser rejects (a newer Go syntax than this build knows)
+		// costs its module, named, not the whole universe.
+		var syntax scanner.ErrorList
+		if errors.As(errs[i], &syntax) {
+			diags = append(diags, sdkinv.Diagnostic{Severity: "warn", Source: rels[i], Message: "module skipped: " + syntax.Error()})
 			continue
 		}
-		seen[k] = true
-		if b, ok := parsed[k]; ok {
-			refs = append(refs, opFor(b, "", nil, "").Ref())
-			continue
+		if errs[i] != nil {
+			return nil, nil, fmt.Errorf("azure module %s: %w", rels[i], errs[i])
 		}
-		b, ok := bare[k]
-		reason := "no-request-path"
-		if !ok {
-			b, reason = builder{client: client, op: name, module: module}, "no-request-builder"
+		if len(m.builders) > 0 || len(m.source) > 0 {
+			out = append(out, m)
 		}
-		op := opFor(b, "", nil, "")
-		refs = append(refs, op.Ref())
-		drops = append(drops, sdkinv.Drop{Op: op, Reason: reason})
 	}
-	return refs, drops
+	return out, diags, nil
 }
 
-// index files one builder under its (namespace, type path) entry.
-func index(entries map[string]*entry, b builder) bool {
-	segs := sdkinv.ParseTemplate(b.path)
-	// The last "providers" whose successor is static: the generic extension
-	// form ends "…/providers/{resourceProviderNamespace}/features", and taking
-	// the last one outright discarded Microsoft.Features for a "*" namespace.
+// split returns a path's namespace and the segments after it. The namespace
+// follows the last "providers" whose successor is static: the generic
+// extension form ends ".../providers/{resourceProviderNamespace}/features",
+// and taking the last one outright discarded Microsoft.Features for a "*"
+// namespace. A path naming no provider is ARM's own. nsIdx is the namespace's
+// "providers" segment, -1 when there is none; why says what made the path
+// unattributable.
+func split(segs []sdkinv.Segment) (namespace string, rest []sdkinv.Segment, nsIdx int, why string) {
 	nsIdx, anyProviders := -1, -1
 	for i := len(segs) - 2; i >= 0; i-- {
 		if segs[i].Param || !strings.EqualFold(segs[i].Text, "providers") {
@@ -243,29 +184,142 @@ func index(entries map[string]*entry, b builder) bool {
 	if nsIdx < 0 {
 		nsIdx = anyProviders
 	}
-	var namespace string
-	var rest []sdkinv.Segment
-	switch {
-	case nsIdx >= 0:
-		ns := segs[nsIdx+1]
-		if ns.Param {
-			// The namespace is whatever the caller passes
-			// (".../providers/{resourceProviderNamespace}/resourceTypes"), so
-			// there is no resource provider to key: "*/resourcetypes" matched
-			// no type and no ARM registry entry.
-			return false
-		}
-		namespace = strings.ToLower(ns.Text)
-		rest = segs[nsIdx+2:]
-	case armOwnModules[b.module]:
-		namespace = armOwnNamespace
-		rest = segs
-	default:
-		return false // action/operation path outside any resource provider; nothing to list
+	if nsIdx < 0 {
+		return armNamespace, segs, -1, ""
 	}
-	rp := sdkinv.StripScopes(sdkinv.MarkIDs(rest, singletonIDs), scopeNames, nil)
+	if segs[nsIdx+1].Param {
+		// The namespace is whatever the caller passes
+		// (".../providers/{resourceProviderNamespace}/resourceTypes").
+		return "", nil, nsIdx, "namespace is a parameter"
+	}
+	return strings.ToLower(segs[nsIdx+1].Text), segs[nsIdx+2:], nsIdx, ""
+}
+
+// itemRead is a GET answering one model: it reads an instance, never lists.
+func itemRead(m *module, b builder) bool {
+	return b.method == "GET" && !b.paged && m.shapeOf(b.result).model != ""
+}
+
+func writes(b builder) bool { return b.method == "PUT" || b.method == "PATCH" || b.method == "DELETE" }
+
+// instanceIDs finds the static segments that are an instance's id rather
+// than another collection (".../sites/{name}/config/web",
+// ".../blobServices/default", ".../billingAccounts/default/..."). A static S
+// after a static C is an id when S is not listed as a collection itself and
+// either the SDK also spells C/{param} at that place, or it addresses C/S as
+// an instance (a write, or a GET answering one model) while C itself is not
+// one: runbooks/{r}/draft is a singleton, so draft/testJob is the test job,
+// not the id of a draft. Keys are normTemplate forms of the path up to S; a
+// longer path through the same prefix carries the same id.
+func instanceIDs(mods []*module) map[string]bool {
+	params := map[string]bool{}  // prefixes ending in a param
+	listers := map[string]bool{} // static-final paths with a lister GET
+	items := map[string]bool{}   // static-final paths addressed as an instance
+	posts := map[string]bool{}   // static-final paths a POST addresses
+	read := map[string]bool{}    // static-final paths some other verb addresses
+	for _, m := range mods {
+		for _, b := range m.builders {
+			segs := sdkinv.ParseTemplate(b.path)
+			for i, s := range segs {
+				if s.Param {
+					params[normTemplate(segs[:i+1])] = true
+				}
+			}
+			if n := len(segs); n > 0 && !segs[n-1].Param {
+				if b.method == "POST" {
+					posts[normTemplate(segs)] = true
+				} else {
+					read[normTemplate(segs)] = true
+				}
+				switch {
+				case writes(b) || itemRead(m, b):
+					items[normTemplate(segs)] = true
+				case b.method == "GET":
+					listers[normTemplate(segs)] = true
+				}
+			}
+		}
+	}
+	ids := map[string]bool{}
+	for _, m := range mods {
+		for _, b := range m.builders {
+			segs := sdkinv.ParseTemplate(b.path)
+			_, _, nsIdx, why := split(segs)
+			if why != "" {
+				continue
+			}
+			for i := restStart(nsIdx) + 1; i < len(segs); i++ {
+				if segs[i].Param || segs[i-1].Param {
+					continue
+				}
+				c, cs := normTemplate(segs[:i]), normTemplate(segs[:i+1])
+				// A POST-only static beside C/{param} is an action
+				// (checkNameAvailability), not an instance.
+				sibling := params[c+"/{}"] && (read[cs] || !posts[cs])
+				if listers[cs] || !sibling && (!items[cs] || items[c]) {
+					continue
+				}
+				ids[cs] = true
+			}
+		}
+	}
+	return ids
+}
+
+// markIDs rewrites each static that ends an instanceIDs path prefix into a
+// param. Only segments after the namespace are candidates, and only one that
+// follows another static.
+func markIDs(segs []sdkinv.Segment, restAt int, ids map[string]bool) []sdkinv.Segment {
+	out := segs
+	for i := restAt + 1; i < len(segs); i++ {
+		if segs[i].Param || segs[i-1].Param || !ids[normTemplate(segs[:i+1])] {
+			continue
+		}
+		if &out[0] == &segs[0] {
+			out = slices.Clone(segs)
+		}
+		out[i].Param = true
+	}
+	return out
+}
+
+// restStart is where the resource path begins: after "providers/<ns>", or at
+// the root of a path naming no provider.
+func restStart(nsIdx int) int {
+	if nsIdx < 0 {
+		return 0
+	}
+	return nsIdx + 2
+}
+
+func normTemplate(segs []sdkinv.Segment) string {
+	var b strings.Builder
+	for _, s := range segs {
+		b.WriteByte('/')
+		if s.Param {
+			b.WriteString("{}")
+		} else {
+			b.WriteString(strings.ToLower(s.Text))
+		}
+	}
+	return b.String()
+}
+
+// index files one builder under its (namespace, type path) entry and reports
+// whether it lists that entry's collection. why is set when the path names no
+// resource type at all.
+func index(entries map[string]*entry, m *module, b builder, ids map[string]bool) (bool, string) {
+	segs := sdkinv.ParseTemplate(b.path)
+	namespace, _, nsIdx, why := split(segs)
+	if why != "" {
+		return false, why
+	}
+	restAt := restStart(nsIdx)
+	segs = markIDs(segs, restAt, ids)
+	rest := segs[restAt:]
+	rp := sdkinv.StripScopes(rest, scopeNames, nil)
 	if len(rp.Statics) == 0 {
-		return false
+		return false, "no resource type after the scopes"
 	}
 	// ARM keeps "locations" in the type name (Microsoft.Network/locations/…)
 	// while the resource path spells it as a scope pair the key strips, so
@@ -294,25 +348,56 @@ func index(entries map[string]*entry, b builder) bool {
 	}
 	if rp.Item {
 		e.itemMethods[b.method] = true
-		return false
+		return false, ""
 	}
 	if b.method != "GET" {
-		return false
+		return false, ""
 	}
-	sc := scopeOf(segs, nsIdx)
-	if e.scope == "" || scopeRank(sc) > scopeRank(e.scope) {
-		e.scope = sc
+	l := listed{b: b, mod: m, scope: scopeOf(segs, nsIdx), viaLocation: locationScoped}
+	if itemRead(m, b) {
+		// A GET answering one model reads an instance (…/{vm}/instanceView)
+		// unless the collection has item writes and no other lister: then
+		// the SDK types its lister as one entity (webapps
+		// ListPremierAddOns), and it still finds the instances.
+		e.singles = append(e.singles, l)
+		return true, ""
+	}
+	e.addLister(l)
+	return true, ""
+}
+
+func (e *entry) addLister(l listed) {
+	if e.scope == "" || scopeRank(l.scope) > scopeRank(e.scope) {
+		e.scope = l.scope
 	}
 	// Only when *every* lister reaches the collection through a location does
 	// ARM keep "locations" in the type name; a sibling ListBySubscription
 	// proves it does not.
-	if locationScoped {
+	if l.viaLocation {
 		e.viaLocation = true
 	} else {
 		e.viaOther = true
 	}
-	e.collection = append(e.collection, b)
-	return true
+	e.collection = append(e.collection, l)
+}
+
+// promoteSingles resolves each entry's single-model GETs: the listers of a
+// written collection nothing else lists, else Other.
+func promoteSingles(entries map[string]*entry) (other []sdkinv.Operation) {
+	for _, e := range entries {
+		written := e.itemMethods["PUT"] || e.itemMethods["PATCH"] || e.itemMethods["DELETE"]
+		if written && len(e.collection) == 0 && len(e.singles) > 0 {
+			for _, l := range e.singles {
+				e.addLister(l)
+			}
+			e.singleAnswer = true
+			continue
+		}
+		for _, l := range e.singles {
+			other = append(other, opFor(l.b, "", nil, ""))
+		}
+	}
+	return other
 }
 
 // foldAlternateListers moves a lister with no item path onto the entry whose
@@ -322,7 +407,7 @@ func index(entries map[string]*entry, b builder) bool {
 // writes — and judged on its own path the alternate has no write verb, so it
 // read as a non-resource. Entries are walked in key order so the winner is
 // stable; the loser's builders become extra ops on the winner.
-func foldAlternateListers(entries map[string]*entry, elementOfOp func(builder) string) {
+func foldAlternateListers(entries map[string]*entry) {
 	keys := make([]string, 0, len(entries))
 	for k := range entries {
 		keys = append(keys, k)
@@ -334,9 +419,9 @@ func foldAlternateListers(entries map[string]*entry, elementOfOp func(builder) s
 		if !e.itemMethods["PUT"] && !e.itemMethods["PATCH"] && !e.itemMethods["DELETE"] {
 			continue
 		}
-		for _, b := range e.collection {
-			if el := elementOfOp(b); el != "" {
-				id := b.module + "\x00" + el
+		for _, l := range e.collection {
+			if el := l.element(); el != "" {
+				id := l.b.module + "\x00" + el
 				if _, seen := primary[id]; !seen {
 					primary[id] = e
 				}
@@ -349,12 +434,12 @@ func foldAlternateListers(entries map[string]*entry, elementOfOp func(builder) s
 			continue
 		}
 		var target *entry
-		for _, b := range e.collection {
-			el := elementOfOp(b)
+		for _, l := range e.collection {
+			el := l.element()
 			if el == "" {
 				continue
 			}
-			if p := primary[b.module+"\x00"+el]; p != nil && p != e && (target == nil || p.key < target.key) {
+			if p := primary[l.b.module+"\x00"+el]; p != nil && p != e && (target == nil || p.key < target.key) {
 				target = p
 			}
 		}
@@ -367,38 +452,27 @@ func foldAlternateListers(entries map[string]*entry, elementOfOp func(builder) s
 	}
 }
 
-// opFor is the Operation record for one request builder.
+// opFor is the Operation record for one request builder. Labels drop the
+// client type's "Client" suffix; the module's bare base client keeps it.
 func opFor(b builder, namespace string, parents []string, scope sdkinv.Scope) sdkinv.Operation {
 	mod := b.module[strings.LastIndex(b.module, "/")+1:]
-	clientName := b.client
-	if clientName == "" {
-		clientName = "Client"
+	label := strings.TrimSuffix(b.client, "Client")
+	if label == "" {
+		label = b.client
 	}
 	return sdkinv.Operation{
 		Service: namespace,
-		Name:    b.client + "Client." + b.op,
-		Label:   mod + ":" + clientName + "." + b.op,
+		Name:    b.client + "." + b.op,
+		Label:   mod + ":" + label + "." + b.op,
 		IsList:  namespace != "",
 		Paged:   b.paged,
 		Targets: parents,
 		Scope:   scope,
 		Path:    b.path,
 		Module:  fmt.Sprintf("azure-sdk-for-go@%s/sdk/resourcemanager/%s", SDKRef, b.module),
-		Client:  b.client + "Client",
+		Client:  b.client,
 	}
 }
-
-// singletonIDs are the static segments ARM spells the one instance of a
-// singleton child with (.../blobServices/default). Reading one as a
-// collection made the PUT on that exact path an item write on a path nothing
-// listed: 114 rows were excluded as having no item path while the cache showed
-// GET+PUT, and 55 more carried the segment inside their key, where no scanner
-// could match it. It is a grammar rule about ARM ids, not a list of resources.
-var singletonIDs = map[string]bool{"default": true, "current": true}
-
-// IsSingletonID reports whether an ARM path segment is a singleton instance id
-// rather than a collection name.
-func IsSingletonID(seg string) bool { return singletonIDs[seg] }
 
 // scopes is ARM's scope vocabulary, narrowest first.
 var scopes = []sdkinv.Scope{
@@ -412,7 +486,7 @@ func scopeRank(s sdkinv.Scope) int { return slices.Index(scopes, s) + 1 }
 // before the namespace: a managementGroups pair sits after the namespace in
 // microsoft.management's own paths and read as tenant. Extension is decided on
 // the prefix alone (nsIdx is the namespace's "providers", -1 for ARM's own
-// modules), or the trailing providers pair of a features listing would claim it.
+// paths), or the trailing providers pair of a features listing would claim it.
 func scopeOf(segs []sdkinv.Segment, nsIdx int) sdkinv.Scope {
 	sc := ScopeTenant
 	for i, s := range segs {
@@ -445,14 +519,13 @@ func scopeOf(segs []sdkinv.Segment, nsIdx int) sdkinv.Scope {
 // classify decides the class from the item-path verbs, with one exception: a
 // collection whose element carries the ARM proxy-resource envelope is a
 // resource even when the SDK exposes only a read on the item path. 517 of 572
-// catalog rows
-// carry that envelope and 434 are children — exactly what the AWS extractor
-// calls a resource — so excluding them made the two providers' denominators
-// rest on different rules and hid 504 real gaps. The envelope alone is not
-// enough (microsoft.authorization/provideroperations and
+// catalog rows carry that envelope and 434 are children — exactly what the AWS
+// extractor calls a resource — so excluding them made the two providers'
+// denominators rest on different rules and hid 504 real gaps. The envelope
+// alone is not enough (microsoft.authorization/provideroperations and
 // microsoft.advisor/metadata are genuine provider catalogs), so it counts only
 // with a second discriminator: a child, or a scope narrower than the tenant.
-func classify(e *entry, hasEnvelope func() bool) (sdkinv.Candidate, bool) {
+func classify(e *entry) (sdkinv.Candidate, bool) {
 	if len(e.collection) == 0 {
 		return sdkinv.Candidate{}, false
 	}
@@ -463,13 +536,22 @@ func classify(e *entry, hasEnvelope func() bool) (sdkinv.Candidate, bool) {
 		Depth:    len(e.parents),
 	}
 	if c.Depth > 0 {
-		c.Parent = e.namespace + "/" + strings.Join(e.statics[:len(e.statics)-1], "/")
+		c.Parent = e.namespace + "/" + strings.Join(e.statics[:parentEnd(e.statics, e.parents)], "/")
 	}
+	envelope := func() bool {
+		return slices.ContainsFunc(e.collection, func(l listed) bool {
+			el := l.element()
+			return el != "" && l.mod.armEnvelope(el)
+		})
+	}
+	locationOnly := e.viaLocation && !e.viaOther
 	switch {
 	case e.itemMethods["PUT"] || e.itemMethods["PATCH"] || e.itemMethods["DELETE"]:
 		c.Class, c.Rule = sdkinv.ClassResource, "item-write"
-	case (e.itemMethods["GET"] || e.itemMethods["HEAD"]) &&
-		(len(e.parents) > 0 || ownedScope[e.scope]) && hasEnvelope():
+	// A collection reached only through locations/{l} is the provider's
+	// regional catalog (versions, manifests), not the caller's resources.
+	case (e.itemMethods["GET"] || e.itemMethods["HEAD"]) && !locationOnly &&
+		(len(e.parents) > 0 || ownedScope[e.scope]) && envelope():
 		c.Class, c.Rule = sdkinv.ClassResource, "arm-envelope"
 	case e.itemMethods["GET"] || e.itemMethods["HEAD"]:
 		c.Class, c.Rule = sdkinv.ClassCatalog, "item-read-only"
@@ -485,15 +567,32 @@ func classify(e *entry, hasEnvelope func() bool) (sdkinv.Candidate, bool) {
 	if e.alternate {
 		c.Signals = append(c.Signals, "alternate-lister")
 	}
-	if e.viaLocation && !e.viaOther {
+	if e.singleAnswer {
+		c.Signals = append(c.Signals, "single-answer-lister")
+	}
+	if locationOnly {
 		c.Signals = append(c.Signals, LocationScopeSignal)
 	}
 	c.Signals = append(c.Signals, "scope:"+string(e.scope))
 	sort.Strings(c.Signals)
-	for _, b := range e.collection {
-		c.Ops = append(c.Ops, opFor(b, e.namespace, e.parents, e.scope))
+	for _, l := range e.collection {
+		c.Ops = append(c.Ops, opFor(l.b, e.namespace, e.parents, e.scope))
 	}
 	return c, true
+}
+
+// parentEnd is the length of the statics prefix that keys the parent: up to
+// the innermost static followed by an id. Cutting only the last static gave
+// runbooks/{r}/draft/testJob/streams the parent runbooks/draft/testjob, which
+// is no collection and disagrees with Depth, which counts id-bearing statics.
+func parentEnd(statics, parents []string) int {
+	end, next := 0, 0
+	for i, s := range statics {
+		if next < len(parents) && s == parents[next] {
+			end, next = i+1, next+1
+		}
+	}
+	return end
 }
 
 // LocationScopeSignal marks a candidate whose path reached it through a

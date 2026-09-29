@@ -63,7 +63,7 @@ func modelPackage(module string) string { return strings.ReplaceAll(modelName(mo
 
 // TypeOwner: AWS anchors resolve by operation name over the imported
 // modules, so seams need no binding.
-func (awsResolver) TypeOwner(_, _ string) (string, bool) { return "", false }
+func (awsResolver) TypeOwner(_, _ string, _ []string) (string, bool) { return "", false }
 
 // LabelOp: "<service>:<Operation>".
 func (awsResolver) LabelOp(lit string) string {

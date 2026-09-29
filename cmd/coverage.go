@@ -460,6 +460,9 @@ func inventoryInputs(ctx context.Context, o servicesOptions, p coverage.Provider
 		scannerDir = filepath.Join(o.sourceRoot, "internal", "providers", p.Name())
 	}
 	in, err := coverage.InputsFromCache(ctx, o.cache, p.Name(), p.Emits(), scannerDir)
+	if in.Universe != nil {
+		reportExtractorWarnings(p.Name(), in.Universe.Diagnostics)
+	}
 	if err != nil && in.Universe == nil {
 		return in, fmt.Errorf("%w: %v", errCoverageInventoryUnavailable, err)
 	}
@@ -467,6 +470,26 @@ func inventoryInputs(ctx context.Context, o servicesOptions, p coverage.Provider
 	// wrong --source-root) stays fatal: degrading to name matching would
 	// print a lower percentage that looks like a real regression.
 	return in, err
+}
+
+// reportExtractorWarnings surfaces warn-level extractor diagnostics — SDK
+// surface the universe could not hold as modelled, such as a linked Azure
+// module retired upstream — which nothing else renders: a count by default,
+// each one under --verbose.
+func reportExtractorWarnings(provider string, diags []sdkinv.Diagnostic) {
+	n := 0
+	for _, d := range diags {
+		if d.Severity != "warn" {
+			continue
+		}
+		n++
+		if verbose {
+			fmt.Fprintf(os.Stderr, "  %s: %s: %s\n", provider, d.Source, d.Message)
+		}
+	}
+	if n > 0 && !verbose {
+		fmt.Fprintf(os.Stderr, "  %s: %d SDK extractor warnings; rerun with --verbose to list them\n", provider, n)
+	}
 }
 
 func renderServiceMatrices(w io.Writer, outputFmt string, matrices []coverage.Matrix) error {

@@ -117,10 +117,10 @@ run cannot silently drop the ratchet for the providers it did not compute.
 `sdkinv.Ident` is the only cross-source equality; its rules are in `internal/sdkinv/CLAUDE.md`.
 GCP's `RegistryKey`/`CanonicalKey` also compare through `Ident`.
 
-## Live numbers (2026-09-26, pins in `docs/coverage.md`, pairing on)
+## Live numbers (2026-09-28, pins in `docs/coverage.md`, pairing on)
 
-AWS 48.7% (1677/3441), Azure 15.8% (398/2515), GCP 23.2% (240/1034, 2026-09-28); zero unexplained. Pairing
-off (an installed binary): AWS 41.3%, Azure 15.7%, GCP 18.5%. Azure
+AWS 49.8% (1660/3336), Azure 16.1% (398/2478), GCP 23.2% (240/1034); zero unexplained. Pairing
+off (an installed binary): AWS 42.0%, Azure 15.9%, GCP 18.8%. Azure
 carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 5 (`other-op`: IAM
 policy, plus listers no sibling confirms — bigtable hot tablets and the per-cluster memory-layer
 singleton, effective tags, spanner's DDL-defined database roles). The

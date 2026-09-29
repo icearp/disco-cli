@@ -8,6 +8,7 @@ func TestKeepARMFile(t *testing.T) {
 		"sdk/resourcemanager/compute/armcompute/models.go":                                true,
 		"sdk/resourcemanager/compute/armcompute/response_types.go":                        true,
 		"sdk/resourcemanager/compute/armcompute/responses.go":                             true,
+		"sdk/resourcemanager/compute/armcompute/models_serde.go":                          true,
 		"sdk/resourcemanager/compute/armcompute/client_factory.go":                        false,
 		"sdk/resourcemanager/compute/armcompute/virtualmachines_client_example_test.go":   false,
 		"sdk/resourcemanager/compute/armcompute/fake/virtualmachines_server.go":           false,
