@@ -18,10 +18,10 @@ Azure SDK inventory: the extractor that derives the Azure coverage denominator f
 
 ## Extractor (`module.go`, `extract.go`, `refs.go`)
 
-Model-first: each module is parsed with `go/parser` (parallel, ~1 s for the whole tree; the old
-regex walk took 9 s). There are **no spelling lists**: the old `singletonIDs` (`default`/`current`),
+Model-first: each module is parsed with `go/parser` (parallel, ~1 s for the whole tree).
+There are **no spelling lists** — removed, do not recreate: `singletonIDs` (`default`/`current`),
 `armOwnModules`, `lowerFirst`, the `SubResource`/`Reference` suffixes and the keyvault/encryptionkey
-URI allow-list are gone; do not add one. The declared vocabulary is ARM's scope names
+URI allow-list. The declared vocabulary is ARM's scope names
 (`scopeNames`) and the ARM envelope fields (`ID`, `Type`, `SystemData`). The generator's own
 conventions that remain: a builder's op name is its method name less `CreateRequest`, and an
 `…ID`/`…IDs`/`…URI`/`…URL` Go name is the generator's initialism for an identifier. Every rule
@@ -48,7 +48,7 @@ reached by both a pager and a plain method; the generator emits one builder per 
   (`single-answer-lister`): the SDK types `managementpartner` `partners` and `webapps`
   `ListRelayServiceConnections`/`ListPremierAddOns` as one entity, and dropping them lost five
   writable resources. Paged is a list whatever the page's shape.
-- **Instance ids** (`instanceIDs`, P2). A static S after a static C is an id when S is not itself
+- **Instance ids** (`instanceIDs`). A static S after a static C is an id when S is not itself
   listed and either the SDK also spells `C/{param}` there (`billingAccounts/default` beside
   `billingAccounts/{name}`), or it addresses `C/S` as an instance (PUT/PATCH/DELETE, or a GET
   answering one model) while C is not one (`sites/{n}/config/web`, `blobServices/default`,
@@ -98,9 +98,9 @@ marks them; a second source (azure-rest-api-specs `x-ms-arm-id`) is the follow-u
 
 ### Accepted residuals (2026-09-28, pin f3847e89)
 
-3395 candidates (2478 resource), from 3524 (2515) before the rewrite. Gone: 132 singleton reads
+3395 candidates (2478 resource). Not candidates: singleton reads
 that were never listers (`instanceview`, `config/web`, `…/status`) and the location-only regional
-catalogs above. Now resources: P2 singletons (`web/sites/config`,
+catalogs above. Now resources: addressed singletons (`web/sites/config`,
 `…/basicpublishingcredentialspolicies`, `apimanagement/service/portalsettings`, mysql/postgresql
 `servers/administrators`). Known misreads, all tolerated because no structural fact separates them:
 
@@ -116,7 +116,7 @@ catalogs above. Now resources: P2 singletons (`web/sites/config`,
 - `parentEnd` matches the innermost static by name, so a repeated static name can pick the
   wrong one. None seen live.
 - `resources/` and `solutions/` each hold an `armmanagedapplications` module; their op labels
-  (`armmanagedapplications:…`) cannot tell the two apart. Predates this extractor.
+  (`armmanagedapplications:…`) cannot tell the two apart.
 - `applicationgatewaywafdynamicmanifests/dafault` (sic) is read as an id: the structural rule
   caught a misspelled singleton a word list never could.
 

@@ -19,8 +19,7 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   `Cache.Status(e Extractor)` returns `ErrNotFetched` on any mismatch, so a wrong-identity or
   wrong-spec directory refetches instead of being read. **Changing a source's `Keep` or `Expand`
   MUST bump its `KeepID`/`ExpandID`** (funcs cannot be hashed; `TestExtractorsRegistered` in
-  `internal/providers/all` only checks the id is non-empty). Widening `keepARMFile` at an unchanged Azure `SDKRef` once left every
-  cache stale and silently served the old, narrower Azure file set.
+  `internal/providers/all` only checks the id is non-empty): an unbumped id silently serves every existing cache's old file set.
 - Full fetch is hundreds of MB. Rerun is a no-op; `--force` refetches.
 
 ## Pins
@@ -46,8 +45,8 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   `Dropped` (with a `Reason`); `sdkinv.Unaccounted` reports missing / extra / conflicting.
   `CheckUniverse` runs on fixtures **and** live caches (`TestLiveUniverseWellFormed` in `internal/providers/all`).
 - Enumerate `SourceOps` by a walk **apart from classification** — derived from the classifier's own
-  parse it can never fail. Azure first reused `builderRe` (vacuous); it now starts from every
-  exported client method and follows its calls to the builder, so a method reaching none drops.
+  parse it can never fail (vacuous). Azure starts from every exported client method and follows
+  its calls to the builder, so a method reaching none drops.
 - Never filter `Other` or delete entries without a `Drop`; the live test names the lost ops.
 - Extractors iterate Go maps in sorted order (shapes, lifecycle roles, candidates): a map-order
   pick passes most runs and flips output on some. Four hashed `coverage services -o json` runs
@@ -56,13 +55,13 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   (break the rule, confirm a test goes red). Live anchors cover rules the fixture cannot model.
   Prove it per rule, not by eye: a scratch script that swaps one condition (`x` → `false`),
   runs `go test` on the `<p>inventory` and `sdkinv` packages, and restores the file. Any rule
-  whose mutation stays green is untested; the Phase 4 review found 10 such rules.
+  whose mutation stays green is untested.
 - Live drops at current pins: aws 2 (unreachable-from-service: healthlake's second namespace),
   azure 0, gcp 6,173 (non-cloud-api 6126, alias-document 47). Every other GCP method is a
   candidate op or Other; nothing drops for its shape.
 - Warn-level `Universe.Diagnostics` are the only channel for surface an extractor could not
   model (a retired linked module, a module it could not parse). `disco coverage` prints a count
-  per provider and `--verbose` lists them; before that, nothing rendered them.
+  per provider and `--verbose` lists them.
 - In a rewrite diff, a removed row whose collection has item PUT/PATCH/DELETE is a regression
   until proven otherwise. The Azure singleton-read rule dropped 5 writable resources, and the
   diff review accepted it.
@@ -91,12 +90,10 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   `-yses`→`-ysis`, `-sses/-xes/-shes`→`-es`, `-ches` after a single non-`e` vowel→`-e` (cache,
   niche) else `-es` (batch, beach, approach), `-ses` after `u`/`ia`→`-s` (status, alias) else
   `-se` (database, case, license), else `-s`. No inflector dep. Any new rule needs a `norm_test`
-  pair; the keys shipped before this was audited include `bedrock/flowalia`, `wellarchitected/len`,
-  `config/…statuse`, `iotsitewise/timesery`, `kendra/thesauri` and
-  `gameliftstreams/applicationshadercach`, and `RestApi`/`RestApis` were two candidates.
+  pair: a wrong singular ships as a visible key (`bedrock/flowalia`).
 - Live counts: see each `TestExtract_Live` log and the `docs/coverage.md` headline (resource +
   attribute + excluded); a large swing after a pin bump means re-check the anchors.
-- `Candidate.Refs` (`<p>/refs.go`): dotted paths on the listed element that name other
+- `Candidate.Refs` (`<p>inventory/refs.go`): dotted paths on the listed element that name other
   resources, sorted and unique, own id excluded, depth-bounded. Refs are a **hint**: they rank
   `coverage resolvers --missing`, never bucket a row, and their absence is not proof of a derived
   leaf (`internal/providers/CLAUDE.md`). Recall matters more than precision.
@@ -118,7 +115,7 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
 - `pairing.Scan(ctx, cache, provider, dir)` = extract from the cache + `Walk` + `Unpaired`;
   wraps `sdkinv.ErrNotFetched` so `internal/providers/<p>/<p>_pairing_test.go` skips without
   the cache. Those two tests (`TestScannerOpLabelsResolve`, `TestEveryEmittedTypePaired`) are the
-  gate: label-no-op / label-no-anchor / label-malformed / unresolved-receiver fail; sdk-skew is
+  gate: label-no-op / label-no-anchor / label-malformed / unresolved-receiver fail; sdk-skew and sdk-module-absent are
   logged. `TestEveryEmittedTypePaired` prints `Result.StoredBy[type]` with the failure, which is
   the only thing that names which scanner the walker could not reach.
 - An unaliased import binds the last path segment the importing file uses as a selector root
@@ -126,8 +123,7 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   guess named it `directory`.
 - Before replacing a pairing heuristic, dump live `Result.Pairings` for every provider (a
   throwaway test in `internal/providers/all` calling `pairing.Scan`, JSON to the scratchpad) and
-  diff before/after. The prefix/leaf fallbacks in `relatedTypes` never fired live; the dump
-  proved it.
+  diff before/after: a fallback that looks load-bearing may never fire live.
 - go/parser with `SkipObjectResolution`, non-test files only, stdlib only. Anchors (SDK call
   shapes, per `Resolver.Anchors`) are authoritative; op labels in string literals are a
   cross-check. `Type*` constants with a `<provider>:` value are the types (other string consts
@@ -152,15 +148,13 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   derived means.
 - Reach: a function's types are its own plus its fed callees' to depth 3, and past the cap only
   through callees that anchor nothing themselves — the cap holds over-attribution down, but a
-  correct scanner storing four hops down was reported `unexplained` and failed both gates. A
-  method call on a local
+  correct scanner storing four hops down must not read `unexplained`. A method call on a local
   (`s.scanTables`) and a method value passed as an argument (`forEachItem(…, s.scanDataset)`)
   both resolve to the one method of that name in the package (ambiguous names resolve to
   nothing). A `Type*` constant passed as an argument flows to the callee per caller
   (`fn.outflow`/`inflow`): the helper's own pairing carries every caller's type, a caller's
-  pairing only what it and its walked callees pass. The union rule it replaced let
-  `storeIDs(st, TypeA, …)` from one scanner explain TypeB from a scanner with no SDK call
-  (fixture `scanMasked`) and hid two Azure sdk-skew types behind sibling anchors.
+  pairing only what it and its walked callees pass; a union would let one scanner's
+  `storeIDs(st, TypeA, …)` explain another's TypeB (fixture `scanMasked`).
   A package-level `var` table naming `Type*` constants flows into every function that
   references the var (`collectVarTypes`), and `SDKFiles` counts those references, so a
   table-only type is `unexplained`, never `non-sdk`. Labels resolve against the function, its callees and its direct callers — the
@@ -172,8 +166,7 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   caller is then paired with what it stores), `derived` (a dispatcher with no anchor of its
   own: types no anchored callee stores, paired with the listings whose `Operation.Service`
   equals the type's service segment exactly, minus types some `emits` pairing already carries;
-  a type spelling its service another way stays unpaired and the gate reports it — the old
-  prefix/leaf match was never what paired any live row), `label` (label with no call
+  a type spelling its service another way stays unpaired and the gate reports it), `label` (label with no call
   anywhere), `other` (non-candidate op), `skew` (call the pinned SDK lacks).
 - A **promoted** anchor — one a typeless listing helper contributed, not one this function calls
   — is credited only with what this function's own flow stores, never with what a *caller* passed

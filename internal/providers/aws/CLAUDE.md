@@ -51,7 +51,7 @@ APIGW v2 JWT authorizer `JwtConfiguration.Issuer` shape: `https://cognito-idp.{r
 - **`AssumeRolePolicyDocument` + all IAM policy docs URL-encoded JSON** (AWS SDK v2). `url.QueryUnescape` before `json.Unmarshal` or parse silent fail.
 - **`Principal.Federated` / `AWS` / `Service` may be string OR `[]string`.** Use custom `UnmarshalJSON` wrapper type (see `principalList` in `iam_resolvers.go`) — bare `[]string` tag only matches array form.
 - **`Statement` may be single object OR array.** Same trick as `principalList` — see `statementList` in `iam_resolvers.go`. **`Statement[].Resource`** likewise string-or-array (`resourceList`). `Effect != "Allow"` (Deny / conditional) emits no positive edge.
-- **Managed policy doc requires `GetPolicyVersion` fan-out.** `ListPolicies` returns no Document body. `scanIAMPolicies` enriches each row as `{"Policy": ..., "PolicyVersion": ...}`; walker reads `PolicyVersion.Document` for managed, `PolicyDocument` for inline (`GetRolePolicy` etc. already include it).
+- **Managed policy rows are wrapped `{"Policy": ..., "PolicyVersion": ...}`** — `scanIAMAuthDetails` fills `PolicyVersion` from GAAD's `PolicyVersionList` (`defaultPolicyVersion`); `extractPolicyDoc` reads `PolicyVersion.Document` for managed, `PolicyDocument` for inline. Catalogue stub rows carry no `PolicyVersion` and are skipped.
 - **Federated-provider ARN dispatch**: `:saml-provider/` → `TypeIAMSAMLProvider`; `:oidc-provider/` → `TypeIAMOIDCProvider`. Other Federated shapes emit no edges (skip, no dangle).
 - **Bare resource names in `Resource[]` skip.** Policy docs carry no region context, synthesizing ARN risks wrong region. Contrast `ecsSecretTarget` (`ecs_resolvers.go`), which DOES synthesize from bare names — task-defs supply region. Same input shape, different rule, different carrier.
 
@@ -79,19 +79,15 @@ AWS service returns only names from List API (EKS, DynamoDB) — describe each r
 
 One resource type, not two. Flavor lives as sibling sub-structs (`Provisioned *...`, `Serverless *...`) in native attrs; resolver branches on whichever non-nil. Precedent: `aws:kafka:cluster` MSK, `kafka_resolvers.go` reads subnets/SGs from `BrokerNodeGroupInfo` vs `VpcConfigs[]`. Applies to services modeling variants as parallel fields on same List/Describe response (Redshift Serverless, Aurora Serverless v2, EMR Serverless likely).
 
-## Sparse list entry → store Get body
-
-`List*` returns skeleton (`{Id, Arn, HomeRegion, IsEnabled}`) while edge-bearing fields live on `Get*`/`Describe*` body (e.g. S3 StorageLens `Include.Buckets[]`, `DataExport.S3BucketDestination`). Enrich scanner: fan-out Get per entry, store Get response as `AttributesJSON`. Still "native SDK response verbatim" — Get body IS native. Don't merge List+Get into ad-hoc struct; pick one SDK response + store whole. Precedent: `scanStorageLens` in `s3control_scanners.go`.
-
 ## SDK v2 paginator availability per-op
 
 `New<Op>Paginator` exists only for ops AWS models as paginated. Many List ops no paginator — eventbridge, cloudfront Marker ops, wafv2, apigatewayv2 (`GetApis`/`GetAuthorizers`/`GetDomainNames`/`GetApiMappings`), logs (`DescribeAccountPolicies`/`DescribeQueryDefinitions`/`DescribeResourcePolicies`), ec2 (`DescribeVpcEndpointServices`/`DescribeVpcBlockPublicAccessExclusions`), rds `DescribeDBShardGroups`. Before converting manual `NextToken`/`Marker` loop, grep `~/go/pkg/mod/github.com/aws/aws-sdk-go-v2/service/<svc>@v*/api_op_<Op>.go` for `Paginator struct`. Author comments like `// ... uses manual NextToken pagination` flag intentional choice — do not "fix". EC2 has shared helper `ec2PageScan` for paginator-enabled ops; reuse it.
 
 ## Smithy API-error-code predicates
 
-`isAPIErrorCode(err, codes ...string) bool` in `aws_errors.go` = single choke point (wraps `errors.As` + `smithy.APIError.ErrorCode()` + `slices.Contains`). Use inline for one-off checks. Wrap in named helper only when reused 3+ times (precedent: `isAccessDenied` wraps 6 codes via `accessDeniedCodes`, 146 callers).
+`isAPIErrorCode(err, codes ...string) bool` in `aws_errors.go` = single choke point (wraps `errors.As` + `smithy.APIError.ErrorCode()` + `slices.Contains`). Use inline for one-off checks. Wrap in named helper only when reused 3+ times (precedent: `isAccessDenied` over `accessDeniedCodes`).
 
-Predicates needing **code + message-substring** match use `isAPIErrorWithMessage(err, code, needle)` (single code) or `isAccessDeniedWithMessage(err, needle)` (any of the six access-denied codes). Both read `ae.ErrorMessage()` directly via `errors.As(&smithy.APIError)`, never `err.Error()` — the match is decoupled from the Smithy `"api error CODE: MSG"` wrapper format and the outer SDK `"operation error <Op>: ..."` wrapping. Use these for AWS exception codes reused across semantically-distinct cases (`AccessDeniedException` for closed-to-customers vs real IAM deny; `ValidationException` for per-region feature gap vs malformed input). Do NOT add new sites that match against `err.Error()` substrings — every site in this package routes through one of these two helpers.
+Predicates needing **code + message-substring** match use `isAPIErrorWithMessage(err, code, needle)` (single code) or `isAccessDeniedWithMessage(err, needle)` (any `accessDeniedCodes` entry). Both read `ae.ErrorMessage()` directly via `errors.As(&smithy.APIError)`, never `err.Error()` — the match is decoupled from the Smithy `"api error CODE: MSG"` wrapper format and the outer SDK `"operation error <Op>: ..."` wrapping. Use these for AWS exception codes reused across semantically-distinct cases (`AccessDeniedException` for closed-to-customers vs real IAM deny; `ValidationException` for per-region feature gap vs malformed input). Do NOT add new sites that match against `err.Error()` substrings — every site in this package routes through one of these two helpers. Only `ScanWarning.Message` still shows the wrapped `api error CODE: MSG` form — tests asserting on it include that prefix (`TestSkipIfAccessDenied_RecordsWarningReturnsNil`).
 
 ## Not-enabled predicates sharing an access-denied code must be checked FIRST
 
@@ -107,7 +103,7 @@ Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanne
 
 ## Transient errors already wrapped at dispatch
 
-`scanRegion` / `scanAccount` (`aws_scanner.go`) route each `svc.fn` error through `classifyServiceError` (`aws_errors.go`); its transient rung (`isTransientNetworkError`) → `skipIfTransient` (warn + nil). Scanners do NOT need inline handling for DNS (`net.DNSError`), dial/read/write (`net.OpError`), `net.Error` timeouts, or Smithy `RequestTimeout`/`ServiceUnavailable`/`InternalFailure` variants — those warn-skip automatically. Only `AccessDenied` still needs per-scanner `return 0, 0, skipIfAccessDenied(...)` (not wrapped at dispatch because SDK surfaces it mid-paginator, not as top-level svc.fn error).
+`scanRegion` / `scanAccount` (`aws_scanner.go`) route each `svc.fn` error through `classifyServiceError` (`aws_errors.go`); its transient rung (`isTransientNetworkError`) → `skipIfTransient` (warn + nil). Scanners do NOT need inline handling for dial/read/write (`net.OpError`), `net.Error` timeouts, throttling codes, or Smithy `RequestTimeout`/`ServiceUnavailable`/`InternalFailure` variants — those warn-skip automatically. NXDOMAIN is a silent `(region: unavailable)`; the per-service `context.DeadlineExceeded` is a hard error (`outcomeDeadline`). Only `AccessDenied` still needs per-scanner `return 0, 0, skipIfAccessDenied(...)` (not wrapped at dispatch because SDK surfaces it mid-paginator, not as top-level svc.fn error).
 
 `isTransientNetworkError` also matches transport send failures — `*smithyhttp.RequestSendError` and bare `io.EOF` / `io.ErrUnexpectedEOF` (observed post-retry on `transcribe:ListCallAnalyticsCategories`: "request send failed, Post ...: EOF"). **Consequence for store-write errors:** pgconn reports a dropped Postgres connection as `unexpected EOF`, so any wrapper around a store-write failure MUST break the `errors.Is` chain (format the cause with `%s`, not `%w`). Otherwise a dead DB is reclassified as a transient AWS warning and the scan reports success while silently dropping rows.
 
@@ -121,7 +117,7 @@ Policy `Resource` walkers (e.g. `classifyPolicyResource` in `iam_resolvers.go`) 
 
 ## IAM API has a sustained TPS ceiling near `fanoutMed`
 
-AWS IAM throttles around 10–20 sustained TPS per account. `fanoutMed` (10) is the safe ceiling for any per-resource fan-out (`GetPolicyVersion`, `Get*Policy`, etc.). Bumping to `fanoutHigh` (20) trips `ThrottlingException`, SDK retries with exp backoff, multi-minute hangs across the ~1500-policy AWS-managed catalogue. The proper speedup is `GetAccountAuthorizationDetails` consolidation (single paginated call), not concurrency tuning.
+AWS IAM throttles around 10–20 sustained TPS per account. `fanoutMed` (10) is the safe ceiling for any per-resource fan-out (`GetPolicyVersion`, `Get*Policy`, etc.). Bumping to `fanoutHigh` (20) trips `ThrottlingException`, SDK retries with exp backoff, multi-minute hangs across the ~1500-policy AWS-managed catalogue. The speedup is GAAD consolidation (below), not concurrency tuning.
 
 ## Service Quotas is opt-in; rate-limiter holds 10 req/s, `sqWorkers`=30, `MaxResults=100`
 
@@ -137,7 +133,7 @@ AWS IAM throttles around 10–20 sustained TPS per account. `fanoutMed` (10) is 
 
 `scanLogs` in `logs_scanners.go` runs in two phases. Phase 1 is the independent surface (log groups, account policies, deliveries, metric filters, etc.) executed sequentially. Phase 2 is per-log-group enrichment — `DescribeLogStreams`, `DescribeSubscriptionFilters`, `GetTransformer`. The three phase-2 sub-scanners are launched **concurrently** via `sync.WaitGroup`; they hit independent CloudWatch Logs APIs whose 5 TPS quotas are documented as **per log group** (https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/cloudwatch_limits_cwl.html), so concurrent calls to N distinct groups consume N independent buckets. Within one group the SDK paginator is sequential, so per-group TPS stays ≤ 1.
 
-Per-group fan-out inside each sub-scanner uses `fanoutMed` (10), not `fanoutLow`. Account-wide pressure is absorbed by adaptive retry (`aws_config.go` `RetryModeAdaptive` + `RetryMaxAttempts(10)`); `ThrottlingException` is dispatch-level transient (see "ThrottlingException is dispatch-level transient" above). The phase-2 dispatcher loads the region's log-group set ONCE (`loadLogGroupsForRegion`) and passes the slice into each sub-scanner — three duplicate `ListResources` queries removed.
+Per-group fan-out inside each sub-scanner uses `fanoutMed` (10), not `fanoutLow`. Account-wide pressure is absorbed by adaptive retry (`aws_config.go` `RetryModeAdaptive` + `RetryMaxAttempts(10)`); `ThrottlingException` is dispatch-level transient (see "Dispatch ladder" below). The phase-2 dispatcher loads the region's log-group set ONCE (`loadLogGroupsForRegion`) and passes the slice into each sub-scanner — three duplicate `ListResources` queries removed.
 
 Errors from phase-2 sub-scanners are gathered and `errors.Join`-ed before propagating; one failed sibling does not cancel the others (matches `aws_scanner.go::scanRegion` "Errors never abort scan"). For users who don't need log-stream inventory, two existing escape hatches stand: `disco scan aws --services aws:ec2,aws:s3,...` (omit `aws:logs`) skips the service entirely; `disco resources --exclude-types aws:logs:log-stream` mutes streams from queries while keeping them in the DB (`cmd/CLAUDE.md`).
 
@@ -147,7 +143,7 @@ Errors from phase-2 sub-scanners are gathered and `errors.Join`-ed before propag
 
 `scanIAMAuthDetails` (`iam_scanners.go`) consolidates users + roles + groups + managed policies (Local + AWS scope, including each policy's default version `Document`) + every principal's inline policies into one paginated `iam:GetAccountAuthorizationDetails` (GAAD) call with `MaxItems=1000` + a `Filter` listing all five entity types.
 
-**GAAD `AWSManagedPolicy` filter only returns *attached* AWS-managed policies, NOT the full catalogue.** `scanIAMAuthDetails` runs the GAAD pass first, then `scanIAMAWSManagedCatalogue` — a stub `ListPolicies(Scope=AWS)` pass that upserts a metadata-only row per AWS-managed policy GAAD did not already store (no `GetPolicyVersion` enrichment, avoids the throttling fan-out; see "Two-pass scanner" below). Unattached catalogue policies keep their stub row as edge targets for `resolveManagedPolicyAttachments`. Walker silently skips no-document rows. Don't drop the catalogue stub pass — without it, unattached AWS-managed policies disappear from the store. Replaces the pre-GAAD shape (separate `ListRoles` / `ListUsers` / `ListGroups` / `ListPolicies` + per-policy `GetPolicyVersion` fan-out + per-principal `ListRolePolicies` / `ListUserPolicies` / `ListGroupPolicies` + per-name `Get*Policy`). Don't reintroduce those — the old fan-outs hit IAM TPS throttling and dominate scan wall-time. AWS-managed policies detected via the `arn:aws:iam::aws:` ARN prefix (canonical scope marker; GAAD doesn't expose the per-policy scope flag). Inline policies still upsert as `aws:iam:{role,user,group}-policy` rows with NativeID `{parentARN}/policy/{name}` so existing inline-policy resolvers stay unchanged. Independent IAM APIs not covered by GAAD (`ListInstanceProfiles`, `ListOpenIDConnectProviders`, `ListSAMLProviders`, `ListServerCertificates`, `ListVirtualMFADevices`, `ListAccessKeys`) keep their own scanners.
+**GAAD `AWSManagedPolicy` filter only returns *attached* AWS-managed policies, NOT the full catalogue.** `scanIAMAuthDetails` runs the GAAD pass first, then `scanIAMAWSManagedCatalogue` — a stub `ListPolicies(Scope=AWS)` pass that upserts a metadata-only row per AWS-managed policy GAAD did not already store (no `GetPolicyVersion` enrichment, avoids the throttling fan-out; see "Two-pass scanner" below). Unattached catalogue policies keep their stub row as edge targets for `resolveManagedPolicyAttachments`. Walker silently skips no-document rows. Don't drop the catalogue stub pass — without it, unattached AWS-managed policies disappear from the store. Don't reintroduce per-principal `List*`/`Get*Policy` or per-policy `GetPolicyVersion` fan-outs — they hit IAM TPS throttling and dominate wall-time. AWS-managed policies detected via the `arn:aws:iam::aws:` ARN prefix (canonical scope marker; GAAD doesn't expose the per-policy scope flag). Inline policies still upsert as `aws:iam:{role,user,group}-policy` rows with NativeID `{parentARN}/policy/{name}` so existing inline-policy resolvers stay unchanged. Independent IAM APIs not covered by GAAD (`ListInstanceProfiles`, `ListOpenIDConnectProviders`, `ListSAMLProviders`, `ListServerCertificates`, `ListVirtualMFADevices`, `ListAccessKeys`) keep their own scanners.
 
 ## Phase 1 globals + regionals run concurrently
 
@@ -163,11 +159,11 @@ The `fanout*` tiers cap **concurrency**, not **rate** — fine for latency-bound
 
 **One pacer per OPERATION, not per scanner.** AWS meters throttling per API operation, so a scanner making several different calls needs one limiter each — `scanServiceQuotas` uses `sqPacers{services, quotas, defaults}`. It originally shared one limiter across all three and thereby spent a single 10 req/s budget against three separate 10 req/s meters, running the two per-service-code calls at roughly half their allowance. The evidence is in the scanner's own output: Service Quotas publishes `Throttle rate for ListServiceQuotas`, `Throttle rate for ListAWSDefaultServiceQuotas` and `Throttle rate for ListServices` as three distinct quotas of 10. Before pacing a multi-call fan-out, check whether the operations share a meter — assuming they do is the conservative-looking choice that silently halves throughput. `reportRateDebug` takes one pacer, so emit a line per operation or the report cannot say which meter is saturated.
 
-Audited 2026-06: no other scanner fits (Logs phase-2 and S3 per-bucket are per-parent throttled; managed-policy attachments are low-cardinality; user-group membership should use GAAD `GroupList`). Require a live `DISCO_SCAN_RATE_DEBUG=1` A/B before adding a pacer.
+Require a live `DISCO_SCAN_RATE_DEBUG=1` A/B before adding a pacer.
 
-## Dispatch states: `(account: disabled)` / `(account: not entitled)` / `(region: unavailable)`
+## Dispatch states: `(account: disabled)` / `(account: not entitled)` / `(region: unavailable)` / `(service: blocked)`
 
-The per-service progress suffix comes from `store.ServiceStatus` (`ServiceOK` / `ServiceDisabled` / `ServiceNotEntitled` / `ServiceUnavailable`, rendered by `cmd/scan.go::serviceStatusSuffix`). A scanner selects one by returning a sentinel from `aws_errors.go`; `classifyServiceError` maps it at dispatch.
+The per-service progress suffix comes from `store.ServiceStatus` (`ServiceOK` / `ServiceDisabled` / `ServiceNotEntitled` / `ServiceUnavailable` / `ServiceBlocked`; `ServiceBillingDisabled` is GCP-only), rendered by `cmd/scan.go::serviceStatusSuffix`). A scanner selects one by returning a sentinel from `aws_errors.go`; `classifyServiceError` maps it at dispatch.
 
 - **Decision axis: can the account self-enable the service?** Yes (enable / init / subscribe / onboard / register an SLR) → `markServiceDisabled` (`errServiceDisabled`, `(account: disabled)`). No (closed to new customers, support tier, payer-only, not eligible) → `markServiceNotEntitled` (`errServiceNotEntitled`, `(account: not entitled)`). Azure (`errServiceNotRegistered`) and GCP (`errServiceDisabled`) map their not-enabled states to disabled.
 - **Whole service absent from the region** (every op fails) → `markServiceUnavailable` (`errServiceUnavailable`, `(region: unavailable)`), alongside the dispatcher's NXDOMAIN and SSM-catalog skips. Precedent: omics' `isServiceNotAvailableInRegion`. A per-op or sub-feature gap inside a present service keeps a per-phase silent `return 0, 0, nil` — the sentinel would blank a working service.
@@ -192,7 +188,7 @@ client := globalaccelerator.NewFromConfig(acct.cfg, func(o *globalaccelerator.Op
 
 Use **short var decl `region := "X"`**, not `const region = "X"`. Untyped string constants are not addressable, so `&region` for `Region: *string` in resource batch fields fails to compile (`cannot take address of region (untyped string constant ...)`). The short-decl form is gofmt-stable and lint-clean.
 
-Substituting the home in a local variable (rather than relying on the dispatcher arg) keeps `Resource.Region`, error scopes, and `skipIfAccessDenied` reports accurate. Precedents: `route53_scanners.go`, `globalaccelerator_scanners.go`, every `*_scanners.go` flipped in the R0 single-region globals sweep.
+Substituting the home in a local variable (rather than relying on the dispatcher arg) keeps `Resource.Region`, error scopes, and `skipIfAccessDenied` reports accurate. Precedents: `route53_scanners.go`, `globalaccelerator_scanners.go`.
 
 **Anti-pattern (deprecated):** registering a single-region global as **regional** with an inline `if region != "<home>" { return 0, 0, nil }` early-return. The pattern was historically used to dodge per-region NXDOMAIN warnings, but `isDNSNotFound` at the dispatcher (`aws_errors.go`) already silent-skips those. The inline-gate pattern silently produces zero rows when `--regions` excludes the home (`disco scan aws --regions us-east-1` would skip globalaccelerator entirely). Convert to `global: true` instead.
 
@@ -216,7 +212,7 @@ When target NativeID not deterministic per (acct, region) (e.g. multiple `aws:gu
 
 Each phase returns `(total, inserted, err)`. `total = len(batch)` (rows scanned), `inserted = n` from `UpsertResources` (rows newly inserted, excludes upserts of existing). Never return `len(batch)` for both — the scan-progress line's `total` column reports nonsense on rescans otherwise.
 
-The progress line's **new** / **changed** columns no longer come from the returned `inserted`: the dispatcher (`aws_scanner.go::scanRegion` / `scanAccount`) binds `st.WithUpsertCounters(&newC, &changedC)` around each `svc.fn` call and reads those counters for `ReportService(..., total, new, changed, errCount, disabled)`. `UpsertResources` bumps `newC` on a first-discovery and `changedC` on a version split. So a re-scan of an unchanged account that genuinely re-versions a row (e.g. IAM `RoleLastUsed.LastUsedDate` ticked, Logs `StoredBytes` grew) reports `0 new, N changed` rather than a misleading `N new`. Scanners still return `(total, inserted, err)` — the returned `inserted` is now vestigial for reporting, but `total` and `err` still matter, so keep the signature.
+Scanners still return `(total, inserted, err)`; `inserted` is vestigial for reporting (new/changed come from `WithUpsertCounters`, see `../CLAUDE.md`).
 
 ## Cross-service ResourceArn ≠ scanner NativeID shape
 
@@ -232,7 +228,7 @@ Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for som
 
 ## Coverage: SDK universe first, registries only under `--cross-check`
 
-`disco coverage services --providers aws` derives every listable resource from the pinned aws-sdk-go-v2 Smithy models + Service Reference in the SDK cache and pairs them with the scanner source (`internal/sdkinv/CLAUDE.md`, `internal/coverage/CLAUDE.md`). Nothing here is hand-listed: `aws_skips.go`, `Descriptor.Upstream`, `Uncatalogued` and `serviceRenames` are gone. A skipped-for-a-reason resource (ephemeral job records, retired services the SDK still ships) is an honest `uncovered` row the Phase 8 baseline accepts.
+`disco coverage services --providers aws` derives every listable resource from the pinned aws-sdk-go-v2 Smithy models + Service Reference in the SDK cache and pairs them with the scanner source (`internal/sdkinv/CLAUDE.md`, `internal/coverage/CLAUDE.md`). Nothing here is hand-listed (retired list: `../CLAUDE.md`). A skipped-for-a-reason resource (ephemeral job records, retired services the SDK still ships) is an honest `uncovered` row the committed baseline accepts.
 
 `coverageProvider.CrossCheck` (`aws_coverage.go`, `--cross-check` only) returns the **union** of two live catalogs, because neither is complete:
 
@@ -263,7 +259,7 @@ Some AWS services surface implicit/managed entries in `List*` responses but reje
 
 Split each scanner into `scanX(ctx, acct, region, st, scanID)` (concrete client wiring) + `scanXEntities(ctx, client xAPI, ...)` (testable body) + narrow `xAPI` interface listing only the SDK methods called. `*svc.Client` satisfies the interface; tests inject stubs. Method signatures preserve the SDK's variadic `...func(*svc.Options)` so SDK paginators continue to compile against the interface.
 
-**Paginator iface trick**: `New<Op>Paginator(client, ...)` constructors only require the underlying `<Op>` method on `client`, not a per-paginator interface. Listing the underlying `DescribeXxx` / `ListXxx` / `GetXxx` / `SearchXxx` op on `<svc>API` satisfies every paginator constructor that wraps it. Local dispatcher function-type aliases (`type perFnScanner func(..., *svc.Client, ...)` in lambda, ssm, rds) must switch to `svcAPI` too.
+**Paginator iface trick**: `New<Op>Paginator(client, ...)` constructors only require the underlying `<Op>` method on `client`, not a per-paginator interface. Listing the underlying `DescribeXxx` / `ListXxx` / `GetXxx` / `SearchXxx` op on `<svc>API` satisfies every paginator constructor that wraps it. Local dispatcher func-type aliases take the iface, not `*svc.Client` (precedent: `perFnScanner` in `lambda_scanners.go`).
 
 **Footgun — duplicate client line**: when introducing a `scanXBody(ctx, client xAPI, ...)` wrapper, move the `client := <svc>.NewFromConfig(...)` construction up into `scanX` and DELETE it from the body (and from every sub-fn that built its own client, cloudwatch-style). Leaving it causes "no new variables on left side of :=".
 
@@ -281,7 +277,7 @@ When a parent resource references N children that have no independent lifecycle 
 
 ## Multi-hop role chaining
 
-`accountCfg.RoleChain []string` (preferred) walks N assume-role hops in order — each step's STS client is built from the prior step's `CredentialsCache`. `RoleARN` (single string) remains the single-hop path; `role_chain` takes precedence when both are set. Helper: `chainAssumeRoles(baseCfg, []string)` in `aws_config.go`. Use for hub-and-spoke org topologies where the runner must hop through an Audit role before reaching the target account.
+`accountCfg.RoleChain []string` (preferred) walks N assume-role hops in order — each step's STS client is built from the prior step's `CredentialsCache`. `RoleARN` (single string) remains the single-hop path; `role_chain` takes precedence when both are set. Helper: `chainAssumeRoles(baseCfg, roleARNs, sourceIdentity)` in `aws_config.go`. Use for hub-and-spoke org topologies where the runner must hop through an Audit role before reaching the target account.
 
 ## Tag JSON helpers
 
@@ -290,10 +286,6 @@ When a parent resource references N children that have no independent lifecycle 
 ## Helper-test colocation
 
 Cross-cutting pure-helper tests (ARN builders, error predicates, tag helpers, transient classifier) live in `aws_arn_test.go`, `aws_errors_test.go`, `aws_tags_test.go`. Per-service helper tests (e.g. `apprunnerImageToRepoARN`, `instanceArnFromPermissionSetArn`) live in the matching `<svc>_resolvers_test.go`. Before adding a new helper test, grep `^func Test<Helper>` across `aws/*_test.go` — duplicate `TestX` in same package fails to compile.
-
-## Smithy GenericAPIError string shape
-
-`(&smithy.GenericAPIError{Code:"AccessDenied",Message:"denied"}).Error()` = `"api error AccessDenied: denied"`. Production code paths in this package no longer match against `err.Error()` (every code+message predicate routes through `isAPIErrorWithMessage` / `isAccessDeniedWithMessage`, both reading `ae.ErrorMessage()` directly). Only `ScanWarning.Message` still surfaces the wrapped form via `skipIfAccessDenied` — tests asserting on `ScanWarning.Message` must include the `api error ` prefix (precedent: `TestSkipIfAccessDenied_RecordsWarningReturnsNil`).
 
 ## SDK middleware test stubs — placement
 
@@ -322,7 +314,7 @@ For colon-separated ARNs `arn:aws:<svc>:<region>:<acct>:<rtype>:<id>` Split retu
 
 ## Wrapper-key json tags are lowercase by design
 
-The "Scanner attribute JSON uses PascalCase keys" rule applies to fields produced by `json.Marshal` on raw SDK structs. Hand-built wrapper containers that namespace the SDK payload (`{"lb": <LB>, "type": ...}` in `elb_scanners.go`, `{"rule": ..., "Targets": [...]}` via `ruleWithTargets` in `eventbridge_scanners.go`, `{"listenerArn": ..., "cert": ...}` in `elb_scanners.go`) deliberately use lowercase / camelCase outer keys to distinguish them from SDK fields. Resolver struct tags like `json:"lb"` / `json:"listenerArn"` / `json:"deadLetterTargetArn"` are correct — do not "fix" to PascalCase, and any tag-shape lint must allowlist these.
+The "Scanner attribute JSON uses PascalCase keys" rule applies to fields produced by `json.Marshal` on raw SDK structs. Hand-built wrapper containers that namespace the SDK payload (`{"lb": <LB>, "type": ...}` in `elb_scanners.go`, `{"rule": ..., "listenerArn": ...}` and `{"listenerArn": ..., "cert": ...}` in `elb_scanners.go`; EventBridge's `ruleWithTargets` is PascalCase `Rule`/`Targets`) deliberately use lowercase / camelCase outer keys to distinguish them from SDK fields. Resolver struct tags like `json:"lb"` / `json:"listenerArn"` / `json:"deadLetterTargetArn"` are correct — do not "fix" to PascalCase, and any tag-shape lint must allowlist these.
 
 ## EventBridge resolver — `EventBusArn` is dead path
 
@@ -344,15 +336,9 @@ Services with ≥20 sub-phase List ops AND a low per-account TPS quota (SageMake
 
 Singleton-config Get/List ops return distinct error codes when the config has not been opted into (`SigningConfigurationNotFoundException`, `NotConfiguredException`, `RegistryPolicyNotFoundException`, `ResourceNotFoundException`, `TagOptionNotMigratedException`, `UnauthorizedException` from org-only APIs called by non-mgmt accounts). These are the **default state**, not warnings. Return `(0, 0, nil)` directly — do NOT route through `skipIfAccessDenied`, which records a `ScanWarning` and clutters the per-region warnings block. Real IAM denies still warn via `isAccessDenied`.
 
-## ThrottlingException is dispatch-level transient
-
-`isTransientNetworkError` (`aws_errors.go`) matches `ThrottlingException` / `Throttling` / `ThrottledException` / `RateExceededException`. Post-retry throttle exhaust (SDK retryer burned its 10-attempt adaptive budget) warn-skips at `scanRegion` dispatch automatically. Scanners do NOT need inline `isAPIErrorCode(err, "ThrottlingException")` handling — same shape as RequestTimeout/ServiceUnavailable.
-
 ## AppStream DescribeUsers: USERPOOL is the only accepted auth type
 
 `DescribeUsers` takes exactly one `AuthenticationType`, and it is `USERPOOL` — the SDK's own field doc says *"You must specify USERPOOL"*. Do NOT iterate the enum. `appstreamtypes.AuthenticationType` is the shape shared with `CreateUser`/`EnableUser`/`BatchAssociateUserStack` and now carries four values (USERPOOL, API, SAML, AWS_AD); the other three name nothing a user pool holds — an API-auth session has no user record (`CreateStreamingURL` mints the URL) and SAML/AWS_AD users are federated — so each is a guaranteed `InvalidParameterValueException`.
-
-This burnt a scan. The scanner iterated USERPOOL + API and swallowed the 400 with an `isAPIErrorCode(err, "InvalidParameterValueException")` guard, so a doomed call per region per scan was invisible for as long as the guard matched. When the appstream SDK moved to rpc-v2-cbor the code arrived namespaced, the guard stopped matching, and 11 regions' worth of errors marked every scan `partial`. The swallow is gone with the loop — an error from the one supported call is real and should surface.
 
 ## `isAPIErrorCode` compares SHAPE NAMES, so never pass a namespaced code
 
@@ -382,10 +368,6 @@ Most service hierarchies encode the parent in the child's NativeID via `{parentA
 ## Per-op region gates (sub-API only available in one region)
 
 Some scanners are regional, but a subset of their ops only work in a specific region — Lightsail's `GetDistributions` and `GetDomains` are us-east-1-only while the rest of the Lightsail surface is regional. AWS rejects from other regions with `InvalidInputException: ${kind}-related APIs are only available in the ${region} Region`. Gate per-phase (`if region != "us-east-1" { return 0, 0, nil }` at the top of `scanLSDistributions`), not via `global: true` on registerService — that would skip the regional ops too. Precedent: `lightsail_extended_scanners.go` `scanLSDistributions` / `scanLSDomains`.
-
-## Per-region feature gap → InvalidRequestException, silent skip
-
-Some sub-APIs work in subset of regions only. The rejection comes back as `InvalidRequestException: Feature not supported yet` rather than `AccessDeniedException`. This is per-region, not per-account, so `markServiceDisabled` is wrong shape (other phases of the service still work in this region). Detect via code+message predicate and return `(0, 0, nil)` for a silent skip — the warn would fire on every scan in non-supporting regions otherwise. Precedent: `isIoTSiteWiseFeatureUnsupported` in `iotsitewise_scanners.go` (ListComputationModels works us-east-1 / eu-west-1, fails us-west-2).
 
 ## DNS probe to confirm global-service region
 
@@ -418,7 +400,7 @@ Scanner comments claiming a reference is unusable ("refs blocked by sanitize", "
 
 ## Parent-row "leaf" ≠ no edges
 
-Many parent types (mediaconnect:flow, kinesis:stream, eventbridge:rule) stay on `coverage resolvers --missing` because their existing resolvers emit *child→parent* `attached-to`, not parent→outbound. To demote, identify a NEW outbound edge from the parent's own SDK body to a *non-child* type — RelContains/closure to children doesn't count. Precedents: `mediaconnect:bridge → mediaconnect:gateway` via `PlacementArn` (commit 5ccaf80) demoted the parent; `mediaconnect:flow` stayed listed because every Flow body field maps to an existing child type. Confirm via SDK doc grep on the body struct *before* scanner enrichment work — if every ref-bearing field is already spawned as a child row, the parent is genuinely leaf.
+Many parent types (mediaconnect:flow, kinesis:stream, eventbridge:rule) stay on `coverage resolvers --missing` because their existing resolvers emit *child→parent* `attached-to`, not parent→outbound. To demote, identify a NEW outbound edge from the parent's own SDK body to a *non-child* type — RelContains/closure to children doesn't count. Precedents: `mediaconnect:bridge → mediaconnect:gateway` via `PlacementArn` demoted the parent; `mediaconnect:flow` stayed listed because every Flow body field maps to an existing child type. Confirm via SDK doc grep on the body struct *before* scanner enrichment work — if every ref-bearing field is already spawned as a child row, the parent is genuinely leaf.
 
 ## Empty-message AccessDeniedException = closed-to-new-customers signal
 
@@ -426,7 +408,7 @@ When AWS retires a service to new customers (existing customers keep access), li
 
 ## Two-pass scanner: keep total == inserted via skip-set dedup
 
-Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second upsert is a verify or split, not an insert. Surfaces as `(1520 total, 1508 new)` → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue` (commit 14cbee2).
+Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second upsert is a verify or split, not an insert. Surfaces as `(1520 total, 1508 new)` → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue`.
 
 ## `--regions all` sentinel expands to the full region list
 
@@ -469,41 +451,36 @@ the catalog says AWS doesn't offer it in — surfacing `(region: unavailable)`.
 
 **Fail-open is the whole safety model.** The catalog is AWS's own availability
 truth, so a region it omits is one the API genuinely isn't in (we'd NXDOMAIN/error
-anyway). `serviceAvailableInRegion` returns "scan" whenever the data is
-missing/unknown: nil map, code absent from catalog (divergent name), or empty
-region set. The service code derives from the registerService name minus `aws:`;
+anyway). `serviceAvailableInRegion` unions the catalog with the shipped SDK endpoint table
+(`regions.ServiceAvailable`, which also scopes single-region scans): scan if either lists
+the region, skip only if some source has an opinion and none lists it, scan when neither
+knows (nil map, divergent code, empty set). The service code derives from the registerService name minus `aws:`;
 divergent names (e.g. `aws:code-build` vs catalog `codebuild`) simply aren't found
-→ scanned everywhere. `regionAvailabilityCodeOverrides` (intentionally empty) is
-the unlock for divergent services — only add a mapping VERIFIED against the live
+→ scanned everywhere. `regionAvailabilityCodeOverrides` (near-empty — only services whose SDK package ships
+no endpoint table, e.g. `aws:bedrockagentcore`) is the unlock for divergent services — only add a mapping VERIFIED against the live
 catalog, since a wrong override is the one way to skip a region the service serves.
 This complements, never replaces, the per-region silent-skip predicates (NXDOMAIN,
 feature-gap codes) — those catch sub-feature gaps the service-level catalog can't.
 Toggle: `--scope-regions=false` (or `aws.scope_to_available_regions: false`).
 Capability: `providers.RegionScopeToggler`.
 
-## NXDOMAIN at dispatcher = service not deployed in region
-
-`isDNSNotFound` (`aws_errors.go`) matches `*net.DNSError` with `IsNotFound=true` — AWS endpoint host has no DNS record. Permanent fact about region availability, not transient outage. `scanRegion` / `scanAccount` silent-skip BEFORE `isTransientNetworkError` warn-skip; service progress line shows `(region: unavailable)`. Real DNS server problems surface as timeouts / SERVFAIL, not NXDOMAIN, and still warn. Replaces N per-region "transient: dial tcp: lookup …: no such host" warnings for services not yet deployed in scanned region.
-
 ## Dispatch ladder lives in `classifyServiceError`, and its order is load-bearing
 
 `scanAccount`'s global lane and `scanRegion`'s per-region lane classify a failed `svc.fn`
 identically and differ only in the scope label they report, so the decision is one function in
-`aws_errors.go` returning a `serviceOutcome` (`outcomeStoreWrite` / `Disabled` / `NotEntitled` /
-`Unavailable` / `Transient` / `Error`); both dispatchers just `switch` on it. Add a new rung
+`aws_errors.go` returning a `serviceOutcome` (ladder order: `outcomeStoreWrite` / `Disabled` / `NotEntitled` /
+`Unavailable` / `Blocked` / `Deadline` / `Transient` / `Error`); both dispatchers just `switch` on it.
+`Unavailable` covers NXDOMAIN (`isDNSNotFound`) — real DNS server problems surface as timeouts /
+SERVFAIL, not NXDOMAIN, and still warn. `Blocked` (`isServiceBlocked`: a 403 whose message matches
+`blockedServiceNeedles`) silences a service AWS refuses to everyone. `Deadline` must precede
+`Transient` — a deadline satisfies `net.Error.Timeout()`. Add a new rung
 there, not inline in a dispatcher — and add a case to `TestClassifyServiceError_Rungs`.
 
-**`outcomeStoreWrite` is checked first, deliberately.** A store-write failure matches rungs
-below it: pgconn reports a dropped Postgres connection as an EOF and a dial timeout as a
-`net.Error`, both of which `isTransientNetworkError` treats as a momentary cloud glitch. Demote
-that rung and a database outage becomes a benign per-service warning while every row it should
-have persisted vanishes — and the scan still reports success.
-`TestClassifyServiceError_StoreWriteBeatsEveryOtherRung` pins it by wrapping the sentinel over
-each lower rung's own trigger. Azure and GCP carry the same first-rung guard.
+`outcomeStoreWrite` is first for the reason in `../CLAUDE.md` ("`store.ErrStoreWrite` is the first rung"); `TestClassifyServiceError_StoreWriteBeatsEveryOtherRung` pins it.
 
 ## Per-region feature-gap error codes are service-specific
 
-AWS surfaces "this sub-feature is not deployed in this region" under different codes per service. Build the silent-skip predicate against the exact code observed. Known shapes:
+AWS surfaces "this sub-feature is not deployed in this region" under different codes per service. Build a code+message silent-skip predicate against the exact code observed and return `(0, 0, nil)` — not `markServiceDisabled`, since other phases still work in the region. Known shapes:
 
 - `UnsupportedRegionException` (gamelift Containers + FlexMatch)
 - `InvalidRequestException` + "Feature not supported yet" (iotsitewise)
@@ -533,4 +510,15 @@ Real per-action IAM denials carry the SDK-formatted body `User: arn:... is not a
 
 `DescribeInstances` returns terminated instances for ~1 hour after termination, but AWS clears volatile attributes — `IamInstanceProfile`, post-cleanup network-interface specifics, attached-volume mounts — on the way out. The EC2 instance row in disco's DB faithfully reflects the post-termination state, so resolvers that read those fields (instance → instance-profile, instance → ENI, instance → EBS) correctly emit no edge for terminated instances. If `disco graph blast <iam-role>` returns fewer hops than expected for a role attached to a recently-terminated instance, check `attributes.State.Name == "terminated"` before chasing a resolver bug. Not a scanner bug — the scanner stores what AWS returns.
 
-Filtering terminated instances out of inventory entirely is a separate product question (TTL? user opt-in?); today disco keeps them so the user can see "this terminated yesterday" in `disco resources`. Use a Rego rule (`input.attributes.State.Name == "terminated"`) to surface them as findings if your policy demands cleanup — see the infrastructure-engineer persona's `TERM-001` example in `focus-group/reports/infra-engineer.md`.
+Filtering terminated instances out of inventory entirely is a separate product question (TTL? user opt-in?); today disco keeps them so the user can see "this terminated yesterday" in `disco resources`. Use a Rego rule (`input.attributes.State.Name == "terminated"`) to surface them as findings if your policy demands cleanup.
+
+## AWS account_id resolution + emulator override
+
+`internal/providers/aws/aws_config.go::loadAccounts` resolves the `account.ID` recorded on `resources.account_id` via three precedences:
+1. Config-file `aws.accounts[].id` (explicit).
+2. `--role-arn` override → `sts:GetCallerIdentity` on the assumed creds.
+3. Auto-detect → `sts:GetCallerIdentity` on the default chain.
+
+`DISCO_CLOUD_ACCOUNT_ID` is an **emulator-only** override that short-circuits the STS lookup. **Honored only when `AWS_ENDPOINT_URL` is also set** — the AWS SDK's canonical "talking to a non-AWS endpoint" signal. Prod scanners never set `AWS_ENDPOINT_URL`, so the env is inert outside emulator mode. Emulators (e.g. LocalStack) return a sentinel `"000000000000"` from `sts:GetCallerIdentity` that would otherwise overwrite the configured account id on every emulator-backed scan.
+
+The gate function `emulatorAccountIDOverride()` is the single read site; both the `--role-arn` branch and the auto-detect branch call it before STS. `TestEmulatorAccountIDOverride` in `aws_config_test.go` pins the prod-safety assertion (env value ignored when `AWS_ENDPOINT_URL` is unset).

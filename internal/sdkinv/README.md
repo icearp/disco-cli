@@ -126,8 +126,8 @@ $XDG_CACHE_HOME/disco/sdk/
 
 Pins are the denominator's version. Each provider keeps its own in `<p>inventory/pins.go`; the GCP
 version is read from `debug.ReadBuildInfo()` (`gcpinventory.APIRef` is the fallback and
-`TestPinMatchesGoMod` keeps it equal to `go.mod`). The AWS Service Reference catalog is unversioned, so its pin is the
-newest `modified` stamp in its index. Every report prints the pins; numbers are only comparable
+`TestPinMatchesGoMod` keeps it equal to `go.mod`). The AWS Service Reference catalog is unversioned, so its pin is a
+content digest of its index (`awsinventory.ServiceReferenceDigest`; a mismatch is reported, not enforced). Every report prints the pins; numbers are only comparable
 across identical pins.
 
 ## Extraction, per provider
@@ -187,7 +187,7 @@ that names an op no anchor calls is a diagnostic, and the pairing tests fail on 
 |---|---|---|
 | `emits` | Anchor + the types the function (or its callees) stores | yes |
 | `sidecar` | Anchor, no types: a listing helper; its direct caller is paired with what it stores | yes |
-| `derived` | A dispatcher with no anchor of its own, paired with what its callees list | yes |
+| `derived` | A dispatcher with no anchor of its own: types no anchored callee stores, paired with listings of the same service | yes |
 | `label` | A label literal with no call anywhere | no |
 | `other` | A call to a non-candidate op (`Get`, writes) | no, but explains a type |
 | `skew` | A call the pinned SDK snapshot does not ship | no; see the note below |
@@ -280,7 +280,7 @@ All of it lives in one new SDK-free package, `internal/providers/<p>/<p>inventor
    require a pairing resolver (`TestInventoriesConform`), and run the live-cache checks.
 
 4. **Pairing resolver** (`<p>inventory/resolver.go`, ~100 lines): implement
-   `pairing.Resolver` — `LabelGrammar` (the op-label regexp your scanners use), `ImportKey` (SDK
+   `pairing.Resolver` — `Name`, `LabelGrammar` (the op-label regexp your scanners use), `ImportKey` (SDK
    import path → universe module key), `OpKey`, `LabelAliases` (every literal spelling that names an
    op), `Constructor`/`TypeOwner` (how a client local gets bound), `LabelOp` (the op name a label
    spells, in anchor form, so a stale label reads as SDK skew), `Anchors` (the SDK call shapes to
@@ -331,7 +331,7 @@ parent's scanner loop), `Scope` is provider-specific — Azure names the ARM
 scope and GCP the cloud container, while AWS leaves it empty because a listing there is
 per region or per account with nothing in the model to tell them apart — and `Signals` explains why the extractor believes it is a resource. If a row looks
 wrong — a catalog classified as a resource, a child parented to the wrong thing — fix the rule in
-`<p>/extract.go` and add the shape to the fixture; never add a skip list or an alias map. The
+`<p>inventory/extract.go` and add the shape to the fixture; never add a skip list or an alias map. The
 reconciliation that retired the old hand lists showed the lists were wrong more often than the
 extractor.
 
@@ -341,7 +341,7 @@ extractor.
   sorted key order. `docs/coverage.md` is byte-stable across runs and CI diffs it.
 - **Anchors over labels.** A label literal never covers anything on its own; a wrong label is a
   diagnostic that fails the pairing tests, which is how 22 Azure label typos were found.
-- **Identity is `Ident` only.** Do not introduce a second comparison; the old `CanonSingular` keys
+- **Identity is `Ident` only.** Never compare `Singular`/`CanonSingular` output; keying on it
   split `RestApi`/`RestApis` into two candidates.
 - **sdk-skew is real, and it runs both ways.** Azure's `SDKRef` is the monorepo's HEAD, which differs
   from the `go.mod` majors: a scanner calling an op the snapshot lacks is reported as `skew`, not as

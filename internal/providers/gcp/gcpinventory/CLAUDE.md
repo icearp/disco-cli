@@ -28,8 +28,8 @@ GCP SDK inventory: the extractor that derives the GCP coverage denominator from 
 ## Extractor (`extract.go`)
 
 Model-first: every rule reads HTTP methods, path templates and schemas. There are **no method-name
-or noun lists** (the old `list`/`search`/`fetch` names, `scopesFor`, `dropKnativeRoot`,
-`versionRe` are gone); do not add one. The one declared vocabulary is the tenancy roots
+or noun lists** (removed, do not recreate: `list`/`search`/`fetch` name matching, `scopesFor`,
+`dropKnativeRoot`, GCP's `versionRe`). The one declared vocabulary is the tenancy roots
 (`cloudRoots`: projects, organizations, folders, billingAccounts, customers) and placements
 (`placements`: locations, zones, regions) — Discovery has no structured tenancy marker, so this is
 the provider's `Scopes()` declaration. Each rule below has a fixture case in
@@ -94,7 +94,7 @@ verified by mutating each of 22 rules (2026-09-28). A rule without a red mutatio
   it never returns.
 - **Parents.** The innermost non-scope parent item path matched against the API's listed item
   paths, walking outward. A miss leaves Parent empty with Depth kept (info diagnostic) —
-  depth>0 with no parent is legal; `TestExtract_Live` asserts every parent resolves.
+  depth>0 with no parent is legal; `TestExtract_Live` asserts every non-empty parent is a candidate key.
 - **Scope** (`scopeOf`): a param-first path → `unscoped` (warn; cloudasset and serviceusage take
   any container), a template rooted at a cloud root → that scope, a required query parameter
   naming one (`?project=`, storage buckets) → that scope, else `global`. Alpha/beta-only
@@ -102,11 +102,10 @@ verified by mutating each of 22 rules (2026-09-28). A rule without a red mutatio
 
 ### Accepted residuals (2026-09-28, v0.292.0)
 
-1660 candidates (1186 resource, 260 catalog, 214 non-resource) across 193 APIs, from 1882. Gone:
-the 7 non-cloud APIs, filtered views (`:search`), listers returning strings (managedkafka,
-logging), `monitoring/timeseries` (#48), apigee `organizations.list` (its element is
-`OrganizationProjectMapping`), and duplicate keys the old name rules minted. Gained:
-`sqladmin/backups`, regional compute parents (`regioninstancegroupmanagerresizerequests`).
+1660 candidates (1186 resource, 260 catalog, 214 non-resource) across 193 APIs. Not candidates:
+non-cloud APIs, filtered views (`:search`), listers returning strings (managedkafka,
+logging), `monitoring/timeseries`, apigee `organizations.list` (its element is
+`OrganizationProjectMapping`).
 apigee children key as `apigee/organizations/*` at depth 1 with no parent (organizations are
 creatable, not listable). run v1's namespace routes report scope `global`: the path names no
 container. `foldAliasRoutes` merges collections of one element reached through different unlisted

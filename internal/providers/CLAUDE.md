@@ -18,7 +18,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 
 **Definition.** A resource is provider-managed when both hold: (1) it materialises automatically — created by the cloud at account / tenant / project creation, on service enablement, or as a default-region rollout, with no explicit user API call; AND (2) the user cannot delete it directly (Delete API rejects, or AWS/Azure/GCP recreates on next reconcile). One condition without the other is not enough — user-created defaults (e.g. a default VPC the user kept) fail (1); deletable system rows (rare) fail (2). When in doubt, attempt delete in a scratch account; if the API rejects with a "managed by AWS / built-in / system" error, flag it.
 
-Resources owned by the cloud (Azure built-in policy/role definitions, AWS-managed IAM policies, AWS-owned prefix lists, IAM service-linked roles, AuditMgr Standard frameworks/controls) set `store.Resource.ManagedByProvider=true`. Hidden from `disco resources` / `disco graph` by default; `--include-managed` opts in. In `graph`, managed nodes are terminal — appear when reached via direct edge but BFS does not expand through them. Detection lives at scan time, reads typed SDK field (e.g. `OwnerId == "AWS"`, `PolicyType == BuiltIn`, `RoleType == "BuiltInRole"`, role path `/aws-service-role/`). Where the SDK exposes a scope/type filter (IAM `PolicyScope`, AuditMgr `FrameworkType`/`ControlType`), loop both values in a single scanner and flag the managed pass — precedent: `scanIAMPolicies`, `scanAuditManagerFrameworks`, `scanAuditManagerControls`.
+Resources owned by the cloud (Azure built-in policy/role definitions, AWS-managed IAM policies, AWS-owned prefix lists, IAM service-linked roles, AuditMgr Standard frameworks/controls) set `store.Resource.ManagedByProvider=true`. Hidden from `disco resources` / `disco graph` by default; `--include-managed` opts in. In `graph`, managed nodes are terminal — appear when reached via direct edge but BFS does not expand through them. Detection lives at scan time, reads typed SDK field (e.g. `OwnerId == "AWS"`, `PolicyType == BuiltIn`, `RoleType == "BuiltInRole"`, role path `/aws-service-role/`). Where the SDK exposes a scope/type filter (AuditMgr `FrameworkType`/`ControlType`), loop both values in a single scanner and flag the managed pass — precedent: `scanAuditManagerFrameworks`, `scanAuditManagerControls`. AWS IAM flags managed policies by the `arn:aws:iam::aws:` ARN prefix instead (GAAD exposes no scope flag).
 
 ## Don't mix `g.Wait()` with same-statement counter reads
 
@@ -39,18 +39,18 @@ would be a benign per-service warning while the scan reported success having sto
 
 Keep it a report-and-continue (`ReportError`, don't propagate): `ReportError` already drives
 `res.Partial` → `errScanPartial` under `--fail-on-error`, so the exit code is non-zero without
-aborting sibling services. Every arm of every provider now reports and continues.
+aborting sibling services.
 
 ## Errors never abort scan
 
 Provider scanners must NOT propagate per-service / per-region / per-resolver errors. Instead:
 
 - On failure: `st.ReportError(store.ScanError{Provider, Service, Scope, Message})` then continue.
-- `ReportService(name, scope, total, new, changed, errCount, disabled)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line; `new` (first-discoveries) and `changed` (version splits) are sourced from `Store.WithUpsertCounters` counters the dispatcher binds around `svc.fn`, not from the scanner-returned `inserted`.
+- `ReportService(name, scope, total, new, changed, errCount, status store.ServiceStatus)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line; `new` (first-discoveries) and `changed` (version splits) are sourced from `Store.WithUpsertCounters` counters the dispatcher binds around `svc.fn`, not from the scanner-returned `inserted`.
 - `Scan()` returns `nil` even when individual services failed; load-credentials / load-accounts failures also report-and-return-nil.
-- `cmd/scan.go` collects errors via `OnError` and renders one grouped block at end. Inline `FAILED:` lines no longer printed.
+- `cmd/scan.go` collects errors via `OnError` and renders one grouped block at end.
 
-Replace `errgroup.WithContext` with plain `sync.WaitGroup` for per-service fan-out — errgroup cancels siblings on first error, which we explicitly do not want. Precedent: `aws/aws_scanner.go` `scanRegion` + `scanAccount` phase 1a. GCP was the last holdout (a transient 500 or the per-service timeout in one project cancelled every service in every project **and** phase 2, so the run kept its phase-1 rows and lost every relationship edge); `TestScanProject_OneServiceFailureDoesNotCancelSiblings` guards it.
+Replace `errgroup.WithContext` with plain `sync.WaitGroup` for per-service fan-out — errgroup cancels siblings on first error, which we explicitly do not want. Precedent: `aws/aws_scanner.go` `scanRegion` + `scanAccount`. `TestScanProject_OneServiceFailureDoesNotCancelSiblings` (gcp) guards it — an errgroup there once cancelled phase 2 and lost every edge.
 
 ## Provider registry (`registry.go`)
 
@@ -61,9 +61,7 @@ Name() string
 Scan(ctx context.Context, st *store.Store, scanID string) error
 ```
 
-`providers.All()` returns registered scanners sorted by name. `providers.Get(name)` for validation. `providers.Names()` for error messages.
-
-Optional capability interfaces a Scanner may implement: `ServiceFilterer` (`--services`), `RegionOverrider` (`--regions`), `ProfileOverrider` (`--profile`), `GlobalsSkipper` (`--skip-globals`), `RoleOverrider` (`SetRoleOverride(roleARN, externalID)` → `--role-arn`/`--external-id`; pins the scan to one AssumeRole target, ignoring config-file accounts; external-id never lands in `scans.scope` JSON).
+Optional capability interfaces (one per scan flag or display need — `ServiceFilterer`, `RegionOverrider`, `RoleOverrider`, `RegionScopeToggler`, `ServiceQuotasIncluder`, …) live in `registry.go`; cmd type-asserts them, so a provider opts into a flag by implementing one. `RoleOverrider` pins the scan to one AssumeRole target, ignoring config-file accounts; external-id never lands in `scans.scope` JSON.
 
 **Add new provider** (four steps):
 1. Create `internal/providers/<name>/` implementing `Scanner`
@@ -96,7 +94,7 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 ## `registerType` is the coverage truth source
 
-Every file that upserts a disco type declares it with `registerType(restype.Descriptor{Type, Service, …})` from its `init()`; `CollectEmits()` turns the descriptors into the provider's `[]coverage.TypeDecl`. `disco coverage services` pairs these with the SDK calls the scanner makes (`internal/sdkinv/pairing`); there is no alias map, no upstream key and no skip list — a type is covered because its scanner calls the SDK op that lists it. `KnownTypes()` no longer exists.
+Every file that upserts a disco type declares it with `registerType(restype.Descriptor{Type, Service, …})` from its `init()`; `CollectEmits()` turns the descriptors into the provider's `[]coverage.TypeDecl`. `disco coverage services` pairs these with the SDK calls the scanner makes (`internal/sdkinv/pairing`); there is no alias map, no upstream key and no skip list — a type is covered because its scanner calls the SDK op that lists it.
 
 A scanner is paired with a type only when it **stores** it: the pairing walker credits a
 `Type*` identifier to a function's SDK call only if that function, or something it reaches,
@@ -228,11 +226,11 @@ Many AWS/Azure/GCP List ops reject blanket calls — they require a parent ident
 
 ## List-only summary scanners block resolver work
 
-Some `List*` ops return only `{Arn, Name, Status}` summaries — DataSync `ListLocations` is canonical: full IAM/S3/EFS/FSx refs live on `DescribeLocation*` per subtype. Resolvers can't synthesize edges from data the scanner never fetched. Either skip the resolver with a note in the scanner header, or enrich the scanner via per-row Describe fan-out before adding the resolver. Precedent for the enrichment pattern: `scanStorageLens` in `aws/s3control_scanners.go`.
+Some `List*` ops return only `{Arn, Name, Status}` summaries — DataSync `ListLocations` is canonical: full IAM/S3/EFS/FSx refs live on `DescribeLocation*` per subtype. Resolvers can't synthesize edges from data the scanner never fetched. Either skip the resolver with a note in the scanner header, or enrich the scanner via per-row Describe fan-out before adding the resolver. Precedent for the enrichment pattern: `scanStorageLens` in `aws/s3control_scanners.go`. Store the Get/Describe body whole as `AttributesJSON` (it is native); never merge List+Get into an ad-hoc struct.
 
 ## Generic-file layout per provider
 
-All three provider packages share the layout `<provider>_<concern>.go` for generic glue: `scanner` (orchestration, dispatcher caps, util wrappers), `registry` (`registerService` + emits aggregator), `config`, `types`, `errors`, `regions`, `coverage`, plus per-provider extras `arn` (AWS) / `armid` (Azure), `tags` (AWS, Azure), `concurrency` (AWS, Azure), `scan_helpers` (Azure, GCP), `hierarchy` (GCP). Test files mirror the production file: `<provider>_<concern>_test.go`. Shared test infrastructure collapses into one `<provider>_testhelpers_test.go`. When adding a new generic concern, follow this layout — don't reintroduce the kitchen-sink `<provider>.go` shape that all three packages just got out of.
+All three provider packages name generic glue `<provider>_<concern>.go` (`scanner`, `registry`, `config`, `types`, `errors`, `regions`, `coverage`, plus per-provider extras — `ls <p>/<p>_*.go`). Test files mirror the production file: `<provider>_<concern>_test.go`. Shared test infrastructure collapses into one `<provider>_testhelpers_test.go`. When adding a new generic concern, follow this layout — never a kitchen-sink `<provider>.go`.
 
 ## Orphan-Type-constant guard
 

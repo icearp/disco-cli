@@ -9,10 +9,10 @@ Cobra command layer.
 - `disco scan --providers aws,gcp` — only named providers (comma-separated `StringSlice`)
 - `disco resources` — query local DB with filters (`--providers`, `--type`, `--regions`, `--status`, `--tag-key`/`--tag-value`, `--output table|json|csv|jsonl`); `--providers`/`--regions` are comma-separated multi-value. `disco resources show <id|native-id|name>` resolves and prints one resource via `store.ResolveResource`.
 - `disco quotas` — query recorded service quota limits (`--providers`, `--accounts`, `--regions`, `--service`, `--adjustable=true|false`, `--raised`, `--limit`, `--output`). Quotas live in their own `quotas` table, not in `resources`. AWS quotas need a scan with `--include-service-quotas`; Azure and GCP quotas arrive on every scan.
-- `disco diff <scanA> <scanB>` — drift detect; emits added/removed/changed rows between two scan IDs
-- `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot|mermaid --dot-theme light|dark` — walks `relationships` + `hierarchy_closure`. DOT styling lives in `cmd/graph_theme.go` — single `dotTheme` struct holds graph/node/edge attribute blocks + `nodePreset` map (primary/secondary/storage/identity/muted/error) + cluster palette. `presetForResource` picks a preset by `Type` second segment (`s3|rds|...`→storage, `iam|sso|...`→identity, `ec2|lambda|...`→primary).
+- `disco diff <scanA> <scanB>` — emits `added` (first seen in B) and `stale` (verified in A, not refreshed by B) rows (`store.ScanDiff`); no attribute-change rows
+- `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot|mermaid --dot-theme light|dark` — walks `relationships` + `hierarchy_closure`.
 - `disco graph complete` — dumps every customer resource + every provider-managed resource that shares an edge with one. No seed, no BFS — backed by `store.GraphAll(GraphAllOpts)` which reads `ListResources({IncludeManaged: true})` paginated + `ListRelationships()` and applies the customer-edge inclusion rule in-memory. `--include-managed` keeps orphan managed nodes too. Traversal flags (`--depth`/`--kinds`/`--direction`) ignored.
-- `disco check --rules ./policies --severity high --output sarif` — Runs OPA Rego policies against store. Findings reported → exit 1 by default; `--exit-zero` overrides for inventory-only runs. `--rules` takes `.rego` files or directories (recursive). `--output` ∈ `table|json|jsonl|sarif` (sarif = v2.1.0 for GitHub/GitLab code-scanning, marshalled inline in `cmd/check_sarif.go` — no external SARIF lib). Bundled packs: `--packs` (below). Each policy module must populate `data.disco.deny` (set) with finding objects shaped `{id, severity, message, resource_id?, tags?, category?, remediation?, ref_url?}`. Input shape: `{id, provider, account_id, type, native_id, name, region, status, attributes}` — `attributes` is the decoded `AttributesJSON` (object), not the raw string.
+- `disco check --rules ./policies --severity high --output sarif` — Runs OPA Rego policies against store. Findings reported → exit 1 by default; `--exit-zero` overrides for inventory-only runs. `--rules` takes `.rego` files or directories (recursive). `--output` ∈ `table|markdown|csv|json|jsonl|sarif` (sarif = v2.1.0 for GitHub/GitLab code-scanning, marshalled inline in `cmd/check_sarif.go` — no external SARIF lib). Bundled packs: `--packs` (below). Each policy module must populate `data.disco.deny` (set) with finding objects shaped `{id, severity, message, resourceId?, tags?, category?, remediation?, refUrl?}` (decoded into `policy.Finding`). Input is camelCase, built by `resourceToInput` (`internal/policy/policy.go`); `attributes`/`tags` are decoded objects, not raw strings.
 
 ## `disco coverage`
 
@@ -21,22 +21,19 @@ Drift-detection cmd, split into five subcommands. Bare `disco coverage` prints h
 - `disco coverage services` — per-service coverage matrix derived offline from the SDK source cache (`--sdk-cache`, default `$XDG_CACHE_HOME/disco/sdk`; absent → `errCoverageInventoryUnavailable`, exit 2, hint `disco coverage sdk fetch`) and the scanner source (`--source-root`, default cwd when its `go.mod` is disco-cli; empty → name matching only, warning on stderr). Buckets and reasons: `internal/coverage/CLAUDE.md`. `--filter all|covered|uncovered|attribute|excluded|disco-only|gaps|registry-drift` (`gaps` = uncovered ∪ unexplained disco-only) narrows rows after the headline is computed. `--check-strict` exits 1 only on an *unexplained* disco-only row (an emitted type paired with no SDK call). `--cross-check` additionally fetches the live registry (CFN ∪ Service Reference / ARM Providers / Discovery) and adds `registry-drift` rows; `--regions/--profile/--subscriptions/--timeout` apply only then, and a failed fetch is always fatal (`errCoverageRegistryUnreachable`, exit 2) so an empty registry never masquerades as drift. `--filter registry-drift` without `--cross-check` is rejected. Formats: table (headline + rows), markdown (headline, pins, per-service table, bucket sections), csv, json (`[]coverage.Matrix`), jsonl (rows). `--check-strict`, `--baseline` and `--write-baseline` all measure the pairing, so `requirePairing` refuses them with `errCoverageInventoryUnavailable` (exit 2) when any matrix has `!Pairing` — a name-matching-only baseline would ratchet against a different metric. `--write-baseline FILE` / `--baseline FILE` (`internal/coverage/baseline.go`; the same path for both is rejected, the fresh matrix would compare with itself; a write merges into the existing file rather than truncating it) see the **unfiltered** matrices — `buildServiceMatrices` returns every row and `runCoverageServices` filters after the baseline step, so `--filter gaps` in `make gen-coverage` cannot empty the baseline. Fatal baseline drift returns `errCoverageBaseline` (exit 1) after the matrix renders, and `--check-strict` returns `errCoverageStrict` the same way; neither adds the JSON error envelope, the matrix is the payload. Baseline drift kinds and which are fatal: `internal/coverage/CLAUDE.md`.
 - `disco coverage regions` — diff each provider's static `RegionNames` slice against the cloud's live SDK region list. `--regions <r1,r2>` post-filters the diff to those regions; full live list still fetched. A failed region-list fetch is always fatal (exit 2, like `services`); `--check-strict` exits 1 on any non-covered row.
 - `disco coverage resolvers` — implemented by AWS, Azure, and GCP (any provider whose coverage.Provider also satisfies `coverage.ResolverAuditor`). `--providers` selects which (unset = every auditing provider; naming one without support errors). Default mode lists every registered resolver with its EdgeDecl count + service segments touched; `--only-unannotated` omits annotated resolvers. `--missing` flips to the orphan-type inventory (emitted disco types never appearing as `EdgeDecl.Source`). `--services ec2,s3` filters to resolvers (or orphan types) touching named services.
-- `disco coverage verify` (`cmd/coverage_verify.go`) — `--scan-id` takes `latest`, a full id or the 8-char prefix `disco scans` prints (`isScanIDPrefix`/`resolveScanIDPrefix`, like every other scan-id-taking command); `latest` stays `LatestCompleteScan`. Compares the types one scan stored (`store.TypesForScan`: rows it discovered **or** re-verified) with `Emits()`. `emitted-undeclared` rows (a stored type no scanner declares) return `errCoverageUndeclared` **after** rendering, exit 1, no JSON error envelope (rows are the payload, like `check`). `declared-not-emitted` rows carry one reason, first match wins: `out-of-scope` (provider not in `scans.scope.providers`), `scan-error: <code> (<region>)` (`scans.errors` entry whose service is `scan` — the provider's whole Scan failed — or, when the provider stored nothing, any error of that provider (`aws:load-accounts` on an expired login — the label is no scanner service), or is one of the type's names from `typeServiceNames`: the scanner services registered from the type's own file (`coverage.ServiceMapper`), its declared `Service`, its type segment; scanner names like `aws:sso-admin` and declared services like `sso` differ for dozens of services, `TestEveryEmittedTypeHasScannerService` guards the join), `warning: <label> (<region>): <msg>` (`scans.warnings` entry whose op label pairs to the type via the SDK cache + scanner source; with the pairing present only a label paired to the type matches — a label it does not know is a store-level warning such as a native-id collision, not an op; without the pairing a label joins by service prefix), else `no rows`. Reasons are derived in this order: provider out of scope, service out of `scope.<provider>.services` (a `--services`-filtered scan is not an empty account), recorded errors, recorded warnings, then the fallbacks — `nothing stored: <provider> recorded no rows and no failure` when the provider stored nothing without recording a failure, `no rows (scan limited to regions: …)` when `scope.<provider>.regions` narrowed the run, else `no rows`. Errors match in two passes — exact service and whole-scan first, the stored-nothing provider-prefix fallback second — because one loop let the first provider-prefixed entry answer for every type. `scan` and `scan:interrupted` are whole-scan (the latter carries no provider, so it explains every provider of the scan); `scan:subscription` deliberately is not, so one unreachable Azure subscription does not answer for the tenant-scoped types. A reason renders code, service, region-or-scope and the truncated message: the code alone is the literal `Error` whenever the runner could not read one. Persisted entries are `<provider>:<service|label>` — `stripProvider` removes the prefix, twice when a scanner already prefixed it. `--scan-id latest` (default) = `LatestCompleteScan` (completed/partial, never running); `--providers` defaults to the scan's scope so a single-provider scan is not buried under 2,000 out-of-scope rows. Unrelated to `disco verify` (snapshot archives) — keep both help texts saying so.
+- `disco coverage verify` (`cmd/coverage_verify.go`) — `--scan-id` takes `latest`, a full id or the 8-char prefix `disco scans` prints (`isScanIDPrefix`/`resolveScanIDPrefix`, like every other scan-id-taking command); `latest` (default) stays `LatestCompleteScan` (completed/partial, never running). Compares the types one scan stored (`store.TypesForScan`: rows it discovered **or** re-verified) with `Emits()`. `emitted-undeclared` rows (a stored type no scanner declares) return `errCoverageUndeclared` **after** rendering, exit 1, no JSON error envelope (rows are the payload, like `check`). `declared-not-emitted` rows carry one reason, first match wins: `out-of-scope` (provider not in `scans.scope.providers`), `scan-error: <code> (<region>)` (`scans.errors` entry whose service is `scan` — the provider's whole Scan failed — or, when the provider stored nothing, any error of that provider (`aws:load-accounts` on an expired login — the label is no scanner service), or is one of the type's names from `typeServiceNames`: the scanner services registered from the type's own file (`coverage.ServiceMapper`), its declared `Service`, its type segment; scanner names like `aws:sso-admin` and declared services like `sso` differ for dozens of services, `TestEveryEmittedTypeHasScannerService` guards the join), `warning: <label> (<region>): <msg>` (`scans.warnings` entry whose op label pairs to the type via the SDK cache + scanner source; with the pairing present only a label paired to the type matches — a label it does not know is a store-level warning such as a native-id collision, not an op; without the pairing a label joins by service prefix), else `no rows`. Reasons are derived in this order: provider out of scope, service out of `scope.<provider>.services` (a `--services`-filtered scan is not an empty account), recorded errors, recorded warnings, then the fallbacks — `nothing stored: <provider> recorded no rows and no failure` when the provider stored nothing without recording a failure, `no rows (scan limited to regions: …)` when `scope.<provider>.regions` narrowed the run, else `no rows`. Errors match in two passes — exact service and whole-scan first, the stored-nothing provider-prefix fallback second — so one provider-prefixed entry cannot answer for every type. `scan` and `scan:interrupted` are whole-scan (the latter carries no provider, so it explains every provider of the scan); `scan:subscription` deliberately is not, so one unreachable Azure subscription does not answer for the tenant-scoped types. A reason renders code, service, region-or-scope and the truncated message: the code alone is the literal `Error` whenever the runner could not read one. Persisted entries are `<provider>:<service|label>` — `stripProvider` removes the prefix, twice when a scanner already prefixed it. `--providers` defaults to the scan's scope so a single-provider scan is not buried under 2,000 out-of-scope rows. Unrelated to `disco verify` (snapshot archives) — keep both help texts saying so.
 - `disco coverage sdk fetch|status` (`cmd/coverage_sdk.go`) — both validate `--output` up front
-  (`table` or `json`; the parent's markdown/csv/jsonl have no meaning for a cache listing and used
-  to print the table and exit 0) and emit the `maybeStructuredError` envelope, so `-o json | jq`
+  (`table` or `json` only) and emit the `maybeStructuredError` envelope, so `-o json | jq`
   sees a parseable failure. `status` prints the table on stdout and, on stderr, any content-pin disagreement plus the reason a present directory reads as `absent` (wrong provider/ref, or a different source spec). Populates/inspects the SDK source cache the coverage denominator derives from (`internal/sdkinv`; each provider's extractor registers from `internal/providers/<p>/<p>inventory`, blank-imported via the slim-gated `internal/providers/all/<p>.go`). Persistent `--sdk-cache` (default `$XDG_CACHE_HOME/disco/sdk`); `fetch --providers/--force`. `resetCoverageFlags` recurses one level so these subcommands' `--providers` reset too.
 
 `--providers` values are lower-cased and trimmed inside `coverage.Get` / `sdkinv.Get`, not at the
-call sites: `--providers AWS` resolved for `coverage sdk status` and failed for `coverage services`.
+call sites.
 `--services` on `coverage services` matches the row's SDK service **or** the disco type's service
 segment (`--services cloudwatch` finds `monitoring/alarm`), and a value matching no row is named on
 stderr — the headline above the table is unfiltered, so a zero-row table otherwise reads as a
 coverage claim.
 
-`--source-root` defaults to the cwd when `go.mod`'s first line names this module, whitespace
-trimmed: a CRLF checkout failed the test, silently turning pairing off (AWS 41.3% against 48.7%
-paired, GCP 18.5% against 22.9%). `.gitattributes` pins `*.go`/`go.mod`/`go.sum` to LF.
+`--source-root` defaults to the cwd when `go.mod`'s first line (whitespace-trimmed) names this module; `.gitattributes` pins `*.go`/`go.mod`/`go.sum` to LF because a CRLF checkout silently turns pairing off.
 
 Plural flags throughout: `--providers` (StringSlice; empty = all), `--regions` (StringSlice; semantics differ per subcommand — see above), `--services` (StringSlice; cross-cutting filter on services + resolvers subcommands). Tests must call `resetCoverageFlags(t)` before each `cmd.Execute()` because pflag StringSlice values accumulate across consecutive runs.
 
@@ -45,8 +42,7 @@ Plural flags throughout: `--providers` (StringSlice; empty = all), `--regions` (
 The generator reads the provider package before writing: a `registerService`
 already claiming `<prov>:<svc>` (a duplicate panics every provider at init) or an existing
 `func scan<Svc>` (gcp:spanner's scanner lives in `databases_scanners.go`) suppresses **both** the
-registration and the stub, and the header says why — it used to scaffold a file that killed the
-package. Type strings and const names carry every key segment below
+registration and the stub, and the header says why. Type strings and const names carry every key segment below
 the service (`azure:microsoft.compute:virtualmachinescalesets:virtualmachines:runcommands`), because
 the leaf alone declared `virtualmachines/runcommands` and
 `virtualmachinescalesets/virtualmachines/runcommands` identically — and `format.Source` parses a
@@ -59,13 +55,11 @@ Segment spelling = `sdkinv.Singular`; fix wrong spellings in its `irregular` tab
 
 ## Resume
 
-`disco scan --resume <scan-id|latest>` reuses a previous scan_id instead of generating a fresh one. `latest` picks the most-recent scan whose status is `running` or `partial`. disco persists per-(scan, service, scope) checkpoints (`store.SaveCheckpoint`); a future incremental scanner can consume them on the next `--resume` to skip already-listed pages. `startOrResumeScan` in `scan.go` owns the dispatch. Without `--resume`: fresh scan_id.
+`disco scan --resume <scan-id|latest>` reuses a previous scan_id instead of generating a fresh one. `latest` picks the most-recent scan whose status is `running` or `partial`. No scanner writes checkpoints yet (`store.SaveCheckpoint` has no production caller), so the resume banner's checkpoint count is 0. `startOrResumeScan` in `scan.go` owns the dispatch. Without `--resume`: fresh scan_id.
 
 ## Parallel scanning
 
-`cmd/scan.go` runs selected scanners concurrent via plain `sync.WaitGroup` — no sibling cancellation. Per-service / per-region failures collected via `store.OnError` and rendered as one grouped block at end. Scan record always finalised via `db.CompleteScan` (failed or not). Lifecycle + errgroup-error-tolerance details: `internal/providers/CLAUDE.md` "Errors never abort scan".
-
-`runScan(cmd, scanners)` (`scan.go`) holds the shared open-db / `CreateScan` / WaitGroup / `CompleteScan` lifecycle. `scanCmd.RunE` calls it with `providers.All()`; per-provider subcommands call it with a single-element slice.
+Fan-out and finalisation live in `internal/scanrun` (shared with the API driver): `RunScanners` runs scanners concurrently via `sync.WaitGroup` (no sibling cancellation); `Finalize` records Complete/Partial. `runScan(cmd, scanners)` (`scan.go`) owns the CLI side (open-db, `CreateScan`/`--resume`, progress, grouped error block); `scanCmd.RunE` passes `providers.All()`, per-provider subcommands a one-element slice. Error tolerance: `internal/providers/CLAUDE.md` "Errors never abort scan".
 
 ## Provider wiring (no provider names in cmd)
 
@@ -86,7 +80,7 @@ Output styling: per-format theme modules (`cmd/graph_theme.go` for DOT) own all 
 ## Shared test helpers (`resources_test.go`)
 
 Reused by `graph_test.go`, `check_test.go`, `diff_test.go`:
-- `seedTestDB(t)` — temp SQLite + scan record + 2 resources; sets `viper.Set("db", path)` so cobra cmds pick it up via `defaultDBPath()`.
+- `seedTestDB(t)` — temp SQLite + scan record + 2 resources (`aws:ec2:instance`, `aws:s3:bucket`: count them in expected totals, never delete them); sets `viper.Set("db", path)` so cobra cmds pick it up via `defaultDBPath()`.
 - `captureStdout(t, fn)` — pipes `os.Stdout` for cmds that write directly to it (not via `cmd.OutOrStdout`).
 - `captureStdout` does NOT redirect `os.Stderr`. Stderr writes (population stamps, truncation warnings, banner-under-`--verbose`) bypass test assertions — safe place for telemetry that must not contaminate `-o json|jsonl|sarif` pipelines. If you need to assert on stderr, use `captureStderr` (drained via goroutine to avoid >64KB pipe deadlock).
 - Default invocations are stderr-clean. The "Using config file:" banner is gated behind the global `--verbose` flag (`cmd/root.go::initConfig`); banners added later should reuse the same `verbose` boolean rather than introducing per-cmd `--quiet` flags.
@@ -97,7 +91,7 @@ Reused by `graph_test.go`, `check_test.go`, `diff_test.go`:
 
 Cobra package-level flag vars (`graph*`, `resources*`, …) persist across tests because `rootCmd` is shared. Each subcommand test must reset its flags before `cmd.SetArgs(...)` — see `resetGraphFlags()` in `graph_test.go`. Flag pollution is transitive: a NEW test setting `--type`/`--limit`/`--direction` via `SetArgs` can break older sibling tests that only did partial resets (e.g. `resourcesOutputFmt = ""`). When adding such a test, upgrade siblings to the full `resetXFlags()` helper.
 
-Cobra also persists flag-attached values across tests when commands read via `cmd.Flags().GetX("name")` instead of package vars (e.g. `coverage.go::runCoverageServices`). `resetXFlags()` won't clear those — pass an explicit `--flag=false` in negative-case tests, or call `cmd.Flags().Set("flag", "false")` before `Execute()`.
+Cobra also persists flag-attached values across tests when commands read via `cmd.Flags().GetX("name")` instead of package vars (e.g. `scan.go`'s `fail-on-error`; `resetCoverageFlags` already resets every coverage flag to `DefValue`). A package-var `resetXFlags()` won't clear those — pass an explicit `--flag=false` in negative-case tests, or call `cmd.Flags().Set("flag", "false")` before `Execute()`.
 
 ## `disco history <id>` surfaces the resource version chain
 
@@ -130,17 +124,15 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 ## JSON dialect: camelCase + nested attrs/tags
 
-`store.Resource.MarshalJSON` is the single source of truth — emits camelCase keys with nested `attributes` / `tags` objects, not stringified `AttributesJSON` / `TagsJSON`. Matches `policy.Finding` and `coverage.Row` shape. New JSON output paths must encode `[]store.Resource` (or struct embedding it) directly; do not reach for raw field access. Empty / missing / malformed `attributes`/`tags` always render as `{}` (never absent); optional fields render as `null` (never omitted).
-
-`disco resources -o json` initialises the result slice as `[]store.Resource{}` not `nil` so a zero-row query emits `[]` instead of `null`. Mirror the pattern in any new top-level array command.
+`store.Resource.MarshalJSON` is the single source of truth (contract: `store/CLAUDE.md` "Wire shape ≠ storage shape"). New JSON output paths must encode `[]store.Resource` directly (never a struct embedding it; see `historyEntry`); do not reach for raw field access. Empty / missing / malformed `attributes`/`tags` always render as `{}` (never absent); optional fields render as `null` (never omitted).
 
 `disco scans -o json` / `disco scans show -o json` use `store.Scan.MarshalJSON`: camelCase keys, RFC3339 timestamps, parsed `providers` / `scope` / `meta`, no PascalCase or `*JSON` SQLite-column leak. `disco summary.asOf` is normalised at population time via `store.ToRFC3339`.
 
-`coverage resolvers -o json` / `coverage resolvers --missing -o json` honour `-o`. `--missing` rows carry `refs` (from the SDK cache + pairing, richest first). `--with-refs` needs the cache (exit 2 without it); its semantics: `internal/providers/CLAUDE.md`.
+`coverage resolvers -o json` / `coverage resolvers --missing -o json` honour `-o`. `--missing` rows carry `refs` (from the SDK cache + pairing, richest first). `--with-refs` needs the cache (exit 2 without it); its semantics: `internal/providers/aws/CLAUDE.md` (resolver audit).
 
 ## One error message, not two: `structuredErrorEmitted`
 
-`maybeStructuredError` (`cmd/helpers.go`) writes a JSON `{"error":"..."}` envelope to stdout when the caller's `-o` is `json`/`jsonl`, AND sets the package-level `structuredErrorEmitted` flag. `cmd/root.go::Execute` reads the flag and skips the duplicate plaintext stderr print so a `disco ... -o json` failure produces ONE message, not two — fix for F25 / F30.
+`maybeStructuredError` (`cmd/helpers.go`) writes a JSON `{"error":"..."}` envelope to stdout when the caller's `-o` is `json`/`jsonl`, AND sets the package-level `structuredErrorEmitted` flag. `cmd/root.go::Execute` reads the flag and skips the duplicate plaintext stderr print so a `disco ... -o json` failure produces ONE message, not two.
 
 ## `PersistentFlags` on parent cobra cmd inherits to subcommands
 
@@ -148,25 +140,17 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 ## `--scan-id` + `latest` shorthand via `resolveScanID`
 
-`resources`, `summary`, `tag-coverage`, and `scans show` all accept `--scan-id <id|latest>`. `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to the most-recent scan whose `resource_count > 0` — a re-verify run that touched no new rows otherwise silently zero-rows the documented drift workflow (F3 fix). Falls back to the most-recent scan when none qualify with a one-line stderr note. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.DiscoveredBy`; `scan --resume <id|latest>` uses the same shorthand convention.
+`resources`, `summary`, `tag-coverage` accept `--scan-id <id|latest>` (`scans show` and `diff` take it positionally). `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to the most-recent scan whose `resource_count > 0` — a re-verify run that touched no new rows otherwise silently zero-rows the documented drift workflow. Falls back to the most-recent scan when none qualify with a one-line stderr note. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.DiscoveredBy`; `scan --resume <id|latest>` uses the same shorthand convention.
 
 `ListScans` ORDER BY tie-breaks `started_at DESC` with `rowid DESC` because `nowExpr` has 1s resolution (RFC3339 to the second, no fraction) — two scans created within the same second otherwise ordered by SQLite implementation default and `latest` could resolve to the older one.
 
-## `--scan-as discovered|verified|any` reconciles `scans.ResourceCount` ↔ `resources --scan-id`
+## `resources --scan-id` matches `discovered_by` only
 
-`scans.resource_count` counts every row a scan touched (insert OR re-verify). `resources --scan-id <id>` previously filtered on `discovered_by` only, so a scan that re-verified pre-existing rows reported `RESOURCES: 2045` in `scans` but yielded 0 from `resources --scan-id`. F3 fix:
-
-- `ResourceFilter.ScanAs` selects which scan-FK column matches: `discovered` → `discovered_by = ?`, `verified` → `verified_by = ?`, `any` (default, empty) → either column matches.
-- `resources --scan-as <value>` exposes the choice. Default `any` matches the expectation that the named scan returns rows it touched.
-- `resources --id <resource-id>` is a primary-key short-circuit on `ResourceFilter.ID` (`WHERE id = ?`).
-
-## seedTestDB ships with 2 baseline rows
-
-`seedTestDB` (`resources_test.go`) seeds one `aws:ec2:instance` + one `aws:s3:bucket` plus the scan record. Tests adding more rows must factor those two into expected totals (e.g. `summary.total`, `tag-coverage.total`). Don't try to delete them — every other cmd test already depends on them.
+`scans.resource_count` counts current rows the scan *verified* (`scanResourceCountExpr`), but `ResourceFilter.DiscoveredBy` matches `discovered_by` only, so a re-verify-only scan shows a count in `disco scans` yet returns 0 rows from `resources --scan-id`. `--scan-as` was removed. `resources --id` short-circuits on `root_id` via `ResourceFilter.ID`.
 
 ## `disco graph complete --orphans-only` filters to disconnected nodes
 
-`graph complete` honours a new `--orphans-only` flag (F17): post-pass keeps only nodes whose ID appears in neither `from_id` nor `to_id` of any returned edge. Surfaces dangling EBS volumes, key-pairs no instance uses, IAM principals with no group/policy, etc. — the forensic / hygiene targets the IR persona was after. Implementation lives in `cmd/graph.go::filterOrphans`; renderers stay unchanged because the filter only drops nodes, never reshapes `GraphResult`.
+Post-pass keeps only nodes whose ID appears in neither `from_id` nor `to_id` of any returned edge. Surfaces dangling EBS volumes, key-pairs no instance uses, IAM principals with no group/policy, etc. — the forensic / hygiene targets the IR persona was after. Implementation lives in `cmd/graph.go::filterOrphans`; renderers stay unchanged because the filter only drops nodes, never reshapes `GraphResult`.
 
 ## Atomic file writes: temp + rename
 
@@ -174,7 +158,7 @@ When a producer writes a single output file consumed downstream by a verifier (e
 
 ## `disco verify` says `OK (unsigned …)` by default
 
-`verify`'s success line is `OK (unsigned — manifest not authenticated): ...` for archives without a detached signature, `OK (signed — manifest authenticated via ed25519): ...` when both `--signature` and `--pubkey` are supplied and validate. The wording change deliberately rules out the bare-`OK` interpretation that would mislead a CI step into treating internal-consistency as provenance. `verify` also emits `WARN: tool_version=dev — ...` on stderr when the manifest's `tool_version=="dev"`.
+`verify`'s success line is `OK (unsigned — manifest not authenticated): ...` for archives without a detached signature, `OK (signed — manifest authenticated via ed25519): ...` when both `--signature` and `--pubkey` are supplied and validate. The wording change deliberately rules out the bare-`OK` interpretation that would mislead a CI step into treating internal-consistency as provenance. `verify` also warns on stderr for a `dev` or `+dirty` `toolVersion`; `--require-clean` / `--require-signed` turn those into failures.
 
 Friendly-error wrapping lives in `friendlyArchiveErr(err)` (cmd/verify.go): collapses raw xz/gzip decoder messages into `verify failed: archive corrupt or truncated`. The original is preserved when `--verbose`. Format-detection errors are intentionally returned BEFORE the friendly wrap so unsupported extensions surface clearly.
 
@@ -186,26 +170,15 @@ Friendly-error wrapping lives in `friendlyArchiveErr(err)` (cmd/verify.go): coll
 
 ## `disco snapshot <output-file>` writes a single archive
 
-Output is one file — `.zip`, `.tar.gz` (`.tgz`), or `.tar.xz` (`.txz`) — extension drives format. `internal/snapshot.DetectFormat` rejects unknown extensions with a clear error listing supported shapes. `cmd/snapshot.go` opens the source DB via `store.OpenReadOnly`, issues `VACUUM INTO '<out>.db.tmp'` to a sibling temp file, hashes it, packages disco.db + manifest.json into the archive via `snapshot.WriteArchive`, then `os.Rename` for atomicity. `--db-readonly` is allowed (the global flag scopes the source, not the output). `manifest.db_sha256` hashes the inner DB (not the archive) so receivers spot-check the same value across formats. `internal/snapshot` package houses the manifest format (`disco-snapshot/v1`) and the per-format archive readers; `disco verify` decodes via the same package without extracting to a temp dir.
+Output is one file — `.zip`, `.tar.gz` (`.tgz`), or `.tar.xz` (`.txz`) — extension drives format. `internal/snapshot.DetectFormat` rejects unknown extensions with a clear error listing supported shapes. `cmd/snapshot.go` opens the source DB via `store.OpenReadOnly`, issues `VACUUM INTO '<out>.db.tmp'` to a sibling temp file, hashes it, packages disco.db + manifest.json into the archive via `snapshot.WriteArchive`, then `os.Rename` for atomicity. `--db-readonly` is allowed (the global flag scopes the source, not the output). `manifest.dbSha256` hashes the inner DB (not the archive) so receivers spot-check the same value across formats. `internal/snapshot` package houses the manifest format (`disco-snapshot/v1`) and the per-format archive readers; `disco verify` decodes via the same package without extracting to a temp dir.
 
 ## `disco check` opens DB read-only by default
 
 `check` is logically a read; opening writable flips the SQLite WAL header and silently mutates `disco.db`, breaking any subsequent `disco verify` against a snapshot of the same DB. So `check` uses `openDB()` (always RO) unless `--persist` is set: `needsWrite := checkPersist` (cmd/check.go) flips the open to `openWriteDB()` after refusing `--db-readonly` up-front, and the persist body writes the run + findings inline.
 
-## AWS account_id resolution + emulator override
-
-`internal/providers/aws/aws_config.go::loadAccounts` resolves the `account.ID` recorded on `resources.account_id` via three precedences:
-1. Config-file `aws.accounts[].id` (explicit).
-2. `--role-arn` override → `sts:GetCallerIdentity` on the assumed creds.
-3. Auto-detect → `sts:GetCallerIdentity` on the default chain.
-
-`DISCO_CLOUD_ACCOUNT_ID` is an **emulator-only** override that short-circuits the STS lookup. **Honored only when `AWS_ENDPOINT_URL` is also set** — the AWS SDK's canonical "talking to a non-AWS endpoint" signal. Prod scanners never set `AWS_ENDPOINT_URL`, so the env is inert outside emulator mode. Emulators (e.g. LocalStack) return a sentinel `"000000000000"` from `sts:GetCallerIdentity` that would otherwise overwrite the configured account id on every emulator-backed scan.
-
-The gate function `emulatorAccountIDOverride()` is the single read site; both the `--role-arn` branch and the auto-detect branch call it before STS. `TestEmulatorAccountIDOverride` in `aws_config_test.go` pins the prod-safety assertion (env value ignored when `AWS_ENDPOINT_URL` is unset).
-
 ## `disco check` defaults to customer-managed; `--include-managed` opts in
 
-`check` mirrors `resources` / `summary`: customer-only by default, so BYO Rego authors need no `not input.managed_by_provider` guard against provider-managed rows (AWS-managed IAM policies, Azure built-in role definitions) they cannot remediate. `--include-managed` is wired straight onto `ResourceFilter.IncludeManaged`.
+`check` mirrors `resources` / `summary`: customer-only by default, so BYO Rego authors need no `not input.managedByProvider` guard against provider-managed rows (AWS-managed IAM policies, Azure built-in role definitions) they cannot remediate. `--include-managed` is wired straight onto `ResourceFilter.IncludeManaged`.
 
 ## Findings gate the exit code by default; `--exit-zero` overrides
 
@@ -220,13 +193,13 @@ CI steps gate on findings without an extra flag, mirroring `tag-coverage --min-c
 - `results[].partialFingerprints["disco/v1"] = sha256(rule_id+":"+resource_id)[:16]` so GitHub code-scanning de-dupes across runs
 - `runs[0].taxonomies[]` — one taxonomy per non-empty `tags.<key>` in `taxonomyKeys` (`waf_pillar`, `soc2`, `iso27001`, `pci_dss`, `nist_800_53`, `waf_qid`); taxon IDs are the unique tag values, sorted for byte-stable output. Empty keys are skipped, so a BYO rule emitting `soc2` adds a taxonomy without code change.
 
-Bundled `aws-waf` rules ship a deliberately minimal `tags: { waf_pillar, waf_qid }` — the pack is the wiring sample, not a curated framework-mapped pack. The `soc2` / `iso27001` / `pci_dss` / `nist_800_53` keys are kept reserved in `taxonomyKeys` so future framework packs (CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001) and BYO Rego authors can populate them and get SARIF taxonomies + `--tag soc2=CC6.1` filtering for free. Don't fold control-catalogue mappings into the sample rules — that's a curated pack's job.
+Bundled `aws-waf` rules ship a deliberately minimal `tags: { waf_pillar, waf_qid }` — the pack is the wiring sample, not a curated framework-mapped pack. The `soc2` / `iso27001` / `pci_dss` / `nist_800_53` keys are kept reserved in `taxonomyKeys` so future framework packs and BYO Rego authors can populate them and get SARIF taxonomies + `--tag soc2=CC6.1` filtering for free. Don't fold control-catalogue mappings into the sample rules — that's a curated pack's job.
 
 The unprefixed `pillar` key is intentionally reserved for a future cross-framework grouping (e.g. NIST CSF Identify/Protect/Detect/Respond/Recover, CIS controls categories) — using it for AWS WAF pillars only would collide. Frame-specific keys (`waf_pillar`, future `csf_function`, `cis_category`) are the convention.
 
 ## Rego authors must check scanner wrapping for attrs path
 
-Some scanners wrap the SDK response under a key (CloudTrail: `{"Trail": ..., "Status": ...}`; ELBv2 LB: `{"lb": ..., "type": ...}`; EventBridge rule: `{"rule": ..., "Targets": [...]}`; Lambda function: SDK type embedded with `Code` sibling). Rego rules reading these resources must match the wrapped path: `input.attributes.Trail.IsMultiRegionTrail`, not `input.attributes.IsMultiRegionTrail`. The wrapping is documented in `internal/providers/aws/CLAUDE.md` — grep for the resource type before authoring a rule. Wrong path silently matches nothing.
+Some scanners wrap the SDK response under a key (CloudTrail: `{"Trail": ..., "Status": ...}`; ELBv2 LB: `{"lb": ..., "type": ...}`; EventBridge rule: `{"rule": ..., "Targets": [...]}`; Lambda function: SDK type embedded with `Code` sibling). Rego rules reading these resources must match the wrapped path: `input.attributes.Trail.IsMultiRegionTrail`, not `input.attributes.IsMultiRegionTrail`. Only ELBv2's wrapping is documented (`internal/providers/aws/CLAUDE.md`); read the type's scanner before authoring a rule. Wrong path silently matches nothing.
 
 ## `--packs <name,...>` loads bundled Rego packs
 
@@ -250,15 +223,15 @@ All take `<RFC3339|YYYY-MM-DD>` via `parseTimeFlag` (`cmd/helpers.go`). Bare dat
 
 Backed by `singleSetString` (`cmd/helpers.go`) — pflag.Value that errors on second `Set()` so repeated `--discovered-since A --discovered-since B` rejects rather than last-wins-silently. Test reset helpers must call `<flag>.reset()` on the value, not `<flag> = ""` (compile error: untyped string into struct).
 
-New column-anchored time filters follow the same `{*-since, *-before}` shape — `{since, until}` is no longer used (the inclusive `<= X` upper bound collapses to half-open `[since, before)` at any practical granularity).
+New column-anchored time filters follow the same half-open `{*-since, *-before}` shape, never `{since, until}`.
 
 ## `tag-coverage --case-insensitive` folds case before tallying
 
-`tag-coverage` exposes `--case-insensitive` to fold tag keys to lower-case during aggregation (so `environment` and `Environment` collapse into one row instead of producing two separate scorecards — F13 fix). Implementation tracks the first observed casing in an `origKey` map so table output preserves operator-friendly capitalisation.
+`tag-coverage` exposes `--case-insensitive` to fold tag keys to lower-case during aggregation (`environment`/`Environment` collapse into one row). Implementation tracks the first observed casing in an `origKey` map so table output preserves operator-friendly capitalisation.
 
-## `summary --by-account` rollup
+## `summary` BY ACCOUNT rollup
 
-`summary` adds a `BY ACCOUNT` section (table) and a `by_account: [{account_id, account_name, count}]` JSON field — F21 fix for the CIO portfolio rollup. The CSV `dimension` column carries `account` rows alongside `provider` / `region` / `type`. Account name renders parenthetically when set (`123456789012 (prod)`); empty otherwise. Counts roll up via `acctCounts` in `buildSummary`.
+`summary` always renders a `BY ACCOUNT` section (no flag) and a `byAccount: [{accountId, accountName, count}]` JSON field. The CSV `dimension` column carries `account` rows alongside `provider` / `region` / `type`. Account name renders parenthetically when set (`123456789012 (prod)`); empty otherwise. Counts roll up via `acctCounts` in `buildSummary`.
 
 ## `--exclude-types` plumbs through `ResourceFilter.ExcludeTypes`
 
@@ -270,11 +243,11 @@ Graphviz `dir=back` only re-renders the arrowhead — rank still flows tail→he
 
 ## Output-format parity: `table | markdown | csv | json` floor
 
-Every reportable subcommand (`resources`, `summary`, `scans` + `scans show`, `tag-coverage`, `diff`, `graph` + `path`/`blast`/`complete`, `check`, `coverage` + `services`/`regions`/`resolvers`, `findings list`/`runs`) accepts the four canonical output formats as a floor. Per-command extras (`jsonl`, `sarif`, `dot`, `mermaid`) layer on top. Markdown rendering goes through the shared `renderMarkdownTable(w, headers, rows)` helper in `cmd/helpers.go` for byte-stable output. Markdown case label is `markdown`; `md` is accepted as a short alias. Operational commands (`scan`, `snapshot`, `verify`, `config init`) have no `-o` flag — they perform actions, not reports. Help text lists every supported format the command accepts in canonical order then extras.
+Every reportable subcommand (`resources`, `summary`, `scans` + `scans show`, `tag-coverage`, `diff`, `graph` + `path`/`blast`/`complete`, `check`, `coverage` + `services`/`regions`/`resolvers`, `findings list`/`runs`, `quotas`, `history`) accepts the four canonical output formats as a floor. Per-command extras (`jsonl`, `sarif`, `dot`, `mermaid`) layer on top. Markdown rendering goes through the shared `renderMarkdownTable(w, headers, rows)` helper in `cmd/helpers.go` for byte-stable output. Markdown case label is `markdown`; `md` is accepted as a short alias. Operational commands (`snapshot`, `verify`, `config init`) have no `-o` flag; `scan -o table|json` applies only to `--dry-run`. Help text lists every supported format the command accepts in canonical order then extras.
 
 ## UX consistency conventions (scan exit codes, scan-id resolution, collections, completion)
 
-A consistency pass aligned several edges with the conventions above. When touching these areas, preserve the shape:
+Preserve these shapes:
 
 - **Scan exit codes.** `runScan` (`scan.go`) returns sentinel `errScanInterrupted` on SIGINT/SIGTERM (ctx cancelled) → `cmd/root.go::Execute` maps it to exit **130**; with `--fail-on-error` a partial run (one or more services errored) returns `errScanPartial` → exit **1**. Default partial stays exit 0. The summary line is already on stdout; the sentinels only carry the exit-code gate (no duplicate stderr print, mirrors `errFindingsReported`). `--quiet` suppresses the `Scan … started` / `Resuming scan …` banners too (each guarded by its own `if !quiet`, the same boolean the per-service line uses).
 
@@ -288,4 +261,4 @@ A consistency pass aligned several edges with the conventions above. When touchi
 
 - **Shell completion.** `--output` flags register `staticCompletion(<formats>)` and `scan --providers` registers `completeProviderNames` (`cmd/completion.go`). A new reportable command should register `--output` completion with exactly the formats its switch accepts. Resource/scan-ID argument completion is intentionally not wired (it needs DB I/O on the completion path) — a deliberate follow-up, not an oversight.
 
-- **Markdown cells are sanitized centrally.** `renderMarkdownTable` runs every header/cell through `sanitizeMarkdownCell` (escape `|`, fold newlines), so callers may pass raw JSON blobs (scope/tags) without pre-escaping. `resources -o markdown` uses Title Case `resourcesMarkdownHeaders` (parallel to snake_case `resourcesColumns` — keep the two in lockstep; `TestResourcesMarkdownHeadersParity` guards length).
+- **Markdown cells are sanitized centrally.** `renderMarkdownTable` runs every header/cell through `sanitizeMarkdownCell` (escape `|`, fold newlines), so callers may pass raw JSON blobs (scope/tags) without pre-escaping.

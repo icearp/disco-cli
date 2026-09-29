@@ -123,15 +123,15 @@ word lists** — do not add one. Surviving name rules are listed under "Structur
 - Primitive lists count as collections when named as ids or after the noun (sqs `QueueUrls`);
   maps of primitives are key/value pairs, never elements.
 
-### Measured cost of dropping word lists (2026-09-28, release-2026-09-15)
+### Accepted residuals (2026-09-28, release-2026-09-15)
 
-49.76% vs 48.74% covered (5399 candidates, 3336 resources). 20 scanned types fell to
+5399 candidates (3336 resources). 20 scanned types read as
 catalog/attribute (e.g. `cloudfront/cloudfrontoriginaccessidentity`, `ses/emailidentity`,
-`workspaces/ipgroup`, `lightsail/bucket`, `securityhub/securitycontrol`) and 10 were gained. The
-old verb lists admitted them; no structural fact does.
+`workspaces/ipgroup`, `lightsail/bucket`, `securityhub/securitycontrol`) because no structural fact marks them; do not restore a word
+list to recover them.
 
-- Identity vs display, `resolveTree`, `assemble` and determinism behave as before: entries merge on
-  `Ident`; verify determinism with four hashed `disco coverage services -o json` runs.
+### Invariants
+
 - `Operation.Scope` stays **empty** for AWS: nothing in a model separates regional from
   account-wide listings.
 - SR structs use camelCase tags: `encoding/json` matches keys case-insensitively.

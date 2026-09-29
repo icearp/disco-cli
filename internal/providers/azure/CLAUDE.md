@@ -6,13 +6,9 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 Coverage commands and buckets: `internal/coverage/CLAUDE.md`. Azure specifics: ARM `Providers/List` never enumerates proxy child types (`microsoft.sql/managedinstances/keys`, `…/virtualnetworks/subnets`), so they read `candidate-only` under `--cross-check` — the SDK, not the registry, is the truth. Entra identities (Graph, not an ARM RP) are `disco-only: explained: non-sdk`.
 
-## Adding a new type — 3 spots
+## Adding a new type
 
-1. `azure_types.go`: `Type*` const (`azure:<namespace>:<kebab collection>[:<child>]`; the pairing test only needs the scanner to call the `arm*` list op).
-2. `azure_scanner_test.go`: append service name to `expectedAzureServices`.
-3. New `<svc>_scanners.go` self-registers the service via `init() { registerService(serviceEntry{name, fn}) }` and declares each type it upserts via `registerType(restype.Descriptor{...})` in the same `init()`. Resolvers via `registerResolver(fn)` from `<svc>_resolvers.go`.
-
-Types are declared via `registerType` (see `../CLAUDE.md`). Azure delta: `Managed` is used only by `TypeNetworkCloudRackSKU`; built-in role/policy/set definitions stay scanner-set (managed only for tenant built-ins). Guards: `TestNoDoubleDeclaredTypes`, `azure_pairing_test.go`.
+Steps: `../CLAUDE.md` "Add a new service scanner". Azure deltas: `Type*` = `azure:<namespace>:<kebab collection>[:<child>]`; tenant services go in `expectedAzureTenantServices`, not `expectedAzureServices`; `Managed` is used only by `TypeNetworkCloudRackSKU` — built-in role/policy/set definitions stay scanner-set (managed only for tenant built-ins). Guards: `TestNoDoubleDeclaredTypes`, `azure_pairing_test.go`.
 
 ## Service names align to the ARM namespace: `azure:microsoft.<namespace>`
 
@@ -51,12 +47,7 @@ warning, so a credential pointed at the wrong tenant was indistinguishable from 
 
 ## Resolver-edge metadata: `EdgeDecl`
 
-`registerResolver(fn, emits ...EdgeDecl)` is variadic — every resolver lists each
-`(Source, Target, Kind)` triple it upserts (`EdgeDecl{Source: TypeX, Target: TypeY, Kind: store.RelUses}`).
-Source = the disco type whose `.ID` is the edge's from_id (the resolver's iteration type);
-Target = the type the edge points at; Kind = a `store.Rel*` constant. Audit + coverage tooling
-(`disco coverage resolvers [--missing] --providers azure`) reads this metadata, so an unannotated
-resolver is invisible to gap analysis. Cross-cutting central resolvers whose source is *every*
+Contract: `../CLAUDE.md` "Resolver EdgeDecl contract". Azure delta: cross-cutting central resolvers whose source is *every*
 resource type (`resolveManagedIdentityConsumers`, `resolveExtendedLocationConsumers`) stay
 unannotated **on purpose** — per-type Source enumeration is meaningless and would pollute the
 `--missing` per-service inventory; they carry a comment saying so. There is no leaf flag: a type
@@ -103,7 +94,7 @@ Role-definition ARM IDs are returned scope-prefixed (`/subscriptions/{sub}/...`)
 
 ## Microsoft Graph (Entra ID) via raw REST + azcore token
 
-Tenant-scope identity scanners hit Graph v1.0 (`https://graph.microsoft.com/v1.0/{users,groups,servicePrincipals,applications}`) directly through the in-package `graphClient` — a thin `*http.Client` + token-issuer pair that issues bearer tokens via `cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}, TenantID: g.tenantID})`, where an empty `tenantID` means the credential's own directory. Its `*http.Client` is `graphHTTPClient`, which refuses redirects — NOT the shared `azHTTPClient`. The official `msgraph-sdk-go` (kiota-generated) was dropped — its 88-subpkg discriminator-driven model graph cost ~9 MB symbols + matching rodata to call four list endpoints whose JSON shape `userAttrs`/`groupAttrs`/`spAttrs`/`appAttrs` already model 1:1. Pagination is the OData `@odata.nextLink` chain via the generic `iterateGraph[T]` helper. Tenant ID still resolved by issuing a token and parsing the `tid` claim from the JWT (`tenantIDFromCredScopeTenant`; there is no `tenantIDFromCred` any more) — `azidentity` exposes no tenant getter, and reading the tid back is also what proves a federated Graph token came from the directory that was asked for. Permission failures surface as `ScanWarning` (Authorization_RequestDenied / Insufficient privileges / 401 / 403); other errors as `ScanError` — except that the error types this package MINTS against a Graph response never reach that substring test at all, see `neverAConsentFailure`. The `*Attrs` JSON-tag set must keep matching Graph's response keys — same struct doubles as the unmarshal target, so a tag drift silently zeros the field. Tests inject an httptest server URL via the `graphClient.baseURL` seam plus a `tokenIssuer`-implementing stub. Precedent: `entra_scanners.go`.
+Tenant-scope identity scanners hit Graph v1.0 (`https://graph.microsoft.com/v1.0/{users,groups,servicePrincipals,applications}`) directly through the in-package `graphClient` — a thin `*http.Client` + token-issuer pair that issues bearer tokens via `cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}, TenantID: g.tenantID})`, where an empty `tenantID` means the credential's own directory. Its `*http.Client` is `graphHTTPClient`, which refuses redirects — NOT the shared `azHTTPClient`. Do not reintroduce `msgraph-sdk-go`: ~9 MB of binary for four list endpoints that `userAttrs`/`groupAttrs`/`spAttrs`/`appAttrs` already model 1:1. Pagination is the OData `@odata.nextLink` chain via the generic `iterateGraph[T]` helper. Tenant ID still resolved by issuing a token and parsing the `tid` claim from the JWT (`tenantIDFromCredScopeTenant`; there is no `tenantIDFromCred` any more) — `azidentity` exposes no tenant getter, and reading the tid back is also what proves a federated Graph token came from the directory that was asked for. Permission failures surface as `ScanWarning` (Authorization_RequestDenied / Insufficient privileges / 401 / 403); other errors as `ScanError` — except that the error types this package MINTS against a Graph response never reach that substring test at all, see `neverAConsentFailure`. The `*Attrs` JSON-tag set must keep matching Graph's response keys — same struct doubles as the unmarshal target, so a tag drift silently zeros the field. Tests inject an httptest server URL via the `graphClient.baseURL` seam plus a `tokenIssuer`-implementing stub. Precedent: `entra_scanners.go`.
 
 ## API-driven cross-cutting resolvers
 
@@ -157,7 +148,7 @@ Per-sub scanners run via `scanSubscription`; tenant services via `registerTenant
 
 ## Generic helpers split by concern
 
-Cross-service helpers live one-per-file under the `azure_` prefix: `azure_scan_helpers.go` (`azPageScan`, `azSimpleScan`, `azTrackedRows`, `azPager`, `azRGFanoutScan`, `listSubscriptionRGNames`, `isResourceGroupNotFound`), `azure_armid.go` (`rgFromID`, `rgNameFromID`, `nameFromID`, `truncateAtSegment`, `vnetIDFromSubnetID`), `azure_tags.go` (`azTagsJSON`), `azure_errors.go` (`isAccessDenied`, `isAuthenticationFailure`, `isFeatureNotAvailable`, `skipIfAccessDenied`, `formatAzureError`, `subscriptionUnreachable`, `unreachableSubscriptionError`), `azure_concurrency.go` (`maxConcurrentFanout`), `azure_scanner.go` (`Scanner`, `Scan`, `subscription`, `azClientOptions`, `mustJSON`/`sv`/`tp`/`regionGlobal`, function-app sidecar). Per-service code stays in `<svc>_scanners.go` / `<svc>_resolvers.go`. Mirror the AWS / GCP layout when adding a new generic concern.
+Cross-service helpers live one-per-file under the `azure_` prefix (`ls internal/providers/azure/azure_*.go`); layout rule in `../CLAUDE.md` "Generic-file layout per provider".
 
 ## SDK pointer-element types
 
@@ -190,7 +181,7 @@ is the resource provider's own `Properties.Name.Value` (e.g.
 `standardDDv4Family`), **not** the ARM wrapper name and **not** the ARM ID —
 which is preserved in the attributes remainder. `IsQuotaApplicable` maps to the
 `adjustable` column. This scanner is not opt-in, unlike AWS's, so every Azure
-scan records quotas — and Azure *resource* counts dropped when they moved out.
+scan records quotas.
 
 ## Top three hierarchy tiers are stitched post-scan, not per-scanner
 
@@ -220,14 +211,13 @@ For error injection use `azfake.PagerResponder.AddResponseError(http.StatusForbi
 
 ## Error formatting — always `formatAzureError`
 
-`azcore.ResponseError.Error()` dumps the request line (method, scheme, host, escaped path — no headers, no query) plus the response status and the full ARM error body — multi-KB per warning. It renders no part of the REQUEST beyond that line — no headers, so no `Authorization: Bearer`; no request body, so no client-assertion JWT — which is why neither can reach the store or stderr through this path. **Never** pass `err.Error()` directly into `store.ScanWarning.Message` / `store.ScanError.Message`. Use `formatAzureError(err)` (in `azure_errors.go`) — narrows to `"{statusCode} {errorCode}: {message}"` matching AWS/GCP brevity. Falls back to `err.Error()` for non-`*azcore.ResponseError` (store / JSON / I/O errors), so it's safe at every site — **except** that it collapses a CREDENTIAL failure to its diagnostic code first, ahead of every other branch, because that text names disco's own tenant and AWS role rather than anything the customer scanned (`redactCredentialError`). **A 401 does NOT render in that shape** and has not since the ARM-token-rejection redaction: it becomes `azure token rejected for this scope ({code}); see scanner logs`, with the body dropped. Call sites: `grep -n 'formatAzureError(' internal/providers/azure/*.go | grep -v -e '_test\.go' -e 'func formatAzureError'`.
+`azcore.ResponseError.Error()` dumps the request line (method, scheme, host, escaped path — no headers, no query) plus the response status and the full ARM error body — multi-KB per warning. It renders no part of the REQUEST beyond that line — no headers, so no `Authorization: Bearer`; no request body, so no client-assertion JWT — which is why neither can reach the store or stderr through this path. **Never** pass `err.Error()` directly into `store.ScanWarning.Message` / `store.ScanError.Message`. Use `formatAzureError(err)` (in `azure_errors.go`) — narrows to `"{statusCode} {errorCode}: {message}"` matching AWS/GCP brevity. Falls back to `err.Error()` for non-`*azcore.ResponseError` (store / JSON / I/O errors), so it's safe at every site — **except** that it collapses a CREDENTIAL failure to its diagnostic code first, ahead of every other branch, because that text names disco's own tenant and AWS role rather than anything the customer scanned (`redactCredentialError`). A 401 never renders in that shape (see "Credential-error redaction"). Call sites: `grep -n 'formatAzureError(' internal/providers/azure/*.go | grep -v -e '_test\.go' -e 'func formatAzureError'`.
 
 ## Cross-check keys are not candidate keys (#123)
 
 `RegistryKey` rebuilds the ARM type name from a candidate key: it restores the `locations`
 segment the extractor strips as a scope pair, which `azureinventory` flags with
-`scope-pair:locations` (set only when *every* lister reaches the collection through a location —
-a sibling `ListBySubscription` proves ARM keeps no `locations` in the type). Singleton instance ids
+`scope-pair:locations` (rule in `azureinventory/CLAUDE.md`). Singleton instance ids
 (`blobServices/default`) never reach a key — the extractor reads them as ids — so nothing drops them
 here. `--cross-check` needs a live subscription, so this is verified against the key shapes, not
 against ARM.
