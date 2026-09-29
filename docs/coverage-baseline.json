@@ -2,7 +2,7 @@
   "aws": {
     "pins": {
       "aws-sdk-go-v2": "release-2026-09-15",
-      "service-reference": "5a4568127472"
+      "service-reference": "1396d710a7d5"
     },
     "pairing": true,
     "percent": 49.76019184652278,
