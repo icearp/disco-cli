@@ -386,7 +386,7 @@ func (f *fn) emit(fns map[string]*fn, idx *index, res *Result, provider string) 
 				// Only the orphan types this listing could plausibly have
 				// produced. Unfiltered, a dispatcher paired every orphan with
 				// every key it reached.
-				rel := relatedTypes(k, op, orphan)
+				rel := relatedTypes(op, orphan)
 				if len(rel) == 0 {
 					continue
 				}
@@ -812,14 +812,20 @@ func collectSeams(files []*ast.File, r Resolver, clients map[string][]string) ma
 func fileImports(r Resolver, af *ast.File) (map[string]string, []string) {
 	imports := map[string]string{}
 	var mods []string
+	var qualifiers map[string]bool
 	for _, im := range af.Imports {
 		path, err := strconv.Unquote(im.Path.Value)
 		if err != nil {
 			continue
 		}
-		local := defaultImportName(path)
+		var local string
 		if im.Name != nil {
 			local = im.Name.Name
+		} else {
+			if qualifiers == nil {
+				qualifiers = selectorRoots(af)
+			}
+			local = importName(path, qualifiers)
 		}
 		imports[local] = path
 		if k := r.ImportKey(path); k != "" && !slices.Contains(mods, k) {
@@ -829,16 +835,33 @@ func fileImports(r Resolver, af *ast.File) (map[string]string, []string) {
 	return imports, mods
 }
 
-var versionSegRe = regexp.MustCompile(`/v\d+[a-z0-9]*$`)
-
-// defaultImportName is the package name an unaliased import binds: the last
-// path segment after trailing major/API versions (armcompute/v6 → armcompute,
-// compute/v1 → compute).
-func defaultImportName(path string) string {
-	for versionSegRe.MatchString(path) {
-		path = versionSegRe.ReplaceAllString(path, "")
+// importName is the name an unaliased import binds. The package clause lives
+// in the imported source, which pairing does not read, so it is taken from the
+// importing file: the compiler rejects an unused import, so the name is a
+// selector root there. The last path segment so used wins (armcompute/v6 →
+// armcompute, admin/directory/v1 → admin); none used → the last segment.
+func importName(path string, qualifiers map[string]bool) string {
+	segs := strings.Split(path, "/")
+	for i := len(segs) - 1; i >= 0; i-- {
+		if qualifiers[segs[i]] {
+			return segs[i]
+		}
 	}
-	return path[strings.LastIndex(path, "/")+1:]
+	return segs[len(segs)-1]
+}
+
+// selectorRoots lists the identifiers a file qualifies a selector with (X in X.Sel).
+func selectorRoots(af *ast.File) map[string]bool {
+	out := map[string]bool{}
+	ast.Inspect(af, func(n ast.Node) bool {
+		if se, ok := n.(*ast.SelectorExpr); ok {
+			if id, ok := se.X.(*ast.Ident); ok {
+				out[id.Name] = true
+			}
+		}
+		return true
+	})
+	return out
 }
 
 func recvType(fd *ast.FuncDecl) string {
@@ -1205,42 +1228,20 @@ func dropEmittedFromDerived(ps []Pairing) []Pairing {
 	return out
 }
 
-// relatedTypes keeps the orphan types whose service segment relates to the
-// operation's service, or whose leaf matches the candidate key's last segment.
-// A derived pairing is evidence by proximity — the rows come from this
-// listing — and proximity across services is not evidence at all.
-func relatedTypes(key string, op sdkinv.Operation, orphan []string) []string {
-	svc := normIdent(op.Service)
-	leaf := key
-	if i := strings.LastIndex(leaf, "/"); i >= 0 {
-		leaf = leaf[i+1:]
-	}
-	leaf = sdkinv.Ident(leaf)
+// relatedTypes keeps the orphan types declared under the operation's own
+// service. A derived pairing is evidence by proximity — the rows come from
+// this listing — and proximity across services is not evidence at all. The
+// match is exact: a type whose service segment spells the SDK service another
+// way stays unpaired, which the pairing gate reports, rather than being
+// claimed by a near-miss name.
+func relatedTypes(op sdkinv.Operation, orphan []string) []string {
 	var out []string
 	for _, t := range orphan {
-		parts := strings.SplitN(t, ":", 3)
-		if len(parts) != 3 {
-			continue
-		}
-		ts := normIdent(parts[1])
-		segs := strings.Split(parts[2], ":")
-		tl := sdkinv.Ident(segs[len(segs)-1])
-		if ts == svc || strings.HasPrefix(ts, svc) || strings.HasPrefix(svc, ts) || tl == leaf {
+		if parts := strings.SplitN(t, ":", 3); len(parts) == 3 && parts[1] == op.Service {
 			out = append(out, t)
 		}
 	}
 	return out
-}
-
-// normIdent reduces a service name to the form the two sides compare in:
-// "microsoft.resources" and "resources", "cloudkms" and "kms".
-func normIdent(s string) string {
-	s = strings.ToLower(s)
-	s = strings.NewReplacer(".", "", "-", "", "_", "").Replace(s)
-	if _, rest, found := strings.Cut(s, "/"); found {
-		s = rest
-	}
-	return s
 }
 
 // orphanTypes lists the function's reachable types that no callee with an

@@ -121,6 +121,13 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   gate: label-no-op / label-no-anchor / label-malformed / unresolved-receiver fail; sdk-skew is
   logged. `TestEveryEmittedTypePaired` prints `Result.StoredBy[type]` with the failure, which is
   the only thing that names which scanner the walker could not reach.
+- An unaliased import binds the last path segment the importing file uses as a selector root
+  (`admin/directory/v1` binds `admin`); the imported package clause is not read. A version-strip
+  guess named it `directory`.
+- Before replacing a pairing heuristic, dump live `Result.Pairings` for every provider (a
+  throwaway test in `internal/providers/all` calling `pairing.Scan`, JSON to the scratchpad) and
+  diff before/after. The prefix/leaf fallbacks in `relatedTypes` never fired live; the dump
+  proved it.
 - go/parser with `SkipObjectResolution`, non-test files only, stdlib only. Anchors (SDK call
   shapes, per `Resolver.Anchors`) are authoritative; op labels in string literals are a
   cross-check. `Type*` constants with a `<provider>:` value are the types (other string consts
@@ -163,8 +170,10 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   then the smaller label). Map-range order otherwise picked the reported op per run.
 - Kinds: `emits` (anchor + types), `sidecar` (anchor, no types — a listing helper; its direct
   caller is then paired with what it stores), `derived` (a dispatcher with no anchor of its
-  own: types no anchored callee stores, paired with the listings whose service or leaf relates
-  to the type, minus types some `emits` pairing already carries), `label` (label with no call
+  own: types no anchored callee stores, paired with the listings whose `Operation.Service`
+  equals the type's service segment exactly, minus types some `emits` pairing already carries;
+  a type spelling its service another way stays unpaired and the gate reports it — the old
+  prefix/leaf match was never what paired any live row), `label` (label with no call
   anywhere), `other` (non-candidate op), `skew` (call the pinned SDK lacks).
 - A **promoted** anchor — one a typeless listing helper contributed, not one this function calls
   — is credited only with what this function's own flow stores, never with what a *caller* passed

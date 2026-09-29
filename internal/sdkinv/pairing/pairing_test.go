@@ -12,15 +12,17 @@ import (
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
-func TestDefaultImportName(t *testing.T) {
+func TestImportName(t *testing.T) {
+	used := map[string]bool{"ec2": true, "armcompute": true, "compute": true, "admin": true}
 	for path, want := range map[string]string{
 		"github.com/aws/aws-sdk-go-v2/service/ec2":                                    "ec2",
 		"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6": "armcompute",
 		"google.golang.org/api/compute/v1":                                            "compute",
-		"google.golang.org/api/admin/directory/v1":                                    "directory",
+		"google.golang.org/api/admin/directory/v1":                                    "admin", // package admin
+		"example.com/unused/v2":                                                       "v2",    // no selector names it
 	} {
-		if got := defaultImportName(path); got != want {
-			t.Errorf("defaultImportName(%s) = %s, want %s", path, got, want)
+		if got := importName(path, used); got != want {
+			t.Errorf("importName(%s) = %s, want %s", path, got, want)
 		}
 	}
 }
@@ -117,7 +119,11 @@ func TestWalkFakeProvider(t *testing.T) {
 	for _, p := range res.Pairings {
 		got = append(got, fmt.Sprintf("%s %s %s %v", p.Func, p.Kind, p.Op, p.Types))
 	}
-	want := []string{"scanWidgets emits ListWidgets [fake:widgets:widget]", "describeWidget other GetWidget [fake:widgets:detail]"}
+	want := []string{
+		"scanWidgets emits ListWidgets [fake:widgets:widget]",
+		"describeWidget other GetWidget [fake:widgets:detail]",
+		"scanAll derived ListWidgets [fake:widgets:tally]", // not fake:gizmos:note: another service
+	}
 	sort.Strings(got)
 	sort.Strings(want)
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -126,7 +132,7 @@ func TestWalkFakeProvider(t *testing.T) {
 	if len(res.Diagnostics) != 1 || res.Diagnostics[0].Kind != "label-no-op" {
 		t.Errorf("diagnostics = %v", res.Diagnostics)
 	}
-	if len(unpaired) != 2 || unpaired["fake:widgets:orphan"] != "unexplained" {
+	if len(unpaired) != 3 || unpaired["fake:widgets:orphan"] != "unexplained" || unpaired["fake:gizmos:note"] != "unexplained" {
 		t.Errorf("unpaired = %v", unpaired)
 	}
 }
