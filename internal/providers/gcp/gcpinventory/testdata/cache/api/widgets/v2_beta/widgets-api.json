@@ -1,0 +1,105 @@
+{
+ "kind": "discovery#restDescription",
+ "name": "widgets",
+ "version": "v2_beta",
+ "canonicalName": "Widgets",
+ "rootUrl": "https://widgets.googleapis.com/",
+ "servicePath": "",
+ "auth": {
+  "oauth2": {
+   "scopes": {
+    "https://www.googleapis.com/auth/cloud-platform": {
+     "description": "See, edit, configure, and delete your Google Cloud data."
+    }
+   }
+  }
+ },
+ "resources": {
+  "cogs": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "beta/{+parent}/cogs",
+     "flatPath": "beta/{parent}/cogs",
+     "parameters": {
+      "parent": {
+       "location": "path",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "parent"
+     ],
+     "response": {
+      "$ref": "ListCogsResponse"
+     }
+    },
+    "get": {
+     "httpMethod": "GET",
+     "path": "beta/{+name}",
+     "flatPath": "beta/{parent}/cogs/{cogsId}",
+     "parameters": {
+      "name": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "name"
+     ],
+     "response": {
+      "$ref": "Cog"
+     }
+    },
+    "create": {
+     "httpMethod": "POST",
+     "path": "beta/{+parent}/cogs",
+     "flatPath": "beta/{parent}/cogs",
+     "parameters": {
+      "parent": {
+       "location": "path",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "parent"
+     ],
+     "request": {
+      "$ref": "Cog"
+     },
+     "response": {
+      "$ref": "Cog"
+     }
+    }
+   }
+  }
+ },
+ "schemas": {
+  "ListCogsResponse": {
+   "type": "object",
+   "properties": {
+    "cogs": {
+     "type": "array",
+     "items": {
+      "$ref": "Cog"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Cog": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Cog name."
+    }
+   }
+  }
+ }
+}

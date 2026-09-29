@@ -1,287 +1,286 @@
 ## AWS
 
-**Coverage:** 48.7% (1677/3441 listable) · depth0 67.2% · depth1 24.7% · depth2 24.3% · depth3 12.5% · depth5 0.0% · depth6 0.0% · attribute 1390 · excluded 537 · disco-only 0 (0 unexplained)
+**Coverage:** 49.8% (1660/3336 listable) · depth0 64.3% · depth1 27.9% · depth2 21.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
-Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@7f6a77022992
+Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
 The denominator is every candidate the provider's own SDK can list that the extractor classified `resource` — not every API operation, and not a curated list. Attributes (detail reads), catalogs (provider-published, read-only) and non-resources are outside it and are listed below. Each row names the rule that classified it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is visible as a low percentage rather than as a smaller number.
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1314 | 322 | 80.3 |
-| child-uncatalogued | 165 | 1083 | 13.2 |
-| writable-noun | 170 | 188 | 47.5 |
-| element-arn | 25 | 145 | 14.7 |
-| element-created | 3 | 26 | 10.3 |
+| sr-resource | 987 | 234 | 80.8 |
+| child-uncatalogued | 121 | 896 | 11.9 |
+| smithy-resource | 386 | 176 | 68.7 |
+| element-written | 140 | 276 | 33.7 |
+| element-arn | 23 | 83 | 21.7 |
+| element-created | 3 | 11 | 21.4 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
-| ec2 | 108 | 79 | 57.8 |
-| resiliencehub | 4 | 39 | 9.3 |
-| sagemaker | 51 | 39 | 56.7 |
-| connect | 34 | 33 | 50.7 |
-| iotsitewise | 9 | 30 | 23.1 |
-| ssm | 9 | 24 | 27.3 |
-| bedrock | 22 | 23 | 48.9 |
-| bedrock-agentcore | 25 | 23 | 52.1 |
+| ec2 | 107 | 89 | 54.6 |
+| resiliencehub | 4 | 36 | 10.0 |
+| sagemaker | 51 | 36 | 58.6 |
+| connect | 35 | 33 | 51.5 |
+| ssm | 9 | 29 | 23.7 |
+| iotsitewise | 9 | 28 | 24.3 |
+| config | 10 | 27 | 27.0 |
 | datazone | 13 | 23 | 36.1 |
-| quicksight | 22 | 23 | 48.9 |
-| config | 10 | 22 | 31.2 |
-| dms | 11 | 22 | 33.3 |
-| lex | 4 | 21 | 16.0 |
+| bedrock | 22 | 22 | 50.0 |
+| quicksight | 22 | 22 | 50.0 |
+| bedrock-agentcore | 25 | 21 | 54.3 |
+| glue | 22 | 20 | 52.4 |
+| lex | 4 | 20 | 16.7 |
 | wellarchitected | 4 | 20 | 16.7 |
-| glue | 24 | 19 | 55.8 |
-| ses | 19 | 19 | 50.0 |
 | chime | 11 | 18 | 37.9 |
-| gamelift | 12 | 18 | 40.0 |
-| workmail | 1 | 18 | 5.3 |
-| iot | 29 | 17 | 63.0 |
+| securityagent | 7 | 18 | 28.0 |
+| iot | 32 | 17 | 65.3 |
 | mgn | 8 | 17 | 32.0 |
-| securityagent | 7 | 16 | 30.4 |
-| aws-marketplace | 0 | 15 | 0.0 |
-| cloudformation | 7 | 15 | 31.8 |
-| es | 3 | 15 | 16.7 |
-| profile | 12 | 15 | 44.4 |
+| es | 4 | 16 | 20.0 |
+| workmail | 1 | 16 | 5.9 |
+| gamelift | 12 | 15 | 44.4 |
+| rds | 24 | 15 | 61.5 |
+| ses | 19 | 15 | 55.9 |
 | cleanrooms | 9 | 14 | 39.1 |
 | deadline | 13 | 14 | 48.1 |
-| mobiletargeting | 4 | 14 | 22.2 |
+| dms | 11 | 14 | 44.0 |
+| inspector2 | 4 | 14 | 22.2 |
+| cloudformation | 7 | 13 | 35.0 |
 | comprehend | 4 | 13 | 23.5 |
-| ds | 1 | 13 | 7.1 |
-| guardduty | 9 | 13 | 40.9 |
-| rds | 24 | 13 | 64.9 |
-| s3 | 10 | 13 | 43.5 |
-| storagegateway | 8 | 13 | 38.1 |
-| codecommit | 1 | 12 | 7.7 |
-| lambda | 10 | 12 | 45.5 |
-| omics | 11 | 12 | 47.8 |
-| clouddirectory | 4 | 11 | 26.7 |
-| devicefarm | 7 | 11 | 38.9 |
-| iam | 15 | 11 | 57.7 |
-| imagebuilder | 9 | 11 | 45.0 |
-| inspector2 | 5 | 11 | 31.2 |
-| license-manager | 6 | 11 | 35.3 |
+| omics | 11 | 13 | 45.8 |
+| profile | 12 | 13 | 48.0 |
+| devicefarm | 7 | 12 | 36.8 |
+| iotmanagedintegrations | 5 | 12 | 29.4 |
+| partnercentral-selling | 0 | 12 | 0.0 |
+| aws-marketplace | 0 | 11 | 0.0 |
+| lambda | 10 | 11 | 47.6 |
+| redshift | 16 | 11 | 59.3 |
 | aidevops | 4 | 10 | 28.6 |
-| auditmanager | 3 | 10 | 23.1 |
-| backup | 10 | 10 | 50.0 |
+| clouddirectory | 2 | 10 | 16.7 |
+| codecatalyst | 0 | 10 | 0.0 |
+| codecommit | 1 | 10 | 9.1 |
 | compute-optimizer | 0 | 10 | 0.0 |
-| iotmanagedintegrations | 5 | 10 | 33.3 |
+| ds | 1 | 10 | 9.1 |
+| imagebuilder | 9 | 10 | 47.4 |
 | logs | 15 | 10 | 60.0 |
-| partnercentral-selling | 0 | 10 | 0.0 |
 | qbusiness | 9 | 10 | 47.4 |
-| ram | 2 | 10 | 16.7 |
-| cleanrooms-ml | 7 | 9 | 43.8 |
-| codecatalyst | 0 | 9 | 0.0 |
+| s3 | 10 | 10 | 50.0 |
+| storagegateway | 8 | 10 | 44.4 |
+| auditmanager | 3 | 9 | 25.0 |
+| backup | 10 | 9 | 52.6 |
 | drs | 5 | 9 | 35.7 |
-| inspector | 0 | 9 | 0.0 |
-| iotthingsgraph | 0 | 9 | 0.0 |
-| redshift | 15 | 9 | 62.5 |
-| workspaces | 8 | 9 | 47.1 |
-| appstream | 13 | 8 | 61.9 |
+| iam | 14 | 9 | 60.9 |
+| license-manager | 6 | 9 | 40.0 |
+| sso | 8 | 9 | 47.1 |
+| workspaces | 7 | 9 | 43.8 |
 | athena | 5 | 8 | 38.5 |
+| cleanrooms-ml | 7 | 8 | 46.7 |
 | codebuild | 4 | 8 | 33.3 |
-| cognito-idp | 6 | 8 | 42.9 |
-| forecast | 8 | 8 | 50.0 |
-| greengrass | 20 | 8 | 71.4 |
-| lightsail | 17 | 8 | 68.0 |
-| networkmanager | 13 | 8 | 61.9 |
-| odb | 8 | 8 | 50.0 |
+| devops-guru | 1 | 8 | 11.1 |
+| guardduty | 9 | 8 | 52.9 |
+| ivs | 11 | 8 | 57.9 |
+| mobiletargeting | 3 | 8 | 27.3 |
+| proton | 11 | 8 | 57.9 |
 | securityhub | 9 | 8 | 52.9 |
 | sms-voice | 9 | 8 | 52.9 |
 | workdocs | 0 | 8 | 0.0 |
+| appstream | 14 | 7 | 66.7 |
 | bcm-pricing-calculator | 3 | 7 | 30.0 |
-| ecs | 9 | 7 | 56.2 |
-| ivs | 11 | 7 | 61.1 |
-| kendra | 8 | 7 | 53.3 |
+| cognito-idp | 6 | 7 | 46.2 |
+| globalaccelerator | 4 | 7 | 36.4 |
+| greengrass | 20 | 7 | 74.1 |
+| groundstation | 3 | 7 | 30.0 |
+| networkmanager | 13 | 7 | 65.0 |
 | outposts | 2 | 7 | 22.2 |
 | personalize | 10 | 7 | 58.8 |
-| ssm-contacts | 3 | 7 | 30.0 |
-| wickr | 0 | 7 | 0.0 |
-| access-analyzer | 2 | 6 | 25.0 |
+| ram | 2 | 7 | 22.2 |
+| redshift-serverless | 6 | 7 | 46.2 |
+| servicecatalog | 13 | 7 | 65.0 |
 | aco-automation | 0 | 6 | 0.0 |
-| applicationinsights | 1 | 6 | 14.3 |
 | autoscaling | 6 | 6 | 50.0 |
-| billingconductor | 4 | 6 | 40.0 |
 | cloudtrail | 4 | 6 | 40.0 |
-| directconnect | 5 | 6 | 45.5 |
-| dynamodb | 4 | 6 | 40.0 |
+| eks | 9 | 6 | 60.0 |
+| forecast | 8 | 6 | 57.1 |
 | frauddetector | 10 | 6 | 62.5 |
-| globalaccelerator | 4 | 6 | 40.0 |
 | lookoutequipment | 5 | 6 | 45.5 |
-| m2 | 3 | 6 | 33.3 |
 | medialive | 17 | 6 | 73.9 |
-| mturk-requester | 0 | 6 | 0.0 |
 | rekognition | 4 | 6 | 40.0 |
-| snowball | 0 | 6 | 0.0 |
-| sso | 8 | 6 | 57.1 |
-| wisdom | 11 | 6 | 64.7 |
+| ssm-contacts | 3 | 6 | 33.3 |
+| wickr | 0 | 6 | 0.0 |
+| access-analyzer | 2 | 5 | 28.6 |
 | acm | 1 | 5 | 16.7 |
+| applicationinsights | 1 | 5 | 16.7 |
 | cases | 5 | 5 | 50.0 |
+| ce | 4 | 5 | 44.4 |
 | codepipeline | 3 | 5 | 37.5 |
-| comprehendmedical | 0 | 5 | 0.0 |
 | controlcatalog | 0 | 5 | 0.0 |
-| devops-guru | 1 | 5 | 16.7 |
+| directconnect | 5 | 5 | 50.0 |
+| ecs | 9 | 5 | 64.3 |
 | elasticmapreduce | 7 | 5 | 58.3 |
 | evs | 1 | 5 | 16.7 |
 | finspace-api | 0 | 5 | 0.0 |
-| groundstation | 3 | 5 | 37.5 |
+| geo | 7 | 5 | 58.3 |
 | health | 0 | 5 | 0.0 |
-| kafka | 4 | 5 | 44.4 |
-| macie2 | 5 | 5 | 50.0 |
+| iotfleetwise | 7 | 5 | 58.3 |
+| iottwinmaker | 5 | 5 | 50.0 |
+| iotwireless | 11 | 5 | 68.8 |
+| kafka | 5 | 5 | 50.0 |
+| kendra | 8 | 5 | 61.5 |
+| lightsail | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
 | migrationhub-orchestrator | 2 | 5 | 28.6 |
-| partnercentral | 0 | 5 | 0.0 |
-| partnercentral-account | 0 | 5 | 0.0 |
-| redshift-serverless | 6 | 5 | 54.5 |
-| route53 | 9 | 5 | 64.3 |
-| route53-recovery-readiness | 4 | 5 | 44.4 |
-| servicecatalog | 14 | 5 | 73.7 |
+| odb | 8 | 5 | 61.5 |
+| snowball | 0 | 5 | 0.0 |
 | ssm-incidents | 2 | 5 | 28.6 |
 | trustedadvisor | 1 | 5 | 16.7 |
 | voiceid | 1 | 5 | 16.7 |
-| wafv2 | 6 | 5 | 54.5 |
+| wisdom | 11 | 5 | 68.8 |
 | apigateway | 25 | 4 | 86.2 |
 | arc-region-switch | 1 | 4 | 20.0 |
-| chatbot | 3 | 4 | 42.9 |
-| codeartifact | 3 | 4 | 42.9 |
+| billingconductor | 4 | 4 | 50.0 |
 | codeconnections | 0 | 4 | 0.0 |
-| codedeploy | 3 | 4 | 42.9 |
+| controltower | 3 | 4 | 42.9 |
 | dataexchange | 3 | 4 | 42.9 |
-| detective | 3 | 4 | 42.9 |
-| ecr | 4 | 4 | 50.0 |
-| eks | 9 | 4 | 69.2 |
+| dynamodb | 4 | 4 | 50.0 |
+| elasticbeanstalk | 4 | 4 | 50.0 |
 | fis | 2 | 4 | 33.3 |
-| fms | 4 | 4 | 50.0 |
-| geo | 7 | 4 | 63.6 |
 | healthlake | 1 | 4 | 20.0 |
-| iottwinmaker | 5 | 4 | 55.6 |
+| inspector | 0 | 4 | 0.0 |
+| launchwizard | 1 | 4 | 20.0 |
+| m2 | 3 | 4 | 42.9 |
 | machinelearning | 0 | 4 | 0.0 |
-| mediaconnect | 7 | 4 | 63.6 |
 | mpa | 2 | 4 | 33.3 |
+| network-firewall | 7 | 4 | 63.6 |
 | notifications | 7 | 4 | 63.6 |
-| proton | 11 | 4 | 73.3 |
+| nova-act | 1 | 4 | 20.0 |
+| partnercentral | 0 | 4 | 0.0 |
+| partnercentral-account | 0 | 4 | 0.0 |
 | redshift-data | 0 | 4 | 0.0 |
-| sns | 2 | 4 | 33.3 |
 | social-messaging | 1 | 4 | 20.0 |
 | ssm-sap | 3 | 4 | 42.9 |
-| support | 0 | 4 | 0.0 |
 | transcribe | 5 | 4 | 55.6 |
 | xray | 3 | 4 | 42.9 |
 | agent-registry | 0 | 3 | 0.0 |
 | airflow-serverless | 1 | 3 | 25.0 |
 | app-integrations | 3 | 3 | 50.0 |
-| artifact | 2 | 3 | 40.0 |
 | backup-search | 0 | 3 | 0.0 |
 | braket | 1 | 3 | 25.0 |
-| ce | 4 | 3 | 57.1 |
-| cloudfront | 21 | 3 | 87.5 |
+| chatbot | 3 | 3 | 50.0 |
+| cloudfront | 20 | 3 | 87.0 |
+| codeartifact | 3 | 3 | 50.0 |
+| codedeploy | 3 | 3 | 50.0 |
 | codeguru-reviewer | 1 | 3 | 25.0 |
+| cognito-sync | 0 | 3 | 0.0 |
+| discovery | 0 | 3 | 0.0 |
 | ds-data | 0 | 3 | 0.0 |
-| elasticloadbalancing | 7 | 3 | 70.0 |
 | emr-serverless | 1 | 3 | 25.0 |
-| entityresolution | 4 | 3 | 57.1 |
+| events | 8 | 3 | 72.7 |
+| fms | 4 | 3 | 57.1 |
 | gameliftstreams | 2 | 3 | 40.0 |
+| grafana | 1 | 3 | 25.0 |
 | internetmonitor | 1 | 3 | 25.0 |
-| invoicing | 1 | 3 | 25.0 |
-| iotfleetwise | 7 | 3 | 70.0 |
-| iotwireless | 11 | 3 | 78.6 |
 | kinesisanalytics | 1 | 3 | 25.0 |
-| kms | 4 | 3 | 57.1 |
-| lakeformation | 4 | 3 | 57.1 |
-| launchwizard | 1 | 3 | 25.0 |
+| macie2 | 5 | 3 | 62.5 |
+| mediaconnect | 7 | 3 | 70.0 |
 | medical-imaging | 1 | 3 | 25.0 |
-| migrationhub-strategy | 0 | 3 | 0.0 |
 | monitoring | 6 | 3 | 66.7 |
-| neptune-db | 0 | 3 | 0.0 |
-| neptune-graph | 3 | 3 | 50.0 |
-| network-firewall | 7 | 3 | 70.0 |
-| nova-act | 1 | 3 | 25.0 |
-| organizations | 9 | 3 | 75.0 |
+| mturk-requester | 0 | 3 | 0.0 |
+| organizations | 8 | 3 | 72.7 |
 | partnercentral-benefits | 0 | 3 | 0.0 |
 | partnercentral-channel | 0 | 3 | 0.0 |
-| qapps | 1 | 3 | 25.0 |
-| resource-explorer-2 | 3 | 3 | 50.0 |
-| resource-groups | 2 | 3 | 40.0 |
-| route53domains | 0 | 3 | 0.0 |
-| rtbfabric | 4 | 3 | 57.1 |
-| security-ir | 2 | 3 | 40.0 |
+| route53 | 8 | 3 | 72.7 |
+| route53-recovery-readiness | 4 | 3 | 57.1 |
+| route53globalresolver | 7 | 3 | 70.0 |
+| route53resolver | 12 | 3 | 80.0 |
+| rum | 1 | 3 | 25.0 |
 | serverlessrepo | 1 | 3 | 25.0 |
-| servicequotas | 2 | 3 | 40.0 |
+| sns | 2 | 3 | 40.0 |
 | states | 4 | 3 | 57.1 |
+| support | 0 | 3 | 0.0 |
+| wafv2 | 6 | 3 | 66.7 |
 | account-access | 0 | 2 | 0.0 |
 | amplify | 5 | 2 | 71.4 |
 | appconfig | 8 | 2 | 80.0 |
-| appflow | 3 | 2 | 60.0 |
-| application-signals | 1 | 2 | 33.3 |
+| application-signals | 2 | 2 | 50.0 |
 | apprunner | 6 | 2 | 75.0 |
+| arc-zonal-shift | 1 | 2 | 33.3 |
+| artifact | 2 | 2 | 50.0 |
+| backup-gateway | 3 | 2 | 60.0 |
 | batch | 7 | 2 | 77.8 |
 | bcm-data-exports | 1 | 2 | 33.3 |
-| billing | 1 | 2 | 33.3 |
 | cloudcontrolapi | 0 | 2 | 0.0 |
 | codeguru-security | 0 | 2 | 0.0 |
-| cognito-sync | 0 | 2 | 0.0 |
-| databrew | 6 | 2 | 75.0 |
 | datapipeline | 1 | 2 | 33.3 |
+| detective | 3 | 2 | 60.0 |
+| ecr | 3 | 2 | 60.0 |
 | ecr-public | 1 | 2 | 33.3 |
-| elasticbeanstalk | 4 | 2 | 66.7 |
-| elasticfilesystem | 3 | 2 | 60.0 |
-| events | 8 | 2 | 80.0 |
+| elasticache | 12 | 2 | 85.7 |
+| elemental-inference | 1 | 2 | 33.3 |
+| entityresolution | 4 | 2 | 66.7 |
 | finspace | 8 | 2 | 80.0 |
 | fsx | 8 | 2 | 80.0 |
-| geo-places | 0 | 2 | 0.0 |
 | glacier | 1 | 2 | 33.3 |
-| grafana | 1 | 2 | 33.3 |
 | health-agent | 0 | 2 | 0.0 |
+| invoicing | 1 | 2 | 33.3 |
 | kinesis | 2 | 2 | 50.0 |
 | kinesisvideo | 2 | 2 | 50.0 |
+| kms | 4 | 2 | 66.7 |
+| lakeformation | 3 | 2 | 60.0 |
 | managedblockchain | 5 | 2 | 71.4 |
-| mediaconvert | 3 | 2 | 60.0 |
 | mediastore | 0 | 2 | 0.0 |
-| mediatailor | 8 | 2 | 80.0 |
-| memorydb | 9 | 2 | 81.8 |
+| mediatailor | 7 | 2 | 77.8 |
+| migrationhub-strategy | 0 | 2 | 0.0 |
+| neptune-graph | 3 | 2 | 60.0 |
 | networkflowmonitor | 2 | 2 | 50.0 |
 | pi | 0 | 2 | 0.0 |
-| route53resolver | 12 | 2 | 85.7 |
-| rum | 1 | 2 | 33.3 |
+| qapps | 1 | 2 | 33.3 |
+| resource-explorer-2 | 4 | 2 | 66.7 |
+| resource-groups | 2 | 2 | 50.0 |
 | sagemaker-geospatial | 1 | 2 | 33.3 |
 | scn | 4 | 2 | 66.7 |
 | secretsmanager | 1 | 2 | 33.3 |
-| shield | 2 | 2 | 50.0 |
+| security-ir | 2 | 2 | 50.0 |
+| servicequotas | 1 | 2 | 33.3 |
+| shield | 3 | 2 | 60.0 |
 | snow-device-management | 2 | 2 | 50.0 |
+| sqs | 1 | 2 | 33.3 |
 | supportauthz | 0 | 2 | 0.0 |
 | synthetics | 2 | 2 | 50.0 |
 | tax | 0 | 2 | 0.0 |
-| transfer | 9 | 2 | 81.8 |
+| transfer | 8 | 2 | 80.0 |
 | vpc-lattice | 13 | 2 | 86.7 |
+| account | 0 | 1 | 0.0 |
 | amplifybackend | 0 | 1 | 0.0 |
 | amplifyuibuilder | 3 | 1 | 75.0 |
+| appfabric | 4 | 1 | 80.0 |
+| appflow | 3 | 1 | 75.0 |
 | application-autoscaling | 2 | 1 | 66.7 |
 | application-cost-profiler | 0 | 1 | 0.0 |
-| autoscaling-plans | 1 | 1 | 50.0 |
-| b2bi | 4 | 1 | 80.0 |
-| backup-gateway | 3 | 1 | 75.0 |
+| awsssoportal | 0 | 1 | 0.0 |
+| billing | 1 | 1 | 50.0 |
 | cassandra | 3 | 1 | 75.0 |
 | cloud9 | 1 | 1 | 50.0 |
 | cloudhsm | 2 | 1 | 66.7 |
 | codeguru-profiler | 1 | 1 | 50.0 |
-| codestar-notifications | 1 | 1 | 50.0 |
 | cognito-identity | 1 | 1 | 50.0 |
-| connect-campaigns | 1 | 1 | 50.0 |
-| controltower | 3 | 1 | 75.0 |
+| comprehendmedical | 0 | 1 | 0.0 |
 | cost-optimization-hub | 0 | 1 | 0.0 |
-| datasync | 13 | 1 | 92.9 |
-| dax | 3 | 1 | 75.0 |
-| discovery | 0 | 1 | 0.0 |
+| databrew | 6 | 1 | 85.7 |
+| datasync | 4 | 1 | 80.0 |
 | docdb-elastic | 2 | 1 | 66.7 |
-| elasticache | 12 | 1 | 92.3 |
-| elemental-inference | 1 | 1 | 50.0 |
+| elasticfilesystem | 3 | 1 | 75.0 |
+| elasticloadbalancing | 7 | 1 | 87.5 |
 | emr-containers | 4 | 1 | 80.0 |
+| execute-api | 0 | 1 | 0.0 |
+| geo-places | 0 | 1 | 0.0 |
 | interconnect | 2 | 1 | 66.7 |
 | iot-jobs-data | 0 | 1 | 0.0 |
 | iotdeviceadvisor | 1 | 1 | 50.0 |
 | iotsecuredtunneling | 0 | 1 | 0.0 |
 | kafkaconnect | 3 | 1 | 75.0 |
+| mediaconvert | 3 | 1 | 75.0 |
 | mediapackage | 2 | 1 | 66.7 |
 | mediapackagev2 | 3 | 1 | 75.0 |
+| memorydb | 9 | 1 | 90.0 |
 | mq | 2 | 1 | 66.7 |
 | oam | 2 | 1 | 66.7 |
 | observabilityadmin | 4 | 1 | 80.0 |
@@ -293,16 +292,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | repostspace | 1 | 1 | 50.0 |
 | route53-recovery-cluster | 0 | 1 | 0.0 |
 | route53-recovery-control-config | 4 | 1 | 80.0 |
-| route53globalresolver | 7 | 1 | 87.5 |
-| s3-outposts | 2 | 1 | 66.7 |
-| s3tables | 3 | 1 | 75.0 |
+| rtbfabric | 4 | 1 | 80.0 |
 | s3vectors | 2 | 1 | 66.7 |
 | schemas | 3 | 1 | 75.0 |
 | sdb | 0 | 1 | 0.0 |
 | securitylake | 2 | 1 | 66.7 |
 | signer | 2 | 1 | 66.7 |
-| signin | 0 | 1 | 0.0 |
-| sqs | 1 | 1 | 50.0 |
 | ssm-quicksetup | 1 | 1 | 50.0 |
 | swf | 1 | 1 | 50.0 |
 | tagging | 0 | 1 | 0.0 |
@@ -316,16 +311,19 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aiops | 1 | 0 | 100.0 |
 | airflow | 1 | 0 | 100.0 |
 | aoss | 7 | 0 | 100.0 |
-| appfabric | 4 | 0 | 100.0 |
 | appmesh | 7 | 0 | 100.0 |
 | appsync | 10 | 0 | 100.0 |
 | aps | 4 | 0 | 100.0 |
-| arc-zonal-shift | 1 | 0 | 100.0 |
+| autoscaling-plans | 1 | 0 | 100.0 |
+| b2bi | 4 | 0 | 100.0 |
 | bcm-dashboards | 2 | 0 | 100.0 |
 | budgets | 2 | 0 | 100.0 |
 | cloudsearch | 1 | 0 | 100.0 |
 | codestar-connections | 4 | 0 | 100.0 |
+| codestar-notifications | 1 | 0 | 100.0 |
+| connect-campaigns | 1 | 0 | 100.0 |
 | cur | 1 | 0 | 100.0 |
+| dax | 3 | 0 | 100.0 |
 | dlm | 1 | 0 | 100.0 |
 | dsql | 2 | 0 | 100.0 |
 | firehose | 1 | 0 | 100.0 |
@@ -333,7 +331,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ivschat | 2 | 0 | 100.0 |
 | kendra-ranking | 1 | 0 | 100.0 |
 | license-manager-linux-subscriptions | 1 | 0 | 100.0 |
-| license-manager-user-subscriptions | 4 | 0 | 100.0 |
+| license-manager-user-subscriptions | 5 | 0 | 100.0 |
 | mediapackage-vod | 3 | 0 | 100.0 |
 | networkmonitor | 1 | 0 | 100.0 |
 | notifications-contacts | 1 | 0 | 100.0 |
@@ -345,43 +343,45 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | rbin | 1 | 0 | 100.0 |
 | rolesanywhere | 4 | 0 | 100.0 |
 | route53profiles | 3 | 0 | 100.0 |
+| s3-outposts | 2 | 0 | 100.0 |
 | s3files | 3 | 0 | 100.0 |
+| s3tables | 3 | 0 | 100.0 |
 | savingsplans | 1 | 0 | 100.0 |
 | scheduler | 2 | 0 | 100.0 |
 | servicediscovery | 3 | 0 | 100.0 |
-| supportapp | 2 | 0 | 100.0 |
+| supportapp | 1 | 0 | 100.0 |
 | textract | 2 | 0 | 100.0 |
 | thinclient | 3 | 0 | 100.0 |
 | tnb | 5 | 0 | 100.0 |
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1764)
+### Uncovered (listable, no scanner) (1676)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
-| access-analyzer | access-analyzer/accesspreview | 1 |  | child-uncatalogued | access-analyzer:GetAccessPreview, access-analyzer:ListAccessPreviews |
+| access-analyzer | access-analyzer/accesspreview | 0 |  | child-uncatalogued | access-analyzer:GetAccessPreview, access-analyzer:ListAccessPreviews |
 | access-analyzer | access-analyzer/accesspreviewfinding | 1 |  | child-uncatalogued | access-analyzer:ListAccessPreviewFindings |
 | access-analyzer | access-analyzer/analyzedresource | 1 |  | child-uncatalogued | access-analyzer:GetAnalyzedResource, access-analyzer:ListAnalyzedResources |
 | access-analyzer | access-analyzer/finding | 1 |  | child-uncatalogued | access-analyzer:GetFinding, access-analyzer:GetFindingV2, access-analyzer:ListFindings, access-analyzer:ListFindingsV2 |
-| access-analyzer | access-analyzer/findingsstatistic | 1 |  | child-uncatalogued | access-analyzer:GetFindingsStatistics |
 | access-analyzer | access-analyzer/policygeneration | 0 |  | element-arn | access-analyzer:ListPolicyGenerations |
-| account-access | account-access/application | 0 |  | sr-resource | account-access:GetApplication, account-access:ListApplications |
+| account | account/region | 1 |  | child-uncatalogued | account:ListRegions |
+| account-access | account-access/application | 0 |  | smithy-resource | account-access:GetApplication, account-access:ListApplications |
 | account-access | account-access/entitlement | 1 |  | child-uncatalogued | account-access:GetEntitlement, account-access:ListEntitlements |
 | acm | acm/acmeaccount | 1 |  | child-uncatalogued | acm:DescribeAcmeAccount, acm:ListAcmeAccounts |
 | acm | acm/acmedomainvalidation | 1 |  | sr-resource | acm:DescribeAcmeDomainValidation, acm:ListAcmeDomainValidations |
 | acm | acm/acmeendpoint | 0 |  | sr-resource | acm:DescribeAcmeEndpoint, acm:ListAcmeEndpoints |
 | acm | acm/acmeexternalaccountbinding | 1 |  | sr-resource | acm:DescribeAcmeExternalAccountBinding, acm:ListAcmeExternalAccountBindings |
 | acm | acm/certificatedomainvalidation | 1 |  | child-uncatalogued | acm:ListCertificateDomainValidations |
-| aco-automation | aco-automation/account | 0 |  | writable-noun | aco-automation:ListAccounts |
-| aco-automation | aco-automation/automationevent | 0 |  | element-arn | aco-automation:GetAutomationEvent, aco-automation:ListAutomationEvents |
-| aco-automation | aco-automation/automationeventstep | 1 |  | child-uncatalogued | aco-automation:ListAutomationEventSteps |
+| aco-automation | aco-automation/account | 0 |  | element-written | aco-automation:ListAccounts |
+| aco-automation | aco-automation/automationevent | 0 |  | element-written | aco-automation:GetAutomationEvent, aco-automation:ListAutomationEvents |
+| aco-automation | aco-automation/automationeventstep | 0 |  | child-uncatalogued | aco-automation:ListAutomationEventSteps |
 | aco-automation | aco-automation/automationrule | 0 |  | sr-resource | aco-automation:GetAutomationRule, aco-automation:ListAutomationRules |
-| aco-automation | aco-automation/automationrulepreview | 0 |  | element-arn | aco-automation:ListAutomationRulePreview |
-| aco-automation | aco-automation/recommendedaction | 0 |  | element-arn | aco-automation:ListRecommendedActions |
-| agent-registry | agent-registry/discoverableregistryrecord | 0 |  | child-uncatalogued | agent-registry:BatchGetDiscoverableRegistryRecord, agent-registry:ListDiscoverableRegistryRecords, agent-registry:SearchDiscoverableRegistryRecords |
-| agent-registry | agent-registry/registry | 0 |  | sr-resource | agent-registry:GetRegistry, agent-registry:ListRegistries |
-| agent-registry | agent-registry/registryrecord | 1 |  | sr-resource | agent-registry:GetRegistryRecord, agent-registry:ListRegistryRecords |
+| aco-automation | aco-automation/automationrulepreview | 0 |  | element-written | aco-automation:ListAutomationRulePreview |
+| aco-automation | aco-automation/recommendedaction | 0 |  | element-written | aco-automation:ListRecommendedActions |
+| agent-registry | agent-registry/discoverableregistryrecord | 1 |  | child-uncatalogued | agent-registry:ListDiscoverableRegistryRecords |
+| agent-registry | agent-registry/registry | 0 |  | smithy-resource | agent-registry:GetRegistry, agent-registry:ListRegistries |
+| agent-registry | agent-registry/registryrecord | 1 |  | smithy-resource | agent-registry:GetRegistryRecord, agent-registry:ListRegistryRecords |
 | aidevops | aidevops/asset | 1 |  | sr-resource | aidevops:GetAsset, aidevops:ListAssets |
 | aidevops | aidevops/backlogtask | 1 |  | child-uncatalogued | aidevops:GetBacklogTask, aidevops:ListBacklogTasks |
 | aidevops | aidevops/chat | 1 |  | child-uncatalogued | aidevops:ListChats |
@@ -392,13 +392,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aidevops | aidevops/recommendation | 1 |  | child-uncatalogued | aidevops:GetRecommendation, aidevops:ListRecommendations |
 | aidevops | aidevops/trigger | 1 |  | sr-resource | aidevops:GetTrigger, aidevops:ListTriggers |
 | aidevops | aidevops/webhook | 2 |  | child-uncatalogued | aidevops:ListWebhooks |
-| airflow-serverless | airflow-serverless/taskinstance | 1 |  | child-uncatalogued | airflow-serverless:GetTaskInstance, airflow-serverless:ListTaskInstances |
-| airflow-serverless | airflow-serverless/workflowrun | 1 |  | child-uncatalogued | airflow-serverless:GetWorkflowRun, airflow-serverless:ListWorkflowRuns |
-| airflow-serverless | airflow-serverless/workflowversion | 1 |  | child-uncatalogued | airflow-serverless:ListWorkflowVersions |
-| amplify | amplify/artifact | 1 |  | child-uncatalogued | amplify:ListArtifacts |
+| airflow-serverless | airflow-serverless/taskinstance | 0 |  | smithy-resource | airflow-serverless:GetTaskInstance, airflow-serverless:ListTaskInstances |
+| airflow-serverless | airflow-serverless/workflowrun | 0 |  | smithy-resource | airflow-serverless:GetWorkflowRun, airflow-serverless:ListWorkflowRuns |
+| airflow-serverless | airflow-serverless/workflowversion | 0 |  | smithy-resource | airflow-serverless:ListWorkflowVersions |
+| amplify | amplify/artifact | 3 |  | child-uncatalogued | amplify:ListArtifacts |
 | amplify | amplify/job | 2 |  | sr-resource | amplify:GetJob, amplify:ListJobs |
-| amplifybackend | amplifybackend/backendjob | 1 |  | child-uncatalogued | amplifybackend:GetBackendJob, amplifybackend:ListBackendJobs |
-| amplifyuibuilder | amplifyuibuilder/codegenjob | 1 |  | child-uncatalogued | amplifyuibuilder:GetCodegenJob, amplifyuibuilder:ListCodegenJobs |
+| amplifybackend | amplifybackend/backendjob | 2 |  | child-uncatalogued | amplifybackend:GetBackendJob, amplifybackend:ListBackendJobs |
+| amplifyuibuilder | amplifyuibuilder/codegenjob | 0 |  | smithy-resource | amplifyuibuilder:GetCodegenJob, amplifyuibuilder:ListCodegenJobs |
 | apigateway | apigateway/portal | 0 |  | sr-resource | apigateway:GetPortal, apigateway:ListPortals |
 | apigateway | apigateway/portalproduct | 0 |  | sr-resource | apigateway:GetPortalProduct, apigateway:ListPortalProducts |
 | apigateway | apigateway/productpage | 1 |  | sr-resource | apigateway:GetProductPage, apigateway:ListProductPages |
@@ -408,219 +408,205 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | app-integrations | app-integrations/eventintegrationassociation | 1 |  | sr-resource | app-integrations:ListEventIntegrationAssociations |
 | appconfig | appconfig/experimentdefinition | 0 |  | sr-resource | appconfig:GetExperimentDefinition, appconfig:ListExperimentDefinitions |
 | appconfig | appconfig/experimentrun | 1 |  | sr-resource | appconfig:GetExperimentRun, appconfig:ListExperimentRuns |
-| appflow | appflow/connectorentity | 0 |  | child-uncatalogued | appflow:DescribeConnectorEntity, appflow:ListConnectorEntities |
+| appfabric | appfabric/useraccesstask | 1 |  | child-uncatalogued | appfabric:BatchGetUserAccessTasks |
 | appflow | appflow/flowexecutionrecord | 1 |  | child-uncatalogued | appflow:DescribeFlowExecutionRecords |
-| application-autoscaling | application-autoscaling/scheduledaction | 0 |  | writable-noun | application-autoscaling:DescribeScheduledActions |
-| application-cost-profiler | application-cost-profiler/reportdefinition | 0 |  | element-created | application-cost-profiler:GetReportDefinition, application-cost-profiler:ListReportDefinitions |
-| application-signals | application-signals/instrumentationconfiguration | 0 |  | writable-noun | application-signals:GetInstrumentationConfiguration, application-signals:ListInstrumentationConfigurations |
-| application-signals | application-signals/servicelevelobjectivebudgetreport | 1 |  | child-uncatalogued | application-signals:BatchGetServiceLevelObjectiveBudgetReport |
-| applicationinsights | applicationinsights/component | 1 |  | child-uncatalogued | applicationinsights:DescribeComponent, applicationinsights:ListComponents |
+| application-autoscaling | application-autoscaling/scheduledaction | 0 |  | element-written | application-autoscaling:DescribeScheduledActions |
+| application-cost-profiler | application-cost-profiler/reportdefinition | 0 |  | element-written | application-cost-profiler:GetReportDefinition, application-cost-profiler:ListReportDefinitions |
+| application-signals | application-signals/getservicelevelobjectivebudgetreport | 1 |  | child-uncatalogued | application-signals:BatchGetServiceLevelObjectiveBudgetReport |
+| application-signals | application-signals/instrumentationconfiguration | 0 |  | element-written | application-signals:GetInstrumentationConfiguration, application-signals:ListInstrumentationConfigurations |
+| applicationinsights | applicationinsights/component | 0 |  | child-uncatalogued | applicationinsights:DescribeComponent, applicationinsights:ListComponents |
 | applicationinsights | applicationinsights/configurationhistory | 0 |  | element-arn | applicationinsights:ListConfigurationHistory |
-| applicationinsights | applicationinsights/logpattern | 1 |  | child-uncatalogued | applicationinsights:DescribeLogPattern, applicationinsights:ListLogPatterns |
-| applicationinsights | applicationinsights/logpatternset | 1 |  | child-uncatalogued | applicationinsights:ListLogPatternSets |
-| applicationinsights | applicationinsights/problemobservation | 1 |  | child-uncatalogued | applicationinsights:DescribeProblemObservations |
-| applicationinsights | applicationinsights/workload | 1 |  | child-uncatalogued | applicationinsights:DescribeWorkload, applicationinsights:ListWorkloads |
+| applicationinsights | applicationinsights/logpattern | 0 |  | child-uncatalogued | applicationinsights:DescribeLogPattern, applicationinsights:ListLogPatterns |
+| applicationinsights | applicationinsights/logpatternset | 0 |  | child-uncatalogued | applicationinsights:ListLogPatternSets |
+| applicationinsights | applicationinsights/workload | 0 |  | child-uncatalogued | applicationinsights:DescribeWorkload, applicationinsights:ListWorkloads |
 | apprunner | apprunner/customdomain | 1 |  | child-uncatalogued | apprunner:DescribeCustomDomains |
 | apprunner | apprunner/operation | 1 |  | child-uncatalogued | apprunner:ListOperations |
-| appstream | appstream/appblockbuilderappblockassociation | 0 |  | writable-noun | appstream:DescribeAppBlockBuilderAppBlockAssociations |
+| appstream | appstream/appblockbuilderappblockassociation | 0 |  | element-written | appstream:DescribeAppBlockBuilderAppBlockAssociations |
 | appstream | appstream/applicenseusage | 0 |  | element-arn | appstream:DescribeAppLicenseUsage |
 | appstream | appstream/associatedstack | 1 |  | child-uncatalogued | appstream:ListAssociatedStacks |
-| appstream | appstream/exportimagetask | 0 |  | writable-noun | appstream:GetExportImageTask, appstream:ListExportImageTasks |
+| appstream | appstream/exportimagetask | 0 |  | element-written | appstream:GetExportImageTask, appstream:ListExportImageTasks |
 | appstream | appstream/imagepermission | 1 |  | child-uncatalogued | appstream:DescribeImagePermissions |
 | appstream | appstream/session | 1 |  | child-uncatalogued | appstream:DescribeSessions |
 | appstream | appstream/softwareassociation | 1 |  | child-uncatalogued | appstream:DescribeSoftwareAssociations |
-| appstream | appstream/usagereportsubscription | 0 |  | writable-noun | appstream:DescribeUsageReportSubscriptions |
 | arc-region-switch | arc-region-switch/planevaluationstatus | 1 |  | child-uncatalogued | arc-region-switch:GetPlanEvaluationStatus |
 | arc-region-switch | arc-region-switch/planexecution | 1 |  | child-uncatalogued | arc-region-switch:GetPlanExecution, arc-region-switch:ListPlanExecutions |
 | arc-region-switch | arc-region-switch/planexecutionevent | 1 |  | child-uncatalogued | arc-region-switch:ListPlanExecutionEvents |
 | arc-region-switch | arc-region-switch/route53healthcheck | 1 |  | child-uncatalogued | arc-region-switch:ListRoute53HealthChecks, arc-region-switch:ListRoute53HealthChecksInRegion |
-| artifact | artifact/complianceinquiry | 0 |  | sr-resource | artifact:ListComplianceInquiries |
+| arc-zonal-shift | arc-zonal-shift/autoshift | 0 |  | smithy-resource | arc-zonal-shift:ListAutoshifts |
+| arc-zonal-shift | arc-zonal-shift/zonalshift | 0 |  | smithy-resource | arc-zonal-shift:ListZonalShifts |
+| artifact | artifact/complianceinquiry | 0 |  | smithy-resource | artifact:ExportComplianceInquiry, artifact:ListComplianceInquiries |
 | artifact | artifact/complianceinquiryquery | 1 |  | child-uncatalogued | artifact:ListComplianceInquiryQueries |
-| artifact | artifact/reportversion | 1 |  | child-uncatalogued | artifact:ListReportVersions |
 | athena | athena/calculationexecution | 1 |  | child-uncatalogued | athena:GetCalculationExecution, athena:ListCalculationExecutions |
 | athena | athena/database | 1 |  | child-uncatalogued | athena:GetDatabase, athena:ListDatabases |
 | athena | athena/executor | 2 |  | child-uncatalogued | athena:ListExecutors |
 | athena | athena/notebookmetadata | 1 |  | child-uncatalogued | athena:GetNotebookMetadata, athena:ListNotebookMetadata |
 | athena | athena/notebooksession | 1 |  | child-uncatalogued | athena:ListNotebookSessions |
-| athena | athena/queryexecution | 0 |  | child-uncatalogued | athena:BatchGetQueryExecution, athena:GetQueryExecution, athena:ListQueryExecutions |
+| athena | athena/queryexecution | 0 |  | element-written | athena:BatchGetQueryExecution, athena:GetQueryExecution, athena:ListQueryExecutions |
 | athena | athena/session | 1 |  | sr-resource | athena:GetSession, athena:ListSessions |
 | athena | athena/tablemetadata | 1 |  | child-uncatalogued | athena:GetTableMetadata, athena:ListTableMetadata |
-| auditmanager | auditmanager/assessmentcontrolinsight | 1 |  | child-uncatalogued | auditmanager:ListAssessmentControlInsightsByControlDomain |
-| auditmanager | auditmanager/assessmentframeworksharerequest | 0 |  | element-created | auditmanager:ListAssessmentFrameworkShareRequests |
-| auditmanager | auditmanager/assessmentreport | 0 |  | writable-noun | auditmanager:ListAssessmentReports |
+| auditmanager | auditmanager/assessmentcontrolinsight | 0 |  | child-uncatalogued | auditmanager:ListAssessmentControlInsightsByControlDomain |
+| auditmanager | auditmanager/assessmentframeworksharerequest | 0 |  | element-written | auditmanager:ListAssessmentFrameworkShareRequests |
+| auditmanager | auditmanager/assessmentreport | 0 |  | element-written | auditmanager:ListAssessmentReports |
 | auditmanager | auditmanager/changelog | 1 |  | child-uncatalogued | auditmanager:GetChangeLogs |
 | auditmanager | auditmanager/controldomaininsight | 0 |  | child-uncatalogued | auditmanager:ListControlDomainInsights, auditmanager:ListControlDomainInsightsByAssessment |
-| auditmanager | auditmanager/controlinsight | 1 |  | child-uncatalogued | auditmanager:ListControlInsightsByControlDomain |
+| auditmanager | auditmanager/controlinsight | 0 |  | child-uncatalogued | auditmanager:ListControlInsightsByControlDomain |
 | auditmanager | auditmanager/delegation | 0 |  | element-arn | auditmanager:GetDelegations |
 | auditmanager | auditmanager/evidence | 2 |  | child-uncatalogued | auditmanager:GetEvidence, auditmanager:GetEvidenceByEvidenceFolder |
 | auditmanager | auditmanager/evidencefolder | 1 |  | child-uncatalogued | auditmanager:GetEvidenceFolder, auditmanager:GetEvidenceFoldersByAssessment, auditmanager:GetEvidenceFoldersByAssessmentControl |
-| auditmanager | auditmanager/setting | 0 |  | element-arn | auditmanager:GetSettings |
 | autoscaling | autoscaling/instancerefresh | 1 |  | child-uncatalogued | autoscaling:DescribeInstanceRefreshes |
 | autoscaling | autoscaling/loadbalancer | 1 |  | child-uncatalogued | autoscaling:DescribeLoadBalancers |
 | autoscaling | autoscaling/loadbalancertargetgroup | 1 |  | child-uncatalogued | autoscaling:DescribeLoadBalancerTargetGroups |
-| autoscaling | autoscaling/notificationconfiguration | 0 |  | writable-noun | autoscaling:DescribeNotificationConfigurations |
-| autoscaling | autoscaling/scalingactivity | 0 |  | element-arn | autoscaling:DescribeScalingActivities |
+| autoscaling | autoscaling/notificationconfiguration | 0 |  | element-arn | autoscaling:DescribeNotificationConfigurations |
+| autoscaling | autoscaling/scalingactivity | 0 |  | element-written | autoscaling:DescribeScalingActivities |
 | autoscaling | autoscaling/trafficsource | 1 |  | child-uncatalogued | autoscaling:DescribeTrafficSources |
-| autoscaling-plans | autoscaling-plans/scalingplanresource | 1 |  | child-uncatalogued | autoscaling-plans:DescribeScalingPlanResources |
-| aws-marketplace | aws-marketplace/agreementcancellationrequest | 0 |  | element-created | aws-marketplace:GetAgreementCancellationRequest, aws-marketplace:ListAgreementCancellationRequests |
+| aws-marketplace | aws-marketplace/agreementcancellationrequest | 0 |  | element-written | aws-marketplace:GetAgreementCancellationRequest, aws-marketplace:ListAgreementCancellationRequests |
 | aws-marketplace | aws-marketplace/agreemententitlement | 1 |  | child-uncatalogued | aws-marketplace:GetAgreementEntitlements |
 | aws-marketplace | aws-marketplace/agreementinvoicelineitem | 1 |  | child-uncatalogued | aws-marketplace:ListAgreementInvoiceLineItems |
-| aws-marketplace | aws-marketplace/assessment | 1 |  | sr-resource | aws-marketplace:DescribeAssessment, aws-marketplace:ListAssessments |
-| aws-marketplace | aws-marketplace/billingadjustmentrequest | 0 |  | element-created | aws-marketplace:GetBillingAdjustmentRequest, aws-marketplace:ListBillingAdjustmentRequests |
-| aws-marketplace | aws-marketplace/changeset | 1 |  | sr-resource | aws-marketplace:DescribeChangeSet, aws-marketplace:ListChangeSets |
+| aws-marketplace | aws-marketplace/agreementpaymentrequest | 0 |  | element-written | aws-marketplace:GetAgreementPaymentRequest, aws-marketplace:ListAgreementPaymentRequests |
+| aws-marketplace | aws-marketplace/assessment | 0 |  | sr-resource | aws-marketplace:DescribeAssessment, aws-marketplace:ListAssessments |
+| aws-marketplace | aws-marketplace/billingadjustmentrequest | 0 |  | element-written | aws-marketplace:GetBillingAdjustmentRequest, aws-marketplace:ListBillingAdjustmentRequests |
+| aws-marketplace | aws-marketplace/changeset | 0 |  | sr-resource | aws-marketplace:ListChangeSets |
 | aws-marketplace | aws-marketplace/entitlement | 0 |  | element-arn | aws-marketplace:GetEntitlements |
-| aws-marketplace | aws-marketplace/entity | 1 |  | sr-resource | aws-marketplace:DescribeEntity, aws-marketplace:ListEntities |
-| aws-marketplace | aws-marketplace/fulfillmentoption | 2 |  | child-uncatalogued | aws-marketplace:ListFulfillmentOptions |
+| aws-marketplace | aws-marketplace/entity | 2 |  | sr-resource | aws-marketplace:DescribeEntity, aws-marketplace:ListEntities |
 | aws-marketplace | aws-marketplace/listing | 0 |  | sr-resource | aws-marketplace:GetListing, aws-marketplace:SearchListings |
-| aws-marketplace | aws-marketplace/offer | 1 |  | sr-resource | aws-marketplace:GetOffer |
-| aws-marketplace | aws-marketplace/offerset | 1 |  | sr-resource | aws-marketplace:GetOfferSet |
-| aws-marketplace | aws-marketplace/offerterm | 2 |  | child-uncatalogued | aws-marketplace:GetOfferTerms |
-| aws-marketplace | aws-marketplace/product | 1 |  | sr-resource | aws-marketplace:GetProduct |
 | aws-marketplace | aws-marketplace/purchaseoption | 0 |  | sr-resource | aws-marketplace:ListPurchaseOptions |
-| b2bi | b2bi/transformerjob | 1 |  | child-uncatalogued | b2bi:GetTransformerJob |
+| awsssoportal | awsssoportal/account | 0 |  | sr-resource | awsssoportal:ListAccounts |
 | backup | backup/backupaccesspoint | 0 |  | sr-resource | backup:DescribeBackupAccessPoint, backup:ListBackupAccessPoints, backup:ListBackupAccessPointsByRecoveryPoint, backup:ListBackupAccessPointsByResource |
-| backup | backup/backupjob | 0 |  | element-arn | backup:DescribeBackupJob, backup:ListBackupJobs |
-| backup | backup/backupplanversion | 1 |  | child-uncatalogued | backup:ListBackupPlanVersions |
-| backup | backup/copyjob | 0 |  | element-arn | backup:DescribeCopyJob, backup:ListCopyJobs |
+| backup | backup/backupjob | 0 |  | element-written | backup:DescribeBackupJob, backup:ListBackupJobs |
+| backup | backup/copyjob | 0 |  | element-written | backup:DescribeCopyJob, backup:ListCopyJobs |
 | backup | backup/indexedrecoverypoint | 0 |  | element-arn | backup:ListIndexedRecoveryPoints |
-| backup | backup/protectedresource | 0 |  | child-uncatalogued | backup:DescribeProtectedResource, backup:ListProtectedResources, backup:ListProtectedResourcesByBackupVault |
-| backup | backup/reportjob | 0 |  | element-arn | backup:DescribeReportJob, backup:ListReportJobs |
+| backup | backup/protectedresource | 0 |  | element-arn | backup:DescribeProtectedResource, backup:ListProtectedResources, backup:ListProtectedResourcesByBackupVault |
+| backup | backup/reportjob | 0 |  | element-written | backup:DescribeReportJob, backup:ListReportJobs |
 | backup | backup/restoreaccessbackupvault | 1 |  | child-uncatalogued | backup:ListRestoreAccessBackupVaults |
-| backup | backup/restorejob | 0 |  | element-arn | backup:DescribeRestoreJob, backup:ListRestoreJobs, backup:ListRestoreJobsByProtectedResource |
-| backup | backup/scanjob | 0 |  | element-arn | backup:DescribeScanJob, backup:ListScanJobs |
-| backup-gateway | backup-gateway/hypervisorpropertymapping | 1 |  | child-uncatalogued | backup-gateway:GetHypervisorPropertyMappings |
-| backup-search | backup-search/searchjob | 0 |  | sr-resource | backup-search:GetSearchJob, backup-search:ListSearchJobs |
+| backup | backup/restorejob | 0 |  | element-written | backup:DescribeRestoreJob, backup:ListRestoreJobs, backup:ListRestoreJobsByProtectedResource |
+| backup | backup/scanjob | 0 |  | element-written | backup:DescribeScanJob, backup:ListScanJobs |
+| backup-gateway | backup-gateway/bandwidthratelimitschedule | 1 |  | smithy-resource | backup-gateway:GetBandwidthRateLimitSchedule |
+| backup-gateway | backup-gateway/hypervisorpropertymapping | 1 |  | smithy-resource | backup-gateway:GetHypervisorPropertyMappings |
+| backup-search | backup-search/searchjob | 0 |  | smithy-resource | backup-search:GetSearchJob, backup-search:ListSearchJobs |
 | backup-search | backup-search/searchjobbackup | 1 |  | child-uncatalogued | backup-search:ListSearchJobBackups |
-| backup-search | backup-search/searchresultexportjob | 0 |  | element-arn | backup-search:GetSearchResultExportJob, backup-search:ListSearchResultExportJobs |
+| backup-search | backup-search/searchresultexportjob | 0 |  | smithy-resource | backup-search:GetSearchResultExportJob, backup-search:ListSearchResultExportJobs |
 | batch | batch/job | 0 |  | sr-resource | batch:DescribeJobs, batch:ListJobs, batch:ListJobsByConsumableResource |
 | batch | batch/servicejob | 0 |  | sr-resource | batch:DescribeServiceJob, batch:ListServiceJobs |
 | bcm-data-exports | bcm-data-exports/execution | 1 |  | child-uncatalogued | bcm-data-exports:GetExecution, bcm-data-exports:ListExecutions |
-| bcm-data-exports | bcm-data-exports/table | 0 |  | sr-resource | bcm-data-exports:GetTable, bcm-data-exports:ListTables |
-| bcm-pricing-calculator | bcm-pricing-calculator/billestimatecommitment | 1 |  | child-uncatalogued | bcm-pricing-calculator:ListBillEstimateCommitments |
-| bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputcommitmentmodification | 1 |  | child-uncatalogued | bcm-pricing-calculator:ListBillEstimateInputCommitmentModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputusagemodification | 1 |  | child-uncatalogued | bcm-pricing-calculator:ListBillEstimateInputUsageModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/billestimatelineitem | 1 |  | child-uncatalogued | bcm-pricing-calculator:ListBillEstimateLineItems |
-| bcm-pricing-calculator | bcm-pricing-calculator/billscenariocommitmentmodification | 1 |  | child-uncatalogued | bcm-pricing-calculator:ListBillScenarioCommitmentModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/billscenariousagemodification | 1 |  | child-uncatalogued | bcm-pricing-calculator:ListBillScenarioUsageModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/workloadestimateusage | 1 |  | child-uncatalogued | bcm-pricing-calculator:ListWorkloadEstimateUsage |
-| bedrock | bedrock/advancedpromptoptimizationjob | 0 |  | sr-resource | bedrock:GetAdvancedPromptOptimizationJob, bedrock:ListAdvancedPromptOptimizationJobs |
+| bcm-data-exports | bcm-data-exports/table | 0 |  | sr-resource | bcm-data-exports:ListTables |
+| bcm-pricing-calculator | bcm-pricing-calculator/billestimatecommitment | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillEstimateCommitments |
+| bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputcommitmentmodification | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillEstimateInputCommitmentModifications |
+| bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputusagemodification | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillEstimateInputUsageModifications |
+| bcm-pricing-calculator | bcm-pricing-calculator/billestimatelineitem | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillEstimateLineItems |
+| bcm-pricing-calculator | bcm-pricing-calculator/billscenariocommitmentmodification | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillScenarioCommitmentModifications |
+| bcm-pricing-calculator | bcm-pricing-calculator/billscenariousagemodification | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillScenarioUsageModifications |
+| bcm-pricing-calculator | bcm-pricing-calculator/workloadestimateusage | 1 |  | smithy-resource | bcm-pricing-calculator:ListWorkloadEstimateUsage |
+| bedrock | bedrock/advancedpromptoptimizationjob | 0 |  | smithy-resource | bedrock:GetAdvancedPromptOptimizationJob, bedrock:ListAdvancedPromptOptimizationJobs |
 | bedrock | bedrock/agentactiongroup | 1 |  | child-uncatalogued | bedrock:GetAgentActionGroup, bedrock:ListAgentActionGroups |
-| bedrock | bedrock/agentcollaborator | 1 |  | child-uncatalogued | bedrock:GetAgentCollaborator, bedrock:ListAgentCollaborators |
+| bedrock | bedrock/agentcollaborator | 0 |  | smithy-resource | bedrock:GetAgentCollaborator, bedrock:ListAgentCollaborators |
 | bedrock | bedrock/agentknowledgebase | 1 |  | child-uncatalogued | bedrock:GetAgentKnowledgeBase, bedrock:ListAgentKnowledgeBases |
 | bedrock | bedrock/agentversion | 1 |  | child-uncatalogued | bedrock:GetAgentVersion, bedrock:ListAgentVersions |
-| bedrock | bedrock/asyncinvoke | 0 |  | sr-resource | bedrock:GetAsyncInvoke, bedrock:ListAsyncInvokes |
+| bedrock | bedrock/asyncinvoke | 0 |  | smithy-resource | bedrock:GetAsyncInvoke, bedrock:ListAsyncInvokes |
 | bedrock | bedrock/automatedreasoningpolicybuildworkflow | 1 |  | child-uncatalogued | bedrock:GetAutomatedReasoningPolicyBuildWorkflow, bedrock:ListAutomatedReasoningPolicyBuildWorkflows |
 | bedrock | bedrock/automatedreasoningpolicytestcase | 1 |  | child-uncatalogued | bedrock:GetAutomatedReasoningPolicyTestCase, bedrock:ListAutomatedReasoningPolicyTestCases |
 | bedrock | bedrock/automatedreasoningpolicytestresult | 1 |  | child-uncatalogued | bedrock:GetAutomatedReasoningPolicyTestResult, bedrock:ListAutomatedReasoningPolicyTestResults |
-| bedrock | bedrock/dataautomationlibraryingestionjob | 0 |  | sr-resource | bedrock:GetDataAutomationLibraryIngestionJob, bedrock:ListDataAutomationLibraryIngestionJobs |
-| bedrock | bedrock/evaluationjob | 0 |  | sr-resource | bedrock:GetEvaluationJob, bedrock:ListEvaluationJobs |
-| bedrock | bedrock/flowexecution | 2 |  | sr-resource | bedrock:GetFlowExecution, bedrock:ListFlowExecutions |
-| bedrock | bedrock/flowexecutionevent | 3 |  | child-uncatalogued | bedrock:ListFlowExecutionEvents |
+| bedrock | bedrock/dataautomationlibraryingestionjob | 0 |  | smithy-resource | bedrock:GetDataAutomationLibraryIngestionJob, bedrock:ListDataAutomationLibraryIngestionJobs |
+| bedrock | bedrock/evaluationjob | 0 |  | smithy-resource | bedrock:GetEvaluationJob, bedrock:ListEvaluationJobs |
+| bedrock | bedrock/flowexecution | 0 |  | smithy-resource | bedrock:ListFlowExecutions |
 | bedrock | bedrock/foundationmodelagreementoffer | 1 |  | child-uncatalogued | bedrock:ListFoundationModelAgreementOffers |
-| bedrock | bedrock/ingestionjob | 1 |  | child-uncatalogued | bedrock:GetIngestionJob, bedrock:ListIngestionJobs |
-| bedrock | bedrock/invocation | 1 |  | child-uncatalogued | bedrock:ListInvocations |
-| bedrock | bedrock/invocationstep | 1 |  | child-uncatalogued | bedrock:GetInvocationStep, bedrock:ListInvocationSteps |
-| bedrock | bedrock/knowledgebasedocument | 1 |  | child-uncatalogued | bedrock:GetKnowledgeBaseDocuments, bedrock:ListKnowledgeBaseDocuments |
-| bedrock | bedrock/modelcopyjob | 0 |  | sr-resource | bedrock:GetModelCopyJob, bedrock:ListModelCopyJobs |
-| bedrock | bedrock/modelcustomizationjob | 0 |  | sr-resource | bedrock:GetModelCustomizationJob, bedrock:ListModelCustomizationJobs |
-| bedrock | bedrock/modelimportjob | 0 |  | sr-resource | bedrock:GetModelImportJob, bedrock:ListModelImportJobs |
-| bedrock | bedrock/modelinvocationjob | 0 |  | sr-resource | bedrock:GetModelInvocationJob, bedrock:ListModelInvocationJobs |
-| bedrock | bedrock/session | 0 |  | sr-resource | bedrock:GetSession, bedrock:ListSessions |
-| bedrock-agentcore | bedrock-agentcore/abtest | 0 |  | sr-resource | bedrock-agentcore:GetABTest, bedrock-agentcore:ListABTests |
+| bedrock | bedrock/ingestionjob | 0 |  | smithy-resource | bedrock:GetIngestionJob, bedrock:ListIngestionJobs |
+| bedrock | bedrock/invocation | 1 |  | smithy-resource | bedrock:ListInvocations |
+| bedrock | bedrock/invocationstep | 1 |  | smithy-resource | bedrock:GetInvocationStep, bedrock:ListInvocationSteps |
+| bedrock | bedrock/knowledgebasedocument | 0 |  | smithy-resource | bedrock:GetKnowledgeBaseDocuments, bedrock:ListKnowledgeBaseDocuments |
+| bedrock | bedrock/modelcopyjob | 1 |  | sr-resource | bedrock:GetModelCopyJob, bedrock:ListModelCopyJobs, bedrock:ListTagsForResource |
+| bedrock | bedrock/modelcustomizationjob | 1 |  | sr-resource | bedrock:GetModelCustomizationJob, bedrock:ListModelCustomizationJobs |
+| bedrock | bedrock/modelimportjob | 1 |  | sr-resource | bedrock:GetModelImportJob, bedrock:ListModelImportJobs |
+| bedrock | bedrock/modelinvocationjob | 0 |  | smithy-resource | bedrock:GetModelInvocationJob, bedrock:ListModelInvocationJobs |
+| bedrock | bedrock/session | 0 |  | smithy-resource | bedrock:GetSession, bedrock:ListSessions |
+| bedrock-agentcore | bedrock-agentcore/abtest | 1 |  | sr-resource | bedrock-agentcore:GetABTest, bedrock-agentcore:ListABTests |
 | bedrock-agentcore | bedrock-agentcore/actor | 1 |  | child-uncatalogued | bedrock-agentcore:ListActors |
-| bedrock-agentcore | bedrock-agentcore/agentruntimeversion | 1 |  | child-uncatalogued | bedrock-agentcore:ListAgentRuntimeVersions, bedrock-agentcore:ListAgentRuntimeVersionsByCapacityProvider |
-| bedrock-agentcore | bedrock-agentcore/batchevaluation | 0 |  | child-uncatalogued | bedrock-agentcore:GetBatchEvaluation, bedrock-agentcore:ListBatchEvaluations |
-| bedrock-agentcore | bedrock-agentcore/browsersession | 1 |  | child-uncatalogued | bedrock-agentcore:GetBrowserSession, bedrock-agentcore:ListBrowserSessions |
-| bedrock-agentcore | bedrock-agentcore/capacityprovider | 0 |  | sr-resource | bedrock-agentcore:GetCapacityProvider, bedrock-agentcore:ListCapacityProviders |
-| bedrock-agentcore | bedrock-agentcore/codeinterpretersession | 1 |  | child-uncatalogued | bedrock-agentcore:GetCodeInterpreterSession, bedrock-agentcore:ListCodeInterpreterSessions |
-| bedrock-agentcore | bedrock-agentcore/configurationbundleversion | 1 |  | child-uncatalogued | bedrock-agentcore:GetConfigurationBundleVersion, bedrock-agentcore:ListConfigurationBundleVersions |
-| bedrock-agentcore | bedrock-agentcore/consentportal | 0 |  | sr-resource | bedrock-agentcore:GetConsentPortal, bedrock-agentcore:ListConsentPortals |
+| bedrock-agentcore | bedrock-agentcore/agentruntimeversion | 1 |  | child-uncatalogued | bedrock-agentcore:ListAgentRuntimeVersionsByCapacityProvider |
+| bedrock-agentcore | bedrock-agentcore/batchevaluation | 1 |  | child-uncatalogued | bedrock-agentcore:GetBatchEvaluation, bedrock-agentcore:ListBatchEvaluations |
+| bedrock-agentcore | bedrock-agentcore/browsersession | 0 |  | smithy-resource | bedrock-agentcore:GetBrowserSession, bedrock-agentcore:ListBrowserSessions |
+| bedrock-agentcore | bedrock-agentcore/capacityprovider | 0 |  | smithy-resource | bedrock-agentcore:GetCapacityProvider, bedrock-agentcore:ListCapacityProviders |
+| bedrock-agentcore | bedrock-agentcore/codeinterpretersession | 0 |  | smithy-resource | bedrock-agentcore:GetCodeInterpreterSession, bedrock-agentcore:ListCodeInterpreterSessions |
+| bedrock-agentcore | bedrock-agentcore/configurationbundleversion | 1 |  | child-uncatalogued | bedrock-agentcore:ListConfigurationBundleVersions |
+| bedrock-agentcore | bedrock-agentcore/consentportal | 0 |  | smithy-resource | bedrock-agentcore:GetConsentPortal, bedrock-agentcore:ListConsentPortals |
+| bedrock-agentcore | bedrock-agentcore/datasetexample | 1 |  | child-uncatalogued | bedrock-agentcore:ListDatasetExamples |
 | bedrock-agentcore | bedrock-agentcore/event | 1 |  | child-uncatalogued | bedrock-agentcore:GetEvent, bedrock-agentcore:ListEvents |
-| bedrock-agentcore | bedrock-agentcore/gatewayratelimit | 1 |  | child-uncatalogued | bedrock-agentcore:GetGatewayRateLimit, bedrock-agentcore:ListGatewayRateLimits |
-| bedrock-agentcore | bedrock-agentcore/gatewayrule | 1 |  | child-uncatalogued | bedrock-agentcore:GetGatewayRule, bedrock-agentcore:ListGatewayRules |
+| bedrock-agentcore | bedrock-agentcore/gatewayratelimit | 0 |  | smithy-resource | bedrock-agentcore:GetGatewayRateLimit, bedrock-agentcore:ListGatewayRateLimits |
+| bedrock-agentcore | bedrock-agentcore/gatewayrule | 0 |  | smithy-resource | bedrock-agentcore:GetGatewayRule, bedrock-agentcore:ListGatewayRules |
 | bedrock-agentcore | bedrock-agentcore/harnessversion | 1 |  | child-uncatalogued | bedrock-agentcore:ListHarnessVersions |
 | bedrock-agentcore | bedrock-agentcore/memoryextractionjob | 1 |  | child-uncatalogued | bedrock-agentcore:ListMemoryExtractionJobs |
 | bedrock-agentcore | bedrock-agentcore/memoryrecord | 1 |  | child-uncatalogued | bedrock-agentcore:GetMemoryRecord, bedrock-agentcore:ListMemoryRecords, bedrock-agentcore:RetrieveMemoryRecords |
-| bedrock-agentcore | bedrock-agentcore/paymentinstrument | 1 |  | child-uncatalogued | bedrock-agentcore:GetPaymentInstrument, bedrock-agentcore:ListPaymentInstruments |
-| bedrock-agentcore | bedrock-agentcore/paymentsession | 1 |  | child-uncatalogued | bedrock-agentcore:GetPaymentSession, bedrock-agentcore:ListPaymentSessions |
-| bedrock-agentcore | bedrock-agentcore/policyenginesummary | 0 |  | sr-resource | bedrock-agentcore:GetPolicyEngineSummary, bedrock-agentcore:ListPolicyEngineSummaries |
-| bedrock-agentcore | bedrock-agentcore/policygenerationasset | 2 |  | child-uncatalogued | bedrock-agentcore:ListPolicyGenerationAssets |
-| bedrock-agentcore | bedrock-agentcore/policygenerationsummary | 1 |  | sr-resource | bedrock-agentcore:GetPolicyGenerationSummary, bedrock-agentcore:ListPolicyGenerationSummaries |
-| bedrock-agentcore | bedrock-agentcore/policysummary | 1 |  | sr-resource | bedrock-agentcore:GetPolicySummary, bedrock-agentcore:ListPolicySummaries |
-| bedrock-agentcore | bedrock-agentcore/recommendation | 0 |  | sr-resource | bedrock-agentcore:GetRecommendation, bedrock-agentcore:ListRecommendations |
+| bedrock-agentcore | bedrock-agentcore/paymentinstrument | 0 |  | smithy-resource | bedrock-agentcore:GetPaymentInstrument, bedrock-agentcore:ListPaymentInstruments |
+| bedrock-agentcore | bedrock-agentcore/paymentsession | 0 |  | smithy-resource | bedrock-agentcore:GetPaymentSession, bedrock-agentcore:ListPaymentSessions |
+| bedrock-agentcore | bedrock-agentcore/policygenerationasset | 1 |  | child-uncatalogued | bedrock-agentcore:ListPolicyGenerationAssets |
+| bedrock-agentcore | bedrock-agentcore/recommendation | 1 |  | sr-resource | bedrock-agentcore:GetRecommendation, bedrock-agentcore:ListRecommendations |
 | bedrock-agentcore | bedrock-agentcore/session | 1 |  | child-uncatalogued | bedrock-agentcore:ListSessions |
-| billing | billing/credit | 0 |  | element-arn | billing:GetCredits |
-| billing | billing/sourceview | 1 |  | child-uncatalogued | billing:ListSourceViewsForBillingView |
+| billing | billing/sourceviewsforbillingview | 1 |  | child-uncatalogued | billing:ListSourceViewsForBillingView |
 | billingconductor | billingconductor/accountassociation | 0 |  | element-arn | billingconductor:ListAccountAssociations |
-| billingconductor | billingconductor/billinggroupcostreport | 0 |  | child-uncatalogued | billingconductor:GetBillingGroupCostReport, billingconductor:ListBillingGroupCostReports |
+| billingconductor | billingconductor/billinggroupcostreport | 0 |  | element-arn | billingconductor:GetBillingGroupCostReport, billingconductor:ListBillingGroupCostReports |
 | billingconductor | billingconductor/customlineitemversion | 1 |  | child-uncatalogued | billingconductor:ListCustomLineItemVersions |
-| billingconductor | billingconductor/pricingplansassociatedwithpricingrule | 1 |  | child-uncatalogued | billingconductor:ListPricingPlansAssociatedWithPricingRule |
-| billingconductor | billingconductor/pricingrulesassociatedtopricingplan | 1 |  | child-uncatalogued | billingconductor:ListPricingRulesAssociatedToPricingPlan |
 | billingconductor | billingconductor/resourcesassociatedtocustomlineitem | 1 |  | child-uncatalogued | billingconductor:ListResourcesAssociatedToCustomLineItem |
-| braket | braket/device | 0 |  | sr-resource | braket:GetDevice, braket:SearchDevices |
-| braket | braket/job | 0 |  | sr-resource | braket:GetJob, braket:SearchJobs |
-| braket | braket/quantumtask | 0 |  | sr-resource | braket:GetQuantumTask, braket:SearchQuantumTasks |
+| braket | braket/device | 0 |  | smithy-resource | braket:SearchDevices |
+| braket | braket/job | 0 |  | smithy-resource | braket:GetJob, braket:SearchJobs |
+| braket | braket/quantumtask | 0 |  | smithy-resource | braket:GetQuantumTask, braket:SearchQuantumTasks |
 | cases | cases/allrelateditem | 1 |  | child-uncatalogued | cases:SearchAllRelatedItems |
-| cases | cases/case | 1 |  | sr-resource | cases:GetCase, cases:ListCasesForContact, cases:SearchCases |
+| cases | cases/case | 1 |  | smithy-resource | cases:GetCase, cases:ListCasesForContact, cases:SearchCases |
 | cases | cases/caseauditevent | 2 |  | child-uncatalogued | cases:GetCaseAuditEvents |
 | cases | cases/fieldoption | 2 |  | child-uncatalogued | cases:ListFieldOptions |
-| cases | cases/relateditem | 2 |  | sr-resource | cases:SearchRelatedItems |
+| cases | cases/relateditem | 2 |  | smithy-resource | cases:SearchRelatedItems |
 | cassandra | cassandra/stream | 0 |  | sr-resource | cassandra:GetStream, cassandra:ListStreams |
 | ce | ce/anomaly | 1 |  | child-uncatalogued | ce:GetAnomalies |
+| ce | ce/commitmentpurchaseanalysis | 0 |  | element-written | ce:GetCommitmentPurchaseAnalysis, ce:ListCommitmentPurchaseAnalyses |
+| ce | ce/costallocationtagbackfillhistory | 0 |  | element-written | ce:ListCostAllocationTagBackfillHistory |
 | ce | ce/costcategoryresourceassociation | 0 |  | element-arn | ce:ListCostCategoryResourceAssociations |
 | ce | ce/savingsplansutilizationdetail | 0 |  | element-arn | ce:GetSavingsPlansUtilizationDetails |
-| chatbot | chatbot/chimewebhookconfiguration | 0 |  | writable-noun | chatbot:DescribeChimeWebhookConfigurations |
-| chatbot | chatbot/microsoftteamsconfiguredteam | 0 |  | writable-noun | chatbot:ListMicrosoftTeamsConfiguredTeams |
-| chatbot | chatbot/microsoftteamsuseridentity | 0 |  | writable-noun | chatbot:ListMicrosoftTeamsUserIdentities |
-| chatbot | chatbot/slackuseridentity | 0 |  | writable-noun | chatbot:DescribeSlackUserIdentities |
-| chime | chime/account | 0 |  | writable-noun | chime:GetAccount, chime:ListAccounts |
-| chime | chime/appinstanceuserendpoint | 2 |  | child-uncatalogued | chime:DescribeAppInstanceUserEndpoint, chime:ListAppInstanceUserEndpoints |
+| chatbot | chatbot/chimewebhookconfiguration | 0 |  | element-written | chatbot:DescribeChimeWebhookConfigurations |
+| chatbot | chatbot/microsoftteamsuseridentity | 0 |  | element-arn | chatbot:ListMicrosoftTeamsUserIdentities |
+| chatbot | chatbot/slackuseridentity | 0 |  | element-arn | chatbot:DescribeSlackUserIdentities |
+| chime | chime/account | 0 |  | element-written | chime:GetAccount, chime:ListAccounts |
+| chime | chime/appinstanceuserendpoint | 1 |  | child-uncatalogued | chime:DescribeAppInstanceUserEndpoint, chime:ListAppInstanceUserEndpoints |
 | chime | chime/attendee | 1 |  | child-uncatalogued | chime:GetAttendee, chime:ListAttendees |
-| chime | chime/bot | 0 |  | writable-noun | chime:GetBot, chime:ListBots |
-| chime | chime/channel | 1 |  | sr-resource | chime:DescribeChannel, chime:ListChannels, chime:SearchChannels |
-| chime | chime/channelmessage | 2 |  | child-uncatalogued | chime:GetChannelMessage, chime:ListChannelMessages |
-| chime | chime/channelsassociatedwithchannelflow | 2 |  | child-uncatalogued | chime:ListChannelsAssociatedWithChannelFlow |
-| chime | chime/mediacapturepipeline | 0 |  | writable-noun | chime:GetMediaCapturePipeline, chime:ListMediaCapturePipelines |
+| chime | chime/bot | 0 |  | element-written | chime:GetBot, chime:ListBots |
+| chime | chime/channel | 0 |  | sr-resource | chime:DescribeChannel, chime:ListChannels, chime:SearchChannels |
+| chime | chime/channelmessage | 1 |  | child-uncatalogued | chime:GetChannelMessage, chime:ListChannelMessages |
+| chime | chime/channelsassociatedwithchannelflow | 1 |  | child-uncatalogued | chime:ListChannelsAssociatedWithChannelFlow |
+| chime | chime/mediacapturepipeline | 0 |  | element-arn | chime:GetMediaCapturePipeline, chime:ListMediaCapturePipelines |
 | chime | chime/messagingstreamingconfiguration | 1 |  | child-uncatalogued | chime:GetMessagingStreamingConfigurations |
-| chime | chime/phonenumber | 0 |  | writable-noun | chime:GetPhoneNumber, chime:ListPhoneNumbers |
-| chime | chime/phonenumberorder | 0 |  | writable-noun | chime:GetPhoneNumberOrder, chime:ListPhoneNumberOrders |
+| chime | chime/phonenumber | 0 |  | element-written | chime:GetPhoneNumber, chime:ListPhoneNumbers |
+| chime | chime/phonenumberorder | 0 |  | element-written | chime:GetPhoneNumberOrder, chime:ListPhoneNumberOrders |
 | chime | chime/proxysession | 1 |  | child-uncatalogued | chime:GetProxySession, chime:ListProxySessions |
-| chime | chime/room | 0 |  | writable-noun | chime:GetRoom, chime:ListRooms |
+| chime | chime/room | 0 |  | element-written | chime:GetRoom, chime:ListRooms |
 | chime | chime/roommembership | 1 |  | child-uncatalogued | chime:ListRoomMemberships |
-| chime | chime/siprule | 0 |  | writable-noun | chime:GetSipRule, chime:ListSipRules |
-| chime | chime/subchannel | 2 |  | child-uncatalogued | chime:ListSubChannels |
-| chime | chime/user | 0 |  | writable-noun | chime:GetUser, chime:ListUsers |
-| chime | chime/voiceconnectorgroup | 0 |  | writable-noun | chime:GetVoiceConnectorGroup, chime:ListVoiceConnectorGroups |
+| chime | chime/siprule | 0 |  | element-written | chime:GetSipRule, chime:ListSipRules |
+| chime | chime/subchannel | 1 |  | child-uncatalogued | chime:ListSubChannels |
+| chime | chime/user | 0 |  | element-written | chime:GetUser, chime:ListUsers |
+| chime | chime/voiceconnectorgroup | 0 |  | element-written | chime:GetVoiceConnectorGroup, chime:ListVoiceConnectorGroups |
 | cleanrooms | cleanrooms/analysislogexport | 1 |  | child-uncatalogued | cleanrooms:GetAnalysisLogExport, cleanrooms:ListAnalysisLogExports |
 | cleanrooms | cleanrooms/collaborationanalysistemplate | 1 |  | child-uncatalogued | cleanrooms:BatchGetCollaborationAnalysisTemplate, cleanrooms:GetCollaborationAnalysisTemplate, cleanrooms:ListCollaborationAnalysisTemplates |
 | cleanrooms | cleanrooms/collaborationchangerequest | 1 |  | child-uncatalogued | cleanrooms:GetCollaborationChangeRequest, cleanrooms:ListCollaborationChangeRequests |
 | cleanrooms | cleanrooms/collaborationconfiguredaudiencemodelassociation | 1 |  | child-uncatalogued | cleanrooms:GetCollaborationConfiguredAudienceModelAssociation, cleanrooms:ListCollaborationConfiguredAudienceModelAssociations |
-| cleanrooms | cleanrooms/collaborationidnamespaceassociation | 1 |  | child-uncatalogued | cleanrooms:GetCollaborationIdNamespaceAssociation, cleanrooms:ListCollaborationIdNamespaceAssociations |
+| cleanrooms | cleanrooms/collaborationidnamespaceassociation | 1 |  | child-uncatalogued | cleanrooms:ListCollaborationIdNamespaceAssociations |
 | cleanrooms | cleanrooms/collaborationprivacybudget | 1 |  | child-uncatalogued | cleanrooms:ListCollaborationPrivacyBudgets |
 | cleanrooms | cleanrooms/collaborationprivacybudgettemplate | 1 |  | child-uncatalogued | cleanrooms:GetCollaborationPrivacyBudgetTemplate, cleanrooms:ListCollaborationPrivacyBudgetTemplates |
-| cleanrooms | cleanrooms/intermediatetable | 1 |  | sr-resource | cleanrooms:GetIntermediateTable, cleanrooms:ListIntermediateTables |
+| cleanrooms | cleanrooms/intermediatetable | 1 |  | smithy-resource | cleanrooms:GetIntermediateTable, cleanrooms:ListIntermediateTables |
 | cleanrooms | cleanrooms/intermediatetableversion | 2 |  | child-uncatalogued | cleanrooms:ListIntermediateTableVersions |
 | cleanrooms | cleanrooms/member | 1 |  | child-uncatalogued | cleanrooms:ListMembers |
 | cleanrooms | cleanrooms/privacybudget | 1 |  | child-uncatalogued | cleanrooms:ListPrivacyBudgets |
 | cleanrooms | cleanrooms/protectedjob | 1 |  | child-uncatalogued | cleanrooms:GetProtectedJob, cleanrooms:ListProtectedJobs |
 | cleanrooms | cleanrooms/protectedquery | 1 |  | child-uncatalogued | cleanrooms:GetProtectedQuery, cleanrooms:ListProtectedQueries |
 | cleanrooms | cleanrooms/schema | 1 |  | child-uncatalogued | cleanrooms:BatchGetSchema, cleanrooms:GetSchema, cleanrooms:ListSchemas |
-| cleanrooms-ml | cleanrooms-ml/audienceexportjob | 0 |  | element-arn | cleanrooms-ml:ListAudienceExportJobs |
-| cleanrooms-ml | cleanrooms-ml/audiencegenerationjob | 0 |  | sr-resource | cleanrooms-ml:GetAudienceGenerationJob, cleanrooms-ml:ListAudienceGenerationJobs |
-| cleanrooms-ml | cleanrooms-ml/collaborationconfiguredmodelalgorithmassociation | 1 |  | child-uncatalogued | cleanrooms-ml:GetCollaborationConfiguredModelAlgorithmAssociation, cleanrooms-ml:ListCollaborationConfiguredModelAlgorithmAssociations |
+| cleanrooms-ml | cleanrooms-ml/audienceexportjob | 0 |  | smithy-resource | cleanrooms-ml:ListAudienceExportJobs |
+| cleanrooms-ml | cleanrooms-ml/audiencegenerationjob | 0 |  | smithy-resource | cleanrooms-ml:GetAudienceGenerationJob, cleanrooms-ml:ListAudienceGenerationJobs |
+| cleanrooms-ml | cleanrooms-ml/collaborationconfiguredmodelalgorithmassociation | 1 |  | child-uncatalogued | cleanrooms-ml:ListCollaborationConfiguredModelAlgorithmAssociations |
 | cleanrooms-ml | cleanrooms-ml/collaborationmlinputchannel | 1 |  | child-uncatalogued | cleanrooms-ml:GetCollaborationMLInputChannel, cleanrooms-ml:ListCollaborationMLInputChannels |
 | cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodel | 1 |  | child-uncatalogued | cleanrooms-ml:GetCollaborationTrainedModel, cleanrooms-ml:ListCollaborationTrainedModels |
-| cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodelexportjob | 2 |  | child-uncatalogued | cleanrooms-ml:ListCollaborationTrainedModelExportJobs |
+| cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodelexportjob | 1 |  | child-uncatalogued | cleanrooms-ml:ListCollaborationTrainedModelExportJobs |
 | cleanrooms-ml | cleanrooms-ml/collaborationtrainedmodelinferencejob | 1 |  | child-uncatalogued | cleanrooms-ml:ListCollaborationTrainedModelInferenceJobs |
-| cleanrooms-ml | cleanrooms-ml/trainedmodelinferencejob | 1 |  | sr-resource | cleanrooms-ml:GetTrainedModelInferenceJob, cleanrooms-ml:ListTrainedModelInferenceJobs |
-| cleanrooms-ml | cleanrooms-ml/trainedmodelversion | 2 |  | child-uncatalogued | cleanrooms-ml:ListTrainedModelVersions |
-| cloud9 | cloud9/environmentmembership | 0 |  | writable-noun | cloud9:DescribeEnvironmentMemberships |
+| cleanrooms-ml | cleanrooms-ml/trainedmodelinferencejob | 0 |  | smithy-resource | cleanrooms-ml:GetTrainedModelInferenceJob, cleanrooms-ml:ListTrainedModelInferenceJobs |
+| cloud9 | cloud9/environmentmembership | 0 |  | element-written | cloud9:DescribeEnvironmentMemberships |
 | cloudcontrolapi | cloudcontrolapi/resource | 1 |  | child-uncatalogued | cloudcontrolapi:GetResource, cloudcontrolapi:ListResources |
-| cloudcontrolapi | cloudcontrolapi/resourcerequeststatus | 0 |  | element-arn | cloudcontrolapi:GetResourceRequestStatus |
-| clouddirectory | clouddirectory/attachedindex | 1 |  | child-uncatalogued | clouddirectory:ListAttachedIndices |
+| cloudcontrolapi | cloudcontrolapi/resourcerequest | 0 |  | element-written | cloudcontrolapi:GetResourceRequestStatus, cloudcontrolapi:ListResourceRequests |
 | clouddirectory | clouddirectory/facetattribute | 3 |  | child-uncatalogued | clouddirectory:ListFacetAttributes |
 | clouddirectory | clouddirectory/facetname | 3 |  | child-uncatalogued | clouddirectory:ListFacetNames |
-| clouddirectory | clouddirectory/index | 1 |  | child-uncatalogued | clouddirectory:ListIndex |
+| clouddirectory | clouddirectory/index | 1 |  | child-uncatalogued | clouddirectory:ListAttachedIndices, clouddirectory:ListIndex |
 | clouddirectory | clouddirectory/objectinformation | 1 |  | child-uncatalogued | clouddirectory:GetObjectInformation |
 | clouddirectory | clouddirectory/objectparent | 1 |  | child-uncatalogued | clouddirectory:ListObjectParents |
 | clouddirectory | clouddirectory/objectparentpath | 1 |  | child-uncatalogued | clouddirectory:ListObjectParentPaths |
@@ -629,346 +615,341 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | clouddirectory | clouddirectory/typedlinkfacetattribute | 3 |  | child-uncatalogued | clouddirectory:ListTypedLinkFacetAttributes |
 | clouddirectory | clouddirectory/typedlinkfacetname | 3 |  | child-uncatalogued | clouddirectory:ListTypedLinkFacetNames |
 | cloudformation | cloudformation/changeset | 1 |  | sr-resource | cloudformation:DescribeChangeSet, cloudformation:ListChangeSets |
-| cloudformation | cloudformation/changesethook | 1 |  | child-uncatalogued | cloudformation:DescribeChangeSetHooks |
 | cloudformation | cloudformation/hookresult | 0 |  | element-arn | cloudformation:GetHookResult, cloudformation:ListHookResults |
 | cloudformation | cloudformation/import | 1 |  | child-uncatalogued | cloudformation:ListImports |
-| cloudformation | cloudformation/resourcescanrelatedresource | 1 |  | child-uncatalogued | cloudformation:ListResourceScanRelatedResources |
-| cloudformation | cloudformation/resourcescanresource | 1 |  | child-uncatalogued | cloudformation:ListResourceScanResources |
+| cloudformation | cloudformation/resourcescanresource | 1 |  | child-uncatalogued | cloudformation:ListResourceScanRelatedResources, cloudformation:ListResourceScanResources |
 | cloudformation | cloudformation/stackevent | 1 |  | child-uncatalogued | cloudformation:DescribeStackEvents |
 | cloudformation | cloudformation/stackinstanceresourcedrift | 1 |  | child-uncatalogued | cloudformation:ListStackInstanceResourceDrifts |
-| cloudformation | cloudformation/stackrefactor | 0 |  | child-uncatalogued | cloudformation:DescribeStackRefactor, cloudformation:ListStackRefactors |
+| cloudformation | cloudformation/stackrefactor | 0 |  | element-written | cloudformation:DescribeStackRefactor, cloudformation:ListStackRefactors |
 | cloudformation | cloudformation/stackrefactoraction | 1 |  | child-uncatalogued | cloudformation:ListStackRefactorActions |
-| cloudformation | cloudformation/stackresourcedrift | 1 |  | child-uncatalogued | cloudformation:DescribeStackResourceDrifts |
+| cloudformation | cloudformation/stackresourcedrift | 1 |  | child-uncatalogued | cloudformation:DescribeStackResourceDrifts, cloudformation:DetectStackResourceDrift |
 | cloudformation | cloudformation/stacksetautodeploymenttarget | 1 |  | child-uncatalogued | cloudformation:ListStackSetAutoDeploymentTargets |
-| cloudformation | cloudformation/stacksetoperation | 1 |  | child-uncatalogued | cloudformation:DescribeStackSetOperation, cloudformation:ListStackSetOperations |
+| cloudformation | cloudformation/stacksetoperation | 1 |  | child-uncatalogued | cloudformation:ListStackSetOperations |
 | cloudformation | cloudformation/stacksetoperationresult | 1 |  | child-uncatalogued | cloudformation:ListStackSetOperationResults |
 | cloudformation | cloudformation/typeversion | 0 |  | element-arn | cloudformation:ListTypeVersions |
 | cloudfront | cloudfront/conflictingalias | 1 |  | child-uncatalogued | cloudfront:ListConflictingAliases |
 | cloudfront | cloudfront/domainconflict | 1 |  | child-uncatalogued | cloudfront:ListDomainConflicts |
 | cloudfront | cloudfront/invalidation | 1 |  | child-uncatalogued | cloudfront:GetInvalidation, cloudfront:GetInvalidationForDistributionTenant, cloudfront:ListInvalidations, cloudfront:ListInvalidationsForDistributionTenant |
-| cloudhsm | cloudhsm/hsm | 0 |  | writable-noun | cloudhsm:DescribeHsm, cloudhsm:ListHsms |
-| cloudtrail | cloudtrail/eventconfiguration | 0 |  | writable-noun | cloudtrail:GetEventConfiguration |
-| cloudtrail | cloudtrail/eventselector | 1 |  | child-uncatalogued | cloudtrail:GetEventSelectors |
-| cloudtrail | cloudtrail/import | 0 |  | element-created | cloudtrail:GetImport, cloudtrail:ListImports |
-| cloudtrail | cloudtrail/insightsdata | 1 |  | child-uncatalogued | cloudtrail:ListInsightsData |
-| cloudtrail | cloudtrail/insightselector | 0 |  | writable-noun | cloudtrail:GetInsightSelectors |
+| cloudhsm | cloudhsm/hsm | 0 |  | element-written | cloudhsm:ListHsms |
+| cloudtrail | cloudtrail/event | 0 |  | child-uncatalogued | cloudtrail:ListInsightsData, cloudtrail:LookupEvents |
+| cloudtrail | cloudtrail/eventconfiguration | 0 |  | element-written | cloudtrail:GetEventConfiguration |
+| cloudtrail | cloudtrail/import | 0 |  | element-written | cloudtrail:GetImport, cloudtrail:ListImports |
+| cloudtrail | cloudtrail/insightselector | 0 |  | element-written | cloudtrail:GetInsightSelectors |
 | cloudtrail | cloudtrail/query | 0 |  | child-uncatalogued | cloudtrail:DescribeQuery, cloudtrail:ListQueries |
+| cloudtrail | cloudtrail/queryresult | 1 |  | child-uncatalogued | cloudtrail:GetQueryResults |
 | codeartifact | codeartifact/allowedrepository | 2 |  | child-uncatalogued | codeartifact:ListAllowedRepositoriesForGroup |
 | codeartifact | codeartifact/package | 1 |  | sr-resource | codeartifact:DescribePackage, codeartifact:ListPackages |
 | codeartifact | codeartifact/packageversionasset | 2 |  | child-uncatalogued | codeartifact:GetPackageVersionAsset, codeartifact:ListPackageVersionAssets |
-| codeartifact | codeartifact/subpackagegroup | 2 |  | child-uncatalogued | codeartifact:ListSubPackageGroups |
 | codebuild | codebuild/build | 0 |  | sr-resource | codebuild:BatchGetBuilds, codebuild:ListBuilds, codebuild:ListBuildsForProject |
 | codebuild | codebuild/buildbatch | 0 |  | sr-resource | codebuild:BatchGetBuildBatches, codebuild:ListBuildBatches, codebuild:ListBuildBatchesForProject |
 | codebuild | codebuild/codecoverage | 1 |  | child-uncatalogued | codebuild:DescribeCodeCoverages |
 | codebuild | codebuild/commandexecution | 1 |  | child-uncatalogued | codebuild:BatchGetCommandExecutions, codebuild:ListCommandExecutionsForSandbox |
-| codebuild | codebuild/report | 0 |  | sr-resource | codebuild:BatchGetReports, codebuild:ListReports, codebuild:ListReportsForReportGroup |
-| codebuild | codebuild/reportgrouptrend | 1 |  | child-uncatalogued | codebuild:GetReportGroupTrend |
+| codebuild | codebuild/report | 0 |  | sr-resource | codebuild:BatchGetReports, codebuild:ListReports |
+| codebuild | codebuild/reportsforreportgroup | 1 |  | child-uncatalogued | codebuild:ListReportsForReportGroup |
 | codebuild | codebuild/sandbox | 0 |  | sr-resource | codebuild:BatchGetSandboxes, codebuild:ListSandboxes, codebuild:ListSandboxesForProject |
 | codebuild | codebuild/testcase | 1 |  | child-uncatalogued | codebuild:DescribeTestCases |
-| codecatalyst | codecatalyst/devenvironment | 1 |  | child-uncatalogued | codecatalyst:GetDevEnvironment, codecatalyst:ListDevEnvironments |
-| codecatalyst | codecatalyst/devenvironmentsession | 1 |  | child-uncatalogued | codecatalyst:ListDevEnvironmentSessions |
-| codecatalyst | codecatalyst/eventlog | 1 |  | child-uncatalogued | codecatalyst:ListEventLogs |
-| codecatalyst | codecatalyst/project | 1 |  | sr-resource | codecatalyst:GetProject, codecatalyst:ListProjects |
-| codecatalyst | codecatalyst/sourcerepository | 1 |  | child-uncatalogued | codecatalyst:GetSourceRepository, codecatalyst:ListSourceRepositories |
-| codecatalyst | codecatalyst/sourcerepositorybranch | 1 |  | child-uncatalogued | codecatalyst:ListSourceRepositoryBranches |
-| codecatalyst | codecatalyst/space | 0 |  | sr-resource | codecatalyst:GetSpace, codecatalyst:ListSpaces |
-| codecatalyst | codecatalyst/workflow | 1 |  | child-uncatalogued | codecatalyst:GetWorkflow, codecatalyst:ListWorkflows |
-| codecatalyst | codecatalyst/workflowrun | 1 |  | child-uncatalogued | codecatalyst:GetWorkflowRun, codecatalyst:ListWorkflowRuns |
-| codecommit | codecommit/approvalruletemplate | 0 |  | writable-noun | codecommit:GetApprovalRuleTemplate, codecommit:ListApprovalRuleTemplates |
+| codecatalyst | codecatalyst/accesstoken | 0 |  | smithy-resource | codecatalyst:ListAccessTokens |
+| codecatalyst | codecatalyst/devenvironment | 2 |  | child-uncatalogued | codecatalyst:GetDevEnvironment, codecatalyst:ListDevEnvironments |
+| codecatalyst | codecatalyst/devenvironmentsession | 3 |  | child-uncatalogued | codecatalyst:ListDevEnvironmentSessions |
+| codecatalyst | codecatalyst/eventlog | 1 |  | smithy-resource | codecatalyst:ListEventLogs |
+| codecatalyst | codecatalyst/project | 1 |  | smithy-resource | codecatalyst:GetProject, codecatalyst:ListProjects |
+| codecatalyst | codecatalyst/sourcerepository | 2 |  | smithy-resource | codecatalyst:GetSourceRepository, codecatalyst:ListSourceRepositories |
+| codecatalyst | codecatalyst/sourcerepositorybranch | 3 |  | smithy-resource | codecatalyst:ListSourceRepositoryBranches |
+| codecatalyst | codecatalyst/space | 0 |  | smithy-resource | codecatalyst:GetSpace, codecatalyst:ListSpaces |
+| codecatalyst | codecatalyst/workflow | 2 |  | smithy-resource | codecatalyst:GetWorkflow, codecatalyst:ListWorkflows |
+| codecatalyst | codecatalyst/workflowrun | 2 |  | smithy-resource | codecatalyst:GetWorkflowRun, codecatalyst:ListWorkflowRuns |
+| codecommit | codecommit/approvalruletemplate | 0 |  | element-written | codecommit:GetApprovalRuleTemplate, codecommit:ListApprovalRuleTemplates |
 | codecommit | codecommit/associatedapprovalruletemplate | 1 |  | child-uncatalogued | codecommit:ListAssociatedApprovalRuleTemplatesForRepository |
 | codecommit | codecommit/branch | 0 |  | child-uncatalogued | codecommit:GetBranch, codecommit:ListBranches |
-| codecommit | codecommit/comment | 1 |  | child-uncatalogued | codecommit:GetComment, codecommit:GetCommentsForComparedCommit, codecommit:GetCommentsForPullRequest |
-| codecommit | codecommit/commit | 1 |  | child-uncatalogued | codecommit:BatchGetCommits, codecommit:GetCommit |
+| codecommit | codecommit/comment | 1 |  | child-uncatalogued | codecommit:GetComment, codecommit:GetCommentsForPullRequest |
+| codecommit | codecommit/commentsforcomparedcommit | 1 |  | child-uncatalogued | codecommit:GetCommentsForComparedCommit |
+| codecommit | codecommit/commit | 1 |  | child-uncatalogued | codecommit:BatchGetCommits, codecommit:GetCommit, codecommit:GetMergeCommit |
 | codecommit | codecommit/filecommithistory | 1 |  | child-uncatalogued | codecommit:ListFileCommitHistory |
-| codecommit | codecommit/folder | 1 |  | child-uncatalogued | codecommit:GetFolder |
-| codecommit | codecommit/mergeoption | 1 |  | child-uncatalogued | codecommit:GetMergeOptions |
 | codecommit | codecommit/pullrequest | 1 |  | child-uncatalogued | codecommit:GetPullRequest, codecommit:ListPullRequests |
-| codecommit | codecommit/pullrequestapprovalstate | 1 |  | child-uncatalogued | codecommit:GetPullRequestApprovalStates |
 | codecommit | codecommit/pullrequestevent | 1 |  | child-uncatalogued | codecommit:DescribePullRequestEvents |
 | codecommit | codecommit/repositorytrigger | 1 |  | child-uncatalogued | codecommit:GetRepositoryTriggers |
 | codeconnections | codeconnections/connection | 0 |  | sr-resource | codeconnections:GetConnection, codeconnections:ListConnections |
 | codeconnections | codeconnections/host | 0 |  | sr-resource | codeconnections:GetHost, codeconnections:ListHosts |
 | codeconnections | codeconnections/repositorylink | 0 |  | sr-resource | codeconnections:GetRepositoryLink, codeconnections:ListRepositoryLinks |
-| codeconnections | codeconnections/syncconfiguration | 0 |  | child-uncatalogued | codeconnections:GetSyncConfiguration, codeconnections:ListSyncConfigurations |
-| codedeploy | codedeploy/deployment | 0 |  | child-uncatalogued | codedeploy:BatchGetDeployments, codedeploy:GetDeployment, codedeploy:ListDeployments |
-| codedeploy | codedeploy/deploymentinstance | 2 |  | child-uncatalogued | codedeploy:BatchGetDeploymentInstances, codedeploy:GetDeploymentInstance, codedeploy:ListDeploymentInstances |
-| codedeploy | codedeploy/deploymenttarget | 1 |  | child-uncatalogued | codedeploy:BatchGetDeploymentTargets, codedeploy:GetDeploymentTarget, codedeploy:ListDeploymentTargets |
-| codedeploy | codedeploy/onpremisesinstance | 0 |  | child-uncatalogued | codedeploy:BatchGetOnPremisesInstances, codedeploy:GetOnPremisesInstance, codedeploy:ListOnPremisesInstances |
-| codeguru-profiler | codeguru-profiler/findingsreport | 1 |  | child-uncatalogued | codeguru-profiler:ListFindingsReports |
+| codeconnections | codeconnections/syncconfiguration | 1 |  | child-uncatalogued | codeconnections:GetSyncConfiguration, codeconnections:ListSyncConfigurations |
+| codedeploy | codedeploy/deployment | 0 |  | element-written | codedeploy:BatchGetDeployments, codedeploy:GetDeployment, codedeploy:ListDeployments |
+| codedeploy | codedeploy/deploymentinstance | 2 |  | child-uncatalogued | codedeploy:GetDeploymentInstance, codedeploy:ListDeploymentInstances |
+| codedeploy | codedeploy/deploymenttarget | 1 |  | child-uncatalogued | codedeploy:GetDeploymentTarget, codedeploy:ListDeploymentTargets |
+| codeguru-profiler | codeguru-profiler/findingsreport | 1 |  | child-uncatalogued | codeguru-profiler:GetFindingsReportAccountSummary, codeguru-profiler:ListFindingsReports |
 | codeguru-reviewer | codeguru-reviewer/codereview | 0 |  | sr-resource | codeguru-reviewer:DescribeCodeReview, codeguru-reviewer:ListCodeReviews |
 | codeguru-reviewer | codeguru-reviewer/recommendation | 1 |  | child-uncatalogued | codeguru-reviewer:ListRecommendations |
 | codeguru-reviewer | codeguru-reviewer/recommendationfeedback | 1 |  | child-uncatalogued | codeguru-reviewer:DescribeRecommendationFeedback, codeguru-reviewer:ListRecommendationFeedback |
-| codeguru-security | codeguru-security/finding | 1 |  | child-uncatalogued | codeguru-security:BatchGetFindings, codeguru-security:GetFindings |
-| codeguru-security | codeguru-security/scan | 0 |  | writable-noun | codeguru-security:GetScan, codeguru-security:ListScans |
+| codeguru-security | codeguru-security/finding | 0 |  | child-uncatalogued | codeguru-security:GetFindings |
+| codeguru-security | codeguru-security/scan | 0 |  | element-written | codeguru-security:GetScan, codeguru-security:ListScans |
 | codepipeline | codepipeline/actionexecution | 1 |  | child-uncatalogued | codepipeline:ListActionExecutions |
 | codepipeline | codepipeline/deployactionexecutiontarget | 1 |  | child-uncatalogued | codepipeline:ListDeployActionExecutionTargets |
 | codepipeline | codepipeline/pipelineexecution | 1 |  | child-uncatalogued | codepipeline:GetPipelineExecution, codepipeline:ListPipelineExecutions |
-| codepipeline | codepipeline/pipelinestate | 1 |  | child-uncatalogued | codepipeline:GetPipelineState |
 | codepipeline | codepipeline/ruleexecution | 1 |  | child-uncatalogued | codepipeline:ListRuleExecutions |
-| codestar-notifications | codestar-notifications/target | 0 |  | writable-noun | codestar-notifications:ListTargets |
+| codepipeline | codepipeline/ruletype | 0 |  | element-written | codepipeline:ListRuleTypes |
 | cognito-identity | cognito-identity/identity | 0 |  | child-uncatalogued | cognito-identity:DescribeIdentity, cognito-identity:ListIdentities |
-| cognito-idp | cognito-idp/csvheader | 1 |  | child-uncatalogued | cognito-idp:GetCSVHeader |
-| cognito-idp | cognito-idp/device | 0 |  | element-created | cognito-idp:GetDevice, cognito-idp:ListDevices |
-| cognito-idp | cognito-idp/listgroup | 1 |  | child-uncatalogued | cognito-idp:AdminListGroupsForUser |
-| cognito-idp | cognito-idp/user | 0 |  | writable-noun | cognito-idp:GetUser, cognito-idp:ListUsers, cognito-idp:ListUsersInGroup |
+| cognito-idp | cognito-idp/device | 0 |  | element-created | cognito-idp:AdminGetDevice, cognito-idp:AdminListDevices, cognito-idp:GetDevice, cognito-idp:ListDevices |
+| cognito-idp | cognito-idp/listuserauthevent | 1 |  | child-uncatalogued | cognito-idp:AdminListUserAuthEvents |
+| cognito-idp | cognito-idp/user | 0 |  | element-written | cognito-idp:AdminGetUser, cognito-idp:GetUser, cognito-idp:ListUsers, cognito-idp:ListUsersInGroup |
 | cognito-idp | cognito-idp/userimportjob | 1 |  | child-uncatalogued | cognito-idp:DescribeUserImportJob, cognito-idp:ListUserImportJobs |
 | cognito-idp | cognito-idp/userpoolclientsecret | 1 |  | child-uncatalogued | cognito-idp:ListUserPoolClientSecrets |
 | cognito-idp | cognito-idp/userpoolreplica | 1 |  | child-uncatalogued | cognito-idp:ListUserPoolReplicas |
 | cognito-idp | cognito-idp/webauthncredential | 0 |  | element-created | cognito-idp:ListWebAuthnCredentials |
 | cognito-sync | cognito-sync/dataset | 2 |  | sr-resource | cognito-sync:DescribeDataset, cognito-sync:ListDatasets |
+| cognito-sync | cognito-sync/identitypoolusage | 0 |  | element-written | cognito-sync:DescribeIdentityPoolUsage, cognito-sync:ListIdentityPoolUsage |
 | cognito-sync | cognito-sync/record | 3 |  | child-uncatalogued | cognito-sync:ListRecords |
-| comprehend | comprehend/dataset | 0 |  | writable-noun | comprehend:DescribeDataset, comprehend:ListDatasets |
+| comprehend | comprehend/dataset | 0 |  | element-written | comprehend:DescribeDataset, comprehend:ListDatasets |
 | comprehend | comprehend/documentclassificationjob | 0 |  | sr-resource | comprehend:DescribeDocumentClassificationJob, comprehend:ListDocumentClassificationJobs |
-| comprehend | comprehend/documentclassifiersummary | 0 |  | sr-resource | comprehend:ListDocumentClassifierSummaries |
+| comprehend | comprehend/documentclassifiersummary | 0 |  | element-written | comprehend:ListDocumentClassifierSummaries |
 | comprehend | comprehend/dominantlanguagedetectionjob | 0 |  | sr-resource | comprehend:DescribeDominantLanguageDetectionJob, comprehend:ListDominantLanguageDetectionJobs |
 | comprehend | comprehend/entitiesdetectionjob | 0 |  | sr-resource | comprehend:DescribeEntitiesDetectionJob, comprehend:ListEntitiesDetectionJobs |
-| comprehend | comprehend/entityrecognizersummary | 0 |  | sr-resource | comprehend:ListEntityRecognizerSummaries |
+| comprehend | comprehend/entityrecognizersummary | 0 |  | element-created | comprehend:ListEntityRecognizerSummaries |
 | comprehend | comprehend/eventsdetectionjob | 0 |  | sr-resource | comprehend:DescribeEventsDetectionJob, comprehend:ListEventsDetectionJobs |
-| comprehend | comprehend/flywheeliterationhistory | 1 |  | child-uncatalogued | comprehend:ListFlywheelIterationHistory |
+| comprehend | comprehend/flywheeliteration | 1 |  | child-uncatalogued | comprehend:DescribeFlywheelIteration, comprehend:ListFlywheelIterationHistory |
 | comprehend | comprehend/keyphrasesdetectionjob | 0 |  | sr-resource | comprehend:DescribeKeyPhrasesDetectionJob, comprehend:ListKeyPhrasesDetectionJobs |
 | comprehend | comprehend/piientitiesdetectionjob | 0 |  | sr-resource | comprehend:DescribePiiEntitiesDetectionJob, comprehend:ListPiiEntitiesDetectionJobs |
 | comprehend | comprehend/sentimentdetectionjob | 0 |  | sr-resource | comprehend:DescribeSentimentDetectionJob, comprehend:ListSentimentDetectionJobs |
 | comprehend | comprehend/targetedsentimentdetectionjob | 0 |  | sr-resource | comprehend:DescribeTargetedSentimentDetectionJob, comprehend:ListTargetedSentimentDetectionJobs |
 | comprehend | comprehend/topicsdetectionjob | 0 |  | sr-resource | comprehend:DescribeTopicsDetectionJob, comprehend:ListTopicsDetectionJobs |
-| comprehendmedical | comprehendmedical/entitiesdetectionv2job | 0 |  | element-arn | comprehendmedical:DescribeEntitiesDetectionV2Job, comprehendmedical:ListEntitiesDetectionV2Jobs |
-| comprehendmedical | comprehendmedical/icd10cminferencejob | 0 |  | element-arn | comprehendmedical:DescribeICD10CMInferenceJob, comprehendmedical:ListICD10CMInferenceJobs |
-| comprehendmedical | comprehendmedical/phidetectionjob | 0 |  | element-arn | comprehendmedical:DescribePHIDetectionJob, comprehendmedical:ListPHIDetectionJobs |
-| comprehendmedical | comprehendmedical/rxnorminferencejob | 0 |  | element-arn | comprehendmedical:DescribeRxNormInferenceJob, comprehendmedical:ListRxNormInferenceJobs |
-| comprehendmedical | comprehendmedical/snomedctinferencejob | 0 |  | element-arn | comprehendmedical:DescribeSNOMEDCTInferenceJob, comprehendmedical:ListSNOMEDCTInferenceJobs |
-| compute-optimizer | compute-optimizer/autoscalinggrouprecommendation | 0 |  | element-arn | compute-optimizer:GetAutoScalingGroupRecommendations |
+| comprehendmedical | comprehendmedical/phidetectionjob | 0 |  | element-written | comprehendmedical:DescribeEntitiesDetectionV2Job, comprehendmedical:DescribeICD10CMInferenceJob, comprehendmedical:DescribePHIDetectionJob, comprehendmedical:DescribeRxNormInferenceJob, comprehendmedical:DescribeSNOMEDCTInferenceJob, comprehendmedical:ListEntitiesDetectionV2Jobs, comprehendmedical:ListICD10CMInferenceJobs, comprehendmedical:ListPHIDetectionJobs, comprehendmedical:ListRxNormInferenceJobs, comprehendmedical:ListSNOMEDCTInferenceJobs |
+| compute-optimizer | compute-optimizer/autoscalinggrouprecommendation | 0 |  | element-written | compute-optimizer:GetAutoScalingGroupRecommendations |
 | compute-optimizer | compute-optimizer/ebsvolumerecommendation | 0 |  | element-arn | compute-optimizer:GetEBSVolumeRecommendations |
-| compute-optimizer | compute-optimizer/ec2instancerecommendation | 0 |  | element-arn | compute-optimizer:GetEC2InstanceRecommendations |
+| compute-optimizer | compute-optimizer/ec2instancerecommendation | 0 |  | element-written | compute-optimizer:GetEC2InstanceRecommendations |
 | compute-optimizer | compute-optimizer/ecsservicerecommendation | 0 |  | element-arn | compute-optimizer:GetECSServiceRecommendations |
 | compute-optimizer | compute-optimizer/idlerecommendation | 0 |  | element-arn | compute-optimizer:GetIdleRecommendations |
 | compute-optimizer | compute-optimizer/lambdafunctionrecommendation | 0 |  | element-arn | compute-optimizer:GetLambdaFunctionRecommendations |
 | compute-optimizer | compute-optimizer/licenserecommendation | 0 |  | element-arn | compute-optimizer:GetLicenseRecommendations |
-| compute-optimizer | compute-optimizer/rdsdatabaserecommendation | 0 |  | element-arn | compute-optimizer:GetRDSDatabaseRecommendations |
+| compute-optimizer | compute-optimizer/rdsdatabaserecommendation | 0 |  | element-written | compute-optimizer:GetRDSDatabaseRecommendations |
 | compute-optimizer | compute-optimizer/recommendationexportjob | 0 |  | element-created | compute-optimizer:DescribeRecommendationExportJobs |
-| compute-optimizer | compute-optimizer/recommendationpreference | 0 |  | writable-noun | compute-optimizer:GetRecommendationPreferences |
-| config | config/aggregatecompliance | 1 |  | child-uncatalogued | config:DescribeAggregateComplianceByConfigRules, config:DescribeAggregateComplianceByConformancePacks |
+| compute-optimizer | compute-optimizer/recommendationpreference | 0 |  | element-written | compute-optimizer:GetRecommendationPreferences |
+| config | config/aggregatecompliancebyconfigrule | 1 |  | child-uncatalogued | config:DescribeAggregateComplianceByConfigRules |
+| config | config/aggregatecompliancebyconformancepack | 1 |  | child-uncatalogued | config:DescribeAggregateComplianceByConformancePacks |
 | config | config/aggregatecompliancedetail | 1 |  | child-uncatalogued | config:GetAggregateComplianceDetailsByConfigRule |
 | config | config/aggregateconfigrulecompliancesummary | 1 |  | child-uncatalogued | config:GetAggregateConfigRuleComplianceSummary |
 | config | config/aggregateconformancepackcompliancesummary | 1 |  | child-uncatalogued | config:GetAggregateConformancePackComplianceSummary |
 | config | config/aggregatediscoveredresource | 1 |  | child-uncatalogued | config:ListAggregateDiscoveredResources |
 | config | config/aggregatediscoveredresourcecount | 1 |  | child-uncatalogued | config:GetAggregateDiscoveredResourceCounts |
-| config | config/aggregateresourceconfig | 1 |  | child-uncatalogued | config:BatchGetAggregateResourceConfig, config:GetAggregateResourceConfig |
-| config | config/compliancedetail | 0 |  | child-uncatalogued | config:GetComplianceDetailsByConfigRule, config:GetComplianceDetailsByResource |
-| config | config/configruleevaluationstatus | 0 |  | element-arn | config:DescribeConfigRuleEvaluationStatus |
+| config | config/aggregateresourceconfig | 1 |  | child-uncatalogued | config:SelectAggregateResourceConfig |
+| config | config/compliancedetail | 0 |  | element-written | config:GetComplianceDetailsByConfigRule, config:GetComplianceDetailsByResource |
+| config | config/configruleevaluationstatus | 0 |  | element-written | config:DescribeConfigRuleEvaluationStatus |
 | config | config/configurationaggregatorsourcesstatus | 1 |  | child-uncatalogued | config:DescribeConfigurationAggregatorSourcesStatus |
 | config | config/configurationrecorderstatus | 0 |  | element-arn | config:DescribeConfigurationRecorderStatus |
 | config | config/conformancepackcompliance | 1 |  | child-uncatalogued | config:DescribeConformancePackCompliance |
 | config | config/conformancepackcompliancedetail | 1 |  | child-uncatalogued | config:GetConformancePackComplianceDetails |
+| config | config/conformancepackcompliancescore | 0 |  | element-written | config:ListConformancePackComplianceScores |
 | config | config/conformancepackcompliancesummary | 1 |  | child-uncatalogued | config:GetConformancePackComplianceSummary |
-| config | config/conformancepackstatus | 0 |  | element-arn | config:DescribeConformancePackStatus |
+| config | config/conformancepackstatus | 0 |  | element-written | config:DescribeConformancePackStatus |
 | config | config/connector | 0 |  | sr-resource | config:GetConnector, config:ListConnectors |
 | config | config/organizationconfigruledetailedstatus | 1 |  | child-uncatalogued | config:GetOrganizationConfigRuleDetailedStatus |
+| config | config/organizationconfigrulestatus | 0 |  | element-written | config:DescribeOrganizationConfigRuleStatuses |
 | config | config/organizationconformancepackdetailedstatus | 1 |  | child-uncatalogued | config:GetOrganizationConformancePackDetailedStatus |
-| config | config/pendingaggregationrequest | 0 |  | writable-noun | config:DescribePendingAggregationRequests |
+| config | config/organizationconformancepackstatus | 0 |  | element-written | config:DescribeOrganizationConformancePackStatuses |
 | config | config/remediationexception | 1 |  | child-uncatalogued | config:DescribeRemediationExceptions |
-| config | config/resourceconfig | 0 |  | writable-noun | config:BatchGetResourceConfig |
-| config | config/retentionconfiguration | 0 |  | writable-noun | config:DescribeRetentionConfigurations |
+| config | config/resourceconfig | 0 |  | element-written | config:BatchGetResourceConfig, config:SelectResourceConfig |
+| config | config/resourceconfighistory | 0 |  | child-uncatalogued | config:GetAggregateResourceConfig, config:GetResourceConfigHistory |
+| config | config/resourceevaluation | 0 |  | element-written | config:ListResourceEvaluations |
+| config | config/retentionconfiguration | 0 |  | element-written | config:DescribeRetentionConfigurations |
 | connect | connect/analyticsdataassociation | 1 |  | child-uncatalogued | connect:ListAnalyticsDataAssociations |
 | connect | connect/analyticsdatalakedataset | 1 |  | child-uncatalogued | connect:ListAnalyticsDataLakeDataSets |
-| connect | connect/associatedcontact | 2 |  | child-uncatalogued | connect:ListAssociatedContacts |
-| connect | connect/attachedfilemetadata | 2 |  | sr-resource | connect:BatchGetAttachedFileMetadata |
-| connect | connect/attachedfilesconfiguration | 1 |  | child-uncatalogued | connect:DescribeAttachedFilesConfiguration, connect:ListAttachedFilesConfigurations |
-| connect | connect/childhour | 1 |  | child-uncatalogued | connect:ListChildHoursOfOperations |
+| connect | connect/associatedcontact | 1 |  | child-uncatalogued | connect:ListAssociatedContacts |
+| connect | connect/attachedfilesconfiguration | 0 |  | child-uncatalogued | connect:DescribeAttachedFilesConfiguration, connect:ListAttachedFilesConfigurations |
+| connect | connect/childhour | 2 |  | child-uncatalogued | connect:ListChildHoursOfOperations |
 | connect | connect/contact | 1 |  | sr-resource | connect:DescribeContact, connect:SearchContacts |
 | connect | connect/contactevaluation | 1 |  | sr-resource | connect:DescribeContactEvaluation, connect:ListContactEvaluations, connect:SearchContactEvaluations |
-| connect | connect/contactmetric | 2 |  | child-uncatalogued | connect:GetContactMetrics |
-| connect | connect/datatablevalue | 2 |  | child-uncatalogued | connect:ListDataTableValues |
+| connect | connect/datatablevalue | 2 |  | child-uncatalogued | connect:BatchDescribeDataTableValue, connect:EvaluateDataTableValues, connect:ListDataTableValues |
 | connect | connect/defaultvocabulary | 1 |  | child-uncatalogued | connect:ListDefaultVocabularies |
-| connect | connect/entitysecurityprofile | 3 |  | child-uncatalogued | connect:ListEntitySecurityProfiles |
+| connect | connect/entitysecurityprofile | 1 |  | child-uncatalogued | connect:ListEntitySecurityProfiles |
 | connect | connect/evaluationformaiversion | 1 |  | child-uncatalogued | connect:ListEvaluationFormAIVersions |
 | connect | connect/evaluationformversion | 2 |  | child-uncatalogued | connect:ListEvaluationFormVersions |
-| connect | connect/extractiondefinition | 1 |  | sr-resource | connect:DescribeExtractionDefinition, connect:ListExtractionDefinitions |
+| connect | connect/extractiondefinition | 0 |  | sr-resource | connect:DescribeExtractionDefinition, connect:ListExtractionDefinitions |
 | connect | connect/flowassociation | 1 |  | child-uncatalogued | connect:BatchGetFlowAssociation, connect:GetFlowAssociation, connect:ListFlowAssociations |
+| connect | connect/getattachedfilemetadata | 1 |  | child-uncatalogued | connect:BatchGetAttachedFileMetadata |
+| connect | connect/hoursofoperationoverride | 2 |  | child-uncatalogued | connect:DescribeHoursOfOperationOverride, connect:ListHoursOfOperationOverrides, connect:SearchHoursOfOperationOverrides |
 | connect | connect/lambdafunction | 1 |  | child-uncatalogued | connect:ListLambdaFunctions |
 | connect | connect/lexbot | 1 |  | child-uncatalogued | connect:ListLexBots |
 | connect | connect/metric | 1 |  | sr-resource | connect:DescribeMetric, connect:ListMetrics, connect:SearchMetrics |
 | connect | connect/queueemailaddress | 2 |  | child-uncatalogued | connect:ListQueueEmailAddresses |
-| connect | connect/queuequickconnect | 2 |  | child-uncatalogued | connect:ListQueueQuickConnects |
 | connect | connect/routingprofilemanualassignmentqueue | 2 |  | child-uncatalogued | connect:ListRoutingProfileManualAssignmentQueues |
 | connect | connect/routingprofilequeue | 2 |  | child-uncatalogued | connect:ListRoutingProfileQueues |
 | connect | connect/securityprofileflowmodule | 2 |  | child-uncatalogued | connect:ListSecurityProfileFlowModules |
-| connect | connect/testcase | 1 |  | child-uncatalogued | connect:DescribeTestCase, connect:ListTestCases, connect:SearchTestCases |
-| connect | connect/testcaseexecution | 1 |  | child-uncatalogued | connect:ListTestCaseExecutions |
-| connect | connect/testcaseexecutionrecord | 2 |  | child-uncatalogued | connect:ListTestCaseExecutionRecords |
+| connect | connect/securityprofilepermission | 2 |  | child-uncatalogued | connect:ListSecurityProfilePermissions |
+| connect | connect/testcase | 1 |  | child-uncatalogued | connect:DescribeTestCase, connect:ListTestCases |
+| connect | connect/testcaseexecution | 0 |  | child-uncatalogued | connect:ListTestCaseExecutions |
+| connect | connect/testcaseexecutionrecord | 1 |  | child-uncatalogued | connect:ListTestCaseExecutionRecords |
 | connect | connect/trafficdistributiongroupuser | 1 |  | child-uncatalogued | connect:ListTrafficDistributionGroupUsers |
-| connect | connect/usecase | 1 |  | sr-resource | connect:ListUseCases |
+| connect | connect/usecase | 2 |  | sr-resource | connect:ListUseCases |
 | connect | connect/usernotification | 2 |  | child-uncatalogued | connect:ListUserNotifications |
 | connect | connect/userproficiency | 2 |  | child-uncatalogued | connect:ListUserProficiencies |
 | connect | connect/workspaceassociation | 2 |  | child-uncatalogued | connect:SearchWorkspaceAssociations |
 | connect | connect/workspacepage | 2 |  | child-uncatalogued | connect:ListWorkspacePages |
-| connect-campaigns | connect-campaigns/campaignstatebatch | 1 |  | child-uncatalogued | connect-campaigns:GetCampaignStateBatch |
-| controlcatalog | controlcatalog/commoncontrol | 0 |  | sr-resource | controlcatalog:ListCommonControls |
-| controlcatalog | controlcatalog/control | 0 |  | sr-resource | controlcatalog:GetControl, controlcatalog:ListControls |
+| controlcatalog | controlcatalog/commoncontrol | 0 |  | smithy-resource | controlcatalog:ListCommonControls |
+| controlcatalog | controlcatalog/control | 0 |  | smithy-resource | controlcatalog:GetControl, controlcatalog:ListControls |
 | controlcatalog | controlcatalog/controlmapping | 0 |  | element-arn | controlcatalog:ListControlMappings |
-| controlcatalog | controlcatalog/domain | 0 |  | sr-resource | controlcatalog:ListDomains |
-| controlcatalog | controlcatalog/objective | 0 |  | sr-resource | controlcatalog:ListObjectives |
-| controltower | controltower/baseline | 0 |  | sr-resource | controltower:GetBaseline, controltower:ListBaselines |
-| cost-optimization-hub | cost-optimization-hub/recommendation | 0 |  | element-arn | cost-optimization-hub:GetRecommendation, cost-optimization-hub:ListRecommendations |
+| controlcatalog | controlcatalog/domain | 0 |  | smithy-resource | controlcatalog:ListDomains |
+| controlcatalog | controlcatalog/objective | 0 |  | smithy-resource | controlcatalog:ListObjectives |
+| controltower | controltower/baseline | 0 |  | smithy-resource | controltower:GetBaseline, controltower:ListBaselines |
+| controltower | controltower/controloperation | 0 |  | smithy-resource | controltower:GetControlOperation, controltower:ListControlOperations |
+| controltower | controltower/landingzoneoperation | 0 |  | smithy-resource | controltower:GetLandingZoneOperation, controltower:ListLandingZoneOperations |
+| controltower | controltower/tagging | 0 |  | smithy-resource | controltower:ListTagsForResource |
+| cost-optimization-hub | cost-optimization-hub/recommendation | 0 |  | element-arn | cost-optimization-hub:ListRecommendations |
 | databrew | databrew/jobrun | 1 |  | child-uncatalogued | databrew:DescribeJobRun, databrew:ListJobRuns |
-| databrew | databrew/recipeversion | 1 |  | child-uncatalogued | databrew:ListRecipeVersions |
 | dataexchange | dataexchange/datasetrevision | 1 |  | child-uncatalogued | dataexchange:ListDataSetRevisions |
 | dataexchange | dataexchange/job | 0 |  | sr-resource | dataexchange:GetJob, dataexchange:ListJobs |
-| dataexchange | dataexchange/receiveddatagrant | 0 |  | element-arn | dataexchange:GetReceivedDataGrant, dataexchange:ListReceivedDataGrants |
+| dataexchange | dataexchange/receiveddatagrant | 0 |  | element-written | dataexchange:GetReceivedDataGrant, dataexchange:ListReceivedDataGrants |
 | dataexchange | dataexchange/revisionasset | 2 |  | child-uncatalogued | dataexchange:ListRevisionAssets |
-| datapipeline | datapipeline/object | 1 |  | child-uncatalogued | datapipeline:DescribeObjects |
-| datapipeline | datapipeline/pipelinedefinition | 1 |  | child-uncatalogued | datapipeline:GetPipelineDefinition |
+| datapipeline | datapipeline/object | 1 |  | child-uncatalogued | datapipeline:DescribeObjects, datapipeline:QueryObjects |
+| datapipeline | datapipeline/pipelinedefinition | 1 |  | child-uncatalogued | datapipeline:GetPipelineDefinition, datapipeline:ValidatePipelineDefinition |
 | datasync | datasync/taskexecution | 0 |  | sr-resource | datasync:DescribeTaskExecution, datasync:ListTaskExecutions |
-| datazone | datazone/account | 1 |  | child-uncatalogued | datazone:ListAccountsInAccountPool |
 | datazone | datazone/accountpool | 1 |  | child-uncatalogued | datazone:GetAccountPool, datazone:ListAccountPools |
+| datazone | datazone/accountsinaccountpool | 2 |  | child-uncatalogued | datazone:ListAccountsInAccountPool |
 | datazone | datazone/assetfilter | 1 |  | child-uncatalogued | datazone:GetAssetFilter, datazone:ListAssetFilters |
 | datazone | datazone/assetrevision | 1 |  | child-uncatalogued | datazone:ListAssetRevisions |
-| datazone | datazone/attributesmetadata | 1 |  | child-uncatalogued | datazone:BatchGetAttributesMetadata |
+| datazone | datazone/dataproduct | 0 |  | smithy-resource | datazone:GetDataProduct, datazone:GetLineageNode, datazone:GetSubscriptionRequestDetails |
 | datazone | datazone/dataproductrevision | 1 |  | child-uncatalogued | datazone:ListDataProductRevisions |
-| datazone | datazone/datasourcerun | 1 |  | child-uncatalogued | datazone:GetDataSourceRun, datazone:ListDataSourceRuns |
+| datazone | datazone/datasourcerun | 0 |  | smithy-resource | datazone:GetDataSourceRun, datazone:ListDataSourceRuns |
 | datazone | datazone/datasourcerunactivity | 1 |  | child-uncatalogued | datazone:ListDataSourceRunActivities |
 | datazone | datazone/environmentblueprint | 1 |  | child-uncatalogued | datazone:GetEnvironmentBlueprint, datazone:ListEnvironmentBlueprints |
-| datazone | datazone/jobrun | 1 |  | child-uncatalogued | datazone:GetJobRun, datazone:ListJobRuns |
+| datazone | datazone/getattributesmetadata | 3 |  | child-uncatalogued | datazone:BatchGetAttributesMetadata |
+| datazone | datazone/jobrun | 2 |  | child-uncatalogued | datazone:GetJobRun, datazone:ListJobRuns |
 | datazone | datazone/lineageevent | 1 |  | child-uncatalogued | datazone:GetLineageEvent, datazone:ListLineageEvents |
-| datazone | datazone/lineagenodehistory | 1 |  | child-uncatalogued | datazone:ListLineageNodeHistory |
-| datazone | datazone/metadatagenerationrun | 1 |  | child-uncatalogued | datazone:GetMetadataGenerationRun, datazone:ListMetadataGenerationRuns |
-| datazone | datazone/notebook | 1 |  | child-uncatalogued | datazone:GetNotebook, datazone:ListNotebooks |
-| datazone | datazone/notebookrun | 1 |  | child-uncatalogued | datazone:GetNotebookRun, datazone:ListNotebookRuns |
+| datazone | datazone/lineagenodehistory | 2 |  | child-uncatalogued | datazone:ListLineageNodeHistory |
+| datazone | datazone/metadatagenerationrun | 0 |  | smithy-resource | datazone:GetMetadataGenerationRun, datazone:ListMetadataGenerationRuns |
+| datazone | datazone/notebook | 0 |  | smithy-resource | datazone:GetNotebook, datazone:ListNotebooks |
+| datazone | datazone/notebookrun | 0 |  | smithy-resource | datazone:GetNotebookRun, datazone:ListNotebookRuns |
 | datazone | datazone/notification | 1 |  | child-uncatalogued | datazone:ListNotifications |
-| datazone | datazone/policygrant | 1 |  | child-uncatalogued | datazone:ListPolicyGrants |
-| datazone | datazone/rule | 1 |  | child-uncatalogued | datazone:GetRule, datazone:ListRules |
+| datazone | datazone/policygrant | 3 |  | child-uncatalogued | datazone:ListPolicyGrants |
+| datazone | datazone/rule | 0 |  | smithy-resource | datazone:GetRule, datazone:ListRules |
 | datazone | datazone/subscription | 1 |  | child-uncatalogued | datazone:GetSubscription, datazone:ListSubscriptions |
 | datazone | datazone/subscriptiongrant | 1 |  | child-uncatalogued | datazone:GetSubscriptionGrant, datazone:ListSubscriptionGrants |
 | datazone | datazone/subscriptionrequest | 1 |  | child-uncatalogued | datazone:ListSubscriptionRequests |
-| datazone | datazone/subscriptionrequestdetail | 1 |  | child-uncatalogued | datazone:GetSubscriptionRequestDetails |
-| datazone | datazone/timeseriesdatapoint | 1 |  | child-uncatalogued | datazone:GetTimeSeriesDataPoint, datazone:ListTimeSeriesDataPoints |
-| dax | dax/parameter | 1 |  | child-uncatalogued | dax:DescribeParameters |
+| datazone | datazone/timeseriesdatapoint | 3 |  | child-uncatalogued | datazone:GetTimeSeriesDataPoint, datazone:ListTimeSeriesDataPoints |
 | deadline | deadline/farmmember | 1 |  | child-uncatalogued | deadline:ListFarmMembers |
 | deadline | deadline/fleetmember | 2 |  | child-uncatalogued | deadline:ListFleetMembers |
-| deadline | deadline/job | 0 |  | sr-resource | deadline:BatchGetJob, deadline:GetJob, deadline:ListJobs, deadline:SearchJobs |
-| deadline | deadline/jobmember | 1 |  | child-uncatalogued | deadline:ListJobMembers |
-| deadline | deadline/jobparameterdefinition | 1 |  | child-uncatalogued | deadline:ListJobParameterDefinitions |
+| deadline | deadline/job | 2 |  | smithy-resource | deadline:BatchGetJob, deadline:GetJob, deadline:ListJobs, deadline:SearchJobs |
+| deadline | deadline/jobmember | 3 |  | child-uncatalogued | deadline:ListJobMembers |
+| deadline | deadline/jobparameterdefinition | 3 |  | child-uncatalogued | deadline:ListJobParameterDefinitions |
 | deadline | deadline/queuemember | 2 |  | child-uncatalogued | deadline:ListQueueMembers |
-| deadline | deadline/session | 0 |  | child-uncatalogued | deadline:BatchGetSession, deadline:GetSession, deadline:ListSessions, deadline:ListSessionsForWorker |
-| deadline | deadline/sessionaction | 0 |  | child-uncatalogued | deadline:BatchGetSessionAction, deadline:GetSessionAction, deadline:ListSessionActions |
-| deadline | deadline/sessionsstatisticsaggregation | 2 |  | child-uncatalogued | deadline:GetSessionsStatisticsAggregation |
-| deadline | deadline/step | 0 |  | child-uncatalogued | deadline:BatchGetStep, deadline:GetStep, deadline:ListSteps, deadline:SearchSteps |
-| deadline | deadline/stepconsumer | 1 |  | child-uncatalogued | deadline:ListStepConsumers |
-| deadline | deadline/stepdependency | 1 |  | child-uncatalogued | deadline:ListStepDependencies |
-| deadline | deadline/task | 0 |  | child-uncatalogued | deadline:BatchGetTask, deadline:GetTask, deadline:ListTasks, deadline:SearchTasks |
-| deadline | deadline/worker | 0 |  | sr-resource | deadline:BatchGetWorker, deadline:GetWorker, deadline:ListWorkers, deadline:SearchWorkers |
-| detective | detective/graphmemberdatasource | 1 |  | child-uncatalogued | detective:BatchGetGraphMemberDatasources |
+| deadline | deadline/session | 3 |  | child-uncatalogued | deadline:BatchGetSession, deadline:GetSession, deadline:ListSessions, deadline:ListSessionsForWorker |
+| deadline | deadline/sessionaction | 3 |  | child-uncatalogued | deadline:ListSessionActions |
+| deadline | deadline/sessionsstatisticsaggregation | 1 |  | child-uncatalogued | deadline:GetSessionsStatisticsAggregation, deadline:StartSessionsStatisticsAggregation |
+| deadline | deadline/step | 3 |  | child-uncatalogued | deadline:BatchGetStep, deadline:GetStep, deadline:ListSteps |
+| deadline | deadline/stepconsumer | 3 |  | child-uncatalogued | deadline:ListStepConsumers |
+| deadline | deadline/stepdependency | 3 |  | child-uncatalogued | deadline:ListStepDependencies |
+| deadline | deadline/task | 3 |  | child-uncatalogued | deadline:ListTasks |
+| deadline | deadline/worker | 2 |  | smithy-resource | deadline:BatchGetWorker, deadline:GetWorker, deadline:ListWorkers, deadline:SearchWorkers |
+| detective | detective/getgraphmemberdatasource | 1 |  | child-uncatalogued | detective:BatchGetGraphMemberDatasources |
 | detective | detective/investigation | 1 |  | child-uncatalogued | detective:GetInvestigation, detective:ListInvestigations |
-| detective | detective/invitation | 0 |  | element-arn | detective:ListInvitations |
-| detective | detective/membershipdatasource | 1 |  | child-uncatalogued | detective:BatchGetMembershipDatasources |
 | devicefarm | devicefarm/artifact | 1 |  | sr-resource | devicefarm:ListArtifacts |
 | devicefarm | devicefarm/device | 0 |  | sr-resource | devicefarm:GetDevice, devicefarm:ListDevices |
 | devicefarm | devicefarm/job | 0 |  | sr-resource | devicefarm:GetJob, devicefarm:ListJobs |
-| devicefarm | devicefarm/offeringtransaction | 0 |  | element-created | devicefarm:ListOfferingTransactions |
+| devicefarm | devicefarm/offeringtransaction | 0 |  | element-written | devicefarm:ListOfferingTransactions |
 | devicefarm | devicefarm/remoteaccesssession | 1 |  | child-uncatalogued | devicefarm:GetRemoteAccessSession, devicefarm:ListRemoteAccessSessions |
 | devicefarm | devicefarm/run | 0 |  | sr-resource | devicefarm:GetRun, devicefarm:ListRuns |
 | devicefarm | devicefarm/sample | 1 |  | sr-resource | devicefarm:ListSamples |
 | devicefarm | devicefarm/suite | 0 |  | sr-resource | devicefarm:GetSuite, devicefarm:ListSuites |
 | devicefarm | devicefarm/test | 0 |  | sr-resource | devicefarm:GetTest, devicefarm:ListTests |
 | devicefarm | devicefarm/testgridsession | 0 |  | sr-resource | devicefarm:GetTestGridSession, devicefarm:ListTestGridSessions |
+| devicefarm | devicefarm/uniqueproblem | 1 |  | child-uncatalogued | devicefarm:ListUniqueProblems |
 | devicefarm | devicefarm/upload | 0 |  | sr-resource | devicefarm:GetUpload, devicefarm:ListUploads |
 | devops-guru | devops-guru/anomalousloggroup | 1 |  | child-uncatalogued | devops-guru:ListAnomalousLogGroups |
-| devops-guru | devops-guru/anomaly | 0 |  | child-uncatalogued | devops-guru:DescribeAnomaly, devops-guru:ListAnomaliesForInsight |
-| devops-guru | devops-guru/insight | 0 |  | writable-noun | devops-guru:DescribeInsight, devops-guru:ListInsights, devops-guru:SearchInsights |
-| devops-guru | devops-guru/organizationinsight | 0 |  | child-uncatalogued | devops-guru:ListOrganizationInsights, devops-guru:SearchOrganizationInsights |
+| devops-guru | devops-guru/anomaly | 1 |  | child-uncatalogued | devops-guru:DescribeAnomaly, devops-guru:ListAnomaliesForInsight |
+| devops-guru | devops-guru/event | 0 |  | element-written | devops-guru:ListEvents |
+| devops-guru | devops-guru/insight | 0 |  | element-written | devops-guru:DescribeInsight, devops-guru:ListInsights, devops-guru:SearchInsights |
+| devops-guru | devops-guru/monitoredresource | 0 |  | element-written | devops-guru:ListMonitoredResources |
+| devops-guru | devops-guru/organizationinsight | 0 |  | element-written | devops-guru:ListOrganizationInsights, devops-guru:SearchOrganizationInsights |
 | devops-guru | devops-guru/recommendation | 1 |  | child-uncatalogued | devops-guru:ListRecommendations |
-| directconnect | directconnect/connectionsoninterconnect | 1 |  | child-uncatalogued | directconnect:DescribeConnectionsOnInterconnect |
-| directconnect | directconnect/directconnectgatewayassociationproposal | 0 |  | writable-noun | directconnect:DescribeDirectConnectGatewayAssociationProposals |
-| directconnect | directconnect/hostedconnection | 1 |  | child-uncatalogued | directconnect:DescribeHostedConnections |
-| directconnect | directconnect/interconnect | 0 |  | writable-noun | directconnect:DescribeInterconnects |
-| directconnect | directconnect/resiliencygroup | 0 |  | writable-noun | directconnect:GetResiliencyGroup, directconnect:ListResiliencyGroups |
+| devops-guru | devops-guru/resourcecollectionhealth | 1 |  | child-uncatalogued | devops-guru:DescribeResourceCollectionHealth |
+| directconnect | directconnect/directconnectgatewayassociationproposal | 0 |  | element-written | directconnect:DescribeDirectConnectGatewayAssociationProposals |
+| directconnect | directconnect/interconnect | 0 |  | element-written | directconnect:DescribeInterconnects |
+| directconnect | directconnect/resiliencygroup | 0 |  | element-written | directconnect:GetResiliencyGroup, directconnect:ListResiliencyGroups |
 | directconnect | directconnect/resiliencygroupassociation | 1 |  | child-uncatalogued | directconnect:ListResiliencyGroupAssociations |
+| directconnect | directconnect/virtualinterfacetesthistory | 0 |  | element-written | directconnect:ListVirtualInterfaceTestHistory |
+| discovery | discovery/continuousexport | 0 |  | element-written | discovery:DescribeContinuousExports |
+| discovery | discovery/importtask | 0 |  | element-written | discovery:DescribeImportTasks |
 | discovery | discovery/serverneighbor | 1 |  | child-uncatalogued | discovery:ListServerNeighbors |
-| dms | dms/connection | 0 |  | writable-noun | dms:DescribeConnections |
-| dms | dms/endpointsetting | 1 |  | child-uncatalogued | dms:DescribeEndpointSettings |
-| dms | dms/extensionpackassociation | 1 |  | child-uncatalogued | dms:DescribeExtensionPackAssociations |
-| dms | dms/fleetadvisorcollector | 0 |  | writable-noun | dms:DescribeFleetAdvisorCollectors |
-| dms | dms/fleetadvisordatabase | 0 |  | writable-noun | dms:DescribeFleetAdvisorDatabases |
-| dms | dms/fleetadvisorlsaanalysis | 0 |  | writable-noun | dms:DescribeFleetAdvisorLsaAnalysis |
-| dms | dms/metadatamodel | 1 |  | child-uncatalogued | dms:DescribeMetadataModel |
-| dms | dms/metadatamodelassessment | 1 |  | child-uncatalogued | dms:DescribeMetadataModelAssessments |
+| dms | dms/connection | 0 |  | element-written | dms:DescribeConnections, dms:TestConnection |
+| dms | dms/endpointsetting | 0 |  | child-uncatalogued | dms:DescribeEndpointSettings |
+| dms | dms/fleetadvisorcollector | 0 |  | element-arn | dms:DescribeFleetAdvisorCollectors |
 | dms | dms/metadatamodelchildren | 1 |  | child-uncatalogued | dms:DescribeMetadataModelChildren |
-| dms | dms/metadatamodelconversion | 1 |  | child-uncatalogued | dms:DescribeMetadataModelConversions |
-| dms | dms/metadatamodelcreation | 1 |  | child-uncatalogued | dms:DescribeMetadataModelCreations |
-| dms | dms/metadatamodelexport | 1 |  | child-uncatalogued | dms:DescribeMetadataModelExportsAsScript |
-| dms | dms/metadatamodelexportstotarget | 1 |  | child-uncatalogued | dms:DescribeMetadataModelExportsToTarget |
-| dms | dms/metadatamodelimport | 1 |  | child-uncatalogued | dms:DescribeMetadataModelImports |
-| dms | dms/replication | 0 |  | element-arn | dms:DescribeReplications |
+| dms | dms/metadatamodelimport | 1 |  | child-uncatalogued | dms:DescribeExtensionPackAssociations, dms:DescribeMetadataModelAssessments, dms:DescribeMetadataModelConversions, dms:DescribeMetadataModelCreations, dms:DescribeMetadataModelExportsAsScript, dms:DescribeMetadataModelExportsToTarget, dms:DescribeMetadataModelImports |
+| dms | dms/pendingmaintenanceaction | 0 |  | element-written | dms:DescribePendingMaintenanceActions |
+| dms | dms/recommendation | 0 |  | element-written | dms:DescribeRecommendations |
+| dms | dms/replication | 0 |  | element-written | dms:DescribeReplications |
 | dms | dms/replicationinstancetasklog | 1 |  | child-uncatalogued | dms:DescribeReplicationInstanceTaskLogs |
-| dms | dms/replicationtablestatistic | 1 |  | child-uncatalogued | dms:DescribeReplicationTableStatistics |
 | dms | dms/replicationtaskassessmentresult | 0 |  | element-arn | dms:DescribeReplicationTaskAssessmentResults |
 | dms | dms/replicationtaskassessmentrun | 0 |  | sr-resource | dms:DescribeReplicationTaskAssessmentRuns |
 | dms | dms/replicationtaskindividualassessment | 0 |  | sr-resource | dms:DescribeReplicationTaskIndividualAssessments |
 | dms | dms/schema | 1 |  | child-uncatalogued | dms:DescribeSchemas |
-| dms | dms/tablestatistic | 1 |  | child-uncatalogued | dms:DescribeTableStatistics |
-| docdb-elastic | docdb-elastic/pendingmaintenanceaction | 0 |  | element-arn | docdb-elastic:GetPendingMaintenanceAction, docdb-elastic:ListPendingMaintenanceActions |
+| dms | dms/tablestatistic | 1 |  | child-uncatalogued | dms:DescribeReplicationTableStatistics, dms:DescribeTableStatistics |
+| docdb-elastic | docdb-elastic/pendingmaintenanceaction | 0 |  | element-written | docdb-elastic:GetPendingMaintenanceAction, docdb-elastic:ListPendingMaintenanceActions |
 | drs | drs/extensiblesourceserver | 1 |  | child-uncatalogued | drs:ListExtensibleSourceServers |
-| drs | drs/job | 0 |  | writable-noun | drs:DescribeJobs |
+| drs | drs/job | 0 |  | smithy-resource | drs:DescribeJobs |
 | drs | drs/launchaction | 1 |  | child-uncatalogued | drs:ListLaunchActions |
-| drs | drs/recoveryplan | 0 |  | writable-noun | drs:GetRecoveryPlan, drs:ListRecoveryPlans |
-| drs | drs/recoveryplanexecution | 0 |  | writable-noun | drs:GetRecoveryPlanExecution, drs:ListRecoveryPlanExecutions |
+| drs | drs/recoveryplan | 0 |  | element-written | drs:GetRecoveryPlan, drs:ListRecoveryPlans |
+| drs | drs/recoveryplanexecution | 0 |  | element-written | drs:GetRecoveryPlanExecution, drs:ListRecoveryPlanExecutions |
 | drs | drs/recoveryplanexecutionstep | 1 |  | child-uncatalogued | drs:GetRecoveryPlanExecutionStep, drs:ListRecoveryPlanExecutionSteps |
 | drs | drs/recoveryplanstep | 1 |  | child-uncatalogued | drs:GetRecoveryPlanStep, drs:ListRecoveryPlanSteps |
 | drs | drs/recoverysnapshot | 1 |  | child-uncatalogued | drs:DescribeRecoverySnapshots |
 | drs | drs/replicationconfiguration | 1 |  | child-uncatalogued | drs:GetReplicationConfiguration |
-| ds | ds/adassessment | 0 |  | writable-noun | ds:DescribeADAssessment, ds:ListADAssessments |
 | ds | ds/certificate | 1 |  | child-uncatalogued | ds:DescribeCertificate, ds:ListCertificates |
-| ds | ds/conditionalforwarder | 1 |  | child-uncatalogued | ds:DescribeConditionalForwarders |
 | ds | ds/domaincontroller | 1 |  | child-uncatalogued | ds:DescribeDomainControllers |
-| ds | ds/eventtopic | 0 |  | writable-noun | ds:DescribeEventTopics |
+| ds | ds/eventtopic | 0 |  | element-arn | ds:DescribeEventTopics |
 | ds | ds/iproute | 1 |  | child-uncatalogued | ds:ListIpRoutes |
-| ds | ds/logsubscription | 0 |  | writable-noun | ds:ListLogSubscriptions |
+| ds | ds/logsubscription | 0 |  | element-created | ds:ListLogSubscriptions |
 | ds | ds/region | 1 |  | child-uncatalogued | ds:DescribeRegions |
 | ds | ds/schemaextension | 1 |  | child-uncatalogued | ds:ListSchemaExtensions |
-| ds | ds/setting | 1 |  | child-uncatalogued | ds:DescribeSettings |
 | ds | ds/shareddirectory | 1 |  | child-uncatalogued | ds:DescribeSharedDirectories |
-| ds | ds/snapshot | 0 |  | writable-noun | ds:DescribeSnapshots |
-| ds | ds/trust | 0 |  | writable-noun | ds:DescribeTrusts |
-| ds-data | ds-data/group | 1 |  | child-uncatalogued | ds-data:DescribeGroup, ds-data:ListGroups, ds-data:ListGroupsForMember, ds-data:SearchGroups |
+| ds | ds/snapshot | 0 |  | element-written | ds:DescribeSnapshots |
+| ds | ds/trust | 0 |  | element-written | ds:DescribeTrusts, ds:VerifyTrust |
+| ds-data | ds-data/group | 1 |  | child-uncatalogued | ds-data:ListGroups, ds-data:ListGroupsForMember, ds-data:SearchGroups |
 | ds-data | ds-data/groupmember | 1 |  | child-uncatalogued | ds-data:ListGroupMembers |
-| ds-data | ds-data/user | 1 |  | child-uncatalogued | ds-data:DescribeUser, ds-data:ListUsers, ds-data:SearchUsers |
+| ds-data | ds-data/user | 1 |  | child-uncatalogued | ds-data:ListUsers, ds-data:SearchUsers |
 | dynamodb | dynamodb/export | 0 |  | sr-resource | dynamodb:DescribeExport, dynamodb:ListExports |
 | dynamodb | dynamodb/globaltablesetting | 1 |  | child-uncatalogued | dynamodb:DescribeGlobalTableSettings |
 | dynamodb | dynamodb/import | 0 |  | sr-resource | dynamodb:DescribeImport, dynamodb:ListImports |
-| dynamodb | dynamodb/item | 1 |  | child-uncatalogued | dynamodb:BatchGetItem, dynamodb:GetItem |
-| dynamodb | dynamodb/kinesisstreamingdestination | 1 |  | child-uncatalogued | dynamodb:DescribeKinesisStreamingDestination |
-| dynamodb | dynamodb/record | 1 |  | child-uncatalogued | dynamodb:GetRecords |
+| dynamodb | dynamodb/item | 1 |  | child-uncatalogued | dynamodb:BatchGetItem, dynamodb:GetItem, dynamodb:TransactGetItems |
+| ec2 | ec2/addressesattribute | 0 |  | element-written | ec2:DescribeAddressesAttribute |
+| ec2 | ec2/addresstransfer | 0 |  | element-written | ec2:DescribeAddressTransfers |
+| ec2 | ec2/allowedimagessetting | 0 |  | element-written | ec2:GetAllowedImagesSettings |
 | ec2 | ec2/applicationstatuscheck | 0 |  | sr-resource | ec2:DescribeApplicationStatusChecks |
-| ec2 | ec2/applicationstatuscheckassociation | 0 |  | writable-noun | ec2:DescribeApplicationStatusCheckAssociations |
-| ec2 | ec2/associatedenclavecertificateiamrole | 1 |  | child-uncatalogued | ec2:GetAssociatedEnclaveCertificateIamRoles |
-| ec2 | ec2/byoipcidr | 0 |  | writable-noun | ec2:DescribeByoipCidrs |
+| ec2 | ec2/awsnetworkperformancedata | 0 |  | element-written | ec2:GetAwsNetworkPerformanceData |
+| ec2 | ec2/bundletask | 0 |  | element-written | ec2:DescribeBundleTasks |
+| ec2 | ec2/byoipcidr | 0 |  | element-written | ec2:DescribeByoipCidrs |
+| ec2 | ec2/capacityblockextensionhistory | 0 |  | element-written | ec2:DescribeCapacityBlockExtensionHistory |
 | ec2 | ec2/capacityblockextensionoffering | 1 |  | child-uncatalogued | ec2:DescribeCapacityBlockExtensionOfferings |
-| ec2 | ec2/capacitymanagermetricdimension | 1 |  | child-uncatalogued | ec2:GetCapacityManagerMetricDimensions |
+| ec2 | ec2/capacityblockoffering | 0 |  | element-written | ec2:DescribeCapacityBlockOfferings |
+| ec2 | ec2/capacitymanagermetricdimension | 0 |  | child-uncatalogued | ec2:GetCapacityManagerMetricDimensions |
+| ec2 | ec2/capacitymanagermonitoredtagkey | 0 |  | element-written | ec2:GetCapacityManagerMonitoredTagKeys |
+| ec2 | ec2/capacityreservationbillingrequest | 0 |  | element-written | ec2:DescribeCapacityReservationBillingRequests |
 | ec2 | ec2/capacityreservationcancellationquote | 0 |  | sr-resource | ec2:DescribeCapacityReservationCancellationQuotes |
-| ec2 | ec2/capacityreservationusage | 1 |  | child-uncatalogued | ec2:GetCapacityReservationUsage |
+| ec2 | ec2/capacityreservationtopology | 0 |  | element-written | ec2:DescribeCapacityReservationTopology |
 | ec2 | ec2/clientvpnconnection | 1 |  | child-uncatalogued | ec2:DescribeClientVpnConnections |
-| ec2 | ec2/coippoolusage | 1 |  | child-uncatalogued | ec2:GetCoipPoolUsage |
+| ec2 | ec2/conversiontask | 0 |  | element-written | ec2:DescribeConversionTasks |
 | ec2 | ec2/declarativepoliciesreport | 0 |  | sr-resource | ec2:DescribeDeclarativePoliciesReports |
-| ec2 | ec2/declarativepoliciesreportsummary | 1 |  | sr-resource | ec2:GetDeclarativePoliciesReportSummary |
 | ec2 | ec2/elasticgpu | 0 |  | sr-resource | ec2:DescribeElasticGpus |
 | ec2 | ec2/exportimagetask | 0 |  | sr-resource | ec2:DescribeExportImageTasks |
-| ec2 | ec2/fleetinstance | 1 |  | child-uncatalogued | ec2:DescribeFleetInstances |
+| ec2 | ec2/exporttask | 0 |  | element-written | ec2:DescribeExportTasks |
+| ec2 | ec2/fastlaunchimage | 0 |  | element-written | ec2:DescribeFastLaunchImages |
+| ec2 | ec2/fastsnapshotrestore | 0 |  | element-written | ec2:DescribeFastSnapshotRestores |
+| ec2 | ec2/fleetinstance | 1 |  | child-uncatalogued | ec2:DescribeFleetInstances, ec2:DescribeSpotFleetInstances |
+| ec2 | ec2/fpgaimageattribute | 1 |  | child-uncatalogued | ec2:DescribeFpgaImageAttribute |
 | ec2 | ec2/group | 1 |  | child-uncatalogued | ec2:GetGroupsForCapacityReservation |
-| ec2 | ec2/hostreservationpurchasepreview | 1 |  | child-uncatalogued | ec2:GetHostReservationPurchasePreview |
-| ec2 | ec2/iaminstanceprofileassociation | 0 |  | writable-noun | ec2:DescribeIamInstanceProfileAssociations |
-| ec2 | ec2/identityidformat | 1 |  | child-uncatalogued | ec2:DescribeIdentityIdFormat |
-| ec2 | ec2/imageancestry | 1 |  | child-uncatalogued | ec2:GetImageAncestry |
+| ec2 | ec2/hostreservationpurchasepreview | 0 |  | child-uncatalogued | ec2:GetHostReservationPurchasePreview |
+| ec2 | ec2/iaminstanceprofileassociation | 0 |  | element-written | ec2:DescribeIamInstanceProfileAssociations |
+| ec2 | ec2/idformat | 0 |  | child-uncatalogued | ec2:DescribeAggregateIdFormat, ec2:DescribeIdFormat, ec2:DescribeIdentityIdFormat |
 | ec2 | ec2/imageattribute | 1 |  | child-uncatalogued | ec2:DescribeImageAttribute |
 | ec2 | ec2/imagereference | 1 |  | child-uncatalogued | ec2:DescribeImageReferences |
+| ec2 | ec2/imagesinrecyclebin | 0 |  | element-written | ec2:ListImagesInRecycleBin |
 | ec2 | ec2/imageusagereport | 0 |  | sr-resource | ec2:DescribeImageUsageReports |
-| ec2 | ec2/imageusagereportentry | 0 |  | element-created | ec2:DescribeImageUsageReportEntries |
+| ec2 | ec2/imageusagereportentry | 0 |  | element-written | ec2:DescribeImageUsageReportEntries |
 | ec2 | ec2/importimagetask | 0 |  | sr-resource | ec2:DescribeImportImageTasks |
 | ec2 | ec2/importsnapshottask | 0 |  | sr-resource | ec2:DescribeImportSnapshotTasks |
-| ec2 | ec2/instanceattribute | 1 |  | child-uncatalogued | ec2:DescribeInstanceAttribute |
-| ec2 | ec2/instanceeventnotificationattribute | 0 |  | writable-noun | ec2:DescribeInstanceEventNotificationAttributes |
-| ec2 | ec2/instancestatus | 0 |  | element-arn | ec2:DescribeInstanceStatus |
+| ec2 | ec2/instanceattribute | 1 |  | child-uncatalogued | ec2:DescribeInstanceAttribute, ec2:DescribeNetworkInterfaceAttribute |
+| ec2 | ec2/instanceimagemetadata | 0 |  | element-written | ec2:DescribeInstanceImageMetadata |
+| ec2 | ec2/instancesqlhastate | 0 |  | element-written | ec2:DescribeInstanceSqlHaHistoryStates, ec2:DescribeInstanceSqlHaStates |
+| ec2 | ec2/instancestatus | 0 |  | element-written | ec2:DescribeInstanceStatus |
 | ec2 | ec2/ipamaddresshistory | 1 |  | child-uncatalogued | ec2:GetIpamAddressHistory |
-| ec2 | ec2/ipambyoasn | 0 |  | writable-noun | ec2:DescribeIpamByoasn |
+| ec2 | ec2/ipambyoasn | 0 |  | element-written | ec2:DescribeIpamByoasn |
 | ec2 | ec2/ipamdiscoveredaccount | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredAccounts |
-| ec2 | ec2/ipamdiscoveredpublicaddress | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredPublicAddresses |
 | ec2 | ec2/ipamdiscoveredresourcecidr | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredResourceCidrs |
 | ec2 | ec2/ipamdiscoveredroute | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredRoutes |
 | ec2 | ec2/ipaminternetregistryassociation | 0 |  | sr-resource | ec2:DescribeIpamInternetRegistryAssociations |
@@ -979,320 +960,310 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/ipamrouteprotectionfinding | 1 |  | child-uncatalogued | ec2:GetIpamRouteProtectionFindings |
 | ec2 | ec2/ipamroutingpolicyregistration | 1 |  | child-uncatalogued | ec2:GetIpamRoutingPolicyRegistrations |
 | ec2 | ec2/ipamroutingpolicyregistrationdelta | 1 |  | child-uncatalogued | ec2:GetIpamRoutingPolicyRegistrationDeltas |
-| ec2 | ec2/lockedsnapshot | 0 |  | element-created | ec2:DescribeLockedSnapshots |
+| ec2 | ec2/lockedsnapshot | 0 |  | element-written | ec2:DescribeLockedSnapshots |
 | ec2 | ec2/macmodificationtask | 0 |  | sr-resource | ec2:DescribeMacModificationTasks |
 | ec2 | ec2/managedprefixlistassociation | 1 |  | child-uncatalogued | ec2:GetManagedPrefixListAssociations |
 | ec2 | ec2/networkinsightsaccessscopeanalysisfinding | 1 |  | child-uncatalogued | ec2:GetNetworkInsightsAccessScopeAnalysisFindings |
-| ec2 | ec2/networkinterfaceattribute | 1 |  | child-uncatalogued | ec2:DescribeNetworkInterfaceAttribute |
 | ec2 | ec2/principalidformat | 0 |  | element-arn | ec2:DescribePrincipalIdFormat |
 | ec2 | ec2/replacerootvolumetask | 0 |  | sr-resource | ec2:DescribeReplaceRootVolumeTasks |
-| ec2 | ec2/reservedinstancesexchangequote | 1 |  | child-uncatalogued | ec2:GetReservedInstancesExchangeQuote |
-| ec2 | ec2/reservedinstanceslisting | 0 |  | writable-noun | ec2:DescribeReservedInstancesListings |
+| ec2 | ec2/reservedinstanceslisting | 0 |  | element-written | ec2:DescribeReservedInstancesListings |
 | ec2 | ec2/reservedinstancesmodification | 0 |  | element-created | ec2:DescribeReservedInstancesModifications |
 | ec2 | ec2/routeserverassociation | 1 |  | child-uncatalogued | ec2:GetRouteServerAssociations |
 | ec2 | ec2/routeserverpropagation | 1 |  | child-uncatalogued | ec2:GetRouteServerPropagations |
-| ec2 | ec2/routeserverroutingdatabase | 1 |  | child-uncatalogued | ec2:GetRouteServerRoutingDatabase |
-| ec2 | ec2/scheduledinstance | 0 |  | writable-noun | ec2:DescribeScheduledInstances |
+| ec2 | ec2/scheduledinstance | 0 |  | element-written | ec2:DescribeScheduledInstances |
+| ec2 | ec2/scheduledinstanceavailability | 0 |  | element-written | ec2:DescribeScheduledInstanceAvailability |
 | ec2 | ec2/securitygroupreference | 1 |  | child-uncatalogued | ec2:DescribeSecurityGroupReferences |
 | ec2 | ec2/securitygrouprule | 0 |  | sr-resource | ec2:DescribeSecurityGroupRules |
-| ec2 | ec2/servicelinkvirtualinterface | 0 |  | element-arn | ec2:DescribeServiceLinkVirtualInterfaces |
+| ec2 | ec2/servicelinkvirtualinterface | 0 |  | element-written | ec2:DescribeServiceLinkVirtualInterfaces |
 | ec2 | ec2/snapshotattribute | 1 |  | child-uncatalogued | ec2:DescribeSnapshotAttribute |
-| ec2 | ec2/spotdatafeedsubscription | 0 |  | writable-noun | ec2:DescribeSpotDatafeedSubscription |
-| ec2 | ec2/spotfleetinstance | 1 |  | child-uncatalogued | ec2:DescribeSpotFleetInstances |
+| ec2 | ec2/snapshotsinrecyclebin | 0 |  | element-written | ec2:ListSnapshotsInRecycleBin |
+| ec2 | ec2/snapshottierstatus | 0 |  | element-written | ec2:DescribeSnapshotTierStatus |
 | ec2 | ec2/stalesecuritygroup | 1 |  | child-uncatalogued | ec2:DescribeStaleSecurityGroups |
-| ec2 | ec2/storeimagetask | 0 |  | writable-noun | ec2:DescribeStoreImageTasks |
 | ec2 | ec2/subnetcidrreservation | 1 |  | sr-resource | ec2:GetSubnetCidrReservations |
 | ec2 | ec2/transitgatewayattachmentpropagation | 1 |  | child-uncatalogued | ec2:GetTransitGatewayAttachmentPropagations |
 | ec2 | ec2/transitgatewaypolicytableassociation | 1 |  | child-uncatalogued | ec2:GetTransitGatewayPolicyTableAssociations |
 | ec2 | ec2/transitgatewaypolicytableentry | 1 |  | child-uncatalogued | ec2:GetTransitGatewayPolicyTableEntries |
 | ec2 | ec2/transitgatewayprefixlistreference | 1 |  | child-uncatalogued | ec2:GetTransitGatewayPrefixListReferences |
-| ec2 | ec2/trunkinterfaceassociation | 0 |  | writable-noun | ec2:DescribeTrunkInterfaceAssociations |
+| ec2 | ec2/trunkinterfaceassociation | 0 |  | element-written | ec2:DescribeTrunkInterfaceAssociations |
 | ec2 | ec2/verifiedaccessendpointtarget | 1 |  | sr-resource | ec2:GetVerifiedAccessEndpointTargets |
+| ec2 | ec2/verifiedaccessinstanceloggingconfiguration | 0 |  | element-written | ec2:DescribeVerifiedAccessInstanceLoggingConfigurations |
 | ec2 | ec2/volumeattribute | 1 |  | child-uncatalogued | ec2:DescribeVolumeAttribute |
-| ec2 | ec2/volumestatus | 0 |  | element-arn | ec2:DescribeVolumeStatus |
-| ec2 | ec2/vpcendpointassociation | 0 |  | element-arn | ec2:DescribeVpcEndpointAssociations |
+| ec2 | ec2/volumesinrecyclebin | 0 |  | element-written | ec2:ListVolumesInRecycleBin |
+| ec2 | ec2/volumesmodification | 0 |  | element-written | ec2:DescribeVolumesModifications |
+| ec2 | ec2/volumestatus | 0 |  | element-written | ec2:DescribeVolumeStatus |
+| ec2 | ec2/vpcendpointassociation | 0 |  | element-written | ec2:DescribeVpcEndpointAssociations |
 | ec2 | ec2/vpcendpointconnection | 0 |  | sr-resource | ec2:DescribeVpcEndpointConnections |
-| ec2 | ec2/vpcendpointserviceconfiguration | 0 |  | writable-noun | ec2:DescribeVpcEndpointServiceConfigurations |
+| ec2 | ec2/vpcendpointserviceconfiguration | 0 |  | element-written | ec2:DescribeVpcEndpointServiceConfigurations |
 | ec2 | ec2/vpcresourcesblockingencryptionenforcement | 1 |  | child-uncatalogued | ec2:GetVpcResourcesBlockingEncryptionEnforcement |
 | ec2 | ec2/vpnconnectiondevicetype | 0 |  | sr-resource | ec2:GetVpnConnectionDeviceTypes |
-| ecr | ecr/image | 1 |  | child-uncatalogued | ecr:BatchGetImage, ecr:DescribeImages, ecr:ListImages |
-| ecr | ecr/imagereplicationstatus | 1 |  | child-uncatalogued | ecr:DescribeImageReplicationStatus |
-| ecr | ecr/imagesigningstatus | 1 |  | child-uncatalogued | ecr:DescribeImageSigningStatus |
-| ecr | ecr/repositoryscanningconfiguration | 1 |  | child-uncatalogued | ecr:BatchGetRepositoryScanningConfiguration |
+| ecr | ecr/getrepositoryscanningconfiguration | 1 |  | child-uncatalogued | ecr:BatchGetRepositoryScanningConfiguration |
+| ecr | ecr/image | 1 |  | child-uncatalogued | ecr:DescribeImageReplicationStatus, ecr:DescribeImageSigningStatus, ecr:DescribeImages, ecr:ListImages |
 | ecr-public | ecr-public/image | 1 |  | child-uncatalogued | ecr-public:DescribeImages |
 | ecr-public | ecr-public/registry | 0 |  | sr-resource | ecr-public:DescribeRegistries |
-| ecs | ecs/accountsetting | 0 |  | writable-noun | ecs:ListAccountSettings |
-| ecs | ecs/attribute | 1 |  | child-uncatalogued | ecs:ListAttributes |
-| ecs | ecs/daemondeployment | 1 |  | sr-resource | ecs:DescribeDaemonDeployments, ecs:ListDaemonDeployments |
-| ecs | ecs/daemonrevision | 1 |  | sr-resource | ecs:DescribeDaemonRevisions |
-| ecs | ecs/servicedeployment | 1 |  | sr-resource | ecs:DescribeServiceDeployments, ecs:ListServiceDeployments |
-| ecs | ecs/servicerevision | 1 |  | sr-resource | ecs:DescribeServiceRevisions |
-| ecs | ecs/taskprotection | 1 |  | child-uncatalogued | ecs:GetTaskProtection |
+| ecs | ecs/accountsetting | 0 |  | element-written | ecs:ListAccountSettings |
+| ecs | ecs/daemondeployment | 2 |  | smithy-resource | ecs:DescribeDaemonDeployments |
+| ecs | ecs/daemonrevision | 2 |  | smithy-resource | ecs:DescribeDaemonRevisions |
+| ecs | ecs/servicedeployment | 2 |  | smithy-resource | ecs:DescribeServiceDeployments |
+| ecs | ecs/servicerevision | 2 |  | smithy-resource | ecs:DescribeServiceRevisions |
 | eks | eks/accesspolicy | 0 |  | sr-resource | eks:ListAccessPolicies |
+| eks | eks/addonversion | 0 |  | element-written | eks:DescribeAddonVersions |
 | eks | eks/associatedaccesspolicy | 2 |  | child-uncatalogued | eks:ListAssociatedAccessPolicies |
 | eks | eks/certificateauthority | 1 |  | child-uncatalogued | eks:DescribeCertificateAuthority, eks:ListCertificateAuthorities |
+| eks | eks/clusterversion | 0 |  | element-written | eks:DescribeClusterVersions |
 | eks | eks/insight | 1 |  | child-uncatalogued | eks:DescribeInsight, eks:ListInsights |
-| elasticache | elasticache/cacheparameter | 1 |  | child-uncatalogued | elasticache:DescribeCacheParameters |
+| elasticache | elasticache/cacheparameter | 1 |  | child-uncatalogued | elasticache:DescribeCacheParameters, elasticache:DescribeEngineDefaultParameters |
+| elasticache | elasticache/reservedcachenodesoffering | 0 |  | element-written | elasticache:DescribeReservedCacheNodesOfferings |
 | elasticbeanstalk | elasticbeanstalk/configurationsetting | 2 |  | child-uncatalogued | elasticbeanstalk:DescribeConfigurationSettings |
+| elasticbeanstalk | elasticbeanstalk/environmentmanagedactionhistory | 0 |  | element-written | elasticbeanstalk:DescribeEnvironmentManagedActionHistory |
 | elasticbeanstalk | elasticbeanstalk/event | 0 |  | element-arn | elasticbeanstalk:DescribeEvents |
-| elasticfilesystem | elasticfilesystem/accountpreference | 0 |  | writable-noun | elasticfilesystem:DescribeAccountPreferences |
-| elasticfilesystem | elasticfilesystem/replicationconfiguration | 0 |  | writable-noun | elasticfilesystem:DescribeReplicationConfigurations |
-| elasticloadbalancing | elasticloadbalancing/instancehealth | 1 |  | child-uncatalogued | elasticloadbalancing:DescribeInstanceHealth |
-| elasticloadbalancing | elasticloadbalancing/loadbalancerpolicy | 0 |  | writable-noun | elasticloadbalancing:DescribeLoadBalancerPolicies |
+| elasticbeanstalk | elasticbeanstalk/instanceshealth | 0 |  | element-written | elasticbeanstalk:DescribeInstancesHealth |
+| elasticfilesystem | elasticfilesystem/replicationconfiguration | 0 |  | element-written | elasticfilesystem:DescribeReplicationConfigurations |
 | elasticloadbalancing | elasticloadbalancing/truststoreassociation | 1 |  | child-uncatalogued | elasticloadbalancing:DescribeTrustStoreAssociations |
 | elasticmapreduce | elasticmapreduce/bootstrapaction | 1 |  | child-uncatalogued | elasticmapreduce:ListBootstrapActions |
 | elasticmapreduce | elasticmapreduce/instance | 1 |  | child-uncatalogued | elasticmapreduce:ListInstances |
-| elasticmapreduce | elasticmapreduce/jobflow | 0 |  | writable-noun | elasticmapreduce:DescribeJobFlows |
+| elasticmapreduce | elasticmapreduce/jobflow | 0 |  | element-written | elasticmapreduce:DescribeJobFlows |
 | elasticmapreduce | elasticmapreduce/notebookexecution | 0 |  | sr-resource | elasticmapreduce:DescribeNotebookExecution, elasticmapreduce:ListNotebookExecutions |
 | elasticmapreduce | elasticmapreduce/session | 1 |  | sr-resource | elasticmapreduce:GetSession, elasticmapreduce:ListSessions |
-| elemental-inference | elemental-inference/dictionary | 0 |  | sr-resource | elemental-inference:GetDictionary, elemental-inference:ListDictionaries |
+| elemental-inference | elemental-inference/dictionary | 0 |  | smithy-resource | elemental-inference:GetDictionary, elemental-inference:ListDictionaries |
+| elemental-inference | elemental-inference/fixture | 0 |  | child-uncatalogued | elemental-inference:GetFixture, elemental-inference:SearchFixtures |
 | emr-containers | emr-containers/jobrun | 1 |  | sr-resource | emr-containers:DescribeJobRun, emr-containers:ListJobRuns |
-| emr-serverless | emr-serverless/jobrun | 1 |  | sr-resource | emr-serverless:GetJobRun, emr-serverless:ListJobRuns |
+| emr-serverless | emr-serverless/jobrun | 1 |  | smithy-resource | emr-serverless:GetJobRun, emr-serverless:ListJobRuns |
 | emr-serverless | emr-serverless/jobrunattempt | 2 |  | child-uncatalogued | emr-serverless:ListJobRunAttempts |
-| emr-serverless | emr-serverless/session | 1 |  | sr-resource | emr-serverless:GetSession, emr-serverless:ListSessions |
-| entityresolution | entityresolution/idmappingjob | 1 |  | child-uncatalogued | entityresolution:GetIdMappingJob, entityresolution:ListIdMappingJobs |
-| entityresolution | entityresolution/matchingjob | 1 |  | child-uncatalogued | entityresolution:GetMatchingJob, entityresolution:ListMatchingJobs |
+| emr-serverless | emr-serverless/session | 1 |  | smithy-resource | emr-serverless:GetSession, emr-serverless:ListSessions |
+| entityresolution | entityresolution/matchingjob | 1 |  | child-uncatalogued | entityresolution:GetMatchingJob, entityresolution:ListIdMappingJobs, entityresolution:ListMatchingJobs |
 | entityresolution | entityresolution/providerservice | 0 |  | sr-resource | entityresolution:GetProviderService, entityresolution:ListProviderServices |
 | es | es/datasourceattachment | 1 |  | child-uncatalogued | es:DescribeDataSourceAttachment, es:ListDataSourceAttachments |
-| es | es/directquerydatasource | 0 |  | child-uncatalogued | es:GetDirectQueryDataSource, es:ListDirectQueryDataSources |
+| es | es/directquerydatasource | 0 |  | element-written | es:GetDirectQueryDataSource, es:ListDirectQueryDataSources |
 | es | es/domainmaintenance | 1 |  | child-uncatalogued | es:ListDomainMaintenances |
-| es | es/domainnode | 1 |  | child-uncatalogued | es:DescribeDomainNodes |
-| es | es/inboundconnection | 0 |  | writable-noun | es:DescribeInboundConnections |
-| es | es/inboundcrossclustersearchconnection | 0 |  | writable-noun | es:DescribeInboundCrossClusterSearchConnections |
+| es | es/elasticsearchdomain | 1 |  | child-uncatalogued | es:DescribeElasticsearchDomain, es:DescribeElasticsearchDomains |
+| es | es/elasticsearchinstancetype | 1 |  | child-uncatalogued | es:ListElasticsearchInstanceTypes |
+| es | es/inboundconnection | 0 |  | element-written | es:DescribeInboundConnections |
+| es | es/inboundcrossclustersearchconnection | 0 |  | element-written | es:DescribeInboundCrossClusterSearchConnections |
 | es | es/insight | 1 |  | child-uncatalogued | es:ListInsights |
-| es | es/insightdetail | 1 |  | child-uncatalogued | es:DescribeInsightDetails |
-| es | es/migration | 1 |  | child-uncatalogued | es:GetMigration, es:ListMigrations |
-| es | es/outboundconnection | 0 |  | writable-noun | es:DescribeOutboundConnections |
-| es | es/outboundcrossclustersearchconnection | 0 |  | writable-noun | es:DescribeOutboundCrossClusterSearchConnections |
-| es | es/package | 0 |  | child-uncatalogued | es:DescribePackages, es:ListPackagesForDomain |
+| es | es/migration | 0 |  | child-uncatalogued | es:GetMigration, es:ListMigrations |
+| es | es/outboundconnection | 0 |  | element-written | es:DescribeOutboundConnections |
+| es | es/outboundcrossclustersearchconnection | 0 |  | element-written | es:DescribeOutboundCrossClusterSearchConnections |
+| es | es/package | 0 |  | element-written | es:DescribePackages |
+| es | es/reservedinstance | 0 |  | element-written | es:DescribeReservedInstances |
 | es | es/scheduledaction | 1 |  | child-uncatalogued | es:ListScheduledActions |
 | es | es/upgradehistory | 1 |  | child-uncatalogued | es:GetUpgradeHistory |
-| es | es/vpcendpoint | 0 |  | child-uncatalogued | es:DescribeVpcEndpoints, es:ListVpcEndpoints, es:ListVpcEndpointsForDomain |
-| events | events/partnereventsource | 0 |  | writable-noun | events:DescribePartnerEventSource, events:ListPartnerEventSources |
+| es | es/vpcendpoint | 0 |  | element-written | es:DescribeVpcEndpoints, es:ListVpcEndpoints, es:ListVpcEndpointsForDomain |
+| events | events/partnereventsource | 0 |  | element-arn | events:DescribePartnerEventSource, events:ListPartnerEventSources |
 | events | events/replay | 0 |  | sr-resource | events:DescribeReplay, events:ListReplays |
-| evs | evs/accountsetting | 0 |  | writable-noun | evs:GetAccountSettings |
+| events | events/rulename | 3 |  | child-uncatalogued | events:ListRuleNamesByTarget |
+| evs | evs/accountsetting | 0 |  | element-written | evs:GetAccountSettings |
 | evs | evs/environmentconnector | 1 |  | child-uncatalogued | evs:ListEnvironmentConnectors |
 | evs | evs/environmenthost | 1 |  | child-uncatalogued | evs:ListEnvironmentHosts |
 | evs | evs/environmentvlan | 1 |  | child-uncatalogued | evs:ListEnvironmentVlans |
 | evs | evs/vmentitlement | 1 |  | child-uncatalogued | evs:ListVmEntitlements |
+| execute-api | execute-api/transcript | 0 |  | element-written | execute-api:GetTranscript |
 | finspace | finspace/kxchangeset | 2 |  | child-uncatalogued | finspace:GetKxChangeset, finspace:ListKxChangesets |
 | finspace | finspace/kxclusternode | 2 |  | child-uncatalogued | finspace:ListKxClusterNodes |
 | finspace-api | finspace-api/changeset | 1 |  | child-uncatalogued | finspace-api:GetChangeset, finspace-api:ListChangesets |
-| finspace-api | finspace-api/dataset | 0 |  | element-arn | finspace-api:GetDataset, finspace-api:ListDatasets |
+| finspace-api | finspace-api/dataset | 0 |  | element-written | finspace-api:GetDataset, finspace-api:ListDatasets |
 | finspace-api | finspace-api/dataview | 1 |  | child-uncatalogued | finspace-api:GetDataView, finspace-api:ListDataViews |
-| finspace-api | finspace-api/permissiongroup | 0 |  | child-uncatalogued | finspace-api:GetPermissionGroup, finspace-api:ListPermissionGroups, finspace-api:ListPermissionGroupsByUser |
-| finspace-api | finspace-api/user | 0 |  | child-uncatalogued | finspace-api:GetUser, finspace-api:ListUsers, finspace-api:ListUsersByPermissionGroup |
+| finspace-api | finspace-api/permissiongroup | 0 |  | element-written | finspace-api:GetPermissionGroup, finspace-api:ListPermissionGroups, finspace-api:ListPermissionGroupsByUser |
+| finspace-api | finspace-api/user | 0 |  | element-written | finspace-api:GetUser, finspace-api:ListUsers, finspace-api:ListUsersByPermissionGroup |
 | fis | fis/action | 0 |  | sr-resource | fis:GetAction, fis:ListActions |
 | fis | fis/experiment | 0 |  | sr-resource | fis:GetExperiment, fis:ListExperiments |
 | fis | fis/experimentresolvedtarget | 1 |  | child-uncatalogued | fis:ListExperimentResolvedTargets |
 | fis | fis/experimenttargetaccountconfiguration | 1 |  | child-uncatalogued | fis:GetExperimentTargetAccountConfiguration, fis:ListExperimentTargetAccountConfigurations |
-| fms | fms/adminaccount | 0 |  | writable-noun | fms:GetAdminAccount, fms:ListAdminAccountsForOrganization |
 | fms | fms/compliancestatus | 1 |  | child-uncatalogued | fms:ListComplianceStatus |
 | fms | fms/discoveredresource | 1 |  | child-uncatalogued | fms:ListDiscoveredResources |
 | fms | fms/resourcesetresource | 1 |  | child-uncatalogued | fms:ListResourceSetResources |
-| forecast | forecast/accuracymetric | 1 |  | child-uncatalogued | forecast:GetAccuracyMetrics |
-| forecast | forecast/autopredictor | 1 |  | child-uncatalogued | forecast:DescribeAutoPredictor |
 | forecast | forecast/datasetimportjob | 0 |  | sr-resource | forecast:DescribeDatasetImportJob, forecast:ListDatasetImportJobs |
-| forecast | forecast/explainabilityexport | 0 |  | sr-resource | forecast:DescribeExplainabilityExport, forecast:ListExplainabilityExports |
-| forecast | forecast/forecastexportjob | 0 |  | writable-noun | forecast:DescribeForecastExportJob, forecast:ListForecastExportJobs |
+| forecast | forecast/explainabilityexport | 0 |  | sr-resource | forecast:DescribeExplainabilityExport, forecast:DescribeForecastExportJob, forecast:ListExplainabilityExports |
+| forecast | forecast/forecastexportjob | 0 |  | element-written | forecast:ListForecastExportJobs |
 | forecast | forecast/monitorevaluation | 1 |  | child-uncatalogued | forecast:ListMonitorEvaluations |
 | forecast | forecast/predictorbacktestexportjob | 0 |  | sr-resource | forecast:DescribePredictorBacktestExportJob, forecast:ListPredictorBacktestExportJobs |
 | forecast | forecast/whatifforecastexport | 0 |  | sr-resource | forecast:DescribeWhatIfForecastExport, forecast:ListWhatIfForecastExports |
-| frauddetector | frauddetector/batchimportjob | 0 |  | writable-noun | frauddetector:GetBatchImportJobs |
-| frauddetector | frauddetector/batchpredictionjob | 0 |  | writable-noun | frauddetector:GetBatchPredictionJobs |
+| frauddetector | frauddetector/batchimportjob | 0 |  | element-arn | frauddetector:GetBatchImportJobs |
+| frauddetector | frauddetector/batchpredictionjob | 0 |  | element-written | frauddetector:GetBatchPredictionJobs |
 | frauddetector | frauddetector/detectorversion | 0 |  | sr-resource | frauddetector:GetDetectorVersion |
 | frauddetector | frauddetector/eventprediction | 0 |  | child-uncatalogued | frauddetector:GetEventPrediction, frauddetector:ListEventPredictions |
 | frauddetector | frauddetector/eventpredictionmetadata | 1 |  | child-uncatalogued | frauddetector:GetEventPredictionMetadata |
 | frauddetector | frauddetector/modelversion | 0 |  | sr-resource | frauddetector:DescribeModelVersions, frauddetector:GetModelVersion |
-| fsx | fsx/datarepositorytask | 0 |  | writable-noun | fsx:DescribeDataRepositoryTasks |
+| fsx | fsx/datarepositorytask | 0 |  | element-written | fsx:DescribeDataRepositoryTasks |
 | fsx | fsx/filesystemalias | 1 |  | child-uncatalogued | fsx:DescribeFileSystemAliases |
 | gamelift | gamelift/compute | 1 |  | child-uncatalogued | gamelift:DescribeCompute, gamelift:ListCompute |
-| gamelift | gamelift/computeaccess | 1 |  | child-uncatalogued | gamelift:GetComputeAccess |
-| gamelift | gamelift/containergroupdefinitionversion | 1 |  | child-uncatalogued | gamelift:ListContainerGroupDefinitionVersions |
-| gamelift | gamelift/containergroupportmapping | 1 |  | child-uncatalogued | gamelift:DescribeContainerGroupPortMappings |
-| gamelift | gamelift/fleetcapacity | 0 |  | element-arn | gamelift:DescribeFleetCapacity |
-| gamelift | gamelift/fleetdeployment | 0 |  | element-arn | gamelift:DescribeFleetDeployment, gamelift:ListFleetDeployments |
+| gamelift | gamelift/fleetcapacity | 0 |  | element-written | gamelift:DescribeFleetCapacity, gamelift:DescribeFleetLocationCapacity |
+| gamelift | gamelift/fleetdeployment | 0 |  | element-written | gamelift:DescribeFleetDeployment, gamelift:ListFleetDeployments |
 | gamelift | gamelift/fleetevent | 1 |  | child-uncatalogued | gamelift:DescribeFleetEvents |
-| gamelift | gamelift/fleetutilization | 0 |  | element-arn | gamelift:DescribeFleetUtilization |
+| gamelift | gamelift/fleetutilization | 0 |  | element-written | gamelift:DescribeFleetLocationUtilization, gamelift:DescribeFleetUtilization |
 | gamelift | gamelift/gameserver | 1 |  | child-uncatalogued | gamelift:DescribeGameServer, gamelift:ListGameServers |
 | gamelift | gamelift/gameserverinstance | 1 |  | child-uncatalogued | gamelift:DescribeGameServerInstances |
-| gamelift | gamelift/gamesession | 0 |  | writable-noun | gamelift:DescribeGameSessions, gamelift:SearchGameSessions |
+| gamelift | gamelift/gamesession | 0 |  | element-written | gamelift:DescribeGameSessions, gamelift:SearchGameSessions |
+| gamelift | gamelift/gamesessiondetail | 0 |  | element-written | gamelift:DescribeGameSessionDetails |
 | gamelift | gamelift/instance | 1 |  | child-uncatalogued | gamelift:DescribeInstances |
-| gamelift | gamelift/matchmaking | 1 |  | child-uncatalogued | gamelift:DescribeMatchmaking |
-| gamelift | gamelift/playerconnectiondetail | 1 |  | child-uncatalogued | gamelift:GetPlayerConnectionDetails |
-| gamelift | gamelift/playersession | 0 |  | writable-noun | gamelift:DescribePlayerSessions |
+| gamelift | gamelift/matchmaking | 0 |  | child-uncatalogued | gamelift:DescribeMatchmaking |
+| gamelift | gamelift/playersession | 0 |  | element-written | gamelift:DescribePlayerSessions |
 | gamelift | gamelift/scalingpolicy | 1 |  | child-uncatalogued | gamelift:DescribeScalingPolicies |
-| gamelift | gamelift/vpcpeeringauthorization | 0 |  | writable-noun | gamelift:DescribeVpcPeeringAuthorizations |
-| gamelift | gamelift/vpcpeeringconnection | 0 |  | writable-noun | gamelift:DescribeVpcPeeringConnections |
+| gamelift | gamelift/vpcpeeringauthorization | 0 |  | element-written | gamelift:DescribeVpcPeeringAuthorizations |
+| gamelift | gamelift/vpcpeeringconnection | 0 |  | element-arn | gamelift:DescribeVpcPeeringConnections |
 | gameliftstreams | gameliftstreams/applicationshadercache | 1 |  | child-uncatalogued | gameliftstreams:ListApplicationShaderCaches |
-| gameliftstreams | gameliftstreams/streamsession | 0 |  | child-uncatalogued | gameliftstreams:GetStreamSession, gameliftstreams:ListStreamSessions, gameliftstreams:ListStreamSessionsByAccount |
-| gameliftstreams | gameliftstreams/streamurl | 0 |  | child-uncatalogued | gameliftstreams:GetStreamUrl, gameliftstreams:ListStreamUrls |
-| geo | geo/deviceposition | 1 |  | child-uncatalogued | geo:BatchGetDevicePosition, geo:GetDevicePosition, geo:ListDevicePositions |
+| gameliftstreams | gameliftstreams/streamsession | 1 |  | element-written | gameliftstreams:GetStreamSession, gameliftstreams:ListStreamSessions, gameliftstreams:ListStreamSessionsByAccount |
+| gameliftstreams | gameliftstreams/streamurl | 0 |  | element-written | gameliftstreams:GetStreamUrl, gameliftstreams:ListStreamUrls |
+| geo | geo/deviceposition | 1 |  | child-uncatalogued | geo:GetDevicePosition, geo:ListDevicePositions, geo:VerifyDevicePosition |
 | geo | geo/devicepositionhistory | 1 |  | child-uncatalogued | geo:GetDevicePositionHistory |
 | geo | geo/geofence | 1 |  | child-uncatalogued | geo:GetGeofence, geo:ListGeofences |
-| geo | geo/job | 0 |  | sr-resource | geo:GetJob, geo:ListJobs |
-| geo-places | geo-places/nearby | 1 |  | child-uncatalogued | geo-places:SearchNearby |
-| geo-places | geo-places/place | 1 |  | child-uncatalogued | geo-places:GetPlace |
+| geo | geo/geofenceevent | 1 |  | child-uncatalogued | geo:ForecastGeofenceEvents |
+| geo | geo/job | 0 |  | smithy-resource | geo:GetJob, geo:ListJobs |
+| geo-places | geo-places/text | 1 |  | child-uncatalogued | geo-places:SearchText |
 | glacier | glacier/job | 1 |  | child-uncatalogued | glacier:DescribeJob, glacier:ListJobs |
 | glacier | glacier/multipartupload | 1 |  | child-uncatalogued | glacier:ListMultipartUploads |
-| globalaccelerator | globalaccelerator/byoipcidr | 0 |  | writable-noun | globalaccelerator:ListByoipCidrs |
-| globalaccelerator | globalaccelerator/crossaccountresource | 1 |  | child-uncatalogued | globalaccelerator:ListCrossAccountResources |
-| globalaccelerator | globalaccelerator/customroutingaccelerator | 0 |  | writable-noun | globalaccelerator:DescribeCustomRoutingAccelerator, globalaccelerator:ListCustomRoutingAccelerators |
+| globalaccelerator | globalaccelerator/byoipcidr | 0 |  | element-written | globalaccelerator:ListByoipCidrs |
+| globalaccelerator | globalaccelerator/crossaccountresource | 0 |  | child-uncatalogued | globalaccelerator:ListCrossAccountResources |
+| globalaccelerator | globalaccelerator/customroutingaccelerator | 0 |  | element-written | globalaccelerator:DescribeCustomRoutingAccelerator, globalaccelerator:ListCustomRoutingAccelerators |
 | globalaccelerator | globalaccelerator/customroutingendpointgroup | 2 |  | child-uncatalogued | globalaccelerator:DescribeCustomRoutingEndpointGroup, globalaccelerator:ListCustomRoutingEndpointGroups |
 | globalaccelerator | globalaccelerator/customroutinglistener | 1 |  | child-uncatalogued | globalaccelerator:DescribeCustomRoutingListener, globalaccelerator:ListCustomRoutingListeners |
-| globalaccelerator | globalaccelerator/customroutingportmapping | 1 |  | child-uncatalogued | globalaccelerator:ListCustomRoutingPortMappings, globalaccelerator:ListCustomRoutingPortMappingsByDestination |
+| globalaccelerator | globalaccelerator/customroutingportmapping | 1 |  | child-uncatalogued | globalaccelerator:ListCustomRoutingPortMappings |
+| globalaccelerator | globalaccelerator/customroutingportmappingsbydestination | 0 |  | child-uncatalogued | globalaccelerator:ListCustomRoutingPortMappingsByDestination |
+| glue | glue/asset | 0 |  | child-uncatalogued | glue:GetAsset |
+| glue | glue/assettype | 0 |  | child-uncatalogued | glue:GetAssetType, glue:ListAssetTypes |
 | glue | glue/blueprintrun | 1 |  | child-uncatalogued | glue:GetBlueprintRun, glue:GetBlueprintRuns |
 | glue | glue/columnstatisticstaskrun | 0 |  | child-uncatalogued | glue:GetColumnStatisticsTaskRun, glue:GetColumnStatisticsTaskRuns, glue:ListColumnStatisticsTaskRuns |
 | glue | glue/crawl | 1 |  | child-uncatalogued | glue:ListCrawls |
-| glue | glue/dataqualityresult | 0 |  | child-uncatalogued | glue:BatchGetDataQualityResult, glue:GetDataQualityResult, glue:ListDataQualityResults |
-| glue | glue/dataqualityrulesetevaluationrun | 0 |  | child-uncatalogued | glue:BatchGetDataQualityRulesetEvaluationRun, glue:GetDataQualityRulesetEvaluationRun, glue:ListDataQualityRulesetEvaluationRuns |
-| glue | glue/dataqualitystatisticannotation | 0 |  | writable-noun | glue:ListDataQualityStatisticAnnotations |
-| glue | glue/glossaryterm | 0 |  | child-uncatalogued | glue:GetGlossaryTerm, glue:ListGlossaryTerms |
-| glue | glue/inboundintegration | 0 |  | writable-noun | glue:DescribeInboundIntegrations |
-| glue | glue/integrationtableproperty | 0 |  | writable-noun | glue:GetIntegrationTableProperties, glue:ListIntegrationTableProperties |
-| glue | glue/iterableform | 1 |  | child-uncatalogued | glue:BatchGetIterableForms, glue:ListIterableForms |
+| glue | glue/dataflowgraph | 0 |  | element-written | glue:GetDataflowGraph |
+| glue | glue/dataqualityresult | 0 |  | element-written | glue:BatchGetDataQualityResult, glue:GetDataQualityResult, glue:ListDataQualityResults |
+| glue | glue/dataqualityrulerecommendationrun | 0 |  | element-written | glue:GetDataQualityRuleRecommendationRun, glue:ListDataQualityRuleRecommendationRuns |
+| glue | glue/dataqualityrulesetevaluationrun | 0 |  | element-written | glue:BatchGetDataQualityRulesetEvaluationRun, glue:GetDataQualityRulesetEvaluationRun, glue:ListDataQualityRulesetEvaluationRuns |
+| glue | glue/glossaryterm | 1 |  | child-uncatalogued | glue:GetGlossaryTerm, glue:ListGlossaryTerms |
+| glue | glue/inboundintegration | 0 |  | element-written | glue:DescribeInboundIntegrations |
+| glue | glue/integrationtableproperty | 0 |  | element-written | glue:GetIntegrationTableProperties, glue:ListIntegrationTableProperties |
+| glue | glue/iterableform | 0 |  | child-uncatalogued | glue:ListIterableForms |
 | glue | glue/jobrun | 1 |  | child-uncatalogued | glue:GetJobRun, glue:GetJobRuns |
-| glue | glue/materializedviewrefreshtaskrun | 1 |  | child-uncatalogued | glue:GetMaterializedViewRefreshTaskRun, glue:ListMaterializedViewRefreshTaskRuns |
 | glue | glue/mltaskrun | 1 |  | child-uncatalogued | glue:GetMLTaskRun, glue:GetMLTaskRuns |
-| glue | glue/resourcepolicy | 0 |  | writable-noun | glue:GetResourcePolicies, glue:GetResourcePolicy |
+| glue | glue/resourcepolicy | 0 |  | element-created | glue:GetResourcePolicies, glue:GetResourcePolicy |
 | glue | glue/session | 0 |  | sr-resource | glue:GetSession, glue:ListSessions |
 | glue | glue/statement | 1 |  | child-uncatalogued | glue:GetStatement, glue:ListStatements |
 | glue | glue/tableversion | 1 |  | sr-resource | glue:GetTableVersion, glue:GetTableVersions |
-| glue | glue/unfilteredtablemetadata | 1 |  | child-uncatalogued | glue:GetUnfilteredTableMetadata |
 | glue | glue/workflowrun | 1 |  | child-uncatalogued | glue:GetWorkflowRun, glue:GetWorkflowRuns |
+| grafana | grafana/permission | 0 |  | smithy-resource | grafana:ListPermissions |
 | grafana | grafana/workspaceserviceaccount | 1 |  | child-uncatalogued | grafana:ListWorkspaceServiceAccounts |
 | grafana | grafana/workspaceserviceaccounttoken | 1 |  | child-uncatalogued | grafana:ListWorkspaceServiceAccountTokens |
 | greengrass | greengrass/bulkdeployment | 0 |  | sr-resource | greengrass:ListBulkDeployments |
-| greengrass | greengrass/bulkdeploymentdetailedreport | 1 |  | child-uncatalogued | greengrass:ListBulkDeploymentDetailedReports |
 | greengrass | greengrass/clientdevicesassociatedwithcoredevice | 1 |  | child-uncatalogued | greengrass:ListClientDevicesAssociatedWithCoreDevice |
-| greengrass | greengrass/componentcandidate | 0 |  | element-arn | greengrass:ResolveComponentCandidates |
-| greengrass | greengrass/connectivityinfo | 0 |  | sr-resource | greengrass:GetConnectivityInfo |
+| greengrass | greengrass/componentcandidate | 0 |  | element-written | greengrass:ResolveComponentCandidates |
+| greengrass | greengrass/connectivityinfo | 1 |  | sr-resource | greengrass:GetConnectivityInfo |
 | greengrass | greengrass/effectivedeployment | 1 |  | child-uncatalogued | greengrass:ListEffectiveDeployments |
 | greengrass | greengrass/groupcertificateauthority | 1 |  | child-uncatalogued | greengrass:GetGroupCertificateAuthority, greengrass:ListGroupCertificateAuthorities |
 | greengrass | greengrass/installedcomponent | 1 |  | child-uncatalogued | greengrass:ListInstalledComponents |
 | groundstation | groundstation/antenna | 1 |  | child-uncatalogued | groundstation:ListAntennas |
-| groundstation | groundstation/contact | 0 |  | sr-resource | groundstation:DescribeContact, groundstation:ListContacts |
+| groundstation | groundstation/contact | 0 |  | smithy-resource | groundstation:DescribeContact, groundstation:ListContacts |
 | groundstation | groundstation/contactversion | 1 |  | child-uncatalogued | groundstation:DescribeContactVersion, groundstation:ListContactVersions |
+| groundstation | groundstation/ephemeris | 0 |  | smithy-resource | groundstation:ListEphemerides |
+| groundstation | groundstation/groundstation | 0 |  | smithy-resource | groundstation:ListGroundStations |
 | groundstation | groundstation/groundstationreservation | 1 |  | child-uncatalogued | groundstation:ListGroundStationReservations |
-| groundstation | groundstation/satellite | 0 |  | sr-resource | groundstation:GetSatellite, groundstation:ListSatellites |
+| groundstation | groundstation/satellite | 0 |  | smithy-resource | groundstation:GetSatellite, groundstation:ListSatellites |
 | guardduty | guardduty/coverage | 1 |  | child-uncatalogued | guardduty:ListCoverage |
 | guardduty | guardduty/customdetectionrule | 0 |  | sr-resource | guardduty:GetCustomDetectionRule, guardduty:ListCustomDetectionRules |
 | guardduty | guardduty/customdetectionruleassociation | 0 |  | sr-resource | guardduty:GetCustomDetectionRuleAssociation, guardduty:ListCustomDetectionRuleAssociations |
-| guardduty | guardduty/customdetectionruleorgconfiguration | 0 |  | writable-noun | guardduty:GetCustomDetectionRuleOrgConfiguration, guardduty:ListCustomDetectionRuleOrgConfigurations |
-| guardduty | guardduty/finding | 1 |  | child-uncatalogued | guardduty:GetFindings, guardduty:ListFindings |
-| guardduty | guardduty/findingsstatistic | 1 |  | child-uncatalogued | guardduty:GetFindingsStatistics |
+| guardduty | guardduty/customdetectionruleorgconfiguration | 0 |  | element-written | guardduty:GetCustomDetectionRuleOrgConfiguration, guardduty:ListCustomDetectionRuleOrgConfigurations |
+| guardduty | guardduty/finding | 1 |  | child-uncatalogued | guardduty:ListFindings |
 | guardduty | guardduty/investigation | 1 |  | child-uncatalogued | guardduty:GetInvestigation, guardduty:ListInvestigations |
-| guardduty | guardduty/invitation | 0 |  | writable-noun | guardduty:ListInvitations |
-| guardduty | guardduty/malwarescan | 0 |  | child-uncatalogued | guardduty:DescribeMalwareScans, guardduty:GetMalwareScan, guardduty:ListMalwareScans |
-| guardduty | guardduty/memberdetector | 1 |  | child-uncatalogued | guardduty:GetMemberDetectors |
+| guardduty | guardduty/malwarescan | 0 |  | element-arn | guardduty:DescribeMalwareScans, guardduty:GetMalwareScan, guardduty:ListMalwareScans |
 | guardduty | guardduty/organizationconfiguration | 1 |  | child-uncatalogued | guardduty:DescribeOrganizationConfiguration |
-| guardduty | guardduty/remainingfreetrialday | 1 |  | child-uncatalogued | guardduty:GetRemainingFreeTrialDays |
-| guardduty | guardduty/usagestatistic | 1 |  | child-uncatalogued | guardduty:GetUsageStatistics |
-| health | health/affectedaccount | 1 |  | child-uncatalogued | health:DescribeAffectedAccountsForOrganization |
-| health | health/affectedentity | 0 |  | child-uncatalogued | health:DescribeAffectedEntities, health:DescribeAffectedEntitiesForOrganization |
-| health | health/entityaggregate | 0 |  | child-uncatalogued | health:DescribeEntityAggregates, health:DescribeEntityAggregatesForOrganization |
-| health | health/event | 0 |  | sr-resource | health:DescribeEvents, health:DescribeEventsForOrganization |
-| health | health/eventdetail | 0 |  | sr-resource | health:DescribeEventDetails, health:DescribeEventDetailsForOrganization |
+| health | health/affectedaccountsfororganization | 1 |  | child-uncatalogued | health:DescribeAffectedAccountsForOrganization |
+| health | health/affectedentity | 1 |  | element-arn | health:DescribeAffectedEntities, health:DescribeAffectedEntitiesForOrganization |
+| health | health/entityaggregate | 0 |  | element-arn | health:DescribeEntityAggregates |
+| health | health/event | 0 |  | sr-resource | health:DescribeEvents |
+| health | health/eventsfororganization | 0 |  | element-arn | health:DescribeEventsForOrganization |
 | health-agent | health-agent/domain | 0 |  | sr-resource | health-agent:GetDomain, health-agent:ListDomains |
 | health-agent | health-agent/subscription | 1 |  | sr-resource | health-agent:GetSubscription, health-agent:ListSubscriptions |
 | healthlake | healthlake/datatransformationprofile | 0 |  | sr-resource | healthlake:GetDataTransformationProfile, healthlake:ListDataTransformationProfiles |
 | healthlake | healthlake/datatransformationprofileversion | 1 |  | child-uncatalogued | healthlake:ListDataTransformationProfileVersions |
 | healthlake | healthlake/fhirexportjob | 1 |  | child-uncatalogued | healthlake:DescribeFHIRExportJob, healthlake:ListFHIRExportJobs |
 | healthlake | healthlake/fhirimportjob | 1 |  | child-uncatalogued | healthlake:DescribeFHIRImportJob, healthlake:ListFHIRImportJobs |
-| iam | iam/attachedgrouppolicy | 1 |  | child-uncatalogued | iam:ListAttachedGroupPolicies |
-| iam | iam/attachedrolepolicy | 1 |  | child-uncatalogued | iam:ListAttachedRolePolicies |
-| iam | iam/attacheduserpolicy | 1 |  | child-uncatalogued | iam:ListAttachedUserPolicies |
-| iam | iam/contextkey | 0 |  | child-uncatalogued | iam:GetContextKeysForCustomPolicy, iam:GetContextKeysForPrincipalPolicy |
+| iam | iam/attachedrolepolicy | 1 |  | child-uncatalogued | iam:ListAttachedGroupPolicies, iam:ListAttachedRolePolicies, iam:ListAttachedUserPolicies |
+| iam | iam/contextkeysforprincipalpolicy | 1 |  | child-uncatalogued | iam:GetContextKeysForPrincipalPolicy |
+| iam | iam/custompolicy | 0 |  | child-uncatalogued | iam:SimulateCustomPolicy, iam:SimulatePrincipalPolicy |
 | iam | iam/delegationrequest | 0 |  | sr-resource | iam:GetDelegationRequest, iam:ListDelegationRequests |
 | iam | iam/entity | 1 |  | child-uncatalogued | iam:ListEntitiesForPolicy |
-| iam | iam/loginprofile | 0 |  | writable-noun | iam:GetLoginProfile |
 | iam | iam/policyversion | 1 |  | child-uncatalogued | iam:GetPolicyVersion, iam:ListPolicyVersions |
-| iam | iam/servicespecificcredential | 0 |  | writable-noun | iam:ListServiceSpecificCredentials |
-| iam | iam/signingcertificate | 0 |  | writable-noun | iam:ListSigningCertificates |
-| iam | iam/sshpublickey | 0 |  | writable-noun | iam:GetSSHPublicKey, iam:ListSSHPublicKeys |
-| imagebuilder | imagebuilder/componentbuildversion | 0 |  | element-arn | imagebuilder:ListComponentBuildVersions |
-| imagebuilder | imagebuilder/imagebuildversion | 0 |  | element-arn | imagebuilder:ListImageBuildVersions |
+| iam | iam/servicespecificcredential | 0 |  | element-written | iam:ListServiceSpecificCredentials |
+| iam | iam/signingcertificate | 0 |  | element-written | iam:ListSigningCertificates |
+| iam | iam/sshpublickey | 0 |  | element-written | iam:GetSSHPublicKey, iam:ListSSHPublicKeys |
+| imagebuilder | imagebuilder/componentbuildversion | 0 |  | element-written | imagebuilder:ListComponentBuildVersions |
+| imagebuilder | imagebuilder/imagebuildversion | 0 |  | element-written | imagebuilder:ListImageBuildVersions, imagebuilder:ListImagePipelineImages |
 | imagebuilder | imagebuilder/imagepackage | 1 |  | child-uncatalogued | imagebuilder:ListImagePackages |
-| imagebuilder | imagebuilder/imagepipelineimage | 1 |  | child-uncatalogued | imagebuilder:ListImagePipelineImages |
 | imagebuilder | imagebuilder/imagescanfinding | 0 |  | element-arn | imagebuilder:ListImageScanFindings |
 | imagebuilder | imagebuilder/lifecycleexecution | 0 |  | sr-resource | imagebuilder:GetLifecycleExecution, imagebuilder:ListLifecycleExecutions |
 | imagebuilder | imagebuilder/lifecycleexecutionresource | 1 |  | child-uncatalogued | imagebuilder:ListLifecycleExecutionResources |
 | imagebuilder | imagebuilder/waitingworkflowstep | 0 |  | element-arn | imagebuilder:ListWaitingWorkflowSteps |
-| imagebuilder | imagebuilder/workflowbuildversion | 0 |  | element-arn | imagebuilder:ListWorkflowBuildVersions |
+| imagebuilder | imagebuilder/workflowbuildversion | 0 |  | element-written | imagebuilder:ListWorkflowBuildVersions |
 | imagebuilder | imagebuilder/workflowexecution | 0 |  | sr-resource | imagebuilder:GetWorkflowExecution, imagebuilder:ListWorkflowExecutions |
 | imagebuilder | imagebuilder/workflowstepexecution | 0 |  | sr-resource | imagebuilder:GetWorkflowStepExecution, imagebuilder:ListWorkflowStepExecutions |
-| inspector | inspector/assessmentrun | 0 |  | writable-noun | inspector:DescribeAssessmentRuns, inspector:ListAssessmentRuns |
+| inspector | inspector/agent | 0 |  | child-uncatalogued | inspector:PreviewAgents |
 | inspector | inspector/assessmentrunagent | 1 |  | child-uncatalogued | inspector:ListAssessmentRunAgents |
-| inspector | inspector/assessmenttarget | 0 |  | writable-noun | inspector:DescribeAssessmentTargets, inspector:ListAssessmentTargets |
-| inspector | inspector/assessmenttemplate | 0 |  | writable-noun | inspector:DescribeAssessmentTemplates, inspector:ListAssessmentTemplates |
 | inspector | inspector/eventsubscription | 0 |  | element-arn | inspector:ListEventSubscriptions |
-| inspector | inspector/exclusion | 0 |  | child-uncatalogued | inspector:DescribeExclusions, inspector:ListExclusions |
-| inspector | inspector/finding | 0 |  | element-arn | inspector:DescribeFindings, inspector:ListFindings |
-| inspector | inspector/resourcegroup | 0 |  | writable-noun | inspector:DescribeResourceGroups |
-| inspector | inspector/rulespackage | 0 |  | element-arn | inspector:DescribeRulesPackages, inspector:ListRulesPackages |
-| inspector2 | inspector2/cisscan | 0 |  | element-arn | inspector2:ListCisScans |
-| inspector2 | inspector2/cisscanresultdetail | 1 |  | child-uncatalogued | inspector2:GetCisScanResultDetails |
-| inspector2 | inspector2/cisscanresultsaggregated | 1 |  | child-uncatalogued | inspector2:ListCisScanResultsAggregatedByChecks, inspector2:ListCisScanResultsAggregatedByTargetResource |
-| inspector2 | inspector2/cluster | 1 |  | child-uncatalogued | inspector2:GetClustersForImage |
-| inspector2 | inspector2/codesnippet | 1 |  | child-uncatalogued | inspector2:BatchGetCodeSnippet |
+| inspector | inspector/exclusion | 1 |  | child-uncatalogued | inspector:ListExclusions |
+| inspector2 | inspector2/cisscan | 0 |  | element-written | inspector2:ListCisScans |
+| inspector2 | inspector2/cisscanresultdetail | 0 |  | child-uncatalogued | inspector2:GetCisScanResultDetails |
+| inspector2 | inspector2/cisscanresultsaggregatedbycheck | 0 |  | child-uncatalogued | inspector2:ListCisScanResultsAggregatedByChecks |
+| inspector2 | inspector2/cisscanresultsaggregatedbytargetresource | 0 |  | child-uncatalogued | inspector2:ListCisScanResultsAggregatedByTargetResource |
+| inspector2 | inspector2/clustersforimage | 0 |  | element-arn | inspector2:GetClustersForImage |
 | inspector2 | inspector2/connector | 0 |  | sr-resource | inspector2:ListConnectors |
-| inspector2 | inspector2/connectorscanconfiguration | 0 |  | element-arn | inspector2:ListConnectorScanConfigurations |
+| inspector2 | inspector2/connectorscanconfiguration | 0 |  | element-written | inspector2:ListConnectorScanConfigurations |
+| inspector2 | inspector2/delegatedadminaccount | 0 |  | element-written | inspector2:GetDelegatedAdminAccount, inspector2:ListDelegatedAdminAccounts |
 | inspector2 | inspector2/finding | 0 |  | sr-resource | inspector2:ListFindings |
-| inspector2 | inspector2/findingdetail | 1 |  | sr-resource | inspector2:BatchGetFindingDetails |
-| inspector2 | inspector2/freetrialinfo | 1 |  | child-uncatalogued | inspector2:BatchGetFreeTrialInfo |
-| inspector2 | inspector2/vulnerability | 0 |  | element-created | inspector2:SearchVulnerabilities |
+| inspector2 | inspector2/findingaggregation | 0 |  | element-written | inspector2:ListFindingAggregations |
+| inspector2 | inspector2/getaccountstatus | 0 |  | element-written | inspector2:BatchGetAccountStatus |
+| inspector2 | inspector2/getfindingdetail | 1 |  | child-uncatalogued | inspector2:BatchGetFindingDetails |
+| inspector2 | inspector2/getmemberec2deepinspectionstatus | 0 |  | element-written | inspector2:BatchGetMemberEc2DeepInspectionStatus |
+| inspector2 | inspector2/vulnerability | 0 |  | element-written | inspector2:SearchVulnerabilities |
 | interconnect | interconnect/attachpoint | 1 |  | child-uncatalogued | interconnect:ListAttachPoints |
-| internetmonitor | internetmonitor/healthevent | 1 |  | sr-resource | internetmonitor:GetHealthEvent, internetmonitor:ListHealthEvents |
-| internetmonitor | internetmonitor/internetevent | 0 |  | sr-resource | internetmonitor:GetInternetEvent, internetmonitor:ListInternetEvents |
+| internetmonitor | internetmonitor/healthevent | 1 |  | smithy-resource | internetmonitor:ListHealthEvents |
+| internetmonitor | internetmonitor/internetevent | 0 |  | smithy-resource | internetmonitor:GetInternetEvent, internetmonitor:ListInternetEvents |
 | internetmonitor | internetmonitor/queryresult | 1 |  | child-uncatalogued | internetmonitor:GetQueryResults |
-| invoicing | invoicing/invoiceprofile | 1 |  | child-uncatalogued | invoicing:BatchGetInvoiceProfile |
 | invoicing | invoicing/procurementportalpreference | 0 |  | sr-resource | invoicing:GetProcurementPortalPreference, invoicing:ListProcurementPortalPreferences |
-| invoicing | invoicing/procurementportalsupplier | 1 |  | child-uncatalogued | invoicing:ListProcurementPortalSuppliers |
-| iot | iot/attachedpolicy | 0 |  | element-arn | iot:ListAttachedPolicies |
-| iot | iot/auditmitigationactionsexecution | 1 |  | child-uncatalogued | iot:ListAuditMitigationActionsExecutions |
-| iot | iot/auditmitigationactionstask | 0 |  | child-uncatalogued | iot:DescribeAuditMitigationActionsTask, iot:ListAuditMitigationActionsTasks |
-| iot | iot/auditsuppression | 0 |  | writable-noun | iot:DescribeAuditSuppression, iot:ListAuditSuppressions |
-| iot | iot/commandexecution | 0 |  | writable-noun | iot:GetCommandExecution, iot:ListCommandExecutions |
+| invoicing | invoicing/procurementportalsupplier | 0 |  | child-uncatalogued | invoicing:ListProcurementPortalSuppliers |
+| iot | iot/auditmitigationactionsexecution | 0 |  | child-uncatalogued | iot:ListAuditMitigationActionsExecutions |
+| iot | iot/auditsuppression | 0 |  | element-written | iot:DescribeAuditSuppression, iot:ListAuditSuppressions |
+| iot | iot/commandexecution | 0 |  | element-written | iot:GetCommandExecution, iot:ListCommandExecutions |
 | iot | iot/effectivepolicy | 0 |  | element-arn | iot:GetEffectivePolicies |
 | iot | iot/jobexecution | 1 |  | child-uncatalogued | iot:DescribeJobExecution, iot:ListJobExecutionsForJob, iot:ListJobExecutionsForThing |
-| iot | iot/managedjobtemplate | 0 |  | element-arn | iot:DescribeManagedJobTemplate, iot:ListManagedJobTemplates |
+| iot | iot/managed | 0 |  | element-arn | iot:ListManagedJobTemplates |
 | iot | iot/outgoingcertificate | 0 |  | element-arn | iot:ListOutgoingCertificates |
 | iot | iot/policyversion | 1 |  | child-uncatalogued | iot:GetPolicyVersion, iot:ListPolicyVersions |
-| iot | iot/principalpolicy | 0 |  | writable-noun | iot:ListPrincipalPolicies |
 | iot | iot/principalthing | 1 |  | child-uncatalogued | iot:ListPrincipalThings, iot:ListPrincipalThingsV2 |
 | iot | iot/provisioningtemplateversion | 1 |  | child-uncatalogued | iot:DescribeProvisioningTemplateVersion, iot:ListProvisioningTemplateVersions |
-| iot | iot/relatedresource | 1 |  | child-uncatalogued | iot:ListRelatedResourcesForAuditFinding |
+| iot | iot/relatedresource | 0 |  | child-uncatalogued | iot:ListRelatedResourcesForAuditFinding |
 | iot | iot/sbomvalidationresult | 2 |  | child-uncatalogued | iot:ListSbomValidationResults |
+| iot | iot/securityprofilesfortarget | 1 |  | child-uncatalogued | iot:ListSecurityProfilesForTarget |
 | iot | iot/target | 1 |  | child-uncatalogued | iot:ListTargetsForPolicy, iot:ListTargetsForSecurityProfile |
+| iot | iot/thingregistrationtaskreport | 1 |  | child-uncatalogued | iot:ListThingRegistrationTaskReports |
+| iot | iot/thingsinthinggroup | 1 |  | child-uncatalogued | iot:ListThingsInThingGroup |
 | iot | iot/violationevent | 1 |  | child-uncatalogued | iot:ListViolationEvents |
 | iot-jobs-data | iot-jobs-data/pendingjobexecution | 1 |  | child-uncatalogued | iot-jobs-data:GetPendingJobExecutions |
 | iotdeviceadvisor | iotdeviceadvisor/suiterun | 0 |  | sr-resource | iotdeviceadvisor:GetSuiteRun, iotdeviceadvisor:ListSuiteRuns |
 | iotfleetwise | iotfleetwise/decodermanifestnetworkinterface | 1 |  | child-uncatalogued | iotfleetwise:ListDecoderManifestNetworkInterfaces |
 | iotfleetwise | iotfleetwise/decodermanifestsignal | 1 |  | child-uncatalogued | iotfleetwise:ListDecoderManifestSignals |
+| iotfleetwise | iotfleetwise/fleetassociation | 1 |  | smithy-resource | iotfleetwise:ListFleetsForVehicle |
+| iotfleetwise | iotfleetwise/vehicleassociation | 1 |  | smithy-resource | iotfleetwise:ListVehiclesInFleet |
 | iotfleetwise | iotfleetwise/vehiclestatus | 1 |  | child-uncatalogued | iotfleetwise:GetVehicleStatus |
-| iotmanagedintegrations | iotmanagedintegrations/cloudconnector | 0 |  | writable-noun | iotmanagedintegrations:GetCloudConnector, iotmanagedintegrations:ListCloudConnectors |
-| iotmanagedintegrations | iotmanagedintegrations/connectordestination | 0 |  | writable-noun | iotmanagedintegrations:GetConnectorDestination, iotmanagedintegrations:ListConnectorDestinations |
-| iotmanagedintegrations | iotmanagedintegrations/destination | 0 |  | writable-noun | iotmanagedintegrations:GetDestination, iotmanagedintegrations:ListDestinations |
-| iotmanagedintegrations | iotmanagedintegrations/eventlogconfiguration | 0 |  | writable-noun | iotmanagedintegrations:GetEventLogConfiguration, iotmanagedintegrations:ListEventLogConfigurations |
-| iotmanagedintegrations | iotmanagedintegrations/managedthingcapability | 1 |  | child-uncatalogued | iotmanagedintegrations:GetManagedThingCapabilities |
+| iotmanagedintegrations | iotmanagedintegrations/cloudconnector | 0 |  | smithy-resource | iotmanagedintegrations:GetCloudConnector, iotmanagedintegrations:ListCloudConnectors |
+| iotmanagedintegrations | iotmanagedintegrations/connectordestination | 0 |  | smithy-resource | iotmanagedintegrations:GetConnectorDestination, iotmanagedintegrations:ListConnectorDestinations |
+| iotmanagedintegrations | iotmanagedintegrations/destination | 0 |  | smithy-resource | iotmanagedintegrations:GetDestination, iotmanagedintegrations:ListDestinations |
+| iotmanagedintegrations | iotmanagedintegrations/devicediscovery | 0 |  | smithy-resource | iotmanagedintegrations:GetDeviceDiscovery, iotmanagedintegrations:ListDeviceDiscoveries |
+| iotmanagedintegrations | iotmanagedintegrations/discovereddevice | 1 |  | child-uncatalogued | iotmanagedintegrations:ListDiscoveredDevices |
+| iotmanagedintegrations | iotmanagedintegrations/eventlogconfiguration | 0 |  | smithy-resource | iotmanagedintegrations:GetEventLogConfiguration, iotmanagedintegrations:ListEventLogConfigurations |
+| iotmanagedintegrations | iotmanagedintegrations/managedthingaccountassociation | 1 |  | child-uncatalogued | iotmanagedintegrations:ListManagedThingAccountAssociations |
 | iotmanagedintegrations | iotmanagedintegrations/managedthingschema | 1 |  | child-uncatalogued | iotmanagedintegrations:ListManagedThingSchemas |
-| iotmanagedintegrations | iotmanagedintegrations/managedthingstate | 1 |  | child-uncatalogued | iotmanagedintegrations:GetManagedThingState |
-| iotmanagedintegrations | iotmanagedintegrations/notificationconfiguration | 0 |  | writable-noun | iotmanagedintegrations:GetNotificationConfiguration, iotmanagedintegrations:ListNotificationConfigurations |
-| iotmanagedintegrations | iotmanagedintegrations/otataskconfiguration | 0 |  | writable-noun | iotmanagedintegrations:GetOtaTaskConfiguration, iotmanagedintegrations:ListOtaTaskConfigurations |
+| iotmanagedintegrations | iotmanagedintegrations/notificationconfiguration | 0 |  | smithy-resource | iotmanagedintegrations:GetNotificationConfiguration, iotmanagedintegrations:ListNotificationConfigurations |
+| iotmanagedintegrations | iotmanagedintegrations/otataskconfiguration | 0 |  | smithy-resource | iotmanagedintegrations:GetOtaTaskConfiguration, iotmanagedintegrations:ListOtaTaskConfigurations |
 | iotmanagedintegrations | iotmanagedintegrations/otataskexecution | 1 |  | child-uncatalogued | iotmanagedintegrations:ListOtaTaskExecutions |
+| iotmanagedintegrations | iotmanagedintegrations/schemaversion | 0 |  | smithy-resource | iotmanagedintegrations:GetSchemaVersion, iotmanagedintegrations:ListSchemaVersions |
 | iotsecuredtunneling | iotsecuredtunneling/tunnel | 0 |  | sr-resource | iotsecuredtunneling:DescribeTunnel, iotsecuredtunneling:ListTunnels |
-| iotsitewise | iotsitewise/action | 1 |  | child-uncatalogued | iotsitewise:DescribeAction, iotsitewise:ListActions |
+| iotsitewise | iotsitewise/action | 0 |  | child-uncatalogued | iotsitewise:DescribeAction, iotsitewise:ListActions |
 | iotsitewise | iotsitewise/application | 0 |  | sr-resource | iotsitewise:DescribeApplication, iotsitewise:ListApplications |
-| iotsitewise | iotsitewise/assetcompositemodel | 1 |  | child-uncatalogued | iotsitewise:DescribeAssetCompositeModel |
+| iotsitewise | iotsitewise/assetcompositemodel | 2 |  | child-uncatalogued | iotsitewise:DescribeAssetCompositeModel |
 | iotsitewise | iotsitewise/assetmodelcompositemodel | 1 |  | child-uncatalogued | iotsitewise:DescribeAssetModelCompositeModel, iotsitewise:ListAssetModelCompositeModels |
-| iotsitewise | iotsitewise/assetmodelinterfacerelationship | 1 |  | child-uncatalogued | iotsitewise:DescribeAssetModelInterfaceRelationship |
 | iotsitewise | iotsitewise/assetmodelproperty | 1 |  | child-uncatalogued | iotsitewise:ListAssetModelProperties |
 | iotsitewise | iotsitewise/assetproperty | 1 |  | child-uncatalogued | iotsitewise:DescribeAssetProperty, iotsitewise:ListAssetProperties |
 | iotsitewise | iotsitewise/assetpropertyaggregate | 1 |  | child-uncatalogued | iotsitewise:BatchGetAssetPropertyAggregates, iotsitewise:GetAssetPropertyAggregates |
-| iotsitewise | iotsitewise/assetpropertyvalue | 0 |  | child-uncatalogued | iotsitewise:BatchGetAssetPropertyValue, iotsitewise:GetAssetPropertyValue |
-| iotsitewise | iotsitewise/assetpropertyvaluehistory | 0 |  | child-uncatalogued | iotsitewise:BatchGetAssetPropertyValueHistory, iotsitewise:GetAssetPropertyValueHistory |
+| iotsitewise | iotsitewise/assetpropertyvalue | 0 |  | child-uncatalogued | iotsitewise:BatchGetAssetPropertyValue, iotsitewise:GetAssetPropertyValue, iotsitewise:GetAssetPropertyValueHistory |
+| iotsitewise | iotsitewise/assetpropertyvaluehistory | 1 |  | child-uncatalogued | iotsitewise:BatchGetAssetPropertyValueHistory |
 | iotsitewise | iotsitewise/associatedasset | 1 |  | child-uncatalogued | iotsitewise:ListAssociatedAssets |
-| iotsitewise | iotsitewise/bulkimportjob | 0 |  | child-uncatalogued | iotsitewise:DescribeBulkImportJob, iotsitewise:ListBulkImportJobs |
 | iotsitewise | iotsitewise/compositionrelationship | 1 |  | child-uncatalogued | iotsitewise:ListCompositionRelationships |
 | iotsitewise | iotsitewise/computationmodeldatabindingusage | 1 |  | child-uncatalogued | iotsitewise:ListComputationModelDataBindingUsages |
 | iotsitewise | iotsitewise/datasetdatasegment | 1 |  | child-uncatalogued | iotsitewise:ListDatasetDataSegments |
@@ -1304,29 +1275,23 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotsitewise | iotsitewise/pipeline | 1 |  | sr-resource | iotsitewise:DescribePipeline, iotsitewise:ListPipelines |
 | iotsitewise | iotsitewise/pipelineexecution | 2 |  | child-uncatalogued | iotsitewise:DescribePipelineExecution, iotsitewise:ListPipelineExecutions |
 | iotsitewise | iotsitewise/projectasset | 1 |  | child-uncatalogued | iotsitewise:ListProjectAssets |
-| iotsitewise | iotsitewise/query | 1 |  | child-uncatalogued | iotsitewise:DescribeQuery, iotsitewise:ListQueries |
+| iotsitewise | iotsitewise/query | 0 |  | child-uncatalogued | iotsitewise:DescribeQuery, iotsitewise:ExecuteQuery, iotsitewise:ListQueries |
 | iotsitewise | iotsitewise/queryresult | 1 |  | child-uncatalogued | iotsitewise:GetQueryResults |
 | iotsitewise | iotsitewise/search | 1 |  | child-uncatalogued | iotsitewise:DescribeSearch, iotsitewise:ListSearches |
-| iotsitewise | iotsitewise/searchresult | 1 |  | child-uncatalogued | iotsitewise:GetSearchResults |
+| iotsitewise | iotsitewise/searchresult | 2 |  | child-uncatalogued | iotsitewise:GetSearchResults |
 | iotsitewise | iotsitewise/task | 1 |  | sr-resource | iotsitewise:DescribeTask, iotsitewise:ListTasks |
 | iotsitewise | iotsitewise/timeseries | 0 |  | sr-resource | iotsitewise:DescribeTimeSeries, iotsitewise:ListTimeSeries |
 | iotsitewise | iotsitewise/workspace | 0 |  | sr-resource | iotsitewise:DescribeWorkspace, iotsitewise:ListWorkspaces |
-| iotthingsgraph | iotthingsgraph/entity | 0 |  | element-arn | iotthingsgraph:GetEntities, iotthingsgraph:SearchEntities |
-| iotthingsgraph | iotthingsgraph/flowexecution | 1 |  | child-uncatalogued | iotthingsgraph:SearchFlowExecutions |
-| iotthingsgraph | iotthingsgraph/flowexecutionmessage | 2 |  | child-uncatalogued | iotthingsgraph:ListFlowExecutionMessages |
-| iotthingsgraph | iotthingsgraph/flowtemplate | 0 |  | element-arn | iotthingsgraph:GetFlowTemplate, iotthingsgraph:SearchFlowTemplates |
-| iotthingsgraph | iotthingsgraph/flowtemplaterevision | 0 |  | element-arn | iotthingsgraph:GetFlowTemplateRevisions |
-| iotthingsgraph | iotthingsgraph/systeminstance | 0 |  | element-arn | iotthingsgraph:GetSystemInstance, iotthingsgraph:SearchSystemInstances |
-| iotthingsgraph | iotthingsgraph/systemtemplate | 0 |  | element-arn | iotthingsgraph:GetSystemTemplate, iotthingsgraph:SearchSystemTemplates |
-| iotthingsgraph | iotthingsgraph/systemtemplaterevision | 0 |  | element-arn | iotthingsgraph:GetSystemTemplateRevisions |
-| iotthingsgraph | iotthingsgraph/thing | 1 |  | child-uncatalogued | iotthingsgraph:SearchThings |
 | iottwinmaker | iottwinmaker/component | 2 |  | child-uncatalogued | iottwinmaker:ListComponents |
 | iottwinmaker | iottwinmaker/metadatatransferjob | 0 |  | sr-resource | iottwinmaker:GetMetadataTransferJob, iottwinmaker:ListMetadataTransferJobs |
-| iottwinmaker | iottwinmaker/property | 2 |  | child-uncatalogued | iottwinmaker:ListProperties |
+| iottwinmaker | iottwinmaker/property | 1 |  | child-uncatalogued | iottwinmaker:ListProperties |
+| iottwinmaker | iottwinmaker/query | 1 |  | child-uncatalogued | iottwinmaker:ExecuteQuery |
 | iottwinmaker | iottwinmaker/syncresource | 2 |  | child-uncatalogued | iottwinmaker:ListSyncResources |
-| iotwireless | iotwireless/position | 1 |  | child-uncatalogued | iotwireless:GetPosition |
-| iotwireless | iotwireless/positionconfiguration | 0 |  | writable-noun | iotwireless:GetPositionConfiguration, iotwireless:ListPositionConfigurations |
-| iotwireless | iotwireless/queuedmessage | 0 |  | writable-noun | iotwireless:ListQueuedMessages |
+| iotwireless | iotwireless/eventconfiguration | 0 |  | element-written | iotwireless:ListEventConfigurations |
+| iotwireless | iotwireless/loglevelsbyresourcetype | 0 |  | element-written | iotwireless:GetLogLevelsByResourceTypes |
+| iotwireless | iotwireless/multicastgroupsbyfuotatask | 1 |  | child-uncatalogued | iotwireless:ListMulticastGroupsByFuotaTask |
+| iotwireless | iotwireless/positionconfiguration | 0 |  | element-written | iotwireless:GetPositionConfiguration, iotwireless:ListPositionConfigurations |
+| iotwireless | iotwireless/queuedmessage | 1 |  | child-uncatalogued | iotwireless:ListQueuedMessages |
 | ivs | ivs/composition | 0 |  | sr-resource | ivs:GetComposition, ivs:ListCompositions |
 | ivs | ivs/participant | 1 |  | child-uncatalogued | ivs:GetParticipant, ivs:ListParticipants |
 | ivs | ivs/participantevent | 1 |  | child-uncatalogued | ivs:ListParticipantEvents |
@@ -1334,106 +1299,95 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ivs | ivs/stagesession | 1 |  | child-uncatalogued | ivs:GetStageSession, ivs:ListStageSessions |
 | ivs | ivs/stream | 0 |  | element-arn | ivs:GetStream, ivs:ListStreams |
 | ivs | ivs/streamsession | 1 |  | child-uncatalogued | ivs:GetStreamSession, ivs:ListStreamSessions |
+| ivs | ivs/viewersessionrevocation | 1 |  | child-uncatalogued | ivs:BatchStartViewerSessionRevocation, ivs:StartViewerSessionRevocation |
 | kafka | kafka/channel | 1 |  | sr-resource | kafka:DescribeChannel, kafka:ListChannels |
 | kafka | kafka/clientvpcconnection | 1 |  | child-uncatalogued | kafka:ListClientVpcConnections |
 | kafka | kafka/clusteroperation | 0 |  | child-uncatalogued | kafka:DescribeClusterOperation, kafka:DescribeClusterOperationV2, kafka:ListClusterOperations, kafka:ListClusterOperationsV2 |
 | kafka | kafka/node | 1 |  | child-uncatalogued | kafka:ListNodes |
 | kafka | kafka/topic | 1 |  | sr-resource | kafka:DescribeTopic, kafka:ListTopics |
-| kafkaconnect | kafkaconnect/connectoroperation | 1 |  | sr-resource | kafkaconnect:DescribeConnectorOperation, kafkaconnect:ListConnectorOperations |
+| kafkaconnect | kafkaconnect/connectoroperation | 0 |  | sr-resource | kafkaconnect:DescribeConnectorOperation, kafkaconnect:ListConnectorOperations |
 | kendra | kendra/datasourcesyncjob | 2 |  | child-uncatalogued | kendra:ListDataSourceSyncJobs |
-| kendra | kendra/documentstatus | 1 |  | child-uncatalogued | kendra:BatchGetDocumentStatus |
 | kendra | kendra/entitypersona | 2 |  | child-uncatalogued | kendra:ListEntityPersonas |
 | kendra | kendra/experienceentity | 2 |  | child-uncatalogued | kendra:ListExperienceEntities |
 | kendra | kendra/groupsolderthanorderingid | 2 |  | child-uncatalogued | kendra:ListGroupsOlderThanOrderingId |
-| kendra | kendra/principalmapping | 2 |  | child-uncatalogued | kendra:DescribePrincipalMapping |
-| kendra | kendra/querysuggestion | 1 |  | child-uncatalogued | kendra:GetQuerySuggestions |
+| kendra | kendra/snapshot | 1 |  | child-uncatalogued | kendra:GetSnapshots |
 | kinesis | kinesis/channel | 0 |  | sr-resource | kinesis:DescribeChannel, kinesis:ListChannels |
 | kinesis | kinesis/record | 1 |  | child-uncatalogued | kinesis:GetRecords |
 | kinesisanalytics | kinesisanalytics/applicationoperation | 1 |  | child-uncatalogued | kinesisanalytics:DescribeApplicationOperation, kinesisanalytics:ListApplicationOperations |
 | kinesisanalytics | kinesisanalytics/applicationsnapshot | 1 |  | child-uncatalogued | kinesisanalytics:DescribeApplicationSnapshot, kinesisanalytics:ListApplicationSnapshots |
-| kinesisanalytics | kinesisanalytics/applicationversion | 1 |  | child-uncatalogued | kinesisanalytics:DescribeApplicationVersion, kinesisanalytics:ListApplicationVersions |
-| kinesisvideo | kinesisvideo/edgeagentconfiguration | 1 |  | child-uncatalogued | kinesisvideo:ListEdgeAgentConfigurations |
+| kinesisanalytics | kinesisanalytics/applicationversion | 1 |  | child-uncatalogued | kinesisanalytics:ListApplicationVersions |
+| kinesisvideo | kinesisvideo/edgeagentconfiguration | 0 |  | child-uncatalogued | kinesisvideo:ListEdgeAgentConfigurations |
 | kinesisvideo | kinesisvideo/mappedresourceconfiguration | 0 |  | element-arn | kinesisvideo:DescribeMappedResourceConfiguration |
-| kms | kms/customkeystore | 0 |  | writable-noun | kms:DescribeCustomKeyStores |
+| kms | kms/customkeystore | 0 |  | element-written | kms:DescribeCustomKeyStores |
 | kms | kms/keyrotation | 1 |  | child-uncatalogued | kms:ListKeyRotations |
-| kms | kms/retirablegrant | 0 |  | element-created | kms:ListRetirableGrants |
-| lakeformation | lakeformation/lakeformationidentitycenterconfiguration | 0 |  | writable-noun | lakeformation:DescribeLakeFormationIdentityCenterConfiguration |
-| lakeformation | lakeformation/lakeformationoptin | 0 |  | writable-noun | lakeformation:ListLakeFormationOptIns |
-| lakeformation | lakeformation/lftagexpression | 0 |  | writable-noun | lakeformation:GetLFTagExpression, lakeformation:ListLFTagExpressions |
-| lambda | lambda/durableexecution | 1 |  | sr-resource | lambda:GetDurableExecution, lambda:ListDurableExecutionsByFunction |
-| lambda | lambda/durableexecutionhistory | 2 |  | child-uncatalogued | lambda:GetDurableExecutionHistory |
-| lambda | lambda/durableexecutionstate | 2 |  | child-uncatalogued | lambda:GetDurableExecutionState |
-| lambda | lambda/functionconfiguration | 1 |  | child-uncatalogued | lambda:GetFunctionConfiguration |
+| lakeformation | lakeformation/lakeformationoptin | 0 |  | element-written | lakeformation:ListLakeFormationOptIns |
+| lakeformation | lakeformation/transaction | 0 |  | element-written | lakeformation:DescribeTransaction, lakeformation:ListTransactions |
+| lambda | lambda/durableexecution | 0 |  | sr-resource | lambda:GetDurableExecution, lambda:ListDurableExecutionsByFunction |
+| lambda | lambda/durableexecutionhistory | 1 |  | child-uncatalogued | lambda:GetDurableExecutionHistory |
+| lambda | lambda/durableexecutionstate | 1 |  | child-uncatalogued | lambda:GetDurableExecutionState |
 | lambda | lambda/managedmicrovmimage | 0 |  | element-arn | lambda:ListManagedMicrovmImages |
 | lambda | lambda/managedmicrovmimageversion | 1 |  | child-uncatalogued | lambda:ListManagedMicrovmImageVersions |
-| lambda | lambda/microvm | 0 |  | writable-noun | lambda:GetMicrovm, lambda:ListMicrovms |
-| lambda | lambda/microvmimage | 0 |  | sr-resource | lambda:GetMicrovmImage, lambda:ListMicrovmImages |
+| lambda | lambda/microvm | 0 |  | smithy-resource | lambda:GetMicrovm, lambda:ListMicrovms |
+| lambda | lambda/microvmimage | 0 |  | smithy-resource | lambda:GetMicrovmImage, lambda:ListMicrovmImages |
 | lambda | lambda/microvmimagebuild | 1 |  | child-uncatalogued | lambda:GetMicrovmImageBuild, lambda:ListMicrovmImageBuilds |
 | lambda | lambda/microvmimageversion | 1 |  | child-uncatalogued | lambda:GetMicrovmImageVersion, lambda:ListMicrovmImageVersions |
-| lambda | lambda/networkconnector | 0 |  | sr-resource | lambda:GetNetworkConnector, lambda:ListNetworkConnectors |
+| lambda | lambda/networkconnector | 0 |  | smithy-resource | lambda:GetNetworkConnector, lambda:ListNetworkConnectors |
 | lambda | lambda/provisionedconcurrencyconfig | 1 |  | child-uncatalogued | lambda:GetProvisionedConcurrencyConfig, lambda:ListProvisionedConcurrencyConfigs |
-| launchwizard | launchwizard/deploymentevent | 1 |  | child-uncatalogued | launchwizard:ListDeploymentEvents |
-| launchwizard | launchwizard/deploymentpatternversion | 1 |  | child-uncatalogued | launchwizard:GetDeploymentPatternVersion, launchwizard:ListDeploymentPatternVersions |
-| launchwizard | launchwizard/workloaddeploymentpattern | 1 |  | child-uncatalogued | launchwizard:GetWorkloadDeploymentPattern, launchwizard:ListWorkloadDeploymentPatterns |
-| lex | lex/botaliasreplica | 1 |  | child-uncatalogued | lex:ListBotAliasReplicas |
-| lex | lex/botanalyzerhistory | 1 |  | child-uncatalogued | lex:ListBotAnalyzerHistory |
-| lex | lex/botchannelassociation | 3 |  | child-uncatalogued | lex:GetBotChannelAssociation, lex:GetBotChannelAssociations |
-| lex | lex/botlocale | 1 |  | child-uncatalogued | lex:DescribeBotLocale, lex:ListBotLocales |
-| lex | lex/botrecommendation | 1 |  | child-uncatalogued | lex:DescribeBotRecommendation, lex:ListBotRecommendations |
-| lex | lex/botresourcegeneration | 1 |  | child-uncatalogued | lex:DescribeBotResourceGeneration, lex:ListBotResourceGenerations |
-| lex | lex/customvocabularyitem | 1 |  | child-uncatalogued | lex:ListCustomVocabularyItems |
-| lex | lex/export | 0 |  | writable-noun | lex:DescribeExport, lex:GetExport, lex:ListExports |
-| lex | lex/import | 0 |  | writable-noun | lex:DescribeImport, lex:GetImport, lex:ListImports |
-| lex | lex/intent | 0 |  | child-uncatalogued | lex:DescribeIntent, lex:GetIntent, lex:GetIntents, lex:ListIntents |
+| launchwizard | launchwizard/deploymentevent | 1 |  | smithy-resource | launchwizard:ListDeploymentEvents |
+| launchwizard | launchwizard/deploymentpatternversion | 2 |  | smithy-resource | launchwizard:GetDeploymentPatternVersion, launchwizard:ListDeploymentPatternVersions |
+| launchwizard | launchwizard/workload | 0 |  | smithy-resource | launchwizard:GetWorkload, launchwizard:ListWorkloads |
+| launchwizard | launchwizard/workloaddeploymentpattern | 1 |  | smithy-resource | launchwizard:GetWorkloadDeploymentPattern, launchwizard:ListWorkloadDeploymentPatterns |
+| lex | lex/botaliasreplica | 2 |  | child-uncatalogued | lex:ListBotAliasReplicas |
+| lex | lex/botchannelassociation | 2 |  | child-uncatalogued | lex:GetBotChannelAssociation, lex:GetBotChannelAssociations |
+| lex | lex/botlocale | 2 |  | child-uncatalogued | lex:DescribeBotLocale, lex:ListBotLocales |
+| lex | lex/botrecommendation | 3 |  | child-uncatalogued | lex:DescribeBotRecommendation, lex:ListBotRecommendations |
+| lex | lex/botresourcegeneration | 3 |  | child-uncatalogued | lex:DescribeBotResourceGeneration, lex:ListBotResourceGenerations |
+| lex | lex/customvocabularyitem | 3 |  | child-uncatalogued | lex:ListCustomVocabularyItems |
+| lex | lex/export | 0 |  | element-written | lex:DescribeExport, lex:GetExport, lex:ListExports |
+| lex | lex/import | 0 |  | element-written | lex:DescribeImport, lex:GetImport, lex:ListImports |
+| lex | lex/intent | 3 |  | child-uncatalogued | lex:DescribeIntent, lex:GetIntent, lex:ListIntents |
 | lex | lex/intentpath | 1 |  | child-uncatalogued | lex:ListIntentPaths |
-| lex | lex/intentversion | 1 |  | sr-resource | lex:GetIntentVersions |
-| lex | lex/recommendedintent | 1 |  | child-uncatalogued | lex:ListRecommendedIntents |
-| lex | lex/session | 2 |  | child-uncatalogued | lex:GetSession |
+| lex | lex/intentversion | 4 |  | sr-resource | lex:GetIntentVersions, lex:GetIntents |
+| lex | lex/migration | 0 |  | element-written | lex:GetMigrations |
+| lex | lex/recommendedintent | 4 |  | child-uncatalogued | lex:ListRecommendedIntents |
 | lex | lex/sessionanalyticsdata | 1 |  | child-uncatalogued | lex:ListSessionAnalyticsData |
-| lex | lex/slot | 1 |  | child-uncatalogued | lex:DescribeSlot, lex:ListSlots |
-| lex | lex/slottype | 0 |  | child-uncatalogued | lex:DescribeSlotType, lex:GetSlotType, lex:GetSlotTypes, lex:ListSlotTypes |
-| lex | lex/slottypeversion | 2 |  | sr-resource | lex:GetSlotTypeVersions |
-| lex | lex/testexecution | 0 |  | element-created | lex:DescribeTestExecution, lex:ListTestExecutions |
+| lex | lex/slot | 4 |  | child-uncatalogued | lex:DescribeSlot, lex:ListSlots |
+| lex | lex/slottype | 3 |  | child-uncatalogued | lex:DescribeSlotType, lex:GetSlotType, lex:ListSlotTypes |
+| lex | lex/slottypeversion | 4 |  | sr-resource | lex:GetSlotTypeVersions, lex:GetSlotTypes |
+| lex | lex/testexecution | 0 |  | element-written | lex:DescribeTestExecution, lex:ListTestExecutions |
 | lex | lex/testsetrecord | 1 |  | child-uncatalogued | lex:ListTestSetRecords |
 | lex | lex/utteranceanalyticsdata | 1 |  | child-uncatalogued | lex:ListUtteranceAnalyticsData |
 | license-manager | license-manager/asset | 1 |  | child-uncatalogued | license-manager:ListAssetsForLicenseAssetGroup |
 | license-manager | license-manager/association | 1 |  | child-uncatalogued | license-manager:ListAssociationsForLicenseConfiguration |
-| license-manager | license-manager/failure | 1 |  | child-uncatalogued | license-manager:ListFailuresForLicenseConfigurationOperations |
-| license-manager | license-manager/licenseconversiontask | 0 |  | writable-noun | license-manager:GetLicenseConversionTask, license-manager:ListLicenseConversionTasks |
-| license-manager | license-manager/licensespecification | 0 |  | element-arn | license-manager:ListLicenseSpecificationsForResource |
-| license-manager | license-manager/licenseversion | 1 |  | child-uncatalogued | license-manager:ListLicenseVersions |
-| license-manager | license-manager/receivedgrant | 0 |  | child-uncatalogued | license-manager:ListReceivedGrants, license-manager:ListReceivedGrantsForOrganization |
-| license-manager | license-manager/receivedlicense | 0 |  | element-arn | license-manager:ListReceivedLicenses, license-manager:ListReceivedLicensesForOrganization |
+| license-manager | license-manager/failuresforlicenseconfigurationoperation | 1 |  | child-uncatalogued | license-manager:ListFailuresForLicenseConfigurationOperations |
+| license-manager | license-manager/licenseconversiontask | 0 |  | element-written | license-manager:GetLicenseConversionTask, license-manager:ListLicenseConversionTasks |
+| license-manager | license-manager/licensespecification | 0 |  | child-uncatalogued | license-manager:ListLicenseSpecificationsForResource |
+| license-manager | license-manager/receivedlicense | 0 |  | element-written | license-manager:ListReceivedLicenses, license-manager:ListReceivedLicensesForOrganization |
 | license-manager | license-manager/resourceinventory | 0 |  | element-arn | license-manager:ListResourceInventory |
-| license-manager | license-manager/token | 0 |  | writable-noun | license-manager:ListTokens |
+| license-manager | license-manager/token | 0 |  | element-written | license-manager:ListTokens |
 | license-manager | license-manager/usage | 1 |  | child-uncatalogued | license-manager:ListUsageForLicenseConfiguration |
-| lightsail | lightsail/autosnapshot | 0 |  | writable-noun | lightsail:GetAutoSnapshots |
 | lightsail | lightsail/bucketaccesskey | 1 |  | child-uncatalogued | lightsail:GetBucketAccessKeys |
 | lightsail | lightsail/cloudformationstackrecord | 0 |  | sr-resource | lightsail:GetCloudFormationStackRecords |
-| lightsail | lightsail/costestimate | 1 |  | child-uncatalogued | lightsail:GetCostEstimate |
 | lightsail | lightsail/exportsnapshotrecord | 0 |  | sr-resource | lightsail:GetExportSnapshotRecords |
-| lightsail | lightsail/operation | 0 |  | element-created | lightsail:GetOperation, lightsail:GetOperations, lightsail:GetOperationsForResource |
 | lightsail | lightsail/relationaldatabaseparameter | 1 |  | child-uncatalogued | lightsail:GetRelationalDatabaseParameters |
 | lightsail | lightsail/setuphistory | 1 |  | child-uncatalogued | lightsail:GetSetupHistory |
 | logs | logs/anomaly | 0 |  | element-arn | logs:ListAnomalies |
-| logs | logs/exporttask | 0 |  | writable-noun | logs:DescribeExportTasks |
+| logs | logs/configurationtemplate | 0 |  | element-written | logs:DescribeConfigurationTemplates |
+| logs | logs/exporttask | 0 |  | element-written | logs:DescribeExportTasks |
 | logs | logs/fieldindex | 1 |  | child-uncatalogued | logs:DescribeFieldIndexes |
-| logs | logs/importtask | 0 |  | writable-noun | logs:DescribeImportTasks |
-| logs | logs/importtaskbatch | 1 |  | child-uncatalogued | logs:DescribeImportTaskBatches |
+| logs | logs/importtask | 0 |  | element-written | logs:DescribeImportTasks |
+| logs | logs/importtaskbatch | 0 |  | child-uncatalogued | logs:DescribeImportTaskBatches |
 | logs | logs/indexpolicy | 1 |  | child-uncatalogued | logs:DescribeIndexPolicies |
-| logs | logs/logfield | 1 |  | child-uncatalogued | logs:GetLogFields |
 | logs | logs/scheduledqueryhistory | 1 |  | child-uncatalogued | logs:GetScheduledQueryHistory |
 | logs | logs/source | 1 |  | child-uncatalogued | logs:ListSourcesForS3TableIntegration |
-| logs | logs/syslogconfiguration | 0 |  | writable-noun | logs:ListSyslogConfigurations |
+| logs | logs/syslogconfiguration | 0 |  | element-arn | logs:ListSyslogConfigurations |
 | lookoutequipment | lookoutequipment/dataingestionjob | 0 |  | element-arn | lookoutequipment:DescribeDataIngestionJob, lookoutequipment:ListDataIngestionJobs |
 | lookoutequipment | lookoutequipment/inferenceevent | 1 |  | child-uncatalogued | lookoutequipment:ListInferenceEvents |
 | lookoutequipment | lookoutequipment/inferenceexecution | 1 |  | child-uncatalogued | lookoutequipment:ListInferenceExecutions |
 | lookoutequipment | lookoutequipment/label | 1 |  | child-uncatalogued | lookoutequipment:DescribeLabel, lookoutequipment:ListLabels |
-| lookoutequipment | lookoutequipment/retrainingscheduler | 0 |  | writable-noun | lookoutequipment:DescribeRetrainingScheduler, lookoutequipment:ListRetrainingSchedulers |
+| lookoutequipment | lookoutequipment/retrainingscheduler | 0 |  | element-written | lookoutequipment:DescribeRetrainingScheduler, lookoutequipment:ListRetrainingSchedulers |
 | lookoutequipment | lookoutequipment/sensorstatistic | 1 |  | child-uncatalogued | lookoutequipment:ListSensorStatistics |
-| m2 | m2/batchjobdefinition | 1 |  | child-uncatalogued | m2:ListBatchJobDefinitions |
-| m2 | m2/batchjobexecution | 1 |  | child-uncatalogued | m2:GetBatchJobExecution, m2:ListBatchJobExecutions |
-| m2 | m2/batchjobrestartpoint | 1 |  | child-uncatalogued | m2:ListBatchJobRestartPoints |
+| m2 | m2/batch | 1 |  | child-uncatalogued | m2:GetBatchJobExecution, m2:ListBatchJobExecutions |
 | m2 | m2/dataset | 1 |  | child-uncatalogued | m2:ListDataSets |
 | m2 | m2/datasetexporthistory | 1 |  | child-uncatalogued | m2:ListDataSetExportHistory |
 | m2 | m2/datasetimporthistory | 1 |  | child-uncatalogued | m2:ListDataSetImportHistory |
@@ -1442,43 +1396,39 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | machinelearning | machinelearning/evaluation | 0 |  | sr-resource | machinelearning:DescribeEvaluations, machinelearning:GetEvaluation |
 | machinelearning | machinelearning/mlmodel | 0 |  | sr-resource | machinelearning:DescribeMLModels, machinelearning:GetMLModel |
 | macie2 | macie2/bucket | 0 |  | element-arn | macie2:DescribeBuckets |
-| macie2 | macie2/finding | 0 |  | element-created | macie2:GetFindings, macie2:ListFindings |
-| macie2 | macie2/invitation | 0 |  | writable-noun | macie2:ListInvitations |
-| macie2 | macie2/resourceprofileartifact | 0 |  | element-arn | macie2:ListResourceProfileArtifacts |
-| macie2 | macie2/resourceprofiledetection | 0 |  | element-arn | macie2:ListResourceProfileDetections |
+| macie2 | macie2/resourceprofileartifact | 1 |  | child-uncatalogued | macie2:ListResourceProfileArtifacts |
+| macie2 | macie2/resourceprofiledetection | 1 |  | child-uncatalogued | macie2:ListResourceProfileDetections |
 | managedblockchain | managedblockchain/invitation | 0 |  | sr-resource | managedblockchain:ListInvitations |
-| managedblockchain | managedblockchain/proposalvote | 1 |  | child-uncatalogued | managedblockchain:ListProposalVotes |
+| managedblockchain | managedblockchain/proposalvote | 2 |  | child-uncatalogued | managedblockchain:ListProposalVotes |
 | mediaconnect | mediaconnect/entitlement | 0 |  | sr-resource | mediaconnect:ListEntitlements |
-| mediaconnect | mediaconnect/flowsourcemetadata | 1 |  | child-uncatalogued | mediaconnect:DescribeFlowSourceMetadata |
-| mediaconnect | mediaconnect/gatewayinstance | 0 |  | sr-resource | mediaconnect:DescribeGatewayInstance, mediaconnect:ListGatewayInstances |
-| mediaconnect | mediaconnect/offering | 0 |  | sr-resource | mediaconnect:DescribeOffering, mediaconnect:ListOfferings |
-| mediaconvert | mediaconvert/job | 0 |  | sr-resource | mediaconvert:GetJob, mediaconvert:ListJobs, mediaconvert:SearchJobs |
-| mediaconvert | mediaconvert/jobsqueryresult | 0 |  | element-arn | mediaconvert:GetJobsQueryResults |
+| mediaconnect | mediaconnect/gatewayinstance | 0 |  | smithy-resource | mediaconnect:DescribeGatewayInstance, mediaconnect:ListGatewayInstances |
+| mediaconnect | mediaconnect/offering | 0 |  | smithy-resource | mediaconnect:DescribeOffering, mediaconnect:ListOfferings |
+| mediaconvert | mediaconvert/job | 0 |  | sr-resource | mediaconvert:GetJob, mediaconvert:GetJobsQueryResults, mediaconvert:ListJobs, mediaconvert:SearchJobs |
 | medialive | medialive/alert | 1 |  | child-uncatalogued | medialive:ListAlerts |
 | medialive | medialive/clusteralert | 1 |  | child-uncatalogued | medialive:ListClusterAlerts |
 | medialive | medialive/multiplexalert | 1 |  | child-uncatalogued | medialive:ListMultiplexAlerts |
 | medialive | medialive/offering | 0 |  | sr-resource | medialive:DescribeOffering, medialive:ListOfferings |
 | medialive | medialive/schedule | 1 |  | child-uncatalogued | medialive:DescribeSchedule |
-| medialive | medialive/thumbnail | 1 |  | child-uncatalogued | medialive:DescribeThumbnails |
+| medialive | medialive/version | 0 |  | element-written | medialive:ListVersions |
 | mediapackage | mediapackage/harvestjob | 0 |  | sr-resource | mediapackage:DescribeHarvestJob, mediapackage:ListHarvestJobs |
-| mediapackagev2 | mediapackagev2/harvestjob | 1 |  | sr-resource | mediapackagev2:GetHarvestJob, mediapackagev2:ListHarvestJobs |
+| mediapackagev2 | mediapackagev2/harvestjob | 1 |  | smithy-resource | mediapackagev2:GetHarvestJob, mediapackagev2:ListHarvestJobs |
 | mediastore | mediastore/container | 0 |  | sr-resource | mediastore:DescribeContainer, mediastore:ListContainers |
 | mediastore | mediastore/object | 1 |  | sr-resource | mediastore:DescribeObject, mediastore:GetObject |
-| mediatailor | mediatailor/alert | 0 |  | element-arn | mediatailor:ListAlerts |
-| mediatailor | mediatailor/function | 0 |  | element-arn | mediatailor:GetFunction, mediatailor:ListFunctions |
+| mediatailor | mediatailor/alert | 0 |  | child-uncatalogued | mediatailor:ListAlerts |
+| mediatailor | mediatailor/function | 0 |  | smithy-resource | mediatailor:GetFunction, mediatailor:ListFunctions |
 | medical-imaging | medical-imaging/dicomimportjob | 1 |  | child-uncatalogued | medical-imaging:GetDICOMImportJob, medical-imaging:ListDICOMImportJobs |
 | medical-imaging | medical-imaging/imageset | 1 |  | sr-resource | medical-imaging:GetImageSet, medical-imaging:SearchImageSets |
 | medical-imaging | medical-imaging/imagesetversion | 2 |  | child-uncatalogued | medical-imaging:ListImageSetVersions |
-| memorydb | memorydb/multiregionparameter | 1 |  | child-uncatalogued | memorydb:DescribeMultiRegionParameters |
 | memorydb | memorydb/parameter | 1 |  | child-uncatalogued | memorydb:DescribeParameters |
 | mgh | mgh/createdartifact | 1 |  | child-uncatalogued | mgh:ListCreatedArtifacts |
 | mgh | mgh/discoveredresource | 1 |  | child-uncatalogued | mgh:ListDiscoveredResources |
-| mgh | mgh/homeregioncontrol | 0 |  | writable-noun | mgh:DescribeHomeRegionControls |
+| mgh | mgh/homeregioncontrol | 0 |  | element-written | mgh:DescribeHomeRegionControls |
 | mgh | mgh/migrationtask | 0 |  | sr-resource | mgh:DescribeMigrationTask, mgh:ListMigrationTasks |
 | mgh | mgh/sourceresource | 1 |  | child-uncatalogued | mgh:ListSourceResources |
-| mgn | mgn/export | 0 |  | element-arn | mgn:ListExports |
-| mgn | mgn/import | 0 |  | element-arn | mgn:ListImports |
-| mgn | mgn/job | 0 |  | writable-noun | mgn:DescribeJobs |
+| mgn | mgn/export | 0 |  | smithy-resource | mgn:ListExports |
+| mgn | mgn/import | 0 |  | smithy-resource | mgn:ListImports |
+| mgn | mgn/importfileenrichment | 0 |  | element-written | mgn:ListImportFileEnrichments |
+| mgn | mgn/job | 0 |  | smithy-resource | mgn:DescribeJobs |
 | mgn | mgn/networkmigrationanalysis | 1 |  | child-uncatalogued | mgn:ListNetworkMigrationAnalyses |
 | mgn | mgn/networkmigrationanalysisresult | 1 |  | child-uncatalogued | mgn:ListNetworkMigrationAnalysisResults |
 | mgn | mgn/networkmigrationcodegeneration | 1 |  | child-uncatalogued | mgn:ListNetworkMigrationCodeGenerations |
@@ -1490,51 +1440,37 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mgn | mgn/networkmigrationmappersegmentconstruct | 1 |  | child-uncatalogued | mgn:GetNetworkMigrationMapperSegmentConstruct, mgn:ListNetworkMigrationMapperSegmentConstructs |
 | mgn | mgn/networkmigrationmapping | 1 |  | child-uncatalogued | mgn:ListNetworkMigrationMappings |
 | mgn | mgn/networkmigrationmappingupdate | 1 |  | child-uncatalogued | mgn:ListNetworkMigrationMappingUpdates |
-| mgn | mgn/replicationconfiguration | 1 |  | child-uncatalogued | mgn:GetReplicationConfiguration |
 | mgn | mgn/sourceserveraction | 1 |  | child-uncatalogued | mgn:ListSourceServerActions |
 | mgn | mgn/templateaction | 1 |  | child-uncatalogued | mgn:ListTemplateActions |
-| migrationhub-orchestrator | migrationhub-orchestrator/plugin | 0 |  | writable-noun | migrationhub-orchestrator:ListPlugins |
-| migrationhub-orchestrator | migrationhub-orchestrator/templatestep | 1 |  | child-uncatalogued | migrationhub-orchestrator:GetTemplateStep, migrationhub-orchestrator:ListTemplateSteps |
-| migrationhub-orchestrator | migrationhub-orchestrator/templatestepgroup | 1 |  | child-uncatalogued | migrationhub-orchestrator:GetTemplateStepGroup, migrationhub-orchestrator:ListTemplateStepGroups |
-| migrationhub-orchestrator | migrationhub-orchestrator/workflowstep | 1 |  | child-uncatalogued | migrationhub-orchestrator:GetWorkflowStep, migrationhub-orchestrator:ListWorkflowSteps |
-| migrationhub-orchestrator | migrationhub-orchestrator/workflowstepgroup | 1 |  | child-uncatalogued | migrationhub-orchestrator:GetWorkflowStepGroup, migrationhub-orchestrator:ListWorkflowStepGroups |
-| migrationhub-strategy | migrationhub-strategy/applicationcomponentdetail | 1 |  | child-uncatalogued | migrationhub-strategy:GetApplicationComponentDetails |
-| migrationhub-strategy | migrationhub-strategy/collector | 0 |  | writable-noun | migrationhub-strategy:ListCollectors |
+| migrationhub-orchestrator | migrationhub-orchestrator/plugin | 0 |  | smithy-resource | migrationhub-orchestrator:ListPlugins |
+| migrationhub-orchestrator | migrationhub-orchestrator/templatestep | 0 |  | smithy-resource | migrationhub-orchestrator:GetTemplateStep, migrationhub-orchestrator:ListTemplateSteps |
+| migrationhub-orchestrator | migrationhub-orchestrator/templatestepgroup | 0 |  | smithy-resource | migrationhub-orchestrator:GetTemplateStepGroup, migrationhub-orchestrator:ListTemplateStepGroups |
+| migrationhub-orchestrator | migrationhub-orchestrator/workflowstep | 0 |  | smithy-resource | migrationhub-orchestrator:GetWorkflowStep, migrationhub-orchestrator:ListWorkflowSteps |
+| migrationhub-orchestrator | migrationhub-orchestrator/workflowstepgroup | 0 |  | smithy-resource | migrationhub-orchestrator:GetWorkflowStepGroup, migrationhub-orchestrator:ListWorkflowStepGroups |
+| migrationhub-strategy | migrationhub-strategy/applicationcomponent | 0 |  | element-written | migrationhub-strategy:GetApplicationComponentDetails, migrationhub-strategy:ListApplicationComponents |
 | migrationhub-strategy | migrationhub-strategy/serverdetail | 1 |  | child-uncatalogued | migrationhub-strategy:GetServerDetails |
 | mobiletargeting | mobiletargeting/campaignactivity | 2 |  | child-uncatalogued | mobiletargeting:GetCampaignActivities |
-| mobiletargeting | mobiletargeting/campaignversion | 2 |  | child-uncatalogued | mobiletargeting:GetCampaignVersion, mobiletargeting:GetCampaignVersions |
-| mobiletargeting | mobiletargeting/channel | 0 |  | sr-resource | mobiletargeting:GetChannels |
-| mobiletargeting | mobiletargeting/exportjob | 1 |  | sr-resource | mobiletargeting:GetExportJob, mobiletargeting:GetExportJobs |
-| mobiletargeting | mobiletargeting/importjob | 1 |  | sr-resource | mobiletargeting:GetImportJob, mobiletargeting:GetImportJobs |
-| mobiletargeting | mobiletargeting/inappmessage | 1 |  | child-uncatalogued | mobiletargeting:GetInAppMessages |
+| mobiletargeting | mobiletargeting/channel | 1 |  | sr-resource | mobiletargeting:GetChannels |
+| mobiletargeting | mobiletargeting/exportjob | 1 |  | sr-resource | mobiletargeting:GetExportJob, mobiletargeting:GetExportJobs, mobiletargeting:GetSegmentExportJobs |
+| mobiletargeting | mobiletargeting/importjob | 1 |  | sr-resource | mobiletargeting:GetImportJob, mobiletargeting:GetImportJobs, mobiletargeting:GetSegmentImportJobs |
 | mobiletargeting | mobiletargeting/journey | 1 |  | sr-resource | mobiletargeting:GetJourney, mobiletargeting:ListJourneys |
 | mobiletargeting | mobiletargeting/journeyrun | 2 |  | child-uncatalogued | mobiletargeting:GetJourneyRuns |
-| mobiletargeting | mobiletargeting/recommenderconfiguration | 0 |  | writable-noun | mobiletargeting:GetRecommenderConfiguration, mobiletargeting:GetRecommenderConfigurations |
-| mobiletargeting | mobiletargeting/segmentexportjob | 2 |  | child-uncatalogued | mobiletargeting:GetSegmentExportJobs |
-| mobiletargeting | mobiletargeting/segmentimportjob | 2 |  | child-uncatalogued | mobiletargeting:GetSegmentImportJobs |
-| mobiletargeting | mobiletargeting/segmentversion | 2 |  | child-uncatalogued | mobiletargeting:GetSegmentVersion, mobiletargeting:GetSegmentVersions |
-| mobiletargeting | mobiletargeting/templateversion | 1 |  | child-uncatalogued | mobiletargeting:ListTemplateVersions |
-| mobiletargeting | mobiletargeting/userendpoint | 2 |  | child-uncatalogued | mobiletargeting:GetUserEndpoints |
+| mobiletargeting | mobiletargeting/recommenderconfiguration | 0 |  | element-written | mobiletargeting:GetRecommenderConfiguration, mobiletargeting:GetRecommenderConfigurations |
+| mobiletargeting | mobiletargeting/templateversion | 2 |  | child-uncatalogued | mobiletargeting:ListTemplateVersions |
 | monitoring | monitoring/alarmcontributor | 1 |  | child-uncatalogued | monitoring:DescribeAlarmContributors |
-| monitoring | monitoring/managedinsightrule | 0 |  | writable-noun | monitoring:ListManagedInsightRules |
+| monitoring | monitoring/managedinsightrule | 0 |  | child-uncatalogued | monitoring:ListManagedInsightRules |
 | monitoring | monitoring/metricdata | 1 |  | child-uncatalogued | monitoring:GetMetricData |
 | mpa | mpa/policy | 0 |  | element-arn | mpa:ListPolicies |
 | mpa | mpa/policyversion | 0 |  | child-uncatalogued | mpa:GetPolicyVersion, mpa:ListPolicyVersions |
-| mpa | mpa/resourcepolicy | 0 |  | writable-noun | mpa:GetResourcePolicy, mpa:ListResourcePolicies |
-| mpa | mpa/session | 0 |  | sr-resource | mpa:GetSession, mpa:ListSessions |
+| mpa | mpa/resourcepolicy | 0 |  | child-uncatalogued | mpa:GetResourcePolicy, mpa:ListResourcePolicies |
+| mpa | mpa/session | 0 |  | smithy-resource | mpa:ListSessions |
 | mq | mq/sharedresource | 1 |  | child-uncatalogued | mq:DescribeSharedResources |
 | mturk-requester | mturk-requester/assignment | 0 |  | child-uncatalogued | mturk-requester:GetAssignment, mturk-requester:ListAssignmentsForHIT |
-| mturk-requester | mturk-requester/hit | 0 |  | child-uncatalogued | mturk-requester:GetHIT, mturk-requester:ListHITs, mturk-requester:ListHITsForQualificationType |
-| mturk-requester | mturk-requester/qualificationtype | 0 |  | writable-noun | mturk-requester:GetQualificationType, mturk-requester:ListQualificationTypes |
-| mturk-requester | mturk-requester/reviewablehit | 0 |  | element-created | mturk-requester:ListReviewableHITs |
-| mturk-requester | mturk-requester/workerblock | 0 |  | writable-noun | mturk-requester:ListWorkerBlocks |
-| mturk-requester | mturk-requester/workerswithqualificationtype | 1 |  | child-uncatalogued | mturk-requester:ListWorkersWithQualificationType |
-| neptune-db | neptune-db/mlendpoint | 0 |  | writable-noun | neptune-db:GetMLEndpoint, neptune-db:ListMLEndpoints |
-| neptune-db | neptune-db/mlmodeltrainingjob | 0 |  | element-arn | neptune-db:GetMLModelTrainingJob, neptune-db:ListMLModelTrainingJobs |
-| neptune-db | neptune-db/mlmodeltransformjob | 0 |  | element-arn | neptune-db:GetMLModelTransformJob, neptune-db:ListMLModelTransformJobs |
-| neptune-graph | neptune-graph/exporttask | 0 |  | sr-resource | neptune-graph:GetExportTask, neptune-graph:ListExportTasks |
-| neptune-graph | neptune-graph/importtask | 0 |  | sr-resource | neptune-graph:GetImportTask, neptune-graph:ListImportTasks |
-| neptune-graph | neptune-graph/query | 1 |  | child-uncatalogued | neptune-graph:GetQuery, neptune-graph:ListQueries |
+| mturk-requester | mturk-requester/hit | 0 |  | element-written | mturk-requester:GetHIT, mturk-requester:ListHITs, mturk-requester:ListHITsForQualificationType, mturk-requester:ListReviewableHITs |
+| mturk-requester | mturk-requester/qualificationtype | 0 |  | element-written | mturk-requester:GetQualificationType, mturk-requester:ListQualificationTypes |
+| neptune-graph | neptune-graph/exporttask | 1 |  | sr-resource | neptune-graph:GetExportTask, neptune-graph:ListExportTasks |
+| neptune-graph | neptune-graph/importtask | 1 |  | sr-resource | neptune-graph:GetImportTask, neptune-graph:ListImportTasks |
+| network-firewall | network-firewall/analysisreport | 0 |  | element-written | network-firewall:ListAnalysisReports |
 | network-firewall | network-firewall/containerassociation | 0 |  | sr-resource | network-firewall:DescribeContainerAssociation, network-firewall:ListContainerAssociations |
 | network-firewall | network-firewall/flowoperation | 1 |  | child-uncatalogued | network-firewall:DescribeFlowOperation, network-firewall:ListFlowOperations |
 | network-firewall | network-firewall/proxy | 0 |  | sr-resource | network-firewall:DescribeProxy, network-firewall:ListProxies |
@@ -1542,135 +1478,134 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | networkflowmonitor | networkflowmonitor/queryresultsworkloadinsightstopcontributor | 1 |  | child-uncatalogued | networkflowmonitor:GetQueryResultsWorkloadInsightsTopContributors |
 | networkmanager | networkmanager/attachmentroutingpolicyassociation | 1 |  | child-uncatalogued | networkmanager:ListAttachmentRoutingPolicyAssociations |
 | networkmanager | networkmanager/connectpeerassociation | 1 |  | child-uncatalogued | networkmanager:GetConnectPeerAssociations |
-| networkmanager | networkmanager/corenetworkchangeset | 1 |  | child-uncatalogued | networkmanager:GetCoreNetworkChangeSet |
+| networkmanager | networkmanager/corenetworkchangeset | 0 |  | child-uncatalogued | networkmanager:GetCoreNetworkChangeSet |
 | networkmanager | networkmanager/corenetworkpolicyversion | 1 |  | child-uncatalogued | networkmanager:ListCoreNetworkPolicyVersions |
 | networkmanager | networkmanager/networkresource | 1 |  | child-uncatalogued | networkmanager:GetNetworkResources |
-| networkmanager | networkmanager/networkroute | 1 |  | child-uncatalogued | networkmanager:GetNetworkRoutes |
 | networkmanager | networkmanager/networktelemetry | 1 |  | child-uncatalogued | networkmanager:GetNetworkTelemetry |
 | networkmanager | networkmanager/transitgatewayconnectpeerassociation | 1 |  | child-uncatalogued | networkmanager:GetTransitGatewayConnectPeerAssociations |
-| notifications | notifications/managednotificationchildevent | 1 |  | sr-resource | notifications:GetManagedNotificationChildEvent, notifications:ListManagedNotificationChildEvents |
-| notifications | notifications/managednotificationevent | 0 |  | sr-resource | notifications:GetManagedNotificationEvent, notifications:ListManagedNotificationEvents |
+| notifications | notifications/managednotificationchildevent | 0 |  | smithy-resource | notifications:GetManagedNotificationChildEvent, notifications:ListManagedNotificationChildEvents |
+| notifications | notifications/managednotificationevent | 0 |  | smithy-resource | notifications:GetManagedNotificationEvent, notifications:ListManagedNotificationEvents |
 | notifications | notifications/memberaccount | 1 |  | child-uncatalogued | notifications:ListMemberAccounts |
-| notifications | notifications/notificationevent | 0 |  | sr-resource | notifications:GetNotificationEvent, notifications:ListNotificationEvents |
-| nova-act | nova-act/act | 1 |  | child-uncatalogued | nova-act:ListActs |
-| nova-act | nova-act/session | 2 |  | child-uncatalogued | nova-act:ListSessions |
-| nova-act | nova-act/workflowrun | 1 |  | sr-resource | nova-act:GetWorkflowRun, nova-act:ListWorkflowRuns |
+| notifications | notifications/notificationevent | 0 |  | smithy-resource | notifications:GetNotificationEvent, notifications:ListNotificationEvents |
+| nova-act | nova-act/act | 3 |  | smithy-resource | nova-act:ListActs |
+| nova-act | nova-act/model | 0 |  | smithy-resource | nova-act:ListModels |
+| nova-act | nova-act/session | 2 |  | smithy-resource | nova-act:ListSessions |
+| nova-act | nova-act/workflowrun | 1 |  | smithy-resource | nova-act:GetWorkflowRun, nova-act:ListWorkflowRuns |
 | oam | oam/attachedlink | 1 |  | child-uncatalogued | oam:ListAttachedLinks |
 | observabilityadmin | observabilityadmin/telemetryevaluationstatus | 0 |  | element-arn | observabilityadmin:GetTelemetryEvaluationStatus, observabilityadmin:GetTelemetryEvaluationStatusForOrganization |
-| odb | odb/autonomousdatabaseclone | 1 |  | child-uncatalogued | odb:ListAutonomousDatabaseClones |
 | odb | odb/autonomousdatabasepeer | 1 |  | child-uncatalogued | odb:ListAutonomousDatabasePeers |
 | odb | odb/autonomousvirtualmachine | 1 |  | child-uncatalogued | odb:ListAutonomousVirtualMachines |
-| odb | odb/cloudexadatainfrastructureunallocatedresource | 1 |  | child-uncatalogued | odb:GetCloudExadataInfrastructureUnallocatedResources |
 | odb | odb/dbserver | 1 |  | child-uncatalogued | odb:GetDbServer, odb:ListDbServers |
-| odb | odb/exadbvmcluster | 0 |  | sr-resource | odb:GetExadbVmCluster, odb:ListExadbVmClusters |
-| odb | odb/exascaledbstoragevault | 0 |  | sr-resource | odb:GetExascaleDbStorageVault, odb:ListExascaleDbStorageVaults |
-| odb | odb/ocionboardingstatus | 0 |  | element-arn | odb:GetOciOnboardingStatus |
-| omics | omics/annotationimportjob | 0 |  | element-arn | omics:GetAnnotationImportJob, omics:ListAnnotationImportJobs |
-| omics | omics/batch | 0 |  | writable-noun | omics:GetBatch, omics:ListBatch |
+| odb | odb/exadbvmcluster | 0 |  | smithy-resource | odb:GetExadbVmCluster, odb:ListExadbVmClusters |
+| odb | odb/exascaledbstoragevault | 0 |  | smithy-resource | odb:GetExascaleDbStorageVault, odb:ListExascaleDbStorageVaults |
+| omics | omics/annotationimportjob | 0 |  | smithy-resource | omics:ListAnnotationImportJobs |
 | omics | omics/multipartreadsetupload | 1 |  | child-uncatalogued | omics:ListMultipartReadSetUploads |
-| omics | omics/readset | 1 |  | sr-resource | omics:GetReadSet, omics:ListReadSets |
-| omics | omics/readsetactivationjob | 1 |  | child-uncatalogued | omics:GetReadSetActivationJob, omics:ListReadSetActivationJobs |
-| omics | omics/readsetexportjob | 1 |  | child-uncatalogued | omics:GetReadSetExportJob, omics:ListReadSetExportJobs |
+| omics | omics/readset | 1 |  | smithy-resource | omics:GetReadSet, omics:GetReadSetMetadata, omics:ListReadSets |
+| omics | omics/readsetactivationjob | 1 |  | child-uncatalogued | omics:ListReadSetActivationJobs |
+| omics | omics/readsetexportjob | 1 |  | child-uncatalogued | omics:ListReadSetExportJobs |
 | omics | omics/readsetimportjob | 1 |  | child-uncatalogued | omics:GetReadSetImportJob, omics:ListReadSetImportJobs |
 | omics | omics/referenceimportjob | 1 |  | child-uncatalogued | omics:GetReferenceImportJob, omics:ListReferenceImportJobs |
-| omics | omics/run | 0 |  | sr-resource | omics:GetRun, omics:ListRuns, omics:ListRunsInBatch |
-| omics | omics/runtask | 1 |  | child-uncatalogued | omics:GetRunTask, omics:ListRunTasks |
-| omics | omics/share | 0 |  | writable-noun | omics:GetShare, omics:ListShares |
-| omics | omics/variantimportjob | 0 |  | element-arn | omics:GetVariantImportJob, omics:ListVariantImportJobs |
-| organizations | organizations/accountswithinvalideffectivepolicy | 0 |  | element-arn | organizations:ListAccountsWithInvalidEffectivePolicy |
+| omics | omics/run | 0 |  | smithy-resource | omics:GetRun, omics:ListRuns, omics:ListRunsInBatch |
+| omics | omics/runbatch | 0 |  | smithy-resource | omics:GetBatch, omics:ListBatch |
+| omics | omics/share | 0 |  | smithy-resource | omics:GetShare, omics:ListShares |
+| omics | omics/tagging | 0 |  | smithy-resource | omics:ListTagsForResource |
+| omics | omics/task | 1 |  | smithy-resource | omics:GetRunTask, omics:ListRunTasks |
+| omics | omics/variantimportjob | 0 |  | smithy-resource | omics:ListVariantImportJobs |
 | organizations | organizations/children | 2 |  | child-uncatalogued | organizations:ListChildren |
-| organizations | organizations/handshake | 0 |  | sr-resource | organizations:DescribeHandshake, organizations:ListHandshakesForAccount, organizations:ListHandshakesForOrganization |
+| organizations | organizations/createaccountstatus | 0 |  | element-written | organizations:DescribeCreateAccountStatus, organizations:ListCreateAccountStatus |
+| organizations | organizations/handshake | 2 |  | sr-resource | organizations:DescribeHandshake, organizations:ListHandshakesForAccount, organizations:ListHandshakesForOrganization |
 | osis | osis/pipelineendpointconnection | 0 |  | element-arn | osis:ListPipelineEndpointConnections |
 | outposts | outposts/asset | 1 |  | child-uncatalogued | outposts:ListAssets |
 | outposts | outposts/assetinstance | 1 |  | child-uncatalogued | outposts:ListAssetInstances |
-| outposts | outposts/blockinginstance | 1 |  | child-uncatalogued | outposts:ListBlockingInstancesForCapacityTask |
-| outposts | outposts/capacitytask | 0 |  | element-created | outposts:GetCapacityTask, outposts:ListCapacityTasks |
-| outposts | outposts/order | 0 |  | writable-noun | outposts:GetOrder, outposts:ListOrders |
+| outposts | outposts/blockinginstance | 2 |  | child-uncatalogued | outposts:ListBlockingInstancesForCapacityTask |
+| outposts | outposts/capacitytask | 0 |  | element-written | outposts:GetCapacityTask, outposts:ListCapacityTasks |
+| outposts | outposts/order | 0 |  | element-written | outposts:GetOrder, outposts:ListOrders |
 | outposts | outposts/outpostbillinginformation | 1 |  | child-uncatalogued | outposts:GetOutpostBillingInformation |
-| outposts | outposts/quote | 0 |  | writable-noun | outposts:GetQuote, outposts:ListQuotes |
-| partnercentral | partnercentral/marketplacerevenueshare | 1 |  | sr-resource | partnercentral:GetMarketplaceRevenueShare, partnercentral:ListMarketplaceRevenueShares |
+| outposts | outposts/quote | 0 |  | element-written | outposts:GetQuote, outposts:ListQuotes |
+| partnercentral | partnercentral/marketplacerevenueshare | 1 |  | smithy-resource | partnercentral:GetMarketplaceRevenueShare, partnercentral:ListMarketplaceRevenueShares |
 | partnercentral | partnercentral/marketplacerevenueshareallocation | 2 |  | child-uncatalogued | partnercentral:GetMarketplaceRevenueShareAllocation, partnercentral:ListMarketplaceRevenueShareAllocations |
-| partnercentral | partnercentral/revenueattribution | 1 |  | sr-resource | partnercentral:GetRevenueAttribution, partnercentral:ListRevenueAttributions |
+| partnercentral | partnercentral/revenueattribution | 1 |  | smithy-resource | partnercentral:GetRevenueAttribution, partnercentral:ListRevenueAttributions |
 | partnercentral | partnercentral/revenueattributionallocation | 2 |  | child-uncatalogued | partnercentral:GetRevenueAttributionAllocation, partnercentral:ListRevenueAttributionAllocations |
-| partnercentral | partnercentral/revenueattributionallocationstask | 2 |  | child-uncatalogued | partnercentral:GetRevenueAttributionAllocationsTask |
-| partnercentral-account | partnercentral-account/connection | 1 |  | sr-resource | partnercentral-account:GetConnection, partnercentral-account:ListConnections |
-| partnercentral-account | partnercentral-account/connectioninvitation | 1 |  | sr-resource | partnercentral-account:GetConnectionInvitation, partnercentral-account:ListConnectionInvitations |
-| partnercentral-account | partnercentral-account/connectionpreference | 1 |  | sr-resource | partnercentral-account:GetConnectionPreferences |
-| partnercentral-account | partnercentral-account/partner | 1 |  | sr-resource | partnercentral-account:GetPartner, partnercentral-account:ListPartners |
-| partnercentral-account | partnercentral-account/qualificationsassociationdetail | 2 |  | child-uncatalogued | partnercentral-account:GetQualificationsAssociationDetails |
+| partnercentral-account | partnercentral-account/connection | 1 |  | smithy-resource | partnercentral-account:GetConnection, partnercentral-account:ListConnections |
+| partnercentral-account | partnercentral-account/connectioninvitation | 1 |  | smithy-resource | partnercentral-account:GetConnectionInvitation, partnercentral-account:ListConnectionInvitations |
+| partnercentral-account | partnercentral-account/connectionpreference | 0 |  | smithy-resource | partnercentral-account:GetConnectionPreferences |
+| partnercentral-account | partnercentral-account/partner | 1 |  | smithy-resource | partnercentral-account:GetPartner, partnercentral-account:ListPartners |
 | partnercentral-benefits | partnercentral-benefits/benefit | 1 |  | sr-resource | partnercentral-benefits:GetBenefit, partnercentral-benefits:ListBenefits |
 | partnercentral-benefits | partnercentral-benefits/benefitallocation | 1 |  | sr-resource | partnercentral-benefits:GetBenefitAllocation, partnercentral-benefits:ListBenefitAllocations |
 | partnercentral-benefits | partnercentral-benefits/benefitapplication | 1 |  | sr-resource | partnercentral-benefits:GetBenefitApplication, partnercentral-benefits:ListBenefitApplications |
-| partnercentral-channel | partnercentral-channel/channelhandshake | 1 |  | sr-resource | partnercentral-channel:ListChannelHandshakes |
-| partnercentral-channel | partnercentral-channel/programmanagementaccount | 1 |  | sr-resource | partnercentral-channel:ListProgramManagementAccounts |
-| partnercentral-channel | partnercentral-channel/relationship | 1 |  | sr-resource | partnercentral-channel:GetRelationship, partnercentral-channel:ListRelationships |
-| partnercentral-selling | partnercentral-selling/awsopportunitysummary | 2 |  | child-uncatalogued | partnercentral-selling:GetAwsOpportunitySummary |
-| partnercentral-selling | partnercentral-selling/engagement | 1 |  | sr-resource | partnercentral-selling:GetEngagement, partnercentral-selling:ListEngagementByAcceptingInvitationTasks, partnercentral-selling:ListEngagementFromOpportunityTasks, partnercentral-selling:ListEngagements |
-| partnercentral-selling | partnercentral-selling/engagementinvitation | 1 |  | sr-resource | partnercentral-selling:GetEngagementInvitation, partnercentral-selling:ListEngagementInvitations |
-| partnercentral-selling | partnercentral-selling/engagementmember | 2 |  | child-uncatalogued | partnercentral-selling:ListEngagementMembers |
-| partnercentral-selling | partnercentral-selling/engagementresourceassociation | 6 |  | child-uncatalogued | partnercentral-selling:ListEngagementResourceAssociations |
-| partnercentral-selling | partnercentral-selling/opportunity | 1 |  | sr-resource | partnercentral-selling:GetOpportunity, partnercentral-selling:ListOpportunities, partnercentral-selling:ListOpportunityFromEngagementTasks |
-| partnercentral-selling | partnercentral-selling/prospecting | 1 |  | child-uncatalogued | partnercentral-selling:GetProspectingFromEngagementTask, partnercentral-selling:ListProspectingFromEngagementTasks |
-| partnercentral-selling | partnercentral-selling/resourcesnapshot | 5 |  | sr-resource | partnercentral-selling:GetResourceSnapshot, partnercentral-selling:ListResourceSnapshots |
-| partnercentral-selling | partnercentral-selling/resourcesnapshotjob | 1 |  | sr-resource | partnercentral-selling:GetResourceSnapshotJob, partnercentral-selling:ListResourceSnapshotJobs |
-| partnercentral-selling | partnercentral-selling/solution | 1 |  | sr-resource | partnercentral-selling:ListSolutions |
+| partnercentral-channel | partnercentral-channel/channelhandshake | 0 |  | smithy-resource | partnercentral-channel:ListChannelHandshakes |
+| partnercentral-channel | partnercentral-channel/programmanagementaccount | 0 |  | smithy-resource | partnercentral-channel:ListProgramManagementAccounts |
+| partnercentral-channel | partnercentral-channel/relationship | 0 |  | smithy-resource | partnercentral-channel:GetRelationship, partnercentral-channel:ListRelationships |
+| partnercentral-selling | partnercentral-selling/engagement | 0 |  | smithy-resource | partnercentral-selling:GetEngagement, partnercentral-selling:ListEngagements |
+| partnercentral-selling | partnercentral-selling/engagementbyacceptinginvitationtask | 0 |  | smithy-resource | partnercentral-selling:ListEngagementByAcceptingInvitationTasks |
+| partnercentral-selling | partnercentral-selling/engagementfromopportunitytask | 0 |  | smithy-resource | partnercentral-selling:ListEngagementFromOpportunityTasks |
+| partnercentral-selling | partnercentral-selling/engagementinvitation | 0 |  | smithy-resource | partnercentral-selling:GetEngagementInvitation, partnercentral-selling:ListEngagementInvitations |
+| partnercentral-selling | partnercentral-selling/engagementmember | 1 |  | child-uncatalogued | partnercentral-selling:ListEngagementMembers |
+| partnercentral-selling | partnercentral-selling/engagementresourceassociation | 1 |  | child-uncatalogued | partnercentral-selling:ListEngagementResourceAssociations |
+| partnercentral-selling | partnercentral-selling/opportunity | 0 |  | smithy-resource | partnercentral-selling:GetOpportunity, partnercentral-selling:ListOpportunities |
+| partnercentral-selling | partnercentral-selling/opportunityfromengagementtask | 0 |  | smithy-resource | partnercentral-selling:ListOpportunityFromEngagementTasks |
+| partnercentral-selling | partnercentral-selling/prospectingfromengagementtask | 0 |  | smithy-resource | partnercentral-selling:ListProspectingFromEngagementTasks |
+| partnercentral-selling | partnercentral-selling/resourcesnapshot | 0 |  | smithy-resource | partnercentral-selling:GetResourceSnapshot, partnercentral-selling:ListResourceSnapshots |
+| partnercentral-selling | partnercentral-selling/resourcesnapshotjob | 0 |  | smithy-resource | partnercentral-selling:GetResourceSnapshotJob, partnercentral-selling:ListResourceSnapshotJobs |
+| partnercentral-selling | partnercentral-selling/solution | 0 |  | smithy-resource | partnercentral-selling:ListSolutions |
 | personalize | personalize/batchinferencejob | 0 |  | sr-resource | personalize:DescribeBatchInferenceJob, personalize:ListBatchInferenceJobs |
 | personalize | personalize/batchsegmentjob | 0 |  | sr-resource | personalize:DescribeBatchSegmentJob, personalize:ListBatchSegmentJobs |
 | personalize | personalize/datadeletionjob | 0 |  | sr-resource | personalize:DescribeDataDeletionJob, personalize:ListDataDeletionJobs |
 | personalize | personalize/datasetexportjob | 0 |  | sr-resource | personalize:DescribeDatasetExportJob, personalize:ListDatasetExportJobs |
 | personalize | personalize/datasetimportjob | 0 |  | sr-resource | personalize:DescribeDatasetImportJob, personalize:ListDatasetImportJobs |
-| personalize | personalize/personalizedranking | 1 |  | child-uncatalogued | personalize:GetPersonalizedRanking |
-| personalize | personalize/solutionversion | 0 |  | writable-noun | personalize:DescribeSolutionVersion, personalize:ListSolutionVersions |
+| personalize | personalize/metricattributionmetric | 0 |  | element-written | personalize:ListMetricAttributionMetrics |
+| personalize | personalize/solutionversion | 0 |  | element-written | personalize:DescribeSolutionVersion, personalize:ListSolutionVersions |
 | pi | pi/performanceanalysisreport | 3 |  | child-uncatalogued | pi:GetPerformanceAnalysisReport, pi:ListPerformanceAnalysisReports |
 | pi | pi/performanceanalysisreportrecommendation | 3 |  | child-uncatalogued | pi:ListPerformanceAnalysisReportRecommendations |
-| polly | polly/speechsynthesistask | 0 |  | element-arn | polly:GetSpeechSynthesisTask, polly:ListSpeechSynthesisTasks |
+| polly | polly/speechsynthesistask | 0 |  | element-written | polly:GetSpeechSynthesisTask, polly:ListSpeechSynthesisTasks |
 | pricing | pricing/pricelist | 0 |  | element-arn | pricing:ListPriceLists |
 | pricingplanmanager | pricingplanmanager/subscription | 0 |  | sr-resource | pricingplanmanager:GetSubscription, pricingplanmanager:ListSubscriptions |
-| profile | profile/accountintegration | 2 |  | child-uncatalogued | profile:ListAccountIntegrations |
-| profile | profile/calculatedattribute | 1 |  | sr-resource | profile:BatchGetCalculatedAttributeForProfile, profile:GetCalculatedAttributeForProfile, profile:ListCalculatedAttributesForProfile |
+| profile | profile/calculatedattribute | 2 |  | sr-resource | profile:BatchGetCalculatedAttributeForProfile, profile:GetCalculatedAttributeForProfile, profile:ListCalculatedAttributesForProfile |
 | profile | profile/identityresolutionjob | 1 |  | child-uncatalogued | profile:GetIdentityResolutionJob, profile:ListIdentityResolutionJobs |
 | profile | profile/match | 1 |  | child-uncatalogued | profile:GetMatches |
 | profile | profile/objecttypeattribute | 2 |  | child-uncatalogued | profile:ListObjectTypeAttributes |
 | profile | profile/profile | 1 |  | child-uncatalogued | profile:BatchGetProfile, profile:SearchProfiles |
 | profile | profile/profilehistoryrecord | 1 |  | child-uncatalogued | profile:GetProfileHistoryRecord, profile:ListProfileHistoryRecords |
-| profile | profile/profileobject | 2 |  | child-uncatalogued | profile:ListProfileObjects |
+| profile | profile/profileobject | 1 |  | child-uncatalogued | profile:ListProfileObjects |
 | profile | profile/rulebasedmatch | 1 |  | child-uncatalogued | profile:ListRuleBasedMatches |
 | profile | profile/segmentmembership | 2 |  | child-uncatalogued | profile:GetSegmentMembership |
 | profile | profile/segmentsubscriptionevent | 2 |  | child-uncatalogued | profile:ListSegmentSubscriptionEvents |
 | profile | profile/similarprofile | 1 |  | child-uncatalogued | profile:GetSimilarProfiles |
-| profile | profile/stream | 1 |  | child-uncatalogued | profile:GetStreamForSegments |
 | profile | profile/uploadjob | 1 |  | child-uncatalogued | profile:GetUploadJob, profile:ListUploadJobs |
 | profile | profile/workflow | 1 |  | child-uncatalogued | profile:GetWorkflow, profile:ListWorkflows |
-| proton | proton/componentprovisionedresource | 1 |  | child-uncatalogued | proton:ListComponentProvisionedResources |
-| proton | proton/environmentprovisionedresource | 1 |  | child-uncatalogued | proton:ListEnvironmentProvisionedResources |
-| proton | proton/serviceinstanceprovisionedresource | 1 |  | child-uncatalogued | proton:ListServiceInstanceProvisionedResources |
-| proton | proton/servicepipelineprovisionedresource | 1 |  | child-uncatalogued | proton:ListServicePipelineProvisionedResources |
-| qapps | qapps/category | 1 |  | child-uncatalogued | qapps:ListCategories |
-| qapps | qapps/libraryitem | 1 |  | child-uncatalogued | qapps:GetLibraryItem, qapps:ListLibraryItems |
-| qapps | qapps/qappsessiondata | 3 |  | child-uncatalogued | qapps:ListQAppSessionData |
+| proton | proton/componentoutput | 0 |  | smithy-resource | proton:ListComponentOutputs |
+| proton | proton/componentprovisionedresource | 0 |  | smithy-resource | proton:ListComponentProvisionedResources |
+| proton | proton/environmentoutput | 0 |  | smithy-resource | proton:ListEnvironmentOutputs |
+| proton | proton/environmentprovisionedresource | 0 |  | smithy-resource | proton:ListEnvironmentProvisionedResources |
+| proton | proton/serviceinstanceoutput | 2 |  | smithy-resource | proton:ListServiceInstanceOutputs |
+| proton | proton/serviceinstanceprovisionedresource | 1 |  | smithy-resource | proton:ListServiceInstanceProvisionedResources |
+| proton | proton/servicepipelineoutput | 1 |  | smithy-resource | proton:ListServicePipelineOutputs |
+| proton | proton/servicepipelineprovisionedresource | 1 |  | smithy-resource | proton:ListServicePipelineProvisionedResources |
+| qapps | qapps/category | 1 |  | child-uncatalogued | qapps:GetLibraryItem, qapps:ListCategories |
+| qapps | qapps/libraryitem | 1 |  | child-uncatalogued | qapps:ListLibraryItems |
 | qbusiness | qbusiness/attachment | 1 |  | child-uncatalogued | qbusiness:ListAttachments |
 | qbusiness | qbusiness/chatcontrolsconfiguration | 1 |  | child-uncatalogued | qbusiness:GetChatControlsConfiguration |
 | qbusiness | qbusiness/conversation | 1 |  | child-uncatalogued | qbusiness:ListConversations |
 | qbusiness | qbusiness/datasourcesyncjob | 3 |  | child-uncatalogued | qbusiness:ListDataSourceSyncJobs |
 | qbusiness | qbusiness/document | 2 |  | child-uncatalogued | qbusiness:ListDocuments |
 | qbusiness | qbusiness/group | 2 |  | child-uncatalogued | qbusiness:GetGroup, qbusiness:ListGroups |
-| qbusiness | qbusiness/message | 1 |  | child-uncatalogued | qbusiness:ListMessages |
-| qbusiness | qbusiness/pluginaction | 2 |  | child-uncatalogued | qbusiness:ListPluginActions |
+| qbusiness | qbusiness/message | 2 |  | child-uncatalogued | qbusiness:ListMessages |
+| qbusiness | qbusiness/pluginaction | 2 |  | child-uncatalogued | qbusiness:ListPluginActions, qbusiness:ListPluginTypeActions |
 | qbusiness | qbusiness/relevantcontent | 1 |  | child-uncatalogued | qbusiness:SearchRelevantContent |
-| qbusiness | qbusiness/user | 1 |  | child-uncatalogued | qbusiness:GetUser |
+| qbusiness | qbusiness/user | 0 |  | child-uncatalogued | qbusiness:GetUser |
 | quicksight | quicksight/app | 0 |  | sr-resource | quicksight:DescribeApp, quicksight:ListApps, quicksight:SearchApps |
 | quicksight | quicksight/approvalpolicy | 0 |  | sr-resource | quicksight:DescribeApprovalPolicy, quicksight:ListApprovalPolicies |
 | quicksight | quicksight/assetbundleexportjob | 0 |  | sr-resource | quicksight:DescribeAssetBundleExportJob, quicksight:ListAssetBundleExportJobs |
 | quicksight | quicksight/assetbundleimportjob | 0 |  | sr-resource | quicksight:DescribeAssetBundleImportJob, quicksight:ListAssetBundleImportJobs |
 | quicksight | quicksight/dashboardversion | 1 |  | child-uncatalogued | quicksight:ListDashboardVersions |
+| quicksight | quicksight/describeuserlimit | 0 |  | element-arn | quicksight:BatchDescribeUserLimits |
 | quicksight | quicksight/dlpsetting | 0 |  | sr-resource | quicksight:DescribeDlpSetting, quicksight:ListDlpSettings |
 | quicksight | quicksight/foldermember | 1 |  | child-uncatalogued | quicksight:ListFolderMembers |
-| quicksight | quicksight/groupmembership | 1 |  | child-uncatalogued | quicksight:DescribeGroupMembership, quicksight:ListGroupMemberships |
-| quicksight | quicksight/identitypropagationconfig | 0 |  | writable-noun | quicksight:ListIdentityPropagationConfigs |
+| quicksight | quicksight/groupmembership | 2 |  | child-uncatalogued | quicksight:DescribeGroupMembership, quicksight:ListGroupMemberships |
 | quicksight | quicksight/ingestion | 1 |  | sr-resource | quicksight:DescribeIngestion, quicksight:ListIngestions |
-| quicksight | quicksight/keyregistration | 0 |  | element-arn | quicksight:DescribeKeyRegistration |
+| quicksight | quicksight/keyregistration | 0 |  | element-written | quicksight:DescribeKeyRegistration |
 | quicksight | quicksight/limitsprofile | 0 |  | sr-resource | quicksight:DescribeLimitsProfile, quicksight:ListLimitsProfiles |
-| quicksight | quicksight/rolemembership | 0 |  | writable-noun | quicksight:ListRoleMemberships |
+| quicksight | quicksight/rolemembership | 2 |  | child-uncatalogued | quicksight:ListRoleMemberships |
 | quicksight | quicksight/selfupgrade | 1 |  | child-uncatalogued | quicksight:ListSelfUpgrades |
 | quicksight | quicksight/spaceresource | 1 |  | child-uncatalogued | quicksight:ListSpaceResources |
 | quicksight | quicksight/templatealias | 1 |  | child-uncatalogued | quicksight:DescribeTemplateAlias, quicksight:ListTemplateAliases |
@@ -1679,54 +1614,56 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | quicksight | quicksight/themeversion | 1 |  | child-uncatalogued | quicksight:ListThemeVersions |
 | quicksight | quicksight/topicrefreshschedule | 1 |  | child-uncatalogued | quicksight:DescribeTopicRefreshSchedule, quicksight:ListTopicRefreshSchedules |
 | quicksight | quicksight/topicreviewedanswer | 1 |  | child-uncatalogued | quicksight:ListTopicReviewedAnswers |
-| quicksight | quicksight/usergroup | 1 |  | child-uncatalogued | quicksight:ListUserGroups |
-| quicksight | quicksight/usersindexcapacity | 0 |  | element-arn | quicksight:ListUsersIndexCapacity |
-| ram | ram/pendinginvitationresource | 1 |  | child-uncatalogued | ram:ListPendingInvitationResources |
+| quicksight | quicksight/usersindexcapacity | 0 |  | element-written | quicksight:ListUsersIndexCapacity |
 | ram | ram/permissionassociation | 0 |  | element-arn | ram:ListPermissionAssociations |
-| ram | ram/permissionversion | 1 |  | child-uncatalogued | ram:ListPermissionVersions |
 | ram | ram/principal | 0 |  | element-arn | ram:ListPrincipals |
-| ram | ram/replacepermissionassociationswork | 0 |  | element-arn | ram:ListReplacePermissionAssociationsWork |
-| ram | ram/resource | 0 |  | element-arn | ram:ListResources |
-| ram | ram/resourceshareassociation | 0 |  | writable-noun | ram:GetResourceShareAssociations |
+| ram | ram/replacepermissionassociationswork | 0 |  | element-written | ram:ListReplacePermissionAssociationsWork |
+| ram | ram/resource | 0 |  | element-written | ram:ListPendingInvitationResources, ram:ListResources |
+| ram | ram/resourceshareassociation | 0 |  | element-written | ram:GetResourceShareAssociations |
 | ram | ram/resourceshareinvitation | 0 |  | sr-resource | ram:GetResourceShareInvitations |
-| ram | ram/resourcesharepermission | 1 |  | child-uncatalogued | ram:ListResourceSharePermissions |
-| ram | ram/sourceassociation | 0 |  | element-arn | ram:ListSourceAssociations |
-| rds | rds/certificate | 0 |  | element-arn | rds:DescribeCertificates |
+| ram | ram/sourceassociation | 0 |  | element-written | ram:ListSourceAssociations |
+| rds | rds/certificate | 0 |  | element-written | rds:DescribeCertificates |
 | rds | rds/dbclusterbacktrack | 1 |  | child-uncatalogued | rds:DescribeDBClusterBacktracks |
-| rds | rds/dbclusterparameter | 1 |  | child-uncatalogued | rds:DescribeDBClusterParameters |
+| rds | rds/dbclusterparameter | 1 |  | element-written | rds:DescribeDBClusterParameters, rds:DescribeEngineDefaultClusterParameters |
 | rds | rds/dbclustersnapshotattribute | 1 |  | child-uncatalogued | rds:DescribeDBClusterSnapshotAttributes |
 | rds | rds/dblogfile | 1 |  | child-uncatalogued | rds:DescribeDBLogFiles |
-| rds | rds/dbparameter | 1 |  | child-uncatalogued | rds:DescribeDBParameters |
+| rds | rds/dbparameter | 1 |  | element-written | rds:DescribeDBClusterParameters, rds:DescribeDBParameters, rds:DescribeEngineDefaultClusterParameters, rds:DescribeEngineDefaultParameters |
 | rds | rds/dbproxytarget | 1 |  | child-uncatalogued | rds:DescribeDBProxyTargets |
-| rds | rds/dbrecommendation | 0 |  | element-arn | rds:DescribeDBRecommendations |
+| rds | rds/dbrecommendation | 0 |  | element-written | rds:DescribeDBRecommendations |
 | rds | rds/dbsnapshotattribute | 1 |  | child-uncatalogued | rds:DescribeDBSnapshotAttributes |
 | rds | rds/event | 0 |  | element-arn | rds:DescribeEvents |
-| rds | rds/exporttask | 0 |  | element-arn | rds:DescribeExportTasks |
-| rds | rds/optiongroupoption | 1 |  | child-uncatalogued | rds:DescribeOptionGroupOptions |
+| rds | rds/exporttask | 0 |  | element-written | rds:DescribeExportTasks |
+| rds | rds/optiongroupoption | 0 |  | child-uncatalogued | rds:DescribeOptionGroupOptions |
+| rds | rds/pendingmaintenanceaction | 0 |  | element-written | rds:DescribePendingMaintenanceActions |
+| rds | rds/reserveddbinstancesoffering | 0 |  | element-written | rds:DescribeReservedDBInstancesOfferings |
 | rds | rds/validdbinstancemodification | 1 |  | child-uncatalogued | rds:DescribeValidDBInstanceModifications |
-| redshift | redshift/authenticationprofile | 0 |  | writable-noun | redshift:DescribeAuthenticationProfiles |
-| redshift | redshift/clusterparameter | 1 |  | child-uncatalogued | redshift:DescribeClusterParameters |
-| redshift | redshift/clustersecuritygroup | 0 |  | writable-noun | redshift:DescribeClusterSecurityGroups |
-| redshift | redshift/customdomainassociation | 0 |  | writable-noun | redshift:DescribeCustomDomainAssociations |
-| redshift | redshift/inboundintegration | 0 |  | writable-noun | redshift:DescribeInboundIntegrations |
+| redshift | redshift/authenticationprofile | 0 |  | element-written | redshift:DescribeAuthenticationProfiles |
+| redshift | redshift/clusterparameter | 1 |  | element-written | redshift:DescribeClusterParameters, redshift:DescribeDefaultClusterParameters |
+| redshift | redshift/clustersecuritygroup | 0 |  | element-written | redshift:DescribeClusterSecurityGroups |
+| redshift | redshift/customdomainassociation | 0 |  | element-arn | redshift:DescribeCustomDomainAssociations |
+| redshift | redshift/inboundintegration | 0 |  | element-written | redshift:DescribeInboundIntegrations |
 | redshift | redshift/partner | 1 |  | child-uncatalogued | redshift:DescribePartners |
 | redshift | redshift/qev2idcapplication | 0 |  | sr-resource | redshift:DescribeQev2IdcApplications |
 | redshift | redshift/recommendation | 0 |  | element-arn | redshift:ListRecommendations |
-| redshift | redshift/reservednodeexchangeoffering | 1 |  | child-uncatalogued | redshift:GetReservedNodeExchangeOfferings |
+| redshift | redshift/reservednode | 0 |  | element-written | redshift:DescribeReservedNodes |
+| redshift | redshift/reservednodeoffering | 0 |  | element-written | redshift:DescribeReservedNodeOfferings, redshift:GetReservedNodeExchangeOfferings |
+| redshift | redshift/tablerestorestatus | 0 |  | element-written | redshift:DescribeTableRestoreStatus |
 | redshift-data | redshift-data/database | 1 |  | child-uncatalogued | redshift-data:ListDatabases |
 | redshift-data | redshift-data/schema | 1 |  | child-uncatalogued | redshift-data:ListSchemas |
 | redshift-data | redshift-data/statement | 0 |  | element-arn | redshift-data:DescribeStatement, redshift-data:ListStatements |
 | redshift-data | redshift-data/table | 1 |  | child-uncatalogued | redshift-data:DescribeTable, redshift-data:ListTables |
-| redshift-serverless | redshift-serverless/customdomainassociation | 0 |  | writable-noun | redshift-serverless:GetCustomDomainAssociation, redshift-serverless:ListCustomDomainAssociations |
-| redshift-serverless | redshift-serverless/reservation | 0 |  | writable-noun | redshift-serverless:GetReservation, redshift-serverless:ListReservations |
-| redshift-serverless | redshift-serverless/scheduledaction | 0 |  | writable-noun | redshift-serverless:GetScheduledAction, redshift-serverless:ListScheduledActions |
-| redshift-serverless | redshift-serverless/snapshotcopyconfiguration | 0 |  | writable-noun | redshift-serverless:ListSnapshotCopyConfigurations |
-| redshift-serverless | redshift-serverless/usagelimit | 0 |  | writable-noun | redshift-serverless:GetUsageLimit, redshift-serverless:ListUsageLimits |
+| redshift-serverless | redshift-serverless/customdomainassociation | 0 |  | element-arn | redshift-serverless:GetCustomDomainAssociation, redshift-serverless:ListCustomDomainAssociations |
+| redshift-serverless | redshift-serverless/reservation | 0 |  | smithy-resource | redshift-serverless:GetReservation, redshift-serverless:ListReservations |
+| redshift-serverless | redshift-serverless/reservationoffering | 1 |  | child-uncatalogued | redshift-serverless:GetReservationOffering, redshift-serverless:ListReservationOfferings |
+| redshift-serverless | redshift-serverless/scheduledaction | 0 |  | smithy-resource | redshift-serverless:GetScheduledAction, redshift-serverless:ListScheduledActions |
+| redshift-serverless | redshift-serverless/snapshotcopyconfiguration | 1 |  | child-uncatalogued | redshift-serverless:ListSnapshotCopyConfigurations |
+| redshift-serverless | redshift-serverless/tablerestorestatus | 1 |  | child-uncatalogued | redshift-serverless:GetTableRestoreStatus, redshift-serverless:ListTableRestoreStatus |
+| redshift-serverless | redshift-serverless/usagelimit | 0 |  | smithy-resource | redshift-serverless:GetUsageLimit, redshift-serverless:ListUsageLimits |
 | refactor-spaces | refactor-spaces/environmentvpc | 1 |  | child-uncatalogued | refactor-spaces:ListEnvironmentVpcs |
 | rekognition | rekognition/datasetentry | 3 |  | child-uncatalogued | rekognition:ListDatasetEntries |
 | rekognition | rekognition/datasetlabel | 3 |  | child-uncatalogued | rekognition:ListDatasetLabels |
-| rekognition | rekognition/face | 1 |  | child-uncatalogued | rekognition:ListFaces, rekognition:SearchFaces, rekognition:SearchFacesByImage |
-| rekognition | rekognition/mediaanalysisjob | 0 |  | element-created | rekognition:GetMediaAnalysisJob, rekognition:ListMediaAnalysisJobs |
+| rekognition | rekognition/face | 0 |  | child-uncatalogued | rekognition:CompareFaces, rekognition:ListFaces, rekognition:SearchFacesByImage |
+| rekognition | rekognition/mediaanalysisjob | 0 |  | element-written | rekognition:GetMediaAnalysisJob, rekognition:ListMediaAnalysisJobs |
 | rekognition | rekognition/projectpolicy | 1 |  | child-uncatalogued | rekognition:ListProjectPolicies |
 | rekognition | rekognition/user | 1 |  | child-uncatalogued | rekognition:ListUsers, rekognition:SearchUsers, rekognition:SearchUsersByImage |
 | repostspace | repostspace/channel | 1 |  | child-uncatalogued | repostspace:GetChannel, repostspace:ListChannels |
@@ -1741,13 +1678,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | resiliencehub | resiliencehub/appversionresource | 1 |  | child-uncatalogued | resiliencehub:DescribeAppVersionResource, resiliencehub:ListAppVersionResources |
 | resiliencehub | resiliencehub/appversionresourcemapping | 1 |  | child-uncatalogued | resiliencehub:ListAppVersionResourceMappings |
 | resiliencehub | resiliencehub/assertion | 1 |  | child-uncatalogued | resiliencehub:ListAssertions |
-| resiliencehub | resiliencehub/dependency | 0 |  | element-arn | resiliencehub:ListDependencies |
+| resiliencehub | resiliencehub/dependency | 0 |  | element-written | resiliencehub:ListDependencies |
 | resiliencehub | resiliencehub/failuremodeassessment | 1 |  | child-uncatalogued | resiliencehub:ListFailureModeAssessments |
 | resiliencehub | resiliencehub/failuremodefinding | 1 |  | child-uncatalogued | resiliencehub:GetFailureModeFinding, resiliencehub:ListFailureModeFindings |
 | resiliencehub | resiliencehub/inputsource | 1 |  | child-uncatalogued | resiliencehub:ListInputSources |
 | resiliencehub | resiliencehub/policy | 0 |  | sr-resource | resiliencehub:GetPolicy, resiliencehub:ListPolicies |
-| resiliencehub | resiliencehub/report | 0 |  | writable-noun | resiliencehub:ListReports |
-| resiliencehub | resiliencehub/resolvedtestruntargetresource | 1 |  | child-uncatalogued | resiliencehub:ListResolvedTestRunTargetResources |
+| resiliencehub | resiliencehub/report | 0 |  | element-written | resiliencehub:ListReports |
+| resiliencehub | resiliencehub/resolvedtestruntargetresource | 2 |  | child-uncatalogued | resiliencehub:ListResolvedTestRunTargetResources |
 | resiliencehub | resiliencehub/resource | 1 |  | child-uncatalogued | resiliencehub:ListResources |
 | resiliencehub | resiliencehub/resourcegroupingrecommendation | 0 |  | element-created | resiliencehub:ListResourceGroupingRecommendations |
 | resiliencehub | resiliencehub/service | 0 |  | sr-resource | resiliencehub:GetService, resiliencehub:ListServices |
@@ -1755,78 +1692,61 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | resiliencehub | resiliencehub/servicefunction | 1 |  | child-uncatalogued | resiliencehub:ListServiceFunctions |
 | resiliencehub | resiliencehub/servicetopologyedge | 1 |  | child-uncatalogued | resiliencehub:ListServiceTopologyEdges |
 | resiliencehub | resiliencehub/soprecommendation | 1 |  | child-uncatalogued | resiliencehub:ListSopRecommendations |
-| resiliencehub | resiliencehub/suggestedresiliencypolicy | 0 |  | element-arn | resiliencehub:ListSuggestedResiliencyPolicies |
 | resiliencehub | resiliencehub/system | 0 |  | sr-resource | resiliencehub:GetSystem, resiliencehub:ListSystems |
 | resiliencehub | resiliencehub/systemevent | 1 |  | child-uncatalogued | resiliencehub:ListSystemEvents |
 | resiliencehub | resiliencehub/test | 1 |  | child-uncatalogued | resiliencehub:GetTest, resiliencehub:ListTests |
 | resiliencehub | resiliencehub/testrecommendation | 1 |  | child-uncatalogued | resiliencehub:ListTestRecommendations |
 | resiliencehub | resiliencehub/testrun | 1 |  | child-uncatalogued | resiliencehub:GetTestRun, resiliencehub:ListTestRuns |
-| resiliencehub | resiliencehub/testrundependency | 1 |  | child-uncatalogued | resiliencehub:ListTestRunDependencies |
-| resiliencehub | resiliencehub/testrunevent | 1 |  | child-uncatalogued | resiliencehub:ListTestRunEvents |
-| resiliencehub | resiliencehub/testrunsource | 1 |  | child-uncatalogued | resiliencehub:ListTestRunSources |
-| resiliencehub | resiliencehub/testrunsourceevent | 1 |  | child-uncatalogued | resiliencehub:ListTestRunSourceEvents |
-| resiliencehub | resiliencehub/testsource | 1 |  | child-uncatalogued | resiliencehub:ListTestSources |
+| resiliencehub | resiliencehub/testrundependency | 2 |  | child-uncatalogued | resiliencehub:ListTestRunDependencies |
+| resiliencehub | resiliencehub/testrunevent | 2 |  | child-uncatalogued | resiliencehub:ListTestRunEvents |
+| resiliencehub | resiliencehub/testrunsourceevent | 2 |  | child-uncatalogued | resiliencehub:ListTestRunSourceEvents |
 | resiliencehub | resiliencehub/testtemplate | 0 |  | sr-resource | resiliencehub:GetTestTemplate, resiliencehub:ListTestTemplates |
 | resiliencehub | resiliencehub/unsupportedappversionresource | 1 |  | child-uncatalogued | resiliencehub:ListUnsupportedAppVersionResources |
 | resiliencehub | resiliencehub/userjourney | 1 |  | child-uncatalogued | resiliencehub:GetUserJourney, resiliencehub:ListUserJourneys |
-| resource-explorer-2 | resource-explorer-2/resource | 0 |  | element-arn | resource-explorer-2:ListResources |
-| resource-explorer-2 | resource-explorer-2/serviceindex | 0 |  | element-arn | resource-explorer-2:GetServiceIndex, resource-explorer-2:ListServiceIndexes |
-| resource-explorer-2 | resource-explorer-2/streamingaccess | 0 |  | writable-noun | resource-explorer-2:ListStreamingAccessForServices |
+| resource-explorer-2 | resource-explorer-2/indexesformember | 0 |  | element-arn | resource-explorer-2:ListIndexesForMembers |
+| resource-explorer-2 | resource-explorer-2/resource | 0 |  | element-arn | resource-explorer-2:ListResources, resource-explorer-2:Search |
 | resource-groups | resource-groups/groupingstatus | 1 |  | child-uncatalogued | resource-groups:ListGroupingStatuses |
-| resource-groups | resource-groups/groupresource | 0 |  | element-arn | resource-groups:ListGroupResources |
-| resource-groups | resource-groups/resource | 0 |  | writable-noun | resource-groups:SearchResources |
+| resource-groups | resource-groups/resource | 0 |  | element-arn | resource-groups:ListGroupResources, resource-groups:SearchResources |
 | route53 | route53/change | 0 |  | sr-resource | route53:GetChange |
 | route53 | route53/cidrblock | 1 |  | child-uncatalogued | route53:ListCidrBlocks |
 | route53 | route53/cidrlocation | 1 |  | child-uncatalogued | route53:ListCidrLocations |
-| route53 | route53/trafficpolicyversion | 1 |  | child-uncatalogued | route53:ListTrafficPolicyVersions |
-| route53 | route53/vpcassociationauthorization | 1 |  | child-uncatalogued | route53:ListVPCAssociationAuthorizations |
 | route53-recovery-cluster | route53-recovery-cluster/routingcontrol | 0 |  | element-arn | route53-recovery-cluster:ListRoutingControls |
-| route53-recovery-control-config | route53-recovery-control-config/associatedroute53healthcheck | 2 |  | child-uncatalogued | route53-recovery-control-config:ListAssociatedRoute53HealthChecks |
-| route53-recovery-readiness | route53-recovery-readiness/cellreadinesssummary | 1 |  | child-uncatalogued | route53-recovery-readiness:GetCellReadinessSummary |
-| route53-recovery-readiness | route53-recovery-readiness/crossaccountauthorization | 0 |  | writable-noun | route53-recovery-readiness:ListCrossAccountAuthorizations |
-| route53-recovery-readiness | route53-recovery-readiness/readinesscheckresourcestatus | 1 |  | child-uncatalogued | route53-recovery-readiness:GetReadinessCheckResourceStatus |
+| route53-recovery-control-config | route53-recovery-control-config/associatedroute53healthcheck | 1 |  | child-uncatalogued | route53-recovery-control-config:ListAssociatedRoute53HealthChecks |
+| route53-recovery-readiness | route53-recovery-readiness/cellreadinesssummary | 1 |  | child-uncatalogued | route53-recovery-readiness:GetCellReadinessSummary, route53-recovery-readiness:GetRecoveryGroupReadinessSummary |
+| route53-recovery-readiness | route53-recovery-readiness/readinesscheckresourcestatus | 2 |  | child-uncatalogued | route53-recovery-readiness:GetReadinessCheckResourceStatus |
 | route53-recovery-readiness | route53-recovery-readiness/readinesscheckstatus | 1 |  | child-uncatalogued | route53-recovery-readiness:GetReadinessCheckStatus |
-| route53-recovery-readiness | route53-recovery-readiness/recoverygroupreadinesssummary | 1 |  | child-uncatalogued | route53-recovery-readiness:GetRecoveryGroupReadinessSummary |
-| route53domains | route53domains/domain | 0 |  | writable-noun | route53domains:ListDomains |
-| route53domains | route53domains/domaindetail | 1 |  | child-uncatalogued | route53domains:GetDomainDetail |
-| route53domains | route53domains/domainsuggestion | 1 |  | child-uncatalogued | route53domains:GetDomainSuggestions |
-| route53globalresolver | route53globalresolver/shareddnsview | 0 |  | element-arn | route53globalresolver:ListSharedDNSViews |
+| route53globalresolver | route53globalresolver/firewalldomain | 1 |  | child-uncatalogued | route53globalresolver:ListFirewallDomains |
+| route53globalresolver | route53globalresolver/managedfirewalldomainlist | 0 |  | smithy-resource | route53globalresolver:GetManagedFirewallDomainList, route53globalresolver:ListManagedFirewallDomainLists |
+| route53globalresolver | route53globalresolver/shareddnsview | 0 |  | element-written | route53globalresolver:ListSharedDNSViews |
+| route53resolver | route53resolver/firewalldomain | 1 |  | child-uncatalogued | route53resolver:ListFirewallDomains |
 | route53resolver | route53resolver/firewallrule | 1 |  | child-uncatalogued | route53resolver:ListFirewallRules |
 | route53resolver | route53resolver/resolverendpointipaddress | 1 |  | child-uncatalogued | route53resolver:ListResolverEndpointIpAddresses |
 | rtbfabric | rtbfabric/certificateassociation | 1 |  | child-uncatalogued | rtbfabric:GetCertificateAssociation, rtbfabric:ListCertificateAssociations |
-| rtbfabric | rtbfabric/inboundexternallink | 1 |  | sr-resource | rtbfabric:GetInboundExternalLink |
-| rtbfabric | rtbfabric/outboundexternallink | 1 |  | sr-resource | rtbfabric:GetOutboundExternalLink |
+| rum | rum/appmonitordata | 1 |  | child-uncatalogued | rum:GetAppMonitorData |
 | rum | rum/rummetricdefinition | 1 |  | child-uncatalogued | rum:BatchGetRumMetricDefinitions |
 | rum | rum/rummetricsdestination | 1 |  | child-uncatalogued | rum:ListRumMetricsDestinations |
 | s3 | s3/bucketanalyticsconfiguration | 1 |  | child-uncatalogued | s3:GetBucketAnalyticsConfiguration, s3:ListBucketAnalyticsConfigurations |
-| s3 | s3/bucketcor | 1 |  | child-uncatalogued | s3:GetBucketCors |
 | s3 | s3/bucketintelligenttieringconfiguration | 1 |  | child-uncatalogued | s3:GetBucketIntelligentTieringConfiguration, s3:ListBucketIntelligentTieringConfigurations |
 | s3 | s3/bucketinventoryconfiguration | 1 |  | child-uncatalogued | s3:GetBucketInventoryConfiguration, s3:ListBucketInventoryConfigurations |
-| s3 | s3/bucketlifecycleconfiguration | 1 |  | child-uncatalogued | s3:GetBucketLifecycleConfiguration |
 | s3 | s3/bucketmetricsconfiguration | 1 |  | child-uncatalogued | s3:GetBucketMetricsConfiguration, s3:ListBucketMetricsConfigurations |
-| s3 | s3/bucketnotificationconfiguration | 1 |  | child-uncatalogued | s3:GetBucketNotificationConfiguration |
 | s3 | s3/calleraccessgrant | 0 |  | element-arn | s3:ListCallerAccessGrants |
 | s3 | s3/job | 0 |  | sr-resource | s3:DescribeJob, s3:ListJobs |
 | s3 | s3/multipartupload | 1 |  | child-uncatalogued | s3:ListMultipartUploads |
 | s3 | s3/object | 1 |  | sr-resource | s3:GetObject, s3:HeadObject, s3:ListObjects, s3:ListObjectsV2 |
 | s3 | s3/objectannotation | 2 |  | child-uncatalogued | s3:GetObjectAnnotation, s3:ListObjectAnnotations |
 | s3 | s3/objectversion | 1 |  | child-uncatalogued | s3:ListObjectVersions |
-| s3-outposts | s3-outposts/sharedendpoint | 1 |  | child-uncatalogued | s3-outposts:ListSharedEndpoints |
-| s3tables | s3tables/tablereplicationstatus | 1 |  | child-uncatalogued | s3tables:GetTableReplicationStatus |
-| s3vectors | s3vectors/vector | 0 |  | writable-noun | s3vectors:GetVectors, s3vectors:ListVectors |
+| s3vectors | s3vectors/vector | 2 |  | smithy-resource | s3vectors:ListVectors, s3vectors:QueryVectors |
 | sagemaker | sagemaker/aibenchmarkjob | 0 |  | sr-resource | sagemaker:DescribeAIBenchmarkJob, sagemaker:ListAIBenchmarkJobs |
 | sagemaker | sagemaker/airecommendationjob | 0 |  | sr-resource | sagemaker:DescribeAIRecommendationJob, sagemaker:ListAIRecommendationJobs |
+| sagemaker | sagemaker/alias | 2 |  | child-uncatalogued | sagemaker:ListAliases |
 | sagemaker | sagemaker/artifact | 0 |  | sr-resource | sagemaker:DescribeArtifact, sagemaker:ListArtifacts |
-| sagemaker | sagemaker/association | 0 |  | writable-noun | sagemaker:ListAssociations |
+| sagemaker | sagemaker/association | 0 |  | element-arn | sagemaker:ListAssociations |
 | sagemaker | sagemaker/automljob | 0 |  | sr-resource | sagemaker:DescribeAutoMLJob, sagemaker:DescribeAutoMLJobV2, sagemaker:ListAutoMLJobs |
 | sagemaker | sagemaker/candidate | 1 |  | child-uncatalogued | sagemaker:ListCandidatesForAutoMLJob |
 | sagemaker | sagemaker/clusterevent | 1 |  | child-uncatalogued | sagemaker:DescribeClusterEvent, sagemaker:ListClusterEvents |
 | sagemaker | sagemaker/clusternode | 1 |  | child-uncatalogued | sagemaker:DescribeClusterNode, sagemaker:ListClusterNodes |
 | sagemaker | sagemaker/compilationjob | 0 |  | sr-resource | sagemaker:DescribeCompilationJob, sagemaker:ListCompilationJobs |
-| sagemaker | sagemaker/deployment | 1 |  | child-uncatalogued | sagemaker:GetDeployments |
-| sagemaker | sagemaker/devicefleetreport | 1 |  | child-uncatalogued | sagemaker:GetDeviceFleetReport |
 | sagemaker | sagemaker/edgepackagingjob | 0 |  | sr-resource | sagemaker:DescribeEdgePackagingJob, sagemaker:ListEdgePackagingJobs |
-| sagemaker | sagemaker/hubcontentversion | 2 |  | child-uncatalogued | sagemaker:ListHubContentVersions |
 | sagemaker | sagemaker/humanloop | 0 |  | sr-resource | sagemaker:DescribeHumanLoop, sagemaker:ListHumanLoops |
 | sagemaker | sagemaker/hyperparametertuningjob | 0 |  | sr-resource | sagemaker:DescribeHyperParameterTuningJob, sagemaker:ListHyperParameterTuningJobs |
 | sagemaker | sagemaker/inferencerecommendationsjob | 0 |  | sr-resource | sagemaker:DescribeInferenceRecommendationsJob, sagemaker:ListInferenceRecommendationsJobs |
@@ -1836,94 +1756,90 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sagemaker | sagemaker/lineage | 0 |  | element-arn | sagemaker:QueryLineage |
 | sagemaker | sagemaker/modelcardexportjob | 1 |  | sr-resource | sagemaker:DescribeModelCardExportJob, sagemaker:ListModelCardExportJobs |
 | sagemaker | sagemaker/modelcardversion | 1 |  | child-uncatalogued | sagemaker:ListModelCardVersions |
-| sagemaker | sagemaker/modelmetadata | 0 |  | sr-resource | sagemaker:ListModelMetadata |
 | sagemaker | sagemaker/monitoringalert | 1 |  | child-uncatalogued | sagemaker:ListMonitoringAlerts |
-| sagemaker | sagemaker/monitoringalerthistory | 0 |  | element-created | sagemaker:ListMonitoringAlertHistory |
+| sagemaker | sagemaker/monitoringalerthistory | 0 |  | element-written | sagemaker:ListMonitoringAlertHistory |
 | sagemaker | sagemaker/monitoringexecution | 0 |  | element-arn | sagemaker:ListMonitoringExecutions |
 | sagemaker | sagemaker/optimizationjob | 0 |  | sr-resource | sagemaker:DescribeOptimizationJob, sagemaker:ListOptimizationJobs |
 | sagemaker | sagemaker/pipelineexecution | 1 |  | sr-resource | sagemaker:DescribePipelineExecution, sagemaker:ListPipelineExecutions |
 | sagemaker | sagemaker/pipelineparameter | 2 |  | child-uncatalogued | sagemaker:ListPipelineParametersForExecution |
 | sagemaker | sagemaker/pipelineversion | 1 |  | child-uncatalogued | sagemaker:ListPipelineVersions |
-| sagemaker | sagemaker/record | 1 |  | child-uncatalogued | sagemaker:BatchGetRecord, sagemaker:GetRecord, sagemaker:ListRecords |
+| sagemaker | sagemaker/record | 1 |  | child-uncatalogued | sagemaker:GetRecord, sagemaker:ListRecords |
 | sagemaker | sagemaker/resourcecatalog | 0 |  | element-arn | sagemaker:ListResourceCatalogs |
-| sagemaker | sagemaker/stagedevice | 1 |  | child-uncatalogued | sagemaker:ListStageDevices |
+| sagemaker | sagemaker/stagedevice | 0 |  | child-uncatalogued | sagemaker:ListStageDevices |
 | sagemaker | sagemaker/subscribedworkteam | 0 |  | element-arn | sagemaker:DescribeSubscribedWorkteam, sagemaker:ListSubscribedWorkteams |
 | sagemaker | sagemaker/trainingjob | 0 |  | sr-resource | sagemaker:DescribeTrainingJob, sagemaker:ListTrainingJobs, sagemaker:ListTrainingJobsForHyperParameterTuningJob |
 | sagemaker | sagemaker/trainingplanextensionhistory | 1 |  | child-uncatalogued | sagemaker:DescribeTrainingPlanExtensionHistory |
 | sagemaker | sagemaker/transformjob | 0 |  | sr-resource | sagemaker:DescribeTransformJob, sagemaker:ListTransformJobs |
-| sagemaker | sagemaker/trialcomponent | 0 |  | child-uncatalogued | sagemaker:DescribeTrialComponent, sagemaker:ListTrialComponents |
+| sagemaker | sagemaker/trialcomponent | 0 |  | element-written | sagemaker:DescribeTrialComponent, sagemaker:ListTrialComponents |
 | sagemaker | sagemaker/ultraserver | 1 |  | child-uncatalogued | sagemaker:ListUltraServersByReservedCapacity |
-| sagemaker-geospatial | sagemaker-geospatial/earthobservationjob | 0 |  | sr-resource | sagemaker-geospatial:GetEarthObservationJob, sagemaker-geospatial:ListEarthObservationJobs |
-| sagemaker-geospatial | sagemaker-geospatial/vectorenrichmentjob | 0 |  | sr-resource | sagemaker-geospatial:GetVectorEnrichmentJob, sagemaker-geospatial:ListVectorEnrichmentJobs |
+| sagemaker-geospatial | sagemaker-geospatial/earthobservationjob | 0 |  | smithy-resource | sagemaker-geospatial:GetEarthObservationJob, sagemaker-geospatial:ListEarthObservationJobs |
+| sagemaker-geospatial | sagemaker-geospatial/vectorenrichmentjob | 0 |  | smithy-resource | sagemaker-geospatial:ExportVectorEnrichmentJob, sagemaker-geospatial:GetVectorEnrichmentJob, sagemaker-geospatial:ListVectorEnrichmentJobs |
 | schemas | schemas/schemaversion | 2 |  | child-uncatalogued | schemas:ListSchemaVersions |
 | scn | scn/dataintegrationevent | 1 |  | child-uncatalogued | scn:GetDataIntegrationEvent, scn:ListDataIntegrationEvents |
 | scn | scn/dataintegrationflowexecution | 2 |  | child-uncatalogued | scn:GetDataIntegrationFlowExecution, scn:ListDataIntegrationFlowExecutions |
 | sdb | sdb/export | 0 |  | sr-resource | sdb:GetExport, sdb:ListExports |
-| secretsmanager | secretsmanager/secretvalue | 0 |  | writable-noun | secretsmanager:BatchGetSecretValue, secretsmanager:GetSecretValue |
+| secretsmanager | secretsmanager/secretvalue | 0 |  | element-written | secretsmanager:BatchGetSecretValue, secretsmanager:GetSecretValue |
 | secretsmanager | secretsmanager/secretversionid | 1 |  | child-uncatalogued | secretsmanager:ListSecretVersionIds |
 | security-ir | security-ir/comment | 1 |  | child-uncatalogued | security-ir:ListComments |
 | security-ir | security-ir/investigation | 1 |  | child-uncatalogued | security-ir:ListInvestigations |
-| security-ir | security-ir/memberaccountdetail | 1 |  | child-uncatalogued | security-ir:BatchGetMemberAccountDetails |
 | securityagent | securityagent/artifact | 1 |  | child-uncatalogued | securityagent:GetArtifact, securityagent:ListArtifacts |
-| securityagent | securityagent/artifactmetadata | 1 |  | child-uncatalogued | securityagent:BatchGetArtifactMetadata |
-| securityagent | securityagent/codereview | 1 |  | child-uncatalogued | securityagent:BatchGetCodeReviews, securityagent:ListCodeReviews |
+| securityagent | securityagent/codereview | 1 |  | child-uncatalogued | securityagent:ListCodeReviews |
 | securityagent | securityagent/codereviewjob | 1 |  | child-uncatalogued | securityagent:BatchGetCodeReviewJobs, securityagent:ListCodeReviewJobsForCodeReview |
-| securityagent | securityagent/codereviewjobtask | 1 |  | child-uncatalogued | securityagent:BatchGetCodeReviewJobTasks, securityagent:ListCodeReviewJobTasks |
+| securityagent | securityagent/codereviewjobtask | 1 |  | child-uncatalogued | securityagent:ListCodeReviewJobTasks |
 | securityagent | securityagent/discoveredendpoint | 1 |  | child-uncatalogued | securityagent:ListDiscoveredEndpoints |
 | securityagent | securityagent/finding | 1 |  | child-uncatalogued | securityagent:BatchGetFindings, securityagent:ListFindings |
+| securityagent | securityagent/getcodereview | 1 |  | child-uncatalogued | securityagent:BatchGetCodeReviewJobTasks, securityagent:BatchGetCodeReviews |
+| securityagent | securityagent/getpentest | 1 |  | child-uncatalogued | securityagent:BatchGetPentestJobTasks, securityagent:BatchGetPentests |
+| securityagent | securityagent/getthreatmodel | 1 |  | child-uncatalogued | securityagent:BatchGetThreatModelJobTasks, securityagent:BatchGetThreatModels |
 | securityagent | securityagent/integratedresource | 1 |  | child-uncatalogued | securityagent:ListIntegratedResources |
 | securityagent | securityagent/membership | 1 |  | child-uncatalogued | securityagent:ListMemberships |
 | securityagent | securityagent/pentestjob | 1 |  | child-uncatalogued | securityagent:BatchGetPentestJobs, securityagent:ListPentestJobsForPentest |
-| securityagent | securityagent/pentestjobtask | 1 |  | child-uncatalogued | securityagent:BatchGetPentestJobTasks, securityagent:ListPentestJobTasks |
+| securityagent | securityagent/pentestjobtask | 1 |  | child-uncatalogued | securityagent:ListPentestJobTasks |
 | securityagent | securityagent/securityrequirement | 1 |  | child-uncatalogued | securityagent:BatchGetSecurityRequirements, securityagent:ListSecurityRequirements |
 | securityagent | securityagent/threat | 1 |  | child-uncatalogued | securityagent:BatchGetThreats, securityagent:ListThreats |
-| securityagent | securityagent/threatmodel | 1 |  | child-uncatalogued | securityagent:BatchGetThreatModels, securityagent:ListThreatModels |
+| securityagent | securityagent/threatmodel | 1 |  | child-uncatalogued | securityagent:ListThreatModels |
 | securityagent | securityagent/threatmodeljob | 1 |  | child-uncatalogued | securityagent:BatchGetThreatModelJobs, securityagent:ListThreatModelJobs |
-| securityagent | securityagent/threatmodeljobtask | 1 |  | child-uncatalogued | securityagent:BatchGetThreatModelJobTasks, securityagent:ListThreatModelJobTasks |
-| securityhub | securityhub/actiontarget | 0 |  | writable-noun | securityhub:DescribeActionTargets |
-| securityhub | securityhub/finding | 0 |  | element-arn | securityhub:GetFindings, securityhub:GetFindingsV2 |
+| securityagent | securityagent/threatmodeljobtask | 1 |  | child-uncatalogued | securityagent:ListThreatModelJobTasks |
+| securityhub | securityhub/actiontarget | 0 |  | element-written | securityhub:DescribeActionTargets |
+| securityhub | securityhub/finding | 0 |  | element-written | securityhub:GetFindings, securityhub:GetFindingsV2 |
 | securityhub | securityhub/findinghistory | 1 |  | child-uncatalogued | securityhub:GetFindingHistory |
-| securityhub | securityhub/invitation | 0 |  | writable-noun | securityhub:ListInvitations |
 | securityhub | securityhub/member | 0 |  | child-uncatalogued | securityhub:GetMembers, securityhub:ListMembers |
 | securityhub | securityhub/product | 0 |  | sr-resource | securityhub:DescribeProducts, securityhub:DescribeProductsV2 |
+| securityhub | securityhub/resource | 0 |  | element-written | securityhub:GetResourcesV2 |
 | securityhub | securityhub/standardscontrol | 1 |  | child-uncatalogued | securityhub:DescribeStandardsControls |
-| securityhub | securityhub/standardscontrolassociation | 0 |  | child-uncatalogued | securityhub:BatchGetStandardsControlAssociations, securityhub:ListStandardsControlAssociations |
-| securitylake | securitylake/datalakeorganizationconfiguration | 0 |  | writable-noun | securitylake:GetDataLakeOrganizationConfiguration |
+| securityhub | securityhub/standardscontrolassociation | 1 |  | child-uncatalogued | securityhub:ListStandardsControlAssociations |
+| securitylake | securitylake/datalakesource | 1 |  | child-uncatalogued | securitylake:GetDataLakeSources |
 | serverlessrepo | serverlessrepo/applicationdependency | 1 |  | child-uncatalogued | serverlessrepo:ListApplicationDependencies |
 | serverlessrepo | serverlessrepo/applicationpolicy | 1 |  | child-uncatalogued | serverlessrepo:GetApplicationPolicy |
 | serverlessrepo | serverlessrepo/applicationversion | 1 |  | child-uncatalogued | serverlessrepo:ListApplicationVersions |
+| servicecatalog | servicecatalog/associatedattributegroup | 1 |  | child-uncatalogued | servicecatalog:ListAssociatedAttributeGroups |
+| servicecatalog | servicecatalog/budget | 2 |  | child-uncatalogued | servicecatalog:ListBudgetsForResource |
 | servicecatalog | servicecatalog/launchpath | 1 |  | child-uncatalogued | servicecatalog:ListLaunchPaths |
 | servicecatalog | servicecatalog/portfolioaccess | 1 |  | child-uncatalogued | servicecatalog:ListPortfolioAccess |
-| servicecatalog | servicecatalog/provisionedproductplan | 0 |  | child-uncatalogued | servicecatalog:DescribeProvisionedProductPlan, servicecatalog:ListProvisionedProductPlans |
-| servicecatalog | servicecatalog/recordhistory | 0 |  | element-arn | servicecatalog:ListRecordHistory |
-| servicecatalog | servicecatalog/serviceactionexecutionparameter | 1 |  | child-uncatalogued | servicecatalog:DescribeServiceActionExecutionParameters |
-| servicequotas | servicequotas/quotautilizationreport | 1 |  | child-uncatalogued | servicequotas:GetQuotaUtilizationReport |
-| servicequotas | servicequotas/requestedservicequotachangehistory | 0 |  | child-uncatalogued | servicequotas:ListRequestedServiceQuotaChangeHistory, servicequotas:ListRequestedServiceQuotaChangeHistoryByQuota |
-| servicequotas | servicequotas/servicequotaincreaserequest | 0 |  | writable-noun | servicequotas:GetServiceQuotaIncreaseRequestFromTemplate, servicequotas:ListServiceQuotaIncreaseRequestsInTemplate |
+| servicecatalog | servicecatalog/product | 0 |  | element-written | servicecatalog:DescribeProduct, servicecatalog:DescribeProductView, servicecatalog:SearchProducts |
+| servicecatalog | servicecatalog/provisionedproductoutput | 0 |  | element-written | servicecatalog:GetProvisionedProductOutputs |
+| servicecatalog | servicecatalog/record | 0 |  | element-written | servicecatalog:DescribeRecord, servicecatalog:ListRecordHistory |
+| servicequotas | servicequotas/requestedservicequotachange | 0 |  | element-written | servicequotas:GetRequestedServiceQuotaChange, servicequotas:ListRequestedServiceQuotaChangeHistory, servicequotas:ListRequestedServiceQuotaChangeHistoryByQuota |
+| servicequotas | servicequotas/servicequotaincreaserequestsintemplate | 0 |  | element-written | servicequotas:GetServiceQuotaIncreaseRequestFromTemplate, servicequotas:ListServiceQuotaIncreaseRequestsInTemplate |
 | ses | ses/addresslistimportjob | 1 |  | child-uncatalogued | ses:GetAddressListImportJob, ses:ListAddressListImportJobs |
 | ses | ses/archiveexport | 1 |  | child-uncatalogued | ses:GetArchiveExport, ses:ListArchiveExports |
 | ses | ses/archivesearch | 1 |  | child-uncatalogued | ses:GetArchiveSearch, ses:ListArchiveSearches |
-| ses | ses/archivesearchresult | 1 |  | child-uncatalogued | ses:GetArchiveSearchResults |
-| ses | ses/contact | 1 |  | child-uncatalogued | ses:GetContact, ses:ListContacts |
-| ses | ses/dedicatedip | 0 |  | writable-noun | ses:GetDedicatedIp, ses:GetDedicatedIps |
-| ses | ses/deliverabilitydashboardoption | 0 |  | writable-noun | ses:GetDeliverabilityDashboardOptions |
+| ses | ses/contact | 0 |  | child-uncatalogued | ses:GetContact, ses:ListContacts |
+| ses | ses/deliverabilitydashboardoption | 0 |  | element-written | ses:GetDeliverabilityDashboardOptions |
 | ses | ses/deliverabilitytestreport | 0 |  | sr-resource | ses:GetDeliverabilityTestReport, ses:ListDeliverabilityTestReports |
+| ses | ses/domaindeliverabilitycampaign | 1 |  | child-uncatalogued | ses:GetDomainDeliverabilityCampaign, ses:ListDomainDeliverabilityCampaigns |
 | ses | ses/emailidentitycertificate | 1 |  | child-uncatalogued | ses:ListEmailIdentityCertificates |
 | ses | ses/exportjob | 0 |  | sr-resource | ses:GetExportJob, ses:ListExportJobs |
-| ses | ses/identitypolicy | 1 |  | child-uncatalogued | ses:GetIdentityPolicies, ses:ListIdentityPolicies |
+| ses | ses/identity | 0 |  | sr-resource | ses:ListIdentities |
 | ses | ses/importjob | 0 |  | sr-resource | ses:GetImportJob, ses:ListImportJobs |
 | ses | ses/messageinsight | 1 |  | child-uncatalogued | ses:GetMessageInsights |
-| ses | ses/metricdata | 1 |  | child-uncatalogued | ses:BatchGetMetricData |
 | ses | ses/recommendation | 0 |  | element-arn | ses:ListRecommendations |
 | ses | ses/resourcetenant | 1 |  | child-uncatalogued | ses:ListResourceTenants |
-| ses | ses/suppresseddestination | 0 |  | writable-noun | ses:GetSuppressedDestination, ses:ListSuppressedDestinations |
 | ses | ses/tenantresource | 1 |  | child-uncatalogued | ses:ListTenantResources |
-| ses | ses/verifiedemailaddress | 0 |  | writable-noun | ses:ListVerifiedEmailAddresses |
 | shield | shield/attack | 0 |  | sr-resource | shield:DescribeAttack, shield:ListAttacks |
 | shield | shield/resource | 1 |  | child-uncatalogued | shield:ListResourcesInProtectionGroup |
 | signer | signer/signingjob | 0 |  | sr-resource | signer:DescribeSigningJob, signer:ListSigningJobs |
-| signin | signin/resourcepermissionstatement | 0 |  | writable-noun | signin:ListResourcePermissionStatements |
-| sms-voice | sms-voice/availablephonenumber | 2 |  | child-uncatalogued | sms-voice:ListAvailablePhoneNumbers |
+| sms-voice | sms-voice/availablephonenumber | 0 |  | element-written | sms-voice:ListAvailablePhoneNumbers |
 | sms-voice | sms-voice/configurationseteventdestination | 1 |  | child-uncatalogued | sms-voice:GetConfigurationSetEventDestinations |
 | sms-voice | sms-voice/notifyconfiguration | 0 |  | sr-resource | sms-voice:DescribeNotifyConfigurations |
 | sms-voice | sms-voice/pooloriginationidentity | 1 |  | child-uncatalogued | sms-voice:ListPoolOriginationIdentities |
@@ -1932,110 +1848,112 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sms-voice | sms-voice/registrationassociation | 1 |  | child-uncatalogued | sms-voice:ListRegistrationAssociations |
 | sms-voice | sms-voice/registrationfieldvalue | 1 |  | child-uncatalogued | sms-voice:DescribeRegistrationFieldValues |
 | snow-device-management | snow-device-management/deviceresource | 1 |  | child-uncatalogued | snow-device-management:ListDeviceResources |
-| snow-device-management | snow-device-management/execution | 1 |  | child-uncatalogued | snow-device-management:DescribeExecution, snow-device-management:ListExecutions |
-| snowball | snowball/address | 0 |  | writable-noun | snowball:DescribeAddress, snowball:DescribeAddresses |
-| snowball | snowball/cluster | 0 |  | writable-noun | snowball:DescribeCluster, snowball:ListClusters |
-| snowball | snowball/clusterjob | 1 |  | child-uncatalogued | snowball:ListClusterJobs |
-| snowball | snowball/job | 0 |  | writable-noun | snowball:DescribeJob, snowball:ListJobs |
-| snowball | snowball/longtermpricing | 0 |  | writable-noun | snowball:ListLongTermPricing |
-| snowball | snowball/serviceversion | 1 |  | child-uncatalogued | snowball:ListServiceVersions |
+| snow-device-management | snow-device-management/execution | 1 |  | smithy-resource | snow-device-management:DescribeExecution, snow-device-management:ListExecutions |
+| snowball | snowball/address | 0 |  | element-written | snowball:DescribeAddress, snowball:DescribeAddresses, snowball:ListPickupLocations |
+| snowball | snowball/cluster | 0 |  | element-written | snowball:DescribeCluster, snowball:ListClusters |
+| snowball | snowball/job | 0 |  | element-written | snowball:DescribeJob, snowball:ListClusterJobs, snowball:ListJobs |
+| snowball | snowball/longtermpricing | 0 |  | element-written | snowball:ListLongTermPricing |
+| snowball | snowball/serviceversion | 0 |  | child-uncatalogued | snowball:ListServiceVersions |
 | sns | sns/endpoint | 1 |  | child-uncatalogued | sns:ListEndpointsByPlatformApplication |
 | sns | sns/originationnumber | 0 |  | element-created | sns:ListOriginationNumbers |
-| sns | sns/platformapplication | 0 |  | writable-noun | sns:ListPlatformApplications |
-| sns | sns/smssandboxphonenumber | 0 |  | writable-noun | sns:ListSMSSandboxPhoneNumbers |
-| social-messaging | social-messaging/whatsappflow | 1 |  | child-uncatalogued | social-messaging:GetWhatsAppFlow, social-messaging:ListWhatsAppFlows |
+| sns | sns/platformapplication | 0 |  | element-written | sns:ListPlatformApplications |
+| social-messaging | social-messaging/whatsappflow | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppFlows |
 | social-messaging | social-messaging/whatsappflowasset | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppFlowAssets |
-| social-messaging | social-messaging/whatsappmessagetemplate | 1 |  | child-uncatalogued | social-messaging:GetWhatsAppMessageTemplate, social-messaging:ListWhatsAppMessageTemplates |
+| social-messaging | social-messaging/whatsappmessagetemplate | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppMessageTemplates |
 | social-messaging | social-messaging/whatsapptemplatelibrary | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppTemplateLibrary |
-| sqs | sqs/messagemovetask | 1 |  | child-uncatalogued | sqs:ListMessageMoveTasks |
-| ssm | ssm/activation | 0 |  | writable-noun | ssm:DescribeActivations |
+| sqs | sqs/deadlettersourcequeue | 1 |  | child-uncatalogued | sqs:ListDeadLetterSourceQueues |
+| sqs | sqs/message | 1 |  | child-uncatalogued | sqs:ReceiveMessage |
+| ssm | ssm/activation | 0 |  | element-written | ssm:DescribeActivations |
 | ssm | ssm/associationexecution | 1 |  | child-uncatalogued | ssm:DescribeAssociationExecutions |
 | ssm | ssm/associationexecutiontarget | 1 |  | child-uncatalogued | ssm:DescribeAssociationExecutionTargets |
 | ssm | ssm/associationversion | 1 |  | child-uncatalogued | ssm:ListAssociationVersions |
 | ssm | ssm/automationexecution | 0 |  | sr-resource | ssm:DescribeAutomationExecutions, ssm:GetAutomationExecution |
 | ssm | ssm/automationstepexecution | 1 |  | child-uncatalogued | ssm:DescribeAutomationStepExecutions |
-| ssm | ssm/cloudconnector | 0 |  | sr-resource | ssm:GetCloudConnector, ssm:ListCloudConnectors |
-| ssm | ssm/complianceitem | 0 |  | writable-noun | ssm:ListComplianceItems |
+| ssm | ssm/availablepatch | 0 |  | element-written | ssm:DescribeAvailablePatches |
+| ssm | ssm/cloudconnector | 0 |  | sr-resource | ssm:GetCloudConnector, ssm:ListCloudConnectors, ssm:ValidateCloudConnector |
+| ssm | ssm/command | 0 |  | element-written | ssm:ListCommands |
+| ssm | ssm/commandinvocation | 0 |  | element-written | ssm:GetCommandInvocation, ssm:ListCommandInvocations |
+| ssm | ssm/complianceitem | 0 |  | element-written | ssm:ListComplianceItems |
 | ssm | ssm/documentpermission | 1 |  | child-uncatalogued | ssm:DescribeDocumentPermission |
 | ssm | ssm/documentversion | 1 |  | child-uncatalogued | ssm:ListDocumentVersions |
 | ssm | ssm/effectiveinstanceassociation | 1 |  | child-uncatalogued | ssm:DescribeEffectiveInstanceAssociations |
 | ssm | ssm/instanceassociationsstatus | 1 |  | child-uncatalogued | ssm:DescribeInstanceAssociationsStatus |
 | ssm | ssm/instancepatch | 1 |  | child-uncatalogued | ssm:DescribeInstancePatches |
 | ssm | ssm/instancepatchstate | 0 |  | child-uncatalogued | ssm:DescribeInstancePatchStates, ssm:DescribeInstancePatchStatesForPatchGroup |
-| ssm | ssm/inventory | 0 |  | writable-noun | ssm:GetInventory |
-| ssm | ssm/maintenancewindowexecution | 1 |  | child-uncatalogued | ssm:DescribeMaintenanceWindowExecutions, ssm:GetMaintenanceWindowExecution |
-| ssm | ssm/maintenancewindowexecutiontask | 1 |  | child-uncatalogued | ssm:DescribeMaintenanceWindowExecutionTasks, ssm:GetMaintenanceWindowExecutionTask |
-| ssm | ssm/maintenancewindowexecutiontaskinvocation | 1 |  | child-uncatalogued | ssm:DescribeMaintenanceWindowExecutionTaskInvocations, ssm:GetMaintenanceWindowExecutionTaskInvocation |
+| ssm | ssm/inventorydeletion | 0 |  | element-written | ssm:DescribeInventoryDeletions |
+| ssm | ssm/maintenancewindowexecution | 0 |  | child-uncatalogued | ssm:DescribeMaintenanceWindowExecutions, ssm:GetMaintenanceWindowExecution |
+| ssm | ssm/maintenancewindowexecutiontask | 0 |  | child-uncatalogued | ssm:DescribeMaintenanceWindowExecutionTasks, ssm:GetMaintenanceWindowExecutionTask |
+| ssm | ssm/maintenancewindowexecutiontaskinvocation | 0 |  | child-uncatalogued | ssm:DescribeMaintenanceWindowExecutionTaskInvocations, ssm:GetMaintenanceWindowExecutionTaskInvocation |
+| ssm | ssm/nodessummary | 1 |  | child-uncatalogued | ssm:ListNodesSummary |
 | ssm | ssm/opsitem | 0 |  | sr-resource | ssm:DescribeOpsItems, ssm:GetOpsItem |
-| ssm | ssm/opsitemevent | 0 |  | element-created | ssm:ListOpsItemEvents |
-| ssm | ssm/opsitemrelateditem | 0 |  | writable-noun | ssm:ListOpsItemRelatedItems |
+| ssm | ssm/opsitemevent | 0 |  | element-written | ssm:ListOpsItemEvents |
+| ssm | ssm/opsitemrelateditem | 0 |  | element-written | ssm:ListOpsItemRelatedItems |
 | ssm | ssm/parameterhistory | 1 |  | child-uncatalogued | ssm:GetParameterHistory |
+| ssm | ssm/resourcecompliancesummary | 0 |  | element-written | ssm:ListResourceComplianceSummaries |
 | ssm | ssm/resourcepolicy | 1 |  | child-uncatalogued | ssm:GetResourcePolicies |
 | ssm | ssm/session | 0 |  | sr-resource | ssm:DescribeSessions |
 | ssm-contacts | ssm-contacts/engagement | 0 |  | sr-resource | ssm-contacts:DescribeEngagement, ssm-contacts:ListEngagements |
 | ssm-contacts | ssm-contacts/page | 1 |  | sr-resource | ssm-contacts:DescribePage, ssm-contacts:ListPagesByContact, ssm-contacts:ListPagesByEngagement |
 | ssm-contacts | ssm-contacts/pagereceipt | 2 |  | child-uncatalogued | ssm-contacts:ListPageReceipts |
 | ssm-contacts | ssm-contacts/pageresolution | 2 |  | child-uncatalogued | ssm-contacts:ListPageResolutions |
-| ssm-contacts | ssm-contacts/previewrotationshift | 1 |  | child-uncatalogued | ssm-contacts:ListPreviewRotationShifts |
 | ssm-contacts | ssm-contacts/rotationoverride | 1 |  | child-uncatalogued | ssm-contacts:GetRotationOverride, ssm-contacts:ListRotationOverrides |
-| ssm-contacts | ssm-contacts/rotationshift | 1 |  | child-uncatalogued | ssm-contacts:ListRotationShifts |
-| ssm-incidents | ssm-incidents/incidentfinding | 1 |  | child-uncatalogued | ssm-incidents:BatchGetIncidentFindings, ssm-incidents:ListIncidentFindings |
+| ssm-contacts | ssm-contacts/rotationshift | 1 |  | child-uncatalogued | ssm-contacts:ListPreviewRotationShifts, ssm-contacts:ListRotationShifts |
+| ssm-incidents | ssm-incidents/incidentfinding | 1 |  | child-uncatalogued | ssm-incidents:ListIncidentFindings |
 | ssm-incidents | ssm-incidents/incidentrecord | 0 |  | sr-resource | ssm-incidents:GetIncidentRecord, ssm-incidents:ListIncidentRecords |
 | ssm-incidents | ssm-incidents/relateditem | 1 |  | child-uncatalogued | ssm-incidents:ListRelatedItems |
 | ssm-incidents | ssm-incidents/resourcepolicy | 1 |  | child-uncatalogued | ssm-incidents:GetResourcePolicies |
 | ssm-incidents | ssm-incidents/timelineevent | 1 |  | child-uncatalogued | ssm-incidents:GetTimelineEvent, ssm-incidents:ListTimelineEvents |
-| ssm-quicksetup | ssm-quicksetup/configuration | 0 |  | element-arn | ssm-quicksetup:GetConfiguration, ssm-quicksetup:ListConfigurations |
-| ssm-sap | ssm-sap/configurationcheckoperation | 1 |  | child-uncatalogued | ssm-sap:GetConfigurationCheckOperation, ssm-sap:ListConfigurationCheckOperations |
+| ssm-quicksetup | ssm-quicksetup/configuration | 0 |  | element-arn | ssm-quicksetup:ListConfigurations |
+| ssm-sap | ssm-sap/configurationcheckoperation | 0 |  | child-uncatalogued | ssm-sap:GetConfigurationCheckOperation, ssm-sap:ListConfigurationCheckOperations |
 | ssm-sap | ssm-sap/operation | 0 |  | child-uncatalogued | ssm-sap:GetOperation, ssm-sap:ListOperations |
 | ssm-sap | ssm-sap/subcheckresult | 1 |  | child-uncatalogued | ssm-sap:ListSubCheckResults |
 | ssm-sap | ssm-sap/subcheckruleresult | 2 |  | child-uncatalogued | ssm-sap:ListSubCheckRuleResults |
-| sso | sso/accountassignmentcreationstatus | 1 |  | child-uncatalogued | sso:DescribeAccountAssignmentCreationStatus, sso:ListAccountAssignmentCreationStatus |
-| sso | sso/accountassignmentdeletionstatus | 1 |  | child-uncatalogued | sso:DescribeAccountAssignmentDeletionStatus, sso:ListAccountAssignmentDeletionStatus |
+| sso | sso/accountassignmentcreationstatus | 1 |  | child-uncatalogued | sso:DescribeAccountAssignmentCreationStatus, sso:DescribeAccountAssignmentDeletionStatus, sso:ListAccountAssignmentCreationStatus, sso:ListAccountAssignmentDeletionStatus |
+| sso | sso/applicationaccessscope | 0 |  | smithy-resource | sso:GetApplicationAccessScope, sso:ListApplicationAccessScopes |
+| sso | sso/applicationauthenticationmethod | 0 |  | smithy-resource | sso:GetApplicationAuthenticationMethod, sso:ListApplicationAuthenticationMethods |
+| sso | sso/applicationgrant | 0 |  | smithy-resource | sso:GetApplicationGrant, sso:ListApplicationGrants |
 | sso | sso/customermanagedpolicyreference | 2 |  | child-uncatalogued | sso:ListCustomerManagedPolicyReferencesInPermissionSet |
 | sso | sso/managedpolicy | 2 |  | child-uncatalogued | sso:ListManagedPoliciesInPermissionSet |
 | sso | sso/permissionsetprovisioningstatus | 1 |  | child-uncatalogued | sso:DescribePermissionSetProvisioningStatus, sso:ListPermissionSetProvisioningStatus |
+| sso | sso/permissionsetsprovisioned | 1 |  | child-uncatalogued | sso:ListPermissionSetsProvisionedToAccount |
 | sso | sso/region | 1 |  | child-uncatalogued | sso:DescribeRegion, sso:ListRegions |
 | states | states/execution | 0 |  | sr-resource | states:DescribeExecution, states:ListExecutions |
 | states | states/executionhistory | 1 |  | child-uncatalogued | states:GetExecutionHistory |
 | states | states/maprun | 1 |  | sr-resource | states:DescribeMapRun, states:ListMapRuns |
-| storagegateway | storagegateway/automatictapecreationpolicy | 0 |  | writable-noun | storagegateway:ListAutomaticTapeCreationPolicies |
+| storagegateway | storagegateway/automatictapecreationpolicy | 0 |  | element-arn | storagegateway:ListAutomaticTapeCreationPolicies |
 | storagegateway | storagegateway/cache | 1 |  | child-uncatalogued | storagegateway:DescribeCache |
-| storagegateway | storagegateway/cachediscsivolume | 1 |  | child-uncatalogued | storagegateway:DescribeCachediSCSIVolumes |
-| storagegateway | storagegateway/chapcredential | 2 |  | child-uncatalogued | storagegateway:DescribeChapCredentials |
 | storagegateway | storagegateway/localdisk | 1 |  | child-uncatalogued | storagegateway:ListLocalDisks |
 | storagegateway | storagegateway/nfsfileshare | 1 |  | child-uncatalogued | storagegateway:DescribeNFSFileShares |
 | storagegateway | storagegateway/smbfileshare | 1 |  | child-uncatalogued | storagegateway:DescribeSMBFileShares |
-| storagegateway | storagegateway/storediscsivolume | 1 |  | child-uncatalogued | storagegateway:DescribeStorediSCSIVolumes |
-| storagegateway | storagegateway/tapearchive | 0 |  | writable-noun | storagegateway:DescribeTapeArchives |
+| storagegateway | storagegateway/tapearchive | 0 |  | element-written | storagegateway:DescribeTapeArchives |
 | storagegateway | storagegateway/taperecoverypoint | 1 |  | child-uncatalogued | storagegateway:DescribeTapeRecoveryPoints |
 | storagegateway | storagegateway/uploadbuffer | 1 |  | child-uncatalogued | storagegateway:DescribeUploadBuffer |
 | storagegateway | storagegateway/volumerecoverypoint | 1 |  | child-uncatalogued | storagegateway:ListVolumeRecoveryPoints |
 | storagegateway | storagegateway/workingstorage | 1 |  | child-uncatalogued | storagegateway:DescribeWorkingStorage |
-| support | support/case | 0 |  | writable-noun | support:DescribeCases |
+| support | support/case | 0 |  | element-written | support:DescribeCases |
 | support | support/communication | 1 |  | child-uncatalogued | support:DescribeCommunications |
-| support | support/trustedadvisorcheckrefreshstatus | 1 |  | child-uncatalogued | support:DescribeTrustedAdvisorCheckRefreshStatuses |
-| support | support/trustedadvisorchecksummary | 1 |  | child-uncatalogued | support:DescribeTrustedAdvisorCheckSummaries |
+| support | support/trustedadvisorcheckrefreshstatus | 0 |  | child-uncatalogued | support:DescribeTrustedAdvisorCheckRefreshStatuses |
 | supportauthz | supportauthz/supportpermit | 0 |  | sr-resource | supportauthz:GetSupportPermit, supportauthz:ListSupportPermits |
 | supportauthz | supportauthz/supportpermitrequest | 0 |  | sr-resource | supportauthz:ListSupportPermitRequests |
 | swf | swf/workflowexecutionhistory | 1 |  | child-uncatalogued | swf:GetWorkflowExecutionHistory |
-| synthetics | synthetics/associatedgroup | 1 |  | child-uncatalogued | synthetics:ListAssociatedGroups |
+| synthetics | synthetics/canarieslastrun | 0 |  | element-written | synthetics:DescribeCanariesLastRun |
 | synthetics | synthetics/canaryrun | 1 |  | child-uncatalogued | synthetics:GetCanaryRuns |
 | tagging | tagging/resource | 0 |  | element-arn | tagging:GetResources |
-| tax | tax/supplementaltaxregistration | 0 |  | writable-noun | tax:ListSupplementalTaxRegistrations |
-| tax | tax/taxregistration | 0 |  | writable-noun | tax:GetTaxRegistration, tax:ListTaxRegistrations |
-| timestream | timestream/batchloadtask | 0 |  | writable-noun | timestream:DescribeBatchLoadTask, timestream:ListBatchLoadTasks |
-| timestream-influxdb | timestream-influxdb/dbbackup | 0 |  | sr-resource | timestream-influxdb:GetDbBackup, timestream-influxdb:ListDbBackups |
+| tax | tax/supplementaltaxregistration | 0 |  | element-written | tax:ListSupplementalTaxRegistrations |
+| tax | tax/taxregistration | 0 |  | element-written | tax:GetTaxRegistration, tax:ListTaxRegistrations |
+| timestream | timestream/batchloadtask | 0 |  | element-created | timestream:DescribeBatchLoadTask, timestream:ListBatchLoadTasks |
+| timestream-influxdb | timestream-influxdb/dbbackup | 0 |  | smithy-resource | timestream-influxdb:GetDbBackup, timestream-influxdb:ListDbBackups |
 | transcribe | transcribe/callanalyticsjob | 0 |  | sr-resource | transcribe:GetCallAnalyticsJob, transcribe:ListCallAnalyticsJobs |
 | transcribe | transcribe/medicalscribejob | 0 |  | sr-resource | transcribe:GetMedicalScribeJob, transcribe:ListMedicalScribeJobs |
 | transcribe | transcribe/medicaltranscriptionjob | 0 |  | sr-resource | transcribe:GetMedicalTranscriptionJob, transcribe:ListMedicalTranscriptionJobs |
 | transcribe | transcribe/transcriptionjob | 0 |  | sr-resource | transcribe:GetTranscriptionJob, transcribe:ListTranscriptionJobs |
 | transfer | transfer/access | 1 |  | child-uncatalogued | transfer:DescribeAccess, transfer:ListAccesses |
 | transfer | transfer/execution | 1 |  | child-uncatalogued | transfer:DescribeExecution, transfer:ListExecutions |
-| translate | translate/texttranslationjob | 0 |  | element-arn | translate:DescribeTextTranslationJob, translate:ListTextTranslationJobs |
+| translate | translate/texttranslationjob | 0 |  | element-written | translate:DescribeTextTranslationJob, translate:ListTextTranslationJobs |
 | trustedadvisor | trustedadvisor/organizationrecommendation | 0 |  | element-arn | trustedadvisor:GetOrganizationRecommendation, trustedadvisor:ListOrganizationRecommendations |
 | trustedadvisor | trustedadvisor/organizationrecommendationaccount | 1 |  | child-uncatalogued | trustedadvisor:ListOrganizationRecommendationAccounts |
 | trustedadvisor | trustedadvisor/organizationrecommendationresource | 1 |  | child-uncatalogued | trustedadvisor:ListOrganizationRecommendationResources |
-| trustedadvisor | trustedadvisor/recommendation | 0 |  | child-uncatalogued | trustedadvisor:GetRecommendation, trustedadvisor:ListRecommendations, trustedadvisor:ListRecommendationsForResource |
+| trustedadvisor | trustedadvisor/recommendation | 0 |  | element-arn | trustedadvisor:GetRecommendation, trustedadvisor:ListRecommendations, trustedadvisor:ListRecommendationsForResource |
 | trustedadvisor | trustedadvisor/recommendationresource | 1 |  | child-uncatalogued | trustedadvisor:ListRecommendationResources |
 | voiceid | voiceid/fraudster | 1 |  | child-uncatalogued | voiceid:DescribeFraudster, voiceid:ListFraudsters |
 | voiceid | voiceid/fraudsterregistrationjob | 1 |  | child-uncatalogued | voiceid:DescribeFraudsterRegistrationJob, voiceid:ListFraudsterRegistrationJobs |
@@ -2044,72 +1962,67 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | voiceid | voiceid/watchlist | 1 |  | child-uncatalogued | voiceid:DescribeWatchlist, voiceid:ListWatchlists |
 | vpc-lattice | vpc-lattice/servicenetworkvpcendpointassociation | 1 |  | child-uncatalogued | vpc-lattice:ListServiceNetworkVpcEndpointAssociations |
 | vpc-lattice | vpc-lattice/target | 1 |  | child-uncatalogued | vpc-lattice:ListTargets |
-| waf | waf/loggingconfiguration | 0 |  | writable-noun | waf:GetLoggingConfiguration, waf:ListLoggingConfigurations |
-| waf-regional | waf-regional/loggingconfiguration | 0 |  | writable-noun | waf-regional:GetLoggingConfiguration, waf-regional:ListLoggingConfigurations |
-| wafv2 | wafv2/allmanagedproduct | 0 |  | element-arn | wafv2:DescribeAllManagedProducts |
-| wafv2 | wafv2/apikey | 0 |  | writable-noun | wafv2:ListAPIKeys |
-| wafv2 | wafv2/availablemanagedrulegroupversion | 1 |  | child-uncatalogued | wafv2:ListAvailableManagedRuleGroupVersions |
-| wafv2 | wafv2/managedproduct | 1 |  | child-uncatalogued | wafv2:DescribeManagedProductsByVendor |
+| waf | waf/loggingconfiguration | 0 |  | element-written | waf:GetLoggingConfiguration, waf:ListLoggingConfigurations |
+| waf-regional | waf-regional/loggingconfiguration | 0 |  | element-written | waf-regional:GetLoggingConfiguration, waf-regional:ListLoggingConfigurations |
+| wafv2 | wafv2/apikey | 0 |  | element-created | wafv2:ListAPIKeys |
+| wafv2 | wafv2/availablemanagedrulegroupversion | 0 |  | child-uncatalogued | wafv2:ListAvailableManagedRuleGroupVersions |
 | wafv2 | wafv2/settlementrecord | 0 |  | element-arn | wafv2:ListSettlementRecords |
 | wellarchitected | wellarchitected/agentcontext | 1 |  | child-uncatalogued | wellarchitected:GetAgentContext, wellarchitected:ListAgentContexts |
 | wellarchitected | wellarchitected/agentgoal | 1 |  | child-uncatalogued | wellarchitected:GetAgentGoal, wellarchitected:ListAgentGoals |
 | wellarchitected | wellarchitected/agentprofile | 0 |  | sr-resource | wellarchitected:GetAgentProfile, wellarchitected:ListAgentProfiles |
-| wellarchitected | wellarchitected/agentrecommendation | 0 |  | sr-resource | wellarchitected:GetAgentRecommendation, wellarchitected:ListAgentRecommendations |
+| wellarchitected | wellarchitected/agentrecommendation | 1 |  | sr-resource | wellarchitected:GetAgentRecommendation, wellarchitected:ListAgentRecommendations |
 | wellarchitected | wellarchitected/agentrecommendationgeneration | 1 |  | child-uncatalogued | wellarchitected:GetAgentRecommendationGeneration, wellarchitected:ListAgentRecommendationGenerations |
-| wellarchitected | wellarchitected/agentrecommendationitem | 1 |  | child-uncatalogued | wellarchitected:ListAgentRecommendationItems |
-| wellarchitected | wellarchitected/answer | 1 |  | child-uncatalogued | wellarchitected:GetAnswer, wellarchitected:ListAnswers |
+| wellarchitected | wellarchitected/agentrecommendationitem | 2 |  | child-uncatalogued | wellarchitected:ListAgentRecommendationItems |
+| wellarchitected | wellarchitected/answer | 2 |  | child-uncatalogued | wellarchitected:GetAnswer, wellarchitected:ListAnswers |
 | wellarchitected | wellarchitected/checkdetail | 1 |  | child-uncatalogued | wellarchitected:ListCheckDetails |
 | wellarchitected | wellarchitected/checksummary | 1 |  | child-uncatalogued | wellarchitected:ListCheckSummaries |
-| wellarchitected | wellarchitected/consolidatedreport | 0 |  | element-arn | wellarchitected:GetConsolidatedReport |
+| wellarchitected | wellarchitected/consolidatedreport | 0 |  | element-written | wellarchitected:GetConsolidatedReport |
 | wellarchitected | wellarchitected/lensreview | 1 |  | child-uncatalogued | wellarchitected:GetLensReview, wellarchitected:ListLensReviews |
-| wellarchitected | wellarchitected/lensreviewimprovement | 1 |  | child-uncatalogued | wellarchitected:ListLensReviewImprovements |
+| wellarchitected | wellarchitected/lensreviewimprovement | 2 |  | child-uncatalogued | wellarchitected:ListLensReviewImprovements |
 | wellarchitected | wellarchitected/lensshare | 1 |  | child-uncatalogued | wellarchitected:ListLensShares |
 | wellarchitected | wellarchitected/milestone | 1 |  | child-uncatalogued | wellarchitected:GetMilestone, wellarchitected:ListMilestones |
-| wellarchitected | wellarchitected/profilenotification | 0 |  | element-arn | wellarchitected:ListProfileNotifications |
+| wellarchitected | wellarchitected/profilenotification | 0 |  | element-written | wellarchitected:ListProfileNotifications |
 | wellarchitected | wellarchitected/profileshare | 1 |  | child-uncatalogued | wellarchitected:ListProfileShares |
-| wellarchitected | wellarchitected/reviewtemplateanswer | 1 |  | child-uncatalogued | wellarchitected:GetReviewTemplateAnswer, wellarchitected:ListReviewTemplateAnswers |
-| wellarchitected | wellarchitected/shareinvitation | 0 |  | element-arn | wellarchitected:ListShareInvitations |
+| wellarchitected | wellarchitected/reviewtemplateanswer | 2 |  | child-uncatalogued | wellarchitected:GetReviewTemplateAnswer, wellarchitected:ListReviewTemplateAnswers |
+| wellarchitected | wellarchitected/shareinvitation | 0 |  | element-written | wellarchitected:ListShareInvitations |
 | wellarchitected | wellarchitected/templateshare | 1 |  | child-uncatalogued | wellarchitected:ListTemplateShares |
 | wellarchitected | wellarchitected/workloadshare | 1 |  | child-uncatalogued | wellarchitected:ListWorkloadShares |
 | wickr | wickr/bot | 1 |  | child-uncatalogued | wickr:GetBot, wickr:ListBots |
-| wickr | wickr/device | 1 |  | child-uncatalogued | wickr:ListDevicesForUser |
+| wickr | wickr/device | 2 |  | child-uncatalogued | wickr:ListDevicesForUser |
 | wickr | wickr/network | 0 |  | sr-resource | wickr:GetNetwork, wickr:ListNetworks |
 | wickr | wickr/networksetting | 1 |  | child-uncatalogued | wickr:GetNetworkSettings |
 | wickr | wickr/securitygroup | 1 |  | child-uncatalogued | wickr:GetSecurityGroup, wickr:ListSecurityGroups |
-| wickr | wickr/securitygroupuser | 1 |  | child-uncatalogued | wickr:ListSecurityGroupUsers |
-| wickr | wickr/user | 1 |  | child-uncatalogued | wickr:GetUser, wickr:ListUsers |
+| wickr | wickr/user | 1 |  | child-uncatalogued | wickr:GetUser, wickr:ListSecurityGroupUsers, wickr:ListUsers |
 | wisdom | wisdom/importjob | 1 |  | child-uncatalogued | wisdom:GetImportJob, wisdom:ListImportJobs |
 | wisdom | wisdom/message | 2 |  | child-uncatalogued | wisdom:ListMessages |
 | wisdom | wisdom/model | 1 |  | child-uncatalogued | wisdom:ListModels |
-| wisdom | wisdom/recommendation | 2 |  | child-uncatalogued | wisdom:GetRecommendations |
 | wisdom | wisdom/session | 1 |  | sr-resource | wisdom:GetSession, wisdom:SearchSessions |
 | wisdom | wisdom/span | 2 |  | child-uncatalogued | wisdom:ListSpans |
-| workdocs | workdocs/comment | 1 |  | child-uncatalogued | workdocs:DescribeComments |
+| workdocs | workdocs/activity | 0 |  | element-written | workdocs:DescribeActivities |
+| workdocs | workdocs/comment | 2 |  | child-uncatalogued | workdocs:DescribeComments |
 | workdocs | workdocs/documentversion | 1 |  | child-uncatalogued | workdocs:DescribeDocumentVersions, workdocs:GetDocumentVersion |
-| workdocs | workdocs/foldercontent | 1 |  | child-uncatalogued | workdocs:DescribeFolderContents |
+| workdocs | workdocs/folder | 0 |  | element-written | workdocs:DescribeRootFolders, workdocs:GetFolder |
 | workdocs | workdocs/notificationsubscription | 1 |  | child-uncatalogued | workdocs:DescribeNotificationSubscriptions |
-| workdocs | workdocs/resource | 0 |  | element-created | workdocs:GetResources, workdocs:SearchResources |
-| workdocs | workdocs/resourcepermission | 0 |  | writable-noun | workdocs:DescribeResourcePermissions |
-| workdocs | workdocs/rootfolder | 0 |  | element-created | workdocs:DescribeRootFolders |
-| workdocs | workdocs/user | 0 |  | writable-noun | workdocs:DescribeUsers |
+| workdocs | workdocs/resource | 0 |  | element-written | workdocs:DescribeFolderContents, workdocs:GetDocument, workdocs:GetResources, workdocs:SearchResources |
+| workdocs | workdocs/resourcepermission | 1 |  | child-uncatalogued | workdocs:DescribeResourcePermissions |
+| workdocs | workdocs/user | 0 |  | element-written | workdocs:DescribeUsers, workdocs:GetCurrentUser |
 | workmail | workmail/accesscontrolrule | 1 |  | child-uncatalogued | workmail:ListAccessControlRules |
 | workmail | workmail/alias | 1 |  | child-uncatalogued | workmail:ListAliases |
-| workmail | workmail/availabilityconfiguration | 1 |  | child-uncatalogued | workmail:ListAvailabilityConfigurations |
+| workmail | workmail/availabilityconfiguration | 1 |  | child-uncatalogued | workmail:ListAvailabilityConfigurations, workmail:TestAvailabilityConfiguration |
 | workmail | workmail/defaultretentionpolicy | 1 |  | child-uncatalogued | workmail:GetDefaultRetentionPolicy |
 | workmail | workmail/group | 1 |  | child-uncatalogued | workmail:DescribeGroup, workmail:ListGroups, workmail:ListGroupsForEntity |
 | workmail | workmail/groupmember | 1 |  | child-uncatalogued | workmail:ListGroupMembers |
 | workmail | workmail/impersonationrole | 1 |  | child-uncatalogued | workmail:GetImpersonationRole, workmail:ListImpersonationRoles |
-| workmail | workmail/impersonationroleeffect | 1 |  | child-uncatalogued | workmail:GetImpersonationRoleEffect |
 | workmail | workmail/mailboxexportjob | 1 |  | child-uncatalogued | workmail:DescribeMailboxExportJob, workmail:ListMailboxExportJobs |
 | workmail | workmail/mailboxpermission | 1 |  | child-uncatalogued | workmail:ListMailboxPermissions |
-| workmail | workmail/maildomain | 1 |  | child-uncatalogued | workmail:GetMailDomain, workmail:ListMailDomains |
-| workmail | workmail/mobiledeviceaccesseffect | 1 |  | child-uncatalogued | workmail:GetMobileDeviceAccessEffect |
+| workmail | workmail/maildomain | 1 |  | child-uncatalogued | workmail:ListMailDomains |
 | workmail | workmail/mobiledeviceaccessoverride | 1 |  | child-uncatalogued | workmail:GetMobileDeviceAccessOverride, workmail:ListMobileDeviceAccessOverrides |
 | workmail | workmail/mobiledeviceaccessrule | 1 |  | child-uncatalogued | workmail:ListMobileDeviceAccessRules |
 | workmail | workmail/personalaccesstoken | 1 |  | child-uncatalogued | workmail:ListPersonalAccessTokens |
 | workmail | workmail/resource | 1 |  | child-uncatalogued | workmail:DescribeResource, workmail:ListResources |
 | workmail | workmail/resourcedelegate | 1 |  | child-uncatalogued | workmail:ListResourceDelegates |
 | workmail | workmail/user | 1 |  | child-uncatalogued | workmail:DescribeUser, workmail:ListUsers |
+| workspaces | workspaces/accountlink | 0 |  | element-written | workspaces:GetAccountLink, workspaces:ListAccountLinks |
 | workspaces | workspaces/applicationassociation | 1 |  | child-uncatalogued | workspaces:DescribeApplicationAssociations |
 | workspaces | workspaces/bundleassociation | 1 |  | child-uncatalogued | workspaces:DescribeBundleAssociations |
 | workspaces | workspaces/clientproperty | 1 |  | child-uncatalogued | workspaces:DescribeClientProperties |
@@ -2117,18 +2030,17 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workspaces | workspaces/connectionaliaspermission | 1 |  | child-uncatalogued | workspaces:DescribeConnectionAliasPermissions |
 | workspaces | workspaces/imageassociation | 1 |  | child-uncatalogued | workspaces:DescribeImageAssociations |
 | workspaces | workspaces/workspaceassociation | 1 |  | child-uncatalogued | workspaces:DescribeWorkspaceAssociations |
-| workspaces | workspaces/workspaceimagepermission | 1 |  | child-uncatalogued | workspaces:DescribeWorkspaceImagePermissions |
 | workspaces | workspaces/workspacespoolsession | 1 |  | child-uncatalogued | workspaces:DescribeWorkspacesPoolSessions |
 | workspaces-web | workspaces-web/session | 1 |  | child-uncatalogued | workspaces-web:GetSession, workspaces-web:ListSessions |
-| xray | xray/insightimpactgraph | 1 |  | child-uncatalogued | xray:GetInsightImpactGraph |
+| xray | xray/indexingrule | 0 |  | element-written | xray:GetIndexingRules |
 | xray | xray/insightsummary | 0 |  | element-arn | xray:GetInsightSummaries |
-| xray | xray/tracegraph | 1 |  | child-uncatalogued | xray:GetTraceGraph |
+| xray | xray/tracegraph | 0 |  | child-uncatalogued | xray:GetServiceGraph, xray:GetTraceGraph |
 | xray | xray/tracesummary | 0 |  | element-arn | xray:GetTraceSummaries |
 
 
 ## AZURE
 
-**Coverage:** 15.8% (398/2515 listable) · depth0 44.1% · depth1 3.2% · depth2 4.2% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 1009 · disco-only 8 (0 unexplained)
+**Coverage:** 16.1% (398/2478 listable) · depth0 46.4% · depth1 3.2% · depth2 4.2% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 917 · disco-only 8 (0 unexplained)
 
 Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 
@@ -2136,35 +2048,34 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| item-write | 388 | 1618 | 19.3 |
-| arm-envelope | 10 | 499 | 2.0 |
+| item-write | 388 | 1625 | 19.3 |
+| arm-envelope | 10 | 455 | 2.2 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
-| microsoft.apimanagement | 1 | 107 | 0.9 |
+| microsoft.apimanagement | 1 | 108 | 0.9 |
 | microsoft.network | 57 | 100 | 36.3 |
-| microsoft.web | 10 | 88 | 10.2 |
-| microsoft.sql | 41 | 76 | 35.0 |
-| microsoft.security | 1 | 57 | 1.7 |
+| microsoft.web | 10 | 93 | 9.7 |
+| microsoft.sql | 41 | 73 | 36.0 |
+| microsoft.security | 1 | 58 | 1.7 |
 | microsoft.machinelearningservices | 2 | 50 | 3.8 |
 | microsoft.migrate | 1 | 45 | 2.2 |
+| microsoft.securityinsights | 0 | 41 | 0.0 |
 | microsoft.synapse | 2 | 41 | 4.7 |
 | microsoft.billing | 0 | 38 | 0.0 |
 | microsoft.documentdb | 4 | 37 | 9.8 |
-| microsoft.securityinsights | 0 | 37 | 0.0 |
-| microsoft.containerservice | 3 | 32 | 8.6 |
-| microsoft.recoveryservices | 1 | 32 | 3.0 |
 | microsoft.app | 5 | 31 | 13.9 |
-| microsoft.cognitiveservices | 2 | 29 | 6.5 |
-| microsoft.dbforpostgresql | 2 | 29 | 6.5 |
+| microsoft.recoveryservices | 1 | 31 | 3.1 |
+| microsoft.dbforpostgresql | 2 | 30 | 6.2 |
 | microsoft.insights | 1 | 29 | 3.3 |
 | microsoft.avs | 1 | 28 | 3.4 |
+| microsoft.cognitiveservices | 2 | 28 | 6.7 |
+| microsoft.containerservice | 3 | 28 | 9.7 |
 | microsoft.automation | 1 | 26 | 3.7 |
+| microsoft.devcenter | 3 | 26 | 10.3 |
 | microsoft.dbformysql | 1 | 25 | 3.8 |
-| microsoft.devcenter | 3 | 25 | 10.7 |
 | microsoft.edge | 0 | 25 | 0.0 |
-| microsoft.netapp | 1 | 25 | 3.8 |
-| oracle.database | 0 | 25 | 0.0 |
+| microsoft.netapp | 1 | 23 | 4.2 |
 | microsoft.storage | 1 | 20 | 4.8 |
 | microsoft.authorization | 5 | 19 | 20.8 |
 | microsoft.compute | 26 | 19 | 57.8 |
@@ -2174,23 +2085,23 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.m365securityandcompliance | 0 | 18 | 0.0 |
 | microsoft.storsimple | 0 | 18 | 0.0 |
 | microsoft.devtestlab | 2 | 17 | 10.5 |
-| microsoft.azurestackhci | 8 | 16 | 33.3 |
 | microsoft.cdn | 2 | 16 | 11.1 |
-| microsoft.chaos | 1 | 15 | 6.2 |
+| microsoft.azurestackhci | 8 | 15 | 34.8 |
 | microsoft.customerinsights | 0 | 14 | 0.0 |
+| oracle.database | 0 | 14 | 0.0 |
 | paloaltonetworks.cloudngfw | 0 | 14 | 0.0 |
-| microsoft.dataprotection | 2 | 13 | 13.3 |
 | microsoft.dbformariadb | 0 | 13 | 0.0 |
 | microsoft.discovery | 0 | 13 | 0.0 |
 | microsoft.hybridnetwork | 1 | 13 | 7.1 |
 | microsoft.servicebus | 1 | 13 | 7.1 |
-| microsoft.servicefabric | 2 | 13 | 13.3 |
 | microsoft.signalrservice | 2 | 13 | 13.3 |
 | microsoft.azureresiliencemanagement | 1 | 12 | 7.7 |
 | microsoft.databoxedge | 1 | 12 | 7.7 |
 | microsoft.datafactory | 1 | 12 | 7.7 |
+| microsoft.dataprotection | 2 | 12 | 14.3 |
 | microsoft.iotoperations | 1 | 12 | 7.7 |
 | microsoft.testbase | 0 | 12 | 0.0 |
+| microsoft.chaos | 1 | 11 | 8.3 |
 | microsoft.eventhub | 2 | 11 | 15.4 |
 | microsoft.operationalinsights | 2 | 11 | 15.4 |
 | microsoft.providerhub | 0 | 11 | 0.0 |
@@ -2201,29 +2112,26 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | purestorage.block | 0 | 10 | 0.0 |
 | microsoft.billingbenefits | 0 | 9 | 0.0 |
 | microsoft.desktopvirtualization | 5 | 9 | 35.7 |
-| microsoft.hybridcompute | 2 | 9 | 18.2 |
 | microsoft.keyvault | 2 | 9 | 18.2 |
 | microsoft.managednetworkfabric | 17 | 9 | 65.4 |
 | microsoft.media | 0 | 9 | 0.0 |
 | microsoft.mission | 0 | 9 | 0.0 |
 | microsoft.resources | 1 | 9 | 10.0 |
+| microsoft.servicefabric | 2 | 9 | 18.2 |
 | microsoft.confluent | 0 | 8 | 0.0 |
 | microsoft.datashare | 1 | 8 | 11.1 |
 | microsoft.healthcareapis | 2 | 8 | 20.0 |
+| microsoft.hybridcompute | 2 | 8 | 20.0 |
 | microsoft.networkcloud | 13 | 8 | 61.9 |
-| microsoft.vmwarecloudsimple | 0 | 8 | 0.0 |
 | microsoft.workloads | 2 | 8 | 20.0 |
 | microsoft.advisor | 0 | 7 | 0.0 |
 | microsoft.apicenter | 1 | 7 | 12.5 |
 | microsoft.batch | 1 | 7 | 12.5 |
-| microsoft.computelimit | 0 | 7 | 0.0 |
 | microsoft.costmanagement | 0 | 7 | 0.0 |
 | microsoft.datamigration | 1 | 7 | 12.5 |
 | microsoft.devices | 2 | 7 | 22.2 |
 | microsoft.hybriddata | 0 | 7 | 0.0 |
-| microsoft.iotsecurity | 0 | 7 | 0.0 |
 | microsoft.kubernetesconfiguration | 0 | 7 | 0.0 |
-| microsoft.redhatopenshift | 1 | 7 | 12.5 |
 | microsoft.relay | 1 | 7 | 12.5 |
 | microsoft.securitydevops | 0 | 7 | 0.0 |
 | microsoft.servicefabricmesh | 0 | 7 | 0.0 |
@@ -2232,6 +2140,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.datalakeanalytics | 0 | 6 | 0.0 |
 | microsoft.deploymentmanager | 0 | 6 | 0.0 |
 | microsoft.horizondb | 2 | 6 | 25.0 |
+| microsoft.iotsecurity | 0 | 6 | 0.0 |
 | microsoft.storagecache | 1 | 6 | 14.3 |
 | microsoft.storagemover | 1 | 6 | 14.3 |
 | microsoft.storagesync | 1 | 6 | 14.3 |
@@ -2239,9 +2148,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.appconfiguration | 1 | 5 | 16.7 |
 | microsoft.cloudhealth | 1 | 5 | 16.7 |
 | microsoft.communication | 2 | 5 | 28.6 |
+| microsoft.computelimit | 0 | 5 | 0.0 |
 | microsoft.dashboard | 1 | 5 | 16.7 |
 | microsoft.datadog | 0 | 5 | 0.0 |
-| microsoft.devhub | 1 | 5 | 16.7 |
 | microsoft.hybridconnectivity | 1 | 5 | 16.7 |
 | microsoft.hybridcontainerservice | 1 | 5 | 16.7 |
 | microsoft.integrationspaces | 1 | 5 | 16.7 |
@@ -2253,8 +2162,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | nginx.nginxplus | 0 | 5 | 0.0 |
 | dynatrace.observability | 0 | 4 | 0.0 |
 | microsoft.agfoodplatform | 0 | 4 | 0.0 |
+| microsoft.blueprint | 2 | 4 | 33.3 |
 | microsoft.botservice | 1 | 4 | 20.0 |
-| microsoft.capacity | 0 | 4 | 0.0 |
 | microsoft.connectedvmwarevsphere | 7 | 4 | 63.6 |
 | microsoft.databasewatcher | 1 | 4 | 20.0 |
 | microsoft.datalakestore | 0 | 4 | 0.0 |
@@ -2267,7 +2176,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.impact | 0 | 4 | 0.0 |
 | microsoft.kubernetesruntime | 0 | 4 | 0.0 |
 | microsoft.labservices | 2 | 4 | 33.3 |
-| microsoft.loadtestservice | 1 | 4 | 20.0 |
 | microsoft.managednetwork | 0 | 4 | 0.0 |
 | microsoft.monitor | 0 | 4 | 0.0 |
 | microsoft.offazurespringboot | 1 | 4 | 20.0 |
@@ -2280,9 +2188,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.aadiam | 0 | 3 | 0.0 |
 | microsoft.alertsmanagement | 0 | 3 | 0.0 |
 | microsoft.automanage | 3 | 3 | 50.0 |
-| microsoft.blueprint | 2 | 3 | 40.0 |
+| microsoft.capacity | 0 | 3 | 0.0 |
 | microsoft.containerinstance | 1 | 3 | 25.0 |
 | microsoft.databricks | 2 | 3 | 40.0 |
+| microsoft.devhub | 1 | 3 | 25.0 |
 | microsoft.education | 0 | 3 | 0.0 |
 | microsoft.elastic | 1 | 3 | 25.0 |
 | microsoft.fileshares | 1 | 3 | 25.0 |
@@ -2293,18 +2202,19 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.orbital | 1 | 3 | 25.0 |
 | microsoft.programmableconnectivity | 0 | 3 | 0.0 |
 | microsoft.purview | 1 | 3 | 25.0 |
+| microsoft.redhatopenshift | 1 | 3 | 25.0 |
 | microsoft.search | 1 | 3 | 25.0 |
 | microsoft.servicelinker | 0 | 3 | 0.0 |
 | microsoft.standbypool | 2 | 3 | 40.0 |
 | microsoft.subscription | 0 | 3 | 0.0 |
 | microsoft.visualstudio | 0 | 3 | 0.0 |
+| microsoft.vmwarecloudsimple | 0 | 3 | 0.0 |
 | mongodb.atlas | 0 | 3 | 0.0 |
 | newrelic.observability | 0 | 3 | 0.0 |
 | informatica.datamanagement | 0 | 2 | 0.0 |
 | microsoft.aad | 0 | 2 | 0.0 |
 | microsoft.applink | 0 | 2 | 0.0 |
 | microsoft.azuredata | 0 | 2 | 0.0 |
-| microsoft.azureplaywrightservice | 1 | 2 | 33.3 |
 | microsoft.billingtrust | 0 | 2 | 0.0 |
 | microsoft.blockchain | 0 | 2 | 0.0 |
 | microsoft.certificateregistration | 1 | 2 | 33.3 |
@@ -2315,6 +2225,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.engagementfabric | 0 | 2 | 0.0 |
 | microsoft.features | 0 | 2 | 0.0 |
 | microsoft.hanaonazure | 0 | 2 | 0.0 |
+| microsoft.loadtestservice | 1 | 2 | 33.3 |
 | microsoft.management | 1 | 2 | 33.3 |
 | microsoft.operationsmanagement | 1 | 2 | 33.3 |
 | microsoft.portal | 0 | 2 | 0.0 |
@@ -2330,6 +2241,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.agricultureplatform | 0 | 1 | 0.0 |
 | microsoft.attestation | 1 | 1 | 50.0 |
 | microsoft.azurearcdata | 4 | 1 | 80.0 |
+| microsoft.azureplaywrightservice | 1 | 1 | 50.0 |
 | microsoft.baremetalinfrastructure | 1 | 1 | 50.0 |
 | microsoft.codesigning | 1 | 1 | 50.0 |
 | microsoft.computebulkactions | 0 | 1 | 0.0 |
@@ -2386,7 +2298,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.storageactions | 1 | 0 | 100.0 |
 | microsoft.storagediscovery | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (2117)
+### Uncovered (listable, no scanner) (2080)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -2487,6 +2399,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.apimanagement | microsoft.apimanagement/service/policyrestrictions | 1 | resource-group | item-write | armapimanagement:PolicyRestriction.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/portalconfigs | 1 | resource-group | item-write | armapimanagement:PortalConfig.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/portalrevisions | 1 | resource-group | item-write | armapimanagement:PortalRevision.ListByService |
+| microsoft.apimanagement | microsoft.apimanagement/service/portalsettings | 1 | resource-group | item-write | armapimanagement:PortalSettings.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/privateendpointconnections | 1 | resource-group | item-write | armapimanagement:PrivateEndpointConnection.ListByService |
 | microsoft.apimanagement | microsoft.apimanagement/service/privatelinkresources | 1 | resource-group | arm-envelope | armapimanagement:PrivateEndpointConnection.ListPrivateLinkResources |
 | microsoft.apimanagement | microsoft.apimanagement/service/products | 1 | resource-group | item-write | armapimanagement:APIProduct.ListByApis, armapimanagement:Product.ListByService |
@@ -2664,7 +2577,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.azuredata | microsoft.azuredata/sqlserverregistrations | 0 | subscription | item-write | armazuredata:SQLServerRegistrations.List, armazuredata:SQLServerRegistrations.ListByResourceGroup |
 | microsoft.azuredata | microsoft.azuredata/sqlserverregistrations/sqlservers | 1 | resource-group | item-write | armazuredata:SQLServers.ListByResourceGroup |
 | microsoft.azureplaywrightservice | microsoft.azureplaywrightservice/accounts/quotas | 1 | resource-group | arm-envelope | armplaywrighttesting:AccountQuotas.ListByAccount |
-| microsoft.azureplaywrightservice | microsoft.azureplaywrightservice/quotas | 0 | subscription | arm-envelope | armplaywrighttesting:Quotas.ListBySubscription |
 | microsoft.azureresiliencemanagement | microsoft.azureresiliencemanagement/drills | 0 | tenant | item-write | armresiliencemanagement:Drills.List |
 | microsoft.azureresiliencemanagement | microsoft.azureresiliencemanagement/drills/drillresources | 1 | tenant | arm-envelope | armresiliencemanagement:DrillResources.List |
 | microsoft.azureresiliencemanagement | microsoft.azureresiliencemanagement/drills/drillruns | 1 | tenant | arm-envelope | armresiliencemanagement:DrillRuns.List |
@@ -2695,7 +2607,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.azurestackhci | microsoft.azurestackhci/edgedevices | 0 | extension | item-write | armazurestackhci:EdgeDevices.List |
 | microsoft.azurestackhci | microsoft.azurestackhci/edgedevices/jobs | 1 | extension | item-write | armazurestackhci:EdgeDeviceJobs.ListByEdgeDevice |
 | microsoft.azurestackhci | microsoft.azurestackhci/networksecuritygroups/securityrules | 1 | resource-group | item-write | armazurestackhcivm:SecurityRules.ListByNetworkSecurityGroup |
-| microsoft.azurestackhci | microsoft.azurestackhci/validatedsolutionrecipes | 0 | subscription | arm-envelope | armazurestackhci:ValidatedSolutionRecipes.ListBySubscriptionLocationResource |
 | microsoft.azurestackhci | microsoft.azurestackhci/virtualmachineinstances | 0 | extension | item-write | armazurestackhcivm:VirtualMachineInstances.List |
 | microsoft.azurestackhci | microsoft.azurestackhci/virtualmachineinstances/guestagents | 1 | extension | item-write | armazurestackhcivm:GuestAgents.ListByVirtualMachineInstance |
 | microsoft.azurestackhci | microsoft.azurestackhci/virtualmachineinstances/hybrididentitymetadata | 1 | extension | arm-envelope | armazurestackhcivm:HybridIdentityMetadata.ListByVirtualMachineInstance |
@@ -2761,6 +2672,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.blueprint | microsoft.blueprint/blueprintassignments/assignmentoperations | 1 | extension | arm-envelope | armblueprint:AssignmentOperations.List |
 | microsoft.blueprint | microsoft.blueprint/blueprints/artifacts | 1 | extension | item-write | armblueprint:Artifacts.List |
 | microsoft.blueprint | microsoft.blueprint/blueprints/versions | 1 | extension | item-write | armblueprint:PublishedBlueprints.List |
+| microsoft.blueprint | microsoft.blueprint/blueprints/versions/artifacts | 2 | extension | arm-envelope | armblueprint:PublishedArtifacts.List |
 | microsoft.botservice | microsoft.botservice/botservices/channels | 1 | resource-group | item-write | armbotservice:Channels.ListByResourceGroup |
 | microsoft.botservice | microsoft.botservice/botservices/connections | 1 | resource-group | item-write | armbotservice:BotConnection.ListByBotService |
 | microsoft.botservice | microsoft.botservice/botservices/networksecurityperimeterconfigurations | 1 | resource-group | arm-envelope | armbotservice:NetworkSecurityPerimeterConfigurations.List |
@@ -2778,7 +2690,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.capacity | microsoft.capacity/reservationorders | 0 | tenant | item-write | armreservations:ReservationOrder.List |
 | microsoft.capacity | microsoft.capacity/reservationorders/reservations | 1 | tenant | item-write | armreservations:Reservation.List, armreservations:Reservation.ListAll, armreservations:Reservation.ListRevisions |
 | microsoft.capacity | microsoft.capacity/resourceproviders/servicelimits | 1 | subscription | item-write | armreservations:Quota.List |
-| microsoft.capacity | microsoft.capacity/resourceproviders/servicelimitsrequests | 1 | subscription | arm-envelope | armreservations:QuotaRequestStatus.List |
 | microsoft.cdn | microsoft.cdn/edgeactions | 0 | subscription | item-write | armedgeactions:Client.ListByResourceGroup, armedgeactions:Client.ListBySubscription |
 | microsoft.cdn | microsoft.cdn/edgeactions/executionfilters | 1 | resource-group | item-write | armedgeactions:EdgeActionExecutionFilters.ListByEdgeAction |
 | microsoft.cdn | microsoft.cdn/edgeactions/versions | 1 | resource-group | item-write | armedgeactions:EdgeActionVersions.ListByEdgeAction |
@@ -2797,15 +2708,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.cdn | microsoft.cdn/profiles/securitypolicies | 1 | resource-group | item-write | armcdn:SecurityPolicies.ListByProfile |
 | microsoft.certificateregistration | microsoft.certificateregistration/certificateorders/certificates | 1 | resource-group | item-write | armcertificateregistration:AppServiceCertificateOrders.ListCertificates |
 | microsoft.certificateregistration | microsoft.certificateregistration/certificateorders/detectors | 1 | resource-group | arm-envelope | armcertificateregistration:CertificateOrdersDiagnostics.ListAppServiceCertificateOrderDetectorResponse |
-| microsoft.chaos | microsoft.chaos/actions | 0 | subscription | arm-envelope | armchaos:Actions.List |
-| microsoft.chaos | microsoft.chaos/actions/versions | 1 | subscription | arm-envelope | armchaos:ActionVersions.List |
 | microsoft.chaos | microsoft.chaos/experiments/executions | 1 | resource-group | arm-envelope | armchaos:Experiments.ListAllExecutions |
 | microsoft.chaos | microsoft.chaos/privateaccesses | 0 | subscription | item-write | armchaos:PrivateAccesses.List, armchaos:PrivateAccesses.ListAll |
 | microsoft.chaos | microsoft.chaos/privateaccesses/privateendpointconnections | 1 | resource-group | item-write | armchaos:PrivateAccesses.ListPrivateEndpointConnections |
 | microsoft.chaos | microsoft.chaos/targets | 0 | extension | item-write | armchaos:Targets.List |
 | microsoft.chaos | microsoft.chaos/targets/capabilities | 1 | extension | item-write | armchaos:Capabilities.List |
-| microsoft.chaos | microsoft.chaos/targettypes | 0 | subscription | arm-envelope | armchaos:TargetTypes.List |
-| microsoft.chaos | microsoft.chaos/targettypes/capabilitytypes | 1 | subscription | arm-envelope | armchaos:CapabilityTypes.List |
 | microsoft.chaos | microsoft.chaos/workspaces | 0 | subscription | item-write | armchaos:Workspaces.List, armchaos:Workspaces.ListAll |
 | microsoft.chaos | microsoft.chaos/workspaces/connections | 1 | resource-group | item-write | armchaos:Connections.ListAll |
 | microsoft.chaos | microsoft.chaos/workspaces/discoveredresources | 1 | resource-group | arm-envelope | armchaos:DiscoveredResources.ListByWorkspace |
@@ -2845,7 +2752,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.cognitiveservices | microsoft.cognitiveservices/commitmentplans/accountassociations | 1 | resource-group | item-write | armcognitiveservices:CommitmentPlans.ListAssociations |
 | microsoft.cognitiveservices | microsoft.cognitiveservices/deletedaccounts | 0 | subscription | item-write | armcognitiveservices:DeletedAccounts.List |
 | microsoft.cognitiveservices | microsoft.cognitiveservices/quotatiers | 0 | subscription | item-write | armcognitiveservices:QuotaTiers.ListBySubscription |
-| microsoft.cognitiveservices | microsoft.cognitiveservices/raicontentfilters | 0 | subscription | arm-envelope | armcognitiveservices:RaiContentFilters.List |
 | microsoft.cognitiveservices | microsoft.cognitiveservices/raiexternalsafetyproviders | 0 | subscription | item-write | armcognitiveservices:RaiExternalSafetyProviders.List |
 | microsoft.communication | microsoft.communication/communicationservices/smtpusernames | 1 | resource-group | item-write | armcommunication:SMTPUsernames.List |
 | microsoft.communication | microsoft.communication/emailservices/domains | 1 | resource-group | item-write | armcommunication:Domains.ListByEmailServiceResource |
@@ -2872,13 +2778,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.compute | microsoft.compute/virtualmachinescalesets/virtualmachines/networkinterfaces/ipconfigurations/publicipaddresses | 4 | resource-group | arm-envelope | armnetwork:PublicIPAddresses.ListVirtualMachineScaleSetVMPublicIPAddresses |
 | microsoft.compute | microsoft.compute/virtualmachinescalesets/virtualmachines/runcommands | 2 | resource-group | item-write | armcompute:VirtualMachineScaleSetVMRunCommands.List |
 | microsoft.computebulkactions | microsoft.computebulkactions/launchbulkinstancesoperations | 0 | subscription | item-write | armcomputebulkactions:BulkActions.ListByResourceGroup, armcomputebulkactions:BulkActions.ListBySubscription |
-| microsoft.computelimit | microsoft.computelimit/features | 0 | subscription | arm-envelope | armcomputelimit:Features.ListBySubscriptionLocationResource |
 | microsoft.computelimit | microsoft.computelimit/guestsubscriptions | 0 | subscription | item-write | armcomputelimit:GuestSubscriptions.ListBySubscriptionLocationResource |
 | microsoft.computelimit | microsoft.computelimit/sharedlimitcaps | 0 | subscription | item-write | armcomputelimit:SharedLimitCaps.ListBySubscriptionLocationResource |
 | microsoft.computelimit | microsoft.computelimit/sharedlimitcaps/membercapoverrides | 1 | subscription | item-write | armcomputelimit:MemberCapOverrides.ListByParent |
 | microsoft.computelimit | microsoft.computelimit/sharedlimits | 0 | subscription | item-write | armcomputelimit:SharedLimits.ListBySubscriptionLocationResource |
 | microsoft.computelimit | microsoft.computelimit/trustedhostsubscriptions | 0 | subscription | item-write | armcomputelimit:TrustedHostSubscriptions.ListBySubscriptionLocationResource |
-| microsoft.computelimit | microsoft.computelimit/vmfamilies | 0 | subscription | arm-envelope | armcomputelimit:VMFamilies.ListBySubscriptionLocationResource |
 | microsoft.computeschedule | microsoft.computeschedule/scheduledactions | 0 | subscription | item-write | armcomputeschedule:ScheduledActions.ListByResourceGroup, armcomputeschedule:ScheduledActions.ListBySubscription |
 | microsoft.computeschedule | microsoft.computeschedule/scheduledactions/occurrences | 1 | resource-group | arm-envelope | armcomputeschedule:Occurrences.ListByScheduledAction |
 | microsoft.confidentialledger | microsoft.confidentialledger/managedccfs | 0 | subscription | item-write | armconfidentialledger:ManagedCCF.ListByResourceGroup, armconfidentialledger:ManagedCCF.ListBySubscription |
@@ -2922,7 +2826,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.containerservice | microsoft.containerservice/aimanagers/modelsources | 1 | resource-group | item-write | armcontainerserviceaimanager:ModelSources.List |
 | microsoft.containerservice | microsoft.containerservice/aimanagers/namespaces | 1 | resource-group | item-write | armcontainerserviceaimanager:AIManagerNamespaces.ListByAIManager |
 | microsoft.containerservice | microsoft.containerservice/aimanagers/namespaces/modeldeployments | 2 | resource-group | item-write | armcontainerserviceaimanager:ModelDeployments.ListByAIManagerNamespace |
-| microsoft.containerservice | microsoft.containerservice/aimodels | 0 | subscription | arm-envelope | armcontainerserviceaimanager:AIModels.List |
 | microsoft.containerservice | microsoft.containerservice/deploymentsafeguards | 0 | extension | item-write | armdeploymentsafeguards:Client.List |
 | microsoft.containerservice | microsoft.containerservice/fleets/autoupgradeprofiles | 1 | resource-group | item-write | armcontainerservicefleet:AutoUpgradeProfiles.ListByFleet |
 | microsoft.containerservice | microsoft.containerservice/fleets/clustermeshprofiles | 1 | resource-group | item-write | armcontainerservicefleet:ClusterMeshProfiles.ListByFleet |
@@ -2931,7 +2834,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.containerservice | microsoft.containerservice/fleets/members | 1 | resource-group | item-write | armcontainerservicefleet:FleetMembers.ListByFleet |
 | microsoft.containerservice | microsoft.containerservice/fleets/updateruns | 1 | resource-group | item-write | armcontainerservicefleet:UpdateRuns.ListByFleet |
 | microsoft.containerservice | microsoft.containerservice/fleets/updatestrategies | 1 | resource-group | item-write | armcontainerservicefleet:FleetUpdateStrategies.ListByFleet |
-| microsoft.containerservice | microsoft.containerservice/guardrailsversions | 0 | subscription | arm-envelope | armcontainerservice:ManagedClusters.ListGuardrailsVersions |
 | microsoft.containerservice | microsoft.containerservice/maintenancewindows | 0 | subscription | item-write | armcontainerservice:MaintenanceWindows.List, armcontainerservice:MaintenanceWindows.ListBySubscription |
 | microsoft.containerservice | microsoft.containerservice/managedclusters/agentpools | 1 | resource-group | item-write | armcontainerservice:AgentPools.List |
 | microsoft.containerservice | microsoft.containerservice/managedclusters/agentpools/machines | 2 | resource-group | item-write | armcontainerservice:Machines.List |
@@ -2946,10 +2848,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.containerservice | microsoft.containerservice/managedclusters/privateendpointconnections | 1 | resource-group | item-write | armcontainerservice:PrivateEndpointConnections.List |
 | microsoft.containerservice | microsoft.containerservice/managedclusters/trustedaccessrolebindings | 1 | resource-group | item-write | armcontainerservice:TrustedAccessRoleBindings.List |
 | microsoft.containerservice | microsoft.containerservice/managedclustersnapshots | 0 | subscription | item-write | armcontainerservice:ManagedClusterSnapshots.List, armcontainerservice:ManagedClusterSnapshots.ListByResourceGroup |
-| microsoft.containerservice | microsoft.containerservice/meshrevisionprofiles | 0 | subscription | arm-envelope | armcontainerservice:ManagedClusters.ListMeshRevisionProfiles |
 | microsoft.containerservice | microsoft.containerservice/preparedimagespecifications | 0 | subscription | item-write | armcontainerservicepreparedimgspec:PreparedImageSpecifications.ListByResourceGroup, armcontainerservicepreparedimgspec:PreparedImageSpecifications.ListBySubscription |
 | microsoft.containerservice | microsoft.containerservice/preparedimagespecifications/versions | 1 | resource-group | item-write | armcontainerservicepreparedimgspec:PreparedImageSpecifications.ListVersions |
-| microsoft.containerservice | microsoft.containerservice/safeguardsversions | 0 | subscription | arm-envelope | armcontainerservice:ManagedClusters.ListSafeguardsVersions |
 | microsoft.costmanagement | microsoft.costmanagement/alerts | 0 | extension | item-write | armcostmanagement:Alerts.List, armcostmanagement:Alerts.ListExternal |
 | microsoft.costmanagement | microsoft.costmanagement/budgets | 0 | extension | item-write | armcostmanagement:Budgets.List |
 | microsoft.costmanagement | microsoft.costmanagement/costallocationrules | 0 | tenant | item-write | armcostmanagement:CostAllocationRules.List |
@@ -3038,7 +2938,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.dataprotection | microsoft.dataprotection/backupvaults/backuppolicies | 1 | resource-group | item-write | armdataprotection:BackupPolicies.List |
 | microsoft.dataprotection | microsoft.dataprotection/backupvaults/backupresourceguardproxies | 1 | resource-group | item-write | armdataprotection:DppResourceGuardProxy.List |
 | microsoft.dataprotection | microsoft.dataprotection/backupvaults/deletedbackupinstances | 1 | resource-group | arm-envelope | armdataprotection:DeletedBackupInstances.List |
-| microsoft.dataprotection | microsoft.dataprotection/deletedvaults | 0 | subscription | arm-envelope | armdataprotection:DeletedBackupVaults.ListByLocation |
 | microsoft.dataprotection | microsoft.dataprotection/resourceguards/deleteprotecteditemrequests | 1 | resource-group | arm-envelope | armdataprotection:ResourceGuards.GetDeleteProtectedItemRequestsObjects |
 | microsoft.dataprotection | microsoft.dataprotection/resourceguards/deleteresourceguardproxyrequests | 1 | resource-group | arm-envelope | armdataprotection:ResourceGuards.GetDeleteResourceGuardProxyRequestsObjects |
 | microsoft.dataprotection | microsoft.dataprotection/resourceguards/disablesoftdeleterequests | 1 | resource-group | arm-envelope | armdataprotection:ResourceGuards.GetDisableSoftDeleteRequestsObjects |
@@ -3076,7 +2975,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.dbformariadb | microsoft.dbformariadb/servers/topquerystatistics | 1 | resource-group | arm-envelope | armmariadb:TopQueryStatistics.ListByServer |
 | microsoft.dbformariadb | microsoft.dbformariadb/servers/virtualnetworkrules | 1 | resource-group | item-write | armmariadb:VirtualNetworkRules.ListByServer |
 | microsoft.dbformariadb | microsoft.dbformariadb/servers/waitstatistics | 1 | resource-group | arm-envelope | armmariadb:WaitStatistics.ListByServer |
-| microsoft.dbformysql | microsoft.dbformysql/capabilitysets | 0 | subscription | arm-envelope | armmysqlflexibleservers:LocationBasedCapabilitySet.List |
 | microsoft.dbformysql | microsoft.dbformysql/flexibleservers/administrators | 1 | resource-group | item-write | armmysqlflexibleservers:AzureADAdministrators.ListByServer |
 | microsoft.dbformysql | microsoft.dbformysql/flexibleservers/advancedthreatprotectionsettings | 1 | resource-group | item-write | armmysqlflexibleservers:AdvancedThreatProtectionSettings.List |
 | microsoft.dbformysql | microsoft.dbformysql/flexibleservers/backups | 1 | resource-group | item-write | armmysqlflexibleservers:Backups.ListByServer |
@@ -3088,6 +2986,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.dbformysql | microsoft.dbformysql/flexibleservers/privateendpointconnections | 1 | resource-group | item-write | armmysqlflexibleservers:PrivateEndpointConnections.ListByServer |
 | microsoft.dbformysql | microsoft.dbformysql/flexibleservers/privatelinkresources | 1 | resource-group | arm-envelope | armmysqlflexibleservers:PrivateLinkResources.ListByServer |
 | microsoft.dbformysql | microsoft.dbformysql/servers | 0 | subscription | item-write | armmysql:Replicas.ListByServer, armmysql:Servers.List, armmysql:Servers.ListByResourceGroup |
+| microsoft.dbformysql | microsoft.dbformysql/servers/administrators | 1 | resource-group | item-write | armmysql:ServerAdministrators.List |
 | microsoft.dbformysql | microsoft.dbformysql/servers/advisors | 1 | resource-group | arm-envelope | armmysql:Advisors.ListByServer |
 | microsoft.dbformysql | microsoft.dbformysql/servers/advisors/recommendedactions | 2 | resource-group | arm-envelope | armmysql:RecommendedActions.ListByServer |
 | microsoft.dbformysql | microsoft.dbformysql/servers/configurations | 1 | resource-group | item-write | armmysql:Configurations.ListByServer |
@@ -3122,6 +3021,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servergroupsv2/roles | 1 | resource-group | item-write | armcosmosforpostgresql:Roles.ListByCluster, armpostgresqlhsc:Roles.ListByCluster |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servergroupsv2/servers | 1 | resource-group | arm-envelope | armcosmosforpostgresql:Servers.ListByCluster, armpostgresqlhsc:Servers.ListByCluster |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers | 0 | subscription | item-write | armpostgresql:Replicas.ListByServer, armpostgresql:Servers.List, armpostgresql:Servers.ListByResourceGroup |
+| microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers/administrators | 1 | resource-group | item-write | armpostgresql:ServerAdministrators.List |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers/configurations | 1 | resource-group | item-write | armpostgresql:Configurations.ListByServer |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers/databases | 1 | resource-group | item-write | armpostgresql:Databases.ListByServer |
 | microsoft.dbforpostgresql | microsoft.dbforpostgresql/servers/firewallrules | 1 | resource-group | item-write | armpostgresql:FirewallRules.ListByServer |
@@ -3161,6 +3061,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.devcenter | microsoft.devcenter/devcenters/galleries/images | 2 | resource-group | arm-envelope | armdevcenter:Images.ListByGallery |
 | microsoft.devcenter | microsoft.devcenter/devcenters/galleries/images/versions | 3 | resource-group | arm-envelope | armdevcenter:ImageVersions.ListByImage |
 | microsoft.devcenter | microsoft.devcenter/devcenters/projectpolicies | 1 | resource-group | item-write | armdevcenter:ProjectPolicies.ListByDevCenter |
+| microsoft.devcenter | microsoft.devcenter/networkconnections/healthchecks | 1 | resource-group | arm-envelope | armdevcenter:NetworkConnections.ListHealthDetails |
 | microsoft.devcenter | microsoft.devcenter/projects/allowedenvironmenttypes | 1 | resource-group | arm-envelope | armdevcenter:ProjectAllowedEnvironmentTypes.List |
 | microsoft.devcenter | microsoft.devcenter/projects/attachednetworks | 1 | resource-group | arm-envelope | armdevcenter:AttachedNetworks.ListByProject |
 | microsoft.devcenter | microsoft.devcenter/projects/catalogs | 1 | resource-group | item-write | armdevcenter:ProjectCatalogs.List |
@@ -3173,8 +3074,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.devcenter | microsoft.devcenter/projects/images/versions | 2 | resource-group | arm-envelope | armdevcenter:ImageVersions.ListByProject |
 | microsoft.devcenter | microsoft.devcenter/projects/pools | 1 | resource-group | item-write | armdevcenter:Pools.ListByProject |
 | microsoft.devcenter | microsoft.devcenter/projects/pools/schedules | 2 | resource-group | item-write | armdevcenter:Schedules.ListByPool |
-| microsoft.devhub | microsoft.devhub/adooauth | 0 | subscription | arm-envelope | armdevhub:ADOOAuth.List |
-| microsoft.devhub | microsoft.devhub/githuboauth | 0 | subscription | arm-envelope | armdevhub:DeveloperHubService.ListGitHubOAuth |
 | microsoft.devhub | microsoft.devhub/iacprofiles | 0 | subscription | item-write | armdevhub:IacProfiles.List, armdevhub:IacProfiles.ListByResourceGroup |
 | microsoft.devhub | microsoft.devhub/templates | 0 | subscription | arm-envelope | armdevhub:Template.List |
 | microsoft.devhub | microsoft.devhub/templates/versions | 1 | subscription | arm-envelope | armdevhub:VersionedTemplate.List |
@@ -3384,7 +3283,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.hybridcompute | microsoft.hybridcompute/privatelinkscopes/networksecurityperimeterconfigurations | 1 | resource-group | arm-envelope | armhybridcompute:NetworkSecurityPerimeterConfigurations.ListByPrivateLinkScope |
 | microsoft.hybridcompute | microsoft.hybridcompute/privatelinkscopes/privateendpointconnections | 1 | resource-group | item-write | armhybridcompute:PrivateEndpointConnections.ListByPrivateLinkScope |
 | microsoft.hybridcompute | microsoft.hybridcompute/privatelinkscopes/privatelinkresources | 1 | resource-group | arm-envelope | armhybridcompute:PrivateLinkResources.ListByPrivateLinkScope |
-| microsoft.hybridcompute | microsoft.hybridcompute/publishers/extensiontypes/versions | 2 | tenant | arm-envelope | armhybridcompute:ExtensionMetadata.List, armhybridcompute:ExtensionMetadataV2.List |
 | microsoft.hybridconnectivity | microsoft.hybridconnectivity/endpoints | 0 | extension | item-write | armhybridconnectivity:Endpoints.List |
 | microsoft.hybridconnectivity | microsoft.hybridconnectivity/endpoints/serviceconfigurations | 1 | extension | item-write | armhybridconnectivity:ServiceConfigurations.ListByEndpointResource |
 | microsoft.hybridconnectivity | microsoft.hybridconnectivity/solutionconfigurations | 0 | extension | item-write | armhybridconnectivity:SolutionConfigurations.List |
@@ -3471,7 +3369,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.iotoperations | microsoft.iotoperations/instances/registryendpoints | 1 | resource-group | item-write | armiotoperations:RegistryEndpoint.ListByInstanceResource |
 | microsoft.iotsecurity | microsoft.iotsecurity/defendersettings | 0 | subscription | item-write | armiotsecurity:DefenderSettings.List |
 | microsoft.iotsecurity | microsoft.iotsecurity/devicegroups | 0 | subscription | item-write | armiotsecurity:DeviceGroups.List |
-| microsoft.iotsecurity | microsoft.iotsecurity/devicegroups/devices | 1 | subscription | arm-envelope | armiotsecurity:Devices.List |
 | microsoft.iotsecurity | microsoft.iotsecurity/locations | 0 | subscription | arm-envelope | armiotsecurity:Locations.List |
 | microsoft.iotsecurity | microsoft.iotsecurity/onpremisesensors | 0 | subscription | item-write | armiotsecurity:OnPremiseSensors.List |
 | microsoft.iotsecurity | microsoft.iotsecurity/sensors | 0 | extension | item-write | armiotsecurity:Sensors.List |
@@ -3510,10 +3407,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.labservices | microsoft.labservices/labs/schedules | 1 | resource-group | item-write | armlabservices:Schedules.ListByLab |
 | microsoft.labservices | microsoft.labservices/labs/users | 1 | resource-group | item-write | armlabservices:Users.ListByLab |
 | microsoft.labservices | microsoft.labservices/labs/virtualmachines | 1 | resource-group | arm-envelope | armlabservices:VirtualMachines.ListByLab |
-| microsoft.loadtestservice | microsoft.loadtestservice/playwrightquotas | 0 | subscription | arm-envelope | armplaywright:Quotas.ListBySubscription |
 | microsoft.loadtestservice | microsoft.loadtestservice/playwrightworkspaces | 0 | subscription | item-write | armplaywright:Workspaces.ListByResourceGroup, armplaywright:Workspaces.ListBySubscription |
 | microsoft.loadtestservice | microsoft.loadtestservice/playwrightworkspaces/quotas | 1 | resource-group | arm-envelope | armplaywright:WorkspaceQuotas.ListByPlaywrightWorkspace |
-| microsoft.loadtestservice | microsoft.loadtestservice/quotas | 0 | subscription | arm-envelope | armloadtesting:Quotas.List |
 | microsoft.logic | microsoft.logic/integrationaccounts/agreements | 1 | resource-group | item-write | armlogic:IntegrationAccountAgreements.List |
 | microsoft.logic | microsoft.logic/integrationaccounts/assemblies | 1 | resource-group | item-write | armlogic:IntegrationAccountAssemblies.List |
 | microsoft.logic | microsoft.logic/integrationaccounts/batchconfigurations | 1 | resource-group | item-write | armlogic:IntegrationAccountBatchConfigurations.List |
@@ -3725,8 +3620,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.netapp | microsoft.netapp/netappaccounts/quotalimits | 1 | resource-group | arm-envelope | armnetapp:ResourceQuotaLimitsAccount.List |
 | microsoft.netapp | microsoft.netapp/netappaccounts/snapshotpolicies | 1 | resource-group | item-write | armnetapp:SnapshotPolicies.List |
 | microsoft.netapp | microsoft.netapp/netappaccounts/volumegroups | 1 | resource-group | item-write | armnetapp:VolumeGroups.ListByNetAppAccount |
-| microsoft.netapp | microsoft.netapp/quotalimits | 0 | subscription | arm-envelope | armnetapp:ResourceQuotaLimits.List |
-| microsoft.netapp | microsoft.netapp/regioninfos | 0 | subscription | arm-envelope | armnetapp:ResourceRegionInfos.List |
 | microsoft.network | microsoft.network/applicationgateways/privateendpointconnections | 1 | resource-group | item-write | armnetwork:ApplicationGatewayPrivateEndpointConnections.List |
 | microsoft.network | microsoft.network/applicationsecuritygroups/addressprefixsets | 1 | resource-group | item-write | armnetwork:AddressPrefixSets.List |
 | microsoft.network | microsoft.network/authenticationpolicies | 0 | subscription | item-write | armnetwork:AuthenticationPolicies.List, armnetwork:AuthenticationPolicies.ListAll |
@@ -3899,7 +3792,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.quota | microsoft.quota/groupquotas/resourceproviders/quotaallocationrequests | 2 | subscription | arm-envelope | armquota:GroupQuotaSubscriptionAllocationRequest.List |
 | microsoft.quota | microsoft.quota/groupquotas/subscriptionrequests | 1 | management-group | arm-envelope | armquota:GroupQuotaSubscriptionRequests.List |
 | microsoft.quota | microsoft.quota/groupquotas/subscriptions | 1 | management-group | item-write | armquota:GroupQuotaSubscriptions.List |
-| microsoft.recoveryservices | microsoft.recoveryservices/deletedvaults | 0 | subscription | arm-envelope | armrecoveryservices:DeletedVaults.ListBySubscriptionID |
 | microsoft.recoveryservices | microsoft.recoveryservices/replicationeligibilityresults | 0 | resource-group | arm-envelope | armrecoveryservicessiterecovery:ReplicationEligibilityResults.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/backupengines | 1 | resource-group | arm-envelope | armrecoveryservicesbackup:BackupEngines.List |
 | microsoft.recoveryservices | microsoft.recoveryservices/vaults/backupfabrics/protectioncontainers/protecteditems/recoverypoints | 4 | resource-group | arm-envelope | armrecoveryservicesbackup:RecoveryPoints.List |
@@ -3934,10 +3826,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.redhatopenshift | microsoft.redhatopenshift/hcpopenshiftclusters | 0 | subscription | item-write | armredhatopenshifthcp:HcpOpenShiftClusters.ListByResourceGroup, armredhatopenshifthcp:HcpOpenShiftClusters.ListBySubscription |
 | microsoft.redhatopenshift | microsoft.redhatopenshift/hcpopenshiftclusters/externalauths | 1 | resource-group | item-write | armredhatopenshifthcp:ExternalAuths.ListByParent |
 | microsoft.redhatopenshift | microsoft.redhatopenshift/hcpopenshiftclusters/nodepools | 1 | resource-group | item-write | armredhatopenshifthcp:NodePools.ListByParent |
-| microsoft.redhatopenshift | microsoft.redhatopenshift/hcpopenshiftversions | 0 | subscription | arm-envelope | armredhatopenshifthcp:HcpOpenShiftVersions.List |
-| microsoft.redhatopenshift | microsoft.redhatopenshift/hcpoperatoridentityrolesets | 0 | subscription | arm-envelope | armredhatopenshifthcp:HcpOperatorIdentityRoleSets.List |
-| microsoft.redhatopenshift | microsoft.redhatopenshift/openshiftversions | 0 | subscription | arm-envelope | armredhatopenshift:OpenShiftVersions.List |
-| microsoft.redhatopenshift | microsoft.redhatopenshift/platformworkloadidentityrolesets | 0 | subscription | arm-envelope | armredhatopenshift:PlatformWorkloadIdentityRoleSets.List |
 | microsoft.relay | microsoft.relay/namespaces/authorizationrules | 1 | resource-group | item-write | armrelay:Namespaces.ListAuthorizationRules |
 | microsoft.relay | microsoft.relay/namespaces/hybridconnections | 1 | resource-group | item-write | armrelay:HybridConnections.ListByNamespace |
 | microsoft.relay | microsoft.relay/namespaces/hybridconnections/authorizationrules | 2 | resource-group | item-write | armrelay:HybridConnections.ListAuthorizationRules |
@@ -3982,6 +3870,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.security | microsoft.security/defenderforstoragesettings | 0 | extension | item-write | armsecurity:DefenderForStorage.List |
 | microsoft.security | microsoft.security/devicesecuritygroups | 0 | extension | item-write | armsecurity:DeviceSecurityGroups.List |
 | microsoft.security | microsoft.security/discoveredsecuritysolutions | 0 | subscription | arm-envelope | armsecurity:DiscoveredSecuritySolutions.List, armsecurity:DiscoveredSecuritySolutions.ListByHomeRegion |
+| microsoft.security | microsoft.security/externalsecuritysolutions | 0 | subscription | arm-envelope | armsecurity:ExternalSecuritySolutions.List, armsecurity:ExternalSecuritySolutions.ListByHomeRegion |
 | microsoft.security | microsoft.security/governancerules | 0 | extension | item-write | armsecurity:GovernanceRules.List |
 | microsoft.security | microsoft.security/informationprotectionpolicies | 0 | extension | item-write | armsecurity:InformationProtectionPolicies.List |
 | microsoft.security | microsoft.security/iotsecuritysolutions | 0 | subscription | item-write | armsecurity:IotSecuritySolution.ListByResourceGroup, armsecurity:IotSecuritySolution.ListBySubscription |
@@ -4032,7 +3921,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.securitydevops | microsoft.securitydevops/githubconnectors/owners/repos | 2 | resource-group | item-write | armsecuritydevops:GitHubRepo.List, armsecuritydevops:GitHubRepo.ListByConnector |
 | microsoft.securityinsights | microsoft.securityinsights/alertrules | 0 | resource-group | item-write | armsecurityinsights:AlertRules.List |
 | microsoft.securityinsights | microsoft.securityinsights/alertrules/actions | 1 | resource-group | item-write | armsecurityinsights:Actions.ListByAlertRule |
+| microsoft.securityinsights | microsoft.securityinsights/alertruletemplates | 0 | resource-group | arm-envelope | armsecurityinsights:AlertRuleTemplates.List |
 | microsoft.securityinsights | microsoft.securityinsights/automationrules | 0 | resource-group | item-write | armsecurityinsights:AutomationRules.List |
+| microsoft.securityinsights | microsoft.securityinsights/billingstatistics | 0 | resource-group | arm-envelope | armsecurityinsights:BillingStatistics.List |
 | microsoft.securityinsights | microsoft.securityinsights/bookmarks | 0 | resource-group | item-write | armsecurityinsights:Bookmarks.List |
 | microsoft.securityinsights | microsoft.securityinsights/bookmarks/relations | 1 | resource-group | item-write | armsecurityinsights:BookmarkRelations.List |
 | microsoft.securityinsights | microsoft.securityinsights/contentpackages | 0 | resource-group | item-write | armsecurityinsights:ContentPackages.List |
@@ -4041,8 +3932,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.securityinsights | microsoft.securityinsights/contenttemplates | 0 | resource-group | item-write | armsecurityinsights:ContentTemplates.List |
 | microsoft.securityinsights | microsoft.securityinsights/dataconnectordefinitions | 0 | resource-group | item-write | armsecurityinsights:DataConnectorDefinitions.List |
 | microsoft.securityinsights | microsoft.securityinsights/dataconnectors | 0 | resource-group | item-write | armsecurityinsights:DataConnectors.List |
+| microsoft.securityinsights | microsoft.securityinsights/entities | 0 | resource-group | arm-envelope | armsecurityinsights:Entities.List |
 | microsoft.securityinsights | microsoft.securityinsights/entities/relations | 1 | resource-group | arm-envelope | armsecurityinsights:EntitiesRelations.List |
 | microsoft.securityinsights | microsoft.securityinsights/entityqueries | 0 | resource-group | item-write | armsecurityinsights:EntityQueries.List |
+| microsoft.securityinsights | microsoft.securityinsights/entityquerytemplates | 0 | resource-group | arm-envelope | armsecurityinsights:EntityQueryTemplates.List |
 | microsoft.securityinsights | microsoft.securityinsights/fileimports | 0 | resource-group | item-write | armsecurityinsights:FileImports.List |
 | microsoft.securityinsights | microsoft.securityinsights/hunts | 0 | resource-group | item-write | armsecurityinsights:Hunts.List |
 | microsoft.securityinsights | microsoft.securityinsights/hunts/comments | 1 | resource-group | item-write | armsecurityinsights:HuntComments.List |
@@ -4058,7 +3951,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.securityinsights | microsoft.securityinsights/securitymlanalyticssettings | 0 | resource-group | item-write | armsecurityinsights:SecurityMLAnalyticsSettings.List |
 | microsoft.securityinsights | microsoft.securityinsights/settings | 0 | resource-group | item-write | armsecurityinsights:ProductSettings.List |
 | microsoft.securityinsights | microsoft.securityinsights/sourcecontrols | 0 | resource-group | item-write | armsecurityinsights:SourceControls.List |
-| microsoft.securityinsights | microsoft.securityinsights/threatintelligence/main/indicators | 0 | resource-group | item-write | armsecurityinsights:ThreatIntelligenceIndicators.List |
+| microsoft.securityinsights | microsoft.securityinsights/threatintelligence/indicators | 1 | resource-group | item-write | armsecurityinsights:ThreatIntelligenceIndicators.List |
 | microsoft.securityinsights | microsoft.securityinsights/triggeredanalyticsruleruns | 0 | resource-group | arm-envelope | armsecurityinsights:GetTriggeredAnalyticsRuleRuns.List |
 | microsoft.securityinsights | microsoft.securityinsights/watchlists | 0 | resource-group | item-write | armsecurityinsights:Watchlists.List |
 | microsoft.securityinsights | microsoft.securityinsights/watchlists/watchlistitems | 1 | resource-group | item-write | armsecurityinsights:WatchlistItems.List |
@@ -4085,15 +3978,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.servicefabric | microsoft.servicefabric/clusters/applications/services | 2 | resource-group | item-write | armservicefabric:Services.List |
 | microsoft.servicefabric | microsoft.servicefabric/clusters/applicationtypes | 1 | resource-group | item-write | armservicefabric:ApplicationTypes.List |
 | microsoft.servicefabric | microsoft.servicefabric/clusters/applicationtypes/versions | 2 | resource-group | item-write | armservicefabric:ApplicationTypeVersions.List |
-| microsoft.servicefabric | microsoft.servicefabric/clusterversions | 0 | subscription | arm-envelope | armservicefabric:ClusterVersions.List |
-| microsoft.servicefabric | microsoft.servicefabric/environments/clusterversions | 1 | subscription | arm-envelope | armservicefabric:ClusterVersions.ListByEnvironment |
 | microsoft.servicefabric | microsoft.servicefabric/managedclusters/applications | 1 | resource-group | item-write | armservicefabricmanagedclusters:Applications.List |
 | microsoft.servicefabric | microsoft.servicefabric/managedclusters/applications/services | 2 | resource-group | item-write | armservicefabricmanagedclusters:Services.ListByApplications |
 | microsoft.servicefabric | microsoft.servicefabric/managedclusters/applicationtypes | 1 | resource-group | item-write | armservicefabricmanagedclusters:ApplicationTypes.List |
 | microsoft.servicefabric | microsoft.servicefabric/managedclusters/applicationtypes/versions | 2 | resource-group | item-write | armservicefabricmanagedclusters:ApplicationTypeVersions.ListByApplicationTypes |
 | microsoft.servicefabric | microsoft.servicefabric/managedclusters/nodetypes | 1 | resource-group | item-write | armservicefabricmanagedclusters:NodeTypes.ListByManagedClusters |
-| microsoft.servicefabric | microsoft.servicefabric/managedunsupportedvmsizes | 0 | subscription | arm-envelope | armservicefabricmanagedclusters:ManagedUnsupportedVMSizes.List |
-| microsoft.servicefabric | microsoft.servicefabric/unsupportedvmsizes | 0 | subscription | arm-envelope | armservicefabric:UnsupportedVMSizes.List |
 | microsoft.servicefabricmesh | microsoft.servicefabricmesh/applications | 0 | subscription | item-write | armservicefabricmesh:Application.ListByResourceGroup, armservicefabricmesh:Application.ListBySubscription |
 | microsoft.servicefabricmesh | microsoft.servicefabricmesh/applications/services | 1 | resource-group | arm-envelope | armservicefabricmesh:Service.List |
 | microsoft.servicefabricmesh | microsoft.servicefabricmesh/gateways | 0 | subscription | item-write | armservicefabricmesh:Gateway.ListByResourceGroup, armservicefabricmesh:Gateway.ListBySubscription |
@@ -4127,7 +4016,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.sql | microsoft.sql/instancepools/operations | 1 | resource-group | arm-envelope | armsql:InstancePoolOperations.ListByInstancePool |
 | microsoft.sql | microsoft.sql/longtermretentionmanagedinstances/longtermretentiondatabases/longtermretentionmanagedinstancebackups | 2 | subscription | item-write | armsql:LongTermRetentionManagedInstanceBackups.ListByDatabase, armsql:LongTermRetentionManagedInstanceBackups.ListByInstance, armsql:LongTermRetentionManagedInstanceBackups.ListByLocation, armsql:LongTermRetentionManagedInstanceBackups.ListByResourceGroupDatabase, armsql:LongTermRetentionManagedInstanceBackups.ListByResourceGroupInstance, armsql:LongTermRetentionManagedInstanceBackups.ListByResourceGroupLocation |
 | microsoft.sql | microsoft.sql/longtermretentionservers/longtermretentiondatabases/longtermretentionbackups | 2 | subscription | item-write | armsql:LongTermRetentionBackups.ListByDatabase, armsql:LongTermRetentionBackups.ListByLocation, armsql:LongTermRetentionBackups.ListByResourceGroupDatabase, armsql:LongTermRetentionBackups.ListByResourceGroupLocation, armsql:LongTermRetentionBackups.ListByResourceGroupServer, armsql:LongTermRetentionBackups.ListByServer |
-| microsoft.sql | microsoft.sql/manageddatabasemoveoperationresults | 0 | resource-group | arm-envelope | armsql:ManagedDatabaseMoveOperations.ListByLocation |
 | microsoft.sql | microsoft.sql/managedinstances/advancedthreatprotectionsettings | 1 | resource-group | item-write | armsql:ManagedInstanceAdvancedThreatProtectionSettings.ListByInstance |
 | microsoft.sql | microsoft.sql/managedinstances/azureadonlyauthentications | 1 | resource-group | item-write | armsql:ManagedInstanceAzureADOnlyAuthentications.ListByInstance |
 | microsoft.sql | microsoft.sql/managedinstances/databases/advancedthreatprotectionsettings | 2 | resource-group | item-write | armsql:ManagedDatabaseAdvancedThreatProtectionSettings.ListByDatabase |
@@ -4196,8 +4084,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.sql | microsoft.sql/servers/sqlvulnerabilityassessments/scans | 2 | resource-group | arm-envelope | armsql:VulnerabilityAssessmentScans.ListBySQLVulnerabilityAssessments |
 | microsoft.sql | microsoft.sql/servers/sqlvulnerabilityassessments/scans/scanresults | 3 | resource-group | arm-envelope | armsql:VulnerabilityAssessmentScanResult.ListByScan |
 | microsoft.sql | microsoft.sql/servertrustgroups | 0 | resource-group | item-write | armsql:ServerTrustGroups.ListByInstance, armsql:ServerTrustGroups.ListByLocation |
-| microsoft.sql | microsoft.sql/timezones | 0 | subscription | arm-envelope | armsql:TimeZones.ListByLocation |
-| microsoft.sql | microsoft.sql/usages | 0 | subscription | arm-envelope | armsql:SubscriptionUsages.ListByLocation |
 | microsoft.sqlvirtualmachine | microsoft.sqlvirtualmachine/sqlvirtualmachinegroups/availabilitygrouplisteners | 1 | resource-group | item-write | armsqlvirtualmachine:AvailabilityGroupListeners.ListByGroup |
 | microsoft.standbypool | microsoft.standbypool/standbycontainergrouppools/runtimeviews | 1 | resource-group | arm-envelope | armstandbypool:StandbyContainerGroupPoolRuntimeViews.ListByStandbyPool |
 | microsoft.standbypool | microsoft.standbypool/standbyvirtualmachinepools/runtimeviews | 1 | resource-group | arm-envelope | armstandbypool:StandbyVirtualMachinePoolRuntimeViews.ListByStandbyPool |
@@ -4336,11 +4222,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.visualstudio | microsoft.visualstudio/account/project | 1 | resource-group | item-write | armvisualstudio:Projects.ListByResourceGroup |
 | microsoft.vmwarecloudsimple | microsoft.vmwarecloudsimple/dedicatedcloudnodes | 0 | subscription | item-write | armvmwarecloudsimple:DedicatedCloudNodes.ListByResourceGroup, armvmwarecloudsimple:DedicatedCloudNodes.ListBySubscription |
 | microsoft.vmwarecloudsimple | microsoft.vmwarecloudsimple/dedicatedcloudservices | 0 | subscription | item-write | armvmwarecloudsimple:DedicatedCloudServices.ListByResourceGroup, armvmwarecloudsimple:DedicatedCloudServices.ListBySubscription |
-| microsoft.vmwarecloudsimple | microsoft.vmwarecloudsimple/privateclouds | 0 | subscription | arm-envelope | armvmwarecloudsimple:PrivateClouds.List |
-| microsoft.vmwarecloudsimple | microsoft.vmwarecloudsimple/privateclouds/customizationpolicies | 1 | subscription | arm-envelope | armvmwarecloudsimple:CustomizationPolicies.List |
-| microsoft.vmwarecloudsimple | microsoft.vmwarecloudsimple/privateclouds/resourcepools | 1 | subscription | arm-envelope | armvmwarecloudsimple:ResourcePools.List |
-| microsoft.vmwarecloudsimple | microsoft.vmwarecloudsimple/privateclouds/virtualmachinetemplates | 1 | subscription | arm-envelope | armvmwarecloudsimple:VirtualMachineTemplates.List |
-| microsoft.vmwarecloudsimple | microsoft.vmwarecloudsimple/privateclouds/virtualnetworks | 1 | subscription | arm-envelope | armvmwarecloudsimple:VirtualNetworks.List |
 | microsoft.vmwarecloudsimple | microsoft.vmwarecloudsimple/virtualmachines | 0 | subscription | item-write | armvmwarecloudsimple:VirtualMachines.ListByResourceGroup, armvmwarecloudsimple:VirtualMachines.ListBySubscription |
 | microsoft.voiceservices | microsoft.voiceservices/communicationsgateways | 0 | subscription | item-write | armvoiceservices:CommunicationsGateways.ListByResourceGroup, armvoiceservices:CommunicationsGateways.ListBySubscription |
 | microsoft.voiceservices | microsoft.voiceservices/communicationsgateways/testlines | 1 | resource-group | item-write | armvoiceservices:TestLines.ListByCommunicationsGateway |
@@ -4348,12 +4229,15 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.web | microsoft.web/hostingenvironments/detectors | 1 | resource-group | arm-envelope | armappservice:Diagnostics.ListHostingEnvironmentDetectorResponses |
 | microsoft.web | microsoft.web/hostingenvironments/privateendpointconnections | 1 | resource-group | item-write | armappservice:Environments.GetPrivateEndpointConnectionList |
 | microsoft.web | microsoft.web/hostingenvironments/recommendations | 1 | resource-group | arm-envelope | armappservice:Recommendations.ListRecommendedRulesForHostingEnvironment |
+| microsoft.web | microsoft.web/serverfarms/virtualnetworkconnections | 1 | resource-group | arm-envelope | armappservice:Plans.ListVnets |
 | microsoft.web | microsoft.web/serverfarms/virtualnetworkconnections/routes | 2 | resource-group | item-write | armappservice:Plans.ListRoutesForVnet |
 | microsoft.web | microsoft.web/sites/backups | 1 | resource-group | item-write | armappservice:WebApps.ListBackups |
+| microsoft.web | microsoft.web/sites/basicpublishingcredentialspolicies | 1 | resource-group | item-write | armappservice:WebApps.ListBasicPublishingCredentialsPolicies |
 | microsoft.web | microsoft.web/sites/certificates | 1 | resource-group | item-write | armappservice:SiteCertificates.List |
+| microsoft.web | microsoft.web/sites/config | 1 | resource-group | item-write | armappservice:WebApps.ListConfigurations |
 | microsoft.web | microsoft.web/sites/config/configreferences/appsettings | 1 | resource-group | arm-envelope | armappservice:WebApps.GetAppSettingsKeyVaultReferences |
 | microsoft.web | microsoft.web/sites/config/configreferences/connectionstrings | 1 | resource-group | arm-envelope | armappservice:WebApps.GetSiteConnectionStringKeyVaultReferences |
-| microsoft.web | microsoft.web/sites/config/web/snapshots | 1 | resource-group | arm-envelope | armappservice:WebApps.ListConfigurationSnapshotInfo |
+| microsoft.web | microsoft.web/sites/config/snapshots | 2 | resource-group | arm-envelope | armappservice:WebApps.ListConfigurationSnapshotInfo |
 | microsoft.web | microsoft.web/sites/continuouswebjobs | 1 | resource-group | item-write | armappservice:WebApps.ListContinuousWebJobs |
 | microsoft.web | microsoft.web/sites/deployments | 1 | resource-group | item-write | armappservice:WebApps.ListDeployments |
 | microsoft.web | microsoft.web/sites/deploymentstatus | 1 | resource-group | arm-envelope | armappservice:WebApps.ListProductionSiteDeploymentStatuses |
@@ -4386,10 +4270,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | microsoft.web | microsoft.web/sites/sitecontainers | 1 | resource-group | item-write | armappservice:WebApps.ListSiteContainers |
 | microsoft.web | microsoft.web/sites/siteextensions | 1 | resource-group | item-write | armappservice:WebApps.ListSiteExtensions |
 | microsoft.web | microsoft.web/sites/slots/backups | 2 | resource-group | item-write | armappservice:WebApps.ListBackupsSlot |
+| microsoft.web | microsoft.web/sites/slots/basicpublishingcredentialspolicies | 2 | resource-group | item-write | armappservice:WebApps.ListBasicPublishingCredentialsPoliciesSlot |
 | microsoft.web | microsoft.web/sites/slots/certificates | 2 | resource-group | item-write | armappservice:SiteCertificates.ListSlot |
+| microsoft.web | microsoft.web/sites/slots/config | 2 | resource-group | item-write | armappservice:WebApps.ListConfigurationsSlot |
 | microsoft.web | microsoft.web/sites/slots/config/configreferences/appsettings | 2 | resource-group | arm-envelope | armappservice:WebApps.GetAppSettingsKeyVaultReferencesSlot |
 | microsoft.web | microsoft.web/sites/slots/config/configreferences/connectionstrings | 2 | resource-group | arm-envelope | armappservice:WebApps.GetSiteConnectionStringKeyVaultReferencesSlot |
-| microsoft.web | microsoft.web/sites/slots/config/web/snapshots | 2 | resource-group | arm-envelope | armappservice:WebApps.ListConfigurationSnapshotInfoSlot |
+| microsoft.web | microsoft.web/sites/slots/config/snapshots | 3 | resource-group | arm-envelope | armappservice:WebApps.ListConfigurationSnapshotInfoSlot |
 | microsoft.web | microsoft.web/sites/slots/continuouswebjobs | 2 | resource-group | item-write | armappservice:WebApps.ListContinuousWebJobsSlot |
 | microsoft.web | microsoft.web/sites/slots/deployments | 2 | resource-group | item-write | armappservice:WebApps.ListDeploymentsSlot |
 | microsoft.web | microsoft.web/sites/slots/deploymentstatus | 2 | resource-group | arm-envelope | armappservice:WebApps.ListSlotSiteDeploymentStatusesSlot |
@@ -4456,31 +4342,20 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | nginx.nginxplus | nginx.nginxplus/nginxdeployments/certificates | 1 | resource-group | item-write | armnginx:Certificates.List |
 | nginx.nginxplus | nginx.nginxplus/nginxdeployments/configurations | 1 | resource-group | item-write | armnginx:Configurations.List |
 | nginx.nginxplus | nginx.nginxplus/nginxdeployments/wafpolicies | 1 | resource-group | item-write | armnginx:WafPolicy.List |
-| oracle.database | oracle.database/autonomousdatabasecharactersets | 0 | subscription | arm-envelope | armoracledatabase:AutonomousDatabaseCharacterSets.ListByLocation |
-| oracle.database | oracle.database/autonomousdatabasenationalcharactersets | 0 | subscription | arm-envelope | armoracledatabase:AutonomousDatabaseNationalCharacterSets.ListByLocation |
 | oracle.database | oracle.database/autonomousdatabases | 0 | subscription | item-write | armoracledatabase:AutonomousDatabases.ListByResourceGroup, armoracledatabase:AutonomousDatabases.ListBySubscription |
 | oracle.database | oracle.database/autonomousdatabases/autonomousdatabasebackups | 1 | resource-group | item-write | armoracledatabase:AutonomousDatabaseBackups.ListByAutonomousDatabase |
-| oracle.database | oracle.database/autonomousdbversions | 0 | subscription | arm-envelope | armoracledatabase:AutonomousDatabaseVersions.ListByLocation |
 | oracle.database | oracle.database/cloudexadatainfrastructures | 0 | subscription | item-write | armoracledatabase:CloudExadataInfrastructures.ListByResourceGroup, armoracledatabase:CloudExadataInfrastructures.ListBySubscription |
 | oracle.database | oracle.database/cloudexadatainfrastructures/dbservers | 1 | resource-group | arm-envelope | armoracledatabase:DbServers.ListByCloudExadataInfrastructure |
 | oracle.database | oracle.database/cloudvmclusters | 0 | subscription | item-write | armoracledatabase:CloudVMClusters.ListByResourceGroup, armoracledatabase:CloudVMClusters.ListBySubscription |
 | oracle.database | oracle.database/cloudvmclusters/dbnodes | 1 | resource-group | arm-envelope | armoracledatabase:DbNodes.ListByCloudVMCluster |
 | oracle.database | oracle.database/cloudvmclusters/virtualnetworkaddresses | 1 | resource-group | item-write | armoracledatabase:VirtualNetworkAddresses.ListByCloudVMCluster |
-| oracle.database | oracle.database/dbsystemdbversions | 0 | subscription | arm-envelope | armoracledatabase:DbVersions.ListByLocation |
 | oracle.database | oracle.database/dbsystems | 0 | subscription | item-write | armoracledatabase:DbSystems.ListByResourceGroup, armoracledatabase:DbSystems.ListBySubscription |
-| oracle.database | oracle.database/dbsystemshapes | 0 | subscription | arm-envelope | armoracledatabase:DbSystemShapes.ListByLocation |
-| oracle.database | oracle.database/dnsprivateviews | 0 | subscription | arm-envelope | armoracledatabase:DNSPrivateViews.ListByLocation |
-| oracle.database | oracle.database/dnsprivatezones | 0 | subscription | arm-envelope | armoracledatabase:DNSPrivateZones.ListByLocation |
 | oracle.database | oracle.database/exadbvmclusters | 0 | subscription | item-write | armoracledatabase:ExadbVMClusters.ListByResourceGroup, armoracledatabase:ExadbVMClusters.ListBySubscription |
 | oracle.database | oracle.database/exadbvmclusters/dbnodes | 1 | resource-group | arm-envelope | armoracledatabase:ExascaleDbNodes.ListByParent |
 | oracle.database | oracle.database/exascaledbstoragevaults | 0 | subscription | item-write | armoracledatabase:ExascaleDbStorageVaults.ListByResourceGroup, armoracledatabase:ExascaleDbStorageVaults.ListBySubscription |
-| oracle.database | oracle.database/flexcomponents | 0 | subscription | arm-envelope | armoracledatabase:FlexComponents.ListByParent |
-| oracle.database | oracle.database/giversions | 0 | subscription | arm-envelope | armoracledatabase:GiVersions.ListByLocation |
-| oracle.database | oracle.database/giversions/giminorversions | 1 | subscription | arm-envelope | armoracledatabase:GiMinorVersions.ListByParent |
 | oracle.database | oracle.database/networkanchors | 0 | subscription | item-write | armoracledatabase:NetworkAnchors.ListByResourceGroup, armoracledatabase:NetworkAnchors.ListBySubscription |
 | oracle.database | oracle.database/oraclesubscriptions | 0 | subscription | item-write | armoracledatabase:OracleSubscriptions.ListBySubscription |
 | oracle.database | oracle.database/resourceanchors | 0 | subscription | item-write | armoracledatabase:ResourceAnchors.ListByResourceGroup, armoracledatabase:ResourceAnchors.ListBySubscription |
-| oracle.database | oracle.database/systemversions | 0 | subscription | arm-envelope | armoracledatabase:SystemVersions.ListByLocation |
 | paloaltonetworks.cloudngfw | paloaltonetworks.cloudngfw/firewalls | 0 | subscription | item-write | armpanngfw:Firewalls.ListByResourceGroup, armpanngfw:Firewalls.ListBySubscription |
 | paloaltonetworks.cloudngfw | paloaltonetworks.cloudngfw/firewalls/metrics | 1 | resource-group | item-write | armpanngfw:MetricsObjectFirewall.ListByFirewalls |
 | paloaltonetworks.cloudngfw | paloaltonetworks.cloudngfw/firewalls/statuses | 1 | resource-group | arm-envelope | armpanngfw:FirewallStatus.ListByFirewalls |
@@ -4511,7 +4386,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 ## GCP
 
-**Coverage:** 22.9% (239/1042 listable) · depth0 26.9% · depth1 18.3% · depth2 13.3% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 840 · disco-only 1 (0 unexplained)
+**Coverage:** 23.2% (240/1034 listable) · depth0 28.0% · depth1 18.6% · depth2 11.1% · depth3 0.0% · depth4 0.0% · depth5 0.0% · attribute 0 · excluded 626 · disco-only 5 (0 unexplained)
 
 Pins: google.golang.org/api@v0.292.0
 
@@ -4519,54 +4394,56 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| create | 224 | 735 | 23.4 |
-| delete-only | 11 | 49 | 18.3 |
-| mutable | 4 | 19 | 17.4 |
+| create | 224 | 731 | 23.5 |
+| delete-only | 9 | 41 | 18.0 |
+| mutable | 5 | 21 | 19.2 |
+| created-elsewhere | 2 | 1 | 66.7 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
 | aiplatform | 0 | 58 | 0.0 |
-| apigee | 0 | 46 | 0.0 |
 | dialogflow | 0 | 44 | 0.0 |
+| apigee | 0 | 43 | 0.0 |
 | contactcenterinsights | 0 | 28 | 0.0 |
-| discoveryengine | 0 | 27 | 0.0 |
+| discoveryengine | 0 | 26 | 0.0 |
 | dataplex | 0 | 25 | 0.0 |
 | networksecurity | 0 | 25 | 0.0 |
-| admin | 1 | 19 | 5.0 |
+| admin | 1 | 20 | 4.8 |
 | networkservices | 0 | 19 | 0.0 |
 | networkconnectivity | 0 | 16 | 0.0 |
 | vmwareengine | 0 | 14 | 0.0 |
-| apihub | 0 | 12 | 0.0 |
-| integrations | 0 | 12 | 0.0 |
+| apihub | 0 | 13 | 0.0 |
 | gkehub | 0 | 11 | 0.0 |
-| healthcare | 0 | 11 | 0.0 |
-| managedkafka | 0 | 11 | 0.0 |
 | netapp | 0 | 11 | 0.0 |
 | oracledatabase | 0 | 11 | 0.0 |
+| compute | 92 | 10 | 90.2 |
 | dlp | 0 | 10 | 0.0 |
+| healthcare | 0 | 10 | 0.0 |
 | migrationcenter | 0 | 10 | 0.0 |
 | vmmigration | 0 | 10 | 0.0 |
 | apigeeregistry | 0 | 9 | 0.0 |
 | ces | 0 | 9 | 0.0 |
-| compute | 90 | 9 | 90.9 |
 | appengine | 0 | 8 | 0.0 |
 | connectors | 0 | 8 | 0.0 |
+| integrations | 0 | 8 | 0.0 |
+| saasservicemgmt | 0 | 8 | 0.0 |
 | securesourcemanager | 0 | 8 | 0.0 |
-| securitycenter | 0 | 8 | 0.0 |
 | clouddeploy | 0 | 7 | 0.0 |
 | dataform | 0 | 7 | 0.0 |
 | eventarc | 0 | 7 | 0.0 |
 | identitytoolkit | 0 | 7 | 0.0 |
-| saasservicemgmt | 0 | 7 | 0.0 |
+| managedkafka | 0 | 7 | 0.0 |
+| securitycenter | 0 | 7 | 0.0 |
 | backupdr | 0 | 6 | 0.0 |
 | baremetalsolution | 0 | 6 | 0.0 |
 | datacatalog | 0 | 6 | 0.0 |
+| datamigration | 0 | 6 | 0.0 |
 | gkebackup | 0 | 6 | 0.0 |
 | gkeonprem | 0 | 6 | 0.0 |
 | redis | 0 | 6 | 0.0 |
 | translate | 0 | 6 | 0.0 |
 | beyondcorp | 0 | 5 | 0.0 |
-| datamigration | 0 | 5 | 0.0 |
+| datastream | 0 | 5 | 0.0 |
 | developerconnect | 0 | 5 | 0.0 |
 | jobs | 0 | 5 | 0.0 |
 | metastore | 0 | 5 | 0.0 |
@@ -4578,19 +4455,18 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | analyticshub | 0 | 4 | 0.0 |
 | apphub | 0 | 4 | 0.0 |
 | bigqueryreservation | 0 | 4 | 0.0 |
-| chromemanagement | 0 | 4 | 0.0 |
-| contentwarehouse | 0 | 4 | 0.0 |
-| datastream | 0 | 4 | 0.0 |
+| cloudsupport | 0 | 4 | 0.0 |
 | documentai | 0 | 4 | 0.0 |
 | firebaseappdistribution | 0 | 4 | 0.0 |
 | firebaseapphosting | 0 | 4 | 0.0 |
+| osconfig | 0 | 4 | 0.0 |
 | parametermanager | 0 | 4 | 0.0 |
 | workloadmanager | 0 | 4 | 0.0 |
 | apigateway | 0 | 3 | 0.0 |
 | biglake | 0 | 3 | 0.0 |
 | cloudbuild | 5 | 3 | 62.5 |
-| cloudsupport | 0 | 3 | 0.0 |
 | config | 0 | 3 | 0.0 |
+| contentwarehouse | 0 | 3 | 0.0 |
 | datalineage | 0 | 3 | 0.0 |
 | file | 0 | 3 | 0.0 |
 | firebaseappcheck | 0 | 3 | 0.0 |
@@ -4600,14 +4476,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iap | 0 | 3 | 0.0 |
 | managedidentities | 0 | 3 | 0.0 |
 | networkmanagement | 0 | 3 | 0.0 |
-| osconfig | 0 | 3 | 0.0 |
 | pubsublite | 0 | 3 | 0.0 |
 | servicedirectory | 0 | 3 | 0.0 |
+| servicemanagement | 0 | 3 | 0.0 |
 | vision | 0 | 3 | 0.0 |
 | workstations | 0 | 3 | 0.0 |
 | agentidentity | 0 | 2 | 0.0 |
 | agentregistry | 0 | 2 | 0.0 |
-| androiddeviceprovisioning | 0 | 2 | 0.0 |
 | artifactregistry | 5 | 2 | 71.4 |
 | bigquerydatatransfer | 0 | 2 | 0.0 |
 | cloudasset | 0 | 2 | 0.0 |
@@ -4619,18 +4494,17 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | firebaserules | 0 | 2 | 0.0 |
 | firestore | 4 | 2 | 66.7 |
 | looker | 0 | 2 | 0.0 |
-| monitoring | 8 | 2 | 80.0 |
 | observability | 0 | 2 | 0.0 |
 | orgpolicy | 0 | 2 | 0.0 |
 | recaptchaenterprise | 0 | 2 | 0.0 |
-| script | 0 | 2 | 0.0 |
 | securityposture | 0 | 2 | 0.0 |
+| servicenetworking | 0 | 2 | 0.0 |
 | speech | 0 | 2 | 0.0 |
 | storage | 8 | 2 | 80.0 |
 | storagetransfer | 0 | 2 | 0.0 |
 | tpu | 0 | 2 | 0.0 |
 | transcoder | 0 | 2 | 0.0 |
-| webcontentpublisher | 0 | 2 | 0.0 |
+| websecurityscanner | 0 | 2 | 0.0 |
 | apikeys | 0 | 1 | 0.0 |
 | assuredworkloads | 0 | 1 | 0.0 |
 | bigquery | 5 | 1 | 83.3 |
@@ -4638,7 +4512,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | billingbudgets | 0 | 1 | 0.0 |
 | binaryauthorization | 1 | 1 | 50.0 |
 | blockchainnodeengine | 0 | 1 | 0.0 |
+| cloudcommerceprocurement | 0 | 1 | 0.0 |
 | cloudcontrolspartner | 0 | 1 | 0.0 |
+| clouddebugger | 0 | 1 | 0.0 |
 | cloudkms | 7 | 1 | 87.5 |
 | cloudprofiler | 0 | 1 | 0.0 |
 | cloudscheduler | 0 | 1 | 0.0 |
@@ -4651,19 +4527,20 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | essentialcontacts | 0 | 1 | 0.0 |
 | hypercomputecluster | 0 | 1 | 0.0 |
 | ids | 0 | 1 | 0.0 |
-| logging | 8 | 1 | 88.9 |
 | memcache | 0 | 1 | 0.0 |
+| monitoring | 8 | 1 | 88.9 |
 | parallelstore | 0 | 1 | 0.0 |
 | policysimulator | 0 | 1 | 0.0 |
 | rapidmigrationassessment | 0 | 1 | 0.0 |
 | resourcesettings | 0 | 1 | 0.0 |
-| run | 9 | 1 | 90.0 |
+| run | 8 | 1 | 88.9 |
+| serviceconsumermanagement | 0 | 1 | 0.0 |
 | sourcerepo | 0 | 1 | 0.0 |
 | spanner | 6 | 1 | 85.7 |
+| sqladmin | 5 | 1 | 83.3 |
 | storagebatchoperations | 0 | 1 | 0.0 |
 | testing | 0 | 1 | 0.0 |
 | vpcaccess | 0 | 1 | 0.0 |
-| websecurityscanner | 0 | 1 | 0.0 |
 | workflowexecutions | 0 | 1 | 0.0 |
 | workflows | 0 | 1 | 0.0 |
 | accesscontextmanager | 5 | 0 | 100.0 |
@@ -4677,11 +4554,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | container | 2 | 0 | 100.0 |
 | dataflow | 2 | 0 | 100.0 |
 | dataproc | 7 | 0 | 100.0 |
+| logging | 8 | 0 | 100.0 |
 | pubsub | 4 | 0 | 100.0 |
 | secretmanager | 2 | 0 | 100.0 |
-| sqladmin | 5 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (803)
+### Uncovered (listable, no scanner) (794)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -4703,10 +4580,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | admin | admin/roles | 0 | tenant | create | admin:roles.list |
 | admin | admin/schemas | 0 | tenant | create | admin:schemas.list |
 | admin | admin/tokens | 1 | global | delete-only | admin:tokens.list |
+| admin | admin/transfers | 0 | global | create | admin:transfers.list |
 | admin | admin/users/aliases | 1 | global | create | admin:users.aliases.list |
 | agentidentity | agentidentity/authproviders | 0 | project | create | agentidentity:projects.locations.authProviders.list |
 | agentidentity | agentidentity/authproviders/authorizations | 1 | project | delete-only | agentidentity:projects.locations.authProviders.authorizations.list |
-| agentregistry | agentregistry/bindings | 0 | project | create | agentregistry:projects.locations.bindings.list |
+| agentregistry | agentregistry/bindings | 0 | project | create | agentregistry:projects.locations.bindings.fetchAvailable, agentregistry:projects.locations.bindings.list |
 | agentregistry | agentregistry/services | 0 | project | create | agentregistry:projects.locations.services.list |
 | aiplatform | aiplatform/agents | 0 | project | create | aiplatform:projects.locations.agents.list |
 | aiplatform | aiplatform/batchpredictionjobs | 0 | project | create | aiplatform:batchPredictionJobs.list, aiplatform:projects.locations.batchPredictionJobs.list |
@@ -4732,7 +4610,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aiplatform | aiplatform/hyperparametertuningjobs | 0 | project | create | aiplatform:projects.locations.hyperparameterTuningJobs.list |
 | aiplatform | aiplatform/indexendpoints | 0 | project | create | aiplatform:projects.locations.indexEndpoints.list |
 | aiplatform | aiplatform/indexes | 0 | project | create | aiplatform:projects.locations.indexes.list |
-| aiplatform | aiplatform/memorybanks/memories | 1 | project | create | aiplatform:projects.locations.memoryBanks.memories.list |
 | aiplatform | aiplatform/metadatastores | 0 | project | create | aiplatform:projects.locations.metadataStores.list |
 | aiplatform | aiplatform/metadatastores/artifacts | 1 | project | create | aiplatform:projects.locations.metadataStores.artifacts.list |
 | aiplatform | aiplatform/metadatastores/contexts | 1 | project | create | aiplatform:projects.locations.metadataStores.contexts.list |
@@ -4740,6 +4617,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aiplatform | aiplatform/metadatastores/metadataschemas | 1 | project | create | aiplatform:projects.locations.metadataStores.metadataSchemas.list |
 | aiplatform | aiplatform/modeldeploymentmonitoringjobs | 0 | project | create | aiplatform:projects.locations.modelDeploymentMonitoringJobs.list |
 | aiplatform | aiplatform/models | 0 | project | delete-only | aiplatform:projects.locations.models.list |
+| aiplatform | aiplatform/models/evaluations | 1 | project | create | aiplatform:projects.locations.models.evaluations.list |
 | aiplatform | aiplatform/nasjobs | 0 | project | create | aiplatform:projects.locations.nasJobs.list |
 | aiplatform | aiplatform/notebookexecutionjobs | 0 | project | create | aiplatform:projects.locations.notebookExecutionJobs.list |
 | aiplatform | aiplatform/notebookruntimes | 0 | project | delete-only | aiplatform:projects.locations.notebookRuntimes.list |
@@ -4748,9 +4626,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aiplatform | aiplatform/persistentresources | 0 | project | create | aiplatform:projects.locations.persistentResources.list |
 | aiplatform | aiplatform/pipelinejobs | 0 | project | create | aiplatform:projects.locations.pipelineJobs.list |
 | aiplatform | aiplatform/ragcorpora | 0 | project | create | aiplatform:projects.locations.ragCorpora.list |
-| aiplatform | aiplatform/ragcorpora/ragfiles | 1 | project | delete-only | aiplatform:projects.locations.ragCorpora.ragFiles.list |
+| aiplatform | aiplatform/ragcorpora/ragfiles | 1 | project | create | aiplatform:projects.locations.ragCorpora.ragFiles.list |
 | aiplatform | aiplatform/reasoningengines | 0 | project | create | aiplatform:projects.locations.reasoningEngines.list, aiplatform:reasoningEngines.list |
-| aiplatform | aiplatform/reasoningengines/memories | 1 | project | create | aiplatform:projects.locations.reasoningEngines.memories.list, aiplatform:reasoningEngines.memories.list |
+| aiplatform | aiplatform/reasoningengines/memories | 1 | project | create | aiplatform:projects.locations.memoryBanks.memories.list, aiplatform:projects.locations.reasoningEngines.memories.list, aiplatform:reasoningEngines.memories.list |
 | aiplatform | aiplatform/reasoningengines/sandboxenvironments | 1 | project | create | aiplatform:projects.locations.reasoningEngines.sandboxEnvironments.list, aiplatform:reasoningEngines.sandboxEnvironments.list |
 | aiplatform | aiplatform/reasoningengines/sandboxenvironmentsnapshots | 1 | project | delete-only | aiplatform:projects.locations.reasoningEngines.sandboxEnvironmentSnapshots.list, aiplatform:reasoningEngines.sandboxEnvironmentSnapshots.list |
 | aiplatform | aiplatform/reasoningengines/sandboxenvironmenttemplates | 1 | project | create | aiplatform:projects.locations.reasoningEngines.sandboxEnvironmentTemplates.list, aiplatform:reasoningEngines.sandboxEnvironmentTemplates.list |
@@ -4770,61 +4648,56 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | alloydb | alloydb/clusters | 0 | project | create | alloydb:projects.locations.clusters.list |
 | alloydb | alloydb/clusters/instances | 1 | project | create | alloydb:projects.locations.clusters.instances.list |
 | alloydb | alloydb/clusters/users | 1 | project | create | alloydb:projects.locations.clusters.users.list |
-| analyticshub | analyticshub/dataexchanges | 0 | project | create | analyticshub:organizations.locations.dataExchanges.list, analyticshub:projects.locations.dataExchanges.list |
+| analyticshub | analyticshub/dataexchanges | 0 | project | create | analyticshub:projects.locations.dataExchanges.list |
 | analyticshub | analyticshub/dataexchanges/listings | 1 | project | create | analyticshub:projects.locations.dataExchanges.listings.list |
 | analyticshub | analyticshub/dataexchanges/querytemplates | 1 | project | create | analyticshub:projects.locations.dataExchanges.queryTemplates.list |
 | analyticshub | analyticshub/subscriptions | 0 | project | delete-only | analyticshub:projects.locations.subscriptions.list |
-| androiddeviceprovisioning | androiddeviceprovisioning/configurations | 0 | tenant | create | androiddeviceprovisioning:customers.configurations.list |
-| androiddeviceprovisioning | androiddeviceprovisioning/partners/customers | 1 | global | create | androiddeviceprovisioning:partners.customers.list |
 | apigateway | apigateway/apis | 0 | project | create | apigateway:projects.locations.apis.list |
 | apigateway | apigateway/apis/configs | 1 | project | create | apigateway:projects.locations.apis.configs.list |
 | apigateway | apigateway/gateways | 0 | project | create | apigateway:projects.locations.gateways.list |
-| apigee | apigee/analytics/datastores | 0 | org | create | apigee:organizations.analytics.datastores.list |
-| apigee | apigee/apimserviceextensions | 0 | org | create | apigee:organizations.apimServiceExtensions.list |
-| apigee | apigee/apiproducts | 0 | org | create | apigee:organizations.apiproducts.list |
-| apigee | apigee/apiproducts/attributes | 1 | org | delete-only | apigee:organizations.apiproducts.attributes.list |
-| apigee | apigee/apiproducts/rateplans | 1 | org | create | apigee:organizations.apiproducts.rateplans.list |
-| apigee | apigee/apis | 0 | org | create | apigee:organizations.apis.list |
-| apigee | apigee/apis/keyvaluemaps/entries | 2 | org | create | apigee:organizations.apis.keyvaluemaps.entries.list |
-| apigee | apigee/appgroups | 0 | org | create | apigee:organizations.appgroups.list |
-| apigee | apigee/appgroups/apps | 1 | org | create | apigee:organizations.appgroups.apps.list |
-| apigee | apigee/appgroups/subscriptions | 1 | org | create | apigee:organizations.appgroups.subscriptions.list |
-| apigee | apigee/datacollectors | 0 | org | create | apigee:organizations.datacollectors.list |
-| apigee | apigee/developers | 0 | org | create | apigee:organizations.developers.list |
-| apigee | apigee/developers/apps | 1 | org | create | apigee:organizations.developers.apps.list |
-| apigee | apigee/developers/apps/attributes | 2 | org | delete-only | apigee:organizations.developers.apps.attributes.list |
-| apigee | apigee/developers/attributes | 1 | org | delete-only | apigee:organizations.developers.attributes.list |
-| apigee | apigee/developers/subscriptions | 1 | org | create | apigee:organizations.developers.subscriptions.list |
-| apigee | apigee/dnszones | 0 | org | create | apigee:organizations.dnsZones.list |
-| apigee | apigee/endpointattachments | 0 | org | create | apigee:organizations.endpointAttachments.list |
-| apigee | apigee/envgroups | 0 | org | create | apigee:organizations.envgroups.list |
-| apigee | apigee/envgroups/attachments | 1 | org | create | apigee:organizations.envgroups.attachments.list |
-| apigee | apigee/environments/analytics/exports | 1 | org | create | apigee:organizations.environments.analytics.exports.list |
-| apigee | apigee/environments/apis/revisions/debugsessions | 3 | org | create | apigee:organizations.environments.apis.revisions.debugsessions.list |
-| apigee | apigee/environments/archivedeployments | 1 | org | create | apigee:organizations.environments.archiveDeployments.list |
-| apigee | apigee/environments/keyvaluemaps/entries | 2 | org | create | apigee:organizations.environments.keyvaluemaps.entries.list |
-| apigee | apigee/environments/queries | 1 | org | create | apigee:organizations.environments.queries.list |
-| apigee | apigee/environments/resourcefiles | 1 | org | create | apigee:organizations.environments.resourcefiles.list |
-| apigee | apigee/environments/securityactions | 1 | org | create | apigee:organizations.environments.securityActions.list |
-| apigee | apigee/environments/securityincidents | 1 | org | mutable | apigee:organizations.environments.securityIncidents.list |
-| apigee | apigee/environments/securityreports | 1 | org | create | apigee:organizations.environments.securityReports.list |
-| apigee | apigee/environments/traceconfig/overrides | 1 | org | create | apigee:organizations.environments.traceConfig.overrides.list |
-| apigee | apigee/hostqueries | 0 | org | create | apigee:organizations.hostQueries.list |
-| apigee | apigee/hostsecurityreports | 0 | org | create | apigee:organizations.hostSecurityReports.list |
-| apigee | apigee/instances | 0 | org | create | apigee:organizations.instances.list |
-| apigee | apigee/instances/attachments | 1 | org | create | apigee:organizations.instances.attachments.list |
-| apigee | apigee/instances/nataddresses | 1 | org | create | apigee:organizations.instances.natAddresses.list |
-| apigee | apigee/keyvaluemaps/entries | 1 | org | create | apigee:organizations.keyvaluemaps.entries.list |
-| apigee | apigee/organizations | 0 | org | create | apigee:organizations.list |
-| apigee | apigee/reports | 0 | org | create | apigee:organizations.reports.list |
-| apigee | apigee/securityfeedback | 0 | org | create | apigee:organizations.securityFeedback.list |
-| apigee | apigee/securitymonitoringconditions | 0 | org | create | apigee:organizations.securityMonitoringConditions.list |
-| apigee | apigee/securityprofiles | 0 | org | create | apigee:organizations.securityProfiles.list |
-| apigee | apigee/securityprofilesv2 | 0 | org | create | apigee:organizations.securityProfilesV2.list |
-| apigee | apigee/sharedflows | 0 | org | create | apigee:organizations.sharedflows.list |
-| apigee | apigee/sites/apicategories | 1 | org | create | apigee:organizations.sites.apicategories.list |
-| apigee | apigee/sites/apidocs | 1 | org | create | apigee:organizations.sites.apidocs.list |
-| apigee | apigee/spaces | 0 | org | create | apigee:organizations.spaces.list |
+| apigee | apigee/organizations/analytics/datastores | 1 | org | create | apigee:organizations.analytics.datastores.list |
+| apigee | apigee/organizations/apimserviceextensions | 1 | org | create | apigee:organizations.apimServiceExtensions.list |
+| apigee | apigee/organizations/apiproducts | 1 | org | create | apigee:organizations.apiproducts.list |
+| apigee | apigee/organizations/apiproducts/attributes | 2 | org | create | apigee:organizations.apiproducts.attributes.list |
+| apigee | apigee/organizations/apiproducts/rateplans | 2 | org | create | apigee:organizations.apiproducts.rateplans.list |
+| apigee | apigee/organizations/apis | 1 | org | create | apigee:organizations.apis.list |
+| apigee | apigee/organizations/apis/keyvaluemaps/entries | 3 | org | create | apigee:organizations.apis.keyvaluemaps.entries.list |
+| apigee | apigee/organizations/appgroups | 1 | org | create | apigee:organizations.appgroups.list |
+| apigee | apigee/organizations/appgroups/apps | 2 | org | create | apigee:organizations.appgroups.apps.list |
+| apigee | apigee/organizations/appgroups/subscriptions | 2 | org | create | apigee:organizations.appgroups.subscriptions.list |
+| apigee | apigee/organizations/datacollectors | 1 | org | create | apigee:organizations.datacollectors.list |
+| apigee | apigee/organizations/developers | 1 | org | create | apigee:organizations.developers.list |
+| apigee | apigee/organizations/developers/apps | 2 | org | create | apigee:organizations.developers.apps.list |
+| apigee | apigee/organizations/developers/apps/attributes | 3 | org | create | apigee:organizations.developers.apps.attributes.list |
+| apigee | apigee/organizations/developers/attributes | 2 | org | create | apigee:organizations.developers.attributes.list |
+| apigee | apigee/organizations/developers/subscriptions | 2 | org | create | apigee:organizations.developers.subscriptions.list |
+| apigee | apigee/organizations/dnszones | 1 | org | create | apigee:organizations.dnsZones.list |
+| apigee | apigee/organizations/endpointattachments | 1 | org | create | apigee:organizations.endpointAttachments.list |
+| apigee | apigee/organizations/envgroups | 1 | org | create | apigee:organizations.envgroups.list |
+| apigee | apigee/organizations/envgroups/attachments | 2 | org | create | apigee:organizations.envgroups.attachments.list |
+| apigee | apigee/organizations/environments/analytics/exports | 2 | org | create | apigee:organizations.environments.analytics.exports.list |
+| apigee | apigee/organizations/environments/archivedeployments | 2 | org | create | apigee:organizations.environments.archiveDeployments.list |
+| apigee | apigee/organizations/environments/keyvaluemaps/entries | 3 | org | create | apigee:organizations.environments.keyvaluemaps.entries.list |
+| apigee | apigee/organizations/environments/queries | 2 | org | create | apigee:organizations.environments.queries.list |
+| apigee | apigee/organizations/environments/securityactions | 2 | org | create | apigee:organizations.environments.securityActions.list |
+| apigee | apigee/organizations/environments/securityincidents | 2 | org | mutable | apigee:organizations.environments.securityIncidents.list |
+| apigee | apigee/organizations/environments/securityreports | 2 | org | create | apigee:organizations.environments.securityReports.list |
+| apigee | apigee/organizations/environments/traceconfig/overrides | 2 | org | create | apigee:organizations.environments.traceConfig.overrides.list |
+| apigee | apigee/organizations/hostqueries | 1 | org | create | apigee:organizations.hostQueries.list |
+| apigee | apigee/organizations/hostsecurityreports | 1 | org | create | apigee:organizations.hostSecurityReports.list |
+| apigee | apigee/organizations/instances | 1 | org | create | apigee:organizations.instances.list |
+| apigee | apigee/organizations/instances/attachments | 2 | org | create | apigee:organizations.instances.attachments.list |
+| apigee | apigee/organizations/instances/nataddresses | 2 | org | create | apigee:organizations.instances.natAddresses.list |
+| apigee | apigee/organizations/keyvaluemaps/entries | 2 | org | create | apigee:organizations.keyvaluemaps.entries.list |
+| apigee | apigee/organizations/reports | 1 | org | create | apigee:organizations.reports.list |
+| apigee | apigee/organizations/securityfeedback | 1 | org | create | apigee:organizations.securityFeedback.list |
+| apigee | apigee/organizations/securitymonitoringconditions | 1 | org | create | apigee:organizations.securityMonitoringConditions.list |
+| apigee | apigee/organizations/securityprofiles | 1 | org | create | apigee:organizations.securityProfiles.list |
+| apigee | apigee/organizations/securityprofilesv2 | 1 | org | create | apigee:organizations.securityProfilesV2.list |
+| apigee | apigee/organizations/sharedflows | 1 | org | create | apigee:organizations.sharedflows.list |
+| apigee | apigee/organizations/sites/apicategories | 2 | org | create | apigee:organizations.sites.apicategories.list |
+| apigee | apigee/organizations/sites/apidocs | 2 | org | create | apigee:organizations.sites.apidocs.list |
+| apigee | apigee/organizations/spaces | 1 | org | create | apigee:organizations.spaces.list |
 | apigeeregistry | apigeeregistry/apis | 0 | project | create | apigeeregistry:projects.locations.apis.list |
 | apigeeregistry | apigeeregistry/apis/artifacts | 1 | project | create | apigeeregistry:projects.locations.apis.artifacts.list |
 | apigeeregistry | apigeeregistry/apis/deployments | 1 | project | create | apigeeregistry:projects.locations.apis.deployments.list |
@@ -4836,6 +4709,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | apigeeregistry | apigeeregistry/artifacts | 0 | project | create | apigeeregistry:projects.locations.artifacts.list |
 | apihub | apihub/apis | 0 | project | create | apihub:projects.locations.apis.list |
 | apihub | apihub/apis/versions | 1 | project | create | apihub:projects.locations.apis.versions.list |
+| apihub | apihub/apis/versions/operations | 2 | project | create | apihub:projects.locations.apis.versions.operations.list |
 | apihub | apihub/apis/versions/specs | 2 | project | create | apihub:projects.locations.apis.versions.specs.list |
 | apihub | apihub/attributes | 0 | project | create | apihub:projects.locations.attributes.list |
 | apihub | apihub/curations | 0 | project | create | apihub:projects.locations.curations.list |
@@ -4862,19 +4736,19 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | artifactregistry | artifactregistry/repositories/files | 1 | project | delete-only | artifactregistry:projects.locations.repositories.files.list |
 | artifactregistry | artifactregistry/repositories/packages/versions | 2 | project | delete-only | artifactregistry:projects.locations.repositories.packages.versions.list |
 | assuredworkloads | assuredworkloads/workloads | 0 | org | create | assuredworkloads:organizations.locations.workloads.list |
-| backupdr | backupdr/backupplanassociations | 0 | project | create | backupdr:projects.locations.backupPlanAssociations.list |
+| backupdr | backupdr/backupplanassociations | 0 | project | create | backupdr:projects.locations.backupPlanAssociations.fetchForResourceType, backupdr:projects.locations.backupPlanAssociations.list |
 | backupdr | backupdr/backupplans | 0 | project | create | backupdr:projects.locations.backupPlans.list |
-| backupdr | backupdr/backupvaults | 0 | project | create | backupdr:projects.locations.backupVaults.list |
+| backupdr | backupdr/backupvaults | 0 | project | create | backupdr:projects.locations.backupVaults.fetchUsable, backupdr:projects.locations.backupVaults.list |
 | backupdr | backupdr/backupvaults/datasources | 1 | project | mutable | backupdr:projects.locations.backupVaults.dataSources.list |
-| backupdr | backupdr/backupvaults/datasources/backups | 2 | project | delete-only | backupdr:projects.locations.backupVaults.dataSources.backups.list |
+| backupdr | backupdr/backupvaults/datasources/backups | 2 | project | delete-only | backupdr:projects.locations.backupVaults.dataSources.backups.fetchForResourceType, backupdr:projects.locations.backupVaults.dataSources.backups.list |
 | backupdr | backupdr/managementservers | 0 | project | create | backupdr:projects.locations.managementServers.list |
 | baremetalsolution | baremetalsolution/instances | 0 | project | mutable | baremetalsolution:projects.locations.instances.list |
-| baremetalsolution | baremetalsolution/networks | 0 | project | mutable | baremetalsolution:projects.locations.networks.list |
+| baremetalsolution | baremetalsolution/networks | 0 | project | mutable | baremetalsolution:projects.locations.networks.list, baremetalsolution:projects.locations.networks.listNetworkUsage |
 | baremetalsolution | baremetalsolution/nfsshares | 0 | project | create | baremetalsolution:projects.locations.nfsShares.list |
 | baremetalsolution | baremetalsolution/sshkeys | 0 | project | create | baremetalsolution:projects.locations.sshKeys.list |
 | baremetalsolution | baremetalsolution/volumes | 0 | project | mutable | baremetalsolution:projects.locations.volumes.list |
 | baremetalsolution | baremetalsolution/volumes/snapshots | 1 | project | create | baremetalsolution:projects.locations.volumes.snapshots.list |
-| beyondcorp | beyondcorp/appconnections | 0 | project | create | beyondcorp:projects.locations.appConnections.list |
+| beyondcorp | beyondcorp/appconnections | 0 | project | create | beyondcorp:projects.locations.appConnections.list, beyondcorp:projects.locations.appConnections.resolve |
 | beyondcorp | beyondcorp/appconnectors | 0 | project | create | beyondcorp:projects.locations.appConnectors.list |
 | beyondcorp | beyondcorp/appgateways | 0 | project | create | beyondcorp:projects.locations.appGateways.list |
 | beyondcorp | beyondcorp/securitygateways | 0 | project | create | beyondcorp:projects.locations.securityGateways.list |
@@ -4902,18 +4776,16 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ces | ces/apps/tools | 1 | project | create | ces:projects.locations.apps.tools.list |
 | ces | ces/apps/toolsets | 1 | project | create | ces:projects.locations.apps.toolsets.list |
 | ces | ces/apps/versions | 1 | project | create | ces:projects.locations.apps.versions.list |
-| chromemanagement | chromemanagement/connectorconfigs | 0 | tenant | create | chromemanagement:customers.connectorConfigs.list |
-| chromemanagement | chromemanagement/profiles | 0 | tenant | delete-only | chromemanagement:customers.profiles.list |
-| chromemanagement | chromemanagement/profiles/commands | 1 | tenant | create | chromemanagement:customers.profiles.commands.list |
-| chromemanagement | chromemanagement/telemetry/notificationconfigs | 0 | tenant | create | chromemanagement:customers.telemetry.notificationConfigs.list |
-| cloudasset | cloudasset/feeds | 0 | project | create | cloudasset:feeds.list |
-| cloudasset | cloudasset/savedqueries | 0 | project | create | cloudasset:savedQueries.list |
+| cloudasset | cloudasset/feeds | 0 | unscoped | create | cloudasset:feeds.list |
+| cloudasset | cloudasset/savedqueries | 0 | unscoped | create | cloudasset:savedQueries.list |
 | cloudbilling | cloudbilling/billingaccounts | 0 | org | create | cloudbilling:billingAccounts.list, cloudbilling:organizations.billingAccounts.list |
-| cloudbilling | cloudbilling/subaccounts | 0 | billing-account | create | cloudbilling:billingAccounts.subAccounts.list |
+| cloudbilling | cloudbilling/billingaccounts/subaccounts | 1 | billing-account | create | cloudbilling:billingAccounts.subAccounts.list |
 | cloudbuild | cloudbuild/bitbucketserverconfigs | 0 | project | create | cloudbuild:projects.locations.bitbucketServerConfigs.list |
 | cloudbuild | cloudbuild/builds | 0 | project | create | cloudbuild:projects.builds.list, cloudbuild:projects.locations.builds.list |
 | cloudbuild | cloudbuild/gitlabconfigs | 0 | project | create | cloudbuild:projects.locations.gitLabConfigs.list |
+| cloudcommerceprocurement | cloudcommerceprocurement/providers/entitlements | 1 | global | mutable | cloudcommerceprocurement:providers.entitlements.list |
 | cloudcontrolspartner | cloudcontrolspartner/customers | 0 | org | create | cloudcontrolspartner:organizations.locations.customers.list |
+| clouddebugger | clouddebugger/debuggees/breakpoints | 1 | global | delete-only | clouddebugger:controller.debuggees.breakpoints.list, clouddebugger:debugger.debuggees.breakpoints.list |
 | clouddeploy | clouddeploy/customtargettypes | 0 | project | create | clouddeploy:projects.locations.customTargetTypes.list |
 | clouddeploy | clouddeploy/deliverypipelines | 0 | project | create | clouddeploy:projects.locations.deliveryPipelines.list |
 | clouddeploy | clouddeploy/deliverypipelines/automations | 1 | project | create | clouddeploy:projects.locations.deliveryPipelines.automations.list |
@@ -4926,25 +4798,27 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cloudkms | cloudkms/singletenanthsminstances/proposals | 1 | project | create | cloudkms:projects.locations.singleTenantHsmInstances.proposals.list |
 | cloudprofiler | cloudprofiler/profiles | 0 | project | create | cloudprofiler:projects.profiles.list |
 | cloudscheduler | cloudscheduler/jobs | 0 | project | create | cloudscheduler:projects.locations.jobs.list |
-| cloudsupport | cloudsupport/cases | 0 | project | create | cloudsupport:cases.list |
-| cloudsupport | cloudsupport/cases/comments | 1 | project | create | cloudsupport:cases.comments.list |
+| cloudsupport | cloudsupport/cases | 0 | unscoped | create | cloudsupport:cases.list, cloudsupport:cases.search |
+| cloudsupport | cloudsupport/cases/attachments | 1 | unscoped | create | cloudsupport:cases.attachments.list |
+| cloudsupport | cloudsupport/cases/comments | 1 | unscoped | create | cloudsupport:cases.comments.list |
 | cloudsupport | cloudsupport/supporteventsubscriptions | 0 | org | create | cloudsupport:organizations.supportEventSubscriptions.list |
 | cloudtasks | cloudtasks/queues | 0 | project | create | cloudtasks:projects.locations.queues.list |
 | cloudtasks | cloudtasks/queues/tasks | 1 | project | create | cloudtasks:projects.locations.queues.tasks.list |
 | composer | composer/environments/userworkloadssecrets | 1 | project | create | composer:projects.locations.environments.userWorkloadsSecrets.list |
-| compute | compute/firewallpolicies | 0 | project | create | compute:firewallPolicies.list, compute:networkFirewallPolicies.aggregatedList |
-| compute | compute/globalvmextensionpolicies | 0 | project | create | compute:folderGlobalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.list, compute:organizationGlobalVmExtensionPolicies.aggregatedList |
+| compute | compute/firewallpolicies | 0 | global | create | compute:firewallPolicies.list |
+| compute | compute/globalvmextensionpolicies | 0 | project | create | compute:globalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.list, compute:globalVmExtensionPolicies.listVmExtensions |
+| compute | compute/hosts | 0 | project | mutable | compute:hosts.list |
 | compute | compute/licenses | 0 | project | create | compute:licenses.list |
-| compute | compute/organizationsecuritypolicies | 0 | project | create | compute:organizationSecurityPolicies.list, compute:securityPolicies.aggregatedList |
+| compute | compute/organizationsecuritypolicies | 0 | global | create | compute:organizationSecurityPolicies.list |
 | compute | compute/previewfeatures | 0 | project | mutable | compute:previewFeatures.list |
 | compute | compute/reservationslots | 3 | project | mutable | compute:reservationSlots.list |
 | compute | compute/rolloutplans | 0 | project | create | compute:rolloutPlans.list |
 | compute | compute/rollouts | 0 | project | delete-only | compute:rollouts.list |
-| compute | compute/zonevmextensionpolicies | 0 | project | create | compute:folderGlobalVmExtensionPolicies.aggregatedList, compute:globalVmExtensionPolicies.aggregatedList, compute:organizationGlobalVmExtensionPolicies.aggregatedList, compute:zoneVmExtensionPolicies.list |
+| compute | compute/zonevmextensionpolicies | 0 | project | create | compute:globalVmExtensionPolicies.aggregatedList, compute:zoneVmExtensionPolicies.list, compute:zoneVmExtensionPolicies.listVmExtensions |
 | config | config/deploymentgroups | 0 | project | create | config:projects.locations.deploymentGroups.list |
 | config | config/deployments | 0 | project | create | config:projects.locations.deployments.list |
 | config | config/previews | 0 | project | create | config:projects.locations.previews.list |
-| connectors | connectors/connections | 0 | project | create | connectors:projects.locations.connections.list |
+| connectors | connectors/connections | 0 | project | create | connectors:projects.locations.connections.list, connectors:projects.locations.connections.search |
 | connectors | connectors/connections/enduserauthentications | 1 | project | create | connectors:projects.locations.connections.endUserAuthentications.list |
 | connectors | connectors/connections/entitytypes/entities | 2 | project | create | connectors:projects.locations.connections.entityTypes.entities.list |
 | connectors | connectors/connections/eventsubscriptions | 1 | project | create | connectors:projects.locations.connections.eventSubscriptions.list |
@@ -4956,7 +4830,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | contactcenterinsights | contactcenterinsights/assessmentrules | 0 | project | create | contactcenterinsights:projects.locations.assessmentRules.list |
 | contactcenterinsights | contactcenterinsights/assistantsessions | 0 | project | create | contactcenterinsights:projects.locations.assistantSessions.list |
 | contactcenterinsights | contactcenterinsights/authorizedviewsets | 0 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.list |
-| contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews | 1 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.list |
+| contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews | 1 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.list, contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.search |
 | contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews/conversations | 2 | project | delete-only | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.conversations.list |
 | contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews/conversations/assessments | 3 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.conversations.assessments.list |
 | contactcenterinsights | contactcenterinsights/authorizedviewsets/authorizedviews/conversations/assessments/notes | 4 | project | create | contactcenterinsights:projects.locations.authorizedViewSets.authorizedViews.conversations.assessments.notes.list |
@@ -4980,9 +4854,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | contactcenterinsights | contactcenterinsights/qascorecards/revisions | 1 | project | create | contactcenterinsights:projects.locations.qaScorecards.revisions.list |
 | contactcenterinsights | contactcenterinsights/qascorecards/revisions/qaquestions | 2 | project | create | contactcenterinsights:projects.locations.qaScorecards.revisions.qaQuestions.list |
 | contactcenterinsights | contactcenterinsights/views | 0 | project | create | contactcenterinsights:projects.locations.views.list |
-| containeranalysis | containeranalysis/notes | 0 | project | create | containeranalysis:projects.locations.notes.list, containeranalysis:projects.notes.list |
+| containeranalysis | containeranalysis/notes | 0 | project | create | containeranalysis:projects.locations.notes.list, containeranalysis:projects.notes.list, containeranalysis:providers.notes.list |
 | containeranalysis | containeranalysis/occurrences | 0 | project | create | containeranalysis:projects.locations.occurrences.list, containeranalysis:projects.occurrences.list |
-| contentwarehouse | contentwarehouse/documents | 0 | project | create | contentwarehouse:projects.locations.documents.search |
 | contentwarehouse | contentwarehouse/documentschemas | 0 | project | create | contentwarehouse:projects.locations.documentSchemas.list |
 | contentwarehouse | contentwarehouse/rulesets | 0 | project | create | contentwarehouse:projects.locations.ruleSets.list |
 | contentwarehouse | contentwarehouse/synonymsets | 0 | project | create | contentwarehouse:projects.locations.synonymSets.list |
@@ -5008,6 +4881,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datamigration | datamigration/conversionworkspaces | 0 | project | create | datamigration:projects.locations.conversionWorkspaces.list |
 | datamigration | datamigration/conversionworkspaces/mappingrules | 1 | project | create | datamigration:projects.locations.conversionWorkspaces.mappingRules.list |
 | datamigration | datamigration/migrationjobs | 0 | project | create | datamigration:projects.locations.migrationJobs.list |
+| datamigration | datamigration/migrationjobs/objects | 1 | project | create | datamigration:projects.locations.migrationJobs.objects.list |
 | datamigration | datamigration/privateconnections | 0 | project | create | datamigration:projects.locations.privateConnections.list |
 | datapipelines | datapipelines/pipelines | 0 | project | create | datapipelines:projects.locations.pipelines.list |
 | dataplex | dataplex/aspecttypes | 0 | project | create | dataplex:projects.locations.aspectTypes.list |
@@ -5040,20 +4914,21 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datastream | datastream/privateconnections | 0 | project | create | datastream:projects.locations.privateConnections.list |
 | datastream | datastream/privateconnections/routes | 1 | project | create | datastream:projects.locations.privateConnections.routes.list |
 | datastream | datastream/streams | 0 | project | create | datastream:projects.locations.streams.list |
+| datastream | datastream/streams/objects | 1 | project | create | datastream:projects.locations.streams.objects.list |
 | deploymentmanager | deploymentmanager/deployments | 0 | project | create | deploymentmanager:deployments.list |
 | developerconnect | developerconnect/accountconnectors | 0 | project | create | developerconnect:projects.locations.accountConnectors.list |
 | developerconnect | developerconnect/accountconnectors/users | 1 | project | delete-only | developerconnect:projects.locations.accountConnectors.users.list |
 | developerconnect | developerconnect/connections | 0 | project | create | developerconnect:projects.locations.connections.list |
 | developerconnect | developerconnect/connections/gitrepositorylinks | 1 | project | create | developerconnect:projects.locations.connections.gitRepositoryLinks.list |
 | developerconnect | developerconnect/insightsconfigs | 0 | project | create | developerconnect:projects.locations.insightsConfigs.list |
+| dialogflow | dialogflow/agent | 0 | project | create | dialogflow:projects.agent.search, dialogflow:projects.locations.agent.search |
 | dialogflow | dialogflow/agent/entitytypes | 0 | project | create | dialogflow:projects.agent.entityTypes.list, dialogflow:projects.locations.agent.entityTypes.list |
 | dialogflow | dialogflow/agent/environments | 0 | project | create | dialogflow:projects.agent.environments.list, dialogflow:projects.locations.agent.environments.list |
-| dialogflow | dialogflow/agent/environments/users/sessions/contexts | 3 | project | create | dialogflow:projects.agent.environments.users.sessions.contexts.list, dialogflow:projects.locations.agent.environments.users.sessions.contexts.list |
+| dialogflow | dialogflow/agent/environments/users/sessions/contexts | 3 | project | create | dialogflow:projects.agent.environments.users.sessions.contexts.list, dialogflow:projects.agent.sessions.contexts.list, dialogflow:projects.locations.agent.environments.users.sessions.contexts.list, dialogflow:projects.locations.agent.sessions.contexts.list |
 | dialogflow | dialogflow/agent/environments/users/sessions/entitytypes | 3 | project | create | dialogflow:projects.agent.environments.users.sessions.entityTypes.list, dialogflow:projects.locations.agent.environments.users.sessions.entityTypes.list |
 | dialogflow | dialogflow/agent/intents | 0 | project | create | dialogflow:projects.agent.intents.list, dialogflow:projects.locations.agent.intents.list |
 | dialogflow | dialogflow/agent/knowledgebases | 0 | project | create | dialogflow:projects.agent.knowledgeBases.list |
 | dialogflow | dialogflow/agent/knowledgebases/documents | 1 | project | create | dialogflow:projects.agent.knowledgeBases.documents.list |
-| dialogflow | dialogflow/agent/sessions/contexts | 1 | project | create | dialogflow:projects.agent.sessions.contexts.list, dialogflow:projects.locations.agent.sessions.contexts.list |
 | dialogflow | dialogflow/agent/sessions/entitytypes | 1 | project | create | dialogflow:projects.agent.sessions.entityTypes.list, dialogflow:projects.locations.agent.sessions.entityTypes.list |
 | dialogflow | dialogflow/agent/versions | 0 | project | create | dialogflow:projects.agent.versions.list, dialogflow:projects.locations.agent.versions.list |
 | dialogflow | dialogflow/agents | 0 | project | create | dialogflow:projects.locations.agents.list |
@@ -5091,7 +4966,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dialogflow | dialogflow/siptrunks | 0 | project | create | dialogflow:projects.locations.sipTrunks.list |
 | dialogflow | dialogflow/tools | 0 | project | create | dialogflow:projects.locations.tools.list |
 | discoveryengine | discoveryengine/cmekconfigs | 0 | project | delete-only | discoveryengine:projects.locations.cmekConfigs.list |
-| discoveryengine | discoveryengine/collections/datastores | 1 | project | create | discoveryengine:projects.locations.collections.dataStores.list |
 | discoveryengine | discoveryengine/collections/datastores/branches/documents | 3 | project | create | discoveryengine:projects.locations.collections.dataStores.branches.documents.list |
 | discoveryengine | discoveryengine/collections/datastores/controls | 2 | project | create | discoveryengine:projects.locations.collections.dataStores.controls.list |
 | discoveryengine | discoveryengine/collections/datastores/conversations | 2 | project | create | discoveryengine:projects.locations.collections.dataStores.conversations.list |
@@ -5107,7 +4981,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | discoveryengine | discoveryengine/collections/engines/conversations | 2 | project | create | discoveryengine:projects.locations.collections.engines.conversations.list |
 | discoveryengine | discoveryengine/collections/engines/servingconfigs | 2 | project | create | discoveryengine:projects.locations.collections.engines.servingConfigs.list |
 | discoveryengine | discoveryengine/collections/engines/sessions | 2 | project | create | discoveryengine:projects.locations.collections.engines.sessions.list |
-| discoveryengine | discoveryengine/datastores | 0 | project | create | discoveryengine:projects.locations.dataStores.list |
+| discoveryengine | discoveryengine/datastores | 0 | project | create | discoveryengine:projects.locations.collections.dataStores.list, discoveryengine:projects.locations.dataStores.list |
 | discoveryengine | discoveryengine/datastores/branches/documents | 2 | project | create | discoveryengine:projects.locations.dataStores.branches.documents.list |
 | discoveryengine | discoveryengine/datastores/controls | 1 | project | create | discoveryengine:projects.locations.dataStores.controls.list |
 | discoveryengine | discoveryengine/datastores/conversations | 1 | project | create | discoveryengine:projects.locations.dataStores.conversations.list |
@@ -5117,11 +4991,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | discoveryengine | discoveryengine/datastores/sitesearchengine/sitemaps | 1 | project | create | discoveryengine:projects.locations.dataStores.siteSearchEngine.sitemaps.fetch |
 | discoveryengine | discoveryengine/datastores/sitesearchengine/targetsites | 1 | project | create | discoveryengine:projects.locations.dataStores.siteSearchEngine.targetSites.list |
 | discoveryengine | discoveryengine/identitymappingstores | 0 | project | create | discoveryengine:projects.locations.identityMappingStores.list |
-| dlp | dlp/connections | 0 | project | create | dlp:organizations.locations.connections.list, dlp:projects.locations.connections.list |
+| dlp | dlp/connections | 0 | project | create | dlp:organizations.locations.connections.list, dlp:organizations.locations.connections.search, dlp:projects.locations.connections.list, dlp:projects.locations.connections.search |
 | dlp | dlp/contentpolicies | 0 | project | create | dlp:projects.locations.contentPolicies.list |
 | dlp | dlp/deidentifytemplates | 0 | project | create | dlp:organizations.deidentifyTemplates.list, dlp:organizations.locations.deidentifyTemplates.list, dlp:projects.deidentifyTemplates.list, dlp:projects.locations.deidentifyTemplates.list |
 | dlp | dlp/discoveryconfigs | 0 | project | create | dlp:organizations.locations.discoveryConfigs.list, dlp:projects.locations.discoveryConfigs.list |
-| dlp | dlp/dlpjobs | 0 | project | create | dlp:organizations.locations.dlpJobs.list, dlp:projects.dlpJobs.list, dlp:projects.locations.dlpJobs.list |
+| dlp | dlp/dlpjobs | 0 | project | create | dlp:projects.dlpJobs.list, dlp:projects.locations.dlpJobs.list |
 | dlp | dlp/filestoredataprofiles | 0 | project | delete-only | dlp:organizations.locations.fileStoreDataProfiles.list, dlp:projects.locations.fileStoreDataProfiles.list |
 | dlp | dlp/inspecttemplates | 0 | project | create | dlp:organizations.inspectTemplates.list, dlp:organizations.locations.inspectTemplates.list, dlp:projects.inspectTemplates.list, dlp:projects.locations.inspectTemplates.list |
 | dlp | dlp/jobtriggers | 0 | project | create | dlp:organizations.locations.jobTriggers.list, dlp:projects.jobTriggers.list, dlp:projects.locations.jobTriggers.list |
@@ -5133,7 +5007,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | documentai | documentai/schemas | 0 | project | create | documentai:projects.locations.schemas.list |
 | documentai | documentai/schemas/schemaversions | 1 | project | create | documentai:projects.locations.schemas.schemaVersions.list |
 | domains | domains/registrations | 0 | project | delete-only | domains:projects.locations.registrations.list |
-| essentialcontacts | essentialcontacts/contacts | 0 | project | create | essentialcontacts:folders.contacts.list, essentialcontacts:organizations.contacts.list, essentialcontacts:projects.contacts.list |
+| essentialcontacts | essentialcontacts/contacts | 0 | project | create | essentialcontacts:folders.contacts.compute, essentialcontacts:folders.contacts.list, essentialcontacts:organizations.contacts.compute, essentialcontacts:organizations.contacts.list, essentialcontacts:projects.contacts.compute, essentialcontacts:projects.contacts.list |
 | eventarc | eventarc/channelconnections | 0 | project | create | eventarc:projects.locations.channelConnections.list |
 | eventarc | eventarc/channels | 0 | project | create | eventarc:projects.locations.channels.list |
 | eventarc | eventarc/enrollments | 0 | project | create | eventarc:projects.locations.enrollments.list |
@@ -5169,14 +5043,14 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | gkebackup | gkebackup/restoreplans | 0 | project | create | gkebackup:projects.locations.restorePlans.list |
 | gkebackup | gkebackup/restoreplans/restores | 1 | project | create | gkebackup:projects.locations.restorePlans.restores.list |
 | gkehub | gkehub/features | 0 | project | create | gkehub:projects.locations.features.list |
-| gkehub | gkehub/fleets | 0 | project | create | gkehub:organizations.locations.fleets.list, gkehub:projects.locations.fleets.list |
-| gkehub | gkehub/memberships | 0 | project | create | gkehub:projects.locations.memberships.list |
+| gkehub | gkehub/fleets | 0 | project | create | gkehub:projects.locations.fleets.list |
+| gkehub | gkehub/memberships | 0 | project | create | gkehub:projects.locations.memberships.list, gkehub:projects.locations.memberships.listAdmin |
 | gkehub | gkehub/memberships/bindings | 1 | project | create | gkehub:projects.locations.memberships.bindings.list |
 | gkehub | gkehub/memberships/features | 1 | project | create | gkehub:projects.locations.memberships.features.list |
 | gkehub | gkehub/memberships/rbacrolebindings | 1 | project | create | gkehub:projects.locations.memberships.rbacrolebindings.list |
 | gkehub | gkehub/rollouts | 0 | project | delete-only | gkehub:projects.locations.rollouts.list |
 | gkehub | gkehub/rolloutsequences | 0 | project | create | gkehub:projects.locations.rolloutSequences.list |
-| gkehub | gkehub/scopes | 0 | project | create | gkehub:projects.locations.scopes.list |
+| gkehub | gkehub/scopes | 0 | project | create | gkehub:projects.locations.scopes.list, gkehub:projects.locations.scopes.listPermitted |
 | gkehub | gkehub/scopes/namespaces | 1 | project | create | gkehub:projects.locations.scopes.namespaces.list |
 | gkehub | gkehub/scopes/rbacrolebindings | 1 | project | create | gkehub:projects.locations.scopes.rbacrolebindings.list |
 | gkeonprem | gkeonprem/baremetaladminclusters | 0 | project | create | gkeonprem:projects.locations.bareMetalAdminClusters.list |
@@ -5196,9 +5070,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | healthcare | healthcare/datasets/consentstores/userdatamappings | 2 | project | create | healthcare:projects.locations.datasets.consentStores.userDataMappings.list |
 | healthcare | healthcare/datasets/dicomstores | 1 | project | create | healthcare:projects.locations.datasets.dicomStores.list |
 | healthcare | healthcare/datasets/fhirstores | 1 | project | create | healthcare:projects.locations.datasets.fhirStores.list |
-| healthcare | healthcare/datasets/fhirstores/fhir | 2 | project | create | healthcare:projects.locations.datasets.fhirStores.fhir.search |
 | healthcare | healthcare/datasets/hl7v2stores | 1 | project | create | healthcare:projects.locations.datasets.hl7V2Stores.list |
-| healthcare | healthcare/datasets/hl7v2stores/messages | 2 | project | create | healthcare:projects.locations.datasets.hl7V2Stores.messages.list |
+| healthcare | healthcare/datasets/hl7v2stores/messages | 2 | project | create | healthcare:projects.locations.datasets.hl7V2Stores.messages.batchGet, healthcare:projects.locations.datasets.hl7V2Stores.messages.list |
 | hypercomputecluster | hypercomputecluster/clusters | 0 | project | create | hypercomputecluster:projects.locations.clusters.list |
 | iam | iam/workforcepools/providers/keys | 2 | global | create | iam:locations.workforcePools.providers.keys.list |
 | iam | iam/workforcepools/providers/scimtenants/tokens | 3 | global | create | iam:locations.workforcePools.providers.scimTenants.tokens.list |
@@ -5214,24 +5087,19 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | identitytoolkit | identitytoolkit/tenants/inboundsamlconfigs | 1 | project | create | identitytoolkit:projects.tenants.inboundSamlConfigs.list |
 | identitytoolkit | identitytoolkit/tenants/oauthidpconfigs | 1 | project | create | identitytoolkit:projects.tenants.oauthIdpConfigs.list |
 | ids | ids/endpoints | 0 | project | create | ids:projects.locations.endpoints.list |
-| integrations | integrations/authconfigs | 0 | project | create | integrations:projects.locations.authConfigs.list |
-| integrations | integrations/certificates | 0 | project | create | integrations:projects.locations.certificates.list |
-| integrations | integrations/integrations | 0 | project | delete-only | integrations:projects.locations.integrations.list |
+| integrations | integrations/authconfigs | 0 | project | create | integrations:projects.locations.authConfigs.list, integrations:projects.locations.products.authConfigs.list |
+| integrations | integrations/certificates | 0 | project | create | integrations:projects.locations.certificates.list, integrations:projects.locations.products.certificates.list |
+| integrations | integrations/integrations | 0 | project | delete-only | integrations:projects.locations.integrations.list, integrations:projects.locations.products.integrations.list |
 | integrations | integrations/integrations/versions | 1 | project | create | integrations:projects.locations.integrations.versions.list |
-| integrations | integrations/products/authconfigs | 1 | project | create | integrations:projects.locations.products.authConfigs.list |
-| integrations | integrations/products/certificates | 1 | project | create | integrations:projects.locations.products.certificates.list |
-| integrations | integrations/products/integrations | 1 | project | delete-only | integrations:projects.locations.products.integrations.list |
 | integrations | integrations/products/integrations/versions | 2 | project | create | integrations:projects.locations.products.integrations.versions.list |
-| integrations | integrations/products/sfdcinstances | 1 | project | create | integrations:projects.locations.products.sfdcInstances.list |
 | integrations | integrations/products/sfdcinstances/sfdcchannels | 2 | project | create | integrations:projects.locations.products.sfdcInstances.sfdcChannels.list |
-| integrations | integrations/sfdcinstances | 0 | project | create | integrations:projects.locations.sfdcInstances.list |
+| integrations | integrations/sfdcinstances | 0 | project | create | integrations:projects.locations.products.sfdcInstances.list, integrations:projects.locations.sfdcInstances.list |
 | integrations | integrations/sfdcinstances/sfdcchannels | 1 | project | create | integrations:projects.locations.sfdcInstances.sfdcChannels.list |
-| jobs | jobs/companies | 0 | project | create | jobs:projects.companies.list |
-| jobs | jobs/jobs | 0 | project | create | jobs:projects.jobs.list |
+| jobs | jobs/companies | 0 | project | create | jobs:companies.list, jobs:projects.companies.list |
+| jobs | jobs/jobs | 0 | project | create | jobs:jobs.list, jobs:projects.jobs.list |
 | jobs | jobs/tenants | 0 | project | create | jobs:projects.tenants.list |
 | jobs | jobs/tenants/companies | 1 | project | create | jobs:projects.tenants.companies.list |
 | jobs | jobs/tenants/jobs | 1 | project | create | jobs:projects.tenants.jobs.list |
-| logging | logging/logs | 0 | project | delete-only | logging:billingAccounts.logs.list, logging:folders.logs.list, logging:logs.list, logging:organizations.logs.list, logging:projects.logs.list |
 | looker | looker/instances | 0 | project | create | looker:projects.locations.instances.list |
 | looker | looker/instances/backups | 1 | project | create | looker:projects.locations.instances.backups.list |
 | managedidentities | managedidentities/domains | 0 | project | create | managedidentities:projects.locations.global.domains.list |
@@ -5244,10 +5112,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | managedkafka | managedkafka/connectclusters | 0 | project | create | managedkafka:projects.locations.connectClusters.list |
 | managedkafka | managedkafka/connectclusters/connectors | 1 | project | create | managedkafka:projects.locations.connectClusters.connectors.list |
 | managedkafka | managedkafka/schemaregistries | 0 | project | create | managedkafka:projects.locations.schemaRegistries.list |
-| managedkafka | managedkafka/schemaregistries/contexts/subjects | 2 | project | delete-only | managedkafka:projects.locations.schemaRegistries.contexts.subjects.list |
-| managedkafka | managedkafka/schemaregistries/contexts/subjects/versions | 3 | project | create | managedkafka:projects.locations.schemaRegistries.contexts.subjects.versions.list |
-| managedkafka | managedkafka/schemaregistries/subjects | 1 | project | delete-only | managedkafka:projects.locations.schemaRegistries.subjects.list |
-| managedkafka | managedkafka/schemaregistries/subjects/versions | 2 | project | create | managedkafka:projects.locations.schemaRegistries.subjects.versions.list |
 | memcache | memcache/instances | 0 | project | create | memcache:projects.locations.instances.list |
 | metastore | metastore/federations | 0 | project | create | metastore:projects.locations.federations.list |
 | metastore | metastore/services | 0 | project | create | metastore:projects.locations.services.list |
@@ -5270,7 +5134,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ml | ml/studies | 0 | project | create | ml:projects.locations.studies.list |
 | ml | ml/studies/trials | 1 | project | create | ml:projects.locations.studies.trials.list |
 | monitoring | monitoring/metricdescriptors | 0 | project | create | monitoring:projects.metricDescriptors.list |
-| monitoring | monitoring/timeseries | 0 | project | create | monitoring:folders.timeSeries.list, monitoring:organizations.timeSeries.list, monitoring:projects.timeSeries.list |
 | netapp | netapp/activedirectories | 0 | project | create | netapp:projects.locations.activeDirectories.list |
 | netapp | netapp/backuppolicies | 0 | project | create | netapp:projects.locations.backupPolicies.list |
 | netapp | netapp/backupvaults | 0 | project | create | netapp:projects.locations.backupVaults.list |
@@ -5300,7 +5163,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | networkconnectivity | networkconnectivity/transports | 0 | project | create | networkconnectivity:projects.locations.transports.list |
 | networkmanagement | networkmanagement/connectivitytests | 0 | project | create | networkmanagement:projects.locations.global.connectivityTests.list |
 | networkmanagement | networkmanagement/networkmonitoringproviders | 0 | project | create | networkmanagement:projects.locations.networkMonitoringProviders.list |
-| networkmanagement | networkmanagement/vpcflowlogsconfigs | 0 | project | create | networkmanagement:organizations.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.list |
+| networkmanagement | networkmanagement/vpcflowlogsconfigs | 0 | project | create | networkmanagement:organizations.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.list, networkmanagement:projects.locations.vpcFlowLogsConfigs.queryOrgVpcFlowLogsConfigs |
 | networksecurity | networksecurity/addressgroups | 0 | project | create | networksecurity:organizations.locations.addressGroups.list, networksecurity:projects.locations.addressGroups.list |
 | networksecurity | networksecurity/authorizationpolicies | 0 | project | create | networksecurity:projects.locations.authorizationPolicies.list |
 | networksecurity | networksecurity/authzpolicies | 0 | project | create | networksecurity:projects.locations.authzPolicies.list |
@@ -5367,6 +5230,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | orgpolicy | orgpolicy/policies | 0 | project | create | orgpolicy:folders.policies.list, orgpolicy:organizations.policies.list, orgpolicy:projects.policies.list |
 | osconfig | osconfig/ospolicyassignments | 0 | project | create | osconfig:projects.locations.osPolicyAssignments.list |
 | osconfig | osconfig/patchdeployments | 0 | project | create | osconfig:projects.patchDeployments.list |
+| osconfig | osconfig/patchjobs | 0 | project | create | osconfig:projects.patchJobs.list |
 | osconfig | osconfig/policyorchestrators | 0 | project | create | osconfig:folders.locations.global.policyOrchestrators.list, osconfig:organizations.locations.global.policyOrchestrators.list, osconfig:projects.locations.global.policyOrchestrators.list |
 | parallelstore | parallelstore/instances | 0 | project | create | parallelstore:projects.locations.instances.list |
 | parametermanager | parametermanager/parameters | 0 | project | create | parametermanager:projects.locations.parameters.list |
@@ -5404,9 +5268,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | saasservicemgmt | saasservicemgmt/saas | 0 | project | create | saasservicemgmt:projects.locations.saas.list |
 | saasservicemgmt | saasservicemgmt/tenants | 0 | project | create | saasservicemgmt:projects.locations.tenants.list |
 | saasservicemgmt | saasservicemgmt/unitkinds | 0 | project | create | saasservicemgmt:projects.locations.unitKinds.list |
+| saasservicemgmt | saasservicemgmt/unitoperations | 0 | project | create | saasservicemgmt:projects.locations.unitOperations.list |
 | saasservicemgmt | saasservicemgmt/units | 0 | project | create | saasservicemgmt:projects.locations.units.list |
-| script | script/deployments | 0 | project | create | script:projects.deployments.list |
-| script | script/versions | 0 | project | create | script:projects.versions.list |
 | securesourcemanager | securesourcemanager/instances | 0 | project | create | securesourcemanager:projects.locations.instances.list |
 | securesourcemanager | securesourcemanager/repositories | 0 | project | create | securesourcemanager:projects.locations.repositories.list |
 | securesourcemanager | securesourcemanager/repositories/branchrules | 1 | project | create | securesourcemanager:projects.locations.repositories.branchRules.list |
@@ -5416,22 +5279,28 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securesourcemanager | securesourcemanager/repositories/pullrequests | 1 | project | create | securesourcemanager:projects.locations.repositories.pullRequests.list |
 | securesourcemanager | securesourcemanager/repositories/pullrequests/pullrequestcomments | 2 | project | create | securesourcemanager:projects.locations.repositories.pullRequests.pullRequestComments.list |
 | securitycenter | securitycenter/bigqueryexports | 0 | project | create | securitycenter:folders.bigQueryExports.list, securitycenter:organizations.bigQueryExports.list, securitycenter:projects.bigQueryExports.list |
-| securitycenter | securitycenter/eventthreatdetectionsettings/custommodules | 0 | project | create | securitycenter:folders.eventThreatDetectionSettings.customModules.list, securitycenter:organizations.eventThreatDetectionSettings.customModules.list, securitycenter:projects.eventThreatDetectionSettings.customModules.list |
+| securitycenter | securitycenter/eventthreatdetectionsettings/custommodules | 0 | project | create | securitycenter:folders.eventThreatDetectionSettings.customModules.list, securitycenter:folders.eventThreatDetectionSettings.customModules.listDescendant, securitycenter:organizations.eventThreatDetectionSettings.customModules.list, securitycenter:organizations.eventThreatDetectionSettings.customModules.listDescendant, securitycenter:projects.eventThreatDetectionSettings.customModules.list, securitycenter:projects.eventThreatDetectionSettings.customModules.listDescendant |
 | securitycenter | securitycenter/muteconfigs | 0 | project | create | securitycenter:folders.muteConfigs.list, securitycenter:organizations.muteConfigs.list, securitycenter:projects.muteConfigs.list |
 | securitycenter | securitycenter/notificationconfigs | 0 | project | create | securitycenter:folders.notificationConfigs.list, securitycenter:organizations.notificationConfigs.list, securitycenter:projects.notificationConfigs.list |
 | securitycenter | securitycenter/resourcevalueconfigs | 0 | org | delete-only | securitycenter:organizations.resourceValueConfigs.list |
-| securitycenter | securitycenter/securityhealthanalyticssettings/custommodules | 0 | project | create | securitycenter:folders.securityHealthAnalyticsSettings.customModules.list, securitycenter:organizations.securityHealthAnalyticsSettings.customModules.list, securitycenter:projects.securityHealthAnalyticsSettings.customModules.list |
-| securitycenter | securitycenter/sources | 0 | project | create | securitycenter:folders.sources.list, securitycenter:organizations.sources.list, securitycenter:projects.sources.list |
-| securitycenter | securitycenter/sources/findings | 1 | project | create | securitycenter:folders.sources.findings.list, securitycenter:organizations.sources.findings.list, securitycenter:projects.sources.findings.list |
+| securitycenter | securitycenter/securityhealthanalyticssettings/custommodules | 0 | project | create | securitycenter:folders.securityHealthAnalyticsSettings.customModules.list, securitycenter:folders.securityHealthAnalyticsSettings.customModules.listDescendant, securitycenter:organizations.securityHealthAnalyticsSettings.customModules.list, securitycenter:organizations.securityHealthAnalyticsSettings.customModules.listDescendant, securitycenter:projects.securityHealthAnalyticsSettings.customModules.list, securitycenter:projects.securityHealthAnalyticsSettings.customModules.listDescendant |
+| securitycenter | securitycenter/sources | 0 | org | create | securitycenter:organizations.sources.list |
 | securityposture | securityposture/posturedeployments | 0 | org | create | securityposture:organizations.locations.postureDeployments.list |
 | securityposture | securityposture/postures | 0 | org | create | securityposture:organizations.locations.postures.list |
+| serviceconsumermanagement | serviceconsumermanagement/services/tenancyunits | 1 | global | create | serviceconsumermanagement:services.tenancyUnits.list |
 | servicedirectory | servicedirectory/namespaces | 0 | project | create | servicedirectory:projects.locations.namespaces.list |
 | servicedirectory | servicedirectory/namespaces/services | 1 | project | create | servicedirectory:projects.locations.namespaces.services.list |
 | servicedirectory | servicedirectory/namespaces/services/endpoints | 2 | project | create | servicedirectory:projects.locations.namespaces.services.endpoints.list |
+| servicemanagement | servicemanagement/services | 0 | global | create | servicemanagement:services.list |
+| servicemanagement | servicemanagement/services/configs | 1 | global | create | servicemanagement:services.configs.list |
+| servicemanagement | servicemanagement/services/rollouts | 1 | global | create | servicemanagement:services.rollouts.list |
+| servicenetworking | servicenetworking/services/connections | 1 | global | create | servicenetworking:services.connections.list |
+| servicenetworking | servicenetworking/services/global/networks/peereddnsdomains | 2 | global | create | servicenetworking:services.projects.global.networks.peeredDnsDomains.list |
 | sourcerepo | sourcerepo/repos | 0 | project | create | sourcerepo:projects.repos.list |
 | spanner | spanner/instances/databases/sessions | 2 | project | create | spanner:projects.instances.databases.sessions.list |
 | speech | speech/customclasses | 0 | project | create | speech:projects.locations.customClasses.list |
 | speech | speech/phrasesets | 0 | project | create | speech:projects.locations.phraseSets.list |
+| sqladmin | sqladmin/backups | 0 | project | create | sqladmin:Backups.ListBackups, sqladmin:backups.listBackups |
 | storage | storage/objectaccesscontrols | 2 | global | create | storage:objectAccessControls.list |
 | storage | storage/objects | 1 | global | create | storage:objects.list |
 | storagebatchoperations | storagebatchoperations/jobs | 0 | project | create | storagebatchoperations:projects.locations.jobs.list |
@@ -5476,9 +5345,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vmwareengine | vmwareengine/privateconnections | 0 | project | create | vmwareengine:projects.locations.privateConnections.list |
 | vmwareengine | vmwareengine/vmwareenginenetworks | 0 | project | create | vmwareengine:projects.locations.vmwareEngineNetworks.list |
 | vpcaccess | vpcaccess/connectors | 0 | project | create | vpcaccess:projects.locations.connectors.list |
-| webcontentpublisher | webcontentpublisher/publications | 0 | org | create | webcontentpublisher:organizations.publications.list |
-| webcontentpublisher | webcontentpublisher/publications/ctas | 1 | org | create | webcontentpublisher:organizations.publications.ctas.list |
 | websecurityscanner | websecurityscanner/scanconfigs | 0 | project | create | websecurityscanner:projects.scanConfigs.list |
+| websecurityscanner | websecurityscanner/scanconfigs/scanruns | 1 | project | created-elsewhere | websecurityscanner:projects.scanConfigs.scanRuns.list |
 | workflowexecutions | workflowexecutions/workflows/executions | 1 | project | create | workflowexecutions:projects.locations.workflows.executions.list |
 | workflows | workflows/workflows | 0 | project | create | workflows:projects.locations.workflows.list |
 | workloadmanager | workloadmanager/deployments | 0 | project | create | workloadmanager:projects.locations.deployments.list |
@@ -5486,6 +5354,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workloadmanager | workloadmanager/evaluations | 0 | project | create | workloadmanager:projects.locations.evaluations.list |
 | workloadmanager | workloadmanager/evaluations/executions | 1 | project | delete-only | workloadmanager:projects.locations.evaluations.executions.list |
 | workstations | workstations/workstationclusters | 0 | project | create | workstations:projects.locations.workstationClusters.list |
-| workstations | workstations/workstationclusters/workstationconfigs | 1 | project | create | workstations:projects.locations.workstationClusters.workstationConfigs.list |
-| workstations | workstations/workstationclusters/workstationconfigs/workstations | 2 | project | create | workstations:projects.locations.workstationClusters.workstationConfigs.workstations.list |
+| workstations | workstations/workstationclusters/workstationconfigs | 1 | project | create | workstations:projects.locations.workstationClusters.workstationConfigs.list, workstations:projects.locations.workstationClusters.workstationConfigs.listUsable |
+| workstations | workstations/workstationclusters/workstationconfigs/workstations | 2 | project | create | workstations:projects.locations.workstationClusters.workstationConfigs.workstations.list, workstations:projects.locations.workstationClusters.workstationConfigs.workstations.listUsable |
 

@@ -24,9 +24,10 @@ flowchart LR
     M --> R["covered / uncovered / attribute /<br/>excluded / disco-only"]
 ```
 
-Nothing in this package imports `internal/providers` or `internal/coverage`. The package is pure
-data plus filesystem; the cloud SDKs are never linked, so every build tag and slim build can run
-it.
+Nothing in this package imports `internal/providers` or `internal/coverage`, and nothing in it
+names a provider: each provider's extractor, resolver, pins and fixtures live in an SDK-free leaf
+`internal/providers/<p>/<p>inventory`, and `TestCoreIsProviderNeutral` keeps it that way. The
+cloud SDKs are never linked here or in those leaves.
 
 ## Package layout
 
@@ -34,15 +35,13 @@ it.
 |---|---|
 | `sdkinv.go` | Shared types (`Candidate`, `Operation`, `Universe`), the `Extractor` interface and its registry |
 | `cache.go`, `fetch.go` | Cache directory resolution, manifest, streaming tar/zip extraction with path filters, JSON-index fetch |
-| `pins.go` | The pinned refs (`AWSSDKRef`, `AzureSDKRef`, `GCPAPIRef`); a pin bump changes the denominator |
 | `norm.go` | `Ident` (identity), `Singular` (display), `Canon`, `SortOps` |
-| `pathtmpl.go` | REST path-template parser shared by Azure and GCP: `{param}` segments, scope stripping, depth |
-| `aws/`, `azure/`, `gcp/` | One extractor per provider: `<p>.go` (fetch spec, registration), `extract.go` (rules), `refs.go` (reference fields) |
-| `<p>/testdata/cache/` | A synthetic mini-SDK per provider; the conformance suite and unit tests run against it |
-| `conformance/` | The contract every extractor's fixture must satisfy |
-| `pairing/` | The `go/ast` walker, the `Resolver` interface and one resolver per provider (`aws.go`, `azure.go`, `gcp.go`) |
-| `pairing/testdata/scannerpkg/<p>/` | A synthetic scanner package parsed (never compiled) against the fixture cache |
-| `all/` | Blank imports that register the three extractors; `TestAllExtractorsConform` lives here |
+| `pathtmpl.go` | REST path-template parser for REST-shaped SDKs: `{param}` segments, scope stripping, depth |
+| `conformance/` | The contract every extractor's fixture and live universe must satisfy |
+| `pairing/` | The `go/ast` walker and the `Resolver` interface; `pairing_test.go` pairs a fake provider end to end |
+| `pairing/pairingtest/` | Assertions every provider's resolver tests share |
+| `internal/providers/<p>/<p>inventory/` | Per provider: `<p>.go` (fetch spec, registration), `extract.go` (rules), `refs.go` (reference fields), `resolver.go` (pairing grammar), `pins.go`, `testdata/cache/` (synthetic mini-SDK), `testdata/scannerpkg/` (synthetic scanner package), `CLAUDE.md` |
+| `internal/providers/all/<p>.go` | Slim-gated blank imports that register each provider, its extractor and its resolver |
 
 ## The data model
 
@@ -53,6 +52,9 @@ classDiagram
         Pins map[source]ref
         Candidates []Candidate
         Other []Operation
+        Dropped []Drop
+        SourceOps []OpRef
+        Scopes []Scope
         Diagnostics
     }
     class Candidate {
@@ -73,6 +75,7 @@ classDiagram
         Required / Targets
         Scope
         Module
+        Client
     }
     Universe "1" --> "*" Candidate
     Candidate "1" --> "1..*" Operation
@@ -90,13 +93,13 @@ types or ops.
 | `Class` | What kind of thing the listing returns (table below) | |
 | `Ops` | Every SDK operation that lists or reads it, with the disco **op label** the scanner would use | `ec2:DescribeInstances` |
 | `Refs` | Field paths on the listed element that name *other* resources; the hints `resolvers --missing` shows | `VpcId`, `SubnetIds`, `properties.networkProfile.networkInterfaces` |
-| `Signals` | Audit trail of the rules that fired, so a surprising row can be explained without a debugger | `sr:IsList`, `shape-list`, `child-uncatalogued` |
+| `Signals` | Audit trail of the rules that fired, so a surprising row can be explained without a debugger | `list:sr-list`, `sr:iam-action`, `noun:qualifier-cut` |
 
 | Class | Rule of thumb | Counted in % | Examples |
 |---|---|---|---|
 | `resource` | Listable and persistent; something can be created or deleted | yes | `ec2/instance`, `kms/grant` |
 | `attribute` | A `Get` of one parent's setting, no collection | no (listed) | `iam/accountpasswordpolicy`, `s3/bucket/bucketencryption` |
-| `catalog` | Provider-published, read-only | no | `ec2/instancetype`, `compute/zones`, `microsoft.servicefabric/managedclusterversions` |
+| `catalog` | Provider-published, read-only | no | `ec2/instancetype`, `compute/zones`, `microsoft.authorization/provideroperations` |
 | `non-resource` | Operations, metrics, history, account attributes | no | `iam/accountsummary`, `*/operations` |
 
 `Universe.Other` holds every SDK operation that is **not** a candidate op (writes, item reads,
@@ -121,10 +124,10 @@ $XDG_CACHE_HOME/disco/sdk/
 | `disco coverage sdk status` | Print each provider's ref, presence and path |
 | `disco coverage services` | Extract + pair + report; exit 2 with a hint when the cache is absent |
 
-Pins are the denominator's version. `AWSSDKRef` and `AzureSDKRef` live in `pins.go`; the GCP
-version is read from `debug.ReadBuildInfo()` (`GCPAPIRef` is the fallback and `TestPinMatchesGoMod`
-keeps it equal to `go.mod`). The AWS Service Reference catalog is unversioned, so its pin is the
-newest `modified` stamp in its index. Every report prints the pins; numbers are only comparable
+Pins are the denominator's version. Each provider keeps its own in `<p>inventory/pins.go`; the GCP
+version is read from `debug.ReadBuildInfo()` (`gcpinventory.APIRef` is the fallback and
+`TestPinMatchesGoMod` keeps it equal to `go.mod`). The AWS Service Reference catalog is unversioned, so its pin is a
+content digest of its index (`awsinventory.ServiceReferenceDigest`; a mismatch is reported, not enforced). Every report prints the pins; numbers are only comparable
 across identical pins.
 
 ## Extraction, per provider
@@ -132,20 +135,20 @@ across identical pins.
 Each extractor turns its SDK's own description of the API into candidates. The rules are
 provider-specific because the SDKs are; everything after extraction is shared.
 
-| | AWS (`aws/extract.go`) | Azure (`azure/extract.go`) | GCP (`gcp/extract.go`) |
+| | AWS (`awsinventory/extract.go`) | Azure (`azureinventory/extract.go`) | GCP (`gcpinventory/extract.go`) |
 |---|---|---|---|
-| Source of truth | Smithy model per service + Service Reference catalog (per-action `IsList`/`IsWrite`, target resources, ARN formats) | `urlPath := "..."` literals in generated `*_client.go` request builders | Discovery `*-api.json`: `methods`, `flatPath`/`path`, `parameters[].pattern`, `schemas` |
+| Source of truth | Smithy model per service + Service Reference catalog (per-action `IsList`/`IsWrite`, target resources, ARN formats) | the generated module's syntax tree: each exported client method followed to the request builder (`*policy.Request`, literal `urlPath` + `http.Method`) and response decoder it calls; models, polymorphic interfaces, serde JSON names | Discovery `*-api.json`: `methods`, `flatPath`/`path`, `parameters[].pattern`, `schemas` |
 | Service join key | `aws.auth#sigv4.name` == Service Reference name | ARM namespace after the last `providers/` segment | Discovery API name |
-| What is a lister | `IsList` from the catalog, or a List/Describe with a collection output that no `IsWrite` action claims | any `http.MethodGet` builder whose stripped path does not end in a `{param}` (the paged `Value []*T` shape is typical, not required: ~307 singleton/action GETs come in this way and all land in `excluded`) | Method key `list` or `aggregatedList` |
-| Key | `<service>/<noun>` where noun = op name minus verb, identity-folded | namespace + static path segments after scope pairs are stripped | `<api>/<collection path>`, lower-cased |
-| Depth / parent | Target resources from the catalog, then the subject's own ARN variables, then required id-shaped inputs | `{param}` segments between statics | `{param}` segments between statics; `{+parent}` expanded from the pattern |
-| Class | Catalog resource with an ARN → resource; child with ids → resource; `Get` without collection → attribute; noun with a non-tagging write → resource; else catalog | Item path has PUT/PATCH/DELETE → resource; GET only → catalog; no item path → non-resource | `insert`/`create` or `delete` → resource; `get` only → catalog; else non-resource |
-| Scope params (never a parent) | `AccountId`, `Region`, paging members | `subscriptions/{}`, `resourceGroups/{}`, `locations/{}`, `managementGroups/{}`; `{scope}` first → `extension` | `projects/{}`, `organizations/{}`, `folders/{}`, `billingAccounts/{}`; `locations/zones/regions/{}` |
-| Universe filter | Every service with a Smithy model | Everything under `sdk/resourcemanager` | APIs where some lister's root is a cloud root (192 of 654 docs) |
-| Refs | Output element members matching `idLikeRe`, own id excluded | `*SubResource`/`*Reference` structs and `*ID` strings on the `Value` element | `*Link/*Url/*Id/*Ref/...` string properties or URL/resource-name descriptions |
+| What is a lister | Resource `list` binding, catalog `IsList` without `IsWrite`, then structural rungs (paginated `items`, paged or read-traited collection output); no verb list | a GET on a collection path, except a non-paged GET answering one model (a singleton read) unless it is the only GET on a written collection; the list element is the one identified slice of the decoded model, whatever its name, polymorphic `XClassification` resolved to its base | A GET on a collection path whose response element a sibling confirms (item GET, item write/DELETE, create body, or a GET answering an aggregated map element); no method-name list |
+| Key | `<service>/<noun>`: the bound Smithy resource name, else the op noun (after the first camel word, qualifier cut), folded by shared element shape | namespace (none named: `microsoft.resources`) + static path segments after scope pairs and instance ids are stripped; an instance id is a static the SDK addresses as an item or also spells as `{param}` | `<api>/<Discovery resource path>` minus prefix and scope nodes, lower-cased; same-collection routes folded |
+| Depth / parent | Smithy resource tree, then URI labels, then the catalog ARN format's levels, then required id-shaped inputs | `{param}` segments between statics | `{param}` segments between non-scope statics; parent matched by item path; `{+parent}` expanded from the pattern |
+| Class | Not a lister → attribute; Smithy or catalog resource → resource; child with ids → resource; element written, carrying an ARN, or a creation time → resource; tag element → attribute; no collection → non-resource; else catalog | Item path has PUT/PATCH/DELETE → resource; GET only with an ARM envelope on the element, below a parent or at subscription/resource-group scope, and not reached only through `locations/{l}` → resource; other GET only → catalog; no item path → non-resource | By HTTP method × path: POST/PUT on the collection, a single other POST writer, DELETE or edit on the item → resource; LRO shape or several writers → non-resource; item GET only → catalog |
+| Scope params (never a parent) | `AccountId`, `Region`, paging members | `subscriptions/{}`, `resourceGroups/{}`, `locations/{}`, `managementGroups/{}`; `{scope}` first → `extension` | declared roots `projects`/`organizations`/`folders`/`billingAccounts`/`customers` and placements `locations`/`zones`/`regions`, each only where the document cannot create it; param-first → `unscoped` |
+| Universe filter | Every service with a Smithy model | Everything under `sdk/resourcemanager` | APIs some document of which accepts the `cloud-platform` OAuth scope (193 APIs) |
+| Refs | Output element members matching `idLikeRe`, own id excluded | By shape on the list element, named by serde JSON names: sub-resource structs (ID + at most one field), `…ID`/`…IDs` strings, URI/URL strings beside a sub-resource | `*Link/*Url/*Id/*Ref/...` string properties or URL/resource-name descriptions |
 
-Live sizes at the 2026-09 pins: AWS 5561 candidates / 354 services (3250 resources); Azure 3744
-(1959 resources); GCP 1859 / 192 APIs (1151 resources). The live tests log these; a large swing
+Live sizes at the 2026-09 pins: AWS 5399 candidates / 357 services (3336 resources); Azure 3395
+(2478 resources); GCP 1660 / 193 APIs (1186 resources). The live tests log these; a large swing
 after a pin bump is the signal to re-check anchors.
 
 ### Identity versus display
@@ -184,7 +187,7 @@ that names an op no anchor calls is a diagnostic, and the pairing tests fail on 
 |---|---|---|
 | `emits` | Anchor + the types the function (or its callees) stores | yes |
 | `sidecar` | Anchor, no types: a listing helper; its direct caller is paired with what it stores | yes |
-| `derived` | A dispatcher with no anchor of its own, paired with what its callees list | yes |
+| `derived` | A dispatcher with no anchor of its own: types no anchored callee stores, paired with listings of the same service | yes |
 | `label` | A label literal with no call anywhere | no |
 | `other` | A call to a non-candidate op (`Get`, writes) | no, but explains a type |
 | `skew` | A call the pinned SDK snapshot does not ship | no; see the note below |
@@ -211,30 +214,37 @@ before any `--filter`.
 
 ## Adding a provider
 
-Everything below the extractor is provider-neutral: buckets, percentages, the baseline ratchet,
-renderers, CI, `coverage verify`, `disco-scaffold` and the AST walker. A new provider (OCI, Alibaba,
-DigitalOcean, Kubernetes, …) implements two interfaces and registers from `init()`.
+The sdkinv core, buckets, percentages, the baseline ratchet, renderers, CI, `coverage verify` and
+the AST walker are provider-neutral. A new provider (OCI, Alibaba, DigitalOcean, Kubernetes, …)
+implements two interfaces and registers from `init()`. Two known exceptions remain outside
+`internal/sdkinv`: `internal/coverage` names the Azure-only registry reasons `arm-operation` and
+`location-scoped`, and `disco-scaffold` keeps a per-provider scanner-signature table
+(`cmd/disco-scaffold/gen.go`).
 
 ```mermaid
 flowchart LR
-    E["internal/sdkinv/&lt;p&gt;/<br/>Extractor"] -->|sdkinv.Register| REG1[(extractor registry)]
-    R["internal/sdkinv/pairing/&lt;p&gt;.go<br/>Resolver"] -->|pairing.Register| REG2[(resolver registry)]
-    ALL["internal/sdkinv/all/all.go<br/>blank import"] --> E
-    CONF["conformance.Check against<br/>&lt;p&gt;/testdata/cache"] --> E
-    FIX["pairing/testdata/scannerpkg/&lt;p&gt;"] --> R
+    E["&lt;p&gt;inventory/extract.go<br/>Extractor"] -->|sdkinv.Register| REG1[(extractor registry)]
+    R["&lt;p&gt;inventory/resolver.go<br/>Resolver"] -->|pairing.Register| REG2[(resolver registry)]
+    ALL["internal/providers/all/&lt;p&gt;.go<br/>blank import"] --> E
+    ALL --> R
+    CONF["conformance.Check against<br/>testdata/cache"] --> E
+    FIX["testdata/scannerpkg"] --> R
 ```
 
-1. **Extractor** (`internal/sdkinv/<p>/<p>.go` + `extract.go`), ~300–600 lines:
+All of it lives in one new SDK-free package, `internal/providers/<p>/<p>inventory`; nothing under
+`internal/sdkinv` changes.
+
+1. **Extractor** (`<p>inventory/<p>.go` + `extract.go`), ~300–600 lines:
 
    ```go
    type extractor struct{}
 
    func (extractor) Name() string { return "oci" }
-   func (extractor) Ref() string  { return sdkinv.OCISDKRef } // add the pin to pins.go
+   func (extractor) Ref() string  { return SDKRef } // the pin, in <p>inventory/pins.go
    func (extractor) FetchSpec() []sdkinv.FetchSource {
        return []sdkinv.FetchSource{{
            Name: "oci-go-sdk", Kind: sdkinv.KindTarball,
-           URL:  "https://codeload.github.com/oracle/oci-go-sdk/tar.gz/" + sdkinv.OCISDKRef,
+           URL:  "https://codeload.github.com/oracle/oci-go-sdk/tar.gz/" + SDKRef,
            Dest: "repo", Strip: 1,
            Keep: func(path string) bool { return strings.HasSuffix(path, "_client.go") },
        }}
@@ -243,30 +253,39 @@ flowchart LR
        // read what the SDK ships, build candidates, then:
        //   sort candidates by Key, sort every slice built from a map (Signals, Refs, Ops)
        //   sdkinv.SortOps(u.Other)
+       // account for every operation the sources declare, walked apart from classification:
+       //   u.SourceOps (sdkinv.SortOpRefs) — each lands in a candidate's Ops, u.Other,
+       //   or u.Dropped with a Reason (sdkinv.SortDrops)
+       // declare the scope vocabulary the ops use, narrowest first: u.Scopes
    }
 
    func init() { sdkinv.Register(extractor{}) }
    ```
 
-   For a REST/OpenAPI-shaped SDK reuse `pathtmpl.go` (`ParseTemplate`, `StripScopes`) the way
+   For a REST/OpenAPI-shaped SDK reuse `pathtmpl.go` (`ParseTemplate`, `SplitVerb`, `StripScopes`) the way
    Azure and GCP do; the rules you must decide are the scope-parameter set, what marks a lister,
    and the class signals (item mutability, catalog markers).
 
-2. **Fixture** at `internal/sdkinv/<p>/testdata/cache/` — a synthetic mini-SDK holding at least one
+2. **Fixture** at `<p>inventory/testdata/cache/`, checked by `conformance.Check`
+   (run for you by `TestInventoriesConform`) — a synthetic mini-SDK holding at least one
    resource, one catalog and one non-resource candidate, depth 0 and depth 1, and one candidate
    with refs. `conformance.Check` asserts that plus determinism (two extracts `DeepEqual`), sorted
-   keys, every parent present and every op label containing `:`.
+   keys, every parent present, every op label containing `:`, every source operation accounted for
+   (`conformance.CheckUniverse`, which the live-cache test also runs) and every op scope declared
+   in `Universe.Scopes`.
 
-3. **Register** the package with a blank import in `internal/sdkinv/all/all.go` and add the name to
-   `TestExtractorsRegistered`. `TestAllExtractorsConform` now runs your fixture on every
-   `go test`.
+3. **Register** the package with a blank import in the slim-gated
+   `internal/providers/all/<p>.go`. The tests there then require the extractor beside the scanner
+   (`TestExtractorsRegistered`), run `conformance.Check` on `<p>inventory/testdata/cache` and
+   require a pairing resolver (`TestInventoriesConform`), and run the live-cache checks.
 
-4. **Pairing resolver** (`internal/sdkinv/pairing/<p>.go`, ~100 lines): implement
-   `pairing.Resolver` — `LabelGrammar` (the op-label regexp your scanners use), `ImportKey` (SDK
+4. **Pairing resolver** (`<p>inventory/resolver.go`, ~100 lines): implement
+   `pairing.Resolver` — `Name`, `LabelGrammar` (the op-label regexp your scanners use), `ImportKey` (SDK
    import path → universe module key), `OpKey`, `LabelAliases` (every literal spelling that names an
-   op), `Constructor`/`TypeOwner` (how a client local gets bound), `Anchors` (the SDK call shapes to
+   op), `Constructor`/`TypeOwner` (how a client local gets bound), `LabelOp` (the op name a label
+   spells, in anchor form, so a stale label reads as SDK skew), `Anchors` (the SDK call shapes to
    recognise) — and `pairing.Register` it from `init()`. Add a synthetic scanner package under
-   `pairing/testdata/scannerpkg/<p>/` with one case per rule.
+   `<p>inventory/testdata/scannerpkg/` with one case per rule, asserted with `pairing/pairingtest`.
 
 5. **Scanner package** — the provider's `internal/providers/<p>` already declares its types with
    `registerType`; add `<p>_pairing_test.go` copying an existing one so `TestScannerOpLabelsResolve`
@@ -274,11 +293,12 @@ flowchart LR
    `<p>_coverage.go` (`Name` + `Emits`; optionally `ServiceMapper`, `CrossChecker`,
    `ResolverAuditor`).
 
-6. **Pins and docs** — the new ref in `pins.go`, its fetch source in `make sdk-fetch` (automatic
+6. **Pins and docs** — the new ref in `<p>inventory/pins.go`, its fetch source in `make sdk-fetch` (automatic
    through `FetchSpec`), then `make gen-coverage` to add the provider to `docs/coverage.md` and the
    baseline.
 
-No change is needed in `cmd/`, `internal/coverage`, the Makefile targets or CI.
+No change is needed in `internal/sdkinv`, `cmd/`, `internal/coverage` or the Makefile targets.
+CI's SDK cache key already hashes every `internal/providers/*/*inventory/*.go`.
 
 ## Using it to close coverage gaps
 
@@ -311,7 +331,7 @@ parent's scanner loop), `Scope` is provider-specific — Azure names the ARM
 scope and GCP the cloud container, while AWS leaves it empty because a listing there is
 per region or per account with nothing in the model to tell them apart — and `Signals` explains why the extractor believes it is a resource. If a row looks
 wrong — a catalog classified as a resource, a child parented to the wrong thing — fix the rule in
-`<p>/extract.go` and add the shape to the fixture; never add a skip list or an alias map. The
+`<p>inventory/extract.go` and add the shape to the fixture; never add a skip list or an alias map. The
 reconciliation that retired the old hand lists showed the lists were wrong more often than the
 extractor.
 
@@ -321,9 +341,9 @@ extractor.
   sorted key order. `docs/coverage.md` is byte-stable across runs and CI diffs it.
 - **Anchors over labels.** A label literal never covers anything on its own; a wrong label is a
   diagnostic that fails the pairing tests, which is how 22 Azure label typos were found.
-- **Identity is `Ident` only.** Do not introduce a second comparison; the old `CanonSingular` keys
+- **Identity is `Ident` only.** Never compare `Singular`/`CanonSingular` output; keying on it
   split `RestApi`/`RestApis` into two candidates.
-- **sdk-skew is real, and it runs both ways.** `AzureSDKRef` is the monorepo's HEAD, which differs
+- **sdk-skew is real, and it runs both ways.** Azure's `SDKRef` is the monorepo's HEAD, which differs
   from the `go.mod` majors: a scanner calling an op the snapshot lacks is reported as `skew`, not as
   a scanner bug. When the op is newer than the snapshot, bump the pin. When the op was *deleted
   upstream* — `armcompute`'s CloudServices clients, the whole `armappplatform` module — bumping moves

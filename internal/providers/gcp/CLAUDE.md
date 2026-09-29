@@ -4,8 +4,7 @@ GCP scanner/resolver conventions. Cross-provider rules: `internal/providers/CLAU
 
 ## GCP-specific registration quirks
 
-- New `Type*` const in `gcp_types.go`; declare it via `registerType` (below).
-- Types are declared via `registerType` (see `../CLAUDE.md`) from the `init()` of the file owning the upsert, including hierarchy scanners in `gcp_hierarchy.go`; `CollectEmits()` in `gcp_registry.go` feeds the `coverage.Provider` in `gcp_coverage.go`. Guards: `TestNoDoubleDeclaredTypes` (descriptor_guard_test.go), `gcp_pairing_test.go` (every type's scanner calls a Discovery list method).
+- New `Type*` const in `gcp_types.go`, declared via `registerType` (see `../CLAUDE.md`) from the `init()` of the file owning the upsert, including hierarchy scanners in `gcp_hierarchy.go`; `CollectEmits()` in `gcp_registry.go` feeds the `coverage.Provider` in `gcp_coverage.go`. Guards: `TestNoDoubleDeclaredTypes` (descriptor_guard_test.go), `gcp_pairing_test.go` (every type's scanner calls a Discovery list method).
 - `gcp_scanner_test.go` carries TWO expectation lists: `expectedGCPServices` (project-scope) and `expectedGCPOrgServices` (org-scope, via `registerOrgService`). New scanner updates whichever list matches its registration call — getting it wrong only fails at test time, not build time.
 
 ## Discover what's not yet covered
@@ -14,24 +13,24 @@ Coverage commands, buckets and `--cross-check` behaviour: `internal/coverage/CLA
 
 ## Resolver-edge metadata: `EdgeDecl`
 
-`registerResolver(fn, emits ...EdgeDecl)` is variadic — every resolver should list each `(source, target, kind)` triple it upserts (mirrors AWS's `aws.EdgeDecl`/`aws_registry.go`). Backs `disco coverage resolvers --providers gcp` (per-resolver edge counts + service segments) and `--missing` (emitted disco types never appearing as an `EdgeDecl.Source` — the resolver-gap inventory). `fn` must be a named function, not an anonymous closure — `registerResolver` panics at init time on an anonymous fn (reflects as `pkg.init.funcN`, useless in audit output). Many orphans are genuinely terminal (KeyRing, Organization, Project self-node, config singletons) rather than real gaps. There is no `Leaf` flag to triage with; run `disco coverage resolvers --missing --with-refs --providers gcp` and read the refs column, which lists the reference fields the SDK element actually carries. Refs are a hint, not proof: a refless row may still need a resolver, so the command reports how many carry none instead of hiding them (`../CLAUDE.md` "There is no `Leaf` flag").
+Contract: `../CLAUDE.md` "Resolver EdgeDecl contract". GCP deltas: `fn` must be a named function, not an anonymous closure — `registerResolver` panics at init time on an anonymous fn (reflects as `pkg.init.funcN`, useless in audit output). Many orphans are genuinely terminal (KeyRing, Organization, Project self-node, config singletons) rather than real gaps. There is no `Leaf` flag to triage with; run `disco coverage resolvers --missing --with-refs --providers gcp` and read the refs column, which lists the reference fields the SDK element actually carries. Refs are a hint, not proof: a refless row may still need a resolver, so the command reports how many carry none instead of hiding them.
 
 ## Scoping cheat-sheet
 
 Pick scanner shape on first read:
 - **Per-project, no location** (Pub/Sub, BigQuery, Cloud DNS, Cloud Build): `parent = projects/{p}` — one List call, paginated.
 - **Wildcard `locations/-`** (Cloud Functions v2, Cloud Run, Cloud Run Jobs, Batch, Composer, Artifact Registry): `parent = projects/{p}/locations/-` returns every location in one paginated walk (the API queries locations server-side). Prefer when the API supports it. `locationFromResourceName` (`serverless_scanners.go`) extracts the location segment from returned names for the per-resource `Region` field.
-- **Per-location fan-out** (Cloud KMS — no `-` support): `Locations.List` → bounded fan-out via `semaphore.NewWeighted`. Pair with a per-project `apiDisabled atomic.Bool`: the service-disabled sentinel already suppresses the warning storm, but every goroutine would still issue its API call first; flipping the bool on the first 403 lets the rest exit without a round trip. Precedent: `kms_scanners.go` `apiDisabled`.
-- **Org-scoped** (VPC-SC, folder/org IAM policies, folder/org Logging sinks): use `registerOrgService(orgServiceEntry{...})` in `gcp_registry.go`. fn fires ONCE per scan with `[]orgScope` from `scanHierarchy`. Dispatch via `runOrgServices` in `gcp_scanner.go`.
-- **Per-region (no wildcard)** (Dataproc clusters, future Spanner regional, AI Platform regional): use `gcpRegionFanoutScan[P,T]` in `gcp_scan_helpers.go` — generic helper that enumerates regions via `gcpRegions`, fans out per-region paginated lists bounded by `concurrency`, accumulates a mutex-protected batch, and finally calls `upsertWithProjClosure`. Per-region 403 / API-not-enabled tolerated silently. Caller supplies pagerFn (region → pager), pageItems (page → items), itemToResource (item, region → *store.Resource or nil to skip). Test seam: `gcpRegionFanoutScanIn` takes a pre-resolved region slice (skips `gcpRegions`) so unit tests inject regions directly. Dataflow uses its `Projects.Jobs.Aggregated` endpoint instead — no fan-out needed when an aggregated SDK call exists.
+- **Per-location fan-out** (Cloud KMS — no `-` support): `Locations.List` → `forEachItem` (below). Pair with a per-project `apiDisabled atomic.Bool`: the service-disabled sentinel already suppresses the warning storm, but every goroutine would still issue its API call first; flipping the bool on the first 403 lets the rest exit without a round trip. Precedent: `kms_scanners.go` `apiDisabled`.
+- **Org-scoped** (VPC-SC, folder/org IAM policies, folder/org Logging sinks): use `registerOrgService(orgServiceEntry{...})` in `gcp_registry.go`. fn fires ONCE per scan with `[]orgScope` from `scanHierarchy`. Dispatch via `runOrgServices` (`gcp_registry.go`, called from `gcp_scanner.go`).
+- **Per-region (no wildcard)** (Compute region* lists, Dataproc, BigQuery Connection): use `gcpRegionFanoutScan[P,T]` in `gcp_scan_helpers.go` — generic helper that enumerates regions via `gcpRegions`, fans out per-region paginated lists bounded by `concurrency`, accumulates a mutex-protected batch, and finally calls `upsertWithProjClosure`. Per-region 403 / API-not-enabled tolerated silently. Caller supplies pagerFn (region → pager), pageItems (page → items), itemToResource (item, region → *store.Resource or nil to skip). Test seam: `gcpRegionFanoutScanIn` takes a pre-resolved region slice (skips `gcpRegions`) so unit tests inject regions directly. Dataflow uses its `Projects.Jobs.Aggregated` endpoint instead — no fan-out needed when an aggregated SDK call exists.
 
 ## Org-service scope-kind dispatch
 
 Org-services receiving `[]orgScope` typically dispatch on `sc.Kind` ("organization" / "folder") to pick the matching SDK sub-service (`svc.Organizations.X` vs `svc.Folders.X`) — bodies are otherwise identical. Keep the dispatch in a tiny helper (e.g. `getOrgScopePolicy`, `pages := func(handler) { switch sc.Kind { ... } }`) so the per-scope batch+upsert+closure code stays single-pathed. VPC-SC is org-only — skip folder scopes silently. Precedent: `iampolicy_org_scanners.go` (CRM), `observability_org_scanners.go` (Logging), `vpcsc_scanners.go` (org-only).
 
-## Firewall edge direction (R4.5)
+## Firewall edge direction
 
-`firewall_resolvers.go::resolveFirewallRelationships` emits `firewall -[uses]-> instance` (firewall is the FROM side). Rule authors writing exposure rules anchored on instances must walk inbound (`direction: in` in `Related`) to reach the firewall. Mirrors AWS where SG→ENI also flows from policy to consumer; differs from intuition that "instance has firewall".
+`firewall_resolvers.go::resolveFirewallRelationships` emits `firewall -[uses]-> instance` (firewall is the FROM side). Rule authors writing exposure rules anchored on instances must walk inbound edges (`disco graph --direction in`, `store.GraphWalkOpts.Direction`) to reach the firewall. Mirrors AWS where SG→ENI also flows from policy to consumer; differs from intuition that "instance has firewall".
 
 ## Singleton resources via Get
 
@@ -45,7 +44,7 @@ For fields that may store either full resource name `projects/{p}/serviceAccount
 
 ## Service registration
 
-Each `<svc>_scanners.go` calls `registerService` from `init()`. Service `fn` runs once per project — fan-out across projects + concurrency cap (`maxConcurrentServices = 10`) handled by `scanProject`. Resolvers register via `registerResolver(fn)`; resolver fn called once per project after all phase-1 scans land.
+Service `fn` runs once per project — fan-out across projects + concurrency cap (`maxConcurrentServices = 10`) handled by `scanProject`. Resolver fn runs once per project after all phase-1 scans land.
 
 ## IAM policy resource shape
 
@@ -69,7 +68,7 @@ Real IAM 403 (rare; caller lacks permission but API enabled) still goes to warni
 
 ## `forEachItem[T]` helper — bounded-concurrency fan-out
 
-`forEachItem[T any](ctx, concurrency, items, fn)` in `gcp_scan_helpers.go` runs `fn(gctx, item)` over each item with at most `concurrency` goroutines in flight. First non-nil err aborts siblings. Used by per-location / per-zone / per-SA / per-dataset fan-out (KMS, DNS record-sets, IAM-key, BigQuery). Replaces the `sem := semaphore.NewWeighted(...); g, gctx := errgroup.WithContext(...); for ... { g.Go(... sem.Acquire ... defer sem.Release ...) }; g.Wait()` setup repeated across four scanners.
+`forEachItem[T any](ctx, concurrency, items, fn)` in `gcp_scan_helpers.go` runs `fn(gctx, item)` over each item with at most `concurrency` goroutines in flight. First non-nil err aborts siblings. Use it for every per-location / per-zone / per-parent fan-out; never hand-roll errgroup+semaphore.
 
 Inner pagination + mutex still belong to the caller — `forEachItem` only owns the fan-out skeleton. Caller-owned: `apiDisabled atomic.Bool` short-circuit (KMS), `var mu sync.Mutex` over shared batch slice, per-call err classification.
 
@@ -77,8 +76,7 @@ Inner pagination + mutex still belong to the caller — `forEachItem` only owns 
 
 `runPaginated[P any](ctx, st, p, action, req, pageHandler)` in `gcp_scan_helpers.go` wraps `req.Pages(ctx, fn)` with the boilerplate every scanner phase repeats: invoke `Pages`, accumulate `(total, inserted)` per page, classify final err via `isPermissionDenied` → `skipIfDenied` (which dispatches sentinel vs warning). Generic over the page type — works on every `google.golang.org/api/*` `*.List()` request struct (all expose `Pages(ctx, func(*P) error) error`).
 
-Use it for every paginated phase. Page handler returns `(int, int, error)` — usually after building a `[]*store.Resource` and calling `upsertWithProjClosure`. Replaces ~150 LOC of repeated `err = req.Pages(...) {...}; if err != nil { if isPermissionDenied(err) { return ..., skipIfDenied(...) } return ..., err }` boilerplate.
-
+Use it for every paginated phase. Page handler returns `(int, int, error)` — usually after building a `[]*store.Resource` and calling `upsertWithProjClosure`.
 Single-page `.Do()` calls (BigTable, Firestore, Spanner per-instance Databases.List) and inner `Pages` calls running inside `errgroup.WithContext` (BigQuery phase 2, DNS record-sets, KMS keyrings, IAM-key fan-out) keep manual classification — `runPaginated` doesn't fit those because the gctx/mu interactions are tied to the surrounding errgroup.
 
 ## Synthetic NativeIDs

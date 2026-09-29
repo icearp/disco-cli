@@ -13,7 +13,7 @@ import (
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
 	// Registered for side effect: the SDK inventory extractors.
-	_ "github.com/icearp/disco-cli/internal/sdkinv/all"
+	_ "github.com/icearp/disco-cli/internal/providers/azure/azureinventory"
 	"github.com/icearp/disco-cli/internal/sdkinv/pairing"
 )
 

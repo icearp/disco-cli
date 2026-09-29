@@ -15,7 +15,7 @@ import (
 func cand(service, key string, class sdkinv.Class, depth int, signals ...string) sdkinv.Candidate {
 	c := sdkinv.Candidate{
 		Provider: "aws", Service: service, Key: key, Class: class, Depth: depth, Signals: signals, Rule: "sr-resource",
-		Ops: []sdkinv.Operation{{Label: service + ":List" + key[strings.LastIndex(key, "/")+1:], Scope: sdkinv.ScopeRegion}},
+		Ops: []sdkinv.Operation{{Label: service + ":List" + key[strings.LastIndex(key, "/")+1:], Scope: sdkinv.Scope("region")}},
 	}
 	if depth > 0 {
 		c.Parent = key[:strings.LastIndex(key, "/")] + "/key" // the fixture's only child hangs off kms/key

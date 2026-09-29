@@ -8,12 +8,12 @@ Nine: `resources`, `quotas`, `relationships`, `hierarchy_closure`, `scans`, `sca
 
 - **`quotas`** (migration 017): one row per version of one service quota limit. Separate from `resources` because a quota is a limit *value*, not a provisioned thing: nothing creates it, it has no graph edges, and it is queried by service and by proximity to the limit rather than by name-ordered page slice. On a real account they were ~90% of every row in `resources`, so they dominated every index whether or not anyone read them. Identity is `(provider, account_id, region, service_code, quota_code, dimension_key)` — `region` is part of it, so unlike `resources.region` it is NOT NULL, and a partition-wide limit uses the `'global'` sentinel; `dimension_key` is empty on an undimensioned limit and names the dimension set otherwise, because one quota code can carry a different value per dimension set (every GCP `DimensionsInfo`, an AWS quota context). Same version-chain shape as `resources` (per-row UUIDv7 `id`, deterministic `QuotaID` hash in `root_id`, current row has `superseded_by IS NULL`), and `value` is a real NUMERIC so "which limits am I near" and "which have I raised" are expressible in SQL. Three indexes, each with a named reader in the migration header — do not seed it with resource-shaped ones. `description` (migration 018) is the provider's own prose for what a limit governs — AWS populates it on every row, Azure and GCP report none — and is display-only, so like `name` and `service_name` it updates in place rather than splitting a chain. API: `UpsertQuotas`, `ListQuotas`, `GetQuota`, `ResolveQuota`, `GetQuotaVersions`. Unlike `UpsertResources` this runs on `s.ext()`, so it works inside a caller-owned `WrapTx` transaction where `s.db` is nil.
 
-- **`scan_checkpoints`** (migration 001): per-(scan, provider, service, scope) opaque continuation tokens. Schema is generic — `last_token` is whatever cursor shape the upstream SDK exposes (AWS NextToken, Azure pager continuation, GCP pageToken). API: `SaveCheckpoint`, `GetCheckpoint`, `ListCheckpoints`, `DeleteScanCheckpoints`. disco persists checkpoints; a future incremental scanner can consume them on `disco scan --resume`. `splitStatements` (the SQLite runner only — see § Migrations) is dollar-quote (`$$`, `$tag$`) and `--`-comment aware, so plpgsql function bodies and inline `;` in `--` comments are safe inside migrations.
+- **`scan_checkpoints`** (migration 001): per-(scan, provider, service, scope) opaque continuation tokens. Schema is generic — `last_token` is whatever cursor shape the upstream SDK exposes (AWS NextToken, Azure pager continuation, GCP pageToken). API: `SaveCheckpoint`, `GetCheckpoint`, `ListCheckpoints`, `DeleteScanCheckpoints`. No production writer yet; the only reader is the `--resume` banner count.
 
 
 - **`resources`**: one row per attribute-snapshot of a cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. PK `id` is a per-row UUIDv7, the deterministic `ResourceID` hash lives in `root_id`, and the current row in a chain has `superseded_by IS NULL`. `UpsertResources` auto-handles version splits (see resource-versioning rule below). No `parent_id` column — hierarchy via `RecordHierarchyBatch(pairs)` only.
-- **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`, `bounded-by`, `cross-account-trust`, `cross-sub-rbac`, `cross-project-iam`, `org-iam`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. The upsert is UPDATE-then-INSERT rather than `ON CONFLICT … DO UPDATE`, because that form cannot omit its conflict target and an embedder may widen this key. An embedder that widens it MUST scope it with row-level security, and all four conditions matter, because the UPDATE half carries no scope predicate of its own: the table `ENABLE`d **and** `FORCE`d (without FORCE the owner — the ordinary writer — is exempt), the writing role NOSUPERUSER and NOBYPASSRLS, and a permissive policy that covers UPDATE. A policy with `USING` and no `WITH CHECK` is fine, not a hole: Postgres reuses `USING` as the check, so an UPDATE cannot move a row out of the caller's scope. Get it wrong in the first two ways and one scope's re-scan rewrites every other scope's row while `RowsAffected` hides the count; get it wrong in the third and the UPDATE matches nothing, the INSERT is absorbed, and the edge is dropped in silence. Hierarchy `contains` lives in `hierarchy_closure` only (not here), so second edge (e.g. `attached-to`) between already-hierarchical resources conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list). **UNIQUE collapses many-to-one refs**: when N distinct source refs (e.g. two trust-policy principals from the same foreign account) all map to the same target, only one row survives. Edge count = distinct (from, to) pairs, not distinct refs — tests asserting counts must account for this.
-- **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `RecordHierarchyBatch(pairs)` (single tx) after upserting resources. The same call ALSO writes a `parent → child contains` row to `relationships` so `GraphWalk` (relationships-only) sees the edge — single source of truth across providers. Closure rows always go down; the relationship row is gated on both endpoints existing in `resources`, with a missing endpoint surfacing as a `ScanWarning` (operators see drift, callers stay simple). Don't add a separate `UpsertRelationship(parent, child, RelContains)` call beside the closure write — duplicate but idempotent under `ON CONFLICT DO NOTHING`.
+- **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`, `bounded-by`, `cross-account-trust`, `cross-sub-rbac`, `cross-project-iam`, `org-iam`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. The upsert is UPDATE-then-INSERT rather than `ON CONFLICT … DO UPDATE`, because that form cannot omit its conflict target and an embedder may widen this key. An embedder that widens it MUST scope it with row-level security, and all four conditions matter, because the UPDATE half carries no scope predicate of its own: the table `ENABLE`d **and** `FORCE`d (without FORCE the owner — the ordinary writer — is exempt), the writing role NOSUPERUSER and NOBYPASSRLS, and a permissive policy that covers UPDATE. A policy with `USING` and no `WITH CHECK` is fine, not a hole: Postgres reuses `USING` as the check, so an UPDATE cannot move a row out of the caller's scope. Get it wrong in the first two ways and one scope's re-scan rewrites every other scope's row while `RowsAffected` hides the count; get it wrong in the third and the UPDATE matches nothing, the INSERT is absorbed, and the edge is dropped in silence. Because the key includes `kind`, a second edge (e.g. `attached-to`) beside a hierarchy `contains` row is conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list). **UNIQUE collapses many-to-one refs**: when N distinct source refs (e.g. two trust-policy principals from the same foreign account) all map to the same target, only one row survives. Edge count = distinct (from, to) pairs, not distinct refs — tests asserting counts must account for this.
+- **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `RecordHierarchyBatch(pairs)` (single tx) after upserting resources. The same call ALSO writes a `parent → child contains` row to `relationships` so `GraphWalk` (relationships-only) sees the edge — single source of truth across providers. Closure rows always go down; the relationship row is gated on both endpoints existing in `resources`, with a missing endpoint surfacing as a `ScanWarning` (operators see drift, callers stay simple). Don't add a separate `UpsertRelationship(parent, child, RelContains)` call beside the closure write; it only duplicates that row.
 - **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
 
 Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interpolation. `sqlx` handles struct scanning. Raw SQL for CTEs + anything squirrel can't express cleanly.
@@ -34,7 +34,7 @@ IAM principals (users/roles/groups, service accounts) are edge **destinations**:
 
 ## Secret scrubbing
 
-`UpsertResources` calls `redact.Apply(r.Type, r.AttributesJSON)` (in `internal/redact`) on every row before insert. Provider packages declare per-type rules on the type descriptor's `Redact` field (`restype.Descriptor{..., Redact: []redact.Rule{...}}`), tested in `<p>_redact_test.go`. Each rule names a JSON path inside `AttributesJSON` and a mode — `RedactScalar` (leaf only) or `RedactSubtree` (every scalar descendant). Path syntax: dotted literals, `*` for map-key wildcard, `[*]` for array wildcard. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
+`UpsertResources` calls `redact.Apply(r.Type, r.AttributesJSON)` (in `internal/redact`) on every row before insert. Provider packages declare per-type rules on the type descriptor's `Redact` field (`restype.Descriptor{..., Redact: []redact.Rule{...}}`), tested in `<p>_redact_test.go`. Rule syntax: `internal/providers/CLAUDE.md`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
 
 Immediately after redaction, `UpsertResources` calls `volatile.Apply(r.Type, r.AttributesJSON)` (in `internal/volatile`), which **removes** provider-declared volatile keys (e.g. CloudWatch Logs `UploadSequenceToken`, which AWS rotates every read) so they don't version-split an otherwise-unchanged resource. Both passes run before the `jsonEqual` version comparison. Volatile removes the key (vs redact's `[REDACTED]` placeholder); see `internal/providers/CLAUDE.md` "Declaring redaction and volatile-field rules".
 
@@ -66,9 +66,9 @@ Rule of thumb for "advisory" failures (skip happens, but operator should know): 
 
 ## Resource IDs
 
-`ResourceID(provider, accountID, nativeID)` — `resources.go` — produces 32-hex-char SHA-256 prefix. Stable across rescans; primary key. `type` is deliberately **excluded** — identity is `(provider, account_id, native_id)`; `type` is a versioned attribute (a type change supersedes the row, it does not fork a new chain). native_id already encodes the type in every provider (ARNs / resource paths), so folding type into the hash was redundant.
+`ResourceID(provider, accountID, nativeID)` — `resources.go` — produces 32-hex-char SHA-256 prefix, stored in `root_id` (the row PK `id` is a per-version UUIDv7). `type` is deliberately **excluded** — identity is `(provider, account_id, native_id)`; `type` is a versioned attribute (a type change supersedes the row, it does not fork a new chain). native_id already encodes the type in every provider (ARNs / resource paths), so folding type into the hash was redundant.
 
-Scan IDs: `crypto/rand` + `encoding/hex` (same 32-char hex). No `uuid` dep.
+Scan IDs: `crypto/rand` + `encoding/hex` (same 32-char hex), not UUIDs.
 
 ## Migrations
 
@@ -109,7 +109,7 @@ splits). `Store.WithUpsertCounters(newC, changedC)` returns a shallow-copy `*Sto
 pair per service scan and pass them to `ReportService`, so the progress line splits per (service,
 scope) without changing every scanner's `(total, inserted, err)` signature.
 
-Relationships reference `root_id`, not per-version row ids; `006` dropped the FKs to `resources(id)`.
+Relationships reference `root_id`, not per-version row ids (no FK; see § Edge endpoints).
 `resourceExistsTx` uses `resourceIDColumn()` + `currentVersionWhereSQL()` so hierarchy gating works.
 
 **Type separation:** `Resource` (`resources.go`) is the base row; versioning-only fields live on
@@ -137,15 +137,11 @@ INSERT's column list, and its VALUES.
 
 `InsertResourcesIfAbsent(resources)` runs **only** the first-discovery
 `INSERT … ON CONFLICT DO NOTHING` path — never the verify or version-split
-paths. That clause names **no conflict target**, so it is correct whatever
-columns the current-by-natural-key index carries: an embedder may widen the key
-(a multi-tenant host scoping it per workspace), and an inferred target must
-match the live index exactly or the insert fails `42P10`. It is the
+paths. Like every `resources` write it names **no conflict target** (see § Postgres backend). It is the
 reference-discovery primitive: when a resolver sees a cross-tenant edge into an
 account/subscription/project outside scan scope, it inserts an empty-attribute
 (`{}`) row at that resource's **real self-node natural key** (so the edge's
-`to_id` — the deterministic `root_id` — names a row that exists, though nothing
-in the database enforces that since `006` dropped the edge FKs), then emits the
+`to_id` — the deterministic `root_id` — names a row that exists), then emits the
 edge. If that target is later scanned (this run or a future one), its own
 scanner calls `UpsertResources`, finds the placeholder as the current version,
 and version-splits it `{}`→populated; the placeholder is preserved in history
@@ -166,13 +162,13 @@ type and no marker column — the version chain is the whole mechanism.
 
 `store.ListResources(store.ResourceFilter{...})` — filter struct is `ResourceFilter`, not `ListFilter`. Multi-type filter is `Types []string`, not `Type string`. Two zero-value defaults bite: `IncludeManaged=false` silently filters provider-managed rows, and `Limit=0` falls back to 500. Passing `ResourceFilter{}` is NOT "give me everything" — set `IncludeManaged: true` and either a large `Limit` or paginate via `Offset` for whole-table reads.
 
-Canonical "read every resource" idiom: `store.GraphAll` (`graph.go`) page-loops `ListResources` with `IncludeManaged: true` + `Limit: 5000` until an empty page returns. Reuse that shape from CLI commands that must evaluate the full population (e.g. `cmd/check.loadAllResources`).
+Canonical "read every resource" idiom: `store.GraphAll` (`graph.go`) page-loops `ListResources` with `IncludeManaged: true` + `Limit: 5000` until an empty page returns. Reuse that shape from CLI commands that must evaluate the full population (`loadAllResourcesPaged`, `cmd/helpers.go`).
 
 ## Wire shape ≠ storage shape
 
 `Resource` stores `AttributesJSON` / `TagsJSON` as JSON strings (raw SDK marshal output) but `MarshalJSON` / `UnmarshalJSON` (`resources.go`) surface them on the wire as nested `attributes` / `tags` objects under camelCase keys (`nativeId`, `accountId`, ...) — camelCase since the v0.18.0 wire migration. Round-trips byte-stable via the matching UnmarshalJSON. Tests asserting JSON output must compare against the parsed shape, not Go field names. New JSON encoders should emit `[]Resource` directly — no per-call shape massaging.
 
-**Schema contract — every documented key always present.** `Resource.MarshalJSON` (and the matching `resources_json_test.go::TestResource_MarshalJSON_AlwaysPresent`) emits every key listed under `disco check --help`: optional pointer fields render as `null` (not omitted), `tags` and `attributes` always render as objects (`{}` for empty / missing / malformed legacy blobs). Stripping `,omitempty` was the F6 fix from focus-group/SUMMARY.md — Rego authors and downstream consumers can traverse `input.attributes.X` / `input.tags.Y` without per-row presence guards. Don't reintroduce `,omitempty` on the contract fields.
+**Schema contract — every documented key always present.** `Resource.MarshalJSON` (and the matching `resources_json_test.go::TestResource_MarshalJSON_AlwaysPresent`) emits every key listed under `disco check --help`: optional pointer fields render as `null` (not omitted), `tags` and `attributes` always render as objects (`{}` for empty / missing / malformed legacy blobs). Rego authors and downstream consumers can traverse `input.attributes.X` / `input.tags.Y` without per-row presence guards. Don't reintroduce `,omitempty` on the contract fields.
 
 Adding a field to `Resource` has three downstream touch-points: (1) `MarshalJSON`/`UnmarshalJSON` if it carries on the JSON wire; (2) `resourceToInput` in `internal/policy/policy.go` so Rego policies can see it; (3) `resourcesColumns`/`resourceRow` in `cmd/resources.go` for CSV. Skipping (2) silently hides the field from every Rego rule.
 
@@ -192,7 +188,7 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 The trailing `Z` is load-bearing, not cosmetic: disco-saas casts these TEXT columns with `::timestamptz`, and a zoneless string resolves against the session `TimeZone` instead of UTC. These columns are also compared and ordered **as TEXT** (here, and by a keyset cursor and an evidence-range filter in the SaaS), so both dialects must render identical bytes — pinned by `TestNowExpr_WritesRFC3339OnBothDialects` under `withDialects`.
 
-**Wire shape is RFC3339.** `Scan.MarshalJSON` (added F5 fix) projects `startedAt` / `finishedAt` to RFC3339 before emitting, so `disco scans -o json` and `disco summary -o json | jq '.asOf'` carry parseable timestamps that match resource-row `discoveredAt` / `verifiedAt`. The wire envelope uses camelCase keys and drops the SQLite `*JSON` columns (`ProvidersJSON`, `ScopeJSON`, `MetaJSON`) in favour of parsed `providers` / `scope` / `meta` objects. Don't reach into `scans -o json` consumers expecting the legacy PascalCase shape.
+**Wire shape is RFC3339.** `Scan.MarshalJSON` projects `startedAt` / `finishedAt` to RFC3339 before emitting, so `disco scans -o json` and `disco summary -o json | jq '.asOf'` carry parseable timestamps that match resource-row `discoveredAt` / `verifiedAt`. The wire envelope uses camelCase keys and drops the SQLite `*JSON` columns (`ProvidersJSON`, `ScopeJSON`, `MetaJSON`) in favour of parsed `providers` / `scope` / `meta` objects.
 
 ## `TypesForScan(scanID)` = distinct (provider, type) a scan touched
 
@@ -201,7 +197,7 @@ NOT reference_only` — both scan FKs, because a re-verify run inserts nothing y
 scanner still emits the type; `NOT reference_only` because `InsertResourcesIfAbsent` stamps the
 scan id onto resolver placeholders, and one of those counted as a type the scan emitted.
 Feeds `disco coverage verify`; SQLite + PG tests share `testTypesForScan`. Do not build scan
-introspection on `scan_checkpoints` — it has no reader and its writers are incidental.
+introspection on `scan_checkpoints` — it has no production writer.
 
 ## A scan record's warnings and errors are what `coverage verify` reasons from
 
@@ -216,8 +212,7 @@ like `WithUpsertCounters`. Scanners keep reporting op labels and know nothing ab
 A warning the store itself raises — a native-id collision, a missing hierarchy endpoint, a
 recovered write — sets the unexported `storeLevel` and is never stamped: it fires from inside
 whichever service happened to be writing, and stamping that service's name makes a message about
-two colliding rows read as "this service was skipped". Found live: the collision warning explained
-every `aws:organizations:*` type until `storeLevel` existed.
+two colliding rows read as "this service was skipped".
 
 `ScanErrorEntry.Scope` exists for the same reason in the error direction: without it a
 per-subscription Azure failure and a failure of the whole provider are the same row. `Region` is
@@ -228,15 +223,15 @@ is a table or an instance group, not a region.
 
 `CompleteScan` / `PartialScan` persist the count of rows the scan upserted (every row visited, including pre-existing). The insert-only `totalNew` value (return of `UpsertResources`) is printed at scan-end stdout but not persisted. Drift between scans is `disco diff`'s job, not a column on `scans`. Don't re-derive "what changed" from `resource_count` deltas.
 
-## `ResolveResource` two-pass: exact → id-prefix → substring
+## `ResolveResource` three-pass: exact → id-prefix → substring
 
-Seed lookup (`graph blast`, `graph path`, `resources --id`) tries exact `native_id`/`name` first, then ID-prefix on the 32-hex resource ID (when arg is 4–31 lowercase hex), then `LIKE %arg%` on `native_id`/`name`. F12 fix for "the CLI's own short-ID prints don't round-trip as input." Disambiguators (`--provider`, `--type`, `--account`) narrow each pass; multi-row results surface as the existing ambiguity error. Each pass capped at 50 rows so substring-on-large-DB doesn't OOM. New callers should route through `ResolveResource` rather than rolling their own lookups — single source of truth.
+Lookup for `graph`/`path`/`blast`, `resources show` and `history` tries exact `native_id`/`name` first, then ID-prefix on the 32-hex resource ID (when arg is 4–31 lowercase hex), then `LIKE %arg%` on `native_id`/`name`. (so the CLI's own short-ID prints round-trip as input). Disambiguators (`--provider`, `--type`, `--account`) narrow each pass; multi-row results surface as the existing ambiguity error. Each pass capped at 50 rows so substring-on-large-DB doesn't OOM. New callers should route through `ResolveResource` rather than rolling their own lookups — single source of truth.
 
 ## Cross-backend SQL: `s.exec`/`s.get`/`s.query`/`s.queryRow`/`s.selectAll`
 
 Wrappers in `dialect.go` proxy `Exec/Get/Query/QueryRow/Select` on `s.ext()` (which returns `*sqlx.DB` or `*sqlx.Tx` — see `WrapTx` below) with auto-`Rebind`. Always use them for raw `?`-placeholder SQL — `s.db.Exec(...)` directly works on SQLite but breaks on Postgres (sqlx Rebind isn't auto-applied), and skips the tx-bound path. Squirrel queries pass `s.placeholder()` to `PlaceholderFormat(...)`. New code adding SQL to the store package follows both patterns.
 
-**A store method carrying hand-written SQL needs `withDialects`, not `openTestStore`** (`relationships_many_test.go`) — the latter is SQLite-only, and SQLite is the PERMISSIVE dialect, so a SQLite-only test can certify a query that cannot execute on Postgres at all. `CountManaged` shipped as `WHERE managed_by_provider = 1`: SQLite has no boolean type and stores 0/1, so it matched, while Postgres raised `operator does not exist: boolean = integer` (42883) and failed the entire call. It survived because `disco check` is the only caller and the hosted product never runs that command. Same class: `?`-vs-`$n` placeholders, `json_extract` vs `->>`, string/number coercion. `withDialects` skips its Postgres subtest when Docker is unreachable — check the run actually reported `--- PASS: …/postgres` and did not skip, or the extra coverage is imaginary.
+**A store method carrying hand-written SQL needs `withDialects`, not `openTestStore`** (`relationships_many_test.go`) — the latter is SQLite-only, and SQLite is the PERMISSIVE dialect, so a SQLite-only test can certify a query that cannot execute on Postgres at all. Example: a boolean compared to `1` passes on SQLite (0/1 ints) and raises 42883 on Postgres. Same class: `?`-vs-`$n` placeholders, `json_extract` vs `->>`, string/number coercion. `withDialects` skips its Postgres subtest when Docker is unreachable — check the run actually reported `--- PASS: …/postgres` and did not skip, or the extra coverage is imaginary.
 
 ## PG session GUCs accept placeholders only via `set_config(...)`
 
@@ -251,7 +246,7 @@ Single `*Store` covers both SQLite and Postgres; `OpenPostgres(ctx, dsn, ...PGOp
 - `s.tagJSONValueExists()` — `json_each(tags)` vs `jsonb_each_text(tags)`.
 
 Other portability rules baked in:
-- `INSERT OR IGNORE` was replaced with `INSERT ... ON CONFLICT DO NOTHING`, which both backends support. Writes on `resources`, `quotas`, `relationships` and `hierarchy_closure` name **no conflict target**: an inferred target must match a live unique index exactly, and an embedder may widen those keys (a multi-tenant host scoping them per workspace), which would then fail `42P10`. `scans` and `scan_checkpoints` keep their targets — `scans (id)` and the four-column `scan_checkpoints (scan_id, provider, service, scope)`, both led by a globally unique scan id, so widening their KEYS would buy an embedder nothing. They are still RLS-scoped like every other scan-data table; this is about the key, not about isolation. New writes follow the same rule.
+- Use `INSERT ... ON CONFLICT DO NOTHING` (never SQLite-only `INSERT OR IGNORE`). Writes on `resources`, `quotas`, `relationships` and `hierarchy_closure` name **no conflict target**: an inferred target must match a live unique index exactly, and an embedder may widen those keys (a multi-tenant host scoping them per workspace), which would then fail `42P10`. `scans` and `scan_checkpoints` keep their targets — `scans (id)` and the four-column `scan_checkpoints (scan_id, provider, service, scope)`, both led by a globally unique scan id, so widening their KEYS would buy an embedder nothing. They are still RLS-scoped like every other scan-data table; this is about the key, not about isolation. New writes follow the same rule.
 - `recordHierarchyTx` and friends accept `*sql.Tx` but pass through `s.rebind(...)` first because tx itself is unaware of the driver.
 
 ### Single-tenant backend + `WithAfterConnect` extension point
@@ -310,7 +305,7 @@ container; a Proxy shared across tenants should use `SET LOCAL` inside a `WrapTx
 
 `store/migrations/*.sql` (SQLite) and `store/migrations/pg/*.sql` (Postgres) must converge on **identical** `(table, column)` sets — the schema is single-tenant, so there are no allowed PG-only columns. `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them. Add a column on one side, the script fails. CI gates this; reviewers also. (The SaaS multi-tenant columns — `tenant_id` + RLS plumbing — live in disco-saas's own migration set, not here.) Column **types** may diverge by design where PG has a richer native type: `tags`/`resources.attributes`/`relationships.attributes` are JSONB on PG but TEXT on SQLite, and `scans.errors` likewise — the parity check is column-presence, not type, and the Go fields are `string`/`*string` either way (pgx round-trips JSONB ↔ string).
 
-PG migration runner is hand-rolled in `migrate_pg.go`: same `schema_migrations` bookkeeping and NNN_name.sql convention as `migrate.go`, but **NOT its `splitStatements` semicolon split** — `applyOnePG` executes each file whole (see § Migrations). Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state. **Consequence for authors: a `;` or `--` inside a string literal in a PG migration is now harmless.** It was not before — `splitStatements` tracks `--` comments and `$$` quoting but not single-quoted literals, so a `;` in `COMMENT ON … IS '…'` split mid-string and raised 42601 (shipped once, v0.20.2). The constraint still binds `migrations/` (SQLite), which still splits.
+PG migration runner is hand-rolled in `migrate_pg.go`: same `schema_migrations` bookkeeping and NNN_name.sql convention as `migrate.go`, but **NOT its `splitStatements` semicolon split** — `applyOnePG` executes each file whole (see § Migrations). Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state. A `;` inside a string literal is harmless in a PG migration but NOT in `migrations/` (SQLite): `splitStatements` (`migrate.go`) tracks `--` comments and `$$`/`$tag$` quoting, not single-quoted literals, so a `;` in `COMMENT ON … IS '…'` splits mid-string (42601).
 
 ## Scan-path writes: `withWriteRetry` + the `ErrStoreWrite` sentinel
 
@@ -327,7 +322,7 @@ dispatcher's `isTransientNetworkError` matches `net.Error` timeouts, `io.EOF` an
 `io.ErrUnexpectedEOF`, and pgconn reports a dead Postgres connection as exactly those. If the
 cause stayed in the `errors.Is`/`errors.As` chain, a DB outage would be reclassified as a benign
 transient cloud warning while every row silently vanished. Don't "tidy" it to `%w`.
-(Mirrored in `internal/providers/aws/CLAUDE.md`.)
+(Dispatcher side: `internal/providers/CLAUDE.md` "`store.ErrStoreWrite` is the first rung".)
 
 **The retried unit must publish no shared state.** An atomic bumped inside a transaction cannot
 be un-bumped by the rollback, so a retry double-counts. `upsertResourcesTx` /

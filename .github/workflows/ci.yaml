@@ -25,11 +25,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/disco/sdk
-          # pins.go names the AWS/Azure refs and go.mod the GCP Discovery module
-          # version; the extractor sources carry each source's Keep filter, which
-          # decides which files the snapshot holds. Any of them moving
+          # Each <p>inventory/pins.go names that provider's SDK ref (GCP's must
+          # match go.mod); the extractor sources carry each source's Keep filter,
+          # which decides which files the snapshot holds. Any of them moving
           # invalidates the denominator.
-          key: sdk-cache-${{ hashFiles('internal/sdkinv/pins.go', 'internal/sdkinv/*/*.go', 'go.mod') }}
+          key: sdk-cache-${{ hashFiles('internal/providers/*/*inventory/*.go', 'internal/sdkinv/*.go', 'go.mod') }}
       - name: Fetch SDK sources (no-op when cached)
         run: make sdk-fetch
       - name: Vet
@@ -64,7 +64,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/disco/sdk
-          key: sdk-cache-${{ hashFiles('internal/sdkinv/pins.go', 'internal/sdkinv/*/*.go', 'go.mod') }}
+          key: sdk-cache-${{ hashFiles('internal/providers/*/*inventory/*.go', 'internal/sdkinv/*.go', 'go.mod') }}
       - name: Regenerate coverage report
         run: make gen-coverage
       - name: Commit when changed

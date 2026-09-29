@@ -7,4 +7,6 @@ import (
 	// coverage Provider. Gated so `-tags slim` without `azure` excludes it —
 	// the azure SDK is never linked.
 	_ "github.com/icearp/disco-cli/internal/providers/azure"
+	// Registers the azure SDK inventory extractor and pairing resolver.
+	_ "github.com/icearp/disco-cli/internal/providers/azure/azureinventory"
 )

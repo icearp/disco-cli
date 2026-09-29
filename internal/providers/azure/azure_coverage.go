@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/providers/azure/azureinventory"
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
@@ -58,38 +59,22 @@ func (coverageProvider) ResolverEdgeSources() []string {
 }
 
 // RegistryKey turns a candidate key into the ARM type it should match
-// ("microsoft.compute/virtualmachines/extensions", lowercased). Two shapes
-// differ from the key: ARM omits a singleton instance id that the path spells
-// out ("blobServices/default/containers" is "blobServices/containers"), and it
-// keeps the "locations" segment the extractor strips as a scope pair. Without
-// both, 34 keys could never match and each produced a false drift row on both
-// sides of the comparison.
+// ("microsoft.compute/virtualmachines/extensions", lowercased). ARM keeps the
+// "locations" segment the extractor strips as a scope pair, so a candidate
+// reached only through one gets it back; without that, 15 keys could never
+// match and each produced a false drift row on both sides of the comparison.
+// Instance ids (blobServices/default) never reach a key: the extractor reads
+// them as ids.
 func (coverageProvider) RegistryKey(c sdkinv.Candidate) string {
 	ns, path, ok := strings.Cut(c.Key, "/")
 	if !ok {
 		return c.Key
 	}
-	segs := strings.Split(path, "/")
-	out := make([]string, 0, len(segs)+1)
-	if slices.Contains(c.Signals, armLocationScopeSignal) {
-		out = append(out, "locations")
+	if slices.Contains(c.Signals, azureinventory.LocationScopeSignal) {
+		return ns + "/locations/" + path
 	}
-	for _, sg := range segs {
-		if armSingletonID[sg] {
-			continue
-		}
-		out = append(out, sg)
-	}
-	return ns + "/" + strings.Join(out, "/")
+	return c.Key
 }
-
-// armLocationScopeSignal is set by internal/sdkinv/azure on a candidate whose
-// path reached it through a "locations/{location}" pair.
-const armLocationScopeSignal = "scope-pair:locations"
-
-// armSingletonID are ARM's names for the one instance of a singleton child;
-// they are ids in a path and absent from the type name.
-var armSingletonID = map[string]bool{"default": true, "current": true}
 
 // CanonicalKey lowercases: ARM identifiers are case-insensitive.
 func (coverageProvider) CanonicalKey(r coverage.UpstreamType) string { return strings.ToLower(r.Key) }

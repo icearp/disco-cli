@@ -245,3 +245,84 @@ func StrongerClass(a, b Class) Class {
 	}
 	return a
 }
+
+// SortOpRefs orders op identities by module then name.
+func SortOpRefs(refs []OpRef) {
+	sort.Slice(refs, func(i, j int) bool {
+		if refs[i].Module != refs[j].Module {
+			return refs[i].Module < refs[j].Module
+		}
+		return refs[i].Name < refs[j].Name
+	})
+}
+
+// SortDrops orders dropped operations by module, name, then reason.
+func SortDrops(ds []Drop) {
+	sort.Slice(ds, func(i, j int) bool {
+		x, y := ds[i], ds[j]
+		switch {
+		case x.Op.Module != y.Op.Module:
+			return x.Op.Module < y.Op.Module
+		case x.Op.Name != y.Op.Name:
+			return x.Op.Name < y.Op.Name
+		default:
+			return x.Reason < y.Reason
+		}
+	})
+}
+
+// Unaccounted compares a universe's SourceOps with the operations it
+// classified: missing were declared by the sources but appear nowhere, extra
+// appear but were never declared, and conflicts sit in more than one of
+// candidate ops, Other and Dropped (one op may serve several candidates).
+func Unaccounted(u *Universe) (missing, extra, conflicts []OpRef) {
+	kept := map[OpRef]bool{}
+	for _, c := range u.Candidates {
+		for _, o := range c.Ops {
+			kept[o.Ref()] = true
+		}
+	}
+	conflict := map[OpRef]bool{}
+	for _, o := range u.Other {
+		if kept[o.Ref()] {
+			conflict[o.Ref()] = true
+		}
+	}
+	for _, o := range u.Other {
+		kept[o.Ref()] = true
+	}
+	dropped := map[OpRef]bool{}
+	for _, d := range u.Dropped {
+		r := d.Op.Ref()
+		if kept[r] {
+			conflict[r] = true
+		}
+		dropped[r] = true
+	}
+	for r := range conflict {
+		conflicts = append(conflicts, r)
+	}
+	seen := map[OpRef]bool{}
+	for r := range kept {
+		seen[r] = true
+	}
+	for r := range dropped {
+		seen[r] = true
+	}
+	src := map[OpRef]bool{}
+	for _, r := range u.SourceOps {
+		src[r] = true
+		if !seen[r] {
+			missing = append(missing, r)
+		}
+	}
+	for r := range seen {
+		if !src[r] {
+			extra = append(extra, r)
+		}
+	}
+	SortOpRefs(missing)
+	SortOpRefs(extra)
+	SortOpRefs(conflicts)
+	return missing, extra, conflicts
+}

@@ -1,0 +1,698 @@
+{
+ "shapes": {
+  "gr#Alias": {
+   "identifiers": {
+    "aliasName": {
+     "target": "smithy.api#String"
+    },
+    "farmId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "list": {
+    "target": "gr#ListAliases"
+   },
+   "type": "resource"
+  },
+  "gr#AliasList": {
+   "member": {
+    "target": "gr#AliasSummary"
+   },
+   "type": "list"
+  },
+  "gr#AliasSummary": {
+   "members": {
+    "aliasName": {
+     "target": "smithy.api#String"
+    },
+    "farmId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#BatchGetFarms": {
+   "input": {
+    "target": "gr#BatchGetFarmsRequest"
+   },
+   "output": {
+    "target": "gr#BatchGetFarmsResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#BatchGetFarmsRequest": {
+   "members": {
+    "farmIds": {
+     "target": "gr#IdList",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "gr#BatchGetFarmsResponse": {
+   "members": {
+    "farmDetails": {
+     "target": "gr#FarmDetailList"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#CreateFarm": {
+   "input": {
+    "target": "gr#CreateFarmRequest"
+   },
+   "output": {
+    "target": "gr#CreateFarmResponse"
+   },
+   "type": "operation"
+  },
+  "gr#CreateFarmRequest": {
+   "members": {
+    "displayName": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "gr#CreateFarmResponse": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#Farm": {
+   "create": {
+    "target": "gr#CreateFarm"
+   },
+   "identifiers": {
+    "farmId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "list": {
+    "target": "gr#ListFarms"
+   },
+   "operations": [
+    {
+     "target": "gr#SearchWorkers"
+    }
+   ],
+   "read": {
+    "target": "gr#GetFarm"
+   },
+   "resources": [
+    {
+     "target": "gr#Fleet"
+    }
+   ],
+   "type": "resource"
+  },
+  "gr#FarmDetail": {
+   "members": {
+    "createdAt": {
+     "target": "smithy.api#Timestamp"
+    },
+    "displayName": {
+     "target": "smithy.api#String"
+    },
+    "farmId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#FarmDetailList": {
+   "member": {
+    "target": "gr#FarmDetail"
+   },
+   "type": "list"
+  },
+  "gr#FarmList": {
+   "member": {
+    "target": "gr#FarmSummary"
+   },
+   "type": "list"
+  },
+  "gr#FarmSummary": {
+   "members": {
+    "displayName": {
+     "target": "smithy.api#String"
+    },
+    "farmId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#Fleet": {
+   "identifiers": {
+    "farmId": {
+     "target": "smithy.api#String"
+    },
+    "fleetId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "list": {
+    "target": "gr#ListFleets"
+   },
+   "read": {
+    "target": "gr#GetFleet"
+   },
+   "resources": [
+    {
+     "target": "gr#Worker"
+    }
+   ],
+   "type": "resource"
+  },
+  "gr#FleetList": {
+   "member": {
+    "target": "gr#FleetSummary"
+   },
+   "type": "list"
+  },
+  "gr#FleetSummary": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String"
+    },
+    "fleetId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#Gears": {
+   "operations": [
+    {
+     "target": "gr#TagResource"
+    },
+    {
+     "target": "gr#ListTagsForResource"
+    },
+    {
+     "target": "gr#BatchGetFarms"
+    }
+   ],
+   "resources": [
+    {
+     "target": "gr#Farm"
+    },
+    {
+     "target": "gr#Alias"
+    },
+    {
+     "target": "gr#ManagedResource"
+    }
+   ],
+   "traits": {
+    "aws.api#service": {
+     "arnNamespace": "gears",
+     "sdkId": "Gears"
+    },
+    "aws.auth#sigv4": {
+     "name": "gears"
+    },
+    "smithy.api#paginated": {
+     "inputToken": "nextToken",
+     "outputToken": "nextToken",
+     "pageSize": "maxResults"
+    }
+   },
+   "type": "service",
+   "version": "2024-01-01"
+  },
+  "gr#GetFarm": {
+   "input": {
+    "target": "gr#GetFarmRequest"
+   },
+   "output": {
+    "target": "gr#GetFarmResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#GetFarmRequest": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "gr#GetFarmResponse": {
+   "members": {
+    "displayName": {
+     "target": "smithy.api#String"
+    },
+    "farmId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#GetFleet": {
+   "input": {
+    "target": "gr#GetFleetRequest"
+   },
+   "output": {
+    "target": "gr#GetFleetResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#GetFleetRequest": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "fleetId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "gr#GetFleetResponse": {
+   "members": {
+    "fleetId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#IdList": {
+   "member": {
+    "target": "gr#smithy.api#String"
+   },
+   "type": "list"
+  },
+  "gr#ListAliases": {
+   "input": {
+    "target": "gr#ListAliasesRequest"
+   },
+   "output": {
+    "target": "gr#ListAliasesResponse"
+   },
+   "traits": {
+    "smithy.api#paginated": {
+     "items": "aliases"
+    },
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#ListAliasesRequest": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "maxResults": {
+     "target": "smithy.api#Integer"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListAliasesResponse": {
+   "members": {
+    "aliases": {
+     "target": "gr#AliasList"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListFarms": {
+   "input": {
+    "target": "gr#ListFarmsRequest"
+   },
+   "output": {
+    "target": "gr#ListFarmsResponse"
+   },
+   "traits": {
+    "smithy.api#paginated": {
+     "items": "farms"
+    },
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#ListFarmsRequest": {
+   "members": {
+    "maxResults": {
+     "target": "smithy.api#Integer"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListFarmsResponse": {
+   "members": {
+    "farms": {
+     "target": "gr#FarmList"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListFleets": {
+   "input": {
+    "target": "gr#ListFleetsRequest"
+   },
+   "output": {
+    "target": "gr#ListFleetsResponse"
+   },
+   "traits": {
+    "smithy.api#paginated": {
+     "items": "fleets"
+    },
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#ListFleetsRequest": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "maxResults": {
+     "target": "smithy.api#Integer"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListFleetsResponse": {
+   "members": {
+    "fleets": {
+     "target": "gr#FleetList"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListManagedResources": {
+   "input": {
+    "target": "gr#ListManagedResourcesRequest"
+   },
+   "output": {
+    "target": "gr#ListManagedResourcesResponse"
+   },
+   "traits": {
+    "smithy.api#paginated": {
+     "items": "items"
+    },
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#ListManagedResourcesRequest": {
+   "members": {
+    "maxResults": {
+     "target": "smithy.api#Integer"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListManagedResourcesResponse": {
+   "members": {
+    "items": {
+     "target": "gr#ManagedResourceList"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListTagsForResource": {
+   "input": {
+    "target": "gr#ListTagsForResourceRequest"
+   },
+   "output": {
+    "target": "gr#ListTagsForResourceResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#ListTagsForResourceRequest": {
+   "members": {
+    "resourceArn": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListTagsForResourceResponse": {
+   "members": {
+    "tags": {
+     "target": "gr#TagList"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListWorkers": {
+   "input": {
+    "target": "gr#ListWorkersRequest"
+   },
+   "output": {
+    "target": "gr#ListWorkersResponse"
+   },
+   "traits": {
+    "smithy.api#paginated": {
+     "items": "workers"
+    },
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#ListWorkersRequest": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "fleetId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "maxResults": {
+     "target": "smithy.api#Integer"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListWorkersResponse": {
+   "members": {
+    "nextToken": {
+     "target": "smithy.api#String"
+    },
+    "workers": {
+     "target": "gr#WorkerList"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ManagedResource": {
+   "identifiers": {
+    "resourceName": {
+     "target": "smithy.api#String"
+    }
+   },
+   "list": {
+    "target": "gr#ListManagedResources"
+   },
+   "type": "resource"
+  },
+  "gr#ManagedResourceList": {
+   "member": {
+    "target": "gr#ManagedResourceSummary"
+   },
+   "type": "list"
+  },
+  "gr#ManagedResourceSummary": {
+   "members": {
+    "arn": {
+     "target": "smithy.api#String"
+    },
+    "resourceName": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#SearchWorkers": {
+   "input": {
+    "target": "gr#SearchWorkersRequest"
+   },
+   "output": {
+    "target": "gr#SearchWorkersResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#SearchWorkersRequest": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "gr#SearchWorkersResponse": {
+   "members": {
+    "workers": {
+     "target": "gr#WorkerList"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#Tag": {
+   "members": {
+    "key": {
+     "target": "smithy.api#String"
+    },
+    "value": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#TagList": {
+   "member": {
+    "target": "gr#Tag"
+   },
+   "type": "list"
+  },
+  "gr#TagResource": {
+   "input": {
+    "target": "gr#TagResourceRequest"
+   },
+   "output": {
+    "target": "gr#TagResourceResponse"
+   },
+   "type": "operation"
+  },
+  "gr#TagResourceRequest": {
+   "members": {
+    "resourceArn": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "tags": {
+     "target": "gr#TagList",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "gr#TagResourceResponse": {
+   "members": {},
+   "type": "structure"
+  },
+  "gr#Worker": {
+   "identifiers": {
+    "farmId": {
+     "target": "smithy.api#String"
+    },
+    "fleetId": {
+     "target": "smithy.api#String"
+    },
+    "workerId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "list": {
+    "target": "gr#ListWorkers"
+   },
+   "type": "resource"
+  },
+  "gr#WorkerList": {
+   "member": {
+    "target": "gr#WorkerSummary"
+   },
+   "type": "list"
+  },
+  "gr#WorkerSummary": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String"
+    },
+    "fleetId": {
+     "target": "smithy.api#String"
+    },
+    "workerId": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  }
+ },
+ "smithy": "2.0"
+}

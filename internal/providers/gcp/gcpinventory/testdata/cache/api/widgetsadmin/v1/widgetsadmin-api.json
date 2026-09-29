@@ -1,0 +1,98 @@
+{
+ "kind": "discovery#restDescription",
+ "name": "widgetsadmin",
+ "version": "v1",
+ "canonicalName": "Widgets",
+ "rootUrl": "https://widgets.googleapis.com/",
+ "servicePath": "",
+ "auth": {
+  "oauth2": {
+   "scopes": {
+    "https://www.googleapis.com/auth/cloud-platform": {
+     "description": "See, edit, configure, and delete your Google Cloud data."
+    }
+   }
+  }
+ },
+ "resources": {
+  "projects": {
+   "resources": {
+    "locations": {
+     "resources": {
+      "widgets": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1/{+parent}/widgets",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListWidgetsResponse"
+         }
+        },
+        "create": {
+         "httpMethod": "POST",
+         "path": "v1/{+parent}/widgets",
+         "flatPath": "v1/projects/{projectsId}/locations/{locationsId}/widgets",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "request": {
+          "$ref": "Widget"
+         },
+         "response": {
+          "$ref": "Widget"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "schemas": {
+  "ListWidgetsResponse": {
+   "type": "object",
+   "properties": {
+    "widgets": {
+     "type": "array",
+     "items": {
+      "$ref": "Widget"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Widget": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Widget name."
+    }
+   }
+  }
+ }
+}

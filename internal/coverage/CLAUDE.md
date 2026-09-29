@@ -3,22 +3,21 @@
 Coverage matrix engine for `disco coverage services`. The denominator is the SDK-derived
 universe (`internal/sdkinv`); the numerator is the static pairing of scanner SDK calls with
 the types they store (`internal/sdkinv/pairing`). Per-provider glue in
-`internal/providers/<p>/<p>_coverage.go` registers via `coverage.Register` from init.
+`internal/providers/<p>/<p>_coverage.go` registers via `coverage.Register` from init; each
+provider's extractor and resolver live in `internal/providers/<p>/<p>inventory`.
 
 ## The admitting rule travels with the row (#127)
 
-Every candidate carries `Rule`: the extractor rule that decided its class
-(`sr-resource`, `child-uncatalogued`, `writable-noun`, `element-arn`,
-`element-created` for AWS; `item-write` / `item-read-only` / `no-item-path` for Azure;
-`create` / `delete-only` / `get-only` / `list-only` / `operation-node` for GCP). It reaches
+Every candidate carries `Rule`: the extractor rule that decided its class (each provider's own
+vocabulary; see `internal/providers/<p>/<p>inventory/CLAUDE.md`). It reaches
 `Row.Rule`, `Summary.ByRule` and the markdown report.
 
 `Summary.ByRule` is computed in `BuildInventory`, **before** any `Filter`, because
 `make gen-coverage` renders with `--filter gaps` and a table built from the filtered rows
 reported every rule at 0% covered. `docs/coverage.md` states the denominator's definition in
-its header and prints the per-rule table under it: at the 2026-09 pins AWS reads
-`sr-resource` 80.3% against `child-uncatalogued` 13.2%, which is the whole point — a weak rule
-is visible as a low percentage instead of silently inflating one headline number.
+its header and prints the per-rule table under it, so a weak rule (AWS `child-uncatalogued`
+sits far below `sr-resource`) is visible as a low percentage instead of silently inflating one
+headline number. Never recompute percentages from filtered rows.
 
 ## Provider contract
 
@@ -31,8 +30,6 @@ is visible as a low percentage instead of silently inflating one headline number
 - `InputsFromCache(ctx, cache, provider, emits, scannerDir)` is the one derivation path shared by
   `cmd/coverage.go`, `cmd/disco-scaffold` and the reconcile tests; an empty `scannerDir` means
   "name matching only" (`Matrix.Pairing=false`, disco-only rows carry `pairing-unavailable`).
-- `BuildInventory(Inputs) Matrix` computes the summary **before** any filter; `Filter` only
-  narrows `Rows`. Never recompute percentages from filtered rows.
 
 ## Bucket semantics (`inventory.go`)
 
@@ -43,9 +40,8 @@ is visible as a low percentage instead of silently inflating one headline number
   number `--check-strict` exits on. `other-op` and `sdk-skew` explanations still name-match.
   A `sidecar` pairing with no types is still covered (reason `sidecar`): the scanner lists it.
   `label` pairings prove nothing (no SDK call) and never cover.
-- `uncovered` — resource candidate no scanner lists. The only actionable gap. AWS skip-labelled
-  keys in the uncovered denominator were 198 depth-0 + 67 child = 265 — ephemeral, retired or
-  catalog rows the SDK still lists, now honest `uncovered` rows.
+- `uncovered` — resource candidate no scanner lists. The only actionable gap. There is no skip list:
+  ephemeral, retired or catalog rows the SDK still lists stay honest `uncovered` rows.
 - `attribute` — `ClassAttribute` (Get + id, no collection). Not in `%`.
 - `excluded` — catalog / non-resource / `preview-only`; reason carries the rule. Not in `%`.
   An excluded row a scanner provably lists keeps its `discoType` and gains the `scanner-lists`
@@ -73,13 +69,12 @@ is visible as a low percentage instead of silently inflating one headline number
   **only** when it matches the candidate's ident or shares its leaf: the five `aws:docdb:*` orphans
   do share `rds/dbinstance`'s leaf and were starved of its 44 refs, while a dispatcher's derived
   pairing spans a whole service and must not hand every network type the app gateway's 280 fields.
-- `Row.Ops` folds repeated labels (sibling AWS models, per-version GCP documents): 930 rows
-  rendered a duplicated ops cell. `Ops` is never read back, so the fold is presentation only.
-- `Row.Scope` is the **narrowest** scope among the candidate's ops (`scopeSpecificity`: project >
-  resource-group/subscription > account/region > org > folder > billing-account/management-group >
-  tenant/extension > global). Ops sort by label, so taking `Ops[0]` printed `billingAccounts.` or
+- `Row.Ops` folds repeated labels (sibling AWS models, per-version GCP documents). `Ops` is never read back, so the fold is presentation only.
+- `Row.Scope` is the **narrowest** scope among the candidate's ops, ranked by the provider's own
+  `Universe.Scopes` (narrowest first; an undeclared scope ranks widest). coverage holds no
+  cross-provider scope table. Ops sort by label, so taking `Ops[0]` printed `billingAccounts.` or
   `folders.` on 117 GCP rows that a project-scoped lister also serves. AWS ops carry no scope at
-  all, by rule (`internal/sdkinv/CLAUDE.md`), and the renderers dash an empty value.
+  all, by rule (`internal/providers/aws/awsinventory/CLAUDE.md`), and the renderers dash an empty value.
 - Unit of coverage is the candidate: one op → N types counts once; N ops → one type marks every
   candidate covered. `Row.DiscoType` is the type to display — identity match, else shared leaf —
   and `Row.DiscoTypes` the whole set when more than one is paired. With several paired and neither
@@ -98,8 +93,7 @@ pins, or a new unexplained type; a covered key that is no longer a candidate at 
 universe cannot shrink by itself) and `gone-since-baseline` under new ones; a pin bump only
 reports `pins-changed` + `new-since-baseline` / `gone-since-baseline` keys, never the percent,
 because a larger universe with the same scanners can only lower it. Rows are sorted in
-`BuildInventory`, so `docs/coverage.md` is byte-stable (verified: two `make gen-coverage` runs
-`cmp` equal).
+`BuildInventory`, so `docs/coverage.md` is byte-stable.
 `ProviderBaseline.Pairing` records whether the scanner source was paired; a mode-mixed compare
 is fatal (`pairing-mode`) because name matching alone reports ~7 points less on AWS. A provider
 absent from the file is fatal (`no-baseline`) — nothing would guard it. An uncovered key leaving
@@ -115,11 +109,13 @@ run cannot silently drop the ratchet for the providers it did not compute.
 `sdkinv.Ident` is the only cross-source equality; its rules are in `internal/sdkinv/CLAUDE.md`.
 GCP's `RegistryKey`/`CanonicalKey` also compare through `Ident`.
 
-## Live numbers (2026-09-26, pins in `docs/coverage.md`, pairing on)
+## Live numbers (2026-09-28 snapshot, pairing on; `docs/coverage.md` is authoritative)
 
-AWS 48.7% (1677/3441), Azure 15.8% (398/2515), GCP 22.9% (239/1042); zero unexplained. Pairing
-off (an installed binary): AWS 41.3%, Azure 15.7%, GCP 18.5%. Azure
-carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 1 (`other-op`). The
+AWS 49.8% (1660/3336), Azure 16.1% (398/2478), GCP 23.2% (240/1034); zero unexplained. Pairing
+off (an installed binary): AWS 42.0%, Azure 15.9%, GCP 18.8%. Azure
+carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 5 (`other-op`: IAM
+policy, plus listers no sibling confirms — bigtable hot tablets and the per-cluster memory-layer
+singleton, effective tags, spanner's DDL-defined database roles). The
 Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
 
 ## Cross-check drift reads buckets, not classes (#119)

@@ -250,7 +250,7 @@ func (s *cloudRunScan) scanWorkerPools(ctx context.Context, locParent, region st
 	})
 	if werr != nil {
 		if isPermissionDenied(werr) {
-			_ = skipIfDenied(s.st, "run:workerpools.list", s.p.ID, werr)
+			_ = skipIfDenied(s.st, "run:workerPools.list", s.p.ID, werr)
 		} else {
 			return werr
 		}

@@ -1,0 +1,439 @@
+{
+ "kind": "discovery#restDescription",
+ "name": "widgets",
+ "version": "v1beta1",
+ "canonicalName": "Widgets",
+ "rootUrl": "https://widgets.googleapis.com/",
+ "servicePath": "",
+ "auth": {
+  "oauth2": {
+   "scopes": {
+    "https://www.googleapis.com/auth/cloud-platform": {
+     "description": "See, edit, configure, and delete your Google Cloud data."
+    }
+   }
+  }
+ },
+ "resources": {
+  "projects": {
+   "resources": {
+    "locations": {
+     "resources": {
+      "widgets": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1beta1/{+parent}/widgets",
+         "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/widgets",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListWidgetsResponse"
+         }
+        },
+        "create": {
+         "httpMethod": "POST",
+         "path": "v1beta1/{+parent}/widgets",
+         "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/widgets",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "request": {
+          "$ref": "Widget"
+         },
+         "response": {
+          "$ref": "Widget"
+         }
+        }
+       }
+      },
+      "operations": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1beta1/{+name}/operations",
+         "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/operations",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "ListOperationsResponse"
+         }
+        },
+        "get": {
+         "httpMethod": "GET",
+         "path": "v1beta1/{+name}",
+         "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}",
+         "parameters": {
+          "name": {
+           "location": "path",
+           "required": true
+          }
+         },
+         "parameterOrder": [
+          "name"
+         ],
+         "response": {
+          "$ref": "Operation"
+         }
+        }
+       }
+      },
+      "gadgets": {
+       "methods": {
+        "list": {
+         "httpMethod": "GET",
+         "path": "v1beta1/{+parent}/gadgets",
+         "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/gadgets",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          },
+          "pageToken": {
+           "location": "query"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "response": {
+          "$ref": "ListGadgetsResponse"
+         }
+        },
+        "create": {
+         "httpMethod": "POST",
+         "path": "v1beta1/{+parent}/gadgets",
+         "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/gadgets",
+         "parameters": {
+          "parent": {
+           "location": "path",
+           "required": true,
+           "pattern": "^projects/[^/]+/locations/[^/]+$"
+          }
+         },
+         "parameterOrder": [
+          "parent"
+         ],
+         "request": {
+          "$ref": "Gadget"
+         },
+         "response": {
+          "$ref": "Gadget"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "namespaces": {
+   "resources": {
+    "widgets": {
+     "methods": {
+      "list": {
+       "httpMethod": "GET",
+       "path": "apis/widgets.dev/v1beta1/{+parent}/widgets",
+       "flatPath": "apis/widgets.dev/v1beta1/namespaces/{namespacesId}/widgets",
+       "parameters": {
+        "parent": {
+         "location": "path",
+         "required": true,
+         "pattern": "^namespaces/[^/]+$"
+        },
+        "pageToken": {
+         "location": "query"
+        }
+       },
+       "parameterOrder": [
+        "parent"
+       ],
+       "response": {
+        "$ref": "WidgetsV1beta1ListWidgetsResponse"
+       }
+      },
+      "get": {
+       "httpMethod": "GET",
+       "path": "apis/widgets.dev/v1beta1/{+name}",
+       "flatPath": "apis/widgets.dev/v1beta1/namespaces/{namespacesId}/widgets/{widgetsId}",
+       "parameters": {
+        "name": {
+         "location": "path",
+         "required": true
+        }
+       },
+       "parameterOrder": [
+        "name"
+       ],
+       "response": {
+        "$ref": "WidgetsV1beta1Widget"
+       }
+      }
+     }
+    },
+    "zones": {
+     "methods": {
+      "list": {
+       "httpMethod": "GET",
+       "path": "apis/widgets.dev/v1beta1/{+parent}/zones",
+       "flatPath": "apis/widgets.dev/v1beta1/namespaces/{namespacesId}/zones",
+       "parameters": {
+        "parent": {
+         "location": "path",
+         "required": true,
+         "pattern": "^namespaces/[^/]+$"
+        },
+        "pageToken": {
+         "location": "query"
+        }
+       },
+       "parameterOrder": [
+        "parent"
+       ],
+       "response": {
+        "$ref": "WidgetsV1beta1LakeZoneList"
+       }
+      },
+      "get": {
+       "httpMethod": "GET",
+       "path": "apis/widgets.dev/v1beta1/{+name}",
+       "flatPath": "apis/widgets.dev/v1beta1/namespaces/{namespacesId}/zones/{zonesId}",
+       "parameters": {
+        "name": {
+         "location": "path",
+         "required": true
+        }
+       },
+       "parameterOrder": [
+        "name"
+       ],
+       "response": {
+        "$ref": "WidgetsV1beta1LakeZone"
+       }
+      }
+     }
+    },
+    "gears": {
+     "methods": {
+      "list": {
+       "httpMethod": "GET",
+       "path": "apis/widgets.dev/v1beta1/{+parent}/gears",
+       "flatPath": "apis/widgets.dev/v1beta1/namespaces/{namespacesId}/gears",
+       "parameters": {
+        "parent": {
+         "location": "path",
+         "required": true,
+         "pattern": "^namespaces/[^/]+$"
+        },
+        "pageToken": {
+         "location": "query"
+        }
+       },
+       "parameterOrder": [
+        "parent"
+       ],
+       "response": {
+        "$ref": "ListPublisherGearsResponse"
+       }
+      },
+      "get": {
+       "httpMethod": "GET",
+       "path": "apis/widgets.dev/v1beta1/{+name}",
+       "flatPath": "apis/widgets.dev/v1beta1/namespaces/{namespacesId}/gears/{gearsId}",
+       "parameters": {
+        "name": {
+         "location": "path",
+         "required": true
+        }
+       },
+       "parameterOrder": [
+        "name"
+       ],
+       "response": {
+        "$ref": "PublisherGear"
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "schemas": {
+  "ListWidgetsResponse": {
+   "type": "object",
+   "properties": {
+    "widgets": {
+     "type": "array",
+     "items": {
+      "$ref": "Widget"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Widget": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Widget name."
+    }
+   }
+  },
+  "ListGadgetsResponse": {
+   "type": "object",
+   "properties": {
+    "gadgets": {
+     "type": "array",
+     "items": {
+      "$ref": "Gadget"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Gadget": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Gadget name."
+    }
+   }
+  },
+  "WidgetsV1beta1ListWidgetsResponse": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "WidgetsV1beta1Widget"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "WidgetsV1beta1Widget": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Widget name."
+    }
+   }
+  },
+  "WidgetsV1beta1LakeZoneList": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "WidgetsV1beta1LakeZone"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "WidgetsV1beta1LakeZone": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Zone name."
+    }
+   }
+  },
+  "ListOperationsResponse": {
+   "type": "object",
+   "properties": {
+    "operations": {
+     "type": "array",
+     "items": {
+      "$ref": "Operation"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Operation": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "done": {
+     "type": "boolean"
+    },
+    "error": {
+     "type": "object"
+    },
+    "response": {
+     "type": "object"
+    }
+   }
+  },
+  "ListPublisherGearsResponse": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "PublisherGear"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "PublisherGear": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Gear name."
+    }
+   }
+  }
+ }
+}

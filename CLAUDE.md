@@ -22,6 +22,13 @@ and do not batch phases together:
 5. **Pause.** Surface the phase result and wait — the next phase is the user's call, not an
    automatic continuation.
 
+**Rewriting an extractor:** build the new one beside the old, diff both universes per candidate
+(key, class, rule, parent, depth) with a throwaway live-cache test, classify every changed row,
+mutation-check every rule against the fixture (see `internal/sdkinv/CLAUDE.md`), then swap and
+delete the old code and the diff test in the same commit. Measure every review fix against the
+live cache (dump candidates before and after, diff the key/class/rule columns): a one-line gate
+in Azure moved 56 rows.
+
 **After the final phase.** Run the `claude-md-management:claude-md-improver` skill across
 the repo's `CLAUDE.md` files to optimize them, then commit that pass separately.
 
@@ -64,6 +71,9 @@ make check-migrations
 # Populate the SDK source cache the coverage denominator derives from (no-op when present)
 make sdk-fetch            # = disco coverage sdk fetch; see internal/sdkinv/CLAUDE.md
 
+# Before/after equivalence check: capture `disco coverage services -o json` from the repo root
+# (--source-root defaults to cwd; elsewhere pairing is off and output differs spuriously)
+
 # Cold `go build ./...` exceeds 2 min (three cloud SDKs). Build/test/lint scoped packages first
 # (`./internal/sdkinv/... ./cmd/...`), run the full build in the background.
 
@@ -71,7 +81,7 @@ make sdk-fetch            # = disco coverage sdk fetch; see internal/sdkinv/CLAU
 gofmt -w .
 ```
 
-Version stamp: `make build` injects `git describe --tags --always --dirty=+dirty` via `-X cmd.Version` ldflag (canonical release path). Plain `go build .` from a git checkout now falls back to `runtime/debug.ReadBuildInfo()` — uses `vcs.revision[:12]` plus `+dirty` when the worktree has uncommitted changes. Falls through to the literal `dev` only when neither ldflag nor build-info is available (e.g. `go test`, `go install` from a tarball without VCS info). SARIF `tool.driver.version`, snapshot `manifest.tool_version`, and `disco --version` all read `cmd.Version` — single source of truth.
+Version stamp: `make build` injects `git describe --tags --always --dirty=+dirty` via `-X cmd.Version` ldflag (canonical release path). Without the ldflag, `cmd/root.go` falls back to build-info `vcs.revision[:12]` (+`+dirty`), then the literal `dev` (e.g. `go test`). SARIF `tool.driver.version`, snapshot `manifest.toolVersion`, and `disco --version` all read `cmd.Version` — single source of truth.
 
 ## Architecture
 
@@ -142,7 +152,8 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 - `internal/providers/aws/CLAUDE.md` — AWS-specific resolver/scanner conventions (ARN helpers, KMS, IAM, ELBv2, Route53, paginators, Smithy, transient errors, etc.)
 - `internal/providers/azure/CLAUDE.md` — Azure-specific helpers (azPageScan, rgHierarchyPair, vault-URI parsers), case-insensitive ARM-ID rule, MSI consumer resolver, sub-scoped vs tenant-scoped pattern
 - `internal/providers/gcp/CLAUDE.md` — GCP-specific (per-project fan-out, scopes-above-project gap, IAM policy synth-resource shape, permission-denied handling, NativeID conventions)
-- `internal/sdkinv/CLAUDE.md` — SDK source cache layout, pins, extractor rules per provider, AST pairing
+- `internal/sdkinv/CLAUDE.md` — provider-neutral core: SDK source cache, accounting invariant, extractor contract, AST pairing walk
+- `internal/providers/<p>/<p>inventory/CLAUDE.md` — per-provider SDK facts: cache layout, pins, extractor rules, refs, pairing resolver
 - `internal/coverage/CLAUDE.md` — coverage buckets and reasons, identity rule, baseline ratchet, live numbers
 
 ## Bundled features of note
@@ -150,9 +161,9 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 Single build, no feature gating — everything ships in this one binary.
 
 - Bundled OPA Rego packs follow `<provider>-<framework>` naming under `internal/policy/<name>/`, surfaced via `disco check --packs <name>`. Ships `aws-waf` (5-rule AWS Well-Architected sample pack, one or two rules per pillar). Curated full packs — Well-Architected (complete), CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001 — and future `azure-waf` / `gcp-waf` are not yet bundled.
-- Findings persistence: `disco check --persist` writes a check run + findings to the DB; `disco findings list/runs` query them (migration `002_findings.sql`). The tables stay empty until `--persist` is used. Drift analytics (`findings diff`, heatmaps, retention, ticket sync) can build atop the same schema.
+- Findings persistence: `disco check --persist` writes a check run + findings to the DB; `disco findings list/runs` query them (migration `002_findings.sql`). The tables stay empty until `--persist` is used.
 - Evidence snapshots: `disco snapshot` / `disco verify` produce and verify single-file archives (`disco-snapshot/v1` manifest, optional ed25519 signature); details in `cmd/CLAUDE.md`.
-- Release SBOMs: each tagged release attaches a per-binary CycloneDX (`.cdx.json`) + SPDX (`.spdx.json`) SBOM beside the `.sha256` sidecar, generated by `syft` from the binary's Go buildinfo. `make sbom` reproduces them locally into `dist/`. Generated from the **raw binary before upx/xz** so the SBOM derives straight from the Go build (stdlib `go version -m` can't read a upx-packed binary — syft happens to see through it, but we don't rely on that); both the Makefile target and the CI step (`.github/workflows/release.yaml`) run before the compression steps. `SYFT_VERSION` is pinned in both places (keep in sync), and the emitted spec versions are pinned in the `-o` selectors (`cyclonedx-json@1.7`, `spdx-json@2.3`) so a syft bump can't silently reshape the output. syft is invoked via `go run …@version`, never added to disco's go.mod. Not embedded in the `disco snapshot` evidence archive (yet) — a signed-SBOM follow-up.
+- Release SBOMs: each tagged release attaches a per-binary CycloneDX (`.cdx.json`) + SPDX (`.spdx.json`) SBOM beside the `.sha256` sidecar, generated by `syft` from the binary's Go buildinfo. `make sbom` reproduces them locally into `dist/`. Generated from the **raw binary before upx/xz** (`go version -m` can't read a upx-packed binary); both the Makefile target and the CI step (`.github/workflows/release.yaml`) run before the compression steps. `SYFT_VERSION` is pinned in both places (keep in sync), and the emitted spec versions are pinned in the `-o` selectors (`cyclonedx-json@1.7`, `spdx-json@2.3`) so a syft bump can't silently reshape the output. syft is invoked via `go run …@version`, never added to disco's go.mod. Not embedded in the `disco snapshot` evidence archive (yet) — a signed-SBOM follow-up.
 - Release vuln gate: the CI `test` job runs `govulncheck` against the shipped build config (`-tags grpcnotrace`, `CGO_ENABLED=0`); a **reachable** known vuln exits non-zero, failing `test` so `build`/`release` never run (release-blocking via the existing `build: needs: test`). Runs once per tag — the vuln DB (vuln.go.dev) is queried live, so pinning `GOVULNCHECK_VERSION` (kept in sync between `Makefile` and `.github/workflows/release.yaml`) fixes the tool, not the data. `make vulncheck` mirrors it locally. Tool invoked via `go run …@version`, never in go.mod. Release-gate only for now — a continuous push/PR/cron workflow (catching vulns disclosed between tags) is a deliberate follow-up.
   - **Binary mode, not source mode** (`-mode binary` over a freshly built binary). Source mode builds whole-program SSA over three cloud SDKs and needs **>23GB**; binary mode reads the symbol table (still symbol-level reachability) and fits in <8GB.
   - Never scan a **`-w -s` stripped** binary. govulncheck does not error on a missing symbol table; it silently falls back to module granularity and reports whole modules reachable — a **spurious red** (e.g. `x/crypto/openpgp`) someone would paper over with `continue-on-error`. Both `make vulncheck` (depends on `build`, not `dist`) and the CI step (throwaway `vulnscan-target`) assert `go tool nm <binary>` succeeds first. Stripping removes debug data, not code, so the unstripped result holds for the shipped binary.

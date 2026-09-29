@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
@@ -76,10 +77,9 @@ type Result struct {
 
 // Func is the per-function view a Resolver inspects.
 type Func struct {
-	provider string
-	fset     *token.FileSet
-	Decl     *ast.FuncDecl
-	Imports  map[string]string // local name -> import path
+	fset    *token.FileSet
+	Decl    *ast.FuncDecl
+	Imports map[string]string // local name -> import path
 	// Vars maps a local variable to the (module, ident) it was built from:
 	// "client" -> {armcompute, VirtualMachinesClient}; "svc" -> {compute, Service}.
 	Vars map[string]Binding
@@ -121,17 +121,36 @@ type Resolver interface {
 	// TypeOwner reports the client ident a module type belongs to
 	// (armquota.ClientListResponse -> Client), so a local interface seam whose
 	// methods mention that type binds its parameters like the client itself.
-	TypeOwner(module, typeName string) (ident string, ok bool)
+	// clients lists the module's client idents the universe knows, sorted.
+	TypeOwner(module, typeName string, clients []string) (ident string, ok bool)
+	// LabelOp maps a label literal to the operation name it spells, in the
+	// form an Anchor's Op and OpKey carry: a label resolves by it when no alias
+	// matches, and a label naming a call the pinned SDK no longer has reads as
+	// skew rather than a typo.
+	LabelOp(lit string) string
 	Anchors(f *Func) ([]Anchor, []Diagnostic)
 }
 
-var resolvers = map[string]Resolver{}
+var (
+	mu        sync.RWMutex
+	resolvers = map[string]Resolver{}
+)
 
-// Register adds a provider resolver; called from init.
-func Register(r Resolver) { resolvers[r.Name()] = r }
+// Register adds a provider resolver; called from init. Duplicate names
+// panic, mirroring sdkinv.Register.
+func Register(r Resolver) {
+	mu.Lock()
+	defer mu.Unlock()
+	if _, dup := resolvers[r.Name()]; dup {
+		panic(fmt.Sprintf("pairing: duplicate resolver %q", r.Name()))
+	}
+	resolvers[r.Name()] = r
+}
 
 // Get returns the resolver for a provider.
 func Get(name string) (Resolver, bool) {
+	mu.RLock()
+	defer mu.RUnlock()
 	r, ok := resolvers[name]
 	return r, ok
 }
@@ -172,7 +191,7 @@ type fn struct {
 
 // Walk parses every non-test .go file in dir and pairs it against u.
 func Walk(dir string, u *sdkinv.Universe) (*Result, error) {
-	r, ok := resolvers[u.Provider]
+	r, ok := Get(u.Provider)
 	if !ok {
 		return nil, fmt.Errorf("pairing: no resolver for provider %q", u.Provider)
 	}
@@ -203,7 +222,7 @@ func Walk(dir string, u *sdkinv.Universe) (*Result, error) {
 	consts := collectConsts(parsed, u.Provider)
 	varTypes := collectVarTypes(parsed, consts)
 	fields := collectFields(parsed, r)
-	seams := collectSeams(parsed, r)
+	seams := collectSeams(parsed, r, idx.moduleClients)
 	res := &Result{Provider: u.Provider, Consts: consts, StoredBy: map[string][]string{}}
 	fns := map[string]*fn{}
 	var order []*fn
@@ -222,7 +241,7 @@ func Walk(dir string, u *sdkinv.Universe) (*Result, error) {
 			}
 			scanBody(f, fd, fset, consts, varTypes, imports, r.LabelGrammar(), loose)
 			fv := &Func{
-				provider: u.Provider, fset: fset, Decl: fd, Imports: imports, Vars: bindLocals(fd, imports, r, seams), Fields: fields[recvType(fd)], SDKMods: mods,
+				fset: fset, Decl: fd, Imports: imports, Vars: bindLocals(fd, imports, r, seams), Fields: fields[recvType(fd)], SDKMods: mods,
 				Ops: idx.has, Other: idx.hasOther, ClientsWith: idx.clientsWith,
 			}
 			f.anchors, f.diags = r.Anchors(fv)
@@ -288,8 +307,12 @@ func (f *fn) resolveAnchors(idx *index, res *Result) {
 	f.anchored = map[string]opRef{}
 	f.other = map[string]sdkinv.Operation{}
 	for _, a := range f.anchors {
-		if ref, ok := idx.byKey[a.Module+"\x00"+a.Op]; ok {
-			f.anchored[ref.key] = ref
+		// One op can list several candidates (an aggregated list answers
+		// its regional and global twins), so the call anchors every one.
+		if refs := idx.byKey[a.Module+"\x00"+a.Op]; len(refs) > 0 {
+			for _, ref := range refs {
+				f.anchored[ref.key] = ref
+			}
 			continue
 		}
 		if op, ok := idx.other[a.Module+"\x00"+a.Op]; ok {
@@ -363,7 +386,7 @@ func (f *fn) emit(fns map[string]*fn, idx *index, res *Result, provider string) 
 				// Only the orphan types this listing could plausibly have
 				// produced. Unfiltered, a dispatcher paired every orphan with
 				// every key it reached.
-				rel := relatedTypes(k, op, orphan)
+				rel := relatedTypes(op, orphan)
 				if len(rel) == 0 {
 					continue
 				}
@@ -393,7 +416,7 @@ func (f *fn) emit(fns map[string]*fn, idx *index, res *Result, provider string) 
 		if !ok {
 			switch {
 			case idx.known(lit, f.mods):
-			case skewed(lit, missing):
+			case skewed(idx.r.LabelOp(lit), missing):
 				res.Diagnostics = append(res.Diagnostics, Diagnostic{
 					Kind: "sdk-skew", File: f.file, Line: lines[0],
 					Message: fmt.Sprintf("label %q names an operation the pinned SDK no longer has", lit),
@@ -505,25 +528,28 @@ type opRef struct {
 }
 
 type index struct {
-	byKey   map[string]opRef   // module\x00op
+	r       Resolver
+	byKey   map[string][]opRef // module\x00op
 	byLabel map[string][]opRef // candidate ops by every alias form (several when the alias is ambiguous)
 	other   map[string]sdkinv.Operation
 	clients map[string][]string // module\x00op -> client idents
 	modules map[string]bool
+	// moduleClients lists each module's client idents, sorted, for TypeOwner.
+	moduleClients map[string][]string
 }
 
 func indexUniverse(r Resolver, u *sdkinv.Universe) *index {
-	idx := &index{byKey: map[string]opRef{}, byLabel: map[string][]opRef{}, other: map[string]sdkinv.Operation{}, clients: map[string][]string{}, modules: map[string]bool{}}
+	idx := &index{r: r, byKey: map[string][]opRef{}, byLabel: map[string][]opRef{}, other: map[string]sdkinv.Operation{}, clients: map[string][]string{}, modules: map[string]bool{}, moduleClients: map[string][]string{}}
 	for _, c := range u.Candidates {
 		for _, op := range c.Ops {
 			mod, name := r.OpKey(op)
 			idx.modules[mod] = true
-			idx.byKey[mod+"\x00"+name] = opRef{op, c.Key}
+			idx.byKey[mod+"\x00"+name] = append(idx.byKey[mod+"\x00"+name], opRef{op, c.Key})
 			for _, l := range r.LabelAliases(c, op) {
 				idx.byLabel[l] = append(idx.byLabel[l], opRef{op, c.Key})
 			}
-			if client, method, ok := strings.Cut(name, "."); ok {
-				idx.clients[mod+"\x00"+method] = append(idx.clients[mod+"\x00"+method], client)
+			if method, ok := strings.CutPrefix(name, op.Client+"."); ok && op.Client != "" {
+				idx.clients[mod+"\x00"+method] = append(idx.clients[mod+"\x00"+method], op.Client)
 			}
 		}
 	}
@@ -534,6 +560,26 @@ func indexUniverse(r Resolver, u *sdkinv.Universe) *index {
 			idx.other[l] = op
 		}
 		idx.other[mod+"\x00"+name] = op
+	}
+	seen := map[string]bool{}
+	addClient := func(mod string, op sdkinv.Operation) {
+		if op.Client != "" && !seen[mod+"\x00"+op.Client] {
+			seen[mod+"\x00"+op.Client] = true
+			idx.moduleClients[mod] = append(idx.moduleClients[mod], op.Client)
+		}
+	}
+	for _, c := range u.Candidates {
+		for _, op := range c.Ops {
+			mod, _ := r.OpKey(op)
+			addClient(mod, op)
+		}
+	}
+	for _, op := range u.Other {
+		mod, _ := r.OpKey(op)
+		addClient(mod, op)
+	}
+	for _, cs := range idx.moduleClients {
+		sort.Strings(cs)
 	}
 	return idx
 }
@@ -554,13 +600,23 @@ func (idx *index) resolveLabel(lit string, mods []string, anchored map[string]op
 	if keys := distinctKeys(refs); len(keys) == 1 {
 		return refs[0], true
 	}
-	_, name, _ := strings.Cut(lit, ":")
+	name := idx.r.LabelOp(lit)
 	for _, mod := range mods {
-		if ref, ok := idx.byKey[mod+"\x00"+name]; ok {
-			return ref, true
+		if refs := idx.byKey[mod+"\x00"+name]; len(refs) > 0 {
+			return preferAnchored(refs, anchored), true
 		}
 	}
 	return opRef{}, false
+}
+
+// preferAnchored picks the ref the function anchors, else the first.
+func preferAnchored(refs []opRef, anchored map[string]opRef) opRef {
+	for _, r := range refs {
+		if _, ok := anchored[r.key]; ok {
+			return r
+		}
+	}
+	return refs[0]
 }
 
 func distinctKeys(refs []opRef) map[string]bool {
@@ -576,7 +632,7 @@ func (idx *index) known(lit string, mods []string) bool {
 	if _, ok := idx.other[lit]; ok {
 		return true
 	}
-	_, name, _ := strings.Cut(lit, ":")
+	name := idx.r.LabelOp(lit)
 	for _, mod := range mods {
 		if _, ok := idx.other[mod+"\x00"+name]; ok {
 			return true
@@ -586,8 +642,7 @@ func (idx *index) known(lit string, mods []string) bool {
 }
 
 func (idx *index) has(module, op string) bool {
-	_, ok := idx.byKey[module+"\x00"+op]
-	return ok
+	return len(idx.byKey[module+"\x00"+op]) > 0
 }
 
 func (idx *index) hasOther(module, op string) bool {
@@ -709,7 +764,7 @@ func collectFields(files []*ast.File, r Resolver) map[string]map[string]Binding 
 
 // collectSeams maps every package-local interface type to the client whose
 // types its method signatures mention (a scanner's narrow test seam).
-func collectSeams(files []*ast.File, r Resolver) map[string]Binding {
+func collectSeams(files []*ast.File, r Resolver, clients map[string][]string) map[string]Binding {
 	out := map[string]Binding{}
 	for _, af := range files {
 		imports, _ := fileImports(r, af)
@@ -741,7 +796,7 @@ func collectSeams(files []*ast.File, r Resolver) map[string]Binding {
 					if mod == "" {
 						return true
 					}
-					if ident, ok := r.TypeOwner(mod, sel.Sel.Name); ok {
+					if ident, ok := r.TypeOwner(mod, sel.Sel.Name, clients[mod]); ok {
 						if _, seen := out[ts.Name.Name]; !seen {
 							out[ts.Name.Name] = Binding{Module: mod, Ident: ident}
 						}
@@ -757,14 +812,20 @@ func collectSeams(files []*ast.File, r Resolver) map[string]Binding {
 func fileImports(r Resolver, af *ast.File) (map[string]string, []string) {
 	imports := map[string]string{}
 	var mods []string
+	var qualifiers map[string]bool
 	for _, im := range af.Imports {
 		path, err := strconv.Unquote(im.Path.Value)
 		if err != nil {
 			continue
 		}
-		local := defaultImportName(path)
+		var local string
 		if im.Name != nil {
 			local = im.Name.Name
+		} else {
+			if qualifiers == nil {
+				qualifiers = selectorRoots(af)
+			}
+			local = importName(path, qualifiers)
 		}
 		imports[local] = path
 		if k := r.ImportKey(path); k != "" && !slices.Contains(mods, k) {
@@ -774,16 +835,33 @@ func fileImports(r Resolver, af *ast.File) (map[string]string, []string) {
 	return imports, mods
 }
 
-var versionSegRe = regexp.MustCompile(`/v\d+[a-z0-9]*$`)
-
-// defaultImportName is the package name an unaliased import binds: the last
-// path segment after trailing major/API versions (armcompute/v6 → armcompute,
-// compute/v1 → compute).
-func defaultImportName(path string) string {
-	for versionSegRe.MatchString(path) {
-		path = versionSegRe.ReplaceAllString(path, "")
+// importName is the name an unaliased import binds. The package clause lives
+// in the imported source, which pairing does not read, so it is taken from the
+// importing file: the compiler rejects an unused import, so the name is a
+// selector root there. The last path segment so used wins (armcompute/v6 →
+// armcompute, admin/directory/v1 → admin); none used → the last segment.
+func importName(path string, qualifiers map[string]bool) string {
+	segs := strings.Split(path, "/")
+	for i := len(segs) - 1; i >= 0; i-- {
+		if qualifiers[segs[i]] {
+			return segs[i]
+		}
 	}
-	return path[strings.LastIndex(path, "/")+1:]
+	return segs[len(segs)-1]
+}
+
+// selectorRoots lists the identifiers a file qualifies a selector with (X in X.Sel).
+func selectorRoots(af *ast.File) map[string]bool {
+	out := map[string]bool{}
+	ast.Inspect(af, func(n ast.Node) bool {
+		if se, ok := n.(*ast.SelectorExpr); ok {
+			if id, ok := se.X.(*ast.Ident); ok {
+				out[id.Name] = true
+			}
+		}
+		return true
+	})
+	return out
 }
 
 func recvType(fd *ast.FuncDecl) string {
@@ -1150,42 +1228,20 @@ func dropEmittedFromDerived(ps []Pairing) []Pairing {
 	return out
 }
 
-// relatedTypes keeps the orphan types whose service segment relates to the
-// operation's service, or whose leaf matches the candidate key's last segment.
-// A derived pairing is evidence by proximity — the rows come from this
-// listing — and proximity across services is not evidence at all.
-func relatedTypes(key string, op sdkinv.Operation, orphan []string) []string {
-	svc := normIdent(op.Service)
-	leaf := key
-	if i := strings.LastIndex(leaf, "/"); i >= 0 {
-		leaf = leaf[i+1:]
-	}
-	leaf = sdkinv.Ident(leaf)
+// relatedTypes keeps the orphan types declared under the operation's own
+// service. A derived pairing is evidence by proximity — the rows come from
+// this listing — and proximity across services is not evidence at all. The
+// match is exact: a type whose service segment spells the SDK service another
+// way stays unpaired, which the pairing gate reports, rather than being
+// claimed by a near-miss name.
+func relatedTypes(op sdkinv.Operation, orphan []string) []string {
 	var out []string
 	for _, t := range orphan {
-		parts := strings.SplitN(t, ":", 3)
-		if len(parts) != 3 {
-			continue
-		}
-		ts := normIdent(parts[1])
-		segs := strings.Split(parts[2], ":")
-		tl := sdkinv.Ident(segs[len(segs)-1])
-		if ts == svc || strings.HasPrefix(ts, svc) || strings.HasPrefix(svc, ts) || tl == leaf {
+		if parts := strings.SplitN(t, ":", 3); len(parts) == 3 && parts[1] == op.Service {
 			out = append(out, t)
 		}
 	}
 	return out
-}
-
-// normIdent reduces a service name to the form the two sides compare in:
-// "microsoft.resources" and "resources", "cloudkms" and "kms".
-func normIdent(s string) string {
-	s = strings.ToLower(s)
-	s = strings.NewReplacer(".", "", "-", "", "_", "").Replace(s)
-	if _, rest, found := strings.Cut(s, "/"); found {
-		s = rest
-	}
-	return s
 }
 
 // orphanTypes lists the function's reachable types that no callee with an
@@ -1477,19 +1533,15 @@ func SDKFiles(dir string, r Resolver) (map[string]bool, error) {
 	return out, nil
 }
 
-func line(f *Func, n ast.Node) int { return f.fset.Position(n.Pos()).Line }
+// Line is the source line of n within the function's file.
+func (f *Func) Line(n ast.Node) int { return f.fset.Position(n.Pos()).Line }
 
-// skewed reports whether a label names one of the function's SDK calls that
-// the pinned SDK no longer ships (armcompute v6 CloudServices vs HEAD).
-func skewed(lit string, missing []string) bool {
-	_, name, _ := strings.Cut(lit, ":")
-	want := sdkinv.Canon(strings.ReplaceAll(name, "Client", ""))
-	for _, m := range missing {
-		if sdkinv.Canon(strings.ReplaceAll(m, "Client", "")) == want {
-			return true
-		}
-	}
-	return false
+// skewed reports whether a label's operation is one of the function's SDK
+// calls that the pinned SDK no longer ships (armcompute v6 CloudServices vs
+// HEAD).
+func skewed(op string, missing []string) bool {
+	want := sdkinv.Canon(op)
+	return slices.ContainsFunc(missing, func(m string) bool { return sdkinv.Canon(m) == want })
 }
 
 // moduleAbsent reports whether the label's module prefix is one the file

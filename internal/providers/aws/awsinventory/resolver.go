@@ -1,0 +1,131 @@
+package awsinventory
+
+import (
+	"go/ast"
+	"regexp"
+	"strings"
+
+	"github.com/icearp/disco-cli/internal/sdkinv/pairing"
+
+	"github.com/icearp/disco-cli/internal/sdkinv"
+)
+
+const awsServicePrefix = "github.com/aws/aws-sdk-go-v2/service/"
+
+var (
+	awsLabelRe     = regexp.MustCompile(`^[a-z0-9-]+:[A-Z][A-Za-z0-9]+$`)
+	awsPaginatorRe = regexp.MustCompile(`^New([A-Z]\w+)Paginator$`)
+	awsInputRe     = regexp.MustCompile(`^([A-Z]\w+)Input$`)
+)
+
+type awsResolver struct{}
+
+func init() { pairing.Register(awsResolver{}) }
+
+func (awsResolver) Name() string                 { return "aws" }
+func (awsResolver) LabelGrammar() *regexp.Regexp { return awsLabelRe }
+
+// ImportKey: the service package directory name; sub-packages (types,
+// document) carry no operations.
+func (awsResolver) ImportKey(path string) string {
+	rest, ok := strings.CutPrefix(path, awsServicePrefix)
+	if !ok || strings.Contains(rest, "/") {
+		return ""
+	}
+	return rest
+}
+
+// OpKey: the Go package, which the SDK generator derives from the model's
+// sdkId exactly as it names the model file (IoT Data Plane →
+// iot-data-plane.json → iotdataplane); TestModelFileIsSDKPackage holds the two
+// together.
+func (awsResolver) OpKey(op sdkinv.Operation) (string, string) {
+	return modelPackage(op.Module), op.Name
+}
+
+// LabelAliases: disco labels by its own service segment, which may be the
+// signing name, the model's own name (docdb and neptune sign as rds), or
+// either without separators (accessanalyzer / access-analyzer).
+func (awsResolver) LabelAliases(_ sdkinv.Candidate, op sdkinv.Operation) []string {
+	out := []string{op.Label, sdkinv.Canon(op.Service) + ":" + op.Name}
+	if model := modelName(op.Module); model != "" && model != op.Service {
+		out = append(out, model+":"+op.Name, modelPackage(op.Module)+":"+op.Name)
+	}
+	return out
+}
+
+// modelName is the model file's base name, the SDK's kebab-cased sdkId.
+func modelName(module string) string {
+	return strings.TrimSuffix(module[strings.LastIndex(module, "/")+1:], ".json")
+}
+
+func modelPackage(module string) string { return strings.ReplaceAll(modelName(module), "-", "") }
+
+// TypeOwner: AWS anchors resolve by operation name over the imported
+// modules, so seams need no binding.
+func (awsResolver) TypeOwner(_, _ string, _ []string) (string, bool) { return "", false }
+
+// LabelOp: "<service>:<Operation>".
+func (awsResolver) LabelOp(lit string) string {
+	_, op, _ := strings.Cut(lit, ":")
+	return op
+}
+
+func (awsResolver) Constructor(_, fn string) (string, bool) {
+	if fn == "NewFromConfig" || fn == "New" {
+		return "Client", true
+	}
+	return "", false
+}
+
+// Anchors: pkg.New<Op>Paginator(, pkg.<Op>Input{ and recv.<Op>( where <Op>
+// is an operation of a service package the file imports.
+func (awsResolver) Anchors(f *pairing.Func) ([]pairing.Anchor, []pairing.Diagnostic) {
+	var out []pairing.Anchor
+	add := func(mod, op string, n ast.Node) {
+		out = append(out, pairing.Anchor{Module: mod, Op: op, Line: f.Line(n)})
+	}
+	ast.Inspect(f.Decl.Body, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.CompositeLit:
+			if sel, ok := x.Type.(*ast.SelectorExpr); ok {
+				if mod := awsImportMod(f, sel.X); mod != "" {
+					if m := awsInputRe.FindStringSubmatch(sel.Sel.Name); m != nil {
+						add(mod, m[1], x)
+					}
+				}
+			}
+		case *ast.CallExpr:
+			sel, ok := x.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			if mod := awsImportMod(f, sel.X); mod != "" {
+				if m := awsPaginatorRe.FindStringSubmatch(sel.Sel.Name); m != nil {
+					add(mod, m[1], x)
+				}
+				return true
+			}
+			for _, mod := range f.SDKMods {
+				if f.Ops(mod, sel.Sel.Name) || f.Other(mod, sel.Sel.Name) {
+					add(mod, sel.Sel.Name, x)
+				}
+			}
+		}
+		return true
+	})
+	return out, nil
+}
+
+// awsImportMod returns the module key when e is an SDK import identifier.
+func awsImportMod(f *pairing.Func, e ast.Expr) string {
+	id, ok := e.(*ast.Ident)
+	if !ok {
+		return ""
+	}
+	path, ok := f.Imports[id.Name]
+	if !ok {
+		return ""
+	}
+	return awsResolver{}.ImportKey(path)
+}

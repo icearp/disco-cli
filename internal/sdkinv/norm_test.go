@@ -69,3 +69,40 @@ func TestStripScopes(t *testing.T) {
 		}
 	}
 }
+
+func TestUnaccounted(t *testing.T) {
+	op := func(n string) Operation { return Operation{Module: "m", Name: n} }
+	u := &Universe{
+		SourceOps:  []OpRef{{"m", "a"}, {"m", "b"}, {"m", "c"}, {"m", "lost"}},
+		Candidates: []Candidate{{Ops: []Operation{op("a")}}, {Ops: []Operation{op("a")}}},
+		Other:      []Operation{op("b"), op("a"), op("stray")},
+		Dropped:    []Drop{{Op: op("c"), Reason: "r"}, {Op: op("b"), Reason: "r"}},
+	}
+	missing, extra, conflicts := Unaccounted(u)
+	if !reflect.DeepEqual(missing, []OpRef{{"m", "lost"}}) {
+		t.Errorf("missing = %v", missing)
+	}
+	if !reflect.DeepEqual(extra, []OpRef{{"m", "stray"}}) {
+		t.Errorf("extra = %v", extra)
+	}
+	// "a" in two candidates is fine; in a candidate and Other is not, nor is
+	// "b" in Other and Dropped.
+	if !reflect.DeepEqual(conflicts, []OpRef{{"m", "a"}, {"m", "b"}}) {
+		t.Errorf("conflicts = %v", conflicts)
+	}
+}
+
+func TestSplitVerb(t *testing.T) {
+	for _, c := range []struct{ in, path, verb string }{
+		{"v1/organizations:search", "v1/organizations", "search"},
+		{"v1/{+name}:fetch", "v1/{+name}", "fetch"},
+		{"projects/{p}/instances/{i}", "projects/{p}/instances/{i}", ""},
+		{"v1/{name=projects/*}:get", "v1/{name=projects/*}", "get"},
+		{"a:b/c", "a:b/c", ""}, // only the final segment carries a verb
+		{"x/{a:b}", "x/{a:b}", ""},
+	} {
+		if p, v := SplitVerb(c.in); p != c.path || v != c.verb {
+			t.Errorf("SplitVerb(%q) = %q, %q; want %q, %q", c.in, p, v, c.path, c.verb)
+		}
+	}
+}

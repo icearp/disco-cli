@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/providers/aws/awsinventory"
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
@@ -43,29 +44,29 @@ func resetCoverageFlags(t *testing.T) {
 func fixtureCache(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	dir := sdkinv.Cache{Root: root}.Dir("aws", sdkinv.AWSSDKRef)
-	if err := os.CopyFS(dir, os.DirFS(filepath.Join("..", "internal", "sdkinv", "aws", "testdata", "cache"))); err != nil {
+	dir := sdkinv.Cache{Root: root}.Dir("aws", awsinventory.SDKRef)
+	if err := os.CopyFS(dir, os.DirFS(filepath.Join("..", "internal", "providers", "aws", "awsinventory", "testdata", "cache"))); err != nil {
 		t.Fatal(err)
 	}
 	e, ok := sdkinv.Get("aws")
 	if !ok {
 		t.Fatal("aws extractor not registered")
 	}
-	manifest, _ := json.Marshal(sdkinv.Manifest{Provider: "aws", Ref: sdkinv.AWSSDKRef, Spec: sdkinv.SpecFingerprint(e.FetchSpec())})
+	manifest, _ := json.Marshal(sdkinv.Manifest{Provider: "aws", Ref: awsinventory.SDKRef, Spec: sdkinv.SpecFingerprint(e.FetchSpec())})
 	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), manifest, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return root
 }
 
-// fixtureSourceRoot stages the pairing package's synthetic AWS scanner
+// fixtureSourceRoot stages awsinventory's synthetic AWS scanner
 // package as <root>/internal/providers/aws, so the gates can run against the
 // fixture universe without parsing the 400-service real scanner tree.
 func fixtureSourceRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	dst := filepath.Join(root, "internal", "providers", "aws")
-	src := filepath.Join("..", "internal", "sdkinv", "pairing", "testdata", "scannerpkg", "aws")
+	src := filepath.Join("..", "internal", "providers", "aws", "awsinventory", "testdata", "scannerpkg")
 	if err := os.CopyFS(dst, os.DirFS(src)); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestCoverageServices_Offline(t *testing.T) {
 		t.Fatalf("matrices = %+v", matrices)
 	}
 	m := matrices[0]
-	if m.Pins["aws-sdk-go-v2"] != sdkinv.AWSSDKRef {
+	if m.Pins["aws-sdk-go-v2"] != awsinventory.SDKRef {
 		t.Errorf("pins = %v", m.Pins)
 	}
 	if m.Summary.Uncovered == 0 || m.Summary.Unexplained != 0 {
@@ -249,7 +250,7 @@ func TestCoverageServices_Baseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	aws := b["aws"]
-	if len(aws.CoveredKeys) == 0 || !aws.Pairing || aws.Pins["aws-sdk-go-v2"] != sdkinv.AWSSDKRef {
+	if len(aws.CoveredKeys) == 0 || !aws.Pairing || aws.Pins["aws-sdk-go-v2"] != awsinventory.SDKRef {
 		t.Fatalf("baseline = %+v", aws)
 	}
 	if aws.Covered != len(aws.CoveredKeys) || aws.Uncovered != len(aws.UncoveredKeys) {
