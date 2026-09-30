@@ -90,7 +90,7 @@ type Candidate struct {
 
 // Diagnostic records something an extractor could not classify confidently.
 type Diagnostic struct {
-	Severity string `json:"severity"` // "warn" | "error"
+	Severity string `json:"severity"` // "info" | "warn"
 	Source   string `json:"source"`   // file or URL
 	Message  string `json:"message"`
 }

@@ -488,7 +488,11 @@ func reportExtractorWarnings(provider string, diags []sdkinv.Diagnostic) {
 		}
 	}
 	if n > 0 && !verbose {
-		fmt.Fprintf(os.Stderr, "  %s: %d SDK extractor warnings; rerun with --verbose to list them\n", provider, n)
+		noun := "warnings"
+		if n == 1 {
+			noun = "warning"
+		}
+		fmt.Fprintf(os.Stderr, "  %s: %d SDK extractor %s; rerun with --verbose to list them\n", provider, n, noun)
 	}
 }
 

@@ -2,7 +2,7 @@
 // binary. cmd blank-imports this package and never names a provider directly,
 // keeping provider selection out of cmd.
 //
-// One build-tagged file per provider (all_aws.go etc.) blank-imports that
+// One build-tagged file per provider (aws.go etc.) blank-imports that
 // provider's package, gated `//go:build !slim || <provider>`: default build
 // compiles every provider; `-tags 'slim aws'` compiles only the named ones —
 // excluded providers' SDKs are never linked. Each gate references only `slim`

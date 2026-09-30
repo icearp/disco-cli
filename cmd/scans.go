@@ -31,8 +31,8 @@ specific run; --scan-id accepts the same 8-31 char hex prefix or
 Subcommands:
   disco scans show <id|latest>   full detail for one scan
 
-The 'latest' shorthand resolves to the most-recent scan whose
-resource_count > 0 (skips failed, empty or still-running scans); falls back to the
+The 'latest' shorthand resolves to the most-recent scan with a
+resource count > 0 (skips failed, empty or still-running scans); falls back to the
 most-recent scan with a stderr note when none qualify.
 
 The RESOURCES column is rows the scan touched (insert + re-verify), not
@@ -64,29 +64,29 @@ var scansShowCmd = &cobra.Command{
 	Short: "Show full detail for one scan run",
 	Long: `Print the full record for one scan: lifecycle timestamps, providers
 included, scope (per-provider account/region/project filters captured at
-scan time), arbitrary meta, the resource_count the scan touched, and the
-disco binary version that ran it.
+scan time), meta (empty unless an external orchestrator wrote it), and the
+count of resources the scan touched.
 
 Accepts a full 32-hex scan ID, an 8–31 char hex prefix (matches the short
-form 'disco scans' prints), or 'latest' (most-recent scan whose
-resource_count > 0; falls back to the most-recent scan with a stderr note
+form 'disco scans' prints), or 'latest' (most-recent scan with a
+resource count > 0; falls back to the most-recent scan with a stderr note
 when none qualify).
 
 JSON envelope shape:
   {
-    "id":             "<32-hex>",
-    "started_at":     "<RFC3339>",
-    "finished_at":    "<RFC3339 or null>",
-    "status":         "running|completed|partial|failed",
-    "providers":      ["aws", ...],
-    "scope":          {<per-provider filter object>},
-    "error":          "<string or null>",
-    "resource_count": <int or null>,
-    "meta":           {<arbitrary scan meta>}
+    "id":            "<32-hex>",
+    "startedAt":     "<RFC3339>",
+    "finishedAt":    "<RFC3339 or null>",
+    "status":        "running|completed|partial|failed",
+    "providers":     ["aws", ...],
+    "scope":         {<per-provider filter object>},
+    "error":         "<string or null>",
+    "resourceCount": <int or null>,
+    "meta":          {<arbitrary scan meta>}
   }`,
 	Example: `  disco scans show latest
   disco scans show 29cdb173
-  disco scans show latest -o json | jq '{id, status, resource_count}'`,
+  disco scans show latest -o json | jq '{id, status, resourceCount}'`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(scansOutputFmt, rerr) }()

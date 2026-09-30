@@ -109,7 +109,7 @@ One-page count of the estate by provider, account, region, and resource type, wi
 
 ```bash
 disco summary
-disco summary -o json | jq '.by_account, .by_provider'
+disco summary -o json | jq '.byAccount, .byProvider'
 ```
 
 ### Tag-hygiene scorecard for cost-allocation
@@ -217,7 +217,7 @@ disco coverage verify --scan-id latest                           # stored types 
 `graph complete --orphans-only` keeps only nodes with zero in/out edges in the returned set. That surfaces unattached EBS volumes, key-pairs no instance uses, and IAM principals with no group or policy attachments.
 
 ```bash
-disco graph complete --orphans-only -o json | jq -r '.nodes[].resource | [.type, .name, .native_id] | @tsv'
+disco graph complete --orphans-only -o json | jq -r '.nodes[].resource | [.type, .name, .nativeId] | @tsv'
 ```
 
 ## Configuration

@@ -147,8 +147,8 @@ func renderDiffMarkdown(d *store.ScanDiff) error {
 }
 
 // renderDiffJSONL emits each added/stale entry as one JSON line tagged with
-// a `change_type` discriminator, for `disco diff … -o jsonl | jq -c '. |
-// select(.change_type=="added")'` drift pipelines.
+// a `changeType` discriminator, for `disco diff … -o jsonl | jq -c '. |
+// select(.changeType=="added")'` drift pipelines.
 func renderDiffJSONL(d *store.ScanDiff) error {
 	enc := json.NewEncoder(os.Stdout)
 	type entry struct {

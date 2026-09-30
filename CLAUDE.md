@@ -203,6 +203,10 @@ policy findings — is **camelCase** as of the v0.18.0 wire migration (`json:"na
 `json:"accountId"`, `json:"startedAt"`, `json:"fromScanId"`). A new package emitting JSON needs
 no config change; just use camelCase tags. Only provider scanners extend the PascalCase pattern.
 
+Help text, README `jq` examples and message literals that name JSON keys are not checked by any test;
+the v0.18.0 migration left six stale (summary/scans-show/snapshot/verify help, a README graph `jq`, a
+diff comment). When renaming a tag, grep `Long`/`Example` strings, README and `fmt.*f` literals for the old key.
+
 (CSV column names are a separate surface and remain snake_case — e.g. `resourcesColumns` in
 `cmd/resources.go`. tagliatelle doesn't see those.)
 
