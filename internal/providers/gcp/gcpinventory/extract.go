@@ -576,7 +576,7 @@ func scopeOf(dm *docMethod) sdkinv.Scope {
 		}
 		stem := strings.TrimSuffix(strings.ToLower(name), "id")
 		for _, root := range slices.Sorted(maps.Keys(cloudRoots)) {
-			if sdkinv.CanonSingular(root) == stem {
+			if sdkinv.Ident(root) == sdkinv.Ident(stem) {
 				return cloudRoots[root]
 			}
 		}

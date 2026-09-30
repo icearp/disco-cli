@@ -115,8 +115,14 @@ catalogs above. Now resources: addressed singletons (`web/sites/config`,
   and a `…GUID` field matches the `ID` suffix. Refs are hints; precision is not the goal.
 - `parentEnd` matches the innermost static by name, so a repeated static name can pick the
   wrong one. None seen live.
-- `resources/` and `solutions/` each hold an `armmanagedapplications` module; their op labels
-  (`armmanagedapplications:…`) cannot tell the two apart.
+- `resources/` and `solutions/` each hold an `armmanagedapplications` module; all 18 of
+  resources/' universe op names also exist in solutions/ (31), on the same candidates
+  (`microsoft.solutions/{applications,applicationdefinitions,operations}`). Module keys are therefore `<rp>/<armX>` (`ImportKey`, `OpKey`), so an import
+  anchors only its own module's ops; labels keep `armX:`, and `LabelModule` maps a key back for
+  `moduleAbsent`. A label alone still cannot tell the two apart; it resolves through the
+  file's import. Live effect at the fix: zero pairing change (the solutions scanner already
+  anchored correctly), 14 sdk-skew messages now print the `<rp>/<armX>` key. Fixture:
+  `gadgetry/armwidgets` beside `widgets/armwidgets`.
 - `applicationgatewaywafdynamicmanifests/dafault` (sic) is read as an id: the structural rule
   caught a misspelled singleton a word list never could.
 

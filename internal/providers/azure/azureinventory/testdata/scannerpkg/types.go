@@ -7,4 +7,6 @@ const (
 	TypeSKU         = "azure:microsoft.widgets:skus"
 	TypeStale       = "azure:microsoft.widgets:stale"
 	TypeEntraUser   = "azure:microsoft.entra:user"
+
+	TypeGadgetryWidget = "azure:microsoft.gadgetry:widgets"
 )

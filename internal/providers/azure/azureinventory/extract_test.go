@@ -90,6 +90,8 @@ func TestExtract_Fixture(t *testing.T) {
 		"microsoft.widgets/quotas":   w(res, "arm-envelope", 0, "", ScopeSubscription, "QuotasClient.List", "QuotasClient.ListBySubscription"),
 		// The envelope, but reached only through a location: a regional catalog.
 		"microsoft.widgets/versions": w(cat, "item-read-only", 0, "", ScopeSubscription, "VersionsClient.List"),
+		// gadgetry/armwidgets shares the armwidgets basename and op names.
+		"microsoft.gadgetry/widgets": w(non, "no-item-path", 0, "", ScopeSubscription, "WidgetsClient.List"),
 	}
 	var extra []string
 	for k := range got {
@@ -234,8 +236,7 @@ func TestAbsentModules(t *testing.T) {
 
 func TestExtract_SkipsUnparseableModule(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "repo", "sdk", "resourcemanager")
-	good := filepath.Join(root, "widgets", "armwidgets")
-	if err := os.CopyFS(good, os.DirFS(filepath.Join("testdata", "cache", "repo", "sdk", "resourcemanager", "widgets", "armwidgets"))); err != nil {
+	if err := os.CopyFS(root, os.DirFS(filepath.Join("testdata", "cache", "repo", "sdk", "resourcemanager"))); err != nil {
 		t.Fatal(err)
 	}
 	bad := filepath.Join(root, "broken", "armbroken")

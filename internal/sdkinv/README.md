@@ -284,7 +284,10 @@ All of it lives in one new SDK-free package, `internal/providers/<p>/<p>inventor
    import path → universe module key), `OpKey`, `LabelAliases` (every literal spelling that names an
    op), `Constructor`/`TypeOwner` (how a client local gets bound), `LabelOp` (the op name a label
    spells, in anchor form, so a stale label reads as SDK skew), `Anchors` (the SDK call shapes to
-   recognise) — and `pairing.Register` it from `init()`. Add a synthetic scanner package under
+   recognise) — and `pairing.Register` it from `init()`. Optional: `LooseLabeller` (a near-miss label
+   shape, so a typo is flagged rather than invisible) and `LabelModuler` (when module keys are not
+   spelled like a label's module prefix, as Azure's `<rp>/<armX>` vs `armX:`; without it
+   sdk-module-absent never fires). Add a synthetic scanner package under
    `<p>inventory/testdata/scannerpkg/` with one case per rule, asserted with `pairing/pairingtest`.
 
 5. **Scanner package** — the provider's `internal/providers/<p>` already declares its types with

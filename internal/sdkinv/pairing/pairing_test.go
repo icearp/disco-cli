@@ -34,12 +34,20 @@ func TestSkewedAndModuleAbsent(t *testing.T) {
 	if skewed("VirtualMachinesClient.ListAll", []string{"CloudServicesClient.ListAll"}) {
 		t.Error("skewed: unrelated op matched")
 	}
+	same := func(k string) string { return k }
 	modules := map[string]bool{"armcompute": true}
-	if !moduleAbsent("armappplatform:Services.ListBySubscription", []string{"armcompute", "armappplatform"}, modules) {
+	if !moduleAbsent("armappplatform:Services.ListBySubscription", []string{"armcompute", "armappplatform"}, modules, same) {
 		t.Error("moduleAbsent: absent import not reported")
 	}
-	if moduleAbsent("armcompute:VMs.ListAll", []string{"armcompute"}, modules) {
+	if moduleAbsent("armcompute:VMs.ListAll", []string{"armcompute"}, modules, same) {
 		t.Error("moduleAbsent: present module reported")
+	}
+	// A key spelled apart from its label prefix (Azure "<rp>/<armX>") matches
+	// only through spell.
+	base := func(k string) string { return k[strings.LastIndex(k, "/")+1:] }
+	keyed := map[string]bool{"compute/armcompute": true}
+	if !moduleAbsent("armappplatform:Services.List", []string{"compute/armcompute", "appplatform/armappplatform"}, keyed, base) {
+		t.Error("moduleAbsent: absent rp-keyed import not reported")
 	}
 }
 

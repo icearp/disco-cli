@@ -35,8 +35,11 @@ func (azureResolver) LabelGrammar() *regexp.Regexp { return azureLabelRe }
 // label, so nothing checked it.
 func (azureResolver) LooseLabelGrammar() *regexp.Regexp { return azureLooseLabelRe }
 
-// ImportKey: the arm module name (armcompute), majors stripped; fake and
-// other sub-packages carry no clients.
+// ImportKey: "<rp>/<armX>" (compute/armcompute), majors stripped; fake and
+// other sub-packages carry no clients. The resource-provider directory is part
+// of the key because resources/armmanagedapplications and
+// solutions/armmanagedapplications share a basename: keyed by it alone, one
+// module's ops answered for the other's imports.
 func (azureResolver) ImportKey(path string) string {
 	rest, ok := strings.CutPrefix(path, armPrefix)
 	if !ok {
@@ -52,11 +55,18 @@ func (azureResolver) ImportKey(path string) string {
 	if len(parts) > 3 {
 		return ""
 	}
-	return parts[1]
+	return parts[0] + "/" + parts[1]
 }
 
+// OpKey: the module key is the "<rp>/<armX>" tail of op.Module, as ImportKey.
 func (azureResolver) OpKey(op sdkinv.Operation) (string, string) {
-	return op.Module[strings.LastIndex(op.Module, "/")+1:], op.Name
+	_, rel, _ := strings.Cut(op.Module, "/sdk/resourcemanager/")
+	return rel, op.Name
+}
+
+// LabelModule: labels spell a module by its basename ("armcompute:").
+func (azureResolver) LabelModule(key string) string {
+	return key[strings.LastIndex(key, "/")+1:]
 }
 
 func (azureResolver) LabelAliases(_ sdkinv.Candidate, op sdkinv.Operation) []string {

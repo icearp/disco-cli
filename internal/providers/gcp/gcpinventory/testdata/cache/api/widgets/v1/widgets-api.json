@@ -2107,6 +2107,48 @@
      }
     }
    }
+  },
+  "shelves": {
+   "methods": {
+    "list": {
+     "httpMethod": "GET",
+     "path": "shelves",
+     "parameters": {
+      "projects": {
+       "location": "query",
+       "required": true
+      },
+      "pageToken": {
+       "location": "query"
+      }
+     },
+     "parameterOrder": [
+      "projects"
+     ],
+     "response": {
+      "$ref": "Shelves"
+     }
+    },
+    "insert": {
+     "httpMethod": "POST",
+     "path": "shelves",
+     "parameters": {
+      "projects": {
+       "location": "query",
+       "required": true
+      }
+     },
+     "parameterOrder": [
+      "projects"
+     ],
+     "request": {
+      "$ref": "Shelf"
+     },
+     "response": {
+      "$ref": "Shelf"
+     }
+    }
+   }
   }
  },
  "schemas": {
@@ -2880,6 +2922,29 @@
     "name": {
      "type": "string",
      "description": "Organization name."
+    }
+   }
+  },
+  "Shelves": {
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "Shelf"
+     }
+    },
+    "nextPageToken": {
+     "type": "string"
+    }
+   }
+  },
+  "Shelf": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Shelf name."
     }
    }
   }

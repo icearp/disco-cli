@@ -52,6 +52,14 @@ type LooseLabeller interface {
 	LooseLabelGrammar() *regexp.Regexp
 }
 
+// LabelModuler is optional: a resolver whose module keys are not spelled the
+// way a label's module prefix is maps a key to that prefix. Azure keys by
+// "<rp>/<armX>" because two modules share a basename, while labels keep the
+// "armX:" prefix; without the map a label's module never matched a key.
+type LabelModuler interface {
+	LabelModule(key string) string
+}
+
 // Diagnostic is a pairing problem the strict test fails on.
 type Diagnostic struct {
 	Kind    string `json:"kind"` // label-no-op | label-no-anchor | label-malformed | op-not-in-inventory | unresolved-receiver
@@ -322,7 +330,7 @@ func (f *fn) resolveAnchors(idx *index, res *Result) {
 		f.missing = append(f.missing, a.Op)
 		res.Diagnostics = append(res.Diagnostics, Diagnostic{
 			Kind: "sdk-skew", File: f.file, Line: a.Line,
-			Message: fmt.Sprintf("%s.%s is not in %s at the pinned ref", a.Module, a.Op, a.Module),
+			Message: fmt.Sprintf("%s is not in %s at the pinned ref", a.Op, a.Module),
 		})
 	}
 }
@@ -421,7 +429,7 @@ func (f *fn) emit(fns map[string]*fn, idx *index, res *Result, provider string) 
 					Kind: "sdk-skew", File: f.file, Line: lines[0],
 					Message: fmt.Sprintf("label %q names an operation the pinned SDK no longer has", lit),
 				})
-			case moduleAbsent(lit, f.mods, idx.modules):
+			case moduleAbsent(lit, f.mods, idx.modules, idx.labelModule):
 				res.Diagnostics = append(res.Diagnostics, Diagnostic{
 					Kind: "sdk-module-absent", File: f.file, Line: lines[0],
 					Message: fmt.Sprintf("label %q: the file's SDK module is not in the pinned SDK", lit),
@@ -1545,15 +1553,25 @@ func skewed(op string, missing []string) bool {
 }
 
 // moduleAbsent reports whether the label's module prefix is one the file
-// imports but the pinned SDK does not ship at all (armappplatform).
-func moduleAbsent(lit string, mods []string, modules map[string]bool) bool {
+// imports but the pinned SDK does not ship at all (armappplatform). spell maps
+// a module key to the prefix a label writes for it.
+func moduleAbsent(lit string, mods []string, modules map[string]bool, spell func(string) string) bool {
 	prefix, _, _ := strings.Cut(lit, ":")
 	for _, m := range mods {
-		if !modules[m] && (m == prefix || sdkinv.Canon(m) == sdkinv.Canon(prefix)) {
+		l := spell(m)
+		if !modules[m] && (l == prefix || sdkinv.Canon(l) == sdkinv.Canon(prefix)) {
 			return true
 		}
 	}
 	return false
+}
+
+// labelModule spells a module key the way a label's prefix does.
+func (idx *index) labelModule(key string) string {
+	if lm, ok := idx.r.(LabelModuler); ok {
+		return lm.LabelModule(key)
+	}
+	return key
 }
 
 func sortedOps(m map[string]sdkinv.Operation) []string {
