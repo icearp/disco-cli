@@ -32,14 +32,13 @@ Subcommands:
   disco scans show <id|latest>   full detail for one scan
 
 The 'latest' shorthand resolves to the most-recent scan whose
-resource_count > 0 (skips no-op re-verify runs); falls back to the
+resource_count > 0 (skips failed, empty or still-running scans); falls back to the
 most-recent scan with a stderr note when none qualify.
 
 The RESOURCES column is rows the scan touched (insert + re-verify), not
-first-seen attribution. To split them, use:
-  disco resources --scan-id <id> --scan-as discovered   # rows the scan first saw
-  disco resources --scan-id <id> --scan-as verified     # rows the scan re-verified
-  disco resources --scan-id <id> --scan-as any          # both (default)`,
+first-seen attribution. To list or split them, use:
+  disco resources --scan-id <id>        # rows the scan discovered or last verified
+  disco diff <older-id> <id>            # rows first seen in <id> ("added")`,
 	Example: `  disco scans
   disco scans show latest
   disco scans -o json | jq '.[].id'`,

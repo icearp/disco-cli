@@ -4,12 +4,11 @@ SQLite persistence layer (`modernc.org/sqlite`, CGO-free). Tables, edges, scrubb
 
 ## Tables
 
-Nine: `resources`, `quotas`, `relationships`, `hierarchy_closure`, `scans`, `scan_checkpoints`, `check_runs`, `findings`, plus `schema_migrations` (migration runner bookkeeping; not user-visible).
+Eight: `resources`, `quotas`, `relationships`, `hierarchy_closure`, `scans`, `check_runs`, `findings`, plus `schema_migrations` (migration runner bookkeeping; not user-visible).
 
 - **`quotas`** (migration 017): one row per version of one service quota limit. Separate from `resources` because a quota is a limit *value*, not a provisioned thing: nothing creates it, it has no graph edges, and it is queried by service and by proximity to the limit rather than by name-ordered page slice. On a real account they were ~90% of every row in `resources`, so they dominated every index whether or not anyone read them. Identity is `(provider, account_id, region, service_code, quota_code, dimension_key)` — `region` is part of it, so unlike `resources.region` it is NOT NULL, and a partition-wide limit uses the `'global'` sentinel; `dimension_key` is empty on an undimensioned limit and names the dimension set otherwise, because one quota code can carry a different value per dimension set (every GCP `DimensionsInfo`, an AWS quota context). Same version-chain shape as `resources` (per-row UUIDv7 `id`, deterministic `QuotaID` hash in `root_id`, current row has `superseded_by IS NULL`), and `value` is a real NUMERIC so "which limits am I near" and "which have I raised" are expressible in SQL. Three indexes, each with a named reader in the migration header — do not seed it with resource-shaped ones. `description` (migration 018) is the provider's own prose for what a limit governs — AWS populates it on every row, Azure and GCP report none — and is display-only, so like `name` and `service_name` it updates in place rather than splitting a chain. API: `UpsertQuotas`, `ListQuotas`, `GetQuota`, `ResolveQuota`, `GetQuotaVersions`. Unlike `UpsertResources` this runs on `s.ext()`, so it works inside a caller-owned `WrapTx` transaction where `s.db` is nil.
 
-- **`scan_checkpoints`** (migration 001): per-(scan, provider, service, scope) opaque continuation tokens. Schema is generic — `last_token` is whatever cursor shape the upstream SDK exposes (AWS NextToken, Azure pager continuation, GCP pageToken). API: `SaveCheckpoint`, `GetCheckpoint`, `ListCheckpoints`, `DeleteScanCheckpoints`. No production writer yet; the only reader is the `--resume` banner count.
-
+- **`scan_checkpoints`** is gone: 001 created it for per-page resume cursors, no scanner ever wrote one, and `020` drops it on both dialects. Do not reintroduce a table without a writer. (disco-saas guards the table by `to_regclass`, so the drop needs no change there.)
 
 - **`resources`**: one row per attribute-snapshot of a cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. PK `id` is a per-row UUIDv7, the deterministic `ResourceID` hash lives in `root_id`, and the current row in a chain has `superseded_by IS NULL`. `UpsertResources` auto-handles version splits (see resource-versioning rule below). No `parent_id` column — hierarchy via `RecordHierarchyBatch(pairs)` only.
 - **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`, `bounded-by`, `cross-account-trust`, `cross-sub-rbac`, `cross-project-iam`, `org-iam`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. The upsert is UPDATE-then-INSERT rather than `ON CONFLICT … DO UPDATE`, because that form cannot omit its conflict target and an embedder may widen this key. An embedder that widens it MUST scope it with row-level security, and all four conditions matter, because the UPDATE half carries no scope predicate of its own: the table `ENABLE`d **and** `FORCE`d (without FORCE the owner — the ordinary writer — is exempt), the writing role NOSUPERUSER and NOBYPASSRLS, and a permissive policy that covers UPDATE. A policy with `USING` and no `WITH CHECK` is fine, not a hole: Postgres reuses `USING` as the check, so an UPDATE cannot move a row out of the caller's scope. Get it wrong in the first two ways and one scope's re-scan rewrites every other scope's row while `RowsAffected` hides the count; get it wrong in the third and the UPDATE matches nothing, the INSERT is absorbed, and the edge is dropped in silence. Because the key includes `kind`, a second edge (e.g. `attached-to`) beside a hierarchy `contains` row is conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list). **UNIQUE collapses many-to-one refs**: when N distinct source refs (e.g. two trust-policy principals from the same foreign account) all map to the same target, only one row survives. Edge count = distinct (from, to) pairs, not distinct refs — tests asserting counts must account for this.
@@ -68,7 +67,7 @@ Rule of thumb for "advisory" failures (skip happens, but operator should know): 
 
 `ResourceID(provider, accountID, nativeID)` — `resources.go` — produces 32-hex-char SHA-256 prefix, stored in `root_id` (the row PK `id` is a per-version UUIDv7). `type` is deliberately **excluded** — identity is `(provider, account_id, native_id)`; `type` is a versioned attribute (a type change supersedes the row, it does not fork a new chain). native_id already encodes the type in every provider (ARNs / resource paths), so folding type into the hash was redundant.
 
-Scan IDs: `crypto/rand` + `encoding/hex` (same 32-char hex), not UUIDs.
+Scan IDs: `crypto/rand` + `encoding/hex` (same 32-char hex), not UUIDs — random so short 8-char prefixes stay unique. So `id` is not creation order; newest-first readers use `newestFirst()` (`dialect.go`), which tie-breaks on `rowid` on SQLite and `id` on Postgres.
 
 ## Migrations
 
@@ -162,6 +161,8 @@ type and no marker column — the version chain is the whole mechanism.
 
 `store.ListResources(store.ResourceFilter{...})` — filter struct is `ResourceFilter`, not `ListFilter`. Multi-type filter is `Types []string`, not `Type string`. Two zero-value defaults bite: `IncludeManaged=false` silently filters provider-managed rows, and `Limit=0` falls back to 500. Passing `ResourceFilter{}` is NOT "give me everything" — set `IncludeManaged: true` and either a large `Limit` or paginate via `Offset` for whole-table reads.
 
+`SeenBy` (`--scan-id`) is `discovered_by = X OR verified_by = X`. `verified_by` has no index (009 dropped it on purpose; do not re-add), so the OR is a full scan of current rows, about the cost of an unfiltered listing. `idx_resources_scan` still serves `ScanDiff` (`discovered_by = B`); the 013/014 migration headers naming `ResourceFilter.DiscoveredBy` as its reader predate the rename.
+
 Canonical "read every resource" idiom: `store.GraphAll` (`graph.go`) page-loops `ListResources` with `IncludeManaged: true` + `Limit: 5000` until an empty page returns. Reuse that shape from CLI commands that must evaluate the full population (`loadAllResourcesPaged`, `cmd/helpers.go`).
 
 ## Wire shape ≠ storage shape
@@ -184,7 +185,7 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 ## `Scan.StartedAt` in storage = RFC3339; older rows keep the zoneless shape
 
-`CreateScan` stamps `started_at` via `nowExpr` (`dialect.go`), which returns **RFC3339** (`2026-07-28T20:47:08Z`) on both dialects; older rows hold a zoneless `YYYY-MM-DD HH:MM:SS`. **Nothing rewrites old rows** (`migrations/pg/016` is deliberately empty), so a store can hold both shapes at once. Consumers doing `time.Time` math on `Scan.StartedAt` (or `Checkpoint.UpdatedAt`) use `store.ParseTimestamp(s) (time.Time, bool)`, which accepts both, or `store.ToRFC3339(s)` for the string form; never hardcode a layout at a call site. Every caller treats a parse failure as "no timestamp" rather than an error, so a too-strict parse fails silently.
+`CreateScan` stamps `started_at` via `nowExpr` (`dialect.go`), which returns **RFC3339** (`2026-07-28T20:47:08Z`) on both dialects; older rows hold a zoneless `YYYY-MM-DD HH:MM:SS`. **Nothing rewrites old rows** (`migrations/pg/016` is deliberately empty), so a store can hold both shapes at once. Consumers doing `time.Time` math on `Scan.StartedAt` use `store.ParseTimestamp(s) (time.Time, bool)`, which accepts both, or `store.ToRFC3339(s)` for the string form; never hardcode a layout at a call site. Every caller treats a parse failure as "no timestamp" rather than an error, so a too-strict parse fails silently.
 
 The trailing `Z` is load-bearing, not cosmetic: disco-saas casts these TEXT columns with `::timestamptz`, and a zoneless string resolves against the session `TimeZone` instead of UTC. These columns are also compared and ordered **as TEXT** (here, and by a keyset cursor and an evidence-range filter in the SaaS), so both dialects must render identical bytes — pinned by `TestNowExpr_WritesRFC3339OnBothDialects` under `withDialects`.
 
@@ -196,8 +197,7 @@ The trailing `Z` is load-bearing, not cosmetic: disco-saas casts these TEXT colu
 NOT reference_only` — both scan FKs, because a re-verify run inserts nothing yet proves the
 scanner still emits the type; `NOT reference_only` because `InsertResourcesIfAbsent` stamps the
 scan id onto resolver placeholders, and one of those counted as a type the scan emitted.
-Feeds `disco coverage verify`; SQLite + PG tests share `testTypesForScan`. Do not build scan
-introspection on `scan_checkpoints` — it has no production writer.
+Feeds `disco coverage verify`; SQLite + PG tests share `testTypesForScan`.
 
 ## A scan record's warnings and errors are what `coverage verify` reasons from
 
@@ -227,9 +227,9 @@ is a table or an instance group, not a region.
 
 Lookup for `graph`/`path`/`blast`, `resources show` and `history` tries exact `native_id`/`name` first, then ID-prefix on the 32-hex resource ID (when arg is 4–31 lowercase hex), then `LIKE %arg%` on `native_id`/`name`. (so the CLI's own short-ID prints round-trip as input). Disambiguators (`--provider`, `--type`, `--account`) narrow each pass; multi-row results surface as the existing ambiguity error. Each pass capped at 50 rows so substring-on-large-DB doesn't OOM. New callers should route through `ResolveResource` rather than rolling their own lookups — single source of truth.
 
-## Cross-backend SQL: `s.exec`/`s.get`/`s.query`/`s.queryRow`/`s.selectAll`
+## Cross-backend SQL: `s.exec`/`s.get`/`s.queryRow`/`s.selectAll`
 
-Wrappers in `dialect.go` proxy `Exec/Get/Query/QueryRow/Select` on `s.ext()` (which returns `*sqlx.DB` or `*sqlx.Tx` — see `WrapTx` below) with auto-`Rebind`. Always use them for raw `?`-placeholder SQL — `s.db.Exec(...)` directly works on SQLite but breaks on Postgres (sqlx Rebind isn't auto-applied), and skips the tx-bound path. Squirrel queries pass `s.placeholder()` to `PlaceholderFormat(...)`. New code adding SQL to the store package follows both patterns.
+Wrappers in `dialect.go` proxy `Exec/Get/QueryRow/Select` on `s.ext()` (which returns `*sqlx.DB` or `*sqlx.Tx` — see `WrapTx` below) with auto-`Rebind`. Always use them for raw `?`-placeholder SQL — `s.db.Exec(...)` directly works on SQLite but breaks on Postgres (sqlx Rebind isn't auto-applied), and skips the tx-bound path. Squirrel queries pass `s.placeholder()` to `PlaceholderFormat(...)`. New code adding SQL to the store package follows both patterns.
 
 **A store method carrying hand-written SQL needs `withDialects`, not `openTestStore`** (`relationships_many_test.go`) — the latter is SQLite-only, and SQLite is the PERMISSIVE dialect, so a SQLite-only test can certify a query that cannot execute on Postgres at all. Example: a boolean compared to `1` passes on SQLite (0/1 ints) and raises 42883 on Postgres. Same class: `?`-vs-`$n` placeholders, `json_extract` vs `->>`, string/number coercion. `withDialects` skips its Postgres subtest when Docker is unreachable — check the run actually reported `--- PASS: …/postgres` and did not skip, or the extra coverage is imaginary.
 
@@ -241,13 +241,14 @@ Wrappers in `dialect.go` proxy `Exec/Get/Query/QueryRow/Select` on `s.ext()` (wh
 
 Single `*Store` covers both SQLite and Postgres; `OpenPostgres(ctx, dsn, ...PGOption)` (`postgres.go`) opens a pgx-backed `*sqlx.DB`. The `driver` field selects per-call dialect via three helpers in `dialect.go`:
 
-- `s.placeholder()` — `sq.Question` for SQLite, `sq.Dollar` for Postgres. Squirrel queries use this; raw `?` SQL goes through `s.exec` / `s.get` / `s.selectAll` / `s.queryRow` / `s.query` wrappers that auto-rebind via `db.Rebind`.
+- `s.placeholder()` — `sq.Question` for SQLite, `sq.Dollar` for Postgres. Squirrel queries use this; raw `?` SQL goes through `s.exec` / `s.get` / `s.selectAll` / `s.queryRow` wrappers that auto-rebind via `db.Rebind`.
 - `s.tagJSONFilter(key)` — emits `json_extract(tags, '$.k')` (SQLite) or `tags ->> 'k'` (Postgres).
 - `s.tagJSONValueExists()` — `json_each(tags)` vs `jsonb_each_text(tags)`.
 
 Other portability rules baked in:
-- Use `INSERT ... ON CONFLICT DO NOTHING` (never SQLite-only `INSERT OR IGNORE`). Writes on `resources`, `quotas`, `relationships` and `hierarchy_closure` name **no conflict target**: an inferred target must match a live unique index exactly, and an embedder may widen those keys (a multi-tenant host scoping them per workspace), which would then fail `42P10`. `scans` and `scan_checkpoints` keep their targets — `scans (id)` and the four-column `scan_checkpoints (scan_id, provider, service, scope)`, both led by a globally unique scan id, so widening their KEYS would buy an embedder nothing. They are still RLS-scoped like every other scan-data table; this is about the key, not about isolation. New writes follow the same rule.
+- Use `INSERT ... ON CONFLICT DO NOTHING` (never SQLite-only `INSERT OR IGNORE`). Writes on `resources`, `quotas`, `relationships` and `hierarchy_closure` name **no conflict target**: an inferred target must match a live unique index exactly, and an embedder may widen those keys (a multi-tenant host scoping them per workspace), which would then fail `42P10`. `scans` keeps its target — `scans (id)`, a globally unique scan id, so widening its KEY would buy an embedder nothing. They are still RLS-scoped like every other scan-data table; this is about the key, not about isolation. New writes follow the same rule.
 - `recordHierarchyTx` and friends accept `*sql.Tx` but pass through `s.rebind(...)` first because tx itself is unaware of the driver.
+- A raw `tx.Exec`/`tx.QueryRow` on a `*sqlx.Tx` from `s.db.Beginx()` is the same trap: wrap the SQL in `s.rebind(...)`. `PersistCheckRun` sent `?` to Postgres (42601) until the findings tests moved to `withDialects`.
 
 ### Single-tenant backend + `WithAfterConnect` extension point
 

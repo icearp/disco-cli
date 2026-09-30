@@ -88,10 +88,10 @@ but only re-scan if 6 h have elapsed.`,
 //   - "latest" — most-recent scan whose status is running/partial.
 //   - any other value — explicit scan_id to reuse.
 //
-// Returns (scanID, resuming, err). When resuming, expect the checkpoint table
-// to carry per-service watermarks a future incremental scanner can consume;
-// today the scan persists fresh checkpoints from this scan_id without
-// consuming them.
+// Returns (scanID, resuming, err). Resuming only reuses the scan_id: every
+// service is listed again from the start, and the scan record is finalised
+// under the old id. Nothing clears the earlier attempt's errors/warnings or
+// checks that this run's providers match the record's.
 func startOrResumeScan(db *store.Store, resumeFlag string, providers []string, scope map[string]any) (string, bool, error) {
 	if resumeFlag == "" {
 		if scope == nil {
@@ -170,10 +170,8 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		}
 	}
 
-	// --resume reuses a previously-started scan_id and its checkpoint set;
-	// without it, a fresh scan_id is generated. Today the scan persists
-	// checkpoints and exposes the lookup; a future incremental scanner can
-	// consume the per-page watermarks to skip already-listed pages.
+	// --resume reuses a previously-started scan_id; without it, a fresh
+	// scan_id is generated.
 	resumeFlag, _ := cmd.Flags().GetString("resume")
 	scope := buildScanScope(cmd, names, scanners)
 	scanID, resuming, err := startOrResumeScan(db, resumeFlag, names, scope)
@@ -188,11 +186,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	noProgress, _ := cmd.Flags().GetBool("no-progress")
 	progressW := cmd.ErrOrStderr()
 	if resuming && !quiet {
-		cps, lerr := db.ListCheckpoints(scanID)
-		if lerr == nil {
-			_, _ = fmt.Fprintf(progressW,
-				"Resuming scan %s with %d checkpoint(s)\n", scanID, len(cps))
-		}
+		_, _ = fmt.Fprintf(progressW, "Resuming scan %s\n", scanID)
 	}
 	if !quiet {
 		_, _ = fmt.Fprintf(progressW, "Scan %s started: %v\n", scanID, start.Round(time.Second))
@@ -722,7 +716,7 @@ func init() {
 	// Persistent so subcommands (disco scan aws, etc.) inherit the flag.
 	scanCmd.PersistentFlags().Bool("quiet", false, "Suppress per-service progress output; only print the final summary")
 	scanCmd.PersistentFlags().Bool("no-progress", false, "Disable the animated progress spinner; per-service lines still print")
-	scanCmd.PersistentFlags().String("resume", "", "Resume a previous scan: pass a scan ID, or 'latest' to pick the most recent incomplete scan")
+	scanCmd.PersistentFlags().String("resume", "", "Reuse a previous scan's ID: pass a scan ID, or 'latest' for the most recent running or partial scan. Every service is re-listed (nothing is skipped), and the earlier attempt's errors and warnings stay on the scan record")
 	scanCmd.PersistentFlags().Duration("if-older-than", 0,
 		"Skip the scan (exit 0) when the latest complete scan for every targeted provider is younger than this duration (e.g. 1h, 24h)")
 	scanCmd.PersistentFlags().Bool("dry-run", false,

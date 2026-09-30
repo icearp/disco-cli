@@ -392,7 +392,7 @@ func (s *Store) LatestIncompleteScan() (*Scan, error) {
 	err := s.get(&sc, `
 		SELECT `+scanColumns+` FROM scans
 		WHERE status IN ('running','partial')
-		ORDER BY started_at DESC
+		ORDER BY `+s.newestFirst()+`
 		LIMIT 1`)
 	if err != nil {
 		return nil, err
@@ -403,7 +403,7 @@ func (s *Store) LatestIncompleteScan() (*Scan, error) {
 	return &sc, nil
 }
 
-// LatestCompleteScan returns the most-recent scan with status "complete" or
+// LatestCompleteScan returns the most-recent scan with status "completed" or
 // "partial" that names the given provider (or any provider when provider="").
 // Returns sql.ErrNoRows when no such scan exists. Used by
 // `disco scan --if-older-than` to skip cron-driven re-scans when a recent run
@@ -416,7 +416,7 @@ func (s *Store) LatestCompleteScan(provider string) (*Scan, error) {
 		q += ` AND providers LIKE ?`
 		args = append(args, "%\""+provider+"\"%")
 	}
-	q += ` ORDER BY started_at DESC, rowid DESC LIMIT 1`
+	q += ` ORDER BY ` + s.newestFirst() + ` LIMIT 1`
 	if err := s.get(&sc, q, args...); err != nil {
 		return nil, err
 	}
@@ -431,10 +431,7 @@ func (s *Store) LatestCompleteScan(provider string) (*Scan, error) {
 // GetScan fan-out.
 func (s *Store) ListScans() ([]Scan, error) {
 	var scans []Scan
-	// Tie-break by rowid so two scans created within the same SQLite-second
-	// (datetime('now') has 1s resolution) order deterministically: newer
-	// rowid wins. Required by `disco scans show latest` consumers.
-	if err := s.selectAll(&scans, "SELECT "+scanColumns+" FROM scans ORDER BY started_at DESC, rowid DESC"); err != nil {
+	if err := s.selectAll(&scans, "SELECT "+scanColumns+" FROM scans ORDER BY "+s.newestFirst()); err != nil {
 		return nil, err
 	}
 	for i := range scans {

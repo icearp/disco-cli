@@ -109,11 +109,10 @@ func (s *Store) PersistCheckRun(rulesPaths, packs []string, severityFilter strin
 		sevPtr = &severityFilter
 	}
 	findingCount := len(findings)
-	_, err = tx.Exec(
-		`
+	_, err = tx.Exec(s.rebind(`
 		INSERT INTO check_runs
 			(id, started_at, finished_at, rules_paths, packs, severity_filter, resource_count, finding_count)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
 		id, now, now, string(rulesJSON), string(packsJSON), sevPtr, resourceCount, findingCount,
 	)
 	if err != nil {
@@ -140,12 +139,10 @@ func (s *Store) PersistCheckRun(rulesPaths, packs []string, severityFilter strin
 	return id, nil
 }
 
-// ListCheckRuns returns every check_run, newest first. Tie-break on rowid
-// DESC so two runs created within the same SQLite-second order
-// deterministically (mirrors ListScans).
+// ListCheckRuns returns every check_run, newest first (see newestFirst).
 func (s *Store) ListCheckRuns() ([]CheckRun, error) {
 	var runs []CheckRun
-	if err := s.selectAll(&runs, "SELECT "+checkRunColumns+" FROM check_runs ORDER BY started_at DESC, rowid DESC"); err != nil {
+	if err := s.selectAll(&runs, "SELECT "+checkRunColumns+" FROM check_runs ORDER BY "+s.newestFirst()); err != nil {
 		return nil, err
 	}
 	for i := range runs {

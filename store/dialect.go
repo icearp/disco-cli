@@ -30,6 +30,19 @@ func (s *Store) ext() sqlxExt {
 
 // placeholder returns the squirrel placeholder format matching the active
 // driver. SQLite uses `?`; Postgres uses `$N`.
+// newestFirst is the ORDER BY for scans and check_runs, newest first.
+// started_at has 1s resolution (nowExpr), so a same-second pair needs a
+// tiebreak. SQLite's rowid is insertion order, so `latest` stays the row
+// created last; Postgres has no rowid, and its fallback, the random hex id, is
+// deterministic but not creation order. Ids stay random because users paste
+// 8-char prefixes, which a time-ordered id (UUIDv7) would make collide.
+func (s *Store) newestFirst() string {
+	if s.driver == driverPostgres {
+		return "started_at DESC, id DESC"
+	}
+	return "started_at DESC, rowid DESC"
+}
+
 func (s *Store) placeholder() sq.PlaceholderFormat {
 	if s.driver == driverPostgres {
 		return sq.Dollar
@@ -47,12 +60,6 @@ func (s *Store) rebind(q string) string {
 func (s *Store) exec(q string, args ...any) (sql.Result, error) {
 	e := s.ext()
 	return e.Exec(e.Rebind(q), args...)
-}
-
-// query proxies Query with auto-rebind.
-func (s *Store) query(q string, args ...any) (*sql.Rows, error) {
-	e := s.ext()
-	return e.Query(e.Rebind(q), args...)
 }
 
 // queryRow proxies QueryRow with auto-rebind.

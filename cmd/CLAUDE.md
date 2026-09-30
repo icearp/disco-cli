@@ -55,7 +55,7 @@ Segment spelling = `sdkinv.Singular`; fix wrong spellings in its `irregular` tab
 
 ## Resume
 
-`disco scan --resume <scan-id|latest>` reuses a previous scan_id instead of generating a fresh one. `latest` picks the most-recent scan whose status is `running` or `partial`. No scanner writes checkpoints yet (`store.SaveCheckpoint` has no production caller), so the resume banner's checkpoint count is 0. `startOrResumeScan` in `scan.go` owns the dispatch. Without `--resume`: fresh scan_id.
+`disco scan --resume <scan-id|latest>` reuses a previous scan_id instead of generating a fresh one. `latest` picks the most-recent scan whose status is `running` or `partial`. Resume only reuses the id: every service is re-listed and `Finalize` stamps the old scan record (the checkpoint table that promised mid-service resume never had a writer and was dropped in `020`). `startOrResumeScan` in `scan.go` owns the dispatch. Without `--resume`: fresh scan_id.
 
 ## Parallel scanning
 
@@ -92,6 +92,8 @@ Reused by `graph_test.go`, `check_test.go`, `diff_test.go`:
 Cobra package-level flag vars (`graph*`, `resources*`, …) persist across tests because `rootCmd` is shared. Each subcommand test must reset its flags before `cmd.SetArgs(...)` — see `resetGraphFlags()` in `graph_test.go`. Flag pollution is transitive: a NEW test setting `--type`/`--limit`/`--direction` via `SetArgs` can break older sibling tests that only did partial resets (e.g. `resourcesOutputFmt = ""`). When adding such a test, upgrade siblings to the full `resetXFlags()` helper.
 
 Cobra also persists flag-attached values across tests when commands read via `cmd.Flags().GetX("name")` instead of package vars (e.g. `scan.go`'s `fail-on-error`; `resetCoverageFlags` already resets every coverage flag to `DefValue`). A package-var `resetXFlags()` won't clear those — pass an explicit `--flag=false` in negative-case tests, or call `cmd.Flags().Set("flag", "false")` before `Execute()`.
+
+Resetting a flag's variable does not reset pflag's `Changed`, so code reading `Flags().Changed(...)` (graph `blast`'s `--direction` fallback) sees the previous test's flag. A reset helper must also do `VisitAll(func(f){ f.Changed = false })` (`resetGraphFlags`, `resetCoverageFlags`); without it `TestGraphBlast_PrincipalAutoFallback` failed on every `-count>1` iteration.
 
 ## `disco history <id>` surfaces the resource version chain
 
@@ -140,13 +142,13 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 ## `--scan-id` + `latest` shorthand via `resolveScanID`
 
-`resources`, `summary`, `tag-coverage` accept `--scan-id <id|latest>` (`scans show` and `diff` take it positionally). `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to the most-recent scan whose `resource_count > 0` — a re-verify run that touched no new rows otherwise silently zero-rows the documented drift workflow. Falls back to the most-recent scan when none qualify with a one-line stderr note. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.DiscoveredBy`; `scan --resume <id|latest>` uses the same shorthand convention.
+`resources`, `summary`, `tag-coverage` accept `--scan-id <id|latest>` (`scans show` and `diff` take it positionally). `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to the most-recent scan whose `resource_count > 0` — a scan that recorded no rows (failed early, empty scope, still running) otherwise silently zero-rows the documented drift workflow. (`resource_count` counts `verified_by`, so a re-verify-only run qualifies.) Falls back to the most-recent scan when none qualify with a one-line stderr note. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.SeenBy`; `scan --resume <id|latest>` uses the same shorthand convention.
 
-`ListScans` ORDER BY tie-breaks `started_at DESC` with `rowid DESC` because `nowExpr` has 1s resolution (RFC3339 to the second, no fraction) — two scans created within the same second otherwise ordered by SQLite implementation default and `latest` could resolve to the older one.
+`ListScans`, `LatestCompleteScan`, `LatestIncompleteScan` and `ListCheckRuns` order by `store.newestFirst()`: `started_at DESC` (1s resolution, `nowExpr`), then `rowid DESC` on SQLite (insertion order, so `latest` is the row created last) and `id DESC` on Postgres, which has no `rowid`. Ids there are random hex, so a same-second Postgres tie is deterministic but not creation order. Never write a bare `rowid` in shared SQL. Do not switch to time-ordered ids (UUIDv7) to fix Postgres: users paste 8-char scan-id prefixes, and time-leading hex makes every scan in the same ~65 s window share one.
 
-## `resources --scan-id` matches `discovered_by` only
+## `resources --scan-id` matches `discovered_by` OR `verified_by`
 
-`scans.resource_count` counts current rows the scan *verified* (`scanResourceCountExpr`), but `ResourceFilter.DiscoveredBy` matches `discovered_by` only, so a re-verify-only scan shows a count in `disco scans` yet returns 0 rows from `resources --scan-id`. `--scan-as` was removed. `resources --id` short-circuits on `root_id` via `ResourceFilter.ID`.
+`ResourceFilter.SeenBy` (`--scan-id` on `resources`, `summary`, `tag-coverage`) uses the `TypesForScan` column rule (but keeps reference-only placeholders, which `resource_count` also counts), so for the latest scan it lists exactly the current rows `scans.resource_count` counts (`scanResourceCountExpr`, `verified_by`). A re-verify-only scan lists its rows. For an older scan, a row a later scan re-verified matches only if that scan discovered it — `verified_by` moves forward. "New this run" is `disco diff`'s `added` (`discovered_by = B`); there is no `--scan-as`. `resources --id` short-circuits on `root_id` via `ResourceFilter.ID`.
 
 ## `disco graph complete --orphans-only` filters to disconnected nodes
 

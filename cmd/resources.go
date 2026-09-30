@@ -128,7 +128,7 @@ var resourcesCmd = &cobra.Command{
 			Status:           resourcesStatus,
 			TagKey:           resourcesTagKey,
 			TagValue:         resourcesTagValue,
-			DiscoveredBy:     scanID,
+			SeenBy:           scanID,
 			ID:               resourcesID,
 			DiscoveredSince:  discoveredSince,
 			DiscoveredBefore: discoveredBefore,

@@ -167,8 +167,9 @@ func loadAllResourcesPaged(db *store.Store, base store.ResourceFilter) ([]store.
 }
 
 // resolveScanID expands the `latest` shorthand. Returns the most-recent
-// scan whose `resource_count > 0` so a re-verify run that touched no new
-// rows doesn't silently zero-row the documented drift workflow (F3 fix).
+// scan whose `resource_count > 0`, so a scan that recorded no rows (failed
+// early, empty scope, still running) doesn't silently zero-row the
+// documented drift workflow.
 // Falls back to the most-recent scan if none qualify, with a one-line
 // stderr note describing the fall-back so auditors don't miss the signal.
 //
