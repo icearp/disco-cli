@@ -144,3 +144,38 @@ catalogs above. Now resources: addressed singletons (`web/sites/config`,
   (`armredis:Client.ListBySubscription`). `LooseLabelGrammar` (Azure only) catches the near miss
   `arm<module>:<Op>` with the `Client.` dropped. AWS's decorated labels
   (`amp:ListWorkspaces(extended)`) are deliberate: do not give AWS a loose grammar.
+
+## Spec-annotated refs (`x-ms-arm-id`): measured 2026-10-01, deferred
+
+The idea: read `format: arm-id` / `x-ms-arm-id-details` from azure-rest-api-specs to add refs the
+shape rule (`refs.go`) cannot see. Measured against the live universe (SDK `f3847e89`, specs
+`e7902d1f`): each resource candidate's list path is joined to its spec at the SDK client's own
+`api-version`, and the 200 `value[]` items are walked.
+
+- **Cost.** The specs tarball is 214 MB. `resource-manager` JSON for every API version is 819 MB
+  (14,198 files). The 328 version directories the SDK actually uses are 64 MB, plus 0.2 MB of
+  `common-types`. It would add a fetch source and a pin.
+- **Version skew.** Every one of the 10 sampled modules is TypeSpec, pinned to a spec commit 2
+  weeks to 8 months behind specs HEAD. Joining to the latest spec version instead of the SDK's put
+  55% of joined candidates (123 of 273 modules) on a different version. The total barely moved,
+  but the ref sets differed on 22 candidates, so the version must be picked per module.
+- **Coverage.** 2,384 of 2,478 resource candidates join. 74 do not: 71 are retired RPs absent from
+  specs HEAD (storsimple, videoanalyzers, blockchain, …), 3 are version-folder misses. 20 more
+  have no `value`. Only 352 carry any annotation. Of 1,012 annotated paths, 667 are already shape
+  refs (a ref struct at `p` counts for an annotated `p.id`). Of the 345 new paths, 218 lie below
+  `refDepth`; only 127 are within it, on 64 candidates (2.6%). 62 of those 127 come from
+  discriminator subtypes, which the shape rule never walks (`model()` maps `XClassification` to
+  its base).
+- **Cannot replace the shape rule.** 4,713 of the 5,380 shape refs on joined candidates (88%)
+  carry no annotation. `additionalProperties` maps (the UAMI identity map) carry none and have no
+  dotted path on either side.
+- **Requirements for any build.** Resolve `common-types` (`Resource.id` and the identity and
+  private-endpoint types live there). Skip the element's own `id`, as `walkRefs` does. Walk
+  discriminator subtypes. Exclude the spec repo's test fixtures (`.github/**/test`,
+  `eng/tools/*/test`). A first measurement missed `common-types` and subtypes and joined to the
+  latest version; it reported 83 new refs, against 127 after correction.
+
+Defer: about 125 within-depth refs on under 3% of candidates do not pay for a 64–214 MB source
+plus per-module version selection. Revisit if annotation coverage grows. Separately, walking
+discriminator subtypes in the shape rule itself would recover some of the 62 subtype refs with
+no new source.
