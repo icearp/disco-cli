@@ -62,7 +62,7 @@ type LabelModuler interface {
 
 // Diagnostic is a pairing problem the strict test fails on.
 type Diagnostic struct {
-	Kind    string `json:"kind"` // label-no-op | label-no-anchor | label-malformed | op-not-in-inventory | unresolved-receiver
+	Kind    string `json:"kind"` // label-no-op | label-no-anchor | label-malformed | sdk-skew | sdk-module-absent | unresolved-receiver
 	File    string `json:"file"`
 	Line    int    `json:"line"`
 	Message string `json:"message"`

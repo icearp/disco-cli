@@ -6,7 +6,7 @@ the types they store (`internal/sdkinv/pairing`). Per-provider glue in
 `internal/providers/<p>/<p>_coverage.go` registers via `coverage.Register` from init; each
 provider's extractor and resolver live in `internal/providers/<p>/<p>inventory`.
 
-## The admitting rule travels with the row (#127)
+## The admitting rule travels with the row
 
 Every candidate carries `Rule`: the extractor rule that decided its class (each provider's own
 vocabulary; see `internal/providers/<p>/<p>inventory/CLAUDE.md`). It reaches
@@ -24,7 +24,9 @@ headline number. Never recompute percentages from filtered rows.
 - `Provider` = `Name()` + `Emits()` only. Optional: `CrossChecker` (`CrossCheck`, `RegistryKey`,
   `CanonicalKey` — drives `--cross-check`), `RegionLister`, `ResolverAuditor`, `ServiceMapper`
   (`TypeServices()`: disco type → scanner service names registered from the same file, via
-  `restype.Origin`; `coverage verify` joins `scans.errors` through it).
+  `restype.Origin`; `coverage verify` joins `scans.errors` through it), `ScaffoldStubber`
+  (`ScannerStub()`: the stub scanner's imports, signature and body for `cmd/disco-scaffold`;
+  `TestGenScaffold_EveryProviderStubsAScanner` fails if a registered provider loses it).
 - `Inputs.Paired` is set explicitly by `InputsFromCache`; a walk that parsed but anchored nothing
   is a paired run with no pairings, not "no source".
 - `InputsFromCache(ctx, cache, provider, emits, scannerDir)` is the one derivation path shared by
@@ -72,15 +74,14 @@ headline number. Never recompute percentages from filtered rows.
 - `Row.Ops` folds repeated labels (sibling AWS models, per-version GCP documents). `Ops` is never read back, so the fold is presentation only.
 - `Row.Scope` is the **narrowest** scope among the candidate's ops, ranked by the provider's own
   `Universe.Scopes` (narrowest first; an undeclared scope ranks widest). coverage holds no
-  cross-provider scope table. Ops sort by label, so taking `Ops[0]` printed `billingAccounts.` or
-  `folders.` on 117 GCP rows that a project-scoped lister also serves. AWS ops carry no scope at
+  cross-provider scope table. Never `Ops[0]`: ops sort by label, so it printed `billingAccounts.`
+  on GCP rows a project-scoped lister also serves. AWS ops carry no scope at
   all, by rule (`internal/providers/aws/awsinventory/CLAUDE.md`), and the renderers dash an empty value.
 - Unit of coverage is the candidate: one op → N types counts once; N ops → one type marks every
   candidate covered. `Row.DiscoType` is the type to display — identity match, else shared leaf —
   and `Row.DiscoTypes` the whole set when more than one is paired. With several paired and neither
   tier matching there is no answer, so `bestType` returns `""` and the row carries reason
-  `multi-type`; the alphabetically first was a coin toss that showed the diagnostic-settings
-  dispatcher as `azure:microsoft.apimanagement:service` (40 rows). **The covered bucket therefore
+  `multi-type` (the alphabetically first was a coin toss). **The covered bucket therefore
   keys on `len(paired) > 0`, never on `DiscoType != ""`** — clearing the display type must not cost
   a row its bucket.
 
@@ -100,8 +101,7 @@ absent from the file is fatal (`no-baseline`) — nothing would guard it. An unc
 the universe is reported (`denominator-shrunk`): it raises the percent, so no other check fires.
 `--write-baseline` **merges** into the existing file (`coverage.Merge`), so a `--providers`-narrowed
 run cannot silently drop the ratchet for the providers it did not compute.
-`make gen-coverage` accepts; `make check-coverage` enforces (plus a diff of `docs/coverage.md`).
-`docs/coverage.md` is generated and committed; keep `.gitignore` narrow (`*.out`, `coverage.html`)
+Workflow (`gen-coverage` / `check-coverage`): root `CLAUDE.md` "Coverage report". Keep `.gitignore` narrow (`*.out`, `coverage.html`)
 — a bare `coverage.*` once ignored it and made CI's diff a no-op.
 
 ## Identity
@@ -109,23 +109,21 @@ run cannot silently drop the ratchet for the providers it did not compute.
 `sdkinv.Ident` is the only cross-source equality; its rules are in `internal/sdkinv/CLAUDE.md`.
 GCP's `RegistryKey`/`CanonicalKey` also compare through `Ident`.
 
-## Live numbers (2026-09-28 snapshot, pairing on; `docs/coverage.md` is authoritative)
+## Live numbers: `docs/coverage.md` is authoritative
 
-AWS 49.8% (1660/3336), Azure 16.1% (398/2478), GCP 23.2% (240/1034); zero unexplained. Pairing
-off (an installed binary): AWS 42.0%, Azure 15.9%, GCP 18.8%. Azure
-carries 8 explained disco-only rows (4 Entra `non-sdk`, 4 `sdk-skew`), GCP 5 (`other-op`: IAM
-policy, plus listers no sibling confirms — bigtable hot tablets and the per-cluster memory-layer
-singleton, effective tags, spanner's DDL-defined database roles). The
-Azure/GCP extractors emit no `attribute` class (their detail reads are item paths, not ops).
+Do not copy percentages here; CI regenerates the report. Invariants: zero unexplained disco-only
+rows; Azure/GCP explained disco-only rows are Entra `non-sdk`, `sdk-skew` and GCP `other-op`
+listers no sibling confirms; the Azure/GCP extractors emit no `attribute` class (their detail
+reads are item paths, not ops). Pairing off (an installed binary) reads ~7 points lower on AWS.
 
-## Cross-check drift reads buckets, not classes (#119)
+## Cross-check drift reads buckets, not classes
 
 `CrossCheck` builds the candidate-only set from rows bucketed `covered`/`uncovered`. Reading
 `Class == ClassResource` instead made the same report exclude a `preview-only` candidate as out
-of scope and then re-report it as drift — 20 of 34 live GCP rows. `preview-only` is a signal, not
+of scope and then re-report it as drift. `preview-only` is a signal, not
 a class, so nothing else removes them.
 
 Candidates are `map[string][]Candidate`: siblings sharing a leaf identity (GCP leaf, AWS folded
-`…Resource`) each get a row (#79). Measure drift changes with a scratch `_test.go` in the provider
+`…Resource`) each get a row. Measure drift changes with a scratch `_test.go` in the provider
 package calling `InputsFromCache` → `BuildInventory` → `CrossCheck` (AWS SR half is credential-free;
 the CFN half needs live creds); delete it before commit.

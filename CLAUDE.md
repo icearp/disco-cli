@@ -63,9 +63,7 @@ CGO_ENABLED=0 go test ./store/... -run TestFoo -v
 go vet ./...
 golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 
-# Guard SQLite ↔ Postgres migration parity (single-tenant schema: the two
-# dialects' column sets must match exactly — no PG-only allowlist; the SaaS
-# multi-tenant columns live in disco-saas's own migration set)
+# SQLite ↔ Postgres column parity — manual, not run in CI (store/CLAUDE.md "Migration parity")
 make check-migrations
 
 # Populate the SDK source cache the coverage denominator derives from (no-op when present)
@@ -77,8 +75,9 @@ make sdk-fetch            # = disco coverage sdk fetch; see internal/sdkinv/CLAU
 # Cold `go build ./...` exceeds 2 min (three cloud SDKs). Build/test/lint scoped packages first
 # (`./internal/sdkinv/... ./cmd/...`), run the full build in the background.
 
-# Format before commit (project gofmt config rewrites init() one-liners; run before each commit to avoid linter drift)
-gofmt -w .
+# Format before commit. The linter's formatters are gofumpt + goimports (.golangci.yaml), a superset
+# of gofmt; `golangci-lint fmt` applies exactly those (slow repo-wide — pass the changed packages)
+golangci-lint fmt ./cmd/... ./store/...
 ```
 
 Version stamp: `make build` injects `git describe --tags --always --dirty=+dirty` via `-X cmd.Version` ldflag (canonical release path). Without the ldflag, `cmd/root.go` falls back to build-info `vcs.revision[:12]` (+`+dirty`), then the literal `dev` (e.g. `go test`). SARIF `tool.driver.version`, snapshot `manifest.toolVersion`, and `disco --version` all read `cmd.Version` — single source of truth.
@@ -178,7 +177,7 @@ Single build, no feature gating — everything ships in this one binary.
 ### golangci-lint flags
 
 - v2 config (`version: "2"` at top of `.golangci.yaml`) — schema renamed in v2; missing version yields `unsupported version of the configuration`.
-- Default caps output at 50 issues per linter. For a full survey: `golangci-lint run --max-issues-per-linter 0 --max-same-issues 0`.
+- Default caps output at 50 issues per linter; the full-survey command is under Commands.
 
 ### Go 1.25 modernizer lint
 

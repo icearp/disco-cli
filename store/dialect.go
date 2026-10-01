@@ -28,8 +28,6 @@ func (s *Store) ext() sqlxExt {
 	return s.db
 }
 
-// placeholder returns the squirrel placeholder format matching the active
-// driver. SQLite uses `?`; Postgres uses `$N`.
 // newestFirst is the ORDER BY for scans and check_runs, newest first.
 // started_at has 1s resolution (nowExpr), so a same-second pair needs a
 // tiebreak. SQLite's rowid is insertion order, so `latest` stays the row
@@ -43,6 +41,8 @@ func (s *Store) newestFirst() string {
 	return "started_at DESC, rowid DESC"
 }
 
+// placeholder returns the squirrel placeholder format matching the active
+// driver. SQLite uses `?`; Postgres uses `$N`.
 func (s *Store) placeholder() sq.PlaceholderFormat {
 	if s.driver == driverPostgres {
 		return sq.Dollar
