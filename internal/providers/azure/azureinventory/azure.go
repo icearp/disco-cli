@@ -52,15 +52,6 @@ func keepARMFile(p string) bool {
 	return !strings.HasSuffix(p, "/client_factory.go")
 }
 
-// linkedModules lists the arm* modules this binary links.
-func linkedModules() []*debug.Module {
-	bi, ok := debug.ReadBuildInfo()
-	if !ok {
-		return nil
-	}
-	return bi.Deps
-}
-
 // absentModules reports each linked arm* module the pinned monorepo HEAD no
 // longer holds. The universe follows HEAD, not go.mod (pinning each module
 // would delete rows HEAD still lists), so a module retired upstream has no

@@ -1,7 +1,12 @@
 package main
 
 import (
+	"go/ast"
 	"go/format"
+	"go/parser"
+	"go/printer"
+	"go/token"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -118,4 +123,104 @@ func TestGenScaffold(t *testing.T) {
 			t.Errorf("scaffold lacks %q:\n%s", want, src)
 		}
 	}
+}
+
+// TestGenScaffold_EveryProviderStubsAScanner: the stub signature lives on each
+// provider's coverage.ScaffoldStubber, and a provider that drops it degrades
+// silently to descriptors only. An unknown provider keeps that fallback.
+func TestGenScaffold_EveryProviderStubsAScanner(t *testing.T) {
+	rows := []coverage.Row{{Service: "svc", Key: "svc/things", Bucket: coverage.BucketUncovered}}
+	for _, p := range coverage.Names() {
+		src, err := genScaffold(p, "svc", rows, scaffoldOpts{existingTypes: map[string]bool{}})
+		if err != nil {
+			t.Fatalf("%s: %v", p, err)
+		}
+		if !strings.Contains(src, "func scanSvc(") || !strings.Contains(src, "TODO: ") {
+			t.Errorf("%s: no stub scanner; does its coverage provider implement ScaffoldStubber?\n%s", p, src)
+		}
+		if _, err := format.Source([]byte(src)); err != nil {
+			t.Errorf("%s: stub does not parse: %v\n%s", p, err, src)
+		}
+	}
+	src, err := genScaffold("nosuch", "svc", rows, scaffoldOpts{existingTypes: map[string]bool{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(src, "func scanSvc(") || strings.Contains(src, "registerService(") {
+		t.Errorf("unknown provider emitted a scanner:\n%s", src)
+	}
+}
+
+// TestScannerStubMatchesServiceEntry: a stub whose signature is not the
+// provider's serviceEntry.fn type parses fine yet does not compile in the
+// provider package. Compare parameter and result types, names ignored.
+func TestScannerStubMatchesServiceEntry(t *testing.T) {
+	for _, p := range coverage.Names() {
+		prov, _ := coverage.Get(p)
+		s, ok := prov.(coverage.ScaffoldStubber)
+		if !ok {
+			continue // TestGenScaffold_EveryProviderStubsAScanner reports it
+		}
+		_, sig, _ := s.ScannerStub()
+		expr, err := parser.ParseExpr("func" + sig)
+		if err != nil {
+			t.Fatalf("%s: stub signature does not parse: %v", p, err)
+		}
+		want := serviceEntryFn(t, filepath.Join("..", "..", "internal", "providers", p))
+		if got := funcTypes(expr.(*ast.FuncType)); got != funcTypes(want) {
+			t.Errorf("%s: stub signature %s, serviceEntry.fn %s", p, got, funcTypes(want))
+		}
+	}
+}
+
+// serviceEntryFn finds the fn field of the package's serviceEntry struct.
+func serviceEntryFn(t *testing.T, dir string) *ast.FuncType {
+	t.Helper()
+	files, _ := filepath.Glob(filepath.Join(dir, "*.go"))
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		af, err := parser.ParseFile(token.NewFileSet(), f, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fn *ast.FuncType
+		ast.Inspect(af, func(n ast.Node) bool {
+			ts, ok := n.(*ast.TypeSpec)
+			if !ok || ts.Name.Name != "serviceEntry" {
+				return fn == nil
+			}
+			for _, fld := range ts.Type.(*ast.StructType).Fields.List {
+				if ft, ok := fld.Type.(*ast.FuncType); ok && len(fld.Names) == 1 && fld.Names[0].Name == "fn" {
+					fn = ft
+				}
+			}
+			return false
+		})
+		if fn != nil {
+			return fn
+		}
+	}
+	t.Fatalf("no serviceEntry.fn in %s", dir)
+	return nil
+}
+
+// funcTypes renders a func type's parameter and result types without names.
+func funcTypes(ft *ast.FuncType) string {
+	list := func(fl *ast.FieldList) string {
+		var out []string
+		if fl == nil {
+			return ""
+		}
+		for _, f := range fl.List {
+			var b strings.Builder
+			_ = printer.Fprint(&b, token.NewFileSet(), f.Type)
+			for range max(1, len(f.Names)) {
+				out = append(out, b.String())
+			}
+		}
+		return strings.Join(out, ", ")
+	}
+	return "(" + list(ft.Params) + ") (" + list(ft.Results) + ")"
 }

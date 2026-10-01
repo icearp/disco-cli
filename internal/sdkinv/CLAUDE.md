@@ -103,6 +103,10 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   walks, and the conformance DeepEqual only catches the omission on some runs (`-count=5`).
   Pairing needs it to explain types built from a Get/Describe (`other-op:` reason).
 
+- `sdkinv.LinkedModules()` (`debug.ReadBuildInfo`) returns no deps in a test binary: a check
+  built on it (Azure `absentModules`, AWS `absentModels`) must be a pure function over a deps list,
+  tested directly; its `Extract` call site stays untested.
+
 ## Pairing (`pairing/`)
 
 - `Resolver.LabelOp` maps a label to its anchor-form op name — the exact form `OpKey` returns —

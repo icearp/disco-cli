@@ -93,7 +93,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		}
 		u.Candidates = append(u.Candidates, c)
 	}
-	u.Diagnostics = append(u.Diagnostics, absentModules(root, linkedModules())...)
+	u.Diagnostics = append(u.Diagnostics, absentModules(root, sdkinv.LinkedModules())...)
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)
 	sdkinv.SortOpRefs(u.SourceOps)

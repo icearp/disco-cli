@@ -10,6 +10,12 @@ AWS SDK inventory: the extractor that derives the AWS coverage denominator from 
 ## Pins (`pins.go`)
 
 - `SDKRef` = aws-sdk-go-v2 `release-YYYY-MM-DD` tag.
+- `absentModels` warns for each linked `aws-sdk-go-v2/service/<pkg>` module (`sdkinv.LinkedModules`)
+  whose package no model at `SDKRef` names. Existence only: a per-module version compare would
+  warn whenever go.mod lags the pin. Live at introduction: 0 of 312 linked service packages absent
+  (317 modules, 5 `service/internal/*` skipped). A `service/<pkg>/vN` module would be skipped
+  too (none exist). Test binaries carry no build-info deps, so only `TestAbsentModels` (the pure
+  function) covers it; the `Extract` call site is untested, as Azure's `absentModules` is.
 - The Service Reference catalog is unversioned and served live, so its pin is content:
   `ServiceReferenceDigest` = first 12 hex of `sha256(index.json)`, printed as
   `service-reference@<digest>`. A fetch that disagrees is **reported, never enforced**

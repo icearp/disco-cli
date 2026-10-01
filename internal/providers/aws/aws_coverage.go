@@ -24,6 +24,14 @@ type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "aws" }
 
+// ScannerStub is the stub scanner cmd/disco-scaffold emits for a new aws
+// service: serviceEntry's fn signature, returning (0,0,nil).
+func (coverageProvider) ScannerStub() (imports []string, sig, body string) {
+	return []string{"context", "github.com/icearp/disco-cli/internal/restype", "github.com/icearp/disco-cli/store"},
+		"(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error)",
+		"build the SDK client (svc.NewFromConfig(acct.cfg, ...)), paginate the\n\t// List/Describe ops, map each item to *store.Resource, then st.UpsertResources(batch).\n\t// Split out scan%[1]sWithClient(ctx, client, ...) for a fake-transport test seam."
+}
+
 // Emits returns CollectEmits() verbatim — the edge-less flag on each TypeDecl is
 // set at registration time alongside the scanner's emits decl, keeping the
 // decision next to the SDK-shape author who knows whether the type carries

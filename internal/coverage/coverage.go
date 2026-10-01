@@ -56,6 +56,15 @@ type ServiceMapper interface {
 	TypeServices() map[string][]string
 }
 
+// ScaffoldStubber is implemented by providers whose new-service stub scanner
+// `disco-scaffold` can emit: the imports the stub needs (its parameters are
+// unused, but their types must resolve), its parameter list and return after
+// "func scan<Svc>", and TODO guidance for the body, where %[1]s is the
+// service's Pascal name. A provider without it gets descriptors only.
+type ScaffoldStubber interface {
+	ScannerStub() (imports []string, sig, body string)
+}
+
 // CrossChecker is implemented by providers that can diff the SDK universe
 // against a live registry (`coverage services --cross-check`). RegistryKey
 // and CanonicalKey map a candidate and a registry key onto one identity so

@@ -50,6 +50,11 @@ duplicate const happily. A type string the provider already declares, or two row
 string, refuses the whole scaffold with the conflicting keys named. `--write` joins `--source-root`
 (both the path and the existing-file guard) and is refused when it is empty.
 
+The stub scanner's imports, signature and TODO body come from the provider's
+`coverage.ScaffoldStubber` (`ScannerStub()` on its `coverageProvider`), not from cmd. A provider
+without it gets descriptors only; `TestGenScaffold_EveryProviderStubsAScanner` fails if a
+registered provider loses it.
+
 Segment spelling = `sdkinv.Singular`; fix wrong spellings in its `irregular` table (with a
 `norm_test` pair), never a local shim.
 

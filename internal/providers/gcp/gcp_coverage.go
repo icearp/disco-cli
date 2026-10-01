@@ -25,6 +25,14 @@ type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "gcp" }
 
+// ScannerStub is the stub scanner cmd/disco-scaffold emits for a new gcp
+// service: serviceEntry's fn signature, returning (0,0,nil).
+func (coverageProvider) ScannerStub() (imports []string, sig, body string) {
+	return []string{"context", "github.com/icearp/disco-cli/internal/restype", "github.com/icearp/disco-cli/store"},
+		"(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error)",
+		"build the google.golang.org/api service client, paginate the list ops via\n\t// runPaginated, map each item to *store.Resource, then upsertWithProjClosure(p, st, batch).\n\t// Add a scan%[1]sWithClient seam for a fake-server test."
+}
+
 func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 
 // TypeServices implements coverage.ServiceMapper from the registration files.

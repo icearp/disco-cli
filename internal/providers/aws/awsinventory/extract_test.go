@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"testing"
@@ -464,5 +465,20 @@ func TestServiceReferenceVersion(t *testing.T) {
 	}
 	if _, err := serviceReferenceVersion(filepath.Join(dir, "absent.json")); err == nil {
 		t.Error("a missing index must error")
+	}
+}
+
+func TestAbsentModels(t *testing.T) {
+	files := []string{"/m/ec2.json", "/m/iot-data-plane.json"}
+	deps := []*debug.Module{
+		{Path: awsServicePrefix + "ec2", Version: "v1.0.0"},
+		{Path: awsServicePrefix + "iotdataplane", Version: "v1.0.0"}, // the package drops the model's dashes
+		{Path: awsServicePrefix + "retired", Version: "v1.0.0"},      // no model at the pin
+		{Path: awsServicePrefix + "internal/presigned-url", Version: "v1.0.0"},
+		{Path: "github.com/aws/aws-sdk-go-v2", Version: "v1.0.0"},
+	}
+	got := absentModels(files, deps)
+	if len(got) != 1 || got[0].Severity != "warn" || !strings.Contains(got[0].Message, "retired") {
+		t.Errorf("absentModels = %+v", got)
 	}
 }

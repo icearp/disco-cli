@@ -25,6 +25,14 @@ type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "azure" }
 
+// ScannerStub is the stub scanner cmd/disco-scaffold emits for a new azure
+// service: serviceEntry's fn signature, returning (0,0,nil).
+func (coverageProvider) ScannerStub() (imports []string, sig, body string) {
+	return []string{"context", "github.com/Azure/azure-sdk-for-go/sdk/azcore", "github.com/icearp/disco-cli/internal/restype", "github.com/icearp/disco-cli/store"},
+		"(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error)",
+		"build the arm* client with cred, page via azPageScan, map each item to\n\t// *store.Resource, then st.UpsertResources(batch). Add a scan%[1]sWithClient seam."
+}
+
 func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 
 // TypeServices implements coverage.ServiceMapper from the registration files.

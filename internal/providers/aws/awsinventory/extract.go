@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strings"
@@ -135,6 +136,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		}
 		u.Other = append(u.Other, other...)
 	}
+	u.Diagnostics = append(u.Diagnostics, absentModels(files, sdkinv.LinkedModules())...)
 	mergeDetailReads(x.entries)
 	resolveTree(x.entries, x.catalogued)
 	u.Candidates = assemble(x.entries)
@@ -1123,4 +1125,30 @@ func refsOfElement(m *smithyModel, f *opFacts) []string {
 	refs := map[string]bool{}
 	walkRefs(m, el, "", 0, sdkinv.Ident(f.noun), refs)
 	return slices.Sorted(maps.Keys(refs))
+}
+
+// absentModels reports each linked aws-sdk-go-v2 service module with no model
+// at SDKRef. Existence only: comparing each module's version to its model
+// would warn for most modules whenever go.mod lags the pin, which is normal.
+// A missing model means the service's operations are outside the universe, so
+// its scanners pair as sdk-skew and its types leave the denominator. A
+// `service/<pkg>/vN` module is skipped (ImportKey keys no nested path); none
+// exist today.
+func absentModels(files []string, deps []*debug.Module) []sdkinv.Diagnostic {
+	have := map[string]bool{}
+	for _, f := range files {
+		have[modelPackage(filepath.Base(f))] = true
+	}
+	var out []sdkinv.Diagnostic
+	for _, d := range deps {
+		pkg := awsResolver{}.ImportKey(d.Path)
+		if pkg == "" || have[pkg] {
+			continue
+		}
+		out = append(out, sdkinv.Diagnostic{
+			Severity: "warn", Source: d.Path + "@" + d.Version,
+			Message: fmt.Sprintf("linked service %s has no Smithy model at the pinned SDK ref; its operations are outside the universe", pkg),
+		})
+	}
+	return out
 }
