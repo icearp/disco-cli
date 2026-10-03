@@ -120,7 +120,8 @@ predecessor's `superseded_by` plus a full `INSERT`), both in `upsertResourcesTx`
 (`resources_upsert.go`). The verify `UPDATE` writes
 `verified_at`, `verified_by`, `name`, `region`, `zone`, `status`,
 `account_name`, `managed_by_provider`, and clears `deleted_at`/`deleted_by` (a
-re-seen resource lifts its archival tombstone). It does **not** write `tags` or
+re-seen resource lifts its archival tombstone) and `reference_only` (a scanner
+re-emit proves the row is not a placeholder). It does **not** write `tags` or
 `attributes` — it cannot, since that branch is only reached when both already
 compare equal — nor `discovered_at`/`discovered_by`, which belong to the chain
 root. Adding a new mutable column means editing the verify UPDATE, the split
@@ -146,9 +147,10 @@ the cross-tenant resolvers plus GCP edge resolvers whose target may be unscanned
 (`grep -rn InsertResourcesIfAbsent internal/providers`; do not hard-code the list).
 There is no synthetic stub type. Placeholders carry `reference_only = TRUE` (`011`);
 the split INSERT omits the column, so the populated successor is `FALSE`, and
-`TypesForScan` excludes reference-only rows. The verify-path UPDATE does not clear
-the flag, so a scanner re-emitting a row identical to a placeholder (`{}` attributes
-and tags) leaves it flagged.
+`TypesForScan` excludes reference-only rows. The verify-path UPDATE clears the flag
+too: a scanner re-emitting a row identical to a placeholder (`{}` attributes and tags)
+takes the verify path, not a split, and that re-emit proves the row is real
+(`TestUpsertResources_VerifyClearsReferenceOnly`).
 
 ## FK constraint: resources require scan record
 
