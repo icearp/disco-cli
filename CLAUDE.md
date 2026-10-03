@@ -63,7 +63,7 @@ CGO_ENABLED=0 go test ./store/... -run TestFoo -v
 go vet ./...
 golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 
-# SQLite ↔ Postgres column parity — manual, not run in CI (store/CLAUDE.md "Migration parity")
+# SQLite ↔ Postgres column parity; CI's test job runs it too (store/CLAUDE.md "Migration parity")
 make check-migrations
 
 # Populate the SDK source cache the coverage denominator derives from (no-op when present)

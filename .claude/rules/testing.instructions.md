@@ -110,7 +110,7 @@ structure they guard:
 - the reversed-`contains` cleanup guard in `newTestStore` (`store.ReversedContainsEdges`) —
   every provider test guards against flipped graphs for free.
 - `TestResourceID_Algorithm` — pins the ResourceID hash so the algorithm can't silently change.
-- `make check-migrations` — SQLite↔Postgres single-tenant schema parity (manual — not run in CI).
+- `make check-migrations` — SQLite↔Postgres single-tenant schema parity, drops included (CI `test` job).
 
 100% line coverage is deliberately not the target: it is a Goodhart metric (certifies lines
 executed, not invariants asserted), and the last mile is dominated by fault-injection-only
