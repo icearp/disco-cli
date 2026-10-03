@@ -4,6 +4,10 @@ Provider-neutral core of the coverage denominator: the SDK source cache, the `Un
 the extractor and resolver registries, path grammar, the conformance contract and the pairing
 walk. Imports nothing from `internal/providers` or `internal/coverage`.
 
+Gate: `CGO_ENABLED=0 go test ./internal/sdkinv/... ./internal/providers/all/ ./internal/providers/*/*inventory/`
+(live tests skip without `make sdk-fetch`); pairing gate per provider:
+`go test ./internal/providers/<p> -run 'TestScannerOpLabelsResolve|TestEveryEmittedTypePaired'`.
+
 **Provider knowledge lives in `internal/providers/<p>/<p>inventory`** (extractor, refs, pairing
 resolver, pins, scope vocabulary, fixtures, its own `CLAUDE.md`). Those SDK-free leaves register
 from `init()` and are blank-imported by the slim-gated `internal/providers/all/<p>.go`, so a slim
@@ -56,15 +60,13 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   Prove it per rule, not by eye: a scratch script that swaps one condition (`x` → `false`),
   runs `go test` on the `<p>inventory` and `sdkinv` packages, and restores the file. Any rule
   whose mutation stays green is untested.
-- Live drops at current pins: aws 2 (unreachable-from-service: healthlake's second namespace),
-  azure 0, gcp 6,173 (non-cloud-api 6126, alias-document 47). Every other GCP method is a
-  candidate op or Other; nothing drops for its shape.
+- Live drop counts are per provider (each `<p>inventory/CLAUDE.md` residuals); after a pin bump
+  an unexpected new drop reason is a regression until explained.
 - Warn-level `Universe.Diagnostics` are the only channel for surface an extractor could not
   model (a retired linked module, a module it could not parse). `disco coverage` prints a count
   per provider and `--verbose` lists them.
 - In a rewrite diff, a removed row whose collection has item PUT/PATCH/DELETE is a regression
-  until proven otherwise. The Azure singleton-read rule dropped 5 writable resources, and the
-  diff review accepted it.
+  until proven otherwise (an Azure precedent: `azureinventory/CLAUDE.md`).
 - `Universe.Scopes` = provider scope vocabulary, narrowest first; coverage ranks `Row.Scope` by it;
   every op scope must be declared.
 
@@ -102,15 +104,25 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   actions). Every extractor must end with `sdkinv.SortOps(u.Other)`: it is filled from map
   walks, and the conformance DeepEqual only catches the omission on some runs (`-count=5`).
   Pairing needs it to explain types built from a Get/Describe (`other-op:` reason).
+- `sdkinv.LinkedModules()` (`debug.ReadBuildInfo`) returns no deps in a test binary: a check
+  built on it (Azure `absentModules`, AWS `absentModels`) must be a pure function over a deps list,
+  tested directly; its `Extract` call site stays untested.
 
 ## Pairing (`pairing/`)
 
 - `Resolver.LabelOp` maps a label to its anchor-form op name — the exact form `OpKey` returns —
   for the skew check and the `byKey` label fallback; provider naming tokens (Azure's `Client`
-  suffix, GCP's per-segment canon) live there, never in core. Cutting the label at ":" instead
-  missed every canonical GCP name.
+  suffix, GCP's per-segment canon) live there, never in core — never cut the label at ":".
+- A resolver whose module keys differ from a label's module prefix implements the optional
+  `LabelModuler` (Azure: key `compute/armcompute`, label `armcompute:`); `moduleAbsent` is the
+  only core site that compares that prefix, and without the map it silently never matched.
+- `idx.other` stays single-valued on purpose. Its anchor keys (`module\x00name`) feed emitted
+  "other" pairings, which carry only `Service`/`Op`/`Label`: every live anchor-key collision
+  (GCP API versions v1/v1beta1, 4,819) projects identically except 7 that differ in label case.
+  Its label-alias keys do collide across different ops (GCP folders/orgs/projects variants), but
+  they only answer `known()`, a bool.
 - `byKey` holds every candidate an op lists (GCP aggregated twins); a call anchors them all and a
-  label fallback prefers the one the function anchors. Last-write-wins credited only one twin. `pairing.Register` panics on
+  label fallback prefers the one the function anchors. `pairing.Register` panics on
   duplicates; resolvers use exported `(*Func).Line`.
 - `pairing.Scan(ctx, cache, provider, dir)` = extract from the cache + `Walk` + `Unpaired`;
   wraps `sdkinv.ErrNotFetched` so `internal/providers/<p>/<p>_pairing_test.go` skips without
@@ -119,8 +131,7 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   logged. `TestEveryEmittedTypePaired` prints `Result.StoredBy[type]` with the failure, which is
   the only thing that names which scanner the walker could not reach.
 - An unaliased import binds the last path segment the importing file uses as a selector root
-  (`admin/directory/v1` binds `admin`); the imported package clause is not read. A version-strip
-  guess named it `directory`.
+  (`admin/directory/v1` binds `admin`); the imported package clause is not read.
 - Before replacing a pairing heuristic, dump live `Result.Pairings` for every provider (a
   throwaway test in `internal/providers/all` calling `pairing.Scan`, JSON to the scratchpad) and
   diff before/after: a fallback that looks load-bearing may never fire live.

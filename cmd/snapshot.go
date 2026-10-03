@@ -23,8 +23,8 @@ var snapshotCmd = &cobra.Command{
 	Short: "Freeze the local DB into a single-file evidence package",
 	Long: `Writes <output-file> — a single archive (zip, tar.gz/tgz, or
 tar.xz/txz, format inferred from extension) containing disco.db (atomic
-copy via SQLite VACUUM INTO) plus manifest.json (tool_version,
-db_sha256, generated_at, scan_ids). Pair with 'disco verify
+copy via SQLite VACUUM INTO) plus manifest.json (format, toolVersion,
+generatedAt, dbSha256, scans). Pair with 'disco verify
 <output-file>' on the receiving end.
 
 Refuses to overwrite an existing file unless --force. Writes via a

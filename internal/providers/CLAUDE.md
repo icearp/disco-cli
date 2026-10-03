@@ -1,6 +1,6 @@
 # CLAUDE.md — `internal/providers/`
 
-Cross-provider conventions. AWS-specific guidance: see `aws/CLAUDE.md`.
+Cross-provider conventions. Provider-specific: `aws/`, `azure/`, `gcp/CLAUDE.md`; SDK inventory: `<p>/<p>inventory/CLAUDE.md`.
 
 ## Splitting high-complexity resolvers/scanners
 
@@ -8,7 +8,7 @@ When a resolver/scanner trips gocyclo (>30, `.golangci.yaml`) and the shape is "
 
 ## Resolver-side reference-discovered placeholders
 
-Resolvers that must insert a target (cross-tenant references) take scanID from `<row>.DiscoveredBy` of any listed resource. Pass 1 collects pending edges and referenced tenant keys; pass 2 `InsertResourcesIfAbsent(placeholders)` (never `UpsertResources`, so a later direct scan version-populates the row) so `to_id` names an existing row (nothing in the DB enforces it since 006); pass 3 emits `UpsertRelationship`. The placeholder is the **real self-node type** at its scanner's natural key with `{}` attributes — not a synthetic stub. See store/CLAUDE.md "Reference-discovered placeholders". Precedent: `resolveIAMRoleCrossAccountTrust` + `resolveOrganizationsManagementAccount` (aws), `resolveAuthorizationRelationships` (azure), `resolveIAMPolicyRelationships` (gcp).
+Resolvers that must insert a target (cross-tenant references) take scanID from `<row>.DiscoveredBy` of any listed resource. Pass 1 collects pending edges and referenced tenant keys; pass 2 `InsertResourcesIfAbsent(placeholders)` (never `UpsertResources`, so a later direct scan version-populates the row) so `to_id` names an existing row (nothing in the DB enforces it since 006); pass 3 emits `UpsertRelationship`. The placeholder is the **real self-node type** at its scanner's natural key with `{}` attributes — not a synthetic stub. See store/CLAUDE.md "Reference-discovered placeholders". Precedents: `grep -rn InsertResourcesIfAbsent internal/providers` (the cross-tenant resolvers plus GCP edge resolvers whose target may be unscanned).
 
 ## Persist API contract
 
@@ -33,9 +33,9 @@ Account-level / region-level singleton config types (e.g. data-lake-settings, ac
 All three dispatchers (`aws_scanner.go` via `classifyServiceError`, `azure_scanner.go`'s switch,
 `gcp_scanner.go::scanProject`) check `errors.Is(err, store.ErrStoreWrite)` **before** any skip or
 transient rung, and route it to `ReportError`. A failed database write is not a cloud-side
-condition, and the rungs below would happily claim it — pgconn surfaces a dead Postgres
-connection as an EOF, which the transient classifier reads as a momentary glitch. The result
-would be a benign per-service warning while the scan reported success having stored nothing.
+condition, and the rungs below would happily claim it (a dead Postgres connection reads as a
+transient EOF; rationale: store/CLAUDE.md "Scan-path writes"). The result would be a benign
+per-service warning while the scan reported success having stored nothing.
 
 Keep it a report-and-continue (`ReportError`, don't propagate): `ReportError` already drives
 `res.Partial` → `errScanPartial` under `--fail-on-error`, so the exit code is non-zero without
@@ -142,14 +142,14 @@ Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaning
 
 ## Embedded child → row: when to promote
 
-Embedded child data gets promoted to its own resource row only when ALL hold: (1) the child is an **edge endpoint** (resolver targets the child as `to_id`, not just walks it to emit edges from parent); (2) per-child state matters operationally (diff/check value — blackhole flips, propagation toggles); (3) cardinality bounded (≲ 100 / parent typical). Otherwise keep embedded — adding rows for CIDR-keyed entries (route-table routes, NACL entries, VPN static routes) trades scan-time + DB size for nothing the resolver couldn't already extract from the parent walk. Promotion uses **composite NativeID** `{parentARN}/<kind>/{childId}` and a new child resource type `aws:<svc>:<parent>-<child>` — never invent a 4-part disco-id format. ResourceID is 3-part (provider/account/native) — `type` is NOT in the identity hash; hierarchy lives in NativeID. Precedent: `aws:ec2:transit-gateway-route` (`{rtbARN}/{cidr}`), `aws:ec2:tgw-rtb-prop` (`{rtbARN}/{attId}`) in `aws/ec2_tgw_scanners.go`.
+Embedded child data gets promoted to its own resource row only when ALL hold: (1) the child is an **edge endpoint** (resolver targets the child as `to_id`, not just walks it to emit edges from parent); (2) per-child state matters operationally (diff/check value — blackhole flips, propagation toggles); (3) cardinality bounded (≲ 100 / parent typical). Otherwise keep embedded — adding rows for CIDR-keyed entries (route-table routes, NACL entries, VPN static routes) trades scan-time + DB size for nothing the resolver couldn't already extract from the parent walk. Promotion uses **composite NativeID** `{parentARN}/<kind>/{childId}` and a new child resource type `aws:<svc>:<parent>-<child>` — never invent a 4-part disco-id format. Hierarchy lives in NativeID (identity rule: next section). Precedent: `aws:ec2:transit-gateway-route` (`{rtbARN}/{cidr}`), `aws:ec2:tgw-rtb-prop` (`{rtbARN}/{attId}`) in `aws/ec2_tgw_scanners.go`.
 
 ## NativeID is the identity handle — must be a real, unique id
 
 Resource identity is `ResourceID(provider, account_id, native_id)` — `type` is **not**
 in the hash (it's a versioned attribute). So `native_id` must uniquely identify the
 resource within `(provider, account_id)` on its own; two types sharing one native_id in
-an account now silently **merge** into one version chain, not coexist. Two design rules:
+an account now silently **merge** into one version chain, not coexist. Three design rules:
 
 1. **Never mutate a value the API returned.** `attributes` stays the verbatim SDK
    response. Never fix a collision by string-mangling a returned id (`ac.Id + "/x"`) —

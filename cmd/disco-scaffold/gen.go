@@ -10,31 +10,24 @@ import (
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
-// scannerSig maps a provider to the (imports, serviceEntry-fn signature) its
-// stub scanner needs. The stub returns (0,0,nil), so parameters are unused but
-// their types must resolve — hence the per-provider import set.
+// scannerSig is the stub scanner a provider's coverage.ScaffoldStubber
+// describes.
 type scannerSig struct {
 	imports []string
 	sig     string // the scan<Svc> parameter list + return, without the "func scanX" prefix
 	body    string // TODO guidance for the stub body
 }
 
-var scannerSigs = map[string]scannerSig{
-	"aws": {
-		imports: []string{"context", "github.com/icearp/disco-cli/internal/restype", "github.com/icearp/disco-cli/store"},
-		sig:     "(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error)",
-		body:    "build the SDK client (svc.NewFromConfig(acct.cfg, ...)), paginate the\n\t// List/Describe ops, map each item to *store.Resource, then st.UpsertResources(batch).\n\t// Split out scan%[1]sWithClient(ctx, client, ...) for a fake-transport test seam.",
-	},
-	"gcp": {
-		imports: []string{"context", "github.com/icearp/disco-cli/internal/restype", "github.com/icearp/disco-cli/store"},
-		sig:     "(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error)",
-		body:    "build the google.golang.org/api service client, paginate the list ops via\n\t// runPaginated, map each item to *store.Resource, then upsertWithProjClosure(p, st, batch).\n\t// Add a scan%[1]sWithClient seam for a fake-server test.",
-	},
-	"azure": {
-		imports: []string{"context", "github.com/Azure/azure-sdk-for-go/sdk/azcore", "github.com/icearp/disco-cli/internal/restype", "github.com/icearp/disco-cli/store"},
-		sig:     "(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error)",
-		body:    "build the arm* client with cred, page via azPageScan, map each item to\n\t// *store.Resource, then st.UpsertResources(batch). Add a scan%[1]sWithClient seam.",
-	},
+// stubFor returns provName's stub, or descriptors-only when the provider does
+// not implement coverage.ScaffoldStubber.
+func stubFor(provName string) scannerSig {
+	if p, ok := coverage.Get(provName); ok {
+		if s, ok := p.(coverage.ScaffoldStubber); ok {
+			imports, sig, body := s.ScannerStub()
+			return scannerSig{imports: imports, sig: sig, body: body}
+		}
+	}
+	return scannerSig{imports: []string{"github.com/icearp/disco-cli/internal/restype"}}
 }
 
 // scaffoldOpts carry what the generator can only learn from the live package:
@@ -56,11 +49,7 @@ type scaffoldOpts struct {
 // An error means the emitted source would not compile or would redeclare an
 // existing type; the caller prints it and writes nothing.
 func genScaffold(provName, service string, rows []coverage.Row, opts scaffoldOpts) (string, error) {
-	sig, ok := scannerSigs[provName]
-	if !ok {
-		// Unknown provider signature: emit descriptors only, no scanner skeleton.
-		sig = scannerSig{imports: []string{"github.com/icearp/disco-cli/internal/restype"}}
-	}
+	sig := stubFor(provName)
 	svcFn := pascal(service)
 	emitScanner := sig.sig != "" && !opts.serviceRegistered && !opts.scanFnExists
 

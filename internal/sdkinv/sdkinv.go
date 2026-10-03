@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -90,7 +91,7 @@ type Candidate struct {
 
 // Diagnostic records something an extractor could not classify confidently.
 type Diagnostic struct {
-	Severity string `json:"severity"` // "warn" | "error"
+	Severity string `json:"severity"` // "info" | "warn"
 	Source   string `json:"source"`   // file or URL
 	Message  string `json:"message"`
 }
@@ -223,4 +224,15 @@ func Names() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// LinkedModules lists the Go modules this binary links, for an extractor
+// warning about a linked SDK module the pinned universe lacks. Nil when the
+// binary carries no build info.
+func LinkedModules() []*debug.Module {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return nil
+	}
+	return bi.Deps
 }

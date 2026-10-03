@@ -109,7 +109,7 @@ One-page count of the estate by provider, account, region, and resource type, wi
 
 ```bash
 disco summary
-disco summary -o json | jq '.by_account, .by_provider'
+disco summary -o json | jq '.byAccount, .byProvider'
 ```
 
 ### Tag-hygiene scorecard for cost-allocation
@@ -142,11 +142,12 @@ disco graph blast my-role --provider aws --type aws:iam:role --depth 4 -o dot | 
 
 ### Drift detection between scans
 
-Every `disco scan` records a row in `scans`. `--scan-id latest` resolves to the most-recent scan that touched rows. `--scan-as discovered|verified|any` picks which scan-FK column the filter targets: `discovered` for "what's new this run", `verified` for "what this run re-verified."
+Every `disco scan` records a row in `scans`. `--scan-id latest` resolves to the most-recent scan that touched rows, and `--scan-id` lists the current resources that scan first discovered or last verified (for an older scan, a row a later scan re-verified appears only if the older scan discovered it). `disco diff <from> <to>` lists what is new in `<to>` (`added`) and what `<to>` no longer saw (`stale`).
 
 ```bash
 disco scans
-disco resources --scan-id latest --scan-as discovered
+disco resources --scan-id latest
+disco diff <older-scan-id> <newer-scan-id>
 disco resources --discovered-since 2026-04-01 -o json | jq 'length'
 ```
 
@@ -216,7 +217,7 @@ disco coverage verify --scan-id latest                           # stored types 
 `graph complete --orphans-only` keeps only nodes with zero in/out edges in the returned set. That surfaces unattached EBS volumes, key-pairs no instance uses, and IAM principals with no group or policy attachments.
 
 ```bash
-disco graph complete --orphans-only -o json | jq -r '.nodes[].resource | [.type, .name, .native_id] | @tsv'
+disco graph complete --orphans-only -o json | jq -r '.nodes[].resource | [.type, .name, .nativeId] | @tsv'
 ```
 
 ## Configuration

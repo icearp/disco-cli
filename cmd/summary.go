@@ -46,20 +46,21 @@ denominator across all three sections; the same flag works on
 Output formats: table (default), markdown, csv, json, jsonl. JSON envelope shape:
 
   {
-    "as_of":              "<RFC3339 timestamp from latest scan or empty>",
-    "total":              <int>,
-    "managed_included":   <bool — echoes --include-managed>,
-    "by_provider":        [{"provider": "aws", "count": 934}],
-    "by_account":         [{"account_id": "123…", "account_name": "prod", "count": 600}],
-    "by_region":          [{"region": "us-east-2", "count": 894}],
-    "by_type":            [{"type": "aws:logs:log-stream", "count": 855}],
-    "type_buckets_total": <int — distinct types pre --top-types truncation>
+    "asOf":             "<RFC3339 timestamp from latest scan or empty>",
+    "total":            <int>,
+    "managedIncluded":  <bool — echoes --include-managed>,
+    "byProvider":       [{"provider": "aws", "count": 934}],
+    "byAccount":        [{"accountId": "123…", "accountName": "prod", "count": 600}],
+                        (accountName omitted when unknown)
+    "byRegion":         [{"region": "us-east-2", "count": 894}],
+    "byType":           [{"type": "aws:logs:log-stream", "count": 855}],
+    "typeBucketsTotal": <int — distinct types pre --top-types truncation>
   }
 
 CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).`,
 	Example: `  disco summary
   disco summary --exclude-types aws:logs:log-stream
-  disco summary --providers aws -o json | jq '.by_type'
+  disco summary --providers aws -o json | jq '.byType'
   disco summary --include-managed --top-types 25`,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(summaryOutputFmt, rerr) }()
@@ -94,7 +95,7 @@ CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).`,
 			Providers:        summaryProviders,
 			ExcludeTypes:     summaryExcludeTypes,
 			Regions:          summaryRegions,
-			DiscoveredBy:     scanID,
+			SeenBy:           scanID,
 			DiscoveredSince:  discoveredSince,
 			DiscoveredBefore: discoveredBefore,
 			CreatedSince:     createdSince,

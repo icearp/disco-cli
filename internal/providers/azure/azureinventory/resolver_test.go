@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/icearp/disco-cli/internal/sdkinv"
 	"github.com/icearp/disco-cli/internal/sdkinv/pairing"
 	"github.com/icearp/disco-cli/internal/sdkinv/pairing/pairingtest"
 )
@@ -24,6 +25,15 @@ func TestWalkAzure(t *testing.T) {
 	// Client factory and struct-field receivers.
 	pairingtest.ExpectPairing(t, res, "microsoft.widgets/tenantthings", "scanTenantThings", "emits", "azure:microsoft.widgets:tenantthings")
 	pairingtest.ExpectPairing(t, res, "microsoft.widgets/skus", "skuScan.scanSKUs", "emits", "azure:microsoft.widgets:skus")
+	// Two modules share the basename armwidgets; each scanner pairs only with
+	// the module its file imports.
+	pairingtest.ExpectPairing(t, res, "microsoft.gadgetry/widgets", "scanGadgetryWidgets", "emits", "azure:microsoft.gadgetry:widgets")
+	if _, ok := pairingtest.PairingsFor(res, "microsoft.widgets/widgets")["scanGadgetryWidgets"]; ok {
+		t.Error("scanGadgetryWidgets paired with widgets/armwidgets' same-named op")
+	}
+	if _, ok := pairingtest.PairingsFor(res, "microsoft.gadgetry/widgets")["scanWidgets"]; ok {
+		t.Error("scanWidgets paired with gadgetry/armwidgets' same-named op")
+	}
 	// A call the pinned SDK no longer ships is skew, not a typo.
 	pairingtest.ExpectPairing(t, res, "WidgetsClient.ListGone", "scanStale", "skew", "azure:microsoft.widgets:stale")
 
@@ -45,13 +55,22 @@ func TestWalkAzure(t *testing.T) {
 func TestResolverKeys(t *testing.T) {
 	azure := azureResolver{}
 	for path, want := range map[string]string{
-		"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6":      "armcompute",
+		"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6":      "compute/armcompute",
 		"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake": "",
 		"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime":                             "",
 	} {
 		if got := azure.ImportKey(path); got != want {
 			t.Errorf("azure ImportKey(%s) = %q, want %q", path, got, want)
 		}
+	}
+	// OpKey's module must equal ImportKey's for the same module, or no anchor
+	// resolves; LabelModule gives back the "armX:" label prefix.
+	op := sdkinv.Operation{Module: "azure-sdk-for-go@abc/sdk/resourcemanager/resources/armmanagedapplications", Name: "ApplicationsClient.Get"}
+	if mod, name := azure.OpKey(op); mod != "resources/armmanagedapplications" || name != "ApplicationsClient.Get" {
+		t.Errorf("azure OpKey = %q %q", mod, name)
+	}
+	if got := azure.LabelModule("resources/armmanagedapplications"); got != "armmanagedapplications" {
+		t.Errorf("azure LabelModule = %q", got)
 	}
 	clients := []string{"Client", "ClientGroupsClient", "ServersClient"}
 	for typ, want := range map[string]string{

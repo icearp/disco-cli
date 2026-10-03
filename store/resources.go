@@ -141,10 +141,14 @@ type ResourceFilter struct {
 	ExcludeTypes []string
 	Regions      []string
 	Status       string
-	// DiscoveredBy, when set, restricts results to rows inserted by the named
-	// scan id (matches `discovered_by`). The verified_by axis is selected
-	// separately via ScanAs (see the --scan-as flag).
-	DiscoveredBy string
+	// SeenBy, when set, restricts results to current rows the named scan
+	// first discovered or last verified (`discovered_by = X OR verified_by =
+	// X`), the rule TypesForScan uses. For the latest scan this is exactly
+	// the rows scans.resource_count counts; for an older scan, a row a later
+	// scan re-verified keeps matching only if X discovered it. Reference-only
+	// placeholders a resolver stamped with the scan id match too, as they
+	// count toward resource_count.
+	SeenBy string
 	// DiscoveredSince filters rows whose discovered_at >= this RFC3339
 	// timestamp. Stored timestamps sort lexicographically same as
 	// chronologically, so plain string comparison works. Pairs with
@@ -219,8 +223,8 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	if f.Status != "" {
 		q = q.Where(sq.Eq{"status": f.Status})
 	}
-	if f.DiscoveredBy != "" {
-		q = q.Where(sq.Eq{"discovered_by": f.DiscoveredBy})
+	if f.SeenBy != "" {
+		q = q.Where(sq.Or{sq.Eq{"discovered_by": f.SeenBy}, sq.Eq{"verified_by": f.SeenBy}})
 	}
 	if f.ID != "" {
 		q = q.Where(sq.Eq{resourceIDColumn(): f.ID})

@@ -63,33 +63,6 @@ func TestNowExpr_WritesRFC3339OnBothDialects(t *testing.T) {
 		if sc.ID != id {
 			t.Errorf("GetScan returned id %q, want %q", sc.ID, id)
 		}
-
-		if err := st.SaveCheckpoint(id, "aws", "ec2", "us-east-1", "tok"); err != nil {
-			t.Fatalf("save checkpoint: %v", err)
-		}
-		var updatedAt string
-		if err := st.get(&updatedAt,
-			`SELECT updated_at FROM scan_checkpoints WHERE scan_id = ?`, id); err != nil {
-			t.Fatalf("read updated_at: %v", err)
-		}
-		if !rfc3339Stored.MatchString(updatedAt) {
-			t.Errorf("scan_checkpoints.updated_at = %q, want RFC3339 (%s)", updatedAt, rfc3339Stored)
-		}
-
-		// ListCheckpoints parses that column into a time.Time. A zero value
-		// here is the silent-failure mode: the field is populated only when
-		// the parse succeeds, so a format the reader cannot read looks like a
-		// checkpoint that was never stamped.
-		cps, err := st.ListCheckpoints(id)
-		if err != nil {
-			t.Fatalf("list checkpoints: %v", err)
-		}
-		if len(cps) != 1 {
-			t.Fatalf("ListCheckpoints returned %d rows, want 1", len(cps))
-		}
-		if cps[0].UpdatedAt.IsZero() {
-			t.Errorf("Checkpoint.UpdatedAt is zero — %q did not parse", updatedAt)
-		}
 	})
 }
 

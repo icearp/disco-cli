@@ -99,8 +99,10 @@ func TestExtract_Fixture(t *testing.T) {
 		"widgets/billingaccounts/subaccounts": {sdkinv.ClassResource, "create", 1, "widgets/billingaccounts", "billing-account"},
 		"widgets/organizations":               {sdkinv.ClassCatalog, "get-only", 0, "", "org"},
 		"widgets/buckets":                     {sdkinv.ClassResource, "create", 0, "", "project"},
-		"widgets/notifications":               {sdkinv.ClassResource, "create", 1, "widgets/buckets", "global"},
-		"widgets/gadgets":                     {sdkinv.ClassResource, "create", 0, "", "project"},
+		// ?projects= is plural; only the Ident stem compare ties it to the projects root.
+		"widgets/shelves":       {sdkinv.ClassResource, "create", 0, "", "project"},
+		"widgets/notifications": {sdkinv.ClassResource, "create", 1, "widgets/buckets", "global"},
+		"widgets/gadgets":       {sdkinv.ClassResource, "create", 0, "", "project"},
 	}
 	if len(got) != len(want) {
 		t.Errorf("candidates = %d, want %d", len(got), len(want))

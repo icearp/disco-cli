@@ -69,7 +69,7 @@ leaves `--missing` when a resolver's `EdgeDecl` names it.
 - `vaultNameFromKeyURI(s)` — parse full Key Vault key URI (`https://v.vault.azure.net/keys/k/v`). Used by ACR / Cosmos / MySQL CMEK.
 - `vaultNameFromVaultURI(s)` — parse vault DNS root (`https://v.vault.azure.net/`). Used by Event Hubs / Service Bus CMEK. **Pick right one per service** — wrong choice silently produces zero edges.
 - `skipIfAccessDenied(st, svc, sub.ID, err)` — records a warning, returns nil; special-cases only `isProviderUnavailable`. The 401≡403 skip lives in `isSkippableScanError`, which callers check first (exceptions: `grep -n isAccessDenied internal/providers/azure/*.go`); an unguarded error hits the dispatcher's `default:` → `ScanError`.
-- `subscriptionUnreachable(probeErr, rgListed)` — refuses a whole subscription only when the providers probe is 401 **and** the RG list failed (a listed RG proves the token works). One `ScanError` via `unreachableSubscriptionError`, carrying the ARM code, never the body (it names disco's issuer and lands on the customer's record); disco-saas reads that partial-with-no-rows scan as unhealthy (rows stamped with the Entra directory's guid don't count, so a Graph-consented workspace can't read healthy for a refused subscription). This is the only place a 401 changes what is scanned rather than how it is reported. In-scan retry is futile: `newCachingCredential` has no invalidation path (azcore `Expire()` clears only the policy copy). `scanrun.maxPersistedWarnings` (200) is a cap, not a call count.
+- `subscriptionUnreachable(probeErr, rgListed)` — refuses a whole subscription only when the providers probe is 401 **and** the RG list failed (a listed RG proves the token works). One `ScanError` via `unreachableSubscriptionError`, carrying the ARM code, never the body (under federation it can name the operator's issuer, and it lands on the scan record). Under disco-saas, that partial-with-no-rows scan reads as unhealthy (rows stamped with the Entra directory's guid don't count, so a Graph-consented workspace can't read healthy for a refused subscription). This is the only place a 401 changes what is scanned rather than how it is reported. In-scan retry is futile: `newCachingCredential` has no invalidation path (azcore `Expire()` clears only the policy copy). `scanrun.maxPersistedWarnings` (200) is a cap, not a call count.
 - `azClientOptions` — shared `*arm.ClientOptions` with retry tuned for ARM throttling. Pass to every arm* `NewXClient(...)`.
 
 ## ARM IDs are case-insensitive
@@ -94,7 +94,14 @@ Role-definition ARM IDs are returned scope-prefixed (`/subscriptions/{sub}/...`)
 
 ## Microsoft Graph (Entra ID) via raw REST + azcore token
 
-Tenant-scope identity scanners hit Graph v1.0 (`https://graph.microsoft.com/v1.0/{users,groups,servicePrincipals,applications}`) directly through the in-package `graphClient` — a thin `*http.Client` + token-issuer pair that issues bearer tokens via `cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}, TenantID: g.tenantID})`, where an empty `tenantID` means the credential's own directory. Its `*http.Client` is `graphHTTPClient`, which refuses redirects — NOT the shared `azHTTPClient`. Do not reintroduce `msgraph-sdk-go`: ~9 MB of binary for four list endpoints that `userAttrs`/`groupAttrs`/`spAttrs`/`appAttrs` already model 1:1. Pagination is the OData `@odata.nextLink` chain via the generic `iterateGraph[T]` helper. Tenant ID still resolved by issuing a token and parsing the `tid` claim from the JWT (`tenantIDFromCredScopeTenant`; there is no `tenantIDFromCred` any more) — `azidentity` exposes no tenant getter, and reading the tid back is also what proves a federated Graph token came from the directory that was asked for. Permission failures surface as `ScanWarning` (Authorization_RequestDenied / Insufficient privileges / 401 / 403); other errors as `ScanError` — except that the error types this package MINTS against a Graph response never reach that substring test at all, see `neverAConsentFailure`. The `*Attrs` JSON-tag set must keep matching Graph's response keys — same struct doubles as the unmarshal target, so a tag drift silently zeros the field. Tests inject an httptest server URL via the `graphClient.baseURL` seam plus a `tokenIssuer`-implementing stub. Precedent: `entra_scanners.go`.
+Tenant-scope identity scanners hit Graph v1.0 (`https://graph.microsoft.com/v1.0/{users,groups,servicePrincipals,applications}`) directly through the in-package `graphClient`. Precedent: `entra_scanners.go`.
+
+- **Transport and token.** A thin `*http.Client` (`graphHTTPClient`, see "Graph transport" below) + token issuer: `cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}, TenantID: g.tenantID})`, where an empty `tenantID` means the credential's own directory. Pagination is the OData `@odata.nextLink` chain via the generic `iterateGraph[T]`.
+- **No `msgraph-sdk-go`.** ~9 MB of binary for four list endpoints that `userAttrs`/`groupAttrs`/`spAttrs`/`appAttrs` already model 1:1. Do not reintroduce it.
+- **Tenant id** comes from the `tid` claim of an issued token (`tenantIDFromCredScopeTenant`): `azidentity` exposes no tenant getter, and reading the tid back is also what proves a federated Graph token came from the directory that was asked for.
+- **Classification.** Permission failures surface as `ScanWarning` (Authorization_RequestDenied / Insufficient privileges / 401 / 403); other errors as `ScanError` — except that the error types this package MINTS against a Graph response never reach that substring test at all (`neverAConsentFailure`).
+- **`*Attrs` JSON tags must match Graph's response keys**: the same struct is the unmarshal target, so a tag drift silently zeros the field.
+- **Tests** inject an httptest server URL via the `graphClient.baseURL` seam plus a `tokenIssuer`-implementing stub.
 
 ## API-driven cross-cutting resolvers
 
@@ -117,7 +124,7 @@ Keep `armmonitor` ≥ v0.13.0. v0.12.0's TypeSpec regen dropped the `2021-05-01-
 Invariants (each was a shipped defect):
 - **Tenant phase is suppressed under federation by default — correctness, not permissions.** Under Lighthouse the token authority is disco's tenant, so tenant-scope APIs *succeed* and answer about disco's directory. Gate = `tenantServiceRunnable` (`tenant_scanners.go`), asked by both `runTenantServices` and `reportTenantScopeSkipped`; a new tenant service is refused unless `graphScoped`. It keys on `wifConfig.configured()`, so it also fires for own-tenant federation (documented capability loss — say so in help text; never claim a topology in a scan message, Solution Rule 9). Besides the registered tenant services, `tenantDisplayName` and `tenantIDFromCredScope` are tenant-scope too. `stitchTopHierarchy` takes the whole `wifConfig`, skips only the Entities call, and keys on `tenantScopeEnabled` directly.
 - **Tenant-wide is decided by URL, not phase.** Re-derive the set from ARM URL templates with no `{subscriptionId}`/`{scope}`. `GET /subscriptions`: `enumerateScope` refuses under federation (subscriptions must be named; an invisible pin warns) and `scanSubscriptionResource` filters the page to the scanned subscription — unfiltered it wrote other customers' subscriptions under this customer's account. `azure_coverage.go` still uses `DefaultAzureCredential`; moving it to `newAzureCredential` needs the same filter. `managed:true` is no containment for a misattributed tenant-wide row.
-- Under federation `Scan` leaves `subscription.tenantID` empty (the `tid` names disco's tenant; a value makes per-sub scanners skip built-in role/policy defs).
+- Under federation `Scan` leaves `subscription.tenantID` empty (the `tid` names the operator's tenant; a value makes per-sub scanners skip built-in role/policy defs), and `DISCO_AZURE_GRAPH_TENANT_ID` does not fill it.
 - Positive binding: `bindSubscriptions` refuses unless ARM reports every scanned subscription reachable and owned by `DISCO_AZURE_SUBSCRIPTION_TENANT_ID`; `scanEntra` stores nothing when the Graph token's `tid` ≠ the configured directory. The proof is the token's `tid`, never the variable.
 - `partiallyConfigured` refuses a half-set contract — the WIF pair (a silent fallback would re-enable the tenant phase via `tenantScopeEnabled`), and `DISCO_AZURE_GRAPH_TENANT_ID` alone (which would otherwise *enable* every tenant service against an ambient credential). `DISCO_AZURE_SUBSCRIPTION_TENANT_ID` is the one uncounted variable (stated in `ErrIncompleteWIFConfig`). `TestIncompleteWIFConfig_NamesEveryCountedVariable` reflects over `wifConfig` fields.
 - `DISCO_AZURE_GRAPH_TENANT_ID` (GUID only; `graphTenantGUID` rejects `common`/`organizations`) reopens **graphScoped services only** and needs both halves: `credentialOptions` allow-lists exactly that tenant (never `"*"`), and `graphClient` threads it as `TokenRequestOptions.TenantID`. Never admit ARM tenant phases (`TestTenantServiceRunnable_GraphConsentUngatesGraphAlone`).
@@ -144,7 +151,7 @@ Suppressed tenant phase = one notice per service + ONE phase warning. Notices ar
 
 ## Subscription-scoped vs tenant-scoped
 
-Per-sub scanners run via `scanSubscription`; tenant services via `registerTenantService` (`tenant_scanners.go`), once per scan through `runTenantServices`, concurrently with the per-sub fan-out. Only phase-2 resolvers wait (`waitForTenant`); a tenant service a phase-1 scanner needs would require widening that gate. Tenant rows are stored under `subscription.tenantID` (the ARM token `tid`; empty under federation, and `DISCO_AZURE_GRAPH_TENANT_ID` does not fill it). Precedents: `scanManagementTenant` (management groups), `scanAuthorizationBuiltins` (built-in role/policy/set definitions). An empty `tenantID` falls back to per-sub storage stamped with the first subscription's id (mislabel, icearp/disco-cli#12). Hybrid: a tenant-wide ARM call may run inside `scanSubscription` only if its response is filtered to the scanned subscription (precedent `scanSubscriptionResource`); `ResourceID` includes the account id, so per-sub duplicates resolve within their own account. AccessDenied is tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
+Per-sub scanners run via `scanSubscription`; tenant services via `registerTenantService` (`tenant_scanners.go`), once per scan through `runTenantServices`, concurrently with the per-sub fan-out. Only phase-2 resolvers wait (`waitForTenant`); a tenant service a phase-1 scanner needs would require widening that gate. Tenant rows are stored under `subscription.tenantID` (the ARM token `tid`; empty under federation — see "Federated credential"). Precedents: `scanManagementTenant` (management groups), `scanAuthorizationBuiltins` (built-in role/policy/set definitions). An empty `tenantID` falls back to per-sub storage stamped with the first subscription's id (mislabel, icearp/disco-cli#12). Hybrid: a tenant-wide ARM call may run inside `scanSubscription` only if its response is filtered to the scanned subscription (precedent `scanSubscriptionResource`); `ResourceID` includes the account id, so per-sub duplicates resolve within their own account. AccessDenied is tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
 
 ## Generic helpers split by concern
 
@@ -156,32 +163,10 @@ Cross-service helpers live one-per-file under the `azure_` prefix (`ls internal/
 
 ## Service quotas: scope-addressed fan-out + limit-only versioning
 
-`quota_scanners.go` is the lone scanner that talks to a *unified proxy RP*
-(`Microsoft.Quota` via `armquota`) instead of a per-service list. The proxy is
-scope-addressed — `NewListPager(scope)` where
-`scope = /subscriptions/{sub}/providers/{RP}/locations/{loc}` — so it fans out the
-cartesian product of `quotaProviderNamespaces × azureregions.Regions`, bounded by
-`maxConcurrentFanout` (same errgroup+semaphore shape as `azRGFanoutScan`). Any
-(namespace, region) the proxy doesn't serve returns an `isSkippableScanError` and
-is dropped; only a genuine error aborts. Stored **limit-only** (the Quota API
-returns no usage and the serialized `CurrentQuotaLimitBase` omits
-`ProxyResource`/`SystemData`, so no etag/timestamp; `armquota.Properties` holds
-only Limit, Name, ResourceType, Unit, QuotaPeriod and IsQuotaApplicable), which
-makes each quota churn-free — the version chain bumps only on a real limit
-change. `disco history <id>` reads that chain (see `cmd/CLAUDE.md`). When adding
-another quota-bearing namespace, extend `quotaProviderNamespaces` — nothing else.
-
-**Quotas are NOT resources and register no type.** `scanQuotaLimits` writes
-`store.Quota` rows into the `quotas` table (disco migration 017) via
-`UpsertQuotas`; `TestQuotaLimitsDeclareNoResourceType` fails if a `registerType`
-comes back. The service registration must survive alongside the
-absent type — dropping that stops quotas being scanned at all. Identity is
-`(provider, subscription, region, namespace, quota name)`, where the quota name
-is the resource provider's own `Properties.Name.Value` (e.g.
-`standardDDv4Family`), **not** the ARM wrapper name and **not** the ARM ID —
-which is preserved in the attributes remainder. `IsQuotaApplicable` maps to the
-`adjustable` column. This scanner is not opt-in, unlike AWS's, so every Azure
-scan records quotas.
+- `quota_scanners.go` is the lone scanner on a *unified proxy RP* (`Microsoft.Quota` via `armquota`). It is scope-addressed — `NewListPager(scope)`, `scope = /subscriptions/{sub}/providers/{RP}/locations/{loc}` — so it fans out `quotaProviderNamespaces × azureregions.Regions`, bounded by `maxConcurrentFanout` (errgroup+semaphore, like `azRGFanoutScan`). A (namespace, region) the proxy doesn't serve returns an `isSkippableScanError` and drops; only a genuine error aborts. To add a quota-bearing namespace, extend `quotaProviderNamespaces` — nothing else.
+- **Limit-only.** The API returns no usage, and the serialized `CurrentQuotaLimitBase` omits `ProxyResource`/`SystemData` (no etag/timestamp; `armquota.Properties` = Limit, Name, ResourceType, Unit, QuotaPeriod, IsQuotaApplicable), so the version chain bumps only on a real limit change. `disco history <id>` reads it.
+- **Quotas are NOT resources and register no type.** `scanQuotaLimits` writes `store.Quota` rows (`quotas` table, migration 017) via `UpsertQuotas`; `TestQuotaLimitsDeclareNoResourceType` fails if a `registerType` comes back. The service registration must stay — dropping it stops quotas being scanned.
+- **Identity** is `(provider, subscription, region, namespace, quota name)`, the quota name being the RP's own `Properties.Name.Value` (e.g. `standardDDv4Family`), **not** the ARM wrapper name or ARM ID (kept in the attributes remainder). `IsQuotaApplicable` maps to `adjustable`. Not opt-in, unlike AWS's: every Azure scan records quotas.
 
 ## Top three hierarchy tiers are stitched post-scan, not per-scanner
 
@@ -211,7 +196,7 @@ For error injection use `azfake.PagerResponder.AddResponseError(http.StatusForbi
 
 ## Error formatting — always `formatAzureError`
 
-`azcore.ResponseError.Error()` dumps the request line (method, scheme, host, escaped path — no headers, no query) plus the response status and the full ARM error body — multi-KB per warning. It renders no part of the REQUEST beyond that line — no headers, so no `Authorization: Bearer`; no request body, so no client-assertion JWT — which is why neither can reach the store or stderr through this path. **Never** pass `err.Error()` directly into `store.ScanWarning.Message` / `store.ScanError.Message`. Use `formatAzureError(err)` (in `azure_errors.go`) — narrows to `"{statusCode} {errorCode}: {message}"` matching AWS/GCP brevity. Falls back to `err.Error()` for non-`*azcore.ResponseError` (store / JSON / I/O errors), so it's safe at every site — **except** that it collapses a CREDENTIAL failure to its diagnostic code first, ahead of every other branch, because that text names disco's own tenant and AWS role rather than anything the customer scanned (`redactCredentialError`). A 401 never renders in that shape (see "Credential-error redaction"). Call sites: `grep -n 'formatAzureError(' internal/providers/azure/*.go | grep -v -e '_test\.go' -e 'func formatAzureError'`.
+**Never** pass `err.Error()` into `store.ScanWarning.Message` / `store.ScanError.Message`. Use `formatAzureError(err)` (`azure_errors.go`): `"{statusCode} {errorCode}: {message}"`, matching AWS/GCP brevity, falling back to `err.Error()` for non-`*azcore.ResponseError` (store / JSON / I/O errors), so it is safe at every site. Its first branch collapses a CREDENTIAL failure to its diagnostic code (`redactCredentialError`), because under federation that text can name the operator's own tenant and AWS role rather than anything scanned; a 401 never renders in the general shape (see "Credential-error redaction"). Why: `azcore.ResponseError.Error()` renders the request line (method, scheme, host, escaped path — no headers, no query) plus status and the full ARM error body, multi-KB per warning. It renders nothing else of the request — no `Authorization: Bearer`, no client-assertion JWT body. Call sites: `grep -n 'formatAzureError(' internal/providers/azure/*.go | grep -v -e '_test\.go' -e 'func formatAzureError'`.
 
 ## Cross-check keys are not candidate keys (#123)
 

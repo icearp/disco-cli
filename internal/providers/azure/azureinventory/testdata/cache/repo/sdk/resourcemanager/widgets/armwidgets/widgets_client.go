@@ -20,6 +20,17 @@ func (client *WidgetsClient) listCreateRequest(ctx context.Context, options *Wid
 	return req, err
 }
 
+// Refresh is a plain (non-pager) method reaching the same builder as
+// NewListPager, and sorts after it: the builder must stay Paged, which only
+// holds while module.go ORs paged across every method that reaches it.
+func (client *WidgetsClient) Refresh(ctx context.Context, options *WidgetsClientListOptions) (*http.Response, error) {
+	req, err := client.listCreateRequest(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	return client.internal.Pipeline().Do(req)
+}
+
 func (client *WidgetsClient) listHandleResponse(resp *http.Response) (WidgetsClientListResponse, error) {
 	result := WidgetsClientListResponse{}
 	if err := runtime.UnmarshalAsJSON(resp, &result.WidgetListResult); err != nil {

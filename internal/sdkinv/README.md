@@ -147,9 +147,8 @@ provider-specific because the SDKs are; everything after extraction is shared.
 | Universe filter | Every service with a Smithy model | Everything under `sdk/resourcemanager` | APIs some document of which accepts the `cloud-platform` OAuth scope (193 APIs) |
 | Refs | Output element members matching `idLikeRe`, own id excluded | By shape on the list element, named by serde JSON names: sub-resource structs (ID + at most one field), `…ID`/`…IDs` strings, URI/URL strings beside a sub-resource | `*Link/*Url/*Id/*Ref/...` string properties or URL/resource-name descriptions |
 
-Live sizes at the 2026-09 pins: AWS 5399 candidates / 357 services (3336 resources); Azure 3395
-(2478 resources); GCP 1660 / 193 APIs (1186 resources). The live tests log these; a large swing
-after a pin bump is the signal to re-check anchors.
+Live sizes per pin: each `<p>inventory/CLAUDE.md` "Accepted residuals". The live tests log them;
+a large swing after a pin bump is the signal to re-check anchors.
 
 ### Identity versus display
 
@@ -216,10 +215,9 @@ before any `--filter`.
 
 The sdkinv core, buckets, percentages, the baseline ratchet, renderers, CI, `coverage verify` and
 the AST walker are provider-neutral. A new provider (OCI, Alibaba, DigitalOcean, Kubernetes, …)
-implements two interfaces and registers from `init()`. Two known exceptions remain outside
+implements two interfaces and registers from `init()`. One known exception remains outside
 `internal/sdkinv`: `internal/coverage` names the Azure-only registry reasons `arm-operation` and
-`location-scoped`, and `disco-scaffold` keeps a per-provider scanner-signature table
-(`cmd/disco-scaffold/gen.go`).
+`location-scoped`.
 
 ```mermaid
 flowchart LR
@@ -284,14 +282,17 @@ All of it lives in one new SDK-free package, `internal/providers/<p>/<p>inventor
    import path → universe module key), `OpKey`, `LabelAliases` (every literal spelling that names an
    op), `Constructor`/`TypeOwner` (how a client local gets bound), `LabelOp` (the op name a label
    spells, in anchor form, so a stale label reads as SDK skew), `Anchors` (the SDK call shapes to
-   recognise) — and `pairing.Register` it from `init()`. Add a synthetic scanner package under
+   recognise) — and `pairing.Register` it from `init()`. Optional: `LooseLabeller` (a near-miss label
+   shape, so a typo is flagged rather than invisible) and `LabelModuler` (when module keys are not
+   spelled like a label's module prefix, as Azure's `<rp>/<armX>` vs `armX:`; without it
+   sdk-module-absent never fires). Add a synthetic scanner package under
    `<p>inventory/testdata/scannerpkg/` with one case per rule, asserted with `pairing/pairingtest`.
 
 5. **Scanner package** — the provider's `internal/providers/<p>` already declares its types with
    `registerType`; add `<p>_pairing_test.go` copying an existing one so `TestScannerOpLabelsResolve`
    and `TestEveryEmittedTypePaired` gate the new package. Register a `coverage.Provider` from
-   `<p>_coverage.go` (`Name` + `Emits`; optionally `ServiceMapper`, `CrossChecker`,
-   `ResolverAuditor`).
+   `<p>_coverage.go` (`Name` + `Emits`; optionally `ServiceMapper`, `ScaffoldStubber` (the
+   `disco-scaffold` stub scanner), `CrossChecker`, `ResolverAuditor`).
 
 6. **Pins and docs** — the new ref in `<p>inventory/pins.go`, its fetch source in `make sdk-fetch` (automatic
    through `FetchSpec`), then `make gen-coverage` to add the provider to `docs/coverage.md` and the
@@ -319,7 +320,7 @@ flowchart LR
 | What does the SDK list that we do not scan, ranked by service? | `disco coverage services --providers aws -o markdown --filter gaps` (the per-service table is sorted by uncovered count) |
 | Only one service, as JSON for a script | `disco coverage services --providers gcp --services run --filter uncovered -o json \| jq '.[0].rows[] \| {key, ops, depth, parent}'` |
 | Give me stubs for every uncovered candidate of a service, in disco's shape | `go run ./cmd/disco-scaffold aws:qbusiness --write` — emits a `<svc>_scanners.go` with `registerType` descriptors pre-filled with op label, scope, depth and parent |
-| Which stored types have no resolver, and which reference fields could feed one? | `disco coverage resolvers --missing --with-refs --providers azure` — richest `Refs` first; a type with no refs is a derived leaf and `--with-refs` hides it |
+| Which stored types have no resolver, and which reference fields could feed one? | `disco coverage resolvers --missing --with-refs --providers azure` — richest `Refs` first; `--with-refs` needs the SDK cache and reports how many orphans carry no refs (no refs is a hint, not proof of a derived leaf) |
 | Did a real scan store every type we declare, and if not why? | `disco coverage verify --scan-id latest` — `emitted-undeclared` is a bug (exit 1); `declared-not-emitted` carries `out-of-scope`, `scan-error`, `warning` or `no rows` |
 | Is a type we store backed by any SDK call at all? | `disco coverage services --filter disco-only` — `unexplained` rows are scanners that stopped calling the SDK op they claim |
 | Did my change lose coverage? | `make check-coverage` — a covered key turning uncovered or a percent drop under the same pins fails; growth under a pin bump only reports |

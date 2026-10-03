@@ -2,6 +2,9 @@
 
 AWS SDK inventory: the extractor that derives the AWS coverage denominator from the pinned SDK source, its refs, its pairing resolver and its pins. Core contract and pairing walk: `internal/sdkinv/CLAUDE.md`.
 
+Tests: `go test ./internal/providers/aws/awsinventory/` (fixtures; live cases skip without
+`make sdk-fetch`). Rule mutation check: `internal/sdkinv/CLAUDE.md`.
+
 ## Cache layout
 
 - `aws@<tag>/repo/codegen/sdk-codegen/aws-models/*.json` (Smithy models) +
@@ -10,6 +13,11 @@ AWS SDK inventory: the extractor that derives the AWS coverage denominator from 
 ## Pins (`pins.go`)
 
 - `SDKRef` = aws-sdk-go-v2 `release-YYYY-MM-DD` tag.
+- `absentModels` (`extract.go`, fed `sdkinv.LinkedModules()`) warns for each linked
+  `aws-sdk-go-v2/service/<pkg>` module whose package no model at `SDKRef` names. Existence only:
+  a per-module version compare would warn whenever go.mod lags the pin. `service/internal/*`
+  (5 of 317 modules) and any `service/<pkg>/vN` (none exist) are skipped. Live: 0 of 312 absent.
+  Tested as a pure function (`TestAbsentModels`); why: `internal/sdkinv/CLAUDE.md` `LinkedModules`.
 - The Service Reference catalog is unversioned and served live, so its pin is content:
   `ServiceReferenceDigest` = first 12 hex of `sha256(index.json)`, printed as
   `service-reference@<digest>`. A fetch that disagrees is **reported, never enforced**
@@ -31,14 +39,14 @@ AWS SDK inventory: the extractor that derives the AWS coverage denominator from 
 ## Refs (`refs.go`)
 
 - Smithy output → collection element; a detail read has no collection, so its elements
-    are **every** structure member of the output, and `flatRefs` additionally takes the output's
-    own id-like primitives — `GetEnvironment` answers with `vpcId`/`subnetIds`/`loadBalancerArn`
-    beside a `storageConfigurations` list, and walking only the structures loses all three. A ref must
-    target a `string`: enum, integer and long targets are never refs (`State.Name`), and
-    `tokenNameRe` drops `*Token`/`*ETag`/`*RequestId`/`*RevisionId` names. Own id = bare
-    `Arn/Id/Name` or a suffix-of-noun stem at depth 0, **plus an exact-noun stem at every depth**
-    (`DescribeInstances`' element is `Reservation`, so `Instances.InstanceId` arrives at depth 1).
-    Never extend the loose suffix rule below depth 0: it matches genuine cross-resource refs.
+  are **every** structure member of the output, and `flatRefs` additionally takes the output's
+  own id-like primitives — `GetEnvironment` answers with `vpcId`/`subnetIds`/`loadBalancerArn`
+  beside a `storageConfigurations` list, and walking only the structures loses all three. A ref must
+  target a `string`: enum, integer and long targets are never refs (`State.Name`), and
+  `tokenNameRe` drops `*Token`/`*ETag`/`*RequestId`/`*RevisionId` names. Own id = bare
+  `Arn/Id/Name` or a suffix-of-noun stem at depth 0, **plus an exact-noun stem at every depth**
+  (`DescribeInstances`' element is `Reservation`, so `Instances.InstanceId` arrives at depth 1).
+  Never extend the loose suffix rule below depth 0: it matches genuine cross-resource refs.
 
 ## Extractor (`extract.go`, `model.go`, `catalog.go`)
 
@@ -49,7 +57,7 @@ word lists** — do not add one. Surviving name rules are listed under "Structur
 
 - **Closure.** `newServiceModel` walks `service.operations`/`resources` recursively; an op shape
   the closure never reaches is `Dropped` as `unreachable-from-service` (healthlake ships a second
-  namespace the Go client lacks); a model with no service name drops as `no-service-name`.
+  namespace the Go client lacks; 2 ops live); a model with no service name drops as `no-service-name`.
   `SourceOps` = every op shape, so the accounting invariant holds. Iterate shapes and lifecycle
   roles in a fixed order: a map-order pick changes the output between runs.
 - **Resource tree.** `nestByIdentifiers` places a top-level resource under the one whose
@@ -123,9 +131,9 @@ word lists** — do not add one. Surviving name rules are listed under "Structur
 - Primitive lists count as collections when named as ids or after the noun (sqs `QueueUrls`);
   maps of primitives are key/value pairs, never elements.
 
-### Accepted residuals (2026-09-28, release-2026-09-15)
+### Accepted residuals (pin `release-2026-09-15`)
 
-5399 candidates (3336 resources). 20 scanned types read as
+5399 candidates (3336 resources). Drops: 2 (`unreachable-from-service`). ~20 scanned types read as
 catalog/attribute (e.g. `cloudfront/cloudfrontoriginaccessidentity`, `ses/emailidentity`,
 `workspaces/ipgroup`, `lightsail/bucket`, `securityhub/securitycontrol`) because no structural fact marks them; do not restore a word
 list to recover them.

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/icearp/disco-cli/store"
+	"github.com/spf13/pflag"
 )
 
 // resetGraphFlags clears package-level graph flag vars between tests since
@@ -21,6 +22,10 @@ func resetGraphFlags() {
 	graphCluster, graphLabelTemplate = "", ""
 	graphDotTheme = "light"
 	graphRankdir = "LR"
+	// blast reads Changed("direction"/"kinds"), which pflag never clears
+	// between Execute calls; without this a later test's --direction leaks
+	// into the next -count iteration.
+	graphCmd.PersistentFlags().VisitAll(func(fl *pflag.Flag) { fl.Changed = false })
 }
 
 // TestGraphCmd_JSON exercises the end-to-end JSON rendering path using the

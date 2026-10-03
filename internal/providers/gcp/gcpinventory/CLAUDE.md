@@ -2,6 +2,9 @@
 
 GCP SDK inventory: the extractor that derives the GCP coverage denominator from the pinned SDK source, its refs, its pairing resolver and its pins. Core contract and pairing walk: `internal/sdkinv/CLAUDE.md`.
 
+Tests: `go test ./internal/providers/gcp/gcpinventory/` (fixtures; live cases skip without
+`make sdk-fetch`). Rule mutation check: `internal/sdkinv/CLAUDE.md`.
+
 ## Cache layout
 
 - `gcp@<ver>/api/<api>/<ver>/<api>-api.json` (Discovery docs), copied from GOMODCACHE when
@@ -30,11 +33,11 @@ GCP SDK inventory: the extractor that derives the GCP coverage denominator from 
 Model-first: every rule reads HTTP methods, path templates and schemas. There are **no method-name
 or noun lists** (removed, do not recreate: `list`/`search`/`fetch` name matching, `scopesFor`,
 `dropKnativeRoot`, GCP's `versionRe`). The one declared vocabulary is the tenancy roots
-(`cloudRoots`: projects, organizations, folders, billingAccounts, customers) and placements
+(`cloudRoots`: projects, organizations, folders, billingAccounts, customer[s]) and placements
 (`placements`: locations, zones, regions) — Discovery has no structured tenancy marker, so this is
 the provider's `Scopes()` declaration. Each rule below has a fixture case in
-`testdata/cache/api/widgets` (comments there name the rule); break one and a test goes red —
-verified by mutating each of 22 rules (2026-09-28). A rule without a red mutation is untested.
+`testdata/cache/api/widgets` (comments there name the rule); mutation-check each per
+`internal/sdkinv/CLAUDE.md`. A rule without a red mutation is untested.
 
 - **Admission.** An API is in the universe when any of its documents accepts the
   `cloud-platform` OAuth scope. Others drop as `non-cloud-api` (youtube, adsense,
@@ -97,12 +100,12 @@ verified by mutating each of 22 rules (2026-09-28). A rule without a red mutatio
   depth>0 with no parent is legal; `TestExtract_Live` asserts every non-empty parent is a candidate key.
 - **Scope** (`scopeOf`): a param-first path → `unscoped` (warn; cloudasset and serviceusage take
   any container), a template rooted at a cloud root → that scope, a required query parameter
-  naming one (`?project=`, storage buckets) → that scope, else `global`. Alpha/beta-only
+  naming one by `sdkinv.Ident` stem (`?project=`, `?projects=`; storage buckets) → that scope, else `global`. Alpha/beta-only
   collections carry `preview-only`. `Required` = `parameterOrder`; `Paged` = a `pageToken` param.
 
-### Accepted residuals (2026-09-28, v0.292.0)
+### Accepted residuals (pin `v0.292.0`)
 
-1660 candidates (1186 resource, 260 catalog, 214 non-resource) across 193 APIs. Not candidates:
+1660 candidates (1186 resource, 260 catalog, 214 non-resource) across 193 APIs. Drops: 6,173 (`non-cloud-api` 6,126, `alias-document` 47); every other method is a candidate op or Other. Not candidates:
 non-cloud APIs, filtered views (`:search`), listers returning strings (managedkafka,
 logging), `monitoring/timeseries`, apigee `organizations.list` (its element is
 `OrganizationProjectMapping`).
