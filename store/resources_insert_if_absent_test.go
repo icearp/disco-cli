@@ -152,3 +152,71 @@ func TestInsertResourcesIfAbsent_PlaceholderThenScanned(t *testing.T) {
 		t.Errorf("history root attributes = %q, want empty {}", versions[0].AttributesJSON)
 	}
 }
+
+// TestUpsertResources_VerifyClearsReferenceOnly: a scanner re-emitting a row
+// identical to a placeholder takes the verify path, not a split (`{}` equals
+// `{}`). That proves the row is a real resource, so the flag must clear and
+// TypesForScan must count the type; a placeholder no scanner touches keeps it.
+func TestUpsertResources_VerifyClearsReferenceOnly(t *testing.T) {
+	withDialects(t, func(t *testing.T, st *Store) {
+		account := func() *Resource {
+			return &Resource{
+				Provider: "aws", AccountID: "222222222222", Type: "aws:iam:account",
+				NativeID: "arn:aws:iam::222222222222:root", AttributesJSON: "{}",
+				DiscoveredBy: testScanID,
+			}
+		}
+		untouched := &Resource{
+			Provider: "aws", AccountID: "333333333333", Type: "aws:organizations:account",
+			NativeID:       "arn:aws:organizations::333333333333:account/o-x/333333333333",
+			AttributesJSON: "{}", DiscoveredBy: testScanID,
+		}
+		placeholder := account()
+		if _, err := st.InsertResourcesIfAbsent([]*Resource{placeholder, untouched}); err != nil {
+			t.Fatalf("InsertResourcesIfAbsent: %v", err)
+		}
+
+		const rescan = "0000000000000000000000000000000a"
+		if _, err := st.CreateScanWithID(rescan, []string{"aws"}, map[string]any{}); err != nil {
+			t.Fatalf("CreateScanWithID: %v", err)
+		}
+		scanned := account()
+		scanned.DiscoveredBy = rescan
+		if inserted, err := st.UpsertResources([]*Resource{scanned}); err != nil || inserted != 0 {
+			t.Fatalf("UpsertResources = (%d, %v), want (0, nil): identical row must verify, not split", inserted, err)
+		}
+
+		got, err := st.GetResource(placeholder.ID)
+		if err != nil {
+			t.Fatalf("GetResource: %v", err)
+		}
+		if got.ReferenceOnly {
+			t.Error("ReferenceOnly = true after a scanner re-emitted the row, want false")
+		}
+		versions, err := st.GetResourceVersions(placeholder.ID)
+		if err != nil {
+			t.Fatalf("GetResourceVersions: %v", err)
+		}
+		if len(versions) != 1 {
+			t.Fatalf("version count = %d, want 1 (verify path, no split)", len(versions))
+		}
+		if v := versions[0].VerifiedBy; v == nil || *v != rescan {
+			t.Errorf("VerifiedBy = %v, want %s", v, rescan)
+		}
+		types, err := st.TypesForScan(rescan)
+		if err != nil {
+			t.Fatalf("TypesForScan: %v", err)
+		}
+		if len(types) != 1 || types[0] != (ProviderType{Provider: "aws", Type: "aws:iam:account"}) {
+			t.Errorf("TypesForScan(rescan) = %v, want [aws aws:iam:account]", types)
+		}
+
+		other, err := st.GetResource(untouched.ID)
+		if err != nil {
+			t.Fatalf("GetResource(untouched): %v", err)
+		}
+		if !other.ReferenceOnly {
+			t.Error("untouched placeholder lost ReferenceOnly; only a scanner re-emit may clear it")
+		}
+	})
+}

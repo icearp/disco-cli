@@ -5,8 +5,10 @@
 # silent at runtime — a SQLite column added without the matching PG mirror
 # breaks `disco serve` against PG once code references the new column.
 #
-# Approach: extract `(table, column)` pairs from each migration set's
-# CREATE TABLE / ALTER TABLE ADD COLUMN statements, sort, diff. The
+# Approach: replay each migration set in file order (NNN_ prefixes sort
+# lexically) into a `(table, column)` set — CREATE TABLE and ADD COLUMN add
+# pairs, DROP COLUMN and DROP TABLE remove them — then sort and diff the final
+# sets. Without the removals a column dropped on one side only would pass. The
 # schema is single-tenant, so the two sets must match exactly — the SaaS
 # multi-tenant columns (tenant_id, RLS plumbing) live in disco-saas's own
 # migration set, not here.
@@ -24,13 +26,24 @@ if [[ ! -d "$PG_DIR" ]]; then
   exit 2
 fi
 
-# Awk extracts (table, column) pairs from CREATE TABLE blocks + ALTER ADD
-# COLUMN statements. Comments stripped, identifiers lowercased.
+# Awk replays the statements into a (table, column) set and prints it at END.
+# Comments stripped, identifiers lowercased. RENAME is not modelled: a rename
+# shows up as drift (loud), never as a silent pass.
 extract_columns() {
   awk '
     BEGIN { tbl="" }
     # Strip line-level comments.
     { sub(/--.*$/, "") }
+    # DROP TABLE [IF EXISTS] <name> — forget every column of that table.
+    /^[[:space:]]*DROP[[:space:]]+TABLE/ {
+      dline=$0
+      sub(/^[[:space:]]*DROP[[:space:]]+TABLE([[:space:]]+IF[[:space:]]+EXISTS)?[[:space:]]+/, "", dline)
+      split(dline, dp, /[[:space:]]+/)
+      dtbl=tolower(dp[1])
+      gsub(/[",;]/, "", dtbl)
+      for (k in cols) { split(k, kp, " "); if (kp[1] == dtbl) delete cols[k] }
+      next
+    }
     # CREATE TABLE [IF NOT EXISTS] <name> (
     /^[[:space:]]*CREATE[[:space:]]+TABLE/ {
       altbl=""
@@ -55,7 +68,7 @@ extract_columns() {
       col=tolower(parts[1])
       gsub(/[",]/, "", col)
       if (col == "" || col ~ /^\(/) next
-      print tbl, col
+      cols[tbl " " col] = 1
     }
     # ALTER TABLE <name> ... — capture the table. ADD COLUMN may be on this
     # line or a following one: Postgres uses `ALTER TABLE\n  ADD COLUMN ...`
@@ -76,22 +89,35 @@ extract_columns() {
       split(cline, cp, /[[:space:]]+/)
       acol=tolower(cp[1])
       gsub(/[",;]/, "", acol)
-      if (acol != "") print altbl, acol
+      if (acol != "") cols[altbl " " acol] = 1
     }
+    # DROP COLUMN [IF EXISTS] <col> — same attribution as ADD COLUMN.
+    altbl != "" && /DROP[[:space:]]+COLUMN/ {
+      xline=$0
+      sub(/^.*DROP[[:space:]]+COLUMN[[:space:]]+/, "", xline)
+      sub(/^IF[[:space:]]+EXISTS[[:space:]]+/, "", xline)
+      split(xline, xp, /[[:space:]]+/)
+      xcol=tolower(xp[1])
+      gsub(/[",;]/, "", xcol)
+      if (xcol != "") delete cols[altbl " " xcol]
+    }
+    END { for (k in cols) print k }
   '
 }
 
-cat "$SQLITE_DIR"/*.sql | extract_columns | sort -u > /tmp/disco-cols-sqlite.$$
-cat "$PG_DIR"/*.sql      | extract_columns | sort -u > /tmp/disco-cols-pg.$$
+tmp="$(mktemp -d)" || exit 2
+trap 'rm -rf "$tmp"' EXIT
+
+# A failed extraction is a tooling failure (exit 2), never "no drift".
+cat "$SQLITE_DIR"/*.sql | extract_columns | sort -u > "$tmp/sqlite" || exit 2
+cat "$PG_DIR"/*.sql      | extract_columns | sort -u > "$tmp/pg"     || exit 2
 
 drift=0
-if ! diff -u /tmp/disco-cols-sqlite.$$ /tmp/disco-cols-pg.$$ > /tmp/disco-cols-diff.$$; then
+if ! diff -u "$tmp/sqlite" "$tmp/pg" > "$tmp/diff"; then
   echo "migration drift detected (sqlite vs pg):" >&2
-  cat /tmp/disco-cols-diff.$$ >&2
+  cat "$tmp/diff" >&2
   drift=1
 fi
-
-rm -f /tmp/disco-cols-sqlite.$$ /tmp/disco-cols-pg.$$ /tmp/disco-cols-diff.$$
 
 if [[ $drift -eq 0 ]]; then
   echo "ok — sqlite + pg migrations have matching column sets"

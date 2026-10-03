@@ -41,7 +41,11 @@ go.work.sum
 # Sonar scanner output
 .scannerwork/
 
-# Claude Code local state
-.claude/
+# Claude Code local state. The shared rules (.claude/rules/) are committed; settings, locks
+# and session memory stay local.
+.claude/*
+!.claude/rules/
+# `.claude/*` is anchored to the root; a .claude/ a session creates in a subdirectory stays local.
+*/**/.claude/
 
 focus-group/

@@ -211,6 +211,12 @@ func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, 
 			// the resource in a scan resurrects it — the resource still
 			// exists, so the tombstone must lift. A live row's columns are
 			// already NULL, so the clear is a no-op there.
+			// reference_only is cleared for the same reason: only a scanner
+			// reaches this path (InsertResourcesIfAbsent never does), and a
+			// scanner emitting the row proves it is a real resource rather
+			// than a resolver's edge endpoint. A placeholder's `{}` compares
+			// equal to an empty scanned row, so without this the flag
+			// survived and TypesForScan hid the type.
 			if _, err := tx.Exec(tx.Rebind(`
 				UPDATE resources
 				   SET verified_at         = $1,
@@ -222,7 +228,8 @@ func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, 
 				       account_name        = $7,
 				       managed_by_provider = $8,
 				       deleted_at          = NULL,
-				       deleted_by          = NULL
+				       deleted_by          = NULL,
+				       reference_only      = FALSE
 				 WHERE id = $9`),
 				now, r.DiscoveredBy,
 				r.Name, r.Region, r.Zone, r.Status, r.AccountName, r.ManagedByProvider,

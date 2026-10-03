@@ -63,7 +63,7 @@ CGO_ENABLED=0 go test ./store/... -run TestFoo -v
 go vet ./...
 golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 
-# SQLite ↔ Postgres column parity — manual, not run in CI (store/CLAUDE.md "Migration parity")
+# SQLite ↔ Postgres column parity; CI's test job runs it too (store/CLAUDE.md "Migration parity")
 make check-migrations
 
 # Populate the SDK source cache the coverage denominator derives from (no-op when present)
@@ -154,6 +154,8 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 - `internal/sdkinv/CLAUDE.md` — provider-neutral core: SDK source cache, accounting invariant, extractor contract, AST pairing walk
 - `internal/providers/<p>/<p>inventory/CLAUDE.md` — per-provider SDK facts: cache layout, pins, extractor rules, refs, pairing resolver
 - `internal/coverage/CLAUDE.md` — coverage buckets and reasons, identity rule, baseline ratchet, live numbers
+- `.claude/rules/testing.instructions.md` — the test quality bar (loads for `*_test.go`). `.claude/rules/` is
+  committed; the rest of `.claude/` (settings, locks, session memory, nested `.claude/` dirs) is gitignored.
 
 ## Bundled features of note
 
