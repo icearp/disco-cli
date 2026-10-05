@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 50.92925659472422,
-    "covered": 1699,
-    "uncovered": 1637,
+    "percent": 50.959232613908874,
+    "covered": 1700,
+    "uncovered": 1636,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1167,6 +1167,7 @@
       "omics/runcache",
       "omics/rungroup",
       "omics/sequencestore",
+      "omics/share",
       "omics/variantstore",
       "omics/workflow",
       "omics/workflowversion",
@@ -2828,7 +2829,6 @@
       "omics/referenceimportjob",
       "omics/run",
       "omics/runbatch",
-      "omics/share",
       "omics/tagging",
       "omics/task",
       "omics/variantimportjob",

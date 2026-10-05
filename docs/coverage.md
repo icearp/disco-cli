@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.9% (1699/3336 listable) · depth0 65.4% · depth1 29.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.0% (1700/3336 listable) · depth0 65.4% · depth1 29.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 992 | 229 | 81.2 |
 | child-uncatalogued | 137 | 880 | 13.5 |
-| smithy-resource | 399 | 163 | 71.0 |
+| smithy-resource | 400 | 162 | 71.2 |
 | element-written | 144 | 272 | 34.6 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
@@ -45,9 +45,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dms | 11 | 14 | 44.0 |
 | inspector2 | 4 | 14 | 22.2 |
 | cloudformation | 7 | 13 | 35.0 |
-| omics | 11 | 13 | 45.8 |
 | profile | 12 | 13 | 48.0 |
 | comprehend | 5 | 12 | 29.4 |
+| omics | 12 | 12 | 50.0 |
 | partnercentral-selling | 0 | 12 | 0.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
 | devicefarm | 8 | 11 | 42.1 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1637)
+### Uncovered (listable, no scanner) (1636)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1478,7 +1478,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | omics | omics/referenceimportjob | 1 |  | child-uncatalogued | omics:GetReferenceImportJob, omics:ListReferenceImportJobs |
 | omics | omics/run | 0 |  | smithy-resource | omics:GetRun, omics:ListRuns, omics:ListRunsInBatch |
 | omics | omics/runbatch | 0 |  | smithy-resource | omics:GetBatch, omics:ListBatch |
-| omics | omics/share | 0 |  | smithy-resource | omics:GetShare, omics:ListShares |
 | omics | omics/tagging | 0 |  | smithy-resource | omics:ListTagsForResource |
 | omics | omics/task | 1 |  | smithy-resource | omics:GetRunTask, omics:ListRunTasks |
 | omics | omics/variantimportjob | 0 |  | smithy-resource | omics:ListVariantImportJobs |

@@ -22,6 +22,12 @@ func init() {
 		EdgeDecl{TypeOmicsReference, TypeOmicsReferenceStore, store.RelAttachedTo},
 	)
 	registerResolver(
+		resolveOmicsShareResource,
+		EdgeDecl{TypeOmicsShare, TypeOmicsVariantStore, store.RelAttachedTo},
+		EdgeDecl{TypeOmicsShare, TypeOmicsAnnotationStore, store.RelAttachedTo},
+		EdgeDecl{TypeOmicsShare, TypeOmicsWorkflow, store.RelAttachedTo},
+	)
+	registerResolver(
 		resolveOmicsStoreKMS,
 		EdgeDecl{TypeOmicsAnnotationStore, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeOmicsVariantStore, TypeKMSKey, store.RelUses},
@@ -167,6 +173,50 @@ func resolveOmicsReferenceParent(acct *account, st *store.Store) error {
 		}
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert omics reference→reference-store: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveOmicsShareResource wires each share to the analytics store or workflow
+// it shares. ResourceArn is the target's NativeID; the edge is emitted only when
+// that target was scanned.
+func resolveOmicsShareResource(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeOmicsShare},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	targets, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeOmicsVariantStore, TypeOmicsAnnotationStore, TypeOmicsWorkflow},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	scanned := make(map[string]bool, len(targets))
+	for _, t := range targets {
+		scanned[t.ID] = true
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ResourceArn *string `json:"ResourceArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, sv(attrs.ResourceArn))
+		if !scanned[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert omics share→shared resource: %w", err)
 		}
 	}
 	return nil

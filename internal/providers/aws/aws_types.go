@@ -987,6 +987,7 @@ const (
 	TypeOmicsAnnotationStoreVersion = "aws:omics:annotation-store-version"
 	TypeOmicsReference              = "aws:omics:reference"
 	TypeOmicsRunCache               = "aws:omics:run-cache"
+	TypeOmicsShare                  = "aws:omics:share"
 	// Image Builder (imagebuilder_scanners.go)
 	TypeImageBuilderComponent                 = "aws:imagebuilder:component"
 	TypeImageBuilderContainerRecipe           = "aws:imagebuilder:container-recipe"

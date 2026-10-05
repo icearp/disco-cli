@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	omicstypes "github.com/aws/aws-sdk-go-v2/service/omics/types"
 	"github.com/icearp/disco-cli/store"
 )
@@ -99,4 +100,51 @@ func TestResolveOmicsStoreKMS(t *testing.T) {
 	assertRelationship(t, rels, asID, keyID, store.RelUses)
 	rels, _ = st.RelationshipsFrom(rsID)
 	assertRelationship(t, rels, rsID, keyID, store.RelUses)
+}
+
+func TestResolveOmicsShareResource(t *testing.T) {
+	acct := newTestAccount(testAccountID)
+	arnOf := func(kind, id string) string {
+		return fmt.Sprintf("arn:aws:omics:%s:%s:%s/%s", testRegion, acct.ID, kind, id)
+	}
+	wfARN, vsARN, asARN := arnOf("workflow", "1234"), arnOf("variantStore", "vs1"), arnOf("annotationStore", "as1")
+	wfAttrs := mustJSON(omicstypes.WorkflowListItem{Id: sdkaws.String("1234"), Arn: &wfARN})
+	vsAttrs := mustJSON(omicstypes.VariantStoreItem{Id: sdkaws.String("vs1"), StoreArn: &vsARN})
+	asAttrs := mustJSON(omicstypes.AnnotationStoreItem{Id: sdkaws.String("as1"), StoreArn: &asARN})
+	shareAttrs := func(resourceARN string) string {
+		return mustJSON(omicstypes.ShareDetails{ShareId: sdkaws.String("s1"), ResourceArn: &resourceARN})
+	}
+	tests := []struct {
+		name                   string
+		targetType, targetARN  string
+		targetAttrs, shareAttr string
+		scanTarget, wantEdge   bool
+	}{
+		{"shared workflow", TypeOmicsWorkflow, wfARN, wfAttrs, shareAttrs(wfARN), true, true},
+		{"shared variant store", TypeOmicsVariantStore, vsARN, vsAttrs, shareAttrs(vsARN), true, true},
+		{"shared annotation store", TypeOmicsAnnotationStore, asARN, asAttrs, shareAttrs(asARN), true, true},
+		{"shared workflow not scanned", TypeOmicsWorkflow, wfARN, wfAttrs, shareAttrs(wfARN), false, false},
+		{"no attrs", TypeOmicsWorkflow, wfARN, wfAttrs, "{}", true, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			targetID := store.ResourceID("aws", acct.ID, tc.targetARN)
+			if tc.scanTarget {
+				targetID = upsertTestResource(t, st, "aws", acct.ID, tc.targetType, tc.targetARN, testRegion, tc.targetAttrs)
+			}
+			shareID := upsertTestResource(t, st, "aws", acct.ID, TypeOmicsShare, tc.targetARN+"/share/s1", testRegion, tc.shareAttr)
+			if err := resolveOmicsShareResource(acct, st); err != nil {
+				t.Fatalf("resolveOmicsShareResource: %v", err)
+			}
+			rels, _ := st.RelationshipsFrom(shareID)
+			if tc.wantEdge {
+				assertRelationship(t, rels, shareID, targetID, store.RelAttachedTo)
+				return
+			}
+			if len(rels) != 0 {
+				t.Errorf("expected no relationships, got %d", len(rels))
+			}
+		})
+	}
 }

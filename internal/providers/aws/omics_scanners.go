@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/omics"
+	omicstypes "github.com/aws/aws-sdk-go-v2/service/omics/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -21,6 +22,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeOmicsAnnotationStoreVersion, Service: "omics"})
 	registerType(restype.Descriptor{Type: TypeOmicsReference, Service: "omics"})
 	registerType(restype.Descriptor{Type: TypeOmicsRunCache, Service: "omics"})
+	registerType(restype.Descriptor{Type: TypeOmicsShare, Service: "omics"})
 	registerService(serviceEntry{
 		name: "aws:omics",
 		fn:   scanOmics,
@@ -39,6 +41,7 @@ type omicsAPI interface {
 	ListAnnotationStoreVersions(context.Context, *omics.ListAnnotationStoreVersionsInput, ...func(*omics.Options)) (*omics.ListAnnotationStoreVersionsOutput, error)
 	ListReferences(context.Context, *omics.ListReferencesInput, ...func(*omics.Options)) (*omics.ListReferencesOutput, error)
 	ListRunCaches(context.Context, *omics.ListRunCachesInput, ...func(*omics.Options)) (*omics.ListRunCachesOutput, error)
+	ListShares(context.Context, *omics.ListSharesInput, ...func(*omics.Options)) (*omics.ListSharesOutput, error)
 }
 
 func scanOmics(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -106,7 +109,9 @@ func scanOmics(ctx context.Context, acct *account, region string, st *store.Stor
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+
+	t, i, ferr = scanOmicsShares(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + i, ferr
 }
 
 func scanOmicsAnnotationStores(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
@@ -506,4 +511,50 @@ func scanOmicsWorkflowVersions(ctx context.Context, client omicsAPI, acct *accou
 		}
 	}
 	return upsertBatch(st, batch, "omics workflow-versions")
+}
+
+// scanOmicsShares lists the resource shares this account owns. Shares owned by
+// another account (ResourceOwner OTHER) are not stored: they are that account's
+// resources, inbound here (same rule as scanRAM). ShareDetails carries no ARN
+// and the Service Reference defines none, so NativeID is
+// {ResourceArn}/share/{ShareId}.
+func scanOmicsShares(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := omics.NewListSharesPaginator(client, &omics.ListSharesInput{ResourceOwner: omicstypes.ResourceOwnerSelf})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "omics:ListShares", acct.ID, region, perr)
+				break
+			}
+			return 0, 0, fmt.Errorf("omics:ListShares: %w", perr)
+		}
+		for _, s := range out.Shares {
+			// A revoked share is not a live resource, and the API's Status
+			// filter is inclusion-only, so DELETED shares are dropped here.
+			if s.Status == omicstypes.ShareStatusDeleted {
+				continue
+			}
+			resourceARN, shareID := sv(s.ResourceArn), sv(s.ShareId)
+			if resourceARN == "" || shareID == "" {
+				continue
+			}
+			label := sv(s.ShareName)
+			if label == "" {
+				label = shareID
+			}
+			r := &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeOmicsShare, NativeID: resourceARN + "/share/" + shareID,
+				Name: &label, Region: &region, CreatedAt: tp(s.CreationTime),
+				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			}
+			if status := string(s.Status); status != "" {
+				r.Status = &status
+			}
+			batch = append(batch, r)
+		}
+	}
+	return upsertBatch(st, batch, "omics shares")
 }
