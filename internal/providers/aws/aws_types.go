@@ -580,6 +580,8 @@ const (
 	TypeSSMResourceDataSync        = "aws:ssm:resource-data-sync"
 	TypeSSMManagedInstance         = "aws:ssm:managed-instance"
 	TypeSSMOpsMetadata             = "aws:ssm:opsmetadata"
+	TypeSSMActivation              = "aws:ssm:activation"
+	TypeSSMCloudConnector          = "aws:ssm:cloud-connector"
 	// GuardDuty (guardduty_scanners.go)
 	TypeGuardDutyDetector              = "aws:guardduty:detector"
 	TypeGuardDutyFilter                = "aws:guardduty:filter"

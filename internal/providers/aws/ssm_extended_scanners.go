@@ -8,9 +8,8 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanSSMExtended discovers five additional SSM resource types: Association,
-// MaintenanceWindow, MaintenanceWindowTarget, MaintenanceWindowTask, and
-// ResourceDataSync. Targets and tasks fan out per maintenance window.
+// scanSSMExtended discovers the SSM resource types beyond parameters, documents
+// and patch baselines. Targets and tasks fan out per maintenance window.
 //
 // AWS::SSM::ResourcePolicy is not enumerable: GetResourcePolicies requires a
 // ResourceArn and SSM exposes no list API for resources that have policies
@@ -66,7 +65,100 @@ func scanSSMExtended(ctx context.Context, client ssmAPI, acct *account, region s
 	}
 	total += t
 	inserted += i
+
+	t, i, ferr = scanSSMActivations(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanSSMCloudConnectors(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
+}
+
+// scanSSMActivations discovers hybrid-node activations. The activation code is
+// returned only by CreateActivation, so the listed element carries no secret.
+// The API returns no ARN and the service authorization reference defines no
+// activation ARN format, so the NativeID is synthesized from the ActivationId:
+// arn:aws:ssm:{region}:{acct}:activation/{ActivationId}.
+func scanSSMActivations(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := ssm.NewDescribeActivationsPaginator(client, &ssm.DescribeActivationsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "ssm:DescribeActivations", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("ssm:DescribeActivations: %w", err)
+		}
+		for _, a := range out.ActivationList {
+			id := sv(a.ActivationId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:activation/%s", region, acct.ID, id)
+			status := "active"
+			if a.Expired {
+				status = "expired"
+			}
+			tags := make(map[string]string, len(a.Tags))
+			for _, tg := range a.Tags {
+				tags[sv(tg.Key)] = sv(tg.Value)
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSSMActivation, NativeID: arn,
+				Name: &id, Region: &region, Status: &status,
+				CreatedAt:      tp(a.CreatedDate),
+				AttributesJSON: mustJSON(a), TagsJSON: mapTagsJSON(tags),
+				DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "ssm activations")
+}
+
+// scanSSMCloudConnectors discovers cloud connectors. The summary carries no
+// ARN; the NativeID follows the service authorization reference format
+// arn:aws:ssm:{region}:{acct}:cloud-connector/{CloudConnectorId}.
+func scanSSMCloudConnectors(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := ssm.NewListCloudConnectorsPaginator(client, &ssm.ListCloudConnectorsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "ssm:ListCloudConnectors", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("ssm:ListCloudConnectors: %w", err)
+		}
+		for _, c := range out.CloudConnectors {
+			id := sv(c.CloudConnectorId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:cloud-connector/%s", region, acct.ID, id)
+			label := sv(c.DisplayName)
+			if label == "" {
+				label = id
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSSMCloudConnector, NativeID: arn,
+				Name: &label, Region: &region,
+				CreatedAt:      tp(c.CreatedAt),
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "ssm cloud-connectors")
 }
 
 // scanSSMManagedInstances discovers SSM-managed nodes (DescribeInstanceInformation).

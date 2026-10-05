@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.1% (1705/3336 listable) · depth0 65.7% · depth1 29.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.2% (1707/3336 listable) · depth0 65.8% · depth1 29.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,10 +8,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 992 | 229 | 81.2 |
+| sr-resource | 993 | 228 | 81.3 |
 | child-uncatalogued | 137 | 880 | 13.5 |
 | smithy-resource | 405 | 157 | 72.1 |
-| element-written | 144 | 272 | 34.6 |
+| element-written | 145 | 271 | 34.9 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
 
@@ -21,9 +21,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | resiliencehub | 4 | 36 | 10.0 |
 | connect | 35 | 33 | 51.5 |
 | sagemaker | 56 | 31 | 64.4 |
-| ssm | 9 | 29 | 23.7 |
 | iotsitewise | 9 | 28 | 24.3 |
 | config | 10 | 27 | 27.0 |
+| ssm | 11 | 27 | 28.9 |
 | glue | 22 | 20 | 52.4 |
 | lex | 4 | 20 | 16.7 |
 | wellarchitected | 4 | 20 | 16.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1631)
+### Uncovered (listable, no scanner) (1629)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1818,14 +1818,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | social-messaging | social-messaging/whatsapptemplatelibrary | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppTemplateLibrary |
 | sqs | sqs/deadlettersourcequeue | 1 |  | child-uncatalogued | sqs:ListDeadLetterSourceQueues |
 | sqs | sqs/message | 1 |  | child-uncatalogued | sqs:ReceiveMessage |
-| ssm | ssm/activation | 0 |  | element-written | ssm:DescribeActivations |
 | ssm | ssm/associationexecution | 1 |  | child-uncatalogued | ssm:DescribeAssociationExecutions |
 | ssm | ssm/associationexecutiontarget | 1 |  | child-uncatalogued | ssm:DescribeAssociationExecutionTargets |
 | ssm | ssm/associationversion | 1 |  | child-uncatalogued | ssm:ListAssociationVersions |
 | ssm | ssm/automationexecution | 0 |  | sr-resource | ssm:DescribeAutomationExecutions, ssm:GetAutomationExecution |
 | ssm | ssm/automationstepexecution | 1 |  | child-uncatalogued | ssm:DescribeAutomationStepExecutions |
 | ssm | ssm/availablepatch | 0 |  | element-written | ssm:DescribeAvailablePatches |
-| ssm | ssm/cloudconnector | 0 |  | sr-resource | ssm:GetCloudConnector, ssm:ListCloudConnectors, ssm:ValidateCloudConnector |
 | ssm | ssm/command | 0 |  | element-written | ssm:ListCommands |
 | ssm | ssm/commandinvocation | 0 |  | element-written | ssm:GetCommandInvocation, ssm:ListCommandInvocations |
 | ssm | ssm/complianceitem | 0 |  | element-written | ssm:ListComplianceItems |

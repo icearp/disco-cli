@@ -21,6 +21,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSSMResourceDataSync, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMManagedInstance, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMOpsMetadata, Service: "ssm"})
+	registerType(restype.Descriptor{Type: TypeSSMActivation, Service: "ssm"})
+	registerType(restype.Descriptor{Type: TypeSSMCloudConnector, Service: "ssm"})
 	registerService(serviceEntry{
 		name: "aws:ssm",
 		fn:   scanSSM,
@@ -40,6 +42,8 @@ type ssmAPI interface {
 	ListResourceDataSync(context.Context, *ssm.ListResourceDataSyncInput, ...func(*ssm.Options)) (*ssm.ListResourceDataSyncOutput, error)
 	DescribeInstanceInformation(context.Context, *ssm.DescribeInstanceInformationInput, ...func(*ssm.Options)) (*ssm.DescribeInstanceInformationOutput, error)
 	ListOpsMetadata(context.Context, *ssm.ListOpsMetadataInput, ...func(*ssm.Options)) (*ssm.ListOpsMetadataOutput, error)
+	DescribeActivations(context.Context, *ssm.DescribeActivationsInput, ...func(*ssm.Options)) (*ssm.DescribeActivationsOutput, error)
+	ListCloudConnectors(context.Context, *ssm.ListCloudConnectorsInput, ...func(*ssm.Options)) (*ssm.ListCloudConnectorsOutput, error)
 }
 
 // scanSSM discovers SSM parameters (metadata only, never values), customer-
