@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.2% (1675/3336 listable) · depth0 64.6% · depth1 28.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 50.4% (1680/3336 listable) · depth0 64.8% · depth1 28.7% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,9 +8,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 990 | 231 | 81.1 |
+| sr-resource | 991 | 230 | 81.2 |
 | child-uncatalogued | 129 | 888 | 12.7 |
-| smithy-resource | 387 | 175 | 68.9 |
+| smithy-resource | 391 | 171 | 69.6 |
 | element-written | 142 | 274 | 34.1 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
@@ -26,7 +26,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | config | 10 | 27 | 27.0 |
 | datazone | 13 | 23 | 36.1 |
 | quicksight | 22 | 22 | 50.0 |
-| bedrock-agentcore | 25 | 21 | 54.3 |
 | glue | 22 | 20 | 52.4 |
 | lex | 4 | 20 | 16.7 |
 | wellarchitected | 4 | 20 | 16.7 |
@@ -35,6 +34,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bedrock | 27 | 17 | 61.4 |
 | iot | 32 | 17 | 65.3 |
 | mgn | 8 | 17 | 32.0 |
+| bedrock-agentcore | 30 | 16 | 65.2 |
 | es | 4 | 16 | 20.0 |
 | workmail | 1 | 16 | 5.9 |
 | gamelift | 12 | 15 | 44.4 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1661)
+### Uncovered (listable, no scanner) (1656)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -513,19 +513,14 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bedrock | bedrock/modelimportjob | 1 |  | sr-resource | bedrock:GetModelImportJob, bedrock:ListModelImportJobs |
 | bedrock | bedrock/modelinvocationjob | 0 |  | smithy-resource | bedrock:GetModelInvocationJob, bedrock:ListModelInvocationJobs |
 | bedrock | bedrock/session | 0 |  | smithy-resource | bedrock:GetSession, bedrock:ListSessions |
-| bedrock-agentcore | bedrock-agentcore/abtest | 1 |  | sr-resource | bedrock-agentcore:GetABTest, bedrock-agentcore:ListABTests |
 | bedrock-agentcore | bedrock-agentcore/actor | 1 |  | child-uncatalogued | bedrock-agentcore:ListActors |
 | bedrock-agentcore | bedrock-agentcore/agentruntimeversion | 1 |  | child-uncatalogued | bedrock-agentcore:ListAgentRuntimeVersionsByCapacityProvider |
 | bedrock-agentcore | bedrock-agentcore/batchevaluation | 1 |  | child-uncatalogued | bedrock-agentcore:GetBatchEvaluation, bedrock-agentcore:ListBatchEvaluations |
 | bedrock-agentcore | bedrock-agentcore/browsersession | 0 |  | smithy-resource | bedrock-agentcore:GetBrowserSession, bedrock-agentcore:ListBrowserSessions |
-| bedrock-agentcore | bedrock-agentcore/capacityprovider | 0 |  | smithy-resource | bedrock-agentcore:GetCapacityProvider, bedrock-agentcore:ListCapacityProviders |
 | bedrock-agentcore | bedrock-agentcore/codeinterpretersession | 0 |  | smithy-resource | bedrock-agentcore:GetCodeInterpreterSession, bedrock-agentcore:ListCodeInterpreterSessions |
 | bedrock-agentcore | bedrock-agentcore/configurationbundleversion | 1 |  | child-uncatalogued | bedrock-agentcore:ListConfigurationBundleVersions |
-| bedrock-agentcore | bedrock-agentcore/consentportal | 0 |  | smithy-resource | bedrock-agentcore:GetConsentPortal, bedrock-agentcore:ListConsentPortals |
 | bedrock-agentcore | bedrock-agentcore/datasetexample | 1 |  | child-uncatalogued | bedrock-agentcore:ListDatasetExamples |
 | bedrock-agentcore | bedrock-agentcore/event | 1 |  | child-uncatalogued | bedrock-agentcore:GetEvent, bedrock-agentcore:ListEvents |
-| bedrock-agentcore | bedrock-agentcore/gatewayratelimit | 0 |  | smithy-resource | bedrock-agentcore:GetGatewayRateLimit, bedrock-agentcore:ListGatewayRateLimits |
-| bedrock-agentcore | bedrock-agentcore/gatewayrule | 0 |  | smithy-resource | bedrock-agentcore:GetGatewayRule, bedrock-agentcore:ListGatewayRules |
 | bedrock-agentcore | bedrock-agentcore/harnessversion | 1 |  | child-uncatalogued | bedrock-agentcore:ListHarnessVersions |
 | bedrock-agentcore | bedrock-agentcore/memoryextractionjob | 1 |  | child-uncatalogued | bedrock-agentcore:ListMemoryExtractionJobs |
 | bedrock-agentcore | bedrock-agentcore/memoryrecord | 1 |  | child-uncatalogued | bedrock-agentcore:GetMemoryRecord, bedrock-agentcore:ListMemoryRecords, bedrock-agentcore:RetrieveMemoryRecords |

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	bacdata "github.com/aws/aws-sdk-go-v2/service/bedrockagentcore"
 	bac "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
 	bactypes "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -71,6 +72,10 @@ type bedrockAgentCoreAPI interface {
 	ListPaymentManagers(context.Context, *bac.ListPaymentManagersInput, ...func(*bac.Options)) (*bac.ListPaymentManagersOutput, error)
 	ListPaymentConnectors(context.Context, *bac.ListPaymentConnectorsInput, ...func(*bac.Options)) (*bac.ListPaymentConnectorsOutput, error)
 	ListPaymentCredentialProviders(context.Context, *bac.ListPaymentCredentialProvidersInput, ...func(*bac.Options)) (*bac.ListPaymentCredentialProvidersOutput, error)
+	ListCapacityProviders(context.Context, *bac.ListCapacityProvidersInput, ...func(*bac.Options)) (*bac.ListCapacityProvidersOutput, error)
+	ListConsentPortals(context.Context, *bac.ListConsentPortalsInput, ...func(*bac.Options)) (*bac.ListConsentPortalsOutput, error)
+	ListGatewayRules(context.Context, *bac.ListGatewayRulesInput, ...func(*bac.Options)) (*bac.ListGatewayRulesOutput, error)
+	ListGatewayRateLimits(context.Context, *bac.ListGatewayRateLimitsInput, ...func(*bac.Options)) (*bac.ListGatewayRateLimitsOutput, error)
 }
 
 func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -84,8 +89,15 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 		// keeps the full adaptive retry, so we don't miss resources to blips.
 		o.Retryer = withNonRetryableCodes(o.Retryer, "AuthorizerConfigurationException")
 	})
+	data := bacdata.NewFromConfig(acct.cfg, func(o *bacdata.Options) {
+		o.Region = region
+		o.Retryer = withNonRetryableCodes(o.Retryer, "AuthorizerConfigurationException")
+	})
+	return scanBACAll(ctx, client, data, acct, region, st, scanID)
+}
 
-	gwIDs, t, i, ferr := scanBACGateways(ctx, client, acct, region, st, scanID)
+func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAgentCoreDataAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	gws, t, i, ferr := scanBACGateways(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return 0, 0, ferr
 	}
@@ -128,7 +140,7 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 	inserted += i
 
 	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanBACGatewayTargets(ctx, client, acct, region, st, scanID, gwIDs) },
+		func() (int, int, error) { return scanBACGatewayTargets(ctx, client, acct, region, st, scanID, gws) },
 		func() (int, int, error) { return scanBACRuntimeEndpoints(ctx, client, acct, region, st, scanID, rtIDs) },
 		func() (int, int, error) { return scanBACApiKeyCreds(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanBACOauth2Creds(ctx, client, acct, region, st, scanID) },
@@ -157,6 +169,14 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 		func() (int, int, error) {
 			return scanBACPaymentCredentialProviders(ctx, client, acct, region, st, scanID)
 		},
+		// Phases added after the established ones run last so a hard error in
+		// one cannot stop those above. Account-wide lists come before the
+		// per-gateway fan-outs for the same reason.
+		func() (int, int, error) { return scanBACCapacityProviders(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanBACConsentPortals(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanBACABTests(ctx, data, acct, region, st, scanID) },
+		func() (int, int, error) { return scanBACGatewayRules(ctx, client, acct, region, st, scanID, gws) },
+		func() (int, int, error) { return scanBACGatewayRateLimits(ctx, client, acct, region, st, scanID, gws) },
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -387,9 +407,13 @@ func scanBACEvaluators(ctx context.Context, client bedrockAgentCoreAPI, acct *ac
 	return upsertBatch(st, batch, "bedrockagentcore evaluators")
 }
 
-func scanBACGateways(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+// bacGateway is a stored gateway: its id for the child list calls and the
+// NativeID its row was stored under, which child NativeIDs extend.
+type bacGateway struct{ id, arn string }
+
+func scanBACGateways(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) ([]bacGateway, int, int, error) {
 	pager := bac.NewListGatewaysPaginator(client, &bac.ListGatewaysInput{})
-	var ids []string
+	var gws []bacGateway
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
@@ -405,30 +429,31 @@ func scanBACGateways(ctx context.Context, client bedrockAgentCoreAPI, acct *acco
 			if id == "" {
 				continue
 			}
-			ids = append(ids, id)
+			arn := bacARN(region, acct.ID, "gateway", id)
+			gws = append(gws, bacGateway{id: id, arn: arn})
 			label := sv(g.Name)
 			if label == "" {
 				label = id
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockAgentCoreGateway, NativeID: bacARN(region, acct.ID, "gateway", id),
+				Type: TypeBedrockAgentCoreGateway, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 			})
 		}
 	}
 	t, i, err := upsertBatch(st, batch, "bedrockagentcore gateways")
-	return ids, t, i, err
+	return gws, t, i, err
 }
 
-func scanBACGatewayTargets(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gwIDs []string) (int, int, error) {
-	if len(gwIDs) == 0 {
+func scanBACGatewayTargets(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gws []bacGateway) (int, int, error) {
+	if len(gws) == 0 {
 		return 0, 0, nil
 	}
 	var batch []*store.Resource
-	for _, gid := range gwIDs {
-		id := gid
-		pager := bac.NewListGatewayTargetsPaginator(client, &bac.ListGatewayTargetsInput{GatewayIdentifier: &id})
+	for _, gw := range gws {
+		gid := gw.id
+		pager := bac.NewListGatewayTargetsPaginator(client, &bac.ListGatewayTargetsInput{GatewayIdentifier: &gid})
 		for pager.HasMorePages() {
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {

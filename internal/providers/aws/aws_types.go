@@ -1551,6 +1551,11 @@ const (
 	TypeBedrockAgentCoreRuntime                   = "aws:bedrockagentcore:runtime"
 	TypeBedrockAgentCoreRuntimeEndpoint           = "aws:bedrockagentcore:runtime-endpoint"
 	TypeBedrockAgentCoreWorkloadIdentity          = "aws:bedrockagentcore:workload-identity"
+	TypeBedrockAgentCoreCapacityProvider          = "aws:bedrockagentcore:capacity-provider"
+	TypeBedrockAgentCoreConsentPortal             = "aws:bedrockagentcore:consent-portal"
+	TypeBedrockAgentCoreGatewayRule               = "aws:bedrockagentcore:gateway-rule"
+	TypeBedrockAgentCoreGatewayRateLimit          = "aws:bedrockagentcore:gateway-rate-limit"
+	TypeBedrockAgentCoreABTest                    = "aws:bedrockagentcore:ab-test"
 	// VpcLattice (vpclattice_scanners.go)
 	TypeVpcLatticeService                           = "aws:vpclattice:service"
 	TypeVpcLatticeServiceNetwork                    = "aws:vpclattice:service-network"

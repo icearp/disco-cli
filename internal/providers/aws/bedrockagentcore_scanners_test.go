@@ -2,8 +2,12 @@ package aws
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	bacdatatypes "github.com/aws/aws-sdk-go-v2/service/bedrockagentcore/types"
 	bac "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
 	bactypes "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol/types"
 	"github.com/icearp/disco-cli/store"
@@ -26,6 +30,71 @@ type stubBAC struct {
 	managers       []bactypes.PaymentManagerSummary
 	connectors     map[string][]bactypes.PaymentConnectorSummary
 	credProviders  []bactypes.PaymentCredentialProviderItem
+	gateways       []bactypes.GatewaySummary
+	// Paged ops: each inner slice is one page; *Err fails the op (per parent
+	// id for the fan-out ops) after the pages are served.
+	capacityPages [][]bactypes.CapacityProviderSummary
+	capacityErr   error
+	portalPages   [][]bactypes.ConsentPortalSummary
+	portalErr     error
+	rulePages     map[string][][]bactypes.GatewayRuleDetail
+	ruleErr       map[string]error
+	limitPages    map[string][][]bactypes.GatewayRateLimitDetail
+	limitErr      map[string]error
+}
+
+// stubPage serves pages[token] with the next index as NextToken; once the
+// pages run out it returns err (nil ends the listing).
+func stubPage[T any](pages [][]T, token *string, err error) ([]T, *string, error) {
+	i := 0
+	if token != nil {
+		var err error
+		if i, err = strconv.Atoi(*token); err != nil {
+			return nil, nil, fmt.Errorf("stubPage: token %q is not a page index: %w", *token, err)
+		}
+	}
+	if i >= len(pages) {
+		return nil, nil, err
+	}
+	if i+1 < len(pages) || err != nil {
+		next := strconv.Itoa(i + 1)
+		return pages[i], &next, nil
+	}
+	return pages[i], nil, nil
+}
+
+func (s *stubBAC) ListCapacityProviders(_ context.Context, in *bac.ListCapacityProvidersInput, _ ...func(*bac.Options)) (*bac.ListCapacityProvidersOutput, error) {
+	items, next, err := stubPage(s.capacityPages, in.NextToken, s.capacityErr)
+	if err != nil {
+		return nil, err
+	}
+	return &bac.ListCapacityProvidersOutput{CapacityProviders: items, NextToken: next}, nil
+}
+
+func (s *stubBAC) ListConsentPortals(_ context.Context, in *bac.ListConsentPortalsInput, _ ...func(*bac.Options)) (*bac.ListConsentPortalsOutput, error) {
+	items, next, err := stubPage(s.portalPages, in.NextToken, s.portalErr)
+	if err != nil {
+		return nil, err
+	}
+	return &bac.ListConsentPortalsOutput{ConsentPortals: items, NextToken: next}, nil
+}
+
+func (s *stubBAC) ListGatewayRules(_ context.Context, in *bac.ListGatewayRulesInput, _ ...func(*bac.Options)) (*bac.ListGatewayRulesOutput, error) {
+	gid := sv(in.GatewayIdentifier)
+	items, next, err := stubPage(s.rulePages[gid], in.NextToken, s.ruleErr[gid])
+	if err != nil {
+		return nil, err
+	}
+	return &bac.ListGatewayRulesOutput{GatewayRules: items, NextToken: next}, nil
+}
+
+func (s *stubBAC) ListGatewayRateLimits(_ context.Context, in *bac.ListGatewayRateLimitsInput, _ ...func(*bac.Options)) (*bac.ListGatewayRateLimitsOutput, error) {
+	gid := sv(in.GatewayIdentifier)
+	items, next, err := stubPage(s.limitPages[gid], in.NextToken, s.limitErr[gid])
+	if err != nil {
+		return nil, err
+	}
+	return &bac.ListGatewayRateLimitsOutput{RateLimits: items, NextToken: next}, nil
 }
 
 //nolint:revive // method name must match the SDK op (ListApiKeyCredentialProviders) to satisfy bedrockAgentCoreAPI.
@@ -56,7 +125,7 @@ func (s *stubBAC) ListEvaluators(_ context.Context, _ *bac.ListEvaluatorsInput, 
 }
 
 func (s *stubBAC) ListGateways(_ context.Context, _ *bac.ListGatewaysInput, _ ...func(*bac.Options)) (*bac.ListGatewaysOutput, error) {
-	return &bac.ListGatewaysOutput{}, nil
+	return &bac.ListGatewaysOutput{Items: s.gateways}, nil
 }
 
 func (s *stubBAC) ListGatewayTargets(_ context.Context, _ *bac.ListGatewayTargetsInput, _ ...func(*bac.Options)) (*bac.ListGatewayTargetsOutput, error) {
@@ -189,5 +258,70 @@ func TestScanBACBrowsers_Empty(t *testing.T) {
 	}
 	if total != 0 {
 		t.Errorf("total=%d want 0", total)
+	}
+}
+
+// scanBACAll hands the gateways it listed to the child fan-outs and runs every
+// phase added after the established ones.
+func TestScanBACAll_StoresNewTypes(t *testing.T) {
+	st := newTestStore(t)
+	gwARN := bacARN(testRegion, testAccountID, "gateway", "gw-1")
+	control := &stubBAC{
+		gateways:      []bactypes.GatewaySummary{{GatewayId: sdkaws.String("gw-1"), Name: sdkaws.String("gw")}},
+		capacityPages: [][]bactypes.CapacityProviderSummary{{bacCapacityProvider("cp")}},
+		portalPages:   [][]bactypes.ConsentPortalSummary{{bacConsentPortal("cpt")}},
+		rulePages:     map[string][][]bactypes.GatewayRuleDetail{"gw-1": {{bacRule("r1")}}},
+		limitPages:    map[string][][]bactypes.GatewayRateLimitDetail{"gw-1": {{bacRateLimit("l1")}}},
+	}
+	data := &stubBACData{abPages: [][]bacdatatypes.ABTestSummary{{bacABTest("ab")}}}
+	if _, _, err := scanBACAll(context.Background(), control, data, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+		t.Fatalf("scanBACAll: %v", err)
+	}
+	for _, c := range []struct{ nativeID, rtype string }{
+		{bacARN(testRegion, testAccountID, "capacity-provider", "cp"), TypeBedrockAgentCoreCapacityProvider},
+		{bacARN(testRegion, testAccountID, "consent-portal", "cpt"), TypeBedrockAgentCoreConsentPortal},
+		{gwARN + "/rule/r1", TypeBedrockAgentCoreGatewayRule},
+		{gwARN + "/rate-limit/l1", TypeBedrockAgentCoreGatewayRateLimit},
+		{bacARN(testRegion, testAccountID, "ab-test", "ab"), TypeBedrockAgentCoreABTest},
+	} {
+		r, err := st.GetResource(store.ResourceID("aws", testAccountID, c.nativeID))
+		if err != nil {
+			t.Errorf("%s (%s) missing: %v", c.rtype, c.nativeID, err)
+			continue
+		}
+		if r.Type != c.rtype {
+			t.Errorf("%s Type = %q; want %q", c.nativeID, r.Type, c.rtype)
+		}
+	}
+}
+
+// A hard error in a per-gateway fan-out must not stop the account-wide lists:
+// they run before the fan-outs.
+func TestScanBACAll_FanOutErrorKeepsAccountLists(t *testing.T) {
+	st := newTestStore(t)
+	// The payment credential provider phase is the last established phase, so
+	// its row pins that every new phase runs after the established ones.
+	credARN := bacARN(testRegion, testAccountID, "token-vault/default/paymentcredentialprovider", "pcp")
+	control := &stubBAC{
+		gateways:      []bactypes.GatewaySummary{{GatewayId: sdkaws.String("gw-1")}},
+		credProviders: []bactypes.PaymentCredentialProviderItem{{CredentialProviderArn: sdkaws.String(credARN)}},
+		capacityPages: [][]bactypes.CapacityProviderSummary{{bacCapacityProvider("cp")}},
+		portalPages:   [][]bactypes.ConsentPortalSummary{{bacConsentPortal("cpt")}},
+		ruleErr:       map[string]error{"gw-1": apiErr("ValidationException", "bad")},
+	}
+	data := &stubBACData{abPages: [][]bacdatatypes.ABTestSummary{{bacABTest("ab")}}}
+	_, _, err := scanBACAll(context.Background(), control, data, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if !isAPIErrorCode(err, "ValidationException") {
+		t.Fatalf("scanBACAll err = %v; want the gateway-rule ValidationException", err)
+	}
+	for _, arn := range []string{
+		credARN,
+		bacARN(testRegion, testAccountID, "capacity-provider", "cp"),
+		bacARN(testRegion, testAccountID, "consent-portal", "cpt"),
+		bacARN(testRegion, testAccountID, "ab-test", "ab"),
+	} {
+		if _, err := st.GetResource(store.ResourceID("aws", testAccountID, arn)); err != nil {
+			t.Errorf("%s missing after fan-out error: %v", arn, err)
+		}
 	}
 }
