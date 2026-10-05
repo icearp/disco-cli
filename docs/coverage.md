@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.0% (1669/3336 listable) · depth0 64.5% · depth1 28.2% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 50.1% (1670/3336 listable) · depth0 64.6% · depth1 28.2% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 990 | 231 | 81.1 |
 | child-uncatalogued | 125 | 892 | 12.3 |
 | smithy-resource | 386 | 176 | 68.7 |
-| element-written | 141 | 275 | 33.9 |
+| element-written | 142 | 274 | 34.1 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
 
@@ -45,9 +45,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dms | 11 | 14 | 44.0 |
 | inspector2 | 4 | 14 | 22.2 |
 | cloudformation | 7 | 13 | 35.0 |
-| comprehend | 4 | 13 | 23.5 |
 | omics | 11 | 13 | 45.8 |
 | profile | 12 | 13 | 48.0 |
+| comprehend | 5 | 12 | 29.4 |
 | devicefarm | 7 | 12 | 36.8 |
 | iotmanagedintegrations | 5 | 12 | 29.4 |
 | partnercentral-selling | 0 | 12 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1667)
+### Uncovered (listable, no scanner) (1666)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -697,7 +697,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cognito-sync | cognito-sync/dataset | 2 |  | sr-resource | cognito-sync:DescribeDataset, cognito-sync:ListDatasets |
 | cognito-sync | cognito-sync/identitypoolusage | 0 |  | element-written | cognito-sync:DescribeIdentityPoolUsage, cognito-sync:ListIdentityPoolUsage |
 | cognito-sync | cognito-sync/record | 3 |  | child-uncatalogued | cognito-sync:ListRecords |
-| comprehend | comprehend/dataset | 0 |  | element-written | comprehend:DescribeDataset, comprehend:ListDatasets |
 | comprehend | comprehend/documentclassificationjob | 0 |  | sr-resource | comprehend:DescribeDocumentClassificationJob, comprehend:ListDocumentClassificationJobs |
 | comprehend | comprehend/documentclassifiersummary | 0 |  | element-written | comprehend:ListDocumentClassifierSummaries |
 | comprehend | comprehend/dominantlanguagedetectionjob | 0 |  | sr-resource | comprehend:DescribeDominantLanguageDetectionJob, comprehend:ListDominantLanguageDetectionJobs |

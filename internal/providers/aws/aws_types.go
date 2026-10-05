@@ -1173,6 +1173,7 @@ const (
 	TypeComprehendDocumentClassifierEndpoint = "aws:comprehend:document-classifier-endpoint"
 	TypeComprehendEntityRecognizerEndpoint   = "aws:comprehend:entity-recognizer-endpoint"
 	TypeComprehendFlywheel                   = "aws:comprehend:flywheel"
+	TypeComprehendDataset                    = "aws:comprehend:dataset"
 	// Budgets (budgets_scanners.go)
 	TypeBudgetsBudget        = "aws:budgets:budget"
 	TypeBudgetsBudgetsAction = "aws:budgets:budgets-action"

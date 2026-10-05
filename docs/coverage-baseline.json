@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 50.02997601918465,
-    "covered": 1669,
-    "uncovered": 1667,
+    "percent": 50.0599520383693,
+    "covered": 1670,
+    "uncovered": 1666,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -336,6 +336,7 @@
       "cognito-idp/term",
       "cognito-idp/userpool",
       "cognito-idp/userpoolclient",
+      "comprehend/dataset",
       "comprehend/documentclassifier",
       "comprehend/endpoint",
       "comprehend/entityrecognizer",
@@ -2017,7 +2018,6 @@
       "cognito-sync/dataset",
       "cognito-sync/identitypoolusage",
       "cognito-sync/record",
-      "comprehend/dataset",
       "comprehend/documentclassificationjob",
       "comprehend/documentclassifiersummary",
       "comprehend/dominantlanguagedetectionjob",
