@@ -13,6 +13,7 @@ func TestDFProjectARNFromChild(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"arn:aws:devicefarm:us-west-2:111:devicepool:PROJ-1/POOL-1", "arn:aws:devicefarm:us-west-2:111:project:PROJ-1"},
 		{"arn:aws:devicefarm:us-west-2:111:networkprofile:PROJ-2/NP-1", "arn:aws:devicefarm:us-west-2:111:project:PROJ-2"},
+		{"arn:aws:devicefarm:us-west-2:111:upload:PROJ-3/UP-1", "arn:aws:devicefarm:us-west-2:111:project:PROJ-3"},
 		{"arn:aws:devicefarm:us-west-2:111:project:PROJ-1", ""}, // project ARN has no child segment
 	}
 	for _, c := range cases {
@@ -32,6 +33,8 @@ func TestResolveDeviceFarmProjectChildren(t *testing.T) {
 	poolID := upsertTestResource(t, st, "aws", acct.ID, TypeDeviceFarmDevicePool, poolARN, region, "{}")
 	npARN := fmt.Sprintf("arn:aws:devicefarm:%s:%s:networkprofile:PROJ-1/NP-1", region, acct.ID)
 	npID := upsertTestResource(t, st, "aws", acct.ID, TypeDeviceFarmNetworkProfile, npARN, region, "{}")
+	upARN := fmt.Sprintf("arn:aws:devicefarm:%s:%s:upload:PROJ-1/UP-1", region, acct.ID)
+	upID := upsertTestResource(t, st, "aws", acct.ID, TypeDeviceFarmUpload, upARN, region, "{}")
 
 	if err := resolveDeviceFarmProjectChildren(acct, st); err != nil {
 		t.Fatalf("resolveDeviceFarmProjectChildren: %v", err)
@@ -40,6 +43,8 @@ func TestResolveDeviceFarmProjectChildren(t *testing.T) {
 	assertRelationship(t, rels, poolID, projID, store.RelAttachedTo)
 	rels, _ = st.RelationshipsFrom(npID)
 	assertRelationship(t, rels, npID, projID, store.RelAttachedTo)
+	rels, _ = st.RelationshipsFrom(upID)
+	assertRelationship(t, rels, upID, projID, store.RelAttachedTo)
 }
 
 func TestResolveDeviceFarmDeviceInstanceProfile(t *testing.T) {

@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 50.35971223021583,
-    "covered": 1680,
-    "uncovered": 1656,
+    "percent": 50.38968824940048,
+    "covered": 1681,
+    "uncovered": 1655,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -453,6 +453,7 @@
       "devicefarm/networkprofile",
       "devicefarm/project",
       "devicefarm/testgridproject",
+      "devicefarm/upload",
       "devicefarm/vpceconfiguration",
       "devops-guru/notificationchannel",
       "directconnect/connection",
@@ -2169,7 +2170,6 @@
       "devicefarm/test",
       "devicefarm/testgridsession",
       "devicefarm/uniqueproblem",
-      "devicefarm/upload",
       "devops-guru/anomalousloggroup",
       "devops-guru/anomaly",
       "devops-guru/event",

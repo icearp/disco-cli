@@ -1014,6 +1014,7 @@ const (
 	TypeDeviceFarmDeviceInstance    = "aws:devicefarm:device-instance"
 	TypeDeviceFarmVPCEConfiguration = "aws:devicefarm:vpce-configuration"
 	TypeDeviceFarmTestGridProject   = "aws:devicefarm:testgrid-project"
+	TypeDeviceFarmUpload            = "aws:devicefarm:upload"
 	// DevOpsGuru (devopsguru_scanners.go)
 	TypeDevOpsGuruNotificationChannel            = "aws:devops-guru:notification-channel"
 	TypeDevOpsGuruResourceCollection             = "aws:devops-guru:resource-collection"

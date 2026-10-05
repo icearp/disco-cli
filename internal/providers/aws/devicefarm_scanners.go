@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/devicefarm"
+	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
 	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
@@ -18,6 +19,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeDeviceFarmDeviceInstance, Service: "devicefarm"})
 	registerType(restype.Descriptor{Type: TypeDeviceFarmVPCEConfiguration, Service: "devicefarm"})
 	registerType(restype.Descriptor{Type: TypeDeviceFarmTestGridProject, Service: "devicefarm"})
+	// Url is a presigned S3 PUT URL: its signature is a bearer credential, and a
+	// presigned URL re-minted per read would version-split an unchanged upload.
+	// Redacting it to a constant covers both, so no Volatile rule is needed.
+	registerType(restype.Descriptor{Type: TypeDeviceFarmUpload, Service: "devicefarm", Redact: []redact.Rule{{Path: "Url", Mode: redact.RedactScalar}}})
 	registerService(serviceEntry{
 		name:   "aws:devicefarm",
 		fn:     scanDeviceFarm,
@@ -33,13 +38,14 @@ type deviceFarmAPI interface {
 	ListDeviceInstances(context.Context, *devicefarm.ListDeviceInstancesInput, ...func(*devicefarm.Options)) (*devicefarm.ListDeviceInstancesOutput, error)
 	ListVPCEConfigurations(context.Context, *devicefarm.ListVPCEConfigurationsInput, ...func(*devicefarm.Options)) (*devicefarm.ListVPCEConfigurationsOutput, error)
 	ListTestGridProjects(context.Context, *devicefarm.ListTestGridProjectsInput, ...func(*devicefarm.Options)) (*devicefarm.ListTestGridProjectsOutput, error)
+	ListUploads(context.Context, *devicefarm.ListUploadsInput, ...func(*devicefarm.Options)) (*devicefarm.ListUploadsOutput, error)
 }
 
-// scanDeviceFarm discovers Device Farm projects (with device pools and network
-// profiles), account-level instance profiles, device instances, VPCE configs,
-// and Selenium test-grid projects. Not scanned: device catalog; test runs and
-// their job/suite/test/sample/artifact/session children; uploaded app packages
-// (catalog / ephemeral / content).
+// scanDeviceFarm discovers Device Farm projects (with device pools, network
+// profiles and uploaded app/test packages), account-level instance profiles,
+// device instances, VPCE configs, and Selenium test-grid projects. Not scanned:
+// device catalog; test runs and their job/suite/test/sample/artifact/session
+// children.
 func scanDeviceFarm(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-west-2"
 	client := devicefarm.NewFromConfig(acct.cfg, func(o *devicefarm.Options) { o.Region = region })
@@ -76,6 +82,9 @@ func scanDeviceFarm(ctx context.Context, acct *account, _ string, st *store.Stor
 			return scanDeviceFarmVPCEConfigurations(ctx, client, acct, region, st, scanID)
 		},
 		func() (int, int, error) { return scanDeviceFarmTestGridProjects(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanDeviceFarmUploads(ctx, client, acct, region, st, scanID, projectARNs)
+		},
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -300,4 +309,55 @@ func scanDeviceFarmTestGridProjects(ctx context.Context, client deviceFarmAPI, a
 		}
 	}
 	return upsertBatch(st, batch, "devicefarm testgrid-projects")
+}
+
+// scanDeviceFarmUploads lists the app and test packages uploaded to each
+// project the projects phase returned.
+func scanDeviceFarmUploads(ctx context.Context, client deviceFarmAPI, acct *account, region string, st *store.Store, scanID string, projectARNs []string) (int, int, error) {
+	var batch []*store.Resource
+	// An upload ARN listed under more than one project (e.g. an AWS-curated
+	// upload) must be upserted once per scan, or the second upsert version-splits it.
+	seen := make(map[string]bool)
+	warnedDenied := false
+	for _, projectARN := range projectARNs {
+		pager := devicefarm.NewListUploadsPaginator(client, &devicefarm.ListUploadsInput{Arn: &projectARN})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					// A project-scoped deny may cover only some projects: warn
+					// once, keep listing the others.
+					if !warnedDenied {
+						warnedDenied = true
+						_ = skipIfAccessDenied(st, "devicefarm:ListUploads", acct.ID, region, perr)
+					}
+					break
+				}
+				// Project deleted between ListProjects and ListUploads.
+				if isAPIErrorCode(perr, "NotFoundException") {
+					break
+				}
+				return 0, 0, fmt.Errorf("devicefarm:ListUploads %s: %w", projectARN, perr)
+			}
+			for _, u := range out.Uploads {
+				arn := sv(u.Arn)
+				if arn == "" || seen[arn] {
+					continue
+				}
+				seen[arn] = true
+				r := &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeDeviceFarmUpload, NativeID: arn,
+					Name: u.Name, Region: &region, CreatedAt: tp(u.Created),
+					AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
+					ManagedByProvider: u.Category == dftypes.UploadCategoryCurated,
+				}
+				if status := string(u.Status); status != "" {
+					r.Status = &status
+				}
+				batch = append(batch, r)
+			}
+		}
+	}
+	return upsertBatch(st, batch, "devicefarm uploads")
 }

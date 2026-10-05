@@ -14,6 +14,7 @@ func init() {
 		resolveDeviceFarmProjectChildren,
 		EdgeDecl{TypeDeviceFarmDevicePool, TypeDeviceFarmProject, store.RelAttachedTo},
 		EdgeDecl{TypeDeviceFarmNetworkProfile, TypeDeviceFarmProject, store.RelAttachedTo},
+		EdgeDecl{TypeDeviceFarmUpload, TypeDeviceFarmProject, store.RelAttachedTo},
 	)
 	registerResolver(
 		resolveDeviceFarmDeviceInstanceProfile,
@@ -102,8 +103,8 @@ func dfWireVPCConfig(st *store.Store, acctID string, r store.Resource, cfg *dfVP
 	return nil
 }
 
-// dfProjectARNFromChild rebuilds the parent project ARN from a device-pool or
-// network-profile ARN. Child ARN shape:
+// dfProjectARNFromChild rebuilds the parent project ARN from a device-pool,
+// network-profile or upload ARN. Child ARN shape:
 // arn:aws:devicefarm:{r}:{a}:{kind}:{projectGUID}/{childGUID}; the project is
 // arn:aws:devicefarm:{r}:{a}:project:{projectGUID}.
 func dfProjectARNFromChild(childARN string) string {
@@ -118,14 +119,14 @@ func dfProjectARNFromChild(childARN string) string {
 	return strings.Join(parts[:5], ":") + ":project:" + guid
 }
 
-// resolveDeviceFarmProjectChildren attaches device pools + network profiles to
+// resolveDeviceFarmProjectChildren attaches device pools, network profiles and uploads to
 // their parent project via the project GUID embedded in the child ARN.
 func resolveDeviceFarmProjectChildren(acct *account, st *store.Store) error {
 	projSet, err := scannedIDSet(acct, st, TypeDeviceFarmProject)
 	if err != nil {
 		return err
 	}
-	for _, ctype := range []string{TypeDeviceFarmDevicePool, TypeDeviceFarmNetworkProfile} {
+	for _, ctype := range []string{TypeDeviceFarmDevicePool, TypeDeviceFarmNetworkProfile, TypeDeviceFarmUpload} {
 		rows, err := st.ListResources(store.ResourceFilter{
 			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
 		})
