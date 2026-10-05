@@ -134,6 +134,15 @@ func pageScanConcurrent[Page any, Item any](
 	return total, inserted, nil
 }
 
+// nonEmptyPtr returns nil for "", so an absent SDK enum leaves a column unset
+// rather than storing an empty string.
+func nonEmptyPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 // childParent is a parent listed earlier in the same scan: id is what the
 // child list op keys on, arn is the parent row's NativeID.
 type childParent struct{ id, arn string }

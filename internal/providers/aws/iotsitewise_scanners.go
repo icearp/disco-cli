@@ -21,14 +21,18 @@ func isIoTSiteWiseFeatureUnsupported(err error) bool {
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeIoTSWAccessPolicy, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWApplication, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWAsset, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWAssetModel, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWComputationModel, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWDashboard, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWDataset, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWGateway, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWPipeline, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWPortal, Service: "iotsitewise"})
 	registerType(restype.Descriptor{Type: TypeIoTSWProject, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWTask, Service: "iotsitewise"})
+	registerType(restype.Descriptor{Type: TypeIoTSWWorkspace, Service: "iotsitewise"})
 	registerService(serviceEntry{
 		name: "aws:iotsitewise",
 		fn:   scanIoTSiteWise,
@@ -48,6 +52,10 @@ type iotSWAPI interface {
 	ListGateways(context.Context, *iotsitewise.ListGatewaysInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListGatewaysOutput, error)
 	ListPortals(context.Context, *iotsitewise.ListPortalsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListPortalsOutput, error)
 	ListProjects(context.Context, *iotsitewise.ListProjectsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListProjectsOutput, error)
+	ListWorkspaces(context.Context, *iotsitewise.ListWorkspacesInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListWorkspacesOutput, error)
+	ListPipelines(context.Context, *iotsitewise.ListPipelinesInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListPipelinesOutput, error)
+	ListTasks(context.Context, *iotsitewise.ListTasksInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListTasksOutput, error)
+	ListApplications(context.Context, *iotsitewise.ListApplicationsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListApplicationsOutput, error)
 }
 
 func iotSWARN(region, acct, kind, id string) string {
@@ -132,7 +140,10 @@ func scanIoTSiteWise(ctx context.Context, acct *account, region string, st *stor
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+
+	// Phase 7: Workspaces, then applications, pipelines and tasks.
+	t, i, err = scanIoTSWWorkspaceFamily(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + i, err
 }
 
 func scanIoTSWAssetModels(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
@@ -508,4 +519,193 @@ func scanIoTSWAccessPolicies(ctx context.Context, client iotSWAPI, acct *account
 		}
 	}
 	return upsertBatch(st, batch, "iotsitewise access-policies")
+}
+
+// isIoTSWWorkspaceChildSkip drops a workspace deleted between ListWorkspaces and
+// its child list, and a child sub-API not yet rolled out in-region: SiteWise
+// rolls sub-APIs out per region independently (see isIoTSiteWiseFeatureUnsupported).
+func isIoTSWWorkspaceChildSkip(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException") || isIoTSiteWiseFeatureUnsupported(err)
+}
+
+// scanIoTSWWorkspaceFamily runs the account-level applications listing before
+// the per-workspace fan-outs so a failing workspace child op cannot cost it.
+func scanIoTSWWorkspaceFamily(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	workspaces, total, inserted, err := scanIoTSWWorkspaces(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return total, inserted, err
+	}
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanIoTSWApplications(ctx, client, acct, region, st, scanID, workspaces)
+		},
+		func() (int, int, error) { return scanIoTSWPipelines(ctx, client, acct, region, st, scanID, workspaces) },
+		func() (int, int, error) { return scanIoTSWTasks(ctx, client, acct, region, st, scanID, workspaces) },
+	} {
+		t, i, perr := phase()
+		if perr != nil {
+			return total, inserted, perr
+		}
+		total += t
+		inserted += i
+	}
+	return total, inserted, nil
+}
+
+// scanIoTSWWorkspaces returns each stored workspace as a childParent keyed by
+// name, which is what the workspace child list ops take.
+func scanIoTSWWorkspaces(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+	pager := iotsitewise.NewListWorkspacesPaginator(client, &iotsitewise.ListWorkspacesInput{})
+	var batch []*store.Resource
+	var parents []childParent
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isIoTSiteWiseFeatureUnsupported(perr) {
+				break
+			}
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "iotsitewise:ListWorkspaces", acct.ID, region, perr)
+				break
+			}
+			return nil, 0, 0, fmt.Errorf("iotsitewise:ListWorkspaces: %w", perr)
+		}
+		for _, w := range out.WorkspaceSummaries {
+			arn, name := sv(w.Arn), sv(w.Name)
+			if arn == "" {
+				continue
+			}
+			var state string
+			if w.Status != nil {
+				state = string(w.Status.State)
+			}
+			parents = append(parents, childParent{id: name, arn: arn})
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeIoTSWWorkspace, NativeID: arn,
+				Name: &name, Status: nonEmptyPtr(state), CreatedAt: tp(w.CreatedAt),
+				Region: &region, AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
+			})
+		}
+	}
+	t, i, err := upsertBatch(st, batch, "iotsitewise workspaces")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return parents, t, i, nil
+}
+
+func scanIoTSWPipelines(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "iotsitewise:ListPipelines", workspaces, isIoTSWWorkspaceChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			pager := iotsitewise.NewListPipelinesPaginator(client, &iotsitewise.ListPipelinesInput{WorkspaceName: &p.id})
+			var rows []*store.Resource
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, pl := range out.PipelineSummaries {
+					arn := sv(pl.PipelineArn)
+					if arn == "" {
+						continue
+					}
+					var state string
+					if pl.Status != nil {
+						state = string(pl.Status.State)
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeIoTSWPipeline, NativeID: arn,
+						Name: pl.PipelineName, Status: nonEmptyPtr(state), CreatedAt: tp(pl.CreatedAt),
+						Region: &region, AttributesJSON: mustJSON(pl), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+func scanIoTSWTasks(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "iotsitewise:ListTasks", workspaces, isIoTSWWorkspaceChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			pager := iotsitewise.NewListTasksPaginator(client, &iotsitewise.ListTasksInput{WorkspaceName: &p.id})
+			var rows []*store.Resource
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, tk := range out.TaskSummaries {
+					arn := sv(tk.TaskArn)
+					if arn == "" {
+						continue
+					}
+					var state string
+					if tk.Status != nil {
+						state = string(tk.Status.State)
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeIoTSWTask, NativeID: arn,
+						Name: tk.TaskName, Status: nonEmptyPtr(state), CreatedAt: tp(tk.CreatedAt),
+						Region: &region, AttributesJSON: mustJSON(tk), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// scanIoTSWApplications lists account-wide (ListApplications takes no workspace)
+// and links each application under its workspace when that workspace was listed
+// this scan.
+func scanIoTSWApplications(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) (int, int, error) {
+	workspaceARN := make(map[string]string, len(workspaces))
+	for _, w := range workspaces {
+		workspaceARN[w.id] = w.arn
+	}
+	pager := iotsitewise.NewListApplicationsPaginator(client, &iotsitewise.ListApplicationsInput{})
+	var batch []*store.Resource
+	var pairs [][2]string
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isIoTSiteWiseFeatureUnsupported(perr) {
+				break
+			}
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "iotsitewise:ListApplications", acct.ID, region, perr)
+				break
+			}
+			return 0, 0, fmt.Errorf("iotsitewise:ListApplications: %w", perr)
+		}
+		for _, a := range out.Applications {
+			arn := sv(a.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(a.Name)
+			if label == "" {
+				label = sv(a.Id)
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeIoTSWApplication, NativeID: arn,
+				Name: &label, Status: nonEmptyPtr(string(a.Status)), CreatedAt: tp(a.CreatedAt),
+				Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			})
+			if parentARN, ok := workspaceARN[sv(a.WorkspaceName)]; ok {
+				pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, arn), store.ResourceID("aws", acct.ID, parentARN)})
+			}
+		}
+	}
+	t, i, err := upsertBatch(st, batch, "iotsitewise applications")
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
+		return 0, 0, fmt.Errorf("record workspace→application hierarchy: %w", err)
+	}
+	return t, i, nil
 }

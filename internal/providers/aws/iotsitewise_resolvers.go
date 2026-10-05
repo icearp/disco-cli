@@ -41,18 +41,24 @@ func init() {
 		EdgeDecl{TypeIoTSWComputationModel, TypeIoTSWAsset, store.RelUses},
 	)
 	// Hierarchy emitted at scan time (portal contains project, project
-	// contains dashboard); declared so coverage gap-analysis treats
-	// portal/project as containing parents, not orphans.
+	// contains dashboard, workspace contains pipeline/task/application);
+	// declared so coverage gap-analysis treats the parents as containing
+	// parents, not orphans.
 	registerResolver(
 		noopIoTSWHierarchy,
 		EdgeDecl{TypeIoTSWPortal, TypeIoTSWProject, store.RelContains},
 		EdgeDecl{TypeIoTSWProject, TypeIoTSWDashboard, store.RelContains},
+		EdgeDecl{TypeIoTSWWorkspace, TypeIoTSWPipeline, store.RelContains},
+		EdgeDecl{TypeIoTSWWorkspace, TypeIoTSWTask, store.RelContains},
+		EdgeDecl{TypeIoTSWWorkspace, TypeIoTSWApplication, store.RelContains},
 	)
 }
 
 // noopIoTSWHierarchy is a placeholder — the scanner already emits the
-// portal→project and project→dashboard contains edges directly via
-// RecordHierarchyBatch (scanIoTSWProjects / scanIoTSWDashboards). This
+// portal→project, project→dashboard and workspace→pipeline/task/application
+// contains edges directly via RecordHierarchyBatch (scanIoTSWProjects,
+// scanIoTSWDashboards, scanIoTSWApplications, and childFanOut for
+// scanIoTSWPipelines / scanIoTSWTasks). This
 // resolver only carries the EdgeDecl metadata so coverage tooling sees the
 // edges as wired.
 func noopIoTSWHierarchy(_ *account, _ *store.Store) error {

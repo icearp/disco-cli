@@ -1429,14 +1429,18 @@ const (
 	TypeFraudDetectorRule          = "aws:frauddetector:rule"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
+	TypeIoTSWApplication      = "aws:iotsitewise:application"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
 	TypeIoTSWAssetModel       = "aws:iotsitewise:asset-model"
 	TypeIoTSWComputationModel = "aws:iotsitewise:computation-model"
 	TypeIoTSWDashboard        = "aws:iotsitewise:dashboard"
 	TypeIoTSWDataset          = "aws:iotsitewise:dataset"
 	TypeIoTSWGateway          = "aws:iotsitewise:gateway"
+	TypeIoTSWPipeline         = "aws:iotsitewise:pipeline"
 	TypeIoTSWPortal           = "aws:iotsitewise:portal"
 	TypeIoTSWProject          = "aws:iotsitewise:project"
+	TypeIoTSWTask             = "aws:iotsitewise:task"
+	TypeIoTSWWorkspace        = "aws:iotsitewise:workspace"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"

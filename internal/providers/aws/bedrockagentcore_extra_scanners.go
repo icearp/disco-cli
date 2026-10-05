@@ -46,7 +46,7 @@ func scanBACCapacityProviders(ctx context.Context, client bedrockAgentCoreAPI, a
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeBedrockAgentCoreCapacityProvider, NativeID: arn,
-				Name: &label, Region: &region, Status: bacStatus(string(p.Status)),
+				Name: &label, Region: &region, Status: nonEmptyPtr(string(p.Status)),
 				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})
 		}
@@ -74,7 +74,7 @@ func scanBACConsentPortals(ctx context.Context, client bedrockAgentCoreAPI, acct
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeBedrockAgentCoreConsentPortal, NativeID: arn,
-				Name: &label, Region: &region, Status: bacStatus(string(p.Status)),
+				Name: &label, Region: &region, Status: nonEmptyPtr(string(p.Status)),
 				AttributesJSON: mustJSON(p), CreatedAt: tp(p.CreatedAt), DiscoveredBy: scanID,
 			})
 		}
@@ -102,7 +102,7 @@ func scanBACABTests(ctx context.Context, client bedrockAgentCoreDataAPI, acct *a
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeBedrockAgentCoreABTest, NativeID: arn,
-				Name: &label, Region: &region, Status: bacStatus(string(a.Status)),
+				Name: &label, Region: &region, Status: nonEmptyPtr(string(a.Status)),
 				AttributesJSON: mustJSON(a), CreatedAt: tp(a.CreatedAt), DiscoveredBy: scanID,
 			})
 		}
@@ -133,7 +133,7 @@ func scanBACGatewayRules(ctx context.Context, client bedrockAgentCoreAPI, acct *
 				rows = append(rows, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeBedrockAgentCoreGatewayRule, NativeID: gw.arn + "/rule/" + rid,
-					Name: &rid, Region: &region, Status: bacStatus(string(r.Status)),
+					Name: &rid, Region: &region, Status: nonEmptyPtr(string(r.Status)),
 					AttributesJSON: mustJSON(r), CreatedAt: tp(r.CreatedAt), DiscoveredBy: scanID,
 				})
 			}
@@ -168,7 +168,7 @@ func scanBACGatewayRateLimits(ctx context.Context, client bedrockAgentCoreAPI, a
 				rows = append(rows, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeBedrockAgentCoreGatewayRateLimit, NativeID: gw.arn + "/rate-limit/" + lid,
-					Name: &lid, Region: &region, Status: bacStatus(string(l.Status)),
+					Name: &lid, Region: &region, Status: nonEmptyPtr(string(l.Status)),
 					AttributesJSON: mustJSON(l), CreatedAt: tp(l.CreatedAt), DiscoveredBy: scanID,
 				})
 			}
@@ -219,11 +219,4 @@ func bacGatewayFanout(ctx context.Context, acct *account, region string, st *sto
 		return nil, err
 	}
 	return batch, nil
-}
-
-func bacStatus(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }

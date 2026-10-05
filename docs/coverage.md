@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.6% (1722/3336 listable) · depth0 66.2% · depth1 30.0% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.7% (1726/3336 listable) · depth0 66.3% · depth1 30.1% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 996 | 225 | 81.6 |
+| sr-resource | 1000 | 221 | 81.9 |
 | child-uncatalogued | 143 | 874 | 14.1 |
 | smithy-resource | 410 | 152 | 73.0 |
 | element-written | 145 | 271 | 34.9 |
@@ -21,9 +21,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | connect | 35 | 33 | 51.5 |
 | resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
-| iotsitewise | 9 | 28 | 24.3 |
 | config | 10 | 27 | 27.0 |
 | ssm | 11 | 27 | 28.9 |
+| iotsitewise | 13 | 24 | 35.1 |
 | glue | 22 | 20 | 52.4 |
 | lex | 4 | 20 | 16.7 |
 | wellarchitected | 4 | 20 | 16.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1614)
+### Uncovered (listable, no scanner) (1610)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1224,7 +1224,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotmanagedintegrations | iotmanagedintegrations/schemaversion | 0 |  | smithy-resource | iotmanagedintegrations:GetSchemaVersion, iotmanagedintegrations:ListSchemaVersions |
 | iotsecuredtunneling | iotsecuredtunneling/tunnel | 0 |  | sr-resource | iotsecuredtunneling:DescribeTunnel, iotsecuredtunneling:ListTunnels |
 | iotsitewise | iotsitewise/action | 0 |  | child-uncatalogued | iotsitewise:DescribeAction, iotsitewise:ListActions |
-| iotsitewise | iotsitewise/application | 0 |  | sr-resource | iotsitewise:DescribeApplication, iotsitewise:ListApplications |
 | iotsitewise | iotsitewise/assetcompositemodel | 2 |  | child-uncatalogued | iotsitewise:DescribeAssetCompositeModel |
 | iotsitewise | iotsitewise/assetmodelcompositemodel | 1 |  | child-uncatalogued | iotsitewise:DescribeAssetModelCompositeModel, iotsitewise:ListAssetModelCompositeModels |
 | iotsitewise | iotsitewise/assetmodelproperty | 1 |  | child-uncatalogued | iotsitewise:ListAssetModelProperties |
@@ -1241,16 +1240,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotsitewise | iotsitewise/enrichmentjob | 1 |  | child-uncatalogued | iotsitewise:DescribeEnrichmentJob, iotsitewise:ListEnrichmentJobs |
 | iotsitewise | iotsitewise/execution | 0 |  | child-uncatalogued | iotsitewise:DescribeExecution, iotsitewise:ListExecutions |
 | iotsitewise | iotsitewise/interfacerelationship | 1 |  | child-uncatalogued | iotsitewise:ListInterfaceRelationships |
-| iotsitewise | iotsitewise/pipeline | 1 |  | sr-resource | iotsitewise:DescribePipeline, iotsitewise:ListPipelines |
 | iotsitewise | iotsitewise/pipelineexecution | 2 |  | child-uncatalogued | iotsitewise:DescribePipelineExecution, iotsitewise:ListPipelineExecutions |
 | iotsitewise | iotsitewise/projectasset | 1 |  | child-uncatalogued | iotsitewise:ListProjectAssets |
 | iotsitewise | iotsitewise/query | 0 |  | child-uncatalogued | iotsitewise:DescribeQuery, iotsitewise:ExecuteQuery, iotsitewise:ListQueries |
 | iotsitewise | iotsitewise/queryresult | 1 |  | child-uncatalogued | iotsitewise:GetQueryResults |
 | iotsitewise | iotsitewise/search | 1 |  | child-uncatalogued | iotsitewise:DescribeSearch, iotsitewise:ListSearches |
 | iotsitewise | iotsitewise/searchresult | 2 |  | child-uncatalogued | iotsitewise:GetSearchResults |
-| iotsitewise | iotsitewise/task | 1 |  | sr-resource | iotsitewise:DescribeTask, iotsitewise:ListTasks |
 | iotsitewise | iotsitewise/timeseries | 0 |  | sr-resource | iotsitewise:DescribeTimeSeries, iotsitewise:ListTimeSeries |
-| iotsitewise | iotsitewise/workspace | 0 |  | sr-resource | iotsitewise:DescribeWorkspace, iotsitewise:ListWorkspaces |
 | iottwinmaker | iottwinmaker/component | 2 |  | child-uncatalogued | iottwinmaker:ListComponents |
 | iottwinmaker | iottwinmaker/metadatatransferjob | 0 |  | sr-resource | iottwinmaker:GetMetadataTransferJob, iottwinmaker:ListMetadataTransferJobs |
 | iottwinmaker | iottwinmaker/property | 1 |  | child-uncatalogued | iottwinmaker:ListProperties |
