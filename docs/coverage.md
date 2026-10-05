@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.6% (1720/3336 listable) · depth0 66.1% · depth1 30.0% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.6% (1722/3336 listable) · depth0 66.2% · depth1 30.0% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 996 | 225 | 81.6 |
 | child-uncatalogued | 143 | 874 | 14.1 |
-| smithy-resource | 408 | 154 | 72.6 |
+| smithy-resource | 410 | 152 | 73.0 |
 | element-written | 145 | 271 | 34.9 |
 | element-arn | 25 | 81 | 23.6 |
 | element-created | 3 | 11 | 21.4 |
@@ -86,7 +86,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cognito-idp | 6 | 7 | 46.2 |
 | globalaccelerator | 4 | 7 | 36.4 |
 | greengrass | 20 | 7 | 74.1 |
-| groundstation | 3 | 7 | 30.0 |
 | networkmanager | 13 | 7 | 65.0 |
 | outposts | 2 | 7 | 22.2 |
 | ram | 2 | 7 | 22.2 |
@@ -117,6 +116,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | evs | 1 | 5 | 16.7 |
 | finspace-api | 0 | 5 | 0.0 |
 | geo | 7 | 5 | 58.3 |
+| groundstation | 5 | 5 | 50.0 |
 | health | 0 | 5 | 0.0 |
 | iotfleetwise | 7 | 5 | 58.3 |
 | iotmanagedintegrations | 12 | 5 | 70.6 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1616)
+### Uncovered (listable, no scanner) (1614)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1129,10 +1129,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | groundstation | groundstation/antenna | 1 |  | child-uncatalogued | groundstation:ListAntennas |
 | groundstation | groundstation/contact | 0 |  | smithy-resource | groundstation:DescribeContact, groundstation:ListContacts |
 | groundstation | groundstation/contactversion | 1 |  | child-uncatalogued | groundstation:DescribeContactVersion, groundstation:ListContactVersions |
-| groundstation | groundstation/ephemeris | 0 |  | smithy-resource | groundstation:ListEphemerides |
 | groundstation | groundstation/groundstation | 0 |  | smithy-resource | groundstation:ListGroundStations |
 | groundstation | groundstation/groundstationreservation | 1 |  | child-uncatalogued | groundstation:ListGroundStationReservations |
-| groundstation | groundstation/satellite | 0 |  | smithy-resource | groundstation:GetSatellite, groundstation:ListSatellites |
 | guardduty | guardduty/coverage | 1 |  | child-uncatalogued | guardduty:ListCoverage |
 | guardduty | guardduty/customdetectionrule | 0 |  | sr-resource | guardduty:GetCustomDetectionRule, guardduty:ListCustomDetectionRules |
 | guardduty | guardduty/customdetectionruleassociation | 0 |  | sr-resource | guardduty:GetCustomDetectionRuleAssociation, guardduty:ListCustomDetectionRuleAssociations |

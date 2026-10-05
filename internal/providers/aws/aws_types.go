@@ -1990,6 +1990,8 @@ const (
 	TypeGroundStationConfig                = "aws:ground-station:config"
 	TypeGroundStationDataflowEndpointGroup = "aws:ground-station:dataflow-endpoint-group"
 	TypeGroundStationMissionProfile        = "aws:ground-station:mission-profile"
+	TypeGroundStationSatellite             = "aws:ground-station:satellite"
+	TypeGroundStationEphemeris             = "aws:ground-station:ephemeris"
 	// FMS (fms_scanners.go). Firewall Manager. Global service callable via us-east-1.
 	TypeFMSNotificationChannel = "aws:fms:notification-channel"
 	TypeFMSPolicy              = "aws:fms:policy"

@@ -268,6 +268,7 @@ var expectedAWSServices = []string{
 	"aws:lex",
 	"aws:kinesis-analytics-v2",
 	"aws:ground-station",
+	"aws:ground-station-satellites",
 	"aws:global-accelerator",
 	"aws:event-schemas",
 	"aws:dev-ops-agent",
