@@ -24,6 +24,12 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeDataZoneDataSource, Service: "datazone"})
 	registerType(restype.Descriptor{Type: TypeDataZoneConnection, Service: "datazone"})
 	registerType(restype.Descriptor{Type: TypeDataZoneSubscriptionTarget, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneAccountPool, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneEnvironmentBlueprint, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneNotebook, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneRule, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneSubscription, Service: "datazone"})
+	registerType(restype.Descriptor{Type: TypeDataZoneSubscriptionGrant, Service: "datazone"})
 	registerService(serviceEntry{
 		name: "aws:datazone",
 		fn:   scanDataZone,
@@ -49,12 +55,19 @@ type dataZoneAPI interface {
 	ListDataSources(context.Context, *datazone.ListDataSourcesInput, ...func(*datazone.Options)) (*datazone.ListDataSourcesOutput, error)
 	ListConnections(context.Context, *datazone.ListConnectionsInput, ...func(*datazone.Options)) (*datazone.ListConnectionsOutput, error)
 	ListSubscriptionTargets(context.Context, *datazone.ListSubscriptionTargetsInput, ...func(*datazone.Options)) (*datazone.ListSubscriptionTargetsOutput, error)
+	ListAccountPools(context.Context, *datazone.ListAccountPoolsInput, ...func(*datazone.Options)) (*datazone.ListAccountPoolsOutput, error)
+	ListEnvironmentBlueprints(context.Context, *datazone.ListEnvironmentBlueprintsInput, ...func(*datazone.Options)) (*datazone.ListEnvironmentBlueprintsOutput, error)
+	ListNotebooks(context.Context, *datazone.ListNotebooksInput, ...func(*datazone.Options)) (*datazone.ListNotebooksOutput, error)
+	ListRules(context.Context, *datazone.ListRulesInput, ...func(*datazone.Options)) (*datazone.ListRulesOutput, error)
+	ListSubscriptions(context.Context, *datazone.ListSubscriptionsInput, ...func(*datazone.Options)) (*datazone.ListSubscriptionsOutput, error)
+	ListSubscriptionGrants(context.Context, *datazone.ListSubscriptionGrantsInput, ...func(*datazone.Options)) (*datazone.ListSubscriptionGrantsOutput, error)
 }
 
 // dzDomain holds per-domain identifiers needed for downstream fan-outs.
 type dzDomain struct {
 	id         string
 	rootUnitID string
+	unitIDs    []string // root included; filled by the domain-units walk
 	projectIDs []string
 	envIDs     []string
 }
@@ -93,7 +106,7 @@ func scanDataZone(ctx context.Context, acct *account, region string, st *store.S
 			return scanDataZoneEnvironmentProfiles(ctx, client, acct, region, st, scanID, domains)
 		},
 		func() (int, int, error) {
-			return scanDataZoneEnvironmentBlueprints(ctx, client, acct, region, st, scanID, domains)
+			return scanDataZoneEnvironmentBlueprintConfigurations(ctx, client, acct, region, st, scanID, domains)
 		},
 		func() (int, int, error) {
 			return scanDataZoneEnvironments(ctx, client, acct, region, st, scanID, domains)
@@ -110,6 +123,23 @@ func scanDataZone(ctx context.Context, acct *account, region string, st *store.S
 		func() (int, int, error) {
 			return scanDataZoneConnections(ctx, client, acct, region, st, scanID, domains)
 		},
+		func() (int, int, error) {
+			return scanDataZoneEnvironmentBlueprints(ctx, client, acct, region, st, scanID, domains)
+		},
+		func() (int, int, error) { return scanDataZoneRules(ctx, client, acct, region, st, scanID, domains) },
+		func() (int, int, error) {
+			return scanDataZoneSubscriptions(ctx, client, acct, region, st, scanID, domains)
+		},
+		func() (int, int, error) {
+			return scanDataZoneSubscriptionGrants(ctx, client, acct, region, st, scanID, domains)
+		},
+		// Account pools and notebooks are V2-only APIs that may reject a V1
+		// domain and do not model ResourceNotFound; they run last so such an
+		// error cannot cost the phases above.
+		func() (int, int, error) {
+			return scanDataZoneAccountPools(ctx, client, acct, region, st, scanID, domains)
+		},
+		func() (int, int, error) { return scanDataZoneNotebooks(ctx, client, acct, region, st, scanID, domains) },
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -129,6 +159,7 @@ func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account,
 	pager := datazone.NewListDomainsPaginator(client, &datazone.ListDomainsInput{})
 	var domains []*dzDomain
 	var batch []*store.Resource
+	getDenied := false
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -149,10 +180,18 @@ func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account,
 			// Full body carries RootDomainUnitId (downstream walk) and
 			// resolver fields (KmsKeyIdentifier, *Role).
 			gout, derr := client.GetDomain(ctx, &datazone.GetDomainInput{Identifier: &id})
-			if derr == nil {
+			switch {
+			case derr == nil:
 				dd.rootUnitID = sv(gout.RootDomainUnitId)
 				attrsJSON = mustJSON(gout)
-			} else if !isAccessDenied(derr) {
+			case isAccessDenied(derr):
+				// Without the body there is no root unit, so the domain-unit
+				// walk and the rules phase skip this domain; say so once.
+				if !getDenied {
+					getDenied = true
+					_ = skipIfAccessDenied(st, "datazone:GetDomain", acct.ID, region, derr)
+				}
+			default:
 				return nil, 0, 0, fmt.Errorf("datazone:GetDomain %s: %w", id, derr)
 			}
 			domains = append(domains, dd)
@@ -183,6 +222,7 @@ func scanDataZoneDomainUnits(ctx context.Context, client dataZoneAPI, acct *acco
 		for len(queue) > 0 {
 			parent := queue[0]
 			queue = queue[1:]
+			d.unitIDs = append(d.unitIDs, parent)
 			pager := datazone.NewListDomainUnitsForParentPaginator(client, &datazone.ListDomainUnitsForParentInput{
 				DomainIdentifier:           &d.id,
 				ParentDomainUnitIdentifier: &parent,
@@ -431,7 +471,7 @@ func scanDataZoneEnvironmentActions(ctx context.Context, client dataZoneAPI, acc
 	return upsertBatch(st, batch, "datazone environment-actions")
 }
 
-func scanDataZoneEnvironmentBlueprints(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneEnvironmentBlueprintConfigurations(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
 	var batch []*store.Resource
 	for _, d := range domains {
 		did := d.id

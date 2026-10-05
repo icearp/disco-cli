@@ -1490,6 +1490,12 @@ const (
 	TypeDataZoneDataSource                        = "aws:datazone:data-source"
 	TypeDataZoneConnection                        = "aws:datazone:connection"
 	TypeDataZoneSubscriptionTarget                = "aws:datazone:subscription-target"
+	TypeDataZoneAccountPool                       = "aws:datazone:account-pool"
+	TypeDataZoneEnvironmentBlueprint              = "aws:datazone:environment-blueprint"
+	TypeDataZoneNotebook                          = "aws:datazone:notebook"
+	TypeDataZoneRule                              = "aws:datazone:rule"
+	TypeDataZoneSubscription                      = "aws:datazone:subscription"
+	TypeDataZoneSubscriptionGrant                 = "aws:datazone:subscription-grant"
 	// NetworkManager (networkmanager_scanners.go) — global service hosted in us-west-2
 	TypeNetworkManagerGlobalNetwork                      = "aws:networkmanager:global-network"
 	TypeNetworkManagerCoreNetwork                        = "aws:networkmanager:core-network"

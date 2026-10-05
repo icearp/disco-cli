@@ -23,6 +23,12 @@ func init() {
 		EdgeDecl{TypeDataZoneSubscriptionTarget, TypeDataZoneDomain, store.RelAttachedTo},
 		EdgeDecl{TypeDataZoneDataSource, TypeDataZoneDomain, store.RelAttachedTo},
 		EdgeDecl{TypeDataZoneConnection, TypeDataZoneDomain, store.RelAttachedTo},
+		EdgeDecl{TypeDataZoneAccountPool, TypeDataZoneDomain, store.RelAttachedTo},
+		EdgeDecl{TypeDataZoneEnvironmentBlueprint, TypeDataZoneDomain, store.RelAttachedTo},
+		EdgeDecl{TypeDataZoneNotebook, TypeDataZoneDomain, store.RelAttachedTo},
+		EdgeDecl{TypeDataZoneRule, TypeDataZoneDomain, store.RelAttachedTo},
+		EdgeDecl{TypeDataZoneSubscription, TypeDataZoneDomain, store.RelAttachedTo},
+		EdgeDecl{TypeDataZoneSubscriptionGrant, TypeDataZoneDomain, store.RelAttachedTo},
 	)
 	registerResolver(
 		resolveDataZoneEnvActionsToEnvironment,
@@ -66,10 +72,18 @@ func resolveDataZoneChildrenToDomain(acct *account, st *store.Store) error {
 		TypeDataZoneSubscriptionTarget,
 		TypeDataZoneDataSource,
 		TypeDataZoneConnection,
+		TypeDataZoneAccountPool,
+		TypeDataZoneEnvironmentBlueprint,
+		TypeDataZoneNotebook,
+		TypeDataZoneRule,
+		TypeDataZoneSubscription,
+		TypeDataZoneSubscriptionGrant,
 	}
 	for _, ctype := range childTypes {
+		// IncludeManaged: AWS-managed environment blueprints are domain children too.
 		rows, err := st.ListResources(store.ResourceFilter{
 			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			IncludeManaged: true,
 		})
 		if err != nil {
 			return err

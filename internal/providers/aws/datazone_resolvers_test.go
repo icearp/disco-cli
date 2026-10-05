@@ -22,21 +22,48 @@ func TestDatazoneDomainARNFromChild(t *testing.T) {
 }
 
 func TestResolveDataZoneChildrenToDomain(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	dARN := fmt.Sprintf("arn:aws:datazone:%s:%s:domain/d1", testRegion, acct.ID)
-	dID := upsertTestResource(t, st, "aws", acct.ID, TypeDataZoneDomain, dARN, testRegion, "{}")
-	pARN := dARN + "/project/p1"
-	pID := upsertTestResource(t, st, "aws", acct.ID, TypeDataZoneProject, pARN, testRegion, "{}")
-	dsARN := dARN + "/data-source/ds1"
-	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeDataZoneDataSource, dsARN, testRegion, "{}")
-	if err := resolveDataZoneChildrenToDomain(acct, st); err != nil {
-		t.Fatalf("resolveDataZoneChildrenToDomain: %v", err)
+	cases := []struct {
+		typ, kind string
+		managed   bool
+	}{
+		{typ: TypeDataZoneProject, kind: "project"},
+		{typ: TypeDataZoneDataSource, kind: "data-source"},
+		{typ: TypeDataZoneAccountPool, kind: "account-pool"},
+		{typ: TypeDataZoneEnvironmentBlueprint, kind: "environment-blueprint"},
+		// AWS-managed blueprints are stored ManagedByProvider, which the
+		// default ListResources filter hides; they must still attach.
+		{typ: TypeDataZoneEnvironmentBlueprint, kind: "environment-blueprint", managed: true},
+		{typ: TypeDataZoneNotebook, kind: "notebook"},
+		{typ: TypeDataZoneRule, kind: "rule"},
+		{typ: TypeDataZoneSubscription, kind: "subscription"},
+		{typ: TypeDataZoneSubscriptionGrant, kind: "subscription-grant"},
 	}
-	rels, _ := st.RelationshipsFrom(pID)
-	assertRelationship(t, rels, pID, dID, store.RelAttachedTo)
-	rels, _ = st.RelationshipsFrom(dsID)
-	assertRelationship(t, rels, dsID, dID, store.RelAttachedTo)
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%s/managed=%t", tc.kind, tc.managed), func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			dARN := fmt.Sprintf("arn:aws:datazone:%s:%s:domain/d1", testRegion, acct.ID)
+			dID := upsertTestResource(t, st, "aws", acct.ID, TypeDataZoneDomain, dARN, testRegion, "{}")
+			region := testRegion
+			child := &store.Resource{
+				Provider: "aws", AccountID: acct.ID, Type: tc.typ,
+				NativeID: dARN + "/" + tc.kind + "/c1", Region: &region,
+				AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: tc.managed,
+			}
+			if _, err := st.UpsertResource(child); err != nil {
+				t.Fatal(err)
+			}
+			childID := store.ResourceID("aws", acct.ID, child.NativeID)
+			if err := resolveDataZoneChildrenToDomain(acct, st); err != nil {
+				t.Fatalf("resolveDataZoneChildrenToDomain: %v", err)
+			}
+			rels, err := st.RelationshipsFrom(childID)
+			if err != nil {
+				t.Fatalf("RelationshipsFrom: %v", err)
+			}
+			assertRelationship(t, rels, childID, dID, store.RelAttachedTo)
+		})
+	}
 }
 
 func TestResolveDataZoneEnvActionsToEnvironment(t *testing.T) {

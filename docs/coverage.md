@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.6% (1689/3336 listable) · depth0 65.2% · depth1 28.8% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 50.8% (1695/3336 listable) · depth0 65.3% · depth1 29.2% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,8 +9,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 992 | 229 | 81.2 |
-| child-uncatalogued | 130 | 887 | 12.8 |
-| smithy-resource | 397 | 165 | 70.6 |
+| child-uncatalogued | 134 | 883 | 13.2 |
+| smithy-resource | 399 | 163 | 71.0 |
 | element-written | 143 | 273 | 34.4 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
@@ -24,7 +24,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm | 9 | 29 | 23.7 |
 | iotsitewise | 9 | 28 | 24.3 |
 | config | 10 | 27 | 27.0 |
-| datazone | 13 | 23 | 36.1 |
 | quicksight | 22 | 22 | 50.0 |
 | glue | 22 | 20 | 52.4 |
 | lex | 4 | 20 | 16.7 |
@@ -32,6 +31,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | chime | 11 | 18 | 37.9 |
 | securityagent | 7 | 18 | 28.0 |
 | bedrock | 27 | 17 | 61.4 |
+| datazone | 19 | 17 | 52.8 |
 | iot | 32 | 17 | 65.3 |
 | mgn | 8 | 17 | 32.0 |
 | bedrock-agentcore | 30 | 16 | 65.2 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1647)
+### Uncovered (listable, no scanner) (1641)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -788,7 +788,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datapipeline | datapipeline/object | 1 |  | child-uncatalogued | datapipeline:DescribeObjects, datapipeline:QueryObjects |
 | datapipeline | datapipeline/pipelinedefinition | 1 |  | child-uncatalogued | datapipeline:GetPipelineDefinition, datapipeline:ValidatePipelineDefinition |
 | datasync | datasync/taskexecution | 0 |  | sr-resource | datasync:DescribeTaskExecution, datasync:ListTaskExecutions |
-| datazone | datazone/accountpool | 1 |  | child-uncatalogued | datazone:GetAccountPool, datazone:ListAccountPools |
 | datazone | datazone/accountsinaccountpool | 2 |  | child-uncatalogued | datazone:ListAccountsInAccountPool |
 | datazone | datazone/assetfilter | 1 |  | child-uncatalogued | datazone:GetAssetFilter, datazone:ListAssetFilters |
 | datazone | datazone/assetrevision | 1 |  | child-uncatalogued | datazone:ListAssetRevisions |
@@ -796,19 +795,14 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datazone | datazone/dataproductrevision | 1 |  | child-uncatalogued | datazone:ListDataProductRevisions |
 | datazone | datazone/datasourcerun | 0 |  | smithy-resource | datazone:GetDataSourceRun, datazone:ListDataSourceRuns |
 | datazone | datazone/datasourcerunactivity | 1 |  | child-uncatalogued | datazone:ListDataSourceRunActivities |
-| datazone | datazone/environmentblueprint | 1 |  | child-uncatalogued | datazone:GetEnvironmentBlueprint, datazone:ListEnvironmentBlueprints |
 | datazone | datazone/getattributesmetadata | 3 |  | child-uncatalogued | datazone:BatchGetAttributesMetadata |
 | datazone | datazone/jobrun | 2 |  | child-uncatalogued | datazone:GetJobRun, datazone:ListJobRuns |
 | datazone | datazone/lineageevent | 1 |  | child-uncatalogued | datazone:GetLineageEvent, datazone:ListLineageEvents |
 | datazone | datazone/lineagenodehistory | 2 |  | child-uncatalogued | datazone:ListLineageNodeHistory |
 | datazone | datazone/metadatagenerationrun | 0 |  | smithy-resource | datazone:GetMetadataGenerationRun, datazone:ListMetadataGenerationRuns |
-| datazone | datazone/notebook | 0 |  | smithy-resource | datazone:GetNotebook, datazone:ListNotebooks |
 | datazone | datazone/notebookrun | 0 |  | smithy-resource | datazone:GetNotebookRun, datazone:ListNotebookRuns |
 | datazone | datazone/notification | 1 |  | child-uncatalogued | datazone:ListNotifications |
 | datazone | datazone/policygrant | 3 |  | child-uncatalogued | datazone:ListPolicyGrants |
-| datazone | datazone/rule | 0 |  | smithy-resource | datazone:GetRule, datazone:ListRules |
-| datazone | datazone/subscription | 1 |  | child-uncatalogued | datazone:GetSubscription, datazone:ListSubscriptions |
-| datazone | datazone/subscriptiongrant | 1 |  | child-uncatalogued | datazone:GetSubscriptionGrant, datazone:ListSubscriptionGrants |
 | datazone | datazone/subscriptionrequest | 1 |  | child-uncatalogued | datazone:ListSubscriptionRequests |
 | datazone | datazone/timeseriesdatapoint | 3 |  | child-uncatalogued | datazone:GetTimeSeriesDataPoint, datazone:ListTimeSeriesDataPoints |
 | deadline | deadline/farmmember | 1 |  | child-uncatalogued | deadline:ListFarmMembers |
