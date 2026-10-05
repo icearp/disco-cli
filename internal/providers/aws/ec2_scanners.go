@@ -76,6 +76,9 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 		func(ctx context.Context) (int, int, error) {
 			return scanEC2Secondary(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2NetworkExtra(ctx, client, acct, region, st, scanID)
+		},
 	)
 }
 
@@ -124,12 +127,7 @@ func ec2PageScan[P any](
 			if isAccessDenied(err) {
 				return total, inserted, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
-			// Per-region feature gap: Describe* ops for features not deployed in
-			// a region return UnsupportedOperation (e.g. VPC block public access),
-			// InvalidAction (e.g. Verified Access in unsupported regions), or the
-			// bare Unsupported code (DescribeCapacityBlocks) — permanent region
-			// facts, not failures; silent-skip.
-			if isAPIErrorCode(err, "UnsupportedOperation", "InvalidAction", "Unsupported") {
+			if isEC2RegionFeatureGap(err) {
 				return total, inserted, nil
 			}
 			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)
@@ -144,6 +142,15 @@ func ec2PageScan[P any](
 		}
 	}
 	return
+}
+
+// isEC2RegionFeatureGap reports a per-region feature gap: Describe* ops for
+// features not deployed in a region return UnsupportedOperation (e.g. VPC block
+// public access), InvalidAction (e.g. Verified Access in unsupported regions),
+// or the bare Unsupported code (DescribeCapacityBlocks) — permanent region
+// facts, not failures, so callers silent-skip.
+func isEC2RegionFeatureGap(err error) bool {
+	return isAPIErrorCode(err, "UnsupportedOperation", "InvalidAction", "Unsupported")
 }
 
 // ec2TagName extracts the "Name" tag value, returning nil if absent.

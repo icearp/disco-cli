@@ -129,6 +129,11 @@ const (
 	TypeEC2TransitGatewayMeteringPolicy         = "aws:ec2:transit-gateway-metering-policy"
 	TypeEC2VPCEncryptionControl                 = "aws:ec2:vpc-encryption-control"
 	TypeEC2VPNConcentrator                      = "aws:ec2:vpn-concentrator"
+	// EC2 — Network extras (ec2_network_extra_scanners.go)
+	TypeEC2SecurityGroupRule      = "aws:ec2:security-group-rule"
+	TypeEC2SubnetCidrReservation  = "aws:ec2:subnet-cidr-reservation"
+	TypeEC2VPCEndpointConnection  = "aws:ec2:vpc-endpoint-connection"
+	TypeEC2VPCEndpointAssociation = "aws:ec2:vpc-endpoint-association"
 	// IoT — Things (iot_things_scanners.go)
 	TypeIoTThing                    = "aws:iot:thing"
 	TypeIoTThingGroup               = "aws:iot:thing-group"

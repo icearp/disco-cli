@@ -1,23 +1,23 @@
 ## AWS
 
-**Coverage:** 49.8% (1660/3336 listable) · depth0 64.3% · depth1 27.9% · depth2 21.8% · depth3 3.1% · depth4 0.0% · attribute 1625 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 49.9% (1664/3336 listable) · depth0 64.5% · depth1 28.0% · depth2 21.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
-Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@56ae2cf972df
+Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
 The denominator is every candidate the provider's own SDK can list that the extractor classified `resource` — not every API operation, and not a curated list. Attributes (detail reads), catalogs (provider-published, read-only) and non-resources are outside it and are listed below. Each row names the rule that classified it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is visible as a low percentage rather than as a smaller number.
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 987 | 234 | 80.8 |
+| sr-resource | 990 | 231 | 81.1 |
 | child-uncatalogued | 121 | 896 | 11.9 |
 | smithy-resource | 386 | 176 | 68.7 |
-| element-written | 140 | 276 | 33.7 |
+| element-written | 141 | 275 | 33.9 |
 | element-arn | 23 | 83 | 21.7 |
 | element-created | 3 | 11 | 21.4 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
-| ec2 | 107 | 89 | 54.6 |
+| ec2 | 111 | 85 | 56.6 |
 | resiliencehub | 4 | 36 | 10.0 |
 | sagemaker | 51 | 36 | 58.6 |
 | connect | 35 | 33 | 51.5 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1676)
+### Uncovered (listable, no scanner) (1672)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -973,13 +973,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/scheduledinstance | 0 |  | element-written | ec2:DescribeScheduledInstances |
 | ec2 | ec2/scheduledinstanceavailability | 0 |  | element-written | ec2:DescribeScheduledInstanceAvailability |
 | ec2 | ec2/securitygroupreference | 1 |  | child-uncatalogued | ec2:DescribeSecurityGroupReferences |
-| ec2 | ec2/securitygrouprule | 0 |  | sr-resource | ec2:DescribeSecurityGroupRules |
 | ec2 | ec2/servicelinkvirtualinterface | 0 |  | element-written | ec2:DescribeServiceLinkVirtualInterfaces |
 | ec2 | ec2/snapshotattribute | 1 |  | child-uncatalogued | ec2:DescribeSnapshotAttribute |
 | ec2 | ec2/snapshotsinrecyclebin | 0 |  | element-written | ec2:ListSnapshotsInRecycleBin |
 | ec2 | ec2/snapshottierstatus | 0 |  | element-written | ec2:DescribeSnapshotTierStatus |
 | ec2 | ec2/stalesecuritygroup | 1 |  | child-uncatalogued | ec2:DescribeStaleSecurityGroups |
-| ec2 | ec2/subnetcidrreservation | 1 |  | sr-resource | ec2:GetSubnetCidrReservations |
 | ec2 | ec2/transitgatewayattachmentpropagation | 1 |  | child-uncatalogued | ec2:GetTransitGatewayAttachmentPropagations |
 | ec2 | ec2/transitgatewaypolicytableassociation | 1 |  | child-uncatalogued | ec2:GetTransitGatewayPolicyTableAssociations |
 | ec2 | ec2/transitgatewaypolicytableentry | 1 |  | child-uncatalogued | ec2:GetTransitGatewayPolicyTableEntries |
@@ -991,8 +989,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/volumesinrecyclebin | 0 |  | element-written | ec2:ListVolumesInRecycleBin |
 | ec2 | ec2/volumesmodification | 0 |  | element-written | ec2:DescribeVolumesModifications |
 | ec2 | ec2/volumestatus | 0 |  | element-written | ec2:DescribeVolumeStatus |
-| ec2 | ec2/vpcendpointassociation | 0 |  | element-written | ec2:DescribeVpcEndpointAssociations |
-| ec2 | ec2/vpcendpointconnection | 0 |  | sr-resource | ec2:DescribeVpcEndpointConnections |
 | ec2 | ec2/vpcendpointserviceconfiguration | 0 |  | element-written | ec2:DescribeVpcEndpointServiceConfigurations |
 | ec2 | ec2/vpcresourcesblockingencryptionenforcement | 1 |  | child-uncatalogued | ec2:GetVpcResourcesBlockingEncryptionEnforcement |
 | ec2 | ec2/vpnconnectiondevicetype | 0 |  | sr-resource | ec2:GetVpnConnectionDeviceTypes |

@@ -28,6 +28,8 @@ type ec2API interface {
 	DescribeVpnConnections(context.Context, *ec2.DescribeVpnConnectionsInput, ...func(*ec2.Options)) (*ec2.DescribeVpnConnectionsOutput, error)
 	DescribeVpnGateways(context.Context, *ec2.DescribeVpnGatewaysInput, ...func(*ec2.Options)) (*ec2.DescribeVpnGatewaysOutput, error)
 	GetSnapshotBlockPublicAccessState(context.Context, *ec2.GetSnapshotBlockPublicAccessStateInput, ...func(*ec2.Options)) (*ec2.GetSnapshotBlockPublicAccessStateOutput, error)
+	GetSubnetCidrReservations(context.Context, *ec2.GetSubnetCidrReservationsInput, ...func(*ec2.Options)) (*ec2.GetSubnetCidrReservationsOutput, error)
+	DescribeVpcEndpointAssociations(context.Context, *ec2.DescribeVpcEndpointAssociationsInput, ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointAssociationsOutput, error)
 	SearchTransitGatewayRoutes(context.Context, *ec2.SearchTransitGatewayRoutesInput, ...func(*ec2.Options)) (*ec2.SearchTransitGatewayRoutesOutput, error)
 	// Paginator-backed ops. NewListXxxPaginator(client, ...) only requires the
 	// matching DescribeXxx / GetXxx / SearchXxx method on `client`, so listing
@@ -100,6 +102,7 @@ type ec2API interface {
 	DescribeNetworkInterfaces(context.Context, *ec2.DescribeNetworkInterfacesInput, ...func(*ec2.Options)) (*ec2.DescribeNetworkInterfacesOutput, error)
 	DescribeRouteTables(context.Context, *ec2.DescribeRouteTablesInput, ...func(*ec2.Options)) (*ec2.DescribeRouteTablesOutput, error)
 	DescribeSecurityGroups(context.Context, *ec2.DescribeSecurityGroupsInput, ...func(*ec2.Options)) (*ec2.DescribeSecurityGroupsOutput, error)
+	DescribeSecurityGroupRules(context.Context, *ec2.DescribeSecurityGroupRulesInput, ...func(*ec2.Options)) (*ec2.DescribeSecurityGroupRulesOutput, error)
 	DescribeSecurityGroupVpcAssociations(context.Context, *ec2.DescribeSecurityGroupVpcAssociationsInput, ...func(*ec2.Options)) (*ec2.DescribeSecurityGroupVpcAssociationsOutput, error)
 	DescribeSpotFleetRequests(context.Context, *ec2.DescribeSpotFleetRequestsInput, ...func(*ec2.Options)) (*ec2.DescribeSpotFleetRequestsOutput, error)
 	DescribeSubnets(context.Context, *ec2.DescribeSubnetsInput, ...func(*ec2.Options)) (*ec2.DescribeSubnetsOutput, error)
@@ -120,6 +123,7 @@ type ec2API interface {
 	DescribeVerifiedAccessTrustProviders(context.Context, *ec2.DescribeVerifiedAccessTrustProvidersInput, ...func(*ec2.Options)) (*ec2.DescribeVerifiedAccessTrustProvidersOutput, error)
 	DescribeVolumes(context.Context, *ec2.DescribeVolumesInput, ...func(*ec2.Options)) (*ec2.DescribeVolumesOutput, error)
 	DescribeVpcEndpointConnectionNotifications(context.Context, *ec2.DescribeVpcEndpointConnectionNotificationsInput, ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointConnectionNotificationsOutput, error)
+	DescribeVpcEndpointConnections(context.Context, *ec2.DescribeVpcEndpointConnectionsInput, ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointConnectionsOutput, error)
 	DescribeVpcEndpointServicePermissions(context.Context, *ec2.DescribeVpcEndpointServicePermissionsInput, ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointServicePermissionsOutput, error)
 	DescribeVpcEndpoints(context.Context, *ec2.DescribeVpcEndpointsInput, ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointsOutput, error)
 	DescribeVpcPeeringConnections(context.Context, *ec2.DescribeVpcPeeringConnectionsInput, ...func(*ec2.Options)) (*ec2.DescribeVpcPeeringConnectionsOutput, error)
