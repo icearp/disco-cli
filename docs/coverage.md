@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.1% (1670/3336 listable) · depth0 64.6% · depth1 28.2% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 50.2% (1675/3336 listable) · depth0 64.6% · depth1 28.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,8 +9,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 990 | 231 | 81.1 |
-| child-uncatalogued | 125 | 892 | 12.3 |
-| smithy-resource | 386 | 176 | 68.7 |
+| child-uncatalogued | 129 | 888 | 12.7 |
+| smithy-resource | 387 | 175 | 68.9 |
 | element-written | 142 | 274 | 34.1 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
@@ -25,7 +25,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotsitewise | 9 | 28 | 24.3 |
 | config | 10 | 27 | 27.0 |
 | datazone | 13 | 23 | 36.1 |
-| bedrock | 22 | 22 | 50.0 |
 | quicksight | 22 | 22 | 50.0 |
 | bedrock-agentcore | 25 | 21 | 54.3 |
 | glue | 22 | 20 | 52.4 |
@@ -33,6 +32,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | wellarchitected | 4 | 20 | 16.7 |
 | chime | 11 | 18 | 37.9 |
 | securityagent | 7 | 18 | 28.0 |
+| bedrock | 27 | 17 | 61.4 |
 | iot | 32 | 17 | 65.3 |
 | mgn | 8 | 17 | 32.0 |
 | es | 4 | 16 | 20.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1666)
+### Uncovered (listable, no scanner) (1661)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -497,13 +497,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bcm-pricing-calculator | bcm-pricing-calculator/billscenariousagemodification | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillScenarioUsageModifications |
 | bcm-pricing-calculator | bcm-pricing-calculator/workloadestimateusage | 1 |  | smithy-resource | bcm-pricing-calculator:ListWorkloadEstimateUsage |
 | bedrock | bedrock/advancedpromptoptimizationjob | 0 |  | smithy-resource | bedrock:GetAdvancedPromptOptimizationJob, bedrock:ListAdvancedPromptOptimizationJobs |
-| bedrock | bedrock/agentactiongroup | 1 |  | child-uncatalogued | bedrock:GetAgentActionGroup, bedrock:ListAgentActionGroups |
-| bedrock | bedrock/agentcollaborator | 0 |  | smithy-resource | bedrock:GetAgentCollaborator, bedrock:ListAgentCollaborators |
-| bedrock | bedrock/agentknowledgebase | 1 |  | child-uncatalogued | bedrock:GetAgentKnowledgeBase, bedrock:ListAgentKnowledgeBases |
-| bedrock | bedrock/agentversion | 1 |  | child-uncatalogued | bedrock:GetAgentVersion, bedrock:ListAgentVersions |
 | bedrock | bedrock/asyncinvoke | 0 |  | smithy-resource | bedrock:GetAsyncInvoke, bedrock:ListAsyncInvokes |
 | bedrock | bedrock/automatedreasoningpolicybuildworkflow | 1 |  | child-uncatalogued | bedrock:GetAutomatedReasoningPolicyBuildWorkflow, bedrock:ListAutomatedReasoningPolicyBuildWorkflows |
-| bedrock | bedrock/automatedreasoningpolicytestcase | 1 |  | child-uncatalogued | bedrock:GetAutomatedReasoningPolicyTestCase, bedrock:ListAutomatedReasoningPolicyTestCases |
 | bedrock | bedrock/automatedreasoningpolicytestresult | 1 |  | child-uncatalogued | bedrock:GetAutomatedReasoningPolicyTestResult, bedrock:ListAutomatedReasoningPolicyTestResults |
 | bedrock | bedrock/dataautomationlibraryingestionjob | 0 |  | smithy-resource | bedrock:GetDataAutomationLibraryIngestionJob, bedrock:ListDataAutomationLibraryIngestionJobs |
 | bedrock | bedrock/evaluationjob | 0 |  | smithy-resource | bedrock:GetEvaluationJob, bedrock:ListEvaluationJobs |

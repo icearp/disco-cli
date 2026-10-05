@@ -28,6 +28,10 @@ func (s *stubBedrockCatalog) ListAutomatedReasoningPolicies(_ context.Context, _
 	return &bedrock.ListAutomatedReasoningPoliciesOutput{}, nil
 }
 
+func (s *stubBedrockCatalog) ListAutomatedReasoningPolicyTestCases(_ context.Context, _ *bedrock.ListAutomatedReasoningPolicyTestCasesInput, _ ...func(*bedrock.Options)) (*bedrock.ListAutomatedReasoningPolicyTestCasesOutput, error) {
+	return &bedrock.ListAutomatedReasoningPolicyTestCasesOutput{}, nil
+}
+
 func (s *stubBedrockCatalog) ListPromptRouters(_ context.Context, _ *bedrock.ListPromptRoutersInput, _ ...func(*bedrock.Options)) (*bedrock.ListPromptRoutersOutput, error) {
 	return &bedrock.ListPromptRoutersOutput{}, nil
 }

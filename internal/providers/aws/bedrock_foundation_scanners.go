@@ -9,31 +9,33 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-func scanBedrockFoundation(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanBedrockFoundation returns the automated-reasoning policy ARNs for
+// scanBedrockClients' per-policy test-case phase.
+func scanBedrockFoundation(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (policyArns []string, total, inserted int, err error) {
 	guardIDs, t, i, ferr := scanBedrockGuardrails(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return 0, 0, ferr
+		return nil, 0, 0, ferr
 	}
 	total += t
 	inserted += i
 
 	t, i, ferr = scanBedrockGuardrailVersions(ctx, client, acct, region, st, scanID, guardIDs)
 	if ferr != nil {
-		return total, inserted, ferr
+		return policyArns, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
-	policyArns, t, i, ferr := scanBedrockARPolicies(ctx, client, acct, region, st, scanID)
+	policyArns, t, i, ferr = scanBedrockARPolicies(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return policyArns, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	t, i, ferr = scanBedrockARPolicyVersions(ctx, client, acct, region, st, scanID, policyArns)
 	if ferr != nil {
-		return total, inserted, ferr
+		return policyArns, total, inserted, ferr
 	}
 	total += t
 	inserted += i
@@ -52,12 +54,12 @@ func scanBedrockFoundation(ctx context.Context, client bedrockAPI, acct *account
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return policyArns, total, inserted, ferr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+	return policyArns, total, inserted, nil
 }
 
 func scanBedrockGuardrails(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {

@@ -9,73 +9,74 @@ import (
 )
 
 // scanBedrockAgents covers Agent/AgentAlias, KnowledgeBase/DataSource,
-// Flow/FlowAlias/FlowVersion, Prompt/PromptVersion. ARNs synthesized
+// Flow/FlowAlias/FlowVersion, Prompt/PromptVersion, and returns the agent IDs
+// for scanBedrockClients' per-agent child phases. ARNs synthesized
 // where SDK summaries return only IDs.
-func scanBedrockAgents(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBedrockAgents(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string) (agentIDs []string, total, inserted int, err error) {
 	agentIDs, t, i, ferr := scanBedrockAgentList(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return 0, 0, ferr
+		return nil, 0, 0, ferr
 	}
 	total += t
 	inserted += i
 
 	t, i, ferr = scanBedrockAgentAliases(ctx, client, acct, region, st, scanID, agentIDs)
 	if ferr != nil {
-		return total, inserted, ferr
+		return agentIDs, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	kbIDs, t, i, ferr := scanBedrockKnowledgeBases(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return agentIDs, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	t, i, ferr = scanBedrockDataSources(ctx, client, acct, region, st, scanID, kbIDs)
 	if ferr != nil {
-		return total, inserted, ferr
+		return agentIDs, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	flowIDs, t, i, ferr := scanBedrockFlows(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return agentIDs, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	t, i, ferr = scanBedrockFlowAliases(ctx, client, acct, region, st, scanID, flowIDs)
 	if ferr != nil {
-		return total, inserted, ferr
+		return agentIDs, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	t, i, ferr = scanBedrockFlowVersions(ctx, client, acct, region, st, scanID, flowIDs)
 	if ferr != nil {
-		return total, inserted, ferr
+		return agentIDs, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	promptIDs, t, i, ferr := scanBedrockPrompts(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return agentIDs, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	t, i, ferr = scanBedrockPromptVersions(ctx, client, acct, region, st, scanID, promptIDs)
 	if ferr != nil {
-		return total, inserted, ferr
+		return agentIDs, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
-	return total, inserted, nil
+	return agentIDs, total, inserted, nil
 }
 
 func bedrockAgentARN(region, acct, agentID string) string {

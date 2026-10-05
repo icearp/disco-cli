@@ -1588,6 +1588,12 @@ const (
 	TypeBedrockFlowVersion   = "aws:bedrock:flow-version"
 	TypeBedrockPrompt        = "aws:bedrock:prompt"
 	TypeBedrockPromptVersion = "aws:bedrock:prompt-version"
+	// Bedrock — per-parent children (bedrock_children_scanners.go)
+	TypeBedrockAgentVersion                     = "aws:bedrock:agent-version"
+	TypeBedrockAgentActionGroup                 = "aws:bedrock:agent-action-group"
+	TypeBedrockAgentKnowledgeBase               = "aws:bedrock:agent-knowledge-base"
+	TypeBedrockAgentCollaborator                = "aws:bedrock:agent-collaborator"
+	TypeBedrockAutomatedReasoningPolicyTestCase = "aws:bedrock:automated-reasoning-policy-test-case"
 	// Bedrock — Foundation family (bedrock_foundation_scanners.go)
 	TypeBedrockGuardrail                       = "aws:bedrock:guardrail"
 	TypeBedrockGuardrailVersion                = "aws:bedrock:guardrail-version"
