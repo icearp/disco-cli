@@ -2246,8 +2246,13 @@ const (
 	TypeMigrationHubProgressUpdateStream = "aws:migrationhub:progress-update-stream"
 
 	// Migration Hub Orchestrator (migrationhuborchestrator_scanners.go).
-	TypeMigrationHubOrchestratorWorkflow = "aws:migrationhub-orchestrator:workflow"
-	TypeMigrationHubOrchestratorTemplate = "aws:migrationhub-orchestrator:template"
+	TypeMigrationHubOrchestratorWorkflow          = "aws:migrationhub-orchestrator:workflow"
+	TypeMigrationHubOrchestratorTemplate          = "aws:migrationhub-orchestrator:template"
+	TypeMigrationHubOrchestratorPlugin            = "aws:migrationhub-orchestrator:plugin"
+	TypeMigrationHubOrchestratorWorkflowStepGroup = "aws:migrationhub-orchestrator:workflow-step-group"
+	TypeMigrationHubOrchestratorWorkflowStep      = "aws:migrationhub-orchestrator:workflow-step"
+	TypeMigrationHubOrchestratorTemplateStepGroup = "aws:migrationhub-orchestrator:template-step-group"
+	TypeMigrationHubOrchestratorTemplateStep      = "aws:migrationhub-orchestrator:template-step"
 
 	// Storage Gateway (storagegateway_scanners.go, storagegateway_resolvers.go).
 	TypeStorageGatewayGateway       = "aws:storagegateway:gateway"

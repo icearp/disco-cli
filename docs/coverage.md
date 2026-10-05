@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.0% (1700/3336 listable) · depth0 65.4% · depth1 29.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.1% (1705/3336 listable) · depth0 65.7% · depth1 29.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 992 | 229 | 81.2 |
 | child-uncatalogued | 137 | 880 | 13.5 |
-| smithy-resource | 400 | 162 | 71.2 |
+| smithy-resource | 405 | 157 | 72.1 |
 | element-written | 144 | 272 | 34.6 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
@@ -127,7 +127,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | kendra | 8 | 5 | 61.5 |
 | lightsail | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
-| migrationhub-orchestrator | 2 | 5 | 28.6 |
 | odb | 8 | 5 | 61.5 |
 | snowball | 0 | 5 | 0.0 |
 | ssm-incidents | 2 | 5 | 28.6 |
@@ -333,6 +332,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | license-manager-linux-subscriptions | 1 | 0 | 100.0 |
 | license-manager-user-subscriptions | 5 | 0 | 100.0 |
 | mediapackage-vod | 3 | 0 | 100.0 |
+| migrationhub-orchestrator | 7 | 0 | 100.0 |
 | networkmonitor | 1 | 0 | 100.0 |
 | notifications-contacts | 1 | 0 | 100.0 |
 | payment-cryptography | 2 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1636)
+### Uncovered (listable, no scanner) (1631)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1413,11 +1413,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mgn | mgn/networkmigrationmappingupdate | 1 |  | child-uncatalogued | mgn:ListNetworkMigrationMappingUpdates |
 | mgn | mgn/sourceserveraction | 1 |  | child-uncatalogued | mgn:ListSourceServerActions |
 | mgn | mgn/templateaction | 1 |  | child-uncatalogued | mgn:ListTemplateActions |
-| migrationhub-orchestrator | migrationhub-orchestrator/plugin | 0 |  | smithy-resource | migrationhub-orchestrator:ListPlugins |
-| migrationhub-orchestrator | migrationhub-orchestrator/templatestep | 0 |  | smithy-resource | migrationhub-orchestrator:GetTemplateStep, migrationhub-orchestrator:ListTemplateSteps |
-| migrationhub-orchestrator | migrationhub-orchestrator/templatestepgroup | 0 |  | smithy-resource | migrationhub-orchestrator:GetTemplateStepGroup, migrationhub-orchestrator:ListTemplateStepGroups |
-| migrationhub-orchestrator | migrationhub-orchestrator/workflowstep | 0 |  | smithy-resource | migrationhub-orchestrator:GetWorkflowStep, migrationhub-orchestrator:ListWorkflowSteps |
-| migrationhub-orchestrator | migrationhub-orchestrator/workflowstepgroup | 0 |  | smithy-resource | migrationhub-orchestrator:GetWorkflowStepGroup, migrationhub-orchestrator:ListWorkflowStepGroups |
 | migrationhub-strategy | migrationhub-strategy/applicationcomponent | 0 |  | element-written | migrationhub-strategy:GetApplicationComponentDetails, migrationhub-strategy:ListApplicationComponents |
 | migrationhub-strategy | migrationhub-strategy/serverdetail | 1 |  | child-uncatalogued | migrationhub-strategy:GetServerDetails |
 | mobiletargeting | mobiletargeting/campaignactivity | 2 |  | child-uncatalogued | mobiletargeting:GetCampaignActivities |
