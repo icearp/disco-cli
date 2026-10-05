@@ -9,6 +9,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	"github.com/aws/aws-sdk-go-v2/service/lambdacore"
+	"github.com/aws/aws-sdk-go-v2/service/lambdamicrovms"
 	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/internal/util"
@@ -46,6 +48,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeLambdaCapacityProvider, Service: "lambda"})
 	registerType(restype.Descriptor{Type: TypeLambdaPermission, Service: "lambda"})
 	registerType(restype.Descriptor{Type: TypeLambdaLayerVersionPermission, Service: "lambda"})
+	registerType(restype.Descriptor{Type: TypeLambdaProvisionedConcurrencyConfig, Service: "lambda"})
 	registerService(serviceEntry{
 		name: "aws:lambda",
 		fn:   scanLambda,
@@ -53,10 +56,11 @@ func init() {
 }
 
 // lambdaAPI is the narrow set of Lambda ops called by scanLambda's
-// sub-phases. Largest iface in the codebase (10 paginators): functions,
-// their aliases / versions / URLs / event-invoke configs, plus event-source
-// mappings, code-signing configs, capacity providers, layers, and layer-versions.
+// sub-phases: functions, their aliases / versions / URLs / event-invoke
+// configs / provisioned concurrency, plus event-source mappings, code-signing
+// configs, capacity providers, layers, and layer-versions.
 type lambdaAPI interface {
+	ListProvisionedConcurrencyConfigs(context.Context, *lambda.ListProvisionedConcurrencyConfigsInput, ...func(*lambda.Options)) (*lambda.ListProvisionedConcurrencyConfigsOutput, error)
 	ListFunctions(context.Context, *lambda.ListFunctionsInput, ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error)
 	ListAliases(context.Context, *lambda.ListAliasesInput, ...func(*lambda.Options)) (*lambda.ListAliasesOutput, error)
 	ListVersionsByFunction(context.Context, *lambda.ListVersionsByFunctionInput, ...func(*lambda.Options)) (*lambda.ListVersionsByFunctionOutput, error)
@@ -93,12 +97,18 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 	total += tt
 	inserted += nn
 
+	pcCandidates, tt, nn, err := scanLambdaVersions(ctx, client, acct, fns, region, st, scanID)
+	if err != nil {
+		return total, inserted, err
+	}
+	total += tt
+	inserted += nn
+
 	// Per-function resources. Most functions have none of these; the paginator
 	// returns immediately, so the overhead per function is minimal.
 	type perFnScanner func(context.Context, lambdaAPI, *account, []lambdaFunctionSummary, string, *store.Store, string) (int, int, error)
 	for _, scan := range []perFnScanner{
 		scanLambdaAliases,
-		scanLambdaVersions,
 		scanLambdaEventInvokeConfigs,
 		scanLambdaFunctionURLs,
 		scanLambdaPermissions,
@@ -127,7 +137,26 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 		total += tt
 		inserted += nn
 	}
-	return
+
+	// The newest phases run last so that an error in one leaves the rows the
+	// established phases above already stored.
+	core := lambdacore.NewFromConfig(acct.cfg, func(o *lambdacore.Options) { o.Region = region })
+	microvms := lambdamicrovms.NewFromConfig(acct.cfg, func(o *lambdamicrovms.Options) { o.Region = region })
+	for _, scan := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanLambdaProvisionedConcurrencyConfigs(ctx, client, acct, pcCandidates, region, st, scanID)
+		},
+		func() (int, int, error) { return scanLambdaNetworkConnectors(ctx, core, acct, region, st, scanID) },
+		func() (int, int, error) { return scanLambdaMicrovmFamily(ctx, microvms, acct, region, st, scanID) },
+	} {
+		tt, nn, err := scan()
+		total += tt
+		inserted += nn
+		if err != nil {
+			return total, inserted, err
+		}
+	}
+	return total, inserted, nil
 }
 
 // scanLambdaFunctions discovers Lambda functions in one region and returns a
@@ -230,16 +259,27 @@ func scanLambdaAliases(ctx context.Context, client lambdaAPI, acct *account, fns
 // scanLambdaVersions discovers all published versions for each function and
 // upserts them as aws:lambda:version resources. $LATEST is skipped — it is a
 // mutable pseudo-version, not a stable published version.
-func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+//
+// pcCandidates holds the functions that have a published version, plus those
+// whose versions could not be listed: provisioned concurrency can only sit on
+// a published version (or an alias of one), so the provisioned concurrency
+// phase skips every function this rules out instead of calling once per function.
+func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (pcCandidates []lambdaFunctionSummary, total, inserted int, err error) {
 	for _, fn := range fns {
+		mayCarryPC := false
 		pager := lambda.NewListVersionsByFunctionPaginator(client, &lambda.ListVersionsByFunctionInput{FunctionName: &fn.name})
 		for pager.HasMorePages() {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
 				if isAccessDenied(err) {
+					mayCarryPC = true
 					break
 				}
-				return total, inserted, fmt.Errorf("lambda:ListVersionsByFunction (%s): %w", fn.name, err)
+				// Deleted since ListFunctions: nothing left to list for it.
+				if isAPIErrorCode(err, "ResourceNotFoundException") {
+					break
+				}
+				return nil, total, inserted, fmt.Errorf("lambda:ListVersionsByFunction (%s): %w", fn.name, err)
 			}
 			var batch []*store.Resource
 			for _, v := range page.Versions {
@@ -247,6 +287,7 @@ func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fn
 				if ver == "$LATEST" {
 					continue // mutable pseudo-version; not a real published version
 				}
+				mayCarryPC = true
 				batch = append(batch, &store.Resource{
 					Provider:       "aws",
 					AccountID:      acct.ID,
@@ -262,14 +303,17 @@ func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fn
 			if len(batch) > 0 {
 				n, err := st.UpsertResources(batch)
 				if err != nil {
-					return total, inserted, fmt.Errorf("upsert Lambda versions (%s): %w", fn.name, err)
+					return nil, total, inserted, fmt.Errorf("upsert Lambda versions (%s): %w", fn.name, err)
 				}
 				total += len(batch)
 				inserted += n
 			}
 		}
+		if mayCarryPC {
+			pcCandidates = append(pcCandidates, fn)
+		}
 	}
-	return
+	return pcCandidates, total, inserted, nil
 }
 
 // scanLambdaEventInvokeConfigs discovers async invocation configuration for

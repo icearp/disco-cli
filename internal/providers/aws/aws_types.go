@@ -1148,8 +1148,15 @@ const (
 	TypeLicenseManagerUserSubscriptionsProductSubscription   = "aws:license-manager-user-subscriptions:product-subscription"
 	TypeLicenseManagerUserSubscriptionsInstanceUser          = "aws:license-manager-user-subscriptions:instance-user"
 	// Lambda extras (lambda_extended_scanners.go)
-	TypeLambdaPermission             = "aws:lambda:permission"
-	TypeLambdaLayerVersionPermission = "aws:lambda:layer-version-permission"
+	TypeLambdaPermission                   = "aws:lambda:permission"
+	TypeLambdaLayerVersionPermission       = "aws:lambda:layer-version-permission"
+	TypeLambdaProvisionedConcurrencyConfig = "aws:lambda:provisioned-concurrency-config"
+	// Lambda Core and Lambda MicroVMs SDK clients (lambda_microvm_scanners.go)
+	TypeLambdaNetworkConnector    = "aws:lambda:network-connector"
+	TypeLambdaMicrovmImage        = "aws:lambda:microvm-image"
+	TypeLambdaMicrovmImageVersion = "aws:lambda:microvm-image-version"
+	TypeLambdaMicrovm             = "aws:lambda:microvm"
+	TypeLambdaManagedMicrovmImage = "aws:lambda:managed-microvm-image"
 	// KinesisVideo (kinesisvideo_scanners.go)
 	TypeKinesisVideoStream           = "aws:kinesis-video:stream"
 	TypeKinesisVideoSignalingChannel = "aws:kinesis-video:signaling-channel"

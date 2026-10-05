@@ -103,3 +103,44 @@ func scanLambdaLayerVersionPermissions(ctx context.Context, client lambdaAPI, ac
 	}
 	return upsertBatch(st, batch, "lambda layer-version-permissions")
 }
+
+// scanLambdaProvisionedConcurrencyConfigs lists provisioned concurrency per
+// function in fns. The API answers with the qualified function ARN, which is
+// already the NativeID of the alias or version row it applies to, so the
+// config is keyed {qualifiedFunctionArn}/provisioned-concurrency.
+func scanLambdaProvisionedConcurrencyConfigs(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (int, int, error) {
+	parents := make([]childParent, len(fns))
+	for i, fn := range fns {
+		parents[i] = childParent{id: fn.name, arn: fn.arn}
+	}
+	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+	return childFanOut(ctx, st, acct, region, "lambda:ListProvisionedConcurrencyConfigs", parents, isGone,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := lambda.NewListProvisionedConcurrencyConfigsPaginator(client, &lambda.ListProvisionedConcurrencyConfigsInput{FunctionName: &p.id})
+			for pager.HasMorePages() {
+				page, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, c := range page.ProvisionedConcurrencyConfigs {
+					qualified := sv(c.FunctionArn)
+					if qualified == "" {
+						continue
+					}
+					r := &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeLambdaProvisionedConcurrencyConfig, NativeID: qualified + "/provisioned-concurrency",
+						Name: &qualified, Region: &region,
+						AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+					}
+					if c.Status != "" {
+						status := string(c.Status)
+						r.Status = &status
+					}
+					rows = append(rows, r)
+				}
+			}
+			return rows, nil
+		})
+}

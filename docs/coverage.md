@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.3% (1712/3336 listable) · depth0 65.9% · depth1 29.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.5% (1718/3336 listable) · depth0 66.1% · depth1 29.8% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,10 +9,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 996 | 225 | 81.6 |
-| child-uncatalogued | 139 | 878 | 13.7 |
-| smithy-resource | 405 | 157 | 72.1 |
+| child-uncatalogued | 141 | 876 | 13.9 |
+| smithy-resource | 408 | 154 | 72.6 |
 | element-written | 145 | 271 | 34.9 |
-| element-arn | 24 | 82 | 22.6 |
+| element-arn | 25 | 81 | 23.6 |
 | element-created | 3 | 11 | 21.4 |
 
 | Service | Covered | Uncovered | % |
@@ -51,7 +51,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral-selling | 0 | 12 | 0.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
 | devicefarm | 8 | 11 | 42.1 |
-| lambda | 10 | 11 | 47.6 |
 | redshift | 16 | 11 | 59.3 |
 | aidevops | 4 | 10 | 28.6 |
 | clouddirectory | 2 | 10 | 16.7 |
@@ -125,6 +124,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotwireless | 11 | 5 | 68.8 |
 | kafka | 5 | 5 | 50.0 |
 | kendra | 8 | 5 | 61.5 |
+| lambda | 16 | 5 | 76.2 |
 | lightsail | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
 | odb | 8 | 5 | 61.5 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1624)
+### Uncovered (listable, no scanner) (1618)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1296,14 +1296,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | lambda | lambda/durableexecution | 0 |  | sr-resource | lambda:GetDurableExecution, lambda:ListDurableExecutionsByFunction |
 | lambda | lambda/durableexecutionhistory | 1 |  | child-uncatalogued | lambda:GetDurableExecutionHistory |
 | lambda | lambda/durableexecutionstate | 1 |  | child-uncatalogued | lambda:GetDurableExecutionState |
-| lambda | lambda/managedmicrovmimage | 0 |  | element-arn | lambda:ListManagedMicrovmImages |
 | lambda | lambda/managedmicrovmimageversion | 1 |  | child-uncatalogued | lambda:ListManagedMicrovmImageVersions |
-| lambda | lambda/microvm | 0 |  | smithy-resource | lambda:GetMicrovm, lambda:ListMicrovms |
-| lambda | lambda/microvmimage | 0 |  | smithy-resource | lambda:GetMicrovmImage, lambda:ListMicrovmImages |
 | lambda | lambda/microvmimagebuild | 1 |  | child-uncatalogued | lambda:GetMicrovmImageBuild, lambda:ListMicrovmImageBuilds |
-| lambda | lambda/microvmimageversion | 1 |  | child-uncatalogued | lambda:GetMicrovmImageVersion, lambda:ListMicrovmImageVersions |
-| lambda | lambda/networkconnector | 0 |  | smithy-resource | lambda:GetNetworkConnector, lambda:ListNetworkConnectors |
-| lambda | lambda/provisionedconcurrencyconfig | 1 |  | child-uncatalogued | lambda:GetProvisionedConcurrencyConfig, lambda:ListProvisionedConcurrencyConfigs |
 | launchwizard | launchwizard/deploymentevent | 1 |  | smithy-resource | launchwizard:ListDeploymentEvents |
 | launchwizard | launchwizard/deploymentpatternversion | 2 |  | smithy-resource | launchwizard:GetDeploymentPatternVersion, launchwizard:ListDeploymentPatternVersions |
 | launchwizard | launchwizard/workload | 0 |  | smithy-resource | launchwizard:GetWorkload, launchwizard:ListWorkloads |
