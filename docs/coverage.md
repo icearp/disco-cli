@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.6% (1688/3336 listable) · depth0 65.2% · depth1 28.8% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 50.6% (1689/3336 listable) · depth0 65.2% · depth1 28.8% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 992 | 229 | 81.2 |
 | child-uncatalogued | 130 | 887 | 12.8 |
 | smithy-resource | 397 | 165 | 70.6 |
-| element-written | 142 | 274 | 34.1 |
+| element-written | 143 | 273 | 34.4 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
 
@@ -90,7 +90,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | groundstation | 3 | 7 | 30.0 |
 | networkmanager | 13 | 7 | 65.0 |
 | outposts | 2 | 7 | 22.2 |
-| personalize | 10 | 7 | 58.8 |
 | ram | 2 | 7 | 22.2 |
 | redshift-serverless | 6 | 7 | 46.2 |
 | servicecatalog | 13 | 7 | 65.0 |
@@ -102,6 +101,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | frauddetector | 10 | 6 | 62.5 |
 | lookoutequipment | 5 | 6 | 45.5 |
 | medialive | 17 | 6 | 73.9 |
+| personalize | 11 | 6 | 64.7 |
 | rekognition | 4 | 6 | 40.0 |
 | ssm-contacts | 3 | 6 | 33.3 |
 | wickr | 0 | 6 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1648)
+### Uncovered (listable, no scanner) (1647)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1531,7 +1531,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | personalize | personalize/datasetexportjob | 0 |  | sr-resource | personalize:DescribeDatasetExportJob, personalize:ListDatasetExportJobs |
 | personalize | personalize/datasetimportjob | 0 |  | sr-resource | personalize:DescribeDatasetImportJob, personalize:ListDatasetImportJobs |
 | personalize | personalize/metricattributionmetric | 0 |  | element-written | personalize:ListMetricAttributionMetrics |
-| personalize | personalize/solutionversion | 0 |  | element-written | personalize:DescribeSolutionVersion, personalize:ListSolutionVersions |
 | pi | pi/performanceanalysisreport | 3 |  | child-uncatalogued | pi:GetPerformanceAnalysisReport, pi:ListPerformanceAnalysisReports |
 | pi | pi/performanceanalysisreportrecommendation | 3 |  | child-uncatalogued | pi:ListPerformanceAnalysisReportRecommendations |
 | polly | polly/speechsynthesistask | 0 |  | element-written | polly:GetSpeechSynthesisTask, polly:ListSpeechSynthesisTasks |

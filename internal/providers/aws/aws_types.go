@@ -2005,6 +2005,7 @@ const (
 	TypePersonalizeMetricAttribution = "aws:personalize:metric-attribution"
 	TypePersonalizeRecommender       = "aws:personalize:recommender"
 	TypePersonalizeRecipe            = "aws:personalize:recipe"
+	TypePersonalizeSolutionVersion   = "aws:personalize:solution-version"
 	// Polly (polly_scanners.go).
 	TypePollyLexicon = "aws:polly:lexicon"
 	// RefactorSpaces (refactorspaces_scanners.go); SDK module is

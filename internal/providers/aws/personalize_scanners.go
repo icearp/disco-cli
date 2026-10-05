@@ -19,6 +19,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypePersonalizeFilter, Service: "personalize"})
 	registerType(restype.Descriptor{Type: TypePersonalizeMetricAttribution, Service: "personalize"})
 	registerType(restype.Descriptor{Type: TypePersonalizeRecommender, Service: "personalize"})
+	registerType(restype.Descriptor{Type: TypePersonalizeSolutionVersion, Service: "personalize"})
 	// LastUpdatedDateTime qualifies as volatile under the region-collision
 	// reason: an AWS-provided recipe ARN carries no region
 	// (arn:aws:personalize:::recipe/...), so every region reports the same
@@ -49,10 +50,11 @@ type personalizeAPI interface {
 	ListMetricAttributions(context.Context, *personalize.ListMetricAttributionsInput, ...func(*personalize.Options)) (*personalize.ListMetricAttributionsOutput, error)
 	ListRecommenders(context.Context, *personalize.ListRecommendersInput, ...func(*personalize.Options)) (*personalize.ListRecommendersOutput, error)
 	ListRecipes(context.Context, *personalize.ListRecipesInput, ...func(*personalize.Options)) (*personalize.ListRecipesOutput, error)
+	ListSolutionVersions(context.Context, *personalize.ListSolutionVersionsInput, ...func(*personalize.Options)) (*personalize.ListSolutionVersionsOutput, error)
 }
 
-// scanPersonalize discovers Amazon Personalize datasets, dataset groups,
-// schemas, and solutions via paginated List* calls.
+// scanPersonalize discovers Amazon Personalize resources via paginated List*
+// calls.
 func scanPersonalize(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := personalize.NewFromConfig(acct.cfg, func(o *personalize.Options) { o.Region = region })
 
@@ -67,6 +69,7 @@ func scanPersonalize(ctx context.Context, acct *account, region string, st *stor
 		func() (int, int, error) { return scanPzMetricAttributions(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanPzRecommenders(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanPzRecipes(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanPzSolutionVersions(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -353,4 +356,39 @@ func scanPzRecipes(ctx context.Context, client personalizeAPI, acct *account, re
 		}
 	}
 	return upsertBatch(st, batch, "personalize recipes")
+}
+
+// scanPzSolutionVersions lists solution versions account-wide: SolutionArn is
+// optional, and omitting it saves one call per solution. A solution version
+// is a trained model that campaigns deploy, so it is stored. Rows grow with
+// every training run (automatic training adds one per schedule tick) and last
+// until the solution is deleted: the API has no per-version delete. The
+// summary has no name, so no Name is set. Its parent solution is recoverable
+// from the ARN prefix, but like the other Personalize types no solution edge
+// is recorded.
+func scanPzSolutionVersions(ctx context.Context, client personalizeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := personalize.NewListSolutionVersionsPaginator(client, &personalize.ListSolutionVersionsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "personalize:ListSolutionVersions", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("personalize:ListSolutionVersions: %w", err)
+		}
+		for _, v := range out.SolutionVersions {
+			arn := sv(v.SolutionVersionArn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypePersonalizeSolutionVersion, NativeID: arn,
+				Region: &region, Status: v.Status,
+				AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "personalize solution-versions")
 }

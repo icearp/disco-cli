@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 50.59952038369305,
-    "covered": 1688,
-    "uncovered": 1648,
+    "percent": 50.6294964028777,
+    "covered": 1689,
+    "uncovered": 1647,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1199,6 +1199,7 @@
       "personalize/recommender",
       "personalize/schema",
       "personalize/solution",
+      "personalize/solutionversion",
       "pipes/pipe",
       "polly/lexicon",
       "profile/calculatedattributedefinition",
@@ -2870,7 +2871,6 @@
       "personalize/datasetexportjob",
       "personalize/datasetimportjob",
       "personalize/metricattributionmetric",
-      "personalize/solutionversion",
       "pi/performanceanalysisreport",
       "pi/performanceanalysisreportrecommendation",
       "polly/speechsynthesistask",
