@@ -17,11 +17,12 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSageMakerDevice, Service: "sagemaker"})
 	registerType(restype.Descriptor{Type: TypeSageMakerImage, Service: "sagemaker"})
 	registerType(restype.Descriptor{Type: TypeSageMakerImageVersion, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerAlias, Service: "sagemaker"})
 }
 
 // sagemakerEdgeAPI is the narrow surface used by the Edge / images family.
-// Image and ImageVersion are parent-child: ListImages enumerates parents,
-// per-image ListImageVersions enumerates children.
+// Image is the parent of ImageVersion and ImageAlias: ListImages enumerates
+// parents, per-image ListImageVersions / ListAliases enumerate children.
 type sagemakerEdgeAPI interface {
 	ListDeviceFleets(context.Context, *sagemaker.ListDeviceFleetsInput, ...func(*sagemaker.Options)) (*sagemaker.ListDeviceFleetsOutput, error)
 	DescribeDeviceFleet(context.Context, *sagemaker.DescribeDeviceFleetInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeDeviceFleetOutput, error)
@@ -31,6 +32,7 @@ type sagemakerEdgeAPI interface {
 	DescribeImage(context.Context, *sagemaker.DescribeImageInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeImageOutput, error)
 	ListImageVersions(context.Context, *sagemaker.ListImageVersionsInput, ...func(*sagemaker.Options)) (*sagemaker.ListImageVersionsOutput, error)
 	DescribeImageVersion(context.Context, *sagemaker.DescribeImageVersionInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeImageVersionOutput, error)
+	ListAliases(context.Context, *sagemaker.ListAliasesInput, ...func(*sagemaker.Options)) (*sagemaker.ListAliasesOutput, error)
 }
 
 // scanSageMakerEdge runs all Edge / image phases for one region.
@@ -40,6 +42,7 @@ func scanSageMakerEdge(ctx context.Context, client sagemakerEdgeAPI, acct *accou
 		scanSageMakerDevices,
 		scanSageMakerImages,
 		scanSageMakerImageVersions,
+		scanSageMakerImageAliases,
 	} {
 		t, i, ferr := phase(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
@@ -335,4 +338,53 @@ func scanSageMakerImageVersions(ctx context.Context, client sagemakerEdgeAPI, ac
 		return 0, 0, fmt.Errorf("upsert sagemaker image versions: %w", uerr)
 	}
 	return len(batch), n, nil
+}
+
+// sagemakerImageAliasAttrs is the stored body of an image alias: ListAliases
+// returns bare alias strings, so the image they belong to is carried alongside.
+type sagemakerImageAliasAttrs struct {
+	ImageName string `json:"ImageName"`
+	Alias     string `json:"Alias"`
+}
+
+// scanSageMakerImageAliases lists the version aliases of every scanned image.
+// An alias is unique within its image and can be moved between versions
+// (UpdateImageVersion AliasesToAdd/AliasesToDelete), so its identity is
+// (image, alias), not the version it currently names; ListAliases without a
+// Version returns the aliases of all versions in one call per image. The row
+// therefore does not record which version an alias currently names — an accepted
+// gap; recovering it would cost one DescribeImageVersion per alias.
+func scanSageMakerImageAliases(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return scanSageMakerChildren(ctx, acct, region, st, scanID,
+		TypeSageMakerImage, "ListAliases", "sagemaker image aliases",
+		func(c context.Context, image store.Resource, _ *sagemakerDenyWarner) ([]*store.Resource, error) {
+			imageName := sv(image.Name)
+			if imageName == "" {
+				return nil, nil
+			}
+			aliases, err := collectSMPages(c,
+				sagemaker.NewListAliasesPaginator(client, &sagemaker.ListAliasesInput{ImageName: &imageName}),
+				func(o *sagemaker.ListAliasesOutput) []string { return o.SageMakerImageVersionAliases })
+			if err != nil {
+				return nil, err
+			}
+			var rows []*store.Resource
+			for _, alias := range aliases {
+				if alias == "" {
+					continue
+				}
+				rows = append(rows, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeSageMakerAlias,
+					NativeID:       image.NativeID + "/alias/" + alias,
+					Name:           &alias,
+					Region:         &region,
+					AttributesJSON: mustJSON(sagemakerImageAliasAttrs{ImageName: imageName, Alias: alias}),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return rows, nil
+		})
 }

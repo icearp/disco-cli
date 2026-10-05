@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 	"github.com/icearp/disco-cli/store"
@@ -22,6 +23,7 @@ type stubSageMakerMonitoring struct {
 	explOut     map[string]*sagemaker.DescribeModelExplainabilityJobDefinitionOutput
 	quality     []smtypes.MonitoringJobDefinitionSummary
 	qualityOut  map[string]*sagemaker.DescribeModelQualityJobDefinitionOutput
+	alerts      map[string][]smtypes.MonitoringAlertSummary
 }
 
 func (s *stubSageMakerMonitoring) ListMonitoringSchedules(_ context.Context, _ *sagemaker.ListMonitoringSchedulesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListMonitoringSchedulesOutput, error) {
@@ -64,6 +66,10 @@ func (s *stubSageMakerMonitoring) DescribeModelQualityJobDefinition(_ context.Co
 	return s.qualityOut[*in.JobDefinitionName], nil
 }
 
+func (s *stubSageMakerMonitoring) ListMonitoringAlerts(_ context.Context, in *sagemaker.ListMonitoringAlertsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListMonitoringAlertsOutput, error) {
+	return &sagemaker.ListMonitoringAlertsOutput{MonitoringAlertSummaries: s.alerts[*in.MonitoringScheduleName]}, nil
+}
+
 func TestScanSageMakerMonitoring(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -101,14 +107,15 @@ func TestScanSageMakerMonitoring(t *testing.T) {
 		qualityOut: map[string]*sagemaker.DescribeModelQualityJobDefinitionOutput{
 			qName: {JobDefinitionArn: &qARN, JobDefinitionName: &qName, CreationTime: &now},
 		},
+		alerts: map[string][]smtypes.MonitoringAlertSummary{schedName: {smAlert("drift")}},
 	}
 
 	total, inserted, err := scanSageMakerMonitoring(context.Background(), stub, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if total != 5 || inserted != 5 {
-		t.Fatalf("total=%d inserted=%d want 5/5", total, inserted)
+	if total != 6 || inserted != 6 {
+		t.Fatalf("total=%d inserted=%d want 6/6", total, inserted)
 	}
 	for _, want := range []struct{ typ, id string }{
 		{TypeSageMakerMonitoringSchedule, schedARN},
@@ -116,6 +123,7 @@ func TestScanSageMakerMonitoring(t *testing.T) {
 		{TypeSageMakerModelBiasJobDefinition, biasARN},
 		{TypeSageMakerModelExplainabilityJobDefinition, explARN},
 		{TypeSageMakerModelQualityJobDefinition, qARN},
+		{TypeSageMakerMonitoringAlert, schedARN + "/alert/drift"},
 	} {
 		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, want.id)); err != nil {
 			t.Errorf("%s missing: %v", want.typ, err)
@@ -133,5 +141,82 @@ func TestScanSageMakerMonitoringEmpty(t *testing.T) {
 	}
 	if total != 0 || inserted != 0 {
 		t.Fatalf("total=%d inserted=%d want 0/0", total, inserted)
+	}
+}
+
+// --- monitoring alerts -----------------------------------------------------
+
+type stubSMAlerts struct {
+	sagemakerMonitoringAPI
+	pages map[string][][]smtypes.MonitoringAlertSummary
+	errs  map[string]error
+}
+
+func (s *stubSMAlerts) ListMonitoringAlerts(_ context.Context, in *sagemaker.ListMonitoringAlertsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListMonitoringAlertsOutput, error) {
+	if err := s.errs[*in.MonitoringScheduleName]; err != nil {
+		return nil, err
+	}
+	items, next, err := smPage(s.pages[*in.MonitoringScheduleName], in.NextToken)
+	if err != nil {
+		return nil, err
+	}
+	return &sagemaker.ListMonitoringAlertsOutput{MonitoringAlertSummaries: items, NextToken: next}, nil
+}
+
+func smAlert(name string) smtypes.MonitoringAlertSummary {
+	return smtypes.MonitoringAlertSummary{MonitoringAlertName: &name, AlertStatus: smtypes.MonitoringAlertStatusOk}
+}
+
+func smScheduleARN(name string) string {
+	return "arn:aws:sagemaker:us-east-1:123456789012:monitoring-schedule/" + name
+}
+
+func TestScanSageMakerMonitoringAlerts_PaginatesEachScannedSchedule(t *testing.T) {
+	st := newTestStore(t)
+	s1, s2 := smScheduleARN("s1"), smScheduleARN("s2")
+	s1ID := upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, s1, testRegion, "{}", "s1")
+	s2ID := upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, s2, testRegion, "{}", "s2")
+	upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, smScheduleARN("gone"), testRegion, "{}", "gone")
+	stub := &stubSMAlerts{
+		pages: map[string][][]smtypes.MonitoringAlertSummary{
+			"s1": {{smAlert("drift")}, {{MonitoringAlertName: sdkaws.String("violations")}, {AlertStatus: smtypes.MonitoringAlertStatusOk}}},
+			"s2": {{smAlert("drift")}},
+		},
+		errs: map[string]error{"gone": apiErr("ResourceNotFound", "schedule not found")},
+	}
+	total, _, err := scanSageMakerMonitoringAlerts(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != 3 {
+		t.Errorf("total = %d; want 3", total)
+	}
+	assertSMIDs(t, st, TypeSageMakerMonitoringAlert, s1+"/alert/drift", s1+"/alert/violations", s2+"/alert/drift")
+	assertSMStatus(t, st, TypeSageMakerMonitoringAlert, s1+"/alert/drift", string(smtypes.MonitoringAlertStatusOk))
+	assertSMStatus(t, st, TypeSageMakerMonitoringAlert, s1+"/alert/violations", "")
+	assertSMContains(t, st, s1ID, s1+"/alert/violations")
+	assertSMContains(t, st, s2ID, s2+"/alert/drift")
+}
+
+func TestScanSageMakerMonitoringAlerts_NoAlerts(t *testing.T) {
+	st := newTestStore(t)
+	upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, smScheduleARN("s1"), testRegion, "{}", "s1")
+	total, _, err := scanSageMakerMonitoringAlerts(context.Background(), &stubSMAlerts{}, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err != nil || total != 0 {
+		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
+	}
+}
+
+func TestScanSageMakerMonitoringAlerts_AccessDeniedWarns(t *testing.T) {
+	st := newTestStore(t)
+	warnings := countSMWarnings(st)
+	upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, smScheduleARN("s1"), testRegion, "{}", "s1")
+	stub := &stubSMAlerts{errs: map[string]error{"s1": apiErr("AccessDeniedException", "denied")}}
+	total, _, err := scanSageMakerMonitoringAlerts(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err != nil || total != 0 {
+		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
+	}
+	if *warnings != 1 {
+		t.Errorf("warnings = %d; want 1", *warnings)
 	}
 }

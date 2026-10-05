@@ -26,9 +26,7 @@ func newTestStore(t *testing.T) *store.Store {
 		t.Fatalf("newTestStore: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	if _, err := st.DB().Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
-		t.Fatalf("newTestStore: insert test scan: %v", err)
-	}
+	insertTestScan(t, st, testScanID, "running")
 	// Direction invariant: every `contains` edge must flow parent→child.
 	// Cleanup fails the test if a reversed row sneaks in — guards direction
 	// regressions that would otherwise pass silently, since
@@ -44,6 +42,15 @@ func newTestStore(t *testing.T) *store.Store {
 		}
 	})
 	return st
+}
+
+// insertTestScan inserts a scan record so resources can name it in
+// discovered_by — e.g. a second, older scan whose rows must be treated as stale.
+func insertTestScan(t *testing.T, st *store.Store, scanID, status string) {
+	t.Helper()
+	if _, err := st.DB().Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), ?, '["test"]', '{}')`, scanID, status); err != nil {
+		t.Fatalf("insert test scan %s: %v", scanID, err)
+	}
 }
 
 // upsertTestResource inserts a minimal resource with the given AttributesJSON

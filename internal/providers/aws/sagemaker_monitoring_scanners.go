@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
+	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -15,6 +16,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSageMakerModelBiasJobDefinition, Service: "sagemaker"})
 	registerType(restype.Descriptor{Type: TypeSageMakerModelExplainabilityJobDefinition, Service: "sagemaker"})
 	registerType(restype.Descriptor{Type: TypeSageMakerModelQualityJobDefinition, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerMonitoringAlert, Service: "sagemaker"})
 }
 
 // sagemakerMonitoringAPI is the narrow surface for the Monitoring family.
@@ -32,9 +34,13 @@ type sagemakerMonitoringAPI interface {
 	DescribeModelExplainabilityJobDefinition(context.Context, *sagemaker.DescribeModelExplainabilityJobDefinitionInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeModelExplainabilityJobDefinitionOutput, error)
 	ListModelQualityJobDefinitions(context.Context, *sagemaker.ListModelQualityJobDefinitionsInput, ...func(*sagemaker.Options)) (*sagemaker.ListModelQualityJobDefinitionsOutput, error)
 	DescribeModelQualityJobDefinition(context.Context, *sagemaker.DescribeModelQualityJobDefinitionInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeModelQualityJobDefinitionOutput, error)
+	ListMonitoringAlerts(context.Context, *sagemaker.ListMonitoringAlertsInput, ...func(*sagemaker.Options)) (*sagemaker.ListMonitoringAlertsOutput, error)
 }
 
 // scanSageMakerMonitoring runs all Monitoring family phases for one region.
+// The alert phase fans out per scanned schedule, so it runs after schedules —
+// last, so an alert failure cannot stop this family's earlier phases
+// (sibling families run concurrently and are still cancelled).
 func scanSageMakerMonitoring(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func(context.Context, sagemakerMonitoringAPI, *account, string, *store.Store, string) (int, int, error){
 		scanSageMakerMonitoringSchedules,
@@ -42,6 +48,7 @@ func scanSageMakerMonitoring(ctx context.Context, client sagemakerMonitoringAPI,
 		scanSageMakerModelBiasJobDefinitions,
 		scanSageMakerModelExplainabilityJobDefinitions,
 		scanSageMakerModelQualityJobDefinitions,
+		scanSageMakerMonitoringAlerts,
 	} {
 		t, i, ferr := phase(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
@@ -283,4 +290,47 @@ func scanSageMakerModelQualityJobDefinitions(ctx context.Context, client sagemak
 			DiscoveredBy:   scanID,
 		}, nil
 	}, st, "sagemaker model quality job definitions")
+}
+
+func scanSageMakerMonitoringAlerts(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return scanSageMakerChildren(ctx, acct, region, st, scanID,
+		TypeSageMakerMonitoringSchedule, "ListMonitoringAlerts", "sagemaker monitoring alerts",
+		func(c context.Context, schedule store.Resource, _ *sagemakerDenyWarner) ([]*store.Resource, error) {
+			if sv(schedule.Name) == "" {
+				return nil, nil
+			}
+			alerts, err := collectSMPages(c,
+				sagemaker.NewListMonitoringAlertsPaginator(client,
+					&sagemaker.ListMonitoringAlertsInput{MonitoringScheduleName: schedule.Name}),
+				func(o *sagemaker.ListMonitoringAlertsOutput) []smtypes.MonitoringAlertSummary {
+					return o.MonitoringAlertSummaries
+				})
+			if err != nil {
+				return nil, err
+			}
+			var rows []*store.Resource
+			for _, a := range alerts {
+				name := sv(a.MonitoringAlertName)
+				if name == "" {
+					continue
+				}
+				res := &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeSageMakerMonitoringAlert,
+					NativeID:       schedule.NativeID + "/alert/" + name,
+					Name:           &name,
+					Region:         &region,
+					CreatedAt:      tp(a.CreationTime),
+					AttributesJSON: mustJSON(a),
+					DiscoveredBy:   scanID,
+				}
+				if status := string(a.AlertStatus); status != "" {
+					res.Status = &status
+				}
+				rows = append(rows, res)
+			}
+			return rows, nil
+		})
 }

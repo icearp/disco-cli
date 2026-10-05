@@ -2,7 +2,9 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
@@ -10,6 +12,7 @@ import (
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
+	"golang.org/x/sync/errgroup"
 )
 
 func init() {
@@ -30,6 +33,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSageMakerAIWorkloadConfig, Service: "sagemaker"})
 	registerType(restype.Descriptor{Type: TypeSageMakerMlflowApp, Service: "sagemaker"})
 	registerType(restype.Descriptor{Type: TypeSageMakerTrainingPlan, Service: "sagemaker"})
+	registerType(restype.Descriptor{Type: TypeSageMakerUltraServer, Service: "sagemaker"})
 }
 
 // sagemakerGovernanceAPI is the narrow surface for the governance / lineage /
@@ -55,11 +59,14 @@ type sagemakerGovernanceAPI interface {
 	ListAIWorkloadConfigs(context.Context, *sagemaker.ListAIWorkloadConfigsInput, ...func(*sagemaker.Options)) (*sagemaker.ListAIWorkloadConfigsOutput, error)
 	ListMlflowApps(context.Context, *sagemaker.ListMlflowAppsInput, ...func(*sagemaker.Options)) (*sagemaker.ListMlflowAppsOutput, error)
 	ListTrainingPlans(context.Context, *sagemaker.ListTrainingPlansInput, ...func(*sagemaker.Options)) (*sagemaker.ListTrainingPlansOutput, error)
+	ListUltraServersByReservedCapacity(context.Context, *sagemaker.ListUltraServersByReservedCapacityInput, ...func(*sagemaker.Options)) (*sagemaker.ListUltraServersByReservedCapacityOutput, error)
 }
 
 // scanSageMakerGovernance runs all governance / lineage / hub phases for one
-// region. Hubs scan before hub-contents — the hub-content phase fans out per
-// scanned hub. Every phase tolerates AccessDenied (skip, preserve siblings).
+// region. Hubs scan before hub-contents and training plans before UltraServers
+// — those phases fan out per scanned parent; UltraServers run last, so their
+// failure cannot stop this family's earlier phases (sibling families run
+// concurrently and are still cancelled). Every phase tolerates AccessDenied (skip, preserve siblings).
 func scanSageMakerGovernance(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func(context.Context, sagemakerGovernanceAPI, *account, string, *store.Store, string) (int, int, error){
 		scanSageMakerActions,
@@ -79,6 +86,7 @@ func scanSageMakerGovernance(ctx context.Context, client sagemakerGovernanceAPI,
 		scanSageMakerAIWorkloadConfigs,
 		scanSageMakerMlflowApps,
 		scanSageMakerTrainingPlans,
+		scanSageMakerUltraServers,
 	} {
 		t, i, ferr := phase(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
@@ -156,6 +164,89 @@ func scanSagemakerSummaryList[S any](
 		batch = append(batch, res)
 	}
 	return upsertBatch(st, batch, label)
+}
+
+// sagemakerDenyWarner records at most one AccessDenied warning per child phase.
+// SageMaker list-children ops accept resource-level IAM, so a deny on one parent
+// says nothing about its siblings: the phase warns once and keeps listing.
+type sagemakerDenyWarner struct {
+	once                  sync.Once
+	st                    *store.Store
+	op, accountID, region string
+}
+
+func (w *sagemakerDenyWarner) warn(err error) {
+	w.once.Do(func() { _ = skipIfAccessDenied(w.st, "sagemaker:"+w.op, w.accountID, w.region, err) })
+}
+
+// scanSageMakerChildren is the shared body for per-parent child listings: list
+// builds one parent's child rows, and each row is recorded as contained by that
+// parent. Parents are the parentType rows this scan stored in this region (an
+// earlier phase of the same family), so a parent deleted before this scan is
+// never queried. A parent deleted between its phase and this one answers
+// ResourceNotFound and is skipped; AccessDenied skips that parent with one
+// warning per phase (list may also warn through deny for a sub-call it skips).
+//
+// Parents are listed concurrently at fanoutMed, the tier every SageMaker
+// Describe fan-out already uses (sagemakerDescribeFanout); SageMaker's low TPS
+// is absorbed by the SDK's adaptive retry rather than by serialising here.
+func scanSageMakerChildren(
+	ctx context.Context, acct *account, region string, st *store.Store, scanID string,
+	parentType, op, label string,
+	list func(ctx context.Context, parent store.Resource, deny *sagemakerDenyWarner) ([]*store.Resource, error),
+) (int, int, error) {
+	parents, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{parentType},
+		Regions: []string{region}, SeenBy: scanID, Limit: util.AllResources,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("list %s parents: %w", label, err)
+	}
+	deny := &sagemakerDenyWarner{st: st, op: op, accountID: acct.ID, region: region}
+	var (
+		mu        sync.Mutex
+		batch     []*store.Resource
+		parentIDs []string
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(fanoutMed)
+	for _, p := range parents {
+		g.Go(func() error {
+			children, lerr := list(gctx, p, deny)
+			switch {
+			case lerr == nil:
+			case isAccessDenied(lerr):
+				deny.warn(lerr)
+				return nil
+			case isAPIErrorCode(lerr, "ResourceNotFound"):
+				return nil
+			default:
+				return fmt.Errorf("sagemaker:%s %s: %w", op, p.NativeID, lerr)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			for _, c := range children {
+				batch = append(batch, c)
+				parentIDs = append(parentIDs, p.ID)
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return 0, 0, err
+	}
+	total, inserted, err := upsertBatch(st, batch, label)
+	if err != nil {
+		return 0, 0, err
+	}
+	pairs := make([][2]string, len(batch))
+	for i, c := range batch {
+		pairs[i] = [2]string{c.ID, parentIDs[i]}
+	}
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
+		return 0, 0, fmt.Errorf("closure %s: %w", label, err)
+	}
+	return total, inserted, nil
 }
 
 func scanSageMakerActions(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -486,5 +577,67 @@ func scanSageMakerTrainingPlans(ctx context.Context, client sagemakerGovernanceA
 			// TrainingPlanSummary carries no creation timestamp — only the
 			// reservation window (StartTime/EndTime).
 			return sv(s.TrainingPlanArn), sv(s.TrainingPlanName), string(s.Status), s.StartTime
+		})
+}
+
+// scanSageMakerUltraServers lists the UltraServers in each UltraServer-type
+// reserved capacity of every scanned training plan. Reserved capacities have no
+// List op of their own; the training-plan summary is the only place their ARNs
+// appear. Instance-type capacities hold no UltraServers and are not queried.
+func scanSageMakerUltraServers(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return scanSageMakerChildren(ctx, acct, region, st, scanID,
+		TypeSageMakerTrainingPlan, "ListUltraServersByReservedCapacity", "sagemaker ultraservers",
+		func(c context.Context, plan store.Resource, deny *sagemakerDenyWarner) ([]*store.Resource, error) {
+			var attrs smtypes.TrainingPlanSummary
+			if err := json.Unmarshal([]byte(plan.AttributesJSON), &attrs); err != nil {
+				return nil, fmt.Errorf("decode training plan %s attributes: %w", plan.NativeID, err)
+			}
+			var rows []*store.Resource
+			for _, rc := range attrs.ReservedCapacitySummaries {
+				rcARN := sv(rc.ReservedCapacityArn)
+				if rcARN == "" || rc.ReservedCapacityType != smtypes.ReservedCapacityTypeUltraserver {
+					continue
+				}
+				servers, err := collectSMPages(c,
+					sagemaker.NewListUltraServersByReservedCapacityPaginator(client,
+						&sagemaker.ListUltraServersByReservedCapacityInput{ReservedCapacityArn: &rcARN}),
+					func(o *sagemaker.ListUltraServersByReservedCapacityOutput) []smtypes.UltraServer {
+						return o.UltraServers
+					})
+				// A denied or vanished reservation must not drop its siblings in the
+				// same plan, which returning the error (a per-plan skip) would do.
+				switch {
+				case err == nil:
+				case isAccessDenied(err):
+					deny.warn(err)
+					continue
+				case isAPIErrorCode(err, "ResourceNotFound"):
+					continue
+				default:
+					return nil, err
+				}
+				for _, u := range servers {
+					id := sv(u.UltraServerId)
+					if id == "" {
+						continue
+					}
+					res := &store.Resource{
+						Provider:       "aws",
+						AccountID:      acct.ID,
+						AccountName:    &acct.Name,
+						Type:           TypeSageMakerUltraServer,
+						NativeID:       rcARN + "/ultraserver/" + id,
+						Name:           &id,
+						Region:         &region,
+						AttributesJSON: mustJSON(u),
+						DiscoveredBy:   scanID,
+					}
+					if health := string(u.HealthStatus); health != "" {
+						res.Status = &health
+					}
+					rows = append(rows, res)
+				}
+			}
+			return rows, nil
 		})
 }

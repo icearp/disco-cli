@@ -694,6 +694,7 @@ const (
 	TypeSageMakerModelBiasJobDefinition           = "aws:sagemaker:model-bias-job-definition"
 	TypeSageMakerModelExplainabilityJobDefinition = "aws:sagemaker:model-explainability-job-definition"
 	TypeSageMakerModelQualityJobDefinition        = "aws:sagemaker:model-quality-job-definition"
+	TypeSageMakerMonitoringAlert                  = "aws:sagemaker:monitoring-alert"
 	// SageMaker — Pipelines (sagemaker_pipelines_scanners.go)
 	TypeSageMakerPipeline   = "aws:sagemaker:pipeline"
 	TypeSageMakerProject    = "aws:sagemaker:project"
@@ -703,9 +704,12 @@ const (
 	TypeSageMakerDevice       = "aws:sagemaker:device"
 	TypeSageMakerImage        = "aws:sagemaker:image"
 	TypeSageMakerImageVersion = "aws:sagemaker:image-version"
+	TypeSageMakerAlias        = "aws:sagemaker:alias"
 	// SageMaker — Misc (sagemaker_misc_scanners.go)
-	TypeSageMakerCluster  = "aws:sagemaker:cluster"
-	TypeSageMakerWorkteam = "aws:sagemaker:workteam"
+	TypeSageMakerCluster            = "aws:sagemaker:cluster"
+	TypeSageMakerClusterNode        = "aws:sagemaker:cluster-node"
+	TypeSageMakerWorkteam           = "aws:sagemaker:workteam"
+	TypeSageMakerSubscribedWorkteam = "aws:sagemaker:subscribed-workteam"
 	// SageMaker — Governance / lineage / hub (sagemaker_governance_scanners.go)
 	TypeSageMakerAction                 = "aws:sagemaker:action"
 	TypeSageMakerContext                = "aws:sagemaker:context"
@@ -724,6 +728,7 @@ const (
 	TypeSageMakerAIWorkloadConfig       = "aws:sagemaker:ai-workload-config"
 	TypeSageMakerMlflowApp              = "aws:sagemaker:mlflow-app"
 	TypeSageMakerTrainingPlan           = "aws:sagemaker:training-plan"
+	TypeSageMakerUltraServer            = "aws:sagemaker:ultra-server"
 	// SageMaker Geospatial (sagemaker_geospatial_scanners.go)
 	TypeSageMakerGeospatialRasterDataCollection = "aws:sagemaker-geospatial:raster-data-collection"
 	// Connect — Core (connect_core_scanners.go)

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 49.9% (1664/3336 listable) · depth0 64.5% · depth1 28.0% · depth2 21.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 50.0% (1669/3336 listable) · depth0 64.5% · depth1 28.2% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,18 +9,18 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 990 | 231 | 81.1 |
-| child-uncatalogued | 121 | 896 | 11.9 |
+| child-uncatalogued | 125 | 892 | 12.3 |
 | smithy-resource | 386 | 176 | 68.7 |
 | element-written | 141 | 275 | 33.9 |
-| element-arn | 23 | 83 | 21.7 |
+| element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
 | ec2 | 111 | 85 | 56.6 |
 | resiliencehub | 4 | 36 | 10.0 |
-| sagemaker | 51 | 36 | 58.6 |
 | connect | 35 | 33 | 51.5 |
+| sagemaker | 56 | 31 | 64.4 |
 | ssm | 9 | 29 | 23.7 |
 | iotsitewise | 9 | 28 | 24.3 |
 | config | 10 | 27 | 27.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1672)
+### Uncovered (listable, no scanner) (1667)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1734,13 +1734,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | s3vectors | s3vectors/vector | 2 |  | smithy-resource | s3vectors:ListVectors, s3vectors:QueryVectors |
 | sagemaker | sagemaker/aibenchmarkjob | 0 |  | sr-resource | sagemaker:DescribeAIBenchmarkJob, sagemaker:ListAIBenchmarkJobs |
 | sagemaker | sagemaker/airecommendationjob | 0 |  | sr-resource | sagemaker:DescribeAIRecommendationJob, sagemaker:ListAIRecommendationJobs |
-| sagemaker | sagemaker/alias | 2 |  | child-uncatalogued | sagemaker:ListAliases |
 | sagemaker | sagemaker/artifact | 0 |  | sr-resource | sagemaker:DescribeArtifact, sagemaker:ListArtifacts |
 | sagemaker | sagemaker/association | 0 |  | element-arn | sagemaker:ListAssociations |
 | sagemaker | sagemaker/automljob | 0 |  | sr-resource | sagemaker:DescribeAutoMLJob, sagemaker:DescribeAutoMLJobV2, sagemaker:ListAutoMLJobs |
 | sagemaker | sagemaker/candidate | 1 |  | child-uncatalogued | sagemaker:ListCandidatesForAutoMLJob |
 | sagemaker | sagemaker/clusterevent | 1 |  | child-uncatalogued | sagemaker:DescribeClusterEvent, sagemaker:ListClusterEvents |
-| sagemaker | sagemaker/clusternode | 1 |  | child-uncatalogued | sagemaker:DescribeClusterNode, sagemaker:ListClusterNodes |
 | sagemaker | sagemaker/compilationjob | 0 |  | sr-resource | sagemaker:DescribeCompilationJob, sagemaker:ListCompilationJobs |
 | sagemaker | sagemaker/edgepackagingjob | 0 |  | sr-resource | sagemaker:DescribeEdgePackagingJob, sagemaker:ListEdgePackagingJobs |
 | sagemaker | sagemaker/humanloop | 0 |  | sr-resource | sagemaker:DescribeHumanLoop, sagemaker:ListHumanLoops |
@@ -1752,7 +1750,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sagemaker | sagemaker/lineage | 0 |  | element-arn | sagemaker:QueryLineage |
 | sagemaker | sagemaker/modelcardexportjob | 1 |  | sr-resource | sagemaker:DescribeModelCardExportJob, sagemaker:ListModelCardExportJobs |
 | sagemaker | sagemaker/modelcardversion | 1 |  | child-uncatalogued | sagemaker:ListModelCardVersions |
-| sagemaker | sagemaker/monitoringalert | 1 |  | child-uncatalogued | sagemaker:ListMonitoringAlerts |
 | sagemaker | sagemaker/monitoringalerthistory | 0 |  | element-written | sagemaker:ListMonitoringAlertHistory |
 | sagemaker | sagemaker/monitoringexecution | 0 |  | element-arn | sagemaker:ListMonitoringExecutions |
 | sagemaker | sagemaker/optimizationjob | 0 |  | sr-resource | sagemaker:DescribeOptimizationJob, sagemaker:ListOptimizationJobs |
@@ -1762,12 +1759,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sagemaker | sagemaker/record | 1 |  | child-uncatalogued | sagemaker:GetRecord, sagemaker:ListRecords |
 | sagemaker | sagemaker/resourcecatalog | 0 |  | element-arn | sagemaker:ListResourceCatalogs |
 | sagemaker | sagemaker/stagedevice | 0 |  | child-uncatalogued | sagemaker:ListStageDevices |
-| sagemaker | sagemaker/subscribedworkteam | 0 |  | element-arn | sagemaker:DescribeSubscribedWorkteam, sagemaker:ListSubscribedWorkteams |
 | sagemaker | sagemaker/trainingjob | 0 |  | sr-resource | sagemaker:DescribeTrainingJob, sagemaker:ListTrainingJobs, sagemaker:ListTrainingJobsForHyperParameterTuningJob |
 | sagemaker | sagemaker/trainingplanextensionhistory | 1 |  | child-uncatalogued | sagemaker:DescribeTrainingPlanExtensionHistory |
 | sagemaker | sagemaker/transformjob | 0 |  | sr-resource | sagemaker:DescribeTransformJob, sagemaker:ListTransformJobs |
 | sagemaker | sagemaker/trialcomponent | 0 |  | element-written | sagemaker:DescribeTrialComponent, sagemaker:ListTrialComponents |
-| sagemaker | sagemaker/ultraserver | 1 |  | child-uncatalogued | sagemaker:ListUltraServersByReservedCapacity |
 | sagemaker-geospatial | sagemaker-geospatial/earthobservationjob | 0 |  | smithy-resource | sagemaker-geospatial:GetEarthObservationJob, sagemaker-geospatial:ListEarthObservationJobs |
 | sagemaker-geospatial | sagemaker-geospatial/vectorenrichmentjob | 0 |  | smithy-resource | sagemaker-geospatial:ExportVectorEnrichmentJob, sagemaker-geospatial:GetVectorEnrichmentJob, sagemaker-geospatial:ListVectorEnrichmentJobs |
 | schemas | schemas/schemaversion | 2 |  | child-uncatalogued | schemas:ListSchemaVersions |
