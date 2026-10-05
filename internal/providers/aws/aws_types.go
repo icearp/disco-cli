@@ -1110,6 +1110,12 @@ const (
 	TypeResilienceHubResiliencyPolicy       = "aws:resilience-hub:resiliency-policy"
 	TypeResilienceHubAppAssessment          = "aws:resilience-hub:app-assessment"
 	TypeResilienceHubRecommendationTemplate = "aws:resilience-hub:recommendation-template"
+	// ResilienceHub v2 API (resiliencehubv2_scanners.go)
+	TypeResilienceHubPolicy      = "aws:resilience-hub:policy"
+	TypeResilienceHubService     = "aws:resilience-hub:service"
+	TypeResilienceHubSystem      = "aws:resilience-hub:system"
+	TypeResilienceHubTest        = "aws:resilience-hub:test"
+	TypeResilienceHubUserJourney = "aws:resilience-hub:user-journey"
 	// RAM (ram_scanners.go)
 	TypeRAMResourceShare = "aws:ram:resource-share"
 	TypeRAMPermission    = "aws:ram:permission"

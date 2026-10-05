@@ -864,6 +864,8 @@ github.com/aws/aws-sdk-go-v2/service/repostspace v1.17.3 h1:vJXpu6nOvWFLj3EhAHda
 github.com/aws/aws-sdk-go-v2/service/repostspace v1.17.3/go.mod h1:vn7Nlz1L68E6D/SSk8PMur1J1WLGntEwLtpJiZHO8z0=
 github.com/aws/aws-sdk-go-v2/service/resiliencehub v1.38.3 h1:jlnPZK8qKIuVTKNthWLajvKBEiLzQRXvwAgZQnC0OCI=
 github.com/aws/aws-sdk-go-v2/service/resiliencehub v1.38.3/go.mod h1:t0lMUwV557DvgF1JeRREQb+YO+azxL1lGN8QWAzYZys=
+github.com/aws/aws-sdk-go-v2/service/resiliencehubv2 v1.12.0 h1:0JRw6xHa9w1AtyZpZFFV7faW5CH+ARgOh56y8FHdQq0=
+github.com/aws/aws-sdk-go-v2/service/resiliencehubv2 v1.12.0/go.mod h1:Fh0g7HNpE9CVb98JkY2pzRPpOl6MeKu8dBmFlpMI1BI=
 github.com/aws/aws-sdk-go-v2/service/resourceexplorer2 v1.27.3 h1:gbd/6pu5xEGryYgjIxSMeRc/7jA6GxmrgvV5FYkNlcI=
 github.com/aws/aws-sdk-go-v2/service/resourceexplorer2 v1.27.3/go.mod h1:Gaz2jIF1yPPosppBnM8b8Wwh89Ti4GxDnHVaQle3EG0=
 github.com/aws/aws-sdk-go-v2/service/resourcegroups v1.36.3 h1:tlKrybeRBlHugLBehsqfs4mZ70KUCAhr+duBuFm+5FA=

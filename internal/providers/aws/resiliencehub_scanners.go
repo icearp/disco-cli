@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/resiliencehub"
+	"github.com/aws/aws-sdk-go-v2/service/resiliencehubv2"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -27,8 +28,8 @@ type resilienceHubAPI interface {
 	ListRecommendationTemplates(context.Context, *resiliencehub.ListRecommendationTemplatesInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListRecommendationTemplatesOutput, error)
 }
 
-// scanResilienceHub discovers Resilience Hub applications and resiliency
-// policies.
+// scanResilienceHub discovers Resilience Hub resources from the v1 (app) and
+// v2 (service/system) APIs.
 func scanResilienceHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := resiliencehub.NewFromConfig(acct.cfg, func(o *resiliencehub.Options) { o.Region = region })
 
@@ -59,7 +60,13 @@ func scanResilienceHub(ctx context.Context, acct *account, region string, st *st
 	}
 	total += t
 	inserted += i
-	return total, inserted, nil
+
+	// Last, so a v2 failure cannot cost the v1 phases' rows.
+	v2 := resiliencehubv2.NewFromConfig(acct.cfg, func(o *resiliencehubv2.Options) { o.Region = region })
+	t, i, ferr = scanResilienceHubV2(ctx, v2, acct, region, st, scanID)
+	total += t
+	inserted += i
+	return total, inserted, ferr
 }
 
 func scanRHApps(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

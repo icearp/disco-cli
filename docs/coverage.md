@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.2% (1707/3336 listable) · depth0 65.8% · depth1 29.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.3% (1712/3336 listable) · depth0 65.9% · depth1 29.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,8 +8,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 993 | 228 | 81.3 |
-| child-uncatalogued | 137 | 880 | 13.5 |
+| sr-resource | 996 | 225 | 81.6 |
+| child-uncatalogued | 139 | 878 | 13.7 |
 | smithy-resource | 405 | 157 | 72.1 |
 | element-written | 145 | 271 | 34.9 |
 | element-arn | 24 | 82 | 22.6 |
@@ -18,8 +18,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
 | ec2 | 111 | 85 | 56.6 |
-| resiliencehub | 4 | 36 | 10.0 |
 | connect | 35 | 33 | 51.5 |
+| resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
 | iotsitewise | 9 | 28 | 24.3 |
 | config | 10 | 27 | 27.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1629)
+### Uncovered (listable, no scanner) (1624)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1642,19 +1642,15 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | resiliencehub | resiliencehub/failuremodeassessment | 1 |  | child-uncatalogued | resiliencehub:ListFailureModeAssessments |
 | resiliencehub | resiliencehub/failuremodefinding | 1 |  | child-uncatalogued | resiliencehub:GetFailureModeFinding, resiliencehub:ListFailureModeFindings |
 | resiliencehub | resiliencehub/inputsource | 1 |  | child-uncatalogued | resiliencehub:ListInputSources |
-| resiliencehub | resiliencehub/policy | 0 |  | sr-resource | resiliencehub:GetPolicy, resiliencehub:ListPolicies |
 | resiliencehub | resiliencehub/report | 0 |  | element-written | resiliencehub:ListReports |
 | resiliencehub | resiliencehub/resolvedtestruntargetresource | 2 |  | child-uncatalogued | resiliencehub:ListResolvedTestRunTargetResources |
 | resiliencehub | resiliencehub/resource | 1 |  | child-uncatalogued | resiliencehub:ListResources |
 | resiliencehub | resiliencehub/resourcegroupingrecommendation | 0 |  | element-created | resiliencehub:ListResourceGroupingRecommendations |
-| resiliencehub | resiliencehub/service | 0 |  | sr-resource | resiliencehub:GetService, resiliencehub:ListServices |
 | resiliencehub | resiliencehub/serviceevent | 1 |  | child-uncatalogued | resiliencehub:ListServiceEvents |
 | resiliencehub | resiliencehub/servicefunction | 1 |  | child-uncatalogued | resiliencehub:ListServiceFunctions |
 | resiliencehub | resiliencehub/servicetopologyedge | 1 |  | child-uncatalogued | resiliencehub:ListServiceTopologyEdges |
 | resiliencehub | resiliencehub/soprecommendation | 1 |  | child-uncatalogued | resiliencehub:ListSopRecommendations |
-| resiliencehub | resiliencehub/system | 0 |  | sr-resource | resiliencehub:GetSystem, resiliencehub:ListSystems |
 | resiliencehub | resiliencehub/systemevent | 1 |  | child-uncatalogued | resiliencehub:ListSystemEvents |
-| resiliencehub | resiliencehub/test | 1 |  | child-uncatalogued | resiliencehub:GetTest, resiliencehub:ListTests |
 | resiliencehub | resiliencehub/testrecommendation | 1 |  | child-uncatalogued | resiliencehub:ListTestRecommendations |
 | resiliencehub | resiliencehub/testrun | 1 |  | child-uncatalogued | resiliencehub:GetTestRun, resiliencehub:ListTestRuns |
 | resiliencehub | resiliencehub/testrundependency | 2 |  | child-uncatalogued | resiliencehub:ListTestRunDependencies |
@@ -1662,7 +1658,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | resiliencehub | resiliencehub/testrunsourceevent | 2 |  | child-uncatalogued | resiliencehub:ListTestRunSourceEvents |
 | resiliencehub | resiliencehub/testtemplate | 0 |  | sr-resource | resiliencehub:GetTestTemplate, resiliencehub:ListTestTemplates |
 | resiliencehub | resiliencehub/unsupportedappversionresource | 1 |  | child-uncatalogued | resiliencehub:ListUnsupportedAppVersionResources |
-| resiliencehub | resiliencehub/userjourney | 1 |  | child-uncatalogued | resiliencehub:GetUserJourney, resiliencehub:ListUserJourneys |
 | resource-explorer-2 | resource-explorer-2/indexesformember | 0 |  | element-arn | resource-explorer-2:ListIndexesForMembers |
 | resource-explorer-2 | resource-explorer-2/resource | 0 |  | element-arn | resource-explorer-2:ListResources, resource-explorer-2:Search |
 | resource-groups | resource-groups/groupingstatus | 1 |  | child-uncatalogued | resource-groups:ListGroupingStatuses |
