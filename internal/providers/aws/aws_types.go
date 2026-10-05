@@ -2255,6 +2255,8 @@ const (
 	TypeMGNReplicationConfigurationTemplate = "aws:mgn:replication-configuration-template"
 	TypeMGNVcenterClient                    = "aws:mgn:vcenter-client"
 	TypeMGNNetworkMigrationDefinition       = "aws:mgn:network-migration-definition"
+	TypeMGNSourceServerAction               = "aws:mgn:source-server-action"
+	TypeMGNTemplateAction                   = "aws:mgn:template-action"
 
 	// Migration Hub (migrationhub_scanners.go). SDK service "migrationhub",
 	// Service Reference service "mgh".

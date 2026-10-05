@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.5% (1718/3336 listable) · depth0 66.1% · depth1 29.8% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.6% (1720/3336 listable) · depth0 66.1% · depth1 30.0% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 996 | 225 | 81.6 |
-| child-uncatalogued | 141 | 876 | 13.9 |
+| child-uncatalogued | 143 | 874 | 14.1 |
 | smithy-resource | 408 | 154 | 72.6 |
 | element-written | 145 | 271 | 34.9 |
 | element-arn | 25 | 81 | 23.6 |
@@ -33,11 +33,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bedrock | 27 | 17 | 61.4 |
 | datazone | 19 | 17 | 52.8 |
 | iot | 32 | 17 | 65.3 |
-| mgn | 8 | 17 | 32.0 |
 | bedrock-agentcore | 30 | 16 | 65.2 |
 | es | 4 | 16 | 20.0 |
 | workmail | 1 | 16 | 5.9 |
 | gamelift | 12 | 15 | 44.4 |
+| mgn | 10 | 15 | 40.0 |
 | rds | 24 | 15 | 61.5 |
 | ses | 19 | 15 | 55.9 |
 | cleanrooms | 9 | 14 | 39.1 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1618)
+### Uncovered (listable, no scanner) (1616)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1405,8 +1405,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mgn | mgn/networkmigrationmappersegmentconstruct | 1 |  | child-uncatalogued | mgn:GetNetworkMigrationMapperSegmentConstruct, mgn:ListNetworkMigrationMapperSegmentConstructs |
 | mgn | mgn/networkmigrationmapping | 1 |  | child-uncatalogued | mgn:ListNetworkMigrationMappings |
 | mgn | mgn/networkmigrationmappingupdate | 1 |  | child-uncatalogued | mgn:ListNetworkMigrationMappingUpdates |
-| mgn | mgn/sourceserveraction | 1 |  | child-uncatalogued | mgn:ListSourceServerActions |
-| mgn | mgn/templateaction | 1 |  | child-uncatalogued | mgn:ListTemplateActions |
 | migrationhub-strategy | migrationhub-strategy/applicationcomponent | 0 |  | element-written | migrationhub-strategy:GetApplicationComponentDetails, migrationhub-strategy:ListApplicationComponents |
 | migrationhub-strategy | migrationhub-strategy/serverdetail | 1 |  | child-uncatalogued | migrationhub-strategy:GetServerDetails |
 | mobiletargeting | mobiletargeting/campaignactivity | 2 |  | child-uncatalogued | mobiletargeting:GetCampaignActivities |
