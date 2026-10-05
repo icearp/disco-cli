@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.4% (1681/3336 listable) · depth0 64.9% · depth1 28.7% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 50.6% (1688/3336 listable) · depth0 65.2% · depth1 28.8% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,8 +9,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 992 | 229 | 81.2 |
-| child-uncatalogued | 129 | 888 | 12.7 |
-| smithy-resource | 391 | 171 | 69.6 |
+| child-uncatalogued | 130 | 887 | 12.8 |
+| smithy-resource | 397 | 165 | 70.6 |
 | element-written | 142 | 274 | 34.1 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
@@ -48,7 +48,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | omics | 11 | 13 | 45.8 |
 | profile | 12 | 13 | 48.0 |
 | comprehend | 5 | 12 | 29.4 |
-| iotmanagedintegrations | 5 | 12 | 29.4 |
 | partnercentral-selling | 0 | 12 | 0.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
 | devicefarm | 8 | 11 | 42.1 |
@@ -121,6 +120,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | geo | 7 | 5 | 58.3 |
 | health | 0 | 5 | 0.0 |
 | iotfleetwise | 7 | 5 | 58.3 |
+| iotmanagedintegrations | 12 | 5 | 70.6 |
 | iottwinmaker | 5 | 5 | 50.0 |
 | iotwireless | 11 | 5 | 68.8 |
 | kafka | 5 | 5 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1655)
+### Uncovered (listable, no scanner) (1648)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1225,16 +1225,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotfleetwise | iotfleetwise/fleetassociation | 1 |  | smithy-resource | iotfleetwise:ListFleetsForVehicle |
 | iotfleetwise | iotfleetwise/vehicleassociation | 1 |  | smithy-resource | iotfleetwise:ListVehiclesInFleet |
 | iotfleetwise | iotfleetwise/vehiclestatus | 1 |  | child-uncatalogued | iotfleetwise:GetVehicleStatus |
-| iotmanagedintegrations | iotmanagedintegrations/cloudconnector | 0 |  | smithy-resource | iotmanagedintegrations:GetCloudConnector, iotmanagedintegrations:ListCloudConnectors |
-| iotmanagedintegrations | iotmanagedintegrations/connectordestination | 0 |  | smithy-resource | iotmanagedintegrations:GetConnectorDestination, iotmanagedintegrations:ListConnectorDestinations |
-| iotmanagedintegrations | iotmanagedintegrations/destination | 0 |  | smithy-resource | iotmanagedintegrations:GetDestination, iotmanagedintegrations:ListDestinations |
 | iotmanagedintegrations | iotmanagedintegrations/devicediscovery | 0 |  | smithy-resource | iotmanagedintegrations:GetDeviceDiscovery, iotmanagedintegrations:ListDeviceDiscoveries |
 | iotmanagedintegrations | iotmanagedintegrations/discovereddevice | 1 |  | child-uncatalogued | iotmanagedintegrations:ListDiscoveredDevices |
-| iotmanagedintegrations | iotmanagedintegrations/eventlogconfiguration | 0 |  | smithy-resource | iotmanagedintegrations:GetEventLogConfiguration, iotmanagedintegrations:ListEventLogConfigurations |
-| iotmanagedintegrations | iotmanagedintegrations/managedthingaccountassociation | 1 |  | child-uncatalogued | iotmanagedintegrations:ListManagedThingAccountAssociations |
 | iotmanagedintegrations | iotmanagedintegrations/managedthingschema | 1 |  | child-uncatalogued | iotmanagedintegrations:ListManagedThingSchemas |
-| iotmanagedintegrations | iotmanagedintegrations/notificationconfiguration | 0 |  | smithy-resource | iotmanagedintegrations:GetNotificationConfiguration, iotmanagedintegrations:ListNotificationConfigurations |
-| iotmanagedintegrations | iotmanagedintegrations/otataskconfiguration | 0 |  | smithy-resource | iotmanagedintegrations:GetOtaTaskConfiguration, iotmanagedintegrations:ListOtaTaskConfigurations |
 | iotmanagedintegrations | iotmanagedintegrations/otataskexecution | 1 |  | child-uncatalogued | iotmanagedintegrations:ListOtaTaskExecutions |
 | iotmanagedintegrations | iotmanagedintegrations/schemaversion | 0 |  | smithy-resource | iotmanagedintegrations:GetSchemaVersion, iotmanagedintegrations:ListSchemaVersions |
 | iotsecuredtunneling | iotsecuredtunneling/tunnel | 0 |  | sr-resource | iotsecuredtunneling:DescribeTunnel, iotsecuredtunneling:ListTunnels |
