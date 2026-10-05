@@ -2,13 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
 )
 
 // bedrockDraftVersion is the agent version the per-agent child scanners read.
@@ -20,79 +17,20 @@ import (
 // children have since diverged from DRAFT is not represented.
 const bedrockDraftVersion = "DRAFT"
 
-type bedrockParent struct{ id, arn string }
-
-type bedrockChild struct {
-	res       *store.Resource
-	parentARN string
+// isBedrockChildSkip reports a per-parent error the child fan-outs drop
+// silently: a parent deleted between the parent list and the child call, and the
+// feature-gate and SCP denials scanBedrockARPolicies treats as silent.
+func isBedrockChildSkip(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException") ||
+		isAccessDeniedWithMessage(err, "not authorized to invoke this API operation") ||
+		isClosedToNewCustomers(err) ||
+		isSCPExplicitDeny(err)
 }
 
-// bedrockChildFanOut runs list for each parent concurrently, upserts every
-// child and links it under its parent via the contains closure. A parent
-// deleted between the parent list and the child call is skipped, as are the
-// feature-gate and SCP denials scanBedrockARPolicies treats as silent. Any
-// other AccessDenied warns once for the op (IAM can scope these actions per parent
-// ARN, so siblings may still be readable) and the remaining parents continue.
-func bedrockChildFanOut(ctx context.Context, st *store.Store, acct *account, region, op string, parents []bedrockParent, list func(context.Context, bedrockParent) ([]*store.Resource, error)) (int, int, error) {
-	var (
-		mu       sync.Mutex
-		children []bedrockChild
-		denyOnce sync.Once
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(fanoutMed)
-	for _, p := range parents {
-		g.Go(func() error {
-			rows, err := list(gctx, p)
-			switch {
-			case err == nil:
-			case isAPIErrorCode(err, "ResourceNotFoundException"),
-				isAccessDeniedWithMessage(err, "not authorized to invoke this API operation"),
-				isClosedToNewCustomers(err),
-				isSCPExplicitDeny(err):
-				return nil
-			case isAccessDenied(err):
-				denyOnce.Do(func() { _ = skipIfAccessDenied(st, op, acct.ID, region, err) })
-				return nil
-			default:
-				return fmt.Errorf("%s %s: %w", op, p.id, err)
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			for _, r := range rows {
-				children = append(children, bedrockChild{res: r, parentARN: p.arn})
-			}
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	if len(children) == 0 {
-		return 0, 0, nil
-	}
-	batch := make([]*store.Resource, len(children))
-	for i, c := range children {
-		batch[i] = c.res
-	}
-	n, err := st.UpsertResources(batch)
-	if err != nil {
-		return 0, 0, fmt.Errorf("upsert %s: %w", op, err)
-	}
-	pairs := make([][2]string, len(children))
-	for i, c := range children {
-		pairs[i] = [2]string{c.res.ID, store.ResourceID("aws", acct.ID, c.parentARN)}
-	}
-	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure %s: %w", op, err)
-	}
-	return len(batch), n, nil
-}
-
-func bedrockAgentParents(region, acctID string, agentIDs []string) []bedrockParent {
-	parents := make([]bedrockParent, len(agentIDs))
+func bedrockAgentParents(region, acctID string, agentIDs []string) []childParent {
+	parents := make([]childParent, len(agentIDs))
 	for i, id := range agentIDs {
-		parents[i] = bedrockParent{id: id, arn: bedrockAgentARN(region, acctID, id)}
+		parents[i] = childParent{id: id, arn: bedrockAgentARN(region, acctID, id)}
 	}
 	return parents
 }
@@ -116,8 +54,8 @@ func bedrockChildResource(acct *account, region, scanID, typ, nativeID, name, st
 // the agent row itself already represents (same convention as the guardrail,
 // prompt and automated-reasoning-policy version scanners).
 func scanBedrockAgentVersions(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, agentIDs []string) (int, int, error) {
-	return bedrockChildFanOut(ctx, st, acct, region, "bedrockagent:ListAgentVersions", bedrockAgentParents(region, acct.ID, agentIDs),
-		func(ctx context.Context, p bedrockParent) ([]*store.Resource, error) {
+	return childFanOut(ctx, st, acct, region, "bedrockagent:ListAgentVersions", bedrockAgentParents(region, acct.ID, agentIDs), isBedrockChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			pager := bedrockagent.NewListAgentVersionsPaginator(client, &bedrockagent.ListAgentVersionsInput{AgentId: &p.id})
 			for pager.HasMorePages() {
@@ -139,8 +77,8 @@ func scanBedrockAgentVersions(ctx context.Context, client bedrockAgentAPI, acct 
 }
 
 func scanBedrockAgentActionGroups(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, agentIDs []string) (int, int, error) {
-	return bedrockChildFanOut(ctx, st, acct, region, "bedrockagent:ListAgentActionGroups", bedrockAgentParents(region, acct.ID, agentIDs),
-		func(ctx context.Context, p bedrockParent) ([]*store.Resource, error) {
+	return childFanOut(ctx, st, acct, region, "bedrockagent:ListAgentActionGroups", bedrockAgentParents(region, acct.ID, agentIDs), isBedrockChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			ver := bedrockDraftVersion
 			pager := bedrockagent.NewListAgentActionGroupsPaginator(client, &bedrockagent.ListAgentActionGroupsInput{AgentId: &p.id, AgentVersion: &ver})
@@ -163,8 +101,8 @@ func scanBedrockAgentActionGroups(ctx context.Context, client bedrockAgentAPI, a
 }
 
 func scanBedrockAgentKnowledgeBases(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, agentIDs []string) (int, int, error) {
-	return bedrockChildFanOut(ctx, st, acct, region, "bedrockagent:ListAgentKnowledgeBases", bedrockAgentParents(region, acct.ID, agentIDs),
-		func(ctx context.Context, p bedrockParent) ([]*store.Resource, error) {
+	return childFanOut(ctx, st, acct, region, "bedrockagent:ListAgentKnowledgeBases", bedrockAgentParents(region, acct.ID, agentIDs), isBedrockChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			ver := bedrockDraftVersion
 			pager := bedrockagent.NewListAgentKnowledgeBasesPaginator(client, &bedrockagent.ListAgentKnowledgeBasesInput{AgentId: &p.id, AgentVersion: &ver})
@@ -187,8 +125,8 @@ func scanBedrockAgentKnowledgeBases(ctx context.Context, client bedrockAgentAPI,
 }
 
 func scanBedrockAgentCollaborators(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, agentIDs []string) (int, int, error) {
-	return bedrockChildFanOut(ctx, st, acct, region, "bedrockagent:ListAgentCollaborators", bedrockAgentParents(region, acct.ID, agentIDs),
-		func(ctx context.Context, p bedrockParent) ([]*store.Resource, error) {
+	return childFanOut(ctx, st, acct, region, "bedrockagent:ListAgentCollaborators", bedrockAgentParents(region, acct.ID, agentIDs), isBedrockChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			ver := bedrockDraftVersion
 			pager := bedrockagent.NewListAgentCollaboratorsPaginator(client, &bedrockagent.ListAgentCollaboratorsInput{AgentId: &p.id, AgentVersion: &ver})
@@ -211,12 +149,12 @@ func scanBedrockAgentCollaborators(ctx context.Context, client bedrockAgentAPI, 
 }
 
 func scanBedrockARPolicyTestCases(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, policyArns []string) (int, int, error) {
-	parents := make([]bedrockParent, len(policyArns))
+	parents := make([]childParent, len(policyArns))
 	for i, arn := range policyArns {
-		parents[i] = bedrockParent{id: arn, arn: arn}
+		parents[i] = childParent{id: arn, arn: arn}
 	}
-	return bedrockChildFanOut(ctx, st, acct, region, "bedrock:ListAutomatedReasoningPolicyTestCases", parents,
-		func(ctx context.Context, p bedrockParent) ([]*store.Resource, error) {
+	return childFanOut(ctx, st, acct, region, "bedrock:ListAutomatedReasoningPolicyTestCases", parents, isBedrockChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			pager := bedrock.NewListAutomatedReasoningPolicyTestCasesPaginator(client, &bedrock.ListAutomatedReasoningPolicyTestCasesInput{PolicyArn: &p.arn})
 			for pager.HasMorePages() {

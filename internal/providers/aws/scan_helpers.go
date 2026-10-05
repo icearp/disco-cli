@@ -133,3 +133,65 @@ func pageScanConcurrent[Page any, Item any](
 	}
 	return total, inserted, nil
 }
+
+// childParent is a parent listed earlier in the same scan: id is what the
+// child list op keys on, arn is the parent row's NativeID.
+type childParent struct{ id, arn string }
+
+// childFanOut runs list for each parent concurrently (fanoutMed), upserts every
+// child and links it under its parent via the contains closure. An error isSkip
+// accepts drops that parent silently; it is checked first so a service can claim
+// access-denied-coded feature gaps. Any other AccessDenied drops that parent and
+// warns once for op while the remaining parents continue; anything else is
+// returned.
+func childFanOut(
+	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
+	isSkip func(error) bool, list func(context.Context, childParent) ([]*store.Resource, error),
+) (int, int, error) {
+	var (
+		mu        sync.Mutex
+		batch     []*store.Resource
+		parentIDs []string
+		denyOnce  sync.Once
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(fanoutMed)
+	for _, p := range parents {
+		g.Go(func() error {
+			rows, err := list(gctx, p)
+			switch {
+			case err == nil:
+			case isSkip(err):
+				return nil
+			case isAccessDenied(err):
+				denyOnce.Do(func() { _ = skipIfAccessDenied(st, op, acct.ID, region, err) })
+				return nil
+			default:
+				return fmt.Errorf("%s %s: %w", op, p.id, err)
+			}
+			parentID := store.ResourceID("aws", acct.ID, p.arn)
+			mu.Lock()
+			defer mu.Unlock()
+			for _, r := range rows {
+				batch = append(batch, r)
+				parentIDs = append(parentIDs, parentID)
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return 0, 0, err
+	}
+	total, inserted, err := upsertBatch(st, batch, op)
+	if err != nil {
+		return 0, 0, err
+	}
+	pairs := make([][2]string, len(batch))
+	for i, r := range batch {
+		pairs[i] = [2]string{r.ID, parentIDs[i]}
+	}
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
+		return 0, 0, fmt.Errorf("closure %s: %w", op, err)
+	}
+	return total, inserted, nil
+}

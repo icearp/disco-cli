@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 50.8% (1695/3336 listable) · depth0 65.3% · depth1 29.2% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 50.9% (1699/3336 listable) · depth0 65.4% · depth1 29.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,9 +9,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 992 | 229 | 81.2 |
-| child-uncatalogued | 134 | 883 | 13.2 |
+| child-uncatalogued | 137 | 880 | 13.5 |
 | smithy-resource | 399 | 163 | 71.0 |
-| element-written | 143 | 273 | 34.4 |
+| element-written | 144 | 272 | 34.6 |
 | element-arn | 24 | 82 | 22.6 |
 | element-created | 3 | 11 | 21.4 |
 
@@ -24,11 +24,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm | 9 | 29 | 23.7 |
 | iotsitewise | 9 | 28 | 24.3 |
 | config | 10 | 27 | 27.0 |
-| quicksight | 22 | 22 | 50.0 |
 | glue | 22 | 20 | 52.4 |
 | lex | 4 | 20 | 16.7 |
 | wellarchitected | 4 | 20 | 16.7 |
 | chime | 11 | 18 | 37.9 |
+| quicksight | 26 | 18 | 59.1 |
 | securityagent | 7 | 18 | 28.0 |
 | bedrock | 27 | 17 | 61.4 |
 | datazone | 19 | 17 | 52.8 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1641)
+### Uncovered (listable, no scanner) (1637)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1573,16 +1573,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | quicksight | quicksight/foldermember | 1 |  | child-uncatalogued | quicksight:ListFolderMembers |
 | quicksight | quicksight/groupmembership | 2 |  | child-uncatalogued | quicksight:DescribeGroupMembership, quicksight:ListGroupMemberships |
 | quicksight | quicksight/ingestion | 1 |  | sr-resource | quicksight:DescribeIngestion, quicksight:ListIngestions |
-| quicksight | quicksight/keyregistration | 0 |  | element-written | quicksight:DescribeKeyRegistration |
 | quicksight | quicksight/limitsprofile | 0 |  | sr-resource | quicksight:DescribeLimitsProfile, quicksight:ListLimitsProfiles |
 | quicksight | quicksight/rolemembership | 2 |  | child-uncatalogued | quicksight:ListRoleMemberships |
 | quicksight | quicksight/selfupgrade | 1 |  | child-uncatalogued | quicksight:ListSelfUpgrades |
 | quicksight | quicksight/spaceresource | 1 |  | child-uncatalogued | quicksight:ListSpaceResources |
-| quicksight | quicksight/templatealias | 1 |  | child-uncatalogued | quicksight:DescribeTemplateAlias, quicksight:ListTemplateAliases |
 | quicksight | quicksight/templateversion | 1 |  | child-uncatalogued | quicksight:ListTemplateVersions |
-| quicksight | quicksight/themealias | 1 |  | child-uncatalogued | quicksight:DescribeThemeAlias, quicksight:ListThemeAliases |
 | quicksight | quicksight/themeversion | 1 |  | child-uncatalogued | quicksight:ListThemeVersions |
-| quicksight | quicksight/topicrefreshschedule | 1 |  | child-uncatalogued | quicksight:DescribeTopicRefreshSchedule, quicksight:ListTopicRefreshSchedules |
 | quicksight | quicksight/topicreviewedanswer | 1 |  | child-uncatalogued | quicksight:ListTopicReviewedAnswers |
 | quicksight | quicksight/usersindexcapacity | 0 |  | element-written | quicksight:ListUsersIndexCapacity |
 | ram | ram/permissionassociation | 0 |  | element-arn | ram:ListPermissionAssociations |

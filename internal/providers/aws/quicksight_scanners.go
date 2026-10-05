@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	awsarn "github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/quicksight"
+	qstypes "github.com/aws/aws-sdk-go-v2/service/quicksight/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -24,14 +26,18 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeQuickSightFlow, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightFolder, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightGroup, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightKeyRegistration, Service: "quicksight", Managed: true})
 	registerType(restype.Descriptor{Type: TypeQuickSightKnowledgeBase, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightNamespace, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightOAuthClientApplication, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightRefreshSchedule, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightSpace, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightTemplate, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightTemplateAlias, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightTheme, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightThemeAlias, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightTopic, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightTopicRefreshSchedule, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightUser, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightVPCConnection, Service: "quicksight"})
 	registerService(serviceEntry{
@@ -65,6 +71,10 @@ type quickSightAPI interface {
 	ListVPCConnections(context.Context, *quicksight.ListVPCConnectionsInput, ...func(*quicksight.Options)) (*quicksight.ListVPCConnectionsOutput, error)
 	DescribeAccountSettings(context.Context, *quicksight.DescribeAccountSettingsInput, ...func(*quicksight.Options)) (*quicksight.DescribeAccountSettingsOutput, error)
 	DescribeAccountCustomization(context.Context, *quicksight.DescribeAccountCustomizationInput, ...func(*quicksight.Options)) (*quicksight.DescribeAccountCustomizationOutput, error)
+	DescribeKeyRegistration(context.Context, *quicksight.DescribeKeyRegistrationInput, ...func(*quicksight.Options)) (*quicksight.DescribeKeyRegistrationOutput, error)
+	ListTemplateAliases(context.Context, *quicksight.ListTemplateAliasesInput, ...func(*quicksight.Options)) (*quicksight.ListTemplateAliasesOutput, error)
+	ListThemeAliases(context.Context, *quicksight.ListThemeAliasesInput, ...func(*quicksight.Options)) (*quicksight.ListThemeAliasesOutput, error)
+	ListTopicRefreshSchedules(context.Context, *quicksight.ListTopicRefreshSchedulesInput, ...func(*quicksight.Options)) (*quicksight.ListTopicRefreshSchedulesOutput, error)
 }
 
 // qsSoftSkip reports whether err is a QuickSight soft-skip: AccessDenied,
@@ -100,14 +110,24 @@ func scanQuickSight(ctx context.Context, acct *account, region string, st *store
 	total += t
 	inserted += i
 
+	var templates, themes, topics []childParent
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanQSAnalyses(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanQSDashboards(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanQSDataSources(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanQSFolders(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanQSTemplates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanQSThemes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanQSTopics(ctx, client, acct, region, st, scanID) },
+		func() (t, i int, err error) {
+			templates, t, i, err = scanQSTemplates(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
+		func() (t, i int, err error) {
+			themes, t, i, err = scanQSThemes(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
+		func() (t, i int, err error) {
+			topics, t, i, err = scanQSTopics(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (int, int, error) { return scanQSVPCConnections(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanQSCustomPermissions(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanQSActionConnectors(ctx, client, acct, region, st, scanID) },
@@ -123,6 +143,14 @@ func scanQuickSight(ctx context.Context, acct *account, region string, st *store
 		func() (int, int, error) { return scanQSGroups(ctx, client, acct, region, st, scanID, nsARNs) },
 		func() (int, int, error) { return scanQSUsers(ctx, client, acct, region, st, scanID, nsARNs) },
 		func() (int, int, error) { return scanQSAssignments(ctx, client, acct, region, st, scanID, nsARNs) },
+		func() (int, int, error) {
+			return scanQSTemplateAliases(ctx, client, acct, region, st, scanID, templates)
+		},
+		func() (int, int, error) { return scanQSThemeAliases(ctx, client, acct, region, st, scanID, themes) },
+		func() (int, int, error) {
+			return scanQSTopicRefreshSchedules(ctx, client, acct, region, st, scanID, topics)
+		},
+		func() (int, int, error) { return scanQSKeyRegistration(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -295,22 +323,26 @@ func scanQSFolders(ctx context.Context, client quickSightAPI, acct *account, reg
 	return upsertBatch(st, batch, "quicksight folders")
 }
 
-func scanQSTemplates(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSTemplates(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	id := acct.ID
 	pager := quicksight.NewListTemplatesPaginator(client, &quicksight.ListTemplatesInput{AwsAccountId: &id})
+	var parents []childParent
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if qsSoftSkip(perr) {
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("quicksight:ListTemplates: %w", perr)
+			return nil, 0, 0, fmt.Errorf("quicksight:ListTemplates: %w", perr)
 		}
 		for _, t := range out.TemplateSummaryList {
 			arn := sv(t.Arn)
 			if arn == "" {
 				continue
+			}
+			if tid := sv(t.TemplateId); tid != "" {
+				parents = append(parents, childParent{id: tid, arn: arn})
 			}
 			label := sv(t.Name)
 			if label == "" {
@@ -323,25 +355,33 @@ func scanQSTemplates(ctx context.Context, client quickSightAPI, acct *account, r
 			})
 		}
 	}
-	return upsertBatch(st, batch, "quicksight templates")
+	t, i, err := upsertBatch(st, batch, "quicksight templates")
+	return parents, t, i, err
 }
 
-func scanQSThemes(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSThemes(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	id := acct.ID
 	pager := quicksight.NewListThemesPaginator(client, &quicksight.ListThemesInput{AwsAccountId: &id})
+	var parents []childParent
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if qsSoftSkip(perr) {
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("quicksight:ListThemes: %w", perr)
+			return nil, 0, 0, fmt.Errorf("quicksight:ListThemes: %w", perr)
 		}
 		for _, th := range out.ThemeSummaryList {
 			arn := sv(th.Arn)
 			if arn == "" {
 				continue
+			}
+			// ListThemes also returns QuickSight's starter themes (owner account
+			// "aws"); aliases exist only on the account's own themes.
+			owner, aerr := awsarn.Parse(arn)
+			if tid := sv(th.ThemeId); tid != "" && aerr == nil && owner.AccountID == acct.ID {
+				parents = append(parents, childParent{id: tid, arn: arn})
 			}
 			label := sv(th.Name)
 			if label == "" {
@@ -354,29 +394,35 @@ func scanQSThemes(ctx context.Context, client quickSightAPI, acct *account, regi
 			})
 		}
 	}
-	return upsertBatch(st, batch, "quicksight themes")
+	t, i, err := upsertBatch(st, batch, "quicksight themes")
+	return parents, t, i, err
 }
 
-func scanQSTopics(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSTopics(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	id := acct.ID
 	pager := quicksight.NewListTopicsPaginator(client, &quicksight.ListTopicsInput{AwsAccountId: &id})
+	var parents []childParent
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if qsSoftSkip(perr) {
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("quicksight:ListTopics: %w", perr)
+			return nil, 0, 0, fmt.Errorf("quicksight:ListTopics: %w", perr)
 		}
 		for _, t := range out.TopicsSummaries {
 			arn := sv(t.Arn)
 			if arn == "" {
 				continue
 			}
+			tid := sv(t.TopicId)
+			if tid != "" {
+				parents = append(parents, childParent{id: tid, arn: arn})
+			}
 			label := sv(t.Name)
 			if label == "" {
-				label = sv(t.TopicId)
+				label = tid
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -385,7 +431,8 @@ func scanQSTopics(ctx context.Context, client quickSightAPI, acct *account, regi
 			})
 		}
 	}
-	return upsertBatch(st, batch, "quicksight topics")
+	t, i, err := upsertBatch(st, batch, "quicksight topics")
+	return parents, t, i, err
 }
 
 func scanQSVPCConnections(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -914,4 +961,143 @@ func scanQSAssignments(ctx context.Context, client quickSightAPI, acct *account,
 		}
 	}
 	return upsertBatch(st, batch, "quicksight assignments")
+}
+
+// qsKeyRegistrationAttrs is DescribeKeyRegistrationOutput minus its response
+// envelope (RequestId, Status, ResultMetadata): RequestId differs on every
+// call and would version-split the row on every scan. Field names are the SDK's.
+type qsKeyRegistrationAttrs struct {
+	AwsAccountID    *string `json:"AwsAccountId"`
+	KeyRegistration []qstypes.RegisteredCustomerManagedKey
+	QDataKey        *qstypes.QDataKey
+}
+
+// scanQSKeyRegistration upserts the per-(account, region) customer-managed-key
+// registration. It soft-skips through qsSoftSkip like the other account
+// singletons, because QuickSight answers unsubscribed or Standard-edition
+// accounts with codes outside this op's Smithy model. A row is stored only for
+// a customer registration: a registered key, or a CMK as the Q data key (the
+// AWS_OWNED default is QuickSight's, not the customer's).
+func scanQSKeyRegistration(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	id := acct.ID
+	out, err := client.DescribeKeyRegistration(ctx, &quicksight.DescribeKeyRegistrationInput{AwsAccountId: &id})
+	if err != nil {
+		if qsSoftSkip(err) {
+			return 0, 0, nil
+		}
+		return 0, 0, fmt.Errorf("quicksight:DescribeKeyRegistration: %w", err)
+	}
+	cmkDataKey := out.QDataKey != nil && out.QDataKey.QDataKeyType == qstypes.QDataKeyTypeCmk
+	if len(out.KeyRegistration) == 0 && !cmkDataKey {
+		return 0, 0, nil
+	}
+	arn := fmt.Sprintf("arn:aws:quicksight:%s:%s:key-registration", region, acct.ID)
+	label := arn
+	batch := []*store.Resource{{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: TypeQuickSightKeyRegistration, NativeID: arn,
+		Name: &label, Region: &region, DiscoveredBy: scanID,
+		AttributesJSON: mustJSON(qsKeyRegistrationAttrs{
+			AwsAccountID: out.AwsAccountId, KeyRegistration: out.KeyRegistration, QDataKey: out.QDataKey,
+		}),
+	}}
+	return upsertBatch(st, batch, "quicksight key-registration")
+}
+
+// qsChildSkip is qsSoftSkip minus AccessDenied, which childFanOut turns into a
+// once-per-op warning instead: the parents exist, so the account is subscribed
+// and a deny is a real IAM gap. Template and theme alias ops accept
+// resource-level IAM, so a deny there may cover only some parents;
+// ListTopicRefreshSchedules has no resource in the service reference, so a deny
+// there is account-wide and every topic is skipped under the one warning.
+func qsChildSkip(err error) bool {
+	return !isAccessDenied(err) && qsSoftSkip(err)
+}
+
+func scanQSTemplateAliases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, templates []childParent) (int, int, error) {
+	id := acct.ID
+	return childFanOut(ctx, st, acct, region, "quicksight:ListTemplateAliases", templates, qsChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			pager := quicksight.NewListTemplateAliasesPaginator(client, &quicksight.ListTemplateAliasesInput{AwsAccountId: &id, TemplateId: &p.id})
+			var rows []*store.Resource
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, a := range out.TemplateAliasList {
+					arn := sv(a.Arn)
+					if arn == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeQuickSightTemplateAlias, NativeID: arn,
+						Name: a.AliasName, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+func scanQSThemeAliases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, themes []childParent) (int, int, error) {
+	id := acct.ID
+	return childFanOut(ctx, st, acct, region, "quicksight:ListThemeAliases", themes, qsChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			var token *string
+			for {
+				out, err := client.ListThemeAliases(ctx, &quicksight.ListThemeAliasesInput{AwsAccountId: &id, ThemeId: &p.id, NextToken: token})
+				if err != nil {
+					return nil, err
+				}
+				for _, a := range out.ThemeAliasList {
+					arn := sv(a.Arn)
+					if arn == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeQuickSightThemeAlias, NativeID: arn,
+						Name: a.AliasName, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+					})
+				}
+				if token = out.NextToken; token == nil {
+					return rows, nil
+				}
+			}
+		})
+}
+
+// scanQSTopicRefreshSchedules lists each topic's per-dataset refresh schedules.
+// A schedule carries no ARN and is addressed by (topic, dataset) — the
+// Describe/Update/Delete ops take TopicId + DatasetId — so its NativeID is
+// {topicARN}/refresh-schedule/{datasetId}.
+func scanQSTopicRefreshSchedules(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, topics []childParent) (int, int, error) {
+	id := acct.ID
+	return childFanOut(ctx, st, acct, region, "quicksight:ListTopicRefreshSchedules", topics, qsChildSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			out, err := client.ListTopicRefreshSchedules(ctx, &quicksight.ListTopicRefreshSchedulesInput{AwsAccountId: &id, TopicId: &p.id})
+			if err != nil {
+				return nil, err
+			}
+			var rows []*store.Resource
+			for _, s := range out.RefreshSchedules {
+				dsid := sv(s.DatasetId)
+				if dsid == "" {
+					continue
+				}
+				label := sv(s.DatasetName)
+				if label == "" {
+					label = dsid
+				}
+				rows = append(rows, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeQuickSightTopicRefreshSchedule, NativeID: p.arn + "/refresh-schedule/" + dsid,
+					Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+				})
+			}
+			return rows, nil
+		})
 }
