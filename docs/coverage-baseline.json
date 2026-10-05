@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 51.73860911270983,
-    "covered": 1726,
-    "uncovered": 1610,
+    "percent": 51.76858513189448,
+    "covered": 1727,
+    "uncovered": 1609,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1049,6 +1049,7 @@
       "mediaconnect/bridge",
       "mediaconnect/flow",
       "mediaconnect/gateway",
+      "mediaconnect/gatewayinstance",
       "mediaconnect/reservation",
       "mediaconnect/routerinput",
       "mediaconnect/routernetworkinterface",
@@ -2737,7 +2738,6 @@
       "managedblockchain/invitation",
       "managedblockchain/proposalvote",
       "mediaconnect/entitlement",
-      "mediaconnect/gatewayinstance",
       "mediaconnect/offering",
       "mediaconvert/job",
       "medialive/alert",

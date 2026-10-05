@@ -29,6 +29,17 @@ func init() {
 		resolveMediaConnectBridgePlacement,
 		EdgeDecl{TypeMediaConnectBridge, TypeMediaConnectGateway, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopMCGatewayHierarchy,
+		EdgeDecl{TypeMediaConnectGateway, TypeMediaConnectGatewayInstance, store.RelContains},
+	)
+}
+
+// noopMCGatewayHierarchy only declares the gateway→gateway-instance contains
+// edge for coverage tooling; scanMCGatewayInstances records it directly via
+// RecordHierarchyBatch.
+func noopMCGatewayHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveMediaConnectBridgeChildren attaches bridge-output / bridge-source to

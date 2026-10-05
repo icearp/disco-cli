@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.7% (1726/3336 listable) · depth0 66.3% · depth1 30.1% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.8% (1727/3336 listable) · depth0 66.3% · depth1 30.1% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 1000 | 221 | 81.9 |
 | child-uncatalogued | 143 | 874 | 14.1 |
-| smithy-resource | 410 | 152 | 73.0 |
+| smithy-resource | 411 | 151 | 73.1 |
 | element-written | 145 | 271 | 34.9 |
 | element-arn | 25 | 81 | 23.6 |
 | element-created | 3 | 11 | 21.4 |
@@ -179,7 +179,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | internetmonitor | 1 | 3 | 25.0 |
 | kinesisanalytics | 1 | 3 | 25.0 |
 | macie2 | 5 | 3 | 62.5 |
-| mediaconnect | 7 | 3 | 70.0 |
 | medical-imaging | 1 | 3 | 25.0 |
 | monitoring | 6 | 3 | 66.7 |
 | mturk-requester | 0 | 3 | 0.0 |
@@ -225,6 +224,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | kms | 4 | 2 | 66.7 |
 | lakeformation | 3 | 2 | 60.0 |
 | managedblockchain | 5 | 2 | 71.4 |
+| mediaconnect | 8 | 2 | 80.0 |
 | mediastore | 0 | 2 | 0.0 |
 | mediatailor | 7 | 2 | 77.8 |
 | migrationhub-strategy | 0 | 2 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1610)
+### Uncovered (listable, no scanner) (1609)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1360,7 +1360,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | managedblockchain | managedblockchain/invitation | 0 |  | sr-resource | managedblockchain:ListInvitations |
 | managedblockchain | managedblockchain/proposalvote | 2 |  | child-uncatalogued | managedblockchain:ListProposalVotes |
 | mediaconnect | mediaconnect/entitlement | 0 |  | sr-resource | mediaconnect:ListEntitlements |
-| mediaconnect | mediaconnect/gatewayinstance | 0 |  | smithy-resource | mediaconnect:DescribeGatewayInstance, mediaconnect:ListGatewayInstances |
 | mediaconnect | mediaconnect/offering | 0 |  | smithy-resource | mediaconnect:DescribeOffering, mediaconnect:ListOfferings |
 | mediaconvert | mediaconvert/job | 0 |  | sr-resource | mediaconvert:GetJob, mediaconvert:GetJobsQueryResults, mediaconvert:ListJobs, mediaconvert:SearchJobs |
 | medialive | medialive/alert | 1 |  | child-uncatalogued | medialive:ListAlerts |

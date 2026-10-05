@@ -807,6 +807,7 @@ const (
 	TypeMediaConnectFlowSource             = "aws:mediaconnect:flow-source"
 	TypeMediaConnectFlowVpcInterface       = "aws:mediaconnect:flow-vpc-interface"
 	TypeMediaConnectGateway                = "aws:mediaconnect:gateway"
+	TypeMediaConnectGatewayInstance        = "aws:mediaconnect:gateway-instance"
 	TypeMediaConnectRouterInput            = "aws:mediaconnect:router-input"
 	TypeMediaConnectRouterNetworkInterface = "aws:mediaconnect:router-network-interface"
 	TypeMediaConnectRouterOutput           = "aws:mediaconnect:router-output"
