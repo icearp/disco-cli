@@ -24,6 +24,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSSOInstanceAccessControlAttributeConfiguration, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOApplicationProvider, Service: "sso", Managed: true})
 	registerType(restype.Descriptor{Type: TypeSSOTrustedTokenIssuer, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOApplicationAccessScope, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOApplicationAuthenticationMethod, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOApplicationGrant, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSORegion, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeIdentityStoreUser, Service: "identitystore"})
 	registerType(restype.Descriptor{Type: TypeIdentityStoreGroup, Service: "identitystore"})
 	registerType(restype.Descriptor{Type: TypeIdentityStoreGroupMembership, Service: "identitystore"})
@@ -46,6 +50,10 @@ type ssoadminAPI interface {
 	DescribeInstanceAccessControlAttributeConfiguration(context.Context, *ssoadmin.DescribeInstanceAccessControlAttributeConfigurationInput, ...func(*ssoadmin.Options)) (*ssoadmin.DescribeInstanceAccessControlAttributeConfigurationOutput, error)
 	ListApplicationProviders(context.Context, *ssoadmin.ListApplicationProvidersInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationProvidersOutput, error)
 	ListTrustedTokenIssuers(context.Context, *ssoadmin.ListTrustedTokenIssuersInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListTrustedTokenIssuersOutput, error)
+	ListApplicationAccessScopes(context.Context, *ssoadmin.ListApplicationAccessScopesInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationAccessScopesOutput, error)
+	ListApplicationAuthenticationMethods(context.Context, *ssoadmin.ListApplicationAuthenticationMethodsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationAuthenticationMethodsOutput, error)
+	ListApplicationGrants(context.Context, *ssoadmin.ListApplicationGrantsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationGrantsOutput, error)
+	ListRegions(context.Context, *ssoadmin.ListRegionsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListRegionsOutput, error)
 }
 
 // identitystoreAPI is the narrow set of Identity Store operations called by

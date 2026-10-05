@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.8% (1727/3336 listable) · depth0 66.3% · depth1 30.1% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 51.9% (1731/3336 listable) · depth0 66.5% · depth1 30.2% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,8 +9,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1000 | 221 | 81.9 |
-| child-uncatalogued | 143 | 874 | 14.1 |
-| smithy-resource | 411 | 151 | 73.1 |
+| child-uncatalogued | 144 | 873 | 14.2 |
+| smithy-resource | 414 | 148 | 73.7 |
 | element-written | 145 | 271 | 34.9 |
 | element-arn | 25 | 81 | 23.6 |
 | element-created | 3 | 11 | 21.4 |
@@ -68,7 +68,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | drs | 5 | 9 | 35.7 |
 | iam | 14 | 9 | 60.9 |
 | license-manager | 6 | 9 | 40.0 |
-| sso | 8 | 9 | 47.1 |
 | workspaces | 7 | 9 | 43.8 |
 | athena | 5 | 8 | 38.5 |
 | cleanrooms-ml | 7 | 8 | 46.7 |
@@ -130,6 +129,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | odb | 8 | 5 | 61.5 |
 | snowball | 0 | 5 | 0.0 |
 | ssm-incidents | 2 | 5 | 28.6 |
+| sso | 12 | 5 | 70.6 |
 | trustedadvisor | 1 | 5 | 16.7 |
 | voiceid | 1 | 5 | 16.7 |
 | wisdom | 11 | 5 | 68.8 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1609)
+### Uncovered (listable, no scanner) (1605)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1842,14 +1842,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm-sap | ssm-sap/subcheckresult | 1 |  | child-uncatalogued | ssm-sap:ListSubCheckResults |
 | ssm-sap | ssm-sap/subcheckruleresult | 2 |  | child-uncatalogued | ssm-sap:ListSubCheckRuleResults |
 | sso | sso/accountassignmentcreationstatus | 1 |  | child-uncatalogued | sso:DescribeAccountAssignmentCreationStatus, sso:DescribeAccountAssignmentDeletionStatus, sso:ListAccountAssignmentCreationStatus, sso:ListAccountAssignmentDeletionStatus |
-| sso | sso/applicationaccessscope | 0 |  | smithy-resource | sso:GetApplicationAccessScope, sso:ListApplicationAccessScopes |
-| sso | sso/applicationauthenticationmethod | 0 |  | smithy-resource | sso:GetApplicationAuthenticationMethod, sso:ListApplicationAuthenticationMethods |
-| sso | sso/applicationgrant | 0 |  | smithy-resource | sso:GetApplicationGrant, sso:ListApplicationGrants |
 | sso | sso/customermanagedpolicyreference | 2 |  | child-uncatalogued | sso:ListCustomerManagedPolicyReferencesInPermissionSet |
 | sso | sso/managedpolicy | 2 |  | child-uncatalogued | sso:ListManagedPoliciesInPermissionSet |
 | sso | sso/permissionsetprovisioningstatus | 1 |  | child-uncatalogued | sso:DescribePermissionSetProvisioningStatus, sso:ListPermissionSetProvisioningStatus |
 | sso | sso/permissionsetsprovisioned | 1 |  | child-uncatalogued | sso:ListPermissionSetsProvisionedToAccount |
-| sso | sso/region | 1 |  | child-uncatalogued | sso:DescribeRegion, sso:ListRegions |
 | states | states/execution | 0 |  | sr-resource | states:DescribeExecution, states:ListExecutions |
 | states | states/executionhistory | 1 |  | child-uncatalogued | states:GetExecutionHistory |
 | states | states/maprun | 1 |  | sr-resource | states:DescribeMapRun, states:ListMapRuns |

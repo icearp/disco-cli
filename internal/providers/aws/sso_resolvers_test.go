@@ -2,6 +2,7 @@ package aws
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/icearp/disco-cli/store"
@@ -244,5 +245,21 @@ func TestResolveSSOTrustedTokenIssuerInstance_NoAttrs(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(ttiID)
 	if len(rels) != 0 {
 		t.Errorf("expected no edges for trusted-token-issuer with no InstanceArn, got %d", len(rels))
+	}
+}
+
+// The scanner writes these contains edges through RecordHierarchyBatch; the
+// declarations are the only way coverage tooling sees them as wired.
+func TestSSOChildHierarchyEdgesDeclared(t *testing.T) {
+	declared := CollectResolverEdges()
+	for _, want := range []EdgeDecl{
+		{TypeSSOApplication, TypeSSOApplicationAccessScope, store.RelContains},
+		{TypeSSOApplication, TypeSSOApplicationAuthenticationMethod, store.RelContains},
+		{TypeSSOApplication, TypeSSOApplicationGrant, store.RelContains},
+		{TypeSSOInstance, TypeSSORegion, store.RelContains},
+	} {
+		if !slices.Contains(declared, want) {
+			t.Errorf("EdgeDecl %v not declared", want)
+		}
 	}
 }

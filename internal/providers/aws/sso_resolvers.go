@@ -39,6 +39,20 @@ func init() {
 		resolveSSOTrustedTokenIssuerInstance,
 		EdgeDecl{TypeSSOTrustedTokenIssuer, TypeSSOInstance, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopSSOHierarchy,
+		EdgeDecl{TypeSSOApplication, TypeSSOApplicationAccessScope, store.RelContains},
+		EdgeDecl{TypeSSOApplication, TypeSSOApplicationAuthenticationMethod, store.RelContains},
+		EdgeDecl{TypeSSOApplication, TypeSSOApplicationGrant, store.RelContains},
+		EdgeDecl{TypeSSOInstance, TypeSSORegion, store.RelContains},
+	)
+}
+
+// noopSSOHierarchy only carries EdgeDecl metadata: the scanner already writes
+// these contains edges through childFanOut's RecordHierarchyBatch
+// (scanSSOApplicationAccessScopes / AuthenticationMethods / Grants, scanSSORegions).
+func noopSSOHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // ssoInstanceIndex pre-loads scanned instances keyed by InstanceArn so

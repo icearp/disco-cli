@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
@@ -11,7 +12,9 @@ import (
 
 // scanSSOExtended discovers per-instance applications, per-application
 // assignments, and the per-instance access-control attribute configuration
-// (singleton). All three CFN types live under aws:sso:*.
+// (singleton), then the per-instance Regions and the per-application access
+// scopes, authentication methods and grants. Those last phases run after every
+// other one so a failure in them never costs the established rows.
 func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Application providers are account-wide (not per-instance) — the AWS-managed
 	// catalog of federation providers available to the account.
@@ -24,11 +27,13 @@ func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, reg
 		inserted += i
 	}
 
+	var instParents, appParents []childParent
 	for _, inst := range instances {
 		instArn := sv(inst.InstanceArn)
 		if instArn == "" {
 			continue
 		}
+		instParents = append(instParents, childParent{id: instArn, arn: instArn})
 		appARNs, t, i, ferr := scanSSOApplications(ctx, client, acct, region, st, scanID, instArn)
 		if ferr != nil {
 			return total, inserted, ferr
@@ -37,6 +42,7 @@ func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, reg
 		inserted += i
 
 		for _, aa := range appARNs {
+			appParents = append(appParents, childParent{id: aa, arn: aa})
 			t, i, ferr = scanSSOApplicationAssignments(ctx, client, acct, region, st, scanID, aa)
 			if ferr != nil {
 				return total, inserted, ferr
@@ -59,7 +65,187 @@ func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, reg
 		total += t
 		inserted += i
 	}
+
+	for _, scan := range []func() (int, int, error){
+		func() (int, int, error) { return scanSSORegions(ctx, client, acct, region, st, scanID, instParents) },
+		func() (int, int, error) {
+			return scanSSOApplicationAccessScopes(ctx, client, acct, region, st, scanID, appParents)
+		},
+		func() (int, int, error) {
+			return scanSSOApplicationAuthenticationMethods(ctx, client, acct, region, st, scanID, appParents)
+		},
+		func() (int, int, error) {
+			return scanSSOApplicationGrants(ctx, client, acct, region, st, scanID, appParents)
+		},
+	} {
+		t, i, ferr := scan()
+		total += t
+		inserted += i
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+	}
 	return total, inserted, nil
+}
+
+// isSSOApplicationGone reports an application deleted between ListApplications
+// and the per-application list call.
+func isSSOApplicationGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+
+// scanSSOApplicationAccessScopes lists each application's access scopes. A
+// scope has no ARN; it is keyed {applicationArn}/access-scope/{scope}.
+func scanSSOApplicationAccessScopes(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "ssoadmin:ListApplicationAccessScopes", apps, isSSOApplicationGone,
+		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			p := ssoadmin.NewListApplicationAccessScopesPaginator(client, &ssoadmin.ListApplicationAccessScopesInput{ApplicationArn: &app.id})
+			for p.HasMorePages() {
+				page, err := p.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, sc := range page.Scopes {
+					scope := sv(sc.Scope)
+					if scope == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeSSOApplicationAccessScope, NativeID: app.arn + "/access-scope/" + scope,
+						Name: &scope, Region: &region, AttributesJSON: mustJSON(sc), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// scanSSOApplicationAuthenticationMethods lists each application's
+// authentication methods, at most one per method type, so a method is keyed
+// {applicationArn}/authentication-method/{type}.
+func scanSSOApplicationAuthenticationMethods(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "ssoadmin:ListApplicationAuthenticationMethods", apps, isSSOApplicationGone,
+		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			p := ssoadmin.NewListApplicationAuthenticationMethodsPaginator(client, &ssoadmin.ListApplicationAuthenticationMethodsInput{ApplicationArn: &app.id})
+			for p.HasMorePages() {
+				page, err := p.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, m := range page.AuthenticationMethods {
+					methodType := string(m.AuthenticationMethodType)
+					if methodType == "" {
+						continue
+					}
+					attrs, err := ssoAuthenticationMethodAttrsJSON(m)
+					if err != nil {
+						return nil, fmt.Errorf("authentication method %s: %w", methodType, err)
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeSSOApplicationAuthenticationMethod, NativeID: app.arn + "/authentication-method/" + methodType,
+						Name: &methodType, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// ssoAuthenticationMethodAttrsJSON renders the item in its SDK shape. The IAM
+// method's ActorPolicy is a Smithy document, which encoding/json renders as {}
+// (its value is unexported), so the policy is written out through the
+// document's own marshaler instead.
+func ssoAuthenticationMethodAttrsJSON(m ssotypes.AuthenticationMethodItem) (string, error) {
+	iam, ok := m.AuthenticationMethod.(*ssotypes.AuthenticationMethodMemberIam)
+	if !ok || iam.Value.ActorPolicy == nil {
+		return mustJSON(m), nil
+	}
+	policy, err := iam.Value.ActorPolicy.MarshalSmithyDocument()
+	if err != nil {
+		return "", fmt.Errorf("marshal ActorPolicy: %w", err)
+	}
+	type iamMethod struct {
+		ActorPolicy json.RawMessage `json:"ActorPolicy"`
+	}
+	return mustJSON(struct {
+		AuthenticationMethod     struct{ Value iamMethod }
+		AuthenticationMethodType ssotypes.AuthenticationMethodType
+	}{
+		AuthenticationMethod:     struct{ Value iamMethod }{Value: iamMethod{ActorPolicy: policy}},
+		AuthenticationMethodType: m.AuthenticationMethodType,
+	}), nil
+}
+
+// scanSSOApplicationGrants lists each application's grants, at most one per
+// grant type, so a grant is keyed {applicationArn}/grant/{type}. No grant type
+// carries a credential: JWT bearer grants name trusted token issuer ARNs and
+// audiences, authorization-code grants redirect URIs.
+func scanSSOApplicationGrants(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "ssoadmin:ListApplicationGrants", apps, isSSOApplicationGone,
+		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			p := ssoadmin.NewListApplicationGrantsPaginator(client, &ssoadmin.ListApplicationGrantsInput{ApplicationArn: &app.id})
+			for p.HasMorePages() {
+				page, err := p.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, g := range page.Grants {
+					grantType := string(g.GrantType)
+					if grantType == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeSSOApplicationGrant, NativeID: app.arn + "/grant/" + grantType,
+						Name: &grantType, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// scanSSORegions lists each instance's enabled Regions (the primary plus any
+// multi-Region replicas). A Region is keyed {instanceArn}/region/{regionName}.
+//
+// Multi-Region needs an organization instance, so a ValidationException
+// (modeled for ListRegions) skips that instance, as the org-only ABAC config
+// does in scanSSOInstanceAccessControlAttributeConfig. The live error shape
+// for an account instance is unverified.
+func scanSSORegions(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, instances []childParent) (int, int, error) {
+	isNotOrgInstance := func(err error) bool { return isAPIErrorCode(err, "ValidationException") }
+	return childFanOut(ctx, st, acct, region, "ssoadmin:ListRegions", instances, isNotOrgInstance,
+		func(ctx context.Context, inst childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			p := ssoadmin.NewListRegionsPaginator(client, &ssoadmin.ListRegionsInput{InstanceArn: &inst.id})
+			for p.HasMorePages() {
+				page, err := p.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, rm := range page.Regions {
+					name := sv(rm.RegionName)
+					if name == "" {
+						continue
+					}
+					r := &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeSSORegion, NativeID: inst.arn + "/region/" + name,
+						Name: &name, Region: &region, CreatedAt: tp(rm.AddedDate),
+						AttributesJSON: mustJSON(rm), DiscoveredBy: scanID,
+					}
+					if rm.Status != "" {
+						status := string(rm.Status)
+						r.Status = &status
+					}
+					rows = append(rows, r)
+				}
+			}
+			return rows, nil
+		})
 }
 
 // scanSSOApplicationProviders captures the AWS-managed catalog of application

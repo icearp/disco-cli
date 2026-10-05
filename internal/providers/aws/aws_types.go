@@ -658,6 +658,10 @@ const (
 	TypeSSOInstanceAccessControlAttributeConfiguration = "aws:sso:instance-access-control-attribute-configuration"
 	TypeSSOApplicationProvider                         = "aws:sso:application-provider"
 	TypeSSOTrustedTokenIssuer                          = "aws:sso:trusted-token-issuer"
+	TypeSSOApplicationAccessScope                      = "aws:sso:application-access-scope"
+	TypeSSOApplicationAuthenticationMethod             = "aws:sso:application-authentication-method"
+	TypeSSOApplicationGrant                            = "aws:sso:application-grant"
+	TypeSSORegion                                      = "aws:sso:region"
 	TypeIdentityStoreUser                              = "aws:identitystore:user"
 	TypeIdentityStoreGroup                             = "aws:identitystore:group"
 	// Macie (macie_scanners.go, macie_resolvers.go)
