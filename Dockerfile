@@ -17,10 +17,10 @@
 # Pin the PATCH, not the minor: the official images set GOTOOLCHAIN=local, so
 # the builder cannot download a newer toolchain and `go mod download` refuses
 # outright when go.mod's `go` directive is above the image's own version. The
-# floating `1.25` tag does not save you -- it resolves inside whatever alpine
+# floating minor tag does not save you -- it resolves inside whatever alpine
 # variant is named, and a discontinued variant freezes it (1.25-alpine3.21 is
-# still Go 1.25.5, eight patches behind this go.mod).
-ARG GO_VERSION=1.25.13
+# still Go 1.25.5).
+ARG GO_VERSION=1.26.9
 # The alpine variant is not a free choice: golang publishes only the alpine
 # releases current at the time of each patch, so a GO_VERSION bump can delete
 # the variant this pinned, and the deletion persists across later patches. Check
