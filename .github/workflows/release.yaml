@@ -53,21 +53,28 @@ jobs:
             goarch: amd64
             upx: true
             tarxz: false
+            zip: false
             ext: ''
           - goos: linux
             goarch: arm64
             upx: true
             tarxz: false
+            zip: false
             ext: ''
           - goos: darwin
             goarch: arm64
             upx: false
             tarxz: true
+            zip: false
             ext: ''
+          # No upx: it sizes its output buffer at ~1.125x the PE image and caps
+          # that at 768 MiB; the go1.26.9 image is 762 MB, so it refuses
+          # ("CantPackException: mem_size 2").
           - goos: windows
             goarch: amd64
-            upx: true
+            upx: false
             tarxz: false
+            zip: true
             ext: '.exe'
     steps:
       - uses: actions/checkout@v4
@@ -89,7 +96,8 @@ jobs:
             -trimpath -o "$out" .
           echo "ARTIFACT=$out" >> "$GITHUB_ENV"
           # SBOM_BASE tracks the RAW binary name; ARTIFACT is later rewritten to
-          # the .tar.xz name by the XZ step, but the SBOM describes the binary.
+          # the archive name by the XZ or ZIP step, but the SBOM describes the
+          # binary.
           echo "SBOM_BASE=$out" >> "$GITHUB_ENV"
 
       - name: Generate SBOM
@@ -118,6 +126,15 @@ jobs:
           rm -f "$ARTIFACT"
           echo "ARTIFACT=$ARTIFACT.tar.xz" >> "$GITHUB_ENV"
 
+      - name: ZIP compress
+        if: ${{ matrix.zip }}
+        run: |
+          set -euo pipefail
+          zip -9 -q "$ARTIFACT.zip" "$ARTIFACT"
+          zip -T "$ARTIFACT.zip"
+          rm -f "$ARTIFACT"
+          echo "ARTIFACT=$ARTIFACT.zip" >> "$GITHUB_ENV"
+
       - name: SHA256 sidecar
         run: sha256sum "$ARTIFACT" | awk '{print $1}' > "${ARTIFACT}.sha256"
 
@@ -125,7 +142,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           # upload-artifact@v4 requires unique names across the matrix — key on
-          # the target, not $ARTIFACT (rewritten to the .tar.xz name for darwin).
+          # the target, not $ARTIFACT (rewritten to the archive name for darwin
+          # and windows).
           name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
             ${{ env.ARTIFACT }}
