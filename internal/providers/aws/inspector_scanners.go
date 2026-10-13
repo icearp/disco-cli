@@ -15,6 +15,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeInspector2CisScanConfiguration, Service: "inspectorv2"})
 	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityIntegration, Service: "inspectorv2"})
 	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityScanConfiguration, Service: "inspectorv2"})
+	registerType(restype.Descriptor{Type: TypeInspector2Connector, Service: "inspectorv2"})
 	registerService(serviceEntry{
 		name: "aws:inspector2",
 		fn:   scanInspector2,
@@ -29,10 +30,12 @@ type inspector2API interface {
 	ListCisScanConfigurations(context.Context, *inspector2.ListCisScanConfigurationsInput, ...func(*inspector2.Options)) (*inspector2.ListCisScanConfigurationsOutput, error)
 	ListCodeSecurityIntegrations(context.Context, *inspector2.ListCodeSecurityIntegrationsInput, ...func(*inspector2.Options)) (*inspector2.ListCodeSecurityIntegrationsOutput, error)
 	ListCodeSecurityScanConfigurations(context.Context, *inspector2.ListCodeSecurityScanConfigurationsInput, ...func(*inspector2.Options)) (*inspector2.ListCodeSecurityScanConfigurationsOutput, error)
+	ListConnectors(context.Context, *inspector2.ListConnectorsInput, ...func(*inspector2.Options)) (*inspector2.ListConnectorsOutput, error)
 }
 
-// scanInspector2 discovers Inspector v2 finding-filters and member accounts
-// (delegated-admin perspective) in one region. Two phases run sequentially.
+// scanInspector2 discovers Inspector v2 finding-filters, member accounts
+// (delegated-admin perspective) and the scanInspector2Extended types in one
+// region, phase by phase.
 // Findings, coverage rows, and the singleton org-level configuration are
 // deliberately out of scope: findings are event data (matches Macie /
 // Detective / Security Hub precedent), coverage explodes the row count

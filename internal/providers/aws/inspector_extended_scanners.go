@@ -16,8 +16,8 @@ func isInspector2FeatureNotEnabled(err error) bool {
 }
 
 // scanInspector2Extended discovers Inspector v2 CIS scan configurations,
-// code security integrations, and code security scan configurations. ARNs
-// native on every type.
+// code security integrations, code security scan configurations, and
+// connectors. ARNs native on every type.
 func scanInspector2Extended(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	t, i, ferr := scanInspector2CisConfigs(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
@@ -34,6 +34,13 @@ func scanInspector2Extended(ctx context.Context, client inspector2API, acct *acc
 	inserted += i
 
 	t, i, ferr = scanInspector2CodeSecurityScanConfigs(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanInspector2Connectors(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -133,4 +140,39 @@ func scanInspector2CodeSecurityScanConfigs(ctx context.Context, client inspector
 		nextToken = out.NextToken
 	}
 	return upsertBatch(st, batch, "inspector2 code-security-scan-configurations")
+}
+
+// scanInspector2Connectors lists Inspector v2 multicloud connectors (e.g. the
+// Azure tenant/subscription connectors Inspector scans through). A connector
+// carries scope and health, no credential material, so no Redact rule.
+func scanInspector2Connectors(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := inspector2.NewListConnectorsPaginator(client, &inspector2.ListConnectorsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied(st, "inspector2:ListConnectors", acct.ID, region, err)
+				break
+			}
+			return 0, 0, fmt.Errorf("inspector2:ListConnectors: %w", err)
+		}
+		for _, c := range out.Items {
+			arn := sv(c.ConnectorArn)
+			if arn == "" {
+				continue
+			}
+			r := &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeInspector2Connector, NativeID: arn,
+				Name: c.Name, Region: &region, CreatedAt: tp(c.CreatedAt),
+				TagsJSON: mapTagsJSON(c.Tags), AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			}
+			if status := string(c.EnablementStatus); status != "" {
+				r.Status = &status
+			}
+			batch = append(batch, r)
+		}
+	}
+	return upsertBatch(st, batch, "inspector2 connectors")
 }

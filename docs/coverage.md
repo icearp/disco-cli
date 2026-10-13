@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.1% (1737/3336 listable) · depth0 66.7% · depth1 30.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.1% (1738/3336 listable) · depth0 66.7% · depth1 30.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1000 | 221 | 81.9 |
+| sr-resource | 1001 | 220 | 82.0 |
 | child-uncatalogued | 146 | 871 | 14.4 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
@@ -43,8 +43,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cleanrooms | 9 | 14 | 39.1 |
 | deadline | 13 | 14 | 48.1 |
 | dms | 11 | 14 | 44.0 |
-| inspector2 | 4 | 14 | 22.2 |
 | cloudformation | 7 | 13 | 35.0 |
+| inspector2 | 5 | 13 | 27.8 |
 | profile | 12 | 13 | 48.0 |
 | comprehend | 5 | 12 | 29.4 |
 | omics | 12 | 12 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1599)
+### Uncovered (listable, no scanner) (1598)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1177,7 +1177,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | inspector2 | inspector2/cisscanresultsaggregatedbycheck | 0 |  | child-uncatalogued | inspector2:ListCisScanResultsAggregatedByChecks |
 | inspector2 | inspector2/cisscanresultsaggregatedbytargetresource | 0 |  | child-uncatalogued | inspector2:ListCisScanResultsAggregatedByTargetResource |
 | inspector2 | inspector2/clustersforimage | 0 |  | element-arn | inspector2:GetClustersForImage |
-| inspector2 | inspector2/connector | 0 |  | sr-resource | inspector2:ListConnectors |
 | inspector2 | inspector2/connectorscanconfiguration | 0 |  | element-written | inspector2:ListConnectorScanConfigurations |
 | inspector2 | inspector2/delegatedadminaccount | 0 |  | element-written | inspector2:GetDelegatedAdminAccount, inspector2:ListDelegatedAdminAccounts |
 | inspector2 | inspector2/finding | 0 |  | sr-resource | inspector2:ListFindings |
