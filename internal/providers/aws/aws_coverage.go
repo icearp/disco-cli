@@ -12,6 +12,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/icearp/disco-cli/internal/sdkinv"
+	"github.com/icearp/disco-cli/store"
 )
 
 func init() { coverage.Register(&coverageProvider{}) }
@@ -55,11 +56,17 @@ func (coverageProvider) ListResolvers() []coverage.ResolverInfo {
 
 // ResolverEdgeSources implements coverage.ResolverAuditor: the distinct
 // EdgeDecl.Source disco-types declared across every registered resolver.
+// Contains declarations are skipped: they only record the scanner's own
+// parent→child pairs, so counting them would drop a parent with real
+// unresolved outbound refs from `coverage resolvers --missing`.
 func (coverageProvider) ResolverEdgeSources() []string {
 	edges := CollectResolverEdges()
 	seen := make(map[string]struct{}, len(edges))
 	out := make([]string, 0, len(edges))
 	for _, e := range edges {
+		if e.Kind == store.RelContains {
+			continue
+		}
 		if _, dup := seen[e.Source]; dup {
 			continue
 		}

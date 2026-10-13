@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/store"
 )
 
 // canonicalKey feeds CanonicalKey a registry key with its own service
@@ -93,5 +94,32 @@ func TestMarkCFNOnly(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("markCFNOnly = %+v\nwant %+v", got, want)
+	}
+}
+
+// A source declared only through contains edges has no outbound resolver, so
+// it must stay on `coverage resolvers --missing`; one with any other edge
+// kind must leave it.
+func TestResolverEdgeSources_SkipsContainsOnly(t *testing.T) {
+	kinds := map[string][]string{}
+	for _, e := range CollectResolverEdges() {
+		kinds[e.Source] = append(kinds[e.Source], e.Kind)
+	}
+	got := coverageProvider{}.ResolverEdgeSources()
+	var containsOnly, outbound int
+	for src, ks := range kinds {
+		onlyContains := !slices.ContainsFunc(ks, func(k string) bool { return k != store.RelContains })
+		listed := slices.Contains(got, src)
+		if onlyContains {
+			containsOnly++
+		} else {
+			outbound++
+		}
+		if listed == onlyContains {
+			t.Errorf("%s (kinds %v): in ResolverEdgeSources = %v, want %v", src, ks, listed, !onlyContains)
+		}
+	}
+	if containsOnly == 0 || outbound == 0 {
+		t.Fatalf("registry has %d contains-only and %d outbound sources; need both for this test to prove anything", containsOnly, outbound)
 	}
 }
