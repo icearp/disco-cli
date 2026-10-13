@@ -15,6 +15,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeGuardDutyIPSet, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyMember, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyMalwareProtectionPlan, Service: "guardduty"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyOrganizationConfiguration, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyPublishingDestination, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyThreatEntitySet, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyThreatIntelSet, Service: "guardduty"})
@@ -78,7 +79,7 @@ func scanGuardDutyDetectors(ctx context.Context, client guarddutyAPI, acct *acco
 		memberBatch   []gdChildPair
 	)
 	for _, did := range detectorIDs {
-		dArn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s", region, acct.ID, did)
+		dArn := guardDutyDetectorARN(region, acct.ID, did)
 		dr, derr := getGuardDutyDetector(ctx, client, acct, region, scanID, did, dArn)
 		if derr != nil {
 			return 0, 0, derr
@@ -128,6 +129,10 @@ func scanGuardDutyDetectors(ctx context.Context, client guarddutyAPI, acct *acco
 		}
 	}
 	return total, inserted, nil
+}
+
+func guardDutyDetectorARN(region, accountID, detectorID string) string {
+	return fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s", region, accountID, detectorID)
 }
 
 func listGuardDutyDetectorIDs(ctx context.Context, client guarddutyAPI, acct *account, region string, st *store.Store) ([]string, error) {

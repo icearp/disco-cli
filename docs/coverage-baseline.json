@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 52.038369304556355,
-    "covered": 1736,
-    "uncovered": 1600,
+    "percent": 52.068345323741006,
+    "covered": 1737,
+    "uncovered": 1599,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -802,6 +802,7 @@
       "guardduty/ipset",
       "guardduty/malwareprotectionplan",
       "guardduty/member",
+      "guardduty/organizationconfiguration",
       "guardduty/publishingdestination",
       "guardduty/threatentityset",
       "guardduty/threatintelset",
@@ -2525,7 +2526,6 @@
       "guardduty/finding",
       "guardduty/investigation",
       "guardduty/malwarescan",
-      "guardduty/organizationconfiguration",
       "health-agent/domain",
       "health-agent/subscription",
       "health/affectedaccountsfororganization",

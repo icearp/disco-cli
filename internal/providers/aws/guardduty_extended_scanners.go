@@ -2,9 +2,12 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
+	"github.com/aws/smithy-go/middleware"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -19,8 +22,8 @@ func isGuardDutyMemberRestricted(err error) bool {
 }
 
 // guardDutyExtAPI lists ops used by extended GuardDuty phases. Threat / Trusted
-// entity-set + threat-intel-set + publishing-destination are per-detector;
-// malware-protection-plan is account-wide.
+// entity-set + threat-intel-set + publishing-destination + organization
+// configuration are per-detector; malware-protection-plan is account-wide.
 type guardDutyExtAPI interface {
 	ListMalwareProtectionPlans(context.Context, *guardduty.ListMalwareProtectionPlansInput, ...func(*guardduty.Options)) (*guardduty.ListMalwareProtectionPlansOutput, error)
 	ListPublishingDestinations(context.Context, *guardduty.ListPublishingDestinationsInput, ...func(*guardduty.Options)) (*guardduty.ListPublishingDestinationsOutput, error)
@@ -28,9 +31,10 @@ type guardDutyExtAPI interface {
 	ListThreatIntelSets(context.Context, *guardduty.ListThreatIntelSetsInput, ...func(*guardduty.Options)) (*guardduty.ListThreatIntelSetsOutput, error)
 	ListTrustedEntitySets(context.Context, *guardduty.ListTrustedEntitySetsInput, ...func(*guardduty.Options)) (*guardduty.ListTrustedEntitySetsOutput, error)
 	ListDetectors(context.Context, *guardduty.ListDetectorsInput, ...func(*guardduty.Options)) (*guardduty.ListDetectorsOutput, error)
+	DescribeOrganizationConfiguration(context.Context, *guardduty.DescribeOrganizationConfigurationInput, ...func(*guardduty.Options)) (*guardduty.DescribeOrganizationConfigurationOutput, error)
 }
 
-// scanGuardDutyExtended runs five extended-coverage phases. Re-lists detectors
+// scanGuardDutyExtended runs six extended-coverage phases. Re-lists detectors
 // to avoid plumbing IDs through the existing scanGuardDutyDetectors signature.
 func scanGuardDutyExtended(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	t, i, ferr := scanGDMalwareProtectionPlans(ctx, client, acct, region, st, scanID)
@@ -76,7 +80,71 @@ func scanGuardDutyExtended(ctx context.Context, client guardDutyExtAPI, acct *ac
 			inserted += i
 		}
 	}
-	return total, inserted, nil
+
+	t, i, ferr = scanGDOrganizationConfigurations(ctx, client, acct, region, st, scanID, detectorIDs)
+	total += t
+	inserted += i
+	return total, inserted, ferr
+}
+
+// errGDOrgConfigRefused marks a detector whose first
+// DescribeOrganizationConfiguration page was refused with BadRequestException.
+var errGDOrgConfigRefused = errors.New("guardduty organization configuration not read (the account may not be the GuardDuty delegated administrator)")
+
+// scanGDOrganizationConfigurations stores each detector's organization
+// configuration, which only the GuardDuty delegated administrator can read.
+// Non-admin and standalone accounts are expected to get BadRequestException on
+// the first page, but that response was never observed live and GuardDuty uses
+// the code for any 400 (a detector deleted since listing, a malformed request).
+// So a first-page BadRequestException drops only that detector's configuration
+// and records one warning per region, through the same warning sink as an
+// AccessDenied; the detector's other rows are kept. A later page is requested
+// only after the first succeeded, so a BadRequestException there is not a
+// refusal to read the configuration (e.g. a rejected NextToken) and propagates.
+func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string, detectorIDs []string) (int, int, error) {
+	const op = "guardduty:DescribeOrganizationConfiguration"
+	parents := make([]childParent, len(detectorIDs))
+	for i, did := range detectorIDs {
+		parents[i] = childParent{id: did, arn: guardDutyDetectorARN(region, acct.ID, did)}
+	}
+	var refusedOnce sync.Once
+	warnIfRefused := func(err error) bool {
+		if !errors.Is(err, errGDOrgConfigRefused) {
+			return false
+		}
+		refusedOnce.Do(func() { _ = skipIfAccessDenied(st, op, acct.ID, region, err) })
+		return true
+	}
+	return childFanOut(ctx, st, acct, region, op, parents, warnIfRefused,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			did := p.id
+			pager := guardduty.NewDescribeOrganizationConfigurationPaginator(client, &guardduty.DescribeOrganizationConfigurationInput{DetectorId: &did})
+			var attrs *guardduty.DescribeOrganizationConfigurationOutput
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					if attrs == nil && isAPIErrorCode(err, "BadRequestException") {
+						return nil, fmt.Errorf("%w: %w", errGDOrgConfigRefused, err)
+					}
+					return nil, err
+				}
+				if attrs == nil {
+					attrs = out
+					continue
+				}
+				attrs.Features = append(attrs.Features, out.Features...)
+			}
+			// Page 1 carries the settings; clearing the response envelope keeps a
+			// paginated answer identical across scans.
+			attrs.NextToken = nil
+			attrs.ResultMetadata = middleware.Metadata{}
+			label := "organization-configuration"
+			return []*store.Resource{{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeGuardDutyOrganizationConfiguration, NativeID: p.arn + "/organization-configuration",
+				Name: &label, Region: &region, AttributesJSON: mustJSON(attrs), DiscoveredBy: scanID,
+			}}, nil
+		})
 }
 
 func scanGDMalwareProtectionPlans(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.0% (1736/3336 listable) · depth0 66.7% · depth1 30.3% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.1% (1737/3336 listable) · depth0 66.7% · depth1 30.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1000 | 221 | 81.9 |
-| child-uncatalogued | 145 | 872 | 14.3 |
+| child-uncatalogued | 146 | 871 | 14.4 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
 | element-arn | 26 | 80 | 24.5 |
@@ -73,7 +73,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cleanrooms-ml | 7 | 8 | 46.7 |
 | codebuild | 4 | 8 | 33.3 |
 | devops-guru | 1 | 8 | 11.1 |
-| guardduty | 9 | 8 | 52.9 |
 | ivs | 11 | 8 | 57.9 |
 | mobiletargeting | 3 | 8 | 27.3 |
 | proton | 11 | 8 | 57.9 |
@@ -85,6 +84,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cognito-idp | 6 | 7 | 46.2 |
 | globalaccelerator | 4 | 7 | 36.4 |
 | greengrass | 20 | 7 | 74.1 |
+| guardduty | 10 | 7 | 58.8 |
 | networkmanager | 13 | 7 | 65.0 |
 | outposts | 2 | 7 | 22.2 |
 | ram | 2 | 7 | 22.2 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1600)
+### Uncovered (listable, no scanner) (1599)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1138,7 +1138,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | guardduty | guardduty/finding | 1 |  | child-uncatalogued | guardduty:ListFindings |
 | guardduty | guardduty/investigation | 1 |  | child-uncatalogued | guardduty:GetInvestigation, guardduty:ListInvestigations |
 | guardduty | guardduty/malwarescan | 0 |  | element-arn | guardduty:DescribeMalwareScans, guardduty:GetMalwareScan, guardduty:ListMalwareScans |
-| guardduty | guardduty/organizationconfiguration | 1 |  | child-uncatalogued | guardduty:DescribeOrganizationConfiguration |
 | health | health/affectedaccountsfororganization | 1 |  | child-uncatalogued | health:DescribeAffectedAccountsForOrganization |
 | health | health/affectedentity | 1 |  | element-arn | health:DescribeAffectedEntities, health:DescribeAffectedEntitiesForOrganization |
 | health | health/entityaggregate | 0 |  | element-arn | health:DescribeEntityAggregates |
