@@ -95,6 +95,20 @@ func init() {
 		EdgeDecl{TypeLambdaPermission, TypeEFSFileSystem, store.RelUses},
 		EdgeDecl{TypeLambdaLayerVersionPermission, TypeLambdaLayerVersion, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopLambdaHierarchy,
+		EdgeDecl{TypeLambdaFunction, TypeLambdaProvisionedConcurrencyConfig, store.RelContains},
+		EdgeDecl{TypeLambdaMicrovmImage, TypeLambdaMicrovmImageVersion, store.RelContains},
+	)
+}
+
+// noopLambdaHierarchy emits nothing: the function → provisioned-concurrency-config
+// and microvm-image → microvm-image-version contains edges are written at scan
+// time by childFanOut (scanLambdaProvisionedConcurrencyConfigs,
+// scanLambdaMicrovmImageVersions). It is registered only so those edges are
+// declared to coverage tooling.
+func noopLambdaHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // lambdaStripQualifier strips the version or alias qualifier from a qualified

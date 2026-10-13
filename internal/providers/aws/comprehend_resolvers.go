@@ -36,6 +36,17 @@ func init() {
 		EdgeDecl{TypeComprehendEntityRecognizerEndpoint, TypeComprehendEntityRecognizer, store.RelUses},
 		EdgeDecl{TypeComprehendEntityRecognizerEndpoint, TypeIAMRole, store.RelUses},
 	)
+	registerResolver(
+		noopComprehendHierarchy,
+		EdgeDecl{TypeComprehendFlywheel, TypeComprehendDataset, store.RelContains},
+	)
+}
+
+// noopComprehendHierarchy emits nothing: the flywheel → dataset contains edges
+// are written at scan time by scanComprehendDatasets via RecordHierarchyBatch.
+// It is registered only so those edges are declared to coverage tooling.
+func noopComprehendHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveComprehendEntityRecognizerRefs wires each entity-recognizer to its IAM

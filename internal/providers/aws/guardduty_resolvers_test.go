@@ -15,19 +15,21 @@ func TestResolveGuardDutyRelationships(t *testing.T) {
 	detARN := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s", testRegion, acct.ID, did)
 	filterARN := detARN + "/filter/my-filter"
 	ipsetARN := detARN + "/ipset/ips-1"
+	memberARN := detARN + "/member/111122223333"
 	bucket := "gd-threat-intel"
 	ipsetAttrs := fmt.Sprintf(`{"Location":"s3://%s/badips.txt","Name":"bad-ips"}`, bucket)
 
 	detID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyDetector, detARN, testRegion, "{}")
 	fID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyFilter, filterARN, testRegion, "{}")
 	iID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyIPSet, ipsetARN, testRegion, ipsetAttrs)
+	mID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyMember, memberARN, testRegion, "{}")
 	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucket, "", "{}")
 
-	// Mimics guardduty_scanners.go closure pairs (filter, detector) and
-	// (ipset, detector); unified closure writer emits parent→child contains
-	// rows, resolver only handles ipset→bucket.
+	// Mimics guardduty_scanners.go closure pairs (filter, detector),
+	// (ipset, detector) and (member, detector); unified closure writer emits
+	// parent→child contains rows, resolver only handles ipset→bucket.
 	if err := st.RecordHierarchyBatch([][2]string{
-		{fID, detID}, {iID, detID},
+		{fID, detID}, {iID, detID}, {mID, detID},
 	}); err != nil {
 		t.Fatalf("RecordHierarchyBatch: %v", err)
 	}
@@ -38,6 +40,7 @@ func TestResolveGuardDutyRelationships(t *testing.T) {
 	detRels, _ := st.RelationshipsFrom(detID)
 	assertRelationship(t, detRels, detID, fID, store.RelContains)
 	assertRelationship(t, detRels, detID, iID, store.RelContains)
+	assertRelationship(t, detRels, detID, mID, store.RelContains)
 
 	iRels, _ := st.RelationshipsFrom(iID)
 	assertRelationship(t, iRels, iID, bID, store.RelUses)

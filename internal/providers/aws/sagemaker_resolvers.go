@@ -25,6 +25,23 @@ func init() {
 		EdgeDecl{TypeSageMakerModel, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerModel, TypeEC2SecurityGroup, store.RelUses},
 	)
+	registerResolver(
+		noopSageMakerHierarchy,
+		EdgeDecl{TypeSageMakerCluster, TypeSageMakerClusterNode, store.RelContains},
+		EdgeDecl{TypeSageMakerMonitoringSchedule, TypeSageMakerMonitoringAlert, store.RelContains},
+		EdgeDecl{TypeSageMakerTrainingPlan, TypeSageMakerUltraServer, store.RelContains},
+		EdgeDecl{TypeSageMakerImage, TypeSageMakerAlias, store.RelContains},
+	)
+}
+
+// noopSageMakerHierarchy emits nothing: the cluster → cluster-node,
+// monitoring-schedule → monitoring-alert, training-plan → ultraserver and
+// image → alias contains edges are written at scan time by
+// scanSageMakerChildren (scanSageMakerClusterNodes, scanSageMakerMonitoringAlerts,
+// scanSageMakerUltraServers, scanSageMakerImageAliases). It is registered only
+// so those edges are declared to coverage tooling.
+func noopSageMakerHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // sagemakerEndpointConfigARN rebuilds the canonical ARN from an

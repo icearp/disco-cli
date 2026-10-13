@@ -13,6 +13,19 @@ func init() {
 		resolveRHAppAssessmentToApp,
 		EdgeDecl{TypeResilienceHubAppAssessment, TypeResilienceHubApp, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopResilienceHubHierarchy,
+		EdgeDecl{TypeResilienceHubService, TypeResilienceHubTest, store.RelContains},
+		EdgeDecl{TypeResilienceHubSystem, TypeResilienceHubUserJourney, store.RelContains},
+	)
+}
+
+// noopResilienceHubHierarchy emits nothing: the service → test and
+// system → user-journey contains edges are written at scan time by childFanOut
+// (scanRHTests, scanRHUserJourneys). It is registered only so those edges are
+// declared to coverage tooling.
+func noopResilienceHubHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveRHAppAssessmentToApp wires each app-assessment to the app it assesses

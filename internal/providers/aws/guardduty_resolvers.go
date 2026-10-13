@@ -18,6 +18,20 @@ func init() {
 		resolveGuardDutyMemberOrgAccount,
 		EdgeDecl{TypeGuardDutyMember, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopGuardDutyHierarchy,
+		EdgeDecl{TypeGuardDutyDetector, TypeGuardDutyFilter, store.RelContains},
+		EdgeDecl{TypeGuardDutyDetector, TypeGuardDutyIPSet, store.RelContains},
+		EdgeDecl{TypeGuardDutyDetector, TypeGuardDutyMember, store.RelContains},
+	)
+}
+
+// noopGuardDutyHierarchy emits nothing: the detector → filter / ipset / member
+// contains edges are written at scan time by upsertGuardDutyChildren via
+// RecordHierarchyBatch (called from scanGuardDutyDetectors). It is registered
+// only so those edges are declared to coverage tooling.
+func noopGuardDutyHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // guardDutyMemberAttrs mirrors the verbatim Member fields used by the

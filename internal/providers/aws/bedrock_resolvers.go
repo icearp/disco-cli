@@ -57,6 +57,24 @@ func init() {
 		EdgeDecl{TypeBedrockDataSource, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeBedrockDataSource, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		noopBedrockHierarchy,
+		EdgeDecl{TypeBedrockAgent, TypeBedrockAgentVersion, store.RelContains},
+		EdgeDecl{TypeBedrockAgent, TypeBedrockAgentActionGroup, store.RelContains},
+		EdgeDecl{TypeBedrockAgent, TypeBedrockAgentKnowledgeBase, store.RelContains},
+		EdgeDecl{TypeBedrockAgent, TypeBedrockAgentCollaborator, store.RelContains},
+		EdgeDecl{TypeBedrockAutomatedReasoningPolicy, TypeBedrockAutomatedReasoningPolicyTestCase, store.RelContains},
+	)
+}
+
+// noopBedrockHierarchy emits nothing: the agent → version / action-group /
+// knowledge-base / collaborator and automated-reasoning-policy → test-case
+// contains edges are written at scan time by childFanOut (scanBedrockAgentVersions,
+// scanBedrockAgentActionGroups, scanBedrockAgentKnowledgeBases,
+// scanBedrockAgentCollaborators, scanBedrockARPolicyTestCases). It is registered
+// only so those edges are declared to coverage tooling.
+func noopBedrockHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveBedrockKBStorageRefs wires knowledge-base → IAM role + variant

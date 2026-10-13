@@ -27,6 +27,21 @@ func init() {
 		EdgeDecl{TypeQuickSightUser, TypeQuickSightNamespace, store.RelAttachedTo},
 		EdgeDecl{TypeQuickSightAssignment, TypeQuickSightNamespace, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopQuickSightHierarchy,
+		EdgeDecl{TypeQuickSightTemplate, TypeQuickSightTemplateAlias, store.RelContains},
+		EdgeDecl{TypeQuickSightTheme, TypeQuickSightThemeAlias, store.RelContains},
+		EdgeDecl{TypeQuickSightTopic, TypeQuickSightTopicRefreshSchedule, store.RelContains},
+	)
+}
+
+// noopQuickSightHierarchy emits nothing: the template → template-alias,
+// theme → theme-alias and topic → topic-refresh-schedule contains edges are
+// written at scan time by childFanOut (scanQSTemplateAliases,
+// scanQSThemeAliases, scanQSTopicRefreshSchedules). It is registered only so
+// those edges are declared to coverage tooling.
+func noopQuickSightHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // quicksightNamespaceARNFromMember recovers the parent namespace ARN from a

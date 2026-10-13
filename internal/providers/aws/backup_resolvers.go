@@ -94,6 +94,17 @@ func init() {
 		resolveBackupPlanVaultRefs,
 		EdgeDecl{TypeBackupPlan, TypeBackupVault, store.RelRoutesTo},
 	)
+	registerResolver(
+		noopBackupHierarchy,
+		EdgeDecl{TypeBackupPlan, TypeBackupSelection, store.RelContains},
+	)
+}
+
+// noopBackupHierarchy emits nothing: the plan → selection contains edges are
+// written at scan time by scanBackupAll via RecordHierarchyBatch. It is
+// registered only so those edges are declared to coverage tooling.
+func noopBackupHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveBackupPlanVaultRefs walks each plan's Rules[] and emits a

@@ -2,10 +2,12 @@ package aws
 
 import (
 	"path/filepath"
+	"sync"
 	"testing"
 
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	eventstypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
+	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -41,7 +43,70 @@ func newTestStore(t *testing.T) *store.Store {
 			t.Errorf("reversed contains edges leaked: %d rows; first %+v", len(rows), rows[0])
 		}
 	})
+	t.Cleanup(func() { assertContainsEdgesDeclared(t, st) })
 	return st
+}
+
+// declaredContainsEdges is the set of every EdgeDecl the registered resolvers
+// declare. Lazy rather than a package var because package vars initialise
+// before the init() funcs that populate the registry; the registry is fixed
+// once they have run.
+var declaredContainsEdges = sync.OnceValue(func() map[EdgeDecl]bool {
+	declared := map[EdgeDecl]bool{}
+	for _, d := range CollectResolverEdges() {
+		declared[d] = true
+	}
+	return declared
+})
+
+// assertContainsEdgesDeclared fails the test for every contains edge in st
+// whose (parent type, child type) no registered resolver declares as an
+// EdgeDecl{Parent, Child, store.RelContains}. Scanners write these edges via
+// RecordHierarchyBatch (directly or through childFanOut), which carries no
+// type information, so an undeclared pair is otherwise invisible to
+// `disco coverage resolvers`.
+//
+// It proves only that the pairs some test stores are declared — nothing about
+// pairs no test stores. RecordHierarchyBatch writes the contains row only when
+// both endpoint rows exist, so a scanner test that never seeds the parent
+// leaves its pair unchecked.
+func assertContainsEdgesDeclared(t *testing.T, st *store.Store) {
+	t.Helper()
+	rels, err := st.ListRelationships()
+	if err != nil {
+		t.Errorf("ListRelationships: %v", err)
+		return
+	}
+	var contains []store.Relationship
+	for _, r := range rels {
+		if r.Kind == store.RelContains {
+			contains = append(contains, r)
+		}
+	}
+	if len(contains) == 0 {
+		return
+	}
+	rows, err := st.ListResources(store.ResourceFilter{IncludeManaged: true, Limit: util.AllResources})
+	if err != nil {
+		t.Errorf("ListResources: %v", err)
+		return
+	}
+	typeOf := make(map[string]string, len(rows))
+	for _, r := range rows {
+		typeOf[r.ID] = r.Type
+	}
+	declared := declaredContainsEdges()
+	for _, r := range contains {
+		parent, pok := typeOf[r.FromID]
+		child, cok := typeOf[r.ToID]
+		if !pok || !cok {
+			t.Errorf("contains edge %s→%s: endpoint row missing (parent found=%v, child found=%v)", r.FromID, r.ToID, pok, cok)
+			continue
+		}
+		if d := (EdgeDecl{parent, child, store.RelContains}); !declared[d] {
+			t.Errorf("undeclared contains edge %s → %s: register EdgeDecl{Parent, Child, store.RelContains} on a resolver (see noopIoTSWHierarchy)", d.Source, d.Target)
+		}
+	}
 }
 
 // insertTestScan inserts a scan record so resources can name it in
