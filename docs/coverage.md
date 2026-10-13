@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 51.9% (1731/3336 listable) · depth0 66.5% · depth1 30.2% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.0% (1736/3336 listable) · depth0 66.7% · depth1 30.3% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,10 +9,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1000 | 221 | 81.9 |
-| child-uncatalogued | 144 | 873 | 14.2 |
-| smithy-resource | 414 | 148 | 73.7 |
+| child-uncatalogued | 145 | 872 | 14.3 |
+| smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
-| element-arn | 25 | 81 | 23.6 |
+| element-arn | 26 | 80 | 24.5 |
 | element-created | 3 | 11 | 21.4 |
 
 | Service | Covered | Uncovered | % |
@@ -88,7 +88,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | networkmanager | 13 | 7 | 65.0 |
 | outposts | 2 | 7 | 22.2 |
 | ram | 2 | 7 | 22.2 |
-| redshift-serverless | 6 | 7 | 46.2 |
 | servicecatalog | 13 | 7 | 65.0 |
 | aco-automation | 0 | 6 | 0.0 |
 | autoscaling | 6 | 6 | 50.0 |
@@ -232,6 +231,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | networkflowmonitor | 2 | 2 | 50.0 |
 | pi | 0 | 2 | 0.0 |
 | qapps | 1 | 2 | 33.3 |
+| redshift-serverless | 11 | 2 | 84.6 |
 | resource-explorer-2 | 4 | 2 | 66.7 |
 | resource-groups | 2 | 2 | 50.0 |
 | sagemaker-geospatial | 1 | 2 | 33.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1605)
+### Uncovered (listable, no scanner) (1600)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1597,13 +1597,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | redshift-data | redshift-data/schema | 1 |  | child-uncatalogued | redshift-data:ListSchemas |
 | redshift-data | redshift-data/statement | 0 |  | element-arn | redshift-data:DescribeStatement, redshift-data:ListStatements |
 | redshift-data | redshift-data/table | 1 |  | child-uncatalogued | redshift-data:DescribeTable, redshift-data:ListTables |
-| redshift-serverless | redshift-serverless/customdomainassociation | 0 |  | element-arn | redshift-serverless:GetCustomDomainAssociation, redshift-serverless:ListCustomDomainAssociations |
-| redshift-serverless | redshift-serverless/reservation | 0 |  | smithy-resource | redshift-serverless:GetReservation, redshift-serverless:ListReservations |
 | redshift-serverless | redshift-serverless/reservationoffering | 1 |  | child-uncatalogued | redshift-serverless:GetReservationOffering, redshift-serverless:ListReservationOfferings |
-| redshift-serverless | redshift-serverless/scheduledaction | 0 |  | smithy-resource | redshift-serverless:GetScheduledAction, redshift-serverless:ListScheduledActions |
-| redshift-serverless | redshift-serverless/snapshotcopyconfiguration | 1 |  | child-uncatalogued | redshift-serverless:ListSnapshotCopyConfigurations |
 | redshift-serverless | redshift-serverless/tablerestorestatus | 1 |  | child-uncatalogued | redshift-serverless:GetTableRestoreStatus, redshift-serverless:ListTableRestoreStatus |
-| redshift-serverless | redshift-serverless/usagelimit | 0 |  | smithy-resource | redshift-serverless:GetUsageLimit, redshift-serverless:ListUsageLimits |
 | refactor-spaces | refactor-spaces/environmentvpc | 1 |  | child-uncatalogued | refactor-spaces:ListEnvironmentVpcs |
 | rekognition | rekognition/datasetentry | 3 |  | child-uncatalogued | rekognition:ListDatasetEntries |
 | rekognition | rekognition/datasetlabel | 3 |  | child-uncatalogued | rekognition:ListDatasetLabels |

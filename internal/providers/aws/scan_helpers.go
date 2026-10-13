@@ -158,10 +158,9 @@ func childFanOut(
 	isSkip func(error) bool, list func(context.Context, childParent) ([]*store.Resource, error),
 ) (int, int, error) {
 	var (
-		mu        sync.Mutex
-		batch     []*store.Resource
-		parentIDs []string
-		denyOnce  sync.Once
+		mu       sync.Mutex
+		children []containedChild
+		denyOnce sync.Once
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(fanoutMed)
@@ -182,8 +181,7 @@ func childFanOut(
 			mu.Lock()
 			defer mu.Unlock()
 			for _, r := range rows {
-				batch = append(batch, r)
-				parentIDs = append(parentIDs, parentID)
+				children = append(children, containedChild{row: r, parentID: parentID})
 			}
 			return nil
 		})
@@ -191,13 +189,30 @@ func childFanOut(
 	if err := g.Wait(); err != nil {
 		return 0, 0, err
 	}
+	return upsertContained(st, op, children)
+}
+
+// containedChild is a child row and the ResourceID of the parent that
+// contains it.
+type containedChild struct {
+	row      *store.Resource
+	parentID string
+}
+
+// upsertContained stores the children, then links each under its parent via
+// the contains closure; the pairs need the row IDs the upsert assigns.
+func upsertContained(st *store.Store, op string, children []containedChild) (int, int, error) {
+	batch := make([]*store.Resource, len(children))
+	for i, c := range children {
+		batch[i] = c.row
+	}
 	total, inserted, err := upsertBatch(st, batch, op)
 	if err != nil {
 		return 0, 0, err
 	}
-	pairs := make([][2]string, len(batch))
-	for i, r := range batch {
-		pairs[i] = [2]string{r.ID, parentIDs[i]}
+	pairs := make([][2]string, len(children))
+	for i, c := range children {
+		pairs[i] = [2]string{c.row.ID, c.parentID}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return 0, 0, fmt.Errorf("closure %s: %w", op, err)

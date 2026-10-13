@@ -33,6 +33,19 @@ func init() {
 		resolveRSSRecoveryPointRefs,
 		EdgeDecl{TypeRedshiftServerlessRecoveryPoint, TypeRedshiftServerlessNamespace, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopRSSHierarchy,
+		EdgeDecl{TypeRedshiftServerlessNamespace, TypeRedshiftServerlessScheduledAction, store.RelContains},
+		EdgeDecl{TypeRedshiftServerlessWorkgroup, TypeRedshiftServerlessCustomDomainAssociation, store.RelContains},
+	)
+}
+
+// noopRSSHierarchy only carries EdgeDecl metadata: the scanner records the
+// namespace→scheduled-action and workgroup→custom-domain-association contains
+// edges itself via RecordHierarchyBatch (scanRSSScheduledActions /
+// scanRSSCustomDomainAssociations), so there is nothing left to resolve here.
+func noopRSSHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveRSSEndpointAccessRefs links each VPC endpoint to its workgroup. The
