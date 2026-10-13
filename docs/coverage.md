@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.2% (1740/3336 listable) · depth0 66.7% · depth1 30.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.2% (1742/3336 listable) · depth0 66.8% · depth1 30.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1001 | 220 | 82.0 |
+| sr-resource | 1003 | 218 | 82.1 |
 | child-uncatalogued | 148 | 869 | 14.6 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
@@ -77,7 +77,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mobiletargeting | 3 | 8 | 27.3 |
 | proton | 11 | 8 | 57.9 |
 | securityhub | 9 | 8 | 52.9 |
-| sms-voice | 9 | 8 | 52.9 |
 | workdocs | 0 | 8 | 0.0 |
 | appstream | 14 | 7 | 66.7 |
 | bcm-pricing-calculator | 3 | 7 | 30.0 |
@@ -99,6 +98,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | medialive | 17 | 6 | 73.9 |
 | personalize | 11 | 6 | 64.7 |
 | rekognition | 4 | 6 | 40.0 |
+| sms-voice | 11 | 6 | 64.7 |
 | ssm-contacts | 3 | 6 | 33.3 |
 | wickr | 0 | 6 | 0.0 |
 | access-analyzer | 2 | 5 | 28.6 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1596)
+### Uncovered (listable, no scanner) (1594)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1767,9 +1767,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | signer | signer/signingjob | 0 |  | sr-resource | signer:DescribeSigningJob, signer:ListSigningJobs |
 | sms-voice | sms-voice/availablephonenumber | 0 |  | element-written | sms-voice:ListAvailablePhoneNumbers |
 | sms-voice | sms-voice/configurationseteventdestination | 1 |  | child-uncatalogued | sms-voice:GetConfigurationSetEventDestinations |
-| sms-voice | sms-voice/notifyconfiguration | 0 |  | sr-resource | sms-voice:DescribeNotifyConfigurations |
 | sms-voice | sms-voice/pooloriginationidentity | 1 |  | child-uncatalogued | sms-voice:ListPoolOriginationIdentities |
-| sms-voice | sms-voice/rcsagent | 0 |  | sr-resource | sms-voice:DescribeRcsAgents |
 | sms-voice | sms-voice/rcsagentcountrylaunchstatus | 1 |  | child-uncatalogued | sms-voice:DescribeRcsAgentCountryLaunchStatus |
 | sms-voice | sms-voice/registrationassociation | 1 |  | child-uncatalogued | sms-voice:ListRegistrationAssociations |
 | sms-voice | sms-voice/registrationfieldvalue | 1 |  | child-uncatalogued | sms-voice:DescribeRegistrationFieldValues |

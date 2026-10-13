@@ -1369,6 +1369,8 @@ const (
 	TypeSMSVoiceRegistration              = "aws:sms-voice:registration"
 	TypeSMSVoiceRegistrationAttachment    = "aws:sms-voice:registration-attachment"
 	TypeSMSVoiceVerifiedDestinationNumber = "aws:sms-voice:verified-destination-number"
+	TypeSMSVoiceNotifyConfiguration       = "aws:sms-voice:notify-configuration"
+	TypeSMSVoiceRcsAgent                  = "aws:sms-voice:rcs-agent"
 	// Route53GlobalResolver (route53globalresolver_scanners.go)
 	TypeR53GRAccessSource          = "aws:route53globalresolver:access-source"
 	TypeR53GRAccessToken           = "aws:route53globalresolver:access-token"

@@ -19,6 +19,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistration, Service: "sms-voice"})
 	registerType(restype.Descriptor{Type: TypeSMSVoiceRegistrationAttachment, Service: "sms-voice"})
 	registerType(restype.Descriptor{Type: TypeSMSVoiceVerifiedDestinationNumber, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceNotifyConfiguration, Service: "sms-voice"})
+	registerType(restype.Descriptor{Type: TypeSMSVoiceRcsAgent, Service: "sms-voice"})
 	registerService(serviceEntry{
 		name: "aws:sms-voice",
 		fn:   scanSMSVoice,
@@ -35,6 +37,8 @@ type smsVoiceAPI interface {
 	DescribeRegistrations(context.Context, *pinpointsmsvoicev2.DescribeRegistrationsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeRegistrationsOutput, error)
 	DescribeRegistrationAttachments(context.Context, *pinpointsmsvoicev2.DescribeRegistrationAttachmentsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeRegistrationAttachmentsOutput, error)
 	DescribeVerifiedDestinationNumbers(context.Context, *pinpointsmsvoicev2.DescribeVerifiedDestinationNumbersInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeVerifiedDestinationNumbersOutput, error)
+	DescribeNotifyConfigurations(context.Context, *pinpointsmsvoicev2.DescribeNotifyConfigurationsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeNotifyConfigurationsOutput, error)
+	DescribeRcsAgents(context.Context, *pinpointsmsvoicev2.DescribeRcsAgentsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeRcsAgentsOutput, error)
 }
 
 func scanSMSVoice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -52,6 +56,8 @@ func scanSMSVoice(ctx context.Context, acct *account, region string, st *store.S
 		func() (int, int, error) {
 			return scanSVVerifiedDestinationNumbers(ctx, client, acct, region, st, scanID)
 		},
+		func() (int, int, error) { return scanSVNotifyConfigurations(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanSVRcsAgents(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -343,4 +349,68 @@ func scanSVVerifiedDestinationNumbers(ctx context.Context, client smsVoiceAPI, a
 		}
 	}
 	return upsertBatch(st, batch, "sms-voice verified-destination-numbers")
+}
+
+func scanSVNotifyConfigurations(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := pinpointsmsvoicev2.NewDescribeNotifyConfigurationsPaginator(client, &pinpointsmsvoicev2.DescribeNotifyConfigurationsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "sms-voice:DescribeNotifyConfigurations", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("sms-voice:DescribeNotifyConfigurations: %w", perr)
+		}
+		for _, c := range out.NotifyConfigurations {
+			arn := sv(c.NotifyConfigurationArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(c.DisplayName)
+			if label == "" {
+				label = sv(c.NotifyConfigurationId)
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSMSVoiceNotifyConfiguration, NativeID: arn,
+				Name: &label, Region: &region, Status: nonEmptyPtr(string(c.Status)), CreatedAt: tp(c.CreatedTimestamp),
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "sms-voice notify-configurations")
+}
+
+func scanSVRcsAgents(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := pinpointsmsvoicev2.NewDescribeRcsAgentsPaginator(client, &pinpointsmsvoicev2.DescribeRcsAgentsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "sms-voice:DescribeRcsAgents", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("sms-voice:DescribeRcsAgents: %w", perr)
+		}
+		for _, a := range out.RcsAgents {
+			arn := sv(a.RcsAgentArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(a.RcsAgentId)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSMSVoiceRcsAgent, NativeID: arn,
+				Name: &label, Region: &region, Status: nonEmptyPtr(string(a.Status)), CreatedAt: tp(a.CreatedTimestamp),
+				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "sms-voice rcs-agents")
 }
