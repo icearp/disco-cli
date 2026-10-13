@@ -25,6 +25,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabase, Service: "odb"})
 	registerType(restype.Descriptor{Type: TypeODBAutonomousDatabaseBackup, Service: "odb"})
 	registerType(restype.Descriptor{Type: TypeODBDbNode, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBDbServer, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBAutonomousVirtualMachine, Service: "odb"})
 	registerService(serviceEntry{
 		name: "aws:odb",
 		fn:   scanODB,
@@ -40,15 +42,26 @@ type odbAPI interface {
 	ListAutonomousDatabases(context.Context, *odb.ListAutonomousDatabasesInput, ...func(*odb.Options)) (*odb.ListAutonomousDatabasesOutput, error)
 	ListAutonomousDatabaseBackups(context.Context, *odb.ListAutonomousDatabaseBackupsInput, ...func(*odb.Options)) (*odb.ListAutonomousDatabaseBackupsOutput, error)
 	ListDbNodes(context.Context, *odb.ListDbNodesInput, ...func(*odb.Options)) (*odb.ListDbNodesOutput, error)
+	ListDbServers(context.Context, *odb.ListDbServersInput, ...func(*odb.Options)) (*odb.ListDbServersOutput, error)
+	ListAutonomousVirtualMachines(context.Context, *odb.ListAutonomousVirtualMachinesInput, ...func(*odb.Options)) (*odb.ListAutonomousVirtualMachinesOutput, error)
 }
 
 // scanODB discovers Oracle Database@AWS resources.
 func scanODB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := odb.NewFromConfig(acct.cfg, func(o *odb.Options) { o.Region = region })
 
+	// Autonomous VM clusters and Exadata infrastructures seed the per-parent
+	// fan-outs that run after every other phase.
+	var avmClusters, exaInfras []childParent
 	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanODBAutonomousVMClusters(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanODBExadataInfras(ctx, client, acct, region, st, scanID) },
+		func() (t, i int, err error) {
+			avmClusters, t, i, err = scanODBAutonomousVMClusters(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
+		func() (t, i int, err error) {
+			exaInfras, t, i, err = scanODBExadataInfras(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (int, int, error) { return scanODBNetworks(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanODBPeeringConnections(ctx, client, acct, region, st, scanID) },
 	} {
@@ -87,27 +100,45 @@ func scanODB(ctx context.Context, acct *account, region string, st *store.Store,
 	}
 	total += t
 	inserted += i
+
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanODBDbServers(ctx, client, acct, region, st, scanID, exaInfras) },
+		func() (int, int, error) {
+			return scanODBAutonomousVirtualMachines(ctx, client, acct, region, st, scanID, avmClusters)
+		},
+	} {
+		t, i, perr := phase()
+		if perr != nil {
+			return total, inserted, perr
+		}
+		total += t
+		inserted += i
+	}
 	return total, inserted, nil
 }
 
-func scanODBAutonomousVMClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanODBAutonomousVMClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	pager := odb.NewListCloudAutonomousVmClustersPaginator(client, &odb.ListCloudAutonomousVmClustersInput{})
 	var batch []*store.Resource
+	var parents []childParent
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isOdbNotOnboarded(err) {
-				return 0, 0, markServiceDisabled(err)
+				return nil, 0, 0, markServiceDisabled(err)
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "odb:ListCloudAutonomousVmClusters", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "odb:ListCloudAutonomousVmClusters", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("odb:ListCloudAutonomousVmClusters: %w", err)
+			return nil, 0, 0, fmt.Errorf("odb:ListCloudAutonomousVmClusters: %w", err)
 		}
 		for _, c := range out.CloudAutonomousVmClusters {
 			arn := sv(c.CloudAutonomousVmClusterArn)
 			if arn == "" {
 				continue
+			}
+			if id := sv(c.CloudAutonomousVmClusterId); id != "" {
+				parents = append(parents, childParent{id: id, arn: arn})
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -117,27 +148,32 @@ func scanODBAutonomousVMClusters(ctx context.Context, client odbAPI, acct *accou
 			})
 		}
 	}
-	return upsertBatch(st, batch, "odb cloud-autonomous-vm-clusters")
+	t, i, err := upsertBatch(st, batch, "odb cloud-autonomous-vm-clusters")
+	return parents, t, i, err
 }
 
-func scanODBExadataInfras(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanODBExadataInfras(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	pager := odb.NewListCloudExadataInfrastructuresPaginator(client, &odb.ListCloudExadataInfrastructuresInput{})
 	var batch []*store.Resource
+	var parents []childParent
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isOdbNotOnboarded(err) {
-				return 0, 0, markServiceDisabled(err)
+				return nil, 0, 0, markServiceDisabled(err)
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "odb:ListCloudExadataInfrastructures", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "odb:ListCloudExadataInfrastructures", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("odb:ListCloudExadataInfrastructures: %w", err)
+			return nil, 0, 0, fmt.Errorf("odb:ListCloudExadataInfrastructures: %w", err)
 		}
 		for _, c := range out.CloudExadataInfrastructures {
 			arn := sv(c.CloudExadataInfrastructureArn)
 			if arn == "" {
 				continue
+			}
+			if id := sv(c.CloudExadataInfrastructureId); id != "" {
+				parents = append(parents, childParent{id: id, arn: arn})
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -147,7 +183,74 @@ func scanODBExadataInfras(ctx context.Context, client odbAPI, acct *account, reg
 			})
 		}
 	}
-	return upsertBatch(st, batch, "odb cloud-exadata-infrastructures")
+	t, i, err := upsertBatch(st, batch, "odb cloud-exadata-infrastructures")
+	return parents, t, i, err
+}
+
+// isODBParentGone reports a parent deleted between its list call and the
+// per-parent child list.
+func isODBParentGone(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException")
+}
+
+// scanODBDbServers lists the DB servers of each Exadata infrastructure. DB
+// servers have no ARN (the Service Reference defines none), so NativeID is
+// {infrastructureARN}/db-server/{dbServerId}.
+func scanODBDbServers(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, infras []childParent) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "odb:ListDbServers", infras, isODBParentGone,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := odb.NewListDbServersPaginator(client, &odb.ListDbServersInput{CloudExadataInfrastructureId: &p.id})
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, s := range out.DbServers {
+					id := sv(s.DbServerId)
+					if id == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeODBDbServer, NativeID: p.arn + "/db-server/" + id,
+						Name: s.DisplayName, Status: nonEmptyPtr(string(s.Status)), CreatedAt: tp(s.CreatedAt),
+						Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// scanODBAutonomousVirtualMachines lists the virtual machines of each
+// Autonomous VM cluster. They have no ARN (the Service Reference defines none),
+// so NativeID is {clusterARN}/autonomous-virtual-machine/{autonomousVirtualMachineId}.
+func scanODBAutonomousVirtualMachines(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "odb:ListAutonomousVirtualMachines", clusters, isODBParentGone,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := odb.NewListAutonomousVirtualMachinesPaginator(client, &odb.ListAutonomousVirtualMachinesInput{CloudAutonomousVmClusterId: &p.id})
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, vm := range out.AutonomousVirtualMachines {
+					id := sv(vm.AutonomousVirtualMachineId)
+					if id == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeODBAutonomousVirtualMachine, NativeID: p.arn + "/autonomous-virtual-machine/" + id,
+						Name: vm.VmName, Status: nonEmptyPtr(string(vm.Status)),
+						Region: &region, AttributesJSON: mustJSON(vm), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
 }
 
 // odbVMCluster carries the (id, arn) pair the ListDbNodes fan-out needs: id

@@ -2159,6 +2159,8 @@ const (
 	TypeODBAutonomousDatabase         = "aws:odb:autonomous-database"
 	TypeODBAutonomousDatabaseBackup   = "aws:odb:autonomous-database-backup"
 	TypeODBDbNode                     = "aws:odb:db-node"
+	TypeODBDbServer                   = "aws:odb:db-server"
+	TypeODBAutonomousVirtualMachine   = "aws:odb:autonomous-virtual-machine"
 	// Outposts (outposts_scanners.go). AWS Outposts.
 	TypeOutpostsSite    = "aws:outposts:site"
 	TypeOutpostsOutpost = "aws:outposts:outpost"

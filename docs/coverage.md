@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.1% (1738/3336 listable) · depth0 66.7% · depth1 30.4% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.2% (1740/3336 listable) · depth0 66.7% · depth1 30.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1001 | 220 | 82.0 |
-| child-uncatalogued | 146 | 871 | 14.4 |
+| child-uncatalogued | 148 | 869 | 14.6 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
 | element-arn | 26 | 80 | 24.5 |
@@ -125,7 +125,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | lambda | 16 | 5 | 76.2 |
 | lightsail | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
-| odb | 8 | 5 | 61.5 |
 | snowball | 0 | 5 | 0.0 |
 | ssm-incidents | 2 | 5 | 28.6 |
 | sso | 12 | 5 | 70.6 |
@@ -181,6 +180,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | medical-imaging | 1 | 3 | 25.0 |
 | monitoring | 6 | 3 | 66.7 |
 | mturk-requester | 0 | 3 | 0.0 |
+| odb | 10 | 3 | 76.9 |
 | organizations | 8 | 3 | 72.7 |
 | partnercentral-benefits | 0 | 3 | 0.0 |
 | partnercentral-channel | 0 | 3 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1598)
+### Uncovered (listable, no scanner) (1596)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1443,8 +1443,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | oam | oam/attachedlink | 1 |  | child-uncatalogued | oam:ListAttachedLinks |
 | observabilityadmin | observabilityadmin/telemetryevaluationstatus | 0 |  | element-arn | observabilityadmin:GetTelemetryEvaluationStatus, observabilityadmin:GetTelemetryEvaluationStatusForOrganization |
 | odb | odb/autonomousdatabasepeer | 1 |  | child-uncatalogued | odb:ListAutonomousDatabasePeers |
-| odb | odb/autonomousvirtualmachine | 1 |  | child-uncatalogued | odb:ListAutonomousVirtualMachines |
-| odb | odb/dbserver | 1 |  | child-uncatalogued | odb:GetDbServer, odb:ListDbServers |
 | odb | odb/exadbvmcluster | 0 |  | smithy-resource | odb:GetExadbVmCluster, odb:ListExadbVmClusters |
 | odb | odb/exascaledbstoragevault | 0 |  | smithy-resource | odb:GetExascaleDbStorageVault, odb:ListExascaleDbStorageVaults |
 | omics | omics/annotationimportjob | 0 |  | smithy-resource | omics:ListAnnotationImportJobs |

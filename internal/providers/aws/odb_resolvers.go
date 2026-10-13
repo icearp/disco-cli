@@ -22,6 +22,18 @@ func init() {
 		resolveODBDbNodeCluster,
 		EdgeDecl{TypeODBDbNode, TypeODBCloudVMCluster, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopODBHierarchy,
+		EdgeDecl{TypeODBCloudExadataInfrastructure, TypeODBDbServer, store.RelContains},
+		EdgeDecl{TypeODBCloudAutonomousVMCluster, TypeODBAutonomousVirtualMachine, store.RelContains},
+	)
+}
+
+// noopODBHierarchy only declares the contains edges that scanODBDbServers and
+// scanODBAutonomousVirtualMachines record through childFanOut, so coverage
+// tooling sees them as wired.
+func noopODBHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveODBAutonomousDatabaseNetwork wires each Autonomous Database to its ODB
