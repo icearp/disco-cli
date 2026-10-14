@@ -1294,7 +1294,8 @@ const (
 	// IoTCoreDeviceAdvisor (iotdeviceadvisor_scanners.go)
 	TypeIoTDeviceAdvisorSuiteDefinition = "aws:iot-core-device-advisor:suite-definition"
 	// Invoicing (invoicing_scanners.go)
-	TypeInvoicingInvoiceUnit = "aws:invoicing:invoice-unit"
+	TypeInvoicingInvoiceUnit                 = "aws:invoicing:invoice-unit"
+	TypeInvoicingProcurementPortalPreference = "aws:invoicing:procurement-portal-preference"
 	// InternetMonitor (internetmonitor_scanners.go)
 	TypeInternetMonitorMonitor = "aws:internet-monitor:monitor"
 	// Interconnect (interconnect_scanners.go)

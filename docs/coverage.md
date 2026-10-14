@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.2% (1808/3336 listable) · depth0 68.2% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.2% (1809/3336 listable) · depth0 68.3% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1021 | 200 | 83.6 |
+| sr-resource | 1022 | 199 | 83.7 |
 | child-uncatalogued | 184 | 833 | 18.1 |
 | smithy-resource | 418 | 144 | 74.4 |
 | element-written | 154 | 262 | 37.0 |
@@ -208,7 +208,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | glacier | 1 | 2 | 33.3 |
 | health-agent | 0 | 2 | 0.0 |
 | healthlake | 3 | 2 | 60.0 |
-| invoicing | 1 | 2 | 33.3 |
 | kinesis | 2 | 2 | 50.0 |
 | kinesisvideo | 2 | 2 | 50.0 |
 | kms | 4 | 2 | 66.7 |
@@ -270,6 +269,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | geo-places | 0 | 1 | 0.0 |
 | grafana | 3 | 1 | 75.0 |
 | interconnect | 2 | 1 | 66.7 |
+| invoicing | 2 | 1 | 66.7 |
 | iot-jobs-data | 0 | 1 | 0.0 |
 | iotdeviceadvisor | 1 | 1 | 50.0 |
 | iotsecuredtunneling | 0 | 1 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1528)
+### Uncovered (listable, no scanner) (1527)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1146,7 +1146,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | internetmonitor | internetmonitor/healthevent | 1 |  | smithy-resource | internetmonitor:ListHealthEvents |
 | internetmonitor | internetmonitor/internetevent | 0 |  | smithy-resource | internetmonitor:GetInternetEvent, internetmonitor:ListInternetEvents |
 | internetmonitor | internetmonitor/queryresult | 1 |  | child-uncatalogued | internetmonitor:GetQueryResults |
-| invoicing | invoicing/procurementportalpreference | 0 |  | sr-resource | invoicing:GetProcurementPortalPreference, invoicing:ListProcurementPortalPreferences |
 | invoicing | invoicing/procurementportalsupplier | 0 |  | child-uncatalogued | invoicing:ListProcurementPortalSuppliers |
 | iot | iot/auditmitigationactionsexecution | 0 |  | child-uncatalogued | iot:ListAuditMitigationActionsExecutions |
 | iot | iot/auditsuppression | 0 |  | element-written | iot:DescribeAuditSuppression, iot:ListAuditSuppressions |

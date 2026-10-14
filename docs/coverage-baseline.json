@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 54.196642685851316,
-    "covered": 1808,
-    "uncovered": 1528,
+    "percent": 54.226618705035975,
+    "covered": 1809,
+    "uncovered": 1527,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -886,6 +886,7 @@
       "interconnect/environment",
       "internetmonitor/monitor",
       "invoicing/invoiceunit",
+      "invoicing/procurementportalpreference",
       "iot/accountauditconfiguration",
       "iot/authorizer",
       "iot/billinggroup",
@@ -2605,7 +2606,6 @@
       "internetmonitor/healthevent",
       "internetmonitor/internetevent",
       "internetmonitor/queryresult",
-      "invoicing/procurementportalpreference",
       "invoicing/procurementportalsupplier",
       "iot-jobs-data/pendingjobexecution",
       "iot/auditmitigationactionsexecution",
