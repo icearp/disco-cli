@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.3% (1777/3336 listable) · depth0 67.6% · depth1 32.0% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.3% (1779/3336 listable) · depth0 67.6% · depth1 32.1% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,8 +8,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1014 | 207 | 83.0 |
-| child-uncatalogued | 167 | 850 | 16.4 |
+| sr-resource | 1015 | 206 | 83.1 |
+| child-uncatalogued | 168 | 849 | 16.5 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 148 | 268 | 35.6 |
 | element-arn | 27 | 79 | 25.5 |
@@ -62,7 +62,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | qbusiness | 9 | 10 | 47.4 |
 | storagegateway | 8 | 10 | 44.4 |
 | auditmanager | 3 | 9 | 25.0 |
-| backup | 10 | 9 | 52.6 |
 | drs | 5 | 9 | 35.7 |
 | iam | 14 | 9 | 60.9 |
 | license-manager | 6 | 9 | 40.0 |
@@ -77,6 +76,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securityhub | 9 | 8 | 52.9 |
 | workdocs | 0 | 8 | 0.0 |
 | appstream | 14 | 7 | 66.7 |
+| backup | 12 | 7 | 63.2 |
 | bcm-pricing-calculator | 3 | 7 | 30.0 |
 | cognito-idp | 6 | 7 | 46.2 |
 | globalaccelerator | 4 | 7 | 36.4 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1559)
+### Uncovered (listable, no scanner) (1557)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -467,13 +467,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aws-marketplace | aws-marketplace/listing | 0 |  | sr-resource | aws-marketplace:GetListing, aws-marketplace:SearchListings |
 | aws-marketplace | aws-marketplace/purchaseoption | 0 |  | sr-resource | aws-marketplace:ListPurchaseOptions |
 | awsssoportal | awsssoportal/account | 0 |  | sr-resource | awsssoportal:ListAccounts |
-| backup | backup/backupaccesspoint | 0 |  | sr-resource | backup:DescribeBackupAccessPoint, backup:ListBackupAccessPoints, backup:ListBackupAccessPointsByRecoveryPoint, backup:ListBackupAccessPointsByResource |
 | backup | backup/backupjob | 0 |  | element-written | backup:DescribeBackupJob, backup:ListBackupJobs |
 | backup | backup/copyjob | 0 |  | element-written | backup:DescribeCopyJob, backup:ListCopyJobs |
 | backup | backup/indexedrecoverypoint | 0 |  | element-arn | backup:ListIndexedRecoveryPoints |
 | backup | backup/protectedresource | 0 |  | element-arn | backup:DescribeProtectedResource, backup:ListProtectedResources, backup:ListProtectedResourcesByBackupVault |
 | backup | backup/reportjob | 0 |  | element-written | backup:DescribeReportJob, backup:ListReportJobs |
-| backup | backup/restoreaccessbackupvault | 1 |  | child-uncatalogued | backup:ListRestoreAccessBackupVaults |
 | backup | backup/restorejob | 0 |  | element-written | backup:DescribeRestoreJob, backup:ListRestoreJobs, backup:ListRestoreJobsByProtectedResource |
 | backup | backup/scanjob | 0 |  | element-written | backup:DescribeScanJob, backup:ListScanJobs |
 | backup-gateway | backup-gateway/bandwidthratelimitschedule | 1 |  | smithy-resource | backup-gateway:GetBandwidthRateLimitSchedule |

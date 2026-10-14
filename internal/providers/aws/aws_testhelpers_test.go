@@ -1,13 +1,17 @@
 package aws
 
 import (
+	"context"
 	"path/filepath"
 	"sort"
 	"sync"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	awsmw "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	eventstypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
+	smithymw "github.com/aws/smithy-go/middleware"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
@@ -282,4 +286,18 @@ func countOpWarnings(st *store.Store, op string) *int {
 		}
 	}
 	return &n
+}
+
+// recordCallRegions makes cfg record the region of every call it answers. The
+// recorder goes ahead of cfg's own stubs, which short-circuit the stack.
+func recordCallRegions(cfg sdkaws.Config, regions *parentCalls) sdkaws.Config {
+	record := func(s *smithymw.Stack) error {
+		return s.Initialize.Add(smithymw.InitializeMiddlewareFunc("discoRecordRegion",
+			func(ctx context.Context, in smithymw.InitializeInput, next smithymw.InitializeHandler) (smithymw.InitializeOutput, smithymw.Metadata, error) {
+				regions.add(awsmw.GetRegion(ctx))
+				return next.HandleInitialize(ctx, in)
+			}), smithymw.After)
+	}
+	cfg.APIOptions = append([]func(*smithymw.Stack) error{record}, cfg.APIOptions...)
+	return cfg
 }

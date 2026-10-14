@@ -22,6 +22,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeBackupTieringConfiguration, Service: "backup"})
 	registerType(restype.Descriptor{Type: TypeBackupLegalHold, Service: "backup"})
 	registerType(restype.Descriptor{Type: TypeBackupRecoveryPoint, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupAccessPoint, Service: "backup"})
+	registerType(restype.Descriptor{Type: TypeBackupRestoreAccessBackupVault, Service: "backup"})
 	registerService(serviceEntry{
 		name: "aws:backup",
 		fn:   scanBackup,
@@ -41,15 +43,16 @@ type backupAPI interface {
 	ListTieringConfigurations(context.Context, *backup.ListTieringConfigurationsInput, ...func(*backup.Options)) (*backup.ListTieringConfigurationsOutput, error)
 	ListLegalHolds(context.Context, *backup.ListLegalHoldsInput, ...func(*backup.Options)) (*backup.ListLegalHoldsOutput, error)
 	ListRecoveryPointsByBackupVault(context.Context, *backup.ListRecoveryPointsByBackupVaultInput, ...func(*backup.Options)) (*backup.ListRecoveryPointsByBackupVaultOutput, error)
+	ListBackupAccessPoints(context.Context, *backup.ListBackupAccessPointsInput, ...func(*backup.Options)) (*backup.ListBackupAccessPointsOutput, error)
+	ListRestoreAccessBackupVaults(context.Context, *backup.ListRestoreAccessBackupVaultsInput, ...func(*backup.Options)) (*backup.ListRestoreAccessBackupVaultsOutput, error)
 }
 
-// scanBackup discovers AWS Backup vaults, plans, and per-plan selections.
-// Vaults and plans carry native ARNs from the list APIs; selections lack one,
-// so a NativeID is synthesised from the parent plan ID + selection ID for
-// stability across scans.
+// scanBackup runs every AWS Backup phase for one region on a client pinned to
+// that region. Phases that list parents run before the phases that fan out
+// over them.
 func scanBackup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := backup.NewFromConfig(acct.cfg, func(o *backup.Options) { o.Region = region })
-	t, i, ferr := scanBackupAll(ctx, client, acct, region, st, scanID)
+	airGapped, t, i, ferr := scanBackupAll(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -67,11 +70,24 @@ func scanBackup(ctx context.Context, acct *account, region string, st *store.Sto
 	}
 	total += t
 	inserted += i
+	t, i, ferr = scanBackupAccessPoints(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	t, i, ferr = scanBackupRestoreAccessVaults(ctx, client, acct, region, st, scanID, airGapped)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
 }
 
-// scanBackupAll holds the testable scan body.
-func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanBackupAll holds the testable scan body. It also returns the logically
+// air-gapped vaults it listed, which parent the restore access vaults.
+func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (airGapped []childParent, total, inserted int, err error) {
 	// Vaults.
 	var vaultBatch []*store.Resource
 	vPager := backup.NewListBackupVaultsPaginator(client, &backup.ListBackupVaultsInput{})
@@ -79,9 +95,9 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 		page, err := vPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "backup:ListBackupVaults", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "backup:ListBackupVaults", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("backup:ListBackupVaults: %w", err)
+			return nil, 0, 0, fmt.Errorf("backup:ListBackupVaults: %w", err)
 		}
 		for _, v := range page.BackupVaultList {
 			arn := sv(v.BackupVaultArn)
@@ -94,6 +110,9 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 			vtype := TypeBackupVault
 			if v.VaultType == backuptypes.VaultTypeLogicallyAirGappedBackupVault {
 				vtype = TypeBackupLogicallyAirGappedVault
+				if name := sv(v.BackupVaultName); name != "" {
+					airGapped = append(airGapped, childParent{id: name, arn: arn})
+				}
 			}
 			vaultBatch = append(vaultBatch, &store.Resource{
 				Provider:    "aws",
@@ -115,7 +134,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 	if len(vaultBatch) > 0 {
 		n, err := st.UpsertResources(vaultBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Backup vaults: %w", err)
+			return nil, 0, 0, fmt.Errorf("upsert Backup vaults: %w", err)
 		}
 		total += len(vaultBatch)
 		inserted += n
@@ -136,7 +155,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 			if isAccessDenied(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("backup:ListBackupPlans: %w", err)
+			return nil, 0, 0, fmt.Errorf("backup:ListBackupPlans: %w", err)
 		}
 		for _, p := range page.BackupPlansList {
 			planARN := sv(p.BackupPlanArn)
@@ -169,7 +188,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 					if isAccessDenied(err) {
 						break
 					}
-					return 0, 0, fmt.Errorf("backup:ListBackupSelections %s: %w", planID, err)
+					return nil, 0, 0, fmt.Errorf("backup:ListBackupSelections %s: %w", planID, err)
 				}
 				for _, s := range sp.BackupSelectionsList {
 					selID := sv(s.SelectionId)
@@ -202,7 +221,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 	if len(planBatch) > 0 {
 		n, err := st.UpsertResources(planBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Backup plans: %w", err)
+			return nil, 0, 0, fmt.Errorf("upsert Backup plans: %w", err)
 		}
 		total += len(planBatch)
 		inserted += n
@@ -214,7 +233,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 		}
 		n, err := st.UpsertResources(rs)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Backup selections: %w", err)
+			return nil, 0, 0, fmt.Errorf("upsert Backup selections: %w", err)
 		}
 		total += len(rs)
 		inserted += n
@@ -224,9 +243,9 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 			pairs[i] = [2]string{p.r.ID, parentID}
 		}
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Backup selections: %w", err)
+			return nil, 0, 0, fmt.Errorf("closure Backup selections: %w", err)
 		}
 	}
 
-	return total, inserted, nil
+	return airGapped, total, inserted, nil
 }

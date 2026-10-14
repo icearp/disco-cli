@@ -631,6 +631,9 @@ const (
 	TypeBackupTieringConfiguration    = "aws:backup:tiering-configuration"
 	TypeBackupLegalHold               = "aws:backup:legal-hold"
 	TypeBackupRecoveryPoint           = "aws:backup:recovery-point"
+	// Backup access points (backup_accesspoint_scanners.go)
+	TypeBackupAccessPoint              = "aws:backup:backup-access-point"
+	TypeBackupRestoreAccessBackupVault = "aws:backup:restore-access-backup-vault"
 	// Backup Gateway (backupgateway_scanners.go)
 	TypeBackupGatewayHypervisor     = "aws:backupgateway:hypervisor"
 	TypeBackupGatewayGateway        = "aws:backupgateway:gateway"

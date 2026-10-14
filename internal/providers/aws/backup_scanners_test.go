@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/backup"
@@ -65,6 +66,14 @@ func (s *stubBackup) ListRecoveryPointsByBackupVault(_ context.Context, _ *backu
 	return &backup.ListRecoveryPointsByBackupVaultOutput{}, nil
 }
 
+func (s *stubBackup) ListBackupAccessPoints(_ context.Context, _ *backup.ListBackupAccessPointsInput, _ ...func(*backup.Options)) (*backup.ListBackupAccessPointsOutput, error) {
+	return &backup.ListBackupAccessPointsOutput{}, nil
+}
+
+func (s *stubBackup) ListRestoreAccessBackupVaults(_ context.Context, _ *backup.ListRestoreAccessBackupVaultsInput, _ ...func(*backup.Options)) (*backup.ListRestoreAccessBackupVaultsOutput, error) {
+	return &backup.ListRestoreAccessBackupVaultsOutput{}, nil
+}
+
 func TestScanBackup_VaultVariantSplit(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -85,12 +94,15 @@ func TestScanBackup_VaultVariantSplit(t *testing.T) {
 		},
 	}
 
-	total, _, err := scanBackupAll(context.Background(), stub, acct, testRegion, st, testScanID)
+	airGapped, total, _, err := scanBackupAll(context.Background(), stub, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanBackupAll: %v", err)
 	}
 	if total != 2 {
 		t.Fatalf("total=%d want 2", total)
+	}
+	if want := []childParent{{id: airName, arn: airARN}}; !slices.Equal(airGapped, want) {
+		t.Errorf("air-gapped parents = %v, want %v", airGapped, want)
 	}
 
 	stdID := store.ResourceID("aws", acct.ID, stdARN)

@@ -97,12 +97,15 @@ func init() {
 	registerResolver(
 		noopBackupHierarchy,
 		EdgeDecl{TypeBackupPlan, TypeBackupSelection, store.RelContains},
+		EdgeDecl{TypeBackupLogicallyAirGappedVault, TypeBackupRestoreAccessBackupVault, store.RelContains},
 	)
 }
 
 // noopBackupHierarchy emits nothing: the plan → selection contains edges are
-// written at scan time by scanBackupAll via RecordHierarchyBatch. It is
-// registered only so those edges are declared to coverage tooling.
+// written at scan time by scanBackupAll via RecordHierarchyBatch, and the
+// air-gapped vault → restore access vault ones by scanBackupRestoreAccessVaults
+// via childFanOut. It is registered only so those edges are declared to
+// coverage tooling.
 func noopBackupHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }

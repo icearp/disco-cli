@@ -205,7 +205,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.70.3
 	github.com/aws/aws-sdk-go-v2/service/autoscalingplans v1.33.3
 	github.com/aws/aws-sdk-go-v2/service/b2bi v1.0.0-preview.118
-	github.com/aws/aws-sdk-go-v2/service/backup v1.59.3
+	github.com/aws/aws-sdk-go-v2/service/backup v1.65.0
 	github.com/aws/aws-sdk-go-v2/service/backupgateway v1.30.3
 	github.com/aws/aws-sdk-go-v2/service/batch v1.68.3
 	github.com/aws/aws-sdk-go-v2/service/bcmdashboards v1.5.3
