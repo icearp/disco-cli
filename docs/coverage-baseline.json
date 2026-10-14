@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 54.256594724220626,
-    "covered": 1810,
-    "uncovered": 1526,
+    "percent": 54.28657074340528,
+    "covered": 1811,
+    "uncovered": 1525,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1132,6 +1132,7 @@
       "mediapackagev2/originendpoint",
       "mediatailor/channel",
       "mediatailor/channelschedule",
+      "mediatailor/function",
       "mediatailor/livesource",
       "mediatailor/playbackconfiguration",
       "mediatailor/prefetchschedule",
@@ -2786,7 +2787,6 @@
       "mediastore/container",
       "mediastore/object",
       "mediatailor/alert",
-      "mediatailor/function",
       "medical-imaging/dicomimportjob",
       "medical-imaging/imageset",
       "medical-imaging/imagesetversion",

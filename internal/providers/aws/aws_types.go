@@ -2301,6 +2301,7 @@ const (
 	// MediaTailor (mediatailor_scanners.go).
 	TypeMediaTailorChannel               = "aws:mediatailor:channel"
 	TypeMediaTailorChannelPolicy         = "aws:mediatailor:channel-policy"
+	TypeMediaTailorFunction              = "aws:mediatailor:function"
 	TypeMediaTailorLiveSource            = "aws:mediatailor:live-source"
 	TypeMediaTailorPlaybackConfiguration = "aws:mediatailor:playback-configuration"
 	TypeMediaTailorPrefetchSchedule      = "aws:mediatailor:prefetch-schedule"

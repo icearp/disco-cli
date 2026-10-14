@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.3% (1810/3336 listable) · depth0 68.3% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.3% (1811/3336 listable) · depth0 68.4% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 1023 | 198 | 83.8 |
 | child-uncatalogued | 184 | 833 | 18.1 |
-| smithy-resource | 418 | 144 | 74.4 |
+| smithy-resource | 419 | 143 | 74.6 |
 | element-written | 154 | 262 | 37.0 |
 | element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
@@ -214,7 +214,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | managedblockchain | 5 | 2 | 71.4 |
 | mediaconnect | 8 | 2 | 80.0 |
 | mediastore | 0 | 2 | 0.0 |
-| mediatailor | 7 | 2 | 77.8 |
 | migrationhub-strategy | 0 | 2 | 0.0 |
 | neptune-graph | 3 | 2 | 60.0 |
 | network-firewall | 9 | 2 | 81.8 |
@@ -277,6 +276,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mediaconvert | 3 | 1 | 75.0 |
 | mediapackage | 2 | 1 | 66.7 |
 | mediapackagev2 | 3 | 1 | 75.0 |
+| mediatailor | 8 | 1 | 88.9 |
 | memorydb | 9 | 1 | 90.0 |
 | mq | 2 | 1 | 66.7 |
 | oam | 2 | 1 | 66.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1526)
+### Uncovered (listable, no scanner) (1525)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1325,7 +1325,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mediastore | mediastore/container | 0 |  | sr-resource | mediastore:DescribeContainer, mediastore:ListContainers |
 | mediastore | mediastore/object | 1 |  | sr-resource | mediastore:DescribeObject, mediastore:GetObject |
 | mediatailor | mediatailor/alert | 0 |  | child-uncatalogued | mediatailor:ListAlerts |
-| mediatailor | mediatailor/function | 0 |  | smithy-resource | mediatailor:GetFunction, mediatailor:ListFunctions |
 | medical-imaging | medical-imaging/dicomimportjob | 1 |  | child-uncatalogued | medical-imaging:GetDICOMImportJob, medical-imaging:ListDICOMImportJobs |
 | medical-imaging | medical-imaging/imageset | 1 |  | sr-resource | medical-imaging:GetImageSet, medical-imaging:SearchImageSets |
 | medical-imaging | medical-imaging/imagesetversion | 2 |  | child-uncatalogued | medical-imaging:ListImageSetVersions |

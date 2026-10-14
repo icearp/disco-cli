@@ -2,9 +2,11 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/mediatailor"
+	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -12,6 +14,16 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeMediaTailorChannel, Service: "mediatailor"})
 	registerType(restype.Descriptor{Type: TypeMediaTailorChannelPolicy, Service: "mediatailor"})
+	// An HTTP_REQUEST function calls an external service, so its URL (query
+	// string or userinfo), header values and request body can carry that
+	// service's API key or bearer token. All three are redacted whole because
+	// the redact engine has no value-classifying mode yet; move them to it when
+	// it lands, so non-secret values are kept.
+	registerType(restype.Descriptor{Type: TypeMediaTailorFunction, Service: "mediatailor", Redact: []redact.Rule{
+		{Path: "HttpRequestConfiguration.Url", Mode: redact.RedactScalar},
+		{Path: "HttpRequestConfiguration.Headers.*", Mode: redact.RedactScalar},
+		{Path: "HttpRequestConfiguration.Body", Mode: redact.RedactScalar},
+	}})
 	registerType(restype.Descriptor{Type: TypeMediaTailorLiveSource, Service: "mediatailor"})
 	registerType(restype.Descriptor{Type: TypeMediaTailorPlaybackConfiguration, Service: "mediatailor"})
 	registerType(restype.Descriptor{Type: TypeMediaTailorPrefetchSchedule, Service: "mediatailor"})
@@ -33,14 +45,30 @@ type mediatailorAPI interface {
 	ListLiveSources(context.Context, *mediatailor.ListLiveSourcesInput, ...func(*mediatailor.Options)) (*mediatailor.ListLiveSourcesOutput, error)
 	ListVodSources(context.Context, *mediatailor.ListVodSourcesInput, ...func(*mediatailor.Options)) (*mediatailor.ListVodSourcesOutput, error)
 	ListPlaybackConfigurations(context.Context, *mediatailor.ListPlaybackConfigurationsInput, ...func(*mediatailor.Options)) (*mediatailor.ListPlaybackConfigurationsOutput, error)
+	ListFunctions(context.Context, *mediatailor.ListFunctionsInput, ...func(*mediatailor.Options)) (*mediatailor.ListFunctionsOutput, error)
 }
 
-// scanMediaTailor discovers MediaTailor channels (with per-channel policies)
-// and source locations (with per-location live + VOD sources), plus
-// account-wide playback configurations.
+// scanMediaTailor runs the media phase and the function phase. Neither reads
+// the other's output, so an error in one does not cost the other's rows.
 func scanMediaTailor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := mediatailor.NewFromConfig(acct.cfg, func(o *mediatailor.Options) { o.Region = region })
+	var errs []error
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanMTMedia(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanMTFunctions(ctx, client, acct, region, st, scanID) },
+	} {
+		t, i, perr := phase()
+		total += t
+		inserted += i
+		errs = append(errs, perr)
+	}
+	return total, inserted, errors.Join(errs...)
+}
 
+// scanMTMedia discovers MediaTailor channels (with per-channel policies)
+// and source locations (with per-location live + VOD sources), plus
+// account-wide playback configurations.
+func scanMTMedia(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	channelNames, t, i, ferr := scanMTChannels(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
@@ -343,4 +371,72 @@ func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, r
 		}
 	}
 	return upsertBatch(st, batch, "mediatailor programs")
+}
+
+// scanMTFunctions stores every function in the region, keyed by the ARN the
+// list returns. Function.Arn is optional in the model, unlike the ARN of the
+// service's other list elements, so an element without one is not stored and
+// the region gets one warning counting them.
+//
+// ListFunctions arrived in SDK v1.58.0, long after the rest of the MediaTailor
+// API, so a region may serve playback configurations without it. On the first
+// call, the shapes an unrouted operation takes are a feature gap, skipped
+// silently; see isMTFunctionsNotDeployed. Once a page has succeeded the op is
+// deployed: a later error of any shape except a denial is returned, after the
+// rows listed so far are stored.
+func scanMTFunctions(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	const op = "mediatailor:ListFunctions"
+	// The model caps MaxResults at 100.
+	pager := mediatailor.NewListFunctionsPaginator(client, &mediatailor.ListFunctionsInput{},
+		func(o *mediatailor.ListFunctionsPaginatorOptions) { o.Limit = 100 })
+	var batch []*store.Resource
+	var listErr error
+	listed := false
+	noARN := 0
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			switch {
+			case !listed && isMTFunctionsNotDeployed(perr):
+				return 0, 0, nil
+			case isAccessDenied(perr):
+				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
+			default:
+				listErr = fmt.Errorf("%s: %w", op, perr)
+			}
+			break
+		}
+		listed = true
+		for _, f := range out.Items {
+			arn := sv(f.Arn)
+			if arn == "" {
+				noARN++
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMediaTailorFunction, NativeID: arn,
+				Name: f.FunctionId, Region: &region,
+				AttributesJSON: mustJSON(f), TagsJSON: mapTagsJSON(f.Tags), DiscoveredBy: scanID,
+			})
+		}
+	}
+	if noARN > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d functions listed without an ARN were not stored", noARN),
+		})
+	}
+	t, i, uerr := upsertBatch(st, batch, "mediatailor functions")
+	return t, i, errors.Join(listErr, uerr)
+}
+
+// isMTFunctionsNotDeployed reports the shapes an unrouted ListFunctions call
+// can take on an endpoint that predates it: UnknownOperationException, the
+// gateway's "Unable to determine service/operation name", or an HTTP 404.
+// ListFunctions models no error, so each arrives as a generic API error
+// carrying the wire code or status. With no not-found error to model, a 404
+// on its unfiltered first call means the op is absent.
+func isMTFunctionsNotDeployed(err error) bool {
+	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
 }

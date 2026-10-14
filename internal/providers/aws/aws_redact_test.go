@@ -13,6 +13,7 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
+	mttypes "github.com/aws/aws-sdk-go-v2/service/mediatailor/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 
 	"github.com/icearp/disco-cli/internal/redact"
@@ -208,6 +209,46 @@ func TestRedact_DeviceFarmProject_EnvVariables(t *testing.T) {
 		if em["Name"] == "" {
 			t.Errorf("Name clobbered")
 		}
+	}
+}
+
+// The URL, every header value and the body of an HTTP_REQUEST function are
+// redacted; header names and the output bindings are kept.
+func TestRedact_MediaTailorFunction_HTTPRequest(t *testing.T) {
+	fn := mttypes.Function{
+		FunctionId:   ptrStr("enrich"),
+		FunctionType: mttypes.FunctionTypeHttpRequest,
+		HttpRequestConfiguration: &mttypes.HttpRequestConfiguration{
+			MethodType: mttypes.MethodTypePost,
+			Runtime:    mttypes.RuntimeTypeJsonata,
+			Url:        ptrStr("https://ads.example.com/segment"),
+			Headers:    map[string]string{"Authorization": "Bearer sk-live-123", "Content-Type": "application/json"},
+			Body:       ptrStr(`{"apiKey":"k-123"}`),
+			Output:     map[string]string{"temp.segment": "response.body.segment"},
+		},
+	}
+	got := applyAndDecode(t, TypeMediaTailorFunction, fn)
+	hrc := got["HttpRequestConfiguration"].(map[string]any)
+	headers := hrc["Headers"].(map[string]any)
+	if len(headers) != 2 {
+		t.Errorf("Headers = %v, want both names kept", headers)
+	}
+	for _, k := range []string{"Authorization", "Content-Type"} {
+		if headers[k] != redact.Placeholder {
+			t.Errorf("Headers[%s] = %v, want redacted", k, headers[k])
+		}
+	}
+	if hrc["Body"] != redact.Placeholder {
+		t.Errorf("Body = %v, want redacted", hrc["Body"])
+	}
+	if hrc["Url"] != redact.Placeholder {
+		t.Errorf("Url = %v, want redacted", hrc["Url"])
+	}
+	if got["FunctionId"] != "enrich" {
+		t.Errorf("FunctionId = %v, want kept", got["FunctionId"])
+	}
+	if out := hrc["Output"].(map[string]any); out["temp.segment"] != "response.body.segment" {
+		t.Errorf("Output = %v, want kept", out)
 	}
 }
 
