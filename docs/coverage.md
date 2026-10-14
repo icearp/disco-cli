@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.8% (1795/3336 listable) · depth0 68.0% · depth1 32.9% · depth2 26.1% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.9% (1798/3336 listable) · depth0 68.0% · depth1 32.9% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,9 +9,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1018 | 203 | 83.4 |
-| child-uncatalogued | 176 | 841 | 17.3 |
+| child-uncatalogued | 178 | 839 | 17.5 |
 | smithy-resource | 417 | 145 | 74.2 |
-| element-written | 153 | 263 | 36.8 |
+| element-written | 154 | 262 | 37.0 |
 | element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
 
@@ -129,7 +129,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | billingconductor | 4 | 4 | 50.0 |
 | codeconnections | 0 | 4 | 0.0 |
 | controltower | 3 | 4 | 42.9 |
-| dataexchange | 3 | 4 | 42.9 |
 | dynamodb | 4 | 4 | 50.0 |
 | eks | 11 | 4 | 73.3 |
 | elasticbeanstalk | 4 | 4 | 50.0 |
@@ -263,6 +262,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | comprehendmedical | 0 | 1 | 0.0 |
 | cost-optimization-hub | 0 | 1 | 0.0 |
 | databrew | 6 | 1 | 85.7 |
+| dataexchange | 6 | 1 | 85.7 |
 | datasync | 4 | 1 | 80.0 |
 | docdb-elastic | 2 | 1 | 66.7 |
 | elasticfilesystem | 3 | 1 | 75.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1541)
+### Uncovered (listable, no scanner) (1538)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -762,10 +762,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | controltower | controltower/tagging | 0 |  | smithy-resource | controltower:ListTagsForResource |
 | cost-optimization-hub | cost-optimization-hub/recommendation | 0 |  | element-arn | cost-optimization-hub:ListRecommendations |
 | databrew | databrew/jobrun | 1 |  | child-uncatalogued | databrew:DescribeJobRun, databrew:ListJobRuns |
-| dataexchange | dataexchange/datasetrevision | 1 |  | child-uncatalogued | dataexchange:ListDataSetRevisions |
 | dataexchange | dataexchange/job | 0 |  | sr-resource | dataexchange:GetJob, dataexchange:ListJobs |
-| dataexchange | dataexchange/receiveddatagrant | 0 |  | element-written | dataexchange:GetReceivedDataGrant, dataexchange:ListReceivedDataGrants |
-| dataexchange | dataexchange/revisionasset | 2 |  | child-uncatalogued | dataexchange:ListRevisionAssets |
 | datapipeline | datapipeline/object | 1 |  | child-uncatalogued | datapipeline:DescribeObjects, datapipeline:QueryObjects |
 | datapipeline | datapipeline/pipelinedefinition | 1 |  | child-uncatalogued | datapipeline:GetPipelineDefinition, datapipeline:ValidatePipelineDefinition |
 | datasync | datasync/taskexecution | 0 |  | sr-resource | datasync:DescribeTaskExecution, datasync:ListTaskExecutions |

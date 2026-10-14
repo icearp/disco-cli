@@ -1549,9 +1549,12 @@ const (
 	// DataPipeline (datapipeline_scanners.go)
 	TypeDataPipelinePipeline = "aws:datapipeline:pipeline"
 	// DataExchange (dataexchange_scanners.go)
-	TypeDataExchangeDataSets     = "aws:dataexchange:data-sets"
-	TypeDataExchangeDataGrants   = "aws:dataexchange:data-grants"
-	TypeDataExchangeEventActions = "aws:dataexchange:event-actions"
+	TypeDataExchangeDataSets          = "aws:dataexchange:data-sets"
+	TypeDataExchangeDataGrants        = "aws:dataexchange:data-grants"
+	TypeDataExchangeEventActions      = "aws:dataexchange:event-actions"
+	TypeDataExchangeDataSetRevision   = "aws:dataexchange:data-set-revision"
+	TypeDataExchangeRevisionAsset     = "aws:dataexchange:revision-asset"
+	TypeDataExchangeReceivedDataGrant = "aws:dataexchange:received-data-grant"
 	// DataZone (datazone_scanners.go)
 	TypeDataZoneDomain                            = "aws:datazone:domain"
 	TypeDataZoneDomainUnit                        = "aws:datazone:domain-unit"

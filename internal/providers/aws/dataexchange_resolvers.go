@@ -19,6 +19,18 @@ func init() {
 		EdgeDecl{TypeDataExchangeEventActions, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeDataExchangeEventActions, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		noopDataExchangeHierarchy,
+		EdgeDecl{TypeDataExchangeDataSets, TypeDataExchangeDataSetRevision, store.RelContains},
+		EdgeDecl{TypeDataExchangeDataSetRevision, TypeDataExchangeRevisionAsset, store.RelContains},
+	)
+}
+
+// noopDataExchangeHierarchy only declares the data-set->revision and
+// revision->asset contains edges; scanDataExchangeRevisions and
+// scanDataExchangeAssets record them through childFanOutStored.
+func noopDataExchangeHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // dataExchangeDataSetIndex maps each scanned data set's Id to its resource ID.
