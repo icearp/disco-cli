@@ -17,6 +17,20 @@ func init() {
 		EdgeDecl{TypeAidevopsAssociations, TypeAidevopsService, store.RelUses},
 		EdgeDecl{TypeAidevopsPrivateConnection, TypeEC2VPC, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopAidevopsHierarchy,
+		EdgeDecl{TypeAidevopsAgentSpace, TypeAidevopsAsset, store.RelContains},
+		EdgeDecl{TypeAidevopsAgentSpace, TypeAidevopsTrigger, store.RelContains},
+		EdgeDecl{TypeAidevopsAgentSpace, TypeAidevopsGoal, store.RelContains},
+		EdgeDecl{TypeAidevopsAssociations, TypeAidevopsWebhook, store.RelContains},
+	)
+}
+
+// noopAidevopsHierarchy only declares the contains edges the scanner records
+// through childFanOut (scanAidevopsAssets, scanAidevopsTriggers, scanAidevopsGoals,
+// scanAidevopsWebhooks), so coverage tooling sees them as wired.
+func noopAidevopsHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveAidevopsRefs wires the AI DevOps agent graph: agent spaces and

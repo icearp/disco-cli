@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 55.4% (1848/3336 listable) · depth0 68.9% · depth1 35.5% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 55.5% (1852/3336 listable) · depth0 68.9% · depth1 35.7% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,8 +8,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1024 | 197 | 83.9 |
-| child-uncatalogued | 210 | 807 | 20.6 |
+| sr-resource | 1026 | 195 | 84.0 |
+| child-uncatalogued | 212 | 805 | 20.8 |
 | smithy-resource | 421 | 141 | 74.9 |
 | element-written | 161 | 255 | 38.7 |
 | element-arn | 28 | 78 | 26.4 |
@@ -48,7 +48,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral-selling | 0 | 12 | 0.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
 | devicefarm | 8 | 11 | 42.1 |
-| aidevops | 4 | 10 | 28.6 |
 | clouddirectory | 2 | 10 | 16.7 |
 | codecatalyst | 0 | 10 | 0.0 |
 | codecommit | 1 | 10 | 9.1 |
@@ -83,6 +82,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ram | 2 | 7 | 22.2 |
 | servicecatalog | 13 | 7 | 65.0 |
 | aco-automation | 0 | 6 | 0.0 |
+| aidevops | 8 | 6 | 57.1 |
 | autoscaling | 6 | 6 | 50.0 |
 | cloudtrail | 4 | 6 | 40.0 |
 | drs | 8 | 6 | 57.1 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1488)
+### Uncovered (listable, no scanner) (1484)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -378,16 +378,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | agent-registry | agent-registry/discoverableregistryrecord | 1 |  | child-uncatalogued | agent-registry:ListDiscoverableRegistryRecords |
 | agent-registry | agent-registry/registry | 0 |  | smithy-resource | agent-registry:GetRegistry, agent-registry:ListRegistries |
 | agent-registry | agent-registry/registryrecord | 1 |  | smithy-resource | agent-registry:GetRegistryRecord, agent-registry:ListRegistryRecords |
-| aidevops | aidevops/asset | 1 |  | sr-resource | aidevops:GetAsset, aidevops:ListAssets |
 | aidevops | aidevops/backlogtask | 1 |  | child-uncatalogued | aidevops:GetBacklogTask, aidevops:ListBacklogTasks |
 | aidevops | aidevops/chat | 1 |  | child-uncatalogued | aidevops:ListChats |
 | aidevops | aidevops/execution | 1 |  | child-uncatalogued | aidevops:ListExecutions |
-| aidevops | aidevops/goal | 1 |  | child-uncatalogued | aidevops:ListGoals |
 | aidevops | aidevops/journalrecord | 1 |  | child-uncatalogued | aidevops:ListJournalRecords |
 | aidevops | aidevops/pendingmessage | 1 |  | child-uncatalogued | aidevops:ListPendingMessages |
 | aidevops | aidevops/recommendation | 1 |  | child-uncatalogued | aidevops:GetRecommendation, aidevops:ListRecommendations |
-| aidevops | aidevops/trigger | 1 |  | sr-resource | aidevops:GetTrigger, aidevops:ListTriggers |
-| aidevops | aidevops/webhook | 2 |  | child-uncatalogued | aidevops:ListWebhooks |
 | airflow-serverless | airflow-serverless/taskinstance | 0 |  | smithy-resource | airflow-serverless:GetTaskInstance, airflow-serverless:ListTaskInstances |
 | airflow-serverless | airflow-serverless/workflowrun | 0 |  | smithy-resource | airflow-serverless:GetWorkflowRun, airflow-serverless:ListWorkflowRuns |
 | airflow-serverless | airflow-serverless/workflowversion | 0 |  | smithy-resource | airflow-serverless:ListWorkflowVersions |

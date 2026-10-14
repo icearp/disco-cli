@@ -1926,6 +1926,10 @@ const (
 	TypeAidevopsService           = "aws:aidevops:service"
 	TypeAidevopsAssociations      = "aws:aidevops:associations"
 	TypeAidevopsPrivateConnection = "aws:aidevops:private-connection"
+	TypeAidevopsAsset             = "aws:aidevops:asset"
+	TypeAidevopsTrigger           = "aws:aidevops:trigger"
+	TypeAidevopsWebhook           = "aws:aidevops:webhook"
+	TypeAidevopsGoal              = "aws:aidevops:goal"
 	// ACM Private CA permissions (acmpca_scanners.go, acmpca_resolvers.go)
 	TypeACMPCAPermission = "aws:acm-pca:permission"
 	// CloudWatch AIOps investigation groups (aiops_scanners.go, aiops_resolvers.go)
