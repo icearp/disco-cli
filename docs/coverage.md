@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.2% (1807/3336 listable) · depth0 68.2% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.2% (1808/3336 listable) · depth0 68.2% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 1021 | 200 | 83.6 |
 | child-uncatalogued | 184 | 833 | 18.1 |
-| smithy-resource | 417 | 145 | 74.2 |
+| smithy-resource | 418 | 144 | 74.4 |
 | element-written | 154 | 262 | 37.0 |
 | element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
@@ -202,7 +202,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | detective | 3 | 2 | 60.0 |
 | ecr | 3 | 2 | 60.0 |
 | elasticache | 12 | 2 | 85.7 |
-| elemental-inference | 1 | 2 | 33.3 |
 | entityresolution | 4 | 2 | 66.7 |
 | finspace | 8 | 2 | 80.0 |
 | fsx | 8 | 2 | 80.0 |
@@ -265,6 +264,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ecr-public | 2 | 1 | 66.7 |
 | elasticfilesystem | 3 | 1 | 75.0 |
 | elasticloadbalancing | 7 | 1 | 87.5 |
+| elemental-inference | 2 | 1 | 66.7 |
 | emr-containers | 4 | 1 | 80.0 |
 | execute-api | 0 | 1 | 0.0 |
 | geo-places | 0 | 1 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1529)
+### Uncovered (listable, no scanner) (1528)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -973,7 +973,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | elasticmapreduce | elasticmapreduce/jobflow | 0 |  | element-written | elasticmapreduce:DescribeJobFlows |
 | elasticmapreduce | elasticmapreduce/notebookexecution | 0 |  | sr-resource | elasticmapreduce:DescribeNotebookExecution, elasticmapreduce:ListNotebookExecutions |
 | elasticmapreduce | elasticmapreduce/session | 1 |  | sr-resource | elasticmapreduce:GetSession, elasticmapreduce:ListSessions |
-| elemental-inference | elemental-inference/dictionary | 0 |  | smithy-resource | elemental-inference:GetDictionary, elemental-inference:ListDictionaries |
 | elemental-inference | elemental-inference/fixture | 0 |  | child-uncatalogued | elemental-inference:GetFixture, elemental-inference:SearchFixtures |
 | emr-containers | emr-containers/jobrun | 1 |  | sr-resource | emr-containers:DescribeJobRun, emr-containers:ListJobRuns |
 | emr-serverless | emr-serverless/jobrun | 1 |  | smithy-resource | emr-serverless:GetJobRun, emr-serverless:ListJobRuns |

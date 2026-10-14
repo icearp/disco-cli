@@ -1327,7 +1327,8 @@ const (
 	// EMRServerless (emrserverless_scanners.go)
 	TypeEMRServerlessApplication = "aws:emr-serverless:application"
 	// ElementalInference (elementalinference_scanners.go)
-	TypeElementalInferenceFeed = "aws:elemental-inference:feed"
+	TypeElementalInferenceFeed       = "aws:elemental-inference:feed"
+	TypeElementalInferenceDictionary = "aws:elemental-inference:dictionary"
 	// DSQL (dsql_scanners.go)
 	TypeDSQLCluster = "aws:dsql:cluster"
 	TypeDSQLStream  = "aws:dsql:stream"

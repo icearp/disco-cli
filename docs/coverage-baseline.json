@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 54.166666666666664,
-    "covered": 1807,
-    "uncovered": 1529,
+    "percent": 54.196642685851316,
+    "covered": 1808,
+    "uncovered": 1528,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -688,6 +688,7 @@
       "elasticmapreduce/step",
       "elasticmapreduce/studio",
       "elasticmapreduce/studiosessionmapping",
+      "elemental-inference/dictionary",
       "elemental-inference/feed",
       "emr-containers/jobtemplate",
       "emr-containers/managedendpoint",
@@ -2431,7 +2432,6 @@
       "elasticmapreduce/jobflow",
       "elasticmapreduce/notebookexecution",
       "elasticmapreduce/session",
-      "elemental-inference/dictionary",
       "elemental-inference/fixture",
       "emr-containers/jobrun",
       "emr-serverless/jobrun",
