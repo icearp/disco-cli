@@ -1306,7 +1306,9 @@ const (
 	// HealthImaging (healthimaging_scanners.go)
 	TypeHealthImagingDatastore = "aws:health-imaging:datastore"
 	// Grafana (grafana_scanners.go)
-	TypeGrafanaWorkspace = "aws:grafana:workspace"
+	TypeGrafanaWorkspace                    = "aws:grafana:workspace"
+	TypeGrafanaWorkspaceServiceAccount      = "aws:grafana:workspace-service-account"
+	TypeGrafanaWorkspaceServiceAccountToken = "aws:grafana:workspace-service-account-token"
 	// FinSpace (finspace_scanners.go)
 	TypeFinSpaceEnvironment = "aws:fin-space:environment"
 	// FinSpace Managed kdb (finspace_kx_scanners.go)

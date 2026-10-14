@@ -59,19 +59,6 @@ func dxsClient(handlers map[string]func(in any) (any, error)) *dataexchange.Clie
 	return dataexchange.NewFromConfig(opStubConfig(handlers, dxDenied))
 }
 
-// seedDXParents stores a row for each NativeID, so the contains rows the
-// fan-out records have both endpoints.
-func seedDXParents(t *testing.T, st *store.Store, typ string, nativeIDs ...string) {
-	t.Helper()
-	seeds := make([]*store.Resource, 0, len(nativeIDs))
-	for _, id := range nativeIDs {
-		seeds = append(seeds, &store.Resource{Provider: "aws", AccountID: testAccountID, Type: typ, NativeID: id, DiscoveredBy: testScanID})
-	}
-	if _, err := st.UpsertResources(seeds); err != nil {
-		t.Fatalf("seed %s: %v", typ, err)
-	}
-}
-
 // dxsRevisionHandler serves, for data set "ds1", page one (r1) then page two
 // (r2 revoked, an element with no Arn and a draft with no Id); r1 is
 // finalized. For any other data set one
@@ -119,7 +106,7 @@ func scanDXRevisions(t *testing.T, st *store.Store, handler func(in any) (any, e
 		parents = append(parents, dxDataSet{childParent: childParent{id: ds, arn: dxsDataSetARN(ds)}, assetType: at})
 		arns = append(arns, dxsDataSetARN(ds))
 	}
-	seedDXParents(t, st, TypeDataExchangeDataSets, arns...)
+	seedParentRows(t, st, TypeDataExchangeDataSets, arns...)
 	client := dxsClient(map[string]func(any) (any, error){"ListDataSetRevisions": handler})
 	revs, total, _, err := scanDataExchangeRevisions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	return revs, total, err
@@ -305,7 +292,7 @@ func scanDXAssets(t *testing.T, st *store.Store, handler func(in any) (any, erro
 		parents = append(parents, dxRevision{childParent: childParent{id: r, arn: dxsRevisionARN(ds, rev)}, dataSetID: ds, revisionID: rev})
 		arns = append(arns, dxsRevisionARN(ds, rev))
 	}
-	seedDXParents(t, st, TypeDataExchangeDataSetRevision, arns...)
+	seedParentRows(t, st, TypeDataExchangeDataSetRevision, arns...)
 	client := dxsClient(map[string]func(any) (any, error){"ListRevisionAssets": handler})
 	total, _, err := scanDataExchangeAssets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	return total, err

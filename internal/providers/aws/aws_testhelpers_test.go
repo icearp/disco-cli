@@ -301,3 +301,16 @@ func recordCallRegions(cfg sdkaws.Config, regions *parentCalls) sdkaws.Config {
 	cfg.APIOptions = append([]func(*smithymw.Stack) error{record}, cfg.APIOptions...)
 	return cfg
 }
+
+// seedParentRows stores a row for each NativeID, so the contains rows the
+// fan-out records have both endpoints.
+func seedParentRows(t *testing.T, st *store.Store, typ string, nativeIDs ...string) {
+	t.Helper()
+	seeds := make([]*store.Resource, 0, len(nativeIDs))
+	for _, id := range nativeIDs {
+		seeds = append(seeds, &store.Resource{Provider: "aws", AccountID: testAccountID, Type: typ, NativeID: id, DiscoveredBy: testScanID})
+	}
+	if _, err := st.UpsertResources(seeds); err != nil {
+		t.Fatalf("seed %s: %v", typ, err)
+	}
+}

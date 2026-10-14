@@ -215,7 +215,7 @@ func scanHLVersions(t *testing.T, st *store.Store, handler func(in any) (any, er
 		parents = append(parents, childParent{id: id, arn: arn})
 		arns = append(arns, arn)
 	}
-	seedDXParents(t, st, TypeHealthLakeDataTransformationProfile, arns...)
+	seedParentRows(t, st, TypeHealthLakeDataTransformationProfile, arns...)
 	client := hlClient(map[string]func(any) (any, error){"ListDataTransformationProfileVersions": handler})
 	total, _, err := scanHealthLakeProfileVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	return total, err
