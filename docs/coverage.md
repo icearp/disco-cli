@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.0% (1768/3336 listable) · depth0 67.4% · depth1 31.6% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.1% (1773/3336 listable) · depth0 67.6% · depth1 31.7% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,11 +8,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1013 | 208 | 83.0 |
-| child-uncatalogued | 162 | 855 | 15.9 |
+| sr-resource | 1014 | 207 | 83.0 |
+| child-uncatalogued | 163 | 854 | 16.0 |
 | smithy-resource | 417 | 145 | 74.2 |
-| element-written | 146 | 270 | 35.1 |
-| element-arn | 26 | 80 | 24.5 |
+| element-written | 148 | 268 | 35.6 |
+| element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
 
 | Service | Covered | Uncovered | % |
@@ -51,7 +51,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral-selling | 0 | 12 | 0.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
 | devicefarm | 8 | 11 | 42.1 |
-| redshift | 16 | 11 | 59.3 |
 | aidevops | 4 | 10 | 28.6 |
 | clouddirectory | 2 | 10 | 16.7 |
 | codecatalyst | 0 | 10 | 0.0 |
@@ -96,6 +95,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | lookoutequipment | 5 | 6 | 45.5 |
 | medialive | 17 | 6 | 73.9 |
 | personalize | 11 | 6 | 64.7 |
+| redshift | 21 | 6 | 77.8 |
 | rekognition | 4 | 6 | 40.0 |
 | sms-voice | 11 | 6 | 64.7 |
 | ssm-contacts | 3 | 6 | 33.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1568)
+### Uncovered (listable, no scanner) (1563)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1557,15 +1557,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | rds | rds/pendingmaintenanceaction | 0 |  | element-written | rds:DescribePendingMaintenanceActions |
 | rds | rds/reserveddbinstancesoffering | 0 |  | element-written | rds:DescribeReservedDBInstancesOfferings |
 | rds | rds/validdbinstancemodification | 1 |  | child-uncatalogued | rds:DescribeValidDBInstanceModifications |
-| redshift | redshift/authenticationprofile | 0 |  | element-written | redshift:DescribeAuthenticationProfiles |
 | redshift | redshift/clusterparameter | 1 |  | element-written | redshift:DescribeClusterParameters, redshift:DescribeDefaultClusterParameters |
 | redshift | redshift/clustersecuritygroup | 0 |  | element-written | redshift:DescribeClusterSecurityGroups |
-| redshift | redshift/customdomainassociation | 0 |  | element-arn | redshift:DescribeCustomDomainAssociations |
 | redshift | redshift/inboundintegration | 0 |  | element-written | redshift:DescribeInboundIntegrations |
-| redshift | redshift/partner | 1 |  | child-uncatalogued | redshift:DescribePartners |
-| redshift | redshift/qev2idcapplication | 0 |  | sr-resource | redshift:DescribeQev2IdcApplications |
 | redshift | redshift/recommendation | 0 |  | element-arn | redshift:ListRecommendations |
-| redshift | redshift/reservednode | 0 |  | element-written | redshift:DescribeReservedNodes |
 | redshift | redshift/reservednodeoffering | 0 |  | element-written | redshift:DescribeReservedNodeOfferings, redshift:GetReservedNodeExchangeOfferings |
 | redshift | redshift/tablerestorestatus | 0 |  | element-written | redshift:DescribeTableRestoreStatus |
 | redshift-data | redshift-data/database | 1 |  | child-uncatalogued | redshift-data:ListDatabases |

@@ -42,6 +42,17 @@ func init() {
 		resolveRedshiftSnapshotCopyGrantRefs,
 		EdgeDecl{TypeRedshiftSnapshotCopyGrant, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		noopRedshiftClusterHierarchy,
+		EdgeDecl{TypeRedshiftCluster, TypeRedshiftCustomDomainAssociation, store.RelContains},
+		EdgeDecl{TypeRedshiftCluster, TypeRedshiftPartner, store.RelContains},
+	)
+}
+
+// noopRedshiftClusterHierarchy only declares the cluster -> child contains
+// edges; scanRedshift records them when it stores the children.
+func noopRedshiftClusterHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveRedshiftSnapshotRefs links each cluster snapshot to its source cluster

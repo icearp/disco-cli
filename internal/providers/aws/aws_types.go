@@ -1742,6 +1742,12 @@ const (
 	TypeRedshiftHsmConfiguration     = "aws:redshift:hsm-configuration"
 	TypeRedshiftIdcApplication       = "aws:redshift:redshift-idc-application"
 	TypeRedshiftDatashare            = "aws:redshift:datashare"
+	// Redshift — account and cluster satellites (redshift_satellite_scanners.go).
+	TypeRedshiftAuthenticationProfile   = "aws:redshift:authentication-profile"
+	TypeRedshiftCustomDomainAssociation = "aws:redshift:custom-domain-association"
+	TypeRedshiftQev2IdcApplication      = "aws:redshift:qev2-idc-application"
+	TypeRedshiftPartner                 = "aws:redshift:partner"
+	TypeRedshiftReservedNode            = "aws:redshift:reserved-node"
 	// OpenSearch (opensearch_scanners.go, opensearch_resolvers.go)
 	TypeOpenSearchDomain = "aws:opensearch:domain"
 	// DocumentDB (docdb_scanners.go, docdb_resolvers.go)

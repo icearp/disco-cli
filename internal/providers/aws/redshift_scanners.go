@@ -27,6 +27,14 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeRedshiftHsmConfiguration, Service: "redshift"})
 	registerType(restype.Descriptor{Type: TypeRedshiftIdcApplication, Service: "redshift"})
 	registerType(restype.Descriptor{Type: TypeRedshiftDatashare, Service: "redshift"})
+	// The profile content is free-form JDBC/ODBC driver options, which can
+	// include a password, secret access key or OAuth client secret. It is one
+	// JSON string, so the rule can only redact it whole.
+	registerType(restype.Descriptor{Type: TypeRedshiftAuthenticationProfile, Service: "redshift", Redact: []redact.Rule{{Path: "AuthenticationProfileContent", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeRedshiftCustomDomainAssociation, Service: "redshift"})
+	registerType(restype.Descriptor{Type: TypeRedshiftQev2IdcApplication, Service: "redshift"})
+	registerType(restype.Descriptor{Type: TypeRedshiftPartner, Service: "redshift"})
+	registerType(restype.Descriptor{Type: TypeRedshiftReservedNode, Service: "redshift"})
 	registerService(serviceEntry{
 		name: "aws:redshift",
 		fn:   scanRedshift,
@@ -48,23 +56,23 @@ type redshiftAPI interface {
 	DescribeDataShares(context.Context, *redshift.DescribeDataSharesInput, ...func(*redshift.Options)) (*redshift.DescribeDataSharesOutput, error)
 }
 
-// scanRedshift discovers Redshift provisioned clusters and cluster subnet
-// groups in one region. Two phases run sequentially. Each phase is
-// paginator-native; List bodies carry edge-bearing fields, no Describe
-// fan-out needed. Per-phase AccessDenied tolerated. Cluster parameter
-// groups intentionally deferred — no graph edges (config artefacts).
-// Redshift Serverless workgroups + namespaces tracked separately
-// (different SDK package).
+// scanRedshift discovers Redshift provisioned clusters and their satellites
+// in one region, one phase at a time. The cluster phase hands the clusters it
+// stored to the per-cluster phases, which run after every other phase so their
+// errors cannot cost those rows. Redshift Serverless workgroups + namespaces
+// are tracked separately (different SDK package).
 func scanRedshift(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := redshift.NewFromConfig(acct.cfg, func(o *redshift.Options) { o.Region = region })
 
+	var clusters []childParent
 	{
-		t, i, ferr := scanRedshiftClusters(ctx, client, acct, region, st, scanID)
+		t, i, parents, ferr := scanRedshiftClusters(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
 		total += t
 		inserted += i
+		clusters = parents
 	}
 
 	{
@@ -104,6 +112,19 @@ func scanRedshift(ctx context.Context, acct *account, region string, st *store.S
 		func() (int, int, error) { return scanRedshiftHsmConfigurations(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanRedshiftIdcApplications(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanRedshiftDataShares(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanRedshiftAuthenticationProfiles(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) { return scanRedshiftReservedNodes(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanRedshiftQev2IdcApplications(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanRedshiftCustomDomainAssociations(ctx, client, acct, region, st, scanID, clusters)
+		},
+		func() (int, int, error) {
+			return scanRedshiftPartners(ctx, client, acct, region, st, scanID, clusters)
+		},
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -330,17 +351,20 @@ func scanRedshiftDataShares(ctx context.Context, client redshiftAPI, acct *accou
 	return upsertBatch(st, batch, "redshift data shares")
 }
 
-func scanRedshiftClusters(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRedshiftClusters(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
 	pager := redshift.NewDescribeClustersPaginator(client, &redshift.DescribeClustersInput{})
-	var batch []*store.Resource
+	var (
+		batch   []*store.Resource
+		parents []childParent
+	)
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "redshift:DescribeClusters", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, 0, nil, nil
 			}
-			return 0, 0, fmt.Errorf("redshift:DescribeClusters: %w", perr)
+			return 0, 0, nil, fmt.Errorf("redshift:DescribeClusters: %w", perr)
 		}
 		for _, c := range out.Clusters {
 			name := sv(c.ClusterIdentifier)
@@ -349,6 +373,7 @@ func scanRedshiftClusters(ctx context.Context, client redshiftAPI, acct *account
 			}
 			arn := redshiftClusterARN(region, acct.ID, name)
 			status := sv(c.ClusterStatus)
+			parents = append(parents, childParent{id: name, arn: arn})
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -364,13 +389,13 @@ func scanRedshiftClusters(ctx context.Context, client redshiftAPI, acct *account
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, 0, nil, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert redshift clusters: %w", uerr)
+		return 0, 0, nil, fmt.Errorf("upsert redshift clusters: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), n, parents, nil
 }
 
 func scanRedshiftClusterSubnetGroups(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
