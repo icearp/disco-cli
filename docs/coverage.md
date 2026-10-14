@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 55.3% (1846/3336 listable) · depth0 68.9% · depth1 35.3% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 55.4% (1848/3336 listable) · depth0 68.9% · depth1 35.5% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,8 +9,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1024 | 197 | 83.9 |
-| child-uncatalogued | 209 | 808 | 20.6 |
-| smithy-resource | 420 | 142 | 74.7 |
+| child-uncatalogued | 210 | 807 | 20.6 |
+| smithy-resource | 421 | 141 | 74.9 |
 | element-written | 161 | 255 | 38.7 |
 | element-arn | 28 | 78 | 26.4 |
 | element-created | 4 | 10 | 28.6 |
@@ -36,12 +36,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | rds | 24 | 15 | 61.5 |
 | ses | 19 | 15 | 55.9 |
 | wellarchitected | 9 | 15 | 37.5 |
-| cleanrooms | 9 | 14 | 39.1 |
 | deadline | 13 | 14 | 48.1 |
 | dms | 11 | 14 | 44.0 |
 | cloudformation | 7 | 13 | 35.0 |
 | inspector2 | 5 | 13 | 27.8 |
 | profile | 12 | 13 | 48.0 |
+| cleanrooms | 11 | 12 | 47.8 |
 | comprehend | 5 | 12 | 29.4 |
 | gamelift | 15 | 12 | 55.6 |
 | omics | 12 | 12 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1490)
+### Uncovered (listable, no scanner) (1488)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -564,9 +564,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cleanrooms | cleanrooms/collaborationidnamespaceassociation | 1 |  | child-uncatalogued | cleanrooms:ListCollaborationIdNamespaceAssociations |
 | cleanrooms | cleanrooms/collaborationprivacybudget | 1 |  | child-uncatalogued | cleanrooms:ListCollaborationPrivacyBudgets |
 | cleanrooms | cleanrooms/collaborationprivacybudgettemplate | 1 |  | child-uncatalogued | cleanrooms:GetCollaborationPrivacyBudgetTemplate, cleanrooms:ListCollaborationPrivacyBudgetTemplates |
-| cleanrooms | cleanrooms/intermediatetable | 1 |  | smithy-resource | cleanrooms:GetIntermediateTable, cleanrooms:ListIntermediateTables |
 | cleanrooms | cleanrooms/intermediatetableversion | 2 |  | child-uncatalogued | cleanrooms:ListIntermediateTableVersions |
-| cleanrooms | cleanrooms/member | 1 |  | child-uncatalogued | cleanrooms:ListMembers |
 | cleanrooms | cleanrooms/privacybudget | 1 |  | child-uncatalogued | cleanrooms:ListPrivacyBudgets |
 | cleanrooms | cleanrooms/protectedjob | 1 |  | child-uncatalogued | cleanrooms:GetProtectedJob, cleanrooms:ListProtectedJobs |
 | cleanrooms | cleanrooms/protectedquery | 1 |  | child-uncatalogued | cleanrooms:GetProtectedQuery, cleanrooms:ListProtectedQueries |

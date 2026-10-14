@@ -1404,6 +1404,8 @@ const (
 	TypeCleanRoomsConfiguredAudienceModelAssociation = "aws:cleanrooms:configured-audience-model-association"
 	TypeCleanRoomsIDMappingTable                     = "aws:cleanrooms:id-mapping-table"
 	TypeCleanRoomsIDNamespaceAssociation             = "aws:cleanrooms:id-namespace-association"
+	TypeCleanRoomsIntermediateTable                  = "aws:cleanrooms:intermediate-table"
+	TypeCleanRoomsMember                             = "aws:cleanrooms:member"
 	TypeCleanRoomsMembership                         = "aws:cleanrooms:membership"
 	TypeCleanRoomsPrivacyBudgetTemplate              = "aws:cleanrooms:privacy-budget-template"
 	// CloudDirectory (clouddirectory_scanners.go)

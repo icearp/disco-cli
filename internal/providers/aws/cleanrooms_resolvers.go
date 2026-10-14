@@ -36,6 +36,17 @@ func init() {
 		resolveCleanRoomsConfiguredAudienceModelAssocToModel,
 		EdgeDecl{TypeCleanRoomsConfiguredAudienceModelAssociation, TypeCleanRoomsMLConfiguredAudienceModel, store.RelUses},
 	)
+	registerResolver(
+		noopCleanRoomsHierarchy,
+		EdgeDecl{TypeCleanRoomsCollaboration, TypeCleanRoomsMember, store.RelContains},
+		EdgeDecl{TypeCleanRoomsMembership, TypeCleanRoomsIntermediateTable, store.RelContains},
+	)
+}
+
+// noopCleanRoomsHierarchy only declares the contains edges scanCRMembers and
+// scanCRIntermediateTables record through childFanOut.
+func noopCleanRoomsHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveCleanRoomsMembershipCollaboration links each membership to its

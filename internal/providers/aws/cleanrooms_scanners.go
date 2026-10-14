@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/cleanrooms"
@@ -17,6 +18,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeCleanRoomsConfiguredAudienceModelAssociation, Service: "cleanrooms"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsIDMappingTable, Service: "cleanrooms"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsIDNamespaceAssociation, Service: "cleanrooms"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsIntermediateTable, Service: "cleanrooms"})
+	registerType(restype.Descriptor{Type: TypeCleanRoomsMember, Service: "cleanrooms"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsMembership, Service: "cleanrooms"})
 	registerType(restype.Descriptor{Type: TypeCleanRoomsPrivacyBudgetTemplate, Service: "cleanrooms"})
 	registerService(serviceEntry{
@@ -35,71 +38,126 @@ type cleanRoomsAPI interface {
 	ListIdMappingTables(context.Context, *cleanrooms.ListIdMappingTablesInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListIdMappingTablesOutput, error)
 	ListIdNamespaceAssociations(context.Context, *cleanrooms.ListIdNamespaceAssociationsInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListIdNamespaceAssociationsOutput, error)
 	ListPrivacyBudgetTemplates(context.Context, *cleanrooms.ListPrivacyBudgetTemplatesInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListPrivacyBudgetTemplatesOutput, error)
+	ListMembers(context.Context, *cleanrooms.ListMembersInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListMembersOutput, error)
+	ListIntermediateTables(context.Context, *cleanrooms.ListIntermediateTablesInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListIntermediateTablesOutput, error)
 }
 
 func scanCleanRooms(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := cleanrooms.NewFromConfig(acct.cfg, func(o *cleanrooms.Options) { o.Region = region })
+	return scanCleanRoomsIn(ctx, client, acct, region, st, scanID)
+}
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanCRCollaborations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanCRConfiguredTables(ctx, client, acct, region, st, scanID) },
+// scanCleanRoomsIn runs every phase and joins their errors, so one failing
+// phase does not hide the others' rows. The membership children phases fan
+// out over the memberships the membership phase listed, the member phase over
+// the listed collaborations.
+func scanCleanRoomsIn(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var (
+		collaborations, memberships []childParent
+		errs                        []error
+	)
+	perMembership := func(scan func(memberID string) (int, int, error)) (t, i int, err error) {
+		for _, m := range memberships {
+			mt, mi, perr := scan(m.id)
+			t += mt
+			i += mi
+			if perr != nil {
+				return t, i, perr
+			}
+		}
+		return t, i, nil
+	}
+	for n, phase := range []struct {
+		name string
+		run  func() (int, int, error)
+	}{
+		{"cleanrooms:ListCollaborations", func() (int, int, error) {
+			var (
+				t, i int
+				err  error
+			)
+			collaborations, t, i, err = scanCRCollaborations(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		}},
+		{"cleanrooms:ListConfiguredTables", func() (int, int, error) { return scanCRConfiguredTables(ctx, client, acct, region, st, scanID) }},
+		{"cleanrooms:ListMemberships", func() (int, int, error) {
+			var (
+				t, i int
+				err  error
+			)
+			memberships, t, i, err = scanCRMemberships(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		}},
+		{"cleanrooms:ListAnalysisTemplates", func() (int, int, error) {
+			return perMembership(func(mid string) (int, int, error) {
+				return scanCRAnalysisTemplates(ctx, client, acct, region, st, scanID, mid)
+			})
+		}},
+		{"cleanrooms:ListConfiguredTableAssociations", func() (int, int, error) {
+			return perMembership(func(mid string) (int, int, error) {
+				return scanCRConfiguredTableAssociations(ctx, client, acct, region, st, scanID, mid)
+			})
+		}},
+		{"cleanrooms:ListConfiguredAudienceModelAssociations", func() (int, int, error) {
+			return perMembership(func(mid string) (int, int, error) {
+				return scanCRConfiguredAudienceModelAssociations(ctx, client, acct, region, st, scanID, mid)
+			})
+		}},
+		{"cleanrooms:ListIdMappingTables", func() (int, int, error) {
+			return perMembership(func(mid string) (int, int, error) {
+				return scanCRIdMappingTables(ctx, client, acct, region, st, scanID, mid)
+			})
+		}},
+		{"cleanrooms:ListIdNamespaceAssociations", func() (int, int, error) {
+			return perMembership(func(mid string) (int, int, error) {
+				return scanCRIdNamespaceAssociations(ctx, client, acct, region, st, scanID, mid)
+			})
+		}},
+		{"cleanrooms:ListPrivacyBudgetTemplates", func() (int, int, error) {
+			return perMembership(func(mid string) (int, int, error) {
+				return scanCRPrivacyBudgetTemplates(ctx, client, acct, region, st, scanID, mid)
+			})
+		}},
+		{"cleanrooms:ListMembers", func() (int, int, error) {
+			return scanCRMembers(ctx, client, acct, region, st, scanID, collaborations)
+		}},
+		{"cleanrooms:ListIntermediateTables", func() (int, int, error) {
+			return scanCRIntermediateTables(ctx, client, acct, region, st, scanID, memberships)
+		}},
 	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
+		t, i, perr := phase.run()
+		// Without an endpoint every phase would fail the same way; returned
+		// alone, the dispatcher reports the region unavailable.
+		if n == 0 && isEndpointUnreachable(perr) {
+			return t, i, perr
 		}
 		total += t
 		inserted += i
-	}
-
-	memberIDs, t, i, ferr := scanCRMemberships(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, mid := range memberIDs {
-		for _, phase := range []func() (int, int, error){
-			func() (int, int, error) { return scanCRAnalysisTemplates(ctx, client, acct, region, st, scanID, mid) },
-			func() (int, int, error) {
-				return scanCRConfiguredTableAssociations(ctx, client, acct, region, st, scanID, mid)
-			},
-			func() (int, int, error) {
-				return scanCRConfiguredAudienceModelAssociations(ctx, client, acct, region, st, scanID, mid)
-			},
-			func() (int, int, error) {
-				return scanCRIdMappingTables(ctx, client, acct, region, st, scanID, mid)
-			},
-			func() (int, int, error) {
-				return scanCRIdNamespaceAssociations(ctx, client, acct, region, st, scanID, mid)
-			},
-			func() (int, int, error) {
-				return scanCRPrivacyBudgetTemplates(ctx, client, acct, region, st, scanID, mid)
-			},
-		} {
-			t, i, perr := phase()
-			if perr != nil {
-				return total, inserted, perr
-			}
-			total += t
-			inserted += i
+		// A joined transient error would make the dispatcher classify the
+		// whole service transient and drop the other phases' errors.
+		if isTransientNetworkError(perr) {
+			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
+			continue
 		}
+		errs = append(errs, perr)
 	}
-	return total, inserted, nil
+	return total, inserted, errors.Join(errs...)
 }
 
-func scanCRCollaborations(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCRCollaborations(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	pager := cleanrooms.NewListCollaborationsPaginator(client, &cleanrooms.ListCollaborationsInput{})
-	var batch []*store.Resource
+	var (
+		batch   []*store.Resource
+		parents []childParent
+	)
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "cleanrooms:ListCollaborations", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("cleanrooms:ListCollaborations: %w", perr)
+			return nil, 0, 0, fmt.Errorf("cleanrooms:ListCollaborations: %w", perr)
 		}
 		for _, c := range out.CollaborationList {
 			arn := sv(c.Arn)
@@ -110,6 +168,9 @@ func scanCRCollaborations(ctx context.Context, client cleanRoomsAPI, acct *accou
 			if label == "" {
 				label = sv(c.Id)
 			}
+			if id := sv(c.Id); id != "" {
+				parents = append(parents, childParent{id: id, arn: arn})
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCleanRoomsCollaboration, NativeID: arn,
@@ -117,7 +178,11 @@ func scanCRCollaborations(ctx context.Context, client cleanRoomsAPI, acct *accou
 			})
 		}
 	}
-	return upsertBatch(st, batch, "cleanrooms collaborations")
+	t, i, err := upsertBatch(st, batch, "cleanrooms collaborations")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return parents, t, i, nil
 }
 
 func scanCRConfiguredTables(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -151,10 +216,12 @@ func scanCRConfiguredTables(ctx context.Context, client cleanRoomsAPI, acct *acc
 	return upsertBatch(st, batch, "cleanrooms configured-tables")
 }
 
-func scanCRMemberships(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanCRMemberships(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	pager := cleanrooms.NewListMembershipsPaginator(client, &cleanrooms.ListMembershipsInput{})
-	var batch []*store.Resource
-	var ids []string
+	var (
+		batch   []*store.Resource
+		parents []childParent
+	)
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -175,7 +242,7 @@ func scanCRMemberships(ctx context.Context, client cleanRoomsAPI, acct *account,
 				label = id
 			}
 			if id != "" {
-				ids = append(ids, id)
+				parents = append(parents, childParent{id: id, arn: arn})
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -185,7 +252,10 @@ func scanCRMemberships(ctx context.Context, client cleanRoomsAPI, acct *account,
 		}
 	}
 	t, i, err := upsertBatch(st, batch, "cleanrooms memberships")
-	return ids, t, i, err
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return parents, t, i, nil
 }
 
 func scanCRAnalysisTemplates(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID, memberID string) (int, int, error) {
@@ -379,4 +449,75 @@ func scanCRPrivacyBudgetTemplates(ctx context.Context, client cleanRoomsAPI, acc
 		}
 	}
 	return upsertBatch(st, batch, "cleanrooms privacy-budget-templates")
+}
+
+// isCRParentGone matches a collaboration or membership deleted between its
+// list call and the child list call (both child ops model ResourceNotFound).
+func isCRParentGone(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException")
+}
+
+// crPageCap is the documented maxResults ceiling of the cleanrooms list ops.
+const crPageCap = 100
+
+// scanCRMembers lists each collaboration's roster under the collaboration,
+// NativeID {collaborationARN}/member/{accountId}: a member carries no ARN of
+// its own, and an account joins a collaboration at most once. Members that
+// LEFT or were REMOVED stay listed by the API and are kept with that status.
+func scanCRMembers(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string, collaborations []childParent) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "cleanrooms:ListMembers", collaborations, isCRParentGone,
+		func(gctx context.Context, c childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := cleanrooms.NewListMembersPaginator(client, &cleanrooms.ListMembersInput{CollaborationIdentifier: &c.id},
+				func(o *cleanrooms.ListMembersPaginatorOptions) { o.Limit = crPageCap })
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(gctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, m := range out.MemberSummaries {
+					accountID := sv(m.AccountId)
+					if accountID == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeCleanRoomsMember, NativeID: c.arn + "/member/" + accountID,
+						Name: m.DisplayName, Status: nonEmptyPtr(string(m.Status)), Region: &region,
+						CreatedAt: tp(m.CreateTime), AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// scanCRIntermediateTables lists the intermediate tables this account owns in
+// each membership, under the membership.
+func scanCRIntermediateTables(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string, memberships []childParent) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "cleanrooms:ListIntermediateTables", memberships, isCRParentGone,
+		func(gctx context.Context, m childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := cleanrooms.NewListIntermediateTablesPaginator(client, &cleanrooms.ListIntermediateTablesInput{MembershipIdentifier: &m.id},
+				func(o *cleanrooms.ListIntermediateTablesPaginatorOptions) { o.Limit = crPageCap })
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(gctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, it := range out.IntermediateTableSummaries {
+					arn := sv(it.Arn)
+					if arn == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeCleanRoomsIntermediateTable, NativeID: arn,
+						Name: it.Name, Status: nonEmptyPtr(string(it.Status)), Region: &region,
+						CreatedAt: tp(it.CreateTime), AttributesJSON: mustJSON(it), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
 }
