@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.8% (1794/3336 listable) · depth0 68.0% · depth1 32.8% · depth2 26.1% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.8% (1795/3336 listable) · depth0 68.0% · depth1 32.9% · depth2 26.1% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1018 | 203 | 83.4 |
-| child-uncatalogued | 175 | 842 | 17.2 |
+| child-uncatalogued | 176 | 841 | 17.3 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 153 | 263 | 36.8 |
 | element-arn | 27 | 79 | 25.5 |
@@ -121,7 +121,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | lambda | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
 | snowball | 0 | 5 | 0.0 |
-| ssm-incidents | 2 | 5 | 28.6 |
 | sso | 12 | 5 | 70.6 |
 | trustedadvisor | 1 | 5 | 16.7 |
 | voiceid | 1 | 5 | 16.7 |
@@ -150,6 +149,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral-account | 0 | 4 | 0.0 |
 | redshift-data | 0 | 4 | 0.0 |
 | social-messaging | 1 | 4 | 20.0 |
+| ssm-incidents | 3 | 4 | 42.9 |
 | ssm-sap | 3 | 4 | 42.9 |
 | transcribe | 5 | 4 | 55.6 |
 | xray | 3 | 4 | 42.9 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1542)
+### Uncovered (listable, no scanner) (1541)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1776,7 +1776,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm-incidents | ssm-incidents/incidentfinding | 1 |  | child-uncatalogued | ssm-incidents:ListIncidentFindings |
 | ssm-incidents | ssm-incidents/incidentrecord | 0 |  | sr-resource | ssm-incidents:GetIncidentRecord, ssm-incidents:ListIncidentRecords |
 | ssm-incidents | ssm-incidents/relateditem | 1 |  | child-uncatalogued | ssm-incidents:ListRelatedItems |
-| ssm-incidents | ssm-incidents/resourcepolicy | 1 |  | child-uncatalogued | ssm-incidents:GetResourcePolicies |
 | ssm-incidents | ssm-incidents/timelineevent | 1 |  | child-uncatalogued | ssm-incidents:GetTimelineEvent, ssm-incidents:ListTimelineEvents |
 | ssm-quicksetup | ssm-quicksetup/configuration | 0 |  | element-arn | ssm-quicksetup:ListConfigurations |
 | ssm-sap | ssm-sap/configurationcheckoperation | 0 |  | child-uncatalogued | ssm-sap:GetConfigurationCheckOperation, ssm-sap:ListConfigurationCheckOperations |

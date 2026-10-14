@@ -19,6 +19,18 @@ func init() {
 		EdgeDecl{TypeSSMIncidentsResponsePlan, TypeSSMContactsContact, store.RelUses},
 		EdgeDecl{TypeSSMIncidentsResponsePlan, TypeSSMContactsPlan, store.RelUses},
 	)
+	registerResolver(
+		noopSSMIHierarchy,
+		EdgeDecl{TypeSSMIncidentsResponsePlan, TypeSSMIncidentsResourcePolicy, store.RelContains},
+	)
+}
+
+// noopSSMIHierarchy emits nothing: the response-plan → resource-policy
+// contains edge is written at scan time by childFanOut (the
+// ssm-incidents:GetResourcePolicies phase of scanSSMIncidents). It is
+// registered only so that edge is declared to coverage tooling.
+func noopSSMIHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveSSMIResponsePlanRefs wires each response plan to the ssm-contacts

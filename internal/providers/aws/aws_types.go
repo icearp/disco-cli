@@ -1133,6 +1133,7 @@ const (
 	// SSMIncidents (ssmincidents_scanners.go)
 	TypeSSMIncidentsReplicationSet = "aws:ssm-incidents:replication-set"
 	TypeSSMIncidentsResponsePlan   = "aws:ssm-incidents:response-plan"
+	TypeSSMIncidentsResourcePolicy = "aws:ssm-incidents:resource-policy"
 	// Signer (signer_scanners.go)
 	TypeSignerSigningProfile    = "aws:signer:signing-profile"
 	TypeSignerProfilePermission = "aws:signer:profile-permission"
