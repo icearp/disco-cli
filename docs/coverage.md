@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.1% (1806/3336 listable) · depth0 68.1% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.2% (1807/3336 listable) · depth0 68.2% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1020 | 201 | 83.5 |
+| sr-resource | 1021 | 200 | 83.6 |
 | child-uncatalogued | 184 | 833 | 18.1 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 154 | 262 | 37.0 |
@@ -201,7 +201,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datapipeline | 1 | 2 | 33.3 |
 | detective | 3 | 2 | 60.0 |
 | ecr | 3 | 2 | 60.0 |
-| ecr-public | 1 | 2 | 33.3 |
 | elasticache | 12 | 2 | 85.7 |
 | elemental-inference | 1 | 2 | 33.3 |
 | entityresolution | 4 | 2 | 66.7 |
@@ -263,6 +262,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dataexchange | 6 | 1 | 85.7 |
 | datasync | 4 | 1 | 80.0 |
 | docdb-elastic | 2 | 1 | 66.7 |
+| ecr-public | 2 | 1 | 66.7 |
 | elasticfilesystem | 3 | 1 | 75.0 |
 | elasticloadbalancing | 7 | 1 | 87.5 |
 | emr-containers | 4 | 1 | 80.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1530)
+### Uncovered (listable, no scanner) (1529)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -951,7 +951,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ecr | ecr/getrepositoryscanningconfiguration | 1 |  | child-uncatalogued | ecr:BatchGetRepositoryScanningConfiguration |
 | ecr | ecr/image | 1 |  | child-uncatalogued | ecr:DescribeImageReplicationStatus, ecr:DescribeImageSigningStatus, ecr:DescribeImages, ecr:ListImages |
 | ecr-public | ecr-public/image | 1 |  | child-uncatalogued | ecr-public:DescribeImages |
-| ecr-public | ecr-public/registry | 0 |  | sr-resource | ecr-public:DescribeRegistries |
 | ecs | ecs/accountsetting | 0 |  | element-written | ecs:ListAccountSettings |
 | ecs | ecs/daemondeployment | 2 |  | smithy-resource | ecs:DescribeDaemonDeployments |
 | ecs | ecs/daemonrevision | 2 |  | smithy-resource | ecs:DescribeDaemonRevisions |

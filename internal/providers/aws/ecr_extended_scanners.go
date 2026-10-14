@@ -2,10 +2,12 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
+	ecrpublictypes "github.com/aws/aws-sdk-go-v2/service/ecrpublic/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -211,23 +213,42 @@ func scanECRSigningConfiguration(ctx context.Context, client ecrExtAPI, acct *ac
 	return upsertBatch(st, batch, "ecr signing-configuration")
 }
 
-// scanECRPublicRepositories scans Public ECR repositories. ecrpublic is
-// global but only callable from us-east-1 — gate other regions out.
-func scanECRPublicRepositories(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// ecrPublicAPI lists the ECR Public ops scanECRPublic calls.
+type ecrPublicAPI interface {
+	DescribeRepositories(context.Context, *ecrpublic.DescribeRepositoriesInput, ...func(*ecrpublic.Options)) (*ecrpublic.DescribeRepositoriesOutput, error)
+	DescribeRegistries(context.Context, *ecrpublic.DescribeRegistriesInput, ...func(*ecrpublic.Options)) (*ecrpublic.DescribeRegistriesOutput, error)
+}
+
+// scanECRPublic scans Public ECR repositories, then registries. ecrpublic is
+// global but only callable from us-east-1 — gate other regions out so each
+// account's rows are stored once.
+func scanECRPublic(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if region != "us-east-1" {
 		return 0, 0, nil
 	}
 	client := ecrpublic.NewFromConfig(acct.cfg, func(o *ecrpublic.Options) { o.Region = region })
+	total, inserted, reposByRegistry, err := scanECRPublicRepositories(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return total, inserted, err
+	}
+	t, i, err := scanECRPublicRegistries(ctx, client, acct, region, st, scanID, reposByRegistry)
+	return total + t, inserted + i, err
+}
+
+// scanECRPublicRepositories stores the public repositories and returns their
+// ARNs keyed by RegistryId, for the registry phase's contains edges.
+func scanECRPublicRepositories(ctx context.Context, client ecrPublicAPI, acct *account, region string, st *store.Store, scanID string) (int, int, map[string][]string, error) {
 	pager := ecrpublic.NewDescribeRepositoriesPaginator(client, &ecrpublic.DescribeRepositoriesInput{})
 	var batch []*store.Resource
+	reposByRegistry := map[string][]string{}
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "ecr-public:DescribeRepositories", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, 0, nil, nil
 			}
-			return 0, 0, fmt.Errorf("ecr-public:DescribeRepositories: %w", perr)
+			return 0, 0, nil, fmt.Errorf("ecr-public:DescribeRepositories: %w", perr)
 		}
 		for _, r := range out.Repositories {
 			arn := sv(r.RepositoryArn)
@@ -243,7 +264,75 @@ func scanECRPublicRepositories(ctx context.Context, acct *account, region string
 				Type: TypeECRPublicRepository, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
+			if regID := sv(r.RegistryId); regID != "" {
+				reposByRegistry[regID] = append(reposByRegistry[regID], arn)
+			}
 		}
 	}
-	return upsertBatch(st, batch, "ecr public-repositories")
+	t, i, err := upsertBatch(st, batch, "ecr public-repositories")
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	return t, i, reposByRegistry, nil
+}
+
+// scanECRPublicRegistries stores the account's public registry and links it to
+// the repositories the repository phase listed under the same RegistryId. A
+// denial or error after a successful page keeps the rows listed so far.
+func scanECRPublicRegistries(ctx context.Context, client ecrPublicAPI, acct *account, region string, st *store.Store, scanID string, reposByRegistry map[string][]string) (int, int, error) {
+	const op = "ecr-public:DescribeRegistries"
+	pager := ecrpublic.NewDescribeRegistriesPaginator(client, &ecrpublic.DescribeRegistriesInput{})
+	var batch []*store.Resource
+	var pairs [][2]string
+	var listErr error
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
+			} else {
+				listErr = fmt.Errorf("%s: %w", op, perr)
+			}
+			break
+		}
+		for _, r := range out.Registries {
+			arn := sv(r.RegistryArn)
+			if arn == "" {
+				continue
+			}
+			regID := sv(r.RegistryId)
+			label := ecrPublicRegistryLabel(r)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeECRPublicRegistry, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+			})
+			parentID := store.ResourceID("aws", acct.ID, arn)
+			for _, repoARN := range reposByRegistry[regID] {
+				pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, repoARN), parentID})
+			}
+		}
+	}
+	t, i, uerr := upsertBatch(st, batch, "ecr public-registries")
+	if uerr != nil {
+		return 0, 0, errors.Join(listErr, uerr)
+	}
+	if herr := st.RecordHierarchyBatch(pairs); herr != nil {
+		return t, i, errors.Join(listErr, fmt.Errorf("closure ecr public-registries: %w", herr))
+	}
+	return t, i, listErr
+}
+
+// ecrPublicRegistryLabel names a registry by its primary alias (the
+// public.ecr.aws/<alias> path users see), else by its RegistryId.
+func ecrPublicRegistryLabel(r ecrpublictypes.Registry) string {
+	for _, a := range r.Aliases {
+		if a.PrimaryRegistryAlias && sv(a.Name) != "" {
+			return sv(a.Name)
+		}
+	}
+	if id := sv(r.RegistryId); id != "" {
+		return id
+	}
+	return sv(r.RegistryArn)
 }

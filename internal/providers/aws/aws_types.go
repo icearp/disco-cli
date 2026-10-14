@@ -419,6 +419,7 @@ const (
 	// ECR
 	TypeECRRepository                 = "aws:ecr:repository"
 	TypeECRPublicRepository           = "aws:ecr:public-repository"
+	TypeECRPublicRegistry             = "aws:ecr:public-registry"
 	TypeECRPullThroughCacheRule       = "aws:ecr:pull-through-cache-rule"
 	TypeECRPullTimeUpdateExclusion    = "aws:ecr:pull-time-update-exclusion"
 	TypeECRRegistryPolicy             = "aws:ecr:registry-policy"

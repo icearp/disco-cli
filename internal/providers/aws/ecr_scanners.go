@@ -14,6 +14,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeECRRepository, Service: "ecr"})
 	registerType(restype.Descriptor{Type: TypeECRPublicRepository, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRPublicRegistry, Service: "ecr", Managed: true})
 	registerType(restype.Descriptor{Type: TypeECRPullThroughCacheRule, Service: "ecr"})
 	registerType(restype.Descriptor{Type: TypeECRPullTimeUpdateExclusion, Service: "ecr"})
 	registerType(restype.Descriptor{Type: TypeECRRegistryPolicy, Service: "ecr"})
@@ -60,14 +61,14 @@ func scanECR(ctx context.Context, acct *account, region string, st *store.Store,
 		func() (int, int, error) {
 			return scanECRSigningConfiguration(ctx, client, acct, region, st, scanID)
 		},
-		func() (int, int, error) { return scanECRPublicRepositories(ctx, acct, region, st, scanID) },
+		func() (int, int, error) { return scanECRPublic(ctx, acct, region, st, scanID) },
 	} {
 		t, i, ferr := phase()
+		total += t
+		inserted += i
 		if ferr != nil {
 			return total, inserted, ferr
 		}
-		total += t
-		inserted += i
 	}
 	return total, inserted, nil
 }

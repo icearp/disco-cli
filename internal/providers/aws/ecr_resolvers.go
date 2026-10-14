@@ -18,6 +18,16 @@ func init() {
 		resolveECRReplicationConfiguration,
 		EdgeDecl{TypeECRReplicationConfiguration, TypeECRRepository, store.RelUses},
 	)
+	registerResolver(
+		noopECRPublicHierarchy,
+		EdgeDecl{TypeECRPublicRegistry, TypeECRPublicRepository, store.RelContains},
+	)
+}
+
+// noopECRPublicHierarchy only declares the registry→repository contains edge;
+// scanECRPublicRegistries records it via RecordHierarchyBatch.
+func noopECRPublicHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveECRRepositoryRelationships links each ECR repository to the KMS key
