@@ -413,13 +413,11 @@ func scanACExtensionAssociations(ctx context.Context, client appconfigAPI, acct 
 //
 // ListExperimentDefinitions is newer than the appconfig endpoints it shares, so
 // a region may serve appconfig without it. On the first call, the shapes an
-// unrouted operation takes are a sub-feature gap, skipped silently: an
-// UnknownOperationException, the gateway's "Unable to determine
-// service/operation name", or an HTTP 404. ResourceNotFoundException, the op's
-// modeled not-found, is included because an unfiltered list names nothing that
-// could be missing. Once a page has succeeded the op is deployed: a later error
-// of any shape except a denial is returned, after the rows listed so far are
-// upserted.
+// unrouted operation takes (isOpNotDeployed) are a sub-feature gap, skipped
+// silently. ResourceNotFoundException, the op's modeled not-found, is included
+// because an unfiltered list names nothing that could be missing. Once a page
+// has succeeded the op is deployed: a later error of any shape except a denial
+// is returned, after the rows listed so far are upserted.
 func scanACExperimentDefinitions(ctx context.Context, client appconfigAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const op = "appconfig:ListExperimentDefinitions"
 	pager := appconfig.NewListExperimentDefinitionsPaginator(client, &appconfig.ListExperimentDefinitionsInput{})
@@ -430,7 +428,7 @@ func scanACExperimentDefinitions(ctx context.Context, client appconfigAPI, acct 
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			switch {
-			case !listed && isACExperimentsNotDeployed(perr):
+			case !listed && (isOpNotDeployed(perr) || isAPIErrorCode(perr, "ResourceNotFoundException")):
 				return 0, 0, nil
 			case isAccessDenied(perr):
 				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
@@ -465,11 +463,6 @@ func scanACExperimentDefinitions(ctx context.Context, client appconfigAPI, acct 
 	}
 	t, i, uerr := upsertBatch(st, batch, "appconfig experiment-definitions")
 	return t, i, errors.Join(listErr, uerr)
-}
-
-func isACExperimentsNotDeployed(err error) bool {
-	return isAPIErrorCode(err, "UnknownOperationException", "ResourceNotFoundException") ||
-		isServiceNotAvailableInRegion(err) || isHTTP404(err)
 }
 
 func acEnvironmentNativeID(appARN, envID string) string {

@@ -380,10 +380,12 @@ func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, r
 //
 // ListFunctions arrived in SDK v1.58.0, long after the rest of the MediaTailor
 // API, so a region may serve playback configurations without it. On the first
-// call, the shapes an unrouted operation takes are a feature gap, skipped
-// silently; see isMTFunctionsNotDeployed. Once a page has succeeded the op is
-// deployed: a later error of any shape except a denial is returned, after the
-// rows listed so far are stored.
+// call, the shapes an unrouted operation takes (isOpNotDeployed) are a feature
+// gap, skipped silently. ListFunctions models no error, so each arrives as a
+// generic API error carrying the wire code or status. With no not-found error
+// to model, a 404 on its unfiltered first call means the op is absent. Once a
+// page has succeeded the op is deployed: a later error of any shape except a
+// denial is returned, after the rows listed so far are stored.
 func scanMTFunctions(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const op = "mediatailor:ListFunctions"
 	// The model caps MaxResults at 100.
@@ -397,7 +399,7 @@ func scanMTFunctions(ctx context.Context, client mediatailorAPI, acct *account, 
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			switch {
-			case !listed && isMTFunctionsNotDeployed(perr):
+			case !listed && isOpNotDeployed(perr):
 				return 0, 0, nil
 			case isAccessDenied(perr):
 				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
@@ -429,14 +431,4 @@ func scanMTFunctions(ctx context.Context, client mediatailorAPI, acct *account, 
 	}
 	t, i, uerr := upsertBatch(st, batch, "mediatailor functions")
 	return t, i, errors.Join(listErr, uerr)
-}
-
-// isMTFunctionsNotDeployed reports the shapes an unrouted ListFunctions call
-// can take on an endpoint that predates it: UnknownOperationException, the
-// gateway's "Unable to determine service/operation name", or an HTTP 404.
-// ListFunctions models no error, so each arrives as a generic API error
-// carrying the wire code or status. With no not-found error to model, a 404
-// on its unfiltered first call means the op is absent.
-func isMTFunctionsNotDeployed(err error) bool {
-	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
 }

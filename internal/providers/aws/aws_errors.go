@@ -463,6 +463,23 @@ func isHTTP404(err error) bool {
 	return ok && c == 404
 }
 
+// isOpNotDeployed reports the shapes a call takes when the service's regional
+// endpoint does not route the operation:
+//   - UnknownOperationException. An awsJson endpoint answers an unknown
+//     X-Amz-Target with it, even for an op that does not model it; the SDK then
+//     surfaces a smithy.GenericAPIError carrying that code, which isAPIErrorCode
+//     still matches.
+//   - The gateway's "Unable to determine service/operation name" message, under
+//     AccessDenied or NotFoundException (isServiceNotAvailableInRegion).
+//   - A bare HTTP 404. This is only safe on a call that names no resource, so a
+//     404 cannot mean a missing one.
+//
+// Callers apply it only to the first call of an op that a region's endpoint
+// may not serve, where a match is a silent sub-feature gap.
+func isOpNotDeployed(err error) bool {
+	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
+}
+
 // isHTTP403 reports whether err carries an HTTP 403. Companion to isHTTP404 for
 // the same reason: some refusals arrive as an untyped body the SDK maps to the
 // generic "UnknownError", where the transport status is the only reliable

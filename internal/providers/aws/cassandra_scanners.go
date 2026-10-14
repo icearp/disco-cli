@@ -258,7 +258,10 @@ func scanCassandraTypes(ctx context.Context, client cassandraAPI, ksNames []stri
 // ListStreams, and records each under the table it captures when the tables
 // phase stored that table. The summary carries no status, so every listed
 // stream is stored. On the first call, the shapes of an endpoint that does not
-// serve the op are a silent feature gap (see isKeyspacesStreamsNotDeployed).
+// serve the op (isOpNotDeployed) are a silent feature gap. None has been
+// observed for this endpoint; the SDK builds it for every region with no
+// per-region list, so a region that does not serve it would show only on the
+// first call.
 // A network failure on any page warns once and keeps the rows listed so far.
 // Once a page has succeeded, any other error but a denial is returned after the
 // rows listed so far are stored.
@@ -281,7 +284,7 @@ func scanCassandraStreams(ctx context.Context, client cassandraStreamsAPI, table
 			// whole service and zero the counts of the rows already stored.
 			case isTransientNetworkError(perr):
 				_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf("dual-stack endpoint cassandra-streams.%s unreachable: %w", region, perr))
-			case !listed && isKeyspacesStreamsNotDeployed(perr):
+			case !listed && isOpNotDeployed(perr):
 				return 0, 0, nil
 			case isAccessDenied(perr):
 				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
@@ -319,13 +322,4 @@ func scanCassandraStreams(ctx context.Context, client cassandraStreamsAPI, table
 		return t, i, errors.Join(listErr, fmt.Errorf("closure cassandra streams: %w", herr))
 	}
 	return t, i, listErr
-}
-
-// isKeyspacesStreamsNotDeployed reports the shapes other services' unrouted
-// operations have taken: UnknownOperationException, the gateway's "Unable to
-// determine service/operation name", or an HTTP 404. None has been observed for
-// this endpoint; the SDK builds it for every region with no per-region list, so
-// a region that does not serve it would show only on the first call.
-func isKeyspacesStreamsNotDeployed(err error) bool {
-	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
 }

@@ -356,10 +356,12 @@ func scanTSInfluxParameterGroups(ctx context.Context, client tsInfluxAPI, acct *
 //
 // ListDbBackups arrived in SDK v1.23.0, after the cluster and instance API it
 // shares an endpoint with, so a region may serve those without it. On the
-// first call, the shapes an unrouted operation takes are a feature gap,
-// skipped silently; see isTSInfluxBackupsNotDeployed. Once a page has
-// succeeded the op is deployed: a later error of any shape except a denial is
-// returned, after the rows listed so far are stored.
+// first call, the shapes an unrouted operation takes (isOpNotDeployed) are a
+// feature gap, skipped silently. The op models ResourceNotFoundException as a
+// 404, but the unfiltered call names no resource, so a 404 on its first call is
+// read as the op being absent. Once a page has succeeded the op is deployed: a
+// later error of any shape except a denial is returned, after the rows listed
+// so far are stored.
 func scanTSInfluxBackups(ctx context.Context, client tsInfluxAPI, parentARNs map[string]string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const op = "timestream:ListDbBackups"
 	pager := timestreaminfluxdb.NewListDbBackupsPaginator(client, &timestreaminfluxdb.ListDbBackupsInput{},
@@ -372,7 +374,7 @@ func scanTSInfluxBackups(ctx context.Context, client tsInfluxAPI, parentARNs map
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			switch {
-			case !listed && isTSInfluxBackupsNotDeployed(perr):
+			case !listed && isOpNotDeployed(perr):
 				return 0, 0, nil
 			case isAccessDenied(perr):
 				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
@@ -410,13 +412,4 @@ func scanTSInfluxBackups(ctx context.Context, client tsInfluxAPI, parentARNs map
 		return t, i, errors.Join(listErr, fmt.Errorf("closure timestream influx-db-backups: %w", herr))
 	}
 	return t, i, listErr
-}
-
-// isTSInfluxBackupsNotDeployed reports the shapes an unrouted ListDbBackups
-// call takes on an endpoint that predates it: UnknownOperationException, the
-// gateway's "Unable to determine service/operation name", or an HTTP 404. The
-// op models ResourceNotFoundException as a 404, but the unfiltered call names
-// no resource, so a 404 on its first call is read as the op being absent.
-func isTSInfluxBackupsNotDeployed(err error) bool {
-	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
 }

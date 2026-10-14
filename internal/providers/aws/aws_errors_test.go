@@ -627,6 +627,32 @@ func TestIsHTTP404(t *testing.T) {
 	}
 }
 
+func TestIsOpNotDeployed(t *testing.T) {
+	const gatewayMsg = "Unable to determine service/operation name to be authorized"
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"unknown operation", apiErr("UnknownOperationException", ""), true},
+		{"gateway access denied", apiErr("AccessDeniedException", gatewayMsg), true},
+		{"gateway not found", apiErr("NotFoundException", gatewayMsg), true},
+		{"bare 404", respErrCode(404), true},
+		{"wrapped unknown operation", fmt.Errorf("op: %w", apiErr("UnknownOperationException", "")), true},
+		{"validation", apiErr("ValidationException", "bad input"), false},
+		{"real IAM denial", apiErr("AccessDeniedException", "User: arn:aws:iam::1:user/x is not authorized to perform: kinesis:ListChannels"), false},
+		{"403", respErrCode(403), false},
+		{"nil", nil, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := isOpNotDeployed(c.err); got != c.want {
+				t.Errorf("isOpNotDeployed(%v) = %v; want %v", c.err, got, c.want)
+			}
+		})
+	}
+}
+
 func TestIsHTTP403(t *testing.T) {
 	if !isHTTP403(respErrCode(403)) {
 		t.Error("403 response should match")

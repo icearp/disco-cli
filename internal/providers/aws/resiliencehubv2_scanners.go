@@ -90,19 +90,6 @@ func rhHomedHere(resourceARN, accountID, region string) bool {
 	return err == nil && a.AccountID == accountID && a.Region == region
 }
 
-// isRHV2NotDeployed reports the shapes an unrouted v2 call takes in a region
-// where only the v1 API is deployed: the v2 client shares v1's endpoint host,
-// which answers an unknown operation with UnknownOperationException, a
-// NotFoundException "Unable to determine service/operation name", or an HTTP
-// 404. ListPolicies models no not-found error, so any 404 on its first call
-// means the API is absent. That is a sub-feature gap inside a present service,
-// so it is skipped silently rather than failing the whole resilience-hub scan.
-// Only the first call is classified this way: once a page has succeeded the
-// API is deployed, and a later failure of any shape is a real error.
-func isRHV2NotDeployed(err error) bool {
-	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
-}
-
 func rhResource(acct *account, region, scanID, typ, nativeID, name, status string, createdAt *time.Time, elem any) *store.Resource {
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -119,14 +106,21 @@ func rhResource(acct *account, region, scanID, typ, nativeID, name, status strin
 }
 
 // scanRHPolicies reports available=false when its first call shows the v2
-// API is not deployed in region; see isRHV2NotDeployed.
+// API is not deployed in region (isOpNotDeployed). The v2 client shares v1's
+// endpoint host, so a region where only v1 is deployed answers with an
+// unrouted-op shape; its gateway message arrives as a NotFoundException.
+// ListPolicies models no not-found error, so any 404 on its first call means
+// the API is absent. That is a sub-feature gap inside a present service, so it
+// is skipped silently rather than failing the whole resilience-hub scan. Once
+// a page has succeeded the API is deployed, and a later failure of any shape
+// is a real error.
 func scanRHPolicies(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) (available bool, total, inserted int, err error) {
 	pager := resiliencehubv2.NewListPoliciesPaginator(client, &resiliencehubv2.ListPoliciesInput{})
 	var batch []*store.Resource
 	for firstPage := true; pager.HasMorePages(); firstPage = false {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			if firstPage && isRHV2NotDeployed(err) {
+			if firstPage && isOpNotDeployed(err) {
 				return false, 0, 0, nil
 			}
 			if isAccessDenied(err) {

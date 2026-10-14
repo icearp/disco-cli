@@ -93,10 +93,12 @@ func scanEIFeeds(ctx context.Context, client elementalInferenceAPI, acct *accoun
 //
 // ListDictionaries arrived with smart subtitles (SDK v1.1.0, 2026-05-27), three
 // months after the feed API (v1.0.0, 2026-02-24), so a region may serve feeds
-// without it. On the first call, the shapes an unrouted operation takes are a
-// sub-feature gap, skipped silently; see isEIDictionariesNotDeployed. Once a
-// page has succeeded the op is deployed: a later error of any shape except a
-// denial is returned, after the rows listed so far are stored.
+// without it. On the first call, the shapes an unrouted operation takes
+// (isOpNotDeployed) are a sub-feature gap, skipped silently. ListDictionaries
+// models no not-found error, so a 404 on its unfiltered first call means the
+// op is absent. Once a page has succeeded the op is deployed: a later error of
+// any shape except a denial is returned, after the rows listed so far are
+// stored.
 func scanEIDictionaries(ctx context.Context, client elementalInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const op = "elemental-inference:ListDictionaries"
 	pager := elementalinference.NewListDictionariesPaginator(client, &elementalinference.ListDictionariesInput{},
@@ -108,7 +110,7 @@ func scanEIDictionaries(ctx context.Context, client elementalInferenceAPI, acct 
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			switch {
-			case !listed && isEIDictionariesNotDeployed(perr):
+			case !listed && isOpNotDeployed(perr):
 				return 0, 0, nil
 			case isAccessDenied(perr):
 				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
@@ -133,13 +135,4 @@ func scanEIDictionaries(ctx context.Context, client elementalInferenceAPI, acct 
 	}
 	t, i, uerr := upsertBatch(st, batch, "elemental-inference dictionaries")
 	return t, i, errors.Join(listErr, uerr)
-}
-
-// isEIDictionariesNotDeployed reports the shapes an unrouted ListDictionaries
-// call takes in a region whose Elemental Inference endpoint predates
-// dictionaries: UnknownOperationException, the gateway's "Unable to determine
-// service/operation name", or an HTTP 404. ListDictionaries models no
-// not-found error, so a 404 on its unfiltered first call means the op is absent.
-func isEIDictionariesNotDeployed(err error) bool {
-	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
 }

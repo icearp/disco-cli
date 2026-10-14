@@ -118,9 +118,10 @@ func scanInvoicingInvoiceUnits(ctx context.Context, client invoicingAPI, acct *a
 //
 // ListProcurementPortalPreferences arrived in SDK v1.9.0 (2025-11-21), almost
 // a year after the service (v1.0.0, 2024-12-02), and is a preview API. On the
-// first call, the shapes an unrouted operation takes are a sub-feature gap,
-// skipped silently; see isInvoicingPortalPrefsNotDeployed. A first-call
-// payer-only rejection is returned as not-entitled for scanInvoicing to weigh.
+// first call, the shapes an unrouted operation takes (isOpNotDeployed) are a
+// sub-feature gap, skipped silently. The op models no not-found error, so a 404
+// on its unfiltered first call means the op is absent. A first-call payer-only
+// rejection is returned as not-entitled for scanInvoicing to weigh.
 // Once a page has succeeded the op is deployed: a later error of any shape
 // except a denial is returned, after the rows listed so far are stored.
 func scanInvoicingProcurementPortalPreferences(ctx context.Context, client invoicingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -133,7 +134,7 @@ func scanInvoicingProcurementPortalPreferences(ctx context.Context, client invoi
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			switch {
-			case !listed && isInvoicingPortalPrefsNotDeployed(perr):
+			case !listed && isOpNotDeployed(perr):
 				return 0, 0, nil
 			case !listed && isPayerAccountOnly(perr):
 				return 0, 0, markServiceNotEntitled(perr)
@@ -160,13 +161,4 @@ func scanInvoicingProcurementPortalPreferences(ctx context.Context, client invoi
 	}
 	t, i, uerr := upsertBatch(st, batch, "invoicing procurement-portal-preferences")
 	return t, i, errors.Join(listErr, uerr)
-}
-
-// isInvoicingPortalPrefsNotDeployed reports the shapes an unrouted
-// ListProcurementPortalPreferences call takes on an endpoint that predates
-// it: UnknownOperationException, the gateway's "Unable to determine
-// service/operation name", or an HTTP 404. The op models no not-found error,
-// so a 404 on its unfiltered first call means the op is absent.
-func isInvoicingPortalPrefsNotDeployed(err error) bool {
-	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
 }

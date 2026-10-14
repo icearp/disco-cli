@@ -135,10 +135,11 @@ func scanKinesisResourcePolicies(ctx context.Context, client kinesisAPI, targets
 //
 // ListChannels arrived in SDK v1.50.0, long after the stream API it shares an
 // endpoint with, so a region may serve streams without it. On the first call,
-// the shapes an unrouted operation takes are a feature gap, skipped silently;
-// see isKinesisChannelsNotDeployed. Once a page has succeeded the op is
-// deployed: a later error of any shape except a denial is returned, after the
-// rows listed so far are stored.
+// the shapes an unrouted operation takes (isOpNotDeployed) are a feature gap,
+// skipped silently. ListChannels does not model UnknownOperationException (see
+// isOpNotDeployed). It models no not-found error, so a 404 on its unfiltered
+// first call means the op is absent. Once a page has succeeded the op is deployed: a later error of any
+// shape except a denial is returned, after the rows listed so far are stored.
 func scanKinesisChannels(ctx context.Context, client kinesisAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const op = "kinesis:ListChannels"
 	// The model allows MaxResults up to 10000, but the op doc caps a page at 100.
@@ -151,7 +152,7 @@ func scanKinesisChannels(ctx context.Context, client kinesisAPI, acct *account, 
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			switch {
-			case !listed && isKinesisChannelsNotDeployed(perr):
+			case !listed && isOpNotDeployed(perr):
 				return 0, 0, nil
 			case isAccessDenied(perr):
 				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
@@ -176,15 +177,4 @@ func scanKinesisChannels(ctx context.Context, client kinesisAPI, acct *account, 
 	}
 	t, i, uerr := upsertBatch(st, batch, "kinesis channels")
 	return t, i, errors.Join(listErr, uerr)
-}
-
-// isKinesisChannelsNotDeployed reports the shapes an unrouted ListChannels call
-// takes on an endpoint that predates it: UnknownOperationException, the
-// gateway's "Unable to determine service/operation name", or an HTTP 404.
-// ListChannels does not model UnknownOperationException, but an awsJson
-// endpoint answers an unknown X-Amz-Target with it and the SDK surfaces it as
-// a generic API error carrying that code. The op models no not-found error,
-// so a 404 on its unfiltered first call means the op is absent.
-func isKinesisChannelsNotDeployed(err error) bool {
-	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
 }
