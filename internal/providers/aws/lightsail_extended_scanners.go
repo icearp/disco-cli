@@ -8,9 +8,9 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanLightsailExtended adds 12 disco types: snapshots, networking, storage,
-// and observability resources. Lightsail uses manual `pageToken` pagination
-// across all Get* ops.
+// scanLightsailExtended adds the snapshot, networking, storage, observability
+// and bucket access-key types. Paginated Lightsail Get* ops use manual
+// `pageToken` pagination; GetBucketAccessKeys does not paginate.
 func scanLightsailExtended(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	lbNames, t, i, ferr := scanLSLoadBalancers(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
@@ -19,9 +19,15 @@ func scanLightsailExtended(ctx context.Context, client lightsailAPI, acct *accou
 	total += t
 	inserted += i
 
+	var buckets []childParent
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanLSAlarms(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLSBuckets(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			var t, i int
+			var err error
+			buckets, t, i, err = scanLSBuckets(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (int, int, error) { return scanLSCertificates(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanLSDatabaseSnapshots(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanLSDisks(ctx, client, acct, region, st, scanID) },
@@ -35,6 +41,9 @@ func scanLightsailExtended(ctx context.Context, client lightsailAPI, acct *accou
 		func() (int, int, error) { return scanLSStaticIps(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanLSKeyPairs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanLSContactMethods(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanLSBucketAccessKeys(ctx, client, acct, region, st, scanID, buckets)
+		},
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -80,16 +89,21 @@ func scanLSAlarms(ctx context.Context, client lightsailAPI, acct *account, regio
 	return upsertBatch(st, batch, "lightsail alarms")
 }
 
-func scanLSBuckets(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
+// scanLSBuckets returns the listed buckets so the access-key phase can fan
+// out (GetBucketAccessKeys requires BucketName).
+func scanLSBuckets(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+	var (
+		batch   []*store.Resource
+		buckets []childParent
+		token   *string
+	)
 	for {
 		out, err := client.GetBuckets(ctx, &lightsail.GetBucketsInput{PageToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetBuckets", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "lightsail:GetBuckets", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("lightsail:GetBuckets: %w", err)
+			return nil, 0, 0, fmt.Errorf("lightsail:GetBuckets: %w", err)
 		}
 		for _, b := range out.Buckets {
 			arn := sv(b.Arn)
@@ -99,6 +113,8 @@ func scanLSBuckets(ctx context.Context, client lightsailAPI, acct *account, regi
 			label := sv(b.Name)
 			if label == "" {
 				label = arn
+			} else {
+				buckets = append(buckets, childParent{id: label, arn: arn})
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -111,7 +127,11 @@ func scanLSBuckets(ctx context.Context, client lightsailAPI, acct *account, regi
 		}
 		token = out.NextPageToken
 	}
-	return upsertBatch(st, batch, "lightsail buckets")
+	total, inserted, err := upsertBatch(st, batch, "lightsail buckets")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return buckets, total, inserted, nil
 }
 
 func scanLSCertificates(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -531,4 +551,32 @@ func scanLSStaticIps(ctx context.Context, client lightsailAPI, acct *account, re
 		token = out.NextPageToken
 	}
 	return upsertBatch(st, batch, "lightsail static-ips")
+}
+
+// scanLSBucketAccessKeys lists each scanned bucket's access keys. A key has no
+// ARN, so its NativeID is {bucketARN}/access-key/{AccessKeyId}. A bucket
+// deleted since GetBuckets (NotFoundException) is skipped.
+func scanLSBucketAccessKeys(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string, buckets []childParent) (int, int, error) {
+	isBucketGone := func(err error) bool { return isAPIErrorCode(err, "NotFoundException") }
+	return childFanOut(ctx, st, acct, region, "lightsail:GetBucketAccessKeys", buckets, isBucketGone,
+		func(ctx context.Context, b childParent) ([]*store.Resource, error) {
+			out, err := client.GetBucketAccessKeys(ctx, &lightsail.GetBucketAccessKeysInput{BucketName: &b.id})
+			if err != nil {
+				return nil, err
+			}
+			var rows []*store.Resource
+			for _, k := range out.AccessKeys {
+				id := sv(k.AccessKeyId)
+				if id == "" {
+					continue
+				}
+				rows = append(rows, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeLightsailBucketAccessKey, NativeID: b.arn + "/access-key/" + id,
+					Name: &id, Region: &region, Status: nonEmptyPtr(string(k.Status)), CreatedAt: tp(k.CreatedAt),
+					AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
+				})
+			}
+			return rows, nil
+		})
 }

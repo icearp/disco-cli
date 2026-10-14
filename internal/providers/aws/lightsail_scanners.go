@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/lightsail"
+	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -27,6 +28,13 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeLightsailStaticIP, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailKeyPair, Service: "lightsail"})
 	registerType(restype.Descriptor{Type: TypeLightsailContactMethod, Service: "lightsail"})
+	// GetBucketAccessKeys documents that it never returns the secret (only
+	// CreateBucketAccessKey does), but its element is the shared AccessKey shape
+	// that carries the field, so the rule holds if the API ever fills it.
+	registerType(restype.Descriptor{
+		Type: TypeLightsailBucketAccessKey, Service: "lightsail",
+		Redact: []redact.Rule{{Path: "SecretAccessKey", Mode: redact.RedactScalar}},
+	})
 	registerService(serviceEntry{
 		name: "aws:lightsail",
 		fn:   scanLightsail,
@@ -53,6 +61,7 @@ type lightsailAPI interface {
 	GetStaticIps(context.Context, *lightsail.GetStaticIpsInput, ...func(*lightsail.Options)) (*lightsail.GetStaticIpsOutput, error)
 	GetKeyPairs(context.Context, *lightsail.GetKeyPairsInput, ...func(*lightsail.Options)) (*lightsail.GetKeyPairsOutput, error)
 	GetContactMethods(context.Context, *lightsail.GetContactMethodsInput, ...func(*lightsail.Options)) (*lightsail.GetContactMethodsOutput, error)
+	GetBucketAccessKeys(context.Context, *lightsail.GetBucketAccessKeysInput, ...func(*lightsail.Options)) (*lightsail.GetBucketAccessKeysOutput, error)
 }
 
 // scanLightsail discovers Lightsail instances, relational databases, and

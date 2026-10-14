@@ -11,6 +11,7 @@ import (
 	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 
 	"github.com/icearp/disco-cli/internal/redact"
@@ -142,6 +143,21 @@ func TestRedact_IAMAccessKey_SecretAccessKey(t *testing.T) {
 	got := applyAndDecode(t, TypeIAMAccessKey, ak)
 	if got["SecretAccessKey"] != redact.Placeholder {
 		t.Errorf("SecretAccessKey not redacted")
+	}
+	if got["AccessKeyId"] != "AKIATEST" {
+		t.Errorf("AccessKeyId must stay clear: %v", got["AccessKeyId"])
+	}
+}
+
+func TestRedact_LightsailBucketAccessKey_SecretAccessKey(t *testing.T) {
+	ak := lightsailtypes.AccessKey{
+		AccessKeyId:     ptrStr("AKIATEST"),
+		SecretAccessKey: ptrStr("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"),
+		Status:          lightsailtypes.StatusTypeActive,
+	}
+	got := applyAndDecode(t, TypeLightsailBucketAccessKey, ak)
+	if got["SecretAccessKey"] != redact.Placeholder {
+		t.Errorf("SecretAccessKey = %v; want %q", got["SecretAccessKey"], redact.Placeholder)
 	}
 	if got["AccessKeyId"] != "AKIATEST" {
 		t.Errorf("AccessKeyId must stay clear: %v", got["AccessKeyId"])

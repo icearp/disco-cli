@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.3% (1744/3336 listable) · depth0 66.9% · depth1 30.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.3% (1745/3336 listable) · depth0 66.9% · depth1 30.7% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1005 | 216 | 82.3 |
-| child-uncatalogued | 148 | 869 | 14.6 |
+| child-uncatalogued | 149 | 868 | 14.7 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
 | element-arn | 26 | 80 | 24.5 |
@@ -122,7 +122,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | kafka | 5 | 5 | 50.0 |
 | kendra | 8 | 5 | 61.5 |
 | lambda | 16 | 5 | 76.2 |
-| lightsail | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
 | snowball | 0 | 5 | 0.0 |
 | ssm-incidents | 2 | 5 | 28.6 |
@@ -143,6 +142,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | healthlake | 1 | 4 | 20.0 |
 | inspector | 0 | 4 | 0.0 |
 | launchwizard | 1 | 4 | 20.0 |
+| lightsail | 17 | 4 | 81.0 |
 | m2 | 3 | 4 | 42.9 |
 | machinelearning | 0 | 4 | 0.0 |
 | mpa | 2 | 4 | 33.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1592)
+### Uncovered (listable, no scanner) (1591)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1321,7 +1321,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | license-manager | license-manager/resourceinventory | 0 |  | element-arn | license-manager:ListResourceInventory |
 | license-manager | license-manager/token | 0 |  | element-written | license-manager:ListTokens |
 | license-manager | license-manager/usage | 1 |  | child-uncatalogued | license-manager:ListUsageForLicenseConfiguration |
-| lightsail | lightsail/bucketaccesskey | 1 |  | child-uncatalogued | lightsail:GetBucketAccessKeys |
 | lightsail | lightsail/cloudformationstackrecord | 0 |  | sr-resource | lightsail:GetCloudFormationStackRecords |
 | lightsail | lightsail/exportsnapshotrecord | 0 |  | sr-resource | lightsail:GetExportSnapshotRecords |
 | lightsail | lightsail/relationaldatabaseparameter | 1 |  | child-uncatalogued | lightsail:GetRelationalDatabaseParameters |

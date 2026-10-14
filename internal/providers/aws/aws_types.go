@@ -1826,6 +1826,7 @@ const (
 	TypeLightsailStaticIP                   = "aws:lightsail:static-ip"
 	TypeLightsailKeyPair                    = "aws:lightsail:key-pair"
 	TypeLightsailContactMethod              = "aws:lightsail:contact-method"
+	TypeLightsailBucketAccessKey            = "aws:lightsail:bucket-access-key"
 	// Elastic Beanstalk (elasticbeanstalk_scanners.go, elasticbeanstalk_resolvers.go)
 	TypeBeanstalkApplication        = "aws:elasticbeanstalk:application"
 	TypeBeanstalkEnvironment        = "aws:elasticbeanstalk:environment"

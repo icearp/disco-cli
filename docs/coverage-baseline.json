@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 52.278177458033575,
-    "covered": 1744,
-    "uncovered": 1592,
+    "percent": 52.30815347721823,
+    "covered": 1745,
+    "uncovered": 1591,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1002,6 +1002,7 @@
       "license-manager/licenseconfiguration",
       "license-manager/licensemanagerreportgenerator",
       "lightsail/alarm",
+      "lightsail/bucketaccesskey",
       "lightsail/certificate",
       "lightsail/contactmethod",
       "lightsail/containerservice",
@@ -2716,7 +2717,6 @@
       "license-manager/resourceinventory",
       "license-manager/token",
       "license-manager/usage",
-      "lightsail/bucketaccesskey",
       "lightsail/cloudformationstackrecord",
       "lightsail/exportsnapshotrecord",
       "lightsail/relationaldatabaseparameter",

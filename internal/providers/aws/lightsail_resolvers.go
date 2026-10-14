@@ -10,6 +10,10 @@ import (
 
 func init() {
 	registerResolver(
+		noopLightsailHierarchy,
+		EdgeDecl{TypeLightsailBucket, TypeLightsailBucketAccessKey, store.RelContains},
+	)
+	registerResolver(
 		resolveLightsailDatabaseSnapshotParent,
 		EdgeDecl{TypeLightsailDatabaseSnapshot, TypeLightsailDatabase, store.RelAttachedTo},
 	)
@@ -60,6 +64,12 @@ func init() {
 		resolveLightsailCertificateDomain,
 		EdgeDecl{TypeLightsailCertificate, TypeLightsailDomain, store.RelUses},
 	)
+}
+
+// noopLightsailHierarchy only declares the bucket->access-key contains edge;
+// scanLSBucketAccessKeys records it through childFanOut.
+func noopLightsailHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // lightsailByNameIndex builds a per-(region, name) → resource-id map for the
