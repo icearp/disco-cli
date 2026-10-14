@@ -21,6 +21,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeNetworkFirewallVpcEndpointAssociation, Service: "networkfirewall"})
 	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyConfiguration, Service: "networkfirewall"})
 	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxyRuleGroup, Service: "networkfirewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallProxy, Service: "networkfirewall"})
+	registerType(restype.Descriptor{Type: TypeNetworkFirewallContainerAssociation, Service: "networkfirewall"})
 	registerService(serviceEntry{
 		name: "aws:network-firewall",
 		fn:   scanNetworkFirewall,
@@ -42,6 +44,10 @@ type networkfirewallAPI interface {
 	ListVpcEndpointAssociations(context.Context, *networkfirewall.ListVpcEndpointAssociationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListVpcEndpointAssociationsOutput, error)
 	ListProxyConfigurations(context.Context, *networkfirewall.ListProxyConfigurationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListProxyConfigurationsOutput, error)
 	ListProxyRuleGroups(context.Context, *networkfirewall.ListProxyRuleGroupsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListProxyRuleGroupsOutput, error)
+	ListProxies(context.Context, *networkfirewall.ListProxiesInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListProxiesOutput, error)
+	DescribeProxy(context.Context, *networkfirewall.DescribeProxyInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeProxyOutput, error)
+	ListContainerAssociations(context.Context, *networkfirewall.ListContainerAssociationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListContainerAssociationsOutput, error)
+	DescribeContainerAssociation(context.Context, *networkfirewall.DescribeContainerAssociationInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeContainerAssociationOutput, error)
 }
 
 // scanNetworkFirewall discovers Network Firewall firewalls, firewall policies,

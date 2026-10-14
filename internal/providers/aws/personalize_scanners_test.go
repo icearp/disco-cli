@@ -174,7 +174,7 @@ func TestScanPersonalize_StoresSolutionVersions(t *testing.T) {
 		SolutionVersions: []pztypes.SolutionVersionSummary{{SolutionVersionArn: sdkaws.String(arn)}},
 	}}}
 	st := newTestStore(t)
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stubResponses(t, responses), testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 
 	if _, _, err := scanPersonalize(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanPersonalize: %v", err)
@@ -196,7 +196,7 @@ func TestScanPersonalize_SolutionVersionErrorKeepsEarlierPhases(t *testing.T) {
 	boom := errors.New("boom")
 	responses["ListSolutionVersions"] = []stubCall{{Err: boom}}
 	st := newTestStore(t)
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stubResponses(t, responses), testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 
 	_, _, err := scanPersonalize(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, boom) {

@@ -570,7 +570,7 @@ func TestScanResilienceHub_StoresV2Rows(t *testing.T) {
 		UserJourneySummaries: []rhv2types.UserJourneySummary{{UserJourneyId: sdkaws.String("uj1"), Name: sdkaws.String("uj")}},
 	}}}
 	st := newTestStore(t)
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stubResponses(t, responses), testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 
 	if _, _, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanResilienceHub: %v", err)
@@ -596,7 +596,7 @@ func TestScanResilienceHub_V2ErrorKeepsV1Rows(t *testing.T) {
 	boom := errors.New("boom")
 	responses["ListPolicies"] = []stubCall{{Err: boom}}
 	st := newTestStore(t)
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stubResponses(t, responses), testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 
 	_, _, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, boom) {
@@ -615,7 +615,7 @@ func TestScanResilienceHub_V2NotDeployedKeepsV1Rows(t *testing.T) {
 	delete(responses, "ListServices")
 	delete(responses, "ListSystems")
 	st := newTestStore(t)
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stubResponses(t, responses), testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 
 	if _, _, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanResilienceHub: %v; want nil (a v2 gap is not a failure)", err)

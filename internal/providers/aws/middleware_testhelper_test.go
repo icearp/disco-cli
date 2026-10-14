@@ -5,7 +5,9 @@ import (
 	"sync"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	awsmw "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	smithymw "github.com/aws/smithy-go/middleware"
 )
 
@@ -58,5 +60,17 @@ func stubResponses(t *testing.T, responses map[string][]stubCall) func(*smithymw
 				q.idx++
 				return smithymw.InitializeOutput{Result: c.Output}, smithymw.Metadata{}, c.Err
 			}), smithymw.After)
+	}
+}
+
+// cfgWithStub is an SDK config whose every call is answered by stub (usually
+// stubResponses), with static credentials and a single attempt so a stubbed
+// error reaches the scanner unretried.
+func cfgWithStub(stub func(*smithymw.Stack) error, region string) sdkaws.Config {
+	return sdkaws.Config{
+		Region:           region,
+		Credentials:      credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
+		RetryMaxAttempts: 1,
+		APIOptions:       []func(*smithymw.Stack) error{stub},
 	}
 }

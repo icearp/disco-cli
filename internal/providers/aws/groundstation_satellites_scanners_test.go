@@ -95,7 +95,7 @@ func TestGroundStationSatellites_OneRowAcrossRegions(t *testing.T) {
 		}
 		return stub(s)
 	}
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(recordRegion, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(recordRegion, testRegion)}
 	for _, region := range []string{"us-east-1", "eu-west-1"} {
 		if _, _, err := entry.fn(context.Background(), acct, region, st, testScanID); err != nil {
 			t.Fatalf("fn(%s): %v", region, err)

@@ -5,20 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	smithymw "github.com/aws/smithy-go/middleware"
 	"github.com/icearp/disco-cli/store"
 )
-
-func cloud9CfgWithStub(stub func(*smithymw.Stack) error, region string) sdkaws.Config {
-	return sdkaws.Config{
-		Region:           region,
-		Credentials:      credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
-		RetryMaxAttempts: 1,
-		APIOptions:       []func(*smithymw.Stack) error{stub},
-	}
-}
 
 // TestScanCloud9_ClosedToAccountExplicitMessage verifies the non-empty
 // "does not have access to the Cloud9 service" AccessDeniedException (AWS's
@@ -33,7 +21,7 @@ func TestScanCloud9_ClosedToAccountExplicitMessage(t *testing.T) {
 		"ListEnvironments": {{Err: apiErr("AccessDeniedException",
 			"This account does not have access to the Cloud9 service")}},
 	})
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	_, _, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, errServiceNotEntitled) {
@@ -56,7 +44,7 @@ func TestScanCloud9_RealIAMDenialStillWarns(t *testing.T) {
 		"ListEnvironments": {{Err: apiErr("AccessDeniedException",
 			"User: arn:aws:iam::123456789012:user/x is not authorized to perform: cloud9:ListEnvironments")}},
 	})
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	total, inserted, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {

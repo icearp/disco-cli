@@ -254,7 +254,7 @@ func TestScanOmics_StoresShares(t *testing.T) {
 	stub := stubResponses(t, omicsScanResponses(
 		stubCall{Output: &omics.ListSharesOutput{Shares: []omicstypes.ShareDetails{omicsShare("a", omicsTestWfARN)}}},
 	))
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	if _, _, err := scanOmics(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanOmics: %v", err)
@@ -269,7 +269,7 @@ func TestScanOmics_StoresShares(t *testing.T) {
 func TestScanOmics_SharesErrorAfterExistingPhases(t *testing.T) {
 	st := newTestStore(t)
 	stub := stubResponses(t, omicsScanResponses(stubCall{Err: apiErr("ValidationException", "bad")}))
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	_, _, err := scanOmics(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ValidationException") {

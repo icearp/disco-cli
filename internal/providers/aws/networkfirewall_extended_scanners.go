@@ -8,8 +8,9 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanNetworkFirewallExtended discovers per-firewall logging configurations,
-// account-wide TLS inspection configurations, and VPC endpoint associations.
+// scanNetworkFirewallExtended discovers the types beyond firewalls, policies
+// and rule groups. Proxies and container associations run last: they are the
+// newest ops, so an error in either must not cost the older phases' rows.
 func scanNetworkFirewallExtended(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	t, i, ferr := scanNFLoggingConfigurations(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
@@ -40,6 +41,20 @@ func scanNetworkFirewallExtended(ctx context.Context, client networkfirewallAPI,
 	inserted += i
 
 	t, i, ferr = scanNFProxyRuleGroups(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanNFProxies(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanNFContainerAssociations(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -226,4 +241,100 @@ func scanNFVpcEndpointAssociations(ctx context.Context, client networkfirewallAP
 		nextToken = out.NextToken
 	}
 	return upsertBatch(st, batch, "networkfirewall vpc-endpoint-associations")
+}
+
+// scanNFProxies lists proxies and describes each one: the list summary
+// carries only the ARN and name, while the state, NAT gateway and proxy
+// configuration live on DescribeProxy. Proxies share the proxy-configuration
+// ops' public preview, so the same region gap applies.
+func scanNFProxies(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := networkfirewall.NewListProxiesPaginator(client, &networkfirewall.ListProxiesInput{})
+	var arns []string
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isProxyPreviewRegionGap(err) {
+				break
+			}
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied(st, "network-firewall:ListProxies", acct.ID, region, err)
+				break
+			}
+			return 0, 0, fmt.Errorf("network-firewall:ListProxies: %w", err)
+		}
+		for _, p := range out.Proxies {
+			if arn := sv(p.Arn); arn != "" {
+				arns = append(arns, arn)
+			}
+		}
+	}
+	batch, err := describeFanOut(ctx, st, acct, region, "network-firewall:DescribeProxy", arns, isNFDeletedAfterList,
+		func(ctx context.Context, arn string) (*store.Resource, error) {
+			out, err := client.DescribeProxy(ctx, &networkfirewall.DescribeProxyInput{ProxyArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			if out.Proxy == nil {
+				return nil, nil
+			}
+			p := out.Proxy
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeNetworkFirewallProxy, NativeID: arn,
+				Name: p.ProxyName, Region: &region, Status: nonEmptyPtr(string(p.ProxyState)),
+				CreatedAt: tp(p.CreateTime), AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			}, nil
+		})
+	if err != nil {
+		return 0, 0, err
+	}
+	return upsertBatch(st, batch, "network-firewall proxies")
+}
+
+// scanNFContainerAssociations lists container associations and describes
+// each one: the summary carries only the ARN and name, while the monitored
+// ECS/EKS cluster ARNs and the status live on DescribeContainerAssociation.
+func scanNFContainerAssociations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := networkfirewall.NewListContainerAssociationsPaginator(client, &networkfirewall.ListContainerAssociationsInput{})
+	var arns []string
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied(st, "network-firewall:ListContainerAssociations", acct.ID, region, err)
+				break
+			}
+			return 0, 0, fmt.Errorf("network-firewall:ListContainerAssociations: %w", err)
+		}
+		for _, c := range out.ContainerAssociations {
+			if arn := sv(c.Arn); arn != "" {
+				arns = append(arns, arn)
+			}
+		}
+	}
+	batch, err := describeFanOut(ctx, st, acct, region, "network-firewall:DescribeContainerAssociation", arns, isNFDeletedAfterList,
+		func(ctx context.Context, arn string) (*store.Resource, error) {
+			out, err := client.DescribeContainerAssociation(ctx, &networkfirewall.DescribeContainerAssociationInput{ContainerAssociationArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			// The output is flat (no payload sub-struct), so the row stores it
+			// whole, UpdateToken included, as DescribeFirewall rows do.
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeNetworkFirewallContainerAssociation, NativeID: arn,
+				Name: out.ContainerAssociationName, Region: &region, Status: nonEmptyPtr(string(out.Status)),
+				AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
+			}, nil
+		})
+	if err != nil {
+		return 0, 0, err
+	}
+	return upsertBatch(st, batch, "network-firewall container-associations")
+}
+
+// isNFDeletedAfterList matches a resource deleted between its list and its
+// describe call.
+func isNFDeletedAfterList(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException")
 }

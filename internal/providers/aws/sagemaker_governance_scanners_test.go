@@ -234,7 +234,7 @@ func TestScanSageMakerGovernance_TrainingPlanThenUltraServers(t *testing.T) {
 		}}}),
 		"ListUltraServersByReservedCapacity": empty(&sagemaker.ListUltraServersByReservedCapacityOutput{UltraServers: []smtypes.UltraServer{smUltraServer("us-1")}}),
 	})
-	client := sagemaker.NewFromConfig(cloud9CfgWithStub(stub, testRegion))
+	client := sagemaker.NewFromConfig(cfgWithStub(stub, testRegion))
 	if _, _, err := scanSageMakerGovernance(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}

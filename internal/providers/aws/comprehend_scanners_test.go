@@ -422,7 +422,7 @@ func TestScanComprehend_ListsDatasetsOfListedFlywheels(t *testing.T) {
 			testDataset("a", "train", comprehendtypes.DatasetStatusCompleted),
 		}}}},
 	})
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	total, _, err := scanComprehend(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {

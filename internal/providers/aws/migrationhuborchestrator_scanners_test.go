@@ -627,7 +627,7 @@ func TestScanMigrationHubOrchestrator_ChildrenContainedByParents(t *testing.T) {
 		"ListTemplateSteps": one(&migrationhuborchestrator.ListTemplateStepsOutput{TemplateStepSummaryList: []mhotypes.TemplateStepSummary{{Id: s("ts")}}}),
 	})
 	acct := newTestAccount(testAccountID)
-	acct.cfg = cloud9CfgWithStub(stub, testRegion)
+	acct.cfg = cfgWithStub(stub, testRegion)
 	if _, _, err := scanMigrationHubOrchestrator(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}

@@ -8,10 +8,8 @@ import (
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/apigatewayv2"
 	apigwv2types "github.com/aws/aws-sdk-go-v2/service/apigatewayv2/types"
-	smithymw "github.com/aws/smithy-go/middleware"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -505,15 +503,6 @@ func TestScanAPIGatewayV2PortalChildren_Errors(t *testing.T) {
 	}
 }
 
-func apigwv2CfgWithStub(stub func(*smithymw.Stack) error) sdkaws.Config {
-	return sdkaws.Config{
-		Region:           testRegion,
-		Credentials:      credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
-		RetryMaxAttempts: 1,
-		APIOptions:       []func(*smithymw.Stack) error{stub},
-	}
-}
-
 // apigwv2CoreResponses answers the pre-existing scanAPIGatewayV2 phases with
 // one VPC link and no APIs or domains.
 func apigwv2CoreResponses(vpcLinkErr error) map[string][]stubCall {
@@ -536,7 +525,7 @@ func TestScanAPIGatewayV2_StoresPortalRows(t *testing.T) {
 	responses["ListPortalProducts"] = []stubCall{{Output: &apigatewayv2.ListPortalProductsOutput{Items: []apigwv2types.PortalProductSummary{testPortalProduct(testAccountID, "p1")}}}}
 	responses["ListProductPages"] = []stubCall{{Output: &apigatewayv2.ListProductPagesOutput{Items: []apigwv2types.ProductPageSummaryNoBody{testProductPage("p1", "x")}}}}
 	responses["ListProductRestEndpointPages"] = []stubCall{{Output: &apigatewayv2.ListProductRestEndpointPagesOutput{Items: []apigwv2types.ProductRestEndpointPageSummaryNoBody{testRestPage("p1", "y")}}}}
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: apigwv2CfgWithStub(stubResponses(t, responses))}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 
 	total, _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
@@ -583,7 +572,7 @@ func TestScanAPIGatewayV2_PortalErrorAfterCorePhases(t *testing.T) {
 			for op, calls := range portal {
 				responses[op] = calls
 			}
-			acct := &account{ID: testAccountID, Name: "Test Account", cfg: apigwv2CfgWithStub(stubResponses(t, responses))}
+			acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 			if _, _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "ConflictException") {
 				t.Fatalf("err = %v; want the %s ConflictException", err, failing)
 			}
@@ -600,7 +589,7 @@ func TestScanAPIGatewayV2_PortalErrorAfterCorePhases(t *testing.T) {
 func TestScanAPIGatewayV2_CoreErrorSkipsPortals(t *testing.T) {
 	st := newTestStore(t)
 	responses := apigwv2CoreResponses(apiErr("ConflictException", "boom"))
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: apigwv2CfgWithStub(stubResponses(t, responses))}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 	if _, _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "ConflictException") {
 		t.Fatalf("err = %v; want the GetVpcLinks ConflictException", err)
 	}

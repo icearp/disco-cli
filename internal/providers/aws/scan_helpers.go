@@ -147,12 +147,37 @@ func nonEmptyPtr(s string) *string {
 // child list op keys on, arn is the parent row's NativeID.
 type childParent struct{ id, arn string }
 
+// fanOutErrs is the per-key error policy shared by childFanOut and
+// describeFanOut, so a change to the skip or deny handling lands in both.
+type fanOutErrs struct {
+	st       *store.Store
+	acct     *account
+	region   string
+	op       string
+	isSkip   func(error) bool
+	denyOnce sync.Once
+}
+
+// keyErr classifies a non-nil error from one key's call. It returns nil when
+// the key is dropped: an error isSkip accepts drops it silently (checked first
+// so a service can claim access-denied-coded feature gaps), and an AccessDenied
+// drops it after warning once for op while the other keys continue. Anything
+// else comes back wrapped with op and key.
+func (f *fanOutErrs) keyErr(key string, err error) error {
+	switch {
+	case f.isSkip(err):
+		return nil
+	case isAccessDenied(err):
+		f.denyOnce.Do(func() { _ = skipIfAccessDenied(f.st, f.op, f.acct.ID, f.region, err) })
+		return nil
+	default:
+		return fmt.Errorf("%s %s: %w", f.op, key, err)
+	}
+}
+
 // childFanOut runs list for each parent concurrently (fanoutMed), upserts every
-// child and links it under its parent via the contains closure. An error isSkip
-// accepts drops that parent silently; it is checked first so a service can claim
-// access-denied-coded feature gaps. Any other AccessDenied drops that parent and
-// warns once for op while the remaining parents continue; anything else is
-// returned.
+// child and links it under its parent via the contains closure. A failed
+// parent is dropped or returned per fanOutErrs.keyErr.
 func childFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, list func(context.Context, childParent) ([]*store.Resource, error),
@@ -160,22 +185,15 @@ func childFanOut(
 	var (
 		mu       sync.Mutex
 		children []containedChild
-		denyOnce sync.Once
 	)
+	errs := &fanOutErrs{st: st, acct: acct, region: region, op: op, isSkip: isSkip}
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(fanoutMed)
 	for _, p := range parents {
 		g.Go(func() error {
 			rows, err := list(gctx, p)
-			switch {
-			case err == nil:
-			case isSkip(err):
-				return nil
-			case isAccessDenied(err):
-				denyOnce.Do(func() { _ = skipIfAccessDenied(st, op, acct.ID, region, err) })
-				return nil
-			default:
-				return fmt.Errorf("%s %s: %w", op, p.id, err)
+			if err != nil {
+				return errs.keyErr(p.id, err)
 			}
 			parentID := store.ResourceID("aws", acct.ID, p.arn)
 			mu.Lock()
@@ -190,6 +208,41 @@ func childFanOut(
 		return 0, 0, err
 	}
 	return upsertContained(st, op, children)
+}
+
+// describeFanOut runs describe for each key concurrently (fanoutMed) and
+// returns the rows it builds; a nil row is dropped. A failed key is dropped or
+// returned per fanOutErrs.keyErr.
+func describeFanOut(
+	ctx context.Context, st *store.Store, acct *account, region, op string, keys []string,
+	isSkip func(error) bool, describe func(context.Context, string) (*store.Resource, error),
+) ([]*store.Resource, error) {
+	var (
+		mu   sync.Mutex
+		rows []*store.Resource
+	)
+	errs := &fanOutErrs{st: st, acct: acct, region: region, op: op, isSkip: isSkip}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(fanoutMed)
+	for _, key := range keys {
+		g.Go(func() error {
+			r, err := describe(gctx, key)
+			if err != nil {
+				return errs.keyErr(key, err)
+			}
+			if r == nil {
+				return nil
+			}
+			mu.Lock()
+			rows = append(rows, r)
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // containedChild is a child row and the ResourceID of the parent that

@@ -267,7 +267,7 @@ func odbServiceStub(t *testing.T, override map[string][]stubCall) sdkaws.Config 
 	for op, c := range override {
 		calls[op] = c
 	}
-	return cloud9CfgWithStub(stubResponses(t, calls), testRegion)
+	return cfgWithStub(stubResponses(t, calls), testRegion)
 }
 
 var (

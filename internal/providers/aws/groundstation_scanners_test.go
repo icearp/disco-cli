@@ -260,7 +260,7 @@ func TestScanGroundStation_StoresEphemerides(t *testing.T) {
 	stub := stubResponses(t, gsScanResponses(
 		stubCall{Output: &groundstation.ListEphemeridesOutput{Ephemerides: []gstypes.EphemerisItem{gsEphemeris("e")}}},
 	))
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	if _, _, err := scanGroundStation(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanGroundStation: %v", err)
@@ -275,7 +275,7 @@ func TestScanGroundStation_StoresEphemerides(t *testing.T) {
 func TestScanGroundStation_EphemeridesErrorAfterExistingPhases(t *testing.T) {
 	st := newTestStore(t)
 	stub := stubResponses(t, gsScanResponses(stubCall{Err: apiErr("InvalidParameterException", "bad")}))
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	_, _, err := scanGroundStation(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidParameterException") {

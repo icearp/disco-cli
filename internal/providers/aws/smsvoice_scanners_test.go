@@ -80,7 +80,7 @@ var svNewOps = []struct {
 
 func svClient(t *testing.T, calls map[string][]stubCall) *pinpointsmsvoicev2.Client {
 	t.Helper()
-	return pinpointsmsvoicev2.NewFromConfig(cloud9CfgWithStub(stubResponses(t, calls), testRegion))
+	return pinpointsmsvoicev2.NewFromConfig(cfgWithStub(stubResponses(t, calls), testRegion))
 }
 
 func TestScanSVNewPhases_PaginatesAndStoresRows(t *testing.T) {
@@ -194,7 +194,7 @@ func svServiceStub(t *testing.T, override map[string][]stubCall) sdkaws.Config {
 	for op, c := range override {
 		calls[op] = c
 	}
-	return cloud9CfgWithStub(stubResponses(t, calls), testRegion)
+	return cfgWithStub(stubResponses(t, calls), testRegion)
 }
 
 func TestScanSMSVoice_StoresNewPhaseRows(t *testing.T) {

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.4% (1749/3336 listable) · depth0 67.0% · depth1 30.9% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.5% (1751/3336 listable) · depth0 67.1% · depth1 30.9% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1009 | 212 | 82.6 |
+| sr-resource | 1011 | 210 | 82.8 |
 | child-uncatalogued | 149 | 868 | 14.7 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
@@ -145,7 +145,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | m2 | 3 | 4 | 42.9 |
 | machinelearning | 0 | 4 | 0.0 |
 | mpa | 2 | 4 | 33.3 |
-| network-firewall | 7 | 4 | 63.6 |
 | notifications | 7 | 4 | 63.6 |
 | nova-act | 1 | 4 | 20.0 |
 | partnercentral | 0 | 4 | 0.0 |
@@ -227,6 +226,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mediatailor | 7 | 2 | 77.8 |
 | migrationhub-strategy | 0 | 2 | 0.0 |
 | neptune-graph | 3 | 2 | 60.0 |
+| network-firewall | 9 | 2 | 81.8 |
 | networkflowmonitor | 2 | 2 | 50.0 |
 | pi | 0 | 2 | 0.0 |
 | qapps | 1 | 2 | 33.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1587)
+### Uncovered (listable, no scanner) (1585)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1413,9 +1413,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | neptune-graph | neptune-graph/exporttask | 1 |  | sr-resource | neptune-graph:GetExportTask, neptune-graph:ListExportTasks |
 | neptune-graph | neptune-graph/importtask | 1 |  | sr-resource | neptune-graph:GetImportTask, neptune-graph:ListImportTasks |
 | network-firewall | network-firewall/analysisreport | 0 |  | element-written | network-firewall:ListAnalysisReports |
-| network-firewall | network-firewall/containerassociation | 0 |  | sr-resource | network-firewall:DescribeContainerAssociation, network-firewall:ListContainerAssociations |
 | network-firewall | network-firewall/flowoperation | 1 |  | child-uncatalogued | network-firewall:DescribeFlowOperation, network-firewall:ListFlowOperations |
-| network-firewall | network-firewall/proxy | 0 |  | sr-resource | network-firewall:DescribeProxy, network-firewall:ListProxies |
 | networkflowmonitor | networkflowmonitor/queryresultsmonitortopcontributor | 1 |  | child-uncatalogued | networkflowmonitor:GetQueryResultsMonitorTopContributors |
 | networkflowmonitor | networkflowmonitor/queryresultsworkloadinsightstopcontributor | 1 |  | child-uncatalogued | networkflowmonitor:GetQueryResultsWorkloadInsightsTopContributors |
 | networkmanager | networkmanager/attachmentroutingpolicyassociation | 1 |  | child-uncatalogued | networkmanager:ListAttachmentRoutingPolicyAssociations |

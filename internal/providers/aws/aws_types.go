@@ -288,6 +288,8 @@ const (
 	TypeNetworkFirewallVpcEndpointAssociation     = "aws:network-firewall:vpc-endpoint-association"
 	TypeNetworkFirewallProxyConfiguration         = "aws:network-firewall:proxy-configuration"
 	TypeNetworkFirewallProxyRuleGroup             = "aws:network-firewall:proxy-rule-group"
+	TypeNetworkFirewallProxy                      = "aws:network-firewall:proxy"
+	TypeNetworkFirewallContainerAssociation       = "aws:network-firewall:container-association"
 	// EventBridge (eventbridge_scanners.go, eventbridge_resolvers.go)
 	TypeEventsEventBus       = "aws:events:event-bus"
 	TypeEventsRule           = "aws:events:rule"

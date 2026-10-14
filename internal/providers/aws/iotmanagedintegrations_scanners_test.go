@@ -530,7 +530,7 @@ func TestScanIoTManagedIntegrations_ChildrenContainedByParents(t *testing.T) {
 		}),
 	})
 	acct := newTestAccount(testAccountID)
-	acct.cfg = cloud9CfgWithStub(stub, testRegion)
+	acct.cfg = cfgWithStub(stub, testRegion)
 	if _, _, err := scanIoTManagedIntegrations(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}

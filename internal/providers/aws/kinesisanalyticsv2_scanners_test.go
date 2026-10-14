@@ -40,7 +40,7 @@ func TestScanKinesisAnalyticsV2_OneVersionPerScan(t *testing.T) {
 		"ListApplications":    {summary(), summary()},
 		"DescribeApplication": {detail(), detail()},
 	})
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	second, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -86,7 +86,7 @@ func TestScanKinesisAnalyticsV2_DeniedDetailKeepsSummary(t *testing.T) {
 		}}}}},
 		"DescribeApplication": {{Err: apiErr("AccessDeniedException", "not authorized to perform: kinesisanalytics:DescribeApplication")}},
 	})
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	total, inserted, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
@@ -125,7 +125,7 @@ func TestScanKinesisAnalyticsV2_FailedDetailStillStoresEveryApplication(t *testi
 			{Output: &kinesisanalyticsv2.DescribeApplicationOutput{ApplicationDetail: &kav2types.ApplicationDetail{ApplicationARN: &arns[1], ApplicationName: &names[1]}}},
 		},
 	})
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	total, _, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InternalFailure") {

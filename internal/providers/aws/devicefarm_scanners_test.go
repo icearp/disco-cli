@@ -298,7 +298,7 @@ func TestScanDeviceFarm_ListsUploadsOfListedProjects(t *testing.T) {
 		"ListTestGridProjects":   {{Output: &devicefarm.ListTestGridProjectsOutput{}}},
 		"ListUploads":            {{Output: &devicefarm.ListUploadsOutput{Uploads: []dftypes.Upload{testDFUpload("PA", "U1")}}}},
 	})
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testDFRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testDFRegion)}
 
 	total, _, err := scanDeviceFarm(context.Background(), acct, "", st, testScanID)
 	if err != nil {

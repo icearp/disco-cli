@@ -347,7 +347,7 @@ func TestScanQSThemes_HandsOnlyOwnThemesToAliasPhase(t *testing.T) {
 			{ThemeId: sdkaws.String("CLASSIC"), Arn: sdkaws.String("arn:aws:quicksight::aws:theme/CLASSIC"), Name: sdkaws.String("Classic")},
 		}}}},
 	})
-	client := quicksight.NewFromConfig(cloud9CfgWithStub(stub, testRegion))
+	client := quicksight.NewFromConfig(cfgWithStub(stub, testRegion))
 
 	parents, total, _, err := scanQSThemes(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -452,7 +452,7 @@ func TestScanQSKeyRegistration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countWarnings(st)
-			client := quicksight.NewFromConfig(cloud9CfgWithStub(stubResponses(t, map[string][]stubCall{"DescribeKeyRegistration": {tc.call}}), testRegion))
+			client := quicksight.NewFromConfig(cfgWithStub(stubResponses(t, map[string][]stubCall{"DescribeKeyRegistration": {tc.call}}), testRegion))
 
 			_, _, err := scanQSKeyRegistration(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantErr != (err != nil) || (tc.wantErr && !isAPIErrorCode(err, "InternalFailureException")) {
@@ -539,7 +539,7 @@ func TestScanQuickSight_ChildPhasesUseListedParents(t *testing.T) {
 			RefreshSchedules: []qstypes.TopicRefreshScheduleSummary{topicSchedule("ds1", "Sales")},
 		}}},
 	})
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stub, testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
 	total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {

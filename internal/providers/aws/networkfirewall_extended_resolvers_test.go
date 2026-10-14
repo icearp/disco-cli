@@ -1,9 +1,13 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/networkfirewall"
+	nfwtypes "github.com/aws/aws-sdk-go-v2/service/networkfirewall/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -40,4 +44,60 @@ func TestResolveNFVpcEndpointAssociationRefs(t *testing.T) {
 	assertRelationship(t, rels, veaID, fwID, store.RelAttachedTo)
 	assertRelationship(t, rels, veaID, vpcID, store.RelAttachedTo)
 	assertRelationship(t, rels, veaID, subID, store.RelAttachedTo)
+}
+
+func nfContainerAssociationAttrs(t *testing.T, clusterARNs ...string) string {
+	t.Helper()
+	out := networkfirewall.DescribeContainerAssociationOutput{ContainerAssociationName: sdkaws.String("a")}
+	for _, arn := range clusterARNs {
+		out.ContainerMonitoringConfigurations = append(out.ContainerMonitoringConfigurations, nfwtypes.ContainerMonitoringConfiguration{ClusterArn: sdkaws.String(arn)})
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestResolveNFContainerAssociationClusters_ECSAndEKS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	ecsARN := fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/web", testRegion, acct.ID)
+	ecsID := upsertTestResource(t, st, "aws", acct.ID, TypeECSCluster, ecsARN, testRegion, "{}")
+	eksARN := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/k8s", testRegion, acct.ID)
+	eksID := upsertTestResource(t, st, "aws", acct.ID, TypeEKSCluster, eksARN, testRegion, "{}")
+	unscanned := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/gone", testRegion, acct.ID)
+	assocARN := fmt.Sprintf("arn:aws:network-firewall:%s:%s:container-association/a", testRegion, acct.ID)
+	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkFirewallContainerAssociation, assocARN, testRegion,
+		nfContainerAssociationAttrs(t, ecsARN, eksARN, unscanned))
+	if err := resolveNFContainerAssociationClusters(acct, st); err != nil {
+		t.Fatalf("resolveNFContainerAssociationClusters: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(assocID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRelationship(t, rels, assocID, ecsID, store.RelUses)
+	assertRelationship(t, rels, assocID, eksID, store.RelUses)
+	if len(rels) != 2 {
+		t.Errorf("edges = %v; want only the two scanned clusters", rels)
+	}
+}
+
+func TestResolveNFContainerAssociationClusters_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeECSCluster, fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/web", testRegion, acct.ID), testRegion, "{}")
+	assocARN := fmt.Sprintf("arn:aws:network-firewall:%s:%s:container-association/a", testRegion, acct.ID)
+	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkFirewallContainerAssociation, assocARN, testRegion, "{}")
+	if err := resolveNFContainerAssociationClusters(acct, st); err != nil {
+		t.Fatalf("resolveNFContainerAssociationClusters: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(assocID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("edges = %v; want none", rels)
+	}
 }

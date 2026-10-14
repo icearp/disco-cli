@@ -20,6 +20,11 @@ func init() {
 		EdgeDecl{TypeNetworkFirewallVpcEndpointAssociation, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkFirewallVpcEndpointAssociation, TypeEC2Subnet, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveNFContainerAssociationClusters,
+		EdgeDecl{TypeNetworkFirewallContainerAssociation, TypeECSCluster, store.RelUses},
+		EdgeDecl{TypeNetworkFirewallContainerAssociation, TypeEKSCluster, store.RelUses},
+	)
 }
 
 // resolveNFLoggingConfigToFirewall wires each logging-configuration to its
@@ -114,6 +119,50 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 						return fmt.Errorf("upsert nfw vea→subnet: %w", err)
 					}
 				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveNFContainerAssociationClusters wires each container association to
+// the ECS or EKS clusters it monitors
+// (ContainerMonitoringConfigurations[].ClusterArn). Both cluster scanners key
+// rows by the cluster ARN, so the ARN is the target NativeID as-is.
+func resolveNFContainerAssociationClusters(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeNetworkFirewallContainerAssociation}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	ecsSet, err := scannedIDSet(acct, st, TypeECSCluster)
+	if err != nil {
+		return err
+	}
+	eksSet, err := scannedIDSet(acct, st, TypeEKSCluster)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ContainerMonitoringConfigurations []struct {
+				ClusterArn *string `json:"ClusterArn"`
+			} `json:"ContainerMonitoringConfigurations"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, c := range attrs.ContainerMonitoringConfigurations {
+			tgtID := store.ResourceID("aws", acct.ID, sv(c.ClusterArn))
+			if !ecsSet[tgtID] && !eksSet[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert nfw container-association→cluster: %w", err)
 			}
 		}
 	}

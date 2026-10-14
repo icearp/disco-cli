@@ -301,7 +301,7 @@ func TestScanSSM_StoresActivationsAndCloudConnectors(t *testing.T) {
 		CloudConnectors: []ssmtypes.CloudConnectorSummary{{CloudConnectorId: sdkaws.String("cc-1")}},
 	}}}
 	st := newTestStore(t)
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stubResponses(t, responses), testRegion)}
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 
 	total, inserted, err := scanSSM(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
@@ -351,7 +351,7 @@ func TestScanSSM_NewPhaseErrorKeepsEarlierPhases(t *testing.T) {
 			boom := errors.New("boom")
 			responses[tc.failingOp] = []stubCall{{Err: boom}}
 			st := newTestStore(t)
-			acct := &account{ID: testAccountID, Name: "Test Account", cfg: cloud9CfgWithStub(stubResponses(t, responses), testRegion)}
+			acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 
 			_, _, err := scanSSM(context.Background(), acct, testRegion, st, testScanID)
 			if !errors.Is(err, boom) {
