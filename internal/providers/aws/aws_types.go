@@ -2165,6 +2165,11 @@ const (
 	TypeSecurityAgentIntegration             = "aws:security-agent:integration"
 	TypeSecurityAgentPrivateConnection       = "aws:security-agent:private-connection"
 	TypeSecurityAgentSecurityRequirementPack = "aws:security-agent:security-requirement-pack"
+	TypeSecurityAgentCodeReview              = "aws:security-agent:code-review"
+	TypeSecurityAgentThreatModel             = "aws:security-agent:threat-model"
+	TypeSecurityAgentMembership              = "aws:security-agent:membership"
+	TypeSecurityAgentIntegratedResource      = "aws:security-agent:integrated-resource"
+	TypeSecurityAgentSecurityRequirement     = "aws:security-agent:security-requirement"
 	// SecurityLake (securitylake_scanners.go).
 	TypeSecurityLakeAwsLogSource = "aws:security-lake:aws-log-source"
 	TypeSecurityLakeDataLake     = "aws:security-lake:data-lake"

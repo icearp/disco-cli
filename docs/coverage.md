@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.5% (1817/3336 listable) · depth0 68.5% · depth1 33.4% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.7% (1825/3336 listable) · depth0 68.5% · depth1 34.1% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1024 | 197 | 83.9 |
-| child-uncatalogued | 188 | 829 | 18.5 |
+| child-uncatalogued | 196 | 821 | 19.3 |
 | smithy-resource | 420 | 142 | 74.7 |
 | element-written | 154 | 262 | 37.0 |
 | element-arn | 27 | 79 | 25.5 |
@@ -26,7 +26,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotsitewise | 13 | 24 | 35.1 |
 | chime | 11 | 18 | 37.9 |
 | quicksight | 26 | 18 | 59.1 |
-| securityagent | 7 | 18 | 28.0 |
 | bedrock | 27 | 17 | 61.4 |
 | datazone | 19 | 17 | 52.8 |
 | glue | 25 | 17 | 59.5 |
@@ -60,6 +59,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | imagebuilder | 9 | 10 | 47.4 |
 | logs | 15 | 10 | 60.0 |
 | qbusiness | 9 | 10 | 47.4 |
+| securityagent | 15 | 10 | 60.0 |
 | storagegateway | 8 | 10 | 44.4 |
 | auditmanager | 3 | 9 | 25.0 |
 | license-manager | 6 | 9 | 40.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1519)
+### Uncovered (listable, no scanner) (1511)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1643,21 +1643,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | security-ir | security-ir/comment | 1 |  | child-uncatalogued | security-ir:ListComments |
 | security-ir | security-ir/investigation | 1 |  | child-uncatalogued | security-ir:ListInvestigations |
 | securityagent | securityagent/artifact | 1 |  | child-uncatalogued | securityagent:GetArtifact, securityagent:ListArtifacts |
-| securityagent | securityagent/codereview | 1 |  | child-uncatalogued | securityagent:ListCodeReviews |
 | securityagent | securityagent/codereviewjob | 1 |  | child-uncatalogued | securityagent:BatchGetCodeReviewJobs, securityagent:ListCodeReviewJobsForCodeReview |
 | securityagent | securityagent/codereviewjobtask | 1 |  | child-uncatalogued | securityagent:ListCodeReviewJobTasks |
 | securityagent | securityagent/discoveredendpoint | 1 |  | child-uncatalogued | securityagent:ListDiscoveredEndpoints |
 | securityagent | securityagent/finding | 1 |  | child-uncatalogued | securityagent:BatchGetFindings, securityagent:ListFindings |
-| securityagent | securityagent/getcodereview | 1 |  | child-uncatalogued | securityagent:BatchGetCodeReviewJobTasks, securityagent:BatchGetCodeReviews |
-| securityagent | securityagent/getpentest | 1 |  | child-uncatalogued | securityagent:BatchGetPentestJobTasks, securityagent:BatchGetPentests |
-| securityagent | securityagent/getthreatmodel | 1 |  | child-uncatalogued | securityagent:BatchGetThreatModelJobTasks, securityagent:BatchGetThreatModels |
-| securityagent | securityagent/integratedresource | 1 |  | child-uncatalogued | securityagent:ListIntegratedResources |
-| securityagent | securityagent/membership | 1 |  | child-uncatalogued | securityagent:ListMemberships |
 | securityagent | securityagent/pentestjob | 1 |  | child-uncatalogued | securityagent:BatchGetPentestJobs, securityagent:ListPentestJobsForPentest |
 | securityagent | securityagent/pentestjobtask | 1 |  | child-uncatalogued | securityagent:ListPentestJobTasks |
-| securityagent | securityagent/securityrequirement | 1 |  | child-uncatalogued | securityagent:BatchGetSecurityRequirements, securityagent:ListSecurityRequirements |
 | securityagent | securityagent/threat | 1 |  | child-uncatalogued | securityagent:BatchGetThreats, securityagent:ListThreats |
-| securityagent | securityagent/threatmodel | 1 |  | child-uncatalogued | securityagent:ListThreatModels |
 | securityagent | securityagent/threatmodeljob | 1 |  | child-uncatalogued | securityagent:BatchGetThreatModelJobs, securityagent:ListThreatModelJobs |
 | securityagent | securityagent/threatmodeljobtask | 1 |  | child-uncatalogued | securityagent:ListThreatModelJobTasks |
 | securityhub | securityhub/finding | 0 |  | element-written | securityhub:GetFindings, securityhub:GetFindingsV2 |
