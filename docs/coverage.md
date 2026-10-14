@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.1% (1773/3336 listable) · depth0 67.6% · depth1 31.7% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.3% (1777/3336 listable) · depth0 67.6% · depth1 32.0% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1014 | 207 | 83.0 |
-| child-uncatalogued | 163 | 854 | 16.0 |
+| child-uncatalogued | 167 | 850 | 16.4 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 148 | 268 | 35.6 |
 | element-arn | 27 | 79 | 25.5 |
@@ -60,7 +60,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | imagebuilder | 9 | 10 | 47.4 |
 | logs | 15 | 10 | 60.0 |
 | qbusiness | 9 | 10 | 47.4 |
-| s3 | 10 | 10 | 50.0 |
 | storagegateway | 8 | 10 | 44.4 |
 | auditmanager | 3 | 9 | 25.0 |
 | backup | 10 | 9 | 52.6 |
@@ -97,6 +96,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | personalize | 11 | 6 | 64.7 |
 | redshift | 21 | 6 | 77.8 |
 | rekognition | 4 | 6 | 40.0 |
+| s3 | 14 | 6 | 70.0 |
 | sms-voice | 11 | 6 | 64.7 |
 | ssm-contacts | 3 | 6 | 33.3 |
 | wickr | 0 | 6 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1563)
+### Uncovered (listable, no scanner) (1559)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1630,10 +1630,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | rum | rum/appmonitordata | 1 |  | child-uncatalogued | rum:GetAppMonitorData |
 | rum | rum/rummetricdefinition | 1 |  | child-uncatalogued | rum:BatchGetRumMetricDefinitions |
 | rum | rum/rummetricsdestination | 1 |  | child-uncatalogued | rum:ListRumMetricsDestinations |
-| s3 | s3/bucketanalyticsconfiguration | 1 |  | child-uncatalogued | s3:GetBucketAnalyticsConfiguration, s3:ListBucketAnalyticsConfigurations |
-| s3 | s3/bucketintelligenttieringconfiguration | 1 |  | child-uncatalogued | s3:GetBucketIntelligentTieringConfiguration, s3:ListBucketIntelligentTieringConfigurations |
-| s3 | s3/bucketinventoryconfiguration | 1 |  | child-uncatalogued | s3:GetBucketInventoryConfiguration, s3:ListBucketInventoryConfigurations |
-| s3 | s3/bucketmetricsconfiguration | 1 |  | child-uncatalogued | s3:GetBucketMetricsConfiguration, s3:ListBucketMetricsConfigurations |
 | s3 | s3/calleraccessgrant | 0 |  | element-arn | s3:ListCallerAccessGrants |
 | s3 | s3/job | 0 |  | sr-resource | s3:DescribeJob, s3:ListJobs |
 | s3 | s3/multipartupload | 1 |  | child-uncatalogued | s3:ListMultipartUploads |

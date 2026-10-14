@@ -1,9 +1,11 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/icearp/disco-cli/store"
 )
@@ -367,5 +369,59 @@ func TestResolveS3BucketEncryption_Empty(t *testing.T) {
 
 	if err := resolveS3BucketEncryptionRelationships(acct, st); err != nil {
 		t.Fatalf("resolveS3BucketEncryptionRelationships: %v", err)
+	}
+}
+
+// --- Inventory configuration destination ---
+
+func inventoryConfigAttrs(t *testing.T, dest *s3types.InventoryDestination) string {
+	t.Helper()
+	cfg := s3types.InventoryConfiguration{Id: sdkaws.String("inv"), Destination: dest}
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return string(b)
+}
+
+func TestResolveS3InventoryDestinations(t *testing.T) {
+	toBucket := func(arn string) *s3types.InventoryDestination {
+		return &s3types.InventoryDestination{S3BucketDestination: &s3types.InventoryS3BucketDestination{Bucket: sdkaws.String(arn)}}
+	}
+	cases := []struct {
+		name     string
+		dest     *s3types.InventoryDestination
+		wantEdge bool
+	}{
+		{name: "scanned destination bucket", dest: toBucket("arn:aws:s3:::reports"), wantEdge: true},
+		{name: "unscanned destination bucket", dest: toBucket("arn:aws:s3:::other-account-reports")},
+		{name: "no destination"},
+		{name: "destination without S3 bucket", dest: &s3types.InventoryDestination{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			destID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::reports", "global", "{}")
+			cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeS3BucketInventoryConfiguration,
+				"arn:aws:s3:::src/inventory-configuration/inv", "global", inventoryConfigAttrs(t, tc.dest))
+			if err := resolveS3InventoryDestinations(acct, st); err != nil {
+				t.Fatalf("resolveS3InventoryDestinations: %v", err)
+			}
+			rels, err := st.RelationshipsFrom(cfgID)
+			if err != nil {
+				t.Fatalf("RelationshipsFrom: %v", err)
+			}
+			if !tc.wantEdge {
+				if len(rels) != 0 {
+					t.Errorf("rels = %+v; want none", rels)
+				}
+				return
+			}
+			if len(rels) != 1 {
+				t.Fatalf("rels = %+v; want one uses edge", rels)
+			}
+			assertRelationship(t, rels, cfgID, destID, store.RelUses)
+		})
 	}
 }

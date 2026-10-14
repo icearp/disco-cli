@@ -34,6 +34,64 @@ func init() {
 		resolveS3BucketEncryptionRelationships,
 		EdgeDecl{TypeS3Bucket, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		noopS3BucketConfigHierarchy,
+		EdgeDecl{TypeS3Bucket, TypeS3BucketAnalyticsConfiguration, store.RelContains},
+		EdgeDecl{TypeS3Bucket, TypeS3BucketIntelligentTieringConfiguration, store.RelContains},
+		EdgeDecl{TypeS3Bucket, TypeS3BucketInventoryConfiguration, store.RelContains},
+		EdgeDecl{TypeS3Bucket, TypeS3BucketMetricsConfiguration, store.RelContains},
+	)
+	registerResolver(
+		resolveS3InventoryDestinations,
+		EdgeDecl{TypeS3BucketInventoryConfiguration, TypeS3Bucket, store.RelUses},
+	)
+}
+
+// noopS3BucketConfigHierarchy only declares the bucket→configuration contains
+// edges; scanS3BucketConfigs records them through childFanOut.
+func noopS3BucketConfigHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
+// resolveS3InventoryDestinations links each inventory configuration to the
+// bucket its reports are published to. The destination may be a bucket in
+// another account, so only a bucket this account's scan stored gets an edge.
+func resolveS3InventoryDestinations(acct *account, st *store.Store) error {
+	configs, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3BucketInventoryConfiguration},
+		Limit: util.AllResources,
+	})
+	if err != nil || len(configs) == 0 {
+		return err
+	}
+	buckets, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	for _, r := range configs {
+		var attrs struct {
+			Destination *struct {
+				S3BucketDestination *struct {
+					Bucket *string `json:"Bucket"`
+				} `json:"S3BucketDestination"`
+			} `json:"Destination"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("inventory configuration %s attributes: %w", r.NativeID, err)
+		}
+		if attrs.Destination == nil || attrs.Destination.S3BucketDestination == nil {
+			continue
+		}
+		// Bucket is the destination bucket's ARN, the bucket scanner's NativeID.
+		bucketID := store.ResourceID("aws", acct.ID, sv(attrs.Destination.S3BucketDestination.Bucket))
+		if !buckets[bucketID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, bucketID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert inventory-configuration→bucket relationship: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveS3BucketEncryptionRelationships emits bucket→KMS `uses` edges from

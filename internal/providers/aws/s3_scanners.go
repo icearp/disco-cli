@@ -2,9 +2,11 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -16,6 +18,10 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeS3Bucket, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3BucketPolicy, Service: "s3"})
+	registerType(restype.Descriptor{Type: TypeS3BucketAnalyticsConfiguration, Service: "s3"})
+	registerType(restype.Descriptor{Type: TypeS3BucketIntelligentTieringConfiguration, Service: "s3"})
+	registerType(restype.Descriptor{Type: TypeS3BucketInventoryConfiguration, Service: "s3"})
+	registerType(restype.Descriptor{Type: TypeS3BucketMetricsConfiguration, Service: "s3"})
 	registerService(serviceEntry{
 		name:   "aws:s3",
 		global: true,
@@ -54,7 +60,7 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 	var batch []*store.Resource
 	for _, b := range out.Buckets {
 		name := sv(b.Name)
-		arn := fmt.Sprintf("arn:aws:s3:::%s", name)
+		arn := s3BucketARN(name)
 		r := &store.Resource{
 			Provider:       "aws",
 			AccountID:      acct.ID,
@@ -89,7 +95,241 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 	if err := scanS3BucketEncryptions(ctx, acct, client, out.Buckets); err != nil {
 		return total, inserted, err
 	}
-	return total, inserted, nil
+	t, n, err = scanS3BucketConfigs(ctx, acct, client, out.Buckets, st, scanID)
+	return total + t, inserted + n, err
+}
+
+// s3BucketGone reports a bucket deleted between ListBuckets and a per-bucket call.
+func s3BucketGone(err error) bool { return isAPIErrorCode(err, "NoSuchBucket") }
+
+// s3HomedBucket is a bucket listed this scan with the S3 client for its home
+// region; S3 answers a request sent to any other region with 301 PermanentRedirect.
+type s3HomedBucket struct {
+	name   string
+	client *s3.Client
+}
+
+// s3MetricsConfigAttrs is a metrics configuration with its Filter's union
+// member named in filterMember. The SDK marshals the member as a bare
+// {"Value":...}, so a Prefix and an AccessPointArn filter would otherwise both
+// store as {"Value":"<string>"}.
+type s3MetricsConfigAttrs struct {
+	s3types.MetricsConfiguration
+	FilterMember string `json:"filterMember,omitempty"`
+}
+
+func newS3MetricsConfigAttrs(c s3types.MetricsConfiguration) s3MetricsConfigAttrs {
+	out := s3MetricsConfigAttrs{MetricsConfiguration: c}
+	switch f := c.Filter.(type) {
+	case *s3types.MetricsFilterMemberPrefix:
+		out.FilterMember = "Prefix"
+	case *s3types.MetricsFilterMemberAccessPointArn:
+		out.FilterMember = "AccessPointArn"
+	case *s3types.MetricsFilterMemberTag:
+		out.FilterMember = "Tag"
+	case *s3types.MetricsFilterMemberAnd:
+		out.FilterMember = "And"
+	case *s3types.UnknownUnionMember:
+		out.FilterMember = f.Tag
+	}
+	return out
+}
+
+// scanS3BucketConfigs stores each bucket's analytics, intelligent-tiering,
+// inventory and metrics configurations under the bucket. A failing kind does
+// not stop the others; their errors are joined.
+func scanS3BucketConfigs(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket, st *store.Store, scanID string) (total, inserted int, err error) {
+	homed, err := s3HomedBuckets(ctx, acct, client, buckets, st)
+	if err != nil {
+		return 0, 0, err
+	}
+	var errs []error
+	for _, scan := range []func(context.Context, *account, map[string]s3HomedBucket, *store.Store, string) (int, int, error){
+		scanS3AnalyticsConfigs, scanS3IntelligentTieringConfigs, scanS3InventoryConfigs, scanS3MetricsConfigs,
+	} {
+		t, n, err := scan(ctx, acct, homed, st, scanID)
+		total += t
+		inserted += n
+		errs = append(errs, err)
+	}
+	return total, inserted, errors.Join(errs...)
+}
+
+// s3HomedBuckets looks up each bucket's home region for the configuration
+// phase, keyed by bucket name, sharing one client per region; the policy and
+// encryption phases do their own lookups. A bucket deleted since ListBuckets, or
+// whose location is denied (warned once), is left out.
+func s3HomedBuckets(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket, st *store.Store) (map[string]s3HomedBucket, error) {
+	var (
+		mu      sync.Mutex
+		regions = map[string]string{}
+	)
+	errs := &fanOutErrs{st: st, acct: acct, region: sv(regionGlobal), op: "s3:GetBucketLocation", isSkip: s3BucketGone}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(fanoutMed)
+	for _, b := range buckets {
+		name := sv(b.Name)
+		g.Go(func() error {
+			region, err := s3BucketRegion(gctx, client, name)
+			if err != nil {
+				return errs.keyErr(name, err)
+			}
+			mu.Lock()
+			regions[name] = region
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	clients := map[string]*s3.Client{}
+	homed := make(map[string]s3HomedBucket, len(regions))
+	for name, region := range regions {
+		if clients[region] == nil {
+			clients[region] = s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
+		}
+		homed[name] = s3HomedBucket{name: name, client: clients[region]}
+	}
+	return homed, nil
+}
+
+// s3BucketConfigFanOut runs list for every homed bucket and stores the rows
+// under the bucket.
+func s3BucketConfigFanOut(
+	ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, op string,
+	list func(context.Context, s3HomedBucket) ([]*store.Resource, error),
+) (int, int, error) {
+	parents := make([]childParent, 0, len(homed))
+	for name := range homed {
+		parents = append(parents, childParent{id: name, arn: s3BucketARN(name)})
+	}
+	return childFanOut(ctx, st, acct, sv(regionGlobal), op, parents, s3BucketGone,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			return list(ctx, homed[p.id])
+		})
+}
+
+func s3BucketARN(name string) string { return "arn:aws:s3:::" + name }
+
+// s3BucketConfigRow builds the row for one configuration of bucket. The
+// configurations have no ARN, so the NativeID is {bucketARN}/<kind>/{id};
+// an empty id drops the row.
+func s3BucketConfigRow(acct *account, scanID, typ, kind, bucket string, id *string, status string, cfg any) *store.Resource {
+	if sv(id) == "" {
+		return nil
+	}
+	return &store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Region:         regionGlobal,
+		Type:           typ,
+		NativeID:       s3BucketARN(bucket) + "/" + kind + "/" + *id,
+		Name:           id,
+		Status:         nonEmptyPtr(status),
+		AttributesJSON: mustJSON(cfg),
+		DiscoveredBy:   scanID,
+	}
+}
+
+// s3MorePages reports whether a ListBucket*Configurations page has a
+// successor. These ops have no SDK paginator; like the SDK paginators'
+// StopOnDuplicateToken, a token equal to the one just sent ends the loop.
+func s3MorePages(truncated *bool, next, sent *string) bool {
+	return sdkaws.ToBool(truncated) && sv(next) != "" && sv(next) != sv(sent)
+}
+
+func scanS3AnalyticsConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, int, error) {
+	return s3BucketConfigFanOut(ctx, acct, homed, st, "s3:ListBucketAnalyticsConfigurations",
+		func(ctx context.Context, b s3HomedBucket) ([]*store.Resource, error) {
+			in := &s3.ListBucketAnalyticsConfigurationsInput{Bucket: &b.name}
+			var rows []*store.Resource
+			for {
+				out, err := b.client.ListBucketAnalyticsConfigurations(ctx, in)
+				if err != nil {
+					return nil, err
+				}
+				for _, c := range out.AnalyticsConfigurationList {
+					if r := s3BucketConfigRow(acct, scanID, TypeS3BucketAnalyticsConfiguration, "analytics-configuration", b.name, c.Id, "", c); r != nil {
+						rows = append(rows, r)
+					}
+				}
+				if !s3MorePages(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken) {
+					return rows, nil
+				}
+				in.ContinuationToken = out.NextContinuationToken
+			}
+		})
+}
+
+func scanS3IntelligentTieringConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, int, error) {
+	return s3BucketConfigFanOut(ctx, acct, homed, st, "s3:ListBucketIntelligentTieringConfigurations",
+		func(ctx context.Context, b s3HomedBucket) ([]*store.Resource, error) {
+			in := &s3.ListBucketIntelligentTieringConfigurationsInput{Bucket: &b.name}
+			var rows []*store.Resource
+			for {
+				out, err := b.client.ListBucketIntelligentTieringConfigurations(ctx, in)
+				if err != nil {
+					return nil, err
+				}
+				for _, c := range out.IntelligentTieringConfigurationList {
+					if r := s3BucketConfigRow(acct, scanID, TypeS3BucketIntelligentTieringConfiguration, "intelligent-tiering-configuration", b.name, c.Id, string(c.Status), c); r != nil {
+						rows = append(rows, r)
+					}
+				}
+				if !s3MorePages(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken) {
+					return rows, nil
+				}
+				in.ContinuationToken = out.NextContinuationToken
+			}
+		})
+}
+
+func scanS3InventoryConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, int, error) {
+	return s3BucketConfigFanOut(ctx, acct, homed, st, "s3:ListBucketInventoryConfigurations",
+		func(ctx context.Context, b s3HomedBucket) ([]*store.Resource, error) {
+			in := &s3.ListBucketInventoryConfigurationsInput{Bucket: &b.name}
+			var rows []*store.Resource
+			for {
+				out, err := b.client.ListBucketInventoryConfigurations(ctx, in)
+				if err != nil {
+					return nil, err
+				}
+				for _, c := range out.InventoryConfigurationList {
+					if r := s3BucketConfigRow(acct, scanID, TypeS3BucketInventoryConfiguration, "inventory-configuration", b.name, c.Id, "", c); r != nil {
+						rows = append(rows, r)
+					}
+				}
+				if !s3MorePages(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken) {
+					return rows, nil
+				}
+				in.ContinuationToken = out.NextContinuationToken
+			}
+		})
+}
+
+func scanS3MetricsConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, int, error) {
+	return s3BucketConfigFanOut(ctx, acct, homed, st, "s3:ListBucketMetricsConfigurations",
+		func(ctx context.Context, b s3HomedBucket) ([]*store.Resource, error) {
+			in := &s3.ListBucketMetricsConfigurationsInput{Bucket: &b.name}
+			var rows []*store.Resource
+			for {
+				out, err := b.client.ListBucketMetricsConfigurations(ctx, in)
+				if err != nil {
+					return nil, err
+				}
+				for _, c := range out.MetricsConfigurationList {
+					if r := s3BucketConfigRow(acct, scanID, TypeS3BucketMetricsConfiguration, "metrics-configuration", b.name, c.Id, "", newS3MetricsConfigAttrs(c)); r != nil {
+						rows = append(rows, r)
+					}
+				}
+				if !s3MorePages(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken) {
+					return rows, nil
+				}
+				in.ContinuationToken = out.NextContinuationToken
+			}
+		})
 }
 
 // scanS3BucketEncryptions fetches GetBucketEncryption for each bucket
@@ -181,7 +421,7 @@ func scanS3BucketPolicies(ctx context.Context, acct *account, client s3API, buck
 				}
 				return fmt.Errorf("s3:GetBucketPolicy %s: %w", name, err)
 			}
-			arn := fmt.Sprintf("arn:aws:s3:::%s/policy", name)
+			arn := s3BucketARN(name) + "/policy"
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -214,14 +454,19 @@ func scanS3BucketPolicies(ctx context.Context, acct *account, client s3API, buck
 }
 
 // s3BucketRegion returns the home region of an S3 bucket.
-// GetBucketLocation returns an empty LocationConstraint for us-east-1 buckets.
+// GetBucketLocation returns an empty LocationConstraint for us-east-1 buckets
+// and the legacy constraint "EU" for buckets created as EU, which live in
+// eu-west-1.
 func s3BucketRegion(ctx context.Context, client s3API, bucket string) (string, error) {
 	out, err := client.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: &bucket})
 	if err != nil {
 		return "", err
 	}
-	if out.LocationConstraint == "" {
+	switch out.LocationConstraint {
+	case "":
 		return "us-east-1", nil
+	case s3types.BucketLocationConstraintEu:
+		return "eu-west-1", nil
 	}
 	return string(out.LocationConstraint), nil
 }

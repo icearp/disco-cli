@@ -376,6 +376,11 @@ const (
 	TypeELBv2TrustStoreRevocation = "aws:elasticloadbalancingv2:trust-store-revocation"
 	// S3 — buckets (s3_scanners.go)
 	TypeS3Bucket = "aws:s3:bucket"
+	// S3 — per-bucket configurations (s3_scanners.go)
+	TypeS3BucketAnalyticsConfiguration          = "aws:s3:bucket-analytics-configuration"
+	TypeS3BucketIntelligentTieringConfiguration = "aws:s3:bucket-intelligent-tiering-configuration"
+	TypeS3BucketInventoryConfiguration          = "aws:s3:bucket-inventory-configuration"
+	TypeS3BucketMetricsConfiguration            = "aws:s3:bucket-metrics-configuration"
 	// S3 — extended (s3_scanners.go, s3control_scanners.go)
 	TypeS3BucketPolicy                 = "aws:s3:bucket-policy"
 	TypeS3AccessGrantsInstance         = "aws:s3:access-grants-instance"
