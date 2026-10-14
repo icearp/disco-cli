@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
@@ -14,6 +15,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSecurityHubInsight, Service: "securityhub"})
 	registerType(restype.Descriptor{Type: TypeSecurityHubProductSubscription, Service: "securityhub"})
 	registerType(restype.Descriptor{Type: TypeSecurityHubStandardsSubscription, Service: "securityhub"})
+	registerType(restype.Descriptor{Type: TypeSecurityHubActionTarget, Service: "securityhub"})
+	registerType(restype.Descriptor{Type: TypeSecurityHubMember, Service: "securityhub"})
 	registerType(restype.Descriptor{Type: TypeSecurityHubAggregatorV2, Service: "securityhub"})
 	registerType(restype.Descriptor{Type: TypeSecurityHubAutomationRule, Service: "securityhub"})
 	registerType(restype.Descriptor{Type: TypeSecurityHubAutomationRuleV2, Service: "securityhub"})
@@ -49,6 +52,8 @@ type securityhubAPI interface {
 	ListConfigurationPolicyAssociations(context.Context, *securityhub.ListConfigurationPolicyAssociationsInput, ...func(*securityhub.Options)) (*securityhub.ListConfigurationPolicyAssociationsOutput, error)
 	ListSecurityControlDefinitions(context.Context, *securityhub.ListSecurityControlDefinitionsInput, ...func(*securityhub.Options)) (*securityhub.ListSecurityControlDefinitionsOutput, error)
 	DescribeStandards(context.Context, *securityhub.DescribeStandardsInput, ...func(*securityhub.Options)) (*securityhub.DescribeStandardsOutput, error)
+	DescribeActionTargets(context.Context, *securityhub.DescribeActionTargetsInput, ...func(*securityhub.Options)) (*securityhub.DescribeActionTargetsOutput, error)
+	ListMembers(context.Context, *securityhub.ListMembersInput, ...func(*securityhub.Options)) (*securityhub.ListMembersOutput, error)
 }
 
 // scanSecurityHub discovers the per-region hub, enabled standards, imported
@@ -98,6 +103,24 @@ func scanSecurityHub(ctx context.Context, acct *account, region string, st *stor
 
 	{
 		t, i, ferr := scanSecurityHubExtended(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanSecurityHubActionTargets(ctx, client, acct, region, hubARN, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanSecurityHubMembers(ctx, client, acct, region, hubARN, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
@@ -284,6 +307,114 @@ func scanSecurityHubProducts(ctx context.Context, client securityhubAPI, acct *a
 		return 0, 0, nil
 	}
 	n, uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "product subscriptions")
+	if uerr != nil {
+		return 0, 0, uerr
+	}
+	return len(batch), n, nil
+}
+
+// scanSecurityHubActionTargets stores the custom actions that send findings to
+// EventBridge. A denial, or the hub found disabled, partway through pagination
+// keeps the pages already read.
+func scanSecurityHubActionTargets(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := securityhub.NewDescribeActionTargetsPaginator(client, &securityhub.DescribeActionTargetsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "securityhub:DescribeActionTargets", acct.ID, region, perr)
+				break
+			}
+			if isSecurityHubNotEnabled(perr) {
+				break
+			}
+			return 0, 0, fmt.Errorf("securityhub:DescribeActionTargets: %w", perr)
+		}
+		for _, a := range out.ActionTargets {
+			arn := sv(a.ActionTargetArn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSecurityHubActionTarget,
+				NativeID:       arn,
+				Name:           a.Name,
+				Region:         &region,
+				AttributesJSON: mustJSON(a),
+				DiscoveredBy:   scanID,
+			})
+		}
+	}
+	if len(batch) == 0 {
+		return 0, 0, nil
+	}
+	n, uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "action targets")
+	if uerr != nil {
+		return 0, 0, uerr
+	}
+	return len(batch), n, nil
+}
+
+// securityHubMemberNativeID keys a member account under the administrator's
+// hub: a member has no ARN, only its AccountId. Same shape as
+// detectiveMemberNativeID.
+func securityHubMemberNativeID(hubARN, memberAccountID string) string {
+	return hubARN + "/member/" + memberAccountID
+}
+
+// scanSecurityHubMembers stores the member accounts of this administrator's
+// hub. The default OnlyAssociated=true returns only Enabled members;
+// OnlyAssociated=false returns every existing member, so members the
+// administrator added or invited but that have not accepted are stored too,
+// with MemberStatus as Status. Phase 1 already returns markServiceDisabled
+// when the hub is not enabled, so the not-enabled skip here only covers a hub
+// disabled mid-scan. A denial or that skip partway through pagination keeps
+// the pages already read.
+func scanSecurityHubMembers(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := securityhub.NewListMembersPaginator(client, &securityhub.ListMembersInput{OnlyAssociated: sdkaws.Bool(false)})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "securityhub:ListMembers", acct.ID, region, perr)
+				break
+			}
+			if isSecurityHubNotEnabled(perr) {
+				break
+			}
+			return 0, 0, fmt.Errorf("securityhub:ListMembers: %w", perr)
+		}
+		for _, m := range out.Members {
+			memberAcct := sv(m.AccountId)
+			if memberAcct == "" {
+				continue
+			}
+			r := &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSecurityHubMember,
+				NativeID:       securityHubMemberNativeID(hubARN, memberAcct),
+				Name:           &memberAcct,
+				Region:         &region,
+				AttributesJSON: mustJSON(m),
+				DiscoveredBy:   scanID,
+			}
+			if status := sv(m.MemberStatus); status != "" {
+				r.Status = &status
+			}
+			batch = append(batch, r)
+		}
+	}
+	if len(batch) == 0 {
+		return 0, 0, nil
+	}
+	n, uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "members")
 	if uerr != nil {
 		return 0, 0, uerr
 	}

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.5% (1785/3336 listable) · depth0 67.8% · depth1 32.3% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.6% (1787/3336 listable) · depth0 67.9% · depth1 32.3% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,9 +9,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1015 | 206 | 83.1 |
-| child-uncatalogued | 170 | 847 | 16.7 |
+| child-uncatalogued | 171 | 846 | 16.8 |
 | smithy-resource | 417 | 145 | 74.2 |
-| element-written | 152 | 264 | 36.5 |
+| element-written | 153 | 263 | 36.8 |
 | element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
 
@@ -71,7 +71,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ivs | 11 | 8 | 57.9 |
 | mobiletargeting | 3 | 8 | 27.3 |
 | proton | 11 | 8 | 57.9 |
-| securityhub | 9 | 8 | 52.9 |
 | workdocs | 0 | 8 | 0.0 |
 | appstream | 14 | 7 | 66.7 |
 | backup | 12 | 7 | 63.2 |
@@ -97,6 +96,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | redshift | 21 | 6 | 77.8 |
 | rekognition | 4 | 6 | 40.0 |
 | s3 | 14 | 6 | 70.0 |
+| securityhub | 11 | 6 | 64.7 |
 | sms-voice | 11 | 6 | 64.7 |
 | ssm-contacts | 3 | 6 | 33.3 |
 | wickr | 0 | 6 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1551)
+### Uncovered (listable, no scanner) (1549)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1688,10 +1688,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securityagent | securityagent/threatmodel | 1 |  | child-uncatalogued | securityagent:ListThreatModels |
 | securityagent | securityagent/threatmodeljob | 1 |  | child-uncatalogued | securityagent:BatchGetThreatModelJobs, securityagent:ListThreatModelJobs |
 | securityagent | securityagent/threatmodeljobtask | 1 |  | child-uncatalogued | securityagent:ListThreatModelJobTasks |
-| securityhub | securityhub/actiontarget | 0 |  | element-written | securityhub:DescribeActionTargets |
 | securityhub | securityhub/finding | 0 |  | element-written | securityhub:GetFindings, securityhub:GetFindingsV2 |
 | securityhub | securityhub/findinghistory | 1 |  | child-uncatalogued | securityhub:GetFindingHistory |
-| securityhub | securityhub/member | 0 |  | child-uncatalogued | securityhub:GetMembers, securityhub:ListMembers |
 | securityhub | securityhub/product | 0 |  | sr-resource | securityhub:DescribeProducts, securityhub:DescribeProductsV2 |
 | securityhub | securityhub/resource | 0 |  | element-written | securityhub:GetResourcesV2 |
 | securityhub | securityhub/standardscontrol | 1 |  | child-uncatalogued | securityhub:DescribeStandardsControls |

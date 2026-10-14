@@ -819,6 +819,8 @@ const (
 	TypeSecurityHubInsight               = "aws:securityhub:insight"
 	TypeSecurityHubStandardsSubscription = "aws:securityhub:standards-subscription"
 	TypeSecurityHubProductSubscription   = "aws:securityhub:product-subscription"
+	TypeSecurityHubActionTarget          = "aws:securityhub:action-target"
+	TypeSecurityHubMember                = "aws:securityhub:member"
 	// SecurityHub — extended (securityhub_extended_scanners.go)
 	TypeSecurityHubAggregatorV2              = "aws:securityhub:aggregator-v2"
 	TypeSecurityHubAutomationRule            = "aws:securityhub:automation-rule"

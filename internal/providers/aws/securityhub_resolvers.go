@@ -1,6 +1,8 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,6 +17,68 @@ func init() {
 		EdgeDecl{TypeSecurityHubProductSubscription, TypeConfigRecorder, store.RelUses},
 		EdgeDecl{TypeSecurityHubProductSubscription, TypeMacieSession, store.RelUses},
 	)
+	registerResolver(
+		noopSecurityHubHierarchy,
+		EdgeDecl{TypeSecurityHubHub, TypeSecurityHubInsight, store.RelContains},
+		EdgeDecl{TypeSecurityHubHub, TypeSecurityHubStandardsSubscription, store.RelContains},
+		EdgeDecl{TypeSecurityHubHub, TypeSecurityHubProductSubscription, store.RelContains},
+		EdgeDecl{TypeSecurityHubHub, TypeSecurityHubActionTarget, store.RelContains},
+		EdgeDecl{TypeSecurityHubHub, TypeSecurityHubMember, store.RelContains},
+	)
+	registerResolver(
+		resolveSecurityHubMemberOrgAccount,
+		EdgeDecl{TypeSecurityHubMember, TypeOrganizationsAccount, store.RelAttachedTo},
+	)
+}
+
+// noopSecurityHubHierarchy only carries EdgeDecl metadata: the scanner records
+// a hub→child contains pair for every child type upsertSecurityHubChildren
+// stores, itself.
+func noopSecurityHubHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
+// resolveSecurityHubMemberOrgAccount emits an attached-to edge from each
+// Security Hub member row to its Organizations account when the org tree was
+// scanned; with no org tree it emits nothing. A row whose attributes do not
+// parse is reported in the returned error after the remaining rows are wired.
+func resolveSecurityHubMemberOrgAccount(acct *account, st *store.Store) error {
+	members, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeSecurityHubMember}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(members) == 0 {
+		return nil
+	}
+	orgArnByID, _, err := loadOrgTargetIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	if len(orgArnByID) == 0 {
+		return nil
+	}
+	var bad []error
+	for _, m := range members {
+		var attrs struct {
+			AccountID *string `json:"AccountId"`
+		}
+		if err := json.Unmarshal([]byte(m.AttributesJSON), &attrs); err != nil {
+			bad = append(bad, fmt.Errorf("securityhub member %s attributes: %w", m.NativeID, err))
+			continue
+		}
+		orgARN, ok := orgArnByID[sv(attrs.AccountID)]
+		if !ok {
+			continue
+		}
+		orgID := store.ResourceID("aws", acct.ID, orgARN)
+		if err := st.UpsertRelationship(m.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert securityhub member→org account: %w", err)
+		}
+	}
+	return errors.Join(bad...)
 }
 
 // resolveSecurityHubProductSubscriptions emits a uses edge from each Security
