@@ -364,6 +364,8 @@ const (
 	TypeEKSNodegroup              = "aws:eks:nodegroup"
 	TypeEKSPodIdentityAssociation = "aws:eks:pod-identity-association"
 	TypeEKSAnywhereSubscription   = "aws:eks:eks-anywhere-subscription"
+	TypeEKSAssociatedAccessPolicy = "aws:eks:associated-access-policy"
+	TypeEKSCertificateAuthority   = "aws:eks:certificate-authority"
 
 	TypeElastiCacheReservedInstance        = "aws:elasticache:reserved-instance"
 	TypeElastiCacheServerlessCacheSnapshot = "aws:elasticache:serverlesscachesnapshot"

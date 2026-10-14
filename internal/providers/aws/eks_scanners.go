@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -18,6 +19,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEKSIdentityProviderConfig, Service: "eks"})
 	registerType(restype.Descriptor{Type: TypeEKSNodegroup, Service: "eks"})
 	registerType(restype.Descriptor{Type: TypeEKSPodIdentityAssociation, Service: "eks"})
+	registerType(restype.Descriptor{Type: TypeEKSAssociatedAccessPolicy, Service: "eks"})
+	registerType(restype.Descriptor{Type: TypeEKSCertificateAuthority, Service: "eks"})
 	registerService(serviceEntry{
 		name: "aws:eks",
 		fn:   scanEKS,
@@ -33,35 +36,53 @@ type eksAPI interface {
 
 // scanEKS discovers EKS clusters in one region. ListClusters returns names
 // only; clusters are described in parallel to avoid N+1 sequential API calls.
+//
+// Phases run in order and stop at the first hard error. The associated access
+// policies and certificate authorities run after every pre-existing phase, so
+// their failure cannot cost the older types; the certificate-authority API is
+// the newest, so it runs last.
 func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := eks.NewFromConfig(acct.cfg, func(o *eks.Options) { o.Region = region })
-	t, i, ferr := scanEKSClusters(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
+	var (
+		clusters []childParent
+		entries  []eksAccessEntryRef
+	)
+	for _, phase := range []func() (int, int, error){
+		func() (t, i int, err error) {
+			t, i, clusters, err = scanEKSClusters(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
+		func() (t, i int, err error) {
+			t, i, entries, err = scanEKSExtended(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
+		func() (int, int, error) { return scanEKSAnywhereSubscriptions(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanEKSAssociatedAccessPolicies(ctx, client, acct, region, st, scanID, entries)
+		},
+		func() (int, int, error) {
+			return scanEKSCertificateAuthorities(ctx, client, acct, region, st, scanID, clusters)
+		},
+	} {
+		t, i, perr := phase()
+		if perr != nil {
+			return total, inserted, perr
+		}
+		total += t
+		inserted += i
 	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanEKSExtended(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanEKSAnywhereSubscriptions(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
 	return total, inserted, nil
 }
 
-// scanEKSClusters holds the testable scan body.
-func scanEKSClusters(ctx context.Context, client eksAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanEKSClusters holds the testable scan body. It also returns the clusters it
+// stored, so a cluster whose describe was denied gets no child phase.
+func scanEKSClusters(ctx context.Context, client eksAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+	var (
+		mu     sync.Mutex
+		stored []childParent
+	)
 	p := eks.NewListClustersPaginator(client, &eks.ListClustersInput{})
-	return pageScanConcurrent(ctx, "eks:ListClusters", acct, region, st,
+	total, inserted, err := pageScanConcurrent(ctx, "eks:ListClusters", acct, region, st,
 		p.HasMorePages,
 		func(c context.Context) (*eks.ListClustersOutput, error) { return p.NextPage(c) },
 		func(o *eks.ListClustersOutput) []string { return o.Clusters },
@@ -91,6 +112,13 @@ func scanEKSClusters(ctx context.Context, client eksAPI, acct *account, region s
 				s := mustJSON(c.Tags)
 				r.TagsJSON = &s
 			}
+			mu.Lock()
+			stored = append(stored, childParent{id: name, arn: r.NativeID})
+			mu.Unlock()
 			return r, nil
 		}, 0)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	return total, inserted, stored, nil
 }

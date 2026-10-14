@@ -27,23 +27,34 @@ func eksChildARN(region, acct, kind, cluster, key string) string {
 	return fmt.Sprintf("arn:aws:eks:%s:%s:%s/%s/%s", region, acct, kind, cluster, key)
 }
 
-func scanEKSExtended(ctx context.Context, client eksExtAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func eksClusterARN(region, acct, name string) string {
+	return fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, acct, name)
+}
+
+// scanEKSExtended also returns the access entries it stored, for the child
+// phase scanEKS runs after every existing phase.
+func scanEKSExtended(ctx context.Context, client eksExtAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, entries []eksAccessEntryRef, err error) {
 	var clusterNames []string
 	pager := eks.NewListClustersPaginator(client, &eks.ListClustersInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return total, inserted, nil
+				return total, inserted, nil, nil
 			}
-			return total, inserted, fmt.Errorf("eks:ListClusters(ext): %w", perr)
+			return total, inserted, nil, fmt.Errorf("eks:ListClusters(ext): %w", perr)
 		}
 		clusterNames = append(clusterNames, out.Clusters...)
 	}
 
 	for _, c := range clusterNames {
 		for _, phase := range []func() (int, int, error){
-			func() (int, int, error) { return scanEKSAccessEntries(ctx, client, acct, region, st, scanID, c) },
+			func() (t, i int, err error) {
+				var refs []eksAccessEntryRef
+				t, i, refs, err = scanEKSAccessEntries(ctx, client, acct, region, st, scanID, c)
+				entries = append(entries, refs...)
+				return t, i, err
+			},
 			func() (int, int, error) { return scanEKSAddons(ctx, client, acct, region, st, scanID, c) },
 			func() (int, int, error) { return scanEKSCapabilities(ctx, client, acct, region, st, scanID, c) },
 			func() (int, int, error) { return scanEKSFargateProfiles(ctx, client, acct, region, st, scanID, c) },
@@ -57,33 +68,36 @@ func scanEKSExtended(ctx context.Context, client eksExtAPI, acct *account, regio
 		} {
 			t, i, perr := phase()
 			if perr != nil {
-				return total, inserted, perr
+				return total, inserted, nil, perr
 			}
 			total += t
 			inserted += i
 		}
 	}
-	return total, inserted, nil
+	return total, inserted, entries, nil
 }
 
-func scanEKSAccessEntries(ctx context.Context, client eksExtAPI, acct *account, region string, st *store.Store, scanID, cluster string) (int, int, error) {
+// scanEKSAccessEntries also returns the access entries it stored.
+func scanEKSAccessEntries(ctx context.Context, client eksExtAPI, acct *account, region string, st *store.Store, scanID, cluster string) (int, int, []eksAccessEntryRef, error) {
 	cn := cluster
 	pager := eks.NewListAccessEntriesPaginator(client, &eks.ListAccessEntriesInput{ClusterName: &cn})
 	var batch []*store.Resource
+	var refs []eksAccessEntryRef
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "eks:ListAccessEntries", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, 0, nil, nil
 			}
-			return 0, 0, fmt.Errorf("eks:ListAccessEntries: %w", perr)
+			return 0, 0, nil, fmt.Errorf("eks:ListAccessEntries: %w", perr)
 		}
 		for _, principalARN := range out.AccessEntries {
 			if principalARN == "" {
 				continue
 			}
 			arn := eksChildARN(region, acct.ID, "access-entry", cluster, principalARN)
+			refs = append(refs, eksAccessEntryRef{cluster: cluster, principalARN: principalARN, nativeID: arn})
 			label := principalARN
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -92,7 +106,11 @@ func scanEKSAccessEntries(ctx context.Context, client eksExtAPI, acct *account, 
 			})
 		}
 	}
-	return upsertBatch(st, batch, "eks access-entries")
+	total, inserted, err := upsertBatch(st, batch, "eks access-entries")
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	return total, inserted, refs, nil
 }
 
 func scanEKSAddons(ctx context.Context, client eksExtAPI, acct *account, region string, st *store.Store, scanID, cluster string) (int, int, error) {

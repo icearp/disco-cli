@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.6% (1787/3336 listable) · depth0 67.9% · depth1 32.3% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.6% (1789/3336 listable) · depth0 67.9% · depth1 32.4% · depth2 26.1% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1015 | 206 | 83.1 |
-| child-uncatalogued | 171 | 846 | 16.8 |
+| child-uncatalogued | 173 | 844 | 17.0 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 153 | 263 | 36.8 |
 | element-arn | 27 | 79 | 25.5 |
@@ -87,7 +87,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | autoscaling | 6 | 6 | 50.0 |
 | cloudtrail | 4 | 6 | 40.0 |
 | drs | 8 | 6 | 57.1 |
-| eks | 9 | 6 | 60.0 |
 | forecast | 8 | 6 | 57.1 |
 | iam | 17 | 6 | 73.9 |
 | lookoutequipment | 5 | 6 | 45.5 |
@@ -135,6 +134,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | controltower | 3 | 4 | 42.9 |
 | dataexchange | 3 | 4 | 42.9 |
 | dynamodb | 4 | 4 | 50.0 |
+| eks | 11 | 4 | 73.3 |
 | elasticbeanstalk | 4 | 4 | 50.0 |
 | fis | 2 | 4 | 33.3 |
 | frauddetector | 12 | 4 | 75.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1549)
+### Uncovered (listable, no scanner) (1547)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -967,8 +967,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ecs | ecs/servicerevision | 2 |  | smithy-resource | ecs:DescribeServiceRevisions |
 | eks | eks/accesspolicy | 0 |  | sr-resource | eks:ListAccessPolicies |
 | eks | eks/addonversion | 0 |  | element-written | eks:DescribeAddonVersions |
-| eks | eks/associatedaccesspolicy | 2 |  | child-uncatalogued | eks:ListAssociatedAccessPolicies |
-| eks | eks/certificateauthority | 1 |  | child-uncatalogued | eks:DescribeCertificateAuthority, eks:ListCertificateAuthorities |
 | eks | eks/clusterversion | 0 |  | element-written | eks:DescribeClusterVersions |
 | eks | eks/insight | 1 |  | child-uncatalogued | eks:DescribeInsight, eks:ListInsights |
 | elasticache | elasticache/cacheparameter | 1 |  | child-uncatalogued | elasticache:DescribeCacheParameters, elasticache:DescribeEngineDefaultParameters |

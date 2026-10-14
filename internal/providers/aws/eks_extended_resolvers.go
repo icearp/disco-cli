@@ -19,6 +19,19 @@ func init() {
 		EdgeDecl{TypeEKSNodegroup, TypeEKSCluster, store.RelAttachedTo},
 		EdgeDecl{TypeEKSPodIdentityAssociation, TypeEKSCluster, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopEKSHierarchy,
+		EdgeDecl{TypeEKSAccessEntry, TypeEKSAssociatedAccessPolicy, store.RelContains},
+		EdgeDecl{TypeEKSCluster, TypeEKSCertificateAuthority, store.RelContains},
+	)
+}
+
+// noopEKSHierarchy emits nothing: the access-entry → associated-access-policy
+// and cluster → certificate-authority contains edges are written at scan time
+// by childFanOut (scanEKSAssociatedAccessPolicies, scanEKSCertificateAuthorities).
+// It is registered only so those edges are declared to coverage tooling.
+func noopEKSHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // eksClusterNameFromChildARN parses cluster name out of any per-cluster child
@@ -86,8 +99,7 @@ func resolveEKSChildrenToCluster(acct *account, st *store.Store) error {
 			if name == "" {
 				continue
 			}
-			cARN := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", sv(r.Region), acct.ID, name)
-			tgtID := store.ResourceID("aws", acct.ID, cARN)
+			tgtID := store.ResourceID("aws", acct.ID, eksClusterARN(sv(r.Region), acct.ID, name))
 			if !clusterSet[tgtID] {
 				continue
 			}
