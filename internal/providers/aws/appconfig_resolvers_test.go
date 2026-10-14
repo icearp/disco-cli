@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	actypes "github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -64,4 +65,66 @@ func TestResolveAppConfigExtensionAssociation(t *testing.T) {
 	}
 	rels, _ := st.RelationshipsFrom(eaID)
 	assertRelationship(t, rels, eaID, extID, store.RelUses)
+}
+
+// An experiment definition is attached to its application and uses its
+// environment and configuration profile. A profile of the same id under
+// another application, and an unscanned environment, get no edge.
+func TestResolveAppConfigExperimentDefinitions(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	const appARN = "arn:aws:appconfig:us-east-1:123456789012:application/a1"
+	appID := upsertTestResource(t, st, "aws", acct.ID, TypeAppConfigApplication, appARN, testRegion, "{}")
+	envID := upsertTestResource(t, st, "aws", acct.ID, TypeAppConfigEnvironment, appARN+"/environment/env1", testRegion, "{}")
+	cpID := upsertTestResource(t, st, "aws", acct.ID, TypeAppConfigConfigurationProfile, appARN+"/configurationprofile/cp1", testRegion, "{}")
+	otherCPID := upsertTestResource(t, st, "aws", acct.ID, TypeAppConfigConfigurationProfile,
+		"arn:aws:appconfig:us-east-1:123456789012:application/a2/configurationprofile/cp1", testRegion, "{}")
+
+	linked := mustJSON(actypes.ExperimentDefinitionSummary{
+		ApplicationId: ptrStr("a1"), Id: ptrStr("x1"), EnvironmentId: ptrStr("env1"), ConfigurationProfileId: ptrStr("cp1"),
+	})
+	x1ID := upsertTestResource(t, st, "aws", acct.ID, TypeAppConfigExperimentDefinition, appARN+"/experimentdefinition/x1", testRegion, linked)
+	unscannedEnv := mustJSON(actypes.ExperimentDefinitionSummary{
+		ApplicationId: ptrStr("a1"), Id: ptrStr("x2"), EnvironmentId: ptrStr("env-gone"),
+	})
+	x2ID := upsertTestResource(t, st, "aws", acct.ID, TypeAppConfigExperimentDefinition, appARN+"/experimentdefinition/x2", testRegion, unscannedEnv)
+
+	if err := resolveAppConfigChildren(acct, st); err != nil {
+		t.Fatalf("resolveAppConfigChildren: %v", err)
+	}
+	if err := resolveAppConfigExperimentDefinitions(acct, st); err != nil {
+		t.Fatalf("resolveAppConfigExperimentDefinitions: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(x1ID)
+	assertRelationship(t, rels, x1ID, appID, store.RelAttachedTo)
+	assertRelationship(t, rels, x1ID, envID, store.RelUses)
+	assertRelationship(t, rels, x1ID, cpID, store.RelUses)
+	if len(rels) != 3 {
+		t.Errorf("x1 edges = %+v, want exactly app, env, profile", rels)
+	}
+	for _, r := range rels {
+		if r.ToID == otherCPID {
+			t.Errorf("x1 linked to a2's profile cp1: %+v", r)
+		}
+	}
+	rels, _ = st.RelationshipsFrom(x2ID)
+	if len(rels) != 1 || rels[0].ToID != appID {
+		t.Errorf("x2 edges = %+v, want only the application", rels)
+	}
+}
+
+func TestResolveAppConfigExperimentDefinitions_NoRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeAppConfigEnvironment,
+		"arn:aws:appconfig:us-east-1:123456789012:application/a1/environment/env1", testRegion, "{}")
+	xID := upsertTestResource(t, st, "aws", acct.ID, TypeAppConfigExperimentDefinition,
+		"arn:aws:appconfig:us-east-1:123456789012:application/a1/experimentdefinition/x1", testRegion, "{}")
+
+	if err := resolveAppConfigExperimentDefinitions(acct, st); err != nil {
+		t.Fatalf("resolveAppConfigExperimentDefinitions: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(xID); len(rels) != 0 {
+		t.Errorf("edges = %+v, want none", rels)
+	}
 }

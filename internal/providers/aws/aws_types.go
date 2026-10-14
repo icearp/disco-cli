@@ -1400,6 +1400,7 @@ const (
 	TypeAppConfigDeployment                 = "aws:appconfig:deployment"
 	TypeAppConfigDeploymentStrategy         = "aws:appconfig:deployment-strategy"
 	TypeAppConfigEnvironment                = "aws:appconfig:environment"
+	TypeAppConfigExperimentDefinition       = "aws:appconfig:experiment-definition"
 	TypeAppConfigExtension                  = "aws:appconfig:extension"
 	TypeAppConfigExtensionAssociation       = "aws:appconfig:extension-association"
 	TypeAppConfigHostedConfigurationVersion = "aws:appconfig:hosted-configuration-version"

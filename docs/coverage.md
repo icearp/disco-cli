@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.1% (1805/3336 listable) · depth0 68.1% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.1% (1806/3336 listable) · depth0 68.1% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1019 | 202 | 83.5 |
+| sr-resource | 1020 | 201 | 83.5 |
 | child-uncatalogued | 184 | 833 | 18.1 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 154 | 262 | 37.0 |
@@ -189,7 +189,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | wafv2 | 6 | 3 | 66.7 |
 | account-access | 0 | 2 | 0.0 |
 | amplify | 5 | 2 | 71.4 |
-| appconfig | 8 | 2 | 80.0 |
 | application-signals | 2 | 2 | 50.0 |
 | apprunner | 6 | 2 | 75.0 |
 | arc-zonal-shift | 1 | 2 | 33.3 |
@@ -246,6 +245,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | acm | 5 | 1 | 83.3 |
 | amplifybackend | 0 | 1 | 0.0 |
 | amplifyuibuilder | 3 | 1 | 75.0 |
+| appconfig | 9 | 1 | 90.0 |
 | appfabric | 4 | 1 | 80.0 |
 | appflow | 3 | 1 | 75.0 |
 | application-autoscaling | 2 | 1 | 66.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1531)
+### Uncovered (listable, no scanner) (1530)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -398,7 +398,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | app-integrations | app-integrations/applicationassociation | 1 |  | sr-resource | app-integrations:ListApplicationAssociations |
 | app-integrations | app-integrations/dataintegrationassociation | 1 |  | sr-resource | app-integrations:ListDataIntegrationAssociations |
 | app-integrations | app-integrations/eventintegrationassociation | 1 |  | sr-resource | app-integrations:ListEventIntegrationAssociations |
-| appconfig | appconfig/experimentdefinition | 0 |  | sr-resource | appconfig:GetExperimentDefinition, appconfig:ListExperimentDefinitions |
 | appconfig | appconfig/experimentrun | 1 |  | sr-resource | appconfig:GetExperimentRun, appconfig:ListExperimentRuns |
 | appfabric | appfabric/useraccesstask | 1 |  | child-uncatalogued | appfabric:BatchGetUserAccessTasks |
 | appflow | appflow/flowexecutionrecord | 1 |  | child-uncatalogued | appflow:DescribeFlowExecutionRecords |

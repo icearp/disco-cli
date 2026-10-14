@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -16,6 +17,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAppConfigDeployment, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigDeploymentStrategy, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigEnvironment, Service: "appconfig"})
+	registerType(restype.Descriptor{Type: TypeAppConfigExperimentDefinition, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigExtension, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigExtensionAssociation, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigHostedConfigurationVersion, Service: "appconfig"})
@@ -31,6 +33,7 @@ type appconfigAPI interface {
 	ListDeployments(context.Context, *appconfig.ListDeploymentsInput, ...func(*appconfig.Options)) (*appconfig.ListDeploymentsOutput, error)
 	ListDeploymentStrategies(context.Context, *appconfig.ListDeploymentStrategiesInput, ...func(*appconfig.Options)) (*appconfig.ListDeploymentStrategiesOutput, error)
 	ListEnvironments(context.Context, *appconfig.ListEnvironmentsInput, ...func(*appconfig.Options)) (*appconfig.ListEnvironmentsOutput, error)
+	ListExperimentDefinitions(context.Context, *appconfig.ListExperimentDefinitionsInput, ...func(*appconfig.Options)) (*appconfig.ListExperimentDefinitionsOutput, error)
 	ListExtensions(context.Context, *appconfig.ListExtensionsInput, ...func(*appconfig.Options)) (*appconfig.ListExtensionsOutput, error)
 	ListExtensionAssociations(context.Context, *appconfig.ListExtensionAssociationsInput, ...func(*appconfig.Options)) (*appconfig.ListExtensionAssociationsOutput, error)
 	ListHostedConfigurationVersions(context.Context, *appconfig.ListHostedConfigurationVersionsInput, ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error)
@@ -120,6 +123,9 @@ func scanAppConfig(ctx context.Context, acct *account, region string, st *store.
 		func() (int, int, error) {
 			return scanACExtensionAssociations(ctx, client, acct, region, st, scanID)
 		},
+		func() (int, int, error) {
+			return scanACExperimentDefinitions(ctx, client, acct, region, st, scanID)
+		},
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -185,7 +191,7 @@ func scanACEnvironments(ctx context.Context, client appconfigAPI, acct *account,
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("%s/environment/%s", app.arn, id)
+			arn := acEnvironmentNativeID(app.arn, id)
 			label := sv(e.Name)
 			if label == "" {
 				label = id
@@ -221,7 +227,7 @@ func scanACConfigurationProfiles(ctx context.Context, client appconfigAPI, acct 
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("%s/configurationprofile/%s", app.arn, id)
+			arn := acProfileNativeID(app.arn, id)
 			label := sv(c.Name)
 			if label == "" {
 				label = id
@@ -396,4 +402,80 @@ func scanACExtensionAssociations(ctx context.Context, client appconfigAPI, acct 
 		}
 	}
 	return upsertBatch(st, batch, "appconfig extension-associations")
+}
+
+// scanACExperimentDefinitions lists every experiment definition in the region
+// with no filter; the op's input has no required member. The newest appconfig
+// API, so it runs last: its failure cannot cost an earlier phase's rows.
+//
+// A summary carries no ARN, so the NativeID is the Service Reference format
+// application/{ApplicationId}/experimentdefinition/{Id}.
+//
+// ListExperimentDefinitions is newer than the appconfig endpoints it shares, so
+// a region may serve appconfig without it. On the first call, the shapes an
+// unrouted operation takes are a sub-feature gap, skipped silently: an
+// UnknownOperationException, the gateway's "Unable to determine
+// service/operation name", or an HTTP 404. ResourceNotFoundException, the op's
+// modeled not-found, is included because an unfiltered list names nothing that
+// could be missing. Once a page has succeeded the op is deployed: a later error
+// of any shape except a denial is returned, after the rows listed so far are
+// upserted.
+func scanACExperimentDefinitions(ctx context.Context, client appconfigAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	const op = "appconfig:ListExperimentDefinitions"
+	pager := appconfig.NewListExperimentDefinitionsPaginator(client, &appconfig.ListExperimentDefinitionsInput{})
+	var batch []*store.Resource
+	var listErr error
+	listed := false
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			switch {
+			case !listed && isACExperimentsNotDeployed(perr):
+				return 0, 0, nil
+			case isAccessDenied(perr):
+				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
+			default:
+				listErr = fmt.Errorf("%s: %w", op, perr)
+			}
+			break
+		}
+		listed = true
+		for _, d := range out.Items {
+			appID, id := sv(d.ApplicationId), sv(d.Id)
+			if appID == "" || id == "" {
+				continue
+			}
+			arn := acARN(region, acct.ID, "application", appID, "experimentdefinition", id)
+			label := sv(d.Name)
+			if label == "" {
+				label = id
+			}
+			r := &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppConfigExperimentDefinition, NativeID: arn,
+				Name: &label, Region: &region, CreatedAt: tp(d.CreatedAt),
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			}
+			if d.Status != "" {
+				status := string(d.Status)
+				r.Status = &status
+			}
+			batch = append(batch, r)
+		}
+	}
+	t, i, uerr := upsertBatch(st, batch, "appconfig experiment-definitions")
+	return t, i, errors.Join(listErr, uerr)
+}
+
+func isACExperimentsNotDeployed(err error) bool {
+	return isAPIErrorCode(err, "UnknownOperationException", "ResourceNotFoundException") ||
+		isServiceNotAvailableInRegion(err) || isHTTP404(err)
+}
+
+func acEnvironmentNativeID(appARN, envID string) string {
+	return appARN + "/environment/" + envID
+}
+
+func acProfileNativeID(appARN, profileID string) string {
+	return appARN + "/configurationprofile/" + profileID
 }

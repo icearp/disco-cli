@@ -18,6 +18,12 @@ func init() {
 		EdgeDecl{TypeAppConfigDeployment, TypeAppConfigEnvironment, store.RelAttachedTo},
 		EdgeDecl{TypeAppConfigHostedConfigurationVersion, TypeAppConfigApplication, store.RelAttachedTo},
 		EdgeDecl{TypeAppConfigHostedConfigurationVersion, TypeAppConfigConfigurationProfile, store.RelAttachedTo},
+		EdgeDecl{TypeAppConfigExperimentDefinition, TypeAppConfigApplication, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveAppConfigExperimentDefinitions,
+		EdgeDecl{TypeAppConfigExperimentDefinition, TypeAppConfigEnvironment, store.RelUses},
+		EdgeDecl{TypeAppConfigExperimentDefinition, TypeAppConfigConfigurationProfile, store.RelUses},
 	)
 	registerResolver(
 		resolveAppConfigExtensionAssociation,
@@ -77,6 +83,7 @@ func resolveAppConfigChildren(acct *account, st *store.Store) error {
 		TypeAppConfigConfigurationProfile,
 		TypeAppConfigDeployment,
 		TypeAppConfigHostedConfigurationVersion,
+		TypeAppConfigExperimentDefinition,
 	}
 	for _, ctype := range directChildren {
 		rows, err := st.ListResources(store.ResourceFilter{
@@ -164,6 +171,61 @@ func resolveAppConfigExtensionAssociation(acct *account, st *store.Store) error 
 		}
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert appconfig ext-assoc→extension: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveAppConfigExperimentDefinitions links each experiment definition to
+// the environment it runs in and the configuration profile holding its flag.
+// Both are named by id within the definition's own application, so their
+// NativeIDs are rebuilt under the application ARN the definition's NativeID
+// starts with.
+func resolveAppConfigExperimentDefinitions(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppConfigExperimentDefinition},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	envSet, err := scannedIDSet(acct, st, TypeAppConfigEnvironment)
+	if err != nil {
+		return err
+	}
+	cpSet, err := scannedIDSet(acct, st, TypeAppConfigConfigurationProfile)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		appARN := appconfigAppARNFromChild(r.NativeID)
+		if appARN == "" {
+			continue
+		}
+		var attrs struct {
+			EnvironmentID          *string `json:"EnvironmentId"`
+			ConfigurationProfileID *string `json:"ConfigurationProfileId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("decode appconfig experiment-definition %s attributes: %w", r.NativeID, err)
+		}
+		for _, ref := range []struct {
+			kind, nativeID string
+			set            map[string]bool
+		}{
+			{"environment", acEnvironmentNativeID(appARN, sv(attrs.EnvironmentID)), envSet},
+			{"configurationprofile", acProfileNativeID(appARN, sv(attrs.ConfigurationProfileID)), cpSet},
+		} {
+			tgtID := store.ResourceID("aws", acct.ID, ref.nativeID)
+			if !ref.set[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert appconfig experiment-definition→%s: %w", ref.kind, err)
+			}
 		}
 	}
 	return nil
