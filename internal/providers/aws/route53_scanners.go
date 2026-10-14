@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
@@ -18,6 +19,8 @@ type route53API interface {
 	ListResourceRecordSets(context.Context, *route53.ListResourceRecordSetsInput, ...func(*route53.Options)) (*route53.ListResourceRecordSetsOutput, error)
 	GetDNSSEC(context.Context, *route53.GetDNSSECInput, ...func(*route53.Options)) (*route53.GetDNSSECOutput, error)
 	ListCidrCollections(context.Context, *route53.ListCidrCollectionsInput, ...func(*route53.Options)) (*route53.ListCidrCollectionsOutput, error)
+	ListCidrLocations(context.Context, *route53.ListCidrLocationsInput, ...func(*route53.Options)) (*route53.ListCidrLocationsOutput, error)
+	ListCidrBlocks(context.Context, *route53.ListCidrBlocksInput, ...func(*route53.Options)) (*route53.ListCidrBlocksOutput, error)
 	ListHealthChecks(context.Context, *route53.ListHealthChecksInput, ...func(*route53.Options)) (*route53.ListHealthChecksOutput, error)
 	ListTagsForResources(context.Context, *route53.ListTagsForResourcesInput, ...func(*route53.Options)) (*route53.ListTagsForResourcesOutput, error)
 	ListReusableDelegationSets(context.Context, *route53.ListReusableDelegationSetsInput, ...func(*route53.Options)) (*route53.ListReusableDelegationSetsOutput, error)
@@ -37,6 +40,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeRoute53QueryLoggingConfig, Service: "route53"})
 	registerType(restype.Descriptor{Type: TypeRoute53TrafficPolicy, Service: "route53"})
 	registerType(restype.Descriptor{Type: TypeRoute53TrafficPolicyInstance, Service: "route53"})
+	registerType(restype.Descriptor{Type: TypeRoute53CIDRLocation, Service: "route53"})
+	registerType(restype.Descriptor{Type: TypeRoute53CIDRBlock, Service: "route53"})
 	registerService(serviceEntry{
 		name:   "aws:route53",
 		global: true,
@@ -55,8 +60,11 @@ type route53ZoneSummary struct {
 }
 
 // scanRoute53 discovers Route53 hosted zones, DNSSEC configs, key-signing keys,
-// record sets, CIDR collections, and health checks. Route53 is a global
-// service — resources aren't tied to any region.
+// record sets, CIDR collections with their locations and blocks, and health
+// checks. Route53 is a global service — resources aren't tied to any region.
+//
+// The CIDR location and block phases run last, so their failure cannot cost
+// any other phase's rows.
 func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := route53.NewFromConfig(acct.cfg, func(o *route53.Options) { o.Region = "us-east-1" })
 
@@ -150,7 +158,7 @@ func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID str
 	}
 
 	// Scan CIDR collections (account-level, not per-zone).
-	t, n, err = scanRoute53CIDRCollections(ctx, client, acct, st, scanID)
+	collections, t, n, err := scanRoute53CIDRCollections(ctx, client, acct, st, scanID)
 	total += t
 	inserted += n
 	if err != nil {
@@ -166,12 +174,21 @@ func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID str
 	}
 
 	// Account-level: reusable delegation sets, query-logging configs, traffic
-	// policies and traffic-policy instances.
+	// policies and traffic-policy instances; then the CIDR collections'
+	// locations and blocks.
+	var locations map[string]bool
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanRoute53DelegationSets(ctx, client, acct, st, scanID) },
 		func() (int, int, error) { return scanRoute53QueryLoggingConfigs(ctx, client, acct, st, scanID) },
 		func() (int, int, error) { return scanRoute53TrafficPolicies(ctx, client, acct, st, scanID) },
 		func() (int, int, error) { return scanRoute53TrafficPolicyInstances(ctx, client, acct, st, scanID) },
+		func() (t, i int, err error) {
+			locations, t, i, err = scanRoute53CIDRLocations(ctx, client, acct, st, scanID, collections)
+			return t, i, err
+		},
+		func() (int, int, error) {
+			return scanRoute53CIDRBlocks(ctx, client, acct, st, scanID, collections, locations)
+		},
 	} {
 		t, n, perr := phase()
 		total += t
@@ -454,22 +471,23 @@ func scanRoute53DNSSEC(
 
 // scanRoute53CIDRCollections pages through all CIDR collections in the account
 // and upserts each as an aws:route53:cidr-collection resource. NativeID is
-// the collection ARN (real, API-provided).
+// the collection ARN (real, API-provided). It returns the stored collections
+// as location and block fan-out parents.
 func scanRoute53CIDRCollections(
 	ctx context.Context,
 	client route53API,
 	acct *account,
 	st *store.Store,
 	scanID string,
-) (total, inserted int, err error) {
+) (parents []childParent, total, inserted int, err error) {
 	pager := route53.NewListCidrCollectionsPaginator(client, &route53.ListCidrCollectionsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53:ListCidrCollections", acct.ID, "global", err)
+				return nil, 0, 0, skipIfAccessDenied(st, "route53:ListCidrCollections", acct.ID, "global", err)
 			}
-			return 0, 0, fmt.Errorf("route53:ListCidrCollections: %w", err)
+			return nil, 0, 0, fmt.Errorf("route53:ListCidrCollections: %w", err)
 		}
 		var batch []*store.Resource
 		for i := range page.CidrCollections {
@@ -490,15 +508,162 @@ func scanRoute53CIDRCollections(
 				AttributesJSON: mustJSON(c),
 				DiscoveredBy:   scanID,
 			})
+			if id := sv(c.Id); id != "" {
+				parents = append(parents, childParent{id: id, arn: arn})
+			}
 		}
 		if len(batch) > 0 {
 			n, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert Route53 CIDR collections: %w", err)
+				return nil, 0, 0, fmt.Errorf("upsert Route53 CIDR collections: %w", err)
 			}
 			total += len(batch)
 			inserted += n
 		}
+	}
+	return parents, total, inserted, nil
+}
+
+// route53CIDRLocationNativeID keys a CIDR location, which has no ARN or id of
+// its own, under its collection's ARN.
+func route53CIDRLocationNativeID(collectionARN, location string) string {
+	return collectionARN + "/location/" + location
+}
+
+// route53CIDRBlockNativeID keys a CIDR block under its location. The CIDR
+// itself contains a '/', but the Route 53 model restricts location names to
+// [0-9A-Za-z_\-*], so the first '/' after "/location/" always ends the
+// location name and the key splits back unambiguously.
+func route53CIDRBlockNativeID(collectionARN, location, cidr string) string {
+	return route53CIDRLocationNativeID(collectionARN, location) + "/cidr/" + cidr
+}
+
+// isNoSuchCidrCollection reports a collection deleted after it was listed.
+func isNoSuchCidrCollection(err error) bool {
+	return isAPIErrorCode(err, "NoSuchCidrCollectionException")
+}
+
+// scanRoute53CIDRLocations lists the locations of each given collection and
+// returns the NativeIDs it stored, so blocks link only to stored locations.
+// Locations get their own list call rather than being derived from the
+// blocks' LocationName: the API docs do not say whether a location can
+// outlive its last block, and a derived list would miss such a location.
+func scanRoute53CIDRLocations(
+	ctx context.Context,
+	client route53API,
+	acct *account,
+	st *store.Store,
+	scanID string,
+	collections []childParent,
+) (map[string]bool, int, int, error) {
+	var mu sync.Mutex
+	stored := map[string]bool{}
+	total, inserted, err := childFanOut(ctx, st, acct, "global", "route53:ListCidrLocations", collections, isNoSuchCidrCollection,
+		func(ctx context.Context, c childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := route53.NewListCidrLocationsPaginator(client, &route53.ListCidrLocationsInput{CollectionId: &c.id})
+			for pager.HasMorePages() {
+				page, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for i := range page.CidrLocations {
+					l := &page.CidrLocations[i]
+					name := sv(l.LocationName)
+					if name == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Region: regionGlobal, Type: TypeRoute53CIDRLocation,
+						NativeID: route53CIDRLocationNativeID(c.arn, name),
+						Name:     &name, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
+					})
+				}
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			for _, r := range rows {
+				stored[r.NativeID] = true
+			}
+			return rows, nil
+		})
+	if err != nil {
+		return nil, total, inserted, err
+	}
+	return stored, total, inserted, nil
+}
+
+// scanRoute53CIDRBlocks lists every block of each given collection without a
+// location filter: one paginated call per collection instead of one per
+// location. Each page is stored as it arrives.
+func scanRoute53CIDRBlocks(
+	ctx context.Context,
+	client route53API,
+	acct *account,
+	st *store.Store,
+	scanID string,
+	collections []childParent,
+	locations map[string]bool,
+) (int, int, error) {
+	return childFanOutStored(ctx, st, acct, "global", "route53:ListCidrBlocks", collections, isNoSuchCidrCollection,
+		func(ctx context.Context, c childParent) (total, inserted int, err error) {
+			pager := route53.NewListCidrBlocksPaginator(client, &route53.ListCidrBlocksInput{CollectionId: &c.id})
+			for pager.HasMorePages() {
+				page, err := pager.NextPage(ctx)
+				if err != nil {
+					return total, inserted, err
+				}
+				t, i, err := upsertRoute53CIDRBlocks(st, acct, scanID, c.arn, page.CidrBlocks, locations)
+				total += t
+				inserted += i
+				if err != nil {
+					return total, inserted, err
+				}
+			}
+			return total, inserted, nil
+		})
+}
+
+// upsertRoute53CIDRBlocks stores one page of a collection's blocks and links
+// each under its location. A block whose location was not stored this scan
+// (ListCidrLocations denied for the collection, or the location created after
+// that call) is linked under its collection instead: a contains row needs both
+// endpoints, and the collection row is always stored before its blocks.
+func upsertRoute53CIDRBlocks(
+	st *store.Store, acct *account, scanID, collectionARN string,
+	blocks []route53types.CidrBlockSummary, locations map[string]bool,
+) (int, int, error) {
+	var (
+		rows  []*store.Resource
+		pairs [][2]string
+	)
+	for i := range blocks {
+		b := &blocks[i]
+		cidr, location := sv(b.CidrBlock), sv(b.LocationName)
+		if cidr == "" || location == "" {
+			continue
+		}
+		nativeID := route53CIDRBlockNativeID(collectionARN, location, cidr)
+		rows = append(rows, &store.Resource{
+			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+			Region: regionGlobal, Type: TypeRoute53CIDRBlock, NativeID: nativeID,
+			Name: &cidr, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+		})
+		parent := route53CIDRLocationNativeID(collectionARN, location)
+		if !locations[parent] {
+			parent = collectionARN
+		}
+		pairs = append(pairs, [2]string{
+			store.ResourceID("aws", acct.ID, nativeID), store.ResourceID("aws", acct.ID, parent),
+		})
+	}
+	total, inserted, err := upsertBatch(st, rows, "route53 cidr-blocks")
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
+		return total, inserted, fmt.Errorf("closure route53 cidr-blocks: %w", err)
 	}
 	return total, inserted, nil
 }

@@ -471,6 +471,8 @@ const (
 	TypeRoute53QueryLoggingConfig    = "aws:route53:query-logging-config"
 	TypeRoute53TrafficPolicy         = "aws:route53:traffic-policy"
 	TypeRoute53TrafficPolicyInstance = "aws:route53:traffic-policy-instance"
+	TypeRoute53CIDRLocation          = "aws:route53:cidr-location"
+	TypeRoute53CIDRBlock             = "aws:route53:cidr-block"
 	// API Gateway v1 (apigateway_scanners.go, apigateway_resolvers.go)
 	TypeAPIGatewayRestAPI               = "aws:apigateway:rest-api"
 	TypeAPIGatewayAccount               = "aws:apigateway:account"

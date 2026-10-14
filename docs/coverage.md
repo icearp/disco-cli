@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.0% (1803/3336 listable) · depth0 68.1% · depth1 33.2% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.1% (1805/3336 listable) · depth0 68.1% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1019 | 202 | 83.5 |
-| child-uncatalogued | 182 | 835 | 17.9 |
+| child-uncatalogued | 184 | 833 | 18.1 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 154 | 262 | 37.0 |
 | element-arn | 27 | 79 | 25.5 |
@@ -178,7 +178,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | organizations | 8 | 3 | 72.7 |
 | partnercentral-benefits | 0 | 3 | 0.0 |
 | partnercentral-channel | 0 | 3 | 0.0 |
-| route53 | 8 | 3 | 72.7 |
 | route53-recovery-readiness | 4 | 3 | 57.1 |
 | route53globalresolver | 7 | 3 | 70.0 |
 | route53resolver | 12 | 3 | 80.0 |
@@ -288,6 +287,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | pricingplanmanager | 0 | 1 | 0.0 |
 | refactor-spaces | 4 | 1 | 80.0 |
 | repostspace | 1 | 1 | 50.0 |
+| route53 | 10 | 1 | 90.9 |
 | route53-recovery-cluster | 0 | 1 | 0.0 |
 | route53-recovery-control-config | 4 | 1 | 80.0 |
 | rtbfabric | 4 | 1 | 80.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1533)
+### Uncovered (listable, no scanner) (1531)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1590,8 +1590,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | resource-groups | resource-groups/groupingstatus | 1 |  | child-uncatalogued | resource-groups:ListGroupingStatuses |
 | resource-groups | resource-groups/resource | 0 |  | element-arn | resource-groups:ListGroupResources, resource-groups:SearchResources |
 | route53 | route53/change | 0 |  | sr-resource | route53:GetChange |
-| route53 | route53/cidrblock | 1 |  | child-uncatalogued | route53:ListCidrBlocks |
-| route53 | route53/cidrlocation | 1 |  | child-uncatalogued | route53:ListCidrLocations |
 | route53-recovery-cluster | route53-recovery-cluster/routingcontrol | 0 |  | element-arn | route53-recovery-cluster:ListRoutingControls |
 | route53-recovery-control-config | route53-recovery-control-config/associatedroute53healthcheck | 1 |  | child-uncatalogued | route53-recovery-control-config:ListAssociatedRoute53HealthChecks |
 | route53-recovery-readiness | route53-recovery-readiness/cellreadinesssummary | 1 |  | child-uncatalogued | route53-recovery-readiness:GetCellReadinessSummary, route53-recovery-readiness:GetRecoveryGroupReadinessSummary |

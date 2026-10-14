@@ -50,6 +50,18 @@ func init() {
 		EdgeDecl{TypeRoute53TrafficPolicyInstance, TypeRoute53HostedZone, store.RelAttachedTo},
 		EdgeDecl{TypeRoute53TrafficPolicyInstance, TypeRoute53TrafficPolicy, store.RelUses},
 	)
+	registerResolver(
+		noopRoute53CIDRHierarchy,
+		EdgeDecl{TypeRoute53CIDRCollection, TypeRoute53CIDRLocation, store.RelContains},
+		EdgeDecl{TypeRoute53CIDRLocation, TypeRoute53CIDRBlock, store.RelContains},
+		EdgeDecl{TypeRoute53CIDRCollection, TypeRoute53CIDRBlock, store.RelContains},
+	)
+}
+
+// noopRoute53CIDRHierarchy only declares the contains edges that
+// scanRoute53CIDRLocations and scanRoute53CIDRBlocks record at scan time.
+func noopRoute53CIDRHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveRoute53QueryLoggingConfig wires each query-logging config to the hosted
