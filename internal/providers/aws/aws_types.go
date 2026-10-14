@@ -156,6 +156,7 @@ const (
 	TypeIoTSecurityProfile           = "aws:iot:security-profile"
 	TypeIoTCustomMetric              = "aws:iot:custom-metric"
 	TypeIoTDimension                 = "aws:iot:dimension"
+	TypeIoTAuditSuppression          = "aws:iot:audit-suppression"
 	// IoT — Jobs (iot_jobs_scanners.go)
 	TypeIoTCommand              = "aws:iot:command"
 	TypeIoTJobTemplate          = "aws:iot:job-template"

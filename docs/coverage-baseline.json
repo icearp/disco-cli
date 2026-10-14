@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 54.70623501199041,
-    "covered": 1825,
-    "uncovered": 1511,
+    "percent": 54.73621103117506,
+    "covered": 1826,
+    "uncovered": 1510,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -889,6 +889,7 @@
       "invoicing/invoiceunit",
       "invoicing/procurementportalpreference",
       "iot/accountauditconfiguration",
+      "iot/auditsuppression",
       "iot/authorizer",
       "iot/billinggroup",
       "iot/cacertificate",
@@ -2624,7 +2625,6 @@
       "invoicing/procurementportalsupplier",
       "iot-jobs-data/pendingjobexecution",
       "iot/auditmitigationactionsexecution",
-      "iot/auditsuppression",
       "iot/commandexecution",
       "iot/effectivepolicy",
       "iot/jobexecution",

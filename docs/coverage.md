@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.7% (1825/3336 listable) · depth0 68.5% · depth1 34.1% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.7% (1826/3336 listable) · depth0 68.5% · depth1 34.1% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1024 | 197 | 83.9 |
 | child-uncatalogued | 196 | 821 | 19.3 |
 | smithy-resource | 420 | 142 | 74.7 |
-| element-written | 154 | 262 | 37.0 |
+| element-written | 155 | 261 | 37.3 |
 | element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
 
@@ -29,9 +29,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bedrock | 27 | 17 | 61.4 |
 | datazone | 19 | 17 | 52.8 |
 | glue | 25 | 17 | 59.5 |
-| iot | 32 | 17 | 65.3 |
 | bedrock-agentcore | 30 | 16 | 65.2 |
 | es | 4 | 16 | 20.0 |
+| iot | 33 | 16 | 67.3 |
 | lex | 8 | 16 | 33.3 |
 | workmail | 1 | 16 | 5.9 |
 | gamelift | 12 | 15 | 44.4 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1511)
+### Uncovered (listable, no scanner) (1510)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1147,7 +1147,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | internetmonitor | internetmonitor/queryresult | 1 |  | child-uncatalogued | internetmonitor:GetQueryResults |
 | invoicing | invoicing/procurementportalsupplier | 0 |  | child-uncatalogued | invoicing:ListProcurementPortalSuppliers |
 | iot | iot/auditmitigationactionsexecution | 0 |  | child-uncatalogued | iot:ListAuditMitigationActionsExecutions |
-| iot | iot/auditsuppression | 0 |  | element-written | iot:DescribeAuditSuppression, iot:ListAuditSuppressions |
 | iot | iot/commandexecution | 0 |  | element-written | iot:GetCommandExecution, iot:ListCommandExecutions |
 | iot | iot/effectivepolicy | 0 |  | element-arn | iot:GetEffectivePolicies |
 | iot | iot/jobexecution | 1 |  | child-uncatalogued | iot:DescribeJobExecution, iot:ListJobExecutionsForJob, iot:ListJobExecutionsForThing |

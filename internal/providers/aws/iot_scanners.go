@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/service/iot"
 	"github.com/icearp/disco-cli/store"
@@ -18,7 +19,7 @@ func init() {
 // scanners concurrently.
 func scanIoT(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := iot.NewFromConfig(acct.cfg, func(o *iot.Options) { o.Region = region })
-	return runScanners(
+	total, inserted, err = runScanners(
 		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanIoTThings(ctx, client, acct, region, st, scanID)
@@ -45,4 +46,9 @@ func scanIoT(ctx context.Context, acct *account, region string, st *store.Store,
 			return scanIoTInventory(ctx, client, acct, region, st, scanID)
 		},
 	)
+	// Later phases run after the families, not as another family: an error
+	// from a family member cancels the shared errgroup context, so a new
+	// phase's failure there would cut the established families short.
+	t, i, serr := scanIoTAuditSuppressions(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + i, errors.Join(err, serr)
 }
