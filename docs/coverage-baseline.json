@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 54.31654676258993,
-    "covered": 1812,
-    "uncovered": 1524,
+    "percent": 54.34652278177458,
+    "covered": 1813,
+    "uncovered": 1523,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1702,6 +1702,7 @@
       "thinclient/device",
       "thinclient/environment",
       "thinclient/softwareset",
+      "timestream-influxdb/dbbackup",
       "timestream-influxdb/dbcluster",
       "timestream-influxdb/dbinstance",
       "timestream-influxdb/dbparametergroup",
@@ -3257,7 +3258,6 @@
       "tagging/resource",
       "tax/supplementaltaxregistration",
       "tax/taxregistration",
-      "timestream-influxdb/dbbackup",
       "timestream/batchloadtask",
       "transcribe/callanalyticsjob",
       "transcribe/medicalscribejob",

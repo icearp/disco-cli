@@ -41,6 +41,18 @@ func init() {
 		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeTimestreamInfluxDBParameterGroup, store.RelUses},
 		EdgeDecl{TypeTimestreamInfluxDBInstance, TypeTimestreamInfluxDBParameterGroup, store.RelUses},
 	)
+	registerResolver(
+		noopTSInfluxBackupHierarchy,
+		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeTimestreamInfluxDBBackup, store.RelContains},
+		EdgeDecl{TypeTimestreamInfluxDBInstance, TypeTimestreamInfluxDBBackup, store.RelContains},
+	)
+}
+
+// noopTSInfluxBackupHierarchy only carries the EdgeDecl metadata for the
+// cluster→backup and instance→backup contains pairs scanTSInfluxBackups
+// records via RecordHierarchyBatch, so coverage tooling sees them as wired.
+func noopTSInfluxBackupHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveTSInfluxParameterGroup wires each Timestream-for-InfluxDB cluster +

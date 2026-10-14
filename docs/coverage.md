@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.3% (1812/3336 listable) · depth0 68.4% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.3% (1813/3336 listable) · depth0 68.5% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 1024 | 197 | 83.9 |
 | child-uncatalogued | 184 | 833 | 18.1 |
-| smithy-resource | 419 | 143 | 74.6 |
+| smithy-resource | 420 | 142 | 74.7 |
 | element-written | 154 | 262 | 37.0 |
 | element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
@@ -299,7 +299,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | swf | 1 | 1 | 50.0 |
 | tagging | 0 | 1 | 0.0 |
 | timestream | 3 | 1 | 75.0 |
-| timestream-influxdb | 3 | 1 | 75.0 |
 | translate | 2 | 1 | 66.7 |
 | waf | 12 | 1 | 92.3 |
 | waf-regional | 13 | 1 | 92.9 |
@@ -352,11 +351,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | supportapp | 1 | 0 | 100.0 |
 | textract | 2 | 0 | 100.0 |
 | thinclient | 3 | 0 | 100.0 |
+| timestream-influxdb | 4 | 0 | 100.0 |
 | tnb | 5 | 0 | 100.0 |
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1524)
+### Uncovered (listable, no scanner) (1523)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1795,7 +1795,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | tax | tax/supplementaltaxregistration | 0 |  | element-written | tax:ListSupplementalTaxRegistrations |
 | tax | tax/taxregistration | 0 |  | element-written | tax:GetTaxRegistration, tax:ListTaxRegistrations |
 | timestream | timestream/batchloadtask | 0 |  | element-created | timestream:DescribeBatchLoadTask, timestream:ListBatchLoadTasks |
-| timestream-influxdb | timestream-influxdb/dbbackup | 0 |  | smithy-resource | timestream-influxdb:GetDbBackup, timestream-influxdb:ListDbBackups |
 | transcribe | transcribe/callanalyticsjob | 0 |  | sr-resource | transcribe:GetCallAnalyticsJob, transcribe:ListCallAnalyticsJobs |
 | transcribe | transcribe/medicalscribejob | 0 |  | sr-resource | transcribe:GetMedicalScribeJob, transcribe:ListMedicalScribeJobs |
 | transcribe | transcribe/medicaltranscriptionjob | 0 |  | sr-resource | transcribe:GetMedicalTranscriptionJob, transcribe:ListMedicalTranscriptionJobs |
