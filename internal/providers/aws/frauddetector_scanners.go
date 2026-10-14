@@ -20,6 +20,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeFraudDetectorModel, Service: "frauddetector"})
 	registerType(restype.Descriptor{Type: TypeFraudDetectorExternalModel, Service: "frauddetector"})
 	registerType(restype.Descriptor{Type: TypeFraudDetectorRule, Service: "frauddetector"})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorDetectorVersion, Service: "frauddetector"})
+	registerType(restype.Descriptor{Type: TypeFraudDetectorModelVersion, Service: "frauddetector"})
 	registerService(serviceEntry{
 		name: "aws:frauddetector",
 		fn:   scanFraudDetector,
@@ -37,6 +39,9 @@ type fraudDetectorAPI interface {
 	GetModels(context.Context, *frauddetector.GetModelsInput, ...func(*frauddetector.Options)) (*frauddetector.GetModelsOutput, error)
 	GetExternalModels(context.Context, *frauddetector.GetExternalModelsInput, ...func(*frauddetector.Options)) (*frauddetector.GetExternalModelsOutput, error)
 	GetRules(context.Context, *frauddetector.GetRulesInput, ...func(*frauddetector.Options)) (*frauddetector.GetRulesOutput, error)
+	DescribeDetector(context.Context, *frauddetector.DescribeDetectorInput, ...func(*frauddetector.Options)) (*frauddetector.DescribeDetectorOutput, error)
+	GetDetectorVersion(context.Context, *frauddetector.GetDetectorVersionInput, ...func(*frauddetector.Options)) (*frauddetector.GetDetectorVersionOutput, error)
+	DescribeModelVersions(context.Context, *frauddetector.DescribeModelVersionsInput, ...func(*frauddetector.Options)) (*frauddetector.DescribeModelVersionsOutput, error)
 }
 
 func scanFraudDetector(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -46,17 +51,31 @@ func scanFraudDetector(ctx context.Context, acct *account, region string, st *st
 		return 0, 0, ferr
 	}
 
+	var (
+		detectors []childParent
+		models    []fdModel
+	)
 	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanFDDetectors(ctx, client, acct, region, st, scanID) },
+		func() (t, i int, err error) {
+			detectors, t, i, err = scanFDDetectors(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (int, int, error) { return scanFDEntityTypes(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFDEventTypes(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFDLabels(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFDLists(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFDOutcomes(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFDVariables(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanFDModels(ctx, client, acct, region, st, scanID) },
+		func() (t, i int, err error) {
+			models, t, i, err = scanFDModels(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (int, int, error) { return scanFDExternalModels(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFDRules(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanFDDetectorVersions(ctx, client, acct, region, st, scanID, detectors)
+		},
+		func() (int, int, error) { return scanFDModelVersions(ctx, client, acct, region, st, scanID, models) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -82,29 +101,37 @@ func gateFraudDetector(ctx context.Context, client fraudDetectorAPI) error {
 	return nil
 }
 
-func scanFDDetectors(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanFDDetectors also returns the detectors it listed, as the parents of
+// scanFDDetectorVersions.
+func scanFDDetectors(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	input := &frauddetector.GetDetectorsInput{}
-	var batch []*store.Resource
+	var (
+		batch   []*store.Resource
+		parents []childParent
+	)
 	for {
 		out, err := client.GetDetectors(ctx, input)
 		if err != nil {
 			if isClosedToNewCustomers(err) {
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "frauddetector:GetDetectors", acct.ID, region, err)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("frauddetector:GetDetectors: %w", err)
+			return nil, 0, 0, fmt.Errorf("frauddetector:GetDetectors: %w", err)
 		}
 		for _, d := range out.Detectors {
 			arn := sv(d.Arn)
 			if arn == "" {
 				continue
 			}
-			label := sv(d.DetectorId)
-			if label == "" {
+			id := sv(d.DetectorId)
+			label := id
+			if id == "" {
 				label = arn
+			} else {
+				parents = append(parents, childParent{id: id, arn: arn})
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -117,7 +144,11 @@ func scanFDDetectors(ctx context.Context, client fraudDetectorAPI, acct *account
 		}
 		input.NextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "frauddetector detectors")
+	total, inserted, err := upsertBatch(st, batch, "frauddetector detectors")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return parents, total, inserted, nil
 }
 
 func scanFDEntityTypes(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.2% (1742/3336 listable) · depth0 66.8% · depth1 30.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.3% (1744/3336 listable) · depth0 66.9% · depth1 30.6% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1003 | 218 | 82.1 |
+| sr-resource | 1005 | 216 | 82.3 |
 | child-uncatalogued | 148 | 869 | 14.6 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
@@ -93,7 +93,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cloudtrail | 4 | 6 | 40.0 |
 | eks | 9 | 6 | 60.0 |
 | forecast | 8 | 6 | 57.1 |
-| frauddetector | 10 | 6 | 62.5 |
 | lookoutequipment | 5 | 6 | 45.5 |
 | medialive | 17 | 6 | 73.9 |
 | personalize | 11 | 6 | 64.7 |
@@ -140,6 +139,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dynamodb | 4 | 4 | 50.0 |
 | elasticbeanstalk | 4 | 4 | 50.0 |
 | fis | 2 | 4 | 33.3 |
+| frauddetector | 12 | 4 | 75.0 |
 | healthlake | 1 | 4 | 20.0 |
 | inspector | 0 | 4 | 0.0 |
 | launchwizard | 1 | 4 | 20.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1594)
+### Uncovered (listable, no scanner) (1592)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1057,10 +1057,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | forecast | forecast/whatifforecastexport | 0 |  | sr-resource | forecast:DescribeWhatIfForecastExport, forecast:ListWhatIfForecastExports |
 | frauddetector | frauddetector/batchimportjob | 0 |  | element-arn | frauddetector:GetBatchImportJobs |
 | frauddetector | frauddetector/batchpredictionjob | 0 |  | element-written | frauddetector:GetBatchPredictionJobs |
-| frauddetector | frauddetector/detectorversion | 0 |  | sr-resource | frauddetector:GetDetectorVersion |
 | frauddetector | frauddetector/eventprediction | 0 |  | child-uncatalogued | frauddetector:GetEventPrediction, frauddetector:ListEventPredictions |
 | frauddetector | frauddetector/eventpredictionmetadata | 1 |  | child-uncatalogued | frauddetector:GetEventPredictionMetadata |
-| frauddetector | frauddetector/modelversion | 0 |  | sr-resource | frauddetector:DescribeModelVersions, frauddetector:GetModelVersion |
 | fsx | fsx/datarepositorytask | 0 |  | element-written | fsx:DescribeDataRepositoryTasks |
 | fsx | fsx/filesystemalias | 1 |  | child-uncatalogued | fsx:DescribeFileSystemAliases |
 | gamelift | gamelift/compute | 1 |  | child-uncatalogued | gamelift:DescribeCompute, gamelift:ListCompute |

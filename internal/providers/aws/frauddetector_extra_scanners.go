@@ -3,8 +3,10 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/frauddetector"
+	frauddetectortypes "github.com/aws/aws-sdk-go-v2/service/frauddetector/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -21,16 +23,26 @@ func fdSoftError(st *store.Store, op, acctID, region string, err error) bool {
 	return false
 }
 
-func scanFDModels(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// fdModel is a model listed by scanFDModels: DescribeModelVersions keys on
+// both its id and its type.
+type fdModel struct {
+	ref       childParent
+	modelType frauddetectortypes.ModelTypeEnum
+}
+
+func scanFDModels(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) ([]fdModel, int, int, error) {
 	input := &frauddetector.GetModelsInput{}
-	var batch []*store.Resource
+	var (
+		batch  []*store.Resource
+		models []fdModel
+	)
 	for {
 		out, err := client.GetModels(ctx, input)
 		if err != nil {
 			if fdSoftError(st, "frauddetector:GetModels", acct.ID, region, err) {
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("frauddetector:GetModels: %w", err)
+			return nil, 0, 0, fmt.Errorf("frauddetector:GetModels: %w", err)
 		}
 		for _, m := range out.Models {
 			arn := sv(m.Arn)
@@ -42,13 +54,20 @@ func scanFDModels(ctx context.Context, client fraudDetectorAPI, acct *account, r
 				Type: TypeFraudDetectorModel, NativeID: arn,
 				Name: m.ModelId, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
 			})
+			if id := sv(m.ModelId); id != "" && m.ModelType != "" {
+				models = append(models, fdModel{ref: childParent{id: id, arn: arn}, modelType: m.ModelType})
+			}
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
 			break
 		}
 		input.NextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "frauddetector models")
+	total, inserted, err := upsertBatch(st, batch, "frauddetector models")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return models, total, inserted, nil
 }
 
 func scanFDExternalModels(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -141,4 +160,108 @@ func fdDetectorIDs(ctx context.Context, client fraudDetectorAPI) ([]string, erro
 		input.NextToken = out.NextToken
 	}
 	return ids, nil
+}
+
+// isFDResourceGone reports a parent or version deleted between its listing and
+// the per-parent call. The closed-to-new-customers shape is not skipped here:
+// gateFraudDetector already ends the scan for a closed account, so an
+// empty-message AccessDenied at this point is a real denial.
+func isFDResourceGone(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException")
+}
+
+func fdChildResource(acct *account, region, scanID, typ, arn, name, status string, attrs any) *store.Resource {
+	r := &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: arn, Region: &region,
+		AttributesJSON: mustJSON(attrs), DiscoveredBy: scanID,
+	}
+	if name != "" {
+		r.Name = &name
+	}
+	if status != "" {
+		r.Status = &status
+	}
+	return r
+}
+
+// scanFDDetectorVersions lists each detector's versions with DescribeDetector,
+// whose summaries carry no ARN, then reads each with GetDetectorVersion for its
+// ARN and its rules, model versions and external model endpoints.
+func scanFDDetectorVersions(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string, detectors []childParent) (int, int, error) {
+	const getOp = "frauddetector:GetDetectorVersion"
+	var getDenied sync.Once
+	return childFanOut(ctx, st, acct, region, "frauddetector:DescribeDetector", detectors, isFDResourceGone,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			input := &frauddetector.DescribeDetectorInput{DetectorId: &p.id}
+			for {
+				out, err := client.DescribeDetector(ctx, input)
+				if err != nil {
+					return nil, err
+				}
+				for _, s := range out.DetectorVersionSummaries {
+					vid := sv(s.DetectorVersionId)
+					if vid == "" {
+						continue
+					}
+					v, err := client.GetDetectorVersion(ctx, &frauddetector.GetDetectorVersionInput{DetectorId: &p.id, DetectorVersionId: &vid})
+					switch {
+					case err == nil:
+					case isFDResourceGone(err):
+						continue
+					case isAccessDenied(err):
+						getDenied.Do(func() { _ = skipIfAccessDenied(st, getOp, acct.ID, region, err) })
+						continue
+					default:
+						return nil, fmt.Errorf("GetDetectorVersion %s: %w", vid, err)
+					}
+					arn := sv(v.Arn)
+					if arn == "" {
+						continue
+					}
+					rows = append(rows, fdChildResource(acct, region, scanID, TypeFraudDetectorDetectorVersion, arn, vid, string(v.Status), v))
+				}
+				// Mirrors the SDK paginators' StopOnDuplicateToken: DescribeDetector
+				// has no paginator, and a repeated token would loop forever.
+				if next := sv(out.NextToken); next == "" || next == sv(input.NextToken) {
+					return rows, nil
+				}
+				input.NextToken = out.NextToken
+			}
+		})
+}
+
+// fdModelVersionsPageSize is DescribeModelVersions' maximum MaxResults (1-10).
+// The paginator sends no MaxResults at all when Limit is 0.
+const fdModelVersionsPageSize = 10
+
+func scanFDModelVersions(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string, models []fdModel) (int, int, error) {
+	parents := make([]childParent, len(models))
+	modelTypes := make(map[string]frauddetectortypes.ModelTypeEnum, len(models))
+	for i, m := range models {
+		parents[i] = m.ref
+		modelTypes[m.ref.arn] = m.modelType
+	}
+	return childFanOut(ctx, st, acct, region, "frauddetector:DescribeModelVersions", parents, isFDResourceGone,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := frauddetector.NewDescribeModelVersionsPaginator(client, &frauddetector.DescribeModelVersionsInput{
+				ModelId: &p.id, ModelType: modelTypes[p.arn],
+			}, func(o *frauddetector.DescribeModelVersionsPaginatorOptions) { o.Limit = fdModelVersionsPageSize })
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, v := range out.ModelVersionDetails {
+					arn := sv(v.Arn)
+					if arn == "" {
+						continue
+					}
+					rows = append(rows, fdChildResource(acct, region, scanID, TypeFraudDetectorModelVersion, arn, sv(v.ModelVersionNumber), sv(v.Status), v))
+				}
+			}
+			return rows, nil
+		})
 }

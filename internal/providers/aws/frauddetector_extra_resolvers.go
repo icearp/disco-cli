@@ -13,6 +13,18 @@ func init() {
 		resolveFraudDetectorRuleRelationships,
 		EdgeDecl{TypeFraudDetectorRule, TypeFraudDetectorDetector, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopFDHierarchy,
+		EdgeDecl{TypeFraudDetectorDetector, TypeFraudDetectorDetectorVersion, store.RelContains},
+		EdgeDecl{TypeFraudDetectorModel, TypeFraudDetectorModelVersion, store.RelContains},
+	)
+}
+
+// noopFDHierarchy only declares the detector->version and model->version
+// contains edges; scanFDDetectorVersions and scanFDModelVersions record them
+// through childFanOut.
+func noopFDHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveFraudDetectorRuleRelationships wires each rule to its detector — the
