@@ -20,6 +20,21 @@ func init() {
 		resolveLexBotRole,
 		EdgeDecl{TypeLexBot, TypeIAMRole, store.RelAssumes},
 	)
+	registerResolver(
+		noopLexDraftHierarchy,
+		EdgeDecl{TypeLexBot, TypeLexBotLocale, store.RelContains},
+		EdgeDecl{TypeLexBotLocale, TypeLexIntent, store.RelContains},
+		EdgeDecl{TypeLexBotLocale, TypeLexSlotType, store.RelContains},
+		EdgeDecl{TypeLexIntent, TypeLexSlot, store.RelContains},
+	)
+}
+
+// noopLexDraftHierarchy only declares the bot→locale→intent→slot and
+// locale→slot-type contains edges, which scanLex records at scan time:
+// bot→locale via upsertContained in scanLexBotLocales, the rest via
+// childFanOut.
+func noopLexDraftHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveLexBotRole wires each Lex V2 bot to its execution IAM role

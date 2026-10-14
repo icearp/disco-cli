@@ -2110,8 +2110,12 @@ const (
 	// Lex (lex_scanners.go); SDK module is lexmodelsv2.
 	TypeLexBot            = "aws:lex:bot"
 	TypeLexBotAlias       = "aws:lex:bot-alias"
+	TypeLexBotLocale      = "aws:lex:bot-locale"
 	TypeLexBotVersion     = "aws:lex:bot-version"
+	TypeLexIntent         = "aws:lex:intent"
 	TypeLexResourcePolicy = "aws:lex:resource-policy"
+	TypeLexSlot           = "aws:lex:slot"
+	TypeLexSlotType       = "aws:lex:slot-type"
 	TypeLexTestSet        = "aws:lex:test-set"
 	// Personalize (personalize_scanners.go).
 	TypePersonalizeDataset           = "aws:personalize:dataset"

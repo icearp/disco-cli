@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.3% (1813/3336 listable) · depth0 68.5% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.5% (1817/3336 listable) · depth0 68.5% · depth1 33.4% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1024 | 197 | 83.9 |
-| child-uncatalogued | 184 | 833 | 18.1 |
+| child-uncatalogued | 188 | 829 | 18.5 |
 | smithy-resource | 420 | 142 | 74.7 |
 | element-written | 154 | 262 | 37.0 |
 | element-arn | 27 | 79 | 25.5 |
@@ -24,7 +24,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm | 11 | 27 | 28.9 |
 | config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
-| lex | 4 | 20 | 16.7 |
 | chime | 11 | 18 | 37.9 |
 | quicksight | 26 | 18 | 59.1 |
 | securityagent | 7 | 18 | 28.0 |
@@ -34,6 +33,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iot | 32 | 17 | 65.3 |
 | bedrock-agentcore | 30 | 16 | 65.2 |
 | es | 4 | 16 | 20.0 |
+| lex | 8 | 16 | 33.3 |
 | workmail | 1 | 16 | 5.9 |
 | gamelift | 12 | 15 | 44.4 |
 | mgn | 10 | 15 | 40.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1523)
+### Uncovered (listable, no scanner) (1519)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1250,20 +1250,16 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | launchwizard | launchwizard/workloaddeploymentpattern | 1 |  | smithy-resource | launchwizard:GetWorkloadDeploymentPattern, launchwizard:ListWorkloadDeploymentPatterns |
 | lex | lex/botaliasreplica | 2 |  | child-uncatalogued | lex:ListBotAliasReplicas |
 | lex | lex/botchannelassociation | 2 |  | child-uncatalogued | lex:GetBotChannelAssociation, lex:GetBotChannelAssociations |
-| lex | lex/botlocale | 2 |  | child-uncatalogued | lex:DescribeBotLocale, lex:ListBotLocales |
 | lex | lex/botrecommendation | 3 |  | child-uncatalogued | lex:DescribeBotRecommendation, lex:ListBotRecommendations |
 | lex | lex/botresourcegeneration | 3 |  | child-uncatalogued | lex:DescribeBotResourceGeneration, lex:ListBotResourceGenerations |
 | lex | lex/customvocabularyitem | 3 |  | child-uncatalogued | lex:ListCustomVocabularyItems |
 | lex | lex/export | 0 |  | element-written | lex:DescribeExport, lex:GetExport, lex:ListExports |
 | lex | lex/import | 0 |  | element-written | lex:DescribeImport, lex:GetImport, lex:ListImports |
-| lex | lex/intent | 3 |  | child-uncatalogued | lex:DescribeIntent, lex:GetIntent, lex:ListIntents |
 | lex | lex/intentpath | 1 |  | child-uncatalogued | lex:ListIntentPaths |
 | lex | lex/intentversion | 4 |  | sr-resource | lex:GetIntentVersions, lex:GetIntents |
 | lex | lex/migration | 0 |  | element-written | lex:GetMigrations |
 | lex | lex/recommendedintent | 4 |  | child-uncatalogued | lex:ListRecommendedIntents |
 | lex | lex/sessionanalyticsdata | 1 |  | child-uncatalogued | lex:ListSessionAnalyticsData |
-| lex | lex/slot | 4 |  | child-uncatalogued | lex:DescribeSlot, lex:ListSlots |
-| lex | lex/slottype | 3 |  | child-uncatalogued | lex:DescribeSlotType, lex:GetSlotType, lex:ListSlotTypes |
 | lex | lex/slottypeversion | 4 |  | sr-resource | lex:GetSlotTypeVersions, lex:GetSlotTypes |
 | lex | lex/testexecution | 0 |  | element-written | lex:DescribeTestExecution, lex:ListTestExecutions |
 | lex | lex/testsetrecord | 1 |  | child-uncatalogued | lex:ListTestSetRecords |
