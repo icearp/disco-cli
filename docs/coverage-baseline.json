@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 53.747002398081534,
-    "covered": 1793,
-    "uncovered": 1543,
+    "percent": 53.776978417266186,
+    "covered": 1794,
+    "uncovered": 1542,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -764,6 +764,7 @@
       "gameliftstreams/application",
       "gameliftstreams/streamgroup",
       "geo/apikey",
+      "geo/geofence",
       "geo/geofencecollection",
       "geo/map",
       "geo/placeindex",
@@ -2502,7 +2503,6 @@
       "geo-places/text",
       "geo/deviceposition",
       "geo/devicepositionhistory",
-      "geo/geofence",
       "geo/geofenceevent",
       "geo/job",
       "glacier/job",

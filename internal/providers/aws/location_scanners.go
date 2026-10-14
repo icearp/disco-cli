@@ -12,6 +12,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeLocationAPIKey, Service: "location"})
 	registerType(restype.Descriptor{Type: TypeLocationGeofenceCollection, Service: "location"})
+	registerType(restype.Descriptor{Type: TypeLocationGeofence, Service: "location"})
 	registerType(restype.Descriptor{Type: TypeLocationMap, Service: "location"})
 	registerType(restype.Descriptor{Type: TypeLocationPlaceIndex, Service: "location"})
 	registerType(restype.Descriptor{Type: TypeLocationRouteCalculator, Service: "location"})
@@ -26,6 +27,7 @@ func init() {
 type locationAPI interface {
 	ListKeys(context.Context, *location.ListKeysInput, ...func(*location.Options)) (*location.ListKeysOutput, error)
 	ListGeofenceCollections(context.Context, *location.ListGeofenceCollectionsInput, ...func(*location.Options)) (*location.ListGeofenceCollectionsOutput, error)
+	ListGeofences(context.Context, *location.ListGeofencesInput, ...func(*location.Options)) (*location.ListGeofencesOutput, error)
 	ListMaps(context.Context, *location.ListMapsInput, ...func(*location.Options)) (*location.ListMapsOutput, error)
 	ListPlaceIndexes(context.Context, *location.ListPlaceIndexesInput, ...func(*location.Options)) (*location.ListPlaceIndexesOutput, error)
 	ListRouteCalculators(context.Context, *location.ListRouteCalculatorsInput, ...func(*location.Options)) (*location.ListRouteCalculatorsOutput, error)
@@ -42,10 +44,12 @@ func locARN(region, acct, kind, name string) string {
 func scanLocation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := location.NewFromConfig(acct.cfg, func(o *location.Options) { o.Region = region })
 
+	var collections []childParent
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanLocationKeys(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanLocationGeofenceCollections(ctx, client, acct, region, st, scanID)
+		func() (t, i int, err error) {
+			collections, t, i, err = scanLocationGeofenceCollections(ctx, client, acct, region, st, scanID)
+			return t, i, err
 		},
 		func() (int, int, error) { return scanLocationMaps(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanLocationPlaceIndexes(ctx, client, acct, region, st, scanID) },
@@ -73,7 +77,9 @@ func scanLocation(ctx context.Context, acct *account, region string, st *store.S
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+
+	t, i, err = scanLocationGeofences(ctx, client, acct, region, st, scanID, collections)
+	return total + t, inserted + i, err
 }
 
 func scanLocationKeys(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -105,17 +111,20 @@ func scanLocationKeys(ctx context.Context, client locationAPI, acct *account, re
 	return upsertBatch(st, batch, "location api-keys")
 }
 
-func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanLocationGeofenceCollections stores the collections and returns them as
+// the parents scanLocationGeofences fans out over.
+func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	pager := location.NewListGeofenceCollectionsPaginator(client, &location.ListGeofenceCollectionsInput{})
 	var batch []*store.Resource
+	var parents []childParent
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "geo:ListGeofenceCollections", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("geo:ListGeofenceCollections: %w", perr)
+			return nil, 0, 0, fmt.Errorf("geo:ListGeofenceCollections: %w", perr)
 		}
 		for _, c := range out.Entries {
 			name := sv(c.CollectionName)
@@ -124,6 +133,7 @@ func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, ac
 			}
 			arn := locARN(region, acct.ID, "geofence-collection", name)
 			label := name
+			parents = append(parents, childParent{id: name, arn: arn})
 			// Enrich via DescribeGeofenceCollection — list summary lacks
 			// KmsKeyId; KMS edge needs Describe body.
 			var attrsJSON string
@@ -140,7 +150,72 @@ func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, ac
 			})
 		}
 	}
-	return upsertBatch(st, batch, "location geofence-collections")
+	t, i, err := upsertBatch(st, batch, "location geofence-collections")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return parents, t, i, nil
+}
+
+// scanLocationGeofences lists the geofences of each collection stored this
+// scan. Geofences have no ARN; the NativeID is
+// {collectionARN}/geofence/{GeofenceId}, unambiguous because the model's
+// patterns let neither a collection name nor a geofence id contain "/".
+//
+// The geometry is stored whole, Geobuf included (base64): it is the geofence's
+// configuration, so a digest or a cut would hide what a diff must show.
+// Polygon and MultiPolygon are capped at 1,000 vertices; only Geobuf (up to
+// 100,000 vertices) makes a row large. Each page is stored as it arrives, so
+// memory holds at most one page (100 rows) per collection, times fanoutMed
+// collections at once, not a whole collection of up to 50,000 geofences.
+//
+// GeofenceProperties is @sensitive in the model but is stored: it is customer
+// metadata (at most 3 short key/value pairs) and carries no credential by
+// contract, and redaction is for credentials.
+//
+// A DELETED geofence has left the system index and is dropped, as omics drops
+// DELETED shares; a DELETING one still exists and is stored.
+func scanLocationGeofences(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, collections []childParent) (int, int, error) {
+	const op = "geo:ListGeofences"
+	return childFanOutStored(ctx, st, acct, region, op, collections, isLocationNotFound,
+		func(ctx context.Context, p childParent) (int, int, error) {
+			var total, inserted int
+			parentID := store.ResourceID("aws", acct.ID, p.arn)
+			pager := location.NewListGeofencesPaginator(client, &location.ListGeofencesInput{CollectionName: &p.id},
+				func(o *location.ListGeofencesPaginatorOptions) { o.Limit = 100 })
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return total, inserted, err
+				}
+				var page []containedChild
+				for _, g := range out.Entries {
+					id := sv(g.GeofenceId)
+					if id == "" || sv(g.Status) == "DELETED" {
+						continue
+					}
+					page = append(page, containedChild{parentID: parentID, row: &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeLocationGeofence, NativeID: p.arn + "/geofence/" + id,
+						Name: &id, Status: nonEmptyPtr(sv(g.Status)), Region: &region,
+						CreatedAt: tp(g.CreateTime), AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+					}})
+				}
+				t, i, err := upsertContained(st, op, page)
+				if err != nil {
+					return total, inserted, err
+				}
+				total += t
+				inserted += i
+			}
+			return total, inserted, nil
+		})
+}
+
+// isLocationNotFound matches a collection deleted between
+// ListGeofenceCollections and ListGeofences.
+func isLocationNotFound(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException")
 }
 
 func scanLocationMaps(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

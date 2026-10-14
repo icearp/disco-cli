@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.7% (1793/3336 listable) · depth0 68.0% · depth1 32.7% · depth2 26.1% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.8% (1794/3336 listable) · depth0 68.0% · depth1 32.8% · depth2 26.1% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1018 | 203 | 83.4 |
-| child-uncatalogued | 174 | 843 | 17.1 |
+| child-uncatalogued | 175 | 842 | 17.2 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 153 | 263 | 36.8 |
 | element-arn | 27 | 79 | 25.5 |
@@ -110,7 +110,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | elasticmapreduce | 7 | 5 | 58.3 |
 | evs | 1 | 5 | 16.7 |
 | finspace-api | 0 | 5 | 0.0 |
-| geo | 7 | 5 | 58.3 |
 | groundstation | 5 | 5 | 50.0 |
 | health | 0 | 5 | 0.0 |
 | iotfleetwise | 7 | 5 | 58.3 |
@@ -137,6 +136,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | elasticbeanstalk | 4 | 4 | 50.0 |
 | fis | 2 | 4 | 33.3 |
 | frauddetector | 12 | 4 | 75.0 |
+| geo | 8 | 4 | 66.7 |
 | healthlake | 1 | 4 | 20.0 |
 | inspector | 0 | 4 | 0.0 |
 | launchwizard | 1 | 4 | 20.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1543)
+### Uncovered (listable, no scanner) (1542)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1057,7 +1057,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | gameliftstreams | gameliftstreams/streamurl | 0 |  | element-written | gameliftstreams:GetStreamUrl, gameliftstreams:ListStreamUrls |
 | geo | geo/deviceposition | 1 |  | child-uncatalogued | geo:GetDevicePosition, geo:ListDevicePositions, geo:VerifyDevicePosition |
 | geo | geo/devicepositionhistory | 1 |  | child-uncatalogued | geo:GetDevicePositionHistory |
-| geo | geo/geofence | 1 |  | child-uncatalogued | geo:GetGeofence, geo:ListGeofences |
 | geo | geo/geofenceevent | 1 |  | child-uncatalogued | geo:ForecastGeofenceEvents |
 | geo | geo/job | 0 |  | smithy-resource | geo:GetJob, geo:ListJobs |
 | geo-places | geo-places/text | 1 |  | child-uncatalogued | geo-places:SearchText |

@@ -1430,6 +1430,7 @@ const (
 	TypeNotificationsManagedNotificationConfiguration          = "aws:notifications:managed-notification-configuration"
 	// Location (location_scanners.go)
 	TypeLocationAPIKey             = "aws:location:api-key"
+	TypeLocationGeofence           = "aws:location:geofence"
 	TypeLocationGeofenceCollection = "aws:location:geofence-collection"
 	TypeLocationMap                = "aws:location:map"
 	TypeLocationPlaceIndex         = "aws:location:place-index"

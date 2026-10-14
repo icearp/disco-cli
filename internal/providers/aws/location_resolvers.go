@@ -16,6 +16,10 @@ func init() {
 		EdgeDecl{TypeLocationTrackerConsumer, TypeLocationGeofenceCollection, store.RelUses},
 	)
 	registerResolver(
+		noopLocationHierarchy,
+		EdgeDecl{TypeLocationGeofenceCollection, TypeLocationGeofence, store.RelContains},
+	)
+	registerResolver(
 		resolveLocationKMSRefs,
 		EdgeDecl{TypeLocationGeofenceCollection, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeLocationTracker, TypeKMSKey, store.RelUses},
@@ -28,6 +32,12 @@ func init() {
 		EdgeDecl{TypeLocationAPIKey, TypeLocationPlaceIndex, store.RelUses},
 		EdgeDecl{TypeLocationAPIKey, TypeLocationRouteCalculator, store.RelUses},
 	)
+}
+
+// noopLocationHierarchy only declares the collection->geofence contains edge;
+// scanLocationGeofences records it through childFanOut.
+func noopLocationHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveLocationAPIKeyResources wires each api-key to the Location resources

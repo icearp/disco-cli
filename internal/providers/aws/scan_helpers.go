@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
@@ -208,6 +209,35 @@ func childFanOut(
 		return 0, 0, err
 	}
 	return upsertContained(st, op, children)
+}
+
+// childFanOutStored is childFanOut for parents whose children are too many or
+// too large to hold until one final upsert: storeChildren runs for each parent
+// concurrently (fanoutMed), writes the children itself (a page at a time,
+// through upsertContained) and returns the counts. A failed parent is dropped
+// or returned per fanOutErrs.keyErr; the rows it stored before failing stay
+// and are counted.
+func childFanOutStored(
+	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
+	isSkip func(error) bool, storeChildren func(context.Context, childParent) (int, int, error),
+) (int, int, error) {
+	var total, inserted atomic.Int64
+	errs := &fanOutErrs{st: st, acct: acct, region: region, op: op, isSkip: isSkip}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(fanoutMed)
+	for _, p := range parents {
+		g.Go(func() error {
+			t, i, err := storeChildren(gctx, p)
+			total.Add(int64(t))
+			inserted.Add(int64(i))
+			if err != nil {
+				return errs.keyErr(p.id, err)
+			}
+			return nil
+		})
+	}
+	err := g.Wait()
+	return int(total.Load()), int(inserted.Load()), err
 }
 
 // describeFanOut runs describe for each key concurrently (fanoutMed) and
