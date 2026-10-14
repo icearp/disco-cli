@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.8% (1760/3336 listable) · depth0 67.3% · depth1 31.0% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.8% (1763/3336 listable) · depth0 67.4% · depth1 31.1% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,11 +9,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1013 | 208 | 83.0 |
-| child-uncatalogued | 155 | 862 | 15.2 |
+| child-uncatalogued | 157 | 860 | 15.4 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 146 | 270 | 35.1 |
 | element-arn | 26 | 80 | 24.5 |
-| element-created | 3 | 11 | 21.4 |
+| element-created | 4 | 10 | 28.6 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
@@ -24,7 +24,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm | 11 | 27 | 28.9 |
 | config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
-| glue | 22 | 20 | 52.4 |
 | lex | 4 | 20 | 16.7 |
 | wellarchitected | 4 | 20 | 16.7 |
 | chime | 11 | 18 | 37.9 |
@@ -32,6 +31,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securityagent | 7 | 18 | 28.0 |
 | bedrock | 27 | 17 | 61.4 |
 | datazone | 19 | 17 | 52.8 |
+| glue | 25 | 17 | 59.5 |
 | iot | 32 | 17 | 65.3 |
 | bedrock-agentcore | 30 | 16 | 65.2 |
 | es | 4 | 16 | 20.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1576)
+### Uncovered (listable, no scanner) (1573)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1082,7 +1082,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | globalaccelerator | globalaccelerator/customroutingportmapping | 1 |  | child-uncatalogued | globalaccelerator:ListCustomRoutingPortMappings |
 | globalaccelerator | globalaccelerator/customroutingportmappingsbydestination | 0 |  | child-uncatalogued | globalaccelerator:ListCustomRoutingPortMappingsByDestination |
 | glue | glue/asset | 0 |  | child-uncatalogued | glue:GetAsset |
-| glue | glue/assettype | 0 |  | child-uncatalogued | glue:GetAssetType, glue:ListAssetTypes |
 | glue | glue/blueprintrun | 1 |  | child-uncatalogued | glue:GetBlueprintRun, glue:GetBlueprintRuns |
 | glue | glue/columnstatisticstaskrun | 0 |  | child-uncatalogued | glue:GetColumnStatisticsTaskRun, glue:GetColumnStatisticsTaskRuns, glue:ListColumnStatisticsTaskRuns |
 | glue | glue/crawl | 1 |  | child-uncatalogued | glue:ListCrawls |
@@ -1090,13 +1089,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | glue | glue/dataqualityresult | 0 |  | element-written | glue:BatchGetDataQualityResult, glue:GetDataQualityResult, glue:ListDataQualityResults |
 | glue | glue/dataqualityrulerecommendationrun | 0 |  | element-written | glue:GetDataQualityRuleRecommendationRun, glue:ListDataQualityRuleRecommendationRuns |
 | glue | glue/dataqualityrulesetevaluationrun | 0 |  | element-written | glue:BatchGetDataQualityRulesetEvaluationRun, glue:GetDataQualityRulesetEvaluationRun, glue:ListDataQualityRulesetEvaluationRuns |
-| glue | glue/glossaryterm | 1 |  | child-uncatalogued | glue:GetGlossaryTerm, glue:ListGlossaryTerms |
 | glue | glue/inboundintegration | 0 |  | element-written | glue:DescribeInboundIntegrations |
 | glue | glue/integrationtableproperty | 0 |  | element-written | glue:GetIntegrationTableProperties, glue:ListIntegrationTableProperties |
 | glue | glue/iterableform | 0 |  | child-uncatalogued | glue:ListIterableForms |
 | glue | glue/jobrun | 1 |  | child-uncatalogued | glue:GetJobRun, glue:GetJobRuns |
 | glue | glue/mltaskrun | 1 |  | child-uncatalogued | glue:GetMLTaskRun, glue:GetMLTaskRuns |
-| glue | glue/resourcepolicy | 0 |  | element-created | glue:GetResourcePolicies, glue:GetResourcePolicy |
 | glue | glue/session | 0 |  | sr-resource | glue:GetSession, glue:ListSessions |
 | glue | glue/statement | 1 |  | child-uncatalogued | glue:GetStatement, glue:ListStatements |
 | glue | glue/tableversion | 1 |  | sr-resource | glue:GetTableVersion, glue:GetTableVersions |

@@ -13,6 +13,16 @@ func init() {
 		resolveGlueUserDefinedFunctionRelationships,
 		EdgeDecl{TypeGlueUserDefinedFunction, TypeGlueDatabase, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopGlueGlossaryHierarchy,
+		EdgeDecl{TypeGlueGlossary, TypeGlueGlossaryTerm, store.RelContains},
+	)
+}
+
+// noopGlueGlossaryHierarchy only declares the glossary -> term contains edge;
+// scanGlueGlossaryTerms records it through childFanOut.
+func noopGlueGlossaryHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveGlueUserDefinedFunctionRelationships wires each UDF to its database —

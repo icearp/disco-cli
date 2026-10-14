@@ -60,14 +60,18 @@ type glueAPI interface {
 	ListUsageProfiles(context.Context, *glue.ListUsageProfilesInput, ...func(*glue.Options)) (*glue.ListUsageProfilesOutput, error)
 	ListBlueprints(context.Context, *glue.ListBlueprintsInput, ...func(*glue.Options)) (*glue.ListBlueprintsOutput, error)
 	GetUserDefinedFunctions(context.Context, *glue.GetUserDefinedFunctionsInput, ...func(*glue.Options)) (*glue.GetUserDefinedFunctionsOutput, error)
+	GetResourcePolicy(context.Context, *glue.GetResourcePolicyInput, ...func(*glue.Options)) (*glue.GetResourcePolicyOutput, error)
+	ListAssetTypes(context.Context, *glue.ListAssetTypesInput, ...func(*glue.Options)) (*glue.ListAssetTypesOutput, error)
+	ListGlossaries(context.Context, *glue.ListGlossariesInput, ...func(*glue.Options)) (*glue.ListGlossariesOutput, error)
+	ListGlossaryTerms(context.Context, *glue.ListGlossaryTermsInput, ...func(*glue.Options)) (*glue.ListGlossaryTermsOutput, error)
 }
 
-// scanGlue discovers Glue Data Catalog databases and tables in one region.
-// Catalog itself is implicit (one per account+region) and not modeled. Two
-// phases run sequentially: GetDatabases (paginator) → per-database GetTables
-// fan-out (errgroup + fanoutMed). Crawlers, jobs, triggers, classifiers, and
-// connections deferred — each adds its own edge sub-tree (role/network refs)
-// warranting separate iterations.
+// scanGlue discovers Glue resources in one region, running its phases one
+// after another. Tables, their partitions and table optimizers, and
+// user-defined functions need a listed database (or table) and are skipped
+// without one; the schema registry, jobs, misc, catalog, blueprint and
+// metadata phases run regardless. A phase error stops the scan and returns
+// the rows counted so far.
 func scanGlue(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := glue.NewFromConfig(acct.cfg, func(o *glue.Options) { o.Region = region })
 
@@ -77,12 +81,9 @@ func scanGlue(ctx context.Context, acct *account, region string, st *store.Store
 	}
 	total += t
 	inserted += i
-	if len(dbNames) == 0 {
-		return total, inserted, nil
-	}
 
 	var tableRefs []glueTableRef
-	{
+	if len(dbNames) > 0 {
 		t, i, refs, ferr := scanGlueTables(ctx, client, acct, region, st, scanID, dbNames)
 		if ferr != nil {
 			return total, inserted, ferr
@@ -157,6 +158,15 @@ func scanGlue(ctx context.Context, acct *account, region string, st *store.Store
 
 	if len(dbNames) > 0 {
 		t, i, ferr := scanGlueUserDefinedFunctions(ctx, client, acct, region, st, scanID, dbNames)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanGlueMetadata(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

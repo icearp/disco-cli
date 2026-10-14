@@ -1707,6 +1707,11 @@ const (
 	TypeGlueUsageProfile                  = "aws:glue:usage-profile"
 	TypeGlueBlueprint                     = "aws:glue:blueprint"
 	TypeGlueUserDefinedFunction           = "aws:glue:user-defined-function"
+	// Glue — Metadata family (glue_metadata_scanners.go)
+	TypeGlueResourcePolicy = "aws:glue:resource-policy"
+	TypeGlueAssetType      = "aws:glue:asset-type"
+	TypeGlueGlossary       = "aws:glue:glossary"
+	TypeGlueGlossaryTerm   = "aws:glue:glossary-term"
 	// Glue — Jobs family (glue_jobs_scanners.go)
 	TypeGlueJob         = "aws:glue:job"
 	TypeGlueTrigger     = "aws:glue:trigger"
