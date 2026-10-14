@@ -714,8 +714,8 @@ github.com/aws/aws-sdk-go-v2/service/kendraranking v1.19.3 h1:Xi8Ra+FMAoxp6/UNE8
 github.com/aws/aws-sdk-go-v2/service/kendraranking v1.19.3/go.mod h1:fEFX9WzSBeXNdn9uB0MMTkq4A+d6r18E3uOGU9hUkWY=
 github.com/aws/aws-sdk-go-v2/service/keyspaces v1.28.3 h1:LwqtQAZVt5Lhfm4FMAkeidRJaT3T5pKK2kITEQWuZ38=
 github.com/aws/aws-sdk-go-v2/service/keyspaces v1.28.3/go.mod h1:L5+XCYlXFOd6cDcgxqw/Oxuw9zkPLjXYeUkYh3Yx/jk=
-github.com/aws/aws-sdk-go-v2/service/kinesis v1.46.3 h1:KvSedZL5QcPT/RYZsOIbGD4bv3e74/9SKq/zZ9Vuwbs=
-github.com/aws/aws-sdk-go-v2/service/kinesis v1.46.3/go.mod h1:mAlmMC6IFSLbFxi9YTUMsNLNzJsR20Wpw8sbiv7eafM=
+github.com/aws/aws-sdk-go-v2/service/kinesis v1.50.0 h1:LYOexT7yKv7z9QCuF0mdX+AgIvVSSj5tKznYpXjUNAQ=
+github.com/aws/aws-sdk-go-v2/service/kinesis v1.50.0/go.mod h1:gp/2Rk1YGkvFyFpFKPGhAbggg3OH6weSNii27yqQu3E=
 github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.41.3 h1:18b1boDx0H8fpIZQygyzNbw9sZMeBvbwNnhlO8yzGHQ=
 github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.41.3/go.mod h1:fhGJf7RUmXWjeHCxTxN20wsLg/C/b8Wcb+ELIQCf9cU=
 github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.36.3 h1:6yaJ5546BLF99vabHBhdDV+Wez6ugrMP6E4jych2ZbI=

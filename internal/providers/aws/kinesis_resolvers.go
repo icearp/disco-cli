@@ -18,6 +18,50 @@ func init() {
 		resolveKinesisStreamConsumerToStream,
 		EdgeDecl{TypeKinesisStreamConsumer, TypeKinesisStream, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveKinesisChannelSourceStreams,
+		EdgeDecl{TypeKinesisChannel, TypeKinesisStream, store.RelUses},
+	)
+}
+
+// resolveKinesisChannelSourceStreams links each channel to the source streams
+// its summary names. The summary does not name the destination bucket or table.
+func resolveKinesisChannelSourceStreams(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKinesisChannel}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	streamSet, err := scannedIDSet(acct, st, TypeKinesisStream)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Streams []struct {
+				StreamARN *string `json:"StreamARN"`
+			} `json:"Streams"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("decode kinesis channel %s attributes: %w", r.NativeID, err)
+		}
+		for _, s := range attrs.Streams {
+			// Matched on ARN only: StreamCreationTimestamp is ignored, so a
+			// recreated stream of the same name is accepted as the source.
+			tgt := store.ResourceID("aws", acct.ID, sv(s.StreamARN))
+			if !streamSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert kinesis channel→stream: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveKinesisStreamConsumerToStream wires each enhanced-fan-out consumer

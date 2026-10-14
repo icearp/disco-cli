@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 54.226618705035975,
-    "covered": 1809,
-    "uncovered": 1527,
+    "percent": 54.256594724220626,
+    "covered": 1810,
+    "uncovered": 1526,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -998,6 +998,7 @@
       "kendra/index",
       "kendra/querysuggestionsblocklist",
       "kendra/thesaurus",
+      "kinesis/channel",
       "kinesis/stream",
       "kinesis/streamconsumer",
       "kinesisanalytics/application",
@@ -2690,7 +2691,6 @@
       "kendra/experienceentity",
       "kendra/groupsolderthanorderingid",
       "kendra/snapshot",
-      "kinesis/channel",
       "kinesis/record",
       "kinesisanalytics/applicationoperation",
       "kinesisanalytics/applicationsnapshot",

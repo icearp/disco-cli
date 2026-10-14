@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.2% (1809/3336 listable) · depth0 68.3% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.3% (1810/3336 listable) · depth0 68.3% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1022 | 199 | 83.7 |
+| sr-resource | 1023 | 198 | 83.8 |
 | child-uncatalogued | 184 | 833 | 18.1 |
 | smithy-resource | 418 | 144 | 74.4 |
 | element-written | 154 | 262 | 37.0 |
@@ -208,7 +208,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | glacier | 1 | 2 | 33.3 |
 | health-agent | 0 | 2 | 0.0 |
 | healthlake | 3 | 2 | 60.0 |
-| kinesis | 2 | 2 | 50.0 |
 | kinesisvideo | 2 | 2 | 50.0 |
 | kms | 4 | 2 | 66.7 |
 | lakeformation | 3 | 2 | 60.0 |
@@ -274,6 +273,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotdeviceadvisor | 1 | 1 | 50.0 |
 | iotsecuredtunneling | 0 | 1 | 0.0 |
 | kafkaconnect | 3 | 1 | 75.0 |
+| kinesis | 3 | 1 | 75.0 |
 | mediaconvert | 3 | 1 | 75.0 |
 | mediapackage | 2 | 1 | 66.7 |
 | mediapackagev2 | 3 | 1 | 75.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1527)
+### Uncovered (listable, no scanner) (1526)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1230,7 +1230,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | kendra | kendra/experienceentity | 2 |  | child-uncatalogued | kendra:ListExperienceEntities |
 | kendra | kendra/groupsolderthanorderingid | 2 |  | child-uncatalogued | kendra:ListGroupsOlderThanOrderingId |
 | kendra | kendra/snapshot | 1 |  | child-uncatalogued | kendra:GetSnapshots |
-| kinesis | kinesis/channel | 0 |  | sr-resource | kinesis:DescribeChannel, kinesis:ListChannels |
 | kinesis | kinesis/record | 1 |  | child-uncatalogued | kinesis:GetRecords |
 | kinesisanalytics | kinesisanalytics/applicationoperation | 1 |  | child-uncatalogued | kinesisanalytics:DescribeApplicationOperation, kinesisanalytics:ListApplicationOperations |
 | kinesisanalytics | kinesisanalytics/applicationsnapshot | 1 |  | child-uncatalogued | kinesisanalytics:DescribeApplicationSnapshot, kinesisanalytics:ListApplicationSnapshots |

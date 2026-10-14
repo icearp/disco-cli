@@ -1211,6 +1211,7 @@ const (
 	// Kinesis extras (kinesis_extended_scanners.go)
 	TypeKinesisStreamConsumer = "aws:kinesis:stream-consumer"
 	TypeKinesisResourcePolicy = "aws:kinesis:resource-policy"
+	TypeKinesisChannel        = "aws:kinesis:channel"
 	// IVSChat (ivschat_scanners.go)
 	TypeIVSChatRoom                 = "aws:ivs-chat:room"
 	TypeIVSChatLoggingConfiguration = "aws:ivs-chat:logging-configuration"

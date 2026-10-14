@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -15,6 +16,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeKinesisStream, Service: "kinesis"})
 	registerType(restype.Descriptor{Type: TypeKinesisStreamConsumer, Service: "kinesis"})
 	registerType(restype.Descriptor{Type: TypeKinesisResourcePolicy, Service: "kinesis"})
+	registerType(restype.Descriptor{Type: TypeKinesisChannel, Service: "kinesis"})
 	registerService(serviceEntry{
 		name: "aws:kinesis",
 		fn:   scanKinesis,
@@ -29,19 +31,30 @@ type kinesisAPI interface {
 	ListTagsForStream(context.Context, *kinesis.ListTagsForStreamInput, ...func(*kinesis.Options)) (*kinesis.ListTagsForStreamOutput, error)
 	ListStreamConsumers(context.Context, *kinesis.ListStreamConsumersInput, ...func(*kinesis.Options)) (*kinesis.ListStreamConsumersOutput, error)
 	GetResourcePolicy(context.Context, *kinesis.GetResourcePolicyInput, ...func(*kinesis.Options)) (*kinesis.GetResourcePolicyOutput, error)
+	ListChannels(context.Context, *kinesis.ListChannelsInput, ...func(*kinesis.Options)) (*kinesis.ListChannelsOutput, error)
 }
 
-// scanKinesis discovers Kinesis Data Streams in one region. ListStreams
-// returns names; DescribeStreamSummary is called concurrently to fetch
-// encryption + metadata without the expensive shard enumeration.
+// scanKinesis discovers Kinesis Data Streams, their enhanced-fan-out consumers,
+// the resource policies on streams and consumers, and channels in one region.
+//
+// The three phases are independent: the extended phase lists the streams
+// itself. Every phase runs whatever another phase returns; the counts are
+// summed and the phase errors joined, so one failing phase never costs
+// another's rows.
 func scanKinesis(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kinesis.NewFromConfig(acct.cfg, func(o *kinesis.Options) { o.Region = region })
-	t, i, ferr := scanKinesisStreams(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return t, i, ferr
+	var errs []error
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanKinesisStreams(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanKinesisExtended(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanKinesisChannels(ctx, client, acct, region, st, scanID) },
+	} {
+		t, i, perr := phase()
+		total += t
+		inserted += i
+		errs = append(errs, perr)
 	}
-	t2, i2, ferr := scanKinesisExtended(ctx, client, acct, region, st, scanID)
-	return t + t2, i + i2, ferr
+	return total, inserted, errors.Join(errs...)
 }
 
 // scanKinesisStreams holds the testable scan body.
