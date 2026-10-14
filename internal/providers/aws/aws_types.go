@@ -186,6 +186,10 @@ const (
 	TypeIAMUserPolicy  = "aws:iam:user-policy"
 	TypeIAMGroupPolicy = "aws:iam:group-policy"
 	TypeIAMAccessKey   = "aws:iam:access-key"
+	// IAM — per-user credentials beside access keys
+	TypeIAMServiceSpecificCredential = "aws:iam:service-specific-credential"
+	TypeIAMSigningCertificate        = "aws:iam:signing-certificate"
+	TypeIAMSSHPublicKey              = "aws:iam:ssh-public-key"
 	// IAM — identity provider and certificate resources
 	TypeIAMInstanceProfile   = "aws:iam:instance-profile"
 	TypeIAMOIDCProvider      = "aws:iam:oidc-provider"

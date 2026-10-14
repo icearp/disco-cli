@@ -2,10 +2,12 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
@@ -33,6 +35,13 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeIAMSAMLProvider, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMServerCertificate, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMVirtualMFADevice, Service: "iam"})
+	// ListServiceSpecificCredentials returns metadata only: the password and API
+	// key appear solely in the Create/Reset response, so there is nothing to redact.
+	registerType(restype.Descriptor{Type: TypeIAMServiceSpecificCredential, Service: "iam"})
+	// CertificateBody is the public X.509 certificate; its private key never
+	// reaches AWS, so the body is kept as the certificate's identity.
+	registerType(restype.Descriptor{Type: TypeIAMSigningCertificate, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMSSHPublicKey, Service: "iam"})
 	registerService(serviceEntry{
 		name:   "aws:iam",
 		global: true,
@@ -60,6 +69,9 @@ type iamAPI interface {
 	GetAccountSummary(context.Context, *iam.GetAccountSummaryInput, ...func(*iam.Options)) (*iam.GetAccountSummaryOutput, error)
 	ListAccountAliases(context.Context, *iam.ListAccountAliasesInput, ...func(*iam.Options)) (*iam.ListAccountAliasesOutput, error)
 	GetAccountPasswordPolicy(context.Context, *iam.GetAccountPasswordPolicyInput, ...func(*iam.Options)) (*iam.GetAccountPasswordPolicyOutput, error)
+	ListServiceSpecificCredentials(context.Context, *iam.ListServiceSpecificCredentialsInput, ...func(*iam.Options)) (*iam.ListServiceSpecificCredentialsOutput, error)
+	ListSigningCertificates(context.Context, *iam.ListSigningCertificatesInput, ...func(*iam.Options)) (*iam.ListSigningCertificatesOutput, error)
+	ListSSHPublicKeys(context.Context, *iam.ListSSHPublicKeysInput, ...func(*iam.Options)) (*iam.ListSSHPublicKeysOutput, error)
 }
 
 // scanIAM discovers all IAM resources. Phase 1 fans out the independent
@@ -73,6 +85,11 @@ type iamAPI interface {
 //     scanIAMServerCertificates, scanIAMVirtualMFADevices: independent APIs.
 //
 // Phase 2: scanIAMAccessKeys (per-user fan-out — needs users in DB).
+//
+// Phase 3: the other per-user credentials (service-specific credentials,
+// signing certificates, SSH public keys). They run after every existing phase,
+// and each runs whatever the others return, so a failure in one costs no other
+// phase its rows.
 //
 // IAM is a global service scanned once per account.
 func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -108,7 +125,22 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 	// Phase 2: scanIAMAccessKeys depends on user list being in the DB.
 	tt, nn, e := scanIAMAccessKeys(ctx, client, acct, st, scanID)
 	add(tt, nn)
-	return int(t.Load()), int(n.Load()), e
+	errs := []error{e}
+
+	users, err := iamScannedUsers(st, acct, scanID)
+	if err != nil {
+		return int(t.Load()), int(n.Load()), errors.Join(e, err)
+	}
+	for _, phase := range []func(context.Context, iamAPI, []childParent, *account, *store.Store, string) (int, int, error){
+		scanIAMServiceSpecificCredentials,
+		scanIAMSigningCertificates,
+		scanIAMSSHPublicKeys,
+	} {
+		tt, nn, e := phase(ctx, client, users, acct, st, scanID)
+		add(tt, nn)
+		errs = append(errs, e)
+	}
+	return int(t.Load()), int(n.Load()), errors.Join(errs...)
 }
 
 // scanIAMAccount upserts the account self-node (aws:iam:account) carrying
@@ -719,4 +751,125 @@ func scanIAMAccessKeys(ctx context.Context, client iamAPI, acct *account, st *st
 		return 0, 0, fmt.Errorf("upsert IAM access keys: %w", err)
 	}
 	return len(batch), n, nil
+}
+
+// iamScannedUsers returns the users this scan stored, keyed by user name for
+// the per-user list ops.
+func iamScannedUsers(st *store.Store, acct *account, scanID string) ([]childParent, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIAMUser},
+		SeenBy: scanID, Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list IAM users for per-user credential scans: %w", err)
+	}
+	users := make([]childParent, len(rows))
+	for i, r := range rows {
+		users[i] = childParent{id: sv(r.Name), arn: r.NativeID}
+	}
+	return users, nil
+}
+
+// isIAMUserGone matches a user deleted between the GAAD pass and its child call.
+func isIAMUserGone(err error) bool {
+	return isAPIErrorCode(err, "NoSuchEntity")
+}
+
+// iamUserChildRow builds a per-user credential row. These credentials carry no
+// ARN, so NativeID is {userARN}/{kind}/{id}, the access-key shape.
+func iamUserChildRow(acct *account, scanID, typ, userARN, kind, id string, status iamtypes.StatusType, created *time.Time, elem any) *store.Resource {
+	return &store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Region:         regionGlobal,
+		Type:           typ,
+		NativeID:       userARN + "/" + kind + "/" + id,
+		Name:           &id,
+		Status:         nonEmptyPtr(string(status)),
+		CreatedAt:      tp(created),
+		AttributesJSON: mustJSON(elem),
+		DiscoveredBy:   scanID,
+	}
+}
+
+// scanIAMServiceSpecificCredentials lists each user's service-specific
+// credentials (CodeCommit, Keyspaces, Bedrock and CloudWatch Logs API keys).
+func scanIAMServiceSpecificCredentials(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
+	return childFanOut(ctx, st, acct, "global", "iam:ListServiceSpecificCredentials", users, isIAMUserGone,
+		func(gctx context.Context, u childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			// Per user, not AllUsers: no live call has confirmed what AllUsers
+			// returns, and if ignored it would silently list only the caller's own.
+			input := &iam.ListServiceSpecificCredentialsInput{UserName: &u.id}
+			for {
+				out, err := client.ListServiceSpecificCredentials(gctx, input)
+				if err != nil {
+					return nil, err
+				}
+				for _, c := range out.ServiceSpecificCredentials {
+					id := sv(c.ServiceSpecificCredentialId)
+					if id == "" {
+						continue
+					}
+					rows = append(rows, iamUserChildRow(acct, scanID, TypeIAMServiceSpecificCredential, u.arn, "service-specific-credential", id, c.Status, c.CreateDate, c))
+				}
+				// The IAM SDK paginators, which this op lacks, stop on an empty
+				// marker; this loop also stops on a repeated one so a misbehaving
+				// page cannot spin.
+				if next := sv(out.Marker); next == "" || next == sv(input.Marker) {
+					return rows, nil
+				}
+				input.Marker = out.Marker
+			}
+		})
+}
+
+// scanIAMSigningCertificates lists each user's X.509 signing certificates.
+func scanIAMSigningCertificates(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
+	return childFanOut(ctx, st, acct, "global", "iam:ListSigningCertificates", users, isIAMUserGone,
+		func(gctx context.Context, u childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := iam.NewListSigningCertificatesPaginator(client, &iam.ListSigningCertificatesInput{UserName: &u.id})
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(gctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, c := range out.Certificates {
+					id := sv(c.CertificateId)
+					if id == "" {
+						continue
+					}
+					rows = append(rows, iamUserChildRow(acct, scanID, TypeIAMSigningCertificate, u.arn, "signing-certificate", id, c.Status, c.UploadDate, c))
+				}
+			}
+			return rows, nil
+		})
+}
+
+// scanIAMSSHPublicKeys lists each user's SSH public keys (CodeCommit). The list
+// element is stored as is: GetSSHPublicKey would add the key body and
+// fingerprint at one more call per key against IAM's low TPS ceiling, and
+// neither is needed to inventory the key or link it to its user.
+func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
+	return childFanOut(ctx, st, acct, "global", "iam:ListSSHPublicKeys", users, isIAMUserGone,
+		func(gctx context.Context, u childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := iam.NewListSSHPublicKeysPaginator(client, &iam.ListSSHPublicKeysInput{UserName: &u.id})
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(gctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, k := range out.SSHPublicKeys {
+					id := sv(k.SSHPublicKeyId)
+					if id == "" {
+						continue
+					}
+					rows = append(rows, iamUserChildRow(acct, scanID, TypeIAMSSHPublicKey, u.arn, "ssh-public-key", id, k.Status, k.UploadDate, k))
+				}
+			}
+			return rows, nil
+		})
 }

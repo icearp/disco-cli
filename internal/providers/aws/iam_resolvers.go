@@ -27,6 +27,12 @@ func init() {
 		EdgeDecl{TypeIAMUser, TypeIAMAccessKey, store.RelContains},
 	)
 	registerResolver(
+		noopIAMUserCredentialHierarchy,
+		EdgeDecl{TypeIAMUser, TypeIAMServiceSpecificCredential, store.RelContains},
+		EdgeDecl{TypeIAMUser, TypeIAMSigningCertificate, store.RelContains},
+		EdgeDecl{TypeIAMUser, TypeIAMSSHPublicKey, store.RelContains},
+	)
+	registerResolver(
 		resolveMFADeviceToUser,
 		EdgeDecl{TypeIAMUser, TypeIAMVirtualMFADevice, store.RelContains},
 	)
@@ -229,6 +235,12 @@ func resolveInlinePolicyParents(acct *account, st *store.Store) error {
 			}
 		}
 	}
+	return nil
+}
+
+// noopIAMUserCredentialHierarchy declares the user → credential contains pairs
+// the per-user credential scanners record through childFanOut.
+func noopIAMUserCredentialHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }
 

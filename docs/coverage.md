@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.4% (1782/3336 listable) · depth0 67.7% · depth1 32.3% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.5% (1785/3336 listable) · depth0 67.8% · depth1 32.3% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1015 | 206 | 83.1 |
 | child-uncatalogued | 170 | 847 | 16.7 |
 | smithy-resource | 417 | 145 | 74.2 |
-| element-written | 149 | 267 | 35.8 |
+| element-written | 152 | 264 | 36.5 |
 | element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
 
@@ -62,7 +62,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | qbusiness | 9 | 10 | 47.4 |
 | storagegateway | 8 | 10 | 44.4 |
 | auditmanager | 3 | 9 | 25.0 |
-| iam | 14 | 9 | 60.9 |
 | license-manager | 6 | 9 | 40.0 |
 | workspaces | 7 | 9 | 43.8 |
 | athena | 5 | 8 | 38.5 |
@@ -91,6 +90,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | drs | 8 | 6 | 57.1 |
 | eks | 9 | 6 | 60.0 |
 | forecast | 8 | 6 | 57.1 |
+| iam | 17 | 6 | 73.9 |
 | lookoutequipment | 5 | 6 | 45.5 |
 | medialive | 17 | 6 | 73.9 |
 | personalize | 11 | 6 | 64.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1554)
+### Uncovered (listable, no scanner) (1551)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1132,9 +1132,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iam | iam/delegationrequest | 0 |  | sr-resource | iam:GetDelegationRequest, iam:ListDelegationRequests |
 | iam | iam/entity | 1 |  | child-uncatalogued | iam:ListEntitiesForPolicy |
 | iam | iam/policyversion | 1 |  | child-uncatalogued | iam:GetPolicyVersion, iam:ListPolicyVersions |
-| iam | iam/servicespecificcredential | 0 |  | element-written | iam:ListServiceSpecificCredentials |
-| iam | iam/signingcertificate | 0 |  | element-written | iam:ListSigningCertificates |
-| iam | iam/sshpublickey | 0 |  | element-written | iam:GetSSHPublicKey, iam:ListSSHPublicKeys |
 | imagebuilder | imagebuilder/componentbuildversion | 0 |  | element-written | imagebuilder:ListComponentBuildVersions |
 | imagebuilder | imagebuilder/imagebuildversion | 0 |  | element-written | imagebuilder:ListImageBuildVersions, imagebuilder:ListImagePipelineImages |
 | imagebuilder | imagebuilder/imagepackage | 1 |  | child-uncatalogued | imagebuilder:ListImagePackages |
