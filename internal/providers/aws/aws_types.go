@@ -581,8 +581,12 @@ const (
 	TypeOrganizationsRoot                   = "aws:organizations:root"
 	TypeOrganizationsResponsibilityTransfer = "aws:organizations:responsibility-transfer"
 	// ACM (acm_scanners.go)
-	TypeACMCertificate = "aws:acm:certificate"
-	TypeACMPrivateCA   = "aws:acm-pca:certificate-authority"
+	TypeACMCertificate                = "aws:acm:certificate"
+	TypeACMPrivateCA                  = "aws:acm-pca:certificate-authority"
+	TypeACMAcmeEndpoint               = "aws:acm:acme-endpoint"
+	TypeACMAcmeExternalAccountBinding = "aws:acm:acme-external-account-binding"
+	TypeACMAcmeAccount                = "aws:acm:acme-account"
+	TypeACMAcmeDomainValidation       = "aws:acm:acme-domain-validation"
 	// Kinesis Data Streams (kinesis_scanners.go)
 	TypeKinesisStream = "aws:kinesis:stream"
 	// Firehose (firehose_scanners.go)

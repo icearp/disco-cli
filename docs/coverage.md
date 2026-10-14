@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.6% (1789/3336 listable) · depth0 67.9% · depth1 32.4% · depth2 26.1% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.7% (1793/3336 listable) · depth0 68.0% · depth1 32.7% · depth2 26.1% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,8 +8,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1015 | 206 | 83.1 |
-| child-uncatalogued | 173 | 844 | 17.0 |
+| sr-resource | 1018 | 203 | 83.4 |
+| child-uncatalogued | 174 | 843 | 17.1 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 153 | 263 | 36.8 |
 | element-arn | 27 | 79 | 25.5 |
@@ -100,7 +100,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm-contacts | 3 | 6 | 33.3 |
 | wickr | 0 | 6 | 0.0 |
 | access-analyzer | 2 | 5 | 28.6 |
-| acm | 1 | 5 | 16.7 |
 | applicationinsights | 1 | 5 | 16.7 |
 | cases | 5 | 5 | 50.0 |
 | ce | 4 | 5 | 44.4 |
@@ -247,6 +246,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | transfer | 8 | 2 | 80.0 |
 | vpc-lattice | 13 | 2 | 86.7 |
 | account | 0 | 1 | 0.0 |
+| acm | 5 | 1 | 83.3 |
 | amplifybackend | 0 | 1 | 0.0 |
 | amplifyuibuilder | 3 | 1 | 75.0 |
 | appfabric | 4 | 1 | 80.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1547)
+### Uncovered (listable, no scanner) (1543)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -368,10 +368,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | account | account/region | 1 |  | child-uncatalogued | account:ListRegions |
 | account-access | account-access/application | 0 |  | smithy-resource | account-access:GetApplication, account-access:ListApplications |
 | account-access | account-access/entitlement | 1 |  | child-uncatalogued | account-access:GetEntitlement, account-access:ListEntitlements |
-| acm | acm/acmeaccount | 1 |  | child-uncatalogued | acm:DescribeAcmeAccount, acm:ListAcmeAccounts |
-| acm | acm/acmedomainvalidation | 1 |  | sr-resource | acm:DescribeAcmeDomainValidation, acm:ListAcmeDomainValidations |
-| acm | acm/acmeendpoint | 0 |  | sr-resource | acm:DescribeAcmeEndpoint, acm:ListAcmeEndpoints |
-| acm | acm/acmeexternalaccountbinding | 1 |  | sr-resource | acm:DescribeAcmeExternalAccountBinding, acm:ListAcmeExternalAccountBindings |
 | acm | acm/certificatedomainvalidation | 1 |  | child-uncatalogued | acm:ListCertificateDomainValidations |
 | aco-automation | aco-automation/account | 0 |  | element-written | aco-automation:ListAccounts |
 | aco-automation | aco-automation/automationevent | 0 |  | element-written | aco-automation:GetAutomationEvent, aco-automation:ListAutomationEvents |
