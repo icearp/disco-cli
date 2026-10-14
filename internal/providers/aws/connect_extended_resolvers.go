@@ -27,6 +27,7 @@ func init() {
 		EdgeDecl{TypeConnectSecurityKey, TypeConnectInstance, store.RelAttachedTo},
 		EdgeDecl{TypeConnectSecurityProfile, TypeConnectInstance, store.RelAttachedTo},
 		EdgeDecl{TypeConnectTaskTemplate, TypeConnectInstance, store.RelAttachedTo},
+		EdgeDecl{TypeConnectTestCase, TypeConnectInstance, store.RelAttachedTo},
 		EdgeDecl{TypeConnectUserHierarchyGroup, TypeConnectInstance, store.RelAttachedTo},
 		EdgeDecl{TypeConnectUserHierarchyStructure, TypeConnectInstance, store.RelAttachedTo},
 		EdgeDecl{TypeConnectView, TypeConnectInstance, store.RelAttachedTo},
@@ -43,9 +44,23 @@ func init() {
 		EdgeDecl{TypeConnectDataTableRecord, TypeConnectDataTable, store.RelAttachedTo},
 	)
 	registerResolver(
+		noopConnectChildrenHierarchy,
+		EdgeDecl{TypeConnectInstance, TypeConnectAttachedFilesConfiguration, store.RelContains},
+		EdgeDecl{TypeConnectHoursOfOperation, TypeConnectHoursOfOperationOverride, store.RelContains},
+		EdgeDecl{TypeConnectIntegrationAssociation, TypeConnectUseCase, store.RelContains},
+		EdgeDecl{TypeConnectEvaluationForm, TypeConnectEvaluationFormVersion, store.RelContains},
+		EdgeDecl{TypeConnectWorkspace, TypeConnectWorkspacePage, store.RelContains},
+	)
+	registerResolver(
 		resolveConnectInstanceServiceRole,
 		EdgeDecl{TypeConnectInstance, TypeIAMRole, store.RelAssumes},
 	)
+}
+
+// noopConnectChildrenHierarchy only declares the contains edges that
+// scanConnectChildren records through childFanOut.
+func noopConnectChildrenHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveConnectInstanceServiceRole wires each Connect instance to its
@@ -127,6 +142,7 @@ func resolveConnectChildrenToInstance(acct *account, st *store.Store) error {
 		TypeConnectSecurityKey,
 		TypeConnectSecurityProfile,
 		TypeConnectTaskTemplate,
+		TypeConnectTestCase,
 		TypeConnectUserHierarchyGroup,
 		TypeConnectUserHierarchyStructure,
 		TypeConnectView,

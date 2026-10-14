@@ -789,6 +789,13 @@ const (
 	TypeConnectDataTable          = "aws:connect:data-table"
 	TypeConnectDataTableAttribute = "aws:connect:data-table-attribute"
 	TypeConnectDataTableRecord    = "aws:connect:data-table-record"
+	// Connect — children (connect_children_scanners.go)
+	TypeConnectTestCase                   = "aws:connect:test-case"
+	TypeConnectAttachedFilesConfiguration = "aws:connect:attached-files-configuration"
+	TypeConnectHoursOfOperationOverride   = "aws:connect:hours-of-operation-override"
+	TypeConnectUseCase                    = "aws:connect:use-case"
+	TypeConnectEvaluationFormVersion      = "aws:connect:evaluation-form-version"
+	TypeConnectWorkspacePage              = "aws:connect:workspace-page"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"

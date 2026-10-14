@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.5% (1751/3336 listable) · depth0 67.1% · depth1 30.9% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.7% (1757/3336 listable) · depth0 67.2% · depth1 31.0% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,8 +8,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1011 | 210 | 82.8 |
-| child-uncatalogued | 149 | 868 | 14.7 |
+| sr-resource | 1012 | 209 | 82.9 |
+| child-uncatalogued | 154 | 863 | 15.1 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
 | element-arn | 26 | 80 | 24.5 |
@@ -18,10 +18,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
 | ec2 | 111 | 85 | 56.6 |
-| connect | 35 | 33 | 51.5 |
 | resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
 | config | 10 | 27 | 27.0 |
+| connect | 41 | 27 | 60.3 |
 | ssm | 11 | 27 | 28.9 |
 | iotsitewise | 13 | 24 | 35.1 |
 | glue | 22 | 20 | 52.4 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1585)
+### Uncovered (listable, no scanner) (1579)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -736,7 +736,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | connect | connect/analyticsdataassociation | 1 |  | child-uncatalogued | connect:ListAnalyticsDataAssociations |
 | connect | connect/analyticsdatalakedataset | 1 |  | child-uncatalogued | connect:ListAnalyticsDataLakeDataSets |
 | connect | connect/associatedcontact | 1 |  | child-uncatalogued | connect:ListAssociatedContacts |
-| connect | connect/attachedfilesconfiguration | 0 |  | child-uncatalogued | connect:DescribeAttachedFilesConfiguration, connect:ListAttachedFilesConfigurations |
 | connect | connect/childhour | 2 |  | child-uncatalogued | connect:ListChildHoursOfOperations |
 | connect | connect/contact | 1 |  | sr-resource | connect:DescribeContact, connect:SearchContacts |
 | connect | connect/contactevaluation | 1 |  | sr-resource | connect:DescribeContactEvaluation, connect:ListContactEvaluations, connect:SearchContactEvaluations |
@@ -744,11 +743,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | connect | connect/defaultvocabulary | 1 |  | child-uncatalogued | connect:ListDefaultVocabularies |
 | connect | connect/entitysecurityprofile | 1 |  | child-uncatalogued | connect:ListEntitySecurityProfiles |
 | connect | connect/evaluationformaiversion | 1 |  | child-uncatalogued | connect:ListEvaluationFormAIVersions |
-| connect | connect/evaluationformversion | 2 |  | child-uncatalogued | connect:ListEvaluationFormVersions |
 | connect | connect/extractiondefinition | 0 |  | sr-resource | connect:DescribeExtractionDefinition, connect:ListExtractionDefinitions |
 | connect | connect/flowassociation | 1 |  | child-uncatalogued | connect:BatchGetFlowAssociation, connect:GetFlowAssociation, connect:ListFlowAssociations |
 | connect | connect/getattachedfilemetadata | 1 |  | child-uncatalogued | connect:BatchGetAttachedFileMetadata |
-| connect | connect/hoursofoperationoverride | 2 |  | child-uncatalogued | connect:DescribeHoursOfOperationOverride, connect:ListHoursOfOperationOverrides, connect:SearchHoursOfOperationOverrides |
 | connect | connect/lambdafunction | 1 |  | child-uncatalogued | connect:ListLambdaFunctions |
 | connect | connect/lexbot | 1 |  | child-uncatalogued | connect:ListLexBots |
 | connect | connect/metric | 1 |  | sr-resource | connect:DescribeMetric, connect:ListMetrics, connect:SearchMetrics |
@@ -757,15 +754,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | connect | connect/routingprofilequeue | 2 |  | child-uncatalogued | connect:ListRoutingProfileQueues |
 | connect | connect/securityprofileflowmodule | 2 |  | child-uncatalogued | connect:ListSecurityProfileFlowModules |
 | connect | connect/securityprofilepermission | 2 |  | child-uncatalogued | connect:ListSecurityProfilePermissions |
-| connect | connect/testcase | 1 |  | child-uncatalogued | connect:DescribeTestCase, connect:ListTestCases |
 | connect | connect/testcaseexecution | 0 |  | child-uncatalogued | connect:ListTestCaseExecutions |
 | connect | connect/testcaseexecutionrecord | 1 |  | child-uncatalogued | connect:ListTestCaseExecutionRecords |
 | connect | connect/trafficdistributiongroupuser | 1 |  | child-uncatalogued | connect:ListTrafficDistributionGroupUsers |
-| connect | connect/usecase | 2 |  | sr-resource | connect:ListUseCases |
 | connect | connect/usernotification | 2 |  | child-uncatalogued | connect:ListUserNotifications |
 | connect | connect/userproficiency | 2 |  | child-uncatalogued | connect:ListUserProficiencies |
 | connect | connect/workspaceassociation | 2 |  | child-uncatalogued | connect:SearchWorkspaceAssociations |
-| connect | connect/workspacepage | 2 |  | child-uncatalogued | connect:ListWorkspacePages |
 | controlcatalog | controlcatalog/commoncontrol | 0 |  | smithy-resource | controlcatalog:ListCommonControls |
 | controlcatalog | controlcatalog/control | 0 |  | smithy-resource | controlcatalog:GetControl, controlcatalog:ListControls |
 | controlcatalog | controlcatalog/controlmapping | 0 |  | element-arn | controlcatalog:ListControlMappings |

@@ -8,6 +8,7 @@ import (
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
 	cloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
 	codebuildtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
+	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
@@ -254,3 +255,18 @@ func TestRedact_FallbackStillCatchesUnruledTypes(t *testing.T) {
 }
 
 func ptrStr(s string) *string { return &s }
+
+func TestRedact_ConnectTestCase_InitializationData(t *testing.T) {
+	tc := cttypes.TestCase{
+		Name:               ptrStr("smoke"),
+		Content:            ptrStr(`{"Version":"2019-10-30"}`),
+		InitializationData: ptrStr(`{"Attributes":{"CustomerPhone":"+15555550100","AuthToken":"eyJhbGciOi"}}`),
+	}
+	got := applyAndDecode(t, TypeConnectTestCase, tc)
+	if got["InitializationData"] != redact.Placeholder {
+		t.Errorf("InitializationData not redacted: %v", got["InitializationData"])
+	}
+	if got["Name"] != "smoke" || got["Content"] != `{"Version":"2019-10-30"}` {
+		t.Errorf("siblings clobbered: Name=%v Content=%v", got["Name"], got["Content"])
+	}
+}

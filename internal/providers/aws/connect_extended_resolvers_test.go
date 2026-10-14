@@ -53,6 +53,22 @@ func TestResolveConnectChildrenToInstance(t *testing.T) {
 	assertRelationship(t, rels, hopID, iID, store.RelAttachedTo)
 }
 
+func TestResolveConnectChildrenToInstance_TestCase(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	iARN := fmt.Sprintf("arn:aws:connect:%s:%s:instance/abc", testRegion, acct.ID)
+	iID := upsertTestResource(t, st, "aws", acct.ID, TypeConnectInstance, iARN, testRegion, "{}")
+	tcID := upsertTestResource(t, st, "aws", acct.ID, TypeConnectTestCase, iARN+"/test-case/tc1", testRegion, "{}")
+	if err := resolveConnectChildrenToInstance(acct, st); err != nil {
+		t.Fatalf("resolveConnectChildrenToInstance: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tcID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, tcID, iID, store.RelAttachedTo)
+}
+
 func TestResolveConnectViewVersionToView(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

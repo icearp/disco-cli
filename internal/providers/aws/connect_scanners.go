@@ -12,7 +12,7 @@ import (
 func init() {
 	// Connect types are declared per family file via registerType;
 	// scanConnect fans out to family scanners (core, routing, flows,
-	// users, integration, workspace, datatable).
+	// users, integration, workspace, datatable, extra, children).
 	registerService(serviceEntry{name: "aws:connect", fn: scanConnect})
 }
 
@@ -28,7 +28,7 @@ func scanConnect(ctx context.Context, acct *account, region string, st *store.St
 		return 0, 0, ierr
 	}
 
-	return runScanners(
+	total, inserted, err = runScanners(
 		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanConnectCore(ctx, client, instances, acct, region, st, scanID)
@@ -55,6 +55,13 @@ func scanConnect(ctx context.Context, acct *account, region string, st *store.St
 			return scanConnectExtra(ctx, client, instances, acct, region, st, scanID)
 		},
 	)
+	if err != nil {
+		return total, inserted, err
+	}
+	// Sequenced after every family above: the children read the parent rows
+	// those families stored this scan.
+	t, i, err := scanConnectChildren(ctx, client, instances, acct, region, st, scanID)
+	return total + t, inserted + i, err
 }
 
 // listConnectInstances pages ListInstances once. Returns nil on access-denied
