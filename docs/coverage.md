@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.7% (1826/3336 listable) · depth0 68.5% · depth1 34.1% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.9% (1833/3336 listable) · depth0 68.8% · depth1 34.2% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,9 +9,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1024 | 197 | 83.9 |
-| child-uncatalogued | 196 | 821 | 19.3 |
+| child-uncatalogued | 197 | 820 | 19.4 |
 | smithy-resource | 420 | 142 | 74.7 |
-| element-written | 155 | 261 | 37.3 |
+| element-written | 161 | 255 | 38.7 |
 | element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
 
@@ -30,7 +30,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datazone | 19 | 17 | 52.8 |
 | glue | 25 | 17 | 59.5 |
 | bedrock-agentcore | 30 | 16 | 65.2 |
-| es | 4 | 16 | 20.0 |
 | iot | 33 | 16 | 67.3 |
 | lex | 8 | 16 | 33.3 |
 | workmail | 1 | 16 | 5.9 |
@@ -62,6 +61,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securityagent | 15 | 10 | 60.0 |
 | storagegateway | 8 | 10 | 44.4 |
 | auditmanager | 3 | 9 | 25.0 |
+| es | 11 | 9 | 55.0 |
 | license-manager | 6 | 9 | 40.0 |
 | workspaces | 7 | 9 | 43.8 |
 | athena | 5 | 8 | 38.5 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1510)
+### Uncovered (listable, no scanner) (1503)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -979,22 +979,15 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | emr-serverless | emr-serverless/session | 1 |  | smithy-resource | emr-serverless:GetSession, emr-serverless:ListSessions |
 | entityresolution | entityresolution/matchingjob | 1 |  | child-uncatalogued | entityresolution:GetMatchingJob, entityresolution:ListIdMappingJobs, entityresolution:ListMatchingJobs |
 | entityresolution | entityresolution/providerservice | 0 |  | sr-resource | entityresolution:GetProviderService, entityresolution:ListProviderServices |
-| es | es/datasourceattachment | 1 |  | child-uncatalogued | es:DescribeDataSourceAttachment, es:ListDataSourceAttachments |
-| es | es/directquerydatasource | 0 |  | element-written | es:GetDirectQueryDataSource, es:ListDirectQueryDataSources |
 | es | es/domainmaintenance | 1 |  | child-uncatalogued | es:ListDomainMaintenances |
 | es | es/elasticsearchdomain | 1 |  | child-uncatalogued | es:DescribeElasticsearchDomain, es:DescribeElasticsearchDomains |
 | es | es/elasticsearchinstancetype | 1 |  | child-uncatalogued | es:ListElasticsearchInstanceTypes |
-| es | es/inboundconnection | 0 |  | element-written | es:DescribeInboundConnections |
 | es | es/inboundcrossclustersearchconnection | 0 |  | element-written | es:DescribeInboundCrossClusterSearchConnections |
 | es | es/insight | 1 |  | child-uncatalogued | es:ListInsights |
 | es | es/migration | 0 |  | child-uncatalogued | es:GetMigration, es:ListMigrations |
-| es | es/outboundconnection | 0 |  | element-written | es:DescribeOutboundConnections |
 | es | es/outboundcrossclustersearchconnection | 0 |  | element-written | es:DescribeOutboundCrossClusterSearchConnections |
-| es | es/package | 0 |  | element-written | es:DescribePackages |
-| es | es/reservedinstance | 0 |  | element-written | es:DescribeReservedInstances |
 | es | es/scheduledaction | 1 |  | child-uncatalogued | es:ListScheduledActions |
 | es | es/upgradehistory | 1 |  | child-uncatalogued | es:GetUpgradeHistory |
-| es | es/vpcendpoint | 0 |  | element-written | es:DescribeVpcEndpoints, es:ListVpcEndpoints, es:ListVpcEndpointsForDomain |
 | events | events/partnereventsource | 0 |  | element-arn | events:DescribePartnerEventSource, events:ListPartnerEventSources |
 | events | events/replay | 0 |  | sr-resource | events:DescribeReplay, events:ListReplays |
 | events | events/rulename | 3 |  | child-uncatalogued | events:ListRuleNamesByTarget |

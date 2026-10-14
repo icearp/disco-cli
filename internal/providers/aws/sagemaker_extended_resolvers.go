@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -264,14 +263,6 @@ func loadSagemakerEdgeSets(acct *account, st *store.Store, types ...string) (*sa
 	return s, nil
 }
 
-// listSources lists every resource of one type for the resolver's account.
-func listSources(acct *account, st *store.Store, rtype string) ([]store.Resource, error) {
-	return st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype},
-		Limit: util.AllResources,
-	})
-}
-
 // emitIAMRole emits a source → IAM role `assumes` edge if the role ARN is
 // non-empty and the role row was scanned. Centralises the FK-safe lookup.
 func emitIAMRole(st *store.Store, srcID, roleARN, acctID string, sets *sagemakerEdgeSets) error {
@@ -361,7 +352,7 @@ func emitEndpointByName(st *store.Store, srcID, region, acctID, name string, set
 // resolveSageMakerNotebookInstance walks IAM role + subnet + SG + KMS +
 // lifecycle-config + code-repository edges from each notebook instance.
 func resolveSageMakerNotebookInstance(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerNotebookInstance)
+	rs, err := listAccountRows(acct, st, TypeSageMakerNotebookInstance)
 	if err != nil {
 		return err
 	}
@@ -445,7 +436,7 @@ func emitNotebookCodeRepos(st *store.Store, srcID, region, acctID string, names 
 
 // resolveSageMakerDomain walks Studio domain → VPC, subnets, KMS, EFS edges.
 func resolveSageMakerDomain(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerDomain)
+	rs, err := listAccountRows(acct, st, TypeSageMakerDomain)
 	if err != nil {
 		return err
 	}
@@ -504,7 +495,7 @@ func resolveSageMakerSpace(acct *account, st *store.Store) error {
 // `srcType` to the domain referenced by its `DomainID` attr. Shared by
 // user-profile and space resolvers — both have the identical shape.
 func resolveSagemakerDomainParent(acct *account, st *store.Store, srcType string) error {
-	rs, err := listSources(acct, st, srcType)
+	rs, err := listAccountRows(acct, st, srcType)
 	if err != nil {
 		return err
 	}
@@ -539,7 +530,7 @@ func resolveSagemakerDomainParent(acct *account, st *store.Store, srcType string
 
 // resolveSageMakerApp walks app → domain, user-profile, space, image-version edges.
 func resolveSageMakerApp(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerApp)
+	rs, err := listAccountRows(acct, st, TypeSageMakerApp)
 	if err != nil {
 		return err
 	}
@@ -607,7 +598,7 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 // resolveSageMakerImageVersionParent links each image-version to its parent
 // image row via the `ImageArn` attr.
 func resolveSageMakerImageVersionParent(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerImageVersion)
+	rs, err := listAccountRows(acct, st, TypeSageMakerImageVersion)
 	if err != nil {
 		return err
 	}
@@ -639,7 +630,7 @@ func resolveSageMakerImageVersionParent(acct *account, st *store.Store) error {
 
 // resolveSageMakerImageRefs walks each image's RoleArn → IAM role.
 func resolveSageMakerImageRefs(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerImage)
+	rs, err := listAccountRows(acct, st, TypeSageMakerImage)
 	if err != nil {
 		return err
 	}
@@ -664,7 +655,7 @@ func resolveSageMakerImageRefs(acct *account, st *store.Store) error {
 // resolveSageMakerFeatureGroup walks feature-group → IAM role, S3 offline
 // store, KMS edges (offline-store + online-store-security-config).
 func resolveSageMakerFeatureGroup(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerFeatureGroup)
+	rs, err := listAccountRows(acct, st, TypeSageMakerFeatureGroup)
 	if err != nil {
 		return err
 	}
@@ -724,7 +715,7 @@ func resolveSageMakerModelPackageGroup(acct *account, st *store.Store) error {
 // resolveSageMakerModelPackage links each model package to its group, the
 // container ECR repos, and the validation IAM role.
 func resolveSageMakerModelPackage(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerModelPackage)
+	rs, err := listAccountRows(acct, st, TypeSageMakerModelPackage)
 	if err != nil {
 		return err
 	}
@@ -786,7 +777,7 @@ func resolveSageMakerModelPackage(acct *account, st *store.Store) error {
 // resolveSageMakerMonitoringSchedule links a schedule to the endpoint it
 // monitors via its top-level `EndpointName`.
 func resolveSageMakerMonitoringSchedule(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerMonitoringSchedule)
+	rs, err := listAccountRows(acct, st, TypeSageMakerMonitoringSchedule)
 	if err != nil {
 		return err
 	}
@@ -858,7 +849,7 @@ func resolveSageMakerModelQualityJobDefinition(acct *account, st *store.Store) e
 // resolvers. The four variants differ only in the JSON keys carrying their
 // JobInput and OutputConfig — hence the two key parameters.
 func resolveSagemakerJobDef(acct *account, st *store.Store, srcType, inputKey, outputKey string) error {
-	rs, err := listSources(acct, st, srcType)
+	rs, err := listAccountRows(acct, st, srcType)
 	if err != nil {
 		return err
 	}
@@ -950,7 +941,7 @@ func emitJobDefOutput(st *store.Store, srcID, region, acctID string, raw json.Ra
 // resolveSageMakerProcessingJob walks IAM role, VPC subnet/SG, KMS, S3 edges
 // from each processing job. Output S3 lives under `ProcessingOutputConfig`.
 func resolveSageMakerProcessingJob(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerProcessingJob)
+	rs, err := listAccountRows(acct, st, TypeSageMakerProcessingJob)
 	if err != nil {
 		return err
 	}
@@ -1012,7 +1003,7 @@ func resolveSageMakerProcessingJob(acct *account, st *store.Store) error {
 
 // resolveSageMakerPipeline links a pipeline to its execution role.
 func resolveSageMakerPipeline(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerPipeline)
+	rs, err := listAccountRows(acct, st, TypeSageMakerPipeline)
 	if err != nil {
 		return err
 	}
@@ -1045,7 +1036,7 @@ func resolveSageMakerProject(acct *account, st *store.Store) error {
 // resolveSageMakerMlflowTrackingServer walks the IAM role + S3 artifact-store
 // edges from each MLflow tracking-server row.
 func resolveSageMakerMlflowTrackingServer(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerMlflowTrackingServer)
+	rs, err := listAccountRows(acct, st, TypeSageMakerMlflowTrackingServer)
 	if err != nil {
 		return err
 	}
@@ -1073,7 +1064,7 @@ func resolveSageMakerMlflowTrackingServer(acct *account, st *store.Store) error 
 
 // resolveSageMakerPartnerApp walks partner-app → IAM execution role + KMS edges.
 func resolveSageMakerPartnerApp(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerPartnerApp)
+	rs, err := listAccountRows(acct, st, TypeSageMakerPartnerApp)
 	if err != nil {
 		return err
 	}
@@ -1104,7 +1095,7 @@ func resolveSageMakerPartnerApp(acct *account, st *store.Store) error {
 // security groups. Cluster's role lives under `ClusterRole`, networking under
 // the top-level `VpcConfig`.
 func resolveSageMakerCluster(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerCluster)
+	rs, err := listAccountRows(acct, st, TypeSageMakerCluster)
 	if err != nil {
 		return err
 	}
@@ -1142,7 +1133,7 @@ func resolveSageMakerCluster(acct *account, st *store.Store) error {
 // resolveSageMakerDeviceFleet walks device-fleet → IAM role, S3 output bucket,
 // KMS key (output config encryption).
 func resolveSageMakerDeviceFleet(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerDeviceFleet)
+	rs, err := listAccountRows(acct, st, TypeSageMakerDeviceFleet)
 	if err != nil {
 		return err
 	}
@@ -1179,7 +1170,7 @@ func resolveSageMakerDeviceFleet(acct *account, st *store.Store) error {
 
 // resolveSageMakerDevice links each device to its parent fleet via DeviceFleetName.
 func resolveSageMakerDevice(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerDevice)
+	rs, err := listAccountRows(acct, st, TypeSageMakerDevice)
 	if err != nil {
 		return err
 	}
@@ -1215,7 +1206,7 @@ func resolveSageMakerDevice(acct *account, st *store.Store) error {
 // resolveSageMakerInferenceComponent links a component to the endpoint that
 // hosts it; the EndpointArn is supplied directly by the SDK.
 func resolveSageMakerInferenceComponent(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerInferenceComponent)
+	rs, err := listAccountRows(acct, st, TypeSageMakerInferenceComponent)
 	if err != nil {
 		return err
 	}
@@ -1248,7 +1239,7 @@ func resolveSageMakerInferenceComponent(acct *account, st *store.Store) error {
 // resolveSageMakerInferenceExperiment links each experiment to the hosting
 // endpoint, the model variants under test, and the storage KMS key.
 func resolveSageMakerInferenceExperiment(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerInferenceExperiment)
+	rs, err := listAccountRows(acct, st, TypeSageMakerInferenceExperiment)
 	if err != nil {
 		return err
 	}
@@ -1299,7 +1290,7 @@ func resolveSageMakerInferenceExperiment(acct *account, st *store.Store) error {
 
 // resolveSageMakerModelCard walks the security-config KMS edge.
 func resolveSageMakerModelCard(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerModelCard)
+	rs, err := listAccountRows(acct, st, TypeSageMakerModelCard)
 	if err != nil {
 		return err
 	}

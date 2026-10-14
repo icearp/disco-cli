@@ -1274,8 +1274,16 @@ const (
 	// Organizations extras (organizations_extended_scanners.go)
 	TypeOrganizationsResourcePolicy = "aws:organizations:resource-policy"
 	// OpenSearch extras (opensearch_extended_scanners.go)
-	TypeOpenSearchApplication = "aws:opensearchservice:application"
-	TypeOpenSearchDataSource  = "aws:opensearchservice:data-source"
+	TypeOpenSearchApplication          = "aws:opensearchservice:application"
+	TypeOpenSearchDataSource           = "aws:opensearchservice:data-source"
+	TypeOpenSearchDataSourceAttachment = "aws:opensearchservice:data-source-attachment"
+	// OpenSearch account-level resources (opensearch_account_scanners.go)
+	TypeOpenSearchDirectQueryDataSource = "aws:opensearchservice:direct-query-data-source"
+	TypeOpenSearchInboundConnection     = "aws:opensearchservice:inbound-connection"
+	TypeOpenSearchOutboundConnection    = "aws:opensearchservice:outbound-connection"
+	TypeOpenSearchPackage               = "aws:opensearchservice:package"
+	TypeOpenSearchReservedInstance      = "aws:opensearchservice:reserved-instance"
+	TypeOpenSearchVpcEndpoint           = "aws:opensearchservice:vpc-endpoint"
 	// NovaAct (novaact_scanners.go)
 	TypeNovaActWorkflowDefinition = "aws:nova-act:workflow-definition"
 	// NotificationsContacts (notificationscontacts_scanners.go)

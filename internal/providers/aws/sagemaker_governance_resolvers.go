@@ -33,7 +33,7 @@ func init() {
 // resolveSageMakerExperimentTrial links each trial to its parent experiment via
 // the DescribeTrial body's ExperimentName.
 func resolveSageMakerExperimentTrial(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerExperimentTrial)
+	rs, err := listAccountRows(acct, st, TypeSageMakerExperimentTrial)
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func resolveSageMakerExperimentTrial(acct *account, st *store.Store) error {
 // resolveSageMakerHubContent links each hub-content row to its parent hub via
 // the HubName the scanner embeds (the summary itself omits it).
 func resolveSageMakerHubContent(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerHubContent)
+	rs, err := listAccountRows(acct, st, TypeSageMakerHubContent)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func resolveSageMakerClusterSchedulerConfig(acct *account, st *store.Store) erro
 // srcType to the cluster named by its top-level ClusterArn. Shared by the
 // compute-quota and cluster-scheduler-config resolvers (identical shape).
 func resolveSagemakerClusterArnParent(acct *account, st *store.Store, srcType, label string) error {
-	rs, err := listSources(acct, st, srcType)
+	rs, err := listAccountRows(acct, st, srcType)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func resolveSagemakerClusterArnParent(acct *account, st *store.Store, srcType, l
 // resolveSageMakerEdgeDeploymentPlan links each edge deployment plan to the
 // device fleet it targets via DeviceFleetName.
 func resolveSageMakerEdgeDeploymentPlan(acct *account, st *store.Store) error {
-	rs, err := listSources(acct, st, TypeSageMakerEdgeDeploymentPlan)
+	rs, err := listAccountRows(acct, st, TypeSageMakerEdgeDeploymentPlan)
 	if err != nil {
 		return err
 	}

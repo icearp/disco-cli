@@ -2,10 +2,14 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
@@ -16,52 +20,153 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeOpenSearchDomain, Service: "opensearchservice"})
 	registerType(restype.Descriptor{Type: TypeOpenSearchApplication, Service: "opensearchservice"})
 	registerType(restype.Descriptor{Type: TypeOpenSearchDataSource, Service: "opensearchservice"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchDirectQueryDataSource, Service: "opensearchservice"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchDataSourceAttachment, Service: "opensearchservice"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchVpcEndpoint, Service: "opensearchservice"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchPackage, Service: "opensearchservice"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchReservedInstance, Service: "opensearchservice"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchOutboundConnection, Service: "opensearchservice"})
+	registerType(restype.Descriptor{Type: TypeOpenSearchInboundConnection, Service: "opensearchservice"})
 	registerService(serviceEntry{
 		name: "aws:opensearch",
 		fn:   scanOpenSearch,
 	})
 }
 
-// opensearchAPI is the narrow set of OpenSearch operations called by
-// scanOpenSearchDomains.
+// opensearchAPI is the narrow set of OpenSearch operations the scan calls.
 type opensearchAPI interface {
 	ListDomainNames(context.Context, *opensearch.ListDomainNamesInput, ...func(*opensearch.Options)) (*opensearch.ListDomainNamesOutput, error)
 	DescribeDomain(context.Context, *opensearch.DescribeDomainInput, ...func(*opensearch.Options)) (*opensearch.DescribeDomainOutput, error)
 	ListApplications(context.Context, *opensearch.ListApplicationsInput, ...func(*opensearch.Options)) (*opensearch.ListApplicationsOutput, error)
 	ListDataSources(context.Context, *opensearch.ListDataSourcesInput, ...func(*opensearch.Options)) (*opensearch.ListDataSourcesOutput, error)
+	ListDataSourceAttachments(context.Context, *opensearch.ListDataSourceAttachmentsInput, ...func(*opensearch.Options)) (*opensearch.ListDataSourceAttachmentsOutput, error)
+	ListDirectQueryDataSources(context.Context, *opensearch.ListDirectQueryDataSourcesInput, ...func(*opensearch.Options)) (*opensearch.ListDirectQueryDataSourcesOutput, error)
+	ListVpcEndpoints(context.Context, *opensearch.ListVpcEndpointsInput, ...func(*opensearch.Options)) (*opensearch.ListVpcEndpointsOutput, error)
+	DescribeVpcEndpoints(context.Context, *opensearch.DescribeVpcEndpointsInput, ...func(*opensearch.Options)) (*opensearch.DescribeVpcEndpointsOutput, error)
+	DescribePackages(context.Context, *opensearch.DescribePackagesInput, ...func(*opensearch.Options)) (*opensearch.DescribePackagesOutput, error)
+	DescribeReservedInstances(context.Context, *opensearch.DescribeReservedInstancesInput, ...func(*opensearch.Options)) (*opensearch.DescribeReservedInstancesOutput, error)
+	DescribeOutboundConnections(context.Context, *opensearch.DescribeOutboundConnectionsInput, ...func(*opensearch.Options)) (*opensearch.DescribeOutboundConnectionsOutput, error)
+	DescribeInboundConnections(context.Context, *opensearch.DescribeInboundConnectionsInput, ...func(*opensearch.Options)) (*opensearch.DescribeInboundConnectionsOutput, error)
 }
 
 // scanOpenSearch discovers OpenSearch (and legacy Elasticsearch, same SDK)
-// domains in one region. ListDomainNames returns name-only entries;
+// domains in one region, then the applications, data sources and account-level
+// resources around them. ListDomainNames returns name-only entries;
 // DescribeDomain carries the edge-bearing body. Per-item AccessDenied
-// tolerated. Outbound (cross-cluster) connections, package associations, and
-// reserved instances deferred as low value vs core domain edges.
+// tolerated.
+//
+// Every phase calls the same endpoint, so a domain phase that cannot reach it
+// (openSearchEndpointUnreachable) is returned alone: the later phases would
+// fail the same way. Any other domain-phase error, an API-coded throttle
+// included, is joined like a later phase's, and the later phases still run;
+// the data-source phase fans out over whatever domain names were listed.
+// The phases are independent: a failed phase does not stop the ones after it,
+// and their errors are joined. A transient network
+// error from a later phase warns instead of being joined, because one
+// transient member makes the dispatcher classify the whole joined error as
+// transient, which drops the counts and hides every hard error beside it.
+// Attachments fan out over the applications listed earlier in the same scan.
 func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := opensearch.NewFromConfig(acct.cfg, func(o *opensearch.Options) { o.Region = region })
-	t, i, ferr := scanOpenSearchDomains(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return t, i, ferr
+	domainNames, total, inserted, derr := scanOpenSearchDomains(ctx, client, acct, region, st, scanID)
+	if openSearchEndpointUnreachable(derr) {
+		return total, inserted, derr
 	}
-	t2, i2, ferr := scanOpenSearchApplications(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return t + t2, i + i2, ferr
+	errs := []error{derr}
+	var apps []childParent
+	for _, phase := range []struct {
+		name string
+		run  func() (int, int, error)
+	}{
+		{"opensearch:ListApplications", func() (int, int, error) {
+			var (
+				t, i int
+				err  error
+			)
+			apps, t, i, err = scanOpenSearchApplications(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		}},
+		{"opensearch:ListDataSources", func() (int, int, error) {
+			return scanOpenSearchDataSources(ctx, client, acct, region, st, scanID, domainNames)
+		}},
+		{"opensearch:ListDirectQueryDataSources", func() (int, int, error) {
+			return scanOpenSearchDirectQueryDataSources(ctx, client, acct, region, st, scanID)
+		}},
+		{"opensearch:ListDataSourceAttachments", func() (int, int, error) {
+			return scanOpenSearchDataSourceAttachments(ctx, client, acct, region, st, scanID, apps)
+		}},
+		{"opensearch:ListVpcEndpoints", func() (int, int, error) {
+			return scanOpenSearchVpcEndpoints(ctx, client, acct, region, st, scanID)
+		}},
+		{"opensearch:DescribePackages", func() (int, int, error) {
+			return scanOpenSearchPackages(ctx, client, acct, region, st, scanID)
+		}},
+		{"opensearch:DescribeReservedInstances", func() (int, int, error) {
+			return scanOpenSearchReservedInstances(ctx, client, acct, region, st, scanID)
+		}},
+		{"opensearch:DescribeOutboundConnections", func() (int, int, error) {
+			return scanOpenSearchOutboundConnections(ctx, client, acct, region, st, scanID)
+		}},
+		{"opensearch:DescribeInboundConnections", func() (int, int, error) {
+			return scanOpenSearchInboundConnections(ctx, client, acct, region, st, scanID)
+		}},
+	} {
+		t, i, perr := phase.run()
+		total += t
+		inserted += i
+		// A phase can join a transient list error with a failed upsert of the
+		// rows listed before it; the store write failure must stay a hard error.
+		if !errors.Is(perr, store.ErrStoreWrite) && isTransientNetworkError(perr) {
+			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
+			continue
+		}
+		errs = append(errs, perr)
 	}
-	t3, i3, ferr := scanOpenSearchDataSources(ctx, client, acct, region, st, scanID)
-	return t + t2 + t3, i + i2 + i3, ferr
+	return total, inserted, errors.Join(errs...)
 }
 
-// scanOpenSearchDomains holds the testable scan body.
-func scanOpenSearchDomains(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// openSearchARN builds an es-namespace ARN-shaped NativeID,
+// arn:aws:es:{region}:{account}:{resource}. Used for the domain ARN a
+// connection names by parts, and for resources the API returns no ARN for
+// (VPC endpoints, packages, reserved instances), whose shape is synthetic.
+func openSearchARN(region, accountID, resource string) string {
+	return "arn:aws:es:" + region + ":" + accountID + ":" + resource
+}
+
+// openSearchEndpointUnreachable reports whether err means the request never
+// got an answer from the endpoint: a DNS failure, a dial/read error, a
+// dropped connection. isTransientNetworkError is wider: it also accepts
+// API-coded throttles and 5xx, which a reachable endpoint returned for one
+// call and which say nothing about the next call.
+func openSearchEndpointUnreachable(err error) bool {
+	var (
+		dnsErr  *net.DNSError
+		opErr   *net.OpError
+		sendErr *smithyhttp.RequestSendError
+	)
+	return errors.As(err, &dnsErr) || errors.As(err, &opErr) || errors.As(err, &sendErr) ||
+		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
+}
+
+// scanOpenSearchDomains lists the region's domain names, describes and stores
+// each domain, and returns the listed names (also when a describe fails) for
+// the data-source phase.
+func scanOpenSearchDomains(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (names []string, total, inserted int, err error) {
 	listOut, lerr := client.ListDomainNames(ctx, &opensearch.ListDomainNamesInput{})
 	if lerr != nil {
 		if isAccessDenied(lerr) {
 			_ = skipIfAccessDenied(st, "opensearch:ListDomainNames", acct.ID, region, lerr)
-			return 0, 0, nil
+			return nil, 0, 0, nil
 		}
-		return 0, 0, fmt.Errorf("opensearch:ListDomainNames: %w", lerr)
+		return nil, 0, 0, fmt.Errorf("opensearch:ListDomainNames: %w", lerr)
 	}
-	if len(listOut.DomainNames) == 0 {
-		return 0, 0, nil
+	for _, n := range listOut.DomainNames {
+		if name := sv(n.DomainName); name != "" {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return nil, 0, 0, nil
 	}
 
 	sem := semaphore.NewWeighted(fanoutMed)
@@ -70,13 +175,11 @@ func scanOpenSearchDomains(ctx context.Context, client opensearchAPI, acct *acco
 		batch []*store.Resource
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	for _, n := range listOut.DomainNames {
-		name := sv(n.DomainName)
-		if name == "" {
-			continue
-		}
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+	for _, name := range names {
+		// Acquire fails once a describe has failed and cancelled gctx; stop
+		// launching and let g.Wait return that first error, not Canceled.
+		if sem.Acquire(gctx, 1) != nil {
+			break
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -120,15 +223,21 @@ func scanOpenSearchDomains(ctx context.Context, client opensearchAPI, acct *acco
 			return nil
 		})
 	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+	werr := g.Wait()
+	if werr == nil {
+		// The launch loop also stops when the caller's ctx is cancelled, with
+		// no describe having failed; that must not read as a complete listing.
+		werr = ctx.Err()
+	}
+	if werr != nil {
+		return names, 0, 0, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return names, 0, 0, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert opensearch domains: %w", uerr)
+		return names, 0, 0, fmt.Errorf("upsert opensearch domains: %w", uerr)
 	}
-	return len(batch), n, nil
+	return names, len(batch), n, nil
 }

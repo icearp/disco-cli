@@ -192,6 +192,14 @@ func scannedIDsByRegion(acct *account, st *store.Store, rtype string) (map[strin
 	return m, nil
 }
 
+// listAccountRows lists every row of one type in acct.
+func listAccountRows(acct *account, st *store.Store, rtype string) ([]store.Resource, error) {
+	return st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype},
+		Limit: util.AllResources,
+	})
+}
+
 // scannedIDSet builds an id-set for one type, scoped to acct.
 func scannedIDSet(acct *account, st *store.Store, rtype string) (map[string]bool, error) {
 	rs, err := st.ListResources(store.ResourceFilter{

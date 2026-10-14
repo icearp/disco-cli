@@ -160,19 +160,9 @@ func nmCoreNetworkID(acctID, coreID string) string {
 	return fmt.Sprintf("arn:aws:networkmanager::%s:core-network/%s", acctID, coreID)
 }
 
-// listNMResources lists all NetworkManager rows of a given disco type for the
-// account. Tiny convenience wrapper to keep resolver bodies linear.
-func listNMResources(acct *account, st *store.Store, rtype string) ([]store.Resource, error) {
-	return st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID,
-		Types: []string{rtype},
-		Limit: util.AllResources,
-	})
-}
-
 // resolveNMSiteRefs links each Site to its parent GlobalNetwork.
 func resolveNMSiteRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerSite)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerSite)
 	if err != nil {
 		return err
 	}
@@ -206,7 +196,7 @@ func resolveNMSiteRefs(acct *account, st *store.Store) error {
 // resolveNMDeviceRefs links each Device to its GlobalNetwork and (optionally)
 // its Site.
 func resolveNMDeviceRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerDevice)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerDevice)
 	if err != nil {
 		return err
 	}
@@ -254,7 +244,7 @@ func resolveNMDeviceRefs(acct *account, st *store.Store) error {
 
 // resolveNMLinkRefs links each Link to its GlobalNetwork and Site.
 func resolveNMLinkRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerLink)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerLink)
 	if err != nil {
 		return err
 	}
@@ -304,7 +294,7 @@ func resolveNMLinkRefs(acct *account, st *store.Store) error {
 // LinkAssociation has no native ARN; the scanner stores DeviceId + LinkId in
 // the embedded SDK struct.
 func resolveNMLinkAssociationRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerLinkAssociation)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerLinkAssociation)
 	if err != nil {
 		return err
 	}
@@ -355,7 +345,7 @@ func resolveNMLinkAssociationRefs(acct *account, st *store.Store) error {
 
 // resolveNMCoreNetworkRefs links each CoreNetwork to its parent GlobalNetwork.
 func resolveNMCoreNetworkRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerCoreNetwork)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerCoreNetwork)
 	if err != nil {
 		return err
 	}
@@ -391,7 +381,7 @@ func resolveNMCoreNetworkRefs(acct *account, st *store.Store) error {
 // TransitGatewayArn from the SDK is the canonical EC2 TGW ARN — used directly
 // as NativeID.
 func resolveNMTGWRegistrationRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerTransitGatewayRegistration)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerTransitGatewayRegistration)
 	if err != nil {
 		return err
 	}
@@ -437,7 +427,7 @@ func resolveNMTGWRegistrationRefs(acct *account, st *store.Store) error {
 // GlobalNetwork plus the cross-service EC2 CustomerGateway. CustomerGatewayArn
 // from the SDK is the canonical EC2 CGW ARN — used directly as NativeID.
 func resolveNMCGWAssociationRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerCustomerGatewayAssociation)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerCustomerGatewayAssociation)
 	if err != nil {
 		return err
 	}
@@ -512,7 +502,7 @@ func nmAttachmentCoreNetworkEdge(acct *account, st *store.Store, r store.Resourc
 // the cross-service EC2 VPC (via Attachment.ResourceArn) and Subnets (via
 // SubnetArns).
 func resolveNMVpcAttachmentRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerVpcAttachment)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerVpcAttachment)
 	if err != nil {
 		return err
 	}
@@ -593,7 +583,7 @@ func resolveNMTGWRouteTableAttachmentRefs(acct *account, st *store.Store) error 
 // type whose AttributesJSON is the bare `Attachment` SDK struct (produced by
 // ListAttachments).
 func nmSimpleAttachmentResolver(acct *account, st *store.Store, rtype, label string) error {
-	rows, err := listNMResources(acct, st, rtype)
+	rows, err := listAccountRows(acct, st, rtype)
 	if err != nil {
 		return err
 	}
@@ -616,7 +606,7 @@ func nmSimpleAttachmentResolver(acct *account, st *store.Store, rtype, label str
 // lives on the GetTransitGatewayPeering wrapper which the scanner does not
 // fetch. Without it, we can only emit the CoreNetwork edge.
 func resolveNMTransitGatewayPeeringRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerTransitGatewayPeering)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerTransitGatewayPeering)
 	if err != nil {
 		return err
 	}
@@ -657,7 +647,7 @@ func resolveNMTransitGatewayPeeringRefs(acct *account, st *store.Store) error {
 // resolveNMConnectPeerRefs links each ConnectPeer to its CoreNetwork. The SDK
 // `ConnectPeer` struct exposes CoreNetworkId at the top level.
 func resolveNMConnectPeerRefs(acct *account, st *store.Store) error {
-	rows, err := listNMResources(acct, st, TypeNetworkManagerConnectPeer)
+	rows, err := listAccountRows(acct, st, TypeNetworkManagerConnectPeer)
 	if err != nil {
 		return err
 	}
