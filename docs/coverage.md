@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.9% (1798/3336 listable) · depth0 68.0% · depth1 32.9% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.0% (1800/3336 listable) · depth0 68.0% · depth1 33.0% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,8 +8,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1018 | 203 | 83.4 |
-| child-uncatalogued | 178 | 839 | 17.5 |
+| sr-resource | 1019 | 202 | 83.5 |
+| child-uncatalogued | 179 | 838 | 17.6 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 154 | 262 | 37.0 |
 | element-arn | 27 | 79 | 25.5 |
@@ -135,7 +135,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | fis | 2 | 4 | 33.3 |
 | frauddetector | 12 | 4 | 75.0 |
 | geo | 8 | 4 | 66.7 |
-| healthlake | 1 | 4 | 20.0 |
 | inspector | 0 | 4 | 0.0 |
 | launchwizard | 1 | 4 | 20.0 |
 | lightsail | 17 | 4 | 81.0 |
@@ -213,6 +212,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | fsx | 8 | 2 | 80.0 |
 | glacier | 1 | 2 | 33.3 |
 | health-agent | 0 | 2 | 0.0 |
+| healthlake | 3 | 2 | 60.0 |
 | invoicing | 1 | 2 | 33.3 |
 | kinesis | 2 | 2 | 50.0 |
 | kinesisvideo | 2 | 2 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1538)
+### Uncovered (listable, no scanner) (1536)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1112,8 +1112,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | health | health/eventsfororganization | 0 |  | element-arn | health:DescribeEventsForOrganization |
 | health-agent | health-agent/domain | 0 |  | sr-resource | health-agent:GetDomain, health-agent:ListDomains |
 | health-agent | health-agent/subscription | 1 |  | sr-resource | health-agent:GetSubscription, health-agent:ListSubscriptions |
-| healthlake | healthlake/datatransformationprofile | 0 |  | sr-resource | healthlake:GetDataTransformationProfile, healthlake:ListDataTransformationProfiles |
-| healthlake | healthlake/datatransformationprofileversion | 1 |  | child-uncatalogued | healthlake:ListDataTransformationProfileVersions |
 | healthlake | healthlake/fhirexportjob | 1 |  | child-uncatalogued | healthlake:DescribeFHIRExportJob, healthlake:ListFHIRExportJobs |
 | healthlake | healthlake/fhirimportjob | 1 |  | child-uncatalogued | healthlake:DescribeFHIRImportJob, healthlake:ListFHIRImportJobs |
 | iam | iam/attachedrolepolicy | 1 |  | child-uncatalogued | iam:ListAttachedGroupPolicies, iam:ListAttachedRolePolicies, iam:ListAttachedUserPolicies |

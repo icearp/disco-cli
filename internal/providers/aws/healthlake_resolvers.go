@@ -15,6 +15,16 @@ func init() {
 		EdgeDecl{TypeHealthLakeFHIRDatastore, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeHealthLakeFHIRDatastore, TypeLambdaFunction, store.RelUses},
 	)
+	registerResolver(
+		noopHealthLakeHierarchy,
+		EdgeDecl{TypeHealthLakeDataTransformationProfile, TypeHealthLakeDataTransformationProfileVersion, store.RelContains},
+	)
+}
+
+// noopHealthLakeHierarchy only declares the profile→version contains edge,
+// which scanHealthLakeProfileVersions records at scan time via childFanOut.
+func noopHealthLakeHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveHealthLakeDatastoreRefs wires each FHIR datastore to its CMEK

@@ -1299,7 +1299,9 @@ const (
 	// IdentityStore extras
 	TypeIdentityStoreGroupMembership = "aws:identitystore:group-membership"
 	// HealthLake (healthlake_scanners.go)
-	TypeHealthLakeFHIRDatastore = "aws:health-lake:fhir-datastore"
+	TypeHealthLakeFHIRDatastore                    = "aws:health-lake:fhir-datastore"
+	TypeHealthLakeDataTransformationProfile        = "aws:health-lake:data-transformation-profile"
+	TypeHealthLakeDataTransformationProfileVersion = "aws:health-lake:data-transformation-profile-version"
 	// HealthImaging (healthimaging_scanners.go)
 	TypeHealthImagingDatastore = "aws:health-imaging:datastore"
 	// Grafana (grafana_scanners.go)
