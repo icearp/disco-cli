@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.0% (1800/3336 listable) · depth0 68.0% · depth1 33.0% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.0% (1801/3336 listable) · depth0 68.1% · depth1 33.0% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1019 | 202 | 83.5 |
-| child-uncatalogued | 179 | 838 | 17.6 |
+| child-uncatalogued | 180 | 837 | 17.7 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 154 | 262 | 37.0 |
 | element-arn | 27 | 79 | 25.5 |
@@ -140,7 +140,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | lightsail | 17 | 4 | 81.0 |
 | m2 | 3 | 4 | 42.9 |
 | machinelearning | 0 | 4 | 0.0 |
-| mpa | 2 | 4 | 33.3 |
 | notifications | 7 | 4 | 63.6 |
 | nova-act | 1 | 4 | 20.0 |
 | partnercentral | 0 | 4 | 0.0 |
@@ -174,6 +173,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | macie2 | 5 | 3 | 62.5 |
 | medical-imaging | 1 | 3 | 25.0 |
 | monitoring | 6 | 3 | 66.7 |
+| mpa | 3 | 3 | 50.0 |
 | mturk-requester | 0 | 3 | 0.0 |
 | odb | 10 | 3 | 76.9 |
 | organizations | 8 | 3 | 72.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1536)
+### Uncovered (listable, no scanner) (1535)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1372,7 +1372,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | monitoring | monitoring/metricdata | 1 |  | child-uncatalogued | monitoring:GetMetricData |
 | mpa | mpa/policy | 0 |  | element-arn | mpa:ListPolicies |
 | mpa | mpa/policyversion | 0 |  | child-uncatalogued | mpa:GetPolicyVersion, mpa:ListPolicyVersions |
-| mpa | mpa/resourcepolicy | 0 |  | child-uncatalogued | mpa:GetResourcePolicy, mpa:ListResourcePolicies |
 | mpa | mpa/session | 0 |  | smithy-resource | mpa:ListSessions |
 | mq | mq/sharedresource | 1 |  | child-uncatalogued | mq:DescribeSharedResources |
 | mturk-requester | mturk-requester/assignment | 0 |  | child-uncatalogued | mturk-requester:GetAssignment, mturk-requester:ListAssignmentsForHIT |

@@ -1175,6 +1175,7 @@ const (
 	// MPA (mpa_scanners.go)
 	TypeMPAApprovalTeam   = "aws:mpa:approval-team"
 	TypeMPAIdentitySource = "aws:mpa:identity-source"
+	TypeMPAResourcePolicy = "aws:mpa:resource-policy"
 	// Macie extras (macie_extended_scanners.go)
 	TypeMacieFindingsFilter = "aws:macie:findings-filter"
 	// LicenseManager (licensemanager_scanners.go)
