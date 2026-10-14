@@ -2143,6 +2143,11 @@ const (
 	TypeWellArchitectedLens           = "aws:wellarchitected:lens"
 	TypeWellArchitectedProfile        = "aws:wellarchitected:profile"
 	TypeWellArchitectedReviewTemplate = "aws:wellarchitected:review-template"
+	TypeWellArchitectedWorkloadShare  = "aws:wellarchitected:workload-share"
+	TypeWellArchitectedLensReview     = "aws:wellarchitected:lens-review"
+	TypeWellArchitectedLensShare      = "aws:wellarchitected:lens-share"
+	TypeWellArchitectedProfileShare   = "aws:wellarchitected:profile-share"
+	TypeWellArchitectedTemplateShare  = "aws:wellarchitected:template-share"
 	// WorkMail (workmail_scanners.go).
 	TypeWorkMailOrganization = "aws:workmail:organization"
 	// Cases (Connect Cases) (cases_scanners.go); SDK module is connectcases,

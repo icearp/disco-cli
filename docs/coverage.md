@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.8% (1763/3336 listable) · depth0 67.4% · depth1 31.1% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.0% (1768/3336 listable) · depth0 67.4% · depth1 31.6% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1013 | 208 | 83.0 |
-| child-uncatalogued | 157 | 860 | 15.4 |
+| child-uncatalogued | 162 | 855 | 15.9 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 146 | 270 | 35.1 |
 | element-arn | 26 | 80 | 24.5 |
@@ -25,7 +25,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
 | lex | 4 | 20 | 16.7 |
-| wellarchitected | 4 | 20 | 16.7 |
 | chime | 11 | 18 | 37.9 |
 | quicksight | 26 | 18 | 59.1 |
 | securityagent | 7 | 18 | 28.0 |
@@ -40,6 +39,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mgn | 10 | 15 | 40.0 |
 | rds | 24 | 15 | 61.5 |
 | ses | 19 | 15 | 55.9 |
+| wellarchitected | 9 | 15 | 37.5 |
 | cleanrooms | 9 | 14 | 39.1 |
 | deadline | 13 | 14 | 48.1 |
 | dms | 11 | 14 | 44.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1573)
+### Uncovered (listable, no scanner) (1568)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1874,16 +1874,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | wellarchitected | wellarchitected/checkdetail | 1 |  | child-uncatalogued | wellarchitected:ListCheckDetails |
 | wellarchitected | wellarchitected/checksummary | 1 |  | child-uncatalogued | wellarchitected:ListCheckSummaries |
 | wellarchitected | wellarchitected/consolidatedreport | 0 |  | element-written | wellarchitected:GetConsolidatedReport |
-| wellarchitected | wellarchitected/lensreview | 1 |  | child-uncatalogued | wellarchitected:GetLensReview, wellarchitected:ListLensReviews |
 | wellarchitected | wellarchitected/lensreviewimprovement | 2 |  | child-uncatalogued | wellarchitected:ListLensReviewImprovements |
-| wellarchitected | wellarchitected/lensshare | 1 |  | child-uncatalogued | wellarchitected:ListLensShares |
 | wellarchitected | wellarchitected/milestone | 1 |  | child-uncatalogued | wellarchitected:GetMilestone, wellarchitected:ListMilestones |
 | wellarchitected | wellarchitected/profilenotification | 0 |  | element-written | wellarchitected:ListProfileNotifications |
-| wellarchitected | wellarchitected/profileshare | 1 |  | child-uncatalogued | wellarchitected:ListProfileShares |
 | wellarchitected | wellarchitected/reviewtemplateanswer | 2 |  | child-uncatalogued | wellarchitected:GetReviewTemplateAnswer, wellarchitected:ListReviewTemplateAnswers |
 | wellarchitected | wellarchitected/shareinvitation | 0 |  | element-written | wellarchitected:ListShareInvitations |
-| wellarchitected | wellarchitected/templateshare | 1 |  | child-uncatalogued | wellarchitected:ListTemplateShares |
-| wellarchitected | wellarchitected/workloadshare | 1 |  | child-uncatalogued | wellarchitected:ListWorkloadShares |
 | wickr | wickr/bot | 1 |  | child-uncatalogued | wickr:GetBot, wickr:ListBots |
 | wickr | wickr/device | 2 |  | child-uncatalogued | wickr:ListDevicesForUser |
 | wickr | wickr/network | 0 |  | sr-resource | wickr:GetNetwork, wickr:ListNetworks |
