@@ -494,6 +494,11 @@ const (
 	TypeAPIGatewayV2RoutingRule          = "aws:apigatewayv2:routing-rule"
 	TypeAPIGatewayPrivateDomainName      = "aws:apigateway:domain-name-v2"
 	TypeAPIGatewayPrivateBasePathMapping = "aws:apigateway:base-path-mapping-v2"
+	// API Gateway developer portals (apigateway_v2_portal_scanners.go)
+	TypeAPIGatewayV2Portal                  = "aws:apigatewayv2:portal"
+	TypeAPIGatewayV2PortalProduct           = "aws:apigatewayv2:portal-product"
+	TypeAPIGatewayV2ProductPage             = "aws:apigatewayv2:product-page"
+	TypeAPIGatewayV2ProductRestEndpointPage = "aws:apigatewayv2:product-rest-endpoint-page"
 	// CloudWatch (cloudwatch_scanners.go)
 	TypeCloudWatchAlarm           = "aws:cloudwatch:alarm"
 	TypeCloudWatchAlarmMuteRule   = "aws:cloudwatch:alarm-mute-rule"

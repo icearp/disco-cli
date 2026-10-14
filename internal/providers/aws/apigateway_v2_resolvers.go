@@ -50,6 +50,17 @@ func init() {
 		resolveAPIGatewayV2StageRefs,
 		EdgeDecl{TypeAPIGatewayV2Stage, TypeAPIGatewayV2Deployment, store.RelUses},
 	)
+	registerResolver(
+		noopAPIGatewayV2PortalHierarchy,
+		EdgeDecl{TypeAPIGatewayV2PortalProduct, TypeAPIGatewayV2ProductPage, store.RelContains},
+		EdgeDecl{TypeAPIGatewayV2PortalProduct, TypeAPIGatewayV2ProductRestEndpointPage, store.RelContains},
+	)
+}
+
+// noopAPIGatewayV2PortalHierarchy only declares the product → page contains
+// edges; the portal scanner records them through childFanOut.
+func noopAPIGatewayV2PortalHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // apigatewayV2APIARNFromChild extracts the parent API ARN

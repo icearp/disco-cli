@@ -21,7 +21,19 @@ type apigatewayv2API interface {
 }
 
 // scanAPIGatewayV2 is the orchestrator for all API Gateway v2 (HTTP/WebSocket) resource types.
+// Developer portals run after the other phases: runScanners cancels its
+// siblings on the first error, so a portal failure must not stop them.
 func scanAPIGatewayV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	total, inserted, err = scanAPIGatewayV2Core(ctx, acct, region, st, scanID)
+	if err != nil {
+		return total, inserted, err
+	}
+	client := apigatewayv2.NewFromConfig(acct.cfg, func(o *apigatewayv2.Options) { o.Region = region })
+	t, n, err := scanAPIGatewayV2Portals(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + n, err
+}
+
+func scanAPIGatewayV2Core(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(
 		ctx,
 		func(ctx context.Context) (int, int, error) {

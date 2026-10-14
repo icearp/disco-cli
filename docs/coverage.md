@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.3% (1745/3336 listable) · depth0 66.9% · depth1 30.7% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.4% (1749/3336 listable) · depth0 67.0% · depth1 30.9% · depth2 22.5% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1005 | 216 | 82.3 |
+| sr-resource | 1009 | 212 | 82.6 |
 | child-uncatalogued | 149 | 868 | 14.7 |
 | smithy-resource | 417 | 145 | 74.2 |
 | element-written | 145 | 271 | 34.9 |
@@ -129,7 +129,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | trustedadvisor | 1 | 5 | 16.7 |
 | voiceid | 1 | 5 | 16.7 |
 | wisdom | 11 | 5 | 68.8 |
-| apigateway | 25 | 4 | 86.2 |
 | arc-region-switch | 1 | 4 | 20.0 |
 | billingconductor | 4 | 4 | 50.0 |
 | codeconnections | 0 | 4 | 0.0 |
@@ -310,6 +309,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aiops | 1 | 0 | 100.0 |
 | airflow | 1 | 0 | 100.0 |
 | aoss | 7 | 0 | 100.0 |
+| apigateway | 29 | 0 | 100.0 |
 | appmesh | 7 | 0 | 100.0 |
 | appsync | 10 | 0 | 100.0 |
 | aps | 4 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1591)
+### Uncovered (listable, no scanner) (1587)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -399,10 +399,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | amplify | amplify/job | 2 |  | sr-resource | amplify:GetJob, amplify:ListJobs |
 | amplifybackend | amplifybackend/backendjob | 2 |  | child-uncatalogued | amplifybackend:GetBackendJob, amplifybackend:ListBackendJobs |
 | amplifyuibuilder | amplifyuibuilder/codegenjob | 0 |  | smithy-resource | amplifyuibuilder:GetCodegenJob, amplifyuibuilder:ListCodegenJobs |
-| apigateway | apigateway/portal | 0 |  | sr-resource | apigateway:GetPortal, apigateway:ListPortals |
-| apigateway | apigateway/portalproduct | 0 |  | sr-resource | apigateway:GetPortalProduct, apigateway:ListPortalProducts |
-| apigateway | apigateway/productpage | 1 |  | sr-resource | apigateway:GetProductPage, apigateway:ListProductPages |
-| apigateway | apigateway/productrestendpointpage | 1 |  | sr-resource | apigateway:GetProductRestEndpointPage, apigateway:ListProductRestEndpointPages |
 | app-integrations | app-integrations/applicationassociation | 1 |  | sr-resource | app-integrations:ListApplicationAssociations |
 | app-integrations | app-integrations/dataintegrationassociation | 1 |  | sr-resource | app-integrations:ListDataIntegrationAssociations |
 | app-integrations | app-integrations/eventintegrationassociation | 1 |  | sr-resource | app-integrations:ListEventIntegrationAssociations |
