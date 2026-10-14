@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
-	"github.com/aws/smithy-go/middleware"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -134,10 +133,10 @@ func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAP
 				}
 				attrs.Features = append(attrs.Features, out.Features...)
 			}
-			// Page 1 carries the settings; clearing the response envelope keeps a
-			// paginated answer identical across scans.
+			// Page 1 carries the settings; clearing its NextToken keeps a paginated
+			// answer identical across scans. ResultMetadata needs no reset: it has
+			// only unexported fields and always marshals as {}.
 			attrs.NextToken = nil
-			attrs.ResultMetadata = middleware.Metadata{}
 			label := "organization-configuration"
 			return []*store.Resource{{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
