@@ -2215,7 +2215,17 @@ const (
 	TypeWellArchitectedProfileShare   = "aws:wellarchitected:profile-share"
 	TypeWellArchitectedTemplateShare  = "aws:wellarchitected:template-share"
 	// WorkMail (workmail_scanners.go).
-	TypeWorkMailOrganization = "aws:workmail:organization"
+	TypeWorkMailOrganization               = "aws:workmail:organization"
+	TypeWorkMailUser                       = "aws:workmail:user"
+	TypeWorkMailGroup                      = "aws:workmail:group"
+	TypeWorkMailResource                   = "aws:workmail:resource"
+	TypeWorkMailMailDomain                 = "aws:workmail:mail-domain"
+	TypeWorkMailAccessControlRule          = "aws:workmail:access-control-rule"
+	TypeWorkMailAvailabilityConfiguration  = "aws:workmail:availability-configuration"
+	TypeWorkMailImpersonationRole          = "aws:workmail:impersonation-role"
+	TypeWorkMailMobileDeviceAccessRule     = "aws:workmail:mobile-device-access-rule"
+	TypeWorkMailMobileDeviceAccessOverride = "aws:workmail:mobile-device-access-override"
+	TypeWorkMailPersonalAccessToken        = "aws:workmail:personal-access-token"
 	// Cases (Connect Cases) (cases_scanners.go); SDK module is connectcases,
 	// CFN segment is "Cases".
 	TypeCasesCaseRule = "aws:cases:case-rule"

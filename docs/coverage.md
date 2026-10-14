@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.9% (1833/3336 listable) · depth0 68.8% · depth1 34.2% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 55.2% (1843/3336 listable) · depth0 68.8% · depth1 35.1% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1024 | 197 | 83.9 |
-| child-uncatalogued | 197 | 820 | 19.4 |
+| child-uncatalogued | 207 | 810 | 20.4 |
 | smithy-resource | 420 | 142 | 74.7 |
 | element-written | 161 | 255 | 38.7 |
 | element-arn | 27 | 79 | 25.5 |
@@ -32,7 +32,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bedrock-agentcore | 30 | 16 | 65.2 |
 | iot | 33 | 16 | 67.3 |
 | lex | 8 | 16 | 33.3 |
-| workmail | 1 | 16 | 5.9 |
 | gamelift | 12 | 15 | 44.4 |
 | mgn | 10 | 15 | 40.0 |
 | rds | 24 | 15 | 61.5 |
@@ -99,6 +98,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sms-voice | 11 | 6 | 64.7 |
 | ssm-contacts | 3 | 6 | 33.3 |
 | wickr | 0 | 6 | 0.0 |
+| workmail | 11 | 6 | 64.7 |
 | access-analyzer | 2 | 5 | 28.6 |
 | applicationinsights | 1 | 5 | 16.7 |
 | cases | 5 | 5 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1503)
+### Uncovered (listable, no scanner) (1493)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1833,22 +1833,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workdocs | workdocs/resource | 0 |  | element-written | workdocs:DescribeFolderContents, workdocs:GetDocument, workdocs:GetResources, workdocs:SearchResources |
 | workdocs | workdocs/resourcepermission | 1 |  | child-uncatalogued | workdocs:DescribeResourcePermissions |
 | workdocs | workdocs/user | 0 |  | element-written | workdocs:DescribeUsers, workdocs:GetCurrentUser |
-| workmail | workmail/accesscontrolrule | 1 |  | child-uncatalogued | workmail:ListAccessControlRules |
 | workmail | workmail/alias | 1 |  | child-uncatalogued | workmail:ListAliases |
-| workmail | workmail/availabilityconfiguration | 1 |  | child-uncatalogued | workmail:ListAvailabilityConfigurations, workmail:TestAvailabilityConfiguration |
 | workmail | workmail/defaultretentionpolicy | 1 |  | child-uncatalogued | workmail:GetDefaultRetentionPolicy |
-| workmail | workmail/group | 1 |  | child-uncatalogued | workmail:DescribeGroup, workmail:ListGroups, workmail:ListGroupsForEntity |
 | workmail | workmail/groupmember | 1 |  | child-uncatalogued | workmail:ListGroupMembers |
-| workmail | workmail/impersonationrole | 1 |  | child-uncatalogued | workmail:GetImpersonationRole, workmail:ListImpersonationRoles |
 | workmail | workmail/mailboxexportjob | 1 |  | child-uncatalogued | workmail:DescribeMailboxExportJob, workmail:ListMailboxExportJobs |
 | workmail | workmail/mailboxpermission | 1 |  | child-uncatalogued | workmail:ListMailboxPermissions |
-| workmail | workmail/maildomain | 1 |  | child-uncatalogued | workmail:ListMailDomains |
-| workmail | workmail/mobiledeviceaccessoverride | 1 |  | child-uncatalogued | workmail:GetMobileDeviceAccessOverride, workmail:ListMobileDeviceAccessOverrides |
-| workmail | workmail/mobiledeviceaccessrule | 1 |  | child-uncatalogued | workmail:ListMobileDeviceAccessRules |
-| workmail | workmail/personalaccesstoken | 1 |  | child-uncatalogued | workmail:ListPersonalAccessTokens |
-| workmail | workmail/resource | 1 |  | child-uncatalogued | workmail:DescribeResource, workmail:ListResources |
 | workmail | workmail/resourcedelegate | 1 |  | child-uncatalogued | workmail:ListResourceDelegates |
-| workmail | workmail/user | 1 |  | child-uncatalogued | workmail:DescribeUser, workmail:ListUsers |
 | workspaces | workspaces/accountlink | 0 |  | element-written | workspaces:GetAccountLink, workspaces:ListAccountLinks |
 | workspaces | workspaces/applicationassociation | 1 |  | child-uncatalogued | workspaces:DescribeApplicationAssociations |
 | workspaces | workspaces/bundleassociation | 1 |  | child-uncatalogued | workspaces:DescribeBundleAssociations |
