@@ -1,8 +1,11 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"testing"
 
+	drstypes "github.com/aws/aws-sdk-go-v2/service/drs/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -24,7 +27,7 @@ func TestResolveDRSRecoveryInstanceRefs(t *testing.T) {
 	if err := resolveDRSRecoveryInstanceRefs(acct, st); err != nil {
 		t.Fatalf("resolveDRSRecoveryInstanceRefs: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(riID)
+	rels := drsRelsFrom(t, st, riID)
 	assertRelationship(t, rels, riID, eID, store.RelUses)
 	assertRelationship(t, rels, riID, ssID, store.RelAttachedTo)
 }
@@ -41,7 +44,7 @@ func TestResolveDRSSourceServerRefs(t *testing.T) {
 	if err := resolveDRSSourceServerRefs(acct, st); err != nil {
 		t.Fatalf("resolveDRSSourceServerRefs: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(ssID)
+	rels := drsRelsFrom(t, st, ssID)
 	assertRelationship(t, rels, ssID, snID, store.RelAttachedTo)
 }
 
@@ -57,7 +60,7 @@ func TestResolveDRSSourceNetworkRefs(t *testing.T) {
 	if err := resolveDRSSourceNetworkRefs(acct, st); err != nil {
 		t.Fatalf("resolveDRSSourceNetworkRefs: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(snID)
+	rels := drsRelsFrom(t, st, snID)
 	assertRelationship(t, rels, snID, vID, store.RelAttachedTo)
 }
 
@@ -78,7 +81,7 @@ func TestResolveDRSReplicationTemplateRefs(t *testing.T) {
 	if err := resolveDRSReplicationTemplateRefs(acct, st); err != nil {
 		t.Fatalf("resolveDRSReplicationTemplateRefs: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(rtID)
+	rels := drsRelsFrom(t, st, rtID)
 	assertRelationship(t, rels, rtID, kID, store.RelUses)
 	assertRelationship(t, rels, rtID, subID, store.RelAttachedTo)
 	assertRelationship(t, rels, rtID, sgID, store.RelAttachedTo)
@@ -96,7 +99,7 @@ func TestResolveDRSLaunchTemplateRefs(t *testing.T) {
 	if err := resolveDRSLaunchTemplateRefs(acct, st); err != nil {
 		t.Fatalf("resolveDRSLaunchTemplateRefs: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(ltID)
+	rels := drsRelsFrom(t, st, ltID)
 	assertRelationship(t, rels, ltID, bID, store.RelUses)
 }
 
@@ -116,8 +119,73 @@ func TestResolveDRS_NoAttrs(t *testing.T) {
 		}
 	}
 	for _, id := range []string{riID, rtID} {
-		if rels, _ := st.RelationshipsFrom(id); len(rels) != 0 {
+		if rels := drsRelsFrom(t, st, id); len(rels) != 0 {
 			t.Errorf("%s: emitted %d edges, want 0", id, len(rels))
 		}
 	}
+}
+
+func drsStepAttrs(cfg drstypes.RecoveryPlanStepConfiguration) string {
+	return mustJSON(flattenDRSRecoveryPlanStep(drstypes.RecoveryPlanStep{Configuration: cfg}))
+}
+
+// A server step uses each scanned source server it names; an unscanned server
+// and a wait step get no edge. A row whose attributes do not parse is reported
+// without costing the other rows their edges; the rows list by name, so "bad"
+// comes first.
+func TestResolveDRSRecoveryPlanStepRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	s1 := drsARN(testRegion, acct.ID, "source-server", "s-1")
+	s1ID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSSourceServerResource, s1, testRegion, "{}")
+	unscanned := drsARN(testRegion, acct.ID, "source-server", "s-9")
+	serverStep := drsStepAttrs(&drstypes.RecoveryPlanStepConfigurationMemberServerStepConfiguration{Value: drstypes.ServerStepConfiguration{
+		Servers: []drstypes.RecoveryPlanServer{{ServerArn: &s1}, {ServerArn: &unscanned}},
+	}})
+	stepIDs := map[string]string{}
+	for name, attrs := range map[string]string{
+		"bad": "[1]", "server-a": serverStep, "server-b": serverStep,
+		"wait": drsStepAttrs(&drstypes.RecoveryPlanStepConfigurationMemberWaitStepConfiguration{Value: drstypes.WaitStepConfiguration{WaitDurationMinutes: ptrInt32(5)}}),
+	} {
+		stepIDs[name] = upsertTestResourceNamed(t, st, TypeDRSRecoveryPlanStep, drsARN(testRegion, acct.ID, "recovery-plan-step", name), testRegion, attrs, name)
+	}
+
+	err := resolveDRSRecoveryPlanStepRefs(acct, st)
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want the bad row's unmarshal error", err)
+	}
+	for _, name := range []string{"server-a", "server-b"} {
+		rels := drsRelsFrom(t, st, stepIDs[name])
+		assertRelationship(t, rels, stepIDs[name], s1ID, store.RelUses)
+		if len(rels) != 1 {
+			t.Errorf("%s edges = %+v, want only the scanned s-1", name, rels)
+		}
+	}
+	if rels := drsRelsFrom(t, st, stepIDs["wait"]); len(rels) != 0 {
+		t.Errorf("wait step edges = %+v, want none", rels)
+	}
+}
+
+func TestResolveDRSRecoveryPlanStepRefs_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeDRSSourceServerResource, drsARN(testRegion, acct.ID, "source-server", "s-1"), testRegion, "{}")
+	stepID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSRecoveryPlanStep, drsARN(testRegion, acct.ID, "recovery-plan-step", "s"), testRegion, "{}")
+	if err := resolveDRSRecoveryPlanStepRefs(acct, st); err != nil {
+		t.Fatalf("resolveDRSRecoveryPlanStepRefs: %v", err)
+	}
+	if rels := drsRelsFrom(t, st, stepID); len(rels) != 0 {
+		t.Errorf("edges = %+v, want none", rels)
+	}
+}
+
+func drsRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship {
+	t.Helper()
+	rels, err := st.RelationshipsFrom(id)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom(%s): %v", id, err)
+	}
+	return rels
 }

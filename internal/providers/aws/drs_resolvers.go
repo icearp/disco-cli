@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -32,6 +33,73 @@ func init() {
 		resolveDRSLaunchTemplateRefs,
 		EdgeDecl{TypeDRSLaunchConfigurationTemplateResource, TypeS3Bucket, store.RelUses},
 	)
+	registerResolver(
+		resolveDRSRecoveryPlanStepRefs,
+		EdgeDecl{TypeDRSRecoveryPlanStep, TypeDRSSourceServerResource, store.RelUses},
+	)
+	registerResolver(
+		noopDRSHierarchy,
+		EdgeDecl{TypeDRSRecoveryPlanResource, TypeDRSRecoveryPlanStep, store.RelContains},
+		EdgeDecl{TypeDRSLaunchConfigurationTemplateResource, TypeDRSLaunchAction, store.RelContains},
+		EdgeDecl{TypeDRSSourceServerResource, TypeDRSLaunchAction, store.RelContains},
+	)
+}
+
+// noopDRSHierarchy emits nothing: the recovery-plan → step and
+// launch-configuration-template / source-server → launch-action contains edges
+// are written at scan time by childFanOut (the drs:ListRecoveryPlanSteps and
+// drs:ListLaunchActions phases of scanDRSWithClient). It is registered only so
+// those edges are declared to coverage tooling.
+func noopDRSHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
+// resolveDRSRecoveryPlanStepRefs wires each server step to the source servers
+// it recovers. A row whose attributes do not parse is reported in the returned
+// error after the remaining rows are wired.
+func resolveDRSRecoveryPlanStepRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDRSRecoveryPlanStep}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	serverSet, err := scannedIDSet(acct, st, TypeDRSSourceServerResource)
+	if err != nil {
+		return err
+	}
+	var bad []error
+	for _, r := range rows {
+		var attrs struct {
+			Configuration struct {
+				ServerStepConfiguration *struct {
+					Servers []struct {
+						ServerArn *string `json:"ServerArn"`
+					} `json:"Servers"`
+				} `json:"ServerStepConfiguration"`
+			} `json:"Configuration"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			bad = append(bad, fmt.Errorf("drs recovery plan step %s attributes: %w", r.NativeID, err))
+			continue
+		}
+		if attrs.Configuration.ServerStepConfiguration == nil {
+			continue
+		}
+		for _, srv := range attrs.Configuration.ServerStepConfiguration.Servers {
+			tgtID := store.ResourceID("aws", acct.ID, sv(srv.ServerArn))
+			if !serverSet[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert drs recovery-plan-step→source-server: %w", err)
+			}
+		}
+	}
+	return errors.Join(bad...)
 }
 
 // drsIDIndex maps a DRS child id (from each scanned row's attrs) to its

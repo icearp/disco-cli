@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 53.3% (1779/3336 listable) · depth0 67.6% · depth1 32.1% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 53.4% (1782/3336 listable) · depth0 67.7% · depth1 32.3% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,9 +9,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1015 | 206 | 83.1 |
-| child-uncatalogued | 168 | 849 | 16.5 |
+| child-uncatalogued | 170 | 847 | 16.7 |
 | smithy-resource | 417 | 145 | 74.2 |
-| element-written | 148 | 268 | 35.6 |
+| element-written | 149 | 267 | 35.8 |
 | element-arn | 27 | 79 | 25.5 |
 | element-created | 4 | 10 | 28.6 |
 
@@ -62,7 +62,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | qbusiness | 9 | 10 | 47.4 |
 | storagegateway | 8 | 10 | 44.4 |
 | auditmanager | 3 | 9 | 25.0 |
-| drs | 5 | 9 | 35.7 |
 | iam | 14 | 9 | 60.9 |
 | license-manager | 6 | 9 | 40.0 |
 | workspaces | 7 | 9 | 43.8 |
@@ -89,6 +88,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aco-automation | 0 | 6 | 0.0 |
 | autoscaling | 6 | 6 | 50.0 |
 | cloudtrail | 4 | 6 | 40.0 |
+| drs | 8 | 6 | 57.1 |
 | eks | 9 | 6 | 60.0 |
 | forecast | 8 | 6 | 57.1 |
 | lookoutequipment | 5 | 6 | 45.5 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1557)
+### Uncovered (listable, no scanner) (1554)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -850,11 +850,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | docdb-elastic | docdb-elastic/pendingmaintenanceaction | 0 |  | element-written | docdb-elastic:GetPendingMaintenanceAction, docdb-elastic:ListPendingMaintenanceActions |
 | drs | drs/extensiblesourceserver | 1 |  | child-uncatalogued | drs:ListExtensibleSourceServers |
 | drs | drs/job | 0 |  | smithy-resource | drs:DescribeJobs |
-| drs | drs/launchaction | 1 |  | child-uncatalogued | drs:ListLaunchActions |
-| drs | drs/recoveryplan | 0 |  | element-written | drs:GetRecoveryPlan, drs:ListRecoveryPlans |
 | drs | drs/recoveryplanexecution | 0 |  | element-written | drs:GetRecoveryPlanExecution, drs:ListRecoveryPlanExecutions |
 | drs | drs/recoveryplanexecutionstep | 1 |  | child-uncatalogued | drs:GetRecoveryPlanExecutionStep, drs:ListRecoveryPlanExecutionSteps |
-| drs | drs/recoveryplanstep | 1 |  | child-uncatalogued | drs:GetRecoveryPlanStep, drs:ListRecoveryPlanSteps |
 | drs | drs/recoverysnapshot | 1 |  | child-uncatalogued | drs:DescribeRecoverySnapshots |
 | drs | drs/replicationconfiguration | 1 |  | child-uncatalogued | drs:GetReplicationConfiguration |
 | ds | ds/certificate | 1 |  | child-uncatalogued | ds:DescribeCertificate, ds:ListCertificates |
