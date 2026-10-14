@@ -42,6 +42,60 @@ func init() {
 		EdgeDecl{TypeGameLiftMatchmakingConfiguration, TypeGameLiftMatchmakingRuleSet, store.RelUses},
 		EdgeDecl{TypeGameLiftMatchmakingConfiguration, TypeSNSTopic, store.RelRoutesTo},
 	)
+	registerResolver(
+		noopGameLiftFleetHierarchy,
+		EdgeDecl{TypeGameLiftFleet, TypeGameLiftCompute, store.RelContains},
+		EdgeDecl{TypeGameLiftFleet, TypeGameLiftScalingPolicy, store.RelContains},
+		EdgeDecl{TypeGameLiftFleet, TypeGameLiftVpcPeeringConnection, store.RelContains},
+	)
+	registerResolver(
+		resolveGameLiftVpcPeeringPeerVPC,
+		EdgeDecl{TypeGameLiftVpcPeeringConnection, TypeEC2VPC, store.RelPeer},
+	)
+}
+
+// noopGameLiftFleetHierarchy only declares the fleet → child contains edges
+// the scanner records (scanGLComputes, scanGLScalingPolicies,
+// scanGLVpcPeeringConnections).
+func noopGameLiftFleetHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
+// resolveGameLiftVpcPeeringPeerVPC links each GameLift peering connection to
+// the account's VPC it peers with (PeerVpcId), which GameLift requires to be
+// in the fleet's region. The other side, GameLiftVpcId, is a VPC GameLift
+// manages outside the account.
+func resolveGameLiftVpcPeeringPeerVPC(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGameLiftVpcPeeringConnection}, Limit: util.AllResources,
+	})
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			PeerVpcID *string `json:"PeerVpcId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("decode gamelift vpc-peering-connection %s: %w", r.NativeID, err)
+		}
+		peer := sv(attrs.PeerVpcID)
+		if peer == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", peer))
+		if !vpcSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelPeer, "directed", nil); err != nil {
+			return fmt.Errorf("upsert gamelift vpc-peering-connection→vpc: %w", err)
+		}
+	}
+	return nil
 }
 
 // gameliftFleetARN rebuilds `arn:aws:gamelift:{region}:{acct}:fleet/{id}` from

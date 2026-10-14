@@ -931,6 +931,7 @@ const (
 	// GameLift (gamelift_scanners.go)
 	TypeGameLiftAlias                    = "aws:gamelift:alias"
 	TypeGameLiftBuild                    = "aws:gamelift:build"
+	TypeGameLiftCompute                  = "aws:gamelift:compute"
 	TypeGameLiftContainerFleet           = "aws:gamelift:container-fleet"
 	TypeGameLiftContainerGroupDefinition = "aws:gamelift:container-group-definition"
 	TypeGameLiftFleet                    = "aws:gamelift:fleet"
@@ -939,7 +940,9 @@ const (
 	TypeGameLiftLocation                 = "aws:gamelift:location"
 	TypeGameLiftMatchmakingConfiguration = "aws:gamelift:matchmaking-configuration"
 	TypeGameLiftMatchmakingRuleSet       = "aws:gamelift:matchmaking-rule-set"
+	TypeGameLiftScalingPolicy            = "aws:gamelift:scaling-policy"
 	TypeGameLiftScript                   = "aws:gamelift:script"
+	TypeGameLiftVpcPeeringConnection     = "aws:gamelift:vpc-peering-connection"
 	// GameLift Streams (gameliftstreams_scanners.go)
 	TypeGameLiftStreamsApplication = "aws:gameliftstreams:application"
 	TypeGameLiftStreamsStreamGroup = "aws:gameliftstreams:stream-group"

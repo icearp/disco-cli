@@ -1,9 +1,12 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	gltypes "github.com/aws/aws-sdk-go-v2/service/gamelift/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -113,4 +116,46 @@ func TestResolveGameLiftMatchmakingConfigRefs(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(mcID)
 	assertRelationship(t, rels, mcID, qID, store.RelRoutesTo)
 	assertRelationship(t, rels, mcID, rsID, store.RelUses)
+}
+
+func TestResolveGameLiftVpcPeeringPeerVPC_LinksScannedPeerOnly(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-1"), testRegion, "{}")
+	conn := func(id string, c gltypes.VpcPeeringConnection) string {
+		return upsertTestResource(t, st, "aws", acct.ID, TypeGameLiftVpcPeeringConnection,
+			"arn:aws:gamelift:us-east-1:123456789012:fleet/fleet-e/vpc-peering-connection/"+id, testRegion, mustJSON(c))
+	}
+	scanned := conn("pcx-1", gltypes.VpcPeeringConnection{PeerVpcId: ptrStr("vpc-1"), GameLiftVpcId: ptrStr("vpc-gl")})
+	unscanned := conn("pcx-2", gltypes.VpcPeeringConnection{PeerVpcId: ptrStr("vpc-other")})
+	noPeer := conn("pcx-3", gltypes.VpcPeeringConnection{})
+
+	if err := resolveGameLiftVpcPeeringPeerVPC(acct, st); err != nil {
+		t.Fatalf("resolveGameLiftVpcPeeringPeerVPC: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(scanned)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Errorf("pcx-1 edges = %v, want only the peer VPC", rels)
+	}
+	assertRelationship(t, rels, scanned, vpcID, store.RelPeer)
+	for name, id := range map[string]string{"pcx-2 (peer VPC unscanned)": unscanned, "pcx-3 (no peer)": noPeer} {
+		rels, err := st.RelationshipsFrom(id)
+		if err != nil || len(rels) != 0 {
+			t.Errorf("%s edges = %v (err %v), want none", name, rels, err)
+		}
+	}
+}
+
+func TestResolveGameLiftVpcPeeringPeerVPC_DecodeErrorReturned(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeGameLiftVpcPeeringConnection,
+		"arn:aws:gamelift:us-east-1:123456789012:fleet/fleet-e/vpc-peering-connection/pcx-1", testRegion, `{"PeerVpcId":7}`)
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveGameLiftVpcPeeringPeerVPC(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want the attributes decode error", err)
+	}
 }

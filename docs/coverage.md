@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 55.2% (1843/3336 listable) · depth0 68.8% · depth1 35.1% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 55.3% (1846/3336 listable) · depth0 68.9% · depth1 35.3% · depth2 27.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,10 +9,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1024 | 197 | 83.9 |
-| child-uncatalogued | 207 | 810 | 20.4 |
+| child-uncatalogued | 209 | 808 | 20.6 |
 | smithy-resource | 420 | 142 | 74.7 |
 | element-written | 161 | 255 | 38.7 |
-| element-arn | 27 | 79 | 25.5 |
+| element-arn | 28 | 78 | 26.4 |
 | element-created | 4 | 10 | 28.6 |
 
 | Service | Covered | Uncovered | % |
@@ -32,7 +32,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bedrock-agentcore | 30 | 16 | 65.2 |
 | iot | 33 | 16 | 67.3 |
 | lex | 8 | 16 | 33.3 |
-| gamelift | 12 | 15 | 44.4 |
 | mgn | 10 | 15 | 40.0 |
 | rds | 24 | 15 | 61.5 |
 | ses | 19 | 15 | 55.9 |
@@ -44,6 +43,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | inspector2 | 5 | 13 | 27.8 |
 | profile | 12 | 13 | 48.0 |
 | comprehend | 5 | 12 | 29.4 |
+| gamelift | 15 | 12 | 55.6 |
 | omics | 12 | 12 | 50.0 |
 | partnercentral-selling | 0 | 12 | 0.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1493)
+### Uncovered (listable, no scanner) (1490)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1023,7 +1023,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | frauddetector | frauddetector/eventpredictionmetadata | 1 |  | child-uncatalogued | frauddetector:GetEventPredictionMetadata |
 | fsx | fsx/datarepositorytask | 0 |  | element-written | fsx:DescribeDataRepositoryTasks |
 | fsx | fsx/filesystemalias | 1 |  | child-uncatalogued | fsx:DescribeFileSystemAliases |
-| gamelift | gamelift/compute | 1 |  | child-uncatalogued | gamelift:DescribeCompute, gamelift:ListCompute |
 | gamelift | gamelift/fleetcapacity | 0 |  | element-written | gamelift:DescribeFleetCapacity, gamelift:DescribeFleetLocationCapacity |
 | gamelift | gamelift/fleetdeployment | 0 |  | element-written | gamelift:DescribeFleetDeployment, gamelift:ListFleetDeployments |
 | gamelift | gamelift/fleetevent | 1 |  | child-uncatalogued | gamelift:DescribeFleetEvents |
@@ -1035,9 +1034,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | gamelift | gamelift/instance | 1 |  | child-uncatalogued | gamelift:DescribeInstances |
 | gamelift | gamelift/matchmaking | 0 |  | child-uncatalogued | gamelift:DescribeMatchmaking |
 | gamelift | gamelift/playersession | 0 |  | element-written | gamelift:DescribePlayerSessions |
-| gamelift | gamelift/scalingpolicy | 1 |  | child-uncatalogued | gamelift:DescribeScalingPolicies |
 | gamelift | gamelift/vpcpeeringauthorization | 0 |  | element-written | gamelift:DescribeVpcPeeringAuthorizations |
-| gamelift | gamelift/vpcpeeringconnection | 0 |  | element-arn | gamelift:DescribeVpcPeeringConnections |
 | gameliftstreams | gameliftstreams/applicationshadercache | 1 |  | child-uncatalogued | gameliftstreams:ListApplicationShaderCaches |
 | gameliftstreams | gameliftstreams/streamsession | 1 |  | element-written | gameliftstreams:GetStreamSession, gameliftstreams:ListStreamSessions, gameliftstreams:ListStreamSessionsByAccount |
 | gameliftstreams | gameliftstreams/streamurl | 0 |  | element-written | gameliftstreams:GetStreamUrl, gameliftstreams:ListStreamUrls |

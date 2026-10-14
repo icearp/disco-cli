@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
@@ -56,7 +53,7 @@ type opensearchAPI interface {
 // tolerated.
 //
 // Every phase calls the same endpoint, so a domain phase that cannot reach it
-// (openSearchEndpointUnreachable) is returned alone: the later phases would
+// (isEndpointUnreachable) is returned alone: the later phases would
 // fail the same way. Any other domain-phase error, an API-coded throttle
 // included, is joined like a later phase's, and the later phases still run;
 // the data-source phase fans out over whatever domain names were listed.
@@ -69,7 +66,7 @@ type opensearchAPI interface {
 func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := opensearch.NewFromConfig(acct.cfg, func(o *opensearch.Options) { o.Region = region })
 	domainNames, total, inserted, derr := scanOpenSearchDomains(ctx, client, acct, region, st, scanID)
-	if openSearchEndpointUnreachable(derr) {
+	if isEndpointUnreachable(derr) {
 		return total, inserted, derr
 	}
 	errs := []error{derr}
@@ -131,21 +128,6 @@ func scanOpenSearch(ctx context.Context, acct *account, region string, st *store
 // (VPC endpoints, packages, reserved instances), whose shape is synthetic.
 func openSearchARN(region, accountID, resource string) string {
 	return "arn:aws:es:" + region + ":" + accountID + ":" + resource
-}
-
-// openSearchEndpointUnreachable reports whether err means the request never
-// got an answer from the endpoint: a DNS failure, a dial/read error, a
-// dropped connection. isTransientNetworkError is wider: it also accepts
-// API-coded throttles and 5xx, which a reachable endpoint returned for one
-// call and which say nothing about the next call.
-func openSearchEndpointUnreachable(err error) bool {
-	var (
-		dnsErr  *net.DNSError
-		opErr   *net.OpError
-		sendErr *smithyhttp.RequestSendError
-	)
-	return errors.As(err, &dnsErr) || errors.As(err, &opErr) || errors.As(err, &sendErr) ||
-		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 // scanOpenSearchDomains lists the region's domain names, describes and stores

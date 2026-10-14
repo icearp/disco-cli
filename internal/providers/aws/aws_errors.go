@@ -365,6 +365,21 @@ func isDNSNotFound(err error) bool {
 	return false
 }
 
+// isEndpointUnreachable reports whether err means the request never got an
+// answer from the endpoint: a DNS failure, a dial/read error, a dropped
+// connection. isTransientNetworkError is wider: it also accepts API-coded
+// throttles and 5xx, which a reachable endpoint returned for one call and
+// which say nothing about the next call.
+func isEndpointUnreachable(err error) bool {
+	var (
+		dnsErr  *net.DNSError
+		opErr   *net.OpError
+		sendErr *smithyhttp.RequestSendError
+	)
+	return errors.As(err, &dnsErr) || errors.As(err, &opErr) || errors.As(err, &sendErr) ||
+		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
+}
+
 // isTransientNetworkError reports whether err looks like a momentary network
 // or service-side glitch rather than a permanent failure. The SDK v2 retryer
 // already handles throttling and 5xx within its budget; anything that reaches
