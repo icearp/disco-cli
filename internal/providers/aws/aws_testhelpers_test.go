@@ -2,6 +2,7 @@ package aws
 
 import (
 	"path/filepath"
+	"sort"
 	"sync"
 	"testing"
 
@@ -210,4 +211,75 @@ func eventBridgeRuleAttrs(rule eventstypes.Rule, targets ...eventstypes.Target) 
 		Rule    eventstypes.Rule     `json:"Rule"`
 		Targets []eventstypes.Target `json:"Targets"`
 	}{Rule: rule, Targets: targets})
+}
+
+// parentCalls records the parent ids a handler was called with.
+type parentCalls struct {
+	mu  sync.Mutex
+	ids []string
+}
+
+func (c *parentCalls) add(id string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ids = append(c.ids, id)
+}
+
+// distinct returns the sorted distinct ids (a two-page parent is called twice).
+func (c *parentCalls) distinct() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	seen := map[string]bool{}
+	var out []string
+	for _, id := range c.ids {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// rowsByNativeID returns the stored rows of typ, managed ones included, keyed
+// by NativeID.
+func rowsByNativeID(t *testing.T, st *store.Store, typ string) map[string]store.Resource {
+	t.Helper()
+	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, Types: []string{typ}, IncludeManaged: true, Limit: util.AllResources})
+	if err != nil {
+		t.Fatalf("ListResources %s: %v", typ, err)
+	}
+	byID := map[string]store.Resource{}
+	for _, r := range rows {
+		byID[r.NativeID] = r
+	}
+	return byID
+}
+
+// assertContainsNative fails the test unless the parent contains the child,
+// both given by NativeID.
+func assertContainsNative(t *testing.T, st *store.Store, parentNativeID, childNativeID string) {
+	t.Helper()
+	parentID := store.ResourceID("aws", testAccountID, parentNativeID)
+	rels, err := st.RelationshipsFrom(parentID, store.RelContains)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, parentID, store.ResourceID("aws", testAccountID, childNativeID), store.RelContains)
+}
+
+// countOpWarnings counts the scan warnings recorded for op.
+func countOpWarnings(st *store.Store, op string) *int {
+	var (
+		mu sync.Mutex
+		n  int
+	)
+	st.OnWarn = func(w store.ScanWarning) {
+		if w.Service == op {
+			mu.Lock()
+			n++
+			mu.Unlock()
+		}
+	}
+	return &n
 }

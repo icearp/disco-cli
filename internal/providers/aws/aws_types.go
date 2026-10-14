@@ -611,6 +611,9 @@ const (
 	TypeConfigOrganizationConformancePack = "aws:config:organization-conformance-pack"
 	TypeConfigRemediationConfiguration    = "aws:config:remediation-configuration"
 	TypeConfigStoredQuery                 = "aws:config:stored-query"
+	TypeConfigConnector                   = "aws:config:connector"
+	TypeConfigRemediationException        = "aws:config:remediation-exception"
+	TypeConfigRetentionConfiguration      = "aws:config:retention-configuration"
 	// Backup (backup_scanners.go)
 	TypeBackupVault                   = "aws:backup:backup-vault"
 	TypeBackupLogicallyAirGappedVault = "aws:backup:logically-air-gapped-backup-vault"

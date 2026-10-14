@@ -18,6 +18,16 @@ func init() {
 		EdgeDecl{TypeConfigDeliveryChannel, TypeSNSTopic, store.RelUses},
 		EdgeDecl{TypeConfigRule, TypeLambdaFunction, store.RelUses},
 	)
+	registerResolver(
+		noopConfigHierarchy,
+		EdgeDecl{TypeConfigRule, TypeConfigRemediationException, store.RelContains},
+	)
+}
+
+// noopConfigHierarchy declares the contains pair scanConfigRemediationExceptions
+// records at scan time; it emits nothing itself.
+func noopConfigHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveConfigRelationships wires AWS Config recorders, delivery channels,

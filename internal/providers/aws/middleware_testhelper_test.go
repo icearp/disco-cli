@@ -74,3 +74,22 @@ func cfgWithStub(stub func(*smithymw.Stack) error, region string) sdkaws.Config 
 		APIOptions:       []func(*smithymw.Stack) error{stub},
 	}
 }
+
+// opStubConfig is an SDK config whose calls are answered by handlers keyed by
+// operation name, each given the op's input. An op without a handler fails with
+// denyErr, as for a role lacking that action. Handlers can run on fan-out
+// goroutines, so any state they share must be locked.
+func opStubConfig(handlers map[string]func(in any) (any, error), denyErr error) sdkaws.Config {
+	stub := func(s *smithymw.Stack) error {
+		return s.Initialize.Add(smithymw.InitializeMiddlewareFunc("discoOpStub",
+			func(ctx context.Context, in smithymw.InitializeInput, _ smithymw.InitializeHandler) (smithymw.InitializeOutput, smithymw.Metadata, error) {
+				h, ok := handlers[awsmw.GetOperationName(ctx)]
+				if !ok {
+					return smithymw.InitializeOutput{}, smithymw.Metadata{}, denyErr
+				}
+				out, err := h(in.Parameters)
+				return smithymw.InitializeOutput{Result: out}, smithymw.Metadata{}, err
+			}), smithymw.After)
+	}
+	return cfgWithStub(stub, testRegion)
+}

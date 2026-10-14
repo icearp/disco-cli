@@ -20,6 +20,12 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeConfigOrganizationConformancePack, Service: "config"})
 	registerType(restype.Descriptor{Type: TypeConfigRemediationConfiguration, Service: "config"})
 	registerType(restype.Descriptor{Type: TypeConfigStoredQuery, Service: "config"})
+	registerType(restype.Descriptor{Type: TypeConfigConnector, Service: "config"})
+	registerType(restype.Descriptor{Type: TypeConfigRemediationException, Service: "config"})
+	// Not Managed despite being one per region: it exists only after
+	// PutRetentionConfiguration and DeleteRetentionConfiguration removes it, so
+	// it is user-created like the recorder and delivery channel.
+	registerType(restype.Descriptor{Type: TypeConfigRetentionConfiguration, Service: "config"})
 	registerService(serviceEntry{
 		name: "aws:config",
 		fn:   scanConfig,
@@ -39,6 +45,10 @@ type configserviceAPI interface {
 	DescribeOrganizationConformancePacks(context.Context, *configservice.DescribeOrganizationConformancePacksInput, ...func(*configservice.Options)) (*configservice.DescribeOrganizationConformancePacksOutput, error)
 	DescribeRemediationConfigurations(context.Context, *configservice.DescribeRemediationConfigurationsInput, ...func(*configservice.Options)) (*configservice.DescribeRemediationConfigurationsOutput, error)
 	ListStoredQueries(context.Context, *configservice.ListStoredQueriesInput, ...func(*configservice.Options)) (*configservice.ListStoredQueriesOutput, error)
+	DescribeRetentionConfigurations(context.Context, *configservice.DescribeRetentionConfigurationsInput, ...func(*configservice.Options)) (*configservice.DescribeRetentionConfigurationsOutput, error)
+	ListConnectors(context.Context, *configservice.ListConnectorsInput, ...func(*configservice.Options)) (*configservice.ListConnectorsOutput, error)
+	GetConnector(context.Context, *configservice.GetConnectorInput, ...func(*configservice.Options)) (*configservice.GetConnectorOutput, error)
+	DescribeRemediationExceptions(context.Context, *configservice.DescribeRemediationExceptionsInput, ...func(*configservice.Options)) (*configservice.DescribeRemediationExceptionsOutput, error)
 }
 
 // scanConfig discovers AWS Config recorders, delivery channels, and rules.

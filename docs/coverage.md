@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 52.7% (1757/3336 listable) · depth0 67.2% · depth1 31.0% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 52.8% (1760/3336 listable) · depth0 67.3% · depth1 31.0% · depth2 25.4% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,10 +8,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1012 | 209 | 82.9 |
-| child-uncatalogued | 154 | 863 | 15.1 |
+| sr-resource | 1013 | 208 | 83.0 |
+| child-uncatalogued | 155 | 862 | 15.2 |
 | smithy-resource | 417 | 145 | 74.2 |
-| element-written | 145 | 271 | 34.9 |
+| element-written | 146 | 270 | 35.1 |
 | element-arn | 26 | 80 | 24.5 |
 | element-created | 3 | 11 | 21.4 |
 
@@ -20,9 +20,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | 111 | 85 | 56.6 |
 | resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
-| config | 10 | 27 | 27.0 |
 | connect | 41 | 27 | 60.3 |
 | ssm | 11 | 27 | 28.9 |
+| config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
 | glue | 22 | 20 | 52.4 |
 | lex | 4 | 20 | 16.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1579)
+### Uncovered (listable, no scanner) (1576)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -723,16 +723,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | config | config/conformancepackcompliancescore | 0 |  | element-written | config:ListConformancePackComplianceScores |
 | config | config/conformancepackcompliancesummary | 1 |  | child-uncatalogued | config:GetConformancePackComplianceSummary |
 | config | config/conformancepackstatus | 0 |  | element-written | config:DescribeConformancePackStatus |
-| config | config/connector | 0 |  | sr-resource | config:GetConnector, config:ListConnectors |
 | config | config/organizationconfigruledetailedstatus | 1 |  | child-uncatalogued | config:GetOrganizationConfigRuleDetailedStatus |
 | config | config/organizationconfigrulestatus | 0 |  | element-written | config:DescribeOrganizationConfigRuleStatuses |
 | config | config/organizationconformancepackdetailedstatus | 1 |  | child-uncatalogued | config:GetOrganizationConformancePackDetailedStatus |
 | config | config/organizationconformancepackstatus | 0 |  | element-written | config:DescribeOrganizationConformancePackStatuses |
-| config | config/remediationexception | 1 |  | child-uncatalogued | config:DescribeRemediationExceptions |
 | config | config/resourceconfig | 0 |  | element-written | config:BatchGetResourceConfig, config:SelectResourceConfig |
 | config | config/resourceconfighistory | 0 |  | child-uncatalogued | config:GetAggregateResourceConfig, config:GetResourceConfigHistory |
 | config | config/resourceevaluation | 0 |  | element-written | config:ListResourceEvaluations |
-| config | config/retentionconfiguration | 0 |  | element-written | config:DescribeRetentionConfigurations |
 | connect | connect/analyticsdataassociation | 1 |  | child-uncatalogued | connect:ListAnalyticsDataAssociations |
 | connect | connect/analyticsdatalakedataset | 1 |  | child-uncatalogued | connect:ListAnalyticsDataLakeDataSets |
 | connect | connect/associatedcontact | 1 |  | child-uncatalogued | connect:ListAssociatedContacts |

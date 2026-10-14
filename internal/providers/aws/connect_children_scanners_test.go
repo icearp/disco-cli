@@ -5,19 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
-	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
-	awsmw "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 	"github.com/aws/smithy-go"
-	smithymw "github.com/aws/smithy-go/middleware"
-	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -30,76 +25,13 @@ var (
 )
 
 // connectStubClient answers each Connect call from handlers keyed by operation
-// name. An op without a handler is denied, as for a role lacking that action.
-// Handlers run on fan-out goroutines, so any state they share must be locked.
+// name; an op without a handler is denied (see opStubConfig).
 func connectStubClient(handlers map[string]func(in any) (any, error)) *connect.Client {
 	return connect.NewFromConfig(connectStubConfig(handlers))
 }
 
 func connectStubConfig(handlers map[string]func(in any) (any, error)) sdkaws.Config {
-	stub := func(s *smithymw.Stack) error {
-		return s.Initialize.Add(smithymw.InitializeMiddlewareFunc("connectTestStub",
-			func(ctx context.Context, in smithymw.InitializeInput, _ smithymw.InitializeHandler) (smithymw.InitializeOutput, smithymw.Metadata, error) {
-				h, ok := handlers[awsmw.GetOperationName(ctx)]
-				if !ok {
-					return smithymw.InitializeOutput{}, smithymw.Metadata{}, connectDenied
-				}
-				out, err := h(in.Parameters)
-				return smithymw.InitializeOutput{Result: out}, smithymw.Metadata{}, err
-			}), smithymw.After)
-	}
-	return cfgWithStub(stub, testRegion)
-}
-
-// connectCalls records the parent ids a handler was called with.
-type connectCalls struct {
-	mu  sync.Mutex
-	ids []string
-}
-
-func (c *connectCalls) add(id string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.ids = append(c.ids, id)
-}
-
-// distinct returns the sorted distinct ids (a two-page parent is called twice).
-func (c *connectCalls) distinct() []string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	seen := map[string]bool{}
-	var out []string
-	for _, id := range c.ids {
-		if !seen[id] {
-			seen[id] = true
-			out = append(out, id)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-func connectRows(t *testing.T, st *store.Store, typ string) map[string]store.Resource {
-	t.Helper()
-	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, Types: []string{typ}, IncludeManaged: true, Limit: util.AllResources})
-	if err != nil {
-		t.Fatalf("ListResources %s: %v", typ, err)
-	}
-	byID := map[string]store.Resource{}
-	for _, r := range rows {
-		byID[r.NativeID] = r
-	}
-	return byID
-}
-
-func assertContains(t *testing.T, st *store.Store, parentNativeID, childNativeID string) {
-	t.Helper()
-	parentID := store.ResourceID("aws", testAccountID, parentNativeID)
-	rels, err := st.RelationshipsFrom(parentID, store.RelContains)
-	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
-	}
-	assertRelationship(t, rels, parentID, store.ResourceID("aws", testAccountID, childNativeID), store.RelContains)
+	return opStubConfig(handlers, connectDenied)
 }
 
 func connectInstances(ids ...string) []cttypes.InstanceSummary {
@@ -277,7 +209,7 @@ func TestConnectChildPhases_PagesEveryParentOfThisScan(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
 			c.seedParents(t, st)
-			var calls connectCalls
+			var calls parentCalls
 			client := connectStubClient(map[string]func(any) (any, error){c.op: func(in any) (any, error) {
 				inst, id, token := c.parent(in)
 				calls.add(inst + "/" + id)
@@ -290,7 +222,7 @@ func TestConnectChildPhases_PagesEveryParentOfThisScan(t *testing.T) {
 			if got := calls.distinct(); len(got) != 2 || got[0] != "i-1/p-1" || got[1] != "i-1/p-2" {
 				t.Errorf("parents queried = %v, want [i-1/p-1 i-1/p-2]", got)
 			}
-			rows := connectRows(t, st, c.childType)
+			rows := rowsByNativeID(t, st, c.childType)
 			want := append(c.wantIDs(c.parentARN("p-1"), "p-1"), c.wantIDs(c.parentARN("p-2"), "p-2")...)
 			if total != len(want) || len(rows) != len(want) {
 				t.Errorf("total=%d rows=%d, want %d", total, len(rows), len(want))
@@ -306,7 +238,7 @@ func TestConnectChildPhases_PagesEveryParentOfThisScan(t *testing.T) {
 				}
 				c.check(t, r)
 			}
-			assertContains(t, st, c.parentARN("p-2"), c.wantIDs(c.parentARN("p-2"), "p-2")[1])
+			assertContainsNative(t, st, c.parentARN("p-2"), c.wantIDs(c.parentARN("p-2"), "p-2")[1])
 		})
 	}
 }
@@ -328,7 +260,7 @@ func TestConnectChildPhases_ParentErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
-			if want := len(c.wantIDs(c.parentARN("p-2"), "p-2")); total != want || len(connectRows(t, st, c.childType)) != want {
+			if want := len(c.wantIDs(c.parentARN("p-2"), "p-2")); total != want || len(rowsByNativeID(t, st, c.childType)) != want {
 				t.Errorf("total=%d, want p-2's %d rows only", total, want)
 			}
 			if *warns != 0 {
@@ -386,7 +318,7 @@ func TestConnectChildARNIDs(t *testing.T) {
 	}
 }
 
-func testCaseHandlers(listCalls *connectCalls, describe func(id string) (any, error)) map[string]func(any) (any, error) {
+func testCaseHandlers(listCalls *parentCalls, describe func(id string) (any, error)) map[string]func(any) (any, error) {
 	return map[string]func(any) (any, error){
 		"ListTestCases": func(in any) (any, error) {
 			p := in.(*connect.ListTestCasesInput)
@@ -416,13 +348,13 @@ func describedTestCase(id string) (any, error) {
 
 func TestScanConnectTestCases_DescribesEveryListedCase(t *testing.T) {
 	st := newTestStore(t)
-	var lists connectCalls
+	var lists parentCalls
 	client := connectStubClient(testCaseHandlers(&lists, describedTestCase))
 	total, _, err := scanConnectTestCases(context.Background(), client, connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	rows := connectRows(t, st, TypeConnectTestCase)
+	rows := rowsByNativeID(t, st, TypeConnectTestCase)
 	if total != 4 || len(rows) != 4 {
 		t.Fatalf("total=%d rows=%d, want 4", total, len(rows))
 	}
@@ -444,7 +376,7 @@ func TestScanConnectTestCases_Errors(t *testing.T) {
 	t.Run("deleted instance skipped", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
-		var lists connectCalls
+		var lists parentCalls
 		h := testCaseHandlers(&lists, describedTestCase)
 		list := h["ListTestCases"]
 		h["ListTestCases"] = func(in any) (any, error) {
@@ -476,7 +408,7 @@ func TestScanConnectTestCases_Errors(t *testing.T) {
 	t.Run("describe not found and denied drop only that case", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
-		var lists connectCalls
+		var lists parentCalls
 		h := testCaseHandlers(&lists, func(id string) (any, error) {
 			switch id {
 			case "i-1:tc-a":
@@ -493,7 +425,7 @@ func TestScanConnectTestCases_Errors(t *testing.T) {
 	})
 	t.Run("describe error propagates", func(t *testing.T) {
 		st := newTestStore(t)
-		var lists connectCalls
+		var lists parentCalls
 		h := testCaseHandlers(&lists, func(string) (any, error) { return nil, connectBadParam })
 		if _, _, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
 			t.Errorf("err = %v, want InvalidParameterException", err)
@@ -509,7 +441,7 @@ func TestScanConnectTestCases_Errors(t *testing.T) {
 	})
 }
 
-func attachedFilesHandler(calls *connectCalls) func(any) (any, error) {
+func attachedFilesHandler(calls *parentCalls) func(any) (any, error) {
 	return func(in any) (any, error) {
 		p := in.(*connect.ListAttachedFilesConfigurationsInput)
 		calls.add(sv(p.InstanceId))
@@ -530,7 +462,7 @@ func TestScanConnectAttachedFilesConfigurations_OneRowPerScope(t *testing.T) {
 	st := newTestStore(t)
 	seedConnectInstances(t, st, "i-1", "i-2")
 	warns := countWarnings(st)
-	var calls connectCalls
+	var calls parentCalls
 	client := connectStubClient(map[string]func(any) (any, error){"ListAttachedFilesConfigurations": attachedFilesHandler(&calls)})
 	total, _, err := scanConnectAttachedFilesConfigurations(context.Background(), client, connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -539,7 +471,7 @@ func TestScanConnectAttachedFilesConfigurations_OneRowPerScope(t *testing.T) {
 	if got := calls.distinct(); len(got) != 2 {
 		t.Errorf("instances queried = %v, want both", got)
 	}
-	rows := connectRows(t, st, TypeConnectAttachedFilesConfiguration)
+	rows := rowsByNativeID(t, st, TypeConnectAttachedFilesConfiguration)
 	if total != 4 || len(rows) != 4 {
 		t.Fatalf("total=%d rows=%d, want 4", total, len(rows))
 	}
@@ -555,7 +487,7 @@ func TestScanConnectAttachedFilesConfigurations_OneRowPerScope(t *testing.T) {
 	if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.MaximumSizeLimitInBytes != 20971520 {
 		t.Errorf("attributes %s (err %v)", r.AttributesJSON, err)
 	}
-	assertContains(t, st, connectTestInstanceARN, id)
+	assertContainsNative(t, st, connectTestInstanceARN, id)
 	if *warns != 0 {
 		t.Errorf("warnings = %d, want 0", *warns)
 	}
@@ -575,7 +507,7 @@ func TestScanConnectAttachedFilesConfigurations_Errors(t *testing.T) {
 		st := newTestStore(t)
 		seedConnectInstances(t, st, "i-1", "i-2")
 		warns := countWarnings(st)
-		var calls connectCalls
+		var calls parentCalls
 		ok := attachedFilesHandler(&calls)
 		client := connectStubClient(map[string]func(any) (any, error){"ListAttachedFilesConfigurations": func(in any) (any, error) {
 			if sv(in.(*connect.ListAttachedFilesConfigurationsInput).InstanceId) == "i-1" {
@@ -686,7 +618,7 @@ func TestScanConnect_ChildrenReadParentsTheFamiliesStored(t *testing.T) {
 		t.Fatalf("scanConnect: %v", err)
 	}
 	for typ, id := range connectChildRowIDs {
-		if _, ok := connectRows(t, st, typ)[id]; !ok {
+		if _, ok := rowsByNativeID(t, st, typ)[id]; !ok {
 			t.Errorf("%s: no row %s", typ, id)
 		}
 	}
@@ -712,7 +644,7 @@ func TestScanConnect_ChildPhaseErrorAfterFamilies(t *testing.T) {
 				t.Fatalf("err = %v, want InvalidParameterException", err)
 			}
 			for typ, id := range familyRows {
-				if _, ok := connectRows(t, st, typ)[id]; !ok {
+				if _, ok := rowsByNativeID(t, st, typ)[id]; !ok {
 					t.Errorf("%s: family row %s lost", typ, id)
 				}
 			}

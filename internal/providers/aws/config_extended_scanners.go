@@ -8,20 +8,38 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanConfigExtended discovers seven additional AWS Config resource types:
-// AggregationAuthorization, ConfigurationAggregator, ConformancePack,
-// OrganizationConfigRule, OrganizationConformancePack, RemediationConfiguration,
-// and StoredQuery. RemediationConfigurations fetch per Config rule (max 25
-// names per call); others use account/region paginators.
+// scanConfigExtended discovers the AWS Config types beyond recorders, delivery
+// channels and rules. Remediation configurations and exceptions fetch per
+// Config rule; the rest use account/region list calls.
+//
+// The retention-configuration, remediation-exception and connector phases run
+// last so an error in one cannot cost the earlier phases their rows.
 func scanConfigExtended(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var rules []childParent
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanConfigAggAuthz(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanConfigAggregators(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanConfigConformancePacks(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanConfigOrgConfigRules(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanConfigOrgConformancePacks(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanConfigRemediationConfigs(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			var lerr error
+			if rules, lerr = listConfigRules(ctx, client, acct, region, st); lerr != nil {
+				return 0, 0, lerr
+			}
+			return scanConfigRemediationConfigs(ctx, client, rules, acct, region, st, scanID)
+		},
 		func() (int, int, error) { return scanConfigStoredQueries(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanConfigRetentionConfigurations(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanConfigRemediationExceptions(ctx, client, rules, acct, region, st, scanID)
+		},
+		// Connectors go last on an assumption not verified live: as the newest
+		// feature, they may be missing in some regions with an unmodelled
+		// error, and last is where such an error costs the least.
+		func() (int, int, error) { return scanConfigConnectors(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -169,29 +187,42 @@ func scanConfigOrgConformancePacks(ctx context.Context, client configserviceAPI,
 	return upsertBatch(st, batch, "config organization-conformance-packs")
 }
 
-// scanConfigRemediationConfigs fetches remediation configs per Config rule.
-// DescribeRemediationConfigurations takes ConfigRuleNames (max 25/call), no
-// paginator — re-lists rules via DescribeConfigRules paginator rather than
-// threading rule names through scanConfigAll.
-func scanConfigRemediationConfigs(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var ruleNames []string
+// listConfigRules lists the region's Config rules for the per-rule phases. It
+// re-lists rather than threading the list out of scanConfigAll. A rule without
+// an ARN is dropped, as scanConfigAll drops it: it has no stored row to
+// contain children.
+func listConfigRules(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store) ([]childParent, error) {
+	var rules []childParent
 	pager := configservice.NewDescribeConfigRulesPaginator(client, &configservice.DescribeConfigRulesInput{})
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "config:DescribeConfigRules(remediation)", acct.ID, region, err)
+				return nil, skipIfAccessDenied(st, "config:DescribeConfigRules(remediation)", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("config:DescribeConfigRules(remediation): %w", err)
+			return nil, fmt.Errorf("config:DescribeConfigRules(remediation): %w", err)
 		}
 		for _, r := range out.ConfigRules {
-			if n := sv(r.ConfigRuleName); n != "" {
-				ruleNames = append(ruleNames, n)
+			name, arn := sv(r.ConfigRuleName), sv(r.ConfigRuleArn)
+			if name == "" || arn == "" {
+				continue
 			}
+			rules = append(rules, childParent{id: name, arn: arn})
 		}
 	}
-	if len(ruleNames) == 0 {
+	return rules, nil
+}
+
+// scanConfigRemediationConfigs fetches remediation configs per Config rule.
+// DescribeRemediationConfigurations takes ConfigRuleNames (max 25/call), no
+// paginator.
+func scanConfigRemediationConfigs(ctx context.Context, client configserviceAPI, rules []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	if len(rules) == 0 {
 		return 0, 0, nil
+	}
+	ruleNames := make([]string, len(rules))
+	for i, r := range rules {
+		ruleNames[i] = r.id
 	}
 	const batchSize = 25
 	var batch []*store.Resource
@@ -257,4 +288,115 @@ func scanConfigStoredQueries(ctx context.Context, client configserviceAPI, acct 
 		}
 	}
 	return upsertBatch(st, batch, "config stored-queries")
+}
+
+// scanConfigRetentionConfigurations stores the region's retention
+// configuration. The API issues no ARN, so the id is synthesised from the name.
+func scanConfigRetentionConfigurations(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := configservice.NewDescribeRetentionConfigurationsPaginator(client, &configservice.DescribeRetentionConfigurationsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "config:DescribeRetentionConfigurations", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("config:DescribeRetentionConfigurations: %w", err)
+		}
+		for _, rc := range out.RetentionConfigurations {
+			name := sv(rc.Name)
+			if name == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type:     TypeConfigRetentionConfiguration,
+				NativeID: fmt.Sprintf("arn:aws:config:%s:%s:retention-configuration/%s", region, acct.ID, name),
+				Name:     rc.Name, Region: &region,
+				AttributesJSON: mustJSON(rc), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "config retention-configurations")
+}
+
+// scanConfigConnectors lists connector ARNs, then gets each: only
+// GetConnector carries the connector configuration.
+func scanConfigConnectors(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var arns []string
+	pager := configservice.NewListConnectorsPaginator(client, &configservice.ListConnectorsInput{})
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "config:ListConnectors", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("config:ListConnectors: %w", err)
+		}
+		for _, c := range out.ConnectorSummaries {
+			if arn := sv(c.Arn); arn != "" {
+				arns = append(arns, arn)
+			}
+		}
+	}
+	// ResourceNotFoundException is GetConnector's modeled code for a connector
+	// deleted after ListConnectors returned it.
+	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+	rows, err := describeFanOut(ctx, st, acct, region, "config:GetConnector", arns, isGone,
+		func(gctx context.Context, arn string) (*store.Resource, error) {
+			out, gerr := client.GetConnector(gctx, &configservice.GetConnectorInput{Arn: &arn})
+			if gerr != nil {
+				return nil, gerr
+			}
+			c := out.Connector
+			if c == nil || sv(c.Arn) == "" {
+				return nil, nil
+			}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeConfigConnector, NativeID: *c.Arn,
+				Name: c.Name, Region: &region, CreatedAt: tp(c.CreatedTime),
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			}, nil
+		})
+	if err != nil {
+		return 0, 0, err
+	}
+	return upsertBatch(st, rows, "config connectors")
+}
+
+// scanConfigRemediationExceptions lists each rule's remediation exceptions
+// under the rule. An exception has no ARN; the rule ARN plus the exempted
+// resource's type and id identify it.
+//
+// No error is skipped silently: the op models no not-found code, and what it
+// returns for a rule deleted after listConfigRules is not verified live, so
+// such an error fails this phase.
+func scanConfigRemediationExceptions(ctx context.Context, client configserviceAPI, rules []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, "config:DescribeRemediationExceptions", rules,
+		func(error) bool { return false },
+		func(gctx context.Context, rule childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := configservice.NewDescribeRemediationExceptionsPaginator(client, &configservice.DescribeRemediationExceptionsInput{ConfigRuleName: &rule.id})
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(gctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, e := range out.RemediationExceptions {
+					rtype, rid := sv(e.ResourceType), sv(e.ResourceId)
+					if rtype == "" || rid == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type:     TypeConfigRemediationException,
+						NativeID: fmt.Sprintf("%s/remediation-exception/%s/%s", rule.arn, rtype, rid),
+						Name:     e.ResourceId, Region: &region,
+						AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
 }
