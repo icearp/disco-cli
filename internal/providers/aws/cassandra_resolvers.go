@@ -13,6 +13,16 @@ func init() {
 		resolveCassandraTableKMS,
 		EdgeDecl{TypeCassandraTable, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		noopCassandraHierarchy,
+		EdgeDecl{TypeCassandraTable, TypeCassandraStream, store.RelContains},
+	)
+}
+
+// noopCassandraHierarchy only declares the table→stream contains edge, which
+// scanCassandraStreams records through RecordHierarchyBatch.
+func noopCassandraHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveCassandraTableKMS wires each Keyspaces table to its CMK

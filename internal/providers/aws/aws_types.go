@@ -1115,6 +1115,7 @@ const (
 	TypeCECostCategory        = "aws:ce:cost-category"
 	// Cassandra/Keyspaces (cassandra_scanners.go)
 	TypeCassandraKeyspace = "aws:cassandra:keyspace"
+	TypeCassandraStream   = "aws:cassandra:stream"
 	TypeCassandraTable    = "aws:cassandra:table"
 	TypeCassandraType     = "aws:cassandra:type"
 	// APS extras (aps_extended_scanners.go)

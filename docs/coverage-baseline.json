@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 54.28657074340528,
-    "covered": 1811,
-    "uncovered": 1525,
+    "percent": 54.31654676258993,
+    "covered": 1812,
+    "uncovered": 1524,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -256,6 +256,7 @@
       "cases/layout",
       "cases/template",
       "cassandra/keyspace",
+      "cassandra/stream",
       "cassandra/table",
       "cassandra/type",
       "ce/anomalymonitor",
@@ -1993,7 +1994,6 @@
       "cases/caseauditevent",
       "cases/fieldoption",
       "cases/relateditem",
-      "cassandra/stream",
       "ce/anomaly",
       "ce/commitmentpurchaseanalysis",
       "ce/costallocationtagbackfillhistory",

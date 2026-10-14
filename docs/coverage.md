@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 54.3% (1811/3336 listable) · depth0 68.4% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 54.3% (1812/3336 listable) · depth0 68.4% · depth1 33.4% · depth2 26.8% · depth3 3.1% · depth4 0.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1023 | 198 | 83.8 |
+| sr-resource | 1024 | 197 | 83.9 |
 | child-uncatalogued | 184 | 833 | 18.1 |
 | smithy-resource | 419 | 143 | 74.6 |
 | element-written | 154 | 262 | 37.0 |
@@ -247,7 +247,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | application-cost-profiler | 0 | 1 | 0.0 |
 | awsssoportal | 0 | 1 | 0.0 |
 | billing | 1 | 1 | 50.0 |
-| cassandra | 3 | 1 | 75.0 |
 | cloud9 | 1 | 1 | 50.0 |
 | cloudhsm | 2 | 1 | 66.7 |
 | codeguru-profiler | 1 | 1 | 50.0 |
@@ -317,6 +316,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | b2bi | 4 | 0 | 100.0 |
 | bcm-dashboards | 2 | 0 | 100.0 |
 | budgets | 2 | 0 | 100.0 |
+| cassandra | 4 | 0 | 100.0 |
 | cloudsearch | 1 | 0 | 100.0 |
 | codestar-connections | 4 | 0 | 100.0 |
 | codestar-notifications | 1 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1525)
+### Uncovered (listable, no scanner) (1524)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -531,7 +531,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cases | cases/caseauditevent | 2 |  | child-uncatalogued | cases:GetCaseAuditEvents |
 | cases | cases/fieldoption | 2 |  | child-uncatalogued | cases:ListFieldOptions |
 | cases | cases/relateditem | 2 |  | smithy-resource | cases:SearchRelatedItems |
-| cassandra | cassandra/stream | 0 |  | sr-resource | cassandra:GetStream, cassandra:ListStreams |
 | ce | ce/anomaly | 1 |  | child-uncatalogued | ce:GetAnomalies |
 | ce | ce/commitmentpurchaseanalysis | 0 |  | element-written | ce:GetCommitmentPurchaseAnalysis, ce:ListCommitmentPurchaseAnalyses |
 | ce | ce/costallocationtagbackfillhistory | 0 |  | element-written | ce:ListCostAllocationTagBackfillHistory |
