@@ -666,6 +666,10 @@ const (
 	TypeBcmPricingCalculatorBillScenario     = "aws:bcmpricingcalculator:bill-scenario"
 	TypeBcmPricingCalculatorBillEstimate     = "aws:bcmpricingcalculator:bill-estimate"
 	TypeBcmPricingCalculatorWorkloadEstimate = "aws:bcmpricingcalculator:workload-estimate"
+	// Children of a bill scenario / workload estimate (contains edges).
+	TypeBcmPricingCalculatorBillScenarioCommitmentModification = "aws:bcmpricingcalculator:bill-scenario-commitment-modification"
+	TypeBcmPricingCalculatorBillScenarioUsageModification      = "aws:bcmpricingcalculator:bill-scenario-usage-modification"
+	TypeBcmPricingCalculatorWorkloadEstimateUsage              = "aws:bcmpricingcalculator:workload-estimate-usage"
 	// Billing (billing_scanners.go, billing_resolvers.go)
 	TypeBillingView = "aws:billing:billing-view"
 	// Billing Conductor (billingconductor_scanners.go, billingconductor_resolvers.go)

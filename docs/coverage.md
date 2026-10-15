@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.3% (1877/3336 listable) · depth0 69.4% · depth1 37.0% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.4% (1880/3336 listable) · depth0 69.4% · depth1 37.3% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
 | child-uncatalogued | 226 | 791 | 22.2 |
-| smithy-resource | 421 | 141 | 74.9 |
+| smithy-resource | 424 | 138 | 75.4 |
 | element-written | 168 | 248 | 40.4 |
 | element-arn | 31 | 75 | 29.2 |
 | element-created | 5 | 9 | 35.7 |
@@ -66,7 +66,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workdocs | 0 | 8 | 0.0 |
 | athena | 6 | 7 | 46.2 |
 | backup | 12 | 7 | 63.2 |
-| bcm-pricing-calculator | 3 | 7 | 30.0 |
 | cognito-idp | 6 | 7 | 46.2 |
 | globalaccelerator | 4 | 7 | 36.4 |
 | greengrass | 20 | 7 | 74.1 |
@@ -125,6 +124,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | voiceid | 1 | 5 | 16.7 |
 | wisdom | 11 | 5 | 68.8 |
 | arc-region-switch | 1 | 4 | 20.0 |
+| bcm-pricing-calculator | 6 | 4 | 60.0 |
 | billingconductor | 4 | 4 | 50.0 |
 | codeconnections | 0 | 4 | 0.0 |
 | controltower | 3 | 4 | 42.9 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1459)
+### Uncovered (listable, no scanner) (1456)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -475,9 +475,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputcommitmentmodification | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillEstimateInputCommitmentModifications |
 | bcm-pricing-calculator | bcm-pricing-calculator/billestimateinputusagemodification | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillEstimateInputUsageModifications |
 | bcm-pricing-calculator | bcm-pricing-calculator/billestimatelineitem | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillEstimateLineItems |
-| bcm-pricing-calculator | bcm-pricing-calculator/billscenariocommitmentmodification | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillScenarioCommitmentModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/billscenariousagemodification | 1 |  | smithy-resource | bcm-pricing-calculator:ListBillScenarioUsageModifications |
-| bcm-pricing-calculator | bcm-pricing-calculator/workloadestimateusage | 1 |  | smithy-resource | bcm-pricing-calculator:ListWorkloadEstimateUsage |
 | bedrock | bedrock/advancedpromptoptimizationjob | 0 |  | smithy-resource | bedrock:GetAdvancedPromptOptimizationJob, bedrock:ListAdvancedPromptOptimizationJobs |
 | bedrock | bedrock/asyncinvoke | 0 |  | smithy-resource | bedrock:GetAsyncInvoke, bedrock:ListAsyncInvokes |
 | bedrock | bedrock/automatedreasoningpolicybuildworkflow | 1 |  | child-uncatalogued | bedrock:GetAutomatedReasoningPolicyBuildWorkflow, bedrock:ListAutomatedReasoningPolicyBuildWorkflows |
