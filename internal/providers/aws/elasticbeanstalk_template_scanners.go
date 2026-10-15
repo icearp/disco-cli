@@ -71,8 +71,7 @@ func scanBeanstalkConfigurationTemplates(ctx context.Context, client elasticbean
 	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, beanstalkDescribeConfigurationSettingsOp, parents, never, byParentID,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			rows, err := describeBeanstalkTemplate(ctx, client, acct, region, scanID, p.id, templates[p.id])
-			if isAPIErrorCode(err, "InvalidParameterValue") {
-				gone.skipped(p.id, err)
+			if gone.dropCode("InvalidParameterValue", p.id, err) {
 				return nil, nil
 			}
 			if err == nil && len(rows) == 0 {
@@ -80,12 +79,8 @@ func scanBeanstalkConfigurationTemplates(ctx context.Context, client elasticbean
 			}
 			return rows, err
 		})
-	if gone.count > 0 {
-		st.ReportWarning(store.ScanWarning{
-			Provider: "aws", Service: beanstalkDescribeConfigurationSettingsOp, Scope: acct.ID + "/" + region,
-			Message: fmt.Sprintf("%d template(s) skipped with InvalidParameterValue; a template or its application may have been deleted since listing, first %s: %v", gone.count, gone.first, gone.err),
-		})
-	}
+	gone.warnCode(st, beanstalkDescribeConfigurationSettingsOp, acct, region, "InvalidParameterValue",
+		"template(s)", "a template or its application may have been deleted since listing")
 	if unmatched.count > 0 {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "aws", Service: beanstalkDescribeConfigurationSettingsOp, Scope: acct.ID + "/" + region,

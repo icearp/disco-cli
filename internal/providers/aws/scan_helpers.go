@@ -324,13 +324,12 @@ type notReadyTally struct{ skipTally }
 
 // drop tallies parent and reports true when err is ValidationException.
 func (t *notReadyTally) drop(parent string, err error) bool {
-	return t.dropNotReady("ValidationException", parent, err)
+	return t.dropCode("ValidationException", parent, err)
 }
 
-// dropNotReady tallies parent and reports true when err has the error code
-// code. Every not-ready skip matches through it and warns through
-// warnNotReady.
-func (t *skipTally) dropNotReady(code, parent string, err error) bool {
+// dropCode tallies parent and reports true when err has the error code
+// code. Every per-code skip matches through it and warns through warnCode.
+func (t *skipTally) dropCode(code, parent string, err error) bool {
 	if !isAPIErrorCode(err, code) {
 		return false
 	}
@@ -341,13 +340,13 @@ func (t *skipTally) dropNotReady(code, parent string, err error) bool {
 // warnSkipped warns once for every parent skipped, naming what the parents
 // are (e.g. "parent(s)"), why the service may refuse one, the first and its error.
 func (t *notReadyTally) warnSkipped(st *store.Store, op string, acct *account, region, what, why string) {
-	t.warnNotReady(st, op, acct, region, "ValidationException", what, why)
+	t.warnCode(st, op, acct, region, "ValidationException", what, why)
 }
 
-// warnNotReady warns once for every parent skipped with the error code code,
+// warnCode warns once for every parent skipped with the error code code,
 // naming what the parents are, why the service may refuse one, the first and
 // its error.
-func (t *skipTally) warnNotReady(st *store.Store, op string, acct *account, region, code, what, why string) {
+func (t *skipTally) warnCode(st *store.Store, op string, acct *account, region, code, what, why string) {
 	if t.count == 0 {
 		return
 	}
@@ -447,14 +446,14 @@ func childFanOutStoredSkipNotReady(
 		func(ctx context.Context, p childParent) (int, int, error) {
 			t, i, err := storeChildren(ctx, p)
 			for k, code := range notReadyCodes {
-				if notReady[k].dropNotReady(code, label(p), err) {
+				if notReady[k].dropCode(code, label(p), err) {
 					return t, i, nil
 				}
 			}
 			return t, i, err
 		})
 	for k, code := range notReadyCodes {
-		notReady[k].warnNotReady(st, op, acct, region, code, what, why)
+		notReady[k].warnCode(st, op, acct, region, code, what, why)
 	}
 	return total, inserted, err
 }
