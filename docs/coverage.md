@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.1% (1872/3336 listable) · depth0 69.4% · depth1 36.6% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.2% (1874/3336 listable) · depth0 69.4% · depth1 36.7% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,9 +9,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 222 | 795 | 21.8 |
+| child-uncatalogued | 223 | 794 | 21.9 |
 | smithy-resource | 421 | 141 | 74.9 |
-| element-written | 167 | 249 | 40.1 |
+| element-written | 168 | 248 | 40.4 |
 | element-arn | 31 | 75 | 29.2 |
 | element-created | 5 | 9 | 35.7 |
 
@@ -56,7 +56,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | auditmanager | 3 | 9 | 25.0 |
 | es | 11 | 9 | 55.0 |
 | qbusiness | 10 | 9 | 52.6 |
-| workspaces | 7 | 9 | 43.8 |
 | athena | 5 | 8 | 38.5 |
 | cleanrooms-ml | 7 | 8 | 46.7 |
 | codebuild | 4 | 8 | 33.3 |
@@ -79,6 +78,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | outposts | 2 | 7 | 22.2 |
 | ram | 2 | 7 | 22.2 |
 | servicecatalog | 13 | 7 | 65.0 |
+| workspaces | 9 | 7 | 56.2 |
 | aco-automation | 0 | 6 | 0.0 |
 | aidevops | 8 | 6 | 57.1 |
 | autoscaling | 6 | 6 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1464)
+### Uncovered (listable, no scanner) (1462)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1810,11 +1810,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workmail | workmail/mailboxexportjob | 1 |  | child-uncatalogued | workmail:DescribeMailboxExportJob, workmail:ListMailboxExportJobs |
 | workmail | workmail/mailboxpermission | 1 |  | child-uncatalogued | workmail:ListMailboxPermissions |
 | workmail | workmail/resourcedelegate | 1 |  | child-uncatalogued | workmail:ListResourceDelegates |
-| workspaces | workspaces/accountlink | 0 |  | element-written | workspaces:GetAccountLink, workspaces:ListAccountLinks |
 | workspaces | workspaces/applicationassociation | 1 |  | child-uncatalogued | workspaces:DescribeApplicationAssociations |
 | workspaces | workspaces/bundleassociation | 1 |  | child-uncatalogued | workspaces:DescribeBundleAssociations |
 | workspaces | workspaces/clientproperty | 1 |  | child-uncatalogued | workspaces:DescribeClientProperties |
-| workspaces | workspaces/connectclientaddin | 1 |  | child-uncatalogued | workspaces:DescribeConnectClientAddIns |
 | workspaces | workspaces/connectionaliaspermission | 1 |  | child-uncatalogued | workspaces:DescribeConnectionAliasPermissions |
 | workspaces | workspaces/imageassociation | 1 |  | child-uncatalogued | workspaces:DescribeImageAssociations |
 | workspaces | workspaces/workspaceassociation | 1 |  | child-uncatalogued | workspaces:DescribeWorkspaceAssociations |

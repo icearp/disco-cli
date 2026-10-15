@@ -2015,6 +2015,8 @@ const (
 	TypeWorkSpacesWorkspaceImage       = "aws:work-spaces:workspace-image"
 	TypeWorkSpacesWorkspaceIPGroup     = "aws:work-spaces:workspace-ip-group"
 	TypeWorkSpacesWorkspaceApplication = "aws:work-spaces:workspace-application"
+	TypeWorkSpacesAccountLink          = "aws:work-spaces:account-link"
+	TypeWorkSpacesConnectClientAddIn   = "aws:work-spaces:connect-client-add-in"
 	// S3Vectors (s3vectors_scanners.go).
 	TypeS3VectorsIndex              = "aws:s3vectors:index"
 	TypeS3VectorsVectorBucket       = "aws:s3vectors:vector-bucket"

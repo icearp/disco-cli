@@ -2,9 +2,12 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/workspaces"
+	wstypes "github.com/aws/aws-sdk-go-v2/service/workspaces/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -18,6 +21,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceImage, Service: "work-spaces"})
 	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceIPGroup, Service: "work-spaces"})
 	registerType(restype.Descriptor{Type: TypeWorkSpacesWorkspaceApplication, Service: "work-spaces"})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesAccountLink, Service: "work-spaces"})
+	registerType(restype.Descriptor{Type: TypeWorkSpacesConnectClientAddIn, Service: "work-spaces"})
 	registerService(serviceEntry{
 		name: "aws:work-spaces",
 		fn:   scanWorkSpaces,
@@ -33,19 +38,60 @@ type workSpacesAPI interface {
 	DescribeWorkspaceImages(context.Context, *workspaces.DescribeWorkspaceImagesInput, ...func(*workspaces.Options)) (*workspaces.DescribeWorkspaceImagesOutput, error)
 	DescribeIpGroups(context.Context, *workspaces.DescribeIpGroupsInput, ...func(*workspaces.Options)) (*workspaces.DescribeIpGroupsOutput, error)
 	DescribeApplications(context.Context, *workspaces.DescribeApplicationsInput, ...func(*workspaces.Options)) (*workspaces.DescribeApplicationsOutput, error)
+	ListAccountLinks(context.Context, *workspaces.ListAccountLinksInput, ...func(*workspaces.Options)) (*workspaces.ListAccountLinksOutput, error)
+	DescribeConnectClientAddIns(context.Context, *workspaces.DescribeConnectClientAddInsInput, ...func(*workspaces.Options)) (*workspaces.DescribeConnectClientAddInsOutput, error)
 }
 
-// scanWorkSpaces discovers WorkSpaces workspaces, connection aliases, and
-// workspaces pools. Workspaces and aliases synth ARN from ID;
-// WorkspacesPool exposes PoolArn natively.
-func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := workspaces.NewFromConfig(acct.cfg, func(o *workspaces.Options) { o.Region = region })
+// wsPageLimit is the model's cap on MaxResults (Limit, 1-25) for the
+// account-link and client add-in lists.
+const wsPageLimit = 25
 
+// scanWorkSpaces discovers WorkSpaces workspaces, connection aliases,
+// workspaces pools, directories, bundles, images, IP groups, applications,
+// account links and the directories' Amazon Connect client add-ins. Most
+// types synth an ARN from their id; WorkspacesPool exposes PoolArn natively.
+//
+// The older phases (workspaces through applications) stop at their first hard
+// error. The account-link and add-in phases run whatever any other phase
+// returned, so their failure costs no other phase its rows and an older
+// phase's failure does not skip them. Each of the three results has its
+// transient error demoted to a warning, since one transient member would make
+// the dispatcher read the whole join as transient, and the rest are joined;
+// the counts of all three are summed. The add-in phase fans out over the
+// directories listed this scan, so it lists none when the older phases
+// stopped before or at the directory phase.
+func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	client := workspaces.NewFromConfig(acct.cfg, func(o *workspaces.Options) { o.Region = region })
+	total, inserted, directories, err := scanWSOlderPhases(ctx, client, acct, region, st, scanID)
+	errs := []error{demoteTransient(st, "workspaces", acct, region, err)}
+	for _, phase := range []struct {
+		op  string
+		run func() (int, int, error)
+	}{
+		{"workspaces:ListAccountLinks", func() (int, int, error) { return scanWSAccountLinks(ctx, client, acct, region, st, scanID) }},
+		{"workspaces:DescribeConnectClientAddIns", func() (int, int, error) {
+			return scanWSConnectClientAddIns(ctx, client, acct, region, st, scanID, directories)
+		}},
+	} {
+		t, i, perr := phase.run()
+		total += t
+		inserted += i
+		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+	}
+	return total, inserted, errors.Join(errs...)
+}
+
+// scanWSOlderPhases runs the phases that predate account links and add-ins,
+// stopping at the first hard error. It also returns the directories listed.
+func scanWSOlderPhases(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, directories []childParent, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanWSWorkspaces(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanWSConnectionAliases(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanWSWorkspacesPools(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanWSDirectories(ctx, client, acct, region, st, scanID) },
+		func() (t, i int, err error) {
+			t, i, directories, err = scanWSDirectories(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (int, int, error) { return scanWSBundles(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanWSImages(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanWSIpGroups(ctx, client, acct, region, st, scanID) },
@@ -53,12 +99,12 @@ func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store
 	} {
 		t, i, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, inserted, directories, perr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+	return total, inserted, directories, nil
 }
 
 func scanWSWorkspaces(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -166,16 +212,19 @@ func scanWSWorkspacesPools(ctx context.Context, client workSpacesAPI, acct *acco
 	return upsertBatch(st, batch, "workspaces workspaces-pools")
 }
 
-func scanWSDirectories(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanWSDirectories also returns the stored directories for the client
+// add-in phase.
+func scanWSDirectories(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
 	pager := workspaces.NewDescribeWorkspaceDirectoriesPaginator(client, &workspaces.DescribeWorkspaceDirectoriesInput{})
 	var batch []*store.Resource
+	var parents []childParent
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "workspaces:DescribeWorkspaceDirectories", acct.ID, region, err)
+				return 0, 0, nil, skipIfAccessDenied(st, "workspaces:DescribeWorkspaceDirectories", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("workspaces:DescribeWorkspaceDirectories: %w", err)
+			return 0, 0, nil, fmt.Errorf("workspaces:DescribeWorkspaceDirectories: %w", err)
 		}
 		for _, d := range out.Directories {
 			id := sv(d.DirectoryId)
@@ -194,9 +243,14 @@ func scanWSDirectories(ctx context.Context, client workSpacesAPI, acct *account,
 				Name: &label, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
 			})
+			parents = append(parents, childParent{id: id, arn: arn})
 		}
 	}
-	return upsertBatch(st, batch, "workspaces directories")
+	total, inserted, err := upsertBatch(st, batch, "workspaces directories")
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	return total, inserted, parents, nil
 }
 
 // scanWSBundles lists the account's own WorkSpace bundles. DescribeWorkspaceBundles
@@ -344,4 +398,109 @@ func scanWSApplications(ctx context.Context, client workSpacesAPI, acct *account
 		}
 	}
 	return upsertBatch(st, batch, "workspaces workspace-applications")
+}
+
+// scanWSAccountLinks lists the account's BYOL account links in every status
+// the API returns. A link has no ARN (the Service Reference documents none),
+// so its NativeID is the synthetic
+// arn:aws:workspaces:{region}:{account}:accountlink/{AccountLinkId}, shaped
+// like the file's other synthesized ARNs. A LINK_NOT_FOUND element names a
+// link that does not exist and is skipped. A denial on any page warns once
+// and keeps the links already listed. Account linking is not offered in every
+// region (AWS GovCloud has none), so a first page the endpoint does not serve
+// is a silent gap.
+func scanWSAccountLinks(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	const op = "workspaces:ListAccountLinks"
+	pager := workspaces.NewListAccountLinksPaginator(client, &workspaces.ListAccountLinksInput{},
+		func(o *workspaces.ListAccountLinksPaginatorOptions) { o.Limit = wsPageLimit })
+	var batch []*store.Resource
+	for firstPage := true; pager.HasMorePages(); firstPage = false {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if firstPage && isOpNotDeployed(err) {
+				return 0, 0, nil
+			}
+			if !isAccessDenied(err) {
+				return 0, 0, fmt.Errorf("%s: %w", op, err)
+			}
+			_ = skipIfAccessDenied(st, op, acct.ID, region, err)
+			break
+		}
+		for _, l := range out.AccountLinks {
+			id := sv(l.AccountLinkId)
+			if id == "" || l.AccountLinkStatus == wstypes.AccountLinkStatusEnumLinkNotFound {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeWorkSpacesAccountLink, NativeID: wsAccountLinkNativeID(region, acct.ID, id),
+				Name: &id, Region: &region, Status: nonEmptyPtr(string(l.AccountLinkStatus)),
+				AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "workspaces account-links")
+}
+
+func wsAccountLinkNativeID(region, acctID, linkID string) string {
+	return fmt.Sprintf("arn:aws:workspaces:%s:%s:accountlink/%s", region, acctID, linkID)
+}
+
+// isWSDirectoryGone matches a directory deregistered between its list call
+// and the call that lists its client add-ins.
+func isWSDirectoryGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+
+// scanWSConnectClientAddIns lists the client add-ins of every directory and
+// links each under its directory. A directory whose call still fails
+// transiently after the SDK's retries is skipped, keeping its siblings' rows,
+// and the skips are reported in one warning.
+func scanWSConnectClientAddIns(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, directories []childParent) (int, int, error) {
+	const op = "workspaces:DescribeConnectClientAddIns"
+	var transient transientTally
+	total, inserted, err := childFanOut(ctx, st, acct, region, op, directories, isWSDirectoryGone,
+		func(ctx context.Context, dir childParent) ([]*store.Resource, error) {
+			rows, err := listWSConnectClientAddIns(ctx, client, acct, region, scanID, dir)
+			if isTransientNetworkError(err) {
+				transient.skipped(dir.id, err)
+				return nil, nil
+			}
+			return rows, err
+		})
+	transient.warnSkipped(st, op, acct, region)
+	return total, inserted, err
+}
+
+// listWSConnectClientAddIns lists the Amazon Connect client add-ins of one
+// directory. An add-in has no ARN, so its NativeID is
+// {directoryARN}/connect-client-add-in/{AddInId}. Its URL is the Connect
+// instance endpoint the client opens, not a credential, so it needs no Redact
+// rule.
+func listWSConnectClientAddIns(ctx context.Context, client workSpacesAPI, acct *account, region, scanID string, dir childParent) ([]*store.Resource, error) {
+	var rows []*store.Resource
+	in := &workspaces.DescribeConnectClientAddInsInput{ResourceId: &dir.id, MaxResults: sdkaws.Int32(wsPageLimit)}
+	for {
+		out, err := client.DescribeConnectClientAddIns(ctx, in)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range out.AddIns {
+			id := sv(a.AddInId)
+			if id == "" {
+				continue
+			}
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeWorkSpacesConnectClientAddIn, NativeID: dir.arn + "/connect-client-add-in/" + id,
+				Name: a.Name, Region: &region,
+				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			})
+		}
+		// DescribeConnectClientAddIns has no paginator; a repeated token would
+		// loop forever.
+		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+			break
+		}
+		in.NextToken = out.NextToken
+	}
+	return rows, nil
 }
