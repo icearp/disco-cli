@@ -1238,8 +1238,16 @@ const (
 	TypeFISExperimentTemplate         = "aws:fis:experiment-template"
 	TypeFISTargetAccountConfiguration = "aws:fis:target-account-configuration"
 	// DirectoryService (directoryservice_scanners.go)
-	TypeDSMicrosoftAD = "aws:directory-service:microsoft-ad"
-	TypeDSSimpleAD    = "aws:directory-service:simple-ad"
+	TypeDSMicrosoftAD     = "aws:directory-service:microsoft-ad"
+	TypeDSSimpleAD        = "aws:directory-service:simple-ad"
+	TypeDSCertificate     = "aws:directory-service:certificate"
+	TypeDSEventTopic      = "aws:directory-service:event-topic"
+	TypeDSIPRoute         = "aws:directory-service:ip-route"
+	TypeDSLogSubscription = "aws:directory-service:log-subscription"
+	TypeDSRegion          = "aws:directory-service:region"
+	TypeDSSharedDirectory = "aws:directory-service:shared-directory"
+	TypeDSSnapshot        = "aws:directory-service:snapshot"
+	TypeDSTrust           = "aws:directory-service:trust"
 	// Detective extras (detective_extended_scanners.go)
 	TypeDetectiveOrganizationAdmin = "aws:detective:organization-admin"
 	// Comprehend (comprehend_scanners.go)

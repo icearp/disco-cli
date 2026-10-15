@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 55.6% (1854/3336 listable) · depth0 68.9% · depth1 35.8% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 55.8% (1862/3336 listable) · depth0 69.1% · depth1 36.2% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,11 +9,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 213 | 804 | 20.9 |
+| child-uncatalogued | 217 | 800 | 21.3 |
 | smithy-resource | 421 | 141 | 74.9 |
-| element-written | 162 | 254 | 38.9 |
-| element-arn | 28 | 78 | 26.4 |
-| element-created | 4 | 10 | 28.6 |
+| element-written | 164 | 252 | 39.4 |
+| element-arn | 29 | 77 | 27.4 |
+| element-created | 5 | 9 | 35.7 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
@@ -51,7 +51,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | clouddirectory | 2 | 10 | 16.7 |
 | codecatalyst | 0 | 10 | 0.0 |
 | compute-optimizer | 0 | 10 | 0.0 |
-| ds | 1 | 10 | 9.1 |
 | imagebuilder | 9 | 10 | 47.4 |
 | logs | 15 | 10 | 60.0 |
 | qbusiness | 9 | 10 | 47.4 |
@@ -200,6 +199,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codeguru-security | 0 | 2 | 0.0 |
 | datapipeline | 1 | 2 | 33.3 |
 | detective | 3 | 2 | 60.0 |
+| ds | 9 | 2 | 81.8 |
 | ecr | 3 | 2 | 60.0 |
 | elasticache | 12 | 2 | 85.7 |
 | entityresolution | 4 | 2 | 66.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1482)
+### Uncovered (listable, no scanner) (1474)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -837,16 +837,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | drs | drs/recoveryplanexecutionstep | 1 |  | child-uncatalogued | drs:GetRecoveryPlanExecutionStep, drs:ListRecoveryPlanExecutionSteps |
 | drs | drs/recoverysnapshot | 1 |  | child-uncatalogued | drs:DescribeRecoverySnapshots |
 | drs | drs/replicationconfiguration | 1 |  | child-uncatalogued | drs:GetReplicationConfiguration |
-| ds | ds/certificate | 1 |  | child-uncatalogued | ds:DescribeCertificate, ds:ListCertificates |
 | ds | ds/domaincontroller | 1 |  | child-uncatalogued | ds:DescribeDomainControllers |
-| ds | ds/eventtopic | 0 |  | element-arn | ds:DescribeEventTopics |
-| ds | ds/iproute | 1 |  | child-uncatalogued | ds:ListIpRoutes |
-| ds | ds/logsubscription | 0 |  | element-created | ds:ListLogSubscriptions |
-| ds | ds/region | 1 |  | child-uncatalogued | ds:DescribeRegions |
 | ds | ds/schemaextension | 1 |  | child-uncatalogued | ds:ListSchemaExtensions |
-| ds | ds/shareddirectory | 1 |  | child-uncatalogued | ds:DescribeSharedDirectories |
-| ds | ds/snapshot | 0 |  | element-written | ds:DescribeSnapshots |
-| ds | ds/trust | 0 |  | element-written | ds:DescribeTrusts, ds:VerifyTrust |
 | ds-data | ds-data/group | 1 |  | child-uncatalogued | ds-data:ListGroups, ds-data:ListGroupsForMember, ds-data:SearchGroups |
 | ds-data | ds-data/groupmember | 1 |  | child-uncatalogued | ds-data:ListGroupMembers |
 | ds-data | ds-data/user | 1 |  | child-uncatalogued | ds-data:ListUsers, ds-data:SearchUsers |

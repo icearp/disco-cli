@@ -10,6 +10,7 @@ import (
 	codebuildtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
+	dstypes "github.com/aws/aws-sdk-go-v2/service/directoryservice/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
@@ -292,6 +293,44 @@ func TestRedact_FallbackStillCatchesUnruledTypes(t *testing.T) {
 	out := redact.Apply("aws:fake:type", `{"Password":"x"}`)
 	if !strings.Contains(out, "Password") {
 		t.Errorf("redact.Apply should pass through unrules; got %s", out)
+	}
+}
+
+func TestRedact_DSSharedDirectory_ShareNotes(t *testing.T) {
+	s := dstypes.SharedDirectory{
+		SharedDirectoryId: ptrStr("d-consumer"),
+		SharedAccountId:   ptrStr("210987654321"),
+		ShareNotes:        ptrStr("join with the temporary password Hunter2"),
+	}
+	got := applyAndDecode(t, TypeDSSharedDirectory, s)
+	if got["ShareNotes"] != redact.Placeholder {
+		t.Errorf("ShareNotes not redacted: %v", got["ShareNotes"])
+	}
+	if got["SharedAccountId"] != "210987654321" || got["SharedDirectoryId"] != "d-consumer" {
+		t.Errorf("ids clobbered: %v", got)
+	}
+}
+
+func TestRedact_DSDirectory_ShareNotesAndRadiusSecret(t *testing.T) {
+	d := dstypes.DirectoryDescription{
+		DirectoryId:    ptrStr("d-1"),
+		ShareNotes:     ptrStr("join with the temporary password Hunter2"),
+		RadiusSettings: &dstypes.RadiusSettings{SharedSecret: ptrStr("radius-secret"), RadiusServers: []string{"10.0.0.5"}},
+	}
+	for _, typ := range []string{TypeDSMicrosoftAD, TypeDSSimpleAD} {
+		t.Run(typ, func(t *testing.T) {
+			got := applyAndDecode(t, typ, d)
+			if got["ShareNotes"] != redact.Placeholder {
+				t.Errorf("ShareNotes not redacted: %v", got["ShareNotes"])
+			}
+			radius, _ := got["RadiusSettings"].(map[string]any)
+			if radius["SharedSecret"] != redact.Placeholder {
+				t.Errorf("RadiusSettings.SharedSecret not redacted: %v", radius["SharedSecret"])
+			}
+			if servers, _ := radius["RadiusServers"].([]any); len(servers) != 1 || servers[0] != "10.0.0.5" || got["DirectoryId"] != "d-1" {
+				t.Errorf("non-secret fields clobbered: %v", got)
+			}
+		})
 	}
 }
 
