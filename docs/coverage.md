@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 55.8% (1862/3336 listable) · depth0 69.1% · depth1 36.2% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 55.9% (1865/3336 listable) · depth0 69.2% · depth1 36.4% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,10 +9,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 217 | 800 | 21.3 |
+| child-uncatalogued | 219 | 798 | 21.5 |
 | smithy-resource | 421 | 141 | 74.9 |
 | element-written | 164 | 252 | 39.4 |
-| element-arn | 29 | 77 | 27.4 |
+| element-arn | 30 | 76 | 28.3 |
 | element-created | 5 | 9 | 35.7 |
 
 | Service | Covered | Uncovered | % |
@@ -52,7 +52,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codecatalyst | 0 | 10 | 0.0 |
 | compute-optimizer | 0 | 10 | 0.0 |
 | imagebuilder | 9 | 10 | 47.4 |
-| logs | 15 | 10 | 60.0 |
 | qbusiness | 9 | 10 | 47.4 |
 | securityagent | 15 | 10 | 60.0 |
 | storagegateway | 8 | 10 | 44.4 |
@@ -76,6 +75,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | globalaccelerator | 4 | 7 | 36.4 |
 | greengrass | 20 | 7 | 74.1 |
 | guardduty | 10 | 7 | 58.8 |
+| logs | 18 | 7 | 72.0 |
 | networkmanager | 13 | 7 | 65.0 |
 | outposts | 2 | 7 | 22.2 |
 | ram | 2 | 7 | 22.2 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1474)
+### Uncovered (listable, no scanner) (1471)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1256,10 +1256,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | logs | logs/fieldindex | 1 |  | child-uncatalogued | logs:DescribeFieldIndexes |
 | logs | logs/importtask | 0 |  | element-written | logs:DescribeImportTasks |
 | logs | logs/importtaskbatch | 0 |  | child-uncatalogued | logs:DescribeImportTaskBatches |
-| logs | logs/indexpolicy | 1 |  | child-uncatalogued | logs:DescribeIndexPolicies |
 | logs | logs/scheduledqueryhistory | 1 |  | child-uncatalogued | logs:GetScheduledQueryHistory |
-| logs | logs/source | 1 |  | child-uncatalogued | logs:ListSourcesForS3TableIntegration |
-| logs | logs/syslogconfiguration | 0 |  | element-arn | logs:ListSyslogConfigurations |
 | lookoutequipment | lookoutequipment/dataingestionjob | 0 |  | element-arn | lookoutequipment:DescribeDataIngestionJob, lookoutequipment:ListDataIngestionJobs |
 | lookoutequipment | lookoutequipment/inferenceevent | 1 |  | child-uncatalogued | lookoutequipment:ListInferenceEvents |
 | lookoutequipment | lookoutequipment/inferenceexecution | 1 |  | child-uncatalogued | lookoutequipment:ListInferenceExecutions |

@@ -561,6 +561,9 @@ const (
 	TypeLogsSubscriptionFilter = "aws:logs:subscription-filter"
 	TypeLogsTransformer        = "aws:logs:transformer"
 	TypeLogsLookupTable        = "aws:logs:lookup-table"
+	TypeLogsIndexPolicy        = "aws:logs:index-policy"
+	TypeLogsSyslogConfig       = "aws:logs:syslog-configuration"
+	TypeLogsSource             = "aws:logs:source"
 
 	// KMS (kms_scanners.go)
 	TypeKMSKey   = "aws:kms:key"

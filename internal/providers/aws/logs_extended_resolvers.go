@@ -40,6 +40,81 @@ func init() {
 		resolveLogsQueryDefinitionLogGroups,
 		EdgeDecl{TypeLogsQueryDefinition, TypeLogsLogGroup, store.RelUses},
 	)
+	registerResolver(
+		noopLogsGroupHierarchy,
+		EdgeDecl{TypeLogsLogGroup, TypeLogsLogStream, store.RelContains},
+		EdgeDecl{TypeLogsLogGroup, TypeLogsMetricFilter, store.RelContains},
+		EdgeDecl{TypeLogsLogGroup, TypeLogsSubscriptionFilter, store.RelContains},
+		EdgeDecl{TypeLogsLogGroup, TypeLogsIndexPolicy, store.RelContains},
+		EdgeDecl{TypeLogsLogGroup, TypeLogsSyslogConfig, store.RelContains},
+	)
+	registerResolver(
+		resolveLogsSyslogVPCEndpoints,
+		EdgeDecl{TypeLogsSyslogConfig, TypeEC2VPCEndpoint, store.RelUses},
+	)
+	registerResolver(
+		resolveLogsSourceIntegrations,
+		EdgeDecl{TypeObservabilityAdminS3TableIntegration, TypeLogsSource, store.RelContains},
+	)
+}
+
+// noopLogsGroupHierarchy only declares the log group's contains edges to its
+// children; the logs scanners record them via RecordHierarchyBatch.
+func noopLogsGroupHierarchy(*account, *store.Store) error { return nil }
+
+// resolveLogsSyslogVPCEndpoints links each syslog configuration to the VPC
+// endpoint it ingests through.
+func resolveLogsSyslogVPCEndpoints(acct *account, st *store.Store) error {
+	rows, err := listAccountRows(acct, st, TypeLogsSyslogConfig)
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	vpceSet, err := scannedIDSet(acct, st, TypeEC2VPCEndpoint)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			VpcEndpointID *string `json:"VpcEndpointId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("decode syslog configuration %s: %w", r.NativeID, err)
+		}
+		id := sv(attrs.VpcEndpointID)
+		if id == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc-endpoint", id))
+		if !vpceSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert logs-syslog→vpc-endpoint: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveLogsSourceIntegrations places each S3 Table integration source under
+// its integration. The scanner cannot: the integrations are stored by the
+// observabilityadmin scan, which runs concurrently with the logs scan.
+func resolveLogsSourceIntegrations(acct *account, st *store.Store) error {
+	rows, err := listAccountRows(acct, st, TypeLogsSource)
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	integrationSet, err := scannedIDSet(acct, st, TypeObservabilityAdminS3TableIntegration)
+	if err != nil {
+		return err
+	}
+	var pairs [][2]string
+	for _, r := range rows {
+		parentID := store.ResourceID("aws", acct.ID, logsSourceIntegrationARN(r.NativeID))
+		if integrationSet[parentID] {
+			pairs = append(pairs, [2]string{r.ID, parentID})
+		}
+	}
+	return st.RecordHierarchyBatch(pairs)
 }
 
 // logGroupARNFromChild strips a trailing `/<kind>/<name>` from a synthetic
