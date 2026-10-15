@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.1% (1870/3336 listable) · depth0 69.3% · depth1 36.6% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.1% (1872/3336 listable) · depth0 69.4% · depth1 36.6% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1026 | 195 | 84.0 |
 | child-uncatalogued | 222 | 795 | 21.8 |
 | smithy-resource | 421 | 141 | 74.9 |
-| element-written | 165 | 251 | 39.7 |
+| element-written | 167 | 249 | 40.1 |
 | element-arn | 31 | 75 | 29.2 |
 | element-created | 5 | 9 | 35.7 |
 
@@ -55,7 +55,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securityagent | 15 | 10 | 60.0 |
 | auditmanager | 3 | 9 | 25.0 |
 | es | 11 | 9 | 55.0 |
-| license-manager | 6 | 9 | 40.0 |
 | qbusiness | 10 | 9 | 52.6 |
 | workspaces | 7 | 9 | 43.8 |
 | athena | 5 | 8 | 38.5 |
@@ -74,6 +73,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | globalaccelerator | 4 | 7 | 36.4 |
 | greengrass | 20 | 7 | 74.1 |
 | guardduty | 10 | 7 | 58.8 |
+| license-manager | 8 | 7 | 53.3 |
 | logs | 18 | 7 | 72.0 |
 | networkmanager | 13 | 7 | 65.0 |
 | outposts | 2 | 7 | 22.2 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1466)
+### Uncovered (listable, no scanner) (1464)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1242,9 +1242,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | license-manager | license-manager/failuresforlicenseconfigurationoperation | 1 |  | child-uncatalogued | license-manager:ListFailuresForLicenseConfigurationOperations |
 | license-manager | license-manager/licenseconversiontask | 0 |  | element-written | license-manager:GetLicenseConversionTask, license-manager:ListLicenseConversionTasks |
 | license-manager | license-manager/licensespecification | 0 |  | child-uncatalogued | license-manager:ListLicenseSpecificationsForResource |
-| license-manager | license-manager/receivedlicense | 0 |  | element-written | license-manager:ListReceivedLicenses, license-manager:ListReceivedLicensesForOrganization |
 | license-manager | license-manager/resourceinventory | 0 |  | element-arn | license-manager:ListResourceInventory |
-| license-manager | license-manager/token | 0 |  | element-written | license-manager:ListTokens |
 | license-manager | license-manager/usage | 1 |  | child-uncatalogued | license-manager:ListUsageForLicenseConfiguration |
 | lightsail | lightsail/cloudformationstackrecord | 0 |  | sr-resource | lightsail:GetCloudFormationStackRecords |
 | lightsail | lightsail/exportsnapshotrecord | 0 |  | sr-resource | lightsail:GetExportSnapshotRecords |

@@ -1197,6 +1197,8 @@ const (
 	TypeLicenseManagerReportGenerator      = "aws:license-manager:report-generator"
 	TypeLicenseManagerLicenseAssetGroup    = "aws:license-manager:license-asset-group"
 	TypeLicenseManagerLicenseAssetRuleset  = "aws:license-manager:license-asset-ruleset"
+	TypeLicenseManagerReceivedLicense      = "aws:license-manager:received-license"
+	TypeLicenseManagerToken                = "aws:license-manager:token"
 	// LicenseManagerLinuxSubscriptions (licensemanagerlinuxsubscriptions_scanners.go)
 	TypeLicenseManagerLinuxSubscriptionsSubscriptionProvider = "aws:license-manager-linux-subscriptions:subscription-provider"
 	// LicenseManagerUserSubscriptions (licensemanagerusersubscriptions_scanners.go)
