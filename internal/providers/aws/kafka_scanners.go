@@ -2,6 +2,8 @@ package aws
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/kafka"
 	kafkatypes "github.com/aws/aws-sdk-go-v2/service/kafka/types"
@@ -16,6 +18,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeMSKConfiguration, Service: "msk"})
 	registerType(restype.Descriptor{Type: TypeMSKReplicator, Service: "msk"})
 	registerType(restype.Descriptor{Type: TypeMSKVpcConnection, Service: "msk"})
+	registerType(restype.Descriptor{Type: TypeMSKTopic, Service: "msk"})
+	registerType(restype.Descriptor{Type: TypeMSKChannel, Service: "msk"})
+	registerType(restype.Descriptor{Type: TypeMSKClientVpcConnection, Service: "msk"})
+	registerType(restype.Descriptor{Type: TypeMSKNode, Service: "msk"})
 	registerService(serviceEntry{
 		name: "aws:kafka",
 		fn:   scanKafka,
@@ -27,19 +33,57 @@ type kafkaAPI interface {
 	ListClustersV2(context.Context, *kafka.ListClustersV2Input, ...func(*kafka.Options)) (*kafka.ListClustersV2Output, error)
 }
 
+// kafkaAllAPI is every MSK operation scanKafka calls.
+type kafkaAllAPI interface {
+	kafkaAPI
+	kafkaExtAPI
+	kafkaChildAPI
+}
+
+// kafkaCluster is a cluster stored this scan, the parent of the per-cluster
+// phases.
+type kafkaCluster struct {
+	arn         string
+	clusterType kafkatypes.ClusterType
+	// express is a provisioned cluster of Express brokers, the only kind
+	// CreateChannel accepts.
+	express bool
+}
+
 // scanKafka discovers MSK clusters (Provisioned and Serverless) in one
 // region. ListClustersV2 returns the full Cluster object per entry — no
 // separate Describe needed. Both variants are carried in AttributesJSON as
 // returned by the SDK; resolvers branch on which sub-struct is populated.
-func scanKafka(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKafka(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := kafka.NewFromConfig(acct.cfg, func(o *kafka.Options) { o.Region = region })
+	return scanKafkaAll(ctx, client, acct, region, st, scanID)
+}
 
-	clusterARNs, t, i, ferr := scanKafkaClustersAndCollect(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
+// scanKafkaAll runs the older phases, then the cluster child phases over the
+// clusters they stored, each independent of the others. A failed older phase
+// after the cluster phase costs the child phases nothing, and theirs cost it
+// nothing; a failed cluster phase leaves the child phases only the clusters
+// stored before it failed (see scanKafkaClusters). The child phases tally
+// their transient errors per cluster, so only the older phases' error needs
+// demoting before the join.
+func scanKafkaAll(ctx context.Context, client kafkaAllAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	total, inserted, clusters, err := scanKafkaOlderPhases(ctx, client, acct, region, st, scanID)
+	tt, it, terr := scanKafkaTopics(ctx, client, acct, region, st, scanID, clusters)
+	tc, ic, cerr := scanKafkaChannels(ctx, client, acct, region, st, scanID, clusters)
+	tv, iv, verr := scanKafkaClientVpcConnections(ctx, client, acct, region, st, scanID, clusters)
+	tn, in, nerr := scanKafkaNodes(ctx, client, acct, region, st, scanID, clusters)
+	return total + tt + tc + tv + tn, inserted + it + ic + iv + in,
+		errors.Join(demoteTransient(st, "kafka", acct, region, err), terr, cerr, verr, nerr)
+}
+
+// scanKafkaOlderPhases runs the phases that predate the cluster child phases,
+// stopping at the first hard error. It returns the clusters scanKafkaClusters
+// returned, which are all stored this scan.
+func scanKafkaOlderPhases(ctx context.Context, client kafkaAllAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, clusters []kafkaCluster, err error) {
+	total, inserted, clusters, err = scanKafkaClusters(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return total, inserted, clusters, err
 	}
-	total += t
-	inserted += i
 
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanKafkaConfigurations(ctx, client, acct, region, st, scanID) },
@@ -48,55 +92,36 @@ func scanKafka(ctx context.Context, acct *account, region string, st *store.Stor
 	} {
 		t, i, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, inserted, clusters, perr
 		}
 		total += t
 		inserted += i
 	}
-	for _, ca := range clusterARNs {
+	for _, c := range clusters {
 		for _, phase := range []func() (int, int, error){
-			func() (int, int, error) { return scanKafkaClusterPolicy(ctx, client, acct, region, st, scanID, ca) },
-			func() (int, int, error) { return scanKafkaScramSecrets(ctx, client, acct, region, st, scanID, ca) },
+			func() (int, int, error) { return scanKafkaClusterPolicy(ctx, client, acct, region, st, scanID, c.arn) },
+			func() (int, int, error) { return scanKafkaScramSecrets(ctx, client, acct, region, st, scanID, c.arn) },
 		} {
 			t, i, perr := phase()
 			if perr != nil {
-				return total, inserted, perr
+				return total, inserted, clusters, perr
 			}
 			total += t
 			inserted += i
 		}
 	}
-	return total, inserted, nil
+	return total, inserted, clusters, nil
 }
 
-// scanKafkaClustersAndCollect wraps scanKafkaClusters and also returns the
-// cluster ARN list for downstream per-cluster fan-out (cluster-policy,
-// scram-secrets).
-func scanKafkaClustersAndCollect(ctx context.Context, client kafkaAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	t, i, err := scanKafkaClusters(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return nil, t, i, err
-	}
-	rs, lerr := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"},
-		AccountID: acct.ID,
-		Types:     []string{TypeMSKCluster},
-		Regions:   []string{region},
-	})
-	if lerr != nil {
-		return nil, t, i, nil
-	}
-	arns := make([]string, 0, len(rs))
-	for _, r := range rs {
-		arns = append(arns, r.NativeID)
-	}
-	return arns, t, i, nil
-}
-
-// scanKafkaClusters holds the testable scan body.
-func scanKafkaClusters(ctx context.Context, client kafkaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanKafkaClusters stores the region's clusters and returns them as the
+// parents of the per-cluster phases, keeping every cluster returned a row
+// stored this scan. A failed page fetch adds no cluster, so on that error the
+// clusters of the earlier, stored pages are returned with it; a failed write
+// may have left the page's clusters unstored, so then none are returned.
+func scanKafkaClusters(ctx context.Context, client kafkaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []kafkaCluster, error) {
+	var clusters []kafkaCluster
 	p := kafka.NewListClustersV2Paginator(client, &kafka.ListClustersV2Input{})
-	return pageScan(ctx, "kafka:ListClustersV2", acct, region, st,
+	total, inserted, err := pageScan(ctx, "kafka:ListClustersV2", acct, region, st,
 		p.HasMorePages,
 		func(c context.Context) (*kafka.ListClustersV2Output, error) { return p.NextPage(c) },
 		func(o *kafka.ListClustersV2Output) []kafkatypes.Cluster { return o.ClusterInfoList },
@@ -119,6 +144,24 @@ func scanKafkaClusters(ctx context.Context, client kafkaAPI, acct *account, regi
 				s := mustJSON(c.Tags)
 				r.TagsJSON = &s
 			}
+			if arn := sv(c.ClusterArn); arn != "" {
+				clusters = append(clusters, kafkaCluster{arn: arn, clusterType: c.ClusterType, express: isKafkaExpress(c)})
+			}
 			return r
 		})
+	if errors.Is(err, store.ErrStoreWrite) {
+		return total, inserted, nil, err
+	}
+	return total, inserted, clusters, err
+}
+
+// isKafkaExpress reports whether c runs Express brokers. The MSK
+// documentation names Express broker instance types with an "express."
+// prefix (express.m7g.large, …); the Cluster shape carries no broker-kind
+// field, so the prefix is the only signal.
+func isKafkaExpress(c kafkatypes.Cluster) bool {
+	if c.Provisioned == nil || c.Provisioned.BrokerNodeGroupInfo == nil {
+		return false
+	}
+	return strings.HasPrefix(sv(c.Provisioned.BrokerNodeGroupInfo.InstanceType), "express.")
 }

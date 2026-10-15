@@ -581,6 +581,11 @@ const (
 	TypeMSKConfiguration    = "aws:kafka:configuration"
 	TypeMSKReplicator       = "aws:kafka:replicator"
 	TypeMSKVpcConnection    = "aws:kafka:vpc-connection"
+	// MSK cluster children (kafka_children_scanners.go)
+	TypeMSKTopic               = "aws:kafka:topic"
+	TypeMSKChannel             = "aws:kafka:channel"
+	TypeMSKClientVpcConnection = "aws:kafka:client-vpc-connection"
+	TypeMSKNode                = "aws:kafka:node"
 	// Secrets Manager (secretsmanager_scanners.go)
 	TypeSecretsManagerSecret           = "aws:secretsmanager:secret"
 	TypeSecretsManagerResourcePolicy   = "aws:secretsmanager:resource-policy"

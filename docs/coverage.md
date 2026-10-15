@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.1% (1906/3336 listable) · depth0 70.0% · depth1 38.4% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.3% (1910/3336 listable) · depth0 70.0% · depth1 38.7% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,8 +8,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 244 | 773 | 24.0 |
+| sr-resource | 1028 | 193 | 84.2 |
+| child-uncatalogued | 246 | 771 | 24.2 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 175 | 241 | 42.1 |
 | element-arn | 32 | 74 | 30.2 |
@@ -105,7 +105,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | health | 0 | 5 | 0.0 |
 | iotmanagedintegrations | 12 | 5 | 70.6 |
 | iottwinmaker | 5 | 5 | 50.0 |
-| kafka | 5 | 5 | 50.0 |
 | kendra | 8 | 5 | 61.5 |
 | lambda | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
@@ -270,6 +269,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iot-jobs-data | 0 | 1 | 0.0 |
 | iotdeviceadvisor | 1 | 1 | 50.0 |
 | iotsecuredtunneling | 0 | 1 | 0.0 |
+| kafka | 9 | 1 | 90.0 |
 | kafkaconnect | 3 | 1 | 75.0 |
 | kinesis | 3 | 1 | 75.0 |
 | mediaconvert | 3 | 1 | 75.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1430)
+### Uncovered (listable, no scanner) (1426)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1161,11 +1161,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ivs | ivs/stream | 0 |  | element-arn | ivs:GetStream, ivs:ListStreams |
 | ivs | ivs/streamsession | 1 |  | child-uncatalogued | ivs:GetStreamSession, ivs:ListStreamSessions |
 | ivs | ivs/viewersessionrevocation | 1 |  | child-uncatalogued | ivs:BatchStartViewerSessionRevocation, ivs:StartViewerSessionRevocation |
-| kafka | kafka/channel | 1 |  | sr-resource | kafka:DescribeChannel, kafka:ListChannels |
-| kafka | kafka/clientvpcconnection | 1 |  | child-uncatalogued | kafka:ListClientVpcConnections |
 | kafka | kafka/clusteroperation | 0 |  | child-uncatalogued | kafka:DescribeClusterOperation, kafka:DescribeClusterOperationV2, kafka:ListClusterOperations, kafka:ListClusterOperationsV2 |
-| kafka | kafka/node | 1 |  | child-uncatalogued | kafka:ListNodes |
-| kafka | kafka/topic | 1 |  | sr-resource | kafka:DescribeTopic, kafka:ListTopics |
 | kafkaconnect | kafkaconnect/connectoroperation | 0 |  | sr-resource | kafkaconnect:DescribeConnectorOperation, kafkaconnect:ListConnectorOperations |
 | kendra | kendra/datasourcesyncjob | 2 |  | child-uncatalogued | kendra:ListDataSourceSyncJobs |
 | kendra | kendra/entitypersona | 2 |  | child-uncatalogued | kendra:ListEntityPersonas |
