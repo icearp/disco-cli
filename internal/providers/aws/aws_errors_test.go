@@ -502,6 +502,7 @@ func TestIsTransientNetworkError(t *testing.T) {
 	internal := &smithy.GenericAPIError{Code: "InternalFailure", Message: "internal failure"}
 	internalSvcExc := &smithy.GenericAPIError{Code: "InternalServerException", Message: "internal server exception"}
 	authConfig := &smithy.GenericAPIError{Code: "AuthorizerConfigurationException", Message: "Internal server error"}
+	execTimeout := &smithy.GenericAPIError{Code: "ExecutionTimeoutException", Message: "execution timed out"}
 	tooManyReqs := &smithy.GenericAPIError{Code: "TooManyRequestsException", Message: "too many requests"}
 	provThroughput := &smithy.GenericAPIError{Code: "ProvisionedThroughputExceededException", Message: "rate exceeded"}
 	accessDenied := &smithy.GenericAPIError{Code: "AccessDenied", Message: "denied"}
@@ -530,6 +531,7 @@ func TestIsTransientNetworkError(t *testing.T) {
 		{"smithy InternalFailure", internal, true},
 		{"smithy InternalServerException", internalSvcExc, true},
 		{"smithy AuthorizerConfigurationException 500", authConfig, true},
+		{"smithy ExecutionTimeoutException 504 (m2)", execTimeout, true},
 		{"smithy TooManyRequestsException", tooManyReqs, true},
 		{"smithy ProvisionedThroughputExceededException", provThroughput, true},
 		{"smithy AccessDenied not transient", accessDenied, false},

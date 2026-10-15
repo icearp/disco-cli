@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 57.34412470023981,
-    "covered": 1913,
-    "uncovered": 1423,
+    "percent": 57.37410071942446,
+    "covered": 1914,
+    "uncovered": 1422,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1156,6 +1156,7 @@
       "lookoutequipment/model",
       "lookoutequipment/modelversion",
       "m2/application",
+      "m2/dataset",
       "m2/deployment",
       "m2/environment",
       "macie2/allowlist",
@@ -2789,7 +2790,6 @@
       "lookoutequipment/retrainingscheduler",
       "lookoutequipment/sensorstatistic",
       "m2/batch",
-      "m2/dataset",
       "m2/datasetexporthistory",
       "m2/datasetimporthistory",
       "machinelearning/batchprediction",

@@ -235,6 +235,56 @@ func TestChildFanOutStoredSkipTransient_KeepsRowsStoredBeforeTheError(t *testing
 	assertOneSkipWarning(t, *warns, "evs:ListX", 2, firstByARN)
 }
 
+// Each not-ready code skips the parents refused with it, keeping the rows they
+// stored before the error, with one warning naming that code; a code not
+// listed fails the fan-out.
+func TestChildFanOutStoredSkipNotReady_Outcomes(t *testing.T) {
+	codes := []string{"ValidationException", "ConflictException"}
+	for _, tc := range []struct {
+		code    string
+		wantErr bool
+	}{
+		{code: "ValidationException"},
+		{code: "ConflictException"},
+		{code: "InternalBadThing", wantErr: true},
+	} {
+		t.Run(tc.code, func(t *testing.T) {
+			st := newTestStore(t)
+			seedSkipFanOutParents(t, st)
+			warns := recordWarnings(st)
+			total, inserted, err := childFanOutStoredSkipNotReady(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+				skipFanOutParents, func(error) bool { return false }, byParentARN, "parent(s)", "not ready", codes,
+				func(_ context.Context, p childParent) (int, int, error) {
+					parentID := store.ResourceID("aws", testAccountID, p.arn)
+					n, i, err := upsertContained(st, "evs:ListX", []containedChild{{row: skipFanOutChild(p), parentID: parentID}})
+					if err != nil || p.id == "env-ok" {
+						return n, i, err
+					}
+					return n, i, apiErr(tc.code, "refused")
+				})
+			if tc.wantErr {
+				if !isAPIErrorCode(err, tc.code) {
+					t.Errorf("err = %v; want %s", err, tc.code)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+			if total != 3 || inserted != 3 {
+				t.Errorf("total, inserted = %d, %d; want 3, 3", total, inserted)
+			}
+			if got := len(rowsByNativeID(t, st, TypeEVSEnvironmentHost)); got != 3 {
+				t.Errorf("stored %d rows, want 3", got)
+			}
+			assertOneSkipWarning(t, *warns, "evs:ListX", 2, firstByARN)
+			if len(*warns) == 1 && !strings.Contains((*warns)[0].Message, "skipped with "+tc.code) {
+				t.Errorf("warning message %q, want it to name %s", (*warns)[0].Message, tc.code)
+			}
+		})
+	}
+}
+
 func TestNotReadyTally_WarnsOnceForValidationExceptionOnly(t *testing.T) {
 	st := newTestStore(t)
 	warns := recordWarnings(st)

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.3% (1913/3336 listable) · depth0 70.0% · depth1 38.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.4% (1914/3336 listable) · depth0 70.0% · depth1 38.8% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1028 | 193 | 84.2 |
-| child-uncatalogued | 249 | 768 | 24.5 |
+| child-uncatalogued | 250 | 767 | 24.6 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 175 | 241 | 42.1 |
 | element-arn | 32 | 74 | 30.2 |
@@ -129,7 +129,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotwireless | 12 | 4 | 75.0 |
 | launchwizard | 1 | 4 | 20.0 |
 | lightsail | 17 | 4 | 81.0 |
-| m2 | 3 | 4 | 42.9 |
 | machinelearning | 0 | 4 | 0.0 |
 | notifications | 7 | 4 | 63.6 |
 | nova-act | 1 | 4 | 20.0 |
@@ -164,6 +163,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotfleetwise | 9 | 3 | 75.0 |
 | kendra | 10 | 3 | 76.9 |
 | kinesisanalytics | 1 | 3 | 25.0 |
+| m2 | 4 | 3 | 57.1 |
 | macie2 | 5 | 3 | 62.5 |
 | medical-imaging | 1 | 3 | 25.0 |
 | monitoring | 6 | 3 | 66.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1423)
+### Uncovered (listable, no scanner) (1422)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1225,7 +1225,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | lookoutequipment | lookoutequipment/retrainingscheduler | 0 |  | element-written | lookoutequipment:DescribeRetrainingScheduler, lookoutequipment:ListRetrainingSchedulers |
 | lookoutequipment | lookoutequipment/sensorstatistic | 1 |  | child-uncatalogued | lookoutequipment:ListSensorStatistics |
 | m2 | m2/batch | 1 |  | child-uncatalogued | m2:GetBatchJobExecution, m2:ListBatchJobExecutions |
-| m2 | m2/dataset | 1 |  | child-uncatalogued | m2:ListDataSets |
 | m2 | m2/datasetexporthistory | 1 |  | child-uncatalogued | m2:ListDataSetExportHistory |
 | m2 | m2/datasetimporthistory | 1 |  | child-uncatalogued | m2:ListDataSetImportHistory |
 | machinelearning | machinelearning/batchprediction | 0 |  | sr-resource | machinelearning:DescribeBatchPredictions, machinelearning:GetBatchPrediction |

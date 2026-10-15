@@ -448,6 +448,9 @@ func isTransientNetworkError(err error) bool {
 		// burned its retry budget by the time it reaches us. Server-side 5xx →
 		// warn+continue, don't count it as a scan error.
 		"AuthorizerConfigurationException",
+		// m2 (the only model with it) answers a slow ListDataSets or
+		// GetDataSetDetails with this 504, which its model marks retryable.
+		"ExecutionTimeoutException",
 		// Post-retry throttling exhaust: SDK retryer already burned its budget,
 		// the error reaching us is a momentary TPS pressure spike. Treat as
 		// transient so siblings continue rather than aborting the region.

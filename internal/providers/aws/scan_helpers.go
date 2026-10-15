@@ -324,7 +324,14 @@ type notReadyTally struct{ skipTally }
 
 // drop tallies parent and reports true when err is ValidationException.
 func (t *notReadyTally) drop(parent string, err error) bool {
-	if !isAPIErrorCode(err, "ValidationException") {
+	return t.dropNotReady("ValidationException", parent, err)
+}
+
+// dropNotReady tallies parent and reports true when err has the error code
+// code. Every not-ready skip matches through it and warns through
+// warnNotReady.
+func (t *skipTally) dropNotReady(code, parent string, err error) bool {
+	if !isAPIErrorCode(err, code) {
 		return false
 	}
 	t.skipped(parent, err)
@@ -334,12 +341,19 @@ func (t *notReadyTally) drop(parent string, err error) bool {
 // warnSkipped warns once for every parent skipped, naming what the parents
 // are (e.g. "parent(s)"), why the service may refuse one, the first and its error.
 func (t *notReadyTally) warnSkipped(st *store.Store, op string, acct *account, region, what, why string) {
+	t.warnNotReady(st, op, acct, region, "ValidationException", what, why)
+}
+
+// warnNotReady warns once for every parent skipped with the error code code,
+// naming what the parents are, why the service may refuse one, the first and
+// its error.
+func (t *skipTally) warnNotReady(st *store.Store, op string, acct *account, region, code, what, why string) {
 	if t.count == 0 {
 		return
 	}
 	st.ReportWarning(store.ScanWarning{
 		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-		Message: fmt.Sprintf("%d %s skipped with ValidationException; %s, first %s: %v", t.count, what, why, t.first, t.err),
+		Message: fmt.Sprintf("%d %s skipped with %s; %s, first %s: %v", t.count, what, code, why, t.first, t.err),
 	})
 }
 
@@ -413,6 +427,35 @@ func childFanOutStoredSkipTransient(
 			return t, i, err
 		})
 	transient.warnSkipped(st, op, acct, region)
+	return total, inserted, err
+}
+
+// childFanOutStoredSkipNotReady is childFanOutStoredSkipTransient, except that
+// a parent whose call fails with one of notReadyCodes is also skipped, keeping
+// its siblings' rows and the rows it stored before the error, and the skips
+// are reported in one warning per code naming what the parents are, why the
+// service may refuse one, and label of the first. For the parent states
+// childFanOutSkipNotReady describes, when the children are stored a page at a
+// time.
+func childFanOutStoredSkipNotReady(
+	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
+	isSkip func(error) bool, label func(childParent) string, what, why string, notReadyCodes []string,
+	storeChildren func(context.Context, childParent) (int, int, error),
+) (int, int, error) {
+	notReady := make([]skipTally, len(notReadyCodes))
+	total, inserted, err := childFanOutStoredSkipTransient(ctx, st, acct, region, op, parents, isSkip, label,
+		func(ctx context.Context, p childParent) (int, int, error) {
+			t, i, err := storeChildren(ctx, p)
+			for k, code := range notReadyCodes {
+				if notReady[k].dropNotReady(code, label(p), err) {
+					return t, i, nil
+				}
+			}
+			return t, i, err
+		})
+	for k, code := range notReadyCodes {
+		notReady[k].warnNotReady(st, op, acct, region, code, what, why)
+	}
 	return total, inserted, err
 }
 

@@ -429,9 +429,9 @@ func isIoTFWManifestChildSkip(err error) bool {
 }
 
 // iotFWManifestChildFanOut runs storeChildren for each decoder manifest
-// concurrently (childFanOutStoredSkipTransient), so a manifest's signal decoders, which can
-// run to thousands, are written a page at a time rather than held for one
-// upsert. A manifest whose call still fails transiently after the SDK's
+// concurrently (childFanOutStoredSkipNotReady), so a manifest's signal
+// decoders, which can run to thousands, are written a page at a time rather
+// than held for one upsert. A manifest whose call still fails transiently after the SDK's
 // retries is skipped, keeping its siblings' rows, and the skips are reported
 // in one warning. Rows a manifest stored before its error stay and are
 // counted.
@@ -443,17 +443,8 @@ func isIoTFWManifestChildSkip(err error) bool {
 // failing the phase would fail it on every scan and cancel the sibling
 // manifests, while skipping silently would hide a real input error.
 func iotFWManifestChildFanOut(ctx context.Context, st *store.Store, acct *account, region, op string, manifests []childParent, storeChildren func(context.Context, childParent) (int, int, error)) (int, int, error) {
-	var notListable notReadyTally
-	total, inserted, err := childFanOutStoredSkipTransient(ctx, st, acct, region, op, manifests, isIoTFWManifestChildSkip, byParentARN,
-		func(ctx context.Context, m childParent) (int, int, error) {
-			t, i, err := storeChildren(ctx, m)
-			if notListable.drop(m.arn, err) {
-				return t, i, nil
-			}
-			return t, i, err
-		})
-	notListable.warnSkipped(st, op, acct, region, "decoder manifest(s)", "the manifest may not be in a listable state")
-	return total, inserted, err
+	return childFanOutStoredSkipNotReady(ctx, st, acct, region, op, manifests, isIoTFWManifestChildSkip, byParentARN,
+		"decoder manifest(s)", "the manifest may not be in a listable state", []string{"ValidationException"}, storeChildren)
 }
 
 // upsertIoTFWManifestChildren stores one page of a manifest's children and

@@ -392,6 +392,31 @@ func TestScanIoTFleetWise_ManifestChildErrors(t *testing.T) {
 	}
 }
 
+// A manifest refused as not ready on its second page keeps, and counts, the
+// rows its first page stored.
+func TestScanIoTFWDecoderManifestSignals_NotReadyKeepsEarlierPages(t *testing.T) {
+	st := newTestStore(t)
+	upsertTestResource(t, st, "aws", testAccountID, TypeIoTFWDecoderManifest, iotFWTestManifestA, testRegion, "{}")
+	warns := countOpWarnings(st, iotFWListDecoderManifestSignalsOp)
+	client := iotfleetwise.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"ListDecoderManifestSignals": func(in any) (any, error) {
+			if in.(*iotfleetwise.ListDecoderManifestSignalsInput).NextToken != nil {
+				return nil, iotFWBadInput
+			}
+			return &iotfleetwise.ListDecoderManifestSignalsOutput{
+				SignalDecoders: []iotfwtypes.SignalDecoder{{FullyQualifiedName: sdkaws.String("Vehicle.Speed")}},
+				NextToken:      sdkaws.String("p2"),
+			}, nil
+		},
+	}, iotFWDenied))
+	total, _, err := scanIoTFWDecoderManifestSignals(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
+		[]childParent{{id: "dm-a", arn: iotFWTestManifestA}})
+	if err != nil || total != 1 || *warns != 1 {
+		t.Errorf("err, total, warnings = %v, %d, %d; want nil, 1, 1", err, total, *warns)
+	}
+	assertIoTFWRows(t, st, TypeIoTFWDecoderManifestSignal, []string{iotFWDecoderManifestChildNativeID(iotFWTestManifestA, iotFWSignalKind, "Vehicle.Speed")})
+}
+
 func TestScanIoTFleetWise_OlderPhaseErrorStillRunsManifestChildren(t *testing.T) {
 	st := newTestStore(t)
 	handlers := iotFWHandlers(map[string]*parentCalls{})

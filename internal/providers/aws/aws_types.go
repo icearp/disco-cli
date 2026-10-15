@@ -2071,6 +2071,7 @@ const (
 	TypePCSQueue            = "aws:pcs:queue"
 	// M2 (m2_scanners.go). Mainframe Modernization.
 	TypeM2Application = "aws:m2:application"
+	TypeM2Dataset     = "aws:m2:dataset"
 	TypeM2Deployment  = "aws:m2:deployment"
 	TypeM2Environment = "aws:m2:environment"
 	// ManagedBlockchain (managedblockchain_scanners.go).

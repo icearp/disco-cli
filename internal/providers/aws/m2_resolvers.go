@@ -15,6 +15,13 @@ func init() {
 		EdgeDecl{TypeM2Deployment, TypeM2Application, store.RelAttachedTo},
 		EdgeDecl{TypeM2Deployment, TypeM2Environment, store.RelUses},
 	)
+	registerResolver(noopM2Hierarchy, EdgeDecl{TypeM2Application, TypeM2Dataset, store.RelContains})
+}
+
+// noopM2Hierarchy only declares the application→data set contains edge, which
+// scanM2Datasets records itself through upsertContained.
+func noopM2Hierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveM2DeploymentRefs wires each deployment to its parent application
