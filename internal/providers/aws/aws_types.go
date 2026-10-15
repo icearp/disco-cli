@@ -1012,6 +1012,7 @@ const (
 	TypeTransferWorkflow    = "aws:transfer:workflow"
 	// QBusiness (qbusiness_scanners.go)
 	TypeQBusinessApplication               = "aws:qbusiness:application"
+	TypeQBusinessChatControlsConfiguration = "aws:qbusiness:chat-controls-configuration"
 	TypeQBusinessChatResponseConfiguration = "aws:qbusiness:chat-response-configuration"
 	TypeQBusinessDataAccessor              = "aws:qbusiness:data-accessor"
 	TypeQBusinessDataSource                = "aws:qbusiness:data-source"

@@ -275,6 +275,45 @@ func describeFanOut(
 	return rows, nil
 }
 
+// transientTally collects the parents of a fan-out whose call still failed
+// transiently after the SDK's retries, so that a throttled account reports one
+// warning per fan-out rather than one per parent.
+type transientTally struct {
+	mu    sync.Mutex
+	count int
+	first string
+	err   error
+}
+
+func (t *transientTally) skipped(parent string, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.count == 0 {
+		t.first, t.err = parent, err
+	}
+	t.count++
+}
+
+// warnSkipped warns once for every parent skipped, naming the first and its error.
+func (t *transientTally) warnSkipped(st *store.Store, op string, acct *account, region string) {
+	if t.count == 0 {
+		return
+	}
+	_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf("%d parent(s) skipped, first %s: %w", t.count, t.first, t.err))
+}
+
+// demoteTransient reports a phase's transient error as a warning and drops it,
+// for scanners that join the errors of independent phases. The dispatcher
+// classifies a join as transient when any member is a network error or its
+// first API error is a throttle or 5xx, so a joined transient error would hide
+// another phase's hard error and discard the counts of every phase.
+func demoteTransient(st *store.Store, op string, acct *account, region string, err error) error {
+	if isTransientNetworkError(err) {
+		return skipIfTransient(st, op, acct.ID, region, err)
+	}
+	return err
+}
+
 // containedChild is a child row and the ResourceID of the parent that
 // contains it.
 type containedChild struct {

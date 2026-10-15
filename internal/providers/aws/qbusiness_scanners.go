@@ -2,15 +2,18 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/qbusiness"
+	qbtypes "github.com/aws/aws-sdk-go-v2/service/qbusiness/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeQBusinessApplication, Service: "qbusiness"})
+	registerType(restype.Descriptor{Type: TypeQBusinessChatControlsConfiguration, Service: "qbusiness"})
 	registerType(restype.Descriptor{Type: TypeQBusinessChatResponseConfiguration, Service: "qbusiness"})
 	registerType(restype.Descriptor{Type: TypeQBusinessDataAccessor, Service: "qbusiness"})
 	registerType(restype.Descriptor{Type: TypeQBusinessDataSource, Service: "qbusiness"})
@@ -26,6 +29,7 @@ func init() {
 }
 
 type qbusinessAPI interface {
+	GetChatControlsConfiguration(context.Context, *qbusiness.GetChatControlsConfigurationInput, ...func(*qbusiness.Options)) (*qbusiness.GetChatControlsConfigurationOutput, error)
 	ListApplications(context.Context, *qbusiness.ListApplicationsInput, ...func(*qbusiness.Options)) (*qbusiness.ListApplicationsOutput, error)
 	ListChatResponseConfigurations(context.Context, *qbusiness.ListChatResponseConfigurationsInput, ...func(*qbusiness.Options)) (*qbusiness.ListChatResponseConfigurationsOutput, error)
 	ListSubscriptions(context.Context, *qbusiness.ListSubscriptionsInput, ...func(*qbusiness.Options)) (*qbusiness.ListSubscriptionsOutput, error)
@@ -54,15 +58,10 @@ func qbARN(region, acct string, segments ...string) string {
 func scanQBusiness(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := qbusiness.NewFromConfig(acct.cfg, func(o *qbusiness.Options) { o.Region = region })
 
-	type appRef struct {
-		id, arn string
-		indices []string
-	}
-
 	// Phase 1: Applications.
 	pager := qbusiness.NewListApplicationsPaginator(client, &qbusiness.ListApplicationsInput{})
 	var batch []*store.Resource
-	var apps []appRef
+	var apps []qbAppRef
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -82,7 +81,7 @@ func scanQBusiness(ctx context.Context, acct *account, region string, st *store.
 			if label == "" {
 				label = id
 			}
-			apps = append(apps, appRef{id: id, arn: arn})
+			apps = append(apps, qbAppRef{id: id, arn: arn, status: a.Status})
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeQBusinessApplication, NativeID: arn,
@@ -97,7 +96,28 @@ func scanQBusiness(ctx context.Context, acct *account, region string, st *store.
 	total += t
 	inserted += i
 
-	// Phase 2: per-app children.
+	t, i, childErr := scanQBAppChildren(ctx, client, acct, region, st, scanID, apps)
+	total += t
+	inserted += i
+	t, i, ccErr := scanQBChatControlsConfigurations(ctx, client, acct, region, st, scanID, apps)
+	total += t
+	inserted += i
+	// The child lists span several ops and each error already names its op,
+	// so a transient child error is reported under the service name. ccErr is
+	// never transient: the chat-controls fan-out warns and skips those per
+	// application.
+	return total, inserted, errors.Join(demoteTransient(st, "aws:qbusiness", acct, region, childErr), ccErr)
+}
+
+type qbAppRef struct {
+	id, arn string
+	status  qbtypes.ApplicationStatus
+	indices []string
+}
+
+// scanQBAppChildren lists each application's children. It stops at the first
+// failed list and returns the counts stored before it.
+func scanQBAppChildren(ctx context.Context, client qbusinessAPI, acct *account, region string, st *store.Store, scanID string, apps []qbAppRef) (total, inserted int, err error) {
 	for ai := range apps {
 		app := &apps[ai]
 		for _, phase := range []func() (int, int, error){
@@ -404,4 +424,89 @@ func scanQBSubscriptions(ctx context.Context, client qbusinessAPI, acct *account
 		}
 	}
 	return upsertBatch(st, batch, "qbusiness subscriptions")
+}
+
+// qbChatControlsNativeID keys an application's chat controls, which have no id
+// of their own (one set per application). An application ARN ends in the bare
+// application id, and every other child kind adds two or more segments, so
+// this single-segment suffix collides with neither.
+func qbChatControlsNativeID(appARN string) string {
+	return appARN + "/chat-controls-configuration"
+}
+
+// scanQBChatControlsConfigurations stores each application's chat controls.
+// FAILED applications are not queried. That gate is inferred from the model's
+// status doc (an application is ready to use only when ACTIVE, and FAILED is
+// the only status that is neither ACTIVE nor a transition); the op documents
+// no error for a FAILED application. ResourceNotFound means the application
+// was deleted after it was listed. Applications still failing transiently
+// (throttling, 5xx, network) after the SDK's retries are skipped and reported
+// in one warning, so one such application cannot cost the others' rows or turn
+// the whole service's result into a transient warning.
+func scanQBChatControlsConfigurations(ctx context.Context, client qbusinessAPI, acct *account, region string, st *store.Store, scanID string, apps []qbAppRef) (int, int, error) {
+	const op = "qbusiness:GetChatControlsConfiguration"
+	appARNs := make(map[string]string, len(apps))
+	var ids []string
+	for _, a := range apps {
+		if a.status == qbtypes.ApplicationStatusFailed {
+			continue
+		}
+		ids = append(ids, a.id)
+		appARNs[a.id] = a.arn
+	}
+	var transient transientTally
+	rows, err := describeFanOut(ctx, st, acct, region, op, ids, isQBAppGone,
+		func(ctx context.Context, appID string) (*store.Resource, error) {
+			cfg, err := getQBChatControls(ctx, client, appID)
+			if isTransientNetworkError(err) {
+				transient.skipped(appID, err)
+				return nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+			label := appID
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeQBusinessChatControlsConfiguration, NativeID: qbChatControlsNativeID(appARNs[appID]),
+				Name: &label, Region: &region, AttributesJSON: mustJSON(cfg), DiscoveredBy: scanID,
+			}, nil
+		})
+	transient.warnSkipped(st, op, acct, region)
+	if err != nil {
+		return 0, 0, err
+	}
+	return upsertBatch(st, rows, "qbusiness chat-controls-configurations")
+}
+
+func isQBAppGone(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException")
+}
+
+// getQBChatControls reads every page of an application's chat controls. Only
+// TopicConfigurations is paged; the first page carries the other settings, and
+// the page token is dropped so a multi-page read stores the same shape as a
+// single-page one.
+func getQBChatControls(ctx context.Context, client qbusinessAPI, appID string) (*qbusiness.GetChatControlsConfigurationOutput, error) {
+	pager := qbusiness.NewGetChatControlsConfigurationPaginator(client,
+		&qbusiness.GetChatControlsConfigurationInput{ApplicationId: &appID},
+		func(o *qbusiness.GetChatControlsConfigurationPaginatorOptions) {
+			o.Limit = 50
+			o.StopOnDuplicateToken = true
+		})
+	var cfg *qbusiness.GetChatControlsConfigurationOutput
+	var topics []qbtypes.TopicConfiguration
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if cfg == nil {
+			cfg = out
+		}
+		topics = append(topics, out.TopicConfigurations...)
+	}
+	cfg.TopicConfigurations = topics
+	cfg.NextToken = nil
+	return cfg, nil
 }

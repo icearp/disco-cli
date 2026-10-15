@@ -20,10 +20,16 @@ func TestResolveQBusinessChildrenToApp(t *testing.T) {
 	crcID := upsertTestResource(t, st, "aws", acct.ID, TypeQBusinessChatResponseConfiguration, crcARN, testRegion, "{}")
 	subARN := appARN + "/subscription/s1"
 	subID := upsertTestResource(t, st, "aws", acct.ID, TypeQBusinessSubscription, subARN, testRegion, "{}")
+	ccID := upsertTestResource(t, st, "aws", acct.ID, TypeQBusinessChatControlsConfiguration, qbChatControlsNativeID(appARN), testRegion, "{}")
 	if err := resolveQBusinessChildrenToApp(acct, st); err != nil {
 		t.Fatalf("resolveQBusinessChildrenToApp: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(idxID)
+	rels, err := st.RelationshipsFrom(ccID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, ccID, appID, store.RelAttachedTo)
+	rels, _ = st.RelationshipsFrom(idxID)
 	assertRelationship(t, rels, idxID, appID, store.RelAttachedTo)
 	rels, _ = st.RelationshipsFrom(dsID)
 	assertRelationship(t, rels, dsID, appID, store.RelAttachedTo)

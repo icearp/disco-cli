@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 55.9% (1865/3336 listable) · depth0 69.2% · depth1 36.4% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 55.9% (1866/3336 listable) · depth0 69.2% · depth1 36.5% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 219 | 798 | 21.5 |
+| child-uncatalogued | 220 | 797 | 21.6 |
 | smithy-resource | 421 | 141 | 74.9 |
 | element-written | 164 | 252 | 39.4 |
 | element-arn | 30 | 76 | 28.3 |
@@ -52,12 +52,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codecatalyst | 0 | 10 | 0.0 |
 | compute-optimizer | 0 | 10 | 0.0 |
 | imagebuilder | 9 | 10 | 47.4 |
-| qbusiness | 9 | 10 | 47.4 |
 | securityagent | 15 | 10 | 60.0 |
 | storagegateway | 8 | 10 | 44.4 |
 | auditmanager | 3 | 9 | 25.0 |
 | es | 11 | 9 | 55.0 |
 | license-manager | 6 | 9 | 40.0 |
+| qbusiness | 10 | 9 | 52.6 |
 | workspaces | 7 | 9 | 43.8 |
 | athena | 5 | 8 | 38.5 |
 | cleanrooms-ml | 7 | 8 | 46.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1471)
+### Uncovered (listable, no scanner) (1470)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1444,7 +1444,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | qapps | qapps/category | 1 |  | child-uncatalogued | qapps:GetLibraryItem, qapps:ListCategories |
 | qapps | qapps/libraryitem | 1 |  | child-uncatalogued | qapps:ListLibraryItems |
 | qbusiness | qbusiness/attachment | 1 |  | child-uncatalogued | qbusiness:ListAttachments |
-| qbusiness | qbusiness/chatcontrolsconfiguration | 1 |  | child-uncatalogued | qbusiness:GetChatControlsConfiguration |
 | qbusiness | qbusiness/conversation | 1 |  | child-uncatalogued | qbusiness:ListConversations |
 | qbusiness | qbusiness/datasourcesyncjob | 3 |  | child-uncatalogued | qbusiness:ListDataSourceSyncJobs |
 | qbusiness | qbusiness/document | 2 |  | child-uncatalogued | qbusiness:ListDocuments |

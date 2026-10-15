@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 55.905275779376495,
-    "covered": 1865,
-    "uncovered": 1471,
+    "percent": 55.935251798561154,
+    "covered": 1866,
+    "uncovered": 1470,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1343,6 +1343,7 @@
       "proton/servicetemplateversion",
       "qapps/qapp",
       "qbusiness/application",
+      "qbusiness/chatcontrolsconfiguration",
       "qbusiness/chatresponseconfiguration",
       "qbusiness/dataaccessor",
       "qbusiness/datasource",
@@ -2960,7 +2961,6 @@
       "qapps/category",
       "qapps/libraryitem",
       "qbusiness/attachment",
-      "qbusiness/chatcontrolsconfiguration",
       "qbusiness/conversation",
       "qbusiness/datasourcesyncjob",
       "qbusiness/document",

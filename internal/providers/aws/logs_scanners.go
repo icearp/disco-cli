@@ -137,21 +137,9 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 		t, i, e := phase.fn()
 		total += t
 		inserted += i
-		errs = append(errs, logsDemoteTransient(st, phase.op, acct, region, e))
+		errs = append(errs, demoteTransient(st, phase.op, acct, region, e))
 	}
 	return total, inserted, errors.Join(errs...)
-}
-
-// logsDemoteTransient reports a phase's transient error as a warning and drops
-// it. The phases' errors are joined, and the dispatcher classifies a join as
-// transient when any member is a network error or its first API error is a
-// throttle or 5xx, so a joined transient error would hide another phase's hard
-// error and discard the counts of every phase.
-func logsDemoteTransient(st *store.Store, op string, acct *account, region string, err error) error {
-	if isTransientNetworkError(err) {
-		return skipIfTransient(st, op, acct.ID, region, err)
-	}
-	return err
 }
 
 // scanLogsPerGroup runs the per-log-group scanners (phase 2) concurrently.
@@ -195,7 +183,7 @@ func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, regi
 			tt, nn, e := phase.fn()
 			t2.Add(int64(tt))
 			n2.Add(int64(nn))
-			if e = logsDemoteTransient(st, phase.op, acct, region, e); e != nil {
+			if e = demoteTransient(st, phase.op, acct, region, e); e != nil {
 				errMu.Lock()
 				errs = append(errs, e)
 				errMu.Unlock()
@@ -1098,7 +1086,7 @@ func scanLogsIndexPolicies(ctx context.Context, client cwlogsAPI, acct *account,
 		parents = append(parents, childParent{id: g.NativeID, arn: g.NativeID})
 		names[g.NativeID] = g.Name
 	}
-	var transient logsTransientTally
+	var transient transientTally
 	total, inserted, err := childFanOutStored(ctx, st, acct, region, op, parents, isLogsParentGone,
 		func(ctx context.Context, p childParent) (int, int, error) {
 			rows, err := listLogGroupIndexPolicy(ctx, client, acct, region, p.arn, names[p.arn], scanID)
@@ -1118,33 +1106,6 @@ func scanLogsIndexPolicies(ctx context.Context, client cwlogsAPI, acct *account,
 		})
 	transient.warnSkipped(st, op, acct, region)
 	return total, inserted, err
-}
-
-// logsTransientTally collects the parents of a fan-out whose call still failed
-// transiently after the SDK's retries, so that a throttled account reports one
-// warning per fan-out rather than one per parent.
-type logsTransientTally struct {
-	mu    sync.Mutex
-	count int
-	first string
-	err   error
-}
-
-func (t *logsTransientTally) skipped(parent string, err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.count == 0 {
-		t.first, t.err = parent, err
-	}
-	t.count++
-}
-
-// warnSkipped warns once for every parent skipped, naming the first and its error.
-func (t *logsTransientTally) warnSkipped(st *store.Store, op string, acct *account, region string) {
-	if t.count == 0 {
-		return
-	}
-	_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf("%d parent(s) skipped, first %s: %w", t.count, t.first, t.err))
 }
 
 // listLogGroupIndexPolicy returns the index policy set on the log group itself,
@@ -1274,7 +1235,7 @@ func scanLogsS3TableSources(ctx context.Context, client cwlogsAPI, obs logsS3Tab
 		parents = append(parents, childParent{id: arn, arn: arn})
 	}
 	const op = "logs:ListSourcesForS3TableIntegration"
-	var transient logsTransientTally
+	var transient transientTally
 	total, inserted, err := childFanOutStored(ctx, st, acct, region, op, parents, isLogsParentGone,
 		func(ctx context.Context, p childParent) (int, int, error) {
 			t, i, err := storeLogsS3TableSources(ctx, client, acct, region, p.arn, st, scanID)
