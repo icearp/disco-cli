@@ -13,6 +13,17 @@ func init() {
 		resolveSocialMessagingPhoneNumberWABA,
 		EdgeDecl{TypeSocialMessagingPhoneNumberID, TypeSocialMessagingWaba, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopSocialMessagingHierarchy,
+		EdgeDecl{TypeSocialMessagingWaba, TypeSocialMessagingWhatsAppFlow, store.RelContains},
+		EdgeDecl{TypeSocialMessagingWaba, TypeSocialMessagingWhatsAppMessageTemplate, store.RelContains},
+	)
+}
+
+// noopSocialMessagingHierarchy only declares the WABA contains edges; the
+// scanner records them (socialMessagingChildFanOut).
+func noopSocialMessagingHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveSocialMessagingPhoneNumberWABA wires each WhatsApp phone number to

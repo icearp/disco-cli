@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.4% (1914/3336 listable) · depth0 70.0% · depth1 38.8% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.4% (1916/3336 listable) · depth0 70.0% · depth1 39.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1028 | 193 | 84.2 |
-| child-uncatalogued | 250 | 767 | 24.6 |
+| child-uncatalogued | 252 | 765 | 24.8 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 175 | 241 | 42.1 |
 | element-arn | 32 | 74 | 30.2 |
@@ -135,7 +135,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral | 0 | 4 | 0.0 |
 | partnercentral-account | 0 | 4 | 0.0 |
 | redshift-data | 0 | 4 | 0.0 |
-| social-messaging | 1 | 4 | 20.0 |
 | ssm-incidents | 3 | 4 | 42.9 |
 | ssm-sap | 3 | 4 | 42.9 |
 | transcribe | 5 | 4 | 55.6 |
@@ -227,6 +226,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | servicequotas | 1 | 2 | 33.3 |
 | shield | 3 | 2 | 60.0 |
 | snow-device-management | 2 | 2 | 50.0 |
+| social-messaging | 3 | 2 | 60.0 |
 | sqs | 1 | 2 | 33.3 |
 | supportauthz | 0 | 2 | 0.0 |
 | synthetics | 2 | 2 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1422)
+### Uncovered (listable, no scanner) (1420)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1632,9 +1632,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sns | sns/endpoint | 1 |  | child-uncatalogued | sns:ListEndpointsByPlatformApplication |
 | sns | sns/originationnumber | 0 |  | element-created | sns:ListOriginationNumbers |
 | sns | sns/platformapplication | 0 |  | element-written | sns:ListPlatformApplications |
-| social-messaging | social-messaging/whatsappflow | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppFlows |
 | social-messaging | social-messaging/whatsappflowasset | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppFlowAssets |
-| social-messaging | social-messaging/whatsappmessagetemplate | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppMessageTemplates |
 | social-messaging | social-messaging/whatsapptemplatelibrary | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppTemplateLibrary |
 | sqs | sqs/deadlettersourcequeue | 1 |  | child-uncatalogued | sqs:ListDeadLetterSourceQueues |
 | sqs | sqs/message | 1 |  | child-uncatalogued | sqs:ReceiveMessage |

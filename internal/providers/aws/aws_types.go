@@ -2515,8 +2515,10 @@ const (
 	// End User Messaging Social / WhatsApp (socialmessaging_scanners.go,
 	// socialmessaging_resolvers.go). The disco service segment mirrors the
 	// hyphenated Service Reference key "social-messaging".
-	TypeSocialMessagingWaba          = "aws:social-messaging:waba"
-	TypeSocialMessagingPhoneNumberID = "aws:social-messaging:phone-number-id"
+	TypeSocialMessagingWaba                    = "aws:social-messaging:waba"
+	TypeSocialMessagingPhoneNumberID           = "aws:social-messaging:phone-number-id"
+	TypeSocialMessagingWhatsAppFlow            = "aws:social-messaging:whatsapp-flow"
+	TypeSocialMessagingWhatsAppMessageTemplate = "aws:social-messaging:whatsapp-message-template"
 
 	// Textract (textract_scanners.go, textract_resolvers.go).
 	TypeTextractAdapter        = "aws:textract:adapter"
