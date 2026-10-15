@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.3% (1912/3336 listable) · depth0 70.0% · depth1 38.7% · depth2 31.0% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.3% (1913/3336 listable) · depth0 70.0% · depth1 38.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1028 | 193 | 84.2 |
-| child-uncatalogued | 248 | 769 | 24.4 |
+| child-uncatalogued | 249 | 768 | 24.5 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 175 | 241 | 42.1 |
 | element-arn | 32 | 74 | 30.2 |
@@ -122,7 +122,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | controltower | 3 | 4 | 42.9 |
 | dynamodb | 4 | 4 | 50.0 |
 | eks | 11 | 4 | 73.3 |
-| elasticbeanstalk | 4 | 4 | 50.0 |
 | fis | 2 | 4 | 33.3 |
 | frauddetector | 12 | 4 | 75.0 |
 | geo | 8 | 4 | 66.7 |
@@ -155,6 +154,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cognito-sync | 0 | 3 | 0.0 |
 | discovery | 0 | 3 | 0.0 |
 | ds-data | 0 | 3 | 0.0 |
+| elasticbeanstalk | 5 | 3 | 62.5 |
 | emr-serverless | 1 | 3 | 25.0 |
 | events | 8 | 3 | 72.7 |
 | fms | 4 | 3 | 57.1 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1424)
+### Uncovered (listable, no scanner) (1423)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -926,7 +926,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | eks | eks/insight | 1 |  | child-uncatalogued | eks:DescribeInsight, eks:ListInsights |
 | elasticache | elasticache/cacheparameter | 1 |  | child-uncatalogued | elasticache:DescribeCacheParameters, elasticache:DescribeEngineDefaultParameters |
 | elasticache | elasticache/reservedcachenodesoffering | 0 |  | element-written | elasticache:DescribeReservedCacheNodesOfferings |
-| elasticbeanstalk | elasticbeanstalk/configurationsetting | 2 |  | child-uncatalogued | elasticbeanstalk:DescribeConfigurationSettings |
 | elasticbeanstalk | elasticbeanstalk/environmentmanagedactionhistory | 0 |  | element-written | elasticbeanstalk:DescribeEnvironmentManagedActionHistory |
 | elasticbeanstalk | elasticbeanstalk/event | 0 |  | element-arn | elasticbeanstalk:DescribeEvents |
 | elasticbeanstalk | elasticbeanstalk/instanceshealth | 0 |  | element-written | elasticbeanstalk:DescribeInstancesHealth |

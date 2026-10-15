@@ -13,6 +13,17 @@ func init() {
 		resolveBeanstalkApplicationVersionRelationships,
 		EdgeDecl{TypeBeanstalkApplicationVersion, TypeBeanstalkApplication, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopBeanstalkTemplateHierarchy,
+		EdgeDecl{TypeBeanstalkApplication, TypeBeanstalkConfigurationTemplate, store.RelContains},
+	)
+}
+
+// noopBeanstalkTemplateHierarchy only carries the EdgeDecl metadata: the
+// application → configuration-template contains edges come from childFanOut
+// in scanBeanstalkConfigurationTemplates.
+func noopBeanstalkTemplateHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveBeanstalkApplicationVersionRelationships wires each application version

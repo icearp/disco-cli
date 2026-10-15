@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk"
@@ -27,48 +28,82 @@ type elasticbeanstalkAPI interface {
 	DescribeEnvironments(context.Context, *elasticbeanstalk.DescribeEnvironmentsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeEnvironmentsOutput, error)
 	DescribeApplicationVersions(context.Context, *elasticbeanstalk.DescribeApplicationVersionsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeApplicationVersionsOutput, error)
 	ListPlatformVersions(context.Context, *elasticbeanstalk.ListPlatformVersionsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.ListPlatformVersionsOutput, error)
+	DescribeConfigurationSettings(context.Context, *elasticbeanstalk.DescribeConfigurationSettingsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeConfigurationSettingsOutput, error)
 }
 
 // scanElasticBeanstalk discovers Beanstalk applications, environments,
-// application versions, and custom platform versions in one region.
+// application versions, custom platform versions and saved configuration
+// templates in one region.
 // DescribeApplications returns the full list in a single call (no
 // pagination — small per-account quota); environments use manual NextToken
 // pagination (no SDK paginator). Per-phase AccessDenied tolerated.
-// Configuration templates are skipped (sub-resource: names embedded in the
-// application's ConfigurationTemplates[], no standalone list API); solution
-// stacks are an AWS catalog. The AWS-managed platform
+// Configuration templates have no list API: their names come from each
+// application's ConfigurationTemplates[] (scanBeanstalkConfigurationTemplates).
+// Solution stacks are an AWS catalog. The AWS-managed platform
 // catalogue is excluded by filtering ListPlatformVersions to
 // PlatformOwner=self (custom platforms only).
-func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := elasticbeanstalk.NewFromConfig(acct.cfg, func(o *elasticbeanstalk.Options) { o.Region = region })
+	return scanElasticBeanstalkAll(ctx, client, acct, region, st, scanID)
+}
 
+// scanElasticBeanstalkAll runs the older phases, which stop at their first
+// hard error, then the configuration-template phase over the applications
+// stored before that error, so a failure on either side costs the other no
+// rows. The older side's transient error is demoted to a warning: one
+// transient member would make the dispatcher read the whole join as
+// transient, hiding the template phase's hard error and discarding every
+// phase's counts. The template phase tallies its own transient errors per
+// template.
+func scanElasticBeanstalkAll(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	total, inserted, apps, err := scanBeanstalkOlderPhases(ctx, client, acct, region, st, scanID)
+	t, i, terr := scanBeanstalkConfigurationTemplates(ctx, client, acct, region, st, scanID, apps)
+	return total + t, inserted + i, errors.Join(demoteTransient(st, "elasticbeanstalk", acct, region, err), terr)
+}
+
+// scanBeanstalkOlderPhases runs the phases that predate configuration
+// templates, stopping at the first hard error, and returns the applications
+// scanBeanstalkApplications stored.
+func scanBeanstalkOlderPhases(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, apps []beanstalkApplication, err error) {
+	total, inserted, apps, err = scanBeanstalkApplications(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return total, inserted, apps, err
+	}
 	for _, scan := range []func(context.Context, elasticbeanstalkAPI, *account, string, *store.Store, string) (int, int, error){
-		scanBeanstalkApplications,
 		scanBeanstalkEnvironments,
 		scanBeanstalkApplicationVersions,
 		scanBeanstalkPlatforms,
 	} {
 		t, i, ferr := scan(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, inserted, apps, ferr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+	return total, inserted, apps, nil
 }
 
-func scanBeanstalkApplications(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// beanstalkApplication is an application row stored this scan, with the
+// names of its saved configuration templates.
+type beanstalkApplication struct {
+	arn, name string
+	templates []string
+}
+
+// scanBeanstalkApplications stores the region's applications and returns
+// them; it returns none unless the upsert succeeded.
+func scanBeanstalkApplications(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, apps []beanstalkApplication, err error) {
 	out, perr := client.DescribeApplications(ctx, &elasticbeanstalk.DescribeApplicationsInput{})
 	if perr != nil {
 		if isAccessDenied(perr) {
 			_ = skipIfAccessDenied(st, "elasticbeanstalk:DescribeApplications", acct.ID, region, perr)
-			return 0, 0, nil
+			return 0, 0, nil, nil
 		}
-		return 0, 0, fmt.Errorf("elasticbeanstalk:DescribeApplications: %w", perr)
+		return 0, 0, nil, fmt.Errorf("elasticbeanstalk:DescribeApplications: %w", perr)
 	}
 	if len(out.Applications) == 0 {
-		return 0, 0, nil
+		return 0, 0, nil, nil
 	}
 	batch := make([]*store.Resource, 0, len(out.Applications))
 	for _, a := range out.Applications {
@@ -77,6 +112,7 @@ func scanBeanstalkApplications(ctx context.Context, client elasticbeanstalkAPI, 
 			continue
 		}
 		name := sv(a.ApplicationName)
+		apps = append(apps, beanstalkApplication{arn: arn, name: name, templates: a.ConfigurationTemplates})
 		batch = append(batch, &store.Resource{
 			Provider:       "aws",
 			AccountID:      acct.ID,
@@ -90,13 +126,13 @@ func scanBeanstalkApplications(ctx context.Context, client elasticbeanstalkAPI, 
 		})
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, 0, nil, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert beanstalk applications: %w", uerr)
+		return 0, 0, nil, fmt.Errorf("upsert beanstalk applications: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), n, apps, nil
 }
 
 func scanBeanstalkEnvironments(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

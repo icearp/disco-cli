@@ -1957,6 +1957,8 @@ const (
 	TypeBeanstalkEnvironment        = "aws:elasticbeanstalk:environment"
 	TypeBeanstalkApplicationVersion = "aws:elasticbeanstalk:application-version"
 	TypeBeanstalkPlatform           = "aws:elasticbeanstalk:platform"
+	// elasticbeanstalk_template_scanners.go
+	TypeBeanstalkConfigurationTemplate = "aws:elasticbeanstalk:configuration-template"
 	// IAM Access Analyzer (accessanalyzer_scanners.go, accessanalyzer_resolvers.go)
 	TypeAccessAnalyzerAnalyzer    = "aws:accessanalyzer:analyzer"
 	TypeAccessAnalyzerArchiveRule = "aws:accessanalyzer:archive-rule"

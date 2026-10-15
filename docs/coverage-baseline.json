@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 57.31414868105516,
-    "covered": 1912,
-    "uncovered": 1424,
+    "percent": 57.34412470023981,
+    "covered": 1913,
+    "uncovered": 1423,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -705,6 +705,7 @@
       "elasticache/usergroup",
       "elasticbeanstalk/application",
       "elasticbeanstalk/applicationversion",
+      "elasticbeanstalk/configurationsetting",
       "elasticbeanstalk/environment",
       "elasticbeanstalk/platformversion",
       "elasticfilesystem/accesspoint",
@@ -2489,7 +2490,6 @@
       "eks/insight",
       "elasticache/cacheparameter",
       "elasticache/reservedcachenodesoffering",
-      "elasticbeanstalk/configurationsetting",
       "elasticbeanstalk/environmentmanagedactionhistory",
       "elasticbeanstalk/event",
       "elasticbeanstalk/instanceshealth",
