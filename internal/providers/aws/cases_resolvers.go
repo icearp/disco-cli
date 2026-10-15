@@ -16,6 +16,17 @@ func init() {
 		EdgeDecl{TypeCasesLayout, TypeCasesDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCasesTemplate, TypeCasesDomain, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopCasesFieldOptionHierarchy,
+		EdgeDecl{TypeCasesField, TypeCasesFieldOption, store.RelContains},
+	)
+}
+
+// noopCasesFieldOptionHierarchy only carries the EdgeDecl metadata: the
+// field → option contains edges come from childFanOut in
+// scanCasesFieldOptions.
+func noopCasesFieldOptionHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // casesDomainARNFromChild extracts `arn:aws:cases:r:a:domain/{domainId}` from

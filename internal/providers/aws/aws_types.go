@@ -2275,11 +2275,12 @@ const (
 	TypeWorkMailPersonalAccessToken        = "aws:workmail:personal-access-token"
 	// Cases (Connect Cases) (cases_scanners.go); SDK module is connectcases,
 	// CFN segment is "Cases".
-	TypeCasesCaseRule = "aws:cases:case-rule"
-	TypeCasesDomain   = "aws:cases:domain"
-	TypeCasesField    = "aws:cases:field"
-	TypeCasesLayout   = "aws:cases:layout"
-	TypeCasesTemplate = "aws:cases:template"
+	TypeCasesCaseRule    = "aws:cases:case-rule"
+	TypeCasesDomain      = "aws:cases:domain"
+	TypeCasesField       = "aws:cases:field"
+	TypeCasesFieldOption = "aws:cases:field-option"
+	TypeCasesLayout      = "aws:cases:layout"
+	TypeCasesTemplate    = "aws:cases:template"
 	// EntityResolution (entityresolution_scanners.go).
 	TypeEntityResolutionIDMappingWorkflow = "aws:entityresolution:id-mapping-workflow"
 	TypeEntityResolutionIDNamespace       = "aws:entityresolution:id-namespace"

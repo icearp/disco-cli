@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.8% (1895/3336 listable) · depth0 69.9% · depth1 37.7% · depth2 28.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.8% (1896/3336 listable) · depth0 69.9% · depth1 37.7% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 236 | 781 | 23.2 |
+| child-uncatalogued | 237 | 780 | 23.3 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 172 | 244 | 41.3 |
 | element-arn | 32 | 74 | 30.2 |
@@ -94,7 +94,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | access-analyzer | 2 | 5 | 28.6 |
 | appstream | 16 | 5 | 76.2 |
 | autoscaling | 7 | 5 | 58.3 |
-| cases | 5 | 5 | 50.0 |
 | ce | 4 | 5 | 44.4 |
 | codepipeline | 3 | 5 | 37.5 |
 | cognito-idp | 8 | 5 | 61.5 |
@@ -123,6 +122,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | arc-region-switch | 1 | 4 | 20.0 |
 | bcm-pricing-calculator | 6 | 4 | 60.0 |
 | billingconductor | 4 | 4 | 50.0 |
+| cases | 6 | 4 | 60.0 |
 | cloudtrail | 6 | 4 | 60.0 |
 | codeconnections | 0 | 4 | 0.0 |
 | controltower | 3 | 4 | 42.9 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1441)
+### Uncovered (listable, no scanner) (1440)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -514,7 +514,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cases | cases/allrelateditem | 1 |  | child-uncatalogued | cases:SearchAllRelatedItems |
 | cases | cases/case | 1 |  | smithy-resource | cases:GetCase, cases:ListCasesForContact, cases:SearchCases |
 | cases | cases/caseauditevent | 2 |  | child-uncatalogued | cases:GetCaseAuditEvents |
-| cases | cases/fieldoption | 2 |  | child-uncatalogued | cases:ListFieldOptions |
 | cases | cases/relateditem | 2 |  | smithy-resource | cases:SearchRelatedItems |
 | ce | ce/anomaly | 1 |  | child-uncatalogued | ce:GetAnomalies |
 | ce | ce/commitmentpurchaseanalysis | 0 |  | element-written | ce:GetCommitmentPurchaseAnalysis, ce:ListCommitmentPurchaseAnalyses |
