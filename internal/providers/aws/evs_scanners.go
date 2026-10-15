@@ -144,17 +144,9 @@ func evsChildFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	list func(context.Context, childParent) ([]*store.Resource, error),
 ) (int, int, error) {
-	var notReady notReadyTally
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
-	t, i, err := childFanOutSkipTransient(ctx, st, acct, region, op, parents, isGone, byParentID, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
-		rows, err := list(ctx, p)
-		if notReady.drop(p.id, err) {
-			return nil, nil
-		}
-		return rows, err
-	})
-	notReady.warnSkipped(st, op, acct, region, "parent(s)", "the parent may not be ready (creating, failed or deleting)")
-	return t, i, err
+	return childFanOutSkipNotReady(ctx, st, acct, region, op, parents, isGone, byParentID,
+		"parent(s)", "the parent may not be ready (creating, failed or deleting)", list)
 }
 
 // scanEVSHosts stores each environment's hosts that are not deleted.

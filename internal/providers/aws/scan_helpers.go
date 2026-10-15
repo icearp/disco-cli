@@ -370,6 +370,31 @@ func childFanOutSkipTransient(
 	return total, inserted, err
 }
 
+// childFanOutSkipNotReady is childFanOutSkipTransient, except that a parent
+// whose call fails with ValidationException is also skipped, keeping its
+// siblings' rows, and those skips are reported in one warning naming what the
+// parents are, why the service may refuse one, and label of the first. For
+// parents listed in states (creating, failed, deleting) whose effect on the
+// child op has not been observed: failing the phase would fail it on every
+// scan, and skipping silently would hide a real input error.
+func childFanOutSkipNotReady(
+	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
+	isSkip func(error) bool, label func(childParent) string, what, why string,
+	list func(context.Context, childParent) ([]*store.Resource, error),
+) (int, int, error) {
+	var notReady notReadyTally
+	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, op, parents, isSkip, label,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			rows, err := list(ctx, p)
+			if notReady.drop(label(p), err) {
+				return nil, nil
+			}
+			return rows, err
+		})
+	notReady.warnSkipped(st, op, acct, region, what, why)
+	return total, inserted, err
+}
+
 // childFanOutStoredSkipTransient is childFanOutStored with the transient skip
 // of childFanOutSkipTransient; rows a skipped parent stored before its error
 // stay and are counted.

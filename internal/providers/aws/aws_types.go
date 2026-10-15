@@ -2166,7 +2166,9 @@ const (
 	// Kendra (kendra_scanners.go).
 	TypeKendraAccessControlConfiguration = "aws:kendra:access-control-configuration"
 	TypeKendraDataSource                 = "aws:kendra:data-source"
+	TypeKendraEntityPersona              = "aws:kendra:entity-persona"
 	TypeKendraExperience                 = "aws:kendra:experience"
+	TypeKendraExperienceEntity           = "aws:kendra:experience-entity"
 	TypeKendraFaq                        = "aws:kendra:faq"
 	TypeKendraFeaturedResultsSet         = "aws:kendra:featured-results-set"
 	TypeKendraIndex                      = "aws:kendra:index"

@@ -29,6 +29,18 @@ func init() {
 		EdgeDecl{TypeKendraQuerySuggestionsBlockList, TypeKendraIndex, store.RelAttachedTo},
 		EdgeDecl{TypeKendraThesaurus, TypeKendraIndex, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopKendraExperienceHierarchy,
+		EdgeDecl{TypeKendraExperience, TypeKendraExperienceEntity, store.RelContains},
+		EdgeDecl{TypeKendraExperience, TypeKendraEntityPersona, store.RelContains},
+	)
+}
+
+// noopKendraExperienceHierarchy only declares the experience→entity and
+// experience→persona contains edges, which kendraExperienceFanOut records
+// itself through childFanOut.
+func noopKendraExperienceHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveKendraExtraChildToIndex wires each per-index child (access-control

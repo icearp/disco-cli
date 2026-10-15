@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.3% (1910/3336 listable) · depth0 70.0% · depth1 38.7% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.3% (1912/3336 listable) · depth0 70.0% · depth1 38.7% · depth2 31.0% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1028 | 193 | 84.2 |
-| child-uncatalogued | 246 | 771 | 24.2 |
+| child-uncatalogued | 248 | 769 | 24.4 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 175 | 241 | 42.1 |
 | element-arn | 32 | 74 | 30.2 |
@@ -105,7 +105,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | health | 0 | 5 | 0.0 |
 | iotmanagedintegrations | 12 | 5 | 70.6 |
 | iottwinmaker | 5 | 5 | 50.0 |
-| kendra | 8 | 5 | 61.5 |
 | lambda | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
 | rekognition | 5 | 5 | 50.0 |
@@ -163,6 +162,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | globalaccelerator | 8 | 3 | 72.7 |
 | internetmonitor | 1 | 3 | 25.0 |
 | iotfleetwise | 9 | 3 | 75.0 |
+| kendra | 10 | 3 | 76.9 |
 | kinesisanalytics | 1 | 3 | 25.0 |
 | macie2 | 5 | 3 | 62.5 |
 | medical-imaging | 1 | 3 | 25.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1426)
+### Uncovered (listable, no scanner) (1424)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1164,8 +1164,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | kafka | kafka/clusteroperation | 0 |  | child-uncatalogued | kafka:DescribeClusterOperation, kafka:DescribeClusterOperationV2, kafka:ListClusterOperations, kafka:ListClusterOperationsV2 |
 | kafkaconnect | kafkaconnect/connectoroperation | 0 |  | sr-resource | kafkaconnect:DescribeConnectorOperation, kafkaconnect:ListConnectorOperations |
 | kendra | kendra/datasourcesyncjob | 2 |  | child-uncatalogued | kendra:ListDataSourceSyncJobs |
-| kendra | kendra/entitypersona | 2 |  | child-uncatalogued | kendra:ListEntityPersonas |
-| kendra | kendra/experienceentity | 2 |  | child-uncatalogued | kendra:ListExperienceEntities |
 | kendra | kendra/groupsolderthanorderingid | 2 |  | child-uncatalogued | kendra:ListGroupsOlderThanOrderingId |
 | kendra | kendra/snapshot | 1 |  | child-uncatalogued | kendra:GetSnapshots |
 | kinesis | kinesis/record | 1 |  | child-uncatalogued | kinesis:GetRecords |

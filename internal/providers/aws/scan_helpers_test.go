@@ -151,6 +151,64 @@ func TestChildFanOutSkipTransient_Outcomes(t *testing.T) {
 	}
 }
 
+func TestChildFanOutSkipNotReady_Outcomes(t *testing.T) {
+	const what, why = "widget(s)", "the widget may be warming up"
+	for _, tc := range []struct {
+		name      string
+		label     func(childParent) string
+		slowErr   error
+		wantErr   bool
+		wantRows  int
+		wantFirst string // "" when no warning is wanted
+	}{
+		{"not-ready parents skipped, named by id", byParentID, apiErr("ValidationException", "not ready"), false, 1, firstByID},
+		{"not-ready parents skipped, named by ARN", byParentARN, apiErr("ValidationException", "not ready"), false, 1, firstByARN},
+		{"gone parents skipped silently", byParentID, apiErr("ResourceNotFoundException", "gone"), false, 1, ""},
+		{"other error fails the fan-out", byParentID, apiErr("InternalBadThing", "boom"), true, 0, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			seedSkipFanOutParents(t, st)
+			warns := recordWarnings(st)
+			isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+			total, _, err := childFanOutSkipNotReady(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+				skipFanOutParents, isGone, tc.label, what, why,
+				func(_ context.Context, p childParent) ([]*store.Resource, error) {
+					if p.id == "env-ok" {
+						return []*store.Resource{skipFanOutChild(p)}, nil
+					}
+					return nil, tc.slowErr
+				})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if got := len(rowsByNativeID(t, st, TypeEVSEnvironmentHost)); got != tc.wantRows || total != tc.wantRows {
+				t.Errorf("stored %d rows, total %d; want %d", got, total, tc.wantRows)
+			}
+			if tc.wantFirst == "" {
+				if len(*warns) != 0 {
+					t.Errorf("warnings = %+v, want none", *warns)
+				}
+				return
+			}
+			if len(*warns) != 1 {
+				t.Fatalf("warnings = %+v, want exactly one", *warns)
+			}
+			w := (*warns)[0]
+			if w.Service != "evs:ListX" || w.Scope != testAccountID+"/"+testRegion {
+				t.Errorf("warning service/scope = %q/%q, want evs:ListX/%s/%s", w.Service, w.Scope, testAccountID, testRegion)
+			}
+			// ", first env-slow" cannot match an ARN-named parent, so each
+			// label case fails if the other key is used.
+			for _, want := range []string{"2 " + what + " skipped", why, ", first " + tc.wantFirst} {
+				if !strings.Contains(w.Message, want) {
+					t.Errorf("warning message %q, want it to contain %q", w.Message, want)
+				}
+			}
+		})
+	}
+}
+
 func TestChildFanOutStoredSkipTransient_KeepsRowsStoredBeforeTheError(t *testing.T) {
 	st := newTestStore(t)
 	seedSkipFanOutParents(t, st)
