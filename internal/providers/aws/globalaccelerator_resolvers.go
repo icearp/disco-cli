@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	gatypes "github.com/aws/aws-sdk-go-v2/service/globalaccelerator/types"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
@@ -27,6 +28,69 @@ func init() {
 		EdgeDecl{TypeGlobalAcceleratorCrossAccountAttachment, TypeEC2EIP, store.RelRoutesTo},
 		EdgeDecl{TypeGlobalAcceleratorCrossAccountAttachment, TypeEC2Instance, store.RelRoutesTo},
 	)
+	registerResolver(
+		noopGACustomRoutingHierarchy,
+		EdgeDecl{TypeGlobalAcceleratorCustomRoutingAccelerator, TypeGlobalAcceleratorCustomRoutingListener, store.RelContains},
+		EdgeDecl{TypeGlobalAcceleratorCustomRoutingListener, TypeGlobalAcceleratorCustomRoutingEndpointGroup, store.RelContains},
+	)
+	registerResolver(
+		resolveGACustomRoutingEndpointGroupSubnets,
+		EdgeDecl{TypeGlobalAcceleratorCustomRoutingEndpointGroup, TypeEC2Subnet, store.RelRoutesTo},
+	)
+}
+
+// noopGACustomRoutingHierarchy only carries the EdgeDecl metadata: the
+// scanner records the accelerator→listener→endpoint-group contains pairs
+// itself (childFanOut in scanGACustomRoutingListeners and
+// scanGACustomRoutingEndpointGroups).
+func noopGACustomRoutingHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
+// resolveGACustomRoutingEndpointGroupSubnets links each custom routing
+// endpoint group to the subnets it routes to. A custom routing endpoint is a
+// VPC subnet, so EndpointId is a bare subnet id in EndpointGroupRegion.
+func resolveGACustomRoutingEndpointGroupSubnets(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlobalAcceleratorCustomRoutingEndpointGroup},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	// Only this account's scanned subnets match, so a subnet in another
+	// account (via a cross-account attachment) gets no edge.
+	subnets, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var g gatypes.CustomRoutingEndpointGroup
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &g); err != nil {
+			return fmt.Errorf("decode %s %s: %w", TypeGlobalAcceleratorCustomRoutingEndpointGroup, r.NativeID, err)
+		}
+		region := sv(g.EndpointGroupRegion)
+		if region == "" {
+			continue
+		}
+		for _, ep := range g.EndpointDescriptions {
+			subnetID := sv(ep.EndpointId)
+			if subnetID == "" {
+				continue
+			}
+			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", subnetID))
+			if !subnets[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert globalaccelerator custom-routing-endpoint-group→subnet: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // gaParentARN strips the trailing `/<segment>/{id}` from a Global Accelerator

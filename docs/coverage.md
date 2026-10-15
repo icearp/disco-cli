@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.4% (1882/3336 listable) · depth0 69.4% · depth1 37.5% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.5% (1886/3336 listable) · depth0 69.5% · depth1 37.5% · depth2 28.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,9 +9,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 228 | 789 | 22.4 |
+| child-uncatalogued | 230 | 787 | 22.6 |
 | smithy-resource | 424 | 138 | 75.4 |
-| element-written | 168 | 248 | 40.4 |
+| element-written | 170 | 246 | 40.9 |
 | element-arn | 31 | 75 | 29.2 |
 | element-created | 5 | 9 | 35.7 |
 
@@ -66,7 +66,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workdocs | 0 | 8 | 0.0 |
 | athena | 6 | 7 | 46.2 |
 | backup | 12 | 7 | 63.2 |
-| globalaccelerator | 4 | 7 | 36.4 |
 | greengrass | 20 | 7 | 74.1 |
 | guardduty | 10 | 7 | 58.8 |
 | license-manager | 8 | 7 | 53.3 |
@@ -166,6 +165,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | events | 8 | 3 | 72.7 |
 | fms | 4 | 3 | 57.1 |
 | gameliftstreams | 2 | 3 | 40.0 |
+| globalaccelerator | 8 | 3 | 72.7 |
 | internetmonitor | 1 | 3 | 25.0 |
 | kinesisanalytics | 1 | 3 | 25.0 |
 | macie2 | 5 | 3 | 62.5 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1454)
+### Uncovered (listable, no scanner) (1450)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1021,11 +1021,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | geo-places | geo-places/text | 1 |  | child-uncatalogued | geo-places:SearchText |
 | glacier | glacier/job | 1 |  | child-uncatalogued | glacier:DescribeJob, glacier:ListJobs |
 | glacier | glacier/multipartupload | 1 |  | child-uncatalogued | glacier:ListMultipartUploads |
-| globalaccelerator | globalaccelerator/byoipcidr | 0 |  | element-written | globalaccelerator:ListByoipCidrs |
 | globalaccelerator | globalaccelerator/crossaccountresource | 0 |  | child-uncatalogued | globalaccelerator:ListCrossAccountResources |
-| globalaccelerator | globalaccelerator/customroutingaccelerator | 0 |  | element-written | globalaccelerator:DescribeCustomRoutingAccelerator, globalaccelerator:ListCustomRoutingAccelerators |
-| globalaccelerator | globalaccelerator/customroutingendpointgroup | 2 |  | child-uncatalogued | globalaccelerator:DescribeCustomRoutingEndpointGroup, globalaccelerator:ListCustomRoutingEndpointGroups |
-| globalaccelerator | globalaccelerator/customroutinglistener | 1 |  | child-uncatalogued | globalaccelerator:DescribeCustomRoutingListener, globalaccelerator:ListCustomRoutingListeners |
 | globalaccelerator | globalaccelerator/customroutingportmapping | 1 |  | child-uncatalogued | globalaccelerator:ListCustomRoutingPortMappings |
 | globalaccelerator | globalaccelerator/customroutingportmappingsbydestination | 0 |  | child-uncatalogued | globalaccelerator:ListCustomRoutingPortMappingsByDestination |
 | glue | glue/asset | 0 |  | child-uncatalogued | glue:GetAsset |

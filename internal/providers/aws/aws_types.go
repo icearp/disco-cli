@@ -2003,10 +2003,14 @@ const (
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
 	// GlobalAccelerator (globalaccelerator_scanners.go). Global service
 	// callable only via us-west-2.
-	TypeGlobalAcceleratorAccelerator            = "aws:global-accelerator:accelerator"
-	TypeGlobalAcceleratorCrossAccountAttachment = "aws:global-accelerator:cross-account-attachment"
-	TypeGlobalAcceleratorEndpointGroup          = "aws:global-accelerator:endpoint-group"
-	TypeGlobalAcceleratorListener               = "aws:global-accelerator:listener"
+	TypeGlobalAcceleratorAccelerator                = "aws:global-accelerator:accelerator"
+	TypeGlobalAcceleratorByoipCidr                  = "aws:global-accelerator:byoip-cidr"
+	TypeGlobalAcceleratorCrossAccountAttachment     = "aws:global-accelerator:cross-account-attachment"
+	TypeGlobalAcceleratorCustomRoutingAccelerator   = "aws:global-accelerator:custom-routing-accelerator"
+	TypeGlobalAcceleratorCustomRoutingEndpointGroup = "aws:global-accelerator:custom-routing-endpoint-group"
+	TypeGlobalAcceleratorCustomRoutingListener      = "aws:global-accelerator:custom-routing-listener"
+	TypeGlobalAcceleratorEndpointGroup              = "aws:global-accelerator:endpoint-group"
+	TypeGlobalAcceleratorListener                   = "aws:global-accelerator:listener"
 	// B2BI (b2bi_scanners.go).
 	TypeB2BICapability  = "aws:b2bi:capability"
 	TypeB2BIPartnership = "aws:b2bi:partnership"

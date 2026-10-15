@@ -1,11 +1,72 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	gatypes "github.com/aws/aws-sdk-go-v2/service/globalaccelerator/types"
 	"github.com/icearp/disco-cli/store"
 )
+
+func TestResolveGACustomRoutingEndpointGroupSubnets_RoutesToScannedSubnets(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN("eu-west-1", acct.ID, "subnet", "subnet-0abc"), "eu-west-1", "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-0def"), testRegion, "{}")
+	attrs := mustJSON(gatypes.CustomRoutingEndpointGroup{
+		EndpointGroupArn:    ptrStr(gaTestCREG1),
+		EndpointGroupRegion: ptrStr("eu-west-1"),
+		EndpointDescriptions: []gatypes.CustomRoutingEndpointDescription{
+			{EndpointId: ptrStr("subnet-0abc")},
+			{EndpointId: ptrStr("subnet-0def")},
+			{EndpointId: ptrStr("subnet-unscanned")},
+			{},
+		},
+	})
+	egID := upsertTestResource(t, st, "aws", acct.ID, TypeGlobalAcceleratorCustomRoutingEndpointGroup, gaTestCREG1, "global", attrs)
+
+	if err := resolveGACustomRoutingEndpointGroupSubnets(acct, st); err != nil {
+		t.Fatalf("resolveGACustomRoutingEndpointGroupSubnets: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(egID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, egID, subnetID, store.RelRoutesTo)
+	// subnet-0def is scanned, but in another region than the group's.
+	if len(rels) != 1 {
+		t.Errorf("edges = %v, want only the eu-west-1 subnet", rels)
+	}
+}
+
+func TestResolveGACustomRoutingEndpointGroupSubnets_NoEndpoints(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN("eu-west-1", acct.ID, "subnet", "subnet-0abc"), "eu-west-1", "{}")
+	egID := upsertTestResource(t, st, "aws", acct.ID, TypeGlobalAcceleratorCustomRoutingEndpointGroup, gaTestCREG1, "global", "{}")
+	if err := resolveGACustomRoutingEndpointGroupSubnets(acct, st); err != nil {
+		t.Fatalf("resolveGACustomRoutingEndpointGroupSubnets: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(egID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("edges = %v, want none", rels)
+	}
+}
+
+func TestResolveGACustomRoutingEndpointGroupSubnets_UndecodableAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeGlobalAcceleratorCustomRoutingEndpointGroup, gaTestCREG1, "global", `{"EndpointDescriptions":"not-a-list"}`)
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveGACustomRoutingEndpointGroupSubnets(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want the attributes decode error", err)
+	}
+}
 
 func TestGAParentARN(t *testing.T) {
 	cases := []struct {
