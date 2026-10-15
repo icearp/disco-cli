@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iotfleetwise"
@@ -430,7 +429,7 @@ func isIoTFWManifestChildSkip(err error) bool {
 }
 
 // iotFWManifestChildFanOut runs storeChildren for each decoder manifest
-// concurrently (childFanOutStored), so a manifest's signal decoders, which can
+// concurrently (childFanOutStoredSkipTransient), so a manifest's signal decoders, which can
 // run to thousands, are written a page at a time rather than held for one
 // upsert. A manifest whose call still fails transiently after the SDK's
 // retries is skipped, keeping its siblings' rows, and the skips are reported
@@ -444,55 +443,17 @@ func isIoTFWManifestChildSkip(err error) bool {
 // failing the phase would fail it on every scan and cancel the sibling
 // manifests, while skipping silently would hide a real input error.
 func iotFWManifestChildFanOut(ctx context.Context, st *store.Store, acct *account, region, op string, manifests []childParent, storeChildren func(context.Context, childParent) (int, int, error)) (int, int, error) {
-	var (
-		transient   transientTally
-		notListable iotFWNotListableTally
-	)
-	total, inserted, err := childFanOutStored(ctx, st, acct, region, op, manifests, isIoTFWManifestChildSkip,
+	var notListable notReadyTally
+	total, inserted, err := childFanOutStoredSkipTransient(ctx, st, acct, region, op, manifests, isIoTFWManifestChildSkip, byParentARN,
 		func(ctx context.Context, m childParent) (int, int, error) {
 			t, i, err := storeChildren(ctx, m)
-			switch {
-			case isTransientNetworkError(err):
-				transient.skipped(m.arn, err)
-				return t, i, nil
-			case isAPIErrorCode(err, "ValidationException"):
-				notListable.skipped(m.arn, err)
+			if notListable.drop(m.arn, err) {
 				return t, i, nil
 			}
 			return t, i, err
 		})
-	transient.warnSkipped(st, op, acct, region)
-	notListable.warnSkipped(st, op, acct, region)
+	notListable.warnSkipped(st, op, acct, region, "decoder manifest(s)", "the manifest may not be in a listable state")
 	return total, inserted, err
-}
-
-// iotFWNotListableTally collects the manifests whose child listing IoT
-// FleetWise rejected with ValidationException, so that one warning covers
-// them all.
-type iotFWNotListableTally struct {
-	mu    sync.Mutex
-	count int
-	first string
-	err   error
-}
-
-func (t *iotFWNotListableTally) skipped(manifest string, err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.count == 0 {
-		t.first, t.err = manifest, err
-	}
-	t.count++
-}
-
-func (t *iotFWNotListableTally) warnSkipped(st *store.Store, op string, acct *account, region string) {
-	if t.count == 0 {
-		return
-	}
-	st.ReportWarning(store.ScanWarning{
-		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-		Message: fmt.Sprintf("%d decoder manifest(s) skipped with ValidationException; the manifest may not be in a listable state, first %s: %v", t.count, t.first, t.err),
-	})
 }
 
 // upsertIoTFWManifestChildren stores one page of a manifest's children and

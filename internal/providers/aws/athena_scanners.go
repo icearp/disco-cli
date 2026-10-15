@@ -324,10 +324,7 @@ func explainAthenaNotebookRefusal(ctx context.Context, client athenaAPI, workGro
 // call still fails transiently after the SDK's retries is skipped, keeping its
 // siblings' rows, and the skips are reported in one warning.
 func scanAthenaNotebooks(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, workGroups []childParent) (int, int, error) {
-	var (
-		transient    transientTally
-		disabledOnce sync.Once
-	)
+	var disabledOnce sync.Once
 	skipWorkGroup := func(err error) bool {
 		switch {
 		case errors.Is(err, errAthenaWorkGroupGone):
@@ -339,17 +336,10 @@ func scanAthenaNotebooks(ctx context.Context, client athenaAPI, acct *account, r
 			return false
 		}
 	}
-	total, inserted, err := childFanOut(ctx, st, acct, region, athenaNotebookOp, workGroups, skipWorkGroup,
+	return childFanOutSkipTransient(ctx, st, acct, region, athenaNotebookOp, workGroups, skipWorkGroup, byParentID,
 		func(ctx context.Context, wg childParent) ([]*store.Resource, error) {
-			rows, err := listAthenaNotebooks(ctx, client, acct, region, scanID, wg)
-			if isTransientNetworkError(err) {
-				transient.skipped(wg.id, err)
-				return nil, nil
-			}
-			return rows, err
+			return listAthenaNotebooks(ctx, client, acct, region, scanID, wg)
 		})
-	transient.warnSkipped(st, athenaNotebookOp, acct, region)
-	return total, inserted, err
 }
 
 // listAthenaNotebooks lists the notebook metadata of one workgroup; the

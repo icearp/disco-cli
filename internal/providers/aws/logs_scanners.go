@@ -1235,18 +1235,10 @@ func scanLogsS3TableSources(ctx context.Context, client cwlogsAPI, obs logsS3Tab
 		parents = append(parents, childParent{id: arn, arn: arn})
 	}
 	const op = "logs:ListSourcesForS3TableIntegration"
-	var transient transientTally
-	total, inserted, err := childFanOutStored(ctx, st, acct, region, op, parents, isLogsParentGone,
+	return childFanOutStoredSkipTransient(ctx, st, acct, region, op, parents, isLogsParentGone, byParentARN,
 		func(ctx context.Context, p childParent) (int, int, error) {
-			t, i, err := storeLogsS3TableSources(ctx, client, acct, region, p.arn, st, scanID)
-			if isTransientNetworkError(err) {
-				transient.skipped(p.arn, err)
-				return t, i, nil
-			}
-			return t, i, err
+			return storeLogsS3TableSources(ctx, client, acct, region, p.arn, st, scanID)
 		})
-	transient.warnSkipped(st, op, acct, region)
-	return total, inserted, err
 }
 
 // listLogsS3TableIntegrations returns the ARNs of the region's S3 Table

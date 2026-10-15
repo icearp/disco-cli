@@ -355,19 +355,11 @@ func listGACustomRoutingListenerRows(ctx context.Context, client globalAccelerat
 // transiently after the SDK's retries is skipped, keeping its siblings' rows,
 // with one summary warning.
 func scanGACustomRoutingEndpointGroups(ctx context.Context, client globalAcceleratorAPI, acct *account, region string, st *store.Store, scanID string, listeners []childParent) (int, int, error) {
-	var transient transientTally
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ListenerNotFoundException") }
-	total, inserted, err := childFanOut(ctx, st, acct, region, gaCustomRoutingEndpointGroupsOp, listeners, isGone,
+	return childFanOutSkipTransient(ctx, st, acct, region, gaCustomRoutingEndpointGroupsOp, listeners, isGone, byParentARN,
 		func(ctx context.Context, listener childParent) ([]*store.Resource, error) {
-			rows, err := listGACustomRoutingEndpointGroupRows(ctx, client, acct, scanID, listener)
-			if isTransientNetworkError(err) {
-				transient.skipped(listener.arn, err)
-				return nil, nil
-			}
-			return rows, err
+			return listGACustomRoutingEndpointGroupRows(ctx, client, acct, scanID, listener)
 		})
-	transient.warnSkipped(st, gaCustomRoutingEndpointGroupsOp, acct, region)
-	return total, inserted, err
 }
 
 func listGACustomRoutingEndpointGroupRows(ctx context.Context, client globalAcceleratorAPI, acct *account, scanID string, listener childParent) ([]*store.Resource, error) {

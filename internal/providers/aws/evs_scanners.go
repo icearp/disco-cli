@@ -127,34 +127,6 @@ func evsVMEntitlementNativeID(connectorNativeID string, typ evstypes.Entitlement
 	return connectorNativeID + "/vm-entitlement/" + string(typ) + "/" + vmID
 }
 
-// evsNotReadyTally collects the parents whose child listing EVS rejected with
-// ValidationException, so that one warning covers them all.
-type evsNotReadyTally struct {
-	mu    sync.Mutex
-	count int
-	first string
-	err   error
-}
-
-func (t *evsNotReadyTally) skipped(parent string, err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.count == 0 {
-		t.first, t.err = parent, err
-	}
-	t.count++
-}
-
-func (t *evsNotReadyTally) warnSkipped(st *store.Store, op string, acct *account, region string) {
-	if t.count == 0 {
-		return
-	}
-	st.ReportWarning(store.ScanWarning{
-		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-		Message: fmt.Sprintf("%d parent(s) skipped with ValidationException; the parent may not be ready (creating, failed or deleting), first %s: %v", t.count, t.first, t.err),
-	})
-}
-
 // evsChildFanOut runs list for each parent through childFanOut. Per parent:
 // ResourceNotFoundException (deleted since listing) is skipped silently, a
 // denial warns once for op, a transient error after the SDK's retries is
@@ -172,25 +144,16 @@ func evsChildFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	list func(context.Context, childParent) ([]*store.Resource, error),
 ) (int, int, error) {
-	var (
-		transient transientTally
-		notReady  evsNotReadyTally
-	)
+	var notReady notReadyTally
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
-	t, i, err := childFanOut(ctx, st, acct, region, op, parents, isGone, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+	t, i, err := childFanOutSkipTransient(ctx, st, acct, region, op, parents, isGone, byParentID, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 		rows, err := list(ctx, p)
-		if isTransientNetworkError(err) {
-			transient.skipped(p.id, err)
-			return nil, nil
-		}
-		if isAPIErrorCode(err, "ValidationException") {
-			notReady.skipped(p.id, err)
+		if notReady.drop(p.id, err) {
 			return nil, nil
 		}
 		return rows, err
 	})
-	transient.warnSkipped(st, op, acct, region)
-	notReady.warnSkipped(st, op, acct, region)
+	notReady.warnSkipped(st, op, acct, region, "parent(s)", "the parent may not be ready (creating, failed or deleting)")
 	return t, i, err
 }
 

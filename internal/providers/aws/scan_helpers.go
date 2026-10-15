@@ -275,23 +275,37 @@ func describeFanOut(
 	return rows, nil
 }
 
-// transientTally collects the parents of a fan-out whose call still failed
-// transiently after the SDK's retries, so that a throttled account reports one
-// warning per fan-out rather than one per parent.
-type transientTally struct {
+// skipTally counts the keys of a fan-out skipped for one reason and keeps the
+// first with its error, so that one warning covers them all. Safe for
+// concurrent skipped calls; read it only after the fan-out returns.
+type skipTally struct {
 	mu    sync.Mutex
 	count int
 	first string
 	err   error
 }
 
-func (t *transientTally) skipped(parent string, err error) {
+func (t *skipTally) skipped(key string, err error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.count == 0 {
-		t.first, t.err = parent, err
+		t.first, t.err = key, err
 	}
 	t.count++
+}
+
+// transientTally collects the parents of a fan-out whose call still failed
+// transiently after the SDK's retries, so that a throttled account reports one
+// warning per fan-out rather than one per parent.
+type transientTally struct{ skipTally }
+
+// drop tallies parent and reports true when err is transient.
+func (t *transientTally) drop(parent string, err error) bool {
+	if !isTransientNetworkError(err) {
+		return false
+	}
+	t.skipped(parent, err)
+	return true
 }
 
 // warnSkipped warns once for every parent skipped, naming the first and its error.
@@ -300,6 +314,81 @@ func (t *transientTally) warnSkipped(st *store.Store, op string, acct *account, 
 		return
 	}
 	_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf("%d parent(s) skipped, first %s: %w", t.count, t.first, t.err))
+}
+
+// notReadyTally collects the parents whose child listing the service refused
+// with ValidationException, for fan-outs over parents that may not be ready,
+// so that one warning covers them all. Each caller says why it skips rather
+// than fails on that code.
+type notReadyTally struct{ skipTally }
+
+// drop tallies parent and reports true when err is ValidationException.
+func (t *notReadyTally) drop(parent string, err error) bool {
+	if !isAPIErrorCode(err, "ValidationException") {
+		return false
+	}
+	t.skipped(parent, err)
+	return true
+}
+
+// warnSkipped warns once for every parent skipped, naming what the parents
+// are (e.g. "parent(s)"), why the service may refuse one, the first and its error.
+func (t *notReadyTally) warnSkipped(st *store.Store, op string, acct *account, region, what, why string) {
+	if t.count == 0 {
+		return
+	}
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+		Message: fmt.Sprintf("%d %s skipped with ValidationException; %s, first %s: %v", t.count, what, why, t.first, t.err),
+	})
+}
+
+// byParentID and byParentARN pick which of a parent's keys a skip warning
+// names.
+func byParentID(p childParent) string  { return p.id }
+func byParentARN(p childParent) string { return p.arn }
+
+// childFanOutSkipTransient is childFanOut, except that a parent whose call
+// still fails transiently after the SDK's retries is skipped, keeping its
+// siblings' rows, and the skips are reported in one warning naming label of
+// the first.
+func childFanOutSkipTransient(
+	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
+	isSkip func(error) bool, label func(childParent) string,
+	list func(context.Context, childParent) ([]*store.Resource, error),
+) (int, int, error) {
+	var transient transientTally
+	total, inserted, err := childFanOut(ctx, st, acct, region, op, parents, isSkip,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			rows, err := list(ctx, p)
+			if transient.drop(label(p), err) {
+				return nil, nil
+			}
+			return rows, err
+		})
+	transient.warnSkipped(st, op, acct, region)
+	return total, inserted, err
+}
+
+// childFanOutStoredSkipTransient is childFanOutStored with the transient skip
+// of childFanOutSkipTransient; rows a skipped parent stored before its error
+// stay and are counted.
+func childFanOutStoredSkipTransient(
+	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
+	isSkip func(error) bool, label func(childParent) string,
+	storeChildren func(context.Context, childParent) (int, int, error),
+) (int, int, error) {
+	var transient transientTally
+	total, inserted, err := childFanOutStored(ctx, st, acct, region, op, parents, isSkip,
+		func(ctx context.Context, p childParent) (int, int, error) {
+			t, i, err := storeChildren(ctx, p)
+			if transient.drop(label(p), err) {
+				return t, i, nil
+			}
+			return t, i, err
+		})
+	transient.warnSkipped(st, op, acct, region)
+	return total, inserted, err
 }
 
 // demoteTransient reports a phase's transient error as a warning and drops it,

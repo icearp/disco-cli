@@ -299,18 +299,10 @@ func scanRekProjectPolicies(ctx context.Context, client rekognitionAPI, acct *ac
 	for i, arn := range projectARNs {
 		parents[i] = childParent{id: arn, arn: arn}
 	}
-	var transient transientTally
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
-	t, i, err := childFanOut(ctx, st, acct, region, rekProjectPoliciesOp, parents, isGone, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
-		rows, err := listRekProjectPolicies(ctx, client, acct, region, scanID, p.arn)
-		if isTransientNetworkError(err) {
-			transient.skipped(p.arn, err)
-			return nil, nil
-		}
-		return rows, err
+	return childFanOutSkipTransient(ctx, st, acct, region, rekProjectPoliciesOp, parents, isGone, byParentARN, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+		return listRekProjectPolicies(ctx, client, acct, region, scanID, p.arn)
 	})
-	transient.warnSkipped(st, rekProjectPoliciesOp, acct, region)
-	return t, i, err
 }
 
 func listRekProjectPolicies(ctx context.Context, client rekognitionAPI, acct *account, region, scanID, projectARN string) ([]*store.Resource, error) {

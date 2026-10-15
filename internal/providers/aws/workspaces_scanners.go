@@ -456,18 +456,10 @@ func isWSDirectoryGone(err error) bool { return isAPIErrorCode(err, "ResourceNot
 // and the skips are reported in one warning.
 func scanWSConnectClientAddIns(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, directories []childParent) (int, int, error) {
 	const op = "workspaces:DescribeConnectClientAddIns"
-	var transient transientTally
-	total, inserted, err := childFanOut(ctx, st, acct, region, op, directories, isWSDirectoryGone,
+	return childFanOutSkipTransient(ctx, st, acct, region, op, directories, isWSDirectoryGone, byParentID,
 		func(ctx context.Context, dir childParent) ([]*store.Resource, error) {
-			rows, err := listWSConnectClientAddIns(ctx, client, acct, region, scanID, dir)
-			if isTransientNetworkError(err) {
-				transient.skipped(dir.id, err)
-				return nil, nil
-			}
-			return rows, err
+			return listWSConnectClientAddIns(ctx, client, acct, region, scanID, dir)
 		})
-	transient.warnSkipped(st, op, acct, region)
-	return total, inserted, err
 }
 
 // listWSConnectClientAddIns lists the Amazon Connect client add-ins of one

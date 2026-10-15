@@ -133,19 +133,11 @@ func outpostsAssetNativeID(outpostARN, assetID string) string {
 // whose call still fails transiently after the SDK's retries is skipped,
 // keeping its siblings' rows, with one summary warning.
 func scanOutpostsAssets(ctx context.Context, client outpostsAPI, acct *account, region string, st *store.Store, scanID string, outpostList []childParent) (int, int, error) {
-	var transient transientTally
 	isGone := func(err error) bool { return isAPIErrorCode(err, "NotFoundException") }
-	total, inserted, err := childFanOut(ctx, st, acct, region, outpostsListAssetsOp, outpostList, isGone,
+	return childFanOutSkipTransient(ctx, st, acct, region, outpostsListAssetsOp, outpostList, isGone, byParentARN,
 		func(ctx context.Context, outpost childParent) ([]*store.Resource, error) {
-			rows, err := listOutpostsAssetRows(ctx, client, acct, region, scanID, outpost)
-			if isTransientNetworkError(err) {
-				transient.skipped(outpost.arn, err)
-				return nil, nil
-			}
-			return rows, err
+			return listOutpostsAssetRows(ctx, client, acct, region, scanID, outpost)
 		})
-	transient.warnSkipped(st, outpostsListAssetsOp, acct, region)
-	return total, inserted, err
 }
 
 func listOutpostsAssetRows(ctx context.Context, client outpostsAPI, acct *account, region, scanID string, outpost childParent) ([]*store.Resource, error) {

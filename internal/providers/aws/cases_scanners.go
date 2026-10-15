@@ -223,18 +223,10 @@ func scanCasesFieldOptions(ctx context.Context, client casesAPI, acct *account, 
 		parents[i] = childParent{id: f.arn, arn: f.arn}
 		byARN[f.arn] = f
 	}
-	var transient transientTally
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
-	t, i, err := childFanOut(ctx, st, acct, region, casesListFieldOptionsOp, parents, isGone, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
-		rows, err := listCasesFieldOptions(ctx, client, acct, region, scanID, byARN[p.arn])
-		if isTransientNetworkError(err) {
-			transient.skipped(p.arn, err)
-			return nil, nil
-		}
-		return rows, err
+	return childFanOutSkipTransient(ctx, st, acct, region, casesListFieldOptionsOp, parents, isGone, byParentARN, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+		return listCasesFieldOptions(ctx, client, acct, region, scanID, byARN[p.arn])
 	})
-	transient.warnSkipped(st, casesListFieldOptionsOp, acct, region)
-	return t, i, err
 }
 
 func listCasesFieldOptions(ctx context.Context, client casesAPI, acct *account, region, scanID string, field casesSelectField) ([]*store.Resource, error) {

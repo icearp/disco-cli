@@ -750,18 +750,10 @@ func isASParentGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFou
 // SDK's retries is skipped, keeping its siblings' rows, and the skips are
 // reported in one warning.
 func scanASImagePermissions(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, images []childParent) (int, int, error) {
-	var transient transientTally
-	total, inserted, err := childFanOut(ctx, st, acct, region, asImagePermissionOp, images, isASParentGone,
+	return childFanOutSkipTransient(ctx, st, acct, region, asImagePermissionOp, images, isASParentGone, byParentID,
 		func(ctx context.Context, img childParent) ([]*store.Resource, error) {
-			rows, err := listASImagePermissions(ctx, client, acct, region, scanID, img)
-			if isTransientNetworkError(err) {
-				transient.skipped(img.id, err)
-				return nil, nil
-			}
-			return rows, err
+			return listASImagePermissions(ctx, client, acct, region, scanID, img)
 		})
-	transient.warnSkipped(st, asImagePermissionOp, acct, region)
-	return total, inserted, err
 }
 
 // listASImagePermissions lists the share grants of one image, one row per
@@ -805,25 +797,16 @@ func scanASSoftwareAssociations(ctx context.Context, client appStreamAPI, acct *
 	for i, o := range owners {
 		byARN[i] = childParent{id: o.arn, arn: o.arn}
 	}
-	var (
-		transient    transientTally
-		notPermitted sync.Once
-	)
-	total, inserted, err := childFanOut(ctx, st, acct, region, asSoftwareAssociationOp, byARN, isASParentGone,
+	var notPermitted sync.Once
+	return childFanOutSkipTransient(ctx, st, acct, region, asSoftwareAssociationOp, byARN, isASParentGone, byParentID,
 		func(ctx context.Context, owner childParent) ([]*store.Resource, error) {
 			rows, err := listASSoftwareAssociations(ctx, client, acct, region, scanID, owner)
 			if isAPIErrorCode(err, "OperationNotPermittedException") {
 				notPermitted.Do(func() { warnASSoftwareNotPermitted(st, acct.ID, region, owner.id, err) })
 				return nil, nil
 			}
-			if isTransientNetworkError(err) {
-				transient.skipped(owner.id, err)
-				return nil, nil
-			}
 			return rows, err
 		})
-	transient.warnSkipped(st, asSoftwareAssociationOp, acct, region)
-	return total, inserted, err
 }
 
 // warnASSoftwareNotPermitted records that DescribeSoftwareAssociations was not

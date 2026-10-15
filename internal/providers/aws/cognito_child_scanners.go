@@ -50,27 +50,18 @@ func cognitoUserPoolReplicaNativeID(primaryARN, replicaRegion string) string {
 // still fails transiently after the SDK's retries is skipped, keeping its
 // siblings' rows, with one summary warning.
 func scanCognitoUserPoolReplicas(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, pools []childParent) (int, int, error) {
-	var (
-		transient  transientTally
-		notEnabled sync.Once
-	)
-	total, inserted, err := childFanOut(ctx, st, acct, region, cognitoReplicasOp, pools, isCognitoChildSkip,
+	var notEnabled sync.Once
+	return childFanOutSkipTransient(ctx, st, acct, region, cognitoReplicasOp, pools, isCognitoChildSkip, byParentARN,
 		func(ctx context.Context, pool childParent) ([]*store.Resource, error) {
 			rows, err := listCognitoUserPoolReplicaRows(ctx, client, acct, region, scanID, pool)
-			switch {
-			case isAPIErrorCode(err, "OperationNotEnabledException"):
+			if isAPIErrorCode(err, "OperationNotEnabledException") {
 				notEnabled.Do(func() {
 					_ = skipIfAccessDenied(st, cognitoReplicasOp, acct.ID, region, fmt.Errorf("replicas of %s not listed this scan (later pools refused the same way not reported): %w", pool.arn, err))
 				})
 				return nil, nil
-			case isTransientNetworkError(err):
-				transient.skipped(pool.arn, err)
-				return nil, nil
 			}
 			return rows, err
 		})
-	transient.warnSkipped(st, cognitoReplicasOp, acct, region)
-	return total, inserted, err
 }
 
 // listCognitoUserPoolReplicaRows reads every page before any row is built,
@@ -143,18 +134,10 @@ func scanCognitoUserPoolClientSecrets(ctx context.Context, client cognitoidpAPI,
 		parents[i] = childParent{id: c.clientID, arn: c.arn}
 		poolOf[c.arn] = c.poolID
 	}
-	var transient transientTally
-	total, inserted, err := childFanOut(ctx, st, acct, region, cognitoClientSecretsOp, parents, isCognitoChildSkip,
+	return childFanOutSkipTransient(ctx, st, acct, region, cognitoClientSecretsOp, parents, isCognitoChildSkip, byParentARN,
 		func(ctx context.Context, appClient childParent) ([]*store.Resource, error) {
-			rows, err := listCognitoClientSecretRows(ctx, client, acct, region, scanID, poolOf[appClient.arn], appClient)
-			if isTransientNetworkError(err) {
-				transient.skipped(appClient.arn, err)
-				return nil, nil
-			}
-			return rows, err
+			return listCognitoClientSecretRows(ctx, client, acct, region, scanID, poolOf[appClient.arn], appClient)
 		})
-	transient.warnSkipped(st, cognitoClientSecretsOp, acct, region)
-	return total, inserted, err
 }
 
 func listCognitoClientSecretRows(ctx context.Context, client cognitoidpAPI, acct *account, region, scanID, poolID string, appClient childParent) ([]*store.Resource, error) {
