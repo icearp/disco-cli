@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.6% (1887/3336 listable) · depth0 69.5% · depth1 37.6% · depth2 28.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.6% (1888/3336 listable) · depth0 69.6% · depth1 37.6% · depth2 28.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -12,7 +12,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | child-uncatalogued | 231 | 786 | 22.7 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 170 | 246 | 40.9 |
-| element-arn | 31 | 75 | 29.2 |
+| element-arn | 32 | 74 | 30.2 |
 | element-created | 5 | 9 | 35.7 |
 
 | Service | Covered | Uncovered | % |
@@ -76,7 +76,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workspaces | 9 | 7 | 56.2 |
 | aco-automation | 0 | 6 | 0.0 |
 | aidevops | 8 | 6 | 57.1 |
-| autoscaling | 6 | 6 | 50.0 |
 | cloudtrail | 4 | 6 | 40.0 |
 | drs | 8 | 6 | 57.1 |
 | forecast | 8 | 6 | 57.1 |
@@ -97,6 +96,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | access-analyzer | 2 | 5 | 28.6 |
 | applicationinsights | 1 | 5 | 16.7 |
 | appstream | 16 | 5 | 76.2 |
+| autoscaling | 7 | 5 | 58.3 |
 | cases | 5 | 5 | 50.0 |
 | ce | 4 | 5 | 44.4 |
 | codepipeline | 3 | 5 | 37.5 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1449)
+### Uncovered (listable, no scanner) (1448)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -440,7 +440,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | autoscaling | autoscaling/instancerefresh | 1 |  | child-uncatalogued | autoscaling:DescribeInstanceRefreshes |
 | autoscaling | autoscaling/loadbalancer | 1 |  | child-uncatalogued | autoscaling:DescribeLoadBalancers |
 | autoscaling | autoscaling/loadbalancertargetgroup | 1 |  | child-uncatalogued | autoscaling:DescribeLoadBalancerTargetGroups |
-| autoscaling | autoscaling/notificationconfiguration | 0 |  | element-arn | autoscaling:DescribeNotificationConfigurations |
 | autoscaling | autoscaling/scalingactivity | 0 |  | element-written | autoscaling:DescribeScalingActivities |
 | autoscaling | autoscaling/trafficsource | 1 |  | child-uncatalogued | autoscaling:DescribeTrafficSources |
 | aws-marketplace | aws-marketplace/agreementcancellationrequest | 0 |  | element-written | aws-marketplace:GetAgreementCancellationRequest, aws-marketplace:ListAgreementCancellationRequests |

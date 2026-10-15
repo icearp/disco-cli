@@ -2407,12 +2407,13 @@ const (
 	TypeAthenaCapacityReservation = "aws:athena:capacity-reservation"
 	TypeAthenaNotebook            = "aws:athena:notebook"
 	// EC2 Auto Scaling (autoscaling_scanners.go, autoscaling_resolvers.go).
-	TypeAutoScalingGroup               = "aws:autoscaling:auto-scaling-group"
-	TypeAutoScalingLaunchConfiguration = "aws:autoscaling:launch-configuration"
-	TypeAutoScalingLifecycleHook       = "aws:autoscaling:lifecycle-hook"
-	TypeAutoScalingScalingPolicy       = "aws:autoscaling:scaling-policy"
-	TypeAutoScalingScheduledAction     = "aws:autoscaling:scheduled-action"
-	TypeAutoScalingWarmPool            = "aws:autoscaling:warm-pool"
+	TypeAutoScalingGroup                     = "aws:autoscaling:auto-scaling-group"
+	TypeAutoScalingLaunchConfiguration       = "aws:autoscaling:launch-configuration"
+	TypeAutoScalingLifecycleHook             = "aws:autoscaling:lifecycle-hook"
+	TypeAutoScalingNotificationConfiguration = "aws:autoscaling:notification-configuration"
+	TypeAutoScalingScalingPolicy             = "aws:autoscaling:scaling-policy"
+	TypeAutoScalingScheduledAction           = "aws:autoscaling:scheduled-action"
+	TypeAutoScalingWarmPool                  = "aws:autoscaling:warm-pool"
 	// AWS Auto Scaling (a.k.a. AutoScalingPlans). Disco service segment
 	// "autoscaling-plans"; CFN segment "AutoScalingPlans".
 	TypeAutoScalingPlansScalingPlan = "aws:autoscaling-plans:scaling-plan"

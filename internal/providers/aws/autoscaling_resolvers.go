@@ -30,14 +30,19 @@ func init() {
 		EdgeDecl{TypeAutoScalingLifecycleHook, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeAutoScalingLifecycleHook, TypeSNSTopic, store.RelUses},
 		EdgeDecl{TypeAutoScalingLifecycleHook, TypeSQSQueue, store.RelUses},
+		// resolveAutoScalingNotificationTopicEdges
+		EdgeDecl{TypeAutoScalingNotificationConfiguration, TypeSNSTopic, store.RelUses},
+		// recorded by scanAutoScalingNotificationConfigurations via RecordHierarchyBatch
+		EdgeDecl{TypeAutoScalingGroup, TypeAutoScalingNotificationConfiguration, store.RelContains},
 	)
 }
 
 // resolveAutoScalingRelationships wires edges among the EC2 Auto Scaling
 // resource family. ASGs anchor most edges (instances, target groups,
-// launch templates / configs, subnets, service-linked role); the four
-// child types (LifecycleHook, ScalingPolicy, ScheduledAction, WarmPool)
-// each hang off their parent ASG via attached-to.
+// launch templates / configs, subnets, service-linked role); the child types
+// LifecycleHook, ScalingPolicy, ScheduledAction and WarmPool hang off their
+// parent ASG via attached-to. NotificationConfiguration is contained by its
+// ASG at scan time (RecordHierarchyBatch) and uses its SNS topic.
 func resolveAutoScalingRelationships(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAutoScalingGroup},
@@ -100,7 +105,36 @@ func resolveAutoScalingRelationships(acct *account, st *store.Store) error {
 	if err := resolveAutoScalingLaunchConfigEdges(acct, st, instProfileIDs, sgIDs); err != nil {
 		return err
 	}
-	return resolveAutoScalingChildEdges(acct, st, asgIDByName, roleIDs, topicIDs, queueIDs)
+	if err := resolveAutoScalingChildEdges(acct, st, asgIDByName, roleIDs, topicIDs, queueIDs); err != nil {
+		return err
+	}
+	return resolveAutoScalingNotificationTopicEdges(acct, st, topicIDs)
+}
+
+// resolveAutoScalingNotificationTopicEdges links each notification
+// configuration to the SNS topic it publishes to, when that topic was scanned.
+func resolveAutoScalingNotificationTopicEdges(acct *account, st *store.Store, topicIDs map[string]bool) error {
+	rs, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAutoScalingNotificationConfiguration},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range rs {
+		var a autoScalingNotificationConfiguration
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
+			return fmt.Errorf("decode %s %s: %w", TypeAutoScalingNotificationConfiguration, r.NativeID, err)
+		}
+		topicID := store.ResourceID("aws", acct.ID, a.TopicARN)
+		if !topicIDs[topicID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, topicID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert notification-configuration→sns: %w", err)
+		}
+	}
+	return nil
 }
 
 func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store.Resource, roleIDs, instanceIDs, tgIDs, lcIDs, ltIDs, subnetIDs map[string]bool) error {

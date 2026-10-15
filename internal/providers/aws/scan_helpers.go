@@ -307,8 +307,11 @@ func (t *transientTally) warnSkipped(st *store.Store, op string, acct *account, 
 // classifies a join as transient when any member is a network error or its
 // first API error is a throttle or 5xx, so a joined transient error would hide
 // another phase's hard error and discard the counts of every phase.
+// NXDOMAIN is returned unchanged: the dispatcher reads it as a silent
+// (region: unavailable) before its transient rung, so demoting it would turn
+// a region gap into a warning.
 func demoteTransient(st *store.Store, op string, acct *account, region string, err error) error {
-	if isTransientNetworkError(err) {
+	if isTransientNetworkError(err) && !isDNSNotFound(err) {
 		return skipIfTransient(st, op, acct.ID, region, err)
 	}
 	return err

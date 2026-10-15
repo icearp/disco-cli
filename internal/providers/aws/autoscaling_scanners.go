@@ -2,7 +2,10 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
@@ -17,6 +20,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAutoScalingGroup, Service: "autoscaling"})
 	registerType(restype.Descriptor{Type: TypeAutoScalingLaunchConfiguration, Service: "autoscaling"})
 	registerType(restype.Descriptor{Type: TypeAutoScalingLifecycleHook, Service: "autoscaling"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingNotificationConfiguration, Service: "autoscaling"})
 	registerType(restype.Descriptor{Type: TypeAutoScalingScalingPolicy, Service: "autoscaling"})
 	registerType(restype.Descriptor{Type: TypeAutoScalingScheduledAction, Service: "autoscaling"})
 	registerType(restype.Descriptor{Type: TypeAutoScalingWarmPool, Service: "autoscaling"})
@@ -32,6 +36,7 @@ type autoScalingAPI interface {
 	DescribeAutoScalingGroups(context.Context, *autoscaling.DescribeAutoScalingGroupsInput, ...func(*autoscaling.Options)) (*autoscaling.DescribeAutoScalingGroupsOutput, error)
 	DescribeLaunchConfigurations(context.Context, *autoscaling.DescribeLaunchConfigurationsInput, ...func(*autoscaling.Options)) (*autoscaling.DescribeLaunchConfigurationsOutput, error)
 	DescribeLifecycleHooks(context.Context, *autoscaling.DescribeLifecycleHooksInput, ...func(*autoscaling.Options)) (*autoscaling.DescribeLifecycleHooksOutput, error)
+	DescribeNotificationConfigurations(context.Context, *autoscaling.DescribeNotificationConfigurationsInput, ...func(*autoscaling.Options)) (*autoscaling.DescribeNotificationConfigurationsOutput, error)
 	DescribePolicies(context.Context, *autoscaling.DescribePoliciesInput, ...func(*autoscaling.Options)) (*autoscaling.DescribePoliciesOutput, error)
 	DescribeScheduledActions(context.Context, *autoscaling.DescribeScheduledActionsInput, ...func(*autoscaling.Options)) (*autoscaling.DescribeScheduledActionsOutput, error)
 	DescribeWarmPool(context.Context, *autoscaling.DescribeWarmPoolInput, ...func(*autoscaling.Options)) (*autoscaling.DescribeWarmPoolOutput, error)
@@ -51,18 +56,43 @@ func autoScalingWarmPoolARN(region, accountID, asgName string) string {
 	return fmt.Sprintf("arn:aws:autoscaling:%s:%s:warm-pool/%s", region, accountID, asgName)
 }
 
-// scanAutoScaling discovers EC2 Auto Scaling primitives in one region.
-// Phases run sequentially; ASG names are captured during the first phase
-// for the per-ASG fan-outs (LifecycleHook, WarmPool) that follow.
-func scanAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := autoscaling.NewFromConfig(acct.cfg, func(o *autoscaling.Options) { o.Region = region })
+// autoScalingNotificationConfigurationARN synthesizes the NativeID of one
+// group's notification configuration for one SNS topic. AWS returns no ARN;
+// the form mirrors autoScalingLifecycleHookARN (group name, not group ARN) so
+// the row keeps its identity when the group phase fails or misses the group.
+func autoScalingNotificationConfigurationARN(region, accountID, asgName, topicARN string) string {
+	return fmt.Sprintf("arn:aws:autoscaling:%s:%s:notification-configuration/%s/%s", region, accountID, asgName, topicARN)
+}
 
-	asgNames, t, i, ferr := scanAutoScalingGroups(ctx, client, acct, region, st, scanID)
+// scanAutoScaling discovers EC2 Auto Scaling primitives in one region.
+//
+// The older phases stop at their first hard error. The notification
+// configuration phase runs after them whatever they returned, so its failure
+// costs no older phase its rows and theirs does not skip it. Each side's
+// transient error is demoted to a warning, since one transient member would
+// make the dispatcher read the whole join as transient; the counts are summed.
+func scanAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	client := autoscaling.NewFromConfig(acct.cfg, func(o *autoscaling.Options) { o.Region = region })
+	total, inserted, groupIDs, err := scanAutoScalingOlderPhases(ctx, client, acct, region, st, scanID)
+	t, i, nerr := scanAutoScalingNotificationConfigurations(ctx, client, acct, region, st, scanID, groupIDs)
+	return total + t, inserted + i, errors.Join(
+		demoteTransient(st, "autoscaling", acct, region, err),
+		demoteTransient(st, "autoscaling:DescribeNotificationConfigurations", acct, region, nerr),
+	)
+}
+
+// scanAutoScalingOlderPhases runs the phases that predate notification
+// configurations sequentially, stopping at the first hard error. ASGs are
+// captured during the first phase for the per-ASG fan-outs (LifecycleHook,
+// WarmPool) that follow, and returned as name → stored row ID.
+func scanAutoScalingOlderPhases(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, groupIDs map[string]string, err error) {
+	groupIDs, t, i, ferr := scanAutoScalingGroups(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, inserted, groupIDs, ferr
 	}
 	total += t
 	inserted += i
+	asgNames := slices.Collect(maps.Keys(groupIDs))
 
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) {
@@ -81,17 +111,19 @@ func scanAutoScaling(ctx context.Context, acct *account, region string, st *stor
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, inserted, groupIDs, ferr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+	return total, inserted, groupIDs, nil
 }
 
 // scanAutoScalingGroups paginates DescribeAutoScalingGroups, persists each
-// group, and returns the captured ASG name slice for downstream fan-outs.
-func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (names []string, total, inserted int, err error) {
+// group, and returns the stored row ID of every group by name for downstream
+// fan-outs and hierarchy pairs.
+func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (groupIDs map[string]string, total, inserted int, err error) {
+	groupIDs = map[string]string{}
 	pager := autoscaling.NewDescribeAutoScalingGroupsPaginator(client, &autoscaling.DescribeAutoScalingGroupsInput{})
 	t, i, perr := pageScan(ctx, "autoscaling:DescribeAutoScalingGroups", acct, region, st,
 		pager.HasMorePages,
@@ -106,11 +138,11 @@ func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *acc
 			if name == "" {
 				return nil
 			}
-			names = append(names, name)
 			arn := sv(g.AutoScalingGroupARN)
 			if arn == "" {
 				arn = fmt.Sprintf("arn:aws:autoscaling:%s:%s:autoScalingGroup:*:autoScalingGroupName/%s", region, acct.ID, name)
 			}
+			groupIDs[name] = store.ResourceID("aws", acct.ID, arn)
 			status := sv(g.Status)
 			return &store.Resource{
 				Provider:       "aws",
@@ -126,7 +158,7 @@ func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *acc
 				DiscoveredBy:   scanID,
 			}
 		})
-	return names, t, i, perr
+	return groupIDs, t, i, perr
 }
 
 func scanAutoScalingLaunchConfigurations(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -345,4 +377,81 @@ func scanAutoScalingWarmPools(ctx context.Context, client autoScalingAPI, acct *
 		return 0, 0, fmt.Errorf("upsert autoscaling warm pools: %w", uerr)
 	}
 	return len(batch), n, nil
+}
+
+// autoScalingNotificationConfiguration is one stored notification
+// configuration: every notification type a group sends to one SNS topic. The
+// API returns one element per (group, topic, type), but the group+topic pair is
+// the unit that is created and deleted together (PutNotificationConfiguration
+// replaces the pair's type list; CloudFormation's NotificationConfiguration is
+// the same pair), so one row per pair makes a type change a new version of the
+// row rather than rows appearing and disappearing. Types are sorted and
+// deduplicated because the API promises neither order nor uniqueness across
+// pages, and neither may version-split the row.
+type autoScalingNotificationConfiguration struct {
+	AutoScalingGroupName string   `json:"AutoScalingGroupName"`
+	TopicARN             string   `json:"TopicARN"`
+	NotificationTypes    []string `json:"NotificationTypes"`
+}
+
+// scanAutoScalingNotificationConfigurations lists every group's notification
+// configurations with one unfiltered paginated call and stores one row per
+// group+topic pair, contained by its group when the group phase listed it.
+// A pair is only complete after the last page, so a failed page stores
+// nothing: a partial pair would record a type list AWS does not hold.
+func scanAutoScalingNotificationConfigurations(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, groupIDs map[string]string) (int, int, error) {
+	const op = "autoscaling:DescribeNotificationConfigurations"
+	pager := autoscaling.NewDescribeNotificationConfigurationsPaginator(client, &autoscaling.DescribeNotificationConfigurationsInput{},
+		func(o *autoscaling.DescribeNotificationConfigurationsPaginatorOptions) { o.Limit = 100 })
+	configs := map[string]*autoScalingNotificationConfiguration{}
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, op, acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("%s: %w", op, err)
+		}
+		for _, nc := range page.NotificationConfigurations {
+			group, topic, kind := sv(nc.AutoScalingGroupName), sv(nc.TopicARN), sv(nc.NotificationType)
+			if group == "" || topic == "" || kind == "" {
+				continue
+			}
+			nativeID := autoScalingNotificationConfigurationARN(region, acct.ID, group, topic)
+			c, ok := configs[nativeID]
+			if !ok {
+				c = &autoScalingNotificationConfiguration{AutoScalingGroupName: group, TopicARN: topic}
+				configs[nativeID] = c
+			}
+			c.NotificationTypes = append(c.NotificationTypes, kind)
+		}
+	}
+
+	batch := make([]*store.Resource, 0, len(configs))
+	var pairs [][2]string
+	for nativeID, c := range configs {
+		slices.Sort(c.NotificationTypes)
+		c.NotificationTypes = slices.Compact(c.NotificationTypes)
+		batch = append(batch, &store.Resource{
+			Provider:       "aws",
+			AccountID:      acct.ID,
+			AccountName:    &acct.Name,
+			Type:           TypeAutoScalingNotificationConfiguration,
+			NativeID:       nativeID,
+			Region:         &region,
+			AttributesJSON: mustJSON(c),
+			DiscoveredBy:   scanID,
+		})
+		if groupID, ok := groupIDs[c.AutoScalingGroupName]; ok {
+			pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, nativeID), groupID})
+		}
+	}
+	total, inserted, err := upsertBatch(st, batch, op)
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
+		return 0, 0, fmt.Errorf("closure %s: %w", op, err)
+	}
+	return total, inserted, nil
 }

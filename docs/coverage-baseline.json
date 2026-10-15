@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 56.564748201438846,
-    "covered": 1887,
-    "uncovered": 1449,
+    "percent": 56.594724220623505,
+    "covered": 1888,
+    "uncovered": 1448,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -157,6 +157,7 @@
       "autoscaling/autoscalinggroup",
       "autoscaling/launchconfiguration",
       "autoscaling/lifecyclehook",
+      "autoscaling/notificationconfiguration",
       "autoscaling/policy",
       "autoscaling/scheduledaction",
       "autoscaling/warmpool",
@@ -1978,7 +1979,6 @@
       "autoscaling/instancerefresh",
       "autoscaling/loadbalancer",
       "autoscaling/loadbalancertargetgroup",
-      "autoscaling/notificationconfiguration",
       "autoscaling/scalingactivity",
       "autoscaling/trafficsource",
       "aws-marketplace/agreementcancellationrequest",
