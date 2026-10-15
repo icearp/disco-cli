@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.0% (1903/3336 listable) · depth0 70.0% · depth1 38.2% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.1% (1905/3336 listable) · depth0 70.0% · depth1 38.4% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 242 | 775 | 23.8 |
+| child-uncatalogued | 244 | 773 | 24.0 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 174 | 242 | 41.8 |
 | element-arn | 32 | 74 | 30.2 |
@@ -103,7 +103,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | finspace-api | 0 | 5 | 0.0 |
 | groundstation | 5 | 5 | 50.0 |
 | health | 0 | 5 | 0.0 |
-| iotfleetwise | 7 | 5 | 58.3 |
 | iotmanagedintegrations | 12 | 5 | 70.6 |
 | iottwinmaker | 5 | 5 | 50.0 |
 | iotwireless | 11 | 5 | 68.8 |
@@ -164,6 +163,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | gameliftstreams | 2 | 3 | 40.0 |
 | globalaccelerator | 8 | 3 | 72.7 |
 | internetmonitor | 1 | 3 | 25.0 |
+| iotfleetwise | 9 | 3 | 75.0 |
 | kinesisanalytics | 1 | 3 | 25.0 |
 | macie2 | 5 | 3 | 62.5 |
 | medical-imaging | 1 | 3 | 25.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1433)
+### Uncovered (listable, no scanner) (1431)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1111,8 +1111,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iot | iot/violationevent | 1 |  | child-uncatalogued | iot:ListViolationEvents |
 | iot-jobs-data | iot-jobs-data/pendingjobexecution | 1 |  | child-uncatalogued | iot-jobs-data:GetPendingJobExecutions |
 | iotdeviceadvisor | iotdeviceadvisor/suiterun | 0 |  | sr-resource | iotdeviceadvisor:GetSuiteRun, iotdeviceadvisor:ListSuiteRuns |
-| iotfleetwise | iotfleetwise/decodermanifestnetworkinterface | 1 |  | child-uncatalogued | iotfleetwise:ListDecoderManifestNetworkInterfaces |
-| iotfleetwise | iotfleetwise/decodermanifestsignal | 1 |  | child-uncatalogued | iotfleetwise:ListDecoderManifestSignals |
 | iotfleetwise | iotfleetwise/fleetassociation | 1 |  | smithy-resource | iotfleetwise:ListFleetsForVehicle |
 | iotfleetwise | iotfleetwise/vehicleassociation | 1 |  | smithy-resource | iotfleetwise:ListVehiclesInFleet |
 | iotfleetwise | iotfleetwise/vehiclestatus | 1 |  | child-uncatalogued | iotfleetwise:GetVehicleStatus |
