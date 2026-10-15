@@ -2,15 +2,18 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/xray"
+	xraytypes "github.com/aws/aws-sdk-go-v2/service/xray/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeXRayGroup, Service: "xray"})
+	registerType(restype.Descriptor{Type: TypeXRayIndexingRule, Service: "xray", Managed: true})
 	registerType(restype.Descriptor{Type: TypeXRayResourcePolicy, Service: "xray"})
 	registerType(restype.Descriptor{Type: TypeXRaySamplingRule, Service: "xray"})
 	registerType(restype.Descriptor{Type: TypeXRayTransactionSearchConfig, Service: "xray", Managed: true})
@@ -25,17 +28,35 @@ type xrayAPI interface {
 	ListResourcePolicies(context.Context, *xray.ListResourcePoliciesInput, ...func(*xray.Options)) (*xray.ListResourcePoliciesOutput, error)
 	GetSamplingRules(context.Context, *xray.GetSamplingRulesInput, ...func(*xray.Options)) (*xray.GetSamplingRulesOutput, error)
 	GetTraceSegmentDestination(context.Context, *xray.GetTraceSegmentDestinationInput, ...func(*xray.Options)) (*xray.GetTraceSegmentDestinationOutput, error)
+	GetIndexingRules(context.Context, *xray.GetIndexingRulesInput, ...func(*xray.Options)) (*xray.GetIndexingRulesOutput, error)
 }
 
-// scanXRay discovers X-Ray groups, resource policies, sampling rules, and the
-// per-(account,region) Transaction Search configuration.
+const xrayGetIndexingRulesOp = "xray:GetIndexingRules"
+
+// scanXRay discovers X-Ray groups, resource policies, sampling rules, the
+// per-(account,region) Transaction Search configuration and its indexing rules.
 //
 // AWS::XRay::TransactionSearchConfig has no list/dedicated Get endpoint;
 // GetTraceSegmentDestination is the singleton that backs it (controls whether
 // segments index to CloudWatch Logs for Transaction Search).
-func scanXRay(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+//
+// The older phases stop at their first hard error. The indexing-rule phase
+// runs whatever they returned, so its failure costs no other phase its rows
+// and theirs does not skip it. Each result has its transient error demoted to
+// a warning, since one transient member would make the dispatcher read the
+// whole join as transient; the rest are joined and the counts summed.
+func scanXRay(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := xray.NewFromConfig(acct.cfg, func(o *xray.Options) { o.Region = region })
+	total, inserted, err := scanXRayOlderPhases(ctx, client, acct, region, st, scanID)
+	t, i, ierr := scanXRayIndexingRules(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + i, errors.Join(
+		demoteTransient(st, "xray", acct, region, err),
+		demoteTransient(st, xrayGetIndexingRulesOp, acct, region, ierr))
+}
 
+// scanXRayOlderPhases runs the phases that predate indexing rules, stopping at
+// the first hard error.
+func scanXRayOlderPhases(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanXRayGroups(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanXRayResourcePolicies(ctx, client, acct, region, st, scanID) },
@@ -168,4 +189,87 @@ func scanXRayTransactionSearchConfig(ctx context.Context, client xrayAPI, acct *
 		Name: &label, Region: &region, Status: &status,
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}}, "xray transaction-search-config")
+}
+
+// xrayIndexingRuleAttrs shadows the rule's Rule union, which marshals as an
+// unlabelled {"Value": ...}, with one key per known member so the stored row
+// names the rule kind (precedent: acmAcmeEndpointAttrs). A member newer than
+// the pinned SDK is kept under UnknownMember with its tag and its value, which
+// is []byte and so stored base64-encoded. Rule stays null when the API
+// returns none.
+type xrayIndexingRuleAttrs struct {
+	xraytypes.IndexingRule
+	Rule *xrayIndexingRuleValueAttrs
+}
+
+type xrayIndexingRuleValueAttrs struct {
+	Probabilistic *xraytypes.ProbabilisticRuleValue `json:",omitempty"`
+	UnknownMember *xraytypes.UnknownUnionMember     `json:",omitempty"`
+}
+
+func flattenXRayIndexingRule(r xraytypes.IndexingRule) xrayIndexingRuleAttrs {
+	out := xrayIndexingRuleAttrs{IndexingRule: r}
+	switch v := r.Rule.(type) {
+	case *xraytypes.IndexingRuleValueMemberProbabilistic:
+		out.Rule = &xrayIndexingRuleValueAttrs{Probabilistic: &v.Value}
+	case *xraytypes.UnknownUnionMember:
+		out.Rule = &xrayIndexingRuleValueAttrs{UnknownMember: v}
+	}
+	return out
+}
+
+func xrayIndexingRuleNativeID(region, accountID, name string) string {
+	return fmt.Sprintf("arn:aws:xray:%s:%s:indexing-rule/%s", region, accountID, name)
+}
+
+// scanXRayIndexingRules stores the region's Transaction Search indexing rules.
+// The API has no create or delete operation for them (only GetIndexingRules and
+// UpdateIndexingRule), so every rule is AWS-created and cannot be deleted: the
+// type is Managed even though its sampling percentage can be updated. No rule
+// ARN exists (the Service Reference lists only group and sampling-rule ARNs),
+// so the NativeID is synthesized from the rule name, the identifier
+// UpdateIndexingRule takes, like the resource policy's. A denial after a page
+// keeps the rules already listed. An InvalidRequestException on the first
+// page warns rather than fails: disco builds no input for that call, and it is
+// unverified whether a region without Transaction Search answers with it. On a
+// later page it is returned, since there disco echoes a NextToken.
+func scanXRayIndexingRules(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	in := &xray.GetIndexingRulesInput{}
+	var batch []*store.Resource
+	for {
+		out, err := client.GetIndexingRules(ctx, in)
+		if isAccessDenied(err) {
+			_ = skipIfAccessDenied(st, xrayGetIndexingRulesOp, acct.ID, region, err)
+			break
+		}
+		if in.NextToken == nil && isAPIErrorCode(err, "InvalidRequestException") {
+			st.ReportWarning(store.ScanWarning{
+				Provider: "aws", Service: xrayGetIndexingRulesOp, Scope: acct.ID + "/" + region,
+				Message: fmt.Sprintf("indexing rules not listed: InvalidRequestException; the region may lack Transaction Search (unverified): %v", err),
+			})
+			return 0, 0, nil
+		}
+		if err != nil {
+			return 0, 0, fmt.Errorf("%s: %w", xrayGetIndexingRulesOp, err)
+		}
+		for _, r := range out.IndexingRules {
+			name := sv(r.Name)
+			if name == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeXRayIndexingRule, NativeID: xrayIndexingRuleNativeID(region, acct.ID, name),
+				Name: &name, Region: &region,
+				AttributesJSON: mustJSON(flattenXRayIndexingRule(r)), DiscoveredBy: scanID,
+			})
+		}
+		// GetIndexingRules has no paginator and no page-size input; a repeated
+		// token would loop forever.
+		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+			break
+		}
+		in.NextToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "xray indexing-rules")
 }

@@ -2267,6 +2267,7 @@ const (
 	TypeVerifiedPermissionsPolicyStoreAlias = "aws:verifiedpermissions:policy-store-alias"
 	// XRay (xray_scanners.go).
 	TypeXRayGroup                   = "aws:xray:group"
+	TypeXRayIndexingRule            = "aws:xray:indexing-rule"
 	TypeXRayResourcePolicy          = "aws:xray:resource-policy"
 	TypeXRaySamplingRule            = "aws:xray:sampling-rule"
 	TypeXRayTransactionSearchConfig = "aws:xray:transaction-search-config"

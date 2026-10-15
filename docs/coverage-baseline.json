@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 57.434052757793765,
-    "covered": 1916,
-    "uncovered": 1420,
+    "percent": 57.46402877697842,
+    "covered": 1917,
+    "uncovered": 1419,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1923,6 +1923,7 @@
       "workspaces/workspaceimage",
       "workspaces/workspacespool",
       "xray/group",
+      "xray/indexingrule",
       "xray/resourcepolicy",
       "xray/samplingrule"
     ],
@@ -3343,7 +3344,6 @@
       "workspaces/imageassociation",
       "workspaces/workspaceassociation",
       "workspaces/workspacespoolsession",
-      "xray/indexingrule",
       "xray/insightsummary",
       "xray/tracegraph",
       "xray/tracesummary"

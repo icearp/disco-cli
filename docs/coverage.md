@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.4% (1916/3336 listable) · depth0 70.0% · depth1 39.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.5% (1917/3336 listable) · depth0 70.0% · depth1 39.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1028 | 193 | 84.2 |
 | child-uncatalogued | 252 | 765 | 24.8 |
 | smithy-resource | 424 | 138 | 75.4 |
-| element-written | 175 | 241 | 42.1 |
+| element-written | 176 | 240 | 42.3 |
 | element-arn | 32 | 74 | 30.2 |
 | element-created | 5 | 9 | 35.7 |
 
@@ -138,7 +138,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm-incidents | 3 | 4 | 42.9 |
 | ssm-sap | 3 | 4 | 42.9 |
 | transcribe | 5 | 4 | 55.6 |
-| xray | 3 | 4 | 42.9 |
 | agent-registry | 0 | 3 | 0.0 |
 | airflow-serverless | 1 | 3 | 25.0 |
 | app-integrations | 3 | 3 | 50.0 |
@@ -181,6 +180,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | states | 4 | 3 | 57.1 |
 | support | 0 | 3 | 0.0 |
 | wafv2 | 6 | 3 | 66.7 |
+| xray | 4 | 3 | 57.1 |
 | account-access | 0 | 2 | 0.0 |
 | amplify | 5 | 2 | 71.4 |
 | application-signals | 2 | 2 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1420)
+### Uncovered (listable, no scanner) (1419)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1776,7 +1776,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workspaces | workspaces/workspaceassociation | 1 |  | child-uncatalogued | workspaces:DescribeWorkspaceAssociations |
 | workspaces | workspaces/workspacespoolsession | 1 |  | child-uncatalogued | workspaces:DescribeWorkspacesPoolSessions |
 | workspaces-web | workspaces-web/session | 1 |  | child-uncatalogued | workspaces-web:GetSession, workspaces-web:ListSessions |
-| xray | xray/indexingrule | 0 |  | element-written | xray:GetIndexingRules |
 | xray | xray/insightsummary | 0 |  | element-arn | xray:GetInsightSummaries |
 | xray | xray/tracegraph | 0 |  | child-uncatalogued | xray:GetServiceGraph, xray:GetTraceGraph |
 | xray | xray/tracesummary | 0 |  | element-arn | xray:GetTraceSummaries |
