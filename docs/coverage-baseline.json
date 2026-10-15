@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 56.534772182254194,
-    "covered": 1886,
-    "uncovered": 1450,
+    "percent": 56.564748201438846,
+    "covered": 1887,
+    "uncovered": 1449,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1305,6 +1305,7 @@
       "osis/pipeline",
       "osis/pipelineblueprint",
       "osis/pipelineendpoint",
+      "outposts/asset",
       "outposts/outpost",
       "outposts/site",
       "payment-cryptography/alias",
@@ -2899,7 +2900,6 @@
       "organizations/createaccountstatus",
       "organizations/handshake",
       "osis/pipelineendpointconnection",
-      "outposts/asset",
       "outposts/assetinstance",
       "outposts/blockinginstance",
       "outposts/capacitytask",

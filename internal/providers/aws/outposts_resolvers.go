@@ -13,6 +13,17 @@ func init() {
 		resolveOutpostSite,
 		EdgeDecl{TypeOutpostsOutpost, TypeOutpostsSite, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopOutpostsAssetHierarchy,
+		EdgeDecl{TypeOutpostsOutpost, TypeOutpostsAsset, store.RelContains},
+	)
+}
+
+// noopOutpostsAssetHierarchy only carries the EdgeDecl metadata: the scanner
+// records the outpost→asset contains pairs itself (childFanOut in
+// scanOutpostsAssets).
+func noopOutpostsAssetHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveOutpostSite wires each outpost to its site via the SiteArn attribute

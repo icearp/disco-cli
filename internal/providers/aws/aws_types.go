@@ -2312,6 +2312,7 @@ const (
 	// Outposts (outposts_scanners.go). AWS Outposts.
 	TypeOutpostsSite    = "aws:outposts:site"
 	TypeOutpostsOutpost = "aws:outposts:outpost"
+	TypeOutpostsAsset   = "aws:outposts:asset"
 	// PCAConnectorAD (pcaconnectorad_scanners.go).
 	TypePCAConnectorADConnector             = "aws:pca-connector-ad:connector"
 	TypePCAConnectorADDirectoryRegistration = "aws:pca-connector-ad:directory-registration"

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.5% (1886/3336 listable) · depth0 69.5% · depth1 37.5% · depth2 28.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.6% (1887/3336 listable) · depth0 69.5% · depth1 37.6% · depth2 28.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 230 | 787 | 22.6 |
+| child-uncatalogued | 231 | 786 | 22.7 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 170 | 246 | 40.9 |
 | element-arn | 31 | 75 | 29.2 |
@@ -71,7 +71,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | license-manager | 8 | 7 | 53.3 |
 | logs | 18 | 7 | 72.0 |
 | networkmanager | 13 | 7 | 65.0 |
-| outposts | 2 | 7 | 22.2 |
 | ram | 2 | 7 | 22.2 |
 | servicecatalog | 13 | 7 | 65.0 |
 | workspaces | 9 | 7 | 56.2 |
@@ -84,6 +83,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iam | 17 | 6 | 73.9 |
 | lookoutequipment | 5 | 6 | 45.5 |
 | medialive | 17 | 6 | 73.9 |
+| outposts | 3 | 6 | 33.3 |
 | personalize | 11 | 6 | 64.7 |
 | redshift | 21 | 6 | 77.8 |
 | rekognition | 4 | 6 | 40.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1450)
+### Uncovered (listable, no scanner) (1449)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1362,7 +1362,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | organizations | organizations/createaccountstatus | 0 |  | element-written | organizations:DescribeCreateAccountStatus, organizations:ListCreateAccountStatus |
 | organizations | organizations/handshake | 2 |  | sr-resource | organizations:DescribeHandshake, organizations:ListHandshakesForAccount, organizations:ListHandshakesForOrganization |
 | osis | osis/pipelineendpointconnection | 0 |  | element-arn | osis:ListPipelineEndpointConnections |
-| outposts | outposts/asset | 1 |  | child-uncatalogued | outposts:ListAssets |
 | outposts | outposts/assetinstance | 1 |  | child-uncatalogued | outposts:ListAssetInstances |
 | outposts | outposts/blockinginstance | 2 |  | child-uncatalogued | outposts:ListBlockingInstancesForCapacityTask |
 | outposts | outposts/capacitytask | 0 |  | element-written | outposts:GetCapacityTask, outposts:ListCapacityTasks |
