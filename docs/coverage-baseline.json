@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 56.65467625899281,
-    "covered": 1890,
-    "uncovered": 1446,
+    "percent": 56.68465227817746,
+    "covered": 1891,
+    "uncovered": 1445,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1461,6 +1461,7 @@
       "refactor-spaces/service",
       "rekognition/collection",
       "rekognition/project",
+      "rekognition/projectpolicy",
       "rekognition/projectversion",
       "rekognition/streamprocessor",
       "repostspace/space",
@@ -3032,7 +3033,6 @@
       "rekognition/datasetlabel",
       "rekognition/face",
       "rekognition/mediaanalysisjob",
-      "rekognition/projectpolicy",
       "rekognition/user",
       "repostspace/channel",
       "resiliencehub/alarmrecommendation",

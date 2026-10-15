@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.7% (1890/3336 listable) · depth0 69.7% · depth1 37.6% · depth2 28.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.7% (1891/3336 listable) · depth0 69.7% · depth1 37.7% · depth2 28.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 231 | 786 | 22.7 |
+| child-uncatalogued | 232 | 785 | 22.8 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 172 | 244 | 41.3 |
 | element-arn | 32 | 74 | 30.2 |
@@ -84,7 +84,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | outposts | 3 | 6 | 33.3 |
 | personalize | 11 | 6 | 64.7 |
 | redshift | 21 | 6 | 77.8 |
-| rekognition | 4 | 6 | 40.0 |
 | s3 | 14 | 6 | 70.0 |
 | securityhub | 11 | 6 | 64.7 |
 | sms-voice | 11 | 6 | 64.7 |
@@ -116,6 +115,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | kendra | 8 | 5 | 61.5 |
 | lambda | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
+| rekognition | 5 | 5 | 50.0 |
 | snowball | 0 | 5 | 0.0 |
 | sso | 12 | 5 | 70.6 |
 | trustedadvisor | 1 | 5 | 16.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1446)
+### Uncovered (listable, no scanner) (1445)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1491,7 +1491,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | rekognition | rekognition/datasetlabel | 3 |  | child-uncatalogued | rekognition:ListDatasetLabels |
 | rekognition | rekognition/face | 0 |  | child-uncatalogued | rekognition:CompareFaces, rekognition:ListFaces, rekognition:SearchFacesByImage |
 | rekognition | rekognition/mediaanalysisjob | 0 |  | element-written | rekognition:GetMediaAnalysisJob, rekognition:ListMediaAnalysisJobs |
-| rekognition | rekognition/projectpolicy | 1 |  | child-uncatalogued | rekognition:ListProjectPolicies |
 | rekognition | rekognition/user | 1 |  | child-uncatalogued | rekognition:ListUsers, rekognition:SearchUsers, rekognition:SearchUsersByImage |
 | repostspace | repostspace/channel | 1 |  | child-uncatalogued | repostspace:GetChannel, repostspace:ListChannels |
 | resiliencehub | resiliencehub/alarmrecommendation | 1 |  | child-uncatalogued | resiliencehub:ListAlarmRecommendations |

@@ -2102,6 +2102,7 @@ const (
 	TypeRekognitionStreamProcessor = "aws:rekognition:stream-processor"
 	TypeRekognitionProjectVersion  = "aws:rekognition:project-version"
 	TypeRekognitionDataset         = "aws:rekognition:dataset"
+	TypeRekognitionProjectPolicy   = "aws:rekognition:project-policy"
 	// Repostspace (repostspace_scanners.go). AWS re:Post Private.
 	TypeRepostspaceSpace = "aws:repostspace:space"
 	// Route53Profiles (route53profiles_scanners.go).

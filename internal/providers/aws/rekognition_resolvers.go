@@ -14,6 +14,16 @@ func init() {
 		EdgeDecl{TypeRekognitionProjectVersion, TypeRekognitionProject, store.RelAttachedTo},
 		EdgeDecl{TypeRekognitionDataset, TypeRekognitionProject, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopRekHierarchy,
+		EdgeDecl{TypeRekognitionProject, TypeRekognitionProjectPolicy, store.RelContains},
+	)
+}
+
+// noopRekHierarchy only declares the project→policy contains edge, which
+// scanRekProjectPolicies records itself through childFanOut.
+func noopRekHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveRekProjectChildren wires each project-version and dataset back to its

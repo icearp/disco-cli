@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -19,6 +20,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeRekognitionStreamProcessor, Service: "rekognition"})
 	registerType(restype.Descriptor{Type: TypeRekognitionProjectVersion, Service: "rekognition"})
 	registerType(restype.Descriptor{Type: TypeRekognitionDataset, Service: "rekognition"})
+	registerType(restype.Descriptor{Type: TypeRekognitionProjectPolicy, Service: "rekognition"})
 	registerService(serviceEntry{
 		name: "aws:rekognition",
 		fn:   scanRekognition,
@@ -30,6 +32,7 @@ type rekognitionAPI interface {
 	DescribeProjects(context.Context, *rekognition.DescribeProjectsInput, ...func(*rekognition.Options)) (*rekognition.DescribeProjectsOutput, error)
 	ListStreamProcessors(context.Context, *rekognition.ListStreamProcessorsInput, ...func(*rekognition.Options)) (*rekognition.ListStreamProcessorsOutput, error)
 	DescribeProjectVersions(context.Context, *rekognition.DescribeProjectVersionsInput, ...func(*rekognition.Options)) (*rekognition.DescribeProjectVersionsOutput, error)
+	ListProjectPolicies(context.Context, *rekognition.ListProjectPoliciesInput, ...func(*rekognition.Options)) (*rekognition.ListProjectPoliciesOutput, error)
 }
 
 // rekDatasetAttrs embeds SDK DatasetMetadata plus the parent ProjectArn, giving
@@ -47,41 +50,59 @@ type rekProjectVersionAttrs struct {
 	ProjectArn string `json:"ProjectArn"`
 }
 
-// scanRekognition discovers Rekognition collections, custom-labels projects,
-// and stream processors. Collections return plain string IDs (synth ARN);
+// scanRekognition discovers Rekognition collections, custom-labels projects
+// (with their versions, datasets and policies), and stream processors. Collections return plain string IDs (synth ARN);
 // projects expose ProjectArn natively; stream processors return only
 // (Name, Status) — synth ARN.
 func scanRekognition(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := rekognition.NewFromConfig(acct.cfg, func(o *rekognition.Options) { o.Region = region })
+	return scanRekognitionAll(ctx, client, acct, region, st, scanID)
+}
 
-	t, i, perr := scanRekCollections(ctx, client, acct, region, st, scanID)
-	if perr != nil {
-		return total, inserted, perr
+// scanRekognitionAll runs the older phases, which stop at their first hard
+// error, then the project-policy phase over the projects stored before that
+// error, so a failure on either side costs the other no rows. The older
+// side's transient error is demoted to a warning: one transient member would
+// make the dispatcher read the whole join as transient, hiding the policy
+// phase's hard error and discarding every phase's counts.
+func scanRekognitionAll(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	total, inserted, projectARNs, err := scanRekOlderPhases(ctx, client, acct, region, st, scanID)
+	t, i, perr := scanRekProjectPolicies(ctx, client, acct, region, st, scanID, projectARNs)
+	return total + t, inserted + i, errors.Join(demoteTransient(st, "rekognition", acct, region, err), perr)
+}
+
+// scanRekOlderPhases runs the phases that predate project policies
+// sequentially, stopping at the first hard error, and returns the ARNs of the
+// projects stored before it.
+func scanRekOlderPhases(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, projectARNs []string, err error) {
+	t, i, err := scanRekCollections(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return total, inserted, nil, err
 	}
 	total += t
 	inserted += i
 
-	projectARNs, t, i, perr := scanRekProjects(ctx, client, acct, region, st, scanID)
-	if perr != nil {
-		return total, inserted, perr
+	projectARNs, t, i, err = scanRekProjects(ctx, client, acct, region, st, scanID)
+	total += t
+	inserted += i
+	if err != nil {
+		return total, inserted, projectARNs, err
+	}
+
+	t, i, err = scanRekProjectVersions(ctx, client, acct, region, st, scanID, projectARNs)
+	if err != nil {
+		return total, inserted, projectARNs, err
 	}
 	total += t
 	inserted += i
 
-	t, i, perr = scanRekProjectVersions(ctx, client, acct, region, st, scanID, projectARNs)
-	if perr != nil {
-		return total, inserted, perr
+	t, i, err = scanRekStreamProcessors(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return total, inserted, projectARNs, err
 	}
 	total += t
 	inserted += i
-
-	t, i, perr = scanRekStreamProcessors(ctx, client, acct, region, st, scanID)
-	if perr != nil {
-		return total, inserted, perr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, inserted, projectARNs, nil
 }
 
 func scanRekCollections(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -252,4 +273,68 @@ func scanRekStreamProcessors(ctx context.Context, client rekognitionAPI, acct *a
 		}
 	}
 	return upsertBatch(st, batch, "rekognition stream-processors")
+}
+
+const rekProjectPoliciesOp = "rekognition:ListProjectPolicies"
+
+// rekProjectPolicyPageLimit is the model's cap on ListProjectPolicies
+// MaxResults; a larger value is rejected with a ValidationException.
+const rekProjectPolicyPageLimit = 5
+
+// rekProjectPolicyNativeID builds a project policy's identity: the API
+// returns no ARN, and a policy name is unique within its project.
+func rekProjectPolicyNativeID(projectARN, policyName string) string {
+	return projectARN + "/policy/" + policyName
+}
+
+// scanRekProjectPolicies stores the resource-based policies of each project
+// scanRekProjects stored, each under its project. ListProjectPolicies applies
+// only to Custom Labels projects, the only kind DescribeProjects lists without
+// a Features filter. Per project: ResourceNotFoundException (deleted since
+// listing) is skipped silently, a denial warns once for the op, a transient
+// error after the SDK's retries is skipped with one warning for all such
+// projects, and anything else fails the phase, storing none of its rows.
+func scanRekProjectPolicies(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, projectARNs []string) (int, int, error) {
+	parents := make([]childParent, len(projectARNs))
+	for i, arn := range projectARNs {
+		parents[i] = childParent{id: arn, arn: arn}
+	}
+	var transient transientTally
+	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+	t, i, err := childFanOut(ctx, st, acct, region, rekProjectPoliciesOp, parents, isGone, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+		rows, err := listRekProjectPolicies(ctx, client, acct, region, scanID, p.arn)
+		if isTransientNetworkError(err) {
+			transient.skipped(p.arn, err)
+			return nil, nil
+		}
+		return rows, err
+	})
+	transient.warnSkipped(st, rekProjectPoliciesOp, acct, region)
+	return t, i, err
+}
+
+func listRekProjectPolicies(ctx context.Context, client rekognitionAPI, acct *account, region, scanID, projectARN string) ([]*store.Resource, error) {
+	pager := rekognition.NewListProjectPoliciesPaginator(client,
+		&rekognition.ListProjectPoliciesInput{ProjectArn: &projectARN},
+		func(o *rekognition.ListProjectPoliciesPaginatorOptions) { o.Limit = rekProjectPolicyPageLimit })
+	var rows []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, pol := range out.ProjectPolicies {
+			name := sv(pol.PolicyName)
+			if name == "" {
+				continue
+			}
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRekognitionProjectPolicy, NativeID: rekProjectPolicyNativeID(projectARN, name),
+				Name: &name, Region: &region, CreatedAt: tp(pol.CreationTimestamp),
+				AttributesJSON: mustJSON(pol), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return rows, nil
 }

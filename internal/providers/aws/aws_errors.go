@@ -452,7 +452,10 @@ func isTransientNetworkError(err error) bool {
 		// the error reaching us is a momentary TPS pressure spike. Treat as
 		// transient so siblings continue rather than aborting the region.
 		"ThrottlingException", "Throttling", "ThrottledException", "RateExceededException",
-		"TooManyRequestsException")
+		"TooManyRequestsException",
+		// A throttle code in the SDK retryer's DefaultThrottleErrorCodes (e.g.
+		// modeled by rekognition:ListProjectPolicies).
+		"ProvisionedThroughputExceededException")
 }
 
 // httpStatusCode extracts the HTTP status from a Smithy transport response error.
