@@ -20,6 +20,59 @@ func init() {
 		resolveCloudTrailChannelDestinations,
 		EdgeDecl{TypeCloudTrailChannel, TypeCloudTrailEventDataStore, store.RelRoutesTo},
 	)
+	registerResolver(
+		resolveCloudTrailInsightDestinations,
+		EdgeDecl{TypeCloudTrailInsightSelector, TypeCloudTrailEventDataStore, store.RelRoutesTo},
+	)
+	registerResolver(
+		noopCloudTrailConfigHierarchy,
+		EdgeDecl{TypeCloudTrailTrail, TypeCloudTrailInsightSelector, store.RelContains},
+		EdgeDecl{TypeCloudTrailEventDataStore, TypeCloudTrailInsightSelector, store.RelContains},
+		EdgeDecl{TypeCloudTrailTrail, TypeCloudTrailEventConfiguration, store.RelContains},
+		EdgeDecl{TypeCloudTrailEventDataStore, TypeCloudTrailEventConfiguration, store.RelContains},
+	)
+}
+
+// noopCloudTrailConfigHierarchy only carries the EdgeDecl metadata for the
+// contains pairs cloudTrailConfigFanOut records at scan time.
+func noopCloudTrailConfigHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
+// resolveCloudTrailInsightDestinations wires each Insights selector to the
+// event data store its Insights events are logged to (InsightsDestination,
+// set for a source event data store), when that store was scanned.
+func resolveCloudTrailInsightDestinations(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudTrailInsightSelector}, Limit: util.AllResources,
+	})
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	edsSet, err := scannedIDSet(acct, st, TypeCloudTrailEventDataStore)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			InsightsDestination *string `json:"InsightsDestination"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("decode cloudtrail insight selector %s: %w", r.NativeID, err)
+		}
+		dest := sv(attrs.InsightsDestination)
+		if dest == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, dest)
+		if !edsSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cloudtrail insight selector→eds: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveCloudTrailChannelDestinations wires each channel to the event-data-stores

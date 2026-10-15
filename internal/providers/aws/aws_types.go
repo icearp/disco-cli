@@ -1111,9 +1111,11 @@ const (
 	TypeCodeArtifactRepository   = "aws:codeartifact:repository"
 	TypeCodeArtifactPackageGroup = "aws:codeartifact:package-group"
 	// CloudTrail extras (cloudtrail_extended_scanners.go)
-	TypeCloudTrailChannel        = "aws:cloudtrail:channel"
-	TypeCloudTrailDashboard      = "aws:cloudtrail:dashboard"
-	TypeCloudTrailResourcePolicy = "aws:cloudtrail:resource-policy"
+	TypeCloudTrailChannel            = "aws:cloudtrail:channel"
+	TypeCloudTrailDashboard          = "aws:cloudtrail:dashboard"
+	TypeCloudTrailResourcePolicy     = "aws:cloudtrail:resource-policy"
+	TypeCloudTrailInsightSelector    = "aws:cloudtrail:insight-selector"
+	TypeCloudTrailEventConfiguration = "aws:cloudtrail:event-configuration"
 	// CleanRoomsML (cleanroomsml_scanners.go)
 	TypeCleanRoomsMLConfiguredModelAlgorithm            = "aws:cleanrooms-ml:configured-model-algorithm"
 	TypeCleanRoomsMLConfiguredModelAlgorithmAssociation = "aws:cleanrooms-ml:configured-model-algorithm-association"

@@ -1,9 +1,13 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
+	cloudtrailtypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -50,4 +54,57 @@ func TestResolveCloudTrailChannelDestinations(t *testing.T) {
 	}
 	rels, _ := st.RelationshipsFrom(chID)
 	assertRelationship(t, rels, chID, edsID, store.RelRoutesTo)
+}
+
+// An event data store's Insights selector routes to its scanned destination
+// store; one whose destination was not scanned, and a trail's (no
+// destination), route nowhere.
+func TestResolveCloudTrailInsightDestinations(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	srcARN := fmt.Sprintf("arn:aws:cloudtrail:%s:%s:eventdatastore/src", testRegion, acct.ID)
+	destARN := fmt.Sprintf("arn:aws:cloudtrail:%s:%s:eventdatastore/dest", testRegion, acct.ID)
+	otherARN := fmt.Sprintf("arn:aws:cloudtrail:%s:%s:eventdatastore/other", testRegion, acct.ID)
+	trailARN := fmt.Sprintf("arn:aws:cloudtrail:%s:%s:trail/main", testRegion, acct.ID)
+	selectors := []cloudtrailtypes.InsightSelector{{InsightType: cloudtrailtypes.InsightTypeApiCallRateInsight}}
+
+	destID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudTrailEventDataStore, destARN, testRegion, "{}")
+	srcID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudTrailInsightSelector, srcARN+"/insight-selector", testRegion,
+		mustJSON(&cloudtrail.GetInsightSelectorsOutput{EventDataStoreArn: &srcARN, InsightsDestination: &destARN, InsightSelectors: selectors}))
+	otherID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudTrailInsightSelector, otherARN+"/insight-selector", testRegion,
+		mustJSON(&cloudtrail.GetInsightSelectorsOutput{EventDataStoreArn: &otherARN, InsightsDestination: ptrStr(otherARN + "-unscanned"), InsightSelectors: selectors}))
+	trailID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudTrailInsightSelector, trailARN+"/insight-selector", testRegion,
+		mustJSON(&cloudtrail.GetInsightSelectorsOutput{TrailARN: &trailARN, InsightSelectors: selectors}))
+
+	if err := resolveCloudTrailInsightDestinations(acct, st); err != nil {
+		t.Fatalf("resolveCloudTrailInsightDestinations: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(srcID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, srcID, destID, store.RelRoutesTo)
+	if len(rels) != 1 {
+		t.Errorf("source selector edges = %v, want only the routes-to edge", rels)
+	}
+	for _, id := range []string{otherID, trailID} {
+		rels, err := st.RelationshipsFrom(id)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom: %v", err)
+		}
+		if len(rels) != 0 {
+			t.Errorf("selector %s edges = %v, want none", id, rels)
+		}
+	}
+}
+
+func TestResolveCloudTrailInsightDestinations_DecodeErrorReturned(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeCloudTrailInsightSelector,
+		"arn:aws:cloudtrail:us-east-1:123456789012:eventdatastore/src/insight-selector", testRegion, `{"InsightsDestination":7}`)
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveCloudTrailInsightDestinations(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want the attributes decode error", err)
+	}
 }
