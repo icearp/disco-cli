@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.1% (1905/3336 listable) · depth0 70.0% · depth1 38.4% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.1% (1906/3336 listable) · depth0 70.0% · depth1 38.4% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1026 | 195 | 84.0 |
 | child-uncatalogued | 244 | 773 | 24.0 |
 | smithy-resource | 424 | 138 | 75.4 |
-| element-written | 174 | 242 | 41.8 |
+| element-written | 175 | 241 | 42.1 |
 | element-arn | 32 | 74 | 30.2 |
 | element-created | 5 | 9 | 35.7 |
 
@@ -105,7 +105,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | health | 0 | 5 | 0.0 |
 | iotmanagedintegrations | 12 | 5 | 70.6 |
 | iottwinmaker | 5 | 5 | 50.0 |
-| iotwireless | 11 | 5 | 68.8 |
 | kafka | 5 | 5 | 50.0 |
 | kendra | 8 | 5 | 61.5 |
 | lambda | 16 | 5 | 76.2 |
@@ -130,6 +129,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | frauddetector | 12 | 4 | 75.0 |
 | geo | 8 | 4 | 66.7 |
 | inspector | 0 | 4 | 0.0 |
+| iotwireless | 12 | 4 | 75.0 |
 | launchwizard | 1 | 4 | 20.0 |
 | lightsail | 17 | 4 | 81.0 |
 | m2 | 3 | 4 | 42.9 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1431)
+### Uncovered (listable, no scanner) (1430)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1149,7 +1149,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iottwinmaker | iottwinmaker/property | 1 |  | child-uncatalogued | iottwinmaker:ListProperties |
 | iottwinmaker | iottwinmaker/query | 1 |  | child-uncatalogued | iottwinmaker:ExecuteQuery |
 | iottwinmaker | iottwinmaker/syncresource | 2 |  | child-uncatalogued | iottwinmaker:ListSyncResources |
-| iotwireless | iotwireless/eventconfiguration | 0 |  | element-written | iotwireless:ListEventConfigurations |
 | iotwireless | iotwireless/loglevelsbyresourcetype | 0 |  | element-written | iotwireless:GetLogLevelsByResourceTypes |
 | iotwireless | iotwireless/multicastgroupsbyfuotatask | 1 |  | child-uncatalogued | iotwireless:ListMulticastGroupsByFuotaTask |
 | iotwireless | iotwireless/positionconfiguration | 0 |  | element-written | iotwireless:GetPositionConfiguration, iotwireless:ListPositionConfigurations |

@@ -318,7 +318,7 @@ func demoteTransient(st *store.Store, op string, acct *account, region string, e
 }
 
 // containedChild is a child row and the ResourceID of the parent that
-// contains it.
+// contains it, or "" when it has no stored parent.
 type containedChild struct {
 	row      *store.Resource
 	parentID string
@@ -335,9 +335,13 @@ func upsertContained(st *store.Store, op string, children []containedChild) (int
 	if err != nil {
 		return 0, 0, err
 	}
-	pairs := make([][2]string, len(children))
-	for i, c := range children {
-		pairs[i] = [2]string{c.row.ID, c.parentID}
+	pairs := make([][2]string, 0, len(children))
+	for _, c := range children {
+		// The parent is optional: a child listed region-wide may name a parent
+		// that was not stored this scan, and is stored unlinked.
+		if c.parentID != "" {
+			pairs = append(pairs, [2]string{c.row.ID, c.parentID})
+		}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return 0, 0, fmt.Errorf("closure %s: %w", op, err)

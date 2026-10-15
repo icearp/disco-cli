@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 57.10431654676259,
-    "covered": 1905,
-    "uncovered": 1431,
+    "percent": 57.13429256594724,
+    "covered": 1906,
+    "uncovered": 1430,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1016,6 +1016,7 @@
       "iottwinmaker/workspace",
       "iotwireless/destination",
       "iotwireless/deviceprofile",
+      "iotwireless/eventconfiguration",
       "iotwireless/fuotatask",
       "iotwireless/multicastgroup",
       "iotwireless/networkanalyzerconfiguration",
@@ -2705,7 +2706,6 @@
       "iottwinmaker/property",
       "iottwinmaker/query",
       "iottwinmaker/syncresource",
-      "iotwireless/eventconfiguration",
       "iotwireless/loglevelsbyresourcetype",
       "iotwireless/multicastgroupsbyfuotatask",
       "iotwireless/positionconfiguration",

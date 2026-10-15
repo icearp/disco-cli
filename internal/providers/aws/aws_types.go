@@ -931,6 +931,7 @@ const (
 	// IoTWireless (iotwireless_scanners.go)
 	TypeIoTWirelessDestination                  = "aws:iotwireless:destination"
 	TypeIoTWirelessDeviceProfile                = "aws:iotwireless:device-profile"
+	TypeIoTWirelessEventConfiguration           = "aws:iotwireless:event-configuration"
 	TypeIoTWirelessFuotaTask                    = "aws:iotwireless:fuota-task"
 	TypeIoTWirelessMulticastGroup               = "aws:iotwireless:multicast-group"
 	TypeIoTWirelessNetworkAnalyzerConfiguration = "aws:iotwireless:network-analyzer-configuration"

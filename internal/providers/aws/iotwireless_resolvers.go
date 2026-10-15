@@ -17,6 +17,19 @@ func init() {
 		resolveIoTWirelessDeviceToDestination,
 		EdgeDecl{TypeIoTWirelessWirelessDevice, TypeIoTWirelessDestination, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopIoTWirelessHierarchy,
+		EdgeDecl{TypeIoTWirelessPartnerAccount, TypeIoTWirelessEventConfiguration, store.RelContains},
+		EdgeDecl{TypeIoTWirelessWirelessDevice, TypeIoTWirelessEventConfiguration, store.RelContains},
+		EdgeDecl{TypeIoTWirelessWirelessGateway, TypeIoTWirelessEventConfiguration, store.RelContains},
+	)
+}
+
+// noopIoTWirelessHierarchy only declares the contains edges that
+// scanIWEventConfigurations records through RecordHierarchyBatch, so coverage
+// tooling sees them as wired.
+func noopIoTWirelessHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveIoTWirelessDestinationRole wires destination → IAM role (RoleArn,
