@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 55.9% (1866/3336 listable) · depth0 69.2% · depth1 36.5% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.1% (1870/3336 listable) · depth0 69.3% · depth1 36.6% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,10 +9,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 220 | 797 | 21.6 |
+| child-uncatalogued | 222 | 795 | 21.8 |
 | smithy-resource | 421 | 141 | 74.9 |
-| element-written | 164 | 252 | 39.4 |
-| element-arn | 30 | 76 | 28.3 |
+| element-written | 165 | 251 | 39.7 |
+| element-arn | 31 | 75 | 29.2 |
 | element-created | 5 | 9 | 35.7 |
 
 | Service | Covered | Uncovered | % |
@@ -53,7 +53,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | compute-optimizer | 0 | 10 | 0.0 |
 | imagebuilder | 9 | 10 | 47.4 |
 | securityagent | 15 | 10 | 60.0 |
-| storagegateway | 8 | 10 | 44.4 |
 | auditmanager | 3 | 9 | 25.0 |
 | es | 11 | 9 | 55.0 |
 | license-manager | 6 | 9 | 40.0 |
@@ -96,6 +95,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securityhub | 11 | 6 | 64.7 |
 | sms-voice | 11 | 6 | 64.7 |
 | ssm-contacts | 3 | 6 | 33.3 |
+| storagegateway | 12 | 6 | 66.7 |
 | wickr | 0 | 6 | 0.0 |
 | workmail | 11 | 6 | 64.7 |
 | access-analyzer | 2 | 5 | 28.6 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1470)
+### Uncovered (listable, no scanner) (1466)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1730,12 +1730,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | states | states/execution | 0 |  | sr-resource | states:DescribeExecution, states:ListExecutions |
 | states | states/executionhistory | 1 |  | child-uncatalogued | states:GetExecutionHistory |
 | states | states/maprun | 1 |  | sr-resource | states:DescribeMapRun, states:ListMapRuns |
-| storagegateway | storagegateway/automatictapecreationpolicy | 0 |  | element-arn | storagegateway:ListAutomaticTapeCreationPolicies |
 | storagegateway | storagegateway/cache | 1 |  | child-uncatalogued | storagegateway:DescribeCache |
 | storagegateway | storagegateway/localdisk | 1 |  | child-uncatalogued | storagegateway:ListLocalDisks |
-| storagegateway | storagegateway/nfsfileshare | 1 |  | child-uncatalogued | storagegateway:DescribeNFSFileShares |
-| storagegateway | storagegateway/smbfileshare | 1 |  | child-uncatalogued | storagegateway:DescribeSMBFileShares |
-| storagegateway | storagegateway/tapearchive | 0 |  | element-written | storagegateway:DescribeTapeArchives |
 | storagegateway | storagegateway/taperecoverypoint | 1 |  | child-uncatalogued | storagegateway:DescribeTapeRecoveryPoints |
 | storagegateway | storagegateway/uploadbuffer | 1 |  | child-uncatalogued | storagegateway:DescribeUploadBuffer |
 | storagegateway | storagegateway/volumerecoverypoint | 1 |  | child-uncatalogued | storagegateway:ListVolumeRecoveryPoints |

@@ -2426,14 +2426,15 @@ const (
 	TypeMigrationHubOrchestratorTemplateStep      = "aws:migrationhub-orchestrator:template-step"
 
 	// Storage Gateway (storagegateway_scanners.go, storagegateway_resolvers.go).
-	TypeStorageGatewayGateway       = "aws:storagegateway:gateway"
-	TypeStorageGatewayVolume        = "aws:storagegateway:volume"
-	TypeStorageGatewayShare         = "aws:storagegateway:share"
-	TypeStorageGatewayTape          = "aws:storagegateway:tape"
-	TypeStorageGatewayTapePool      = "aws:storagegateway:tapepool"
-	TypeStorageGatewayFsAssociation = "aws:storagegateway:fs-association"
-	TypeStorageGatewayCacheReport   = "aws:storagegateway:cache-report"
-	TypeStorageGatewayDevice        = "aws:storagegateway:device"
+	TypeStorageGatewayGateway                     = "aws:storagegateway:gateway"
+	TypeStorageGatewayVolume                      = "aws:storagegateway:volume"
+	TypeStorageGatewayShare                       = "aws:storagegateway:share"
+	TypeStorageGatewayTape                        = "aws:storagegateway:tape"
+	TypeStorageGatewayTapePool                    = "aws:storagegateway:tapepool"
+	TypeStorageGatewayFsAssociation               = "aws:storagegateway:fs-association"
+	TypeStorageGatewayCacheReport                 = "aws:storagegateway:cache-report"
+	TypeStorageGatewayDevice                      = "aws:storagegateway:device"
+	TypeStorageGatewayAutomaticTapeCreationPolicy = "aws:storagegateway:automatic-tape-creation-policy"
 
 	// Savings Plans (savingsplans_scanners.go). Global service.
 	TypeSavingsPlansSavingsPlan = "aws:savingsplans:savingsplan"

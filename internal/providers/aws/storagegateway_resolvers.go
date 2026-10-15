@@ -21,6 +21,17 @@ func init() {
 		resolveStorageGatewayDevices,
 		EdgeDecl{TypeStorageGatewayDevice, TypeStorageGatewayGateway, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopStorageGatewayHierarchy,
+		EdgeDecl{TypeStorageGatewayGateway, TypeStorageGatewayAutomaticTapeCreationPolicy, store.RelContains},
+	)
+}
+
+// noopStorageGatewayHierarchy only declares the gateway→automatic tape
+// creation policy contains edge, which scanSGWAutomaticTapeCreationPolicies
+// records itself via RecordHierarchyBatch.
+func noopStorageGatewayHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveStorageGatewayChildren wires volumes, file shares, tapes, and file
