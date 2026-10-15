@@ -1379,7 +1379,9 @@ const (
 	// CodeGuruProfiler (codeguruprofiler_scanners.go)
 	TypeCodeGuruProfilerProfilingGroup = "aws:code-guru-profiler:profiling-group"
 	// CodeCommit (codecommit_scanners.go)
-	TypeCodeCommitRepository = "aws:codecommit:repository"
+	TypeCodeCommitRepository           = "aws:codecommit:repository"
+	TypeCodeCommitApprovalRuleTemplate = "aws:codecommit:approval-rule-template"
+	TypeCodeCommitRepositoryTrigger    = "aws:codecommit:repository-trigger"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
