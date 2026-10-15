@@ -1363,7 +1363,11 @@ const (
 	TypeFinspaceKxUser         = "aws:finspace:kx-user"
 	TypeFinspaceKxVolume       = "aws:finspace:kx-volume"
 	// EVS (evs_scanners.go)
-	TypeEVSEnvironment = "aws:evs:environment"
+	TypeEVSEnvironment          = "aws:evs:environment"
+	TypeEVSEnvironmentConnector = "aws:evs:environment-connector"
+	TypeEVSEnvironmentHost      = "aws:evs:environment-host"
+	TypeEVSEnvironmentVlan      = "aws:evs:environment-vlan"
+	TypeEVSVMEntitlement        = "aws:evs:vm-entitlement"
 	// EMRServerless (emrserverless_scanners.go)
 	TypeEMRServerlessApplication = "aws:emr-serverless:application"
 	// ElementalInference (elementalinference_scanners.go)

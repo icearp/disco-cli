@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.9% (1899/3336 listable) · depth0 70.0% · depth1 37.8% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.0% (1903/3336 listable) · depth0 70.0% · depth1 38.2% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 238 | 779 | 23.4 |
+| child-uncatalogued | 242 | 775 | 23.8 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 174 | 242 | 41.8 |
 | element-arn | 32 | 74 | 30.2 |
@@ -100,7 +100,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | controlcatalog | 0 | 5 | 0.0 |
 | ecs | 9 | 5 | 64.3 |
 | elasticmapreduce | 7 | 5 | 58.3 |
-| evs | 1 | 5 | 16.7 |
 | finspace-api | 0 | 5 | 0.0 |
 | groundstation | 5 | 5 | 50.0 |
 | health | 0 | 5 | 0.0 |
@@ -262,6 +261,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | elasticloadbalancing | 7 | 1 | 87.5 |
 | elemental-inference | 2 | 1 | 66.7 |
 | emr-containers | 4 | 1 | 80.0 |
+| evs | 5 | 1 | 83.3 |
 | execute-api | 0 | 1 | 0.0 |
 | geo-places | 0 | 1 | 0.0 |
 | grafana | 3 | 1 | 75.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1437)
+### Uncovered (listable, no scanner) (1433)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -957,10 +957,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | events | events/replay | 0 |  | sr-resource | events:DescribeReplay, events:ListReplays |
 | events | events/rulename | 3 |  | child-uncatalogued | events:ListRuleNamesByTarget |
 | evs | evs/accountsetting | 0 |  | element-written | evs:GetAccountSettings |
-| evs | evs/environmentconnector | 1 |  | child-uncatalogued | evs:ListEnvironmentConnectors |
-| evs | evs/environmenthost | 1 |  | child-uncatalogued | evs:ListEnvironmentHosts |
-| evs | evs/environmentvlan | 1 |  | child-uncatalogued | evs:ListEnvironmentVlans |
-| evs | evs/vmentitlement | 1 |  | child-uncatalogued | evs:ListVmEntitlements |
 | execute-api | execute-api/transcript | 0 |  | element-written | execute-api:GetTranscript |
 | finspace | finspace/kxchangeset | 2 |  | child-uncatalogued | finspace:GetKxChangeset, finspace:ListKxChangesets |
 | finspace | finspace/kxclusternode | 2 |  | child-uncatalogued | finspace:ListKxClusterNodes |
