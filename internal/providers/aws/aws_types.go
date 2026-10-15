@@ -1988,7 +1988,11 @@ const (
 	TypeAppIntegrationsDataIntegration  = "aws:appintegrations:data-integration"
 	TypeAppIntegrationsEventIntegration = "aws:appintegrations:event-integration"
 	// CloudWatch Application Insights (applicationinsights_scanners.go, applicationinsights_resolvers.go)
-	TypeApplicationInsightsApplication = "aws:applicationinsights:application"
+	TypeApplicationInsightsApplication   = "aws:applicationinsights:application"
+	TypeApplicationInsightsComponent     = "aws:applicationinsights:component"
+	TypeApplicationInsightsWorkload      = "aws:applicationinsights:workload"
+	TypeApplicationInsightsLogPatternSet = "aws:applicationinsights:log-pattern-set"
+	TypeApplicationInsightsLogPattern    = "aws:applicationinsights:log-pattern"
 	// CloudWatch Application Signals (applicationsignals_scanners.go, applicationsignals_resolvers.go)
 	TypeApplicationSignalsSLO                   = "aws:applicationsignals:service-level-objective"
 	TypeApplicationSignalsGroupingConfiguration = "aws:applicationsignals:grouping-configuration"
