@@ -24,6 +24,17 @@ func init() {
 		EdgeDecl{TypeAthenaNamedQuery, TypeAthenaWorkgroup, store.RelAttachedTo},
 		EdgeDecl{TypeAthenaPreparedStatement, TypeAthenaWorkgroup, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopAthenaNotebookHierarchy,
+		EdgeDecl{TypeAthenaWorkgroup, TypeAthenaNotebook, store.RelContains},
+	)
+}
+
+// noopAthenaNotebookHierarchy only carries the EdgeDecl metadata: the scanner
+// already links each notebook under its workgroup via childFanOut
+// (scanAthenaNotebooks).
+func noopAthenaNotebookHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveAthenaSavedQueryWorkgroup wires named queries and prepared statements

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.2% (1874/3336 listable) · depth0 69.4% · depth1 36.7% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.2% (1875/3336 listable) · depth0 69.4% · depth1 36.8% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 223 | 794 | 21.9 |
+| child-uncatalogued | 224 | 793 | 22.0 |
 | smithy-resource | 421 | 141 | 74.9 |
 | element-written | 168 | 248 | 40.4 |
 | element-arn | 31 | 75 | 29.2 |
@@ -56,7 +56,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | auditmanager | 3 | 9 | 25.0 |
 | es | 11 | 9 | 55.0 |
 | qbusiness | 10 | 9 | 52.6 |
-| athena | 5 | 8 | 38.5 |
 | cleanrooms-ml | 7 | 8 | 46.7 |
 | codebuild | 4 | 8 | 33.3 |
 | codecommit | 3 | 8 | 27.3 |
@@ -66,6 +65,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | proton | 11 | 8 | 57.9 |
 | workdocs | 0 | 8 | 0.0 |
 | appstream | 14 | 7 | 66.7 |
+| athena | 6 | 7 | 46.2 |
 | backup | 12 | 7 | 63.2 |
 | bcm-pricing-calculator | 3 | 7 | 30.0 |
 | cognito-idp | 6 | 7 | 46.2 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1462)
+### Uncovered (listable, no scanner) (1461)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -426,7 +426,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | athena | athena/calculationexecution | 1 |  | child-uncatalogued | athena:GetCalculationExecution, athena:ListCalculationExecutions |
 | athena | athena/database | 1 |  | child-uncatalogued | athena:GetDatabase, athena:ListDatabases |
 | athena | athena/executor | 2 |  | child-uncatalogued | athena:ListExecutors |
-| athena | athena/notebookmetadata | 1 |  | child-uncatalogued | athena:GetNotebookMetadata, athena:ListNotebookMetadata |
 | athena | athena/notebooksession | 1 |  | child-uncatalogued | athena:ListNotebookSessions |
 | athena | athena/queryexecution | 0 |  | element-written | athena:BatchGetQueryExecution, athena:GetQueryExecution, athena:ListQueryExecutions |
 | athena | athena/session | 1 |  | sr-resource | athena:GetSession, athena:ListSessions |

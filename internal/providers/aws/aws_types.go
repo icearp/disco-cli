@@ -2389,8 +2389,9 @@ const (
 	// ARC Zonal Shift (arczonalshift_scanners.go, arczonalshift_resolvers.go).
 	TypeARCZonalShiftObserverStatus = "aws:arc-zonal-shift:autoshift-observer-notification-status"
 	TypeARCZonalShiftConfiguration  = "aws:arc-zonal-shift:zonal-autoshift-configuration"
-	// Athena capacity reservations (athena_scanners.go).
+	// Athena capacity reservations and notebooks (athena_scanners.go).
 	TypeAthenaCapacityReservation = "aws:athena:capacity-reservation"
+	TypeAthenaNotebook            = "aws:athena:notebook"
 	// EC2 Auto Scaling (autoscaling_scanners.go, autoscaling_resolvers.go).
 	TypeAutoScalingGroup               = "aws:autoscaling:auto-scaling-group"
 	TypeAutoScalingLaunchConfiguration = "aws:autoscaling:launch-configuration"

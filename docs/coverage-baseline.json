@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 56.17505995203837,
-    "covered": 1874,
-    "uncovered": 1462,
+    "percent": 56.20503597122302,
+    "covered": 1875,
+    "uncovered": 1461,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -145,6 +145,7 @@
       "athena/capacityreservation",
       "athena/datacatalog",
       "athena/namedquery",
+      "athena/notebookmetadata",
       "athena/preparedstatement",
       "athena/workgroup",
       "auditmanager/assessment",
@@ -1951,7 +1952,6 @@
       "athena/calculationexecution",
       "athena/database",
       "athena/executor",
-      "athena/notebookmetadata",
       "athena/notebooksession",
       "athena/queryexecution",
       "athena/session",
