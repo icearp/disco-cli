@@ -2,12 +2,15 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
 	cognitoidp "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
+	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
@@ -15,7 +18,10 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeCognitoUserPool, Service: "cognito"})
-	registerType(restype.Descriptor{Type: TypeCognitoAppClient, Service: "cognito"})
+	registerType(restype.Descriptor{
+		Type: TypeCognitoAppClient, Service: "cognito",
+		Redact: []redact.Rule{{Path: "ClientSecret", Mode: redact.RedactScalar}},
+	})
 	registerType(restype.Descriptor{Type: TypeCognitoIdentityPool, Service: "cognito"})
 	registerType(restype.Descriptor{Type: TypeCognitoUserPoolDomain, Service: "cognito"})
 	registerType(restype.Descriptor{Type: TypeCognitoUserPoolGroup, Service: "cognito"})
@@ -27,6 +33,11 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeCognitoTerms, Service: "cognito"})
 	registerType(restype.Descriptor{Type: TypeCognitoIdentityPoolRoleAttachment, Service: "cognito"})
 	registerType(restype.Descriptor{Type: TypeCognitoManagedLoginBranding, Service: "cognito"})
+	registerType(restype.Descriptor{Type: TypeCognitoUserPoolReplica, Service: "cognito"})
+	registerType(restype.Descriptor{
+		Type: TypeCognitoUserPoolClientSecret, Service: "cognito",
+		Redact: []redact.Rule{{Path: "ClientSecretValue", Mode: redact.RedactScalar}},
+	})
 	registerService(serviceEntry{
 		name: "aws:cognito",
 		fn:   scanCognito,
@@ -50,6 +61,8 @@ type cognitoidpAPI interface {
 	GetUICustomization(context.Context, *cognitoidp.GetUICustomizationInput, ...func(*cognitoidp.Options)) (*cognitoidp.GetUICustomizationOutput, error)
 	GetLogDeliveryConfiguration(context.Context, *cognitoidp.GetLogDeliveryConfigurationInput, ...func(*cognitoidp.Options)) (*cognitoidp.GetLogDeliveryConfigurationOutput, error)
 	ListTerms(context.Context, *cognitoidp.ListTermsInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListTermsOutput, error)
+	ListUserPoolReplicas(context.Context, *cognitoidp.ListUserPoolReplicasInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListUserPoolReplicasOutput, error)
+	ListUserPoolClientSecrets(context.Context, *cognitoidp.ListUserPoolClientSecretsInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListUserPoolClientSecretsOutput, error)
 }
 
 // cognitoidentityAPI is the narrow set of Cognito Identity (federated
@@ -72,86 +85,167 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 
 // scanCognitoAll holds the testable scan body — accepts both narrow ifaces
 // so unit tests can swap in stubs without touching production wiring.
-func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	poolIDs, ferr := listCognitoUserPoolIDs(ctx, idpClient, acct, region, st)
+//
+// The replica and client-secret phases run after every older phase, over the
+// pools and clients the pool phase stored, so an identity-pool or extended
+// phase failure does not skip them and their failure costs no older phase its
+// rows. The older phases' transient error is demoted to a warning, since one
+// transient member would make the dispatcher read the whole join as transient
+// and drop every phase's counts; the errors are joined and the counts summed.
+func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pools, ferr := listCognitoUserPoolIDs(ctx, idpClient, acct, region, st)
 	if ferr != nil {
 		return 0, 0, ferr
 	}
-	t, i, ferr := scanCognitoUserPoolsAndClients(ctx, idpClient, acct, region, st, scanID, poolIDs)
-	total += t
-	inserted += i
-	if ferr != nil {
-		return total, inserted, ferr
+	total, inserted, stored, err := scanCognitoOlderPhases(ctx, idpClient, idClient, acct, region, st, scanID, pools.ids)
+	errs := []error{demoteTransient(st, "cognito-idp", acct, region, err)}
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanCognitoUserPoolReplicas(ctx, idpClient, acct, region, st, scanID, stored.replicatedPools(pools.replicated))
+		},
+		func() (int, int, error) {
+			return scanCognitoUserPoolClientSecrets(ctx, idpClient, acct, region, st, scanID, stored.confidentialClients)
+		},
+	} {
+		t, i, perr := phase()
+		total += t
+		inserted += i
+		errs = append(errs, perr)
 	}
-	idPoolIDs, t, i, ferr := scanCognitoIdentityPools(ctx, idClient, acct, region, st, scanID)
-	total += t
-	inserted += i
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	t, i, ferr = scanCognitoExtended(ctx, idpClient, idClient, acct, region, st, scanID, poolIDs, idPoolIDs)
-	total += t
-	inserted += i
-	return total, inserted, ferr
+	return total, inserted, errors.Join(errs...)
 }
 
-func listCognitoUserPoolIDs(ctx context.Context, idpClient cognitoidpAPI, acct *account, region string, st *store.Store) ([]string, error) {
-	var poolIDs []string
+// scanCognitoOlderPhases runs the phases that predate the replica and
+// client-secret phases, stopping at the first hard error. It also returns the
+// pools and app clients the pool phase stored.
+func scanCognitoOlderPhases(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (total, inserted int, stored cognitoStoredParents, err error) {
+	stored, total, inserted, err = scanCognitoUserPoolsAndClients(ctx, idpClient, acct, region, st, scanID, poolIDs)
+	if err != nil {
+		return total, inserted, stored, err
+	}
+	idPoolIDs, t, i, err := scanCognitoIdentityPools(ctx, idClient, acct, region, st, scanID)
+	total += t
+	inserted += i
+	if err != nil {
+		return total, inserted, stored, err
+	}
+	t, i, err = scanCognitoExtended(ctx, idpClient, idClient, acct, region, st, scanID, poolIDs, idPoolIDs)
+	return total + t, inserted + i, stored, err
+}
+
+// cognitoListedPools is the ListUserPools result: every pool ID, and the IDs
+// whose ReplicaRegions names at least one region.
+type cognitoListedPools struct {
+	ids        []string
+	replicated map[string]bool
+}
+
+func listCognitoUserPoolIDs(ctx context.Context, idpClient cognitoidpAPI, acct *account, region string, st *store.Store) (cognitoListedPools, error) {
+	pools := cognitoListedPools{replicated: map[string]bool{}}
 	pager := cognitoidp.NewListUserPoolsPaginator(idpClient, &cognitoidp.ListUserPoolsInput{MaxResults: aws.Int32(60)})
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, skipIfAccessDenied(st, "cognito-idp:ListUserPools", acct.ID, region, err)
+				return cognitoListedPools{}, skipIfAccessDenied(st, "cognito-idp:ListUserPools", acct.ID, region, err)
 			}
-			return nil, fmt.Errorf("cognito-idp:ListUserPools: %w", err)
+			return cognitoListedPools{}, fmt.Errorf("cognito-idp:ListUserPools: %w", err)
 		}
 		for _, p := range out.UserPools {
-			poolIDs = append(poolIDs, sv(p.Id))
+			pools.ids = append(pools.ids, sv(p.Id))
+			if len(p.ReplicaRegions) > 0 && cognitoPoolCreatedIn(sv(p.Id), region) {
+				pools.replicated[sv(p.Id)] = true
+			}
 		}
 	}
-	return poolIDs, nil
+	return pools, nil
 }
 
-func scanCognitoUserPoolsAndClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
-	var (
-		mu          sync.Mutex
-		poolBatch   []*store.Resource
-		clientBatch []*store.Resource
-		mlbBatch    []*store.Resource
-	)
+// cognitoPoolCreatedIn reports whether the pool ID's "<region>_" prefix names
+// region. ReplicaRegions may also be reported on a secondary replica's pool,
+// whose ListUserPoolReplicas may be refused; only a pool created in this
+// region is taken to be a primary. Inferred from the pool ID format, pending
+// a live check of how a secondary's ID and ListUserPools entry look.
+func cognitoPoolCreatedIn(poolID, region string) bool {
+	prefix, _, ok := strings.Cut(poolID, "_")
+	return ok && prefix == region
+}
+
+// cognitoStoredParents is what the pool phase stored: each user pool (id =
+// pool ID, arn = its NativeID) and each app client that has a secret. Only
+// those clients are asked for client secrets: the docs describe secrets as
+// belonging to confidential clients, inferred here from a non-empty
+// ClientSecret on DescribeUserPoolClient. Unverified for clients managed with
+// the multi-secret APIs, which might not populate that field.
+type cognitoStoredParents struct {
+	pools               []childParent
+	confidentialClients []cognitoAppClientRef
+}
+
+// cognitoAppClientRef is a stored app client: ListUserPoolClientSecrets keys
+// on both the pool ID and the client ID.
+type cognitoAppClientRef struct {
+	poolID   string
+	clientID string
+	arn      string
+}
+
+// replicatedPools returns the stored pools that ListUserPools reported
+// replicas for.
+func (s cognitoStoredParents) replicatedPools(replicated map[string]bool) []childParent {
+	var out []childParent
+	for _, p := range s.pools {
+		if replicated[p.id] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// cognitoPoolBatches collects the pool phase's rows from its per-pool
+// goroutines.
+type cognitoPoolBatches struct {
+	mu        sync.Mutex
+	pools     []*store.Resource
+	clients   []*store.Resource
+	brandings []*store.Resource
+	stored    cognitoStoredParents
+}
+
+func scanCognitoUserPoolsAndClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (cognitoStoredParents, int, int, error) {
+	var b cognitoPoolBatches
 	g, gctx := errgroup.WithContext(ctx)
 	for _, poolID := range poolIDs {
 		g.Go(func() error {
-			return collectCognitoPoolAndClients(gctx, idpClient, acct, region, scanID, poolID, &mu, &poolBatch, &clientBatch, &mlbBatch)
+			return collectCognitoPoolAndClients(gctx, idpClient, acct, region, scanID, poolID, &b)
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return cognitoStoredParents{}, 0, 0, err
 	}
 	var total, inserted int
 	for _, kb := range []struct {
 		label string
 		batch []*store.Resource
 	}{
-		{"Cognito user pools", poolBatch},
-		{"Cognito app clients", clientBatch},
-		{"Cognito managed-login-branding", mlbBatch},
+		{"Cognito user pools", b.pools},
+		{"Cognito app clients", b.clients},
+		{"Cognito managed-login-branding", b.brandings},
 	} {
 		if len(kb.batch) == 0 {
 			continue
 		}
 		n, err := st.UpsertResources(kb.batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert %s: %w", kb.label, err)
+			return cognitoStoredParents{}, total, inserted, fmt.Errorf("upsert %s: %w", kb.label, err)
 		}
 		total += len(kb.batch)
 		inserted += n
 	}
-	return total, inserted, nil
+	return b.stored, total, inserted, nil
 }
 
-func collectCognitoPoolAndClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID string, mu *sync.Mutex, poolBatch, clientBatch, mlbBatch *[]*store.Resource) error {
+func collectCognitoPoolAndClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID string, b *cognitoPoolBatches) error {
 	poolOut, err := idpClient.DescribeUserPool(ctx, &cognitoidp.DescribeUserPoolInput{UserPoolId: &poolID})
 	if err != nil {
 		if isAccessDenied(err) {
@@ -174,13 +268,14 @@ func collectCognitoPoolAndClients(ctx context.Context, idpClient cognitoidpAPI, 
 		AttributesJSON: mustJSON(poolOut.UserPool),
 		DiscoveredBy:   scanID,
 	}
-	mu.Lock()
-	*poolBatch = append(*poolBatch, pr)
-	mu.Unlock()
-	return collectCognitoAppClients(ctx, idpClient, acct, region, scanID, poolID, mu, clientBatch, mlbBatch)
+	b.mu.Lock()
+	b.pools = append(b.pools, pr)
+	b.stored.pools = append(b.stored.pools, childParent{id: poolID, arn: poolARN})
+	b.mu.Unlock()
+	return collectCognitoAppClients(ctx, idpClient, acct, region, scanID, poolID, b)
 }
 
-func collectCognitoAppClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID string, mu *sync.Mutex, clientBatch, mlbBatch *[]*store.Resource) error {
+func collectCognitoAppClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID string, b *cognitoPoolBatches) error {
 	cPager := cognitoidp.NewListUserPoolClientsPaginator(idpClient, &cognitoidp.ListUserPoolClientsInput{
 		UserPoolId: &poolID,
 		MaxResults: aws.Int32(60),
@@ -214,10 +309,14 @@ func collectCognitoAppClients(ctx context.Context, idpClient cognitoidpAPI, acct
 				AttributesJSON: mustJSON(descOut.UserPoolClient),
 				DiscoveredBy:   scanID,
 			}
-			mu.Lock()
-			*clientBatch = append(*clientBatch, cr)
-			mu.Unlock()
-			collectCognitoManagedLoginBranding(ctx, idpClient, acct, region, scanID, poolID, clientID, mu, mlbBatch)
+			b.mu.Lock()
+			b.clients = append(b.clients, cr)
+			// Inferred confidential-client gate; see cognitoStoredParents.
+			if sv(descOut.UserPoolClient.ClientSecret) != "" {
+				b.stored.confidentialClients = append(b.stored.confidentialClients, cognitoAppClientRef{poolID: poolID, clientID: clientID, arn: arn})
+			}
+			b.mu.Unlock()
+			collectCognitoManagedLoginBranding(ctx, idpClient, acct, region, scanID, poolID, clientID, b)
 		}
 	}
 	return nil
@@ -226,7 +325,7 @@ func collectCognitoAppClients(ctx context.Context, idpClient cognitoidpAPI, acct
 // collectCognitoManagedLoginBranding fetches the per-app-client branding
 // row, silently skipping NoSuchManagedLoginBranding (default state when
 // the client has no branding configured).
-func collectCognitoManagedLoginBranding(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID, clientID string, mu *sync.Mutex, mlbBatch *[]*store.Resource) {
+func collectCognitoManagedLoginBranding(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID, clientID string, b *cognitoPoolBatches) {
 	mlbOut, mlbErr := idpClient.DescribeManagedLoginBrandingByClient(ctx, &cognitoidp.DescribeManagedLoginBrandingByClientInput{
 		UserPoolId: &poolID,
 		ClientId:   &clientID,
@@ -240,14 +339,14 @@ func collectCognitoManagedLoginBranding(ctx context.Context, idpClient cognitoid
 	}
 	mlbArn := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/branding/%s", region, acct.ID, poolID, mlbID)
 	mlbLabel := mlbID
-	mu.Lock()
-	*mlbBatch = append(*mlbBatch, &store.Resource{
+	b.mu.Lock()
+	b.brandings = append(b.brandings, &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeCognitoManagedLoginBranding, NativeID: mlbArn,
 		Name: &mlbLabel, Region: &region,
 		AttributesJSON: mustJSON(mlbOut.ManagedLoginBranding), DiscoveredBy: scanID,
 	})
-	mu.Unlock()
+	b.mu.Unlock()
 }
 
 func scanCognitoIdentityPools(ctx context.Context, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {

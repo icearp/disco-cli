@@ -325,6 +325,9 @@ const (
 	TypeCognitoTerms                               = "aws:cognito:terms"
 	TypeCognitoIdentityPoolRoleAttachment          = "aws:cognito:identity-pool-role-attachment"
 	TypeCognitoManagedLoginBranding                = "aws:cognito:managed-login-branding"
+	// Cognito — replicas and client secrets (cognito_child_scanners.go)
+	TypeCognitoUserPoolReplica      = "aws:cognito:user-pool-replica"
+	TypeCognitoUserPoolClientSecret = "aws:cognito:user-pool-client-secret"
 	// AppStream (appstream_scanners.go)
 	TypeAppStreamAppBlock                          = "aws:appstream:app-block"
 	TypeAppStreamAppBlockBuilder                   = "aws:appstream:app-block-builder"

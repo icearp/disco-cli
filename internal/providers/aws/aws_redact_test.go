@@ -8,6 +8,7 @@ import (
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
 	cloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
 	codebuildtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
+	cognitoidptypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
 	dstypes "github.com/aws/aws-sdk-go-v2/service/directoryservice/types"
@@ -164,6 +165,35 @@ func TestRedact_LightsailBucketAccessKey_SecretAccessKey(t *testing.T) {
 	}
 	if got["AccessKeyId"] != "AKIATEST" {
 		t.Errorf("AccessKeyId must stay clear: %v", got["AccessKeyId"])
+	}
+}
+
+func TestRedact_CognitoAppClient_ClientSecret(t *testing.T) {
+	c := cognitoidptypes.UserPoolClientType{
+		ClientId:     ptrStr("4example0client0id"),
+		ClientName:   ptrStr("web"),
+		ClientSecret: ptrStr("example0secret0value0not0real"),
+	}
+	got := applyAndDecode(t, TypeCognitoAppClient, c)
+	if got["ClientSecret"] != redact.Placeholder {
+		t.Errorf("ClientSecret = %v; want %q", got["ClientSecret"], redact.Placeholder)
+	}
+	if got["ClientId"] != "4example0client0id" || got["ClientName"] != "web" {
+		t.Errorf("ClientId / ClientName must stay clear: %v / %v", got["ClientId"], got["ClientName"])
+	}
+}
+
+func TestRedact_CognitoUserPoolClientSecret_ClientSecretValue(t *testing.T) {
+	s := cognitoidptypes.ClientSecretDescriptorType{
+		ClientSecretId:    ptrStr("client--1700000000"),
+		ClientSecretValue: ptrStr("example0secret0value0not0real"),
+	}
+	got := applyAndDecode(t, TypeCognitoUserPoolClientSecret, s)
+	if got["ClientSecretValue"] != redact.Placeholder {
+		t.Errorf("ClientSecretValue = %v; want %q", got["ClientSecretValue"], redact.Placeholder)
+	}
+	if got["ClientSecretId"] != "client--1700000000" {
+		t.Errorf("ClientSecretId must stay clear: %v", got["ClientSecretId"])
 	}
 }
 

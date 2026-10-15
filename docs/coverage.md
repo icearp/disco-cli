@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.4% (1880/3336 listable) · depth0 69.4% · depth1 37.3% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.4% (1882/3336 listable) · depth0 69.4% · depth1 37.5% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 226 | 791 | 22.2 |
+| child-uncatalogued | 228 | 789 | 22.4 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 168 | 248 | 40.4 |
 | element-arn | 31 | 75 | 29.2 |
@@ -66,7 +66,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workdocs | 0 | 8 | 0.0 |
 | athena | 6 | 7 | 46.2 |
 | backup | 12 | 7 | 63.2 |
-| cognito-idp | 6 | 7 | 46.2 |
 | globalaccelerator | 4 | 7 | 36.4 |
 | greengrass | 20 | 7 | 74.1 |
 | guardduty | 10 | 7 | 58.8 |
@@ -102,6 +101,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cases | 5 | 5 | 50.0 |
 | ce | 4 | 5 | 44.4 |
 | codepipeline | 3 | 5 | 37.5 |
+| cognito-idp | 8 | 5 | 61.5 |
 | controlcatalog | 0 | 5 | 0.0 |
 | directconnect | 5 | 5 | 50.0 |
 | ecs | 9 | 5 | 64.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1456)
+### Uncovered (listable, no scanner) (1454)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -655,8 +655,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cognito-idp | cognito-idp/listuserauthevent | 1 |  | child-uncatalogued | cognito-idp:AdminListUserAuthEvents |
 | cognito-idp | cognito-idp/user | 0 |  | element-written | cognito-idp:AdminGetUser, cognito-idp:GetUser, cognito-idp:ListUsers, cognito-idp:ListUsersInGroup |
 | cognito-idp | cognito-idp/userimportjob | 1 |  | child-uncatalogued | cognito-idp:DescribeUserImportJob, cognito-idp:ListUserImportJobs |
-| cognito-idp | cognito-idp/userpoolclientsecret | 1 |  | child-uncatalogued | cognito-idp:ListUserPoolClientSecrets |
-| cognito-idp | cognito-idp/userpoolreplica | 1 |  | child-uncatalogued | cognito-idp:ListUserPoolReplicas |
 | cognito-idp | cognito-idp/webauthncredential | 0 |  | element-created | cognito-idp:ListWebAuthnCredentials |
 | cognito-sync | cognito-sync/dataset | 2 |  | sr-resource | cognito-sync:DescribeDataset, cognito-sync:ListDatasets |
 | cognito-sync | cognito-sync/identitypoolusage | 0 |  | element-written | cognito-sync:DescribeIdentityPoolUsage, cognito-sync:ListIdentityPoolUsage |
