@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.2% (1875/3336 listable) · depth0 69.4% · depth1 36.8% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.3% (1877/3336 listable) · depth0 69.4% · depth1 37.0% · depth2 28.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 224 | 793 | 22.0 |
+| child-uncatalogued | 226 | 791 | 22.2 |
 | smithy-resource | 421 | 141 | 74.9 |
 | element-written | 168 | 248 | 40.4 |
 | element-arn | 31 | 75 | 29.2 |
@@ -64,7 +64,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mobiletargeting | 3 | 8 | 27.3 |
 | proton | 11 | 8 | 57.9 |
 | workdocs | 0 | 8 | 0.0 |
-| appstream | 14 | 7 | 66.7 |
 | athena | 6 | 7 | 46.2 |
 | backup | 12 | 7 | 63.2 |
 | bcm-pricing-calculator | 3 | 7 | 30.0 |
@@ -100,6 +99,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workmail | 11 | 6 | 64.7 |
 | access-analyzer | 2 | 5 | 28.6 |
 | applicationinsights | 1 | 5 | 16.7 |
+| appstream | 16 | 5 | 76.2 |
 | cases | 5 | 5 | 50.0 |
 | ce | 4 | 5 | 44.4 |
 | codepipeline | 3 | 5 | 37.5 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1461)
+### Uncovered (listable, no scanner) (1459)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -412,9 +412,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | appstream | appstream/applicenseusage | 0 |  | element-arn | appstream:DescribeAppLicenseUsage |
 | appstream | appstream/associatedstack | 1 |  | child-uncatalogued | appstream:ListAssociatedStacks |
 | appstream | appstream/exportimagetask | 0 |  | element-written | appstream:GetExportImageTask, appstream:ListExportImageTasks |
-| appstream | appstream/imagepermission | 1 |  | child-uncatalogued | appstream:DescribeImagePermissions |
 | appstream | appstream/session | 1 |  | child-uncatalogued | appstream:DescribeSessions |
-| appstream | appstream/softwareassociation | 1 |  | child-uncatalogued | appstream:DescribeSoftwareAssociations |
 | arc-region-switch | arc-region-switch/planevaluationstatus | 1 |  | child-uncatalogued | arc-region-switch:GetPlanEvaluationStatus |
 | arc-region-switch | arc-region-switch/planexecution | 1 |  | child-uncatalogued | arc-region-switch:GetPlanExecution, arc-region-switch:ListPlanExecutions |
 | arc-region-switch | arc-region-switch/planexecutionevent | 1 |  | child-uncatalogued | arc-region-switch:ListPlanExecutionEvents |

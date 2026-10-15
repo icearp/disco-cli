@@ -2,7 +2,10 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/appstream"
 	astypes "github.com/aws/aws-sdk-go-v2/service/appstream/types"
@@ -21,6 +24,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAppStreamFleet, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamImageBuilder, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamImage, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamImagePermission, Service: "appstream"})
+	registerType(restype.Descriptor{Type: TypeAppStreamSoftwareAssociation, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamStack, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamStackFleetAssociation, Service: "appstream"})
 	registerType(restype.Descriptor{Type: TypeAppStreamStackUserAssociation, Service: "appstream"})
@@ -41,6 +46,8 @@ type appStreamAPI interface {
 	DescribeFleets(context.Context, *appstream.DescribeFleetsInput, ...func(*appstream.Options)) (*appstream.DescribeFleetsOutput, error)
 	DescribeImageBuilders(context.Context, *appstream.DescribeImageBuildersInput, ...func(*appstream.Options)) (*appstream.DescribeImageBuildersOutput, error)
 	DescribeImages(context.Context, *appstream.DescribeImagesInput, ...func(*appstream.Options)) (*appstream.DescribeImagesOutput, error)
+	DescribeImagePermissions(context.Context, *appstream.DescribeImagePermissionsInput, ...func(*appstream.Options)) (*appstream.DescribeImagePermissionsOutput, error)
+	DescribeSoftwareAssociations(context.Context, *appstream.DescribeSoftwareAssociationsInput, ...func(*appstream.Options)) (*appstream.DescribeSoftwareAssociationsOutput, error)
 	DescribeStacks(context.Context, *appstream.DescribeStacksInput, ...func(*appstream.Options)) (*appstream.DescribeStacksOutput, error)
 	DescribeUsers(context.Context, *appstream.DescribeUsersInput, ...func(*appstream.Options)) (*appstream.DescribeUsersOutput, error)
 	DescribeUserStackAssociations(context.Context, *appstream.DescribeUserStackAssociationsInput, ...func(*appstream.Options)) (*appstream.DescribeUserStackAssociationsOutput, error)
@@ -75,22 +82,56 @@ var appStreamSupportedRegions = map[string]bool{
 	"us-gov-west-1":  true,
 }
 
-func scanAppStream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanAppStream discovers the AppStream 2.0 resources of one region.
+//
+// The older phases (stacks through application-entitlement associations) stop
+// at their first hard error. The image-permission and software-association
+// phases run whatever any other phase returned, over the images and image
+// builders stored before a failure, so their failure costs no other phase its
+// rows and an older phase's failure does not skip them. Each of the three
+// results has its transient error demoted to a warning, since one transient
+// member would make the dispatcher read the whole join as transient, and the
+// rest are joined; the counts of all three are summed.
+func scanAppStream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if !appStreamSupportedRegions[region] {
 		return 0, 0, nil
 	}
 	client := appstream.NewFromConfig(acct.cfg, func(o *appstream.Options) { o.Region = region })
+	total, inserted, images, builders, err := scanASOlderPhases(ctx, client, acct, region, st, scanID)
+	errs := []error{demoteTransient(st, "appstream", acct, region, err)}
+	for _, phase := range []struct {
+		op  string
+		run func() (int, int, error)
+	}{
+		{asImagePermissionOp, func() (int, int, error) {
+			return scanASImagePermissions(ctx, client, acct, region, st, scanID, images)
+		}},
+		{asSoftwareAssociationOp, func() (int, int, error) {
+			return scanASSoftwareAssociations(ctx, client, acct, region, st, scanID, slices.Concat(images, builders))
+		}},
+	} {
+		t, i, perr := phase.run()
+		total += t
+		inserted += i
+		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+	}
+	return total, inserted, errors.Join(errs...)
+}
 
+// scanASOlderPhases runs the phases that predate image permissions and software
+// associations, stopping at the first hard error. It also returns the images
+// and image builders stored.
+func scanASOlderPhases(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, images, builders []childParent, err error) {
 	stackNames, t, i, ferr := scanASStacks(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return 0, 0, ferr
+		return 0, 0, nil, nil, ferr
 	}
 	total += t
 	inserted += i
 
 	entKeys, t, i, ferr := scanASEntitlements(ctx, client, acct, region, st, scanID, stackNames)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, inserted, nil, nil, ferr
 	}
 	total += t
 	inserted += i
@@ -102,8 +143,14 @@ func scanAppStream(ctx context.Context, acct *account, region string, st *store.
 		func() (int, int, error) { return scanASAppFleetAssocs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanASDirectoryConfigs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanASFleets(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanASImageBuilders(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanASImages(ctx, client, acct, region, st, scanID) },
+		func() (t, i int, err error) {
+			builders, t, i, err = scanASImageBuilders(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
+		func() (t, i int, err error) {
+			images, t, i, err = scanASImages(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (int, int, error) {
 			return scanASStackFleetAssocs(ctx, client, acct, region, st, scanID, stackNames)
 		},
@@ -117,12 +164,12 @@ func scanAppStream(ctx context.Context, acct *account, region string, st *store.
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, inserted, images, builders, ferr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+	return total, inserted, images, builders, nil
 }
 
 func asARN(region, acct, kind, id string) string {
@@ -197,22 +244,30 @@ func scanASAppBlockBuilders(ctx context.Context, client appStreamAPI, acct *acco
 // scanASImages lists customer (PRIVATE) AppStream images. PUBLIC base images
 // are AWS-managed and unbounded (mirrors the AMI Owners=["self"] convention);
 // SHARED images belong to other accounts. NativeID = Arn.
-func scanASImages(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// It also returns the images stored that carry a name, which is what
+// DescribeImagePermissions keys on.
+func scanASImages(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	pager := appstream.NewDescribeImagesPaginator(client, &appstream.DescribeImagesInput{Type: astypes.VisibilityTypePrivate})
-	var batch []*store.Resource
+	var (
+		batch  []*store.Resource
+		images []childParent
+	)
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "appstream:DescribeImages", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("appstream:DescribeImages: %w", perr)
+			return nil, 0, 0, fmt.Errorf("appstream:DescribeImages: %w", perr)
 		}
 		for _, img := range out.Images {
 			arn := sv(img.Arn)
 			if arn == "" {
 				continue
+			}
+			if name := sv(img.Name); name != "" {
+				images = append(images, childParent{id: name, arn: arn})
 			}
 			label := sv(img.Name)
 			if label == "" {
@@ -226,7 +281,11 @@ func scanASImages(ctx context.Context, client appStreamAPI, acct *account, regio
 			})
 		}
 	}
-	return upsertBatch(st, batch, "appstream images")
+	t, i, err := upsertBatch(st, batch, "appstream images")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return images, t, i, nil
 }
 
 func scanASApplications(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -426,22 +485,27 @@ func scanASFleets(ctx context.Context, client appStreamAPI, acct *account, regio
 	return upsertBatch(st, batch, "appstream fleets")
 }
 
-func scanASImageBuilders(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
+// scanASImageBuilders also returns the image builders stored.
+func scanASImageBuilders(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+	var (
+		batch    []*store.Resource
+		builders []childParent
+		token    *string
+	)
 	for {
 		out, err := client.DescribeImageBuilders(ctx, &appstream.DescribeImageBuildersInput{NextToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "appstream:DescribeImageBuilders", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "appstream:DescribeImageBuilders", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("appstream:DescribeImageBuilders: %w", err)
+			return nil, 0, 0, fmt.Errorf("appstream:DescribeImageBuilders: %w", err)
 		}
 		for _, b := range out.ImageBuilders {
 			arn := sv(b.Arn)
 			if arn == "" {
 				continue
 			}
+			builders = append(builders, childParent{id: sv(b.Name), arn: arn})
 			label := sv(b.Name)
 			if label == "" {
 				label = arn
@@ -457,7 +521,11 @@ func scanASImageBuilders(ctx context.Context, client appStreamAPI, acct *account
 		}
 		token = out.NextToken
 	}
-	return upsertBatch(st, batch, "appstream image-builders")
+	t, i, err := upsertBatch(st, batch, "appstream image-builders")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return builders, t, i, nil
 }
 
 func scanASStacks(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
@@ -662,4 +730,145 @@ func scanASAppEntitlementAssocs(ctx context.Context, client appStreamAPI, acct *
 		}
 	}
 	return upsertBatch(st, batch, "appstream application-entitlement-associations")
+}
+
+const (
+	asImagePermissionOp     = "appstream:DescribeImagePermissions"
+	asSoftwareAssociationOp = "appstream:DescribeSoftwareAssociations"
+	// asImagePermissionPageLimit is the model's cap on MaxResults (0-500).
+	asImagePermissionPageLimit = 500
+)
+
+// isASParentGone matches an image or image builder deleted between its list
+// call and the call that lists its children.
+func isASParentGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+
+// scanASImagePermissions lists the AWS accounts each image is shared with and
+// links each grant under its image. Only images this account owns can be
+// shared; scanASImages lists exactly those (Type PRIVATE), so every image it
+// returns is queried. An image whose call still fails transiently after the
+// SDK's retries is skipped, keeping its siblings' rows, and the skips are
+// reported in one warning.
+func scanASImagePermissions(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, images []childParent) (int, int, error) {
+	var transient transientTally
+	total, inserted, err := childFanOut(ctx, st, acct, region, asImagePermissionOp, images, isASParentGone,
+		func(ctx context.Context, img childParent) ([]*store.Resource, error) {
+			rows, err := listASImagePermissions(ctx, client, acct, region, scanID, img)
+			if isTransientNetworkError(err) {
+				transient.skipped(img.id, err)
+				return nil, nil
+			}
+			return rows, err
+		})
+	transient.warnSkipped(st, asImagePermissionOp, acct, region)
+	return total, inserted, err
+}
+
+// listASImagePermissions lists the share grants of one image, one row per
+// shared account as the API reports them. A grant has no ARN, so its NativeID
+// is {imageARN}/permission/{sharedAccountId}.
+func listASImagePermissions(ctx context.Context, client appStreamAPI, acct *account, region, scanID string, img childParent) ([]*store.Resource, error) {
+	var rows []*store.Resource
+	pager := appstream.NewDescribeImagePermissionsPaginator(client, &appstream.DescribeImagePermissionsInput{Name: &img.id},
+		func(o *appstream.DescribeImagePermissionsPaginatorOptions) { o.Limit = asImagePermissionPageLimit })
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range out.SharedImagePermissionsList {
+			sharedAccountID := sv(p.SharedAccountId)
+			if sharedAccountID == "" {
+				continue
+			}
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamImagePermission, NativeID: img.arn + "/permission/" + sharedAccountID,
+				Name: &sharedAccountID, Region: &region,
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return rows, nil
+}
+
+// scanASSoftwareAssociations lists the license-included applications associated
+// with each image and image builder and links each under its owner. A refusal
+// with OperationNotPermittedException skips that owner with one warning per
+// region, since that response was never observed live. An owner whose call
+// still fails transiently after the SDK's retries is skipped, keeping its
+// siblings' rows, and the skips are reported in one warning.
+func scanASSoftwareAssociations(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, owners []childParent) (int, int, error) {
+	// Keyed by ARN so error and warning messages name the owner unambiguously:
+	// an image and an image builder may share a name.
+	byARN := make([]childParent, len(owners))
+	for i, o := range owners {
+		byARN[i] = childParent{id: o.arn, arn: o.arn}
+	}
+	var (
+		transient    transientTally
+		notPermitted sync.Once
+	)
+	total, inserted, err := childFanOut(ctx, st, acct, region, asSoftwareAssociationOp, byARN, isASParentGone,
+		func(ctx context.Context, owner childParent) ([]*store.Resource, error) {
+			rows, err := listASSoftwareAssociations(ctx, client, acct, region, scanID, owner)
+			if isAPIErrorCode(err, "OperationNotPermittedException") {
+				notPermitted.Do(func() { warnASSoftwareNotPermitted(st, acct.ID, region, owner.id, err) })
+				return nil, nil
+			}
+			if isTransientNetworkError(err) {
+				transient.skipped(owner.id, err)
+				return nil, nil
+			}
+			return rows, err
+		})
+	transient.warnSkipped(st, asSoftwareAssociationOp, acct, region)
+	return total, inserted, err
+}
+
+// warnASSoftwareNotPermitted records that DescribeSoftwareAssociations was not
+// permitted for owner, so its associations are absent from this scan. Safe
+// from fan-out goroutines: ReportWarning only calls OnWarn, which the scan
+// runner guards with a mutex.
+func warnASSoftwareNotPermitted(st *store.Store, accountID, region, owner string, err error) {
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws",
+		Service:  asSoftwareAssociationOp,
+		Scope:    accountID + "/" + region,
+		Message:  "operation not permitted: software associations of " + owner + " not listed this scan (later refusals in this region not reported): " + err.Error(),
+	})
+}
+
+// listASSoftwareAssociations lists the software associations of one image or
+// image builder. An association has no ARN or id of its own; the association
+// APIs name it by SoftwareName within its owner, so its NativeID is
+// {ownerARN}/software-association/{SoftwareName}.
+func listASSoftwareAssociations(ctx context.Context, client appStreamAPI, acct *account, region, scanID string, owner childParent) ([]*store.Resource, error) {
+	var rows []*store.Resource
+	in := &appstream.DescribeSoftwareAssociationsInput{AssociatedResource: &owner.arn}
+	for {
+		out, err := client.DescribeSoftwareAssociations(ctx, in)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range out.SoftwareAssociations {
+			name := sv(a.SoftwareName)
+			if name == "" {
+				continue
+			}
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamSoftwareAssociation, NativeID: owner.arn + "/software-association/" + name,
+				Name: &name, Status: nonEmptyPtr(string(a.Status)), Region: &region,
+				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			})
+		}
+		// DescribeSoftwareAssociations has no paginator; a repeated token would
+		// loop forever.
+		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+			break
+		}
+		in.NextToken = out.NextToken
+	}
+	return rows, nil
 }

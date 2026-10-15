@@ -336,6 +336,8 @@ const (
 	TypeAppStreamFleet                             = "aws:appstream:fleet"
 	TypeAppStreamImageBuilder                      = "aws:appstream:image-builder"
 	TypeAppStreamImage                             = "aws:appstream:image"
+	TypeAppStreamImagePermission                   = "aws:appstream:image-permission"
+	TypeAppStreamSoftwareAssociation               = "aws:appstream:software-association"
 	TypeAppStreamStack                             = "aws:appstream:stack"
 	TypeAppStreamStackFleetAssociation             = "aws:appstream:stack-fleet-association"
 	TypeAppStreamStackUserAssociation              = "aws:appstream:stack-user-association"

@@ -69,6 +69,20 @@ func init() {
 		resolveAppStreamDirectoryConfigCA,
 		EdgeDecl{TypeAppStreamDirectoryConfig, TypeACMPrivateCA, store.RelUses},
 	)
+	registerResolver(
+		noopAppStreamImageChildHierarchy,
+		EdgeDecl{TypeAppStreamImage, TypeAppStreamImagePermission, store.RelContains},
+		EdgeDecl{TypeAppStreamImage, TypeAppStreamSoftwareAssociation, store.RelContains},
+		EdgeDecl{TypeAppStreamImageBuilder, TypeAppStreamSoftwareAssociation, store.RelContains},
+	)
+}
+
+// noopAppStreamImageChildHierarchy only carries the EdgeDecl metadata: the
+// scanner already links each image permission and software association under
+// its image or image builder via childFanOut (scanASImagePermissions,
+// scanASSoftwareAssociations).
+func noopAppStreamImageChildHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveAppStreamDirectoryConfigCA wires each directory-config to its
