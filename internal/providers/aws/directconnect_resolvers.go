@@ -5,14 +5,20 @@ import (
 	"fmt"
 	"strings"
 
+	directconnecttypes "github.com/aws/aws-sdk-go-v2/service/directconnect/types"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
 
 func init() {
 	registerResolver(
-		resolveDXConnectionToLag,
+		resolveDXLagMembers,
 		EdgeDecl{TypeDirectConnectConnection, TypeDirectConnectLag, store.RelAttachedTo},
+		EdgeDecl{TypeDirectConnectInterconnect, TypeDirectConnectLag, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveDXResiliencyGroupConnections,
+		EdgeDecl{TypeDirectConnectResiliencyGroup, TypeDirectConnectConnection, store.RelUses},
 	)
 	registerResolver(
 		resolveDXVIRefs,
@@ -42,14 +48,25 @@ func dxLagARN(region, acct, id string) string {
 	return fmt.Sprintf("arn:aws:directconnect:%s:%s:dxlag/%s", region, acct, id)
 }
 
+// dxInterconnectARN is the connection ARN: the Service Reference gives
+// interconnects no resource type of their own, and their ids are dxcon- ids.
+// This assumes DescribeConnections never lists an interconnect in the account
+// that owns it; if it did, both rows would share one NativeID and the store's
+// warning about a NativeID that maps to two types would fire.
+func dxInterconnectARN(region, acct, id string) string {
+	return dxConnectionARN(region, acct, id)
+}
+
 func dxGatewayARN(acct, id string) string {
 	return fmt.Sprintf("arn:aws:directconnect::%s:dx-gateway/%s", acct, id)
 }
 
-// resolveDXConnectionToLag wires Connection → LAG via the `LagID` attr.
-func resolveDXConnectionToLag(acct *account, st *store.Store) error {
+// resolveDXLagMembers wires each connection and interconnect to its LAG via
+// the `LagId` attr.
+func resolveDXLagMembers(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDirectConnectConnection}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Limit: util.AllResources,
+		Types: []string{TypeDirectConnectConnection, TypeDirectConnectInterconnect},
 	})
 	if err != nil {
 		return err
@@ -66,7 +83,7 @@ func resolveDXConnectionToLag(acct *account, st *store.Store) error {
 			LagID *string `json:"LagId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
-			continue
+			return fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err)
 		}
 		lagID := sv(attrs.LagID)
 		if lagID == "" {
@@ -77,7 +94,51 @@ func resolveDXConnectionToLag(acct *account, st *store.Store) error {
 			continue
 		}
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-			return fmt.Errorf("upsert dx connection→lag: %w", err)
+			return fmt.Errorf("upsert dx %s→lag: %w", r.Type, err)
+		}
+	}
+	return nil
+}
+
+// resolveDXResiliencyGroupConnections wires each resiliency group to the
+// connections its embedded associations name, except those already
+// disassociated.
+func resolveDXResiliencyGroupConnections(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDirectConnectResiliencyGroup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	connSet, err := scannedIDSet(acct, st, TypeDirectConnectConnection)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Associations []struct {
+				ConnectionArn *string `json:"ConnectionArn"`
+				State         string  `json:"State"`
+			} `json:"Associations"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err)
+		}
+		for _, a := range attrs.Associations {
+			arn := sv(a.ConnectionArn)
+			if arn == "" || a.State == string(directconnecttypes.ResiliencyGroupAssociationStateDisassociated) {
+				continue
+			}
+			tgtID := store.ResourceID("aws", acct.ID, arn)
+			if !connSet[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert dx resiliency-group→connection: %w", err)
+			}
 		}
 	}
 	return nil

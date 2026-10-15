@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 56.8% (1896/3336 listable) · depth0 69.9% · depth1 37.7% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 56.9% (1899/3336 listable) · depth0 70.0% · depth1 37.8% · depth2 29.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,9 +9,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1026 | 195 | 84.0 |
-| child-uncatalogued | 237 | 780 | 23.3 |
+| child-uncatalogued | 238 | 779 | 23.4 |
 | smithy-resource | 424 | 138 | 75.4 |
-| element-written | 172 | 244 | 41.3 |
+| element-written | 174 | 242 | 41.8 |
 | element-arn | 32 | 74 | 30.2 |
 | element-created | 5 | 9 | 35.7 |
 
@@ -98,7 +98,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codepipeline | 3 | 5 | 37.5 |
 | cognito-idp | 8 | 5 | 61.5 |
 | controlcatalog | 0 | 5 | 0.0 |
-| directconnect | 5 | 5 | 50.0 |
 | ecs | 9 | 5 | 64.3 |
 | elasticmapreduce | 7 | 5 | 58.3 |
 | evs | 1 | 5 | 16.7 |
@@ -198,6 +197,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codeguru-security | 0 | 2 | 0.0 |
 | datapipeline | 1 | 2 | 33.3 |
 | detective | 3 | 2 | 60.0 |
+| directconnect | 8 | 2 | 80.0 |
 | ds | 9 | 2 | 81.8 |
 | ecr | 3 | 2 | 60.0 |
 | elasticache | 12 | 2 | 85.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1440)
+### Uncovered (listable, no scanner) (1437)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -793,9 +793,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | devops-guru | devops-guru/recommendation | 1 |  | child-uncatalogued | devops-guru:ListRecommendations |
 | devops-guru | devops-guru/resourcecollectionhealth | 1 |  | child-uncatalogued | devops-guru:DescribeResourceCollectionHealth |
 | directconnect | directconnect/directconnectgatewayassociationproposal | 0 |  | element-written | directconnect:DescribeDirectConnectGatewayAssociationProposals |
-| directconnect | directconnect/interconnect | 0 |  | element-written | directconnect:DescribeInterconnects |
-| directconnect | directconnect/resiliencygroup | 0 |  | element-written | directconnect:GetResiliencyGroup, directconnect:ListResiliencyGroups |
-| directconnect | directconnect/resiliencygroupassociation | 1 |  | child-uncatalogued | directconnect:ListResiliencyGroupAssociations |
 | directconnect | directconnect/virtualinterfacetesthistory | 0 |  | element-written | directconnect:ListVirtualInterfaceTestHistory |
 | discovery | discovery/continuousexport | 0 |  | element-written | discovery:DescribeContinuousExports |
 | discovery | discovery/importtask | 0 |  | element-written | discovery:DescribeImportTasks |

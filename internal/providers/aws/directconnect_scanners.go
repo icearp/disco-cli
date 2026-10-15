@@ -1,10 +1,16 @@
 package aws
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/directconnect"
+	directconnecttypes "github.com/aws/aws-sdk-go-v2/service/directconnect/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -13,9 +19,11 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeDirectConnectConnection, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectDirectConnectGateway, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectDirectConnectGatewayAssociation, Service: "directconnect"})
+	registerType(restype.Descriptor{Type: TypeDirectConnectInterconnect, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectLag, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectPrivateVirtualInterface, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectPublicVirtualInterface, Service: "directconnect"})
+	registerType(restype.Descriptor{Type: TypeDirectConnectResiliencyGroup, Service: "directconnect"})
 	registerType(restype.Descriptor{Type: TypeDirectConnectTransitVirtualInterface, Service: "directconnect"})
 	registerService(serviceEntry{
 		name: "aws:directconnect",
@@ -27,17 +35,42 @@ type dxAPI interface {
 	DescribeConnections(context.Context, *directconnect.DescribeConnectionsInput, ...func(*directconnect.Options)) (*directconnect.DescribeConnectionsOutput, error)
 	DescribeDirectConnectGateways(context.Context, *directconnect.DescribeDirectConnectGatewaysInput, ...func(*directconnect.Options)) (*directconnect.DescribeDirectConnectGatewaysOutput, error)
 	DescribeDirectConnectGatewayAssociations(context.Context, *directconnect.DescribeDirectConnectGatewayAssociationsInput, ...func(*directconnect.Options)) (*directconnect.DescribeDirectConnectGatewayAssociationsOutput, error)
+	DescribeInterconnects(context.Context, *directconnect.DescribeInterconnectsInput, ...func(*directconnect.Options)) (*directconnect.DescribeInterconnectsOutput, error)
 	DescribeLags(context.Context, *directconnect.DescribeLagsInput, ...func(*directconnect.Options)) (*directconnect.DescribeLagsOutput, error)
 	DescribeVirtualInterfaces(context.Context, *directconnect.DescribeVirtualInterfacesInput, ...func(*directconnect.Options)) (*directconnect.DescribeVirtualInterfacesOutput, error)
+	GetResiliencyGroup(context.Context, *directconnect.GetResiliencyGroupInput, ...func(*directconnect.Options)) (*directconnect.GetResiliencyGroupOutput, error)
+	ListResiliencyGroupAssociations(context.Context, *directconnect.ListResiliencyGroupAssociationsInput, ...func(*directconnect.Options)) (*directconnect.ListResiliencyGroupAssociationsOutput, error)
+	ListResiliencyGroups(context.Context, *directconnect.ListResiliencyGroupsInput, ...func(*directconnect.Options)) (*directconnect.ListResiliencyGroupsOutput, error)
 }
 
-// scanDirectConnect discovers DirectConnect resources. Connections, LAGs, and
-// VirtualInterfaces are regional. DirectConnectGateway and association
-// objects are global; gated to us-east-1 to avoid duplicate upserts across
-// regions. APIs return no NextToken — single-call listings.
-func scanDirectConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanDirectConnect discovers DirectConnect resources. Connections, LAGs,
+// interconnects, resiliency groups and VirtualInterfaces are regional.
+// DirectConnectGateway and association objects are global; gated to us-east-1
+// to avoid duplicate upserts across regions.
+func scanDirectConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := directconnect.NewFromConfig(acct.cfg, func(o *directconnect.Options) { o.Region = region })
+	return scanDirectConnectAll(ctx, client, acct, region, st, scanID)
+}
 
+// scanDirectConnectAll runs the older phases, which stop at their first hard
+// error, then the interconnect and resiliency-group phases, so a failure in
+// one costs the others no rows. Each side's transient error is demoted to a
+// warning: one transient member would make the dispatcher read the whole join
+// as transient, hiding another phase's hard error and discarding every phase's
+// counts.
+func scanDirectConnectAll(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	total, inserted, err := scanDXOlderPhases(ctx, client, acct, region, st, scanID)
+	ti, ii, ierr := scanDXInterconnects(ctx, client, acct, region, st, scanID)
+	tr, ir, rerr := scanDXResiliencyGroups(ctx, client, acct, region, st, scanID)
+	return total + ti + tr, inserted + ii + ir, errors.Join(
+		demoteTransient(st, "directconnect", acct, region, err),
+		demoteTransient(st, dxDescribeInterconnectsOp, acct, region, ierr),
+		demoteTransient(st, dxListResiliencyGroupsOp, acct, region, rerr))
+}
+
+// scanDXOlderPhases runs the phases that predate interconnects and resiliency
+// groups, stopping at the first hard error.
+func scanDXOlderPhases(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanDXConnections(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanDXLags(ctx, client, acct, region, st, scanID) },
@@ -261,4 +294,177 @@ func scanDXGatewayAssociations(ctx context.Context, client dxAPI, acct *account,
 		}
 	}
 	return upsertBatch(st, batch, "directconnect gateway-associations")
+}
+
+const (
+	dxDescribeInterconnectsOp           = "directconnect:DescribeInterconnects"
+	dxListResiliencyGroupsOp            = "directconnect:ListResiliencyGroups"
+	dxGetResiliencyGroupOp              = "directconnect:GetResiliencyGroup"
+	dxListResiliencyGroupAssociationsOp = "directconnect:ListResiliencyGroupAssociations"
+)
+
+// dxPageLimit is the MaxResults cap the Direct Connect model documents for its
+// paginated Describe and List ops.
+const dxPageLimit = 100
+
+// scanDXInterconnects stores the partner-owned interconnects of the region. An
+// account that is not a Direct Connect partner owns none, and the model gives
+// no distinct error for it, so any error but a denial is returned. A denial
+// after a successful page keeps the rows already listed.
+func scanDXInterconnects(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	in := &directconnect.DescribeInterconnectsInput{MaxResults: sdkaws.Int32(dxPageLimit)}
+	var batch []*store.Resource
+	for {
+		out, err := client.DescribeInterconnects(ctx, in)
+		if err != nil {
+			if !isAccessDenied(err) {
+				return 0, 0, fmt.Errorf("%s: %w", dxDescribeInterconnectsOp, err)
+			}
+			_ = skipIfAccessDenied(st, dxDescribeInterconnectsOp, acct.ID, region, err)
+			break
+		}
+		for _, ic := range out.Interconnects {
+			id := sv(ic.InterconnectId)
+			if id == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeDirectConnectInterconnect, NativeID: dxInterconnectARN(region, acct.ID, id),
+				Name: ic.InterconnectName, Region: &region, Status: nonEmptyPtr(string(ic.InterconnectState)),
+				AttributesJSON: mustJSON(ic), DiscoveredBy: scanID,
+			})
+		}
+		// DescribeInterconnects has no paginator; a repeated token would loop
+		// forever.
+		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+			break
+		}
+		in.NextToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "directconnect interconnects")
+}
+
+// dxResiliencyGroupAttrs is the group's detail with its connection
+// associations, sorted because the API documents no order and a reordered
+// list would otherwise version the group. Associations is null when listing
+// them was denied and [] when the group has none.
+type dxResiliencyGroupAttrs struct {
+	directconnecttypes.ResiliencyGroup
+	Associations []directconnecttypes.ResiliencyGroupAssociation
+}
+
+// scanDXResiliencyGroups stores the region's resiliency groups, each from its
+// GetResiliencyGroup detail (the list summary lacks the tags) with its
+// connection associations embedded: an association carries nothing but the
+// connection ARN and its state, so it is an edge, not a resource. The model
+// gives no not-found code for a group deleted since the list, so a per-group
+// error other than a denial or a transient one fails the phase. Groups listed
+// as deleted are not fetched.
+//
+// The group ARN has no region segment, like the dx-gateway ARN whose phase is
+// gated to us-east-1, yet this phase scans every region: the model documents
+// ListResiliencyGroups as listing "the resiliency groups owned by your Amazon
+// Web Services account in the current Amazon Web Services Region". That is not
+// yet confirmed against a live account; if one group were listed in two
+// regions, its row would flip Region on every scan.
+func scanDXResiliencyGroups(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	ids, err := listDXResiliencyGroupIDs(ctx, client)
+	if err != nil {
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied(st, dxListResiliencyGroupsOp, acct.ID, region, err)
+		}
+		return 0, 0, fmt.Errorf("%s: %w", dxListResiliencyGroupsOp, err)
+	}
+	never := func(error) bool { return false }
+	assocErrs := &fanOutErrs{st: st, acct: acct, region: region, op: dxListResiliencyGroupAssociationsOp, isSkip: never}
+	var getTransient, assocTransient transientTally
+	rows, err := describeFanOut(ctx, st, acct, region, dxGetResiliencyGroupOp, ids, never,
+		func(ctx context.Context, id string) (*store.Resource, error) {
+			out, err := client.GetResiliencyGroup(ctx, &directconnect.GetResiliencyGroupInput{ResiliencyGroupId: &id})
+			if isTransientNetworkError(err) {
+				getTransient.skipped(id, err)
+				return nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+			g := out.ResiliencyGroup
+			if g == nil || sv(g.ResiliencyGroupArn) == "" {
+				return nil, nil
+			}
+			// A group whose associations failed transiently is skipped rather
+			// than stored without them, which would version it.
+			assocs, err := listDXResiliencyGroupAssociations(ctx, client, id)
+			if isTransientNetworkError(err) {
+				assocTransient.skipped(id, err)
+				return nil, nil
+			}
+			if err != nil {
+				if kerr := assocErrs.keyErr(id, err); kerr != nil {
+					return nil, kerr
+				}
+			}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeDirectConnectResiliencyGroup, NativeID: sv(g.ResiliencyGroupArn),
+				Name: g.ResiliencyGroupName, Region: &region, Status: nonEmptyPtr(string(g.State)),
+				AttributesJSON: mustJSON(dxResiliencyGroupAttrs{ResiliencyGroup: *g, Associations: assocs}),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	getTransient.warnSkipped(st, dxGetResiliencyGroupOp, acct, region)
+	assocTransient.warnSkipped(st, dxListResiliencyGroupAssociationsOp, acct, region)
+	if err != nil {
+		return 0, 0, err
+	}
+	return upsertBatch(st, rows, "directconnect resiliency groups")
+}
+
+// listDXResiliencyGroupIDs returns the ids of the region's groups that are not
+// deleted.
+func listDXResiliencyGroupIDs(ctx context.Context, client dxAPI) ([]string, error) {
+	in := &directconnect.ListResiliencyGroupsInput{MaxResults: sdkaws.Int32(dxPageLimit)}
+	var ids []string
+	for {
+		out, err := client.ListResiliencyGroups(ctx, in)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range out.Items {
+			id := sv(g.ResiliencyGroupId)
+			if id == "" || g.State == directconnecttypes.ResiliencyGroupStateDeleted {
+				continue
+			}
+			ids = append(ids, id)
+		}
+		// ListResiliencyGroups has no paginator; a repeated token would loop
+		// forever.
+		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+			return ids, nil
+		}
+		in.NextToken = out.NextToken
+	}
+}
+
+func listDXResiliencyGroupAssociations(ctx context.Context, client dxAPI, groupID string) ([]directconnecttypes.ResiliencyGroupAssociation, error) {
+	in := &directconnect.ListResiliencyGroupAssociationsInput{ResiliencyGroupId: &groupID, MaxResults: sdkaws.Int32(dxPageLimit)}
+	assocs := []directconnecttypes.ResiliencyGroupAssociation{}
+	for {
+		out, err := client.ListResiliencyGroupAssociations(ctx, in)
+		if err != nil {
+			return nil, err
+		}
+		assocs = append(assocs, out.Items...)
+		// ListResiliencyGroupAssociations has no paginator; a repeated token
+		// would loop forever.
+		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+			break
+		}
+		in.NextToken = out.NextToken
+	}
+	slices.SortFunc(assocs, func(a, b directconnecttypes.ResiliencyGroupAssociation) int {
+		return cmp.Or(strings.Compare(sv(a.ConnectionArn), sv(b.ConnectionArn)), strings.Compare(string(a.State), string(b.State)))
+	})
+	return assocs, nil
 }

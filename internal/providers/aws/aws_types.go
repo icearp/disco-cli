@@ -1496,9 +1496,11 @@ const (
 	TypeDirectConnectConnection                      = "aws:directconnect:connection"
 	TypeDirectConnectDirectConnectGateway            = "aws:directconnect:direct-connect-gateway"
 	TypeDirectConnectDirectConnectGatewayAssociation = "aws:directconnect:direct-connect-gateway-association"
+	TypeDirectConnectInterconnect                    = "aws:directconnect:interconnect"
 	TypeDirectConnectLag                             = "aws:directconnect:lag"
 	TypeDirectConnectPrivateVirtualInterface         = "aws:directconnect:private-virtual-interface"
 	TypeDirectConnectPublicVirtualInterface          = "aws:directconnect:public-virtual-interface"
+	TypeDirectConnectResiliencyGroup                 = "aws:directconnect:resiliency-group"
 	TypeDirectConnectTransitVirtualInterface         = "aws:directconnect:transit-virtual-interface"
 	// IoTFleetWise (iotfleetwise_scanners.go)
 	TypeIoTFWCampaign        = "aws:iotfleetwise:campaign"
