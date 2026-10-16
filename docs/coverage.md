@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.8% (1927/3336 listable) · depth0 70.2% · depth1 39.6% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.8% (1929/3336 listable) · depth0 70.2% · depth1 39.8% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1032 | 189 | 84.5 |
-| child-uncatalogued | 255 | 762 | 25.1 |
+| child-uncatalogued | 257 | 760 | 25.3 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 177 | 239 | 42.5 |
 | element-arn | 34 | 72 | 32.1 |
@@ -169,7 +169,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral-channel | 0 | 3 | 0.0 |
 | route53-recovery-readiness | 4 | 3 | 57.1 |
 | route53globalresolver | 7 | 3 | 70.0 |
-| rum | 1 | 3 | 25.0 |
 | serverlessrepo | 1 | 3 | 25.0 |
 | sns | 2 | 3 | 40.0 |
 | states | 4 | 3 | 57.1 |
@@ -288,6 +287,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | route53-recovery-control-config | 4 | 1 | 80.0 |
 | route53resolver | 14 | 1 | 93.3 |
 | rtbfabric | 4 | 1 | 80.0 |
+| rum | 3 | 1 | 75.0 |
 | s3vectors | 2 | 1 | 66.7 |
 | schemas | 3 | 1 | 75.0 |
 | sdb | 0 | 1 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1409)
+### Uncovered (listable, no scanner) (1407)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1509,8 +1509,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | route53resolver | route53resolver/firewalldomain | 1 |  | child-uncatalogued | route53resolver:ListFirewallDomains |
 | rtbfabric | rtbfabric/certificateassociation | 1 |  | child-uncatalogued | rtbfabric:GetCertificateAssociation, rtbfabric:ListCertificateAssociations |
 | rum | rum/appmonitordata | 1 |  | child-uncatalogued | rum:GetAppMonitorData |
-| rum | rum/rummetricdefinition | 1 |  | child-uncatalogued | rum:BatchGetRumMetricDefinitions |
-| rum | rum/rummetricsdestination | 1 |  | child-uncatalogued | rum:ListRumMetricsDestinations |
 | s3 | s3/calleraccessgrant | 0 |  | element-arn | s3:ListCallerAccessGrants |
 | s3 | s3/job | 0 |  | sr-resource | s3:DescribeJob, s3:ListJobs |
 | s3 | s3/multipartupload | 1 |  | child-uncatalogued | s3:ListMultipartUploads |

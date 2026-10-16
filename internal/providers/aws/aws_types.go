@@ -1302,7 +1302,9 @@ const (
 	// SSMGuiConnect (ssmguiconnect_scanners.go)
 	TypeSSMGuiConnectPreferences = "aws:ssm-gui-connect:preferences"
 	// RUM (rum_scanners.go)
-	TypeRUMAppMonitor = "aws:rum:app-monitor"
+	TypeRUMAppMonitor         = "aws:rum:app-monitor"
+	TypeRUMMetricsDestination = "aws:rum:rum-metrics-destination"
+	TypeRUMMetricDefinition   = "aws:rum:rum-metric-definition"
 	// Rbin (rbin_scanners.go)
 	TypeRbinRule = "aws:rbin:rule"
 	// Pipes (pipes_scanners.go)
