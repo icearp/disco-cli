@@ -933,6 +933,8 @@ const (
 	TypeRoute53ResolverResolverRule                          = "aws:route53resolver:resolver-rule"
 	TypeRoute53ResolverResolverRuleAssociation               = "aws:route53resolver:resolver-rule-association"
 	TypeRoute53ResolverFirewallConfig                        = "aws:route53resolver:firewall-config"
+	TypeRoute53ResolverFirewallRule                          = "aws:route53resolver:firewall-rule"
+	TypeRoute53ResolverResolverEndpointIPAddress             = "aws:route53resolver:resolver-endpoint-ip-address"
 	// IoTWireless (iotwireless_scanners.go)
 	TypeIoTWirelessDestination                  = "aws:iotwireless:destination"
 	TypeIoTWirelessDeviceProfile                = "aws:iotwireless:device-profile"

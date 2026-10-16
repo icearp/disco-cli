@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.7% (1925/3336 listable) · depth0 70.2% · depth1 39.4% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.8% (1927/3336 listable) · depth0 70.2% · depth1 39.6% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1032 | 189 | 84.5 |
-| child-uncatalogued | 253 | 764 | 24.9 |
+| child-uncatalogued | 255 | 762 | 25.1 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 177 | 239 | 42.5 |
 | element-arn | 34 | 72 | 32.1 |
@@ -169,7 +169,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral-channel | 0 | 3 | 0.0 |
 | route53-recovery-readiness | 4 | 3 | 57.1 |
 | route53globalresolver | 7 | 3 | 70.0 |
-| route53resolver | 12 | 3 | 80.0 |
 | rum | 1 | 3 | 25.0 |
 | serverlessrepo | 1 | 3 | 25.0 |
 | sns | 2 | 3 | 40.0 |
@@ -287,6 +286,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | route53 | 10 | 1 | 90.9 |
 | route53-recovery-cluster | 0 | 1 | 0.0 |
 | route53-recovery-control-config | 4 | 1 | 80.0 |
+| route53resolver | 14 | 1 | 93.3 |
 | rtbfabric | 4 | 1 | 80.0 |
 | s3vectors | 2 | 1 | 66.7 |
 | schemas | 3 | 1 | 75.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1411)
+### Uncovered (listable, no scanner) (1409)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1507,8 +1507,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | route53globalresolver | route53globalresolver/managedfirewalldomainlist | 0 |  | smithy-resource | route53globalresolver:GetManagedFirewallDomainList, route53globalresolver:ListManagedFirewallDomainLists |
 | route53globalresolver | route53globalresolver/shareddnsview | 0 |  | element-written | route53globalresolver:ListSharedDNSViews |
 | route53resolver | route53resolver/firewalldomain | 1 |  | child-uncatalogued | route53resolver:ListFirewallDomains |
-| route53resolver | route53resolver/firewallrule | 1 |  | child-uncatalogued | route53resolver:ListFirewallRules |
-| route53resolver | route53resolver/resolverendpointipaddress | 1 |  | child-uncatalogued | route53resolver:ListResolverEndpointIpAddresses |
 | rtbfabric | rtbfabric/certificateassociation | 1 |  | child-uncatalogued | rtbfabric:GetCertificateAssociation, rtbfabric:ListCertificateAssociations |
 | rum | rum/appmonitordata | 1 |  | child-uncatalogued | rum:GetAppMonitorData |
 | rum | rum/rummetricdefinition | 1 |  | child-uncatalogued | rum:BatchGetRumMetricDefinitions |
