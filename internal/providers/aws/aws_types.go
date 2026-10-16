@@ -1134,6 +1134,9 @@ const (
 	TypeChatbotCustomAction                       = "aws:chatbot:custom-action"
 	TypeChatbotSlackChannelConfiguration          = "aws:chatbot:slack-channel-configuration"
 	TypeChatbotMicrosoftTeamsChannelConfiguration = "aws:chatbot:microsoft-teams-channel-configuration"
+	TypeChatbotChimeWebhookConfiguration          = "aws:chatbot:chime-webhook-configuration"
+	TypeChatbotSlackUserIdentity                  = "aws:chatbot:slack-user-identity"
+	TypeChatbotMicrosoftTeamsUserIdentity         = "aws:chatbot:microsoft-teams-user-identity"
 	// CostExplorer/CE (costexplorer_scanners.go)
 	TypeCEAnomalyMonitor      = "aws:ce:anomaly-monitor"
 	TypeCEAnomalySubscription = "aws:ce:anomaly-subscription"

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"maps"
 	"net"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -452,6 +453,71 @@ func TestScanDirectoryServiceIn_DenialMidListKeepsEarlierPages(t *testing.T) {
 				t.Errorf("%s rows = %d, warnings %d; want the 2 first-page rows and 1 warning", c.typ, n, *warned)
 			}
 		})
+	}
+}
+
+// Any other error on a region-wide list's second page is returned, and the
+// first page's rows are stored.
+func TestScanDirectoryServiceIn_ErrorMidListKeepsEarlierPages(t *testing.T) {
+	for _, c := range []struct {
+		op, typ   string
+		firstPage func(any) bool
+	}{
+		{"ListLogSubscriptions", TypeDSLogSubscription, func(in any) bool { return in.(*directoryservice.ListLogSubscriptionsInput).NextToken == nil }},
+		{"DescribeSnapshots", TypeDSSnapshot, func(in any) bool { return in.(*directoryservice.DescribeSnapshotsInput).NextToken == nil }},
+		{"DescribeTrusts", TypeDSTrust, func(in any) bool { return in.(*directoryservice.DescribeTrustsInput).NextToken == nil }},
+	} {
+		t.Run(c.op, func(t *testing.T) {
+			st := newTestStore(t)
+			base := dsHandlers(map[string]*parentCalls{}, nil)
+			handlers := dsHandlers(map[string]*parentCalls{}, map[string]func(any) (any, error){
+				c.op: func(in any) (any, error) {
+					if c.firstPage(in) {
+						return base[c.op](in)
+					}
+					return nil, dsClientErr
+				},
+			})
+			if _, err := runDSScan(t, st, handlers); !errors.Is(err, dsClientErr) {
+				t.Fatalf("err = %v, want the %s error", err, c.op)
+			}
+			if n := len(rowsByNativeID(t, st, c.typ)); n != 2 {
+				t.Errorf("%s rows = %d, want the 2 first-page rows", c.typ, n)
+			}
+		})
+	}
+}
+
+// A transient error on a region-wide list's second page joined with the
+// failed write of the first page stays a store write failure, never a warning.
+func TestScanDirectoryServiceIn_StoreWriteBesideTransientStaysHardError(t *testing.T) {
+	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
+	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	insertTestScan(t, st, testScanID, "running")
+	warned := countOpWarnings(st, "ds:DescribeTrusts")
+	base := dsHandlers(map[string]*parentCalls{}, nil)
+	handlers := dsHandlers(map[string]*parentCalls{}, map[string]func(any) (any, error){
+		"DescribeTrusts": func(in any) (any, error) {
+			if in.(*directoryservice.DescribeTrustsInput).NextToken == nil {
+				return base["DescribeTrusts"](in)
+			}
+			// The last phase's last call: closing here fails only its own write.
+			if err := st.Close(); err != nil {
+				t.Errorf("close: %v", err)
+			}
+			return nil, &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}
+		},
+	})
+	_, err = runDSScan(t, st, handlers)
+	if !errors.Is(err, store.ErrStoreWrite) || classifyServiceError(err) != outcomeStoreWrite {
+		t.Errorf("err = %v classified %v; want store.ErrStoreWrite, outcomeStoreWrite", err, classifyServiceError(err))
+	}
+	if *warned != 0 {
+		t.Errorf("DescribeTrusts warnings = %d; want none", *warned)
 	}
 }
 

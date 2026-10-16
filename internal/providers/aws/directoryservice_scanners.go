@@ -64,7 +64,8 @@ func scanDirectoryService(ctx context.Context, acct *account, region string, st 
 //
 // Every phase calls the same endpoint, so a first phase that cannot reach it
 // (isEndpointUnreachable) is returned alone. A later phase's transient error
-// is warned about here rather than returned: the dispatcher classifies a
+// is warned about here rather than returned, unless it carries a store write
+// failure (isDemotableTransient): the dispatcher classifies a
 // joined error by any member, so one throttled phase would make the whole
 // service a transient skip and discard the other phases' counts.
 func scanDirectoryServiceIn(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -103,7 +104,7 @@ func scanDirectoryServiceIn(ctx context.Context, client directoryServiceAPI, acc
 		}
 		total += t
 		inserted += i
-		if isTransientNetworkError(perr) {
+		if isDemotableTransient(perr) {
 			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
 			continue
 		}
@@ -217,19 +218,6 @@ func dsChild(acct *account, dirARN string, r *store.Resource) containedChild {
 	return containedChild{row: r, parentID: store.ResourceID("aws", acct.ID, dirARN)}
 }
 
-// upsertDSRegionChildren stores the children a region-wide list collected.
-// A denial warns and keeps the rows of the pages read before it; any other
-// error is returned.
-func upsertDSRegionChildren(st *store.Store, acct *account, region, op string, children []containedChild, err error) (int, int, error) {
-	if err != nil {
-		if !isAccessDenied(err) {
-			return 0, 0, fmt.Errorf("%s: %w", op, err)
-		}
-		_ = skipIfAccessDenied(st, op, acct.ID, region, err)
-	}
-	return upsertContained(st, op, children)
-}
-
 func scanDSCertificates(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, int, error) {
 	return childFanOut(ctx, st, acct, region, "ds:ListCertificates", dsFanOutParents(dirs, dsManagedAD),
 		func(err error) bool { return isAPIErrorCode(err, "DirectoryDoesNotExistException") },
@@ -268,7 +256,7 @@ func scanDSEventTopics(ctx context.Context, client directoryServiceAPI, acct *ac
 	}
 	out, err := client.DescribeEventTopics(ctx, &directoryservice.DescribeEventTopicsInput{})
 	if err != nil {
-		return upsertDSRegionChildren(st, acct, region, "ds:DescribeEventTopics", nil, err)
+		return upsertRegionChildren(st, acct, region, "ds:DescribeEventTopics", nil, err)
 	}
 	var children []containedChild
 	for _, e := range out.EventTopics {
@@ -358,7 +346,7 @@ func scanDSLogSubscriptions(ctx context.Context, client directoryServiceAPI, acc
 			}))
 		}
 	}
-	return upsertDSRegionChildren(st, acct, region, "ds:ListLogSubscriptions", children, err)
+	return upsertRegionChildren(st, acct, region, "ds:ListLogSubscriptions", children, err)
 }
 
 // dsReplicatedFrom reports whether a directory is an Enterprise Managed
@@ -465,7 +453,7 @@ func scanDSSnapshots(ctx context.Context, client directoryServiceAPI, acct *acco
 			}))
 		}
 	}
-	return upsertDSRegionChildren(st, acct, region, "ds:DescribeSnapshots", children, err)
+	return upsertRegionChildren(st, acct, region, "ds:DescribeSnapshots", children, err)
 }
 
 // scanDSTrusts lists every trust in the region (no DirectoryId) and keeps
@@ -499,5 +487,5 @@ func scanDSTrusts(ctx context.Context, client directoryServiceAPI, acct *account
 			}))
 		}
 	}
-	return upsertDSRegionChildren(st, acct, region, "ds:DescribeTrusts", children, err)
+	return upsertRegionChildren(st, acct, region, "ds:DescribeTrusts", children, err)
 }

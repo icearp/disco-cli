@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -458,6 +459,14 @@ func childFanOutStoredSkipNotReady(
 	return total, inserted, err
 }
 
+// isDemotableTransient reports whether a phase's error may be reported as a
+// transient warning and dropped: it is transient and carries no store write
+// failure. A phase can join a transient list error with a failed upsert of the
+// rows listed before it, and that write failure must stay a hard error.
+func isDemotableTransient(err error) bool {
+	return isTransientNetworkError(err) && !errors.Is(err, store.ErrStoreWrite)
+}
+
 // demoteTransient reports a phase's transient error as a warning and drops it,
 // for scanners that join the errors of independent phases. The dispatcher
 // classifies a join as transient when any member is a network error or its
@@ -467,7 +476,7 @@ func childFanOutStoredSkipNotReady(
 // (region: unavailable) before its transient rung, so demoting it would turn
 // a region gap into a warning.
 func demoteTransient(st *store.Store, op string, acct *account, region string, err error) error {
-	if isTransientNetworkError(err) && !isDNSNotFound(err) {
+	if isDemotableTransient(err) && !isDNSNotFound(err) {
 		return skipIfTransient(st, op, acct.ID, region, err)
 	}
 	return err
@@ -478,6 +487,21 @@ func demoteTransient(st *store.Store, op string, acct *account, region string, e
 type containedChild struct {
 	row      *store.Resource
 	parentID string
+}
+
+// upsertRegionChildren stores the children a region-wide listing collected,
+// including the pages read before err. A denial warns and is dropped; any
+// other err is returned wrapped with op, alongside the stored pages' counts.
+func upsertRegionChildren(st *store.Store, acct *account, region, op string, children []containedChild, err error) (int, int, error) {
+	if err != nil && isAccessDenied(err) {
+		_ = skipIfAccessDenied(st, op, acct.ID, region, err)
+		err = nil
+	}
+	total, inserted, uerr := upsertContained(st, op, children)
+	if err != nil {
+		return total, inserted, errors.Join(fmt.Errorf("%s: %w", op, err), uerr)
+	}
+	return total, inserted, uerr
 }
 
 // upsertContained stores the children, then links each under its parent via

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.6% (1920/3336 listable) · depth0 70.0% · depth1 39.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.6% (1923/3336 listable) · depth0 70.2% · depth1 39.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,8 +11,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1031 | 190 | 84.4 |
 | child-uncatalogued | 252 | 765 | 24.8 |
 | smithy-resource | 424 | 138 | 75.4 |
-| element-written | 176 | 240 | 42.3 |
-| element-arn | 32 | 74 | 30.2 |
+| element-written | 177 | 239 | 42.5 |
+| element-arn | 34 | 72 | 32.1 |
 | element-created | 5 | 9 | 35.7 |
 
 | Service | Covered | Uncovered | % |
@@ -142,7 +142,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | airflow-serverless | 1 | 3 | 25.0 |
 | backup-search | 0 | 3 | 0.0 |
 | braket | 1 | 3 | 25.0 |
-| chatbot | 3 | 3 | 50.0 |
 | cloudfront | 20 | 3 | 87.0 |
 | codeartifact | 3 | 3 | 50.0 |
 | codedeploy | 3 | 3 | 50.0 |
@@ -316,6 +315,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bcm-dashboards | 2 | 0 | 100.0 |
 | budgets | 2 | 0 | 100.0 |
 | cassandra | 4 | 0 | 100.0 |
+| chatbot | 6 | 0 | 100.0 |
 | cloudsearch | 1 | 0 | 100.0 |
 | codestar-connections | 4 | 0 | 100.0 |
 | codestar-notifications | 1 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1416)
+### Uncovered (listable, no scanner) (1413)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -517,9 +517,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ce | ce/costallocationtagbackfillhistory | 0 |  | element-written | ce:ListCostAllocationTagBackfillHistory |
 | ce | ce/costcategoryresourceassociation | 0 |  | element-arn | ce:ListCostCategoryResourceAssociations |
 | ce | ce/savingsplansutilizationdetail | 0 |  | element-arn | ce:GetSavingsPlansUtilizationDetails |
-| chatbot | chatbot/chimewebhookconfiguration | 0 |  | element-written | chatbot:DescribeChimeWebhookConfigurations |
-| chatbot | chatbot/microsoftteamsuseridentity | 0 |  | element-arn | chatbot:ListMicrosoftTeamsUserIdentities |
-| chatbot | chatbot/slackuseridentity | 0 |  | element-arn | chatbot:DescribeSlackUserIdentities |
 | chime | chime/account | 0 |  | element-written | chime:GetAccount, chime:ListAccounts |
 | chime | chime/appinstanceuserendpoint | 1 |  | child-uncatalogued | chime:DescribeAppInstanceUserEndpoint, chime:ListAppInstanceUserEndpoints |
 | chime | chime/attendee | 1 |  | child-uncatalogued | chime:GetAttendee, chime:ListAttendees |

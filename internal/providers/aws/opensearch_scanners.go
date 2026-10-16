@@ -111,9 +111,7 @@ func scanOpenSearch(ctx context.Context, acct *account, region string, st *store
 		t, i, perr := phase.run()
 		total += t
 		inserted += i
-		// A phase can join a transient list error with a failed upsert of the
-		// rows listed before it; the store write failure must stay a hard error.
-		if !errors.Is(perr, store.ErrStoreWrite) && isTransientNetworkError(perr) {
+		if isDemotableTransient(perr) {
 			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
 			continue
 		}

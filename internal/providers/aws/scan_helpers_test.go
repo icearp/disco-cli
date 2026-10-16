@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"regexp"
 	"strconv"
@@ -24,6 +25,7 @@ func TestDemoteTransient_Outcomes(t *testing.T) {
 		{"dial error is a warning", &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}, false, 1},
 		{"NXDOMAIN is left to the dispatcher", &net.DNSError{Err: "no such host", Name: "autoscaling.us-east-1.amazonaws.com", IsNotFound: true}, true, 0},
 		{"hard error is returned", apiErr("ValidationException", "bad"), true, 0},
+		{"store write beside transient is returned", errors.Join(apiErr("ServiceUnavailable", "x"), fmt.Errorf("%w: upsert resources: %w", store.ErrStoreWrite, errors.New("disk full"))), true, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
