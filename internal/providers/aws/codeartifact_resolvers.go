@@ -18,6 +18,17 @@ func init() {
 		EdgeDecl{TypeCodeArtifactRepository, TypeCodeArtifactDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCodeArtifactPackageGroup, TypeCodeArtifactDomain, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopCodeArtifactHierarchy,
+		EdgeDecl{TypeCodeArtifactRepository, TypeCodeArtifactPackage, store.RelContains},
+	)
+}
+
+// noopCodeArtifactHierarchy carries the EdgeDecl metadata for the
+// repository → package contains edges the scanner records through
+// upsertContained.
+func noopCodeArtifactHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 func codeArtifactDomainARN(region, acct, name string) string {

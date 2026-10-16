@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 57.643884892086334,
-    "covered": 1923,
-    "uncovered": 1413,
+    "percent": 57.673860911270985,
+    "covered": 1924,
+    "uncovered": 1412,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -357,6 +357,7 @@
       "cloudtrail/insightselector",
       "cloudtrail/trail",
       "codeartifact/domain",
+      "codeartifact/package",
       "codeartifact/packagegroup",
       "codeartifact/repository",
       "codebuild/fleet",
@@ -2164,7 +2165,6 @@
       "cloudtrail/query",
       "cloudtrail/queryresult",
       "codeartifact/allowedrepository",
-      "codeartifact/package",
       "codeartifact/packageversionasset",
       "codebuild/build",
       "codebuild/buildbatch",

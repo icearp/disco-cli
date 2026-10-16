@@ -1116,6 +1116,7 @@ const (
 	TypeCodeArtifactDomain       = "aws:codeartifact:domain"
 	TypeCodeArtifactRepository   = "aws:codeartifact:repository"
 	TypeCodeArtifactPackageGroup = "aws:codeartifact:package-group"
+	TypeCodeArtifactPackage      = "aws:codeartifact:package"
 	// CloudTrail extras (cloudtrail_extended_scanners.go)
 	TypeCloudTrailChannel            = "aws:cloudtrail:channel"
 	TypeCloudTrailDashboard          = "aws:cloudtrail:dashboard"

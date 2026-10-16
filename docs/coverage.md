@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.6% (1923/3336 listable) · depth0 70.2% · depth1 39.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.7% (1924/3336 listable) · depth0 70.2% · depth1 39.4% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1031 | 190 | 84.4 |
+| sr-resource | 1032 | 189 | 84.5 |
 | child-uncatalogued | 252 | 765 | 24.8 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 177 | 239 | 42.5 |
@@ -143,7 +143,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | backup-search | 0 | 3 | 0.0 |
 | braket | 1 | 3 | 25.0 |
 | cloudfront | 20 | 3 | 87.0 |
-| codeartifact | 3 | 3 | 50.0 |
 | codedeploy | 3 | 3 | 50.0 |
 | codeguru-reviewer | 1 | 3 | 25.0 |
 | cognito-sync | 0 | 3 | 0.0 |
@@ -189,6 +188,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | batch | 7 | 2 | 77.8 |
 | bcm-data-exports | 1 | 2 | 33.3 |
 | cloudcontrolapi | 0 | 2 | 0.0 |
+| codeartifact | 4 | 2 | 66.7 |
 | codeguru-security | 0 | 2 | 0.0 |
 | datapipeline | 1 | 2 | 33.3 |
 | detective | 3 | 2 | 60.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1413)
+### Uncovered (listable, no scanner) (1412)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -590,7 +590,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cloudtrail | cloudtrail/query | 0 |  | child-uncatalogued | cloudtrail:DescribeQuery, cloudtrail:ListQueries |
 | cloudtrail | cloudtrail/queryresult | 1 |  | child-uncatalogued | cloudtrail:GetQueryResults |
 | codeartifact | codeartifact/allowedrepository | 2 |  | child-uncatalogued | codeartifact:ListAllowedRepositoriesForGroup |
-| codeartifact | codeartifact/package | 1 |  | sr-resource | codeartifact:DescribePackage, codeartifact:ListPackages |
 | codeartifact | codeartifact/packageversionasset | 2 |  | child-uncatalogued | codeartifact:GetPackageVersionAsset, codeartifact:ListPackageVersionAssets |
 | codebuild | codebuild/build | 0 |  | sr-resource | codebuild:BatchGetBuilds, codebuild:ListBuilds, codebuild:ListBuildsForProject |
 | codebuild | codebuild/buildbatch | 0 |  | sr-resource | codebuild:BatchGetBuildBatches, codebuild:ListBuildBatches, codebuild:ListBuildBatchesForProject |
