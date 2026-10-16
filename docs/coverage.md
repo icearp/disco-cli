@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.5% (1917/3336 listable) · depth0 70.0% · depth1 39.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.6% (1920/3336 listable) · depth0 70.0% · depth1 39.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1028 | 193 | 84.2 |
+| sr-resource | 1031 | 190 | 84.4 |
 | child-uncatalogued | 252 | 765 | 24.8 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 176 | 240 | 42.3 |
@@ -140,7 +140,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | transcribe | 5 | 4 | 55.6 |
 | agent-registry | 0 | 3 | 0.0 |
 | airflow-serverless | 1 | 3 | 25.0 |
-| app-integrations | 3 | 3 | 50.0 |
 | backup-search | 0 | 3 | 0.0 |
 | braket | 1 | 3 | 25.0 |
 | chatbot | 3 | 3 | 50.0 |
@@ -308,6 +307,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | airflow | 1 | 0 | 100.0 |
 | aoss | 7 | 0 | 100.0 |
 | apigateway | 29 | 0 | 100.0 |
+| app-integrations | 6 | 0 | 100.0 |
 | appmesh | 7 | 0 | 100.0 |
 | appsync | 10 | 0 | 100.0 |
 | aps | 4 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1419)
+### Uncovered (listable, no scanner) (1416)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -391,9 +391,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | amplify | amplify/job | 2 |  | sr-resource | amplify:GetJob, amplify:ListJobs |
 | amplifybackend | amplifybackend/backendjob | 2 |  | child-uncatalogued | amplifybackend:GetBackendJob, amplifybackend:ListBackendJobs |
 | amplifyuibuilder | amplifyuibuilder/codegenjob | 0 |  | smithy-resource | amplifyuibuilder:GetCodegenJob, amplifyuibuilder:ListCodegenJobs |
-| app-integrations | app-integrations/applicationassociation | 1 |  | sr-resource | app-integrations:ListApplicationAssociations |
-| app-integrations | app-integrations/dataintegrationassociation | 1 |  | sr-resource | app-integrations:ListDataIntegrationAssociations |
-| app-integrations | app-integrations/eventintegrationassociation | 1 |  | sr-resource | app-integrations:ListEventIntegrationAssociations |
 | appconfig | appconfig/experimentrun | 1 |  | sr-resource | appconfig:GetExperimentRun, appconfig:ListExperimentRuns |
 | appfabric | appfabric/useraccesstask | 1 |  | child-uncatalogued | appfabric:BatchGetUserAccessTasks |
 | appflow | appflow/flowexecutionrecord | 1 |  | child-uncatalogued | appflow:DescribeFlowExecutionRecords |

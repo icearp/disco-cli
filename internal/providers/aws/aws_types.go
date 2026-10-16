@@ -2000,9 +2000,12 @@ const (
 	TypeAppFlowConnector                     = "aws:appflow:connector"
 	TypeAppFlowConnectorProfile              = "aws:appflow:connector-profile"
 	// AppIntegrations (appintegrations_scanners.go, appintegrations_resolvers.go)
-	TypeAppIntegrationsApplication      = "aws:appintegrations:application"
-	TypeAppIntegrationsDataIntegration  = "aws:appintegrations:data-integration"
-	TypeAppIntegrationsEventIntegration = "aws:appintegrations:event-integration"
+	TypeAppIntegrationsApplication                 = "aws:appintegrations:application"
+	TypeAppIntegrationsApplicationAssociation      = "aws:appintegrations:application-association"
+	TypeAppIntegrationsDataIntegration             = "aws:appintegrations:data-integration"
+	TypeAppIntegrationsDataIntegrationAssociation  = "aws:appintegrations:data-integration-association"
+	TypeAppIntegrationsEventIntegration            = "aws:appintegrations:event-integration"
+	TypeAppIntegrationsEventIntegrationAssociation = "aws:appintegrations:event-integration-association"
 	// CloudWatch Application Insights (applicationinsights_scanners.go, applicationinsights_resolvers.go)
 	TypeApplicationInsightsApplication   = "aws:applicationinsights:application"
 	TypeApplicationInsightsComponent     = "aws:applicationinsights:component"
