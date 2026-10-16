@@ -2189,6 +2189,7 @@ const (
 	TypeKAV2ApplicationCloudWatchLogOpt = "aws:kinesis-analytics-v2:application-cloud-watch-logging-option"
 	TypeKAV2ApplicationOutput           = "aws:kinesis-analytics-v2:application-output"
 	TypeKAV2ApplicationReferenceData    = "aws:kinesis-analytics-v2:application-reference-data-source"
+	TypeKAV2ApplicationSnapshot         = "aws:kinesis-analytics-v2:application-snapshot"
 	// Lex (lex_scanners.go); SDK module is lexmodelsv2.
 	TypeLexBot            = "aws:lex:bot"
 	TypeLexBotAlias       = "aws:lex:bot-alias"

@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 57.673860911270985,
-    "covered": 1924,
-    "uncovered": 1412,
+    "percent": 57.70383693045564,
+    "covered": 1925,
+    "uncovered": 1411,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1074,6 +1074,7 @@
       "kinesis/stream",
       "kinesis/streamconsumer",
       "kinesisanalytics/application",
+      "kinesisanalytics/applicationsnapshot",
       "kinesisvideo/signalingchannel",
       "kinesisvideo/stream",
       "kms/alias",
@@ -2735,7 +2736,6 @@
       "kendra/snapshot",
       "kinesis/record",
       "kinesisanalytics/applicationoperation",
-      "kinesisanalytics/applicationsnapshot",
       "kinesisanalytics/applicationversion",
       "kinesisvideo/edgeagentconfiguration",
       "kinesisvideo/mappedresourceconfiguration",

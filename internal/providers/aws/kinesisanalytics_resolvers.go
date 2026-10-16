@@ -21,6 +21,16 @@ func init() {
 		EdgeDecl{TypeKAV2Application, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeKAV2Application, TypeLogsLogGroup, store.RelUses},
 	)
+	registerResolver(
+		noopKAV2SnapshotHierarchy,
+		EdgeDecl{TypeKAV2Application, TypeKAV2ApplicationSnapshot, store.RelContains},
+	)
+}
+
+// noopKAV2SnapshotHierarchy only declares the application -> snapshot contains
+// edge, which scanKAV2ApplicationSnapshots records itself via upsertContained.
+func noopKAV2SnapshotHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // kaLogStreamARNToGroupARN trims the trailing `:log-stream:<name>` segment
