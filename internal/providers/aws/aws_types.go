@@ -2505,7 +2505,9 @@ const (
 	// Serverless Application Repository (serverlessrepo_scanners.go). The Service
 	// Reference key is plural (AWS::serverlessrepo::applications), so the disco
 	// resource segment mirrors it as plural.
-	TypeServerlessRepoApplication = "aws:serverlessrepo:applications"
+	TypeServerlessRepoApplication        = "aws:serverlessrepo:applications"
+	TypeServerlessRepoApplicationVersion = "aws:serverlessrepo:application-version"
+	TypeServerlessRepoApplicationPolicy  = "aws:serverlessrepo:application-policy"
 
 	// AWS Supply Chain (supplychain_scanners.go, supplychain_resolvers.go). The
 	// disco service segment "scn" mirrors the IAM/Service-Reference service key;

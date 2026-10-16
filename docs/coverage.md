@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.8% (1929/3336 listable) · depth0 70.2% · depth1 39.8% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.9% (1931/3336 listable) · depth0 70.2% · depth1 40.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1032 | 189 | 84.5 |
-| child-uncatalogued | 257 | 760 | 25.3 |
+| child-uncatalogued | 259 | 758 | 25.5 |
 | smithy-resource | 424 | 138 | 75.4 |
 | element-written | 177 | 239 | 42.5 |
 | element-arn | 34 | 72 | 32.1 |
@@ -169,7 +169,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral-channel | 0 | 3 | 0.0 |
 | route53-recovery-readiness | 4 | 3 | 57.1 |
 | route53globalresolver | 7 | 3 | 70.0 |
-| serverlessrepo | 1 | 3 | 25.0 |
 | sns | 2 | 3 | 40.0 |
 | states | 4 | 3 | 57.1 |
 | support | 0 | 3 | 0.0 |
@@ -292,6 +291,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | schemas | 3 | 1 | 75.0 |
 | sdb | 0 | 1 | 0.0 |
 | securitylake | 2 | 1 | 66.7 |
+| serverlessrepo | 3 | 1 | 75.0 |
 | signer | 2 | 1 | 66.7 |
 | ssm-quicksetup | 1 | 1 | 50.0 |
 | swf | 1 | 1 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1407)
+### Uncovered (listable, no scanner) (1405)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1575,8 +1575,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securityhub | securityhub/standardscontrolassociation | 1 |  | child-uncatalogued | securityhub:ListStandardsControlAssociations |
 | securitylake | securitylake/datalakesource | 1 |  | child-uncatalogued | securitylake:GetDataLakeSources |
 | serverlessrepo | serverlessrepo/applicationdependency | 1 |  | child-uncatalogued | serverlessrepo:ListApplicationDependencies |
-| serverlessrepo | serverlessrepo/applicationpolicy | 1 |  | child-uncatalogued | serverlessrepo:GetApplicationPolicy |
-| serverlessrepo | serverlessrepo/applicationversion | 1 |  | child-uncatalogued | serverlessrepo:ListApplicationVersions |
 | servicecatalog | servicecatalog/associatedattributegroup | 1 |  | child-uncatalogued | servicecatalog:ListAssociatedAttributeGroups |
 | servicecatalog | servicecatalog/budget | 2 |  | child-uncatalogued | servicecatalog:ListBudgetsForResource |
 | servicecatalog | servicecatalog/launchpath | 1 |  | child-uncatalogued | servicecatalog:ListLaunchPaths |
