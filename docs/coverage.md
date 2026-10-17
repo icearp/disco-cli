@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.1% (1939/3336 listable) · depth0 70.4% · depth1 40.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.2% (1941/3336 listable) · depth0 70.4% · depth1 40.5% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1032 | 189 | 84.5 |
-| child-uncatalogued | 261 | 756 | 25.7 |
+| child-uncatalogued | 263 | 754 | 25.9 |
 | smithy-resource | 426 | 136 | 75.8 |
 | element-written | 180 | 236 | 43.3 |
 | element-arn | 34 | 72 | 32.1 |
@@ -204,7 +204,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | network-firewall | 9 | 2 | 81.8 |
 | networkflowmonitor | 2 | 2 | 50.0 |
 | pi | 0 | 2 | 0.0 |
-| qapps | 1 | 2 | 33.3 |
 | redshift-serverless | 11 | 2 | 84.6 |
 | resource-explorer-2 | 4 | 2 | 66.7 |
 | resource-groups | 2 | 2 | 50.0 |
@@ -339,6 +338,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | pca-connector-scep | 2 | 0 | 100.0 |
 | pcs | 3 | 0 | 100.0 |
 | pipes | 1 | 0 | 100.0 |
+| qapps | 3 | 0 | 100.0 |
 | rbin | 1 | 0 | 100.0 |
 | rolesanywhere | 4 | 0 | 100.0 |
 | route53profiles | 3 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1397)
+### Uncovered (listable, no scanner) (1395)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1386,8 +1386,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | proton | proton/serviceinstanceprovisionedresource | 1 |  | smithy-resource | proton:ListServiceInstanceProvisionedResources |
 | proton | proton/servicepipelineoutput | 1 |  | smithy-resource | proton:ListServicePipelineOutputs |
 | proton | proton/servicepipelineprovisionedresource | 1 |  | smithy-resource | proton:ListServicePipelineProvisionedResources |
-| qapps | qapps/category | 1 |  | child-uncatalogued | qapps:GetLibraryItem, qapps:ListCategories |
-| qapps | qapps/libraryitem | 1 |  | child-uncatalogued | qapps:ListLibraryItems |
 | qbusiness | qbusiness/attachment | 1 |  | child-uncatalogued | qbusiness:ListAttachments |
 | qbusiness | qbusiness/conversation | 1 |  | child-uncatalogued | qbusiness:ListConversations |
 | qbusiness | qbusiness/datasourcesyncjob | 3 |  | child-uncatalogued | qbusiness:ListDataSourceSyncJobs |

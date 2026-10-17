@@ -442,19 +442,37 @@ func childFanOutStoredSkipNotReady(
 	isSkip func(error) bool, label func(childParent) string, what, why string, notReadyCodes []string,
 	storeChildren func(context.Context, childParent) (int, int, error),
 ) (int, int, error) {
-	notReady := make([]skipTally, len(notReadyCodes))
+	codes := make([]skipCode, len(notReadyCodes))
+	for k, code := range notReadyCodes {
+		codes[k] = skipCode{code: code, why: why}
+	}
+	return childFanOutStoredSkipCodes(ctx, st, acct, region, op, parents, isSkip, label, what, codes, storeChildren)
+}
+
+// skipCode is an error code a fan-out skips per parent, with why the service
+// may refuse a parent with it.
+type skipCode struct{ code, why string }
+
+// childFanOutStoredSkipCodes is childFanOutStoredSkipNotReady with a reason
+// per code, for fan-outs whose skipped codes have different causes.
+func childFanOutStoredSkipCodes(
+	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
+	isSkip func(error) bool, label func(childParent) string, what string, codes []skipCode,
+	storeChildren func(context.Context, childParent) (int, int, error),
+) (int, int, error) {
+	tallies := make([]skipTally, len(codes))
 	total, inserted, err := childFanOutStoredSkipTransient(ctx, st, acct, region, op, parents, isSkip, label,
 		func(ctx context.Context, p childParent) (int, int, error) {
 			t, i, err := storeChildren(ctx, p)
-			for k, code := range notReadyCodes {
-				if notReady[k].dropCode(code, label(p), err) {
+			for k, c := range codes {
+				if tallies[k].dropCode(c.code, label(p), err) {
 					return t, i, nil
 				}
 			}
 			return t, i, err
 		})
-	for k, code := range notReadyCodes {
-		notReady[k].warnCode(st, op, acct, region, code, what, why)
+	for k, c := range codes {
+		tallies[k].warnCode(st, op, acct, region, c.code, what, c.why)
 	}
 	return total, inserted, err
 }

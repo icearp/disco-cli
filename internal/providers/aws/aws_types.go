@@ -1045,7 +1045,9 @@ const (
 	TypeQBusinessSubscription              = "aws:qbusiness:subscription"
 	TypeQBusinessWebExperience             = "aws:qbusiness:web-experience"
 	// QApps (qapps_scanners.go)
-	TypeQAppsQApp = "aws:qapps:qapp"
+	TypeQAppsCategory    = "aws:qapps:category"
+	TypeQAppsLibraryItem = "aws:qapps:library-item"
+	TypeQAppsQApp        = "aws:qapps:qapp"
 	// OpenSearch Serverless (opensearchserverless_scanners.go)
 	TypeOSSAccessPolicy    = "aws:opensearchserverless:access-policy"
 	TypeOSSCollection      = "aws:opensearchserverless:collection"
