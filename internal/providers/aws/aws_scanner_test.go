@@ -37,6 +37,7 @@ var expectedAWSServices = []string{
 	"aws:servicequotas-template",
 	"aws:sms-voice",
 	"aws:sns",
+	"aws:snowball",
 	"aws:sqs",
 	"aws:kms",
 	"aws:secretsmanager",

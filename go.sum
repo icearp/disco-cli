@@ -954,6 +954,8 @@ github.com/aws/aws-sdk-go-v2/service/signer v1.35.3 h1:wKbYIWz/6DG8etW0lSm/RF5j1
 github.com/aws/aws-sdk-go-v2/service/signer v1.35.3/go.mod h1:rxZP4gPDxxY4byPr89NL5pyAaUhpAH3nuh7B6XJziV4=
 github.com/aws/aws-sdk-go-v2/service/signin v1.5.3 h1:togAtAmgV5IGMnQDuBDJeM8z5Y5RN6G7xeOgphWz+Yc=
 github.com/aws/aws-sdk-go-v2/service/signin v1.5.3/go.mod h1:T7xKUUUvN7W3RW8UmMvKnD12xqh+Ux2gCPHPhnt64Dg=
+github.com/aws/aws-sdk-go-v2/service/snowball v1.45.0 h1:dITH31EsNaHLS9IHad7/guKFwdasbuRHwg0ZDPS/M/0=
+github.com/aws/aws-sdk-go-v2/service/snowball v1.45.0/go.mod h1:LeYzCfgPnbYVBJhi+4CFrtUMFfNY7slACD+d1nELOv0=
 github.com/aws/aws-sdk-go-v2/service/snowdevicemanagement v1.28.3 h1:i3bHIhLxUKlsd4/1GducvL53rhQgjsblVEv5eayDnF4=
 github.com/aws/aws-sdk-go-v2/service/snowdevicemanagement v1.28.3/go.mod h1:lbLDUNRVI8I/+CyjExH0G2yRQVb3Fe4NggPQBFUyULM=
 github.com/aws/aws-sdk-go-v2/service/sns v1.42.3 h1:OwgPz7N9WoZKkyQBR6pF8GVDHM8zKbBeZen4g5d0SHE=

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.8% (1961/3336 listable) · depth0 71.0% · depth1 41.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.8% (1963/3336 listable) · depth0 71.1% · depth1 41.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1035 | 186 | 84.8 |
 | child-uncatalogued | 270 | 747 | 26.5 |
 | smithy-resource | 428 | 134 | 76.2 |
-| element-written | 186 | 230 | 44.7 |
+| element-written | 188 | 228 | 45.2 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -107,7 +107,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | lambda | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
 | rekognition | 5 | 5 | 50.0 |
-| snowball | 0 | 5 | 0.0 |
 | sso | 12 | 5 | 70.6 |
 | trustedadvisor | 1 | 5 | 16.7 |
 | voiceid | 1 | 5 | 16.7 |
@@ -167,6 +166,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral-channel | 0 | 3 | 0.0 |
 | route53-recovery-readiness | 4 | 3 | 57.1 |
 | route53globalresolver | 7 | 3 | 70.0 |
+| snowball | 2 | 3 | 40.0 |
 | states | 4 | 3 | 57.1 |
 | support | 0 | 3 | 0.0 |
 | wafv2 | 6 | 3 | 66.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1375)
+### Uncovered (listable, no scanner) (1373)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1590,8 +1590,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sms-voice | sms-voice/registrationfieldvalue | 1 |  | child-uncatalogued | sms-voice:DescribeRegistrationFieldValues |
 | snow-device-management | snow-device-management/deviceresource | 1 |  | child-uncatalogued | snow-device-management:ListDeviceResources |
 | snow-device-management | snow-device-management/execution | 1 |  | smithy-resource | snow-device-management:DescribeExecution, snow-device-management:ListExecutions |
-| snowball | snowball/address | 0 |  | element-written | snowball:DescribeAddress, snowball:DescribeAddresses, snowball:ListPickupLocations |
-| snowball | snowball/cluster | 0 |  | element-written | snowball:DescribeCluster, snowball:ListClusters |
 | snowball | snowball/job | 0 |  | element-written | snowball:DescribeJob, snowball:ListClusterJobs, snowball:ListJobs |
 | snowball | snowball/longtermpricing | 0 |  | element-written | snowball:ListLongTermPricing |
 | snowball | snowball/serviceversion | 0 |  | child-uncatalogued | snowball:ListServiceVersions |

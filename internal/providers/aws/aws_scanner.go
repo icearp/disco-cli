@@ -461,6 +461,11 @@ type account struct {
 	wsiRegions     map[string]bool
 	wsiRegionsErr  error
 
+	// snowballUSAddresses lets the US regions list the account's Snowball
+	// addresses one at a time, until one has stored every page. See
+	// scanSnowballAddressesOnce.
+	snowballUSAddresses snowballAddressGate
+
 	// availByCode maps an AWS global-infrastructure service code to the set of
 	// regions where AWS offers it, built once per account from the SSM catalog
 	// (see aws_region_availability.go). nil means the catalog contributed no

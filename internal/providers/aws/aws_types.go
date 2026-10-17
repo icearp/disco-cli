@@ -418,6 +418,9 @@ const (
 	TypeSNSOriginationNumber   = "aws:sns:origination-number"
 	// SQS
 	TypeSQSQueue = "aws:sqs:queue"
+	// Snow Family (snowball_scanners.go). Neither has an AWS-issued ARN.
+	TypeSnowballAddress = "aws:snowball:address"
+	TypeSnowballCluster = "aws:snowball:cluster"
 	// ECS
 	TypeECSCluster                             = "aws:ecs:cluster"
 	TypeECSService                             = "aws:ecs:service"
