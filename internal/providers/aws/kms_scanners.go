@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -17,13 +18,20 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeKMSKey, Service: "kms"})
 	registerType(restype.Descriptor{Type: TypeKMSAlias, Service: "kms"})
 	registerType(restype.Descriptor{Type: TypeKMSGrant, Service: "kms"})
+	// No redaction rule. The model marks XksProxyConfiguration.AccessKeyId
+	// @sensitive, but it is only the identifier half of the XKS proxy's SigV4
+	// credential; KMS never returns the secret half. It is kept as IAM and
+	// Lightsail access key ids are: alone it authenticates nothing, and it is
+	// what a credential-rotation audit matches on. TrustAnchorCertificate is
+	// the cluster's public trust anchor certificate.
+	registerType(restype.Descriptor{Type: TypeKMSCustomKeyStore, Service: "kms"})
 	registerService(serviceEntry{
 		name: "aws:kms",
 		fn:   scanKMS,
 	})
 }
 
-// kmsAPI is the narrow set of KMS operations called by scanKMSKeys.
+// kmsAPI is the narrow set of KMS operations called by the KMS scan phases.
 type kmsAPI interface {
 	ListKeys(context.Context, *kms.ListKeysInput, ...func(*kms.Options)) (*kms.ListKeysOutput, error)
 	DescribeKey(context.Context, *kms.DescribeKeyInput, ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
@@ -31,6 +39,7 @@ type kmsAPI interface {
 	GetKeyRotationStatus(context.Context, *kms.GetKeyRotationStatusInput, ...func(*kms.Options)) (*kms.GetKeyRotationStatusOutput, error)
 	ListAliases(context.Context, *kms.ListAliasesInput, ...func(*kms.Options)) (*kms.ListAliasesOutput, error)
 	ListGrants(context.Context, *kms.ListGrantsInput, ...func(*kms.Options)) (*kms.ListGrantsOutput, error)
+	DescribeCustomKeyStores(context.Context, *kms.DescribeCustomKeyStoresInput, ...func(*kms.Options)) (*kms.DescribeCustomKeyStoresOutput, error)
 }
 
 // kmsKeyAttrs is the stored attribute shape for a KMS key — DescribeKey metadata
@@ -42,16 +51,65 @@ type kmsKeyAttrs struct {
 	KeyRotationEnabled *bool
 }
 
-// scanKMS discovers customer-managed KMS keys and aliases in one region. ListKeys
-// returns KeyId only; DescribeKey + GetKeyPolicy + GetKeyRotationStatus fan out
-// concurrently per page. AWS-managed keys are skipped — their policies are
-// boilerplate and not user-configurable.
+// scanKMS discovers KMS keys, aliases and custom key stores in one region.
+// ListKeys returns KeyId only; DescribeKey + GetKeyPolicy + GetKeyRotationStatus
+// fan out concurrently per page. AWS-managed keys are stored flagged
+// ManagedByProvider.
+//
+// The custom key store and key phases are independent: each runs whatever the
+// other returned. Key stores go first, one short listing, so a service
+// deadline hit during the unbounded per-key fan-out does not lose them too.
+// Each side's transient error is demoted to a warning, since one transient
+// member would make the dispatcher read the whole join as transient; the
+// counts are summed.
 func scanKMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kms.NewFromConfig(acct.cfg, func(o *kms.Options) { o.Region = region })
-	return scanKMSKeys(ctx, client, acct, region, st, scanID)
+	t, i, cerr := scanKMSCustomKeyStores(ctx, client, acct, region, st, scanID)
+	total, inserted, kerr := scanKMSKeys(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + i, errors.Join(
+		demoteTransient(st, "kms", acct, region, kerr),
+		demoteTransient(st, "kms:DescribeCustomKeyStores", acct, region, cerr),
+	)
 }
 
-// scanKMSKeys holds the testable scan body.
+// kmsCustomKeyStoreNativeID synthesises an ARN-shaped id for a custom key
+// store: DescribeCustomKeyStores returns none, and the Service Reference
+// defines no custom key store ARN. Keys name their store by the bare id, so
+// the key resolver rebuilds this from the key's region.
+func kmsCustomKeyStoreNativeID(region, accountID, storeID string) string {
+	return "arn:aws:kms:" + region + ":" + accountID + ":custom-key-store/" + storeID
+}
+
+// scanKMSCustomKeyStores lists the region's CloudHSM and external key stores.
+func scanKMSCustomKeyStores(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := kms.NewDescribeCustomKeyStoresPaginator(client, &kms.DescribeCustomKeyStoresInput{},
+		func(o *kms.DescribeCustomKeyStoresPaginatorOptions) { o.Limit = 1000; o.StopOnDuplicateToken = true })
+	return pageScan(ctx, "kms:DescribeCustomKeyStores", acct, region, st,
+		pager.HasMorePages,
+		func(ctx context.Context) (*kms.DescribeCustomKeyStoresOutput, error) { return pager.NextPage(ctx) },
+		func(p *kms.DescribeCustomKeyStoresOutput) []types.CustomKeyStoresListEntry { return p.CustomKeyStores },
+		func(ks types.CustomKeyStoresListEntry) *store.Resource {
+			id := sv(ks.CustomKeyStoreId)
+			if id == "" {
+				return nil
+			}
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeKMSCustomKeyStore,
+				NativeID:       kmsCustomKeyStoreNativeID(region, acct.ID, id),
+				Name:           ks.CustomKeyStoreName,
+				Region:         &region,
+				Status:         nonEmptyPtr(string(ks.ConnectionState)),
+				CreatedAt:      tp(ks.CreationDate),
+				AttributesJSON: mustJSON(ks),
+				DiscoveredBy:   scanID,
+			}
+		})
+}
+
+// scanKMSKeys scans keys, grants and aliases.
 func scanKMSKeys(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := kms.NewListKeysPaginator(client, &kms.ListKeysInput{})
 	for pager.HasMorePages() {

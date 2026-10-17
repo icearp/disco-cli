@@ -23,6 +23,13 @@ import "strings"
 //   - identityStoreUserNativeID / identityStoreGroupNativeID:
 //     arn:aws:identitystore::{ownerAcct}:{user|group}/{storeID}/{id}.
 //     Identity Store APIs return no ARNs.
+//   - cloudhsmClusterARN: arn:aws:cloudhsm:{region}:{account}:cluster/{id} —
+//     DescribeClusters returns no ARN field.
+
+// cloudhsmClusterARN builds the NativeID scanCloudHSMClusters gives a cluster.
+func cloudhsmClusterARN(region, accountID, clusterID string) string {
+	return "arn:aws:cloudhsm:" + region + ":" + accountID + ":cluster/" + clusterID
+}
 
 // ec2ARN builds a standard EC2 ARN: arn:aws:ec2:{region}:{account}:{type}/{id}.
 func ec2ARN(region, accountID, resourceType, id string) string {

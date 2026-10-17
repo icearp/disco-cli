@@ -120,7 +120,7 @@ func resolveCloudHSMBackupCluster(acct *account, st *store.Store) error {
 		if cid == "" {
 			continue
 		}
-		clusterARN := fmt.Sprintf("arn:aws:cloudhsm:%s:%s:cluster/%s", sv(r.Region), acct.ID, cid)
+		clusterARN := cloudhsmClusterARN(sv(r.Region), acct.ID, cid)
 		tgtID := store.ResourceID("aws", acct.ID, clusterARN)
 		if !clusterSet[tgtID] {
 			continue

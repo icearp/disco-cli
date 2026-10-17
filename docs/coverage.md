@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.1% (1938/3336 listable) · depth0 70.3% · depth1 40.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.1% (1939/3336 listable) · depth0 70.4% · depth1 40.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1032 | 189 | 84.5 |
 | child-uncatalogued | 261 | 756 | 25.7 |
 | smithy-resource | 426 | 136 | 75.8 |
-| element-written | 179 | 237 | 43.0 |
+| element-written | 180 | 236 | 43.3 |
 | element-arn | 34 | 72 | 32.1 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -195,7 +195,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | healthlake | 3 | 2 | 60.0 |
 | kinesisanalytics | 2 | 2 | 50.0 |
 | kinesisvideo | 2 | 2 | 50.0 |
-| kms | 4 | 2 | 66.7 |
 | lakeformation | 3 | 2 | 60.0 |
 | managedblockchain | 5 | 2 | 71.4 |
 | mediaconnect | 8 | 2 | 80.0 |
@@ -265,6 +264,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | kafka | 9 | 1 | 90.0 |
 | kafkaconnect | 3 | 1 | 75.0 |
 | kinesis | 3 | 1 | 75.0 |
+| kms | 5 | 1 | 83.3 |
 | mediaconvert | 3 | 1 | 75.0 |
 | mediapackage | 2 | 1 | 66.7 |
 | mediapackagev2 | 3 | 1 | 75.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1398)
+### Uncovered (listable, no scanner) (1397)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1158,7 +1158,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | kinesisanalytics | kinesisanalytics/applicationversion | 1 |  | child-uncatalogued | kinesisanalytics:ListApplicationVersions |
 | kinesisvideo | kinesisvideo/edgeagentconfiguration | 0 |  | child-uncatalogued | kinesisvideo:ListEdgeAgentConfigurations |
 | kinesisvideo | kinesisvideo/mappedresourceconfiguration | 0 |  | element-arn | kinesisvideo:DescribeMappedResourceConfiguration |
-| kms | kms/customkeystore | 0 |  | element-written | kms:DescribeCustomKeyStores |
 | kms | kms/keyrotation | 1 |  | child-uncatalogued | kms:ListKeyRotations |
 | lakeformation | lakeformation/lakeformationoptin | 0 |  | element-written | lakeformation:ListLakeFormationOptIns |
 | lakeformation | lakeformation/transaction | 0 |  | element-written | lakeformation:DescribeTransaction, lakeformation:ListTransactions |

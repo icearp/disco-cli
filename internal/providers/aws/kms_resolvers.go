@@ -25,6 +25,15 @@ func init() {
 		EdgeDecl{TypeKMSGrant, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeKMSGrant, TypeEC2Volume, store.RelUses},
 	)
+	registerResolver(
+		resolveKMSCustomKeyStoreBackends,
+		EdgeDecl{TypeKMSCustomKeyStore, TypeCloudHSMCluster, store.RelUses},
+		EdgeDecl{TypeKMSCustomKeyStore, TypeEC2VPCEndpointService, store.RelUses},
+	)
+	registerResolver(
+		resolveKMSKeyCustomKeyStores,
+		EdgeDecl{TypeKMSKey, TypeKMSCustomKeyStore, store.RelAttachedTo},
+	)
 }
 
 // resolveKMSGrants links each KMS grant to its grantee + retiring principal
@@ -216,6 +225,118 @@ func resolveKMSAliases(acct *account, st *store.Store) error {
 		// Inverse: the key owns its aliases (a key can have multiple aliases).
 		if err := st.UpsertRelationship(keyID, a.ID, store.RelContains, "directed", nil); err != nil {
 			return fmt.Errorf("upsert kms-key→alias: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveKMSCustomKeyStoreBackends links each custom key store to what holds
+// its key material: a CloudHSM key store to its cluster, and an external key
+// store on VPC_ENDPOINT_SERVICE connectivity to the endpoint service its proxy
+// sits behind. Targets in another account, or not scanned, get no edge.
+func resolveKMSCustomKeyStoreBackends(acct *account, st *store.Store) error {
+	keyStores, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKMSCustomKeyStore},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(keyStores) == 0 {
+		return nil
+	}
+	clusters, err := scannedIDSet(acct, st, TypeCloudHSMCluster)
+	if err != nil {
+		return err
+	}
+	endpointServices, err := scannedIDSet(acct, st, TypeEC2VPCEndpointService)
+	if err != nil {
+		return err
+	}
+	for _, ks := range keyStores {
+		var attrs struct {
+			CloudHsmClusterID     *string `json:"CloudHsmClusterId"`
+			XksProxyConfiguration *struct {
+				VpcEndpointServiceName  *string `json:"VpcEndpointServiceName"`
+				VpcEndpointServiceOwner *string `json:"VpcEndpointServiceOwner"`
+			} `json:"XksProxyConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(ks.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("decode %s %s: %w", TypeKMSCustomKeyStore, ks.NativeID, err)
+		}
+		var targets []string
+		if cid := sv(attrs.CloudHsmClusterID); cid != "" {
+			clusterARN := cloudhsmClusterARN(sv(ks.Region), acct.ID, cid)
+			if id := store.ResourceID("aws", acct.ID, clusterARN); clusters[id] {
+				targets = append(targets, id)
+			}
+		}
+		if xks := attrs.XksProxyConfiguration; xks != nil {
+			if svcARN, ok := vpcEndpointServiceARNFromName(sv(xks.VpcEndpointServiceName), sv(xks.VpcEndpointServiceOwner)); ok {
+				if id := store.ResourceID("aws", acct.ID, svcARN); endpointServices[id] {
+					targets = append(targets, id)
+				}
+			}
+		}
+		for _, tgt := range targets {
+			if err := st.UpsertRelationship(ks.ID, tgt, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert kms-custom-key-store→backend: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// vpcEndpointServiceARNFromName rebuilds the NativeID scanVPCEndpointServices
+// gives an endpoint service from its service name,
+// "com.amazonaws.vpce.<region>.<service-id>" (the model's pattern also allows
+// an "eu" first label), and the owning account. ok is false for any other
+// shape or an empty owner.
+func vpcEndpointServiceARNFromName(name, owner string) (string, bool) {
+	parts := strings.Split(name, ".")
+	if len(parts) != 5 || parts[1] != "amazonaws" || parts[2] != "vpce" || !strings.HasPrefix(parts[4], "vpce-svc-") || owner == "" {
+		return "", false
+	}
+	return ec2ARN(parts[3], owner, "vpc-endpoint-service", parts[4]), true
+}
+
+// resolveKMSKeyCustomKeyStores links each key created in a custom key store to
+// that store. KeyMetadata.CustomKeyStoreId is the bare store id; a store lives
+// in its keys' region.
+func resolveKMSKeyCustomKeyStores(acct *account, st *store.Store) error {
+	keyStores, err := scannedIDSet(acct, st, TypeKMSCustomKeyStore)
+	if err != nil {
+		return err
+	}
+	if len(keyStores) == 0 {
+		return nil
+	}
+	keys, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKMSKey},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		var attrs struct {
+			Metadata struct {
+				CustomKeyStoreID *string `json:"CustomKeyStoreId"`
+			} `json:"Metadata"`
+		}
+		if err := json.Unmarshal([]byte(k.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("decode %s %s: %w", TypeKMSKey, k.NativeID, err)
+		}
+		storeID := sv(attrs.Metadata.CustomKeyStoreID)
+		if storeID == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, kmsCustomKeyStoreNativeID(sv(k.Region), acct.ID, storeID))
+		if !keyStores[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(k.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert kms-key→custom-key-store: %w", err)
 		}
 	}
 	return nil

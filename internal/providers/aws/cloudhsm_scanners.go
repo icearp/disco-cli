@@ -60,7 +60,7 @@ func scanCloudHSMClusters(ctx context.Context, client cloudHSMAPI, acct *account
 				continue
 			}
 			// CloudHSM clusters carry no ARN field; synthesize the canonical shape.
-			arn := fmt.Sprintf("arn:aws:cloudhsm:%s:%s:cluster/%s", region, acct.ID, id)
+			arn := cloudhsmClusterARN(region, acct.ID, id)
 			status := string(c.State)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

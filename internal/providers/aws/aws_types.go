@@ -574,9 +574,10 @@ const (
 	TypeLogsSource             = "aws:logs:source"
 
 	// KMS (kms_scanners.go)
-	TypeKMSKey   = "aws:kms:key"
-	TypeKMSAlias = "aws:kms:alias"
-	TypeKMSGrant = "aws:kms:grant"
+	TypeKMSKey            = "aws:kms:key"
+	TypeKMSAlias          = "aws:kms:alias"
+	TypeKMSGrant          = "aws:kms:grant"
+	TypeKMSCustomKeyStore = "aws:kms:custom-key-store"
 	// MSK / Kafka (kafka_scanners.go)
 	TypeMSKCluster          = "aws:kafka:cluster"
 	TypeMSKBatchScramSecret = "aws:kafka:batch-scram-secret"
