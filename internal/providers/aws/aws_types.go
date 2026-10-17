@@ -403,8 +403,11 @@ const (
 	TypeS3MultiRegionAccessPointPolicy = "aws:s3:multi-region-access-point-policy"
 	TypeS3StorageLens                  = "aws:s3:storage-lens"
 	TypeS3StorageLensGroup             = "aws:s3:storage-lens-group"
-	// Service Quotas has no resource type: a quota is a limit value, scanned by
+	// Service Quotas: a quota itself is a limit value, scanned by
 	// aws:servicequotas into the `quotas` table rather than into `resources`.
+	// Only the organization's quota request template entries are resources
+	// (servicequotas_template_scanners.go).
+	TypeServiceQuotasServiceQuotaIncreaseRequestInTemplate = "aws:servicequotas:service-quota-increase-request-in-template"
 	// SNS
 	TypeSNSTopic               = "aws:sns:topic"
 	TypeSNSSubscription        = "aws:sns:subscription"

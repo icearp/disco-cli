@@ -75,9 +75,10 @@ region (trimmed to those your account has opted into). --skip-globals omits
 account-wide services (IAM, Route53, CloudFront, etc.) when running a
 per-region audit.
 
-aws:servicequotas (account quota limits) is opt-in — a default scan skips it.
-Add it with --include-service-quotas, or run it on its own with
---services aws:servicequotas.
+aws:servicequotas (account quota limits) and aws:servicequotas-template (the
+organization's quota request template) are opt-in — a default scan skips them.
+Add both with --include-service-quotas, or run one on its own with
+--services aws:servicequotas or --services aws:servicequotas-template.
 
 Examples:
   disco scan aws
@@ -132,10 +133,12 @@ func (s *Scanner) SetSourceIdentity(sourceIdentity string) { s.sourceIdentity = 
 // every enabled region as before.
 func (s *Scanner) SetRegionScope(enabled bool) { s.regionScopeDisabled = !enabled }
 
-// SetIncludeServiceQuotas adds the opt-in aws:servicequotas scanner to the default
-// scan (--include-service-quotas). Off by default: servicequotas reads account quota
-// limits (metadata, not resources) and is markedly slower than any resource scan, so
-// it runs only when explicitly requested — here, or via --services aws:servicequotas.
+// SetIncludeServiceQuotas adds the opt-in aws:servicequotas and
+// aws:servicequotas-template scanners to the default scan (--include-service-quotas).
+// Off by default: servicequotas reads account quota limits (metadata, not
+// resources) and is markedly slower than any resource scan, and the template is a
+// management-account feature a member account is expected to be denied. Each runs
+// only when explicitly requested — here, or via --services.
 func (s *Scanner) SetIncludeServiceQuotas(include bool) { s.includeServiceQuotas = include }
 
 // ServiceNames returns the names of all services this scanner will report.
@@ -410,8 +413,7 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 // filteredServices returns the services to run. An explicit filter wins: when
 // non-empty, exactly the named services run (opt-in or not). With no filter, the
 // default set is every non-opt-in service, plus opt-in services only when
-// includeOptIn is set (aws:servicequotas is currently the only opt-in service —
-// see --include-service-quotas).
+// includeOptIn is set (--include-service-quotas).
 func filteredServices(filter []string, includeOptIn bool) []serviceEntry {
 	if len(filter) > 0 {
 		allowed := make(map[string]bool, len(filter))

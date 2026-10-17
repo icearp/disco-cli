@@ -34,6 +34,7 @@ var expectedAWSServices = []string{
 	"aws:s3",
 	"aws:s3control",
 	"aws:servicequotas",
+	"aws:servicequotas-template",
 	"aws:sms-voice",
 	"aws:sns",
 	"aws:sqs",

@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.2% (1942/3336 listable) · depth0 70.4% · depth1 40.5% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.2% (1943/3336 listable) · depth0 70.5% · depth1 40.5% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1032 | 189 | 84.5 |
 | child-uncatalogued | 263 | 754 | 25.9 |
 | smithy-resource | 426 | 136 | 75.8 |
-| element-written | 181 | 235 | 43.5 |
+| element-written | 182 | 234 | 43.8 |
 | element-arn | 34 | 72 | 32.1 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -210,7 +210,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | scn | 4 | 2 | 66.7 |
 | secretsmanager | 1 | 2 | 33.3 |
 | security-ir | 2 | 2 | 50.0 |
-| servicequotas | 1 | 2 | 33.3 |
 | shield | 3 | 2 | 60.0 |
 | snow-device-management | 2 | 2 | 50.0 |
 | social-messaging | 3 | 2 | 60.0 |
@@ -289,6 +288,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sdb | 0 | 1 | 0.0 |
 | securitylake | 2 | 1 | 66.7 |
 | serverlessrepo | 3 | 1 | 75.0 |
+| servicequotas | 2 | 1 | 66.7 |
 | signer | 2 | 1 | 66.7 |
 | sns | 4 | 1 | 80.0 |
 | ssm-quicksetup | 1 | 1 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1394)
+### Uncovered (listable, no scanner) (1393)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1574,7 +1574,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | servicecatalog | servicecatalog/provisionedproductoutput | 0 |  | element-written | servicecatalog:GetProvisionedProductOutputs |
 | servicecatalog | servicecatalog/record | 0 |  | element-written | servicecatalog:DescribeRecord, servicecatalog:ListRecordHistory |
 | servicequotas | servicequotas/requestedservicequotachange | 0 |  | element-written | servicequotas:GetRequestedServiceQuotaChange, servicequotas:ListRequestedServiceQuotaChangeHistory, servicequotas:ListRequestedServiceQuotaChangeHistoryByQuota |
-| servicequotas | servicequotas/servicequotaincreaserequestsintemplate | 0 |  | element-written | servicequotas:GetServiceQuotaIncreaseRequestFromTemplate, servicequotas:ListServiceQuotaIncreaseRequestsInTemplate |
 | ses | ses/addresslistimportjob | 1 |  | child-uncatalogued | ses:GetAddressListImportJob, ses:ListAddressListImportJobs |
 | ses | ses/archiveexport | 1 |  | child-uncatalogued | ses:GetArchiveExport, ses:ListArchiveExports |
 | ses | ses/archivesearch | 1 |  | child-uncatalogued | ses:GetArchiveSearch, ses:ListArchiveSearches |

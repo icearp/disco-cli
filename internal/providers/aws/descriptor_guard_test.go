@@ -26,7 +26,7 @@ func TestNoDoubleDeclaredTypes(t *testing.T) {
 	}
 }
 
-// TestServiceQuotasDeclaresNoResourceType guards the classification a service
+// TestServiceQuotasQuotaLimitsDeclareNoResourceType guards the classification a service
 // quota now has: it is a limit value stored in `quotas`, not a resource.
 //
 // Re-adding a registerType for it would put ~90% of a real account's rows back
@@ -34,9 +34,15 @@ func TestNoDoubleDeclaredTypes(t *testing.T) {
 // would restore the badge and index pressure the split removed. The scanner is
 // still registered, so this is not "we stopped scanning quotas": the service
 // entry has to survive alongside the absent type.
-func TestServiceQuotasDeclaresNoResourceType(t *testing.T) {
+//
+// A quota request template entry is not a limit value: it is a user-created
+// org-level configuration (PutServiceQuotaIncreaseRequestIntoTemplate /
+// DeleteServiceQuotaIncreaseRequestFromTemplate),
+// so it is the one servicequotas type allowed in `resources`.
+func TestServiceQuotasQuotaLimitsDeclareNoResourceType(t *testing.T) {
+	notQuotas := map[string]bool{TypeServiceQuotasServiceQuotaIncreaseRequestInTemplate: true}
 	for _, d := range registeredDescriptors {
-		if d.Service == "servicequotas" {
+		if d.Service == "servicequotas" && !notQuotas[d.Type] {
 			t.Errorf("quota type %q is registered as a resource — quotas belong in the quotas table", d.Type)
 		}
 	}

@@ -694,7 +694,7 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 	}
 	if _, ok := s.(providers.ServiceQuotasIncluder); ok {
 		subcmd.Flags().Bool("include-service-quotas", false,
-			"Also scan aws:servicequotas (account quota limits); skipped by default — slow and separate from resource discovery. Or select it explicitly with --services aws:servicequotas")
+			"Also scan aws:servicequotas (account quota limits) and aws:servicequotas-template (org quota request template); skipped by default. Or select one explicitly with --services")
 	}
 	if _, ok := s.(providers.SubscriptionOverrider); ok {
 		subcmd.Flags().StringSlice("subscriptions", nil,
