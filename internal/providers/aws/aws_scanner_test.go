@@ -129,6 +129,7 @@ var expectedAWSServices = []string{
 	"aws:fis",
 	"aws:directory-service",
 	"aws:comprehend",
+	"aws:compute-optimizer",
 	"aws:budgets",
 	"aws:workspaces-thin-client",
 	"aws:voice-id",

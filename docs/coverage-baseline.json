@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 58.723021582733814,
-    "covered": 1959,
-    "uncovered": 1377,
+    "percent": 58.752997601918466,
+    "covered": 1960,
+    "uncovered": 1376,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -403,6 +403,7 @@
       "comprehend/endpoint",
       "comprehend/entityrecognizer",
       "comprehend/flywheel",
+      "compute-optimizer/recommendationpreference",
       "config/aggregationauthorization",
       "config/configrule",
       "config/configurationaggregator",
@@ -2267,7 +2268,6 @@
       "compute-optimizer/licenserecommendation",
       "compute-optimizer/rdsdatabaserecommendation",
       "compute-optimizer/recommendationexportjob",
-      "compute-optimizer/recommendationpreference",
       "config/aggregatecompliancebyconfigrule",
       "config/aggregatecompliancebyconformancepack",
       "config/aggregatecompliancedetail",

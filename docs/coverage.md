@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.7% (1959/3336 listable) · depth0 70.9% · depth1 41.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.8% (1960/3336 listable) · depth0 70.9% · depth1 41.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1034 | 187 | 84.7 |
 | child-uncatalogued | 270 | 747 | 26.5 |
 | smithy-resource | 428 | 134 | 76.2 |
-| element-written | 185 | 231 | 44.5 |
+| element-written | 186 | 230 | 44.7 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -50,10 +50,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | devicefarm | 8 | 11 | 42.1 |
 | clouddirectory | 2 | 10 | 16.7 |
 | codecatalyst | 0 | 10 | 0.0 |
-| compute-optimizer | 0 | 10 | 0.0 |
 | imagebuilder | 9 | 10 | 47.4 |
 | securityagent | 15 | 10 | 60.0 |
 | auditmanager | 3 | 9 | 25.0 |
+| compute-optimizer | 1 | 9 | 10.0 |
 | es | 11 | 9 | 55.0 |
 | qbusiness | 10 | 9 | 52.6 |
 | cleanrooms-ml | 7 | 8 | 46.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1377)
+### Uncovered (listable, no scanner) (1376)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -657,7 +657,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | compute-optimizer | compute-optimizer/licenserecommendation | 0 |  | element-arn | compute-optimizer:GetLicenseRecommendations |
 | compute-optimizer | compute-optimizer/rdsdatabaserecommendation | 0 |  | element-written | compute-optimizer:GetRDSDatabaseRecommendations |
 | compute-optimizer | compute-optimizer/recommendationexportjob | 0 |  | element-created | compute-optimizer:DescribeRecommendationExportJobs |
-| compute-optimizer | compute-optimizer/recommendationpreference | 0 |  | element-written | compute-optimizer:GetRecommendationPreferences |
 | config | config/aggregatecompliancebyconfigrule | 1 |  | child-uncatalogued | config:DescribeAggregateComplianceByConfigRules |
 | config | config/aggregatecompliancebyconformancepack | 1 |  | child-uncatalogued | config:DescribeAggregateComplianceByConformancePacks |
 | config | config/aggregatecompliancedetail | 1 |  | child-uncatalogued | config:GetAggregateComplianceDetailsByConfigRule |

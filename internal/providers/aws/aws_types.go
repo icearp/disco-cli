@@ -1295,6 +1295,8 @@ const (
 	TypeDSTrust           = "aws:directory-service:trust"
 	// Detective extras (detective_extended_scanners.go)
 	TypeDetectiveOrganizationAdmin = "aws:detective:organization-admin"
+	// Compute Optimizer (computeoptimizer_scanners.go)
+	TypeComputeOptimizerRecommendationPreference = "aws:compute-optimizer:recommendation-preference"
 	// Comprehend (comprehend_scanners.go)
 	TypeComprehendDocumentClassifier         = "aws:comprehend:document-classifier"
 	TypeComprehendEntityRecognizer           = "aws:comprehend:entity-recognizer"
