@@ -21,6 +21,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeECRRegistryScanningConfig, Service: "ecr", Managed: true})
 	registerType(restype.Descriptor{Type: TypeECRReplicationConfiguration, Service: "ecr", Managed: true})
 	registerType(restype.Descriptor{Type: TypeECRRepositoryCreationTemplate, Service: "ecr"})
+	// Every repository has one, computed by ECR from the registry scanning
+	// rules (or the repository's own scan-on-push flag), with no Delete API.
+	registerType(restype.Descriptor{Type: TypeECRRepositoryScanningConfig, Service: "ecr", Managed: true})
 	registerType(restype.Descriptor{Type: TypeECRSigningConfiguration, Service: "ecr"})
 	registerService(serviceEntry{
 		name: "aws:ecr",
@@ -34,14 +37,16 @@ type ecrAPI interface {
 	ListTagsForResource(context.Context, *ecr.ListTagsForResourceInput, ...func(*ecr.Options)) (*ecr.ListTagsForResourceOutput, error)
 }
 
-// scanECR discovers ECR repositories in one region. DescribeRepositories
-// returns full details in a single paginated call — no separate describe step.
-// Tags are fetched concurrently via ListTagsForResource (one call per repository).
+// scanECR runs the region's ECR phases in order and stops at the first error.
 func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ecr.NewFromConfig(acct.cfg, func(o *ecr.Options) { o.Region = region })
 
+	var repos []childParent
 	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanECRRepositories(ctx, client, acct, region, st, scanID) },
+		func() (t, i int, err error) {
+			t, i, repos, err = scanECRRepositories(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (int, int, error) {
 			return scanECRPullThroughCacheRules(ctx, client, acct, region, st, scanID)
 		},
@@ -62,6 +67,9 @@ func scanECR(ctx context.Context, acct *account, region string, st *store.Store,
 			return scanECRSigningConfiguration(ctx, client, acct, region, st, scanID)
 		},
 		func() (int, int, error) { return scanECRPublic(ctx, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanECRRepositoryScanningConfigs(ctx, client, acct, region, st, scanID, repos)
+		},
 	} {
 		t, i, ferr := phase()
 		total += t
@@ -73,16 +81,18 @@ func scanECR(ctx context.Context, acct *account, region string, st *store.Store,
 	return total, inserted, nil
 }
 
-// scanECRRepositories holds the testable scan body.
-func scanECRRepositories(ctx context.Context, client ecrAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanECRRepositories stores the region's repositories and returns the stored
+// ones that have a name (id: name, arn: NativeID), the parents of the
+// scanning-configuration phase.
+func scanECRRepositories(ctx context.Context, client ecrAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, repos []childParent, err error) {
 	pager := ecr.NewDescribeRepositoriesPaginator(client, &ecr.DescribeRepositoriesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ecr:DescribeRepositories", acct.ID, region, err)
+				return 0, 0, nil, skipIfAccessDenied(st, "ecr:DescribeRepositories", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("ecr:DescribeRepositories: %w", err)
+			return 0, 0, nil, fmt.Errorf("ecr:DescribeRepositories: %w", err)
 		}
 
 		// ECR does not return tags from DescribeRepositories; fetch them via
@@ -106,7 +116,7 @@ func scanECRRepositories(ctx context.Context, client ecrAPI, acct *account, regi
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return 0, 0, err
+			return 0, 0, nil, err
 		}
 
 		var batch []*store.Resource
@@ -130,11 +140,16 @@ func scanECRRepositories(ctx context.Context, client ecrAPI, acct *account, regi
 		if len(batch) > 0 {
 			n, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert ECR repositories: %w", err)
+				return 0, 0, nil, fmt.Errorf("upsert ECR repositories: %w", err)
 			}
 			total += len(batch)
 			inserted += n
 		}
+		for _, r := range batch {
+			if name := sv(r.Name); name != "" {
+				repos = append(repos, childParent{id: name, arn: r.NativeID})
+			}
+		}
 	}
-	return total, inserted, nil
+	return total, inserted, repos, nil
 }

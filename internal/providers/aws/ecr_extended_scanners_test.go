@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"testing"
@@ -324,9 +325,9 @@ func TestScanECRPublic_RepositoryErrorSkipsRegistries(t *testing.T) {
 	}
 }
 
-// The registry phase runs after every existing ECR phase: its hard error
-// reaches the caller with the earlier private and public rows stored and
-// counted.
+// The public registry phase runs after the private ECR phases and the public
+// repository phase: its hard error reaches the caller with those rows stored
+// and counted.
 func TestScanECR_RegistryErrorAfterExistingPhases(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -355,6 +356,437 @@ func TestScanECR_RegistryErrorAfterExistingPhases(t *testing.T) {
 	assertAPICode(t, err, "ServerException")
 	if total != 2 {
 		t.Errorf("total = %d, want 2 (pull-through-cache rule, public repository)", total)
+	}
+	for typ, want := range map[string]string{
+		TypeECRPullThroughCacheRule: "arn:aws:ecr:us-east-1:123456789012:pull-through-cache-rule/hub",
+		TypeECRPublicRepository:     ecrPubRepoA,
+	} {
+		if _, ok := rowsByNativeID(t, st, typ)[want]; !ok {
+			t.Errorf("missing %s row %s", typ, want)
+		}
+	}
+}
+
+const ecrScanCfgOp = "ecr:BatchGetRepositoryScanningConfiguration"
+
+func ecrRepoARN(name string) string {
+	return "arn:aws:ecr:us-east-1:123456789012:repository/" + name
+}
+
+func ecrScanCfgNativeID(name string) string {
+	return "arn:aws:ecr:us-east-1:123456789012:repository-scanning-configuration/" + name
+}
+
+func ecrScanCfg(name string) ecrtypes.RepositoryScanningConfiguration {
+	return ecrtypes.RepositoryScanningConfiguration{
+		RepositoryName: ptrStr(name), RepositoryArn: ptrStr(ecrRepoARN(name)),
+		ScanFrequency: ecrtypes.ScanFrequencyContinuousScan, ScanOnPush: true,
+		AppliedScanFilters: []ecrtypes.ScanningRepositoryFilter{{Filter: ptrStr("prod-*"), FilterType: ecrtypes.ScanningRepositoryFilterTypeWildcard}},
+	}
+}
+
+func ecrScanCfgOK(names []string) (any, error) {
+	out := &ecr.BatchGetRepositoryScanningConfigurationOutput{}
+	for _, n := range names {
+		out.ScanningConfigurations = append(out.ScanningConfigurations, ecrScanCfg(n))
+	}
+	return out, nil
+}
+
+// ecrRepoNames returns n distinct repository names.
+func ecrRepoNames(n int) []string {
+	names := make([]string, n)
+	for i := range n {
+		names[i] = fmt.Sprintf("repo-%02d", i)
+	}
+	return names
+}
+
+// ecrSeedRepos stores a repository row per name, as the repository phase
+// would, and returns them as that phase hands them on.
+func ecrSeedRepos(t *testing.T, st *store.Store, names []string) []childParent {
+	t.Helper()
+	repos := make([]childParent, len(names))
+	for i, n := range names {
+		upsertTestResource(t, st, "aws", testAccountID, TypeECRRepository, ecrRepoARN(n), testRegion, "{}")
+		repos[i] = childParent{id: n, arn: ecrRepoARN(n)}
+	}
+	return repos
+}
+
+// ecrScanCfgBatches records the repositoryNames of every
+// BatchGetRepositoryScanningConfiguration call; calls run concurrently.
+type ecrScanCfgBatches struct {
+	mu      sync.Mutex
+	batches [][]string
+}
+
+func (b *ecrScanCfgBatches) handler(respond func([]string) (any, error)) func(any) (any, error) {
+	return func(in any) (any, error) {
+		names := in.(*ecr.BatchGetRepositoryScanningConfigurationInput).RepositoryNames
+		b.mu.Lock()
+		b.batches = append(b.batches, slices.Clone(names))
+		b.mu.Unlock()
+		return respond(names)
+	}
+}
+
+func runECRScanCfg(st *store.Store, repos []childParent, h func(any) (any, error)) (int, int, error) {
+	client := ecr.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"BatchGetRepositoryScanningConfiguration": h,
+	}, ecrPubDenied))
+	return scanECRRepositoryScanningConfigs(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, repos)
+}
+
+func TestScanECRRepositoryScanningConfigs_BatchesAndStores(t *testing.T) {
+	st := newTestStore(t)
+	names := append(ecrRepoNames(25), "team/app")
+	repos := ecrSeedRepos(t, st, names)
+	var calls ecrScanCfgBatches
+
+	total, _, err := runECRScanCfg(st, repos, calls.handler(ecrScanCfgOK))
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if total != 26 {
+		t.Errorf("total = %d, want 26", total)
+	}
+	var sizes []int
+	var requested []string
+	for _, b := range calls.batches {
+		sizes = append(sizes, len(b))
+		requested = append(requested, b...)
+	}
+	slices.Sort(sizes)
+	if !slices.Equal(sizes, []int{1, 25}) {
+		t.Errorf("batch sizes = %v, want [1 25]", sizes)
+	}
+	slices.Sort(requested)
+	want := slices.Clone(names)
+	slices.Sort(want)
+	if !slices.Equal(requested, want) {
+		t.Errorf("requested = %v, want each of %v once", requested, want)
+	}
+
+	rows := rowsByNativeID(t, st, TypeECRRepositoryScanningConfig)
+	if len(rows) != 26 {
+		t.Errorf("stored %d rows, want 26", len(rows))
+	}
+	r, ok := rows[ecrScanCfgNativeID("team/app")]
+	if !ok {
+		t.Fatalf("missing row %s; have %d rows", ecrScanCfgNativeID("team/app"), len(rows))
+	}
+	if r.Type != TypeECRRepositoryScanningConfig || sv(r.Name) != "team/app" || sv(r.Region) != testRegion || !r.ManagedByProvider {
+		t.Errorf("row = type %q name %q region %q managed %v; want %q team/app %q true", r.Type, sv(r.Name), sv(r.Region), r.ManagedByProvider, TypeECRRepositoryScanningConfig, testRegion)
+	}
+	var attrs struct{ ScanFrequency string }
+	if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.ScanFrequency != "CONTINUOUS_SCAN" {
+		t.Errorf("attrs ScanFrequency = %q (err %v), want CONTINUOUS_SCAN", attrs.ScanFrequency, err)
+	}
+	assertContainsNative(t, st, ecrRepoARN("team/app"), ecrScanCfgNativeID("team/app"))
+	assertContainsNative(t, st, ecrRepoARN("repo-00"), ecrScanCfgNativeID("repo-00"))
+}
+
+func TestScanECRRepositoryScanningConfigs_NoRepositories(t *testing.T) {
+	st := newTestStore(t)
+	var calls ecrScanCfgBatches
+	total, _, err := runECRScanCfg(st, nil, calls.handler(ecrScanCfgOK))
+	if err != nil || total != 0 || len(calls.batches) != 0 {
+		t.Errorf("total = %d, err = %v, calls = %d; want 0, nil, 0", total, err, len(calls.batches))
+	}
+}
+
+// A denial of every batch warns once for the op and fails nothing.
+func TestScanECRRepositoryScanningConfigs_DeniedWarnsOnce(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, ecrScanCfgOp)
+	repos := ecrSeedRepos(t, st, ecrRepoNames(30))
+	var calls ecrScanCfgBatches
+
+	total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) { return nil, ecrPubDenied }))
+	if err != nil || total != 0 {
+		t.Errorf("total = %d, err = %v; want 0, nil", total, err)
+	}
+	if len(calls.batches) != 2 {
+		t.Errorf("calls = %d, want 2", len(calls.batches))
+	}
+	if *warns != 1 {
+		t.Errorf("warnings = %d, want 1", *warns)
+	}
+}
+
+// A failure entry drops only its repository: REPOSITORY_NOT_FOUND silently,
+// a code the SDK does not model with a warning.
+func TestScanECRRepositoryScanningConfigs_Failures(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		code      ecrtypes.ScanningConfigurationFailureCode
+		wantWarns int
+	}{
+		{"repository not found", ecrtypes.ScanningConfigurationFailureCodeRepositoryNotFound, 0},
+		{"unmodeled code", "SOME_NEW_CODE", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, ecrScanCfgOp)
+			repos := ecrSeedRepos(t, st, []string{"kept", "gone"})
+			var calls ecrScanCfgBatches
+			total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) {
+				return &ecr.BatchGetRepositoryScanningConfigurationOutput{
+					ScanningConfigurations: []ecrtypes.RepositoryScanningConfiguration{ecrScanCfg("kept")},
+					Failures: []ecrtypes.RepositoryScanningConfigurationFailure{{
+						RepositoryName: ptrStr("gone"), FailureCode: tc.code, FailureReason: ptrStr("reason"),
+					}},
+				}, nil
+			}))
+			if err != nil || total != 1 {
+				t.Errorf("total = %d, err = %v; want 1, nil", total, err)
+			}
+			rows := rowsByNativeID(t, st, TypeECRRepositoryScanningConfig)
+			if _, ok := rows[ecrScanCfgNativeID("kept")]; !ok || len(rows) != 1 {
+				t.Errorf("rows = %v, want only %s", slices.Collect(maps.Keys(rows)), ecrScanCfgNativeID("kept"))
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("warnings = %d, want %d", *warns, tc.wantWarns)
+			}
+		})
+	}
+}
+
+var ecrRepoNotFound = &smithy.GenericAPIError{Code: "RepositoryNotFoundException", Message: "gone"}
+
+// A batch failing with RepositoryNotFoundException is asked again name by
+// name: the repository still not found is dropped silently, a single-name
+// failure entry with an unrecognised code warns, and the rest of the batch
+// and the other batch are stored.
+func TestScanECRRepositoryScanningConfigs_BatchNotFoundRetriesSingly(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, ecrScanCfgOp)
+	repos := ecrSeedRepos(t, st, ecrRepoNames(26))
+	var calls ecrScanCfgBatches
+	total, _, err := runECRScanCfg(st, repos, calls.handler(func(names []string) (any, error) {
+		switch {
+		case len(names) == ecrScanningConfigBatchMax || names[0] == "repo-07":
+			return nil, ecrRepoNotFound
+		case names[0] == "repo-11":
+			return &ecr.BatchGetRepositoryScanningConfigurationOutput{
+				Failures: []ecrtypes.RepositoryScanningConfigurationFailure{{RepositoryName: ptrStr("repo-11"), FailureCode: "SOME_NEW_CODE"}},
+			}, nil
+		}
+		return ecrScanCfgOK(names)
+	}))
+	if err != nil || total != 24 {
+		t.Errorf("total = %d, err = %v; want 24, nil", total, err)
+	}
+	rows := rowsByNativeID(t, st, TypeECRRepositoryScanningConfig)
+	for _, name := range []string{"repo-07", "repo-11"} {
+		if _, ok := rows[ecrScanCfgNativeID(name)]; ok {
+			t.Errorf("stored row for dropped %s", name)
+		}
+	}
+	for _, name := range []string{"repo-00", "repo-24", "repo-25"} {
+		if _, ok := rows[ecrScanCfgNativeID(name)]; !ok {
+			t.Errorf("missing row %s", ecrScanCfgNativeID(name))
+		}
+	}
+	if *warns != 1 {
+		t.Errorf("warnings = %d, want 1 (repo-11's failure code)", *warns)
+	}
+}
+
+// A single-name batch failing with RepositoryNotFoundException is dropped
+// silently without being sent again.
+func TestScanECRRepositoryScanningConfigs_SingleNameBatchNotFound(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, ecrScanCfgOp)
+	repos := ecrSeedRepos(t, st, []string{"a"})
+	var calls ecrScanCfgBatches
+	total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) { return nil, ecrRepoNotFound }))
+	if err != nil || total != 0 {
+		t.Errorf("total = %d, err = %v; want 0, nil", total, err)
+	}
+	if len(calls.batches) != 1 || *warns != 0 {
+		t.Errorf("calls = %d, warnings = %d; want 1, 0", len(calls.batches), *warns)
+	}
+}
+
+// After a batch's RepositoryNotFoundException, a single-name call failing
+// otherwise fails the phase.
+func TestScanECRRepositoryScanningConfigs_SingleRetryErrorFails(t *testing.T) {
+	st := newTestStore(t)
+	repos := ecrSeedRepos(t, st, []string{"a", "b"})
+	var calls ecrScanCfgBatches
+	_, _, err := runECRScanCfg(st, repos, calls.handler(func(names []string) (any, error) {
+		if len(names) > 1 {
+			return nil, ecrRepoNotFound
+		}
+		return nil, ecrPubServerErr
+	}))
+	assertAPICode(t, err, "ServerException")
+}
+
+// After a batch's RepositoryNotFoundException, denials of the single-name
+// calls warn once and fail nothing.
+func TestScanECRRepositoryScanningConfigs_SingleRetryDenied(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, ecrScanCfgOp)
+	repos := ecrSeedRepos(t, st, []string{"a", "b"})
+	var calls ecrScanCfgBatches
+	total, _, err := runECRScanCfg(st, repos, calls.handler(func(names []string) (any, error) {
+		if len(names) > 1 {
+			return nil, ecrRepoNotFound
+		}
+		return nil, ecrPubDenied
+	}))
+	if err != nil || total != 0 {
+		t.Errorf("total = %d, err = %v; want 0, nil", total, err)
+	}
+	if *warns != 1 {
+		t.Errorf("warnings = %d, want 1", *warns)
+	}
+}
+
+// A repository whose stored ARN does not parse gives its scanning
+// configuration no NativeID: it is dropped with a warning, its sibling stored.
+func TestScanECRRepositoryScanningConfigs_UnusableParentARNSkipped(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, ecrScanCfgOp)
+	repos := append(ecrSeedRepos(t, st, []string{"a"}), childParent{id: "garbled", arn: "not-an-arn"})
+	var calls ecrScanCfgBatches
+	total, _, err := runECRScanCfg(st, repos, calls.handler(ecrScanCfgOK))
+	if err != nil || total != 1 {
+		t.Errorf("total = %d, err = %v; want 1, nil", total, err)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeECRRepositoryScanningConfig)[ecrScanCfgNativeID("a")]; !ok {
+		t.Errorf("missing row %s", ecrScanCfgNativeID("a"))
+	}
+	if *warns != 1 {
+		t.Errorf("warnings = %d, want 1", *warns)
+	}
+}
+
+func TestECRRepoScanningConfigNativeID(t *testing.T) {
+	for _, tc := range []struct{ repoARN, name, want string }{
+		{"arn:aws:ecr:us-east-1:123456789012:repository/team/app", "team/app", "arn:aws:ecr:us-east-1:123456789012:repository-scanning-configuration/team/app"},
+		{"arn:aws-cn:ecr:cn-north-1:123456789012:repository/a", "a", "arn:aws-cn:ecr:cn-north-1:123456789012:repository-scanning-configuration/a"},
+	} {
+		got, err := ecrRepoScanningConfigNativeID(tc.repoARN, tc.name)
+		if err != nil || got != tc.want {
+			t.Errorf("ecrRepoScanningConfigNativeID(%q, %q) = %q, %v; want %q", tc.repoARN, tc.name, got, err, tc.want)
+		}
+	}
+	if _, err := ecrRepoScanningConfigNativeID("not-an-arn", "a"); err == nil {
+		t.Error("ecrRepoScanningConfigNativeID(not-an-arn) err = nil, want error")
+	}
+}
+
+func TestScanECRRepositoryScanningConfigs_OtherErrorFails(t *testing.T) {
+	for _, code := range []string{"ServerException", "ValidationException"} {
+		t.Run(code, func(t *testing.T) {
+			st := newTestStore(t)
+			repos := ecrSeedRepos(t, st, []string{"a"})
+			var calls ecrScanCfgBatches
+			total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) {
+				return nil, &smithy.GenericAPIError{Code: code, Message: "boom"}
+			}))
+			assertAPICode(t, err, code)
+			if total != 0 || len(rowsByNativeID(t, st, TypeECRRepositoryScanningConfig)) != 0 {
+				t.Errorf("total = %d, want 0 and no rows", total)
+			}
+		})
+	}
+}
+
+// An element without repositoryName has no NativeID: it is dropped with a
+// warning and its siblings are stored.
+func TestScanECRRepositoryScanningConfigs_UnnamedElementSkipped(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, ecrScanCfgOp)
+	repos := ecrSeedRepos(t, st, []string{"a", "b"})
+	var calls ecrScanCfgBatches
+	total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) {
+		unnamed := ecrScanCfg("b")
+		unnamed.RepositoryName = nil
+		return &ecr.BatchGetRepositoryScanningConfigurationOutput{
+			ScanningConfigurations: []ecrtypes.RepositoryScanningConfiguration{ecrScanCfg("a"), unnamed},
+		}, nil
+	}))
+	if err != nil || total != 1 {
+		t.Errorf("total = %d, err = %v; want 1, nil", total, err)
+	}
+	if *warns != 1 {
+		t.Errorf("warnings = %d, want 1", *warns)
+	}
+}
+
+// ecrPrivateRepoPages serves the private DescribeRepositories in two pages
+// (repositories a, then team/app) and the public one empty.
+func ecrPrivateRepoPages(in any) (any, error) {
+	priv, ok := in.(*ecr.DescribeRepositoriesInput)
+	if !ok {
+		return &ecrpublic.DescribeRepositoriesOutput{}, nil
+	}
+	if priv.NextToken == nil {
+		return &ecr.DescribeRepositoriesOutput{
+			Repositories: []ecrtypes.Repository{{RepositoryName: ptrStr("a"), RepositoryArn: ptrStr(ecrRepoARN("a"))}},
+			NextToken:    ptrStr("p2"),
+		}, nil
+	}
+	return &ecr.DescribeRepositoriesOutput{
+		Repositories: []ecrtypes.Repository{{RepositoryName: ptrStr("team/app"), RepositoryArn: ptrStr(ecrRepoARN("team/app"))}},
+	}, nil
+}
+
+// scanECR hands every repository it listed, across pages, to the scanning
+// configuration phase.
+func TestScanECR_StoresRepositoryScanningConfigs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(map[string]func(in any) (any, error){
+		"DescribeRepositories": ecrPrivateRepoPages,
+		"BatchGetRepositoryScanningConfiguration": func(in any) (any, error) {
+			return ecrScanCfgOK(in.(*ecr.BatchGetRepositoryScanningConfigurationInput).RepositoryNames)
+		},
+	}, ecrPubDenied)
+
+	if _, _, err := scanECR(context.Background(), acct, testRegion, st, testScanID); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	for _, name := range []string{"a", "team/app"} {
+		assertContainsNative(t, st, ecrRepoARN(name), ecrScanCfgNativeID(name))
+	}
+}
+
+// The scanning configuration phase runs after every existing ECR phase: its
+// hard error reaches the caller with the earlier rows stored and counted.
+func TestScanECR_ScanningConfigErrorAfterExistingPhases(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	called := false
+	acct.cfg = opStubConfig(map[string]func(in any) (any, error){
+		"DescribeRepositories": func(in any) (any, error) {
+			if _, ok := in.(*ecrpublic.DescribeRepositoriesInput); ok {
+				return &ecrpublic.DescribeRepositoriesOutput{Repositories: []ecrpublictypes.Repository{ecrPubRepo(ecrPubRepoA, "a", testAccountID)}}, nil
+			}
+			return ecrPrivateRepoPages(in)
+		},
+		"DescribePullThroughCacheRules": func(any) (any, error) {
+			return &ecr.DescribePullThroughCacheRulesOutput{PullThroughCacheRules: []ecrtypes.PullThroughCacheRule{{EcrRepositoryPrefix: ptrStr("hub")}}}, nil
+		},
+		"DescribeRegistries": func(any) (any, error) { return &ecrpublic.DescribeRegistriesOutput{}, nil },
+		"BatchGetRepositoryScanningConfiguration": func(any) (any, error) {
+			called = true
+			return nil, ecrPubServerErr
+		},
+	}, ecrPubDenied)
+
+	total, _, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
+	if !called {
+		t.Fatal("BatchGetRepositoryScanningConfiguration never called")
+	}
+	assertAPICode(t, err, "ServerException")
+	if total != 4 {
+		t.Errorf("total = %d, want 4 (two repositories, pull-through-cache rule, public repository)", total)
 	}
 	for typ, want := range map[string]string{
 		TypeECRPullThroughCacheRule: "arn:aws:ecr:us-east-1:123456789012:pull-through-cache-rule/hub",

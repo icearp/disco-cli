@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.1% (1937/3336 listable) · depth0 70.3% · depth1 40.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.1% (1938/3336 listable) · depth0 70.3% · depth1 40.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1032 | 189 | 84.5 |
-| child-uncatalogued | 260 | 757 | 25.6 |
+| child-uncatalogued | 261 | 756 | 25.7 |
 | smithy-resource | 426 | 136 | 75.8 |
 | element-written | 179 | 237 | 43.0 |
 | element-arn | 34 | 72 | 32.1 |
@@ -186,7 +186,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | detective | 3 | 2 | 60.0 |
 | directconnect | 8 | 2 | 80.0 |
 | ds | 9 | 2 | 81.8 |
-| ecr | 3 | 2 | 60.0 |
 | elasticache | 12 | 2 | 85.7 |
 | entityresolution | 4 | 2 | 66.7 |
 | finspace | 8 | 2 | 80.0 |
@@ -248,6 +247,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dataexchange | 6 | 1 | 85.7 |
 | datasync | 4 | 1 | 80.0 |
 | docdb-elastic | 2 | 1 | 66.7 |
+| ecr | 4 | 1 | 80.0 |
 | ecr-public | 2 | 1 | 66.7 |
 | elasticfilesystem | 3 | 1 | 75.0 |
 | elasticloadbalancing | 7 | 1 | 87.5 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1399)
+### Uncovered (listable, no scanner) (1398)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -901,7 +901,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/vpcendpointserviceconfiguration | 0 |  | element-written | ec2:DescribeVpcEndpointServiceConfigurations |
 | ec2 | ec2/vpcresourcesblockingencryptionenforcement | 1 |  | child-uncatalogued | ec2:GetVpcResourcesBlockingEncryptionEnforcement |
 | ec2 | ec2/vpnconnectiondevicetype | 0 |  | sr-resource | ec2:GetVpnConnectionDeviceTypes |
-| ecr | ecr/getrepositoryscanningconfiguration | 1 |  | child-uncatalogued | ecr:BatchGetRepositoryScanningConfiguration |
 | ecr | ecr/image | 1 |  | child-uncatalogued | ecr:DescribeImageReplicationStatus, ecr:DescribeImageSigningStatus, ecr:DescribeImages, ecr:ListImages |
 | ecr-public | ecr-public/image | 1 |  | child-uncatalogued | ecr-public:DescribeImages |
 | ecs | ecs/accountsetting | 0 |  | element-written | ecs:ListAccountSettings |

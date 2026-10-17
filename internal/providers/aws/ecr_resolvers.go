@@ -19,14 +19,16 @@ func init() {
 		EdgeDecl{TypeECRReplicationConfiguration, TypeECRRepository, store.RelUses},
 	)
 	registerResolver(
-		noopECRPublicHierarchy,
+		noopECRHierarchy,
 		EdgeDecl{TypeECRPublicRegistry, TypeECRPublicRepository, store.RelContains},
+		EdgeDecl{TypeECRRepository, TypeECRRepositoryScanningConfig, store.RelContains},
 	)
 }
 
-// noopECRPublicHierarchy only declares the registry→repository contains edge;
-// scanECRPublicRegistries records it via RecordHierarchyBatch.
-func noopECRPublicHierarchy(_ *account, _ *store.Store) error {
+// noopECRHierarchy only declares the contains edges the scanners record:
+// public registry→repository (scanECRPublicRegistries) and
+// repository→scanning configuration (scanECRRepositoryScanningConfigs).
+func noopECRHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }
 

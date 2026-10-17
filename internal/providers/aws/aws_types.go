@@ -434,6 +434,7 @@ const (
 	TypeECRRegistryScanningConfig     = "aws:ecr:registry-scanning-configuration"
 	TypeECRReplicationConfiguration   = "aws:ecr:replication-configuration"
 	TypeECRRepositoryCreationTemplate = "aws:ecr:repository-creation-template"
+	TypeECRRepositoryScanningConfig   = "aws:ecr:repository-scanning-configuration"
 	TypeECRSigningConfiguration       = "aws:ecr:signing-configuration"
 	// ElastiCache
 	TypeElastiCacheReplicationGroup       = "aws:elasticache:replication-group"

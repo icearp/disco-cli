@@ -4,11 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
 	ecrpublictypes "github.com/aws/aws-sdk-go-v2/service/ecrpublic/types"
 	"github.com/icearp/disco-cli/store"
+	"golang.org/x/sync/errgroup"
 )
 
 // ecrExtAPI lists the ECR ops used by the extended scanner phases: registry-
@@ -22,6 +27,7 @@ type ecrExtAPI interface {
 	DescribeRegistry(context.Context, *ecr.DescribeRegistryInput, ...func(*ecr.Options)) (*ecr.DescribeRegistryOutput, error)
 	DescribeRepositoryCreationTemplates(context.Context, *ecr.DescribeRepositoryCreationTemplatesInput, ...func(*ecr.Options)) (*ecr.DescribeRepositoryCreationTemplatesOutput, error)
 	GetSigningConfiguration(context.Context, *ecr.GetSigningConfigurationInput, ...func(*ecr.Options)) (*ecr.GetSigningConfigurationOutput, error)
+	BatchGetRepositoryScanningConfiguration(context.Context, *ecr.BatchGetRepositoryScanningConfigurationInput, ...func(*ecr.Options)) (*ecr.BatchGetRepositoryScanningConfigurationOutput, error)
 }
 
 func ecrSingletonARN(region, acct, kind string) string {
@@ -211,6 +217,142 @@ func scanECRSigningConfiguration(ctx context.Context, client ecrExtAPI, acct *ac
 		Name: &label, Region: &region, AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}}
 	return upsertBatch(st, batch, "ecr signing-configuration")
+}
+
+// ecrScanningConfigBatchMax is the model's cap on the repositoryNames of one
+// BatchGetRepositoryScanningConfiguration call.
+const ecrScanningConfigBatchMax = 25
+
+var errECRScanningConfigUnnamed = errors.New("response element has no repositoryName")
+
+// ecrRepoScanningConfigNativeID is the scanning configuration's id, derived
+// from its repository's ARN so that it keeps the repository's partition. The
+// kind goes before the name, which may contain "/": a "{repoARN}/<kind>"
+// suffix would collide with a repository named "<name>/<kind>".
+func ecrRepoScanningConfigNativeID(repoARN, name string) (string, error) {
+	a, err := arn.Parse(repoARN)
+	if err != nil {
+		return "", err
+	}
+	a.Resource = "repository-scanning-configuration/" + name
+	return a.String(), nil
+}
+
+// scanECRRepositoryScanningConfigs stores the scanning configuration ECR
+// reports for each of repos (the repositories the repository phase stored this
+// scan), under its repository. It does not repeat the registry scanning
+// configuration: that row holds the registry's rules, this one the frequency
+// and the rule filters that apply to one repository.
+//
+// Per batch: see ecrScanningConfigBatch; any error it returns fails the
+// phase. Per repository: failure code REPOSITORY_NOT_FOUND (deleted since it
+// was listed) is dropped silently. Three other reasons drop a repository's
+// row, each with one warning covering every repository it dropped: any other
+// failure code, an element without a repositoryName, and an element whose
+// repository has no usable stored ARN (none of that name in repos, or one
+// that does not parse).
+func scanECRRepositoryScanningConfigs(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string, repos []childParent) (int, int, error) {
+	const op = "ecr:BatchGetRepositoryScanningConfiguration"
+	repoARN := make(map[string]string, len(repos))
+	names := make([]string, 0, len(repos))
+	for _, r := range repos {
+		repoARN[r.id] = r.arn
+		names = append(names, r.id)
+	}
+	var (
+		mu                                 sync.Mutex
+		children                           []containedChild
+		failedRepos, unnamedEl, unparented skipTally
+	)
+	errs := &fanOutErrs{st: st, acct: acct, region: region, op: op, isSkip: func(error) bool { return false }}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(fanoutMed)
+	for batch := range slices.Chunk(names, ecrScanningConfigBatchMax) {
+		g.Go(func() error {
+			out, err := ecrScanningConfigBatch(gctx, client, batch, errs)
+			if err != nil {
+				return err
+			}
+			for _, f := range out.Failures {
+				if f.FailureCode != ecrtypes.ScanningConfigurationFailureCodeRepositoryNotFound {
+					failedRepos.skipped(sv(f.RepositoryName), fmt.Errorf("%s: %s", f.FailureCode, sv(f.FailureReason)))
+				}
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			for _, c := range out.ScanningConfigurations {
+				name := sv(c.RepositoryName)
+				if name == "" {
+					unnamedEl.skipped(sv(c.RepositoryArn), errECRScanningConfigUnnamed)
+					continue
+				}
+				// A name not in repos maps to "", which fails the parse.
+				parentARN := repoARN[name]
+				nativeID, err := ecrRepoScanningConfigNativeID(parentARN, name)
+				if err != nil {
+					unparented.skipped(name, err)
+					continue
+				}
+				children = append(children, containedChild{row: &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeECRRepositoryScanningConfig, NativeID: nativeID,
+					Name: &name, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				}, parentID: store.ResourceID("aws", acct.ID, parentARN)})
+			}
+			return nil
+		})
+	}
+	err := g.Wait()
+	failedRepos.warnCode(st, op, acct, region, "a failure code other than REPOSITORY_NOT_FOUND", "repository(ies)",
+		"ECR reported a per-repository failure this scanner does not recognise")
+	unnamedEl.warnCode(st, op, acct, region, "no repositoryName", "scanning configuration(s)",
+		"the row's NativeID is built from it")
+	unparented.warnCode(st, op, acct, region, "no usable repository ARN", "scanning configuration(s)",
+		"the row's NativeID is built from its repository's ARN")
+	if err != nil {
+		return 0, 0, err
+	}
+	return upsertContained(st, op, children)
+}
+
+// ecrScanningConfigBatch gets the scanning configurations of names, returning
+// an empty output for names dropped and an error only for one errs.keyErr
+// does not drop (a denial warns once and is dropped).
+//
+// The model lists RepositoryNotFoundException for the whole call besides the
+// per-repository REPOSITORY_NOT_FOUND failure. Whether one repository deleted
+// since it was listed fails its whole batch that way is unverified, so on that
+// code each name of a multi-name batch is asked alone (at most
+// ecrScanningConfigBatchMax calls, on a rare path) and a name not found alone
+// is dropped silently, like REPOSITORY_NOT_FOUND.
+func ecrScanningConfigBatch(ctx context.Context, client ecrExtAPI, names []string, errs *fanOutErrs) (*ecr.BatchGetRepositoryScanningConfigurationOutput, error) {
+	get := func(names []string) (*ecr.BatchGetRepositoryScanningConfigurationOutput, error) {
+		return client.BatchGetRepositoryScanningConfiguration(ctx, &ecr.BatchGetRepositoryScanningConfigurationInput{RepositoryNames: names})
+	}
+	out, err := get(names)
+	merged := &ecr.BatchGetRepositoryScanningConfigurationOutput{}
+	switch {
+	case err == nil:
+		return out, nil
+	case !isAPIErrorCode(err, "RepositoryNotFoundException"):
+		return merged, errs.keyErr(fmt.Sprintf("batch of %d from %s", len(names), names[0]), err)
+	case len(names) == 1:
+		return merged, nil
+	}
+	for _, name := range names {
+		one, err := get([]string{name})
+		switch {
+		case err == nil:
+			merged.ScanningConfigurations = append(merged.ScanningConfigurations, one.ScanningConfigurations...)
+			merged.Failures = append(merged.Failures, one.Failures...)
+		case isAPIErrorCode(err, "RepositoryNotFoundException"):
+		default:
+			if kerr := errs.keyErr(name, err); kerr != nil {
+				return nil, kerr
+			}
+		}
+	}
+	return merged, nil
 }
 
 // ecrPublicAPI lists the ECR Public ops scanECRPublic calls.
