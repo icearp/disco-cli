@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 58.273381294964025,
-    "covered": 1944,
-    "uncovered": 1392,
+    "percent": 58.303357314148684,
+    "covered": 1945,
+    "uncovered": 1391,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -97,6 +97,7 @@
       "appflow/flow",
       "application-autoscaling/scalabletarget",
       "application-autoscaling/scalingpolicy",
+      "application-autoscaling/scheduledaction",
       "application-signals/groupingattributedefinition",
       "application-signals/instrumentationconfiguration",
       "application-signals/servicelevelobjective",
@@ -1989,7 +1990,6 @@
       "appconfig/experimentrun",
       "appfabric/useraccesstask",
       "appflow/flowexecutionrecord",
-      "application-autoscaling/scheduledaction",
       "application-cost-profiler/reportdefinition",
       "application-signals/getservicelevelobjectivebudgetreport",
       "applicationinsights/configurationhistory",

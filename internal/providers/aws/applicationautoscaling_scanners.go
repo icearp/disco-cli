@@ -2,8 +2,10 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
 	aastypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -13,6 +15,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeApplicationAutoScalingScalableTarget, Service: "application-autoscaling"})
 	registerType(restype.Descriptor{Type: TypeApplicationAutoScalingScalingPolicy, Service: "application-autoscaling"})
+	registerType(restype.Descriptor{Type: TypeApplicationAutoScalingScheduledAction, Service: "application-autoscaling"})
 	registerService(serviceEntry{
 		name: "aws:application-autoscaling",
 		fn:   scanApplicationAutoScaling,
@@ -20,9 +23,9 @@ func init() {
 }
 
 // applicationAutoScalingNamespaces enumerates every ServiceNamespace exposed
-// by Application Auto Scaling. Both DescribeScalableTargets and
-// DescribeScalingPolicies require ServiceNamespace per call, so the scanner
-// fans out across this list.
+// by Application Auto Scaling. DescribeScalableTargets,
+// DescribeScalingPolicies and DescribeScheduledActions require
+// ServiceNamespace per call, so the scanner fans out across this list.
 var applicationAutoScalingNamespaces = []aastypes.ServiceNamespace{
 	aastypes.ServiceNamespaceEcs,
 	aastypes.ServiceNamespaceEmr,
@@ -42,11 +45,11 @@ var applicationAutoScalingNamespaces = []aastypes.ServiceNamespace{
 }
 
 // applicationAutoScalingAPI is the narrow surface scanApplicationAutoScaling
-// uses. DescribeScalableTargets has manual NextToken pagination (no SDK
-// paginator helper); DescribeScalingPolicies has a paginator.
+// uses.
 type applicationAutoScalingAPI interface {
 	DescribeScalableTargets(context.Context, *applicationautoscaling.DescribeScalableTargetsInput, ...func(*applicationautoscaling.Options)) (*applicationautoscaling.DescribeScalableTargetsOutput, error)
 	DescribeScalingPolicies(context.Context, *applicationautoscaling.DescribeScalingPoliciesInput, ...func(*applicationautoscaling.Options)) (*applicationautoscaling.DescribeScalingPoliciesOutput, error)
+	DescribeScheduledActions(context.Context, *applicationautoscaling.DescribeScheduledActionsInput, ...func(*applicationautoscaling.Options)) (*applicationautoscaling.DescribeScheduledActionsOutput, error)
 }
 
 // applicationAutoScalingScalableTargetNativeID synthesizes the NativeID for
@@ -56,17 +59,32 @@ func applicationAutoScalingScalableTargetNativeID(region, acct, namespace, resou
 	return fmt.Sprintf("arn:aws:application-autoscaling:%s:%s:scalable-target/%s/%s/%s", region, acct, namespace, resourceID, dimension)
 }
 
-func scanApplicationAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanApplicationAutoScaling discovers Application Auto Scaling scalable
+// targets, scaling policies and scheduled actions in one region.
+//
+// The older phases (targets, then policies) stop at their first hard error.
+// The scheduled action phase runs after them whatever they returned, so its
+// failure costs no older phase its rows and theirs does not skip it. Each
+// side's transient error is demoted to a warning, since one transient member
+// would make the dispatcher read the whole join as transient; the counts are
+// summed.
+func scanApplicationAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := applicationautoscaling.NewFromConfig(acct.cfg, func(o *applicationautoscaling.Options) { o.Region = region })
+	total, inserted, err := scanApplicationAutoScalingOlderPhases(ctx, client, acct, region, st, scanID)
+	t, i, serr := scanApplicationAutoScalingScheduledActions(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + i, errors.Join(
+		demoteTransient(st, "application-autoscaling", acct, region, err),
+		demoteTransient(st, applicationAutoScalingScheduledActionsOp, acct, region, serr),
+	)
+}
+
+func scanApplicationAutoScalingOlderPhases(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	tTotal, tInserted, err := scanApplicationAutoScalingScalableTargets(ctx, client, acct, region, st, scanID)
 	if err != nil {
 		return tTotal, tInserted, err
 	}
 	pTotal, pInserted, err := scanApplicationAutoScalingScalingPolicies(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return tTotal + pTotal, tInserted + pInserted, err
-	}
-	return tTotal + pTotal, tInserted + pInserted, nil
+	return tTotal + pTotal, tInserted + pInserted, err
 }
 
 func scanApplicationAutoScalingScalableTargets(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -168,6 +186,60 @@ func scanApplicationAutoScalingScalingPolicies(ctx context.Context, client appli
 				}
 				total += len(batch)
 				inserted += n
+			}
+		}
+	}
+	return total, inserted, nil
+}
+
+const applicationAutoScalingScheduledActionsOp = "application-autoscaling:DescribeScheduledActions"
+
+// scanApplicationAutoScalingScheduledActions lists every namespace's scheduled
+// actions a page at a time, storing each page as it arrives. A denial ends
+// the phase with one warning: the Describe actions take no resource-level
+// scoping, so a denial in one namespace is a denial in all of them.
+func scanApplicationAutoScalingScheduledActions(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	const op = applicationAutoScalingScheduledActionsOp
+	for _, ns := range applicationAutoScalingNamespaces {
+		p := applicationautoscaling.NewDescribeScheduledActionsPaginator(client, &applicationautoscaling.DescribeScheduledActionsInput{
+			ServiceNamespace: ns,
+			MaxResults:       sdkaws.Int32(50),
+		})
+		for p.HasMorePages() {
+			page, perr := p.NextPage(ctx)
+			if perr != nil {
+				if isAPIErrorWithMessage(perr, "ValidationException", "Member must satisfy enum value set") {
+					break
+				}
+				if isAccessDenied(perr) {
+					return total, inserted, skipIfAccessDenied(st, op, acct.ID, region, perr)
+				}
+				return total, inserted, fmt.Errorf("%s %s: %w", op, ns, perr)
+			}
+			batch := make([]*store.Resource, 0, len(page.ScheduledActions))
+			for _, sa := range page.ScheduledActions {
+				arn := sv(sa.ScheduledActionARN)
+				if arn == "" {
+					continue
+				}
+				batch = append(batch, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeApplicationAutoScalingScheduledAction,
+					NativeID:       arn,
+					Name:           sa.ScheduledActionName,
+					Region:         &region,
+					CreatedAt:      tp(sa.CreationTime),
+					AttributesJSON: mustJSON(sa),
+					DiscoveredBy:   scanID,
+				})
+			}
+			t, i, uerr := upsertBatch(st, batch, op)
+			total += t
+			inserted += i
+			if uerr != nil {
+				return total, inserted, uerr
 			}
 		}
 	}

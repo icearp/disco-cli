@@ -2015,11 +2015,12 @@ const (
 	TypeAPIGatewayV2VpcLink = "aws:apigatewayv2:vpc-link"
 	// AppFlow (appflow_scanners.go, appflow_resolvers.go)
 	// Application Auto Scaling (applicationautoscaling_scanners.go)
-	TypeApplicationAutoScalingScalableTarget = "aws:application-autoscaling:scalable-target"
-	TypeApplicationAutoScalingScalingPolicy  = "aws:application-autoscaling:scaling-policy"
-	TypeAppFlowFlow                          = "aws:appflow:flow"
-	TypeAppFlowConnector                     = "aws:appflow:connector"
-	TypeAppFlowConnectorProfile              = "aws:appflow:connector-profile"
+	TypeApplicationAutoScalingScalableTarget  = "aws:application-autoscaling:scalable-target"
+	TypeApplicationAutoScalingScalingPolicy   = "aws:application-autoscaling:scaling-policy"
+	TypeApplicationAutoScalingScheduledAction = "aws:application-autoscaling:scheduled-action"
+	TypeAppFlowFlow                           = "aws:appflow:flow"
+	TypeAppFlowConnector                      = "aws:appflow:connector"
+	TypeAppFlowConnectorProfile               = "aws:appflow:connector-profile"
 	// AppIntegrations (appintegrations_scanners.go, appintegrations_resolvers.go)
 	TypeAppIntegrationsApplication                 = "aws:appintegrations:application"
 	TypeAppIntegrationsApplicationAssociation      = "aws:appintegrations:application-association"

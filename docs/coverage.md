@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.3% (1944/3336 listable) · depth0 70.5% · depth1 40.6% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.3% (1945/3336 listable) · depth0 70.5% · depth1 40.6% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1032 | 189 | 84.5 |
 | child-uncatalogued | 264 | 753 | 26.0 |
 | smithy-resource | 426 | 136 | 75.8 |
-| element-written | 182 | 234 | 43.8 |
+| element-written | 183 | 233 | 44.0 |
 | element-arn | 34 | 72 | 32.1 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -225,7 +225,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | appconfig | 9 | 1 | 90.0 |
 | appfabric | 4 | 1 | 80.0 |
 | appflow | 3 | 1 | 75.0 |
-| application-autoscaling | 2 | 1 | 66.7 |
 | application-cost-profiler | 0 | 1 | 0.0 |
 | application-signals | 3 | 1 | 75.0 |
 | applicationinsights | 5 | 1 | 83.3 |
@@ -305,6 +304,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aoss | 7 | 0 | 100.0 |
 | apigateway | 29 | 0 | 100.0 |
 | app-integrations | 6 | 0 | 100.0 |
+| application-autoscaling | 3 | 0 | 100.0 |
 | appmesh | 7 | 0 | 100.0 |
 | appsync | 10 | 0 | 100.0 |
 | aps | 4 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1392)
+### Uncovered (listable, no scanner) (1391)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -394,7 +394,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | appconfig | appconfig/experimentrun | 1 |  | sr-resource | appconfig:GetExperimentRun, appconfig:ListExperimentRuns |
 | appfabric | appfabric/useraccesstask | 1 |  | child-uncatalogued | appfabric:BatchGetUserAccessTasks |
 | appflow | appflow/flowexecutionrecord | 1 |  | child-uncatalogued | appflow:DescribeFlowExecutionRecords |
-| application-autoscaling | application-autoscaling/scheduledaction | 0 |  | element-written | application-autoscaling:DescribeScheduledActions |
 | application-cost-profiler | application-cost-profiler/reportdefinition | 0 |  | element-written | application-cost-profiler:GetReportDefinition, application-cost-profiler:ListReportDefinitions |
 | application-signals | application-signals/getservicelevelobjectivebudgetreport | 1 |  | child-uncatalogued | application-signals:BatchGetServiceLevelObjectiveBudgetReport |
 | applicationinsights | applicationinsights/configurationhistory | 0 |  | element-arn | applicationinsights:ListConfigurationHistory |
