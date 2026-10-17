@@ -540,7 +540,8 @@ const (
 	// cloudwatch, scanned via the applicationsignals SDK (applicationsignals_scanners.go).
 	TypeCloudWatchService = "aws:cloudwatch:service"
 	// Cloud9 (cloud9_scanners.go)
-	TypeCloud9EnvironmentEC2 = "aws:cloud9:environment-ec2"
+	TypeCloud9EnvironmentEC2        = "aws:cloud9:environment-ec2"
+	TypeCloud9EnvironmentMembership = "aws:cloud9:environment-membership"
 	// Chime (chime_scanners.go)
 	TypeChimeAppInstance                         = "aws:chime:app-instance"
 	TypeChimeAppInstanceBot                      = "aws:chime:app-instance-bot"

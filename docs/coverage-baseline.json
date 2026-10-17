@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 58.303357314148684,
-    "covered": 1945,
-    "uncovered": 1391,
+    "percent": 58.333333333333336,
+    "covered": 1946,
+    "uncovered": 1390,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -323,6 +323,7 @@
       "cleanrooms/membership",
       "cleanrooms/privacybudgettemplate",
       "cloud9/environment",
+      "cloud9/environmentmembership",
       "clouddirectory/appliedschemaarn",
       "clouddirectory/directory",
       "cloudformation/generatedtemplate",
@@ -2146,7 +2147,6 @@
       "cleanrooms/protectedjob",
       "cleanrooms/protectedquery",
       "cleanrooms/schema",
-      "cloud9/environmentmembership",
       "cloudcontrolapi/resource",
       "cloudcontrolapi/resourcerequest",
       "clouddirectory/facetattribute",
