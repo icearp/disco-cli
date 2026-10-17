@@ -4,9 +4,15 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-func init() { registerResolver(resolveApplicationSignalsRelationships) }
+func init() {
+	registerResolver(resolveApplicationSignalsRelationships,
+		EdgeDecl{TypeCloudWatchService, TypeApplicationSignalsInstrumentationConfiguration, store.RelContains})
+}
 
-// resolveApplicationSignalsRelationships is a no-op by design.
+// resolveApplicationSignalsRelationships is a no-op by design. The
+// service → instrumentation-configuration contains edge it declares is
+// written by scanApplicationSignalsInstrumentationConfigurations through the
+// hierarchy closure.
 //
 // ListServiceLevelObjectives' ServiceLevelObjectiveSummary fields (Arn, Name,
 // EvaluationType, OperationName, DependencyConfig, KeyAttributes,

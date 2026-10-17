@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.9% (1933/3336 listable) · depth0 70.3% · depth1 40.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.0% (1934/3336 listable) · depth0 70.3% · depth1 40.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1032 | 189 | 84.5 |
 | child-uncatalogued | 259 | 758 | 25.5 |
 | smithy-resource | 424 | 138 | 75.4 |
-| element-written | 178 | 238 | 42.8 |
+| element-written | 179 | 237 | 43.0 |
 | element-arn | 34 | 72 | 32.1 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -175,7 +175,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | xray | 4 | 3 | 57.1 |
 | account-access | 0 | 2 | 0.0 |
 | amplify | 5 | 2 | 71.4 |
-| application-signals | 2 | 2 | 50.0 |
 | apprunner | 6 | 2 | 75.0 |
 | arc-zonal-shift | 1 | 2 | 33.3 |
 | artifact | 2 | 2 | 50.0 |
@@ -236,6 +235,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | appflow | 3 | 1 | 75.0 |
 | application-autoscaling | 2 | 1 | 66.7 |
 | application-cost-profiler | 0 | 1 | 0.0 |
+| application-signals | 3 | 1 | 75.0 |
 | applicationinsights | 5 | 1 | 83.3 |
 | awsssoportal | 0 | 1 | 0.0 |
 | billing | 1 | 1 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1403)
+### Uncovered (listable, no scanner) (1402)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -397,7 +397,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | application-autoscaling | application-autoscaling/scheduledaction | 0 |  | element-written | application-autoscaling:DescribeScheduledActions |
 | application-cost-profiler | application-cost-profiler/reportdefinition | 0 |  | element-written | application-cost-profiler:GetReportDefinition, application-cost-profiler:ListReportDefinitions |
 | application-signals | application-signals/getservicelevelobjectivebudgetreport | 1 |  | child-uncatalogued | application-signals:BatchGetServiceLevelObjectiveBudgetReport |
-| application-signals | application-signals/instrumentationconfiguration | 0 |  | element-written | application-signals:GetInstrumentationConfiguration, application-signals:ListInstrumentationConfigurations |
 | applicationinsights | applicationinsights/configurationhistory | 0 |  | element-arn | applicationinsights:ListConfigurationHistory |
 | apprunner | apprunner/customdomain | 1 |  | child-uncatalogued | apprunner:DescribeCustomDomains |
 | apprunner | apprunner/operation | 1 |  | child-uncatalogued | apprunner:ListOperations |

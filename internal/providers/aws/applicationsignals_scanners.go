@@ -2,12 +2,14 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/applicationsignals"
+	applicationsignalstypes "github.com/aws/aws-sdk-go-v2/service/applicationsignals/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -16,17 +18,30 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeApplicationSignalsSLO, Service: "applicationsignals"})
 	registerType(restype.Descriptor{Type: TypeApplicationSignalsGroupingConfiguration, Service: "applicationsignals"})
 	registerType(restype.Descriptor{Type: TypeCloudWatchService, Service: "cloudwatch"})
+	registerType(restype.Descriptor{Type: TypeApplicationSignalsInstrumentationConfiguration, Service: "applicationsignals"})
 	registerService(serviceEntry{
 		name: "aws:applicationsignals",
 		fn:   scanApplicationSignals,
 	})
 }
 
+const (
+	appSignalsListServicesOp                            = "applicationsignals:ListServices"
+	appSignalsListInstrumentationConfigurationsOp       = "applicationsignals:ListInstrumentationConfigurations"
+	appSignalsInstrumentationPageLimit            int32 = 100 // model cap (MaxResults 1..100)
+)
+
 type applicationSignalsAPI interface {
 	ListServiceLevelObjectives(context.Context, *applicationsignals.ListServiceLevelObjectivesInput, ...func(*applicationsignals.Options)) (*applicationsignals.ListServiceLevelObjectivesOutput, error)
 	ListGroupingAttributeDefinitions(context.Context, *applicationsignals.ListGroupingAttributeDefinitionsInput, ...func(*applicationsignals.Options)) (*applicationsignals.ListGroupingAttributeDefinitionsOutput, error)
 	ListServices(context.Context, *applicationsignals.ListServicesInput, ...func(*applicationsignals.Options)) (*applicationsignals.ListServicesOutput, error)
+	ListInstrumentationConfigurations(context.Context, *applicationsignals.ListInstrumentationConfigurationsInput, ...func(*applicationsignals.Options)) (*applicationsignals.ListInstrumentationConfigurationsOutput, error)
 }
+
+// applicationSignalsService is an instrumented service stored by the services
+// phase: the name and environment ListInstrumentationConfigurations keys on,
+// and the service row's NativeID.
+type applicationSignalsService struct{ name, environment, nativeID string }
 
 // applicationSignalsServiceNativeID synthesizes a stable NativeID for an
 // Application Signals service. The SDK exposes no ARN — identity is the
@@ -52,6 +67,12 @@ func applicationSignalsGroupingConfigurationNativeID(region, acct string) string
 	return fmt.Sprintf("arn:aws:application-signals:%s:%s:grouping-configuration", region, acct)
 }
 
+// scanApplicationSignals runs the SLO, grouping-configuration and services
+// phases, then lists the instrumentation configurations of every instrumented
+// service the services phase stored, whatever that phase returned. The
+// services phase's transient error is demoted to a warning, since one
+// transient member would make the dispatcher read the whole join as
+// transient; the counts are summed.
 func scanApplicationSignals(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := applicationsignals.NewFromConfig(acct.cfg, func(o *applicationsignals.Options) { o.Region = region })
 	sloTotal, sloInserted, err := scanApplicationSignalsSLOs(ctx, client, acct, region, st, scanID)
@@ -62,19 +83,20 @@ func scanApplicationSignals(ctx context.Context, acct *account, region string, s
 	if err != nil {
 		return sloTotal + gcTotal, sloInserted + gcInserted, err
 	}
-	svcTotal, svcInserted, err := scanApplicationSignalsServices(ctx, client, acct, region, st, scanID, time.Now())
-	if err != nil {
-		return sloTotal + gcTotal + svcTotal, sloInserted + gcInserted + svcInserted, err
-	}
-	return sloTotal + gcTotal + svcTotal, sloInserted + gcInserted + svcInserted, nil
+	total, inserted = sloTotal+gcTotal, sloInserted+gcInserted
+	t, i, services, serr := scanApplicationSignalsServices(ctx, client, acct, region, st, scanID, time.Now())
+	total, inserted = total+t, inserted+i
+	t, i, ierr := scanApplicationSignalsInstrumentationConfigurations(ctx, client, acct, region, st, scanID, services)
+	return total + t, inserted + i, errors.Join(demoteTransient(st, appSignalsListServicesOp, acct, region, serr), ierr)
 }
 
 // scanApplicationSignalsServices lists Application Signals services seen in
 // the trailing 24h. ListServices requires a time window and returns only
 // services with telemetry in it — a service quiet longer than the window
 // won't appear (inherent API limit). Services carry no ARN; NativeID is
-// synthesized from KeyAttributes.
-func scanApplicationSignalsServices(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string, now time.Time) (total, inserted int, err error) {
+// synthesized from KeyAttributes. It returns the instrumented services
+// (KeyAttributes Type "Service") stored before any failure.
+func scanApplicationSignalsServices(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string, now time.Time) (total, inserted int, services []applicationSignalsService, err error) {
 	start := now.Add(-24 * time.Hour)
 	in := &applicationsignals.ListServicesInput{
 		StartTime: &start,
@@ -85,38 +107,164 @@ func scanApplicationSignalsServices(ctx context.Context, client applicationSigna
 		page, perr := p.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "applicationsignals:ListServices", acct.ID, region, perr)
+				return total, inserted, services, skipIfAccessDenied(st, appSignalsListServicesOp, acct.ID, region, perr)
 			}
-			return total, inserted, fmt.Errorf("applicationsignals:ListServices: %w", perr)
+			return total, inserted, services, fmt.Errorf("%s: %w", appSignalsListServicesOp, perr)
 		}
 		batch := make([]*store.Resource, 0, len(page.ServiceSummaries))
+		var instrumented []applicationSignalsService
 		for _, s := range page.ServiceSummaries {
 			if len(s.KeyAttributes) == 0 {
 				continue
 			}
 			name := s.KeyAttributes["Name"]
+			nativeID := applicationSignalsServiceNativeID(region, acct.ID, s.KeyAttributes)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeCloudWatchService,
-				NativeID:       applicationSignalsServiceNativeID(region, acct.ID, s.KeyAttributes),
+				NativeID:       nativeID,
 				Name:           &name,
 				Region:         &region,
 				AttributesJSON: mustJSON(s),
 				DiscoveredBy:   scanID,
 			})
+			// Only Type "Service" names an application reporting its own
+			// service.name, which is what an instrumentation configuration
+			// targets; RemoteService and AWS::Service are callees seen from it.
+			env := s.KeyAttributes["Environment"]
+			if s.KeyAttributes["Type"] == "Service" && name != "" && env != "" {
+				instrumented = append(instrumented, applicationSignalsService{name: name, environment: env, nativeID: nativeID})
+			}
 		}
 		if len(batch) > 0 {
 			n, uerr := st.UpsertResources(batch)
 			if uerr != nil {
-				return total, inserted, fmt.Errorf("upsert applicationsignals services: %w", uerr)
+				return total, inserted, services, fmt.Errorf("upsert applicationsignals services: %w", uerr)
 			}
 			total += len(batch)
 			inserted += n
+			services = append(services, instrumented...)
 		}
 	}
-	return total, inserted, nil
+	return total, inserted, services, nil
+}
+
+// isAppSignalsInstrumentationSkip reports a service whose configurations
+// cannot be listed for a reason that is not a failure: ResourceNotFound (the
+// op's modeled not-found, e.g. a service gone since ListServices), or an op
+// this region's endpoint does not serve.
+func isAppSignalsInstrumentationSkip(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException") || isOpNotDeployed(err)
+}
+
+// scanApplicationSignalsInstrumentationConfigurations stores the probe
+// instrumentation configurations of each service and links each under its
+// service. The op has no list-all form: it needs a service name and
+// environment, and services holds only the services stored this scan, i.e.
+// those ListServices reported with telemetry in the trailing 24h window. A
+// probe of a service that sent no telemetry in that window is not listed and
+// no warning says so. Services sharing a name and environment (their other
+// KeyAttributes differ) are queried once and their configurations linked under
+// the first. Per service: a skip per isAppSignalsInstrumentationSkip is
+// silent, a denial warns once, and a transient error after the SDK's retries
+// or a ValidationException skips that service with one warning for all such
+// services; anything else fails the phase.
+func scanApplicationSignalsInstrumentationConfigurations(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string, services []applicationSignalsService) (int, int, error) {
+	type nameEnv struct{ name, environment string }
+	seen := make(map[nameEnv]bool, len(services))
+	byNativeID := make(map[string]applicationSignalsService, len(services))
+	parents := make([]childParent, 0, len(services))
+	for _, s := range services {
+		key := nameEnv{s.name, s.environment}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		byNativeID[s.nativeID] = s
+		parents = append(parents, childParent{id: s.name + " in " + s.environment, arn: s.nativeID})
+	}
+	return childFanOutSkipNotReady(ctx, st, acct, region, appSignalsListInstrumentationConfigurationsOp, parents,
+		isAppSignalsInstrumentationSkip, byParentID, "service(s)",
+		"a service name or environment ListServices reports may not match the instrumentation API's input pattern",
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			return listAppSignalsInstrumentationConfigurations(ctx, client, acct, region, scanID, byNativeID[p.arn])
+		})
+}
+
+// listAppSignalsInstrumentationConfigurations lists one service's probe
+// configurations; NativeID is the returned ARN. Breakpoints are not listed:
+// they expire within 24 hours (InstrumentationTypeBreakpoint), so they are not
+// durable.
+func listAppSignalsInstrumentationConfigurations(ctx context.Context, client applicationSignalsAPI, acct *account, region, scanID string, svc applicationSignalsService) ([]*store.Resource, error) {
+	pager := applicationsignals.NewListInstrumentationConfigurationsPaginator(client,
+		&applicationsignals.ListInstrumentationConfigurationsInput{
+			Service: &svc.name, Environment: &svc.environment,
+			InstrumentationType: applicationsignalstypes.InstrumentationTypeProbe,
+		},
+		func(o *applicationsignals.ListInstrumentationConfigurationsPaginatorOptions) {
+			o.Limit = appSignalsInstrumentationPageLimit
+			o.StopOnDuplicateToken = true
+		})
+	var rows []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range out.LatestConfigurations {
+			arn := sv(c.ARN)
+			if arn == "" {
+				continue
+			}
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeApplicationSignalsInstrumentationConfiguration, NativeID: arn,
+				Name: nonEmptyPtr(sv(c.Description)), Region: &region, CreatedAt: tp(c.CreatedAt),
+				AttributesJSON: mustJSON(flattenAppSignalsInstrumentationConfiguration(c)), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return rows, nil
+}
+
+// appSignalsInstrumentationConfigurationAttrs shadows the Location and
+// CaptureConfiguration unions, which marshal as an unlabelled {"Value": ...},
+// with one key per known member so the stored row names the member kind. A
+// member newer than the pinned SDK is kept under UnknownMember with its tag and
+// its value, which is []byte and so stored base64-encoded.
+type appSignalsInstrumentationConfigurationAttrs struct {
+	applicationsignalstypes.InstrumentationConfigurationWithoutServiceEnv
+	Location             appSignalsLocationAttrs
+	CaptureConfiguration appSignalsCaptureConfigurationAttrs
+}
+
+type appSignalsLocationAttrs struct {
+	CodeLocation  *applicationsignalstypes.CodeLocation       `json:",omitempty"`
+	UnknownMember *applicationsignalstypes.UnknownUnionMember `json:",omitempty"`
+}
+
+type appSignalsCaptureConfigurationAttrs struct {
+	CodeCapture   *applicationsignalstypes.CodeCaptureConfiguration `json:",omitempty"`
+	UnknownMember *applicationsignalstypes.UnknownUnionMember       `json:",omitempty"`
+}
+
+func flattenAppSignalsInstrumentationConfiguration(c applicationsignalstypes.InstrumentationConfigurationWithoutServiceEnv) appSignalsInstrumentationConfigurationAttrs {
+	out := appSignalsInstrumentationConfigurationAttrs{InstrumentationConfigurationWithoutServiceEnv: c}
+	switch l := c.Location.(type) {
+	case *applicationsignalstypes.LocationMemberCodeLocation:
+		out.Location.CodeLocation = &l.Value
+	case *applicationsignalstypes.UnknownUnionMember:
+		out.Location.UnknownMember = l
+	}
+	switch cc := c.CaptureConfiguration.(type) {
+	case *applicationsignalstypes.CaptureConfigurationMemberCodeCapture:
+		out.CaptureConfiguration.CodeCapture = &cc.Value
+	case *applicationsignalstypes.UnknownUnionMember:
+		out.CaptureConfiguration.UnknownMember = cc
+	}
+	return out
 }
 
 // scanApplicationSignalsGroupingConfiguration upserts the singleton
