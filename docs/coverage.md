@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.8% (1960/3336 listable) · depth0 70.9% · depth1 41.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.8% (1961/3336 listable) · depth0 71.0% · depth1 41.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1034 | 187 | 84.7 |
+| sr-resource | 1035 | 186 | 84.8 |
 | child-uncatalogued | 270 | 747 | 26.5 |
 | smithy-resource | 428 | 134 | 76.2 |
 | element-written | 186 | 230 | 44.7 |
@@ -212,7 +212,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | snow-device-management | 2 | 2 | 50.0 |
 | social-messaging | 3 | 2 | 60.0 |
 | sqs | 1 | 2 | 33.3 |
-| supportauthz | 0 | 2 | 0.0 |
 | synthetics | 2 | 2 | 50.0 |
 | tax | 0 | 2 | 0.0 |
 | vpc-lattice | 13 | 2 | 86.7 |
@@ -283,6 +282,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | servicequotas | 2 | 1 | 66.7 |
 | signer | 2 | 1 | 66.7 |
 | sns | 4 | 1 | 80.0 |
+| supportauthz | 1 | 1 | 50.0 |
 | swf | 1 | 1 | 50.0 |
 | tagging | 0 | 1 | 0.0 |
 | timestream | 3 | 1 | 75.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1376)
+### Uncovered (listable, no scanner) (1375)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1658,7 +1658,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | support | support/case | 0 |  | element-written | support:DescribeCases |
 | support | support/communication | 1 |  | child-uncatalogued | support:DescribeCommunications |
 | support | support/trustedadvisorcheckrefreshstatus | 0 |  | child-uncatalogued | support:DescribeTrustedAdvisorCheckRefreshStatuses |
-| supportauthz | supportauthz/supportpermit | 0 |  | sr-resource | supportauthz:GetSupportPermit, supportauthz:ListSupportPermits |
 | supportauthz | supportauthz/supportpermitrequest | 0 |  | sr-resource | supportauthz:ListSupportPermitRequests |
 | swf | swf/workflowexecutionhistory | 1 |  | child-uncatalogued | swf:GetWorkflowExecutionHistory |
 | synthetics | synthetics/canarieslastrun | 0 |  | element-written | synthetics:DescribeCanariesLastRun |

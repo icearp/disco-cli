@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 58.752997601918466,
-    "covered": 1960,
-    "uncovered": 1376,
+    "percent": 58.78297362110312,
+    "covered": 1961,
+    "uncovered": 1375,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1822,6 +1822,7 @@
       "storagegateway/volume",
       "storagegateway/vtldevice",
       "supportapp/slackchannelconfiguration",
+      "supportauthz/supportpermit",
       "swf/domain",
       "synthetics/canary",
       "synthetics/group",
@@ -3269,7 +3270,6 @@
       "support/case",
       "support/communication",
       "support/trustedadvisorcheckrefreshstatus",
-      "supportauthz/supportpermit",
       "supportauthz/supportpermitrequest",
       "swf/workflowexecutionhistory",
       "synthetics/canarieslastrun",

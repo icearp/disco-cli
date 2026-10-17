@@ -2611,4 +2611,7 @@ const (
 
 	// Compute Optimizer Automation (acoautomation_scanners.go).
 	TypeACOAutomationAutomationRule = "aws:aco-automation:automation-rule"
+
+	// Support Authorization (supportauthz_scanners.go).
+	TypeSupportAuthZSupportPermit = "aws:supportauthz:support-permit"
 )

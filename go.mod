@@ -469,6 +469,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.3
 	github.com/aws/aws-sdk-go-v2/service/supplychain v1.20.3
 	github.com/aws/aws-sdk-go-v2/service/supportapp v1.21.3
+	github.com/aws/aws-sdk-go-v2/service/supportauthz v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/swf v1.37.3
 	github.com/aws/aws-sdk-go-v2/service/synthetics v1.47.3
 	github.com/aws/aws-sdk-go-v2/service/textract v1.43.3
