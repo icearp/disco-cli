@@ -2155,7 +2155,8 @@ const (
 	TypeRekognitionDataset         = "aws:rekognition:dataset"
 	TypeRekognitionProjectPolicy   = "aws:rekognition:project-policy"
 	// Repostspace (repostspace_scanners.go). AWS re:Post Private.
-	TypeRepostspaceSpace = "aws:repostspace:space"
+	TypeRepostspaceSpace   = "aws:repostspace:space"
+	TypeRepostspaceChannel = "aws:repostspace:channel"
 	// Route53Profiles (route53profiles_scanners.go).
 	TypeRoute53ProfilesProfile                    = "aws:route53-profiles:profile"
 	TypeRoute53ProfilesProfileAssociation         = "aws:route53-profiles:profile-association"

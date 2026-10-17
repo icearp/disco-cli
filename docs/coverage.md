@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.4% (1948/3336 listable) · depth0 70.7% · depth1 40.6% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.4% (1949/3336 listable) · depth0 70.7% · depth1 40.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1032 | 189 | 84.5 |
-| child-uncatalogued | 264 | 753 | 26.0 |
+| child-uncatalogued | 265 | 752 | 26.1 |
 | smithy-resource | 426 | 136 | 75.8 |
 | element-written | 185 | 231 | 44.5 |
 | element-arn | 35 | 71 | 33.0 |
@@ -271,7 +271,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | pricing | 0 | 1 | 0.0 |
 | pricingplanmanager | 0 | 1 | 0.0 |
 | refactor-spaces | 4 | 1 | 80.0 |
-| repostspace | 1 | 1 | 50.0 |
 | route53 | 10 | 1 | 90.9 |
 | route53-recovery-cluster | 0 | 1 | 0.0 |
 | route53-recovery-control-config | 4 | 1 | 80.0 |
@@ -340,6 +339,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | pipes | 1 | 0 | 100.0 |
 | qapps | 3 | 0 | 100.0 |
 | rbin | 1 | 0 | 100.0 |
+| repostspace | 2 | 0 | 100.0 |
 | rolesanywhere | 4 | 0 | 100.0 |
 | route53profiles | 3 | 0 | 100.0 |
 | s3-outposts | 2 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1388)
+### Uncovered (listable, no scanner) (1387)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1448,7 +1448,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | rekognition | rekognition/face | 0 |  | child-uncatalogued | rekognition:CompareFaces, rekognition:ListFaces, rekognition:SearchFacesByImage |
 | rekognition | rekognition/mediaanalysisjob | 0 |  | element-written | rekognition:GetMediaAnalysisJob, rekognition:ListMediaAnalysisJobs |
 | rekognition | rekognition/user | 1 |  | child-uncatalogued | rekognition:ListUsers, rekognition:SearchUsers, rekognition:SearchUsersByImage |
-| repostspace | repostspace/channel | 1 |  | child-uncatalogued | repostspace:GetChannel, repostspace:ListChannels |
 | resiliencehub | resiliencehub/alarmrecommendation | 1 |  | child-uncatalogued | resiliencehub:ListAlarmRecommendations |
 | resiliencehub | resiliencehub/appassessmentcompliancedrift | 1 |  | child-uncatalogued | resiliencehub:ListAppAssessmentComplianceDrifts |
 | resiliencehub | resiliencehub/appassessmentresourcedrift | 1 |  | child-uncatalogued | resiliencehub:ListAppAssessmentResourceDrifts |
