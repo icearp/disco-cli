@@ -13,6 +13,17 @@ func init() {
 		resolveOSISPipelineEndpointPipeline,
 		EdgeDecl{TypeOSISPipelineEndpoint, TypeOSISPipeline, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopOSISHierarchy,
+		EdgeDecl{TypeOSISPipeline, TypeOSISPipelineEndpointConnection, store.RelContains},
+	)
+}
+
+// noopOSISHierarchy only carries the EdgeDecl metadata for the pipeline ->
+// endpoint connection contains edges, which the scanner records itself
+// (scanOSISPipelineEndpointConnections).
+func noopOSISHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveOSISPipelineEndpointPipeline wires each VPC pipeline endpoint to the

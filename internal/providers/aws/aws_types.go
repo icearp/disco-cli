@@ -1323,9 +1323,10 @@ const (
 	// Pipes (pipes_scanners.go)
 	TypePipesPipe = "aws:pipes:pipe"
 	// OSIS (osis_scanners.go)
-	TypeOSISPipeline          = "aws:osis:pipeline"
-	TypeOSISPipelineBlueprint = "aws:osis:pipeline-blueprint"
-	TypeOSISPipelineEndpoint  = "aws:osis:pipeline-endpoint"
+	TypeOSISPipeline                   = "aws:osis:pipeline"
+	TypeOSISPipelineBlueprint          = "aws:osis:pipeline-blueprint"
+	TypeOSISPipelineEndpoint           = "aws:osis:pipeline-endpoint"
+	TypeOSISPipelineEndpointConnection = "aws:osis:pipeline-endpoint-connection"
 	// Organizations extras (organizations_extended_scanners.go)
 	TypeOrganizationsResourcePolicy = "aws:organizations:resource-policy"
 	// OpenSearch extras (opensearch_extended_scanners.go)
