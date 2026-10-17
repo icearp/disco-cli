@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -100,4 +101,81 @@ func TestResolveEFSAccessPointRelationships(t *testing.T) {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
 	assertRelationship(t, rels, fsResID, apResID, store.RelContains)
+}
+
+func TestResolveEFSReplicationDestinations(t *testing.T) {
+	cases := []struct {
+		name       string
+		owner      *string
+		seedTarget bool
+		wantEdge   bool
+	}{
+		{"same account, owner absent", nil, true, true},
+		{"same account, owner set", sdkaws.String(testAccountID), true, true},
+		{"destination not scanned", nil, false, false},
+		{"cross-account destination", sdkaws.String("999999999999"), true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			rc := efsReplication(efsTestFSA, "us-east-1")
+			rc.Destinations[0].OwnerId = tc.owner
+			repID := upsertTestResource(t, st, "aws", acct.ID, TypeEFSReplicationConfiguration, efsTestRepA, testRegion, mustJSON(rc))
+			dstID := store.ResourceID("aws", acct.ID, efsTestFSDst)
+			if tc.seedTarget {
+				upsertTestResource(t, st, "aws", acct.ID, TypeEFSFileSystem, efsTestFSDst, "us-west-2", "{}")
+			}
+			if err := resolveEFSReplicationDestinations(acct, st); err != nil {
+				t.Fatalf("resolveEFSReplicationDestinations: %v", err)
+			}
+			rels, err := st.RelationshipsFrom(repID)
+			if err != nil {
+				t.Fatalf("RelationshipsFrom: %v", err)
+			}
+			want := 0
+			if tc.wantEdge {
+				want = 1
+				assertRelationship(t, rels, repID, dstID, store.RelUses)
+			}
+			if len(rels) != want {
+				t.Errorf("edges = %v, want %d", rels, want)
+			}
+		})
+	}
+}
+
+func TestResolveEFSReplicationDestinations_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	repID := upsertTestResource(t, st, "aws", acct.ID, TypeEFSReplicationConfiguration, efsTestRepA, testRegion, "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeEFSFileSystem, efsTestFSDst, "us-west-2", "{}")
+	if err := resolveEFSReplicationDestinations(acct, st); err != nil {
+		t.Fatalf("resolveEFSReplicationDestinations: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(repID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("edges = %v, want none", rels)
+	}
+}
+
+func TestResolveEFSReplicationDestinations_DecodeErrorReturned(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	// ListResources orders by name, so the bad row "a" is read before the
+	// valid row "b", whose edge must survive the decode error.
+	upsertTestResourceNamed(t, st, TypeEFSReplicationConfiguration, efsTestRepC, testRegion, `["not an object"]`, "a")
+	repID := upsertTestResourceNamed(t, st, TypeEFSReplicationConfiguration, efsTestRepA, testRegion, mustJSON(efsReplication(efsTestFSA, "us-east-1")), "b")
+	dstID := upsertTestResource(t, st, "aws", acct.ID, TypeEFSFileSystem, efsTestFSDst, "us-west-2", "{}")
+	if err := resolveEFSReplicationDestinations(acct, st); err == nil {
+		t.Fatal("resolve: nil error, want the decode error")
+	}
+	rels, err := st.RelationshipsFrom(repID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, repID, dstID, store.RelUses)
 }

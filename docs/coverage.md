@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.4% (1947/3336 listable) · depth0 70.6% · depth1 40.6% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.4% (1948/3336 listable) · depth0 70.7% · depth1 40.6% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1032 | 189 | 84.5 |
 | child-uncatalogued | 264 | 753 | 26.0 |
 | smithy-resource | 426 | 136 | 75.8 |
-| element-written | 184 | 232 | 44.2 |
+| element-written | 185 | 231 | 44.5 |
 | element-arn | 35 | 71 | 33.0 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -242,7 +242,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | docdb-elastic | 2 | 1 | 66.7 |
 | ecr | 4 | 1 | 80.0 |
 | ecr-public | 2 | 1 | 66.7 |
-| elasticfilesystem | 3 | 1 | 75.0 |
 | elasticloadbalancing | 7 | 1 | 87.5 |
 | elemental-inference | 2 | 1 | 66.7 |
 | emr-containers | 4 | 1 | 80.0 |
@@ -322,6 +321,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dax | 3 | 0 | 100.0 |
 | dlm | 1 | 0 | 100.0 |
 | dsql | 2 | 0 | 100.0 |
+| elasticfilesystem | 4 | 0 | 100.0 |
 | firehose | 1 | 0 | 100.0 |
 | identitystore | 3 | 0 | 100.0 |
 | ivschat | 2 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1389)
+### Uncovered (listable, no scanner) (1388)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -915,7 +915,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | elasticbeanstalk | elasticbeanstalk/environmentmanagedactionhistory | 0 |  | element-written | elasticbeanstalk:DescribeEnvironmentManagedActionHistory |
 | elasticbeanstalk | elasticbeanstalk/event | 0 |  | element-arn | elasticbeanstalk:DescribeEvents |
 | elasticbeanstalk | elasticbeanstalk/instanceshealth | 0 |  | element-written | elasticbeanstalk:DescribeInstancesHealth |
-| elasticfilesystem | elasticfilesystem/replicationconfiguration | 0 |  | element-written | elasticfilesystem:DescribeReplicationConfigurations |
 | elasticloadbalancing | elasticloadbalancing/truststoreassociation | 1 |  | child-uncatalogued | elasticloadbalancing:DescribeTrustStoreAssociations |
 | elasticmapreduce | elasticmapreduce/bootstrapaction | 1 |  | child-uncatalogued | elasticmapreduce:ListBootstrapActions |
 | elasticmapreduce | elasticmapreduce/instance | 1 |  | child-uncatalogued | elasticmapreduce:ListInstances |

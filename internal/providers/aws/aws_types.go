@@ -249,6 +249,8 @@ const (
 	TypeEFSFileSystem  = "aws:efs:file-system"
 	TypeEFSMountTarget = "aws:efs:mount-target"
 	TypeEFSAccessPoint = "aws:efs:access-point"
+
+	TypeEFSReplicationConfiguration = "aws:efs:replication-configuration"
 	// WAFv2 (wafv2_scanners.go, wafv2_resolvers.go)
 	TypeWAFv2WebACL               = "aws:wafv2:web-acl"
 	TypeWAFv2RuleGroup            = "aws:wafv2:rule-group"

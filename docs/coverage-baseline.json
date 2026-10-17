@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 58.36330935251799,
-    "covered": 1947,
-    "uncovered": 1389,
+    "percent": 58.39328537170264,
+    "covered": 1948,
+    "uncovered": 1388,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -725,6 +725,7 @@
       "elasticfilesystem/accesspoint",
       "elasticfilesystem/filesystem",
       "elasticfilesystem/mounttarget",
+      "elasticfilesystem/replicationconfiguration",
       "elasticloadbalancing/listener",
       "elasticloadbalancing/listenercertificate",
       "elasticloadbalancing/loadbalancer",
@@ -2513,7 +2514,6 @@
       "elasticbeanstalk/environmentmanagedactionhistory",
       "elasticbeanstalk/event",
       "elasticbeanstalk/instanceshealth",
-      "elasticfilesystem/replicationconfiguration",
       "elasticloadbalancing/truststoreassociation",
       "elasticmapreduce/bootstrapaction",
       "elasticmapreduce/instance",
