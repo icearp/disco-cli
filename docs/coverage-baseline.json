@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 58.243405275779374,
-    "covered": 1943,
-    "uncovered": 1393,
+    "percent": 58.273381294964025,
+    "covered": 1944,
+    "uncovered": 1392,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1836,6 +1836,7 @@
       "transcribe/medicalvocabulary",
       "transcribe/vocabulary",
       "transcribe/vocabularyfilter",
+      "transfer/access",
       "transfer/agreement",
       "transfer/certificate",
       "transfer/connector",
@@ -3276,7 +3277,6 @@
       "transcribe/medicalscribejob",
       "transcribe/medicaltranscriptionjob",
       "transcribe/transcriptionjob",
-      "transfer/access",
       "transfer/execution",
       "translate/texttranslationjob",
       "trustedadvisor/organizationrecommendation",

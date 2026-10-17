@@ -83,6 +83,53 @@ func TestResolveTransferHostKeyParent(t *testing.T) {
 	assertRelationship(t, rels, hkID, sID, store.RelAttachedTo)
 }
 
+func TestResolveTransferAccessRole(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	access := transferDescribedAccess("S-1-5-21-1")
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, sv(access.Role), "", "{}")
+	aNative := transferAccessNativeID(transferTestServerARN("s-1"), "S-1-5-21-1")
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeTransferAccess, aNative, testRegion, mustJSON(access))
+	if err := resolveTransferAccessRole(acct, st); err != nil {
+		t.Fatalf("resolveTransferAccessRole: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(aID)
+	assertRelationship(t, rels, aID, rID, store.RelAssumes)
+}
+
+func TestResolveTransferAccessRole_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, sv(transferDescribedAccess("S-1-5-21-1").Role), "", "{}")
+	aNative := transferAccessNativeID(transferTestServerARN("s-1"), "S-1-5-21-1")
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeTransferAccess, aNative, testRegion, "{}")
+	if err := resolveTransferAccessRole(acct, st); err != nil {
+		t.Fatalf("resolveTransferAccessRole: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(aID)
+	if len(rels) != 0 {
+		t.Errorf("relationships = %v; want none", rels)
+	}
+}
+
+func TestResolveTransferRoleEdge_DecodeErrorReturned(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	// ListResources orders by name, so the bad row "a" is read before the
+	// valid row "b", whose edge must survive the decode error.
+	bad := transferAccessNativeID(transferTestServerARN("s-1"), "S-1-5-21-1")
+	upsertTestResourceNamed(t, st, TypeTransferAccess, bad, testRegion, `["not an object"]`, "a")
+	access := transferDescribedAccess("S-1-5-21-2")
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, sv(access.Role), "", "{}")
+	valid := transferAccessNativeID(transferTestServerARN("s-1"), "S-1-5-21-2")
+	vID := upsertTestResourceNamed(t, st, TypeTransferAccess, valid, testRegion, mustJSON(access), "b")
+	if err := resolveTransferAccessRole(acct, st); err == nil {
+		t.Fatal("resolve: nil error, want the decode error")
+	}
+	rels, _ := st.RelationshipsFrom(vID)
+	assertRelationship(t, rels, vID, rID, store.RelAssumes)
+}
+
 func TestResolveTransferHostKeyParent_NoMatch(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

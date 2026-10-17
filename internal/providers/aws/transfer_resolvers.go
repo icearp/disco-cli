@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -22,6 +23,14 @@ func init() {
 	registerResolver(
 		resolveTransferUserRole,
 		EdgeDecl{TypeTransferUser, TypeIAMRole, store.RelAssumes},
+	)
+	registerResolver(
+		resolveTransferAccessRole,
+		EdgeDecl{TypeTransferAccess, TypeIAMRole, store.RelAssumes},
+	)
+	registerResolver(
+		noopTransferHierarchy,
+		EdgeDecl{TypeTransferServer, TypeTransferAccess, store.RelContains},
 	)
 	registerResolver(
 		resolveTransferServerLoggingRole,
@@ -216,6 +225,17 @@ func resolveTransferUserRole(acct *account, st *store.Store) error {
 	return resolveTransferRoleEdge(acct, st, TypeTransferUser, "Role")
 }
 
+// resolveTransferAccessRole wires access → IAM role via `Role`.
+func resolveTransferAccessRole(acct *account, st *store.Store) error {
+	return resolveTransferRoleEdge(acct, st, TypeTransferAccess, "Role")
+}
+
+// noopTransferHierarchy only carries the EdgeDecl: scanTransferAccesses links
+// each access under its server as it stores it.
+func noopTransferHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
 // resolveTransferServerLoggingRole wires server → IAM role via `LoggingRole`.
 func resolveTransferServerLoggingRole(acct *account, st *store.Store) error {
 	return resolveTransferRoleEdge(acct, st, TypeTransferServer, "LoggingRole")
@@ -235,9 +255,13 @@ func resolveTransferRoleEdge(acct *account, st *store.Store, sourceType, fieldNa
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var raw map[string]any
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &raw); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", sourceType, r.NativeID, err))
 			continue
 		}
 		v, ok := raw[fieldName].(string)
@@ -252,5 +276,5 @@ func resolveTransferRoleEdge(acct *account, st *store.Store, sourceType, fieldNa
 			return fmt.Errorf("upsert transfer %s→role: %w", sourceType, err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }

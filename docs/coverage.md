@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.2% (1943/3336 listable) · depth0 70.5% · depth1 40.5% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.3% (1944/3336 listable) · depth0 70.5% · depth1 40.6% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1032 | 189 | 84.5 |
-| child-uncatalogued | 263 | 754 | 25.9 |
+| child-uncatalogued | 264 | 753 | 26.0 |
 | smithy-resource | 426 | 136 | 75.8 |
 | element-written | 182 | 234 | 43.8 |
 | element-arn | 34 | 72 | 32.1 |
@@ -217,7 +217,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | supportauthz | 0 | 2 | 0.0 |
 | synthetics | 2 | 2 | 50.0 |
 | tax | 0 | 2 | 0.0 |
-| transfer | 8 | 2 | 80.0 |
 | vpc-lattice | 13 | 2 | 86.7 |
 | account | 0 | 1 | 0.0 |
 | acm | 5 | 1 | 83.3 |
@@ -295,6 +294,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | swf | 1 | 1 | 50.0 |
 | tagging | 0 | 1 | 0.0 |
 | timestream | 3 | 1 | 75.0 |
+| transfer | 9 | 1 | 90.0 |
 | translate | 2 | 1 | 66.7 |
 | waf | 12 | 1 | 92.3 |
 | waf-regional | 13 | 1 | 92.9 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1393)
+### Uncovered (listable, no scanner) (1392)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1682,7 +1682,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | transcribe | transcribe/medicalscribejob | 0 |  | sr-resource | transcribe:GetMedicalScribeJob, transcribe:ListMedicalScribeJobs |
 | transcribe | transcribe/medicaltranscriptionjob | 0 |  | sr-resource | transcribe:GetMedicalTranscriptionJob, transcribe:ListMedicalTranscriptionJobs |
 | transcribe | transcribe/transcriptionjob | 0 |  | sr-resource | transcribe:GetTranscriptionJob, transcribe:ListTranscriptionJobs |
-| transfer | transfer/access | 1 |  | child-uncatalogued | transfer:DescribeAccess, transfer:ListAccesses |
 | transfer | transfer/execution | 1 |  | child-uncatalogued | transfer:DescribeExecution, transfer:ListExecutions |
 | translate | translate/texttranslationjob | 0 |  | element-written | translate:DescribeTextTranslationJob, translate:ListTextTranslationJobs |
 | trustedadvisor | trustedadvisor/organizationrecommendation | 0 |  | element-arn | trustedadvisor:GetOrganizationRecommendation, trustedadvisor:ListOrganizationRecommendations |

@@ -5,11 +5,13 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/transfer"
+	transfertypes "github.com/aws/aws-sdk-go-v2/service/transfer/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeTransferAccess, Service: "transfer"})
 	registerType(restype.Descriptor{Type: TypeTransferAgreement, Service: "transfer"})
 	registerType(restype.Descriptor{Type: TypeTransferCertificate, Service: "transfer"})
 	registerType(restype.Descriptor{Type: TypeTransferConnector, Service: "transfer"})
@@ -26,6 +28,8 @@ func init() {
 }
 
 type transferAPI interface {
+	DescribeAccess(context.Context, *transfer.DescribeAccessInput, ...func(*transfer.Options)) (*transfer.DescribeAccessOutput, error)
+	ListAccesses(context.Context, *transfer.ListAccessesInput, ...func(*transfer.Options)) (*transfer.ListAccessesOutput, error)
 	ListAgreements(context.Context, *transfer.ListAgreementsInput, ...func(*transfer.Options)) (*transfer.ListAgreementsOutput, error)
 	ListCertificates(context.Context, *transfer.ListCertificatesInput, ...func(*transfer.Options)) (*transfer.ListCertificatesOutput, error)
 	ListConnectors(context.Context, *transfer.ListConnectorsInput, ...func(*transfer.Options)) (*transfer.ListConnectorsOutput, error)
@@ -40,8 +44,8 @@ type transferAPI interface {
 func scanTransfer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := transfer.NewFromConfig(acct.cfg, func(o *transfer.Options) { o.Region = region })
 
-	// Phase 1: servers (collect IDs).
-	serverIDs, t, i, ferr := scanTransferServers(ctx, client, acct, region, st, scanID)
+	// Phase 1: servers.
+	servers, t, i, ferr := scanTransferServers(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -49,7 +53,8 @@ func scanTransfer(ctx context.Context, acct *account, region string, st *store.S
 	inserted += i
 
 	// Per-server: agreements, users.
-	for _, sid := range serverIDs {
+	for _, srv := range servers {
+		sid := srv.id
 		t, i, perr := scanTransferAgreements(ctx, client, acct, region, st, scanID, sid)
 		if perr != nil {
 			return total, inserted, perr
@@ -87,13 +92,26 @@ func scanTransfer(ctx context.Context, acct *account, region string, st *store.S
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+
+	// Accesses run last so that their failure cannot keep an older phase from running.
+	t, i, err = scanTransferAccesses(ctx, client, acct, region, st, scanID, transferDirectoryServers(servers))
+	return total + t, inserted + i, err
 }
 
-func scanTransferServers(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+// transferServer is a listed server with the identity provider type that
+// decides whether it can have accesses.
+type transferServer struct {
+	childParent
+	identityProvider transfertypes.IdentityProviderType
+}
+
+// scanTransferServers stores the listed servers and returns those with a
+// ServerId, which the per-server phases key on. Every returned server is in
+// the batch it upserts, so its row is stored when it returns without error.
+func scanTransferServers(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string) ([]transferServer, int, int, error) {
 	pager := transfer.NewListServersPaginator(client, &transfer.ListServersInput{})
 	var batch []*store.Resource
-	var ids []string
+	var servers []transferServer
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -113,7 +131,7 @@ func scanTransferServers(ctx context.Context, client transferAPI, acct *account,
 				label = arn
 			}
 			if id := sv(s.ServerId); id != "" {
-				ids = append(ids, id)
+				servers = append(servers, transferServer{childParent{id: id, arn: arn}, s.IdentityProviderType})
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -123,7 +141,7 @@ func scanTransferServers(ctx context.Context, client transferAPI, acct *account,
 		}
 	}
 	t, i, err := upsertBatch(st, batch, "transfer servers")
-	return ids, t, i, err
+	return servers, t, i, err
 }
 
 func scanTransferAgreements(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID, serverID string) (int, int, error) {
@@ -381,4 +399,139 @@ func scanTransferHostKeys(ctx context.Context, client transferAPI, acct *account
 		token = out.NextToken
 	}
 	return upsertBatch(st, batch, "transfer host-keys")
+}
+
+const (
+	transferListAccessesOp   = "transfer:ListAccesses"
+	transferDescribeAccessOp = "transfer:DescribeAccess"
+	// transferAccessPageLimit is the model's MaxResults cap for ListAccesses.
+	transferAccessPageLimit = 1000
+)
+
+// transferAccessSkipCodes are the codes the access phase skips per server with
+// one warning. ListServers also lists servers that are OFFLINE, STARTING,
+// STOPPING, START_FAILED or STOP_FAILED; whether ListAccesses refuses such a
+// server has not been observed, and failing the phase would fail it on every
+// scan while the server stays in that state. The inputs disco sets are the
+// listed server id, an ExternalId ListAccesses returned and a page size pinned
+// to the model cap by a test, so the code is not expected to name a disco input.
+var transferAccessSkipCodes = []skipCode{
+	{code: "InvalidRequestException", why: "a server that is not ONLINE may be refused"},
+}
+
+// transferDirectoryServers returns the servers that may have accesses: those
+// whose identity provider is AWS_DIRECTORY_SERVICE, and those whose type the
+// listing omitted. An access grants a directory group, keyed by its SID,
+// access to a server (CreateAccess and ExternalId docs), so a server with any
+// other identity provider has no accesses to list. IdentityProviderType is not
+// required on ListedServer, so an omitted type is unknown rather than
+// non-directory. Listing such a server is expected (not observed) to return an
+// empty list or a skipped code when it is not a directory server, while
+// leaving it out would drop any accesses it has without a warning.
+func transferDirectoryServers(servers []transferServer) []childParent {
+	var out []childParent
+	for _, s := range servers {
+		switch s.identityProvider {
+		case transfertypes.IdentityProviderTypeAwsDirectoryService, "":
+			out = append(out, s.childParent)
+		}
+	}
+	return out
+}
+
+// transferAccessNativeID keys an access, which has no ARN, under its server's
+// ARN by its ExternalId: a group SID, which the model's pattern
+// (^S-1-[\d-]+$) keeps free of "/".
+func transferAccessNativeID(serverARN, externalID string) string {
+	return serverARN + "/access/" + externalID
+}
+
+// isTransferGone reports whether err says the server or access no longer
+// exists, i.e. it was deleted after the list call that named it.
+func isTransferGone(err error) bool {
+	return isAPIErrorCode(err, "ResourceNotFoundException")
+}
+
+// scanTransferAccesses stores the accesses of each server, linked under it.
+// servers must already be stored. A gone server is skipped silently, a denial
+// warns once, a transient error after the SDK's retries or a
+// transferAccessSkipCodes code skips the server with one warning, and anything
+// else fails the phase. Rows a server stored before its error stay and are
+// counted.
+func scanTransferAccesses(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, servers []childParent) (int, int, error) {
+	describeErrs := &fanOutErrs{st: st, acct: acct, region: region, op: transferDescribeAccessOp, isSkip: isTransferGone}
+	return childFanOutStoredSkipCodes(ctx, st, acct, region, transferListAccessesOp, servers, isTransferGone, byParentID,
+		"Transfer Family server(s)", transferAccessSkipCodes,
+		func(ctx context.Context, srv childParent) (int, int, error) {
+			return storeTransferAccesses(ctx, client, acct, region, st, scanID, srv, describeErrs)
+		})
+}
+
+// storeTransferAccesses stores one server's accesses a page at a time.
+// ListAccesses omits the session policy, POSIX profile and logical directory
+// mappings, so each access is described; an access that is gone or denied at
+// DescribeAccess is dropped per describeErrs.
+//
+// Any other DescribeAccess error ends the server after the accesses described
+// before it are stored. scanTransferAccesses then skips or fails the server as
+// for a ListAccesses error, so a skip warning is filed under
+// transfer:ListAccesses (the fan-out whose servers it counts); its message
+// carries the error, which describeErrs has prefixed with
+// transfer:DescribeAccess and the access key.
+func storeTransferAccesses(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string,
+	srv childParent, describeErrs *fanOutErrs,
+) (total, inserted int, err error) {
+	pager := transfer.NewListAccessesPaginator(client, &transfer.ListAccessesInput{ServerId: &srv.id},
+		func(o *transfer.ListAccessesPaginatorOptions) {
+			o.Limit = transferAccessPageLimit
+			o.StopOnDuplicateToken = true
+		})
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			return total, inserted, err
+		}
+		children, derr := describeTransferAccesses(ctx, client, acct, region, scanID, srv, out.Accesses, describeErrs)
+		t, i, uerr := upsertContained(st, transferListAccessesOp, children)
+		total += t
+		inserted += i
+		// A failed write is returned alone: joined with a transient describe
+		// error, the fan-out would skip it as transient.
+		if uerr != nil {
+			return total, inserted, uerr
+		}
+		if derr != nil {
+			return total, inserted, derr
+		}
+	}
+	return total, inserted, nil
+}
+
+// describeTransferAccesses describes the listed accesses of one server and
+// returns their rows. It stops at the first error describeErrs does not drop
+// and returns that error with the rows built before it.
+func describeTransferAccesses(ctx context.Context, client transferAPI, acct *account, region, scanID string,
+	srv childParent, listed []transfertypes.ListedAccess, describeErrs *fanOutErrs,
+) ([]containedChild, error) {
+	parentID := store.ResourceID("aws", acct.ID, srv.arn)
+	var children []containedChild
+	for _, l := range listed {
+		externalID := sv(l.ExternalId)
+		if externalID == "" {
+			continue
+		}
+		d, err := client.DescribeAccess(ctx, &transfer.DescribeAccessInput{ServerId: &srv.id, ExternalId: &externalID})
+		if err != nil {
+			if kerr := describeErrs.keyErr(srv.id+"/"+externalID, err); kerr != nil {
+				return children, kerr
+			}
+			continue
+		}
+		children = append(children, containedChild{row: &store.Resource{
+			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+			Type: TypeTransferAccess, NativeID: transferAccessNativeID(srv.arn, externalID),
+			Name: &externalID, Region: &region, AttributesJSON: mustJSON(d.Access), DiscoveredBy: scanID,
+		}, parentID: parentID})
+	}
+	return children, nil
 }

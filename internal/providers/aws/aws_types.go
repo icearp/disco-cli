@@ -1027,6 +1027,7 @@ const (
 	TypeIVSStorageConfiguration      = "aws:ivs:storage-configuration"
 	TypeIVSStreamKey                 = "aws:ivs:stream-key"
 	// Transfer (transfer_scanners.go)
+	TypeTransferAccess      = "aws:transfer:access"
 	TypeTransferAgreement   = "aws:transfer:agreement"
 	TypeTransferCertificate = "aws:transfer:certificate"
 	TypeTransferConnector   = "aws:transfer:connector"
