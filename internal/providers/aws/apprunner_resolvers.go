@@ -27,6 +27,17 @@ func init() {
 		resolveAppRunnerVpcIngressConnectionTargets,
 		EdgeDecl{TypeAppRunnerVpcIngressConnection, TypeAppRunnerService, store.RelUses},
 	)
+	registerResolver(
+		noopAppRunnerHierarchy,
+		EdgeDecl{TypeAppRunnerService, TypeAppRunnerCustomDomain, store.RelContains},
+	)
+}
+
+// noopAppRunnerHierarchy only carries the EdgeDecl metadata: the scanner
+// records the service → custom-domain contains pairs itself
+// (scanAppRunnerCustomDomains, through childFanOutStoredSkipNotReady).
+func noopAppRunnerHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveAppRunnerVpcIngressConnectionTargets emits each VPC Ingress

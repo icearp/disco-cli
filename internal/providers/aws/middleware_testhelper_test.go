@@ -80,6 +80,21 @@ func cfgWithStub(stub func(*smithymw.Stack) error, region string) sdkaws.Config 
 // denyErr, as for a role lacking that action. Handlers can run on fan-out
 // goroutines, so any state they share must be locked.
 func opStubConfig(handlers map[string]func(in any) (any, error), denyErr error) sdkaws.Config {
+	return opStubConfigCtx(ignoreCtx(handlers), denyErr)
+}
+
+// ignoreCtx adapts context-free stub handlers to opStubConfigCtx.
+func ignoreCtx(handlers map[string]func(in any) (any, error)) map[string]func(context.Context, any) (any, error) {
+	withCtx := make(map[string]func(context.Context, any) (any, error), len(handlers))
+	for op, h := range handlers {
+		withCtx[op] = func(_ context.Context, in any) (any, error) { return h(in) }
+	}
+	return withCtx
+}
+
+// opStubConfigCtx is opStubConfig for handlers that need the call's context,
+// e.g. to block until a fan-out cancels its siblings.
+func opStubConfigCtx(handlers map[string]func(ctx context.Context, in any) (any, error), denyErr error) sdkaws.Config {
 	stub := func(s *smithymw.Stack) error {
 		return s.Initialize.Add(smithymw.InitializeMiddlewareFunc("discoOpStub",
 			func(ctx context.Context, in smithymw.InitializeInput, _ smithymw.InitializeHandler) (smithymw.InitializeOutput, smithymw.Metadata, error) {
@@ -87,7 +102,7 @@ func opStubConfig(handlers map[string]func(in any) (any, error), denyErr error) 
 				if !ok {
 					return smithymw.InitializeOutput{}, smithymw.Metadata{}, denyErr
 				}
-				out, err := h(in.Parameters)
+				out, err := h(ctx, in.Parameters)
 				return smithymw.InitializeOutput{Result: out}, smithymw.Metadata{}, err
 			}), smithymw.After)
 	}

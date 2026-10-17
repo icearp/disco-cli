@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 58.03357314148681,
-    "covered": 1936,
-    "uncovered": 1400,
+    "percent": 58.063549160671464,
+    "covered": 1937,
+    "uncovered": 1399,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -114,6 +114,7 @@
       "appmesh/virtualservice",
       "apprunner/autoscalingconfiguration",
       "apprunner/connection",
+      "apprunner/customdomain",
       "apprunner/observabilityconfiguration",
       "apprunner/service",
       "apprunner/vpcconnector",
@@ -1985,7 +1986,6 @@
       "application-cost-profiler/reportdefinition",
       "application-signals/getservicelevelobjectivebudgetreport",
       "applicationinsights/configurationhistory",
-      "apprunner/customdomain",
       "apprunner/operation",
       "appstream/appblockbuilderappblockassociation",
       "appstream/applicenseusage",
