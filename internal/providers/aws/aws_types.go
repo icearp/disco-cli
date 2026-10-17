@@ -2606,4 +2606,7 @@ const (
 	TypeWickrBot            = "aws:wickr:bot"
 	TypeWickrNetworkSetting = "aws:wickr:network-setting"
 	TypeWickrUser           = "aws:wickr:user"
+
+	// Compute Optimizer Automation (acoautomation_scanners.go).
+	TypeACOAutomationAutomationRule = "aws:aco-automation:automation-rule"
 )

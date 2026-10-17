@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.7% (1958/3336 listable) · depth0 70.8% · depth1 41.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.7% (1959/3336 listable) · depth0 70.9% · depth1 41.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1033 | 188 | 84.6 |
+| sr-resource | 1034 | 187 | 84.7 |
 | child-uncatalogued | 270 | 747 | 26.5 |
 | smithy-resource | 428 | 134 | 76.2 |
 | element-written | 185 | 231 | 44.5 |
@@ -74,7 +74,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ram | 2 | 7 | 22.2 |
 | servicecatalog | 13 | 7 | 65.0 |
 | workspaces | 9 | 7 | 56.2 |
-| aco-automation | 0 | 6 | 0.0 |
 | aidevops | 8 | 6 | 57.1 |
 | drs | 8 | 6 | 57.1 |
 | forecast | 8 | 6 | 57.1 |
@@ -91,6 +90,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | storagegateway | 12 | 6 | 66.7 |
 | workmail | 11 | 6 | 64.7 |
 | access-analyzer | 2 | 5 | 28.6 |
+| aco-automation | 1 | 5 | 16.7 |
 | appstream | 16 | 5 | 76.2 |
 | autoscaling | 7 | 5 | 58.3 |
 | ce | 4 | 5 | 44.4 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1378)
+### Uncovered (listable, no scanner) (1377)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -372,7 +372,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aco-automation | aco-automation/account | 0 |  | element-written | aco-automation:ListAccounts |
 | aco-automation | aco-automation/automationevent | 0 |  | element-written | aco-automation:GetAutomationEvent, aco-automation:ListAutomationEvents |
 | aco-automation | aco-automation/automationeventstep | 0 |  | child-uncatalogued | aco-automation:ListAutomationEventSteps |
-| aco-automation | aco-automation/automationrule | 0 |  | sr-resource | aco-automation:GetAutomationRule, aco-automation:ListAutomationRules |
 | aco-automation | aco-automation/automationrulepreview | 0 |  | element-written | aco-automation:ListAutomationRulePreview |
 | aco-automation | aco-automation/recommendedaction | 0 |  | element-written | aco-automation:ListRecommendedActions |
 | agent-registry | agent-registry/discoverableregistryrecord | 1 |  | child-uncatalogued | agent-registry:ListDiscoverableRegistryRecords |
