@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.0% (1934/3336 listable) · depth0 70.3% · depth1 40.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.0% (1936/3336 listable) · depth0 70.3% · depth1 40.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 1032 | 189 | 84.5 |
 | child-uncatalogued | 259 | 758 | 25.5 |
-| smithy-resource | 424 | 138 | 75.4 |
+| smithy-resource | 426 | 136 | 75.8 |
 | element-written | 179 | 237 | 43.0 |
 | element-arn | 34 | 72 | 32.1 |
 | element-created | 6 | 8 | 42.9 |
@@ -178,7 +178,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | apprunner | 6 | 2 | 75.0 |
 | arc-zonal-shift | 1 | 2 | 33.3 |
 | artifact | 2 | 2 | 50.0 |
-| backup-gateway | 3 | 2 | 60.0 |
 | batch | 7 | 2 | 77.8 |
 | bcm-data-exports | 1 | 2 | 33.3 |
 | cloudcontrolapi | 0 | 2 | 0.0 |
@@ -312,6 +311,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | aps | 4 | 0 | 100.0 |
 | autoscaling-plans | 1 | 0 | 100.0 |
 | b2bi | 4 | 0 | 100.0 |
+| backup-gateway | 5 | 0 | 100.0 |
 | bcm-dashboards | 2 | 0 | 100.0 |
 | budgets | 2 | 0 | 100.0 |
 | cassandra | 4 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1402)
+### Uncovered (listable, no scanner) (1400)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -453,8 +453,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | backup | backup/reportjob | 0 |  | element-written | backup:DescribeReportJob, backup:ListReportJobs |
 | backup | backup/restorejob | 0 |  | element-written | backup:DescribeRestoreJob, backup:ListRestoreJobs, backup:ListRestoreJobsByProtectedResource |
 | backup | backup/scanjob | 0 |  | element-written | backup:DescribeScanJob, backup:ListScanJobs |
-| backup-gateway | backup-gateway/bandwidthratelimitschedule | 1 |  | smithy-resource | backup-gateway:GetBandwidthRateLimitSchedule |
-| backup-gateway | backup-gateway/hypervisorpropertymapping | 1 |  | smithy-resource | backup-gateway:GetHypervisorPropertyMappings |
 | backup-search | backup-search/searchjob | 0 |  | smithy-resource | backup-search:GetSearchJob, backup-search:ListSearchJobs |
 | backup-search | backup-search/searchjobbackup | 1 |  | child-uncatalogued | backup-search:ListSearchJobBackups |
 | backup-search | backup-search/searchresultexportjob | 0 |  | smithy-resource | backup-search:GetSearchResultExportJob, backup-search:ListSearchResultExportJobs |

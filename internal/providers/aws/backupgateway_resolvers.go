@@ -19,6 +19,56 @@ func init() {
 		EdgeDecl{TypeBackupGatewayGateway, TypeBackupGatewayHypervisor, store.RelAttachedTo},
 		EdgeDecl{TypeBackupGatewayVirtualMachine, TypeBackupGatewayHypervisor, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveBackupGatewayPropertyMappingRoles,
+		EdgeDecl{TypeBackupGatewayHypervisorPropertyMapping, TypeIAMRole, store.RelUses},
+	)
+	registerResolver(
+		noopBackupGatewayConfigHierarchy,
+		EdgeDecl{TypeBackupGatewayGateway, TypeBackupGatewayBandwidthRateLimitSchedule, store.RelContains},
+		EdgeDecl{TypeBackupGatewayHypervisor, TypeBackupGatewayHypervisorPropertyMapping, store.RelContains},
+	)
+}
+
+// noopBackupGatewayConfigHierarchy only carries the EdgeDecl metadata for the
+// contains pairs backupGatewayConfigFanOut records at scan time.
+func noopBackupGatewayConfigHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
+// resolveBackupGatewayPropertyMappingRoles links each hypervisor property
+// mapping to the IAM role it names, when that role is stored.
+func resolveBackupGatewayPropertyMappingRoles(acct *account, st *store.Store) error {
+	mappings, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeBackupGatewayHypervisorPropertyMapping}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(mappings) == 0 {
+		return nil
+	}
+	roleIDs, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	for _, m := range mappings {
+		var attrs struct {
+			IamRoleArn *string `json:"IamRoleArn"`
+		}
+		if err := json.Unmarshal([]byte(m.AttributesJSON), &attrs); err != nil {
+			return fmt.Errorf("decode backupgateway property mapping %s: %w", m.NativeID, err)
+		}
+		roleID := store.ResourceID("aws", acct.ID, sv(attrs.IamRoleArn))
+		if !roleIDs[roleID] {
+			continue
+		}
+		if err := st.UpsertRelationship(m.ID, roleID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert backupgateway property mapping→iam-role: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveBackupGatewayMemberHypervisor wires gateway → hypervisor and

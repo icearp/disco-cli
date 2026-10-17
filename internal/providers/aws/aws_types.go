@@ -664,9 +664,11 @@ const (
 	TypeBackupAccessPoint              = "aws:backup:backup-access-point"
 	TypeBackupRestoreAccessBackupVault = "aws:backup:restore-access-backup-vault"
 	// Backup Gateway (backupgateway_scanners.go)
-	TypeBackupGatewayHypervisor     = "aws:backupgateway:hypervisor"
-	TypeBackupGatewayGateway        = "aws:backupgateway:gateway"
-	TypeBackupGatewayVirtualMachine = "aws:backupgateway:virtual-machine"
+	TypeBackupGatewayHypervisor                 = "aws:backupgateway:hypervisor"
+	TypeBackupGatewayGateway                    = "aws:backupgateway:gateway"
+	TypeBackupGatewayVirtualMachine             = "aws:backupgateway:virtual-machine"
+	TypeBackupGatewayBandwidthRateLimitSchedule = "aws:backupgateway:bandwidth-rate-limit-schedule"
+	TypeBackupGatewayHypervisorPropertyMapping  = "aws:backupgateway:hypervisor-property-mapping"
 	// BCM Data Exports (bcmdataexports_scanners.go)
 	TypeBCMDataExportsExport = "aws:bcmdataexports:export"
 	// BCM Dashboards (bcmdashboards_scanners.go)
