@@ -20,6 +20,53 @@ func init() {
 		resolveSNSTopicPolicyToTopic,
 		EdgeDecl{TypeSNSTopicPolicy, TypeSNSTopic, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveSNSPlatformApplicationRefs,
+		EdgeDecl{TypeSNSPlatformApplication, TypeSNSTopic, store.RelUses},
+		EdgeDecl{TypeSNSPlatformApplication, TypeIAMRole, store.RelUses},
+	)
+}
+
+// resolveSNSPlatformApplicationRefs wires each platform application to the
+// topics its endpoint and delivery-failure events are published to, and to
+// the IAM roles SNS assumes to log delivery feedback.
+func resolveSNSPlatformApplicationRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSNSPlatformApplication}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	topicSet, err := scannedIDSet(acct, st, TypeSNSTopic)
+	if err != nil {
+		return err
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var app struct {
+			Attributes map[string]string `json:"Attributes"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &app); err != nil {
+			return fmt.Errorf("decode sns platform-application %s: %w", r.NativeID, err)
+		}
+		for _, key := range []string{"EventEndpointCreated", "EventEndpointDeleted", "EventEndpointUpdated", "EventDeliveryFailure"} {
+			if err := upsertIfScanned(acct, st, topicSet, r.ID, app.Attributes[key], store.RelUses, "sns platform-application→topic"); err != nil {
+				return err
+			}
+		}
+		for _, key := range []string{"SuccessFeedbackRoleArn", "FailureFeedbackRoleArn"} {
+			if err := upsertIfScanned(acct, st, roleSet, r.ID, app.Attributes[key], store.RelUses, "sns platform-application→role"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // resolveSNSSubscriptionRefs wires each subscription to its topic

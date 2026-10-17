@@ -35,7 +35,7 @@ func scanSNSSubscriptions(ctx context.Context, client snsAPI, acct *account, reg
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSNSDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "sns:ListSubscriptions", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("sns:ListSubscriptions: %w", err)
@@ -62,14 +62,16 @@ func scanSNSSubscriptions(ctx context.Context, client snsAPI, acct *account, reg
 
 // scanSNSTopicPolicies emits one row per topic with a non-empty Policy
 // attribute. Source: ListTopics → GetTopicAttributes per topic. Synth ARN:
-// {topicARN}/policy.
+// {topicARN}/policy. A denied GetTopicAttributes drops that topic's policy and
+// warns once for the phase.
 func scanSNSTopicPolicies(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := sns.NewListTopicsPaginator(client, &sns.ListTopicsInput{})
 	var batch []*store.Resource
+	warnedDenied := false
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSNSDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "sns:ListTopics(policies)", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("sns:ListTopics(policies): %w", err)
@@ -81,7 +83,11 @@ func scanSNSTopicPolicies(ctx context.Context, client snsAPI, acct *account, reg
 			}
 			ta, derr := client.GetTopicAttributes(ctx, &sns.GetTopicAttributesInput{TopicArn: &arn})
 			if derr != nil {
-				if isAccessDenied(derr) {
+				if isSNSDenied(derr) {
+					if !warnedDenied {
+						_ = skipIfAccessDenied(st, "sns:GetTopicAttributes(policy)", acct.ID, region, derr)
+						warnedDenied = true
+					}
 					continue
 				}
 				return 0, 0, fmt.Errorf("sns:GetTopicAttributes(policy): %w", derr)

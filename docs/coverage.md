@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 57.9% (1931/3336 listable) · depth0 70.2% · depth1 40.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 57.9% (1933/3336 listable) · depth0 70.3% · depth1 40.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,9 +11,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1032 | 189 | 84.5 |
 | child-uncatalogued | 259 | 758 | 25.5 |
 | smithy-resource | 424 | 138 | 75.4 |
-| element-written | 177 | 239 | 42.5 |
+| element-written | 178 | 238 | 42.8 |
 | element-arn | 34 | 72 | 32.1 |
-| element-created | 5 | 9 | 35.7 |
+| element-created | 6 | 8 | 42.9 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
@@ -169,7 +169,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | partnercentral-channel | 0 | 3 | 0.0 |
 | route53-recovery-readiness | 4 | 3 | 57.1 |
 | route53globalresolver | 7 | 3 | 70.0 |
-| sns | 2 | 3 | 40.0 |
 | states | 4 | 3 | 57.1 |
 | support | 0 | 3 | 0.0 |
 | wafv2 | 6 | 3 | 66.7 |
@@ -293,6 +292,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securitylake | 2 | 1 | 66.7 |
 | serverlessrepo | 3 | 1 | 75.0 |
 | signer | 2 | 1 | 66.7 |
+| sns | 4 | 1 | 80.0 |
 | ssm-quicksetup | 1 | 1 | 50.0 |
 | swf | 1 | 1 | 50.0 |
 | tagging | 0 | 1 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1405)
+### Uncovered (listable, no scanner) (1403)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1616,8 +1616,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | snowball | snowball/longtermpricing | 0 |  | element-written | snowball:ListLongTermPricing |
 | snowball | snowball/serviceversion | 0 |  | child-uncatalogued | snowball:ListServiceVersions |
 | sns | sns/endpoint | 1 |  | child-uncatalogued | sns:ListEndpointsByPlatformApplication |
-| sns | sns/originationnumber | 0 |  | element-created | sns:ListOriginationNumbers |
-| sns | sns/platformapplication | 0 |  | element-written | sns:ListPlatformApplications |
 | social-messaging | social-messaging/whatsappflowasset | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppFlowAssets |
 | social-messaging | social-messaging/whatsapptemplatelibrary | 1 |  | child-uncatalogued | social-messaging:ListWhatsAppTemplateLibrary |
 | sqs | sqs/deadlettersourcequeue | 1 |  | child-uncatalogued | sqs:ListDeadLetterSourceQueues |

@@ -406,9 +406,11 @@ const (
 	// Service Quotas has no resource type: a quota is a limit value, scanned by
 	// aws:servicequotas into the `quotas` table rather than into `resources`.
 	// SNS
-	TypeSNSTopic        = "aws:sns:topic"
-	TypeSNSSubscription = "aws:sns:subscription"
-	TypeSNSTopicPolicy  = "aws:sns:topic-policy"
+	TypeSNSTopic               = "aws:sns:topic"
+	TypeSNSSubscription        = "aws:sns:subscription"
+	TypeSNSTopicPolicy         = "aws:sns:topic-policy"
+	TypeSNSPlatformApplication = "aws:sns:platform-application"
+	TypeSNSOriginationNumber   = "aws:sns:origination-number"
 	// SQS
 	TypeSQSQueue = "aws:sqs:queue"
 	// ECS
