@@ -2418,6 +2418,7 @@ const (
 	// LakeFormation (lakeformation_scanners.go).
 	TypeLakeFormationDataCellsFilter      = "aws:lakeformation:data-cells-filter"
 	TypeLakeFormationDataLakeSettings     = "aws:lakeformation:data-lake-settings"
+	TypeLakeFormationOptIn                = "aws:lakeformation:lake-formation-opt-in"
 	TypeLakeFormationPrincipalPermissions = "aws:lakeformation:principal-permissions"
 	TypeLakeFormationTag                  = "aws:lakeformation:tag"
 	// MediaTailor (mediatailor_scanners.go).

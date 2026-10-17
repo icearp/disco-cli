@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"strings"
 
+	lftypes "github.com/aws/aws-sdk-go-v2/service/lakeformation/types"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
@@ -15,6 +17,104 @@ func init() {
 		EdgeDecl{TypeLakeFormationResource, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeLakeFormationResource, TypeIAMRole, store.RelAssumes},
 	)
+	registerResolver(
+		resolveLakeFormationOptInTargets,
+		EdgeDecl{TypeLakeFormationOptIn, TypeIAMRole, store.RelAttachedTo},
+		EdgeDecl{TypeLakeFormationOptIn, TypeIAMUser, store.RelAttachedTo},
+		EdgeDecl{TypeLakeFormationOptIn, TypeGlueDatabase, store.RelAttachedTo},
+		EdgeDecl{TypeLakeFormationOptIn, TypeGlueTable, store.RelAttachedTo},
+		EdgeDecl{TypeLakeFormationOptIn, TypeLakeFormationResource, store.RelAttachedTo},
+		EdgeDecl{TypeLakeFormationOptIn, TypeLakeFormationDataCellsFilter, store.RelAttachedTo},
+		EdgeDecl{TypeLakeFormationOptIn, TypeLakeFormationTag, store.RelAttachedTo},
+	)
+}
+
+// resolveLakeFormationOptInTargets links each opt-in to its principal and to
+// the catalog resource it covers, when that target was scanned. Catalog,
+// LF-tag-policy and LF-tag-expression resources map to no scanned type, and a
+// table named only by wildcard matches no scanned table, so neither emits an
+// edge.
+func resolveLakeFormationOptInTargets(acct *account, st *store.Store) error {
+	optIns, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"},
+		AccountID: acct.ID,
+		Types:     []string{TypeLakeFormationOptIn},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(optIns) == 0 {
+		return nil
+	}
+	scanned, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"},
+		AccountID: acct.ID,
+		Types: []string{
+			TypeIAMRole, TypeIAMUser, TypeGlueDatabase, TypeGlueTable,
+			TypeLakeFormationResource, TypeLakeFormationDataCellsFilter, TypeLakeFormationTag,
+		},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	targetIDs := make(map[string]bool, len(scanned))
+	for _, r := range scanned {
+		targetIDs[r.ID] = true
+	}
+
+	for _, r := range optIns {
+		var o lftypes.LakeFormationOptInsInfo
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &o); err != nil {
+			return fmt.Errorf("decode lakeformation opt-in %s: %w", r.NativeID, err)
+		}
+		for _, nativeID := range lfOptInTargetNativeIDs(sv(r.Region), acct.ID, o) {
+			tID := store.ResourceID("aws", acct.ID, nativeID)
+			if !targetIDs[tID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert lakeformation opt-in→%s: %w", nativeID, err)
+			}
+		}
+	}
+	return nil
+}
+
+// lfOptInTargetNativeIDs returns the NativeIDs, in the shapes their scanners
+// store, of the principal and the catalog resource an opt-in names. A resource
+// in another account's catalog yields an id no scanned row of this account has.
+func lfOptInTargetNativeIDs(region, accountID string, o lftypes.LakeFormationOptInsInfo) []string {
+	var ids []string
+	if o.Principal != nil && sv(o.Principal.DataLakePrincipalIdentifier) != "" {
+		ids = append(ids, sv(o.Principal.DataLakePrincipalIdentifier))
+	}
+	r := o.Resource
+	if r == nil {
+		return ids
+	}
+	switch {
+	case r.Database != nil:
+		ids = append(ids, glueDatabaseARN(region, cmp.Or(sv(r.Database.CatalogId), accountID), sv(r.Database.Name)))
+	case r.Table != nil:
+		ids = append(ids, glueTableARN(region, cmp.Or(sv(r.Table.CatalogId), accountID), sv(r.Table.DatabaseName), sv(r.Table.Name)))
+	case r.TableWithColumns != nil:
+		t := r.TableWithColumns
+		ids = append(ids, glueTableARN(region, cmp.Or(sv(t.CatalogId), accountID), sv(t.DatabaseName), sv(t.Name)))
+	case r.DataLocation != nil:
+		// A registered location's NativeID is its S3 ARN, which carries no
+		// account, so another catalog's registration must be excluded here.
+		if cmp.Or(sv(r.DataLocation.CatalogId), accountID) == accountID {
+			ids = append(ids, sv(r.DataLocation.ResourceArn))
+		}
+	case r.DataCellsFilter != nil:
+		f := r.DataCellsFilter
+		ids = append(ids, lfDataCellsFilterARN(region, cmp.Or(sv(f.TableCatalogId), accountID), sv(f.DatabaseName), sv(f.TableName), sv(f.Name)))
+	case r.LFTag != nil:
+		ids = append(ids, lfTagARN(region, cmp.Or(sv(r.LFTag.CatalogId), accountID), sv(r.LFTag.TagKey)))
+	}
+	return ids
 }
 
 // lakeFormationResourceAttrs mirrors the verbatim ResourceInfo fields used by

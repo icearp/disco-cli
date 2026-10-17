@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 58.18345323741007,
-    "covered": 1941,
-    "uncovered": 1395,
+    "percent": 58.21342925659472,
+    "covered": 1942,
+    "uncovered": 1394,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1088,6 +1088,7 @@
       "kms/key",
       "kms/keypolicy",
       "lakeformation/datacellsfilter",
+      "lakeformation/lakeformationoptin",
       "lakeformation/permission",
       "lakeformation/resource",
       "lambda/capacityprovider",
@@ -2751,7 +2752,6 @@
       "kinesisvideo/edgeagentconfiguration",
       "kinesisvideo/mappedresourceconfiguration",
       "kms/keyrotation",
-      "lakeformation/lakeformationoptin",
       "lakeformation/transaction",
       "lambda/durableexecution",
       "lambda/durableexecutionhistory",
