@@ -2007,6 +2007,7 @@ const (
 	TypeMQBroker                   = "aws:mq:broker"
 	TypeMQConfiguration            = "aws:mq:configuration"
 	TypeMQConfigurationAssociation = "aws:mq:configuration-association"
+	TypeMQSharedResource           = "aws:mq:shared-resource"
 	// Amplify (amplify_scanners.go, amplify_resolvers.go)
 	TypeAmplifyApp    = "aws:amplify:app"
 	TypeAmplifyBranch = "aws:amplify:branch"

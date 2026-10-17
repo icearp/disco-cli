@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.5% (1950/3336 listable) · depth0 70.7% · depth1 40.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.5% (1951/3336 listable) · depth0 70.7% · depth1 40.8% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1032 | 189 | 84.5 |
-| child-uncatalogued | 265 | 752 | 26.1 |
+| child-uncatalogued | 266 | 751 | 26.2 |
 | smithy-resource | 426 | 136 | 75.8 |
 | element-written | 185 | 231 | 44.5 |
 | element-arn | 36 | 70 | 34.0 |
@@ -264,7 +264,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mediapackagev2 | 3 | 1 | 75.0 |
 | mediatailor | 8 | 1 | 88.9 |
 | memorydb | 9 | 1 | 90.0 |
-| mq | 2 | 1 | 66.7 |
 | oam | 2 | 1 | 66.7 |
 | observabilityadmin | 4 | 1 | 80.0 |
 | polly | 1 | 1 | 50.0 |
@@ -328,6 +327,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | license-manager-user-subscriptions | 5 | 0 | 100.0 |
 | mediapackage-vod | 3 | 0 | 100.0 |
 | migrationhub-orchestrator | 7 | 0 | 100.0 |
+| mq | 3 | 0 | 100.0 |
 | networkmonitor | 1 | 0 | 100.0 |
 | notifications-contacts | 1 | 0 | 100.0 |
 | osis | 4 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1386)
+### Uncovered (listable, no scanner) (1385)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1272,7 +1272,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mpa | mpa/policy | 0 |  | element-arn | mpa:ListPolicies |
 | mpa | mpa/policyversion | 0 |  | child-uncatalogued | mpa:GetPolicyVersion, mpa:ListPolicyVersions |
 | mpa | mpa/session | 0 |  | smithy-resource | mpa:ListSessions |
-| mq | mq/sharedresource | 1 |  | child-uncatalogued | mq:DescribeSharedResources |
 | mturk-requester | mturk-requester/assignment | 0 |  | child-uncatalogued | mturk-requester:GetAssignment, mturk-requester:ListAssignmentsForHIT |
 | mturk-requester | mturk-requester/hit | 0 |  | element-written | mturk-requester:GetHIT, mturk-requester:ListHITs, mturk-requester:ListHITsForQualificationType, mturk-requester:ListReviewableHITs |
 | mturk-requester | mturk-requester/qualificationtype | 0 |  | element-written | mturk-requester:GetQualificationType, mturk-requester:ListQualificationTypes |

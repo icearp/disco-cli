@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -16,6 +17,63 @@ func init() {
 		EdgeDecl{TypeMQBroker, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeMQBroker, TypeMQConfiguration, store.RelUses},
 	)
+	registerResolver(
+		resolveMQSharedResourceRefs,
+		// scanMQSharedResources records this pair; the resolver adds no contains rows.
+		EdgeDecl{TypeMQBroker, TypeMQSharedResource, store.RelContains},
+		EdgeDecl{TypeMQSharedResource, TypeRAMResourceShare, store.RelUses},
+		EdgeDecl{TypeMQSharedResource, TypeVpcLatticeResourceConfiguration, store.RelUses},
+	)
+}
+
+// resolveMQSharedResourceRefs links each shared resource to the RAM resource
+// shares and the VPC Lattice resource configuration it names, when scanned in
+// this account. ResourceArn is a resource share or a shared resource by Type;
+// that a shared resource is a Lattice resource configuration is inferred from
+// the model's RESOURCE_CONFIGURATION_NOT_FOUND error code, not observed, so
+// the ARN is matched against both target sets rather than dispatched on Type.
+func resolveMQSharedResourceRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMQSharedResource}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	shareSet, err := scannedIDSet(acct, st, TypeRAMResourceShare)
+	if err != nil {
+		return err
+	}
+	resourceConfigSet, err := scannedIDSet(acct, st, TypeVpcLatticeResourceConfiguration)
+	if err != nil {
+		return err
+	}
+	var decodeErrs []error
+	for _, r := range rows {
+		var attrs struct {
+			ResourceArn       *string  `json:"ResourceArn"`
+			ResourceShareArns []string `json:"ResourceShareArns"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s attributes of %s: %w", TypeMQSharedResource, r.NativeID, err))
+			continue
+		}
+		for _, arn := range append(attrs.ResourceShareArns, sv(attrs.ResourceArn)) {
+			if arn == "" {
+				continue
+			}
+			targetID := store.ResourceID("aws", acct.ID, arn)
+			if !shareSet[targetID] && !resourceConfigSet[targetID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, targetID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert mq shared-resource→%s: %w", arn, err)
+			}
+		}
+	}
+	return errors.Join(decodeErrs...)
 }
 
 // resolveMQRelationships emits broker → KMS / security-group / subnet /

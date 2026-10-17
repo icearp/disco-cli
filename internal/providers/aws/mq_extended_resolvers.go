@@ -11,6 +11,8 @@ import (
 func init() {
 	registerResolver(
 		resolveMQConfigurationAssociationRefs,
+		// scanMQConfigurationAssociations records this pair; the resolver adds no contains rows.
+		EdgeDecl{TypeMQBroker, TypeMQConfigurationAssociation, store.RelContains},
 		EdgeDecl{TypeMQConfigurationAssociation, TypeMQBroker, store.RelAttachedTo},
 		EdgeDecl{TypeMQConfigurationAssociation, TypeMQConfiguration, store.RelUses},
 	)
