@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 58.42326139088729,
-    "covered": 1949,
-    "uncovered": 1387,
+    "percent": 58.45323741007194,
+    "covered": 1950,
+    "uncovered": 1386,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1772,6 +1772,7 @@
       "ssm-incidents/replicationset",
       "ssm-incidents/resourcepolicy",
       "ssm-incidents/responseplan",
+      "ssm-quicksetup/configuration",
       "ssm-quicksetup/configurationmanager",
       "ssm-sap/application",
       "ssm-sap/component",
@@ -3215,7 +3216,6 @@
       "ssm-incidents/incidentrecord",
       "ssm-incidents/relateditem",
       "ssm-incidents/timelineevent",
-      "ssm-quicksetup/configuration",
       "ssm-sap/configurationcheckoperation",
       "ssm-sap/operation",
       "ssm-sap/subcheckresult",

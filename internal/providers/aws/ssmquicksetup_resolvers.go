@@ -13,6 +13,17 @@ func init() {
 		resolveSSMQuickSetupConfigManagerRoles,
 		EdgeDecl{TypeSSMQuickSetupConfigurationManager, TypeIAMRole, store.RelAssumes},
 	)
+	registerResolver(
+		noopSSMQuickSetupHierarchy,
+		EdgeDecl{TypeSSMQuickSetupConfigurationManager, TypeSSMQuickSetupConfiguration, store.RelContains},
+	)
+}
+
+// noopSSMQuickSetupHierarchy only carries the EdgeDecl metadata for the
+// manager -> configuration contains edges, which the scanner records itself
+// (scanSSMQuickSetupConfigurations).
+func noopSSMQuickSetupHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveSSMQuickSetupConfigManagerRoles wires each configuration-manager to

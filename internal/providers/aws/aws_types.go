@@ -1180,6 +1180,7 @@ const (
 	TypeSFNStateMachineVersion = "aws:stepfunctions:state-machine-version"
 	// SSMQuickSetup (ssmquicksetup_scanners.go)
 	TypeSSMQuickSetupConfigurationManager = "aws:ssm-quick-setup:configuration-manager"
+	TypeSSMQuickSetupConfiguration        = "aws:ssm-quick-setup:configuration"
 	// SSMIncidents (ssmincidents_scanners.go)
 	TypeSSMIncidentsReplicationSet = "aws:ssm-incidents:replication-set"
 	TypeSSMIncidentsResponsePlan   = "aws:ssm-incidents:response-plan"

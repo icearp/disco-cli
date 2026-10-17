@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.4% (1949/3336 listable) · depth0 70.7% · depth1 40.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.5% (1950/3336 listable) · depth0 70.7% · depth1 40.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -12,7 +12,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | child-uncatalogued | 265 | 752 | 26.1 |
 | smithy-resource | 426 | 136 | 75.8 |
 | element-written | 185 | 231 | 44.5 |
-| element-arn | 35 | 71 | 33.0 |
+| element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
 | Service | Covered | Uncovered | % |
@@ -285,7 +285,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | servicequotas | 2 | 1 | 66.7 |
 | signer | 2 | 1 | 66.7 |
 | sns | 4 | 1 | 80.0 |
-| ssm-quicksetup | 1 | 1 | 50.0 |
 | swf | 1 | 1 | 50.0 |
 | tagging | 0 | 1 | 0.0 |
 | timestream | 3 | 1 | 75.0 |
@@ -348,6 +347,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | savingsplans | 1 | 0 | 100.0 |
 | scheduler | 2 | 0 | 100.0 |
 | servicediscovery | 3 | 0 | 100.0 |
+| ssm-quicksetup | 2 | 0 | 100.0 |
 | supportapp | 1 | 0 | 100.0 |
 | textract | 2 | 0 | 100.0 |
 | thinclient | 3 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1387)
+### Uncovered (listable, no scanner) (1386)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1642,7 +1642,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm-incidents | ssm-incidents/incidentrecord | 0 |  | sr-resource | ssm-incidents:GetIncidentRecord, ssm-incidents:ListIncidentRecords |
 | ssm-incidents | ssm-incidents/relateditem | 1 |  | child-uncatalogued | ssm-incidents:ListRelatedItems |
 | ssm-incidents | ssm-incidents/timelineevent | 1 |  | child-uncatalogued | ssm-incidents:GetTimelineEvent, ssm-incidents:ListTimelineEvents |
-| ssm-quicksetup | ssm-quicksetup/configuration | 0 |  | element-arn | ssm-quicksetup:ListConfigurations |
 | ssm-sap | ssm-sap/configurationcheckoperation | 0 |  | child-uncatalogued | ssm-sap:GetConfigurationCheckOperation, ssm-sap:ListConfigurationCheckOperations |
 | ssm-sap | ssm-sap/operation | 0 |  | child-uncatalogued | ssm-sap:GetOperation, ssm-sap:ListOperations |
 | ssm-sap | ssm-sap/subcheckresult | 1 |  | child-uncatalogued | ssm-sap:ListSubCheckResults |
