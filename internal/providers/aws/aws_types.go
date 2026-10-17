@@ -1988,6 +1988,10 @@ const (
 	// IAM Access Analyzer (accessanalyzer_scanners.go, accessanalyzer_resolvers.go)
 	TypeAccessAnalyzerAnalyzer    = "aws:accessanalyzer:analyzer"
 	TypeAccessAnalyzerArchiveRule = "aws:accessanalyzer:archive-rule"
+	// Agent Registry (agentregistry_scanners.go, agentregistry_resolvers.go),
+	// served by the Agent Registry Control SDK package.
+	TypeAgentRegistryRegistry       = "aws:agent-registry:registry"
+	TypeAgentRegistryRegistryRecord = "aws:agent-registry:registry-record"
 	// AI DevOps agent (aidevops_scanners.go, aidevops_resolvers.go). Resource
 	// segments mirror the Service Reference catalog (the only catalog modelling
 	// agent-space / service / associations; CFN models only PrivateConnection).

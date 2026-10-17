@@ -180,6 +180,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/accessanalyzer v1.51.3
 	github.com/aws/aws-sdk-go-v2/service/acm v1.43.3
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.49.3
+	github.com/aws/aws-sdk-go-v2/service/agentregistrycontrol v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/aiops v1.9.3
 	github.com/aws/aws-sdk-go-v2/service/amp v1.48.0
 	github.com/aws/aws-sdk-go-v2/service/amplify v1.41.3
