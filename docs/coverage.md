@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.5% (1953/3336 listable) · depth0 70.8% · depth1 40.9% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.7% (1958/3336 listable) · depth0 70.8% · depth1 41.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,8 +8,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1032 | 189 | 84.5 |
-| child-uncatalogued | 266 | 751 | 26.2 |
+| sr-resource | 1033 | 188 | 84.6 |
+| child-uncatalogued | 270 | 747 | 26.5 |
 | smithy-resource | 428 | 134 | 76.2 |
 | element-written | 185 | 231 | 44.5 |
 | element-arn | 36 | 70 | 34.0 |
@@ -89,7 +89,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sms-voice | 11 | 6 | 64.7 |
 | ssm-contacts | 3 | 6 | 33.3 |
 | storagegateway | 12 | 6 | 66.7 |
-| wickr | 0 | 6 | 0.0 |
 | workmail | 11 | 6 | 64.7 |
 | access-analyzer | 2 | 5 | 28.6 |
 | appstream | 16 | 5 | 76.2 |
@@ -291,6 +290,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | translate | 2 | 1 | 66.7 |
 | waf | 12 | 1 | 92.3 |
 | waf-regional | 13 | 1 | 92.9 |
+| wickr | 5 | 1 | 83.3 |
 | workspaces-web | 10 | 1 | 90.9 |
 | acm-pca | 2 | 0 | 100.0 |
 | aiops | 1 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1383)
+### Uncovered (listable, no scanner) (1378)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1707,12 +1707,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | wellarchitected | wellarchitected/profilenotification | 0 |  | element-written | wellarchitected:ListProfileNotifications |
 | wellarchitected | wellarchitected/reviewtemplateanswer | 2 |  | child-uncatalogued | wellarchitected:GetReviewTemplateAnswer, wellarchitected:ListReviewTemplateAnswers |
 | wellarchitected | wellarchitected/shareinvitation | 0 |  | element-written | wellarchitected:ListShareInvitations |
-| wickr | wickr/bot | 1 |  | child-uncatalogued | wickr:GetBot, wickr:ListBots |
 | wickr | wickr/device | 2 |  | child-uncatalogued | wickr:ListDevicesForUser |
-| wickr | wickr/network | 0 |  | sr-resource | wickr:GetNetwork, wickr:ListNetworks |
-| wickr | wickr/networksetting | 1 |  | child-uncatalogued | wickr:GetNetworkSettings |
-| wickr | wickr/securitygroup | 1 |  | child-uncatalogued | wickr:GetSecurityGroup, wickr:ListSecurityGroups |
-| wickr | wickr/user | 1 |  | child-uncatalogued | wickr:GetUser, wickr:ListSecurityGroupUsers, wickr:ListUsers |
 | wisdom | wisdom/importjob | 1 |  | child-uncatalogued | wisdom:GetImportJob, wisdom:ListImportJobs |
 | wisdom | wisdom/message | 2 |  | child-uncatalogued | wisdom:ListMessages |
 | wisdom | wisdom/model | 1 |  | child-uncatalogued | wisdom:ListModels |

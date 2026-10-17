@@ -2598,4 +2598,12 @@ const (
 	// plural ("checks"), mirrored as the plural resource segment. Checks are an
 	// AWS-published catalog (ManagedByProvider).
 	TypeTrustedAdvisorChecks = "aws:trustedadvisor:checks"
+
+	// Wickr (wickr_scanners.go). Only the network has an AWS-issued ARN; its
+	// children are keyed under it.
+	TypeWickrNetwork        = "aws:wickr:network"
+	TypeWickrSecurityGroup  = "aws:wickr:security-group"
+	TypeWickrBot            = "aws:wickr:bot"
+	TypeWickrNetworkSetting = "aws:wickr:network-setting"
+	TypeWickrUser           = "aws:wickr:user"
 )

@@ -280,6 +280,7 @@ var expectedAWSServices = []string{
 	"aws:work-spaces",
 	"aws:wellarchitected",
 	"aws:workmail",
+	"aws:wickr",
 	"aws:support-app",
 	"aws:s3vectors",
 	"aws:s3express",
