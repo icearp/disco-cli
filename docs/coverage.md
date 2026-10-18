@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.8% (1994/3336 listable) · depth0 72.0% · depth1 42.2% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.8% (1996/3336 listable) · depth0 72.0% · depth1 42.4% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1046 | 175 | 85.7 |
-| child-uncatalogued | 279 | 738 | 27.4 |
+| child-uncatalogued | 281 | 736 | 27.6 |
 | smithy-resource | 431 | 131 | 76.7 |
 | element-written | 196 | 220 | 47.1 |
 | element-arn | 36 | 70 | 34.0 |
@@ -32,7 +32,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iot | 33 | 16 | 67.3 |
 | lex | 8 | 16 | 33.3 |
 | mgn | 10 | 15 | 40.0 |
-| rds | 24 | 15 | 61.5 |
 | deadline | 13 | 14 | 48.1 |
 | dms | 11 | 14 | 44.0 |
 | quicksight | 30 | 14 | 68.2 |
@@ -40,6 +39,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cloudformation | 7 | 13 | 35.0 |
 | inspector2 | 5 | 13 | 27.8 |
 | profile | 12 | 13 | 48.0 |
+| rds | 26 | 13 | 66.7 |
 | cleanrooms | 11 | 12 | 47.8 |
 | comprehend | 5 | 12 | 29.4 |
 | gamelift | 15 | 12 | 55.6 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1342)
+### Uncovered (listable, no scanner) (1340)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1386,12 +1386,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | rds | rds/certificate | 0 |  | element-written | rds:DescribeCertificates |
 | rds | rds/dbclusterbacktrack | 1 |  | child-uncatalogued | rds:DescribeDBClusterBacktracks |
 | rds | rds/dbclusterparameter | 1 |  | element-written | rds:DescribeDBClusterParameters, rds:DescribeEngineDefaultClusterParameters |
-| rds | rds/dbclustersnapshotattribute | 1 |  | child-uncatalogued | rds:DescribeDBClusterSnapshotAttributes |
 | rds | rds/dblogfile | 1 |  | child-uncatalogued | rds:DescribeDBLogFiles |
 | rds | rds/dbparameter | 1 |  | element-written | rds:DescribeDBClusterParameters, rds:DescribeDBParameters, rds:DescribeEngineDefaultClusterParameters, rds:DescribeEngineDefaultParameters |
 | rds | rds/dbproxytarget | 1 |  | child-uncatalogued | rds:DescribeDBProxyTargets |
 | rds | rds/dbrecommendation | 0 |  | element-written | rds:DescribeDBRecommendations |
-| rds | rds/dbsnapshotattribute | 1 |  | child-uncatalogued | rds:DescribeDBSnapshotAttributes |
 | rds | rds/event | 0 |  | element-arn | rds:DescribeEvents |
 | rds | rds/exporttask | 0 |  | element-written | rds:DescribeExportTasks |
 | rds | rds/optiongroupoption | 0 |  | child-uncatalogued | rds:DescribeOptionGroupOptions |

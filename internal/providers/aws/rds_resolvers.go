@@ -84,6 +84,17 @@ func init() {
 		resolveRDSSnapshotTenantDatabaseRefs,
 		EdgeDecl{TypeRDSSnapshotTenantDatabase, TypeRDSSnapshot, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopRDSSnapshotAttributeHierarchy,
+		EdgeDecl{TypeRDSSnapshot, TypeRDSDBSnapshotAttribute, store.RelContains},
+		EdgeDecl{TypeRDSClusterSnapshot, TypeRDSDBClusterSnapshotAttribute, store.RelContains},
+	)
+}
+
+// noopRDSSnapshotAttributeHierarchy only declares the snapshot -> attribute
+// contains edges, which scanRDSSnapshotAttributes records through childFanOut.
+func noopRDSSnapshotAttributeHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveRDSIntegrationRefs wires zero-ETL integrations to their source

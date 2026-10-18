@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -71,6 +72,8 @@ type rdsAPI interface {
 	DescribeTenantDatabases(context.Context, *rds.DescribeTenantDatabasesInput, ...func(*rds.Options)) (*rds.DescribeTenantDatabasesOutput, error)
 	DescribeDBSnapshotTenantDatabases(context.Context, *rds.DescribeDBSnapshotTenantDatabasesInput, ...func(*rds.Options)) (*rds.DescribeDBSnapshotTenantDatabasesOutput, error)
 	DescribeBlueGreenDeployments(context.Context, *rds.DescribeBlueGreenDeploymentsInput, ...func(*rds.Options)) (*rds.DescribeBlueGreenDeploymentsOutput, error)
+	DescribeDBSnapshotAttributes(context.Context, *rds.DescribeDBSnapshotAttributesInput, ...func(*rds.Options)) (*rds.DescribeDBSnapshotAttributesOutput, error)
+	DescribeDBClusterSnapshotAttributes(context.Context, *rds.DescribeDBClusterSnapshotAttributesInput, ...func(*rds.Options)) (*rds.DescribeDBClusterSnapshotAttributesOutput, error)
 }
 
 // rdsPager is satisfied by every AWS SDK v2 RDS paginator.
@@ -90,30 +93,54 @@ func rdsPageScan[P any](
 	pager rdsPager[P],
 	toResources func(P) []*store.Resource,
 ) (total, inserted int, err error) {
+	total, inserted, _, err = rdsPageScanParents(ctx, iamAction, acct, region, st, pager,
+		func(page P) ([]*store.Resource, []childParent) { return toResources(page), nil })
+	return total, inserted, err
+}
+
+// rdsPageScanParents is rdsPageScan whose toRows also names, among the rows it
+// builds, the parents a later phase reads; it returns the parents of the
+// pages whose rows were upserted.
+func rdsPageScanParents[P any](
+	ctx context.Context,
+	iamAction string,
+	acct *account,
+	region string,
+	st *store.Store,
+	pager rdsPager[P],
+	toRows func(P) ([]*store.Resource, []childParent),
+) (total, inserted int, parents []childParent, err error) {
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
+				return total, inserted, parents, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)
+			return total, inserted, parents, fmt.Errorf("%s: %w", iamAction, err)
 		}
-		if batch := toResources(page); len(batch) > 0 {
+		batch, pageParents := toRows(page)
+		if len(batch) > 0 {
 			n, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert %s: %w", iamAction, err)
+				return total, inserted, parents, fmt.Errorf("upsert %s: %w", iamAction, err)
 			}
 			total += len(batch)
 			inserted += n
 		}
+		parents = append(parents, pageParents...)
 	}
 	return
 }
 
-// scanRDS discovers all RDS resources in one region concurrently.
+// scanRDS discovers all RDS resources in one region. The older phases run
+// concurrently, and the first error any of them returns cancels the rest,
+// which can cut the snapshot listings short. The snapshot-attribute phases run
+// after them, over only the manual snapshots stored before that point; their
+// own errors cost the older phases no rows.
 func scanRDS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := rds.NewFromConfig(acct.cfg, func(o *rds.Options) { o.Region = region })
-	return runScanners(
+	var snapshots, clusterSnapshots []childParent
+	total, inserted, err = runScanners(
 		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanDBInstances(ctx, client, acct, region, st, scanID)
@@ -160,11 +187,13 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 		func(ctx context.Context) (int, int, error) {
 			return scanCustomDBEngineVersions(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBSnapshots(ctx, client, acct, region, st, scanID)
+		func(ctx context.Context) (t, i int, err error) {
+			t, i, snapshots, err = scanDBSnapshots(ctx, client, acct, region, st, scanID)
+			return t, i, err
 		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBClusterSnapshots(ctx, client, acct, region, st, scanID)
+		func(ctx context.Context) (t, i int, err error) {
+			t, i, clusterSnapshots, err = scanDBClusterSnapshots(ctx, client, acct, region, st, scanID)
+			return t, i, err
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanDBClusterEndpoints(ctx, client, acct, region, st, scanID)
@@ -188,6 +217,13 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 			return scanBlueGreenDeployments(ctx, client, acct, region, st, scanID)
 		},
 	)
+	// One attribute phase at a time, so at most fanoutMed attribute calls are
+	// in flight.
+	st1, in1, serr := scanDBSnapshotAttributes(ctx, client, acct, region, st, scanID, snapshots)
+	st2, in2, cerr := scanDBClusterSnapshotAttributes(ctx, client, acct, region, st, scanID, clusterSnapshots)
+	// The attribute phases need no demotion: childFanOutSkipTransient already
+	// drops their transient per-snapshot errors.
+	return total + st1 + st2, inserted + in1 + in2, errors.Join(demoteTransient(st, "rds", acct, region, err), serr, cerr)
 }
 
 // nonRDSEngines are engines that ride rds:Describe* APIs but have their own
@@ -626,44 +662,54 @@ func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *accoun
 	return
 }
 
-func scanDBSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
+// scanDBSnapshots stores the snapshots the account owns (the op leaves out
+// shared and public ones unless asked) and returns the stored manual ones as
+// parents for the attribute phase.
+func scanDBSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, manual []childParent, err error) {
+	return rdsPageScanParents(
 		ctx, "rds:DescribeDBSnapshots", acct, region, st,
 		rds.NewDescribeDBSnapshotsPaginator(client, &rds.DescribeDBSnapshotsInput{}),
-		func(page *rds.DescribeDBSnapshotsOutput) []*store.Resource {
-			var out []*store.Resource
+		func(page *rds.DescribeDBSnapshotsOutput) (rows []*store.Resource, manual []childParent) {
 			for _, s := range page.DBSnapshots {
-				name := sv(s.DBSnapshotIdentifier)
-				out = append(out, &store.Resource{
+				name, arn := sv(s.DBSnapshotIdentifier), sv(s.DBSnapshotArn)
+				rows = append(rows, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSSnapshot, NativeID: sv(s.DBSnapshotArn),
+					Type: TypeRDSSnapshot, NativeID: arn,
 					Name: &name, Region: &region, CreatedAt: tp(s.SnapshotCreateTime),
 					Status: s.Status, TagsJSON: awsTagsJSON(s.TagList),
 					AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 				})
+				if sv(s.SnapshotType) == rdsManualSnapshot && name != "" && arn != "" {
+					manual = append(manual, childParent{id: name, arn: arn})
+				}
 			}
-			return out
+			return rows, manual
 		},
 	)
 }
 
-func scanDBClusterSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
+// scanDBClusterSnapshots stores the cluster snapshots the account owns (the op
+// leaves out shared and public ones unless asked) and returns the stored
+// manual ones as parents for the attribute phase.
+func scanDBClusterSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, manual []childParent, err error) {
+	return rdsPageScanParents(
 		ctx, "rds:DescribeDBClusterSnapshots", acct, region, st,
 		rds.NewDescribeDBClusterSnapshotsPaginator(client, &rds.DescribeDBClusterSnapshotsInput{}),
-		func(page *rds.DescribeDBClusterSnapshotsOutput) []*store.Resource {
-			var out []*store.Resource
+		func(page *rds.DescribeDBClusterSnapshotsOutput) (rows []*store.Resource, manual []childParent) {
 			for _, s := range page.DBClusterSnapshots {
-				name := sv(s.DBClusterSnapshotIdentifier)
-				out = append(out, &store.Resource{
+				name, arn := sv(s.DBClusterSnapshotIdentifier), sv(s.DBClusterSnapshotArn)
+				rows = append(rows, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSClusterSnapshot, NativeID: sv(s.DBClusterSnapshotArn),
+					Type: TypeRDSClusterSnapshot, NativeID: arn,
 					Name: &name, Region: &region, CreatedAt: tp(s.SnapshotCreateTime),
 					Status: s.Status, TagsJSON: awsTagsJSON(s.TagList),
 					AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 				})
+				if sv(s.SnapshotType) == rdsManualSnapshot && name != "" && arn != "" {
+					manual = append(manual, childParent{id: name, arn: arn})
+				}
 			}
-			return out
+			return rows, manual
 		},
 	)
 }
