@@ -1299,6 +1299,9 @@ const (
 	TypeDSSharedDirectory = "aws:directory-service:shared-directory"
 	TypeDSSnapshot        = "aws:directory-service:snapshot"
 	TypeDSTrust           = "aws:directory-service:trust"
+	// Directory Service Data (directoryservicedata_scanners.go)
+	TypeDSDataUser  = "aws:directory-service-data:user"
+	TypeDSDataGroup = "aws:directory-service-data:group"
 	// Detective extras (detective_extended_scanners.go)
 	TypeDetectiveOrganizationAdmin = "aws:detective:organization-admin"
 	// Compute Optimizer (computeoptimizer_scanners.go)

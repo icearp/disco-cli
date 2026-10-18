@@ -129,6 +129,7 @@ var expectedAWSServices = []string{
 	"aws:forecast",
 	"aws:fis",
 	"aws:directory-service",
+	"aws:directory-service-data",
 	"aws:comprehend",
 	"aws:compute-optimizer",
 	"aws:budgets",

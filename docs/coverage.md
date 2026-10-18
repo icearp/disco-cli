@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.1% (1971/3336 listable) · depth0 71.3% · depth1 41.5% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.1% (1973/3336 listable) · depth0 71.3% · depth1 41.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1038 | 183 | 85.0 |
-| child-uncatalogued | 272 | 745 | 26.7 |
+| child-uncatalogued | 274 | 743 | 26.9 |
 | smithy-resource | 429 | 133 | 76.3 |
 | element-written | 190 | 226 | 45.7 |
 | element-arn | 36 | 70 | 34.0 |
@@ -144,7 +144,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codeguru-reviewer | 1 | 3 | 25.0 |
 | cognito-sync | 0 | 3 | 0.0 |
 | discovery | 0 | 3 | 0.0 |
-| ds-data | 0 | 3 | 0.0 |
 | elasticbeanstalk | 5 | 3 | 62.5 |
 | emr-serverless | 1 | 3 | 25.0 |
 | events | 8 | 3 | 72.7 |
@@ -236,6 +235,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dataexchange | 6 | 1 | 85.7 |
 | datasync | 4 | 1 | 80.0 |
 | docdb-elastic | 2 | 1 | 66.7 |
+| ds-data | 2 | 1 | 66.7 |
 | ecr | 4 | 1 | 80.0 |
 | ecr-public | 2 | 1 | 66.7 |
 | elasticloadbalancing | 7 | 1 | 87.5 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1365)
+### Uncovered (listable, no scanner) (1363)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -801,9 +801,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | drs | drs/replicationconfiguration | 1 |  | child-uncatalogued | drs:GetReplicationConfiguration |
 | ds | ds/domaincontroller | 1 |  | child-uncatalogued | ds:DescribeDomainControllers |
 | ds | ds/schemaextension | 1 |  | child-uncatalogued | ds:ListSchemaExtensions |
-| ds-data | ds-data/group | 1 |  | child-uncatalogued | ds-data:ListGroups, ds-data:ListGroupsForMember, ds-data:SearchGroups |
 | ds-data | ds-data/groupmember | 1 |  | child-uncatalogued | ds-data:ListGroupMembers |
-| ds-data | ds-data/user | 1 |  | child-uncatalogued | ds-data:ListUsers, ds-data:SearchUsers |
 | dynamodb | dynamodb/export | 0 |  | sr-resource | dynamodb:DescribeExport, dynamodb:ListExports |
 | dynamodb | dynamodb/globaltablesetting | 1 |  | child-uncatalogued | dynamodb:DescribeGlobalTableSettings |
 | dynamodb | dynamodb/import | 0 |  | sr-resource | dynamodb:DescribeImport, dynamodb:ListImports |
