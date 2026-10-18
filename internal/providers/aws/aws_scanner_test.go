@@ -298,6 +298,7 @@ var expectedAWSServices = []string{
 	"aws:proton",
 	"aws:pcs",
 	"aws:polly",
+	"aws:pricingplanmanager",
 	"aws:neptune-graph",
 	"aws:media-convert",
 	"aws:managed-blockchain",

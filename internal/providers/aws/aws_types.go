@@ -2531,6 +2531,9 @@ const (
 	// Savings Plans (savingsplans_scanners.go). Global service.
 	TypeSavingsPlansSavingsPlan = "aws:savingsplans:savingsplan"
 
+	// Pricing Plan Manager (pricingplanmanager_scanners.go). Global service.
+	TypePricingPlanManagerSubscription = "aws:pricingplanmanager:subscription"
+
 	// Simple Workflow Service (swf_scanners.go).
 	TypeSWFDomain = "aws:swf:domain"
 

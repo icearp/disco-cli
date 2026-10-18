@@ -404,6 +404,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoicev2 v1.32.3
 	github.com/aws/aws-sdk-go-v2/service/pipes v1.26.3
 	github.com/aws/aws-sdk-go-v2/service/polly v1.60.3
+	github.com/aws/aws-sdk-go-v2/service/pricingplanmanager v1.5.0
 	github.com/aws/aws-sdk-go-v2/service/proton v1.42.3
 	github.com/aws/aws-sdk-go-v2/service/qapps v1.14.3
 	github.com/aws/aws-sdk-go-v2/service/qbusiness v1.37.3

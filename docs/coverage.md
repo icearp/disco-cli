@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.9% (1965/3336 listable) · depth0 71.1% · depth1 41.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 58.9% (1966/3336 listable) · depth0 71.2% · depth1 41.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1035 | 186 | 84.8 |
+| sr-resource | 1036 | 185 | 84.8 |
 | child-uncatalogued | 271 | 746 | 26.6 |
 | smithy-resource | 429 | 133 | 76.3 |
 | element-written | 188 | 228 | 45.2 |
@@ -265,7 +265,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | observabilityadmin | 4 | 1 | 80.0 |
 | polly | 1 | 1 | 50.0 |
 | pricing | 0 | 1 | 0.0 |
-| pricingplanmanager | 0 | 1 | 0.0 |
 | refactor-spaces | 4 | 1 | 80.0 |
 | route53 | 10 | 1 | 90.9 |
 | route53-recovery-cluster | 0 | 1 | 0.0 |
@@ -336,6 +335,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | pca-connector-scep | 2 | 0 | 100.0 |
 | pcs | 3 | 0 | 100.0 |
 | pipes | 1 | 0 | 100.0 |
+| pricingplanmanager | 1 | 0 | 100.0 |
 | qapps | 3 | 0 | 100.0 |
 | rbin | 1 | 0 | 100.0 |
 | repostspace | 2 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1371)
+### Uncovered (listable, no scanner) (1370)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1352,7 +1352,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | pi | pi/performanceanalysisreportrecommendation | 3 |  | child-uncatalogued | pi:ListPerformanceAnalysisReportRecommendations |
 | polly | polly/speechsynthesistask | 0 |  | element-written | polly:GetSpeechSynthesisTask, polly:ListSpeechSynthesisTasks |
 | pricing | pricing/pricelist | 0 |  | element-arn | pricing:ListPriceLists |
-| pricingplanmanager | pricingplanmanager/subscription | 0 |  | sr-resource | pricingplanmanager:GetSubscription, pricingplanmanager:ListSubscriptions |
 | profile | profile/calculatedattribute | 2 |  | sr-resource | profile:BatchGetCalculatedAttributeForProfile, profile:GetCalculatedAttributeForProfile, profile:ListCalculatedAttributesForProfile |
 | profile | profile/identityresolutionjob | 1 |  | child-uncatalogued | profile:GetIdentityResolutionJob, profile:ListIdentityResolutionJobs |
 | profile | profile/match | 1 |  | child-uncatalogued | profile:GetMatches |
