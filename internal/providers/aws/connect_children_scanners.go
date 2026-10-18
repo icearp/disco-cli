@@ -84,37 +84,25 @@ func scanConnectChildren(ctx context.Context, client connectChildrenAPI, instanc
 // scanConnectTestCases lists test-case ids per instance, then describes each:
 // only DescribeTestCase carries the tags and the test content.
 func scanConnectTestCases(ctx context.Context, client connectChildrenAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	listErrs := &fanOutErrs{st: st, acct: acct, region: region, op: "connect:ListTestCases", isSkip: isConnectNotFound}
-	byARN := map[string]connectInstanceItem{}
-	var arns []string
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListTestCasesPaginator(client, &connect.ListTestCasesInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if kerr := listErrs.keyErr(instID, perr); kerr != nil {
-					return 0, 0, kerr
+	return connectListDescribe(ctx, st, acct, region, "connect:ListTestCases", "connect:DescribeTestCase", "connect test cases", instances,
+		func(ctx context.Context, instID string, emit func(string, string)) error {
+			pager := connect.NewListTestCasesPaginator(client, &connect.ListTestCasesInput{InstanceId: &instID})
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return err
 				}
-				break
-			}
-			for _, s := range out.TestCaseSummaryList {
-				arn, id := sv(s.Arn), sv(s.Id)
-				if arn == "" || id == "" {
-					continue
+				for _, s := range out.TestCaseSummaryList {
+					arn, id := sv(s.Arn), sv(s.Id)
+					if arn != "" && id != "" {
+						emit(arn, id)
+					}
 				}
-				arns = append(arns, arn)
-				byARN[arn] = connectInstanceItem{instID, id}
 			}
-		}
-	}
-	rows, err := describeFanOut(ctx, st, acct, region, "connect:DescribeTestCase", arns, isConnectNotFound,
-		func(gctx context.Context, arn string) (*store.Resource, error) {
-			k := byARN[arn]
-			out, derr := client.DescribeTestCase(gctx, &connect.DescribeTestCaseInput{InstanceId: &k.instanceID, TestCaseId: &k.id})
+			return nil
+		},
+		func(gctx context.Context, instID, _, id string) (*store.Resource, error) {
+			out, derr := client.DescribeTestCase(gctx, &connect.DescribeTestCaseInput{InstanceId: &instID, TestCaseId: &id})
 			if derr != nil {
 				return nil, derr
 			}
@@ -129,10 +117,6 @@ func scanConnectTestCases(ctx context.Context, client connectChildrenAPI, instan
 				TagsJSON: mapTagsJSON(tc.Tags), AttributesJSON: mustJSON(tc), DiscoveredBy: scanID,
 			}, nil
 		})
-	if err != nil {
-		return 0, 0, err
-	}
-	return upsertBatch(st, rows, "connect test cases")
 }
 
 func scanConnectAttachedFilesConfigurations(ctx context.Context, client connectChildrenAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

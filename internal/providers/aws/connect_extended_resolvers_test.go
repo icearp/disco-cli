@@ -69,6 +69,41 @@ func TestResolveConnectChildrenToInstance_TestCase(t *testing.T) {
 	assertRelationship(t, rels, tcID, iID, store.RelAttachedTo)
 }
 
+func TestResolveConnectChildrenToInstance_Analytics(t *testing.T) {
+	for _, c := range []struct{ typ, kind string }{
+		{TypeConnectExtractionDefinition, "extraction-definition"},
+		{TypeConnectMetric, "metric"},
+	} {
+		t.Run(c.typ, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			iARN := fmt.Sprintf("arn:aws:connect:%s:%s:instance/abc", testRegion, acct.ID)
+			iID := upsertTestResource(t, st, "aws", acct.ID, TypeConnectInstance, iARN, testRegion, "{}")
+			childID := upsertTestResource(t, st, "aws", acct.ID, c.typ, iARN+"/"+c.kind+"/x1", testRegion, "{}")
+			unscannedARN := fmt.Sprintf("arn:aws:connect:%s:%s:instance/gone", testRegion, acct.ID)
+			orphanID := upsertTestResource(t, st, "aws", acct.ID, c.typ, unscannedARN+"/"+c.kind+"/x2", testRegion, "{}")
+			if err := resolveConnectChildrenToInstance(acct, st); err != nil {
+				t.Fatalf("resolveConnectChildrenToInstance: %v", err)
+			}
+			rels, err := st.RelationshipsFrom(childID)
+			if err != nil {
+				t.Fatalf("RelationshipsFrom: %v", err)
+			}
+			assertRelationship(t, rels, childID, iID, store.RelAttachedTo)
+			if len(rels) != 1 {
+				t.Errorf("edges from %s = %d, want 1", c.typ, len(rels))
+			}
+			orphanRels, err := st.RelationshipsFrom(orphanID)
+			if err != nil {
+				t.Fatalf("RelationshipsFrom orphan: %v", err)
+			}
+			if len(orphanRels) != 0 {
+				t.Errorf("edges from the child of an unscanned instance = %v, want none", orphanRels)
+			}
+		})
+	}
+}
+
 func TestResolveConnectViewVersionToView(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

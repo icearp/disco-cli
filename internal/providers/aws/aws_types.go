@@ -866,6 +866,9 @@ const (
 	TypeConnectUseCase                    = "aws:connect:use-case"
 	TypeConnectEvaluationFormVersion      = "aws:connect:evaluation-form-version"
 	TypeConnectWorkspacePage              = "aws:connect:workspace-page"
+	// Connect — analytics configuration (connect_analytics_scanners.go)
+	TypeConnectExtractionDefinition = "aws:connect:extraction-definition"
+	TypeConnectMetric               = "aws:connect:metric"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"

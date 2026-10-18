@@ -540,8 +540,8 @@ github.com/aws/aws-sdk-go-v2/service/computeoptimizerautomation v1.11.0 h1:ijm7f
 github.com/aws/aws-sdk-go-v2/service/computeoptimizerautomation v1.11.0/go.mod h1:apn45zc5YPGxZylK5S49KMMHegXFfX/P6pKoxUTc2rg=
 github.com/aws/aws-sdk-go-v2/service/configservice v1.68.3 h1:sQFn4b0K7D8SRBZA03G4AybYReLp0kL1UgkVb9h9dZg=
 github.com/aws/aws-sdk-go-v2/service/configservice v1.68.3/go.mod h1:pk0Z/lfJ+2057DRRlja2SfegFEWbwkNE5tejVrleUHc=
-github.com/aws/aws-sdk-go-v2/service/connect v1.184.3 h1:R9owiag8ICZvpkIyy/V0dYhg1rqMo8H6ZMnF01tXkc0=
-github.com/aws/aws-sdk-go-v2/service/connect v1.184.3/go.mod h1:AzNOTSSx7s2Yy9gg5FzOh+hCxCAo0W3P0R2dwiNgeK8=
+github.com/aws/aws-sdk-go-v2/service/connect v1.192.1 h1:A29BUAn41+rUGJLSvEmEP81XabApP9lzf9w7zVs67P4=
+github.com/aws/aws-sdk-go-v2/service/connect v1.192.1/go.mod h1:k1+BPajyj1GNanTzIKentXIIYHAd3Oe7pwrCsQfofLw=
 github.com/aws/aws-sdk-go-v2/service/connectcampaigns v1.23.3 h1:aruufWoTfrkZ95vOZ8Mot8s9ghkdR44IFqUHmp4SSPI=
 github.com/aws/aws-sdk-go-v2/service/connectcampaigns v1.23.3/go.mod h1:7tzkOwhDuG6YYzh5APLZmb2wil7loDKUriAr0u3dc5g=
 github.com/aws/aws-sdk-go-v2/service/connectcampaignsv2 v1.18.0 h1:vPTQTm1yWI/jrJL4BN/TblPdMRwdszD8TR5Lr1nWlMk=

@@ -253,7 +253,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/computeoptimizer v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/computeoptimizerautomation v1.11.0
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.68.3
-	github.com/aws/aws-sdk-go-v2/service/connect v1.184.3
+	github.com/aws/aws-sdk-go-v2/service/connect v1.192.1
 	github.com/aws/aws-sdk-go-v2/service/connectcampaigns v1.23.3
 	github.com/aws/aws-sdk-go-v2/service/connectcampaignsv2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/service/connectcases v1.44.3
