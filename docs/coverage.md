@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.9% (1997/3336 listable) · depth0 72.1% · depth1 42.4% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.1% (2004/3336 listable) · depth0 72.2% · depth1 42.8% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,16 +8,16 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1046 | 175 | 85.7 |
-| child-uncatalogued | 281 | 736 | 27.6 |
+| sr-resource | 1047 | 174 | 85.7 |
+| child-uncatalogued | 285 | 732 | 28.0 |
 | smithy-resource | 431 | 131 | 76.7 |
-| element-written | 197 | 219 | 47.4 |
+| element-written | 199 | 217 | 47.8 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
-| ec2 | 121 | 75 | 61.7 |
+| ec2 | 128 | 68 | 65.3 |
 | resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
 | ssm | 11 | 27 | 28.9 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1339)
+### Uncovered (listable, no scanner) (1332)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -806,7 +806,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dynamodb | dynamodb/item | 1 |  | child-uncatalogued | dynamodb:BatchGetItem, dynamodb:GetItem, dynamodb:TransactGetItems |
 | ec2 | ec2/addressesattribute | 0 |  | element-written | ec2:DescribeAddressesAttribute |
 | ec2 | ec2/addresstransfer | 0 |  | element-written | ec2:DescribeAddressTransfers |
-| ec2 | ec2/applicationstatuscheck | 0 |  | sr-resource | ec2:DescribeApplicationStatusChecks |
 | ec2 | ec2/awsnetworkperformancedata | 0 |  | element-written | ec2:GetAwsNetworkPerformanceData |
 | ec2 | ec2/bundletask | 0 |  | element-written | ec2:DescribeBundleTasks |
 | ec2 | ec2/capacityblockextensionhistory | 0 |  | element-written | ec2:DescribeCapacityBlockExtensionHistory |
@@ -829,7 +828,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/hostreservationpurchasepreview | 0 |  | child-uncatalogued | ec2:GetHostReservationPurchasePreview |
 | ec2 | ec2/iaminstanceprofileassociation | 0 |  | element-written | ec2:DescribeIamInstanceProfileAssociations |
 | ec2 | ec2/idformat | 0 |  | child-uncatalogued | ec2:DescribeAggregateIdFormat, ec2:DescribeIdFormat, ec2:DescribeIdentityIdFormat |
-| ec2 | ec2/imageattribute | 1 |  | child-uncatalogued | ec2:DescribeImageAttribute |
 | ec2 | ec2/imagereference | 1 |  | child-uncatalogued | ec2:DescribeImageReferences |
 | ec2 | ec2/imagesinrecyclebin | 0 |  | element-written | ec2:ListImagesInRecycleBin |
 | ec2 | ec2/imageusagereport | 0 |  | sr-resource | ec2:DescribeImageUsageReports |
@@ -851,19 +849,15 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/ipamrouteprotectionfinding | 1 |  | child-uncatalogued | ec2:GetIpamRouteProtectionFindings |
 | ec2 | ec2/ipamroutingpolicyregistration | 1 |  | child-uncatalogued | ec2:GetIpamRoutingPolicyRegistrations |
 | ec2 | ec2/ipamroutingpolicyregistrationdelta | 1 |  | child-uncatalogued | ec2:GetIpamRoutingPolicyRegistrationDeltas |
-| ec2 | ec2/lockedsnapshot | 0 |  | element-written | ec2:DescribeLockedSnapshots |
 | ec2 | ec2/macmodificationtask | 0 |  | sr-resource | ec2:DescribeMacModificationTasks |
 | ec2 | ec2/managedprefixlistassociation | 1 |  | child-uncatalogued | ec2:GetManagedPrefixListAssociations |
 | ec2 | ec2/networkinsightsaccessscopeanalysisfinding | 1 |  | child-uncatalogued | ec2:GetNetworkInsightsAccessScopeAnalysisFindings |
 | ec2 | ec2/principalidformat | 0 |  | element-arn | ec2:DescribePrincipalIdFormat |
 | ec2 | ec2/replacerootvolumetask | 0 |  | sr-resource | ec2:DescribeReplaceRootVolumeTasks |
 | ec2 | ec2/reservedinstancesmodification | 0 |  | element-created | ec2:DescribeReservedInstancesModifications |
-| ec2 | ec2/routeserverassociation | 1 |  | child-uncatalogued | ec2:GetRouteServerAssociations |
-| ec2 | ec2/routeserverpropagation | 1 |  | child-uncatalogued | ec2:GetRouteServerPropagations |
 | ec2 | ec2/scheduledinstance | 0 |  | element-written | ec2:DescribeScheduledInstances |
 | ec2 | ec2/scheduledinstanceavailability | 0 |  | element-written | ec2:DescribeScheduledInstanceAvailability |
 | ec2 | ec2/securitygroupreference | 1 |  | child-uncatalogued | ec2:DescribeSecurityGroupReferences |
-| ec2 | ec2/snapshotattribute | 1 |  | child-uncatalogued | ec2:DescribeSnapshotAttribute |
 | ec2 | ec2/snapshotsinrecyclebin | 0 |  | element-written | ec2:ListSnapshotsInRecycleBin |
 | ec2 | ec2/snapshottierstatus | 0 |  | element-written | ec2:DescribeSnapshotTierStatus |
 | ec2 | ec2/stalesecuritygroup | 1 |  | child-uncatalogued | ec2:DescribeStaleSecurityGroups |
@@ -871,7 +865,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/transitgatewaypolicytableassociation | 1 |  | child-uncatalogued | ec2:GetTransitGatewayPolicyTableAssociations |
 | ec2 | ec2/trunkinterfaceassociation | 0 |  | element-written | ec2:DescribeTrunkInterfaceAssociations |
 | ec2 | ec2/verifiedaccessendpointtarget | 1 |  | sr-resource | ec2:GetVerifiedAccessEndpointTargets |
-| ec2 | ec2/verifiedaccessinstanceloggingconfiguration | 0 |  | element-written | ec2:DescribeVerifiedAccessInstanceLoggingConfigurations |
 | ec2 | ec2/volumeattribute | 1 |  | child-uncatalogued | ec2:DescribeVolumeAttribute |
 | ec2 | ec2/volumesinrecyclebin | 0 |  | element-written | ec2:ListVolumesInRecycleBin |
 | ec2 | ec2/volumesmodification | 0 |  | element-written | ec2:DescribeVolumesModifications |

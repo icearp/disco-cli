@@ -34,6 +34,12 @@ type ec2API interface {
 	DescribeReservedInstancesListings(context.Context, *ec2.DescribeReservedInstancesListingsInput, ...func(*ec2.Options)) (*ec2.DescribeReservedInstancesListingsOutput, error)
 	DescribeServiceLinkVirtualInterfaces(context.Context, *ec2.DescribeServiceLinkVirtualInterfacesInput, ...func(*ec2.Options)) (*ec2.DescribeServiceLinkVirtualInterfacesOutput, error)
 	GetAllowedImagesSettings(context.Context, *ec2.GetAllowedImagesSettingsInput, ...func(*ec2.Options)) (*ec2.GetAllowedImagesSettingsOutput, error)
+	DescribeSnapshotAttribute(context.Context, *ec2.DescribeSnapshotAttributeInput, ...func(*ec2.Options)) (*ec2.DescribeSnapshotAttributeOutput, error)
+	DescribeImageAttribute(context.Context, *ec2.DescribeImageAttributeInput, ...func(*ec2.Options)) (*ec2.DescribeImageAttributeOutput, error)
+	DescribeLockedSnapshots(context.Context, *ec2.DescribeLockedSnapshotsInput, ...func(*ec2.Options)) (*ec2.DescribeLockedSnapshotsOutput, error)
+	DescribeApplicationStatusChecks(context.Context, *ec2.DescribeApplicationStatusChecksInput, ...func(*ec2.Options)) (*ec2.DescribeApplicationStatusChecksOutput, error)
+	GetRouteServerAssociations(context.Context, *ec2.GetRouteServerAssociationsInput, ...func(*ec2.Options)) (*ec2.GetRouteServerAssociationsOutput, error)
+	GetRouteServerPropagations(context.Context, *ec2.GetRouteServerPropagationsInput, ...func(*ec2.Options)) (*ec2.GetRouteServerPropagationsOutput, error)
 	// Paginator-backed ops. NewListXxxPaginator(client, ...) only requires the
 	// matching DescribeXxx / GetXxx / SearchXxx method on `client`, so listing
 	// the underlying op suffices.
@@ -128,6 +134,7 @@ type ec2API interface {
 	DescribeVerifiedAccessEndpoints(context.Context, *ec2.DescribeVerifiedAccessEndpointsInput, ...func(*ec2.Options)) (*ec2.DescribeVerifiedAccessEndpointsOutput, error)
 	DescribeVerifiedAccessGroups(context.Context, *ec2.DescribeVerifiedAccessGroupsInput, ...func(*ec2.Options)) (*ec2.DescribeVerifiedAccessGroupsOutput, error)
 	DescribeVerifiedAccessInstances(context.Context, *ec2.DescribeVerifiedAccessInstancesInput, ...func(*ec2.Options)) (*ec2.DescribeVerifiedAccessInstancesOutput, error)
+	DescribeVerifiedAccessInstanceLoggingConfigurations(context.Context, *ec2.DescribeVerifiedAccessInstanceLoggingConfigurationsInput, ...func(*ec2.Options)) (*ec2.DescribeVerifiedAccessInstanceLoggingConfigurationsOutput, error)
 	DescribeVerifiedAccessTrustProviders(context.Context, *ec2.DescribeVerifiedAccessTrustProvidersInput, ...func(*ec2.Options)) (*ec2.DescribeVerifiedAccessTrustProvidersOutput, error)
 	DescribeVolumes(context.Context, *ec2.DescribeVolumesInput, ...func(*ec2.Options)) (*ec2.DescribeVolumesOutput, error)
 	DescribeVpcEndpointConnectionNotifications(context.Context, *ec2.DescribeVpcEndpointConnectionNotificationsInput, ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointConnectionNotificationsOutput, error)

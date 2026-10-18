@@ -71,6 +71,30 @@ var lateResolverCases = []lateResolverCase{
 			}
 		},
 	},
+	{
+		name: "route server association", resolve: resolveRouteServerAssociationRelationships, source: TypeEC2RouteServerAssociation,
+		nativeID: func(s string) string {
+			return routeServerAssociationNativeID(ec2ARN(testRegion, testAccountID, "route-server", "rs-"+s), "vpc-"+s)
+		},
+		element: func(s string) any {
+			return ec2types.RouteServerAssociation{RouteServerId: ptrStr("rs-" + s), VpcId: ptrStr("vpc-" + s)}
+		},
+		targets: func(region, s string) []lateTarget {
+			return []lateTarget{{TypeEC2VPC, ec2ARN(region, testAccountID, "vpc", "vpc-"+s)}}
+		},
+	},
+	{
+		name: "route server propagation", resolve: resolveRouteServerPropagationRelationships, source: TypeEC2RouteServerPropagation,
+		nativeID: func(s string) string {
+			return routeServerPropagationNativeID(ec2ARN(testRegion, testAccountID, "route-server", "rs-"+s), "rtb-"+s)
+		},
+		element: func(s string) any {
+			return ec2types.RouteServerPropagation{RouteServerId: ptrStr("rs-" + s), RouteTableId: ptrStr("rtb-" + s)}
+		},
+		targets: func(region, s string) []lateTarget {
+			return []lateTarget{{TypeEC2RouteTable, ec2ARN(region, testAccountID, "route-table", "rtb-"+s)}}
+		},
+	},
 }
 
 func lateMarshal(t *testing.T, v any) string {

@@ -27,6 +27,29 @@ func init() {
 		EdgeDecl{TypeEC2ServiceLinkVirtualInterface, TypeEC2OutpostLag, store.RelAttachedTo},
 		EdgeDecl{TypeEC2ServiceLinkVirtualInterface, TypeOutpostsOutpost, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopEC2LateHierarchy,
+		EdgeDecl{TypeEC2Snapshot, TypeEC2SnapshotAttribute, store.RelContains},
+		EdgeDecl{TypeEC2Image, TypeEC2ImageAttribute, store.RelContains},
+		EdgeDecl{TypeEC2Snapshot, TypeEC2LockedSnapshot, store.RelContains},
+		EdgeDecl{TypeEC2VerifiedAccessInstance, TypeEC2VerifiedAccessInstanceLoggingConfiguration, store.RelContains},
+	)
+	registerResolver(
+		resolveRouteServerAssociationRelationships,
+		EdgeDecl{TypeEC2RouteServer, TypeEC2RouteServerAssociation, store.RelContains},
+		EdgeDecl{TypeEC2RouteServerAssociation, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRouteServerPropagationRelationships,
+		EdgeDecl{TypeEC2RouteServer, TypeEC2RouteServerPropagation, store.RelContains},
+		EdgeDecl{TypeEC2RouteServerPropagation, TypeEC2RouteTable, store.RelAttachedTo},
+	)
+}
+
+// noopEC2LateHierarchy carries the EdgeDecls of the contains pairs the
+// ec2_late_extra_scanners.go phases record themselves; it emits nothing.
+func noopEC2LateHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // ec2LateRefAttrs holds the reference fields the late-phase resolvers read;
@@ -37,6 +60,8 @@ type ec2LateRefAttrs struct {
 	ReservedInstancesID *string `json:"ReservedInstancesId"`
 	OutpostLagID        *string `json:"OutpostLagId"`
 	OutpostArn          *string `json:"OutpostArn"`
+	VpcID               *string `json:"VpcId"`
+	RouteTableID        *string `json:"RouteTableId"`
 }
 
 // ec2LateRef is one attached-to target of a source row: its type and the
@@ -75,6 +100,21 @@ func resolveServiceLinkVirtualInterfaceRelationships(acct *account, st *store.St
 	return resolveEC2LateRefs(acct, st, TypeEC2ServiceLinkVirtualInterface,
 		ec2ShortIDRef(TypeEC2OutpostLag, "outpost-lag", func(a ec2LateRefAttrs) *string { return a.OutpostLagID }),
 		ec2LateRef{target: TypeOutpostsOutpost, nativeID: func(_, _ string, a ec2LateRefAttrs) string { return sv(a.OutpostArn) }})
+}
+
+// resolveRouteServerAssociationRelationships links each route server
+// association to the scanned VPC it associates, in its own Region.
+func resolveRouteServerAssociationRelationships(acct *account, st *store.Store) error {
+	return resolveEC2LateRefs(acct, st, TypeEC2RouteServerAssociation,
+		ec2ShortIDRef(TypeEC2VPC, "vpc", func(a ec2LateRefAttrs) *string { return a.VpcID }))
+}
+
+// resolveRouteServerPropagationRelationships links each route server
+// propagation to the scanned route table it propagates into, in its own
+// Region.
+func resolveRouteServerPropagationRelationships(acct *account, st *store.Store) error {
+	return resolveEC2LateRefs(acct, st, TypeEC2RouteServerPropagation,
+		ec2ShortIDRef(TypeEC2RouteTable, "route-table", func(a ec2LateRefAttrs) *string { return a.RouteTableID }))
 }
 
 // resolveEC2LateRefs links each source row to every scanned target its refs

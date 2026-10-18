@@ -60,6 +60,14 @@ const (
 	TypeEC2AllowedImagesSetting        = "aws:ec2:allowed-images-setting"
 	TypeEC2ReservedInstancesListing    = "aws:ec2:reserved-instances-listing"
 	TypeEC2ServiceLinkVirtualInterface = "aws:ec2:service-link-virtual-interface"
+	// EC2 — late child and config phases (ec2_late_extra_scanners.go)
+	TypeEC2SnapshotAttribute                          = "aws:ec2:snapshot-attribute"
+	TypeEC2ImageAttribute                             = "aws:ec2:image-attribute"
+	TypeEC2LockedSnapshot                             = "aws:ec2:locked-snapshot"
+	TypeEC2VerifiedAccessInstanceLoggingConfiguration = "aws:ec2:verified-access-instance-logging-configuration"
+	TypeEC2ApplicationStatusCheck                     = "aws:ec2:application-status-check"
+	TypeEC2RouteServerAssociation                     = "aws:ec2:route-server-association"
+	TypeEC2RouteServerPropagation                     = "aws:ec2:route-server-propagation"
 	// EC2 — IPAM (ec2_ipam_scanners.go)
 	TypeEC2IPAM                                  = "aws:ec2:ipam"
 	TypeEC2IpamPolicy                            = "aws:ec2:ipam-policy"

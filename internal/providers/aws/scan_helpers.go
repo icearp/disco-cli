@@ -477,6 +477,39 @@ func childFanOutStoredSkipCodes(
 	return total, inserted, err
 }
 
+// childFanOutCollectSkipCodes is childFanOutStoredSkipCodes for parents with
+// a row or two each, where a write per parent would cost more than the
+// listing: the rows list returns are collected and stored under their parents
+// in one upsert after the fan-out. The skip and warning rules are those of
+// childFanOutStoredSkipCodes; the rows of parents listed before a failure are
+// still stored, and the failure is returned alongside any write error.
+func childFanOutCollectSkipCodes(
+	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
+	isSkip func(error) bool, label func(childParent) string, what string, codes []skipCode,
+	list func(context.Context, childParent) ([]*store.Resource, error),
+) (int, int, error) {
+	var (
+		mu       sync.Mutex
+		children []containedChild
+	)
+	_, _, err := childFanOutStoredSkipCodes(ctx, st, acct, region, op, parents, isSkip, label, what, codes,
+		func(ctx context.Context, p childParent) (int, int, error) {
+			rows, err := list(ctx, p)
+			if err != nil {
+				return 0, 0, err
+			}
+			parentID := store.ResourceID("aws", acct.ID, p.arn)
+			mu.Lock()
+			defer mu.Unlock()
+			for _, r := range rows {
+				children = append(children, containedChild{row: r, parentID: parentID})
+			}
+			return 0, 0, nil
+		})
+	total, inserted, uerr := upsertContained(st, op, children)
+	return total, inserted, errors.Join(err, uerr)
+}
+
 // isDemotableTransient reports whether a phase's error may be reported as a
 // transient warning and dropped: it is transient and carries no store write
 // failure. A phase can join a transient list error with a failed upsert of the
