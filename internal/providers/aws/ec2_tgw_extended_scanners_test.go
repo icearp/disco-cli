@@ -339,7 +339,7 @@ func TestScanEC2TGWExtended_PerParentErrors(t *testing.T) {
 			{"parent gone", apiErr(ph.goneCode, "The ID does not exist"), nil, 1},
 			{"transient", io.EOF, nil, 1},
 			{"denied", tgxDenied, nil, 1},
-			{"incorrect state", apiErr(tgwIncorrectState, "The table is not in a valid state"), nil, 1},
+			{"incorrect state", apiErr(ec2IncorrectState, "The table is not in a valid state"), nil, 1},
 			{"other", errTgxTest, errTgxTest, 0},
 		}
 		for _, c := range cases {
@@ -416,7 +416,7 @@ func TestScanEC2TGWExtended_OneWarningPerCode(t *testing.T) {
 					case tgxPT1, tgxRT1:
 						return nil, apiErr(ph.goneCode, "The ID does not exist")
 					case tgxPT2, tgxRT2:
-						return nil, apiErr(tgwIncorrectState, "The table is not in a valid state")
+						return nil, apiErr(ec2IncorrectState, "The table is not in a valid state")
 					}
 					return inner(in)
 				},
@@ -463,12 +463,12 @@ func TestScanEC2TGWExtended_RepeatedTokenStops(t *testing.T) {
 
 // A stored parent whose NativeID is not its scanner's ec2ARN shape fails the
 // phase rather than being queried with a wrong id.
-func TestTGWScannedParents_BadNativeID(t *testing.T) {
+func TestEC2StoredParents_BadNativeID(t *testing.T) {
 	st := newTestStore(t)
 	tgxSeedParent(t, st, TypeEC2TransitGatewayRouteTable, "tgw-rtb-bare", testRegion, "available", testScanID)
-	_, err := tgwScannedParents(st, newTestAccount(testAccountID), testRegion, testScanID, TypeEC2TransitGatewayRouteTable, "transit-gateway-route-table")
-	if !errors.Is(err, errTGWParentNativeID) {
-		t.Fatalf("err = %v, want errTGWParentNativeID", err)
+	_, err := ec2StoredParents(st, newTestAccount(testAccountID), testRegion, testScanID, TypeEC2TransitGatewayRouteTable, "transit-gateway-route-table", ec2TGWParentDeleted)
+	if !errors.Is(err, errEC2ParentNativeID) {
+		t.Fatalf("err = %v, want errEC2ParentNativeID", err)
 	}
 }
 

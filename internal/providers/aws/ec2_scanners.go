@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
 )
@@ -169,6 +172,66 @@ func ec2PageScan[P any](
 // facts, not failures, so callers silent-skip.
 func isEC2RegionFeatureGap(err error) bool {
 	return isAPIErrorCode(err, "UnsupportedOperation", "InvalidAction", "Unsupported")
+}
+
+// errEC2ParentNativeID marks a stored parent whose NativeID lacks the
+// ec2ARN `{kind}/{id}` shape its own scanner writes.
+var errEC2ParentNativeID = errors.New("ec2 parent NativeID is not an ec2ARN of its kind")
+
+// ec2StoredParents returns the parentType rows this scan stored in region,
+// keyed by the id ec2ARN put after kind, except those whose Status is one of
+// gone. A late phase reads its parents here because the category that lists
+// them runs inside runScanners and hands nothing back.
+func ec2StoredParents(st *store.Store, acct *account, region, scanID, parentType, kind string, gone ...string) ([]childParent, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{parentType},
+		Regions: []string{region}, SeenBy: scanID, Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list %s parents: %w", parentType, err)
+	}
+	var parents []childParent
+	for _, r := range rows {
+		_, id, ok := strings.Cut(r.NativeID, ":"+kind+"/")
+		if !ok || id == "" {
+			return nil, fmt.Errorf("%w: %s %q", errEC2ParentNativeID, parentType, r.NativeID)
+		}
+		if slices.Contains(gone, sv(r.Status)) {
+			continue
+		}
+		parents = append(parents, childParent{id: id, arn: r.NativeID})
+	}
+	return parents, nil
+}
+
+// ec2IncorrectState is the code EC2 returns for an action its target's state
+// does not allow. Whether a pending or deleting parent answers a child listing
+// with it is unverified, so a skip on it warns.
+const ec2IncorrectState = "IncorrectState"
+
+// neverSkip is the isSkip of a fan-out whose every skip is a warned code.
+func neverSkip(error) bool { return false }
+
+// scanEC2Children stores, under each parent, the rows list returns for it. A
+// parent failing with one of codes is skipped, with one warning per code; a
+// denial or a transient failure is skipped with one warning; anything else
+// fails the phase. Rows other parents stored stay.
+func scanEC2Children(ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
+	what string, codes []skipCode, list func(context.Context, childParent) ([]*store.Resource, error),
+) (int, int, error) {
+	return childFanOutStoredSkipCodes(ctx, st, acct, region, op, parents, neverSkip, byParentID, what, codes,
+		func(ctx context.Context, p childParent) (int, int, error) {
+			rows, err := list(ctx, p)
+			if err != nil {
+				return 0, 0, err
+			}
+			parentID := store.ResourceID("aws", acct.ID, p.arn)
+			children := make([]containedChild, len(rows))
+			for i, r := range rows {
+				children[i] = containedChild{row: r, parentID: parentID}
+			}
+			return upsertContained(st, op, children)
+		})
 }
 
 // ec2TagName extracts the "Name" tag value, returning nil if absent.
