@@ -2133,6 +2133,8 @@ const (
 	TypeWorkSpacesWorkspaceApplication = "aws:work-spaces:workspace-application"
 	TypeWorkSpacesAccountLink          = "aws:work-spaces:account-link"
 	TypeWorkSpacesConnectClientAddIn   = "aws:work-spaces:connect-client-add-in"
+	// workspaces_connection_alias_permission_scanners.go.
+	TypeWorkSpacesConnectionAliasPermission = "aws:work-spaces:connection-alias-permission"
 	// S3Vectors (s3vectors_scanners.go).
 	TypeS3VectorsIndex              = "aws:s3vectors:index"
 	TypeS3VectorsVectorBucket       = "aws:s3vectors:vector-bucket"

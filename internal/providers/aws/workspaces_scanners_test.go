@@ -59,6 +59,10 @@ func (s *stubWorkSpaces) DescribeConnectClientAddIns(context.Context, *workspace
 	return &workspaces.DescribeConnectClientAddInsOutput{}, nil
 }
 
+func (s *stubWorkSpaces) DescribeConnectionAliasPermissions(context.Context, *workspaces.DescribeConnectionAliasPermissionsInput, ...func(*workspaces.Options)) (*workspaces.DescribeConnectionAliasPermissionsOutput, error) {
+	return &workspaces.DescribeConnectionAliasPermissionsOutput{}, nil
+}
+
 // The predicate decides whether a DescribeWorkspacesPools refusal reaches the
 // operator, so assert the OUTCOME on the scan rather than the predicate again:
 // both canned availability shapes are silent, a genuine denial warns, and

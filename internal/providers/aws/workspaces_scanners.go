@@ -40,29 +40,32 @@ type workSpacesAPI interface {
 	DescribeApplications(context.Context, *workspaces.DescribeApplicationsInput, ...func(*workspaces.Options)) (*workspaces.DescribeApplicationsOutput, error)
 	ListAccountLinks(context.Context, *workspaces.ListAccountLinksInput, ...func(*workspaces.Options)) (*workspaces.ListAccountLinksOutput, error)
 	DescribeConnectClientAddIns(context.Context, *workspaces.DescribeConnectClientAddInsInput, ...func(*workspaces.Options)) (*workspaces.DescribeConnectClientAddInsOutput, error)
+	DescribeConnectionAliasPermissions(context.Context, *workspaces.DescribeConnectionAliasPermissionsInput, ...func(*workspaces.Options)) (*workspaces.DescribeConnectionAliasPermissionsOutput, error)
 }
 
 // wsPageLimit is the model's cap on MaxResults (Limit, 1-25) for the
-// account-link and client add-in lists.
+// account-link, client add-in and connection-alias permission lists.
 const wsPageLimit = 25
 
 // scanWorkSpaces discovers WorkSpaces workspaces, connection aliases,
 // workspaces pools, directories, bundles, images, IP groups, applications,
-// account links and the directories' Amazon Connect client add-ins. Most
-// types synth an ARN from their id; WorkspacesPool exposes PoolArn natively.
+// account links, the directories' Amazon Connect client add-ins and the
+// sharing permissions of the account's own connection aliases. Most types
+// synth an ARN from their id; WorkspacesPool exposes PoolArn natively.
 //
 // The older phases (workspaces through applications) stop at their first hard
-// error. The account-link and add-in phases run whatever any other phase
-// returned, so their failure costs no other phase its rows and an older
-// phase's failure does not skip them. Each of the three results has its
+// error. The account-link, add-in and alias-permission phases run whatever
+// any other phase returned, so their failure costs no other phase its rows
+// and an older phase's failure does not skip them. Each result has its
 // transient error demoted to a warning, since one transient member would make
 // the dispatcher read the whole join as transient, and the rest are joined;
-// the counts of all three are summed. The add-in phase fans out over the
-// directories listed this scan, so it lists none when the older phases
-// stopped before or at the directory phase.
+// the counts of all of them are summed. The add-in and alias-permission
+// phases fan out over the directories and aliases stored this scan, so they
+// list none when the older phases stopped before or at the phase that lists
+// their parents.
 func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := workspaces.NewFromConfig(acct.cfg, func(o *workspaces.Options) { o.Region = region })
-	total, inserted, directories, err := scanWSOlderPhases(ctx, client, acct, region, st, scanID)
+	total, inserted, parents, err := scanWSOlderPhases(ctx, client, acct, region, st, scanID)
 	errs := []error{demoteTransient(st, "workspaces", acct, region, err)}
 	for _, phase := range []struct {
 		op  string
@@ -70,7 +73,10 @@ func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store
 	}{
 		{"workspaces:ListAccountLinks", func() (int, int, error) { return scanWSAccountLinks(ctx, client, acct, region, st, scanID) }},
 		{"workspaces:DescribeConnectClientAddIns", func() (int, int, error) {
-			return scanWSConnectClientAddIns(ctx, client, acct, region, st, scanID, directories)
+			return scanWSConnectClientAddIns(ctx, client, acct, region, st, scanID, parents.directories)
+		}},
+		{wsDescribeAliasPermissionsOp, func() (int, int, error) {
+			return scanWSConnectionAliasPermissions(ctx, client, acct, region, st, scanID, parents.aliases)
 		}},
 	} {
 		t, i, perr := phase.run()
@@ -81,15 +87,27 @@ func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store
 	return total, inserted, errors.Join(errs...)
 }
 
+// wsParents are the parents the older phases stored, for the child phases
+// that fan out over them.
+type wsParents struct {
+	directories []childParent
+	// aliases holds only the connection aliases the account owns.
+	aliases []childParent
+}
+
 // scanWSOlderPhases runs the phases that predate account links and add-ins,
-// stopping at the first hard error. It also returns the directories listed.
-func scanWSOlderPhases(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, directories []childParent, err error) {
+// stopping at the first hard error. It also returns the parents stored before
+// that error.
+func scanWSOlderPhases(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, parents wsParents, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanWSWorkspaces(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanWSConnectionAliases(ctx, client, acct, region, st, scanID) },
+		func() (t, i int, err error) {
+			t, i, parents.aliases, err = scanWSConnectionAliases(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (int, int, error) { return scanWSWorkspacesPools(ctx, client, acct, region, st, scanID) },
 		func() (t, i int, err error) {
-			t, i, directories, err = scanWSDirectories(ctx, client, acct, region, st, scanID)
+			t, i, parents.directories, err = scanWSDirectories(ctx, client, acct, region, st, scanID)
 			return t, i, err
 		},
 		func() (int, int, error) { return scanWSBundles(ctx, client, acct, region, st, scanID) },
@@ -99,12 +117,12 @@ func scanWSOlderPhases(ctx context.Context, client workSpacesAPI, acct *account,
 	} {
 		t, i, perr := phase()
 		if perr != nil {
-			return total, inserted, directories, perr
+			return total, inserted, parents, perr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, directories, nil
+	return total, inserted, parents, nil
 }
 
 func scanWSWorkspaces(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -137,16 +155,25 @@ func scanWSWorkspaces(ctx context.Context, client workSpacesAPI, acct *account, 
 	return upsertBatch(st, batch, "workspaces")
 }
 
-func scanWSConnectionAliases(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanWSConnectionAliases also returns the stored aliases whose
+// OwnerAccountId is this account, for the permission phase. The permissions
+// are the grants an alias's owner made, so they belong under the owner's
+// row; whether the list ever returns an alias shared with this account is
+// unverified, and such an alias is not handed on. OwnerAccountId is
+// model-optional: an alias without it is not handed on either, and the
+// stored ones are counted in one warning.
+func scanWSConnectionAliases(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
 	var batch []*store.Resource
+	var owned []childParent
+	noOwner := 0
 	var nextToken *string
 	for {
 		out, err := client.DescribeConnectionAliases(ctx, &workspaces.DescribeConnectionAliasesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "workspaces:DescribeConnectionAliases", acct.ID, region, err)
+				return 0, 0, nil, skipIfAccessDenied(st, "workspaces:DescribeConnectionAliases", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("workspaces:DescribeConnectionAliases: %w", err)
+			return 0, 0, nil, fmt.Errorf("workspaces:DescribeConnectionAliases: %w", err)
 		}
 		for _, a := range out.ConnectionAliases {
 			id := sv(a.AliasId)
@@ -165,13 +192,29 @@ func scanWSConnectionAliases(ctx context.Context, client workSpacesAPI, acct *ac
 				Name: &label, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
+			switch sv(a.OwnerAccountId) {
+			case acct.ID:
+				owned = append(owned, childParent{id: id, arn: arn})
+			case "":
+				noOwner++
+			}
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
 			break
 		}
 		nextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "workspaces connection-aliases")
+	total, inserted, err := upsertBatch(st, batch, "workspaces connection-aliases")
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	if noOwner > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: wsDescribeAliasPermissionsOp, Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d alias(es) with no OwnerAccountId; permissions not read", noOwner),
+		})
+	}
+	return total, inserted, owned, nil
 }
 
 func scanWSWorkspacesPools(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

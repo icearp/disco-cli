@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.1% (2005/3336 listable) · depth0 72.2% · depth1 42.9% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.1% (2006/3336 listable) · depth0 72.2% · depth1 43.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 286 | 731 | 28.1 |
+| child-uncatalogued | 287 | 730 | 28.2 |
 | smithy-resource | 431 | 131 | 76.7 |
 | element-written | 199 | 217 | 47.8 |
 | element-arn | 36 | 70 | 34.0 |
@@ -71,7 +71,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | logs | 18 | 7 | 72.0 |
 | networkmanager | 13 | 7 | 65.0 |
 | servicecatalog | 13 | 7 | 65.0 |
-| workspaces | 9 | 7 | 56.2 |
 | aidevops | 8 | 6 | 57.1 |
 | drs | 8 | 6 | 57.1 |
 | forecast | 8 | 6 | 57.1 |
@@ -88,6 +87,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm-contacts | 3 | 6 | 33.3 |
 | storagegateway | 12 | 6 | 66.7 |
 | workmail | 11 | 6 | 64.7 |
+| workspaces | 10 | 6 | 62.5 |
 | access-analyzer | 2 | 5 | 28.6 |
 | aco-automation | 1 | 5 | 16.7 |
 | appstream | 16 | 5 | 76.2 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1331)
+### Uncovered (listable, no scanner) (1330)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1683,7 +1683,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | workspaces | workspaces/applicationassociation | 1 |  | child-uncatalogued | workspaces:DescribeApplicationAssociations |
 | workspaces | workspaces/bundleassociation | 1 |  | child-uncatalogued | workspaces:DescribeBundleAssociations |
 | workspaces | workspaces/clientproperty | 1 |  | child-uncatalogued | workspaces:DescribeClientProperties |
-| workspaces | workspaces/connectionaliaspermission | 1 |  | child-uncatalogued | workspaces:DescribeConnectionAliasPermissions |
 | workspaces | workspaces/imageassociation | 1 |  | child-uncatalogued | workspaces:DescribeImageAssociations |
 | workspaces | workspaces/workspaceassociation | 1 |  | child-uncatalogued | workspaces:DescribeWorkspaceAssociations |
 | workspaces | workspaces/workspacespoolsession | 1 |  | child-uncatalogued | workspaces:DescribeWorkspacesPoolSessions |

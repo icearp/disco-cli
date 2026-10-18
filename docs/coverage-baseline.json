@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.10191846522782,
-    "covered": 2005,
-    "uncovered": 1331,
+    "percent": 60.13189448441247,
+    "covered": 2006,
+    "uncovered": 1330,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -2005,6 +2005,7 @@
       "workspaces/application",
       "workspaces/connectclientaddin",
       "workspaces/connectionalias",
+      "workspaces/connectionaliaspermission",
       "workspaces/workspace",
       "workspaces/workspacebundle",
       "workspaces/workspacedirectory",
@@ -3340,7 +3341,6 @@
       "workspaces/applicationassociation",
       "workspaces/bundleassociation",
       "workspaces/clientproperty",
-      "workspaces/connectionaliaspermission",
       "workspaces/imageassociation",
       "workspaces/workspaceassociation",
       "workspaces/workspacespoolsession",
