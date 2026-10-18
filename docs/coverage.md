@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.8% (1996/3336 listable) · depth0 72.0% · depth1 42.4% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.9% (1997/3336 listable) · depth0 72.1% · depth1 42.4% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1046 | 175 | 85.7 |
 | child-uncatalogued | 281 | 736 | 27.6 |
 | smithy-resource | 431 | 131 | 76.7 |
-| element-written | 196 | 220 | 47.1 |
+| element-written | 197 | 219 | 47.4 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -70,7 +70,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | license-manager | 8 | 7 | 53.3 |
 | logs | 18 | 7 | 72.0 |
 | networkmanager | 13 | 7 | 65.0 |
-| ram | 2 | 7 | 22.2 |
 | servicecatalog | 13 | 7 | 65.0 |
 | workspaces | 9 | 7 | 56.2 |
 | aidevops | 8 | 6 | 57.1 |
@@ -81,6 +80,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | medialive | 17 | 6 | 73.9 |
 | outposts | 3 | 6 | 33.3 |
 | personalize | 11 | 6 | 64.7 |
+| ram | 3 | 6 | 33.3 |
 | redshift | 21 | 6 | 77.8 |
 | s3 | 14 | 6 | 70.0 |
 | securityhub | 11 | 6 | 64.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1340)
+### Uncovered (listable, no scanner) (1339)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1380,7 +1380,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ram | ram/principal | 0 |  | element-arn | ram:ListPrincipals |
 | ram | ram/replacepermissionassociationswork | 0 |  | element-written | ram:ListReplacePermissionAssociationsWork |
 | ram | ram/resource | 0 |  | element-written | ram:ListPendingInvitationResources, ram:ListResources |
-| ram | ram/resourceshareassociation | 0 |  | element-written | ram:GetResourceShareAssociations |
 | ram | ram/resourceshareinvitation | 0 |  | sr-resource | ram:GetResourceShareInvitations |
 | ram | ram/sourceassociation | 0 |  | element-written | ram:ListSourceAssociations |
 | rds | rds/certificate | 0 |  | element-written | rds:DescribeCertificates |

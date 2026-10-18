@@ -1237,8 +1237,9 @@ const (
 	TypeResilienceHubTest        = "aws:resilience-hub:test"
 	TypeResilienceHubUserJourney = "aws:resilience-hub:user-journey"
 	// RAM (ram_scanners.go)
-	TypeRAMResourceShare = "aws:ram:resource-share"
-	TypeRAMPermission    = "aws:ram:permission"
+	TypeRAMResourceShare            = "aws:ram:resource-share"
+	TypeRAMPermission               = "aws:ram:permission"
+	TypeRAMResourceShareAssociation = "aws:ram:resource-share-association"
 	// PCAConnectorSCEP (pcaconnectorscep_scanners.go)
 	TypePCAConnectorSCEPConnector = "aws:pca-connector-scep:connector"
 	TypePCAConnectorSCEPChallenge = "aws:pca-connector-scep:challenge"

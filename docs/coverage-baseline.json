@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 59.83213429256595,
-    "covered": 1996,
-    "uncovered": 1340,
+    "percent": 59.8621103117506,
+    "covered": 1997,
+    "uncovered": 1339,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1474,6 +1474,7 @@
       "quicksight/vpcconnection",
       "ram/permission",
       "ram/resourceshare",
+      "ram/resourceshareassociation",
       "rbin/rule",
       "rds/bluegreendeployment",
       "rds/dbcluster",
@@ -3027,7 +3028,6 @@
       "ram/principal",
       "ram/replacepermissionassociationswork",
       "ram/resource",
-      "ram/resourceshareassociation",
       "ram/resourceshareinvitation",
       "ram/sourceassociation",
       "rds/certificate",
