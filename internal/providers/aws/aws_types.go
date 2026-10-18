@@ -2617,4 +2617,8 @@ const (
 
 	// Support Authorization (supportauthz_scanners.go).
 	TypeSupportAuthZSupportPermit = "aws:supportauthz:support-permit"
+
+	// Account access manager (accountaccess_scanners.go).
+	TypeAccountAccessApplication = "aws:account-access:application"
+	TypeAccountAccessEntitlement = "aws:account-access:entitlement"
 )

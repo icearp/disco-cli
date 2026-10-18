@@ -178,6 +178,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.33
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.34
 	github.com/aws/aws-sdk-go-v2/service/accessanalyzer v1.51.3
+	github.com/aws/aws-sdk-go-v2/service/accountaccess v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/acm v1.43.3
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.49.3
 	github.com/aws/aws-sdk-go-v2/service/agentregistrycontrol v1.6.0

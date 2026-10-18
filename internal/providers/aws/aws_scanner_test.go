@@ -285,6 +285,7 @@ var expectedAWSServices = []string{
 	"aws:wickr",
 	"aws:aco-automation",
 	"aws:supportauthz",
+	"aws:account-access",
 	"aws:support-app",
 	"aws:s3vectors",
 	"aws:s3express",
