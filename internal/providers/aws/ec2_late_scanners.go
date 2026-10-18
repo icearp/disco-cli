@@ -34,9 +34,11 @@ const (
 )
 
 // scanEC2Late runs the fast snapshot restore, fast launch image, Allowed AMIs
-// setting, Reserved Instance listing and service link virtual interface
-// phases. scanEC2 calls it after its category scanners, because runScanners
-// cancels every category on the first error. The phases are independent and
+// setting, Reserved Instance listing, service link virtual interface, transit
+// gateway policy table entry and prefix list reference phases. scanEC2 calls
+// it after its category scanners, because runScanners cancels every category
+// on the first error, and because the last two read the policy tables and
+// route tables those categories stored. The phases are independent and
 // run concurrently under a WaitGroup, not an errgroup, so one failure cancels
 // no sibling. Each has its transient error demoted to a warning (one transient
 // member would make the dispatcher read the whole join as transient), and the
@@ -51,6 +53,8 @@ func scanEC2Late(ctx context.Context, client ec2API, acct *account, region strin
 		{ec2AllowedImagesSettingsOp, scanEC2AllowedImagesSetting},
 		{ec2ReservedInstancesListingsOp, scanEC2ReservedInstancesListings},
 		{ec2ServiceLinkVirtualInterfacesOp, scanEC2ServiceLinkVirtualInterfaces},
+		{ec2TGWPolicyTableEntriesOp, scanEC2TGWPolicyTableEntries},
+		{ec2TGWPrefixListReferencesOp, scanEC2TGWPrefixListReferences},
 	}
 	type result struct {
 		total, inserted int

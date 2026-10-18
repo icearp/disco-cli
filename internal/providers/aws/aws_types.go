@@ -82,6 +82,8 @@ const (
 	TypeEC2TransitGatewayMulticastGroupSource       = "aws:ec2:transit-gateway-multicast-group-source"
 	TypeEC2TransitGatewayPeeringAttachment          = "aws:ec2:transit-gateway-peering-attachment"
 	TypeEC2TransitGatewayPolicyTable                = "aws:ec2:transit-gateway-policy-table"
+	TypeEC2TransitGatewayPolicyTableEntry           = "aws:ec2:transit-gateway-policy-table-entry"
+	TypeEC2TransitGatewayPrefixListReference        = "aws:ec2:transit-gateway-prefix-list-reference"
 	TypeEC2TransitGatewayRouteTable                 = "aws:ec2:transit-gateway-route-table"
 	TypeEC2TransitGatewayRouteTableAnnouncement     = "aws:ec2:transit-gateway-route-table-announcement"
 	TypeEC2TransitGatewayRouteTableAssociation      = "aws:ec2:transit-gateway-route-table-association"

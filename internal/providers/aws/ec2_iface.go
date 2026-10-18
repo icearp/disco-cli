@@ -140,6 +140,8 @@ type ec2API interface {
 	GetIpamPoolCidrs(context.Context, *ec2.GetIpamPoolCidrsInput, ...func(*ec2.Options)) (*ec2.GetIpamPoolCidrsOutput, error)
 	GetTransitGatewayMulticastDomainAssociations(context.Context, *ec2.GetTransitGatewayMulticastDomainAssociationsInput, ...func(*ec2.Options)) (*ec2.GetTransitGatewayMulticastDomainAssociationsOutput, error)
 	GetTransitGatewayRouteTableAssociations(context.Context, *ec2.GetTransitGatewayRouteTableAssociationsInput, ...func(*ec2.Options)) (*ec2.GetTransitGatewayRouteTableAssociationsOutput, error)
+	GetTransitGatewayPolicyTableEntries(context.Context, *ec2.GetTransitGatewayPolicyTableEntriesInput, ...func(*ec2.Options)) (*ec2.GetTransitGatewayPolicyTableEntriesOutput, error)
+	GetTransitGatewayPrefixListReferences(context.Context, *ec2.GetTransitGatewayPrefixListReferencesInput, ...func(*ec2.Options)) (*ec2.GetTransitGatewayPrefixListReferencesOutput, error)
 	GetTransitGatewayRouteTablePropagations(context.Context, *ec2.GetTransitGatewayRouteTablePropagationsInput, ...func(*ec2.Options)) (*ec2.GetTransitGatewayRouteTablePropagationsOutput, error)
 	SearchLocalGatewayRoutes(context.Context, *ec2.SearchLocalGatewayRoutesInput, ...func(*ec2.Options)) (*ec2.SearchLocalGatewayRoutesOutput, error)
 	SearchTransitGatewayMulticastGroups(context.Context, *ec2.SearchTransitGatewayMulticastGroupsInput, ...func(*ec2.Options)) (*ec2.SearchTransitGatewayMulticastGroupsOutput, error)

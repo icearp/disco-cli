@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.4% (1982/3336 listable) · depth0 71.8% · depth1 41.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.5% (1984/3336 listable) · depth0 71.8% · depth1 41.9% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1042 | 179 | 85.3 |
-| child-uncatalogued | 274 | 743 | 26.9 |
+| child-uncatalogued | 276 | 741 | 27.1 |
 | smithy-resource | 429 | 133 | 76.3 |
 | element-written | 195 | 221 | 46.9 |
 | element-arn | 36 | 70 | 34.0 |
@@ -17,7 +17,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
-| ec2 | 119 | 77 | 60.7 |
+| ec2 | 121 | 75 | 61.7 |
 | resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
 | connect | 41 | 27 | 60.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1354)
+### Uncovered (listable, no scanner) (1352)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -871,8 +871,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/stalesecuritygroup | 1 |  | child-uncatalogued | ec2:DescribeStaleSecurityGroups |
 | ec2 | ec2/transitgatewayattachmentpropagation | 1 |  | child-uncatalogued | ec2:GetTransitGatewayAttachmentPropagations |
 | ec2 | ec2/transitgatewaypolicytableassociation | 1 |  | child-uncatalogued | ec2:GetTransitGatewayPolicyTableAssociations |
-| ec2 | ec2/transitgatewaypolicytableentry | 1 |  | child-uncatalogued | ec2:GetTransitGatewayPolicyTableEntries |
-| ec2 | ec2/transitgatewayprefixlistreference | 1 |  | child-uncatalogued | ec2:GetTransitGatewayPrefixListReferences |
 | ec2 | ec2/trunkinterfaceassociation | 0 |  | element-written | ec2:DescribeTrunkInterfaceAssociations |
 | ec2 | ec2/verifiedaccessendpointtarget | 1 |  | sr-resource | ec2:GetVerifiedAccessEndpointTargets |
 | ec2 | ec2/verifiedaccessinstanceloggingconfiguration | 0 |  | element-written | ec2:DescribeVerifiedAccessInstanceLoggingConfigurations |
