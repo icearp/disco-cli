@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 59.74220623501199,
-    "covered": 1993,
-    "uncovered": 1343,
+    "percent": 59.77218225419664,
+    "covered": 1994,
+    "uncovered": 1342,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1762,6 +1762,7 @@
       "ses/contactlist",
       "ses/customverificationemailtemplate",
       "ses/dedicatedippool",
+      "ses/emailidentitycertificate",
       "ses/emailtemplate",
       "ses/ingresspoint",
       "ses/multiregionendpoint",
@@ -3188,7 +3189,6 @@
       "ses/deliverabilitydashboardoption",
       "ses/deliverabilitytestreport",
       "ses/domaindeliverabilitycampaign",
-      "ses/emailidentitycertificate",
       "ses/exportjob",
       "ses/identity",
       "ses/importjob",

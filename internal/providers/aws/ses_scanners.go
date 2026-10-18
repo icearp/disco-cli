@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/mailmanager"
 	sesv1 "github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
+	sesv2types "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
@@ -36,6 +37,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSESMailManagerRelay, Service: "ses"})
 	registerType(restype.Descriptor{Type: TypeSESMailManagerRuleSet, Service: "ses"})
 	registerType(restype.Descriptor{Type: TypeSESMailManagerTrafficPolicy, Service: "ses"})
+	registerType(restype.Descriptor{Type: TypeSESEmailIdentityCertificate, Service: "ses"})
 	registerService(serviceEntry{
 		name: "aws:ses",
 		fn:   scanSES,
@@ -57,24 +59,25 @@ type sesv2API interface {
 	ListEmailTemplates(context.Context, *sesv2.ListEmailTemplatesInput, ...func(*sesv2.Options)) (*sesv2.ListEmailTemplatesOutput, error)
 	ListTenants(context.Context, *sesv2.ListTenantsInput, ...func(*sesv2.Options)) (*sesv2.ListTenantsOutput, error)
 	GetAccount(context.Context, *sesv2.GetAccountInput, ...func(*sesv2.Options)) (*sesv2.GetAccountOutput, error)
+	ListEmailIdentityCertificates(context.Context, *sesv2.ListEmailIdentityCertificatesInput, ...func(*sesv2.Options)) (*sesv2.ListEmailIdentityCertificatesOutput, error)
 }
 
-// scanSES discovers SES v2 email identities and configuration sets in one
-// region. Two phases run sequentially. Phase-level AccessDenied is tolerated
-// via skipIfAccessDenied without barring the other phase.
+// scanSES discovers SES v1, SES v2 and Mail Manager resources in one region.
+// Phases run sequentially and the first hard error returns; phase-level
+// AccessDenied is tolerated via skipIfAccessDenied without barring the other
+// phases. The certificate phase runs last so its errors cannot stop an older
+// phase.
 func scanSES(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sesv2.NewFromConfig(acct.cfg, func(o *sesv2.Options) { o.Region = region })
 	v1client := sesv1.NewFromConfig(acct.cfg, func(o *sesv1.Options) { o.Region = region })
 	mmclient := mailmanager.NewFromConfig(acct.cfg, func(o *mailmanager.Options) { o.Region = region })
 
-	{
-		t, i, ferr := scanSESEmailIdentities(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
+	t, i, identities, ferr := scanSESEmailIdentities(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
 	}
+	total += t
+	inserted += i
 
 	{
 		t, i, ferr := scanSESConfigurationSets(ctx, client, acct, region, st, scanID)
@@ -112,7 +115,8 @@ func scanSES(ctx context.Context, acct *account, region string, st *store.Store,
 		inserted += i
 	}
 
-	return total, inserted, nil
+	t, i, ferr = scanSESEmailIdentityCertificates(ctx, client, acct, region, st, scanID, identities)
+	return total + t, inserted + i, ferr
 }
 
 // sesEmailIdentityARN rebuilds the canonical email-identity ARN from an
@@ -127,7 +131,18 @@ func sesConfigurationSetARN(region, accountID, name string) string {
 	return fmt.Sprintf("arn:aws:ses:%s:%s:configuration-set/%s", region, accountID, name)
 }
 
-func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// sesIdentity is a stored email identity, handed to the certificate phase.
+type sesIdentity struct {
+	childParent
+	// emailAddress marks an EMAIL_ADDRESS identity, whose certificate
+	// associations may omit FromAddress.
+	emailAddress bool
+}
+
+// scanSESEmailIdentities stores every listed email identity and returns the
+// stored ones as parents for the certificate phase; an identity whose
+// GetEmailIdentity is denied is neither stored nor returned.
+func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, identities []sesIdentity, err error) {
 	pager := sesv2.NewListEmailIdentitiesPaginator(client, &sesv2.ListEmailIdentitiesInput{})
 	var names []string
 	for pager.HasMorePages() {
@@ -135,9 +150,9 @@ func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account,
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "sesv2:ListEmailIdentities", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, 0, nil, nil
 			}
-			return 0, 0, fmt.Errorf("sesv2:ListEmailIdentities: %w", perr)
+			return 0, 0, nil, fmt.Errorf("sesv2:ListEmailIdentities: %w", perr)
 		}
 		for _, id := range out.EmailIdentities {
 			if id.IdentityName != nil {
@@ -146,7 +161,7 @@ func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account,
 		}
 	}
 	if len(names) == 0 {
-		return 0, 0, nil
+		return 0, 0, nil, nil
 	}
 
 	sem := semaphore.NewWeighted(fanoutMed)
@@ -157,7 +172,7 @@ func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account,
 	g, gctx := errgroup.WithContext(ctx)
 	for _, name := range names {
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, 0, nil, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -184,21 +199,25 @@ func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account,
 			}
 			mu.Lock()
 			batch = append(batch, r)
+			identities = append(identities, sesIdentity{
+				childParent:  childParent{id: name, arn: arn},
+				emailAddress: out.IdentityType == sesv2types.IdentityTypeEmailAddress,
+			})
 			mu.Unlock()
 			return nil
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, 0, nil, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, 0, nil, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses email identities: %w", uerr)
+		return 0, 0, nil, fmt.Errorf("upsert ses email identities: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), n, identities, nil
 }
 
 func scanSESConfigurationSets(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -247,7 +266,7 @@ func scanSESConfigurationSets(ctx context.Context, client sesv2API, acct *accoun
 				NativeID:       arn,
 				Name:           &name,
 				Region:         &region,
-				AttributesJSON: mustJSON(out),
+				AttributesJSON: mustJSON(flattenSESConfigurationSet(out)),
 				DiscoveredBy:   scanID,
 			}
 			mu.Lock()
@@ -267,4 +286,49 @@ func scanSESConfigurationSets(ctx context.Context, client sesv2API, acct *accoun
 		return 0, 0, fmt.Errorf("upsert ses configuration sets: %w", uerr)
 	}
 	return len(batch), n, nil
+}
+
+// sesConfigurationSetAttrs is the GetConfigurationSet body with the
+// SigningScheme union keyed by member name. Each union member marshals as an
+// unlabelled {"Value": ...}, so the default scheme would store as
+// {"Value":{}} and an S/MIME scheme only differ by its SignatureFormat. A
+// member newer than the pinned SDK is kept under UnknownMember with its tag
+// (precedent: supportPermitAttrs). A nil MessageSecurityOptions is omitted:
+// sesv2 before v1.71.0 had no such field, so a configuration set without one
+// stores the shape it stored before the module bump and gets no new version.
+// A nil SigningScheme marshals as null, as the embedded field does.
+type sesConfigurationSetAttrs struct {
+	*sesv2.GetConfigurationSetOutput
+	MessageSecurityOptions *sesMessageSecurityAttrs `json:",omitempty"`
+}
+
+type sesMessageSecurityAttrs struct {
+	SigningScheme *sesSigningSchemeAttrs
+}
+
+type sesSigningSchemeAttrs struct {
+	DefaultScheme *sesv2types.DefaultSigningScheme `json:",omitempty"`
+	SmimeScheme   *sesv2types.SmimeSigningScheme   `json:",omitempty"`
+	UnknownMember *sesv2types.UnknownUnionMember   `json:",omitempty"`
+}
+
+func flattenSESConfigurationSet(out *sesv2.GetConfigurationSetOutput) sesConfigurationSetAttrs {
+	attrs := sesConfigurationSetAttrs{GetConfigurationSetOutput: out}
+	if out.MessageSecurityOptions == nil {
+		return attrs
+	}
+	attrs.MessageSecurityOptions = &sesMessageSecurityAttrs{}
+	var scheme sesSigningSchemeAttrs
+	switch m := out.MessageSecurityOptions.SigningScheme.(type) {
+	case *sesv2types.SigningSchemeMemberDefaultScheme:
+		scheme.DefaultScheme = &m.Value
+	case *sesv2types.SigningSchemeMemberSmimeScheme:
+		scheme.SmimeScheme = &m.Value
+	case *sesv2types.UnknownUnionMember:
+		scheme.UnknownMember = m
+	default:
+		return attrs
+	}
+	attrs.MessageSecurityOptions.SigningScheme = &scheme
+	return attrs
 }

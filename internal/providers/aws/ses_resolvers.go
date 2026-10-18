@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -29,6 +30,64 @@ func init() {
 		EdgeDecl{TypeSESReceiptRule, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeSESReceiptRule, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		resolveSESEmailIdentityCertificateACM,
+		EdgeDecl{TypeSESEmailIdentityCertificate, TypeACMCertificate, store.RelUses},
+	)
+	registerResolver(
+		noopSESHierarchy,
+		EdgeDecl{TypeSESEmailIdentity, TypeSESEmailIdentityCertificate, store.RelContains},
+	)
+}
+
+// noopSESHierarchy only declares the identity→certificate contains edge, which
+// scanSESEmailIdentityCertificates records through childFanOut.
+func noopSESHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
+// sesIdentityCertificateAttrs mirrors the sesv2types.IdentityCertificate field
+// the resolver reads.
+type sesIdentityCertificateAttrs struct {
+	CertificateArn *string `json:"CertificateArn"`
+}
+
+// resolveSESEmailIdentityCertificateACM links each certificate association to
+// the ACM certificate it signs with, when that certificate is scanned. A row
+// that fails to decode is reported at the end so that it costs the other rows
+// none of their edges.
+func resolveSESEmailIdentityCertificateACM(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeSESEmailIdentityCertificate},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	certSet, err := scannedIDSet(acct, st, TypeACMCertificate)
+	if err != nil {
+		return err
+	}
+	var decodeErrs []error
+	for _, r := range rows {
+		var attrs sesIdentityCertificateAttrs
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeSESEmailIdentityCertificate, r.NativeID, err))
+			continue
+		}
+		certID := store.ResourceID("aws", acct.ID, sv(attrs.CertificateArn))
+		if !certSet[certID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert ses email-identity-certificate→acm-certificate: %w", err)
+		}
+	}
+	return errors.Join(decodeErrs...)
 }
 
 // sesEmailIdentityAttrs mirrors the verbatim GetEmailIdentityOutput fields

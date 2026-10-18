@@ -1635,6 +1635,8 @@ const (
 	TypeSESTemplate                         = "aws:ses:template"
 	TypeSESTenant                           = "aws:ses:tenant"
 	TypeSESVdmAttributes                    = "aws:ses:vdm-attributes"
+	// SES v2 — S/MIME certificate associations (ses_certificate_scanners.go)
+	TypeSESEmailIdentityCertificate = "aws:ses:email-identity-certificate"
 	// SES v1 — Receipt family (ses_receipt_scanners.go)
 	TypeSESReceiptFilter  = "aws:ses:receipt-filter"
 	TypeSESReceiptRule    = "aws:ses:receipt-rule"

@@ -495,8 +495,11 @@ func isHTTP404(err error) bool {
 //   - A bare HTTP 404. This is only safe on a call that names no resource, so a
 //     404 cannot mean a missing one.
 //
-// Callers apply it only to the first call of an op that a region's endpoint
-// may not serve, where a match is a silent sub-feature gap.
+// Callers apply it to the first call of an op that a region's endpoint may not
+// serve, where a match is a silent sub-feature gap. A per-parent call names a
+// resource, so there the caller must first exclude the op's modeled not-found
+// code, or a deleted parent reads as an undeployed op; isSESCertificateOpNotDeployed
+// does this.
 func isOpNotDeployed(err error) bool {
 	return isAPIErrorCode(err, "UnknownOperationException") || isServiceNotAvailableInRegion(err) || isHTTP404(err)
 }

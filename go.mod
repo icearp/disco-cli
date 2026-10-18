@@ -454,7 +454,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.43.3
 	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.37.3
 	github.com/aws/aws-sdk-go-v2/service/ses v1.37.3
-	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.66.3
+	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.74.0
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.45.3
 	github.com/aws/aws-sdk-go-v2/service/shield v1.37.3
 	github.com/aws/aws-sdk-go-v2/service/signer v1.35.3
@@ -531,7 +531,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.35 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.27 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.12.11 // indirect
