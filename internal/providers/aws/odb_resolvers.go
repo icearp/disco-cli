@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -21,6 +22,11 @@ func init() {
 	registerResolver(
 		resolveODBDbNodeCluster,
 		EdgeDecl{TypeODBDbNode, TypeODBCloudVMCluster, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveODBExadbVMClusterRefs,
+		EdgeDecl{TypeODBExadbVMCluster, TypeODBOdbNetwork, store.RelUses},
+		EdgeDecl{TypeODBExadbVMCluster, TypeODBExascaleDbStorageVault, store.RelUses},
 	)
 	registerResolver(
 		noopODBHierarchy,
@@ -171,4 +177,60 @@ func resolveODBDbNodeCluster(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// resolveODBExadbVMClusterRefs wires each Exascale VM cluster to its ODB
+// network (OdbNetworkArn) and its Exascale storage vault
+// (ExascaleDbStorageVaultArn); both ARNs are the targets' NativeIDs. A row whose
+// attributes do not decode costs only its own edges: the errors are joined and
+// returned after every other row is wired.
+func resolveODBExadbVMClusterRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeODBExadbVMCluster},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	netSet, err := scannedIDSet(acct, st, TypeODBOdbNetwork)
+	if err != nil {
+		return err
+	}
+	vaultSet, err := scannedIDSet(acct, st, TypeODBExascaleDbStorageVault)
+	if err != nil {
+		return err
+	}
+	var decodeErrs []error
+	for _, r := range rows {
+		var attrs struct {
+			OdbNetworkArn             *string `json:"OdbNetworkArn"`
+			ExascaleDbStorageVaultArn *string `json:"ExascaleDbStorageVaultArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeODBExadbVMCluster, r.NativeID, err))
+			continue
+		}
+		for _, ref := range []struct {
+			arn     string
+			scanned map[string]bool
+		}{
+			{sv(attrs.OdbNetworkArn), netSet},
+			{sv(attrs.ExascaleDbStorageVaultArn), vaultSet},
+		} {
+			if ref.arn == "" {
+				continue
+			}
+			tgtID := store.ResourceID("aws", acct.ID, ref.arn)
+			if !ref.scanned[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert odb exadb-vm-cluster→%s: %w", ref.arn, err)
+			}
+		}
+	}
+	return errors.Join(decodeErrs...)
 }

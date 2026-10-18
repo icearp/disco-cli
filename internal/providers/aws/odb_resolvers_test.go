@@ -90,6 +90,77 @@ func TestResolveODBDbNodeCluster(t *testing.T) {
 	assertRelationship(t, rels, nodeID, clusterID, store.RelAttachedTo)
 }
 
+// odbExadbClusterRefAttrs is an Exascale VM cluster's attributes naming the
+// given network and vault.
+func odbExadbClusterRefAttrs(id, netARN, vaultARN string) string {
+	return mustJSON(odbtypes.ExadbVmClusterSummary{
+		ExadbVmClusterId: sp(id), ExadbVmClusterArn: sp(odbExadbClusterARN(id)),
+		OdbNetworkArn: sp(netARN), ExascaleDbStorageVaultArn: sp(vaultARN),
+	})
+}
+
+var odbTestNetARN = fmt.Sprintf("arn:aws:odb:%s:%s:odb-network/odbnet-1", testRegion, testAccountID)
+
+func TestResolveODBExadbVMClusterRefs_WiresNetworkAndVault(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	netID := upsertTestResource(t, st, "aws", acct.ID, TypeODBOdbNetwork, odbTestNetARN, testRegion, "{}")
+	vaultID := upsertTestResource(t, st, "aws", acct.ID, TypeODBExascaleDbStorageVault, odbVaultARN("v1"), testRegion, "{}")
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeODBExadbVMCluster, odbExadbClusterARN("c1"), testRegion,
+		odbExadbClusterRefAttrs("c1", odbTestNetARN, odbVaultARN("v1")))
+	if err := resolveODBExadbVMClusterRefs(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels := dsRelsFrom(t, st, cID)
+	assertRelationship(t, rels, cID, netID, store.RelUses)
+	assertRelationship(t, rels, cID, vaultID, store.RelUses)
+	if len(rels) != 2 {
+		t.Errorf("got %d relationships; want 2 (network, vault)", len(rels))
+	}
+}
+
+func TestResolveODBExadbVMClusterRefs_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeODBOdbNetwork, odbTestNetARN, testRegion, "{}")
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeODBExadbVMCluster, odbExadbClusterARN("c1"), testRegion, "{}")
+	if err := resolveODBExadbVMClusterRefs(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if rels := dsRelsFrom(t, st, cID); len(rels) != 0 {
+		t.Errorf("got %d relationships; want none", len(rels))
+	}
+}
+
+func TestResolveODBExadbVMClusterRefs_UnscannedTargets(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeODBExadbVMCluster, odbExadbClusterARN("c1"), testRegion,
+		odbExadbClusterRefAttrs("c1", odbTestNetARN, odbVaultARN("v1")))
+	if err := resolveODBExadbVMClusterRefs(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if rels := dsRelsFrom(t, st, cID); len(rels) != 0 {
+		t.Errorf("got %d relationships to unscanned targets; want none", len(rels))
+	}
+}
+
+func TestResolveODBExadbVMClusterRefs_DecodeErrorReturned(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	netID := upsertTestResource(t, st, "aws", acct.ID, TypeODBOdbNetwork, odbTestNetARN, testRegion, "{}")
+	// ListResources orders by name, so the bad row "a" is read before the
+	// valid row "b", whose edge must survive the decode error.
+	upsertTestResourceNamed(t, st, TypeODBExadbVMCluster, odbExadbClusterARN("bad"), testRegion, `["not an object"]`, "a")
+	cID := upsertTestResourceNamed(t, st, TypeODBExadbVMCluster, odbExadbClusterARN("c1"), testRegion,
+		odbExadbClusterRefAttrs("c1", odbTestNetARN, ""), "b")
+	if err := resolveODBExadbVMClusterRefs(acct, st); err == nil {
+		t.Fatal("resolve: nil error, want the decode error")
+	}
+	rels := dsRelsFrom(t, st, cID)
+	assertRelationship(t, rels, cID, netID, store.RelUses)
+}
+
 func TestResolveODBDbNodeCluster_NoMatch(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

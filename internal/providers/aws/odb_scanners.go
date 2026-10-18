@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/odb"
+	odbtypes "github.com/aws/aws-sdk-go-v2/service/odb/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -27,6 +28,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeODBDbNode, Service: "odb"})
 	registerType(restype.Descriptor{Type: TypeODBDbServer, Service: "odb"})
 	registerType(restype.Descriptor{Type: TypeODBAutonomousVirtualMachine, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBExascaleDbStorageVault, Service: "odb"})
+	registerType(restype.Descriptor{Type: TypeODBExadbVMCluster, Service: "odb"})
 	registerService(serviceEntry{
 		name: "aws:odb",
 		fn:   scanODB,
@@ -44,6 +47,8 @@ type odbAPI interface {
 	ListDbNodes(context.Context, *odb.ListDbNodesInput, ...func(*odb.Options)) (*odb.ListDbNodesOutput, error)
 	ListDbServers(context.Context, *odb.ListDbServersInput, ...func(*odb.Options)) (*odb.ListDbServersOutput, error)
 	ListAutonomousVirtualMachines(context.Context, *odb.ListAutonomousVirtualMachinesInput, ...func(*odb.Options)) (*odb.ListAutonomousVirtualMachinesOutput, error)
+	ListExascaleDbStorageVaults(context.Context, *odb.ListExascaleDbStorageVaultsInput, ...func(*odb.Options)) (*odb.ListExascaleDbStorageVaultsOutput, error)
+	ListExadbVmClusters(context.Context, *odb.ListExadbVmClustersInput, ...func(*odb.Options)) (*odb.ListExadbVmClustersOutput, error)
 }
 
 // scanODB discovers Oracle Database@AWS resources.
@@ -106,6 +111,8 @@ func scanODB(ctx context.Context, acct *account, region string, st *store.Store,
 		func() (int, int, error) {
 			return scanODBAutonomousVirtualMachines(ctx, client, acct, region, st, scanID, avmClusters)
 		},
+		func() (int, int, error) { return scanODBExascaleDbStorageVaults(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanODBExadbVMClusters(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -462,4 +469,138 @@ func scanODBPeeringConnections(ctx context.Context, client odbAPI, acct *account
 		}
 	}
 	return upsertBatch(st, batch, "odb odb-peering-connections")
+}
+
+// odbExascaleListCap is the maxResults range maximum the model sets on both
+// Exascale list ops.
+const odbExascaleListCap = 1000
+
+// odbMissingARN counts listed elements skipped because they lack the ARN their
+// NativeID is; the model marks the ARN optional on both Exascale summaries.
+type odbMissingARN struct {
+	count   int
+	firstID string
+}
+
+func (m *odbMissingARN) add(id string) {
+	if m.count == 0 {
+		m.firstID = id
+	}
+	m.count++
+}
+
+func (m *odbMissingARN) warn(st *store.Store, op, kind string, acct *account, region string) {
+	if m.count == 0 {
+		return
+	}
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+		Message: fmt.Sprintf("%d %s skipped: listed without the ARN disco keys them by, first id %q", m.count, kind, m.firstID),
+	})
+}
+
+// odbExascaleListErr classifies a failed page of a region-wide Exascale list
+// op. The earlier ODB phases turn the not-onboarded state into the disabled
+// sentinel before any row is written; reaching it here means onboarding changed
+// mid-scan, after earlier phases stored rows, so it is skipped silently with the
+// rows listed so far kept (a sentinel would discard those phases' counts, and a
+// warning would read as an IAM gap). Exascale (ExaDB-XS) shipped after the rest of
+// Oracle Database@AWS, so a region's endpoint may not route the op: on the
+// first page that is a silent gap. A denial warns, and the rows already listed
+// are kept (keep). Every other error is returned and the listing's rows are
+// dropped.
+func odbExascaleListErr(st *store.Store, op string, acct *account, region string, firstPage bool, err error) (keep bool, _ error) {
+	if isOdbNotOnboarded(err) {
+		return true, nil
+	}
+	if firstPage && isOpNotDeployed(err) {
+		return false, nil
+	}
+	if isAccessDenied(err) {
+		return true, skipIfAccessDenied(st, op, acct.ID, region, err)
+	}
+	return false, fmt.Errorf("%s: %w", op, err)
+}
+
+// scanODBExascaleDbStorageVaults lists Exascale storage vaults region-wide.
+// TERMINATED marks a deleted vault and is dropped; TERMINATING is kept.
+func scanODBExascaleDbStorageVaults(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	const op = "odb:ListExascaleDbStorageVaults"
+	pager := odb.NewListExascaleDbStorageVaultsPaginator(client, &odb.ListExascaleDbStorageVaultsInput{},
+		func(o *odb.ListExascaleDbStorageVaultsPaginatorOptions) {
+			o.Limit = odbExascaleListCap
+			o.StopOnDuplicateToken = true
+		})
+	var batch []*store.Resource
+	var missing odbMissingARN
+	for firstPage := true; pager.HasMorePages(); firstPage = false {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			keep, lerr := odbExascaleListErr(st, op, acct, region, firstPage, err)
+			if lerr != nil || !keep {
+				return 0, 0, lerr
+			}
+			break
+		}
+		for _, v := range out.ExascaleDbStorageVaults {
+			if v.Status == odbtypes.ResourceStatusTerminated {
+				continue
+			}
+			arn := sv(v.ExascaleDbStorageVaultArn)
+			if arn == "" {
+				missing.add(sv(v.ExascaleDbStorageVaultId))
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeODBExascaleDbStorageVault, NativeID: arn,
+				Name: v.DisplayName, Status: nonEmptyPtr(string(v.Status)), CreatedAt: tp(v.CreatedAt),
+				Region: &region, AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
+			})
+		}
+	}
+	missing.warn(st, op, "exascale db storage vaults", acct, region)
+	return upsertBatch(st, batch, "odb exascale-db-storage-vaults")
+}
+
+// scanODBExadbVMClusters lists Exascale VM clusters region-wide (the optional
+// storage-vault filter is left unset). TERMINATED marks a deleted cluster and
+// is dropped; TERMINATING is kept.
+func scanODBExadbVMClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	const op = "odb:ListExadbVmClusters"
+	pager := odb.NewListExadbVmClustersPaginator(client, &odb.ListExadbVmClustersInput{},
+		func(o *odb.ListExadbVmClustersPaginatorOptions) {
+			o.Limit = odbExascaleListCap
+			o.StopOnDuplicateToken = true
+		})
+	var batch []*store.Resource
+	var missing odbMissingARN
+	for firstPage := true; pager.HasMorePages(); firstPage = false {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			keep, lerr := odbExascaleListErr(st, op, acct, region, firstPage, err)
+			if lerr != nil || !keep {
+				return 0, 0, lerr
+			}
+			break
+		}
+		for _, c := range out.ExadbVmClusters {
+			if c.Status == odbtypes.ResourceStatusTerminated {
+				continue
+			}
+			arn := sv(c.ExadbVmClusterArn)
+			if arn == "" {
+				missing.add(sv(c.ExadbVmClusterId))
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeODBExadbVMCluster, NativeID: arn,
+				Name: c.DisplayName, Status: nonEmptyPtr(string(c.Status)), CreatedAt: tp(c.CreatedAt),
+				Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}
+	}
+	missing.warn(st, op, "exadb vm clusters", acct, region)
+	return upsertBatch(st, batch, "odb exadb-vm-clusters")
 }

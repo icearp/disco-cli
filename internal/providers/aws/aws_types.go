@@ -2403,6 +2403,8 @@ const (
 	TypeODBDbNode                     = "aws:odb:db-node"
 	TypeODBDbServer                   = "aws:odb:db-server"
 	TypeODBAutonomousVirtualMachine   = "aws:odb:autonomous-virtual-machine"
+	TypeODBExadbVMCluster             = "aws:odb:exadb-vm-cluster"
+	TypeODBExascaleDbStorageVault     = "aws:odb:exascale-db-storage-vault"
 	// Outposts (outposts_scanners.go). AWS Outposts.
 	TypeOutpostsSite    = "aws:outposts:site"
 	TypeOutpostsOutpost = "aws:outposts:outpost"
