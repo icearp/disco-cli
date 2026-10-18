@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.1% (1973/3336 listable) · depth0 71.3% · depth1 41.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.3% (1978/3336 listable) · depth0 71.6% · depth1 41.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,13 +11,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1038 | 183 | 85.0 |
 | child-uncatalogued | 274 | 743 | 26.9 |
 | smithy-resource | 429 | 133 | 76.3 |
-| element-written | 190 | 226 | 45.7 |
+| element-written | 195 | 221 | 46.9 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
-| ec2 | 114 | 82 | 58.2 |
+| ec2 | 119 | 77 | 60.7 |
 | resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
 | connect | 41 | 27 | 60.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1363)
+### Uncovered (listable, no scanner) (1358)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -808,7 +808,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dynamodb | dynamodb/item | 1 |  | child-uncatalogued | dynamodb:BatchGetItem, dynamodb:GetItem, dynamodb:TransactGetItems |
 | ec2 | ec2/addressesattribute | 0 |  | element-written | ec2:DescribeAddressesAttribute |
 | ec2 | ec2/addresstransfer | 0 |  | element-written | ec2:DescribeAddressTransfers |
-| ec2 | ec2/allowedimagessetting | 0 |  | element-written | ec2:GetAllowedImagesSettings |
 | ec2 | ec2/applicationstatuscheck | 0 |  | sr-resource | ec2:DescribeApplicationStatusChecks |
 | ec2 | ec2/awsnetworkperformancedata | 0 |  | element-written | ec2:GetAwsNetworkPerformanceData |
 | ec2 | ec2/bundletask | 0 |  | element-written | ec2:DescribeBundleTasks |
@@ -826,8 +825,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/elasticgpu | 0 |  | sr-resource | ec2:DescribeElasticGpus |
 | ec2 | ec2/exportimagetask | 0 |  | sr-resource | ec2:DescribeExportImageTasks |
 | ec2 | ec2/exporttask | 0 |  | element-written | ec2:DescribeExportTasks |
-| ec2 | ec2/fastlaunchimage | 0 |  | element-written | ec2:DescribeFastLaunchImages |
-| ec2 | ec2/fastsnapshotrestore | 0 |  | element-written | ec2:DescribeFastSnapshotRestores |
 | ec2 | ec2/fleetinstance | 1 |  | child-uncatalogued | ec2:DescribeFleetInstances, ec2:DescribeSpotFleetInstances |
 | ec2 | ec2/fpgaimageattribute | 1 |  | child-uncatalogued | ec2:DescribeFpgaImageAttribute |
 | ec2 | ec2/group | 1 |  | child-uncatalogued | ec2:GetGroupsForCapacityReservation |
@@ -862,14 +859,12 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/networkinsightsaccessscopeanalysisfinding | 1 |  | child-uncatalogued | ec2:GetNetworkInsightsAccessScopeAnalysisFindings |
 | ec2 | ec2/principalidformat | 0 |  | element-arn | ec2:DescribePrincipalIdFormat |
 | ec2 | ec2/replacerootvolumetask | 0 |  | sr-resource | ec2:DescribeReplaceRootVolumeTasks |
-| ec2 | ec2/reservedinstanceslisting | 0 |  | element-written | ec2:DescribeReservedInstancesListings |
 | ec2 | ec2/reservedinstancesmodification | 0 |  | element-created | ec2:DescribeReservedInstancesModifications |
 | ec2 | ec2/routeserverassociation | 1 |  | child-uncatalogued | ec2:GetRouteServerAssociations |
 | ec2 | ec2/routeserverpropagation | 1 |  | child-uncatalogued | ec2:GetRouteServerPropagations |
 | ec2 | ec2/scheduledinstance | 0 |  | element-written | ec2:DescribeScheduledInstances |
 | ec2 | ec2/scheduledinstanceavailability | 0 |  | element-written | ec2:DescribeScheduledInstanceAvailability |
 | ec2 | ec2/securitygroupreference | 1 |  | child-uncatalogued | ec2:DescribeSecurityGroupReferences |
-| ec2 | ec2/servicelinkvirtualinterface | 0 |  | element-written | ec2:DescribeServiceLinkVirtualInterfaces |
 | ec2 | ec2/snapshotattribute | 1 |  | child-uncatalogued | ec2:DescribeSnapshotAttribute |
 | ec2 | ec2/snapshotsinrecyclebin | 0 |  | element-written | ec2:ListSnapshotsInRecycleBin |
 | ec2 | ec2/snapshottierstatus | 0 |  | element-written | ec2:DescribeSnapshotTierStatus |

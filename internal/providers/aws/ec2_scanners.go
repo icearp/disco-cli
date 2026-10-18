@@ -21,10 +21,11 @@ func init() {
 
 // scanEC2 discovers all EC2 resource types in one region by running all
 // category scanners in parallel; each fans out to its own sub-scanners via
-// an internal errgroup. The IPAM extended phases run after them, whatever
-// they return: runScanners cancels every category on its first error, so a
-// failure there would otherwise cost the older categories their rows. Both
-// sides have their transient error demoted to a warning before the join.
+// an internal errgroup. The IPAM extended phases and then the late phases
+// (scanEC2Late) run after them, whatever they return: runScanners cancels
+// every category on its first error, so a failure there would otherwise cost
+// the older categories their rows. Every side has its transient error demoted
+// to a warning before the join.
 func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
 	var (
@@ -95,7 +96,8 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 		},
 	)
 	t, n, extErr := scanEC2IPAMExtended(ctx, client, acct, region, st, scanID, homeIPAM, ipamPolicies)
-	return total + t, inserted + n, errors.Join(demoteTransient(st, "ec2", acct, region, err), extErr)
+	lt, ln, lateErr := scanEC2Late(ctx, client, acct, region, st, scanID)
+	return total + t + lt, inserted + n + ln, errors.Join(demoteTransient(st, "ec2", acct, region, err), extErr, lateErr)
 }
 
 // runScanners executes scanner functions concurrently via errgroup, aggregating

@@ -31,9 +31,14 @@ type ec2API interface {
 	GetSubnetCidrReservations(context.Context, *ec2.GetSubnetCidrReservationsInput, ...func(*ec2.Options)) (*ec2.GetSubnetCidrReservationsOutput, error)
 	DescribeVpcEndpointAssociations(context.Context, *ec2.DescribeVpcEndpointAssociationsInput, ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointAssociationsOutput, error)
 	SearchTransitGatewayRoutes(context.Context, *ec2.SearchTransitGatewayRoutesInput, ...func(*ec2.Options)) (*ec2.SearchTransitGatewayRoutesOutput, error)
+	DescribeReservedInstancesListings(context.Context, *ec2.DescribeReservedInstancesListingsInput, ...func(*ec2.Options)) (*ec2.DescribeReservedInstancesListingsOutput, error)
+	DescribeServiceLinkVirtualInterfaces(context.Context, *ec2.DescribeServiceLinkVirtualInterfacesInput, ...func(*ec2.Options)) (*ec2.DescribeServiceLinkVirtualInterfacesOutput, error)
+	GetAllowedImagesSettings(context.Context, *ec2.GetAllowedImagesSettingsInput, ...func(*ec2.Options)) (*ec2.GetAllowedImagesSettingsOutput, error)
 	// Paginator-backed ops. NewListXxxPaginator(client, ...) only requires the
 	// matching DescribeXxx / GetXxx / SearchXxx method on `client`, so listing
 	// the underlying op suffices.
+	DescribeFastLaunchImages(context.Context, *ec2.DescribeFastLaunchImagesInput, ...func(*ec2.Options)) (*ec2.DescribeFastLaunchImagesOutput, error)
+	DescribeFastSnapshotRestores(context.Context, *ec2.DescribeFastSnapshotRestoresInput, ...func(*ec2.Options)) (*ec2.DescribeFastSnapshotRestoresOutput, error)
 	DescribeCapacityReservationFleets(context.Context, *ec2.DescribeCapacityReservationFleetsInput, ...func(*ec2.Options)) (*ec2.DescribeCapacityReservationFleetsOutput, error)
 	DescribeCapacityReservations(context.Context, *ec2.DescribeCapacityReservationsInput, ...func(*ec2.Options)) (*ec2.DescribeCapacityReservationsOutput, error)
 	DescribeCarrierGateways(context.Context, *ec2.DescribeCarrierGatewaysInput, ...func(*ec2.Options)) (*ec2.DescribeCarrierGatewaysOutput, error)

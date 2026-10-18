@@ -54,6 +54,12 @@ const (
 	TypeEC2NetworkInsightsAnalysis            = "aws:ec2:network-insights-analysis"
 	TypeEC2NetworkInsightsAccessScope         = "aws:ec2:network-insights-access-scope"
 	TypeEC2NetworkInsightsAccessScopeAnalysis = "aws:ec2:network-insights-access-scope-analysis"
+	// EC2 — late phases (ec2_late_scanners.go)
+	TypeEC2FastSnapshotRestore         = "aws:ec2:fast-snapshot-restore"
+	TypeEC2FastLaunchImage             = "aws:ec2:fast-launch-image"
+	TypeEC2AllowedImagesSetting        = "aws:ec2:allowed-images-setting"
+	TypeEC2ReservedInstancesListing    = "aws:ec2:reserved-instances-listing"
+	TypeEC2ServiceLinkVirtualInterface = "aws:ec2:service-link-virtual-interface"
 	// EC2 — IPAM (ec2_ipam_scanners.go)
 	TypeEC2IPAM                                  = "aws:ec2:ipam"
 	TypeEC2IpamPolicy                            = "aws:ec2:ipam-policy"
