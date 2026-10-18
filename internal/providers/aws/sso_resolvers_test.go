@@ -1,6 +1,8 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -257,9 +259,92 @@ func TestSSOChildHierarchyEdgesDeclared(t *testing.T) {
 		{TypeSSOApplication, TypeSSOApplicationAuthenticationMethod, store.RelContains},
 		{TypeSSOApplication, TypeSSOApplicationGrant, store.RelContains},
 		{TypeSSOInstance, TypeSSORegion, store.RelContains},
+		{TypeSSOPermissionSet, TypeSSOManagedPolicy, store.RelContains},
+		{TypeSSOPermissionSet, TypeSSOCustomerManagedPolicyReference, store.RelContains},
 	} {
 		if !slices.Contains(declared, want) {
 			t.Errorf("EdgeDecl %v not declared", want)
 		}
 	}
+}
+
+// ssoManagedPolicyFixture stores the AWS managed AdministratorAccess policy as
+// the IAM scan does (ManagedByProvider) and returns its ResourceID.
+func ssoManagedPolicyFixture(t *testing.T, st *store.Store) string {
+	t.Helper()
+	arn := "arn:aws:iam::aws:policy/AdministratorAccess"
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: testAccountID, Type: TypeIAMPolicy, NativeID: arn,
+		AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: true,
+	}); err != nil {
+		t.Fatalf("upsert iam policy: %v", err)
+	}
+	return store.ResourceID("aws", testAccountID, arn)
+}
+
+func ssoAttachmentAttrs(t *testing.T, name string) string {
+	t.Helper()
+	b, err := json.Marshal(ssoManagedPolicy("/", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestResolveSSOManagedPolicyTargets_LinksScannedPolicyOnly(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	policyID := ssoManagedPolicyFixture(t, st)
+	ps := ssoPermSetARN()
+	admin := upsertTestResource(t, st, "aws", acct.ID, TypeSSOManagedPolicy,
+		ps+"/managed-policy/arn:aws:iam::aws:policy/AdministratorAccess", testRegion, ssoAttachmentAttrs(t, "AdministratorAccess"))
+	unscanned := upsertTestResource(t, st, "aws", acct.ID, TypeSSOManagedPolicy,
+		ps+"/managed-policy/arn:aws:iam::aws:policy/ReadOnlyAccess", testRegion, ssoAttachmentAttrs(t, "ReadOnlyAccess"))
+	noAttrs := upsertTestResource(t, st, "aws", acct.ID, TypeSSOManagedPolicy, ps+"/managed-policy/none", testRegion, "{}")
+
+	if err := resolveSSOManagedPolicyTargets(acct, st); err != nil {
+		t.Fatalf("resolveSSOManagedPolicyTargets: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(admin)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("admin attachment edges=%v, want exactly the uses edge", rels)
+	}
+	assertRelationship(t, rels, admin, policyID, store.RelUses)
+	for _, from := range []string{unscanned, noAttrs} {
+		if rels, _ := st.RelationshipsFrom(from); len(rels) != 0 {
+			t.Errorf("%s edges=%v, want none (target not scanned)", from, rels)
+		}
+	}
+}
+
+func TestResolveSSOManagedPolicyTargets_Empty(t *testing.T) {
+	st := newTestStore(t)
+	ssoManagedPolicyFixture(t, st)
+	if err := resolveSSOManagedPolicyTargets(newTestAccount(testAccountID), st); err != nil {
+		t.Fatalf("resolveSSOManagedPolicyTargets: %v", err)
+	}
+}
+
+// A row that does not decode is reported, and costs no other row its edge.
+func TestResolveSSOManagedPolicyTargets_DecodeError(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	policyID := ssoManagedPolicyFixture(t, st)
+	ps := ssoPermSetARN()
+	upsertTestResource(t, st, "aws", acct.ID, TypeSSOManagedPolicy, ps+"/managed-policy/bad", testRegion, `not json`)
+	admin := upsertTestResource(t, st, "aws", acct.ID, TypeSSOManagedPolicy,
+		ps+"/managed-policy/arn:aws:iam::aws:policy/AdministratorAccess", testRegion, ssoAttachmentAttrs(t, "AdministratorAccess"))
+
+	var syntaxErr *json.SyntaxError
+	if err := resolveSSOManagedPolicyTargets(acct, st); !errors.As(err, &syntaxErr) {
+		t.Fatalf("err=%v, want the decode error", err)
+	}
+	rels, err := st.RelationshipsFrom(admin)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, admin, policyID, store.RelUses)
 }

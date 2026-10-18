@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -28,6 +28,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSSOApplicationAuthenticationMethod, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOApplicationGrant, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSORegion, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOManagedPolicy, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOCustomerManagedPolicyReference, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeIdentityStoreUser, Service: "identitystore"})
 	registerType(restype.Descriptor{Type: TypeIdentityStoreGroup, Service: "identitystore"})
 	registerType(restype.Descriptor{Type: TypeIdentityStoreGroupMembership, Service: "identitystore"})
@@ -54,6 +56,8 @@ type ssoadminAPI interface {
 	ListApplicationAuthenticationMethods(context.Context, *ssoadmin.ListApplicationAuthenticationMethodsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationAuthenticationMethodsOutput, error)
 	ListApplicationGrants(context.Context, *ssoadmin.ListApplicationGrantsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationGrantsOutput, error)
 	ListRegions(context.Context, *ssoadmin.ListRegionsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListRegionsOutput, error)
+	ListManagedPoliciesInPermissionSet(context.Context, *ssoadmin.ListManagedPoliciesInPermissionSetInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListManagedPoliciesInPermissionSetOutput, error)
+	ListCustomerManagedPolicyReferencesInPermissionSet(context.Context, *ssoadmin.ListCustomerManagedPolicyReferencesInPermissionSetInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListCustomerManagedPolicyReferencesInPermissionSetOutput, error)
 }
 
 // identitystoreAPI is the narrow set of Identity Store operations called by
@@ -81,6 +85,9 @@ type identitystoreAPI interface {
 //     have no AWS-issued ARN — see aws/CLAUDE.md).
 //  4. Per instance: ListUsers + ListGroups against the connected Identity
 //     Store (instance.IdentityStoreId).
+//  5. scanSSOExtended: applications and the other per-instance surfaces.
+//  6. Per permission set stored in phase 2: its AWS managed policies and
+//     customer managed policy references, one row per attachment.
 func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	ssoClient := ssoadmin.NewFromConfig(acct.cfg, func(o *ssoadmin.Options) { o.Region = region })
 
@@ -94,44 +101,38 @@ func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.S
 		return total, inserted, nil
 	}
 
-	{
-		t, i, ferr := scanSSOPermissionSets(ctx, ssoClient, acct, region, instances, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
+	// Phases 2-6 each run even when an earlier one failed, and keep their
+	// counts when they fail themselves; phase 6 lists only what phase 2 stored.
+	// Their errors are joined, each demoted first: a transient member would
+	// make the dispatcher read the whole join as transient and drop the other
+	// phases' hard errors and counts.
+	var errs []error
+	add := func(service string, t, i int, err error) {
 		total += t
 		inserted += i
+		errs = append(errs, demoteTransient(st, service, acct, region, err))
 	}
 
-	{
-		t, i, ferr := scanSSOAccountAssignments(ctx, ssoClient, acct, region, instances, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
+	permissionSets, t, i, ferr := scanSSOPermissionSets(ctx, ssoClient, acct, region, instances, st, scanID)
+	add("sso-admin", t, i, ferr)
+
+	t, i, ferr = scanSSOAccountAssignments(ctx, ssoClient, acct, region, instances, st, scanID)
+	add("sso-admin", t, i, ferr)
 
 	isClient := identitystore.NewFromConfig(acct.cfg, func(o *identitystore.Options) { o.Region = region })
-	{
-		t, i, ferr := scanIdentityStoreUsersGroups(ctx, isClient, acct, region, instances, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
+	t, i, ferr = scanIdentityStoreUsersGroups(ctx, isClient, acct, region, instances, st, scanID)
+	add("identitystore", t, i, ferr)
 
-	{
-		t, i, ferr := scanSSOExtended(ctx, ssoClient, acct, region, instances, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
+	t, i, ferr = scanSSOExtended(ctx, ssoClient, acct, region, instances, st, scanID)
+	add("sso-admin", t, i, ferr)
 
-	return total, inserted, nil
+	// Already demoted per list inside scanSSOPermissionSetPolicies.
+	t, i, ferr = scanSSOPermissionSetPolicies(ctx, ssoClient, acct, region, permissionSets, st, scanID)
+	total += t
+	inserted += i
+	errs = append(errs, ferr)
+
+	return total, inserted, errors.Join(errs...)
 }
 
 func scanSSOInstances(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string) (instances []ssotypes.InstanceMetadata, total, inserted int, err error) {
@@ -172,12 +173,14 @@ func scanSSOInstances(ctx context.Context, client ssoadminAPI, acct *account, re
 	return instances, len(batch), n, nil
 }
 
-func scanSSOPermissionSets(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
-	type psRef struct {
-		instanceArn string
-		psArn       string
-	}
-	var refs []psRef
+// ssoPermissionSet is a permission set and the instance it belongs to, the
+// pair every per-permission-set call takes.
+type ssoPermissionSet struct{ instanceARN, arn string }
+
+// scanSSOPermissionSets lists and describes each instance's permission sets
+// and returns the ones it stored.
+func scanSSOPermissionSets(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) ([]ssoPermissionSet, int, int, error) {
+	var refs []ssoPermissionSet
 	for _, in := range instances {
 		instArn := sv(in.InstanceArn)
 		pager := ssoadmin.NewListPermissionSetsPaginator(client, &ssoadmin.ListPermissionSetsInput{InstanceArn: in.InstanceArn})
@@ -186,44 +189,47 @@ func scanSSOPermissionSets(ctx context.Context, client ssoadminAPI, acct *accoun
 			if perr != nil {
 				if isAccessDenied(perr) {
 					_ = skipIfAccessDenied(st, "sso-admin:ListPermissionSets", acct.ID, region, perr)
-					return 0, 0, nil
+					return nil, 0, 0, nil
 				}
-				return 0, 0, fmt.Errorf("sso-admin:ListPermissionSets: %w", perr)
+				return nil, 0, 0, fmt.Errorf("sso-admin:ListPermissionSets: %w", perr)
 			}
 			for _, arn := range out.PermissionSets {
-				refs = append(refs, psRef{instanceArn: instArn, psArn: arn})
+				refs = append(refs, ssoPermissionSet{instanceARN: instArn, arn: arn})
 			}
 		}
 	}
 	if len(refs) == 0 {
-		return 0, 0, nil
+		return nil, 0, 0, nil
 	}
 
-	sem := semaphore.NewWeighted(fanoutMed)
+	// SetLimit, not a semaphore acquired on gctx: once one call fails, gctx is
+	// cancelled and an Acquire would return context.Canceled in place of that
+	// call's error, which g.Wait reports.
 	var (
-		mu    sync.Mutex
-		batch []*store.Resource
+		mu           sync.Mutex
+		batch        []*store.Resource
+		sets         []ssoPermissionSet
+		unidentified int
 	)
+	// A set deleted after the listing is skipped silently; a denial warns once.
+	errs := &fanOutErrs{st: st, acct: acct, region: region, op: "sso-admin:DescribePermissionSet", isSkip: isSSOParentGone}
 	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(fanoutMed)
 	for _, ref := range refs {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
 		g.Go(func() error {
-			defer sem.Release(1)
 			out, derr := client.DescribePermissionSet(gctx, &ssoadmin.DescribePermissionSetInput{
-				InstanceArn: &ref.instanceArn, PermissionSetArn: &ref.psArn,
+				InstanceArn: &ref.instanceARN, PermissionSetArn: &ref.arn,
 			})
 			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("sso-admin:DescribePermissionSet %s: %w", ref.psArn, derr)
-			}
-			if out.PermissionSet == nil {
-				return nil
+				return errs.keyErr(ref.arn, derr)
 			}
 			ps := out.PermissionSet
+			if ps == nil || sv(ps.PermissionSetArn) == "" {
+				mu.Lock()
+				unidentified++
+				mu.Unlock()
+				return nil
+			}
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -236,23 +242,32 @@ func scanSSOPermissionSets(ctx context.Context, client ssoadminAPI, acct *accoun
 				DiscoveredBy:   scanID,
 			}
 			mu.Lock()
+			defer mu.Unlock()
 			batch = append(batch, r)
-			mu.Unlock()
+			sets = append(sets, ssoPermissionSet{instanceARN: ref.instanceARN, arn: r.NativeID})
 			return nil
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return nil, 0, 0, werr
 	}
-	if len(batch) > 0 {
-		n, uerr := st.UpsertResources(batch)
-		if uerr != nil {
-			return 0, 0, fmt.Errorf("upsert sso permission-sets: %w", uerr)
-		}
-		total = len(batch)
-		inserted = n
+	// The model makes PermissionSet and its PermissionSetArn optional. Without
+	// the ARN the row has no identity (every such row would share one
+	// ResourceID), so it is dropped.
+	if unidentified > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: "sso-admin:DescribePermissionSet", Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d permission set(s) described without a PermissionSet or PermissionSetArn were not stored", unidentified),
+		})
 	}
-	return total, inserted, nil
+	if len(batch) == 0 {
+		return nil, 0, 0, nil
+	}
+	n, uerr := st.UpsertResources(batch)
+	if uerr != nil {
+		return nil, 0, 0, fmt.Errorf("upsert sso permission-sets: %w", uerr)
+	}
+	return sets, len(batch), n, nil
 }
 
 // scanSSOAccountAssignments walks the (instance × permission-set ×
@@ -307,29 +322,24 @@ func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *ac
 		return 0, 0, nil
 	}
 
-	// Step 2: fan-out ListAccountAssignments per triple.
-	sem := semaphore.NewWeighted(fanoutHigh)
+	// Step 2: fan-out ListAccountAssignments per triple. SetLimit, as in
+	// scanSSOPermissionSets, so g.Wait reports the failed call's own error.
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
 	)
+	errs := &fanOutErrs{st: st, acct: acct, region: region, op: "sso-admin:ListAccountAssignments", isSkip: isSSOParentGone}
 	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(fanoutHigh)
 	for _, p := range pairs {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
 		g.Go(func() error {
-			defer sem.Release(1)
 			pager := ssoadmin.NewListAccountAssignmentsPaginator(client, &ssoadmin.ListAccountAssignmentsInput{
 				InstanceArn: &p.instanceArn, AccountId: &p.accountID, PermissionSetArn: &p.psArn,
 			})
 			for pager.HasMorePages() {
 				out, perr := pager.NextPage(gctx)
 				if perr != nil {
-					if isAccessDenied(perr) {
-						return nil
-					}
-					return fmt.Errorf("sso-admin:ListAccountAssignments: %w", perr)
+					return errs.keyErr(p.psArn+" account "+p.accountID, perr)
 				}
 				for _, a := range out.AccountAssignments {
 					nativeID := ssoAssignmentNativeID(p.psArn, sv(a.AccountId), string(a.PrincipalType), sv(a.PrincipalId))

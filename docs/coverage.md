@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.1% (2006/3336 listable) · depth0 72.2% · depth1 43.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.2% (2008/3336 listable) · depth0 72.2% · depth1 43.0% · depth2 33.1% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 287 | 730 | 28.2 |
+| child-uncatalogued | 289 | 728 | 28.4 |
 | smithy-resource | 431 | 131 | 76.7 |
 | element-written | 199 | 217 | 47.8 |
 | element-arn | 36 | 70 | 34.0 |
@@ -107,7 +107,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | lambda | 16 | 5 | 76.2 |
 | mgh | 1 | 5 | 16.7 |
 | rekognition | 5 | 5 | 50.0 |
-| sso | 12 | 5 | 70.6 |
 | trustedadvisor | 1 | 5 | 16.7 |
 | voiceid | 1 | 5 | 16.7 |
 | wisdom | 11 | 5 | 68.8 |
@@ -165,6 +164,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | route53-recovery-readiness | 4 | 3 | 57.1 |
 | route53globalresolver | 7 | 3 | 70.0 |
 | snowball | 2 | 3 | 40.0 |
+| sso | 14 | 3 | 82.4 |
 | states | 4 | 3 | 57.1 |
 | support | 0 | 3 | 0.0 |
 | wafv2 | 6 | 3 | 66.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1330)
+### Uncovered (listable, no scanner) (1328)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1601,8 +1601,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm-sap | ssm-sap/subcheckresult | 1 |  | child-uncatalogued | ssm-sap:ListSubCheckResults |
 | ssm-sap | ssm-sap/subcheckruleresult | 2 |  | child-uncatalogued | ssm-sap:ListSubCheckRuleResults |
 | sso | sso/accountassignmentcreationstatus | 1 |  | child-uncatalogued | sso:DescribeAccountAssignmentCreationStatus, sso:DescribeAccountAssignmentDeletionStatus, sso:ListAccountAssignmentCreationStatus, sso:ListAccountAssignmentDeletionStatus |
-| sso | sso/customermanagedpolicyreference | 2 |  | child-uncatalogued | sso:ListCustomerManagedPolicyReferencesInPermissionSet |
-| sso | sso/managedpolicy | 2 |  | child-uncatalogued | sso:ListManagedPoliciesInPermissionSet |
 | sso | sso/permissionsetprovisioningstatus | 1 |  | child-uncatalogued | sso:DescribePermissionSetProvisioningStatus, sso:ListPermissionSetProvisioningStatus |
 | sso | sso/permissionsetsprovisioned | 1 |  | child-uncatalogued | sso:ListPermissionSetsProvisionedToAccount |
 | states | states/execution | 0 |  | sr-resource | states:DescribeExecution, states:ListExecutions |

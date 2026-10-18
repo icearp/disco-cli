@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
@@ -88,14 +89,121 @@ func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, reg
 	return total, inserted, nil
 }
 
-// isSSOApplicationGone reports an application deleted between ListApplications
-// and the per-application list call.
-func isSSOApplicationGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+// isSSOParentGone reports a parent (an application or a permission set)
+// deleted between the call that listed it and the per-parent list call.
+func isSSOParentGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+
+const (
+	ssoListManagedPoliciesOp          = "ssoadmin:ListManagedPoliciesInPermissionSet"
+	ssoListCustomerManagedPolicyRefOp = "ssoadmin:ListCustomerManagedPolicyReferencesInPermissionSet"
+)
+
+// scanSSOPermissionSetPolicies lists the policies attached to each permission
+// set: one row per AWS managed policy and one per customer managed policy
+// reference, contained by the permission set. They are rows of their own, not
+// permission-set attributes, so attaching or detaching a policy changes that
+// one row instead of version-splitting the permission set. Both lists run;
+// a transient failure in one is demoted so it cannot hide the other's error.
+func scanSSOPermissionSetPolicies(ctx context.Context, client ssoadminAPI, acct *account, region string, sets []ssoPermissionSet, st *store.Store, scanID string) (int, int, error) {
+	parents := make([]childParent, 0, len(sets))
+	instanceOf := make(map[string]string, len(sets))
+	for _, ps := range sets {
+		parents = append(parents, childParent{id: ps.arn, arn: ps.arn})
+		instanceOf[ps.arn] = ps.instanceARN
+	}
+	mt, mi, merr := scanSSOManagedPolicies(ctx, client, acct, region, st, scanID, parents, instanceOf)
+	ct, ci, cerr := scanSSOCustomerManagedPolicyReferences(ctx, client, acct, region, st, scanID, parents, instanceOf)
+	return mt + ct, mi + ci, errors.Join(
+		demoteTransient(st, ssoListManagedPoliciesOp, acct, region, merr),
+		demoteTransient(st, ssoListCustomerManagedPolicyRefOp, acct, region, cerr),
+	)
+}
+
+// ssoPolicyPageSize is the documented MaxResults cap of both policy list ops.
+const ssoPolicyPageSize = 100
+
+// scanSSOManagedPolicies lists each permission set's AWS managed policies. An
+// attachment has no ARN of its own; it is keyed
+// {permissionSetArn}/managed-policy/{policyArn}.
+func scanSSOManagedPolicies(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, sets []childParent, instanceOf map[string]string) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, ssoListManagedPoliciesOp, sets, isSSOParentGone,
+		func(ctx context.Context, ps childParent) ([]*store.Resource, error) {
+			instanceARN := instanceOf[ps.id]
+			var rows []*store.Resource
+			p := ssoadmin.NewListManagedPoliciesInPermissionSetPaginator(client,
+				&ssoadmin.ListManagedPoliciesInPermissionSetInput{InstanceArn: &instanceARN, PermissionSetArn: &ps.id},
+				func(o *ssoadmin.ListManagedPoliciesInPermissionSetPaginatorOptions) { o.Limit = ssoPolicyPageSize })
+			for p.HasMorePages() {
+				page, err := p.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, mp := range page.AttachedManagedPolicies {
+					policyARN := sv(mp.Arn)
+					if policyARN == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeSSOManagedPolicy, NativeID: ps.arn + "/managed-policy/" + policyARN,
+						Name: mp.Name, Region: &region, AttributesJSON: mustJSON(mp), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// scanSSOCustomerManagedPolicyReferences lists each permission set's customer
+// managed policy references. A reference names an IAM policy by path and name
+// (the policy itself lives in each account the permission set is provisioned
+// to), so it is keyed {permissionSetArn}/customer-managed-policy{path}{name},
+// the path and name the policy's IAM ARN is built from.
+func scanSSOCustomerManagedPolicyReferences(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, sets []childParent, instanceOf map[string]string) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, ssoListCustomerManagedPolicyRefOp, sets, isSSOParentGone,
+		func(ctx context.Context, ps childParent) ([]*store.Resource, error) {
+			instanceARN := instanceOf[ps.id]
+			var rows []*store.Resource
+			p := ssoadmin.NewListCustomerManagedPolicyReferencesInPermissionSetPaginator(client,
+				&ssoadmin.ListCustomerManagedPolicyReferencesInPermissionSetInput{InstanceArn: &instanceARN, PermissionSetArn: &ps.id},
+				func(o *ssoadmin.ListCustomerManagedPolicyReferencesInPermissionSetPaginatorOptions) {
+					o.Limit = ssoPolicyPageSize
+				})
+			for p.HasMorePages() {
+				page, err := p.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, ref := range page.CustomerManagedPolicyReferences {
+					name := sv(ref.Name)
+					if name == "" {
+						continue
+					}
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeSSOCustomerManagedPolicyReference, NativeID: ps.arn + "/customer-managed-policy" + ssoPolicyPath(ref.Path) + name,
+						Name: &name, Region: &region, AttributesJSON: mustJSON(ref), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// ssoPolicyPath is a reference's IAM path. The model makes Path optional and
+// documents "/" as its default, so an absent path is that same "/" and the
+// policy keeps one key whichever form the API returns.
+func ssoPolicyPath(path *string) string {
+	if p := sv(path); p != "" {
+		return p
+	}
+	return "/"
+}
 
 // scanSSOApplicationAccessScopes lists each application's access scopes. A
 // scope has no ARN; it is keyed {applicationArn}/access-scope/{scope}.
 func scanSSOApplicationAccessScopes(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
-	return childFanOut(ctx, st, acct, region, "ssoadmin:ListApplicationAccessScopes", apps, isSSOApplicationGone,
+	return childFanOut(ctx, st, acct, region, "ssoadmin:ListApplicationAccessScopes", apps, isSSOParentGone,
 		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			p := ssoadmin.NewListApplicationAccessScopesPaginator(client, &ssoadmin.ListApplicationAccessScopesInput{ApplicationArn: &app.id})
@@ -124,7 +232,7 @@ func scanSSOApplicationAccessScopes(ctx context.Context, client ssoadminAPI, acc
 // authentication methods, at most one per method type, so a method is keyed
 // {applicationArn}/authentication-method/{type}.
 func scanSSOApplicationAuthenticationMethods(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
-	return childFanOut(ctx, st, acct, region, "ssoadmin:ListApplicationAuthenticationMethods", apps, isSSOApplicationGone,
+	return childFanOut(ctx, st, acct, region, "ssoadmin:ListApplicationAuthenticationMethods", apps, isSSOParentGone,
 		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			p := ssoadmin.NewListApplicationAuthenticationMethodsPaginator(client, &ssoadmin.ListApplicationAuthenticationMethodsInput{ApplicationArn: &app.id})
@@ -183,7 +291,7 @@ func ssoAuthenticationMethodAttrsJSON(m ssotypes.AuthenticationMethodItem) (stri
 // carries a credential: JWT bearer grants name trusted token issuer ARNs and
 // audiences, authorization-code grants redirect URIs.
 func scanSSOApplicationGrants(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
-	return childFanOut(ctx, st, acct, region, "ssoadmin:ListApplicationGrants", apps, isSSOApplicationGone,
+	return childFanOut(ctx, st, acct, region, "ssoadmin:ListApplicationGrants", apps, isSSOParentGone,
 		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			p := ssoadmin.NewListApplicationGrantsPaginator(client, &ssoadmin.ListApplicationGrantsInput{ApplicationArn: &app.id})

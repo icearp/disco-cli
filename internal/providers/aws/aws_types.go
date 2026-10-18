@@ -751,6 +751,8 @@ const (
 	TypeSSOApplicationAuthenticationMethod             = "aws:sso:application-authentication-method"
 	TypeSSOApplicationGrant                            = "aws:sso:application-grant"
 	TypeSSORegion                                      = "aws:sso:region"
+	TypeSSOManagedPolicy                               = "aws:sso:managed-policy"
+	TypeSSOCustomerManagedPolicyReference              = "aws:sso:customer-managed-policy-reference"
 	TypeIdentityStoreUser                              = "aws:identitystore:user"
 	TypeIdentityStoreGroup                             = "aws:identitystore:group"
 	// Macie (macie_scanners.go, macie_resolvers.go)

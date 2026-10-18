@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -45,12 +46,19 @@ func init() {
 		EdgeDecl{TypeSSOApplication, TypeSSOApplicationAuthenticationMethod, store.RelContains},
 		EdgeDecl{TypeSSOApplication, TypeSSOApplicationGrant, store.RelContains},
 		EdgeDecl{TypeSSOInstance, TypeSSORegion, store.RelContains},
+		EdgeDecl{TypeSSOPermissionSet, TypeSSOManagedPolicy, store.RelContains},
+		EdgeDecl{TypeSSOPermissionSet, TypeSSOCustomerManagedPolicyReference, store.RelContains},
+	)
+	registerResolver(
+		resolveSSOManagedPolicyTargets,
+		EdgeDecl{TypeSSOManagedPolicy, TypeIAMPolicy, store.RelUses},
 	)
 }
 
 // noopSSOHierarchy only carries EdgeDecl metadata: the scanner already writes
 // these contains edges through childFanOut's RecordHierarchyBatch
-// (scanSSOApplicationAccessScopes / AuthenticationMethods / Grants, scanSSORegions).
+// (scanSSOApplicationAccessScopes / AuthenticationMethods / Grants, scanSSORegions,
+// scanSSOManagedPolicies, scanSSOCustomerManagedPolicyReferences).
 func noopSSOHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }
@@ -447,4 +455,55 @@ func resolveSSOTrustedTokenIssuerInstance(acct *account, st *store.Store) error 
 		}
 	}
 	return nil
+}
+
+// resolveSSOManagedPolicyTargets links each permission set's AWS managed
+// policy attachment to the IAM managed-policy row with the same ARN. The IAM
+// scan stores the AWS managed catalogue in the account it scans, so the edge
+// exists only when that scan ran for this account. A row whose attributes do
+// not decode costs only its own edge; the decode errors are returned together.
+func resolveSSOManagedPolicyTargets(acct *account, st *store.Store) error {
+	attachments, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeSSOManagedPolicy},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(attachments) == 0 {
+		return nil
+	}
+	// AWS managed policies are ManagedByProvider rows, hidden without IncludeManaged.
+	policies, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types:          []string{TypeIAMPolicy},
+		IncludeManaged: true,
+		Limit:          util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	scanned := make(map[string]bool, len(policies))
+	for _, p := range policies {
+		scanned[p.ID] = true
+	}
+	var decodeErrs []error
+	for _, a := range attachments {
+		var attrs struct {
+			Arn string `json:"Arn"`
+		}
+		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode sso managed-policy %s attributes: %w", a.NativeID, err))
+			continue
+		}
+		target := store.ResourceID("aws", acct.ID, attrs.Arn)
+		if !scanned[target] {
+			continue
+		}
+		if err := st.UpsertRelationship(a.ID, target, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert sso managed-policy→iam policy: %w", err)
+		}
+	}
+	return errors.Join(decodeErrs...)
 }
