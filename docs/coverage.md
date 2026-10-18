@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.3% (1978/3336 listable) · depth0 71.6% · depth1 41.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.4% (1982/3336 listable) · depth0 71.8% · depth1 41.7% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1038 | 183 | 85.0 |
+| sr-resource | 1042 | 179 | 85.3 |
 | child-uncatalogued | 274 | 743 | 26.9 |
 | smithy-resource | 429 | 133 | 76.3 |
 | element-written | 195 | 221 | 46.9 |
@@ -25,7 +25,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
 | chime | 11 | 18 | 37.9 |
-| quicksight | 26 | 18 | 59.1 |
 | bedrock | 27 | 17 | 61.4 |
 | datazone | 19 | 17 | 52.8 |
 | glue | 25 | 17 | 59.5 |
@@ -38,6 +37,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | wellarchitected | 9 | 15 | 37.5 |
 | deadline | 13 | 14 | 48.1 |
 | dms | 11 | 14 | 44.0 |
+| quicksight | 30 | 14 | 68.2 |
 | cloudformation | 7 | 13 | 35.0 |
 | inspector2 | 5 | 13 | 27.8 |
 | profile | 12 | 13 | 48.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1358)
+### Uncovered (listable, no scanner) (1354)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1370,17 +1370,13 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | qbusiness | qbusiness/pluginaction | 2 |  | child-uncatalogued | qbusiness:ListPluginActions, qbusiness:ListPluginTypeActions |
 | qbusiness | qbusiness/relevantcontent | 1 |  | child-uncatalogued | qbusiness:SearchRelevantContent |
 | qbusiness | qbusiness/user | 0 |  | child-uncatalogued | qbusiness:GetUser |
-| quicksight | quicksight/app | 0 |  | sr-resource | quicksight:DescribeApp, quicksight:ListApps, quicksight:SearchApps |
-| quicksight | quicksight/approvalpolicy | 0 |  | sr-resource | quicksight:DescribeApprovalPolicy, quicksight:ListApprovalPolicies |
 | quicksight | quicksight/assetbundleexportjob | 0 |  | sr-resource | quicksight:DescribeAssetBundleExportJob, quicksight:ListAssetBundleExportJobs |
 | quicksight | quicksight/assetbundleimportjob | 0 |  | sr-resource | quicksight:DescribeAssetBundleImportJob, quicksight:ListAssetBundleImportJobs |
 | quicksight | quicksight/dashboardversion | 1 |  | child-uncatalogued | quicksight:ListDashboardVersions |
 | quicksight | quicksight/describeuserlimit | 0 |  | element-arn | quicksight:BatchDescribeUserLimits |
-| quicksight | quicksight/dlpsetting | 0 |  | sr-resource | quicksight:DescribeDlpSetting, quicksight:ListDlpSettings |
 | quicksight | quicksight/foldermember | 1 |  | child-uncatalogued | quicksight:ListFolderMembers |
 | quicksight | quicksight/groupmembership | 2 |  | child-uncatalogued | quicksight:DescribeGroupMembership, quicksight:ListGroupMemberships |
 | quicksight | quicksight/ingestion | 1 |  | sr-resource | quicksight:DescribeIngestion, quicksight:ListIngestions |
-| quicksight | quicksight/limitsprofile | 0 |  | sr-resource | quicksight:DescribeLimitsProfile, quicksight:ListLimitsProfiles |
 | quicksight | quicksight/rolemembership | 2 |  | child-uncatalogued | quicksight:ListRoleMemberships |
 | quicksight | quicksight/selfupgrade | 1 |  | child-uncatalogued | quicksight:ListSelfUpgrades |
 | quicksight | quicksight/spaceresource | 1 |  | child-uncatalogued | quicksight:ListSpaceResources |

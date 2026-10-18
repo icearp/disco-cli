@@ -411,7 +411,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/qapps v1.14.3
 	github.com/aws/aws-sdk-go-v2/service/qbusiness v1.37.3
 	github.com/aws/aws-sdk-go-v2/service/qconnect v1.34.3
-	github.com/aws/aws-sdk-go-v2/service/quicksight v1.123.0
+	github.com/aws/aws-sdk-go-v2/service/quicksight v1.127.0
 	github.com/aws/aws-sdk-go-v2/service/ram v1.39.3
 	github.com/aws/aws-sdk-go-v2/service/rbin v1.30.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.124.0

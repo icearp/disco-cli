@@ -1,7 +1,9 @@
 package aws
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 
 	awsarn "github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -16,6 +18,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeQuickSightActionConnector, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightAgent, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightAnalysis, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightApp, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightApprovalPolicy, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightAssignment, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightBrand, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightCustomization, Service: "quicksight", Managed: true})
@@ -23,11 +27,13 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeQuickSightDashboard, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightDataSet, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightDataSource, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightDLPSetting, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightFlow, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightFolder, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightGroup, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightKeyRegistration, Service: "quicksight", Managed: true})
 	registerType(restype.Descriptor{Type: TypeQuickSightKnowledgeBase, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightLimitsProfile, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightNamespace, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightOAuthClientApplication, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightRefreshSchedule, Service: "quicksight"})
@@ -75,6 +81,10 @@ type quickSightAPI interface {
 	ListTemplateAliases(context.Context, *quicksight.ListTemplateAliasesInput, ...func(*quicksight.Options)) (*quicksight.ListTemplateAliasesOutput, error)
 	ListThemeAliases(context.Context, *quicksight.ListThemeAliasesInput, ...func(*quicksight.Options)) (*quicksight.ListThemeAliasesOutput, error)
 	ListTopicRefreshSchedules(context.Context, *quicksight.ListTopicRefreshSchedulesInput, ...func(*quicksight.Options)) (*quicksight.ListTopicRefreshSchedulesOutput, error)
+	ListApps(context.Context, *quicksight.ListAppsInput, ...func(*quicksight.Options)) (*quicksight.ListAppsOutput, error)
+	ListApprovalPolicies(context.Context, *quicksight.ListApprovalPoliciesInput, ...func(*quicksight.Options)) (*quicksight.ListApprovalPoliciesOutput, error)
+	ListDlpSettings(context.Context, *quicksight.ListDlpSettingsInput, ...func(*quicksight.Options)) (*quicksight.ListDlpSettingsOutput, error)
+	ListLimitsProfiles(context.Context, *quicksight.ListLimitsProfilesInput, ...func(*quicksight.Options)) (*quicksight.ListLimitsProfilesOutput, error)
 }
 
 // qsSoftSkip reports whether err is a QuickSight soft-skip: AccessDenied,
@@ -93,9 +103,37 @@ func qsSoftSkip(err error) bool {
 	return isAccessDenied(err) || isAPIErrorCode(err, "UnsupportedUserEditionException", "ResourceNotFoundException", "QuickSightUserNotFoundException", "InvalidParameterValueException", "PreconditionNotMetException", "UnauthorizedException")
 }
 
-func scanQuickSight(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanQuickSight runs the app, approval-policy, DLP-setting and limits-profile
+// phases after every older phase, so a failure on either side costs the other
+// no rows. Every side's transient error is demoted to a warning, since one
+// transient member would make the dispatcher read the whole join as transient
+// and drop every phase's counts; the errors are joined and the counts summed.
+func scanQuickSight(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := quicksight.NewFromConfig(acct.cfg, func(o *quicksight.Options) { o.Region = region })
 
+	total, inserted, err := scanQSOlderPhases(ctx, client, acct, region, st, scanID)
+	errs := []error{demoteTransient(st, "quicksight", acct, region, err)}
+	for _, phase := range []struct {
+		op  string
+		run func() (int, int, error)
+	}{
+		{qsListAppsOp, func() (int, int, error) { return scanQSApps(ctx, client, acct, region, st, scanID) }},
+		{qsListApprovalPoliciesOp, func() (int, int, error) { return scanQSApprovalPolicies(ctx, client, acct, region, st, scanID) }},
+		{qsListDlpSettingsOp, func() (int, int, error) { return scanQSDLPSettings(ctx, client, acct, region, st, scanID) }},
+		{qsListLimitsProfilesOp, func() (int, int, error) { return scanQSLimitsProfiles(ctx, client, acct, region, st, scanID) }},
+	} {
+		t, i, perr := phase.run()
+		total += t
+		inserted += i
+		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+	}
+	return total, inserted, errors.Join(errs...)
+}
+
+// scanQSOlderPhases runs the phases that predate the app, approval-policy,
+// DLP-setting and limits-profile phases, stopping at the first error any of
+// them returns, transient ones included.
+func scanQSOlderPhases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	dsIDs, t, i, ferr := scanQSDataSets(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return 0, 0, ferr
@@ -1099,5 +1137,165 @@ func scanQSTopicRefreshSchedules(ctx context.Context, client quickSightAPI, acct
 				})
 			}
 			return rows, nil
+		})
+}
+
+const (
+	qsListAppsOp             = "quicksight:ListApps"
+	qsListApprovalPoliciesOp = "quicksight:ListApprovalPolicies"
+	qsListDlpSettingsOp      = "quicksight:ListDlpSettings"
+	qsListLimitsProfilesOp   = "quicksight:ListLimitsProfiles"
+	// qsPageLimit is the documented MaxResults cap of ListApps,
+	// ListApprovalPolicies, ListDlpSettings and ListLimitsProfiles.
+	qsPageLimit = 100
+)
+
+// qsListPhase lists one account-level QuickSight collection page by page and
+// stores the row toRow builds for each item (nil drops the item). QuickSight
+// answers an unsubscribed account, an edition without the feature or a region
+// without it with codes outside the op's model (qsSoftSkip), so such an error
+// on the first page skips the phase silently, as does an error with one of
+// featureOffCodes, the op's own modeled "feature not activated" codes. Once a
+// page has succeeded the feature is there: a denial warns and any other error
+// is returned, and either way the rows listed so far are stored.
+func qsListPhase[Page, Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, featureOffCodes []string,
+	hasMore func() bool, next func(context.Context) (Page, error),
+	items func(Page) []Item, toRow func(Item) *store.Resource,
+) (int, int, error) {
+	var batch []*store.Resource
+	var listErr error
+	listed := false
+	for hasMore() {
+		page, err := next(ctx)
+		if err != nil {
+			switch {
+			case !listed && (qsSoftSkip(err) || isAPIErrorCode(err, featureOffCodes...)):
+				return 0, 0, nil
+			case isAccessDenied(err):
+				_ = skipIfAccessDenied(st, op, acct.ID, region, err)
+			default:
+				listErr = fmt.Errorf("%s: %w", op, err)
+			}
+			break
+		}
+		listed = true
+		for _, it := range items(page) {
+			if r := toRow(it); r != nil {
+				batch = append(batch, r)
+			}
+		}
+	}
+	t, i, uerr := upsertBatch(st, batch, op)
+	return t, i, errors.Join(listErr, uerr)
+}
+
+// qsARNInOtherRegion reports whether arn names a region other than region. The
+// governance lists (ListApprovalPolicies, ListLimitsProfiles) may be
+// account-global, which is unverified; dropping another region's rows stores a
+// global row once, in its own region, and changes nothing if the ops are
+// regional. An ARN that does not parse, or names no region, is kept: it cannot
+// be placed, and dropping it in every region would lose the resource, while
+// keeping it costs at most a rewrite per scanned region.
+func qsARNInOtherRegion(arn, region string) bool {
+	parsed, err := awsarn.Parse(arn)
+	return err == nil && parsed.Region != "" && parsed.Region != region
+}
+
+func scanQSApps(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	id := acct.ID
+	pager := quicksight.NewListAppsPaginator(client, &quicksight.ListAppsInput{AwsAccountId: &id}, func(o *quicksight.ListAppsPaginatorOptions) {
+		o.Limit = qsPageLimit
+		o.StopOnDuplicateToken = true
+	})
+	next := func(ctx context.Context) (*quicksight.ListAppsOutput, error) { return pager.NextPage(ctx) }
+	return qsListPhase(ctx, st, acct, region, qsListAppsOp, nil, pager.HasMorePages, next,
+		func(out *quicksight.ListAppsOutput) []qstypes.AppSummary { return out.AppSummaryList },
+		func(a qstypes.AppSummary) *store.Resource {
+			arn := sv(a.Arn)
+			if arn == "" {
+				return nil
+			}
+			label := cmp.Or(sv(a.Name), sv(a.AppId), arn)
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeQuickSightApp, NativeID: arn, Name: &label, Region: &region,
+				CreatedAt: tp(a.CreatedTime), AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			}
+		})
+}
+
+// scanQSApprovalPolicies lists the calling account's approval policies;
+// ListApprovalPolicies, unlike the other account-level lists, takes no account id.
+func scanQSApprovalPolicies(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := quicksight.NewListApprovalPoliciesPaginator(client, &quicksight.ListApprovalPoliciesInput{}, func(o *quicksight.ListApprovalPoliciesPaginatorOptions) {
+		o.Limit = qsPageLimit
+		o.StopOnDuplicateToken = true
+	})
+	next := func(ctx context.Context) (*quicksight.ListApprovalPoliciesOutput, error) { return pager.NextPage(ctx) }
+	return qsListPhase(ctx, st, acct, region, qsListApprovalPoliciesOp, nil, pager.HasMorePages, next,
+		func(out *quicksight.ListApprovalPoliciesOutput) []qstypes.ApprovalPolicy { return out.Policies },
+		func(p qstypes.ApprovalPolicy) *store.Resource {
+			arn := sv(p.PolicyArn)
+			if arn == "" || qsARNInOtherRegion(arn, region) {
+				return nil
+			}
+			label := cmp.Or(sv(p.Name), sv(p.PolicyId), arn)
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeQuickSightApprovalPolicy, NativeID: arn, Name: &label, Region: &region,
+				CreatedAt: tp(p.CreatedAt), AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			}
+		})
+}
+
+func scanQSDLPSettings(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	id := acct.ID
+	pager := quicksight.NewListDlpSettingsPaginator(client, &quicksight.ListDlpSettingsInput{AwsAccountId: &id}, func(o *quicksight.ListDlpSettingsPaginatorOptions) {
+		o.Limit = qsPageLimit
+		o.StopOnDuplicateToken = true
+	})
+	next := func(ctx context.Context) (*quicksight.ListDlpSettingsOutput, error) { return pager.NextPage(ctx) }
+	// ListDlpSettings models InvalidRequestException as "You don't have this
+	// feature activated for your account".
+	return qsListPhase(ctx, st, acct, region, qsListDlpSettingsOp, []string{"InvalidRequestException"}, pager.HasMorePages, next,
+		func(out *quicksight.ListDlpSettingsOutput) []qstypes.DlpSettingSummary {
+			return out.DlpSettingSummaries
+		},
+		func(d qstypes.DlpSettingSummary) *store.Resource {
+			arn := sv(d.Arn)
+			if arn == "" {
+				return nil
+			}
+			label := cmp.Or(sv(d.Name), sv(d.DlpSettingId), arn)
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeQuickSightDLPSetting, NativeID: arn, Name: &label, Region: &region,
+				Status: nonEmptyPtr(string(d.Status)), CreatedAt: tp(d.CreatedAt),
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			}
+		})
+}
+
+func scanQSLimitsProfiles(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	id := acct.ID
+	pager := quicksight.NewListLimitsProfilesPaginator(client, &quicksight.ListLimitsProfilesInput{AccountId: &id}, func(o *quicksight.ListLimitsProfilesPaginatorOptions) {
+		o.Limit = qsPageLimit
+		o.StopOnDuplicateToken = true
+	})
+	next := func(ctx context.Context) (*quicksight.ListLimitsProfilesOutput, error) { return pager.NextPage(ctx) }
+	return qsListPhase(ctx, st, acct, region, qsListLimitsProfilesOp, nil, pager.HasMorePages, next,
+		func(out *quicksight.ListLimitsProfilesOutput) []qstypes.LimitsProfile { return out.Profiles },
+		func(p qstypes.LimitsProfile) *store.Resource {
+			arn := sv(p.Arn)
+			if arn == "" || qsARNInOtherRegion(arn, region) {
+				return nil
+			}
+			label := cmp.Or(sv(p.ProfileName), sv(p.ProfileId), arn)
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeQuickSightLimitsProfile, NativeID: arn, Name: &label, Region: &region,
+				CreatedAt: tp(p.CreatedAt), AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			}
 		})
 }

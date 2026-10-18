@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/quicksight"
@@ -521,6 +523,10 @@ func TestScanQuickSight_ChildPhasesUseListedParents(t *testing.T) {
 		"ListSpaces":                   {{Output: &quicksight.ListSpacesOutput{}}},
 		"DescribeAccountSettings":      {{Output: &quicksight.DescribeAccountSettingsOutput{}}},
 		"DescribeAccountCustomization": {{Output: &quicksight.DescribeAccountCustomizationOutput{}}},
+		"ListApps":                     {{Output: &quicksight.ListAppsOutput{}}},
+		"ListApprovalPolicies":         {{Output: &quicksight.ListApprovalPoliciesOutput{}}},
+		"ListDlpSettings":              {{Output: &quicksight.ListDlpSettingsOutput{}}},
+		"ListLimitsProfiles":           {{Output: &quicksight.ListLimitsProfilesOutput{}}},
 		"DescribeKeyRegistration": {{Output: &quicksight.DescribeKeyRegistrationOutput{
 			KeyRegistration: []qstypes.RegisteredCustomerManagedKey{{KeyArn: sdkaws.String("arn:aws:kms:us-east-1:123456789012:key/k1")}},
 		}}},
@@ -554,4 +560,476 @@ func TestScanQuickSight_ChildPhasesUseListedParents(t *testing.T) {
 	assertQSContains(t, st, tplARN, tplARN+"/alias/prod")
 	assertQSContains(t, st, themeARN, themeARN+"/alias/prod")
 	assertQSContains(t, st, topicARN, topicARN+"/refresh-schedule/ds1")
+}
+
+var qsListCreated = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+// qsListItemARN is the ARN of the list item with id, or nil for "" (an
+// ARN-less item the phase must drop).
+func qsListItemARN(kind, id string) *string {
+	if id == "" {
+		return nil
+	}
+	return sdkaws.String(qsTestARN(kind, id))
+}
+
+// qsListItemName is "name-{id}", or nil for ids starting "anon" (an unnamed
+// item whose row falls back to its id).
+func qsListItemName(id string) *string {
+	if strings.HasPrefix(id, "anon") {
+		return nil
+	}
+	return sdkaws.String("name-" + id)
+}
+
+// qsListCase is one account-level QuickSight list phase: run scans it, input
+// reads a request's paging fields, page builds a response listing ids.
+type qsListCase struct {
+	name, op, kind, rtype, arnKey, wantStatus string
+	run                                       func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error)
+	input                                     func(in any) (token *string, maxResults *int32)
+	page                                      func(next *string, ids ...string) any
+}
+
+var qsListCases = []qsListCase{
+	{
+		name: "apps", op: qsListAppsOp, kind: "app", rtype: TypeQuickSightApp, arnKey: "Arn",
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+			return scanQSApps(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+		},
+		input: func(in any) (*string, *int32) { i := in.(*quicksight.ListAppsInput); return i.NextToken, i.MaxResults },
+		page: func(next *string, ids ...string) any {
+			out := &quicksight.ListAppsOutput{NextToken: next}
+			for _, id := range ids {
+				out.AppSummaryList = append(out.AppSummaryList, qstypes.AppSummary{
+					AppId: sdkaws.String(id), Arn: qsListItemARN("app", id), Name: qsListItemName(id),
+					CreatedTime: &qsListCreated, Visibility: qstypes.AppVisibilityPrivate,
+				})
+			}
+			return out
+		},
+	},
+	{
+		name: "approval policies", op: qsListApprovalPoliciesOp, kind: "approval-policy", rtype: TypeQuickSightApprovalPolicy, arnKey: "PolicyArn",
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+			return scanQSApprovalPolicies(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+		},
+		input: func(in any) (*string, *int32) {
+			i := in.(*quicksight.ListApprovalPoliciesInput)
+			return i.NextToken, i.MaxResults
+		},
+		page: func(next *string, ids ...string) any {
+			out := &quicksight.ListApprovalPoliciesOutput{NextToken: next}
+			for _, id := range ids {
+				out.Policies = append(out.Policies, qstypes.ApprovalPolicy{
+					PolicyId: sdkaws.String(id), PolicyArn: qsListItemARN("approval-policy", id), Name: qsListItemName(id),
+					CreatedAt: &qsListCreated, ApprovalGroups: []string{qsTestARN("group", "default/approvers")},
+				})
+			}
+			return out
+		},
+	},
+	{
+		name: "DLP settings", op: qsListDlpSettingsOp, kind: "dlpsetting", rtype: TypeQuickSightDLPSetting, arnKey: "Arn", wantStatus: "ACTIVE",
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+			return scanQSDLPSettings(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+		},
+		input: func(in any) (*string, *int32) {
+			i := in.(*quicksight.ListDlpSettingsInput)
+			return i.NextToken, i.MaxResults
+		},
+		page: func(next *string, ids ...string) any {
+			out := &quicksight.ListDlpSettingsOutput{NextToken: next}
+			for _, id := range ids {
+				out.DlpSettingSummaries = append(out.DlpSettingSummaries, qstypes.DlpSettingSummary{
+					DlpSettingId: sdkaws.String(id), Arn: qsListItemARN("dlpsetting", id), Name: qsListItemName(id),
+					CreatedAt: &qsListCreated, Status: qstypes.DlpSettingStatusActive, ProviderType: qstypes.DlpProviderTypeMicrosoftPurview,
+				})
+			}
+			return out
+		},
+	},
+	{
+		name: "limits profiles", op: qsListLimitsProfilesOp, kind: "limits-profile", rtype: TypeQuickSightLimitsProfile, arnKey: "Arn",
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+			return scanQSLimitsProfiles(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+		},
+		input: func(in any) (*string, *int32) {
+			i := in.(*quicksight.ListLimitsProfilesInput)
+			return i.NextToken, i.MaxResults
+		},
+		page: func(next *string, ids ...string) any {
+			out := &quicksight.ListLimitsProfilesOutput{NextToken: next}
+			for _, id := range ids {
+				out.Profiles = append(out.Profiles, qstypes.LimitsProfile{
+					ProfileId: sdkaws.String(id), Arn: qsListItemARN("limits-profile", id), ProfileName: qsListItemName(id),
+					AccountId: sdkaws.String(testAccountID), CreatedAt: &qsListCreated,
+				})
+			}
+			return out
+		},
+	},
+}
+
+// qsListPage is one stubbed response, keyed by the request's NextToken.
+type qsListPage struct {
+	ids  []string
+	next *string
+	err  error
+}
+
+// qsListCalls records the paging fields of every request a stub answered.
+type qsListCalls struct {
+	tokens     []string
+	maxResults []int32
+}
+
+// qsListClient answers c's op from pages; any other op, a token with no page,
+// or a request beyond one more than the pages fails with
+// InternalFailureException, so a scan that never stops fails instead of hanging.
+func qsListClient(t *testing.T, c qsListCase, pages map[string]qsListPage) (*quicksight.Client, *qsListCalls) {
+	t.Helper()
+	calls := &qsListCalls{}
+	h := map[string]func(any) (any, error){
+		strings.TrimPrefix(c.op, "quicksight:"): func(in any) (any, error) {
+			token, maxResults := c.input(in)
+			calls.tokens = append(calls.tokens, sv(token))
+			calls.maxResults = append(calls.maxResults, sdkaws.ToInt32(maxResults))
+			if len(calls.tokens) > len(pages)+1 {
+				return nil, apiErr("InternalFailureException", "more requests than pages: the scan does not stop")
+			}
+			p, ok := pages[sv(token)]
+			if !ok {
+				t.Errorf("%s: request with unexpected token %q", c.op, sv(token))
+				return nil, apiErr("InternalFailureException", "no such page")
+			}
+			if p.err != nil {
+				return nil, p.err
+			}
+			return c.page(p.next, p.ids...), nil
+		},
+	}
+	return quicksight.NewFromConfig(opStubConfig(h, apiErr("InternalFailureException", "unexpected op"))), calls
+}
+
+func TestScanQSAccountLists_PaginatesAndStores(t *testing.T) {
+	for _, c := range qsListCases {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			client, calls := qsListClient(t, c, map[string]qsListPage{
+				"":   {ids: []string{"a1", "", "anon1"}, next: sdkaws.String("p2")},
+				"p2": {ids: []string{"a2"}},
+			})
+
+			total, _, err := c.run(context.Background(), client, st)
+			if err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if total != 3 {
+				t.Errorf("total = %d; want 3 (the ARN-less item is dropped)", total)
+			}
+			if !slices.Equal(calls.tokens, []string{"", "p2"}) || !slices.Equal(calls.maxResults, []int32{100, 100}) {
+				t.Errorf("requests tokens=%q maxResults=%v; want [\"\" p2] [100 100]", calls.tokens, calls.maxResults)
+			}
+			if *warns != 0 {
+				t.Errorf("recorded %d warnings; want 0", *warns)
+			}
+			rows := qsRows(t, st, c.rtype)
+			want := map[string]string{"a1": "name-a1", "anon1": "anon1", "a2": "name-a2"}
+			if len(rows) != len(want) {
+				t.Fatalf("stored %d rows; want %d", len(rows), len(want))
+			}
+			for id, name := range want {
+				arn := qsTestARN(c.kind, id)
+				r, ok := rows[arn]
+				if !ok {
+					t.Errorf("missing row %q", arn)
+					continue
+				}
+				if r.Type != c.rtype || sv(r.Name) != name || sv(r.Region) != testRegion || sv(r.CreatedAt) != "2026-01-02T03:04:05Z" || sv(r.Status) != c.wantStatus {
+					t.Errorf("row %q: type=%q name=%q region=%q created=%q status=%q; want %q %q %q 2026-01-02T03:04:05Z %q",
+						arn, r.Type, sv(r.Name), sv(r.Region), sv(r.CreatedAt), sv(r.Status), c.rtype, name, testRegion, c.wantStatus)
+				}
+				if r.ManagedByProvider {
+					t.Errorf("row %q is ManagedByProvider; want a user resource", arn)
+				}
+				var attrs map[string]any
+				if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+					t.Fatalf("row %q attributes: %v", arn, err)
+				}
+				if attrs[c.arnKey] != arn {
+					t.Errorf("row %q: attributes %s = %v; want the ARN", arn, c.arnKey, attrs[c.arnKey])
+				}
+			}
+		})
+	}
+}
+
+func TestScanQSAccountLists_EmptyStoresNothing(t *testing.T) {
+	for _, c := range qsListCases {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			client, _ := qsListClient(t, c, map[string]qsListPage{"": {}})
+			total, _, err := c.run(context.Background(), client, st)
+			if err != nil || total != 0 {
+				t.Errorf("scan = (%d, %v); want (0, nil)", total, err)
+			}
+			if n := len(qsRows(t, st, c.rtype)); n != 0 {
+				t.Errorf("stored %d rows; want 0", n)
+			}
+		})
+	}
+}
+
+func TestScanQSAccountLists_StopsOnRepeatedToken(t *testing.T) {
+	for _, c := range qsListCases {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			client, calls := qsListClient(t, c, map[string]qsListPage{
+				"":   {ids: []string{"a1"}, next: sdkaws.String("p2")},
+				"p2": {ids: []string{"a2"}, next: sdkaws.String("p2")},
+			})
+			total, _, err := c.run(context.Background(), client, st)
+			if err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if len(calls.tokens) != 2 || total != 2 {
+				t.Errorf("made %d requests storing %d rows; want 2 and 2 (stop when the service repeats a token)", len(calls.tokens), total)
+			}
+		})
+	}
+}
+
+func TestScanQSAccountLists_ErrorHandling(t *testing.T) {
+	resp404 := &smithyhttp.ResponseError{
+		Response: &smithyhttp.Response{Response: &http.Response{StatusCode: 404}},
+		Err:      apiErr("UnknownError", "deserialization failed"),
+	}
+	firstPage := func(err error) map[string]qsListPage { return map[string]qsListPage{"": {err: err}} }
+	secondPage := func(err error) map[string]qsListPage {
+		return map[string]qsListPage{"": {ids: []string{"a1"}, next: sdkaws.String("p2")}, "p2": {err: err}}
+	}
+	cases := []struct {
+		name      string
+		pages     map[string]qsListPage
+		wantCode  string
+		wantRows  int
+		wantWarns int
+		// featureOffFor is the op that models this error as its feature not
+		// being activated, so it skips silently instead.
+		featureOffFor string
+	}{
+		{"first-page feature not activated skips only DLP settings", firstPage(apiErr("InvalidRequestException", "feature not activated")), "InvalidRequestException", 0, 0, qsListDlpSettingsOp},
+		{"later-page feature-not-activated code propagates", secondPage(apiErr("InvalidRequestException", "x")), "InvalidRequestException", 1, 0, ""},
+		{"first-page access denied is a silent skip", firstPage(apiErr("AccessDeniedException", "not subscribed")), "", 0, 0, ""},
+		{"first-page unsubscribed account is a silent skip", firstPage(apiErr("ResourceNotFoundException", "directory not found")), "", 0, 0, ""},
+		{"first-page edition gap is a silent skip", firstPage(apiErr("UnsupportedUserEditionException", "standard edition")), "", 0, 0, ""},
+		{"first-page missing subscription is a silent skip", firstPage(apiErr("PreconditionNotMetException", "x")), "", 0, 0, ""},
+		{"first-page HTML 404 is a silent skip", firstPage(resp404), "", 0, 0, ""},
+		{"first-page other error propagates", firstPage(apiErr("InternalFailureException", "boom")), "InternalFailureException", 0, 0, ""},
+		{"later-page denial warns and keeps the listed rows", secondPage(apiErr("AccessDeniedException", "User: x is not authorized to perform: quicksight:List")), "", 1, 1, ""},
+		{"later-page soft-skip code propagates and keeps the listed rows", secondPage(apiErr("ResourceNotFoundException", "x")), "ResourceNotFoundException", 1, 0, ""},
+		{"later-page other error propagates and keeps the listed rows", secondPage(apiErr("InternalFailureException", "boom")), "InternalFailureException", 1, 0, ""},
+	}
+	for _, c := range qsListCases {
+		for _, tc := range cases {
+			t.Run(c.name+"/"+tc.name, func(t *testing.T) {
+				st := newTestStore(t)
+				warns := countOpWarnings(st, c.op)
+				client, _ := qsListClient(t, c, tc.pages)
+
+				wantCode := tc.wantCode
+				if c.op == tc.featureOffFor {
+					wantCode = ""
+				}
+				total, _, err := c.run(context.Background(), client, st)
+				if wantCode == "" && err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+				if wantCode != "" && !isAPIErrorCode(err, wantCode) {
+					t.Fatalf("err = %v; want %s", err, wantCode)
+				}
+				if n := len(qsRows(t, st, c.rtype)); n != tc.wantRows || total != tc.wantRows {
+					t.Errorf("stored %d rows (total %d); want %d", n, total, tc.wantRows)
+				}
+				if *warns != tc.wantWarns {
+					t.Errorf("recorded %d warnings for %s; want %d", *warns, c.op, tc.wantWarns)
+				}
+			})
+		}
+	}
+}
+
+// The governance lists may be account-global, so a row whose ARN names another
+// region is that region's to store. ARNs that cannot be placed in a region are
+// kept rather than lost.
+func TestScanQSGovernanceLists_DropOtherRegionRows(t *testing.T) {
+	arns := func(kind string) (match, foreign, regionless, unparseable string) {
+		return qsTestARN(kind, "here"),
+			fmt.Sprintf("arn:aws:quicksight:eu-west-1:%s:%s/there", testAccountID, kind),
+			fmt.Sprintf("arn:aws:quicksight::%s:%s/nowhere", testAccountID, kind),
+			kind + "/not-an-arn"
+	}
+	cases := []struct {
+		name, op, kind, rtype string
+		run                   func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error)
+		output                func(arns ...string) any
+	}{
+		{
+			"approval policies", "ListApprovalPolicies", "approval-policy", TypeQuickSightApprovalPolicy,
+			func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+				return scanQSApprovalPolicies(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			},
+			func(arns ...string) any {
+				out := &quicksight.ListApprovalPoliciesOutput{}
+				for _, a := range arns {
+					out.Policies = append(out.Policies, qstypes.ApprovalPolicy{PolicyArn: sdkaws.String(a), PolicyId: sdkaws.String("p")})
+				}
+				return out
+			},
+		},
+		{
+			"limits profiles", "ListLimitsProfiles", "limits-profile", TypeQuickSightLimitsProfile,
+			func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+				return scanQSLimitsProfiles(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			},
+			func(arns ...string) any {
+				out := &quicksight.ListLimitsProfilesOutput{}
+				for _, a := range arns {
+					out.Profiles = append(out.Profiles, qstypes.LimitsProfile{Arn: sdkaws.String(a), ProfileId: sdkaws.String("lp-1")})
+				}
+				return out
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			match, foreign, regionless, unparseable := arns(c.kind)
+			h := map[string]func(any) (any, error){
+				c.op: func(any) (any, error) { return c.output(match, foreign, regionless, unparseable), nil },
+			}
+			client := quicksight.NewFromConfig(opStubConfig(h, apiErr("InternalFailureException", "unexpected op")))
+
+			total, _, err := c.run(context.Background(), client, st)
+			if err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			rows := qsRows(t, st, c.rtype)
+			if total != 3 || len(rows) != 3 {
+				t.Errorf("total = %d, stored %d rows; want 3 and 3 (only the eu-west-1 row dropped)", total, len(rows))
+			}
+			for _, arn := range []string{match, regionless, unparseable} {
+				if _, ok := rows[arn]; !ok {
+					t.Errorf("row %q dropped; want kept", arn)
+				}
+			}
+			if _, ok := rows[foreign]; ok {
+				t.Errorf("row %q from another region stored; want dropped", foreign)
+			}
+		})
+	}
+}
+
+// qsTopLevelHandlers answers ListDataSets with one data set and each
+// account-level list op with one item; every other op is left to the deny
+// default, which the older phases soft-skip.
+func qsTopLevelHandlers() map[string]func(any) (any, error) {
+	h := map[string]func(any) (any, error){
+		"ListDataSets": func(any) (any, error) {
+			return &quicksight.ListDataSetsOutput{DataSetSummaries: []qstypes.DataSetSummary{
+				{DataSetId: sdkaws.String("ds1"), Arn: sdkaws.String(qsTestARN("dataset", "ds1"))},
+			}}, nil
+		},
+	}
+	for _, c := range qsListCases {
+		h[strings.TrimPrefix(c.op, "quicksight:")] = func(any) (any, error) { return c.page(nil, "x1"), nil }
+	}
+	return h
+}
+
+var qsTopLevelDeny = apiErr("AccessDeniedException", "not subscribed")
+
+// TestScanQuickSight_AccountListPhasesIndependentOfOlderPhases pins the wiring:
+// every account-level list phase runs, after the older phases, and a hard
+// error on either side costs the other side no rows.
+func TestScanQuickSight_AccountListPhasesIndependentOfOlderPhases(t *testing.T) {
+	cases := []struct {
+		name, failOp string
+	}{
+		{name: "all succeed"},
+		{name: "older phase fails", failOp: "ListDataSets"},
+	}
+	for _, c := range qsListCases {
+		cases = append(cases, struct{ name, failOp string }{c.name + " fails", strings.TrimPrefix(c.op, "quicksight:")})
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			h := qsTopLevelHandlers()
+			if tc.failOp != "" {
+				h[tc.failOp] = func(any) (any, error) { return nil, apiErr("InternalFailureException", "boom") }
+			}
+			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsTopLevelDeny)}
+
+			total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			if tc.failOp == "" && err != nil {
+				t.Fatalf("scanQuickSight: %v", err)
+			}
+			if tc.failOp != "" && (!isAPIErrorCode(err, "InternalFailureException") || classifyServiceError(err) != outcomeError) {
+				t.Fatalf("err = %v; want the %s InternalFailureException as a hard error", err, tc.failOp)
+			}
+			wantTotal := 0
+			if _, has := qsRows(t, st, TypeQuickSightDataSet)[qsTestARN("dataset", "ds1")]; has != (tc.failOp != "ListDataSets") {
+				t.Errorf("data set stored = %v; want %v", has, tc.failOp != "ListDataSets")
+			} else if has {
+				wantTotal++
+			}
+			for _, c := range qsListCases {
+				want := strings.TrimPrefix(c.op, "quicksight:") != tc.failOp
+				if _, has := qsRows(t, st, c.rtype)[qsTestARN(c.kind, "x1")]; has != want {
+					t.Errorf("%s row stored = %v; want %v", c.name, has, want)
+				}
+				if want {
+					wantTotal++
+				}
+			}
+			if total != wantTotal {
+				t.Errorf("total = %d; want %d", total, wantTotal)
+			}
+		})
+	}
+}
+
+// A transient error on one side is demoted to a warning, so the other side's
+// hard error still reaches the dispatcher as a hard error.
+func TestScanQuickSight_TransientDoesNotMaskHardError(t *testing.T) {
+	type side struct{ op, warnOp string }
+	older := side{"ListDataSets", "quicksight"}
+	var pairs [][2]side
+	for _, c := range qsListCases {
+		newer := side{strings.TrimPrefix(c.op, "quicksight:"), c.op}
+		pairs = append(pairs, [2]side{older, newer}, [2]side{newer, older})
+	}
+	for _, p := range pairs {
+		transient, hard := p[0], p[1]
+		t.Run(transient.op+" throttled, "+hard.op+" fails", func(t *testing.T) {
+			st := newTestStore(t)
+			var warned []string
+			st.OnWarn = func(w store.ScanWarning) { warned = append(warned, w.Service) }
+			h := qsTopLevelHandlers()
+			h[transient.op] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
+			h[hard.op] = func(any) (any, error) { return nil, apiErr("ValidationException", "bad") }
+			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsTopLevelDeny)}
+
+			_, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			if !isAPIErrorCode(err, "ValidationException") || classifyServiceError(err) != outcomeError {
+				t.Errorf("err = %v (outcome %v); want the %s ValidationException as outcomeError", err, classifyServiceError(err), hard.op)
+			}
+			if !slices.Equal(warned, []string{transient.warnOp}) {
+				t.Errorf("warnings = %q; want one for %s", warned, transient.warnOp)
+			}
+		})
+	}
 }
