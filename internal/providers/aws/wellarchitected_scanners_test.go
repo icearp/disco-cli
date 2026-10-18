@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -605,7 +607,7 @@ func waAgentFail(err error) waAgentPageFn {
 func runWAAgentProfiles(t *testing.T, st *store.Store, handler func(any) (any, error)) (int, error) {
 	t.Helper()
 	client := waStubClient(map[string]func(any) (any, error){"ListAgentProfiles": handler})
-	total, _, err := scanWAAgentProfiles(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, _, _, err := scanWAAgentProfiles(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -732,6 +734,12 @@ func waAgentServiceHandlers() map[string]func(any) (any, error) {
 	h["ListAgentProfiles"] = func(any) (any, error) {
 		return &wellarchitected.ListAgentProfilesOutput{Items: []watypes.AgentProfileSummary{waAgentProfile("ap1")}}, nil
 	}
+	h["ListAgentContexts"] = func(any) (any, error) {
+		return &wellarchitected.ListAgentContextsOutput{Items: []watypes.ContextSummary{{Id: ptrStr("ctx1")}}}, nil
+	}
+	h["ListAgentGoals"] = func(any) (any, error) {
+		return &wellarchitected.ListAgentGoalsOutput{Items: []watypes.GoalSummary{{Id: ptrStr("goal1")}}}, nil
+	}
 	return h
 }
 
@@ -743,12 +751,22 @@ func TestScanWellArchitected_StoresAgentProfilesWithToolRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scanWellArchitected: %v", err)
 	}
-	// Four tool parents, five tool children and one agent profile.
-	if total != 10 || inserted != 10 {
-		t.Errorf("total, inserted = %d, %d; want 10, 10", total, inserted)
+	// Four tool parents, five tool children, one agent profile, its context and its goal.
+	if total != 12 || inserted != 12 {
+		t.Errorf("total, inserted = %d, %d; want 12, 12", total, inserted)
 	}
 	if _, ok := rowsByNativeID(t, st, TypeWellArchitectedAgentProfile)[waARN("agent-profile", "ap1")]; !ok {
 		t.Error("no agent profile row")
+	}
+	for typ, child := range map[string]string{
+		TypeWellArchitectedAgentContext: waARN("agent-profile", "ap1") + "/context/ctx1",
+		TypeWellArchitectedAgentGoal:    waARN("agent-profile", "ap1") + "/goal/goal1",
+	} {
+		if _, ok := rowsByNativeID(t, st, typ)[child]; !ok {
+			t.Errorf("%s: no row %s", typ, child)
+			continue
+		}
+		assertContainsNative(t, st, waARN("agent-profile", "ap1"), child)
 	}
 	if _, ok := rowsByNativeID(t, st, TypeWellArchitectedTemplateShare)[waARN("review-template", "t1")+"/share/ts1"]; !ok {
 		t.Error("no template share row from the last tool phase")
@@ -769,9 +787,10 @@ func TestScanWellArchitected_ThrottledToolPhaseKeepsCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v, want nil after demotion", err)
 	}
-	// Four tool parents and four of the five tool children, plus one agent profile.
-	if total != 9 || inserted != 9 {
-		t.Errorf("total, inserted = %d, %d; want 9, 9", total, inserted)
+	// Four tool parents and four of the five tool children, plus one agent
+	// profile, its context and its goal.
+	if total != 11 || inserted != 11 {
+		t.Errorf("total, inserted = %d, %d; want 11, 11", total, inserted)
 	}
 	if *warns != 1 {
 		t.Errorf("warnings = %d, want 1", *warns)
@@ -788,16 +807,21 @@ func TestScanWAAgentProfiles_StoreWriteFailureKeepsListError(t *testing.T) {
 	t.Cleanup(func() { _ = st.Close() })
 	insertTestScan(t, st, testScanID, "running")
 	var calls int
-	total, err := runWAAgentProfiles(t, st, waAgentProfilePages(&calls,
+	client := waStubClient(map[string]func(any) (any, error){"ListAgentProfiles": waAgentProfilePages(&calls,
 		waAgentPage(waAgentProfile("p1")),
 		func() (*wellarchitected.ListAgentProfilesOutput, error) {
 			if err := st.Close(); err != nil {
 				t.Errorf("close: %v", err)
 			}
 			return nil, waBadInput
-		}))
+		})})
+	total, _, profiles, err := scanWAAgentProfiles(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) || !isAPIErrorCode(err, "ValidationException") || total != 0 {
 		t.Fatalf("total = %d, err = %v; want 0 and both store.ErrStoreWrite and ValidationException", total, err)
+	}
+	// p1 was listed but never stored, so it is no parent of the child phases.
+	if len(profiles) != 0 {
+		t.Errorf("profiles = %v, want none after the failed store write", profiles)
 	}
 }
 
@@ -849,6 +873,370 @@ func TestScanWellArchitected_AgentProfilesIndependentOfToolPhases(t *testing.T) 
 			}
 			if *toolWarns != tc.wantToolWarns || agentWarns != tc.wantAgentWarns {
 				t.Errorf("transient warnings tool/agent = %d/%d, want %d/%d", *toolWarns, agentWarns, tc.wantToolWarns, tc.wantAgentWarns)
+			}
+		})
+	}
+}
+
+// waAgentChildCase drives one of the agent profile child phases.
+type waAgentChildCase struct {
+	op, typ, segment string
+	// input returns the profile ARN, NextToken and MaxResults of a call.
+	input func(in any) (profileARN string, next *string, maxResults int32)
+	// page builds an output holding one item per id ("" for an id-less item).
+	page func(ids []string, next *string) any
+	// attrsOK checks the stored attributes carry the SDK element's content.
+	attrsOK func(attrs string) bool
+	run     func(context.Context, wellArchitectedAPI, []childParent, *store.Store) (int, int, error)
+}
+
+var waAgentChildCreated = time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)
+
+func waAgentChildCases() []waAgentChildCase {
+	run := func(fn func(context.Context, wellArchitectedAPI, []childParent, *account, string, *store.Store, string) (int, int, error)) func(context.Context, wellArchitectedAPI, []childParent, *store.Store) (int, int, error) {
+		return func(ctx context.Context, c wellArchitectedAPI, ps []childParent, st *store.Store) (int, int, error) {
+			return fn(ctx, c, ps, newTestAccount(testAccountID), testRegion, st, testScanID)
+		}
+	}
+	return []waAgentChildCase{
+		{
+			op: "ListAgentContexts", typ: TypeWellArchitectedAgentContext, segment: "context",
+			input: func(in any) (string, *string, int32) {
+				i := in.(*wellarchitected.ListAgentContextsInput)
+				return sv(i.ProfileArn), i.NextToken, sdkaws.ToInt32(i.MaxResults)
+			},
+			page: func(ids []string, next *string) any {
+				out := &wellarchitected.ListAgentContextsOutput{NextToken: next}
+				for _, id := range ids {
+					out.Items = append(out.Items, watypes.ContextSummary{
+						Id: nonEmptyPtr(id), Title: ptrStr("title " + id), CreatedAt: &waAgentChildCreated,
+						Content: &watypes.ContextContent{AccountIds: []string{"111111111111"}, Regions: []string{"eu-west-1"}},
+					})
+				}
+				return out
+			},
+			attrsOK: func(attrs string) bool {
+				var c watypes.ContextSummary
+				return json.Unmarshal([]byte(attrs), &c) == nil && c.Content != nil &&
+					slices.Equal(c.Content.AccountIds, []string{"111111111111"}) && slices.Equal(c.Content.Regions, []string{"eu-west-1"})
+			},
+			run: run(scanWAAgentContexts),
+		},
+		{
+			op: "ListAgentGoals", typ: TypeWellArchitectedAgentGoal, segment: "goal",
+			input: func(in any) (string, *string, int32) {
+				i := in.(*wellarchitected.ListAgentGoalsInput)
+				return sv(i.ProfileArn), i.NextToken, sdkaws.ToInt32(i.MaxResults)
+			},
+			page: func(ids []string, next *string) any {
+				out := &wellarchitected.ListAgentGoalsOutput{NextToken: next}
+				for _, id := range ids {
+					out.Items = append(out.Items, watypes.GoalSummary{
+						Id: nonEmptyPtr(id), Title: ptrStr("title " + id), CreatedAt: &waAgentChildCreated,
+						Pillars: []watypes.Pillar{watypes.PillarCostOptimization},
+					})
+				}
+				return out
+			},
+			attrsOK: func(attrs string) bool {
+				var g watypes.GoalSummary
+				return json.Unmarshal([]byte(attrs), &g) == nil && slices.Equal(g.Pillars, []watypes.Pillar{watypes.PillarCostOptimization})
+			},
+			run: run(scanWAAgentGoals),
+		},
+	}
+}
+
+// seedWAAgentProfiles stores profiles ap1 and ap2 and returns them as parents.
+func seedWAAgentProfiles(t *testing.T, st *store.Store) []childParent {
+	t.Helper()
+	var parents []childParent
+	for _, name := range []string{"ap1", "ap2"} {
+		arn := waARN("agent-profile", name)
+		upsertTestResource(t, st, "aws", testAccountID, TypeWellArchitectedAgentProfile, arn, testRegion, "{}")
+		parents = append(parents, childParent{id: arn, arn: arn})
+	}
+	return parents
+}
+
+func waAgentChildID(profile, segment, id string) string {
+	return waARN("agent-profile", profile) + "/" + segment + "/" + id
+}
+
+// waAgentChildCalls records each call's profile and MaxResults; handlers run
+// on fan-out goroutines.
+type waAgentChildCalls struct {
+	parentCalls
+	mu         sync.Mutex
+	maxResults []int32
+}
+
+func (c *waAgentChildCalls) record(profile string, maxResults int32) {
+	c.add(profile)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.maxResults = append(c.maxResults, maxResults)
+}
+
+// waAgentChildHandler answers ap1 with two pages (c1, then c2) and ap2 with
+// one page (ap2-c1 and an id-less item). fail(profile, page) injects an error
+// for a profile's page, numbered from 1.
+func waAgentChildHandler(c waAgentChildCase, calls *waAgentChildCalls, fail func(profile string, page int) error) func(any) (any, error) {
+	return func(in any) (any, error) {
+		arn, next, maxResults := c.input(in)
+		profile := strings.TrimPrefix(arn, waARN("agent-profile", ""))
+		calls.record(profile, maxResults)
+		page := 1
+		if next != nil {
+			page = 2
+		}
+		if err := fail(profile, page); err != nil {
+			return nil, err
+		}
+		switch {
+		case profile == "ap1" && page == 1:
+			return c.page([]string{"c1"}, ptrStr("t1")), nil
+		case profile == "ap1":
+			return c.page([]string{"c2"}, nil), nil
+		default:
+			return c.page([]string{profile + "-c1", ""}, nil), nil
+		}
+	}
+}
+
+func noAgentFail(string, int) error { return nil }
+
+func TestWAAgentChildPhases_TwoPagesStoredUnderProfiles(t *testing.T) {
+	for _, c := range waAgentChildCases() {
+		t.Run(c.op, func(t *testing.T) {
+			st := newTestStore(t)
+			parents := seedWAAgentProfiles(t, st)
+			calls := &waAgentChildCalls{}
+			client := waStubClient(map[string]func(any) (any, error){c.op: waAgentChildHandler(c, calls, noAgentFail)})
+			total, inserted, err := c.run(context.Background(), client, parents, st)
+			if err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if got := calls.distinct(); !slices.Equal(got, []string{"ap1", "ap2"}) {
+				t.Errorf("profiles queried = %v, want [ap1 ap2]", got)
+			}
+			if !slices.Equal(calls.maxResults, []int32{1000, 1000, 1000}) {
+				t.Errorf("MaxResults per call = %v, want [1000 1000 1000]", calls.maxResults)
+			}
+			if total != 3 || inserted != 3 {
+				t.Errorf("total, inserted = %d, %d; want 3, 3 (both ap1 pages, id-less item skipped)", total, inserted)
+			}
+			rows := rowsByNativeID(t, st, c.typ)
+			if len(rows) != 3 {
+				t.Fatalf("rows = %v, want 3", rows)
+			}
+			if _, ok := rows[waAgentChildID("ap1", c.segment, "c2")]; !ok {
+				t.Errorf("no row for page-two item ap1/c2; got %v", rows)
+			}
+			r, ok := rows[waAgentChildID("ap1", c.segment, "c1")]
+			if !ok {
+				t.Fatalf("no row for ap1/c1; got %v", rows)
+			}
+			if r.Type != c.typ || sv(r.Region) != testRegion || sv(r.Name) != "title c1" || sv(r.CreatedAt) != "2026-09-01T08:00:00Z" {
+				t.Errorf("row = type %q region %q name %q createdAt %q", r.Type, sv(r.Region), sv(r.Name), sv(r.CreatedAt))
+			}
+			if !c.attrsOK(r.AttributesJSON) {
+				t.Errorf("attributes = %s, want the SDK element", r.AttributesJSON)
+			}
+			assertContainsNative(t, st, waARN("agent-profile", "ap1"), waAgentChildID("ap1", c.segment, "c1"))
+			assertContainsNative(t, st, waARN("agent-profile", "ap1"), waAgentChildID("ap1", c.segment, "c2"))
+			assertContainsNative(t, st, waARN("agent-profile", "ap2"), waAgentChildID("ap2", c.segment, "ap2-c1"))
+		})
+	}
+}
+
+func TestWAAgentChildPhases_Empty(t *testing.T) {
+	for _, c := range waAgentChildCases() {
+		t.Run(c.op, func(t *testing.T) {
+			st := newTestStore(t)
+			parents := seedWAAgentProfiles(t, st)
+			client := waStubClient(map[string]func(any) (any, error){c.op: func(any) (any, error) { return c.page(nil, nil), nil }})
+			total, inserted, err := c.run(context.Background(), client, parents, st)
+			if err != nil || total != 0 || inserted != 0 || len(rowsByNativeID(t, st, c.typ)) != 0 {
+				t.Fatalf("total, inserted = %d, %d, err = %v; want 0 rows, nil", total, inserted, err)
+			}
+		})
+	}
+}
+
+// A token the service repeats must end a profile's listing, not loop on it.
+func TestWAAgentChildPhases_RepeatedTokenStops(t *testing.T) {
+	for _, c := range waAgentChildCases() {
+		t.Run(c.op, func(t *testing.T) {
+			st := newTestStore(t)
+			parents := seedWAAgentProfiles(t, st)[:1]
+			calls := 0
+			client := waStubClient(map[string]func(any) (any, error){c.op: func(any) (any, error) {
+				calls++
+				if calls > 5 {
+					return nil, apiErr("TooManyCalls", "repeated token followed")
+				}
+				return c.page([]string{fmt.Sprintf("c%d", calls)}, ptrStr("same")), nil
+			}})
+			total, _, err := c.run(context.Background(), client, parents, st)
+			if err != nil || total != 2 || calls != 2 {
+				t.Fatalf("total = %d, calls = %d, err = %v; want 2, 2, nil", total, calls, err)
+			}
+		})
+	}
+}
+
+// Each per-profile failure is skipped, warned or returned by its code and
+// page; a skipped profile costs no sibling its rows.
+func TestWAAgentChildPhases_ErrorLadder(t *testing.T) {
+	gap := apiErr("UnknownOperationException", "unknown operation")
+	unknownOp := &watypes.ValidationException{Message: ptrStr("unknown operation"), Reason: watypes.ValidationExceptionReasonUnknownOperation}
+	fieldInvalid := &watypes.ValidationException{Message: ptrStr("bad field"), Reason: watypes.ValidationExceptionReasonFieldValidationFailed}
+	throttled := apiErr("ThrottlingException", "Rate exceeded")
+	onAP1 := func(err error, page int) func(string, int) error {
+		return func(profile string, p int) error {
+			if profile == "ap1" && p == page {
+				return err
+			}
+			return nil
+		}
+	}
+	for _, tc := range []struct {
+		name      string
+		fail      func(profile string, page int) error
+		wantErr   string
+		wantAP2   bool
+		wantWarns int
+	}{
+		{name: "profile gone skipped silently", fail: onAP1(waGone, 1), wantAP2: true},
+		{name: "denied profile warns and keeps siblings", fail: onAP1(waDenied, 1), wantAP2: true, wantWarns: 1},
+		{name: "denied everywhere warns once", fail: func(string, int) error { return waDenied }, wantWarns: 1},
+		{name: "transient profile warns and keeps siblings", fail: onAP1(throttled, 1), wantAP2: true, wantWarns: 1},
+		{name: "first-page op gap is silent", fail: onAP1(gap, 1), wantAP2: true},
+		{name: "first-page unknown-operation validation is silent", fail: onAP1(unknownOp, 1), wantAP2: true},
+		{name: "op gap after a page is returned", fail: onAP1(gap, 2), wantErr: "UnknownOperationException"},
+		{name: "unknown-operation validation after a page is returned", fail: onAP1(unknownOp, 2), wantErr: "ValidationException"},
+		{name: "validation with another reason is returned", fail: onAP1(fieldInvalid, 1), wantErr: "ValidationException"},
+		// The op names the profile, so an untyped 404 may be about it, not an op gap.
+		{name: "first-page untyped 404 is returned", fail: onAP1(respErrCode(404), 1), wantErr: "UnknownError"},
+	} {
+		for _, c := range waAgentChildCases() {
+			t.Run(c.op+"/"+tc.name, func(t *testing.T) {
+				st := newTestStore(t)
+				parents := seedWAAgentProfiles(t, st)
+				warns := countOpWarnings(st, "wellarchitected:"+c.op)
+				client := waStubClient(map[string]func(any) (any, error){c.op: waAgentChildHandler(c, &waAgentChildCalls{}, tc.fail)})
+				total, inserted, err := c.run(context.Background(), client, parents, st)
+				if tc.wantErr == "" && err != nil {
+					t.Fatalf("err = %v, want nil", err)
+				}
+				if tc.wantErr != "" && (!isAPIErrorCode(err, tc.wantErr) || classifyServiceError(err) != outcomeError) {
+					t.Fatalf("err = %v, want a hard %s", err, tc.wantErr)
+				}
+				if *warns != tc.wantWarns {
+					t.Errorf("warnings = %d, want %d", *warns, tc.wantWarns)
+				}
+				want := 0
+				if tc.wantAP2 {
+					want = 1
+				}
+				rows := rowsByNativeID(t, st, c.typ)
+				if total != want || inserted != want || len(rows) != want {
+					t.Fatalf("total, inserted = %d, %d, rows = %v; want %d", total, inserted, rows, want)
+				}
+				if _, ok := rows[waAgentChildID("ap2", c.segment, "ap2-c1")]; ok != tc.wantAP2 {
+					t.Errorf("ap2 row present = %v, want %v; got %v", ok, tc.wantAP2, rows)
+				}
+			})
+		}
+	}
+}
+
+// The context and goal phases fan out over exactly the profiles the profile
+// phase stored: a page-two profile is listed, an ARN-less one is not, and a
+// denied profile listing hands them none.
+func TestScanWellArchitected_AgentChildrenListStoredProfiles(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		profiles     func(any) (any, error)
+		wantProfiles []string
+	}{
+		{
+			name: "two pages", profiles: waAgentProfilePages(new(int),
+				waAgentPage(waAgentProfile("ap1")),
+				waAgentPage(waAgentProfile("ap2"), watypes.AgentProfileSummary{Name: ptrStr("no-arn")})),
+			wantProfiles: []string{"ap1", "ap2"},
+		},
+		{name: "profiles denied", profiles: func(any) (any, error) { return nil, waDenied }},
+		{
+			name: "page-two denial keeps page one", profiles: waAgentProfilePages(new(int),
+				waAgentPage(waAgentProfile("ap1")), waAgentFail(waDenied)),
+			wantProfiles: []string{"ap1"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			h := waAgentServiceHandlers()
+			h["ListAgentProfiles"] = tc.profiles
+			calls := map[string]*waAgentChildCalls{}
+			for _, c := range waAgentChildCases() {
+				calls[c.op] = &waAgentChildCalls{}
+				h[c.op] = waAgentChildHandler(c, calls[c.op], noAgentFail)
+			}
+			acct := newTestAccount(testAccountID)
+			acct.cfg = opStubConfig(h, waDenied)
+			if _, _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID); err != nil {
+				t.Fatalf("scanWellArchitected: %v", err)
+			}
+			for op, pc := range calls {
+				if got := pc.distinct(); !slices.Equal(got, tc.wantProfiles) {
+					t.Errorf("%s profiles queried = %v, want %v", op, got, tc.wantProfiles)
+				}
+			}
+		})
+	}
+}
+
+// The context and goal phases run after every earlier phase and whatever
+// they returned; a hard error in either reaches the dispatcher without
+// costing the tool, profile or sibling rows, and is not hidden by a transient
+// error elsewhere.
+func TestScanWellArchitected_AgentChildPhaseErrors(t *testing.T) {
+	throttled := apiErr("ThrottlingException", "Rate exceeded")
+	for _, tc := range []struct {
+		name, failing, sibling, sibType string
+		throttleTool                    bool
+		wantWarns                       int
+	}{
+		{name: "contexts fail", failing: "ListAgentContexts", sibling: "/goal/goal1", sibType: TypeWellArchitectedAgentGoal},
+		{name: "goals fail", failing: "ListAgentGoals", sibling: "/context/ctx1", sibType: TypeWellArchitectedAgentContext},
+		{name: "tool throttled, goals fail", failing: "ListAgentGoals", sibling: "/context/ctx1", sibType: TypeWellArchitectedAgentContext, throttleTool: true, wantWarns: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "wellarchitected")
+			h := waAgentServiceHandlers()
+			h[tc.failing] = func(any) (any, error) { return nil, waBadInput }
+			if tc.throttleTool {
+				h["ListTemplateShares"] = func(any) (any, error) { return nil, throttled }
+			}
+			acct := newTestAccount(testAccountID)
+			acct.cfg = opStubConfig(h, waDenied)
+			_, _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID)
+			if !isAPIErrorCode(err, "ValidationException") || classifyServiceError(err) != outcomeError {
+				t.Fatalf("err = %v, want a hard ValidationException", err)
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("tool transient warnings = %d, want %d", *warns, tc.wantWarns)
+			}
+			if len(rowsByNativeID(t, st, TypeWellArchitectedReviewTemplate)) != 1 {
+				t.Error("review-template row from the tool phases lost")
+			}
+			if len(rowsByNativeID(t, st, TypeWellArchitectedAgentProfile)) != 1 {
+				t.Error("agent profile row lost")
+			}
+			if _, ok := rowsByNativeID(t, st, tc.sibType)[waARN("agent-profile", "ap1")+tc.sibling]; !ok {
+				t.Errorf("sibling %s row lost", tc.sibType)
 			}
 		})
 	}

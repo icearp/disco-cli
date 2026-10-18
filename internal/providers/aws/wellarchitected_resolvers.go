@@ -26,6 +26,8 @@ func init() {
 		EdgeDecl{TypeWellArchitectedLens, TypeWellArchitectedLensShare, store.RelContains},
 		EdgeDecl{TypeWellArchitectedProfile, TypeWellArchitectedProfileShare, store.RelContains},
 		EdgeDecl{TypeWellArchitectedReviewTemplate, TypeWellArchitectedTemplateShare, store.RelContains},
+		EdgeDecl{TypeWellArchitectedAgentProfile, TypeWellArchitectedAgentContext, store.RelContains},
+		EdgeDecl{TypeWellArchitectedAgentProfile, TypeWellArchitectedAgentGoal, store.RelContains},
 	)
 	var grantees []EdgeDecl
 	for _, share := range waShareTypes {

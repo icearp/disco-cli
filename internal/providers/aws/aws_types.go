@@ -2351,6 +2351,8 @@ const (
 	TypeWellArchitectedProfileShare   = "aws:wellarchitected:profile-share"
 	TypeWellArchitectedTemplateShare  = "aws:wellarchitected:template-share"
 	TypeWellArchitectedAgentProfile   = "aws:wellarchitected:agent-profile"
+	TypeWellArchitectedAgentContext   = "aws:wellarchitected:agent-context"
+	TypeWellArchitectedAgentGoal      = "aws:wellarchitected:agent-goal"
 	// WorkMail (workmail_scanners.go).
 	TypeWorkMailOrganization               = "aws:workmail:organization"
 	TypeWorkMailUser                       = "aws:workmail:user"

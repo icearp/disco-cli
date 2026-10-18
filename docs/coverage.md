@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.7% (1991/3336 listable) · depth0 72.0% · depth1 42.0% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.7% (1993/3336 listable) · depth0 72.0% · depth1 42.1% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1046 | 175 | 85.7 |
-| child-uncatalogued | 276 | 741 | 27.1 |
+| child-uncatalogued | 278 | 739 | 27.3 |
 | smithy-resource | 431 | 131 | 76.7 |
 | element-written | 196 | 220 | 47.1 |
 | element-arn | 36 | 70 | 34.0 |
@@ -37,7 +37,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | deadline | 13 | 14 | 48.1 |
 | dms | 11 | 14 | 44.0 |
 | quicksight | 30 | 14 | 68.2 |
-| wellarchitected | 10 | 14 | 41.7 |
 | cloudformation | 7 | 13 | 35.0 |
 | inspector2 | 5 | 13 | 27.8 |
 | profile | 12 | 13 | 48.0 |
@@ -46,6 +45,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | gamelift | 15 | 12 | 55.6 |
 | omics | 12 | 12 | 50.0 |
 | partnercentral-selling | 0 | 12 | 0.0 |
+| wellarchitected | 12 | 12 | 50.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
 | devicefarm | 8 | 11 | 42.1 |
 | clouddirectory | 2 | 10 | 16.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1345)
+### Uncovered (listable, no scanner) (1343)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1660,8 +1660,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | wafv2 | wafv2/apikey | 0 |  | element-created | wafv2:ListAPIKeys |
 | wafv2 | wafv2/availablemanagedrulegroupversion | 0 |  | child-uncatalogued | wafv2:ListAvailableManagedRuleGroupVersions |
 | wafv2 | wafv2/settlementrecord | 0 |  | element-arn | wafv2:ListSettlementRecords |
-| wellarchitected | wellarchitected/agentcontext | 1 |  | child-uncatalogued | wellarchitected:GetAgentContext, wellarchitected:ListAgentContexts |
-| wellarchitected | wellarchitected/agentgoal | 1 |  | child-uncatalogued | wellarchitected:GetAgentGoal, wellarchitected:ListAgentGoals |
 | wellarchitected | wellarchitected/agentrecommendation | 1 |  | sr-resource | wellarchitected:GetAgentRecommendation, wellarchitected:ListAgentRecommendations |
 | wellarchitected | wellarchitected/agentrecommendationgeneration | 1 |  | child-uncatalogued | wellarchitected:GetAgentRecommendationGeneration, wellarchitected:ListAgentRecommendationGenerations |
 | wellarchitected | wellarchitected/agentrecommendationitem | 2 |  | child-uncatalogued | wellarchitected:ListAgentRecommendationItems |
