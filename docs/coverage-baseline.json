@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.07194244604317,
-    "covered": 2004,
-    "uncovered": 1332,
+    "percent": 60.10191846522782,
+    "covered": 2005,
+    "uncovered": 1331,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1826,6 +1826,7 @@
       "ssm/association",
       "ssm/cloudconnector",
       "ssm/document",
+      "ssm/documentpermission",
       "ssm/maintenancewindow",
       "ssm/maintenancewindowtarget",
       "ssm/maintenancewindowtask",
@@ -3238,7 +3239,6 @@
       "ssm/command",
       "ssm/commandinvocation",
       "ssm/complianceitem",
-      "ssm/documentpermission",
       "ssm/documentversion",
       "ssm/effectiveinstanceassociation",
       "ssm/instanceassociationsstatus",

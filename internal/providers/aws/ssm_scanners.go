@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -44,33 +45,47 @@ type ssmAPI interface {
 	ListOpsMetadata(context.Context, *ssm.ListOpsMetadataInput, ...func(*ssm.Options)) (*ssm.ListOpsMetadataOutput, error)
 	DescribeActivations(context.Context, *ssm.DescribeActivationsInput, ...func(*ssm.Options)) (*ssm.DescribeActivationsOutput, error)
 	ListCloudConnectors(context.Context, *ssm.ListCloudConnectorsInput, ...func(*ssm.Options)) (*ssm.ListCloudConnectorsOutput, error)
+	DescribeDocumentPermission(context.Context, *ssm.DescribeDocumentPermissionInput, ...func(*ssm.Options)) (*ssm.DescribeDocumentPermissionOutput, error)
 }
 
 // scanSSM discovers SSM parameters (metadata only, never values), customer-
-// owned SSM documents, and customer-owned patch baselines.
+// owned SSM documents, and customer-owned patch baselines, then the rest of
+// SSM, then the sharing permission of every document it stored. The earlier
+// phases are sequential, not independent: after an error in scanSSMAll,
+// scanSSMExtended has not run. The permission phase runs whatever the earlier
+// phases returned, so its failure costs them nothing. The earlier phases'
+// transient error is demoted to a warning, since one transient member would
+// make the dispatcher read the whole join as transient; the counts of every
+// row stored are summed.
 //
 // Values are never fetched: even with the store-level secret scrubber,
 // plaintext would transit memory and risk landing in debug dumps. The KMS
 // edge for SecureString parameters is recoverable from metadata alone.
-func scanSSM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ssm.NewFromConfig(acct.cfg, func(o *ssm.Options) { o.Region = region })
-	t, i, ferr := scanSSMAll(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	t, i, ferr = scanSSMExtended(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
+	total, inserted, docs, err := scanSSMPhases(ctx, client, acct, region, st, scanID)
+	t, i, perr := scanSSMDocumentPermissions(ctx, client, acct, region, st, scanID, docs)
+	// The permission phase needs no demotion: childFanOutCollectSkipCodes
+	// already drops its transient per-document errors.
+	return total + t, inserted + i, errors.Join(demoteTransient(st, "ssm", acct, region, err), perr)
 }
 
-// scanSSMAll holds the testable scan body.
-func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanSSMPhases runs scanSSMAll then scanSSMExtended, stopping at the first
+// error, and returns the counts of the rows stored before it and the
+// documents scanSSMAll stored.
+func scanSSMPhases(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+	total, inserted, docs, err := scanSSMAll(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return total, inserted, docs, err
+	}
+	t, i, err := scanSSMExtended(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + i, docs, err
+}
+
+// scanSSMAll holds the testable scan body. It returns the documents it
+// stored, also when a later phase fails. Every one is owned by the account:
+// the listing filters on Owner=Self.
+func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, docs []childParent, err error) {
 	// Parameters (metadata only).
 	var paramBatch []*store.Resource
 	paramPager := ssm.NewDescribeParametersPaginator(client, &ssm.DescribeParametersInput{})
@@ -78,9 +93,9 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 		page, err := paramPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm:DescribeParameters", acct.ID, region, err)
+				return total, inserted, nil, skipIfAccessDenied(st, "ssm:DescribeParameters", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("ssm:DescribeParameters: %w", err)
+			return total, inserted, nil, fmt.Errorf("ssm:DescribeParameters: %w", err)
 		}
 		for _, p := range page.Parameters {
 			name := sv(p.Name)
@@ -113,7 +128,7 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 	if len(paramBatch) > 0 {
 		n, err := st.UpsertResources(paramBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert SSM parameters: %w", err)
+			return total, inserted, nil, fmt.Errorf("upsert SSM parameters: %w", err)
 		}
 		total += len(paramBatch)
 		inserted += n
@@ -130,7 +145,7 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 			if isAccessDenied(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("ssm:ListDocuments: %w", err)
+			return total, inserted, nil, fmt.Errorf("ssm:ListDocuments: %w", err)
 		}
 		for _, d := range page.DocumentIdentifiers {
 			name := sv(d.Name)
@@ -166,10 +181,13 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 	if len(docBatch) > 0 {
 		n, err := st.UpsertResources(docBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert SSM documents: %w", err)
+			return total, inserted, nil, fmt.Errorf("upsert SSM documents: %w", err)
 		}
 		total += len(docBatch)
 		inserted += n
+		for _, d := range docBatch {
+			docs = append(docs, childParent{id: *d.Name, arn: d.NativeID})
+		}
 	}
 
 	// Patch baselines — Owner=Self.
@@ -183,7 +201,7 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 			if isAccessDenied(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("ssm:DescribePatchBaselines: %w", err)
+			return total, inserted, docs, fmt.Errorf("ssm:DescribePatchBaselines: %w", err)
 		}
 		for _, b := range page.BaselineIdentities {
 			id := sv(b.BaselineId)
@@ -208,11 +226,11 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 	if len(baseBatch) > 0 {
 		n, err := st.UpsertResources(baseBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert SSM patch baselines: %w", err)
+			return total, inserted, docs, fmt.Errorf("upsert SSM patch baselines: %w", err)
 		}
 		total += len(baseBatch)
 		inserted += n
 	}
 
-	return total, inserted, nil
+	return total, inserted, docs, nil
 }

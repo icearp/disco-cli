@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.1% (2004/3336 listable) · depth0 72.2% · depth1 42.8% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.1% (2005/3336 listable) · depth0 72.2% · depth1 42.9% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 285 | 732 | 28.0 |
+| child-uncatalogued | 286 | 731 | 28.1 |
 | smithy-resource | 431 | 131 | 76.7 |
 | element-written | 199 | 217 | 47.8 |
 | element-arn | 36 | 70 | 34.0 |
@@ -20,7 +20,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | 128 | 68 | 65.3 |
 | resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
-| ssm | 11 | 27 | 28.9 |
+| ssm | 12 | 26 | 31.6 |
 | connect | 43 | 25 | 63.2 |
 | config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1332)
+### Uncovered (listable, no scanner) (1331)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1569,7 +1569,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ssm | ssm/command | 0 |  | element-written | ssm:ListCommands |
 | ssm | ssm/commandinvocation | 0 |  | element-written | ssm:GetCommandInvocation, ssm:ListCommandInvocations |
 | ssm | ssm/complianceitem | 0 |  | element-written | ssm:ListComplianceItems |
-| ssm | ssm/documentpermission | 1 |  | child-uncatalogued | ssm:DescribeDocumentPermission |
 | ssm | ssm/documentversion | 1 |  | child-uncatalogued | ssm:ListDocumentVersions |
 | ssm | ssm/effectiveinstanceassociation | 1 |  | child-uncatalogued | ssm:DescribeEffectiveInstanceAssociations |
 | ssm | ssm/instanceassociationsstatus | 1 |  | child-uncatalogued | ssm:DescribeInstanceAssociationsStatus |

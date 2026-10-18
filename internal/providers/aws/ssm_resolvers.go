@@ -38,6 +38,16 @@ func init() {
 		resolveSSMDocumentRequires,
 		EdgeDecl{TypeSSMDocument, TypeSSMDocument, store.RelUses},
 	)
+	registerResolver(
+		noopSSMDocumentPermissionHierarchy,
+		EdgeDecl{TypeSSMDocument, TypeSSMDocumentPermission, store.RelContains},
+	)
+}
+
+// noopSSMDocumentPermissionHierarchy only declares the document -> permission
+// contains edge, which scanSSMDocumentPermissions records through childFanOut.
+func noopSSMDocumentPermissionHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveSSMDocumentRequires walks each customer-owned SSM document's

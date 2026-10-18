@@ -655,6 +655,7 @@ const (
 	TypeSSMOpsMetadata             = "aws:ssm:opsmetadata"
 	TypeSSMActivation              = "aws:ssm:activation"
 	TypeSSMCloudConnector          = "aws:ssm:cloud-connector"
+	TypeSSMDocumentPermission      = "aws:ssm:document-permission"
 	// GuardDuty (guardduty_scanners.go)
 	TypeGuardDutyCustomDetectionRuleAssociation      = "aws:guardduty:custom-detection-rule-association"
 	TypeGuardDutyCustomDetectionRuleOrgConfiguration = "aws:guardduty:custom-detection-rule-org-configuration"
