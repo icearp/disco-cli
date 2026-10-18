@@ -10,6 +10,8 @@ import (
 )
 
 func init() {
+	registerType(restype.Descriptor{Type: TypeGuardDutyCustomDetectionRuleAssociation, Service: "guardduty"})
+	registerType(restype.Descriptor{Type: TypeGuardDutyCustomDetectionRuleOrgConfiguration, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyDetector, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyFilter, Service: "guardduty"})
 	registerType(restype.Descriptor{Type: TypeGuardDutyIPSet, Service: "guardduty"})
@@ -50,12 +52,9 @@ func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.
 	inserted += i
 
 	t, i, ferr = scanGuardDutyExtended(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
 	total += t
 	inserted += i
-	return total, inserted, nil
+	return total, inserted, ferr
 }
 
 // gdChildPair pairs a child resource with its parent detector ARN so the

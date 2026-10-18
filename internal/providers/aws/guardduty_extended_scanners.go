@@ -31,9 +31,11 @@ type guardDutyExtAPI interface {
 	ListTrustedEntitySets(context.Context, *guardduty.ListTrustedEntitySetsInput, ...func(*guardduty.Options)) (*guardduty.ListTrustedEntitySetsOutput, error)
 	ListDetectors(context.Context, *guardduty.ListDetectorsInput, ...func(*guardduty.Options)) (*guardduty.ListDetectorsOutput, error)
 	DescribeOrganizationConfiguration(context.Context, *guardduty.DescribeOrganizationConfigurationInput, ...func(*guardduty.Options)) (*guardduty.DescribeOrganizationConfigurationOutput, error)
+	ListCustomDetectionRuleAssociations(context.Context, *guardduty.ListCustomDetectionRuleAssociationsInput, ...func(*guardduty.Options)) (*guardduty.ListCustomDetectionRuleAssociationsOutput, error)
+	ListCustomDetectionRuleOrgConfigurations(context.Context, *guardduty.ListCustomDetectionRuleOrgConfigurationsInput, ...func(*guardduty.Options)) (*guardduty.ListCustomDetectionRuleOrgConfigurationsOutput, error)
 }
 
-// scanGuardDutyExtended runs six extended-coverage phases. Re-lists detectors
+// scanGuardDutyExtended runs the extended-coverage phases. Re-lists detectors
 // to avoid plumbing IDs through the existing scanGuardDutyDetectors signature.
 func scanGuardDutyExtended(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	t, i, ferr := scanGDMalwareProtectionPlans(ctx, client, acct, region, st, scanID)
@@ -80,10 +82,19 @@ func scanGuardDutyExtended(ctx context.Context, client guardDutyExtAPI, acct *ac
 		}
 	}
 
-	t, i, ferr = scanGDOrganizationConfigurations(ctx, client, acct, region, st, scanID, detectorIDs)
+	t, i, orgRefused, ferr := scanGDOrganizationConfigurations(ctx, client, acct, region, st, scanID, detectorIDs)
 	total += t
 	inserted += i
-	return total, inserted, ferr
+	// The custom-detection-rule ops take no detector, but a region without one
+	// has GuardDuty off. Rule associations and organization configurations in
+	// such a region are not listed; whether they can exist there is unverified.
+	if len(detectorIDs) == 0 {
+		return total, inserted, ferr
+	}
+	t, i, cerr := scanGDCustomDetectionRules(ctx, client, acct, region, st, scanID, orgRefused)
+	total += t
+	inserted += i
+	return total, inserted, errors.Join(demoteTransient(st, "guardduty:DescribeOrganizationConfiguration", acct, region, ferr), cerr)
 }
 
 // errGDOrgConfigRefused marks a detector whose first
@@ -100,7 +111,9 @@ var errGDOrgConfigRefused = errors.New("guardduty organization configuration not
 // AccessDenied; the detector's other rows are kept. A later page is requested
 // only after the first succeeded, so a BadRequestException there is not a
 // refusal to read the configuration (e.g. a rejected NextToken) and propagates.
-func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string, detectorIDs []string) (int, int, error) {
+// refused reports that some detector's configuration was refused that way, so
+// the caller can skip the region's other delegated-administrator-only reads.
+func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string, detectorIDs []string) (total, inserted int, refused bool, err error) {
 	const op = "guardduty:DescribeOrganizationConfiguration"
 	parents := make([]childParent, len(detectorIDs))
 	for i, did := range detectorIDs {
@@ -111,10 +124,13 @@ func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAP
 		if !errors.Is(err, errGDOrgConfigRefused) {
 			return false
 		}
-		refusedOnce.Do(func() { _ = skipIfAccessDenied(st, op, acct.ID, region, err) })
+		refusedOnce.Do(func() {
+			refused = true
+			_ = skipIfAccessDenied(st, op, acct.ID, region, err)
+		})
 		return true
 	}
-	return childFanOut(ctx, st, acct, region, op, parents, warnIfRefused,
+	total, inserted, err = childFanOut(ctx, st, acct, region, op, parents, warnIfRefused,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			did := p.id
 			pager := guardduty.NewDescribeOrganizationConfigurationPaginator(client, &guardduty.DescribeOrganizationConfigurationInput{DetectorId: &did})
@@ -144,6 +160,7 @@ func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAP
 				Name: &label, Region: &region, AttributesJSON: mustJSON(attrs), DiscoveredBy: scanID,
 			}}, nil
 		})
+	return total, inserted, refused, err
 }
 
 func scanGDMalwareProtectionPlans(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

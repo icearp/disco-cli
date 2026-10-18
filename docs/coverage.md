@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.5% (1984/3336 listable) · depth0 71.8% · depth1 41.9% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.5% (1986/3336 listable) · depth0 71.9% · depth1 41.9% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,10 +8,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1042 | 179 | 85.3 |
+| sr-resource | 1043 | 178 | 85.4 |
 | child-uncatalogued | 276 | 741 | 27.1 |
 | smithy-resource | 429 | 133 | 76.3 |
-| element-written | 195 | 221 | 46.9 |
+| element-written | 196 | 220 | 47.1 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -67,7 +67,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | athena | 6 | 7 | 46.2 |
 | backup | 12 | 7 | 63.2 |
 | greengrass | 20 | 7 | 74.1 |
-| guardduty | 10 | 7 | 58.8 |
 | license-manager | 8 | 7 | 53.3 |
 | logs | 18 | 7 | 72.0 |
 | networkmanager | 13 | 7 | 65.0 |
@@ -101,6 +100,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | elasticmapreduce | 7 | 5 | 58.3 |
 | finspace-api | 0 | 5 | 0.0 |
 | groundstation | 5 | 5 | 50.0 |
+| guardduty | 12 | 5 | 70.6 |
 | health | 0 | 5 | 0.0 |
 | iotmanagedintegrations | 12 | 5 | 70.6 |
 | iottwinmaker | 5 | 5 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1352)
+### Uncovered (listable, no scanner) (1350)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1007,8 +1007,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | groundstation | groundstation/groundstationreservation | 1 |  | child-uncatalogued | groundstation:ListGroundStationReservations |
 | guardduty | guardduty/coverage | 1 |  | child-uncatalogued | guardduty:ListCoverage |
 | guardduty | guardduty/customdetectionrule | 0 |  | sr-resource | guardduty:GetCustomDetectionRule, guardduty:ListCustomDetectionRules |
-| guardduty | guardduty/customdetectionruleassociation | 0 |  | sr-resource | guardduty:GetCustomDetectionRuleAssociation, guardduty:ListCustomDetectionRuleAssociations |
-| guardduty | guardduty/customdetectionruleorgconfiguration | 0 |  | element-written | guardduty:GetCustomDetectionRuleOrgConfiguration, guardduty:ListCustomDetectionRuleOrgConfigurations |
 | guardduty | guardduty/finding | 1 |  | child-uncatalogued | guardduty:ListFindings |
 | guardduty | guardduty/investigation | 1 |  | child-uncatalogued | guardduty:GetInvestigation, guardduty:ListInvestigations |
 | guardduty | guardduty/malwarescan | 0 |  | element-arn | guardduty:DescribeMalwareScans, guardduty:GetMalwareScan, guardduty:ListMalwareScans |
