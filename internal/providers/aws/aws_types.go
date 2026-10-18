@@ -882,6 +882,10 @@ const (
 	// Connect — analytics configuration (connect_analytics_scanners.go)
 	TypeConnectExtractionDefinition = "aws:connect:extraction-definition"
 	TypeConnectMetric               = "aws:connect:metric"
+	// Connect — access configuration (connect_access_scanners.go)
+	TypeConnectSecurityProfilePermission = "aws:connect:security-profile-permission"
+	TypeConnectLambdaFunction            = "aws:connect:lambda-function"
+	TypeConnectRoutingProfileQueue       = "aws:connect:routing-profile-queue"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"

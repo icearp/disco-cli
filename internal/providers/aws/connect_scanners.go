@@ -14,7 +14,8 @@ import (
 func init() {
 	// Connect types are declared per family file via registerType;
 	// scanConnect fans out to family scanners (core, routing, flows,
-	// users, integration, workspace, datatable, extra, children, analytics).
+	// users, integration, workspace, datatable, extra, children, analytics,
+	// access).
 	registerService(serviceEntry{name: "aws:connect", fn: scanConnect})
 }
 
@@ -32,14 +33,14 @@ func scanConnect(ctx context.Context, acct *account, region string, st *store.St
 	return scanConnectAll(ctx, client, instances, acct, region, st, scanID)
 }
 
-// scanConnectAll runs the older families, which stop at their first hard
-// error, and the analytics family concurrently, on a WaitGroup rather than an
+// scanConnectAll runs the older families (scanConnectOlderFamilies) and the
+// analytics family concurrently, on a WaitGroup rather than an
 // errgroup so that a failure on either side cancels nothing and costs the
 // other no rows. Analytics reads no stored parents, so it need not wait for
-// the older side. The older side's transient error is demoted to a warning:
-// one transient member would make the dispatcher read the whole join as
-// transient, hiding the analytics family's hard error and discarding every
-// family's counts.
+// the older side. Both sides demote their own transient errors to warnings
+// before returning: one transient member would make the dispatcher read the
+// whole join as transient, hiding the other side's hard error and discarding
+// every family's counts.
 func scanConnectAll(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var (
 		wg                    sync.WaitGroup
@@ -51,13 +52,40 @@ func scanConnectAll(ctx context.Context, client *connect.Client, instances []ctt
 	})
 	wg.Go(func() { t, i, aerr = scanConnectAnalytics(ctx, client, instances, acct, region, st, scanID) })
 	wg.Wait()
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "connect", acct, region, err), aerr)
+	return total + t, inserted + i, errors.Join(err, aerr)
 }
 
 // scanConnectOlderFamilies runs the families that predate analytics, then the
-// children, which read the parent rows those families stored this scan.
-func scanConnectOlderFamilies(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	total, inserted, err = runScanners(
+// children and the access family concurrently. Both read parent rows those
+// families stored this scan (the children read hours of operation,
+// integration associations, evaluation forms and workspaces; the access family
+// reads instances, security profiles and routing profiles), never each
+// other's rows. Both run whatever the families returned, so after a family
+// failure they list the children of only the parents stored before it. On a
+// WaitGroup, a failure on one side cancels nothing on the other. The family
+// and children errors have their transients demoted to warnings before the
+// join; scanConnectAccess demotes its own.
+func scanConnectOlderFamilies(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	total, inserted, err := scanConnectFamilies(ctx, client, instances, acct, region, st, scanID)
+	var (
+		wg                  sync.WaitGroup
+		ct, ci, at, ai      int
+		childErr, accessErr error
+	)
+	wg.Go(func() { ct, ci, childErr = scanConnectChildren(ctx, client, instances, acct, region, st, scanID) })
+	wg.Go(func() { at, ai, accessErr = scanConnectAccess(ctx, client, acct, region, st, scanID) })
+	wg.Wait()
+	return total + ct + at, inserted + ci + ai, errors.Join(
+		demoteTransient(st, "connect", acct, region, err),
+		demoteTransient(st, "connect", acct, region, childErr),
+		accessErr,
+	)
+}
+
+// scanConnectFamilies runs the families that predate analytics, stopping at
+// the first hard error.
+func scanConnectFamilies(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return runScanners(
 		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanConnectCore(ctx, client, instances, acct, region, st, scanID)
@@ -84,13 +112,6 @@ func scanConnectOlderFamilies(ctx context.Context, client *connect.Client, insta
 			return scanConnectExtra(ctx, client, instances, acct, region, st, scanID)
 		},
 	)
-	if err != nil {
-		return total, inserted, err
-	}
-	// Sequenced after every family above: the children read the parent rows
-	// those families stored this scan.
-	t, i, err := scanConnectChildren(ctx, client, instances, acct, region, st, scanID)
-	return total + t, inserted + i, err
 }
 
 // listConnectInstances pages ListInstances once. Returns nil on access-denied

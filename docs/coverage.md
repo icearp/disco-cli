@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.2% (2008/3336 listable) · depth0 72.2% · depth1 43.0% · depth2 33.1% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.3% (2011/3336 listable) · depth0 72.2% · depth1 43.1% · depth2 34.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 289 | 728 | 28.4 |
+| child-uncatalogued | 292 | 725 | 28.7 |
 | smithy-resource | 431 | 131 | 76.7 |
 | element-written | 199 | 217 | 47.8 |
 | element-arn | 36 | 70 | 34.0 |
@@ -21,9 +21,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
 | ssm | 12 | 26 | 31.6 |
-| connect | 43 | 25 | 63.2 |
 | config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
+| connect | 46 | 22 | 67.6 |
 | chime | 11 | 18 | 37.9 |
 | bedrock | 27 | 17 | 61.4 |
 | datazone | 19 | 17 | 52.8 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1328)
+### Uncovered (listable, no scanner) (1325)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -691,13 +691,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | connect | connect/evaluationformaiversion | 1 |  | child-uncatalogued | connect:ListEvaluationFormAIVersions |
 | connect | connect/flowassociation | 1 |  | child-uncatalogued | connect:BatchGetFlowAssociation, connect:GetFlowAssociation, connect:ListFlowAssociations |
 | connect | connect/getattachedfilemetadata | 1 |  | child-uncatalogued | connect:BatchGetAttachedFileMetadata |
-| connect | connect/lambdafunction | 1 |  | child-uncatalogued | connect:ListLambdaFunctions |
 | connect | connect/lexbot | 1 |  | child-uncatalogued | connect:ListLexBots |
 | connect | connect/queueemailaddress | 2 |  | child-uncatalogued | connect:ListQueueEmailAddresses |
 | connect | connect/routingprofilemanualassignmentqueue | 2 |  | child-uncatalogued | connect:ListRoutingProfileManualAssignmentQueues |
-| connect | connect/routingprofilequeue | 2 |  | child-uncatalogued | connect:ListRoutingProfileQueues |
 | connect | connect/securityprofileflowmodule | 2 |  | child-uncatalogued | connect:ListSecurityProfileFlowModules |
-| connect | connect/securityprofilepermission | 2 |  | child-uncatalogued | connect:ListSecurityProfilePermissions |
 | connect | connect/testcaseexecution | 0 |  | child-uncatalogued | connect:ListTestCaseExecutions |
 | connect | connect/testcaseexecutionrecord | 1 |  | child-uncatalogued | connect:ListTestCaseExecutionRecords |
 | connect | connect/trafficdistributiongroupuser | 1 |  | child-uncatalogued | connect:ListTrafficDistributionGroupUsers |

@@ -277,11 +277,22 @@ func scanConnectWorkspacePages(ctx context.Context, client connectChildrenAPI, a
 }
 
 // errConnectParentARN marks a stored Connect parent whose NativeID lacks the
-// `instance/{id}/{kind}/{id}` shape its own scanner writes.
-var errConnectParentARN = errors.New("connect parent NativeID is not instance/{instanceId}/{kind}/{id}")
+// shape its own scanner writes.
+var errConnectParentARN = errors.New("connect parent NativeID does not have the shape its scanner writes")
 
-// connectScannedParents returns the parentType rows this scan stored in region.
+// connectScannedParents returns the parentType rows this scan stored in region,
+// for a parent whose NativeID is `instance/{id}/{kind}/{id}`.
 func connectScannedParents(st *store.Store, acct *account, region, scanID, parentType string) ([]childParent, error) {
+	return connectStoredParents(st, acct, region, scanID, parentType, func(arn string) string {
+		_, id := connectChildARNIDs(arn)
+		return id
+	})
+}
+
+// connectStoredParents returns the parentType rows this scan stored in region,
+// each keyed by the id idOf reads from its NativeID; a row idOf yields no id
+// for is an error.
+func connectStoredParents(st *store.Store, acct *account, region, scanID, parentType string, idOf func(arn string) string) ([]childParent, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{parentType},
 		Regions: []string{region}, SeenBy: scanID, Limit: util.AllResources,
@@ -291,7 +302,7 @@ func connectScannedParents(st *store.Store, acct *account, region, scanID, paren
 	}
 	var parents []childParent
 	for _, r := range rows {
-		_, id := connectChildARNIDs(r.NativeID)
+		id := idOf(r.NativeID)
 		if id == "" {
 			return nil, fmt.Errorf("%w: %s %q", errConnectParentARN, parentType, r.NativeID)
 		}
