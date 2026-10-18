@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
@@ -16,29 +17,37 @@ func init() {
 }
 
 // scanEC2IPAMExtra discovers IPAM policies and external-resource verification
-// tokens. Neither op has an SDK paginator — manual NextToken loops.
-func scanEC2IPAMExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(
+// tokens. Neither op has an SDK paginator — manual NextToken loops. It also
+// returns the stored policies whose allocation rules can still be read, for
+// the allocation-rule phase.
+func scanEC2IPAMExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, policies []childParent, err error) {
+	total, inserted, err = runScanners(
 		ctx,
 		func(ctx context.Context) (int, int, error) {
-			return scanIpamPolicies(ctx, client, acct, region, st, scanID)
+			t, n, p, err := scanIpamPolicies(ctx, client, acct, region, st, scanID)
+			policies = p
+			return t, n, err
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanIpamExternalResourceVerificationTokens(ctx, client, acct, region, st, scanID)
 		},
 	)
+	return total, inserted, policies, err
 }
 
-func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanIpamPolicies stores the IPAM policies and returns the stored policies
+// whose allocation rules can still be read. It drops delete-complete ones,
+// inferring (not observed) that a deleted policy has none.
+func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, policies []childParent, err error) {
 	var batch []*store.Resource
 	var token *string
 	for {
 		out, perr := client.DescribeIpamPolicies(ctx, &ec2.DescribeIpamPoliciesInput{NextToken: token})
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "ec2:DescribeIpamPolicies", acct.ID, region, perr)
+				return 0, 0, nil, skipIfAccessDenied(st, "ec2:DescribeIpamPolicies", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("ec2:DescribeIpamPolicies: %w", perr)
+			return 0, 0, nil, fmt.Errorf("ec2:DescribeIpamPolicies: %w", perr)
 		}
 		for _, p := range out.IpamPolicies {
 			arn := sv(p.IpamPolicyArn)
@@ -58,6 +67,9 @@ func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region 
 				AttributesJSON: mustJSON(p),
 				DiscoveredBy:   scanID,
 			})
+			if id := sv(p.IpamPolicyId); id != "" && p.State != ec2types.IpamPolicyStateDeleteComplete {
+				policies = append(policies, childParent{id: id, arn: arn})
+			}
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
 			break
@@ -65,13 +77,13 @@ func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region 
 		token = out.NextToken
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, 0, nil, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ec2 ipam-policies: %w", uerr)
+		return 0, 0, nil, fmt.Errorf("upsert ec2 ipam-policies: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), n, policies, nil
 }
 
 func scanIpamExternalResourceVerificationTokens(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

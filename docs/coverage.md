@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 59.0% (1968/3336 listable) · depth0 71.2% · depth1 41.4% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.1% (1971/3336 listable) · depth0 71.3% · depth1 41.5% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,15 +9,15 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1038 | 183 | 85.0 |
-| child-uncatalogued | 271 | 746 | 26.6 |
+| child-uncatalogued | 272 | 745 | 26.7 |
 | smithy-resource | 429 | 133 | 76.3 |
-| element-written | 188 | 228 | 45.2 |
+| element-written | 190 | 226 | 45.7 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
-| ec2 | 111 | 85 | 56.6 |
+| ec2 | 114 | 82 | 58.2 |
 | resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
 | connect | 41 | 27 | 60.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1368)
+### Uncovered (listable, no scanner) (1365)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -814,7 +814,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/applicationstatuscheck | 0 |  | sr-resource | ec2:DescribeApplicationStatusChecks |
 | ec2 | ec2/awsnetworkperformancedata | 0 |  | element-written | ec2:GetAwsNetworkPerformanceData |
 | ec2 | ec2/bundletask | 0 |  | element-written | ec2:DescribeBundleTasks |
-| ec2 | ec2/byoipcidr | 0 |  | element-written | ec2:DescribeByoipCidrs |
 | ec2 | ec2/capacityblockextensionhistory | 0 |  | element-written | ec2:DescribeCapacityBlockExtensionHistory |
 | ec2 | ec2/capacityblockextensionoffering | 1 |  | child-uncatalogued | ec2:DescribeCapacityBlockExtensionOfferings |
 | ec2 | ec2/capacityblockoffering | 0 |  | element-written | ec2:DescribeCapacityBlockOfferings |
@@ -849,12 +848,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/instancesqlhastate | 0 |  | element-written | ec2:DescribeInstanceSqlHaHistoryStates, ec2:DescribeInstanceSqlHaStates |
 | ec2 | ec2/instancestatus | 0 |  | element-written | ec2:DescribeInstanceStatus |
 | ec2 | ec2/ipamaddresshistory | 1 |  | child-uncatalogued | ec2:GetIpamAddressHistory |
-| ec2 | ec2/ipambyoasn | 0 |  | element-written | ec2:DescribeIpamByoasn |
 | ec2 | ec2/ipamdiscoveredaccount | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredAccounts |
 | ec2 | ec2/ipamdiscoveredresourcecidr | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredResourceCidrs |
 | ec2 | ec2/ipamdiscoveredroute | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredRoutes |
 | ec2 | ec2/ipaminternetregistryassociation | 0 |  | sr-resource | ec2:DescribeIpamInternetRegistryAssociations |
-| ec2 | ec2/ipampolicyallocationrule | 1 |  | child-uncatalogued | ec2:GetIpamPolicyAllocationRules |
 | ec2 | ec2/ipampolicyorganizationtarget | 1 |  | child-uncatalogued | ec2:GetIpamPolicyOrganizationTargets |
 | ec2 | ec2/ipamprefixlistresolverrule | 1 |  | child-uncatalogued | ec2:GetIpamPrefixListResolverRules |
 | ec2 | ec2/ipamresourcecidr | 1 |  | child-uncatalogued | ec2:GetIpamResourceCidrs |

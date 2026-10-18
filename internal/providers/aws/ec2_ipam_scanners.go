@@ -21,11 +21,16 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscoveryAssociation, Service: "ec2"})
 }
 
-// scanEC2IPAM discovers all IPAM-related EC2 resources in parallel.
-func scanEC2IPAM(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(
+// scanEC2IPAM discovers all IPAM-related EC2 resources in parallel. It also
+// reports whether scanIPAMs stored an IPAM whose home Region is region.
+func scanEC2IPAM(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, homeIPAM bool, err error) {
+	total, inserted, err = runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) { return scanIPAMs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			t, n, home, err := scanIPAMs(ctx, client, acct, region, st, scanID)
+			homeIPAM = home
+			return t, n, err
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanIPAMScopes(ctx, client, acct, region, st, scanID)
 		},
@@ -45,15 +50,22 @@ func scanEC2IPAM(ctx context.Context, client ec2API, acct *account, region strin
 			return scanIPAMResourceDiscoveryAssociations(ctx, client, acct, region, st, scanID)
 		},
 	)
+	return total, inserted, homeIPAM, err
 }
 
-func scanIPAMs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(
+// scanIPAMs stores the IPAMs and reports whether one whose home Region
+// (IpamRegion) is region was stored. A listing that fails reports none, even
+// when earlier pages were stored.
+func scanIPAMs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, homeIPAM bool, err error) {
+	total, inserted, err = ec2PageScan(
 		ctx, "ec2:DescribeIpams", acct, region, st,
 		ec2.NewDescribeIpamsPaginator(client, &ec2.DescribeIpamsInput{}),
 		func(page *ec2.DescribeIpamsOutput) []*store.Resource {
 			var out []*store.Resource
 			for _, ipam := range page.Ipams {
+				if sv(ipam.IpamRegion) == region {
+					homeIPAM = true
+				}
 				status := string(ipam.State)
 				out = append(out, &store.Resource{
 					Provider:       "aws",
@@ -72,6 +84,7 @@ func scanIPAMs(ctx context.Context, client ec2API, acct *account, region string,
 			return out
 		},
 	)
+	return total, inserted, homeIPAM && err == nil, err
 }
 
 func scanIPAMScopes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

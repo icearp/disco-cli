@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 
@@ -20,10 +21,17 @@ func init() {
 
 // scanEC2 discovers all EC2 resource types in one region by running all
 // category scanners in parallel; each fans out to its own sub-scanners via
-// an internal errgroup.
-func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// an internal errgroup. The IPAM extended phases run after them, whatever
+// they return: runScanners cancels every category on its first error, so a
+// failure there would otherwise cost the older categories their rows. Both
+// sides have their transient error demoted to a warning before the join.
+func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
-	return runScanners(
+	var (
+		homeIPAM     bool
+		ipamPolicies []childParent
+	)
+	total, inserted, err := runScanners(
 		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanEC2Networking(ctx, client, acct, region, st, scanID)
@@ -35,7 +43,11 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 		func(ctx context.Context) (int, int, error) {
 			return scanEC2Observability(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanEC2IPAM(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			t, n, home, err := scanEC2IPAM(ctx, client, acct, region, st, scanID)
+			homeIPAM = home
+			return t, n, err
+		},
 		func(ctx context.Context) (int, int, error) { return scanEC2TGW(ctx, client, acct, region, st, scanID) },
 		func(ctx context.Context) (int, int, error) {
 			return scanEC2TrafficMirror(ctx, client, acct, region, st, scanID)
@@ -65,7 +77,9 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 			return scanEC2TGWExtra(ctx, client, acct, region, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
-			return scanEC2IPAMExtra(ctx, client, acct, region, st, scanID)
+			t, n, policies, err := scanEC2IPAMExtra(ctx, client, acct, region, st, scanID)
+			ipamPolicies = policies
+			return t, n, err
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanEC2LocalGatewayExtra(ctx, client, acct, region, st, scanID)
@@ -80,6 +94,8 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 			return scanEC2NetworkExtra(ctx, client, acct, region, st, scanID)
 		},
 	)
+	t, n, extErr := scanEC2IPAMExtended(ctx, client, acct, region, st, scanID, homeIPAM, ipamPolicies)
+	return total + t, inserted + n, errors.Join(demoteTransient(st, "ec2", acct, region, err), extErr)
 }
 
 // runScanners executes scanner functions concurrently via errgroup, aggregating

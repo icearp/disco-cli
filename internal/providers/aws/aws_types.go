@@ -57,6 +57,9 @@ const (
 	// EC2 — IPAM (ec2_ipam_scanners.go)
 	TypeEC2IPAM                                  = "aws:ec2:ipam"
 	TypeEC2IpamPolicy                            = "aws:ec2:ipam-policy"
+	TypeEC2IpamPolicyAllocationRule              = "aws:ec2:ipam-policy-allocation-rule"
+	TypeEC2IpamByoasn                            = "aws:ec2:ipam-byoasn"
+	TypeEC2ByoipCidr                             = "aws:ec2:byoip-cidr"
 	TypeEC2IpamExternalResourceVerificationToken = "aws:ec2:ipam-external-resource-verification-token"
 	TypeEC2IPAMScope                             = "aws:ec2:ipam-scope"
 	TypeEC2IPAMPool                              = "aws:ec2:ipam-pool"
