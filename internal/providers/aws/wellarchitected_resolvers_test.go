@@ -1,6 +1,9 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
+	"slices"
 	"testing"
 
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
@@ -116,6 +119,91 @@ func TestResolveWAShareGrantees_NoOrgTreeNoEdges(t *testing.T) {
 	}
 	if rels, err := st.RelationshipsFrom(id); err != nil || len(rels) != 0 {
 		t.Errorf("edges = %v (%v), want none", rels, err)
+	}
+}
+
+const (
+	waExecRoleARN   = "arn:aws:iam::123456789012:role/wa-exec"
+	waAccessRoleARN = "arn:aws:iam::123456789012:role/wa-access"
+)
+
+func waAgentProfileAttrs(execRole string, accessRoles ...string) string {
+	pr := watypes.AgentProfileSummary{Arn: ptrStr(waARN("agent-profile", "p1")), ExecutionRoleArn: ptrStr(execRole)}
+	for _, r := range accessRoles {
+		pr.AggregationConfiguration = append(pr.AggregationConfiguration, watypes.AggregationConfiguration{AccountId: ptrStr(testAccountID), AccessRoleArn: ptrStr(r)})
+	}
+	return mustJSON(pr)
+}
+
+func waUsesTargets(t *testing.T, st *store.Store, from string) []string {
+	t.Helper()
+	rels, err := st.RelationshipsFrom(from, store.RelUses)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	var to []string
+	for _, r := range rels {
+		to = append(to, r.ToID)
+	}
+	slices.Sort(to)
+	return to
+}
+
+func TestResolveWAAgentProfileRoles_ExecutionAndAccessRoles(t *testing.T) {
+	st := newTestStore(t)
+	execID := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, waExecRoleARN, "", "{}")
+	accessID := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, waAccessRoleARN, "", "{}")
+	id := upsertTestResource(t, st, "aws", testAccountID, TypeWellArchitectedAgentProfile, waARN("agent-profile", "p1"), testRegion,
+		waAgentProfileAttrs(waExecRoleARN, waAccessRoleARN, "arn:aws:iam::333333333333:role/elsewhere"))
+	if err := resolveWAAgentProfileRoles(newTestAccount(testAccountID), st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	want := []string{execID, accessID}
+	slices.Sort(want)
+	if got := waUsesTargets(t, st, id); !slices.Equal(got, want) {
+		t.Errorf("uses edges = %v, want exec and in-account access role %v", got, want)
+	}
+}
+
+func TestResolveWAAgentProfileRoles_UnscannedRoleNoEdge(t *testing.T) {
+	st := newTestStore(t)
+	id := upsertTestResource(t, st, "aws", testAccountID, TypeWellArchitectedAgentProfile, waARN("agent-profile", "p1"), testRegion,
+		waAgentProfileAttrs(waExecRoleARN, waAccessRoleARN))
+	if err := resolveWAAgentProfileRoles(newTestAccount(testAccountID), st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if rels, err := st.RelationshipsFrom(id); err != nil || len(rels) != 0 {
+		t.Errorf("edges = %v (%v), want none", rels, err)
+	}
+}
+
+func TestResolveWAAgentProfileRoles_EmptyAttrs(t *testing.T) {
+	st := newTestStore(t)
+	upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, waExecRoleARN, "", "{}")
+	id := upsertTestResource(t, st, "aws", testAccountID, TypeWellArchitectedAgentProfile, waARN("agent-profile", "p1"), testRegion, "{}")
+	if err := resolveWAAgentProfileRoles(newTestAccount(testAccountID), st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if rels, err := st.RelationshipsFrom(id); err != nil || len(rels) != 0 {
+		t.Errorf("edges = %v (%v), want none", rels, err)
+	}
+}
+
+// A row whose attributes do not decode is reported and costs the rows after
+// it none of their edges.
+func TestResolveWAAgentProfileRoles_DecodeErrorKeepsOtherRows(t *testing.T) {
+	st := newTestStore(t)
+	execID := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, waExecRoleARN, "", "{}")
+	// ListResources orders by name, so the bad row is read first.
+	upsertTestResourceNamed(t, st, TypeWellArchitectedAgentProfile, waARN("agent-profile", "a-bad"), testRegion, "[]", "a-bad")
+	good := upsertTestResourceNamed(t, st, TypeWellArchitectedAgentProfile, waARN("agent-profile", "b-good"), testRegion, waAgentProfileAttrs(waExecRoleARN), "b-good")
+	err := resolveWAAgentProfileRoles(newTestAccount(testAccountID), st)
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		t.Fatalf("err = %v, want the bad row's decode error", err)
+	}
+	if got := waUsesTargets(t, st, good); !slices.Equal(got, []string{execID}) {
+		t.Errorf("good row uses edges = %v, want [%s]", got, execID)
 	}
 }
 

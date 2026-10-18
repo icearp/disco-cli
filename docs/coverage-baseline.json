@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 59.592326139088726,
-    "covered": 1988,
-    "uncovered": 1348,
+    "percent": 59.62230215827338,
+    "covered": 1989,
+    "uncovered": 1347,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1937,6 +1937,7 @@
       "wafv2/regexpatternset",
       "wafv2/rulegroup",
       "wafv2/webacl",
+      "wellarchitected/agentprofile",
       "wellarchitected/lens",
       "wellarchitected/lensreview",
       "wellarchitected/lensshare",
@@ -3303,7 +3304,6 @@
       "wafv2/settlementrecord",
       "wellarchitected/agentcontext",
       "wellarchitected/agentgoal",
-      "wellarchitected/agentprofile",
       "wellarchitected/agentrecommendation",
       "wellarchitected/agentrecommendationgeneration",
       "wellarchitected/agentrecommendationitem",

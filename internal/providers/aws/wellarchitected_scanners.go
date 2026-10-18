@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -34,6 +35,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeWellArchitectedLensShare, Service: "wellarchitected"})
 	registerType(restype.Descriptor{Type: TypeWellArchitectedProfileShare, Service: "wellarchitected"})
 	registerType(restype.Descriptor{Type: TypeWellArchitectedTemplateShare, Service: "wellarchitected"})
+	registerType(restype.Descriptor{Type: TypeWellArchitectedAgentProfile, Service: "wellarchitected"})
 	registerService(serviceEntry{
 		name: "aws:wellarchitected",
 		fn:   scanWellArchitected,
@@ -50,6 +52,7 @@ type wellArchitectedAPI interface {
 	ListLensShares(context.Context, *wellarchitected.ListLensSharesInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListLensSharesOutput, error)
 	ListProfileShares(context.Context, *wellarchitected.ListProfileSharesInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListProfileSharesOutput, error)
 	ListTemplateShares(context.Context, *wellarchitected.ListTemplateSharesInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListTemplateSharesOutput, error)
+	ListAgentProfiles(context.Context, *wellarchitected.ListAgentProfilesInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListAgentProfilesOutput, error)
 }
 
 // waParents are the parents the list phases hand to the child phases. Shares
@@ -60,19 +63,33 @@ type waParents struct {
 	workloads, ownedWorkloads, ownedLenses, ownedProfiles, ownedTemplates []childParent
 }
 
-// scanWellArchitected discovers Well-Architected workloads, lenses, profiles
-// and review templates, then the lens reviews of each workload and the shares
-// of each owned workload, custom lens, profile and review template. Phases run
-// in order and a phase error stops the scan with the rows counted so far; the
-// child phases run last so their errors cannot cost the parent rows.
+// scanWellArchitected discovers the Well-Architected Tool resources, then the
+// Well-Architected Agent's profiles. The agent phase runs whatever the tool
+// phases returned, so a tool error cannot cost its rows, and both errors are
+// joined. Each side is demoted when transient: a transient member would make
+// the dispatcher read the whole join as transient and drop the other side's
+// hard error and both sides' counts.
 //
-// Not scanned: agent profiles (the pinned SDK has no agent ops), answers,
-// check details/summaries, lens-review improvements and consolidated reports
-// (computed from the review), milestones (point-in-time snapshots), profile
-// notifications and share invitations (transient).
-func scanWellArchitected(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// Not scanned: answers, check details/summaries, lens-review improvements and
+// consolidated reports (computed from the review), milestones (point-in-time
+// snapshots), profile notifications and share invitations (transient), and the
+// agent's recommendations, recommendation generations, contexts and goals.
+func scanWellArchitected(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := wellarchitected.NewFromConfig(acct.cfg, func(o *wellarchitected.Options) { o.Region = region })
+	total, inserted, err := scanWAToolPhases(ctx, client, acct, region, st, scanID)
+	t, i, aerr := scanWAAgentProfiles(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + i, errors.Join(
+		demoteTransient(st, "wellarchitected", acct, region, err),
+		demoteTransient(st, "wellarchitected:ListAgentProfiles", acct, region, aerr),
+	)
+}
 
+// scanWAToolPhases discovers workloads, lenses, profiles and review templates,
+// then the lens reviews of each workload and the shares of each owned
+// workload, custom lens, profile and review template. Phases run in order and
+// a phase error stops them with the rows counted so far; the child phases run
+// last so their errors cannot cost the parent rows.
+func scanWAToolPhases(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var p waParents
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanWAWorkloads(ctx, client, acct, region, st, scanID, &p) },
@@ -415,4 +432,73 @@ func scanWATemplateShares(ctx context.Context, client wellArchitectedAPI, templa
 			}
 			return rows, nil
 		})
+}
+
+// waAgentProfilePageCap is ListAgentProfiles' documented maxResults maximum.
+const waAgentProfilePageCap = 1000
+
+// scanWAAgentProfiles lists the Well-Architected Agent's profiles: the
+// customer-created scope (execution role, pillars, accounts and regions to
+// analyse) the agent generates recommendations for. The agent is newer than
+// the rest of the service and a region's endpoint may not serve the op, so a
+// first-page isOpNotDeployed or isWAUnknownOperation is a silent gap. Rows
+// read before a later failure are kept.
+func scanWAAgentProfiles(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	const op = "wellarchitected:ListAgentProfiles"
+	pager := wellarchitected.NewListAgentProfilesPaginator(client, &wellarchitected.ListAgentProfilesInput{},
+		func(o *wellarchitected.ListAgentProfilesPaginatorOptions) {
+			o.Limit = waAgentProfilePageCap
+			o.StopOnDuplicateToken = true
+		})
+	var (
+		batch   []*store.Resource
+		listErr error
+	)
+	for firstPage := true; pager.HasMorePages(); firstPage = false {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if firstPage && (isOpNotDeployed(err) || isWAUnknownOperation(err)) {
+				return 0, 0, nil
+			}
+			listErr = err
+			break
+		}
+		for _, pr := range out.Items {
+			arn := sv(pr.Arn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeWellArchitectedAgentProfile, NativeID: arn,
+				Name: pr.Name, Region: &region, CreatedAt: tp(pr.CreatedAt),
+				TagsJSON:       awsTagsJSON(pr.Tags),
+				AttributesJSON: mustJSON(pr), DiscoveredBy: scanID,
+			})
+		}
+	}
+	total, inserted, err := upsertBatch(st, batch, "wellarchitected agent-profiles")
+	if err != nil {
+		if listErr != nil {
+			err = errors.Join(err, fmt.Errorf("%s: %w", op, listErr))
+		}
+		return 0, 0, err
+	}
+	switch {
+	case listErr == nil:
+		return total, inserted, nil
+	case isAccessDenied(listErr):
+		return total, inserted, skipIfAccessDenied(st, op, acct.ID, region, listErr)
+	default:
+		return total, inserted, fmt.Errorf("%s: %w", op, listErr)
+	}
+}
+
+// isWAUnknownOperation reports the ValidationException reason the model
+// defines for an operation the endpoint does not know. It is the shape an
+// account or region without the Well-Architected Agent is expected to get;
+// the live response is unverified.
+func isWAUnknownOperation(err error) bool {
+	var ve *wellarchitectedtypes.ValidationException
+	return errors.As(err, &ve) && ve.Reason == wellarchitectedtypes.ValidationExceptionReasonUnknownOperation
 }

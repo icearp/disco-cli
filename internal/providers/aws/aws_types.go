@@ -2347,6 +2347,7 @@ const (
 	TypeWellArchitectedLensShare      = "aws:wellarchitected:lens-share"
 	TypeWellArchitectedProfileShare   = "aws:wellarchitected:profile-share"
 	TypeWellArchitectedTemplateShare  = "aws:wellarchitected:template-share"
+	TypeWellArchitectedAgentProfile   = "aws:wellarchitected:agent-profile"
 	// WorkMail (workmail_scanners.go).
 	TypeWorkMailOrganization               = "aws:workmail:organization"
 	TypeWorkMailUser                       = "aws:workmail:user"

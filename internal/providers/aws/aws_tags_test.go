@@ -15,6 +15,7 @@ import (
 	kinesistypes "github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	wellarchitectedtypes "github.com/aws/aws-sdk-go-v2/service/wellarchitected/types"
 )
 
 // assertTagsJSON unmarshals a tag-JSON pointer and asserts a single-entry map.
@@ -50,6 +51,7 @@ func TestAWSTagsJSON_AllUnionMembers(t *testing.T) {
 	assertTagsJSON(t, "kinesis", awsTagsJSON([]kinesistypes.Tag{{Key: &k, Value: &v}}), k, v)
 	assertTagsJSON(t, "rds", awsTagsJSON([]rdstypes.Tag{{Key: &k, Value: &v}}), k, v)
 	assertTagsJSON(t, "route53", awsTagsJSON([]route53types.Tag{{Key: &k, Value: &v}}), k, v)
+	assertTagsJSON(t, "wellarchitected", awsTagsJSON([]wellarchitectedtypes.Tag{{Key: &k, Value: &v}}), k, v)
 }
 
 // TestAWSTagsJSON_NilPointersSkipped asserts that tags with nil Key or Value

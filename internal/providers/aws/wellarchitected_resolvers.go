@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -34,6 +35,7 @@ func init() {
 		)
 	}
 	registerResolver(resolveWAShareGrantees, grantees...)
+	registerResolver(resolveWAAgentProfileRoles, EdgeDecl{TypeWellArchitectedAgentProfile, TypeIAMRole, store.RelUses})
 }
 
 // noopWAHierarchy only declares the parent -> child contains edges;
@@ -91,4 +93,54 @@ func resolveWAShareGrantees(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// resolveWAAgentProfileRoles links each agent profile to the IAM roles it
+// names: the execution role and each aggregation entry's access role. Access
+// roles usually sit in other (analysed) accounts; only roles scanned in this
+// account get an edge. A row whose attributes fail to decode costs only
+// its own edges; the decode errors are returned together.
+func resolveWAAgentProfileRoles(acct *account, st *store.Store) error {
+	profiles, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeWellArchitectedAgentProfile},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(profiles) == 0 {
+		return nil
+	}
+	roleIDs, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	var decodeErrs []error
+	for _, pr := range profiles {
+		var attrs struct {
+			ExecutionRoleArn         *string `json:"ExecutionRoleArn"`
+			AggregationConfiguration []struct {
+				AccessRoleArn *string `json:"AccessRoleArn"`
+			} `json:"AggregationConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(pr.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode wellarchitected agent-profile %s: %w", pr.NativeID, err))
+			continue
+		}
+		roles := []string{sv(attrs.ExecutionRoleArn)}
+		for _, a := range attrs.AggregationConfiguration {
+			roles = append(roles, sv(a.AccessRoleArn))
+		}
+		for _, arn := range roles {
+			roleID := store.ResourceID("aws", acct.ID, arn)
+			if !roleIDs[roleID] {
+				continue
+			}
+			if err := st.UpsertRelationship(pr.ID, roleID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert wellarchitected agent-profile→iam-role: %w", err)
+			}
+		}
+	}
+	return errors.Join(decodeErrs...)
 }
