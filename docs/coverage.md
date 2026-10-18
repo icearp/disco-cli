@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 58.9% (1966/3336 listable) · depth0 71.2% · depth1 41.3% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 59.0% (1968/3336 listable) · depth0 71.2% · depth1 41.4% · depth2 31.7% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1036 | 185 | 84.8 |
+| sr-resource | 1038 | 183 | 85.0 |
 | child-uncatalogued | 271 | 746 | 26.6 |
 | smithy-resource | 429 | 133 | 76.3 |
 | element-written | 188 | 228 | 45.2 |
@@ -188,7 +188,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | finspace | 8 | 2 | 80.0 |
 | fsx | 8 | 2 | 80.0 |
 | glacier | 1 | 2 | 33.3 |
-| health-agent | 0 | 2 | 0.0 |
 | healthlake | 3 | 2 | 60.0 |
 | kinesisanalytics | 2 | 2 | 50.0 |
 | kinesisvideo | 2 | 2 | 50.0 |
@@ -319,6 +318,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dsql | 2 | 0 | 100.0 |
 | elasticfilesystem | 4 | 0 | 100.0 |
 | firehose | 1 | 0 | 100.0 |
+| health-agent | 2 | 0 | 100.0 |
 | identitystore | 3 | 0 | 100.0 |
 | ivschat | 2 | 0 | 100.0 |
 | kendra-ranking | 1 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1370)
+### Uncovered (listable, no scanner) (1368)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1029,8 +1029,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | health | health/entityaggregate | 0 |  | element-arn | health:DescribeEntityAggregates |
 | health | health/event | 0 |  | sr-resource | health:DescribeEvents |
 | health | health/eventsfororganization | 0 |  | element-arn | health:DescribeEventsForOrganization |
-| health-agent | health-agent/domain | 0 |  | sr-resource | health-agent:GetDomain, health-agent:ListDomains |
-| health-agent | health-agent/subscription | 1 |  | sr-resource | health-agent:GetSubscription, health-agent:ListSubscriptions |
 | healthlake | healthlake/fhirexportjob | 1 |  | child-uncatalogued | healthlake:DescribeFHIRExportJob, healthlake:ListFHIRExportJobs |
 | healthlake | healthlake/fhirimportjob | 1 |  | child-uncatalogued | healthlake:DescribeFHIRImportJob, healthlake:ListFHIRImportJobs |
 | iam | iam/attachedrolepolicy | 1 |  | child-uncatalogued | iam:ListAttachedGroupPolicies, iam:ListAttachedRolePolicies, iam:ListAttachedUserPolicies |

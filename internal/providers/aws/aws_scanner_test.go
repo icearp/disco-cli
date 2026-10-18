@@ -153,6 +153,7 @@ var expectedAWSServices = []string{
 	"aws:internet-monitor",
 	"aws:interconnect",
 	"aws:health-lake",
+	"aws:health-agent",
 	"aws:health-imaging",
 	"aws:grafana",
 	"aws:fin-space",

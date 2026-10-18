@@ -1382,6 +1382,9 @@ const (
 	TypeHealthLakeFHIRDatastore                    = "aws:health-lake:fhir-datastore"
 	TypeHealthLakeDataTransformationProfile        = "aws:health-lake:data-transformation-profile"
 	TypeHealthLakeDataTransformationProfileVersion = "aws:health-lake:data-transformation-profile-version"
+	// Connect Health (connecthealth_scanners.go)
+	TypeHealthAgentDomain       = "aws:health-agent:domain"
+	TypeHealthAgentSubscription = "aws:health-agent:subscription"
 	// HealthImaging (healthimaging_scanners.go)
 	TypeHealthImagingDatastore = "aws:health-imaging:datastore"
 	// Grafana (grafana_scanners.go)
