@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/drs"
 	drstypes "github.com/aws/aws-sdk-go-v2/service/drs/types"
 	"github.com/icearp/disco-cli/store"
 )
@@ -64,27 +65,71 @@ func TestResolveDRSSourceNetworkRefs(t *testing.T) {
 	assertRelationship(t, rels, snID, vID, store.RelAttachedTo)
 }
 
-func TestResolveDRSReplicationTemplateRefs(t *testing.T) {
+// A replication-configuration template and a source server's replication
+// configuration each use their scanned KMS key and attach to their scanned
+// staging subnet and security groups; an unscanned security group gets no
+// edge.
+func TestResolveDRSReplicationSettingsRefs(t *testing.T) {
+	keyARN := "arn:aws:kms:" + testRegion + ":" + testAccountID + ":key/k-drs"
+	subnet, sgs := "subnet-1", []string{"sg-1", "sg-9"}
+	for _, tc := range []struct {
+		name, typ, nativeID, attrs string
+	}{
+		{
+			name: "template", typ: TypeDRSReplicationConfigurationTemplateResource,
+			nativeID: drsARN(testRegion, testAccountID, "replication-configuration-template", "rt-1"),
+			attrs: mustJSON(drstypes.ReplicationConfigurationTemplate{
+				EbsEncryptionKeyArn: &keyARN, StagingAreaSubnetId: &subnet, ReplicationServersSecurityGroupsIDs: sgs,
+			}),
+		},
+		{
+			name: "server configuration", typ: TypeDRSReplicationConfiguration,
+			nativeID: drsARN(testRegion, testAccountID, "source-server", "s-1") + "/replication-configuration",
+			attrs: mustJSON(drs.GetReplicationConfigurationOutput{
+				EbsEncryptionKeyArn: &keyARN, StagingAreaSubnetId: &subnet, ReplicationServersSecurityGroupsIDs: sgs,
+			}),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+			subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", subnet), testRegion, "{}")
+			sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(testRegion, acct.ID, "security-group", "sg-1"), testRegion, "{}")
+			id := upsertTestResource(t, st, "aws", acct.ID, tc.typ, tc.nativeID, testRegion, tc.attrs)
+
+			if err := resolveDRSReplicationSettingsRefs(acct, st); err != nil {
+				t.Fatalf("resolveDRSReplicationSettingsRefs: %v", err)
+			}
+			rels := drsRelsFrom(t, st, id)
+			assertRelationship(t, rels, id, kID, store.RelUses)
+			assertRelationship(t, rels, id, subID, store.RelAttachedTo)
+			assertRelationship(t, rels, id, sgID, store.RelAttachedTo)
+			if len(rels) != 3 {
+				t.Errorf("edges = %+v, want 3 (no edge to the unscanned sg-9)", rels)
+			}
+		})
+	}
+}
+
+// A row whose attributes do not parse is reported without costing the other
+// rows their edges; the rows list by name, so "bad" comes first.
+func TestResolveDRSReplicationSettingsRefs_DecodeError(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
+	subnet := "subnet-1"
+	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", subnet), testRegion, "{}")
+	server := drsARN(testRegion, acct.ID, "source-server", "s-1")
+	upsertTestResourceNamed(t, st, TypeDRSReplicationConfiguration, server+"/bad", testRegion, "[1]", "bad")
+	goodID := upsertTestResourceNamed(t, st, TypeDRSReplicationConfiguration, server+"/replication-configuration", testRegion,
+		mustJSON(drs.GetReplicationConfigurationOutput{StagingAreaSubnetId: &subnet}), "good")
 
-	keyARN := "arn:aws:kms:" + testRegion + ":" + testAccountID + ":key/k-drs"
-	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
-	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
-	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subARN, testRegion, "{}")
-	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-1")
-	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, sgARN, testRegion, "{}")
-	rtARN := drsARN(testRegion, acct.ID, "replication-configuration-template", "rt-1")
-	attrs := `{"EbsEncryptionKeyArn":"` + keyARN + `","StagingAreaSubnetId":"subnet-1","ReplicationServersSecurityGroupsIDs":["sg-1"]}`
-	rtID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSReplicationConfigurationTemplateResource, rtARN, testRegion, attrs)
-
-	if err := resolveDRSReplicationTemplateRefs(acct, st); err != nil {
-		t.Fatalf("resolveDRSReplicationTemplateRefs: %v", err)
+	err := resolveDRSReplicationSettingsRefs(acct, st)
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want the bad row's unmarshal error", err)
 	}
-	rels := drsRelsFrom(t, st, rtID)
-	assertRelationship(t, rels, rtID, kID, store.RelUses)
-	assertRelationship(t, rels, rtID, subID, store.RelAttachedTo)
-	assertRelationship(t, rels, rtID, sgID, store.RelAttachedTo)
+	assertRelationship(t, drsRelsFrom(t, st, goodID), goodID, subID, store.RelAttachedTo)
 }
 
 func TestResolveDRSLaunchTemplateRefs(t *testing.T) {
@@ -110,15 +155,17 @@ func TestResolveDRS_NoAttrs(t *testing.T) {
 	riID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSRecoveryInstanceResource, riARN, testRegion, "{}")
 	rtARN := drsARN(testRegion, acct.ID, "replication-configuration-template", "rt-1")
 	rtID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSReplicationConfigurationTemplateResource, rtARN, testRegion, "{}")
+	rcID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSReplicationConfiguration,
+		drsARN(testRegion, acct.ID, "source-server", "s-1")+"/replication-configuration", testRegion, "{}")
 	for _, fn := range []func(*account, *store.Store) error{
 		resolveDRSRecoveryInstanceRefs, resolveDRSSourceServerRefs, resolveDRSSourceNetworkRefs,
-		resolveDRSReplicationTemplateRefs, resolveDRSLaunchTemplateRefs,
+		resolveDRSReplicationSettingsRefs, resolveDRSLaunchTemplateRefs,
 	} {
 		if err := fn(acct, st); err != nil {
 			t.Fatalf("resolver with no attrs: %v", err)
 		}
 	}
-	for _, id := range []string{riID, rtID} {
+	for _, id := range []string{riID, rtID, rcID} {
 		if rels := drsRelsFrom(t, st, id); len(rels) != 0 {
 			t.Errorf("%s: emitted %d edges, want 0", id, len(rels))
 		}

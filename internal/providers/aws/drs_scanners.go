@@ -15,7 +15,8 @@ import (
 // (SourceServerResource, RecoveryInstanceResource, …); DRS has no CloudFormation
 // twin, so disco types mirror that spelling exactly — the algorithmic key
 // matches with no alias. Recovery-plan steps and launch actions have no Service
-// Reference resource and carry no suffix. A launch-action parameter is typed
+// Reference resource and carry no suffix, as does a source server's
+// replication configuration. A launch-action parameter is typed
 // SSM_STORE or DYNAMIC, and the model restricts its value to ^[A-Za-z0-9.-]+$:
 // a reference to a Parameter Store parameter or a launch-time value, too narrow
 // to carry a secret, so no Redact rule applies.
@@ -28,6 +29,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeDRSRecoveryPlanResource, Service: "drs"})
 	registerType(restype.Descriptor{Type: TypeDRSRecoveryPlanStep, Service: "drs"})
 	registerType(restype.Descriptor{Type: TypeDRSLaunchAction, Service: "drs"})
+	registerType(restype.Descriptor{Type: TypeDRSReplicationConfiguration, Service: "drs"})
 	registerService(serviceEntry{
 		name: "aws:drs",
 		fn:   scanDRS,
@@ -44,17 +46,20 @@ type drsAPI interface {
 	GetRecoveryPlan(context.Context, *drs.GetRecoveryPlanInput, ...func(*drs.Options)) (*drs.GetRecoveryPlanOutput, error)
 	ListRecoveryPlanSteps(context.Context, *drs.ListRecoveryPlanStepsInput, ...func(*drs.Options)) (*drs.ListRecoveryPlanStepsOutput, error)
 	ListLaunchActions(context.Context, *drs.ListLaunchActionsInput, ...func(*drs.Options)) (*drs.ListLaunchActionsOutput, error)
+	GetReplicationConfiguration(context.Context, *drs.GetReplicationConfigurationInput, ...func(*drs.Options)) (*drs.GetReplicationConfigurationOutput, error)
 }
 
-// scanDRS discovers DRS source servers, recovery instances, source networks,
-// replication / launch configuration templates, the launch actions of templates
-// and source servers, and recovery plans with their steps. Jobs and
-// recovery-plan executions (ephemeral run records) are not scanned.
+// scanDRS discovers DRS source servers with their replication configurations,
+// recovery instances, source networks, replication / launch configuration
+// templates, the launch actions of templates and source servers, and recovery
+// plans with their steps. Jobs and recovery-plan executions (ephemeral run
+// records) are not scanned.
 //
 // Phases run in order and stop at the first hard error. The launch actions run
-// after every pre-existing phase, and the recovery-plan phases run last: the
+// after every pre-existing phase, and the recovery-plan phases after them: the
 // plan API is the newest surface, and its failure must not cost the launch
-// actions, which need only the servers and templates.
+// actions, which need only the servers and templates. The per-server
+// replication configurations run last, so their failure costs no earlier phase.
 func scanDRS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := drs.NewFromConfig(acct.cfg, func(o *drs.Options) { o.Region = region })
 	var servers, templates, plans []childParent
@@ -85,6 +90,9 @@ func scanDRS(ctx context.Context, acct *account, region string, st *store.Store,
 				func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 					return listDRSRecoveryPlanSteps(ctx, client, acct, region, scanID, p)
 				})
+		},
+		func() (int, int, error) {
+			return scanDRSReplicationConfigurations(ctx, client, acct, region, st, scanID, servers)
 		},
 	} {
 		t, i, perr := phase()
@@ -252,6 +260,27 @@ func scanDRSLaunchTemplates(ctx context.Context, client drsAPI, acct *account, r
 		return 0, 0, nil, err
 	}
 	return total, inserted, parents, nil
+}
+
+// scanDRSReplicationConfigurations reads the replication configuration of each
+// source server the server phase stored. The response carries no ARN or id of
+// its own, only the server's id, so the NativeID is
+// {serverARN}/replication-configuration. A server whose call still fails
+// transiently after the SDK's retries is skipped with one warning, keeping its
+// siblings' rows.
+func scanDRSReplicationConfigurations(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string, servers []childParent) (int, int, error) {
+	return childFanOutSkipTransient(ctx, st, acct, region, "drs:GetReplicationConfiguration", servers, isDRSNotFound, byParentID,
+		func(ctx context.Context, server childParent) ([]*store.Resource, error) {
+			out, err := client.GetReplicationConfiguration(ctx, &drs.GetReplicationConfigurationInput{SourceServerID: &server.id})
+			if err != nil {
+				return nil, err
+			}
+			return []*store.Resource{{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeDRSReplicationConfiguration, NativeID: server.arn + "/replication-configuration",
+				Name: out.Name, Region: &region, AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
+			}}, nil
+		})
 }
 
 // isDRSNotFound matches a recovery plan, launch configuration template or

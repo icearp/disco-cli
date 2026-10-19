@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.641486810551555,
-    "covered": 2023,
-    "uncovered": 1313,
+    "percent": 60.671462829736214,
+    "covered": 2024,
+    "uncovered": 1312,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -564,6 +564,7 @@
       "drs/recoveryinstance",
       "drs/recoveryplan",
       "drs/recoveryplanstep",
+      "drs/replicationconfiguration",
       "drs/replicationconfigurationtemplate",
       "drs/sourcenetwork",
       "drs/sourceserver",
@@ -2464,7 +2465,6 @@
       "drs/recoveryplanexecution",
       "drs/recoveryplanexecutionstep",
       "drs/recoverysnapshot",
-      "drs/replicationconfiguration",
       "ds-data/groupmember",
       "ds/domaincontroller",
       "ds/schemaextension",

@@ -24,10 +24,13 @@ func init() {
 		EdgeDecl{TypeDRSSourceNetworkResource, TypeEC2VPC, store.RelAttachedTo},
 	)
 	registerResolver(
-		resolveDRSReplicationTemplateRefs,
+		resolveDRSReplicationSettingsRefs,
 		EdgeDecl{TypeDRSReplicationConfigurationTemplateResource, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeDRSReplicationConfigurationTemplateResource, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeDRSReplicationConfigurationTemplateResource, TypeEC2SecurityGroup, store.RelAttachedTo},
+		EdgeDecl{TypeDRSReplicationConfiguration, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeDRSReplicationConfiguration, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeDRSReplicationConfiguration, TypeEC2SecurityGroup, store.RelAttachedTo},
 	)
 	registerResolver(
 		resolveDRSLaunchTemplateRefs,
@@ -42,14 +45,15 @@ func init() {
 		EdgeDecl{TypeDRSRecoveryPlanResource, TypeDRSRecoveryPlanStep, store.RelContains},
 		EdgeDecl{TypeDRSLaunchConfigurationTemplateResource, TypeDRSLaunchAction, store.RelContains},
 		EdgeDecl{TypeDRSSourceServerResource, TypeDRSLaunchAction, store.RelContains},
+		EdgeDecl{TypeDRSSourceServerResource, TypeDRSReplicationConfiguration, store.RelContains},
 	)
 }
 
-// noopDRSHierarchy emits nothing: the recovery-plan → step and
-// launch-configuration-template / source-server → launch-action contains edges
-// are written at scan time by childFanOut (the drs:ListRecoveryPlanSteps and
-// drs:ListLaunchActions phases of scanDRSWithClient). It is registered only so
-// those edges are declared to coverage tooling.
+// noopDRSHierarchy emits nothing: the recovery-plan → step,
+// launch-configuration-template / source-server → launch-action and
+// source-server → replication-configuration contains edges are written at scan
+// time by the child fan-out phases of scanDRS. It is registered only so those
+// edges are declared to coverage tooling.
 func noopDRSHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }
@@ -242,12 +246,15 @@ func resolveDRSSourceNetworkRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveDRSReplicationTemplateRefs wires each replication-configuration
-// template to its EBS encryption key, staging subnet, and replication-server
-// security groups.
-func resolveDRSReplicationTemplateRefs(acct *account, st *store.Store) error {
+// resolveDRSReplicationSettingsRefs wires each replication-configuration
+// template and each source server's replication configuration to its EBS
+// encryption key, staging subnet, and replication-server security groups; the
+// SDK gives both shapes the same three fields. A row whose attributes do not
+// parse is reported in the returned error after the remaining rows are wired.
+func resolveDRSReplicationSettingsRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDRSReplicationConfigurationTemplateResource}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Limit: util.AllResources,
+		Types: []string{TypeDRSReplicationConfigurationTemplateResource, TypeDRSReplicationConfiguration},
 	})
 	if err != nil {
 		return err
@@ -267,6 +274,7 @@ func resolveDRSReplicationTemplateRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var bad []error
 	for _, r := range rows {
 		var attrs struct {
 			EbsEncryptionKeyArn                 *string  `json:"EbsEncryptionKeyArn"`
@@ -274,13 +282,14 @@ func resolveDRSReplicationTemplateRefs(acct *account, st *store.Store) error {
 			ReplicationServersSecurityGroupsIDs []string `json:"ReplicationServersSecurityGroupsIDs"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			bad = append(bad, fmt.Errorf("%s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		region := sv(r.Region)
 		if ref := sv(attrs.EbsEncryptionKeyArn); ref != "" {
 			if keyID, ok := kmsIdx.resolveKMSKeyID(ref, region, acct.ID); ok {
 				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert drs replication-template→kms: %w", err)
+					return fmt.Errorf("upsert %s→kms: %w", r.Type, err)
 				}
 			}
 		}
@@ -288,7 +297,7 @@ func resolveDRSReplicationTemplateRefs(acct *account, st *store.Store) error {
 			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
 			if subSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert drs replication-template→subnet: %w", err)
+					return fmt.Errorf("upsert %s→subnet: %w", r.Type, err)
 				}
 			}
 		}
@@ -299,12 +308,12 @@ func resolveDRSReplicationTemplateRefs(acct *account, st *store.Store) error {
 			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
 			if sgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert drs replication-template→sg: %w", err)
+					return fmt.Errorf("upsert %s→sg: %w", r.Type, err)
 				}
 			}
 		}
 	}
-	return nil
+	return errors.Join(bad...)
 }
 
 // resolveDRSLaunchTemplateRefs wires each launch-configuration template to the

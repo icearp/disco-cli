@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.6% (2023/3336 listable) · depth0 72.4% · depth1 43.6% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.7% (2024/3336 listable) · depth0 72.4% · depth1 43.7% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 301 | 716 | 29.6 |
+| child-uncatalogued | 302 | 715 | 29.7 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 201 | 215 | 48.3 |
 | element-arn | 36 | 70 | 34.0 |
@@ -72,7 +72,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | networkmanager | 13 | 7 | 65.0 |
 | servicecatalog | 13 | 7 | 65.0 |
 | aidevops | 8 | 6 | 57.1 |
-| drs | 8 | 6 | 57.1 |
 | forecast | 8 | 6 | 57.1 |
 | iam | 17 | 6 | 73.9 |
 | lookoutequipment | 5 | 6 | 45.5 |
@@ -94,6 +93,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codepipeline | 3 | 5 | 37.5 |
 | cognito-idp | 8 | 5 | 61.5 |
 | controlcatalog | 0 | 5 | 0.0 |
+| drs | 9 | 5 | 64.3 |
 | elasticmapreduce | 7 | 5 | 58.3 |
 | finspace-api | 0 | 5 | 0.0 |
 | groundstation | 5 | 5 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1313)
+### Uncovered (listable, no scanner) (1312)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -790,7 +790,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | drs | drs/recoveryplanexecution | 0 |  | element-written | drs:GetRecoveryPlanExecution, drs:ListRecoveryPlanExecutions |
 | drs | drs/recoveryplanexecutionstep | 1 |  | child-uncatalogued | drs:GetRecoveryPlanExecutionStep, drs:ListRecoveryPlanExecutionSteps |
 | drs | drs/recoverysnapshot | 1 |  | child-uncatalogued | drs:DescribeRecoverySnapshots |
-| drs | drs/replicationconfiguration | 1 |  | child-uncatalogued | drs:GetReplicationConfiguration |
 | ds | ds/domaincontroller | 1 |  | child-uncatalogued | ds:DescribeDomainControllers |
 | ds | ds/schemaextension | 1 |  | child-uncatalogued | ds:ListSchemaExtensions |
 | ds-data | ds-data/groupmember | 1 |  | child-uncatalogued | ds-data:ListGroupMembers |

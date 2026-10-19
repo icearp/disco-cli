@@ -1471,7 +1471,8 @@ const (
 	// DRS / Elastic Disaster Recovery (drs_scanners.go). The "-resource" suffix
 	// mirrors the AWS Service Reference resource-type names (SourceServerResource,
 	// …); DRS has no CloudFormation twin to mirror without it. Recovery-plan
-	// steps and launch actions have no Service Reference resource, so no suffix.
+	// steps, launch actions and source-server replication configurations have
+	// no Service Reference resource, so no suffix.
 	TypeDRSSourceServerResource                     = "aws:drs:source-server-resource"
 	TypeDRSRecoveryInstanceResource                 = "aws:drs:recovery-instance-resource"
 	TypeDRSSourceNetworkResource                    = "aws:drs:source-network-resource"
@@ -1480,6 +1481,7 @@ const (
 	TypeDRSRecoveryPlanResource                     = "aws:drs:recovery-plan-resource"
 	TypeDRSRecoveryPlanStep                         = "aws:drs:recovery-plan-step"
 	TypeDRSLaunchAction                             = "aws:drs:launch-action"
+	TypeDRSReplicationConfiguration                 = "aws:drs:replication-configuration"
 	// DLM (dlm_scanners.go)
 	TypeDLMLifecyclePolicy = "aws:dlm:lifecycle-policy"
 	// CUR (cur_scanners.go)

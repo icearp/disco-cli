@@ -510,3 +510,167 @@ func TestScanDRS_CallsGoToScannedRegion(t *testing.T) {
 		t.Errorf("plan row = %+v (found %v), want region eu-west-1", row, ok)
 	}
 }
+
+func drsReplicationConfigNativeID(serverID string) string {
+	return drsTestARN("source-server", serverID) + "/replication-configuration"
+}
+
+var drsTestKeyARN = "arn:aws:kms:" + testRegion + ":" + testAccountID + ":key/k-drs"
+
+// drsReplicationConfigHandler answers GetReplicationConfiguration for any
+// server, recording the server id; s-1 carries the staging subnet, security
+// group, EBS key, bandwidth, PIT policy, instance type and staging-area tags,
+// and the server in fail returns err.
+func drsReplicationConfigHandler(calls *parentCalls, fail map[string]error) func(in any) (any, error) {
+	return func(in any) (any, error) {
+		id := sv(in.(*drs.GetReplicationConfigurationInput).SourceServerID)
+		calls.add(id)
+		if err := fail[id]; err != nil {
+			return nil, err
+		}
+		out := &drs.GetReplicationConfigurationOutput{SourceServerID: &id, Name: ptrStr("cfg-" + id)}
+		if id == "s-1" {
+			out.StagingAreaSubnetId = ptrStr("subnet-1")
+			out.ReplicationServersSecurityGroupsIDs = []string{"sg-1"}
+			out.EbsEncryptionKeyArn = &drsTestKeyARN
+			out.BandwidthThrottling = 100
+			out.ReplicationServerInstanceType = ptrStr("t3.small")
+			out.PitPolicy = []drstypes.PITPolicyRule{{Interval: ptrInt32(10), RetentionDuration: ptrInt32(60), Units: drstypes.PITPolicyRuleUnitsMinute}}
+			out.StagingAreaTags = map[string]string{"team": "dr"}
+		}
+		return out, nil
+	}
+}
+
+// scanDRSReplicationConfigs seeds source servers s-1 and s-2 and runs the
+// replication-configuration phase over them.
+func scanDRSReplicationConfigs(t *testing.T, st *store.Store, fail map[string]error) (total, inserted int, calls *parentCalls, err error) {
+	t.Helper()
+	calls = &parentCalls{}
+	var servers []childParent
+	for _, id := range []string{"s-1", "s-2"} {
+		arn := drsTestARN("source-server", id)
+		upsertTestResource(t, st, "aws", testAccountID, TypeDRSSourceServerResource, arn, testRegion, "{}")
+		servers = append(servers, childParent{id: id, arn: arn})
+	}
+	client := drs.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"GetReplicationConfiguration": drsReplicationConfigHandler(calls, fail),
+	}, drsDenied))
+	total, inserted, err = scanDRSReplicationConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, servers)
+	return total, inserted, calls, err
+}
+
+func TestScanDRSReplicationConfigurations_OneRowPerServer(t *testing.T) {
+	st := newTestStore(t)
+	total, inserted, calls, err := scanDRSReplicationConfigs(t, st, nil)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if got := calls.distinct(); !slices.Equal(got, []string{"s-1", "s-2"}) {
+		t.Errorf("configurations read for %v, want [s-1 s-2]", got)
+	}
+	c1, c2 := drsReplicationConfigNativeID("s-1"), drsReplicationConfigNativeID("s-2")
+	rows := rowsByNativeID(t, st, TypeDRSReplicationConfiguration)
+	if total != 2 || inserted != 2 || !slices.Equal(nativeIDs(rows), []string{c1, c2}) {
+		t.Fatalf("total/inserted = %d/%d, rows = %v; want 2/2 [%s %s]", total, inserted, nativeIDs(rows), c1, c2)
+	}
+	assertContainsNative(t, st, drsTestARN("source-server", "s-1"), c1)
+	assertContainsNative(t, st, drsTestARN("source-server", "s-2"), c2)
+	row := rows[c1]
+	if sv(row.Name) != "cfg-s-1" || sv(row.Region) != testRegion || row.ManagedByProvider {
+		t.Errorf("row name/region/managed = %q/%q/%v", sv(row.Name), sv(row.Region), row.ManagedByProvider)
+	}
+	var attrs drs.GetReplicationConfigurationOutput
+	if err := json.Unmarshal([]byte(row.AttributesJSON), &attrs); err != nil {
+		t.Fatalf("attrs %s: %v", row.AttributesJSON, err)
+	}
+	if sv(attrs.StagingAreaSubnetId) != "subnet-1" || !slices.Equal(attrs.ReplicationServersSecurityGroupsIDs, []string{"sg-1"}) ||
+		sv(attrs.EbsEncryptionKeyArn) != drsTestKeyARN || attrs.BandwidthThrottling != 100 || sv(attrs.ReplicationServerInstanceType) != "t3.small" ||
+		len(attrs.PitPolicy) != 1 || attrs.PitPolicy[0].Units != drstypes.PITPolicyRuleUnitsMinute || attrs.StagingAreaTags["team"] != "dr" {
+		t.Errorf("attrs = %s", row.AttributesJSON)
+	}
+}
+
+func TestScanDRSReplicationConfigurations_NoServersNoCalls(t *testing.T) {
+	st := newTestStore(t)
+	var calls parentCalls
+	client := drs.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"GetReplicationConfiguration": drsReplicationConfigHandler(&calls, nil),
+	}, drsDenied))
+	total, inserted, err := scanDRSReplicationConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+	if err != nil || total != 0 || inserted != 0 || len(calls.distinct()) != 0 || len(rowsByNativeID(t, st, TypeDRSReplicationConfiguration)) != 0 {
+		t.Errorf("total/inserted = %d/%d, calls = %v, err = %v; want nothing, nil", total, inserted, calls.distinct(), err)
+	}
+}
+
+// A failed server drops only itself: deleted since listing is silent, a
+// denial or a transient error warns once however many servers hit it, and any
+// other error fails the phase.
+func TestScanDRSReplicationConfigurations_FailedServer(t *testing.T) {
+	throttled := apiErr("ThrottlingException", "Rate exceeded")
+	for _, tc := range []struct {
+		name     string
+		fail     map[string]error
+		wantWarn int
+		want     []string
+	}{
+		{"server gone", map[string]error{"s-1": drsGone}, 0, []string{drsReplicationConfigNativeID("s-2")}},
+		{"denied", map[string]error{"s-1": drsDenied, "s-2": drsDenied}, 1, []string{}},
+		{"transient", map[string]error{"s-1": throttled, "s-2": throttled}, 1, []string{}},
+		{"one transient", map[string]error{"s-1": throttled}, 1, []string{drsReplicationConfigNativeID("s-2")}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "drs:GetReplicationConfiguration")
+			total, _, _, err := scanDRSReplicationConfigs(t, st, tc.fail)
+			if err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+			if *warns != tc.wantWarn {
+				t.Errorf("warnings = %d, want %d", *warns, tc.wantWarn)
+			}
+			if got := nativeIDs(rowsByNativeID(t, st, TypeDRSReplicationConfiguration)); total != len(tc.want) || !slices.Equal(got, tc.want) {
+				t.Errorf("total = %d, rows = %v; want %v", total, got, tc.want)
+			}
+		})
+	}
+	t.Run("other", func(t *testing.T) {
+		st := newTestStore(t)
+		_, _, _, err := scanDRSReplicationConfigs(t, st, map[string]error{"s-2": drsBadInput})
+		assertAPICode(t, err, "ValidationException")
+	})
+}
+
+func TestScanDRS_StoresReplicationConfigurationsUnderTheirServers(t *testing.T) {
+	st := newTestStore(t)
+	var stepCalls, actionCalls, configCalls parentCalls
+	h := drsTopLevelHandlers(&stepCalls, &actionCalls)
+	h["GetReplicationConfiguration"] = drsReplicationConfigHandler(&configCalls, nil)
+	if err := scanDRSTopLevel(t, st, h); err != nil {
+		t.Fatalf("scanDRS: %v", err)
+	}
+	if got := configCalls.distinct(); !slices.Equal(got, []string{"s-1", "s-2"}) {
+		t.Errorf("configurations read for %v, want [s-1 s-2]", got)
+	}
+	c1, c2 := drsReplicationConfigNativeID("s-1"), drsReplicationConfigNativeID("s-2")
+	if got := nativeIDs(rowsByNativeID(t, st, TypeDRSReplicationConfiguration)); !slices.Equal(got, []string{c1, c2}) {
+		t.Fatalf("configuration rows = %v, want [%s %s]", got, c1, c2)
+	}
+	assertContainsNative(t, st, drsTestARN("source-server", "s-1"), c1)
+	assertContainsNative(t, st, drsTestARN("source-server", "s-2"), c2)
+}
+
+// The replication-configuration phase runs after every other phase, so its
+// hard error reaches the caller with the recovery-plan steps and launch
+// actions already stored.
+func TestScanDRS_ReplicationConfigurationErrorAfterEveryPhase(t *testing.T) {
+	st := newTestStore(t)
+	var stepCalls, actionCalls, configCalls parentCalls
+	h := drsTopLevelHandlers(&stepCalls, &actionCalls)
+	h["GetReplicationConfiguration"] = drsReplicationConfigHandler(&configCalls, map[string]error{"s-1": drsBadInput})
+	assertAPICode(t, scanDRSTopLevel(t, st, h), "ValidationException")
+	steps, actions := len(rowsByNativeID(t, st, TypeDRSRecoveryPlanStep)), len(rowsByNativeID(t, st, TypeDRSLaunchAction))
+	if steps != 3 || actions != 3 {
+		t.Errorf("step/launch action rows = %d/%d, want 3/3: the configuration phase ran before them", steps, actions)
+	}
+}
