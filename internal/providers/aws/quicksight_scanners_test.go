@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1019,6 +1020,575 @@ func TestScanQuickSight_TransientDoesNotMaskHardError(t *testing.T) {
 			var warned []string
 			st.OnWarn = func(w store.ScanWarning) { warned = append(warned, w.Service) }
 			h := qsTopLevelHandlers()
+			h[transient.op] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
+			h[hard.op] = func(any) (any, error) { return nil, apiErr("ValidationException", "bad") }
+			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsTopLevelDeny)}
+
+			_, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			if !isAPIErrorCode(err, "ValidationException") || classifyServiceError(err) != outcomeError {
+				t.Errorf("err = %v (outcome %v); want the %s ValidationException as outcomeError", err, classifyServiceError(err), hard.op)
+			}
+			if !slices.Equal(warned, []string{transient.warnOp}) {
+				t.Errorf("warnings = %q; want one for %s", warned, transient.warnOp)
+			}
+		})
+	}
+}
+
+func qsFolderMember(kind, id string) qstypes.MemberIdArnPair {
+	return qstypes.MemberIdArnPair{MemberId: sdkaws.String(id), MemberArn: sdkaws.String(qsTestARN(kind, id))}
+}
+
+func qsGroupMember(name string) qstypes.GroupMember {
+	return qstypes.GroupMember{MemberName: sdkaws.String(name), Arn: sdkaws.String(qsTestARN("user", "default/"+name))}
+}
+
+// seedQSGroups stores one group row per name in namespace and returns them as
+// the group phase hands them on.
+func seedQSGroups(t *testing.T, st *store.Store, namespace string, names ...string) []qsGroupRef {
+	t.Helper()
+	groups := make([]qsGroupRef, len(names))
+	for i, name := range names {
+		arn := qsTestARN("group", namespace+"/"+name)
+		upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightGroup, arn, testRegion, "{}")
+		groups[i] = qsGroupRef{namespace: namespace, name: name, arn: arn}
+	}
+	return groups
+}
+
+// qsMemberClient answers op with answer, recording each call's parent key,
+// NextToken and MaxResults as "key|token|max".
+func qsMemberClient(op string, key func(any) (string, *string, *int32), answer func(key, token string) (any, error)) (*quicksight.Client, *parentCalls) {
+	calls := &parentCalls{}
+	h := map[string]func(any) (any, error){
+		op: func(in any) (any, error) {
+			k, token, maxResults := key(in)
+			calls.add(fmt.Sprintf("%s|%s|%d", k, sv(token), sdkaws.ToInt32(maxResults)))
+			return answer(k, sv(token))
+		},
+	}
+	return quicksight.NewFromConfig(opStubConfig(h, apiErr("InternalFailureException", "unexpected op"))), calls
+}
+
+func qsFolderMembersKey(in any) (string, *string, *int32) {
+	i := in.(*quicksight.ListFolderMembersInput)
+	return *i.FolderId, i.NextToken, i.MaxResults
+}
+
+func qsGroupMembershipsKey(in any) (string, *string, *int32) {
+	i := in.(*quicksight.ListGroupMembershipsInput)
+	return *i.Namespace + "/" + *i.GroupName, i.NextToken, i.MaxResults
+}
+
+func TestScanQSFolderMembers_PaginatesEveryFolder(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	folders := seedQSParents(t, st, TypeQuickSightFolder, "folder", "f1", "f2")
+	client, calls := qsMemberClient("ListFolderMembers", qsFolderMembersKey, func(folder, token string) (any, error) {
+		switch folder + "|" + token {
+		case "f1|":
+			return &quicksight.ListFolderMembersOutput{
+				FolderMemberList: []qstypes.MemberIdArnPair{qsFolderMember("dashboard", "d1"), qsFolderMember("analysis", "d1")},
+				NextToken:        sdkaws.String("p2"),
+			}, nil
+		case "f1|p2":
+			return &quicksight.ListFolderMembersOutput{FolderMemberList: []qstypes.MemberIdArnPair{qsFolderMember("dataset", "ds1")}}, nil
+		case "f2|":
+			return &quicksight.ListFolderMembersOutput{FolderMemberList: []qstypes.MemberIdArnPair{
+				qsFolderMember("datasource", "src1"), {MemberId: sdkaws.String("no-arn")},
+			}}, nil
+		}
+		return nil, apiErr("InternalFailureException", "unexpected page "+folder+"|"+token)
+	})
+
+	total, inserted, err := scanQSFolderMembers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, folders)
+	if err != nil {
+		t.Fatalf("scanQSFolderMembers: %v", err)
+	}
+	if total != 4 || inserted != 4 {
+		t.Errorf("total, inserted = %d, %d; want 4, 4 (the ARN-less member dropped)", total, inserted)
+	}
+	if got, want := calls.distinct(), []string{"f1|p2|100", "f1||100", "f2||100"}; !slices.Equal(got, want) {
+		t.Errorf("calls = %q; want %q (every folder, every page, MaxResults 100)", got, want)
+	}
+	f1, f2 := "arn:aws:quicksight:us-east-1:123456789012:folder/f1", "arn:aws:quicksight:us-east-1:123456789012:folder/f2"
+	want := map[string]string{
+		f1 + "/member/arn:aws:quicksight:us-east-1:123456789012:dashboard/d1":    "d1",
+		f1 + "/member/arn:aws:quicksight:us-east-1:123456789012:analysis/d1":     "d1",
+		f1 + "/member/arn:aws:quicksight:us-east-1:123456789012:dataset/ds1":     "ds1",
+		f2 + "/member/arn:aws:quicksight:us-east-1:123456789012:datasource/src1": "src1",
+	}
+	rows := qsRows(t, st, TypeQuickSightFolderMember)
+	if len(rows) != len(want) {
+		t.Errorf("stored %d folder members; want %d", len(rows), len(want))
+	}
+	for nativeID, name := range want {
+		r, ok := rows[nativeID]
+		if !ok {
+			t.Errorf("folder member %s not stored", nativeID)
+			continue
+		}
+		if r.Type != TypeQuickSightFolderMember || sv(r.Region) != testRegion || sv(r.Name) != name {
+			t.Errorf("%s: type, region, name = %s, %s, %s; want %s, %s, %s", nativeID, r.Type, sv(r.Region), sv(r.Name), TypeQuickSightFolderMember, testRegion, name)
+		}
+		var attrs map[string]any
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs["MemberId"] != name {
+			t.Errorf("%s: attrs = %s (err %v); want MemberId %q", nativeID, r.AttributesJSON, err, name)
+		}
+	}
+	assertQSContains(t, st, f1,
+		f1+"/member/arn:aws:quicksight:us-east-1:123456789012:dashboard/d1",
+		f1+"/member/arn:aws:quicksight:us-east-1:123456789012:analysis/d1",
+		f1+"/member/arn:aws:quicksight:us-east-1:123456789012:dataset/ds1")
+	assertQSContains(t, st, f2, f2+"/member/arn:aws:quicksight:us-east-1:123456789012:datasource/src1")
+	if *warns != 0 {
+		t.Errorf("recorded %d warnings; want 0", *warns)
+	}
+}
+
+func TestScanQSGroupMemberships_PaginatesEveryGroupInItsNamespace(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	groups := append(seedQSGroups(t, st, "default", "admins"), seedQSGroups(t, st, "team", "Role/readers")...)
+	client, calls := qsMemberClient("ListGroupMemberships", qsGroupMembershipsKey, func(group, token string) (any, error) {
+		switch group + "|" + token {
+		case "default/admins|":
+			return &quicksight.ListGroupMembershipsOutput{
+				GroupMemberList: []qstypes.GroupMember{qsGroupMember("alice@example.com")},
+				NextToken:       sdkaws.String("p2"),
+			}, nil
+		case "default/admins|p2":
+			return &quicksight.ListGroupMembershipsOutput{GroupMemberList: []qstypes.GroupMember{qsGroupMember("ReadRole/bob")}}, nil
+		case "team/Role/readers|":
+			return &quicksight.ListGroupMembershipsOutput{GroupMemberList: []qstypes.GroupMember{
+				qsGroupMember("carol"), {MemberName: sdkaws.String("no-arn")},
+			}}, nil
+		}
+		return nil, apiErr("InternalFailureException", "unexpected page "+group+"|"+token)
+	})
+
+	total, inserted, err := scanQSGroupMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, groups)
+	if err != nil {
+		t.Fatalf("scanQSGroupMemberships: %v", err)
+	}
+	if total != 3 || inserted != 3 {
+		t.Errorf("total, inserted = %d, %d; want 3, 3 (the ARN-less member dropped)", total, inserted)
+	}
+	if got, want := calls.distinct(), []string{"default/admins|p2|100", "default/admins||100", "team/Role/readers||100"}; !slices.Equal(got, want) {
+		t.Errorf("calls = %q; want %q (each group in its own namespace, every page, MaxResults 100)", got, want)
+	}
+	admins := "arn:aws:quicksight:us-east-1:123456789012:group/default/admins"
+	readers := "arn:aws:quicksight:us-east-1:123456789012:group/team/Role/readers"
+	want := map[string]string{
+		admins + "/member/arn:aws:quicksight:us-east-1:123456789012:user/default/alice@example.com": "alice@example.com",
+		admins + "/member/arn:aws:quicksight:us-east-1:123456789012:user/default/ReadRole/bob":      "ReadRole/bob",
+		readers + "/member/arn:aws:quicksight:us-east-1:123456789012:user/default/carol":            "carol",
+	}
+	rows := qsRows(t, st, TypeQuickSightGroupMembership)
+	if len(rows) != len(want) {
+		t.Errorf("stored %d group memberships; want %d", len(rows), len(want))
+	}
+	for nativeID, name := range want {
+		r, ok := rows[nativeID]
+		if !ok {
+			t.Errorf("group membership %s not stored", nativeID)
+			continue
+		}
+		if r.Type != TypeQuickSightGroupMembership || sv(r.Region) != testRegion || sv(r.Name) != name {
+			t.Errorf("%s: type, region, name = %s, %s, %s; want %s, %s, %s", nativeID, r.Type, sv(r.Region), sv(r.Name), TypeQuickSightGroupMembership, testRegion, name)
+		}
+		var attrs map[string]any
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs["MemberName"] != name {
+			t.Errorf("%s: attrs = %s (err %v); want MemberName %q", nativeID, r.AttributesJSON, err, name)
+		}
+	}
+	assertQSContains(t, st, admins,
+		admins+"/member/arn:aws:quicksight:us-east-1:123456789012:user/default/alice@example.com",
+		admins+"/member/arn:aws:quicksight:us-east-1:123456789012:user/default/ReadRole/bob")
+	assertQSContains(t, st, readers, readers+"/member/arn:aws:quicksight:us-east-1:123456789012:user/default/carol")
+	if *warns != 0 {
+		t.Errorf("recorded %d warnings; want 0", *warns)
+	}
+}
+
+// qsMemberPager answers one parent's page request with the next page's token,
+// or with an error.
+type qsMemberPager func(parent, token string) (next *string, err error)
+
+// qsMemberPhase runs one member phase over the parents named by keys; every
+// page pager answers holds one member.
+type qsMemberPhase struct {
+	name, op, childType string
+	run                 func(t *testing.T, st *store.Store, keys []string, pager qsMemberPager) (int, int, error)
+}
+
+var qsMemberPhases = []qsMemberPhase{
+	{
+		name: "folder members", op: qsListFolderMembersOp, childType: TypeQuickSightFolderMember,
+		run: func(t *testing.T, st *store.Store, keys []string, pager qsMemberPager) (int, int, error) {
+			folders := seedQSParents(t, st, TypeQuickSightFolder, "folder", keys...)
+			client, _ := qsMemberClient("ListFolderMembers", qsFolderMembersKey, func(folder, token string) (any, error) {
+				next, err := pager(folder, token)
+				if err != nil {
+					return nil, err
+				}
+				return &quicksight.ListFolderMembersOutput{
+					FolderMemberList: []qstypes.MemberIdArnPair{qsFolderMember("dashboard", "d-"+folder)},
+					NextToken:        next,
+				}, nil
+			})
+			return scanQSFolderMembers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, folders)
+		},
+	},
+	{
+		name: "group memberships", op: qsListGroupMembershipsOp, childType: TypeQuickSightGroupMembership,
+		run: func(t *testing.T, st *store.Store, keys []string, pager qsMemberPager) (int, int, error) {
+			groups := seedQSGroups(t, st, "default", keys...)
+			client, _ := qsMemberClient("ListGroupMemberships", qsGroupMembershipsKey, func(key, token string) (any, error) {
+				group := strings.TrimPrefix(key, "default/")
+				next, err := pager(group, token)
+				if err != nil {
+					return nil, err
+				}
+				return &quicksight.ListGroupMembershipsOutput{
+					GroupMemberList: []qstypes.GroupMember{qsGroupMember("u-" + group)},
+					NextToken:       next,
+				}, nil
+			})
+			return scanQSGroupMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, groups)
+		},
+	},
+}
+
+// qsOneMemberPage answers every parent with a single page, except the parents
+// in fail, which answer with their error.
+func qsOneMemberPage(fail map[string]error) qsMemberPager {
+	return func(parent, _ string) (*string, error) { return nil, fail[parent] }
+}
+
+func TestScanQSMemberPhases_EmptyStoresNothing(t *testing.T) {
+	for _, p := range qsMemberPhases {
+		t.Run(p.name, func(t *testing.T) {
+			st := newTestStore(t)
+			total, inserted, err := p.run(t, st, nil, qsOneMemberPage(nil))
+			if err != nil || total != 0 || inserted != 0 {
+				t.Errorf("no parents: total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
+			}
+			if got := len(qsRows(t, st, p.childType)); got != 0 {
+				t.Errorf("stored %d rows; want 0", got)
+			}
+		})
+	}
+}
+
+func TestScanQSMemberPhases_ErrorHandling(t *testing.T) {
+	type outcome int
+	const (
+		skipped outcome = iota // the parent is dropped silently
+		warned                 // the parent is dropped with one warning
+		failed                 // the error is returned
+	)
+	cases := []struct {
+		code string
+		want [2]outcome // folder members, group memberships
+	}{
+		{"ResourceNotFoundException", [2]outcome{skipped, skipped}},
+		{"AccessDeniedException", [2]outcome{warned, warned}},
+		{"ThrottlingException", [2]outcome{warned, warned}},
+		{"PreconditionNotMetException", [2]outcome{failed, warned}},
+		{"ResourceUnavailableException", [2]outcome{failed, warned}},
+		{"UnsupportedUserEditionException", [2]outcome{failed, failed}},
+		{"InvalidParameterValueException", [2]outcome{failed, failed}},
+		{"InternalFailureException", [2]outcome{failed, failed}},
+	}
+	for i, p := range qsMemberPhases {
+		for _, tc := range cases {
+			t.Run(p.name+"/"+tc.code, func(t *testing.T) {
+				st := newTestStore(t)
+				var warnings []string
+				st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w.Service) }
+				total, _, err := p.run(t, st, []string{"bad", "ok1", "ok2"}, qsOneMemberPage(map[string]error{"bad": apiErr(tc.code, "x")}))
+				want := tc.want[i]
+				if want == failed {
+					if !isAPIErrorCode(err, tc.code) {
+						t.Fatalf("err = %v; want the %s returned", err, tc.code)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+				if got := len(qsRows(t, st, p.childType)); got != 2 || total != 2 {
+					t.Errorf("stored %d rows, total %d; want 2, 2 (the two other parents)", got, total)
+				}
+				wantWarns := 0
+				if want == warned {
+					wantWarns = 1
+				}
+				if len(warnings) != wantWarns {
+					t.Errorf("warnings = %q; want %d", warnings, wantWarns)
+				}
+				for _, svc := range warnings {
+					if svc != p.op {
+						t.Errorf("warning names %q; want %q", svc, p.op)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestScanQSMemberPhases_WarnOncePerCode(t *testing.T) {
+	for _, p := range qsMemberPhases {
+		for name, failure := range map[string]error{
+			"denied":    apiErr("AccessDeniedException", "User: x is not authorized to perform: quicksight:List"),
+			"throttled": apiErr("ThrottlingException", "slow down"),
+		} {
+			t.Run(p.name+"/"+name, func(t *testing.T) {
+				st := newTestStore(t)
+				warns := countOpWarnings(st, p.op)
+				_, _, err := p.run(t, st, []string{"d1", "d2", "d3", "ok"}, qsOneMemberPage(map[string]error{"d1": failure, "d2": failure, "d3": failure}))
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+				if *warns != 1 {
+					t.Errorf("recorded %d warnings for three %s parents; want 1", *warns, name)
+				}
+				if got := len(qsRows(t, st, p.childType)); got != 1 {
+					t.Errorf("stored %d rows; want the readable parent's 1", got)
+				}
+			})
+		}
+	}
+	t.Run("group memberships/precondition and unavailable", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countOpWarnings(st, qsListGroupMembershipsOp)
+		pre, gone := apiErr("PreconditionNotMetException", "x"), apiErr("ResourceUnavailableException", "x")
+		_, _, err := qsMemberPhases[1].run(t, st, []string{"p1", "p2", "u1", "ok"}, qsOneMemberPage(map[string]error{"p1": pre, "p2": pre, "u1": gone}))
+		if err != nil {
+			t.Fatalf("err = %v; want nil", err)
+		}
+		if *warns != 2 {
+			t.Errorf("recorded %d warnings; want 2 (one per code)", *warns)
+		}
+		if got := len(qsRows(t, st, TypeQuickSightGroupMembership)); got != 1 {
+			t.Errorf("stored %d rows; want the readable group's 1", got)
+		}
+	})
+}
+
+// A stored parent without the key its member op needs is not handed on, and
+// the parent phase says so in one warning under the member op.
+func TestScanQSParentPhases_WarnOnceForParentsWithoutKey(t *testing.T) {
+	h := map[string]func(any) (any, error){
+		"ListFolders": func(any) (any, error) {
+			return &quicksight.ListFoldersOutput{FolderSummaryList: []qstypes.FolderSummary{
+				{FolderId: sdkaws.String("f1"), Arn: sdkaws.String(qsTestARN("folder", "f1"))},
+				{Arn: sdkaws.String(qsTestARN("folder", "x1"))},
+				{Arn: sdkaws.String(qsTestARN("folder", "x2"))},
+			}}, nil
+		},
+		"ListGroups": func(any) (any, error) {
+			return &quicksight.ListGroupsOutput{GroupList: []qstypes.Group{
+				{GroupName: sdkaws.String("admins"), Arn: sdkaws.String(qsTestARN("group", "default/admins"))},
+				{Arn: sdkaws.String(qsTestARN("group", "default/x1"))},
+				{Arn: sdkaws.String(qsTestARN("group", "default/x2"))},
+			}}, nil
+		},
+	}
+	client := quicksight.NewFromConfig(opStubConfig(h, apiErr("InternalFailureException", "unexpected op")))
+	acct := newTestAccount(testAccountID)
+
+	t.Run("folders", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countOpWarnings(st, qsListFolderMembersOp)
+		parents, total, _, err := scanQSFolders(context.Background(), client, acct, testRegion, st, testScanID)
+		if err != nil {
+			t.Fatalf("scanQSFolders: %v", err)
+		}
+		if want := []childParent{{id: "f1", arn: qsTestARN("folder", "f1")}}; total != 3 || !slices.Equal(parents, want) {
+			t.Errorf("total, parents = %d, %v; want 3, %v", total, parents, want)
+		}
+		if *warns != 1 {
+			t.Errorf("recorded %d warnings for two folders without a FolderId; want 1", *warns)
+		}
+	})
+	t.Run("groups", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countOpWarnings(st, qsListGroupMembershipsOp)
+		groups, total, _, err := scanQSGroups(context.Background(), client, acct, testRegion, st, testScanID,
+			[]nsRef{{name: "default", arn: qsTestARN("namespace", "default")}})
+		if err != nil {
+			t.Fatalf("scanQSGroups: %v", err)
+		}
+		if want := []qsGroupRef{{namespace: "default", name: "admins", arn: qsTestARN("group", "default/admins")}}; total != 3 || !slices.Equal(groups, want) {
+			t.Errorf("total, groups = %d, %v; want 3, %v", total, groups, want)
+		}
+		if *warns != 1 {
+			t.Errorf("recorded %d warnings for two groups without a GroupName; want 1", *warns)
+		}
+	})
+}
+
+func TestScanQSMemberPhases_StopsOnRepeatedToken(t *testing.T) {
+	for _, p := range qsMemberPhases {
+		t.Run(p.name, func(t *testing.T) {
+			st := newTestStore(t)
+			var mu sync.Mutex
+			calls := 0
+			_, _, err := p.run(t, st, []string{"only"}, func(_, _ string) (*string, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				if calls++; calls > 3 {
+					return nil, apiErr("InternalFailureException", "the scan does not stop on a repeated token")
+				}
+				return sdkaws.String("same"), nil
+			})
+			if err != nil {
+				t.Fatalf("err = %v; want nil", err)
+			}
+			if calls != 2 {
+				t.Errorf("made %d calls; want 2 (stop when the token repeats)", calls)
+			}
+		})
+	}
+}
+
+// qsMemberTopLevelHandlers serves, on top of qsTopLevelHandlers, the folder
+// f1 and two namespaces each holding a group named "admins", with one member
+// per folder and group. The member ops answer only for the FolderId and the
+// (Namespace, GroupName) the parent phases listed, so a parent handed on
+// under the wrong key fails the scan.
+func qsMemberTopLevelHandlers() map[string]func(any) (any, error) {
+	h := qsTopLevelHandlers()
+	h["ListNamespaces"] = func(any) (any, error) {
+		return &quicksight.ListNamespacesOutput{Namespaces: []qstypes.NamespaceInfoV2{
+			{Name: sdkaws.String("default"), Arn: sdkaws.String(qsTestARN("namespace", "default"))},
+			{Name: sdkaws.String("team"), Arn: sdkaws.String(qsTestARN("namespace", "team"))},
+		}}, nil
+	}
+	h["ListFolders"] = func(any) (any, error) {
+		return &quicksight.ListFoldersOutput{FolderSummaryList: []qstypes.FolderSummary{
+			{FolderId: sdkaws.String("f1"), Arn: sdkaws.String(qsTestARN("folder", "f1"))},
+		}}, nil
+	}
+	h["ListGroups"] = func(in any) (any, error) {
+		ns := *in.(*quicksight.ListGroupsInput).Namespace
+		return &quicksight.ListGroupsOutput{GroupList: []qstypes.Group{
+			{GroupName: sdkaws.String("admins"), Arn: sdkaws.String(qsTestARN("group", ns+"/admins"))},
+		}}, nil
+	}
+	h["ListFolderMembers"] = func(in any) (any, error) {
+		if fid := *in.(*quicksight.ListFolderMembersInput).FolderId; fid != "f1" {
+			return nil, apiErr("InternalFailureException", "unexpected FolderId "+fid)
+		}
+		return &quicksight.ListFolderMembersOutput{FolderMemberList: []qstypes.MemberIdArnPair{qsFolderMember("dashboard", "d1")}}, nil
+	}
+	h["ListGroupMemberships"] = func(in any) (any, error) {
+		i := in.(*quicksight.ListGroupMembershipsInput)
+		member, ok := map[string]string{"default/admins": "alice", "team/admins": "bob"}[*i.Namespace+"/"+*i.GroupName]
+		if !ok {
+			return nil, apiErr("InternalFailureException", "unexpected group "+*i.Namespace+"/"+*i.GroupName)
+		}
+		return &quicksight.ListGroupMembershipsOutput{GroupMemberList: []qstypes.GroupMember{qsGroupMember(member)}}, nil
+	}
+	return h
+}
+
+const (
+	qsTestFolderMember     = "arn:aws:quicksight:us-east-1:123456789012:folder/f1/member/arn:aws:quicksight:us-east-1:123456789012:dashboard/d1"
+	qsTestGroupMembership  = "arn:aws:quicksight:us-east-1:123456789012:group/default/admins/member/arn:aws:quicksight:us-east-1:123456789012:user/default/alice"
+	qsTestGroupMembership2 = "arn:aws:quicksight:us-east-1:123456789012:group/team/admins/member/arn:aws:quicksight:us-east-1:123456789012:user/default/bob"
+)
+
+// TestScanQuickSight_MemberPhasesRunAfterOlderPhases pins the wiring: the
+// member phases list the folders and groups the older phases stored, run even
+// when a later older phase fails, and a member phase's hard error costs no
+// other phase its rows.
+func TestScanQuickSight_MemberPhasesRunAfterOlderPhases(t *testing.T) {
+	cases := []struct {
+		name, failOp             string
+		wantFolderMember, wantGM bool
+	}{
+		{"all succeed", "", true, true},
+		{"last older phase fails", "DescribeKeyRegistration", true, true},
+		{"folder members fail", "ListFolderMembers", false, true},
+		{"group memberships fail", "ListGroupMemberships", true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			h := qsMemberTopLevelHandlers()
+			if tc.failOp != "" {
+				h[tc.failOp] = func(any) (any, error) { return nil, apiErr("InternalFailureException", "boom") }
+			}
+			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsTopLevelDeny)}
+
+			total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			if tc.failOp == "" && err != nil {
+				t.Fatalf("scanQuickSight: %v", err)
+			}
+			if tc.failOp != "" && (!isAPIErrorCode(err, "InternalFailureException") || classifyServiceError(err) != outcomeError) {
+				t.Fatalf("err = %v; want the %s InternalFailureException as a hard error", err, tc.failOp)
+			}
+			// data set, two namespaces, folder, two groups and one row per account-level list.
+			wantTotal := 6 + len(qsListCases)
+			for _, row := range [][2]string{
+				{TypeQuickSightDataSet, qsTestARN("dataset", "ds1")},
+				{TypeQuickSightFolder, qsTestARN("folder", "f1")},
+				{TypeQuickSightGroup, qsTestARN("group", "default/admins")},
+				{TypeQuickSightGroup, qsTestARN("group", "team/admins")},
+			} {
+				if _, ok := qsRows(t, st, row[0])[row[1]]; !ok {
+					t.Errorf("%s %s not stored", row[0], row[1])
+				}
+			}
+			for _, c := range qsListCases {
+				if _, ok := qsRows(t, st, c.rtype)[qsTestARN(c.kind, "x1")]; !ok {
+					t.Errorf("%s row not stored", c.name)
+				}
+			}
+			if _, has := qsRows(t, st, TypeQuickSightFolderMember)[qsTestFolderMember]; has != tc.wantFolderMember {
+				t.Errorf("folder member stored = %v; want %v", has, tc.wantFolderMember)
+			} else if has {
+				wantTotal++
+				assertQSContains(t, st, qsTestARN("folder", "f1"), qsTestFolderMember)
+			}
+			for group, membership := range map[string]string{
+				qsTestARN("group", "default/admins"): qsTestGroupMembership,
+				qsTestARN("group", "team/admins"):    qsTestGroupMembership2,
+			} {
+				if _, has := qsRows(t, st, TypeQuickSightGroupMembership)[membership]; has != tc.wantGM {
+					t.Errorf("group membership %s stored = %v; want %v", membership, has, tc.wantGM)
+				} else if has {
+					wantTotal++
+					assertQSContains(t, st, group, membership)
+				}
+			}
+			if total != wantTotal {
+				t.Errorf("total = %d; want %d", total, wantTotal)
+			}
+		})
+	}
+}
+
+// A throttled member phase skips its parents under one warning, so an older
+// phase's hard error still reaches the dispatcher as a hard error, and the
+// other way round.
+func TestScanQuickSight_MemberPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	type side struct{ op, warnOp string }
+	older := side{"DescribeKeyRegistration", "quicksight"}
+	var pairs [][2]side
+	for _, newer := range []side{{"ListFolderMembers", qsListFolderMembersOp}, {"ListGroupMemberships", qsListGroupMembershipsOp}} {
+		pairs = append(pairs, [2]side{older, newer}, [2]side{newer, older})
+	}
+	for _, p := range pairs {
+		transient, hard := p[0], p[1]
+		t.Run(transient.op+" throttled, "+hard.op+" fails", func(t *testing.T) {
+			st := newTestStore(t)
+			var warned []string
+			st.OnWarn = func(w store.ScanWarning) { warned = append(warned, w.Service) }
+			h := qsMemberTopLevelHandlers()
 			h[transient.op] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
 			h[hard.op] = func(any) (any, error) { return nil, apiErr("ValidationException", "bad") }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsTopLevelDeny)}

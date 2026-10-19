@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -32,16 +33,103 @@ func init() {
 		EdgeDecl{TypeQuickSightTemplate, TypeQuickSightTemplateAlias, store.RelContains},
 		EdgeDecl{TypeQuickSightTheme, TypeQuickSightThemeAlias, store.RelContains},
 		EdgeDecl{TypeQuickSightTopic, TypeQuickSightTopicRefreshSchedule, store.RelContains},
+		EdgeDecl{TypeQuickSightFolder, TypeQuickSightFolderMember, store.RelContains},
+		EdgeDecl{TypeQuickSightGroup, TypeQuickSightGroupMembership, store.RelContains},
+	)
+	registerResolver(
+		resolveQuickSightFolderMemberTargets,
+		EdgeDecl{TypeQuickSightFolderMember, TypeQuickSightAnalysis, store.RelAttachedTo},
+		EdgeDecl{TypeQuickSightFolderMember, TypeQuickSightDashboard, store.RelAttachedTo},
+		EdgeDecl{TypeQuickSightFolderMember, TypeQuickSightDataSet, store.RelAttachedTo},
+		EdgeDecl{TypeQuickSightFolderMember, TypeQuickSightDataSource, store.RelAttachedTo},
+		EdgeDecl{TypeQuickSightFolderMember, TypeQuickSightTopic, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveQuickSightGroupMembershipUser,
+		EdgeDecl{TypeQuickSightGroupMembership, TypeQuickSightUser, store.RelAttachedTo},
 	)
 }
 
-// noopQuickSightHierarchy emits nothing: the template → template-alias,
-// theme → theme-alias and topic → topic-refresh-schedule contains edges are
-// written at scan time by childFanOut (scanQSTemplateAliases,
-// scanQSThemeAliases, scanQSTopicRefreshSchedules). It is registered only so
+// noopQuickSightHierarchy emits nothing: the parent → child contains edges it
+// declares are written at scan time by childFanOut. It is registered only so
 // those edges are declared to coverage tooling.
 func noopQuickSightHierarchy(_ *account, _ *store.Store) error {
 	return nil
+}
+
+// qsFolderMemberTargetTypes are the disco types of the asset kinds a folder
+// can hold (the SDK's MemberType enum).
+var qsFolderMemberTargetTypes = []string{
+	TypeQuickSightAnalysis, TypeQuickSightDashboard, TypeQuickSightDataSet, TypeQuickSightDataSource, TypeQuickSightTopic,
+}
+
+// resolveQuickSightFolderMemberTargets links each folder member to the asset
+// its MemberArn names.
+func resolveQuickSightFolderMemberTargets(acct *account, st *store.Store) error {
+	return qsARNFieldEdge(acct, st, TypeQuickSightFolderMember, qsFolderMemberTargetTypes, func(raw []byte) (string, error) {
+		var attrs struct {
+			MemberArn *string `json:"MemberArn"`
+		}
+		err := json.Unmarshal(raw, &attrs)
+		return sv(attrs.MemberArn), err
+	})
+}
+
+// resolveQuickSightGroupMembershipUser links each group membership to the
+// member user its Arn names.
+func resolveQuickSightGroupMembershipUser(acct *account, st *store.Store) error {
+	return qsARNFieldEdge(acct, st, TypeQuickSightGroupMembership, []string{TypeQuickSightUser}, func(raw []byte) (string, error) {
+		var attrs struct {
+			Arn *string `json:"Arn"`
+		}
+		err := json.Unmarshal(raw, &attrs)
+		return sv(attrs.Arn), err
+	})
+}
+
+// qsARNFieldEdge emits an attached-to edge from each srcType row to the stored
+// row, of any of tgtTypes, whose NativeID is the ARN arnOf reads from its
+// attributes. A row that fails to decode is reported at the end, so that it
+// costs the other rows none of their edges.
+func qsARNFieldEdge(acct *account, st *store.Store, srcType string, tgtTypes []string, arnOf func([]byte) (string, error)) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{srcType}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	targets, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: tgtTypes, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	tgtSet := make(map[string]bool, len(targets))
+	for _, t := range targets {
+		tgtSet[t.ID] = true
+	}
+	var decodeErrs []error
+	for _, r := range rows {
+		arn, err := arnOf([]byte(r.AttributesJSON))
+		if err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", srcType, r.NativeID, err))
+			continue
+		}
+		if arn == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, arn)
+		if !tgtSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert %s→%s: %w", srcType, arn, err)
+		}
+	}
+	return errors.Join(decodeErrs...)
 }
 
 // quicksightNamespaceARNFromMember recovers the parent namespace ARN from a

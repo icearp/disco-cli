@@ -1,6 +1,8 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -88,6 +90,103 @@ func TestResolveQuickSightNamespaceMembers(t *testing.T) {
 	assertRelationship(t, rels, usrID, nsID, store.RelAttachedTo)
 	rels, _ = st.RelationshipsFrom(asgID)
 	assertRelationship(t, rels, asgID, nsID, store.RelAttachedTo)
+}
+
+// assertQSAttachedTo fails unless src (a NativeID) has exactly the attached-to
+// targets given by NativeID.
+func assertQSAttachedTo(t *testing.T, st *store.Store, src string, targets ...string) {
+	t.Helper()
+	srcID := store.ResourceID("aws", testAccountID, src)
+	rels, err := st.RelationshipsFrom(srcID, store.RelAttachedTo)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom(%s): %v", src, err)
+	}
+	if len(rels) != len(targets) {
+		t.Errorf("%s has %d attached-to edges; want %d", src, len(rels), len(targets))
+	}
+	for _, tgt := range targets {
+		assertRelationship(t, rels, srcID, store.ResourceID("aws", testAccountID, tgt), store.RelAttachedTo)
+	}
+}
+
+func TestResolveQuickSightFolderMemberTargets(t *testing.T) {
+	folder := qsTestARN("folder", "f1")
+	for _, tc := range []struct{ kind, typ string }{
+		{"analysis", TypeQuickSightAnalysis},
+		{"dashboard", TypeQuickSightDashboard},
+		{"dataset", TypeQuickSightDataSet},
+		{"datasource", TypeQuickSightDataSource},
+		{"topic", TypeQuickSightTopic},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			st := newTestStore(t)
+			assetARN := qsTestARN(tc.kind, "a1")
+			upsertTestResource(t, st, "aws", testAccountID, tc.typ, assetARN, testRegion, "{}")
+			linked := folder + "/member/" + assetARN
+			upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightFolderMember, linked, testRegion, mustJSON(qsFolderMember(tc.kind, "a1")))
+			unscanned := folder + "/member/" + qsTestARN(tc.kind, "a2")
+			upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightFolderMember, unscanned, testRegion, mustJSON(qsFolderMember(tc.kind, "a2")))
+			noAttrs := folder + "/member/empty"
+			upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightFolderMember, noAttrs, testRegion, "{}")
+
+			if err := resolveQuickSightFolderMemberTargets(newTestAccount(testAccountID), st); err != nil {
+				t.Fatalf("resolve: %v", err)
+			}
+			assertQSAttachedTo(t, st, linked, assetARN)
+			assertQSAttachedTo(t, st, unscanned)
+			assertQSAttachedTo(t, st, noAttrs)
+		})
+	}
+}
+
+func TestResolveQuickSightGroupMembershipUser(t *testing.T) {
+	st := newTestStore(t)
+	group := qsTestARN("group", "default/admins")
+	userARN := qsTestARN("user", "default/alice")
+	upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightUser, userARN, testRegion, "{}")
+	linked := group + "/member/" + userARN
+	upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightGroupMembership, linked, testRegion, mustJSON(qsGroupMember("alice")))
+	unscanned := group + "/member/" + qsTestARN("user", "default/bob")
+	upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightGroupMembership, unscanned, testRegion, mustJSON(qsGroupMember("bob")))
+	noAttrs := group + "/member/empty"
+	upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightGroupMembership, noAttrs, testRegion, "{}")
+
+	if err := resolveQuickSightGroupMembershipUser(newTestAccount(testAccountID), st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	assertQSAttachedTo(t, st, linked, userARN)
+	assertQSAttachedTo(t, st, unscanned)
+	assertQSAttachedTo(t, st, noAttrs)
+}
+
+// A row that fails to decode is returned, and costs the other rows no edge.
+func TestQSARNFieldEdge_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	st := newTestStore(t)
+	group := qsTestARN("group", "default/admins")
+	userARN := qsTestARN("user", "default/alice")
+	upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightUser, userARN, testRegion, "{}")
+	good := group + "/member/" + userARN
+	upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightGroupMembership, good, testRegion, mustJSON(qsGroupMember("alice")))
+	upsertTestResource(t, st, "aws", testAccountID, TypeQuickSightGroupMembership, group+"/member/bad", testRegion, `{"Arn":7}`)
+
+	err := resolveQuickSightGroupMembershipUser(newTestAccount(testAccountID), st)
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		t.Errorf("err = %v; want the attribute decode error", err)
+	}
+	assertQSAttachedTo(t, st, good, userARN)
+}
+
+func TestQuickSightMemberResolvers_NoRows(t *testing.T) {
+	st := newTestStore(t)
+	for name, resolve := range map[string]func(*account, *store.Store) error{
+		"folder member":    resolveQuickSightFolderMemberTargets,
+		"group membership": resolveQuickSightGroupMembershipUser,
+	} {
+		if err := resolve(newTestAccount(testAccountID), st); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
 }
 
 // TestResolveQuickSightNamespaceMembers_NoRows guards the empty/no-attrs case.

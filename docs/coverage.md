@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.3% (2012/3336 listable) · depth0 72.3% · depth1 43.1% · depth2 34.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.4% (2014/3336 listable) · depth0 72.3% · depth1 43.1% · depth2 35.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 292 | 725 | 28.7 |
+| child-uncatalogued | 294 | 723 | 28.9 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 199 | 217 | 47.8 |
 | element-arn | 36 | 70 | 34.0 |
@@ -34,7 +34,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mgn | 10 | 15 | 40.0 |
 | deadline | 13 | 14 | 48.1 |
 | dms | 11 | 14 | 44.0 |
-| quicksight | 30 | 14 | 68.2 |
 | ses | 20 | 14 | 58.8 |
 | cloudformation | 7 | 13 | 35.0 |
 | inspector2 | 5 | 13 | 27.8 |
@@ -45,6 +44,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | gamelift | 15 | 12 | 55.6 |
 | omics | 12 | 12 | 50.0 |
 | partnercentral-selling | 0 | 12 | 0.0 |
+| quicksight | 32 | 12 | 72.7 |
 | wellarchitected | 12 | 12 | 50.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
 | devicefarm | 8 | 11 | 42.1 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1324)
+### Uncovered (listable, no scanner) (1322)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1355,8 +1355,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | quicksight | quicksight/assetbundleimportjob | 0 |  | sr-resource | quicksight:DescribeAssetBundleImportJob, quicksight:ListAssetBundleImportJobs |
 | quicksight | quicksight/dashboardversion | 1 |  | child-uncatalogued | quicksight:ListDashboardVersions |
 | quicksight | quicksight/describeuserlimit | 0 |  | element-arn | quicksight:BatchDescribeUserLimits |
-| quicksight | quicksight/foldermember | 1 |  | child-uncatalogued | quicksight:ListFolderMembers |
-| quicksight | quicksight/groupmembership | 2 |  | child-uncatalogued | quicksight:DescribeGroupMembership, quicksight:ListGroupMemberships |
 | quicksight | quicksight/ingestion | 1 |  | sr-resource | quicksight:DescribeIngestion, quicksight:ListIngestions |
 | quicksight | quicksight/rolemembership | 2 |  | child-uncatalogued | quicksight:ListRoleMemberships |
 | quicksight | quicksight/selfupgrade | 1 |  | child-uncatalogued | quicksight:ListSelfUpgrades |

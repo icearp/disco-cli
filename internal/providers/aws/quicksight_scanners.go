@@ -30,7 +30,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeQuickSightDLPSetting, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightFlow, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightFolder, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightFolderMember, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightGroup, Service: "quicksight"})
+	registerType(restype.Descriptor{Type: TypeQuickSightGroupMembership, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightKeyRegistration, Service: "quicksight", Managed: true})
 	registerType(restype.Descriptor{Type: TypeQuickSightKnowledgeBase, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightLimitsProfile, Service: "quicksight"})
@@ -62,7 +64,9 @@ type quickSightAPI interface {
 	ListDataSets(context.Context, *quicksight.ListDataSetsInput, ...func(*quicksight.Options)) (*quicksight.ListDataSetsOutput, error)
 	ListDataSources(context.Context, *quicksight.ListDataSourcesInput, ...func(*quicksight.Options)) (*quicksight.ListDataSourcesOutput, error)
 	ListFlows(context.Context, *quicksight.ListFlowsInput, ...func(*quicksight.Options)) (*quicksight.ListFlowsOutput, error)
+	ListFolderMembers(context.Context, *quicksight.ListFolderMembersInput, ...func(*quicksight.Options)) (*quicksight.ListFolderMembersOutput, error)
 	ListFolders(context.Context, *quicksight.ListFoldersInput, ...func(*quicksight.Options)) (*quicksight.ListFoldersOutput, error)
+	ListGroupMemberships(context.Context, *quicksight.ListGroupMembershipsInput, ...func(*quicksight.Options)) (*quicksight.ListGroupMembershipsOutput, error)
 	ListGroups(context.Context, *quicksight.ListGroupsInput, ...func(*quicksight.Options)) (*quicksight.ListGroupsOutput, error)
 	ListIAMPolicyAssignments(context.Context, *quicksight.ListIAMPolicyAssignmentsInput, ...func(*quicksight.Options)) (*quicksight.ListIAMPolicyAssignmentsOutput, error)
 	ListKnowledgeBases(context.Context, *quicksight.ListKnowledgeBasesInput, ...func(*quicksight.Options)) (*quicksight.ListKnowledgeBasesOutput, error)
@@ -103,15 +107,17 @@ func qsSoftSkip(err error) bool {
 	return isAccessDenied(err) || isAPIErrorCode(err, "UnsupportedUserEditionException", "ResourceNotFoundException", "QuickSightUserNotFoundException", "InvalidParameterValueException", "PreconditionNotMetException", "UnauthorizedException")
 }
 
-// scanQuickSight runs the app, approval-policy, DLP-setting and limits-profile
-// phases after every older phase, so a failure on either side costs the other
-// no rows. Every side's transient error is demoted to a warning, since one
-// transient member would make the dispatcher read the whole join as transient
-// and drop every phase's counts; the errors are joined and the counts summed.
+// scanQuickSight runs the app, approval-policy, DLP-setting, limits-profile,
+// folder-member and group-membership phases after every older phase, so a
+// failure on either side costs the other no rows; the member phases list the
+// children of the folders and groups the older phases stored before any
+// failure. No side's demotable transient error reaches the join: one transient member
+// would make the dispatcher read the whole join as transient and drop every
+// phase's counts. The errors are joined and the counts summed.
 func scanQuickSight(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := quicksight.NewFromConfig(acct.cfg, func(o *quicksight.Options) { o.Region = region })
 
-	total, inserted, err := scanQSOlderPhases(ctx, client, acct, region, st, scanID)
+	parents, total, inserted, err := scanQSOlderPhases(ctx, client, acct, region, st, scanID)
 	errs := []error{demoteTransient(st, "quicksight", acct, region, err)}
 	for _, phase := range []struct {
 		op  string
@@ -127,23 +133,47 @@ func scanQuickSight(ctx context.Context, acct *account, region string, st *store
 		inserted += i
 		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
 	}
+	// The member phases skip a parent whose call is still transient after the
+	// SDK's retries (childFanOutSkipTransient), so no transient error leaves
+	// them for demoteTransient to catch.
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanQSFolderMembers(ctx, client, acct, region, st, scanID, parents.folders)
+		},
+		func() (int, int, error) {
+			return scanQSGroupMemberships(ctx, client, acct, region, st, scanID, parents.groups)
+		},
+	} {
+		t, i, perr := phase()
+		total += t
+		inserted += i
+		errs = append(errs, perr)
+	}
 	return total, inserted, errors.Join(errs...)
 }
 
+// qsParents are the folders and groups the older phases stored, handed to the
+// member phases that run after every older phase.
+type qsParents struct {
+	folders []childParent
+	groups  []qsGroupRef
+}
+
 // scanQSOlderPhases runs the phases that predate the app, approval-policy,
-// DLP-setting and limits-profile phases, stopping at the first error any of
-// them returns, transient ones included.
-func scanQSOlderPhases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// DLP-setting, limits-profile and member phases, stopping at the first error
+// any of them returns, transient ones included. It returns the folders and
+// groups stored before it stopped.
+func scanQSOlderPhases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (parents qsParents, total, inserted int, err error) {
 	dsIDs, t, i, ferr := scanQSDataSets(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return 0, 0, ferr
+		return parents, 0, 0, ferr
 	}
 	total += t
 	inserted += i
 
 	nsARNs, t, i, ferr := scanQSNamespaces(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return parents, total, inserted, ferr
 	}
 	total += t
 	inserted += i
@@ -153,7 +183,10 @@ func scanQSOlderPhases(ctx context.Context, client quickSightAPI, acct *account,
 		func() (int, int, error) { return scanQSAnalyses(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanQSDashboards(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanQSDataSources(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanQSFolders(ctx, client, acct, region, st, scanID) },
+		func() (t, i int, err error) {
+			parents.folders, t, i, err = scanQSFolders(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		},
 		func() (t, i int, err error) {
 			templates, t, i, err = scanQSTemplates(ctx, client, acct, region, st, scanID)
 			return t, i, err
@@ -178,7 +211,10 @@ func scanQSOlderPhases(ctx context.Context, client quickSightAPI, acct *account,
 		func() (int, int, error) { return scanQSSpaces(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanQSAccountSettings(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanQSAccountCustomization(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanQSGroups(ctx, client, acct, region, st, scanID, nsARNs) },
+		func() (t, i int, err error) {
+			parents.groups, t, i, err = scanQSGroups(ctx, client, acct, region, st, scanID, nsARNs)
+			return t, i, err
+		},
 		func() (int, int, error) { return scanQSUsers(ctx, client, acct, region, st, scanID, nsARNs) },
 		func() (int, int, error) { return scanQSAssignments(ctx, client, acct, region, st, scanID, nsARNs) },
 		func() (int, int, error) {
@@ -192,12 +228,12 @@ func scanQSOlderPhases(ctx context.Context, client quickSightAPI, acct *account,
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return parents, total, inserted, ferr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+	return parents, total, inserted, nil
 }
 
 func scanQSAnalyses(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -330,22 +366,32 @@ func scanQSDataSources(ctx context.Context, client quickSightAPI, acct *account,
 	return upsertBatch(st, batch, "quicksight data-sources")
 }
 
-func scanQSFolders(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanQSFolders stores the account's folders and returns the stored ones that
+// carry a folder id, as the parents of the folder-member phase; the folders
+// stored without one are reported in one warning.
+func scanQSFolders(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	id := acct.ID
 	pager := quicksight.NewListFoldersPaginator(client, &quicksight.ListFoldersInput{AwsAccountId: &id})
+	var parents []childParent
+	var unlisted skipTally
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if qsSoftSkip(perr) {
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("quicksight:ListFolders: %w", perr)
+			return nil, 0, 0, fmt.Errorf("quicksight:ListFolders: %w", perr)
 		}
 		for _, f := range out.FolderSummaryList {
 			arn := sv(f.Arn)
 			if arn == "" {
 				continue
+			}
+			if fid := sv(f.FolderId); fid != "" {
+				parents = append(parents, childParent{id: fid, arn: arn})
+			} else {
+				unlisted.skipped(arn, nil)
 			}
 			label := sv(f.Name)
 			if label == "" {
@@ -358,7 +404,12 @@ func scanQSFolders(ctx context.Context, client quickSightAPI, acct *account, reg
 			})
 		}
 	}
-	return upsertBatch(st, batch, "quicksight folders")
+	t, i, err := upsertBatch(st, batch, "quicksight folders")
+	if err != nil {
+		return nil, t, i, err
+	}
+	warnQSParentsUnlisted(st, acct, region, qsListFolderMembersOp, unlisted.count, "folder(s)", "FolderId", unlisted.first)
+	return parents, t, i, nil
 }
 
 func scanQSTemplates(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
@@ -899,8 +950,17 @@ func scanQSAccountCustomization(ctx context.Context, client quickSightAPI, acct 
 	return upsertBatch(st, batch, "quicksight account-customization")
 }
 
-func scanQSGroups(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, namespaces []nsRef) (int, int, error) {
+// qsGroupRef is a stored group with the namespace it was listed in: the Group
+// element names no namespace, and ListGroupMemberships needs it.
+type qsGroupRef struct{ namespace, name, arn string }
+
+// scanQSGroups stores each namespace's groups and returns the stored ones that
+// carry a group name, as the parents of the group-membership phase; the groups
+// stored without one are reported in one warning.
+func scanQSGroups(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, namespaces []nsRef) ([]qsGroupRef, int, int, error) {
 	id := acct.ID
+	var groups []qsGroupRef
+	var unlisted skipTally
 	var batch []*store.Resource
 	for _, ns := range namespaces {
 		name := ns.name
@@ -911,12 +971,17 @@ func scanQSGroups(ctx context.Context, client quickSightAPI, acct *account, regi
 				if qsSoftSkip(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("quicksight:ListGroups %s: %w", name, perr)
+				return nil, 0, 0, fmt.Errorf("quicksight:ListGroups %s: %w", name, perr)
 			}
 			for _, g := range out.GroupList {
 				arn := sv(g.Arn)
 				if arn == "" {
 					continue
+				}
+				if gn := sv(g.GroupName); gn != "" {
+					groups = append(groups, qsGroupRef{namespace: name, name: gn, arn: arn})
+				} else {
+					unlisted.skipped(arn, nil)
 				}
 				label := sv(g.GroupName)
 				if label == "" {
@@ -930,7 +995,12 @@ func scanQSGroups(ctx context.Context, client quickSightAPI, acct *account, regi
 			}
 		}
 	}
-	return upsertBatch(st, batch, "quicksight groups")
+	t, i, err := upsertBatch(st, batch, "quicksight groups")
+	if err != nil {
+		return nil, t, i, err
+	}
+	warnQSParentsUnlisted(st, acct, region, qsListGroupMembershipsOp, unlisted.count, "group(s)", "GroupName", unlisted.first)
+	return groups, t, i, nil
 }
 
 func scanQSUsers(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, namespaces []nsRef) (int, int, error) {
@@ -1145,8 +1215,11 @@ const (
 	qsListApprovalPoliciesOp = "quicksight:ListApprovalPolicies"
 	qsListDlpSettingsOp      = "quicksight:ListDlpSettings"
 	qsListLimitsProfilesOp   = "quicksight:ListLimitsProfiles"
+	qsListFolderMembersOp    = "quicksight:ListFolderMembers"
+	qsListGroupMembershipsOp = "quicksight:ListGroupMemberships"
 	// qsPageLimit is the documented MaxResults cap of ListApps,
-	// ListApprovalPolicies, ListDlpSettings and ListLimitsProfiles.
+	// ListApprovalPolicies, ListDlpSettings, ListLimitsProfiles,
+	// ListFolderMembers and ListGroupMemberships.
 	qsPageLimit = 100
 )
 
@@ -1298,4 +1371,130 @@ func scanQSLimitsProfiles(ctx context.Context, client quickSightAPI, acct *accou
 				CreatedAt: tp(p.CreatedAt), AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			}
 		})
+}
+
+// qsMemberNativeID keys a folder or group member row by the member's ARN under
+// its parent: {parentARN}/member/{memberARN}. The member ARN goes last because
+// it contains "/".
+func qsMemberNativeID(parentARN, memberARN string) string {
+	return parentARN + "/member/" + memberARN
+}
+
+// qsParentGone reports a parent deleted between its listing and its child call.
+func qsParentGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+
+// warnQSParentsUnlisted warns once that count stored parents (what, e.g.
+// "folder(s)") lacked the key op needs, so their children were not listed.
+func warnQSParentsUnlisted(st *store.Store, acct *account, region, op string, count int, what, key, first string) {
+	if count == 0 {
+		return
+	}
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+		Message: fmt.Sprintf("%d %s stored without a %s, so their members were not listed, first %s", count, what, key, first),
+	})
+}
+
+// scanQSFolderMembers stores one row per asset in each folder the folder phase
+// stored. A member carries only an id and an ARN, and each asset kind's Create
+// op takes its own id, so ids may repeat across kinds and the row is keyed by
+// the member ARN. A folder deleted since it was listed is skipped, a denial
+// warns once, and a folder still failing transiently after the SDK's retries
+// is skipped under one warning; any other error, the op's edition and
+// parameter codes included, is returned: the folder phase already succeeded,
+// so the account has folders.
+func scanQSFolderMembers(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, folders []childParent) (int, int, error) {
+	id := acct.ID
+	return childFanOutSkipTransient(ctx, st, acct, region, qsListFolderMembersOp, folders, qsParentGone, byParentARN,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			pager := quicksight.NewListFolderMembersPaginator(client, &quicksight.ListFolderMembersInput{AwsAccountId: &id, FolderId: &p.id},
+				func(o *quicksight.ListFolderMembersPaginatorOptions) {
+					o.Limit = qsPageLimit
+					o.StopOnDuplicateToken = true
+				})
+			var rows []*store.Resource
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, m := range out.FolderMemberList {
+					arn := sv(m.MemberArn)
+					if arn == "" {
+						continue
+					}
+					label := cmp.Or(sv(m.MemberId), arn)
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeQuickSightFolderMember, NativeID: qsMemberNativeID(p.arn, arn),
+						Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// scanQSGroupMemberships stores one row per member user of each group the group
+// phase stored, keyed {groupARN}/member/{userARN}. A group deleted since it was
+// listed is skipped, a denial warns once, and a group still failing
+// transiently after the SDK's retries is skipped under one warning.
+// PreconditionNotMetException and ResourceUnavailableException are modeled for
+// the op, but what they mean on this call is unverified: each skips that group
+// with one warning per code, so that one group QuickSight will not list cannot
+// fail every scan. Any other error is returned.
+func scanQSGroupMemberships(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, groups []qsGroupRef) (int, int, error) {
+	const why = "QuickSight may refuse the members of a group it cannot list yet or does not manage (unverified)"
+	// Keyed by ARN: errors and warnings then name the namespace, which tells
+	// apart same-named groups in two namespaces.
+	parents := make([]childParent, len(groups))
+	refOf := make(map[string]qsGroupRef, len(groups))
+	for i, g := range groups {
+		parents[i] = childParent{id: g.arn, arn: g.arn}
+		refOf[g.arn] = g
+	}
+	var precondition, unavailable skipTally
+	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, qsListGroupMembershipsOp, parents, qsParentGone, byParentARN,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			rows, err := listQSGroupMembers(ctx, client, acct, region, scanID, refOf[p.arn])
+			if precondition.dropCode("PreconditionNotMetException", p.arn, err) ||
+				unavailable.dropCode("ResourceUnavailableException", p.arn, err) {
+				return nil, nil
+			}
+			return rows, err
+		})
+	precondition.warnCode(st, qsListGroupMembershipsOp, acct, region, "PreconditionNotMetException", "group(s)", why)
+	unavailable.warnCode(st, qsListGroupMembershipsOp, acct, region, "ResourceUnavailableException", "group(s)", why)
+	return total, inserted, err
+}
+
+// listQSGroupMembers returns the member rows of one group.
+func listQSGroupMembers(ctx context.Context, client quickSightAPI, acct *account, region, scanID string, group qsGroupRef) ([]*store.Resource, error) {
+	id := acct.ID
+	pager := quicksight.NewListGroupMembershipsPaginator(client,
+		&quicksight.ListGroupMembershipsInput{AwsAccountId: &id, Namespace: &group.namespace, GroupName: &group.name},
+		func(o *quicksight.ListGroupMembershipsPaginatorOptions) {
+			o.Limit = qsPageLimit
+			o.StopOnDuplicateToken = true
+		})
+	var rows []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range out.GroupMemberList {
+			arn := sv(m.Arn)
+			if arn == "" {
+				continue
+			}
+			label := cmp.Or(sv(m.MemberName), arn)
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeQuickSightGroupMembership, NativeID: qsMemberNativeID(group.arn, arn),
+				Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return rows, nil
 }
