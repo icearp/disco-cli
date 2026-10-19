@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.3% (2011/3336 listable) · depth0 72.2% · depth1 43.1% · depth2 34.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.3% (2012/3336 listable) · depth0 72.3% · depth1 43.1% · depth2 34.5% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
 | child-uncatalogued | 292 | 725 | 28.7 |
-| smithy-resource | 431 | 131 | 76.7 |
+| smithy-resource | 432 | 130 | 76.9 |
 | element-written | 199 | 217 | 47.8 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
@@ -243,7 +243,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | evs | 5 | 1 | 83.3 |
 | execute-api | 0 | 1 | 0.0 |
 | geo-places | 0 | 1 | 0.0 |
-| grafana | 3 | 1 | 75.0 |
 | interconnect | 2 | 1 | 66.7 |
 | invoicing | 2 | 1 | 66.7 |
 | iot-jobs-data | 0 | 1 | 0.0 |
@@ -318,6 +317,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | dsql | 2 | 0 | 100.0 |
 | elasticfilesystem | 4 | 0 | 100.0 |
 | firehose | 1 | 0 | 100.0 |
+| grafana | 4 | 0 | 100.0 |
 | health-agent | 2 | 0 | 100.0 |
 | identitystore | 3 | 0 | 100.0 |
 | ivschat | 2 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1325)
+### Uncovered (listable, no scanner) (1324)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -980,7 +980,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | glue | glue/statement | 1 |  | child-uncatalogued | glue:GetStatement, glue:ListStatements |
 | glue | glue/tableversion | 1 |  | sr-resource | glue:GetTableVersion, glue:GetTableVersions |
 | glue | glue/workflowrun | 1 |  | child-uncatalogued | glue:GetWorkflowRun, glue:GetWorkflowRuns |
-| grafana | grafana/permission | 0 |  | smithy-resource | grafana:ListPermissions |
 | greengrass | greengrass/bulkdeployment | 0 |  | sr-resource | greengrass:ListBulkDeployments |
 | greengrass | greengrass/clientdevicesassociatedwithcoredevice | 1 |  | child-uncatalogued | greengrass:ListClientDevicesAssociatedWithCoreDevice |
 | greengrass | greengrass/componentcandidate | 0 |  | element-written | greengrass:ResolveComponentCandidates |

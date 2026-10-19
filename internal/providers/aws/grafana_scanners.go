@@ -2,7 +2,9 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +19,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeGrafanaWorkspace, Service: "grafana"})
 	registerType(restype.Descriptor{Type: TypeGrafanaWorkspaceServiceAccount, Service: "grafana"})
 	registerType(restype.Descriptor{Type: TypeGrafanaWorkspaceServiceAccountToken, Service: "grafana"})
+	registerType(restype.Descriptor{Type: TypeGrafanaPermission, Service: "grafana"})
 	registerService(serviceEntry{
 		name: "aws:grafana",
 		fn:   scanGrafana,
@@ -27,23 +30,53 @@ type grafanaAPI interface {
 	ListWorkspaces(context.Context, *grafana.ListWorkspacesInput, ...func(*grafana.Options)) (*grafana.ListWorkspacesOutput, error)
 	ListWorkspaceServiceAccounts(context.Context, *grafana.ListWorkspaceServiceAccountsInput, ...func(*grafana.Options)) (*grafana.ListWorkspaceServiceAccountsOutput, error)
 	ListWorkspaceServiceAccountTokens(context.Context, *grafana.ListWorkspaceServiceAccountTokensInput, ...func(*grafana.Options)) (*grafana.ListWorkspaceServiceAccountTokensOutput, error)
+	ListPermissions(context.Context, *grafana.ListPermissionsInput, ...func(*grafana.Options)) (*grafana.ListPermissionsOutput, error)
 }
+
+const (
+	grafanaListPermissionsOp = "grafana:ListPermissions"
+	// grafanaPermissionPageLimit is ListPermissions maxResults' model maximum.
+	grafanaPermissionPageLimit = 100
+)
 
 // grafanaServiceAccount is a service account stored this scan: the token list
 // op keys on both ids, nativeID is its row's NativeID.
 type grafanaServiceAccount struct{ workspaceID, id, nativeID string }
 
 // scanGrafana discovers Amazon Managed Grafana workspaces, their service
-// accounts and the service accounts' tokens (metadata only: the list API
-// never returns a token's key).
+// accounts, the service accounts' tokens (metadata only: the list API never
+// returns a token's key) and the workspaces' role grants.
 //
-// The service account phases run after the workspace phase, so their failure
-// cannot cost the workspace rows.
-func scanGrafana(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// The workspace, service account and token phases stop at their first hard
+// error. The permission phase runs whatever they returned, over the
+// workspaces stored before a failure, so its failure costs them no rows and a
+// service account or token failure does not skip it. The older phases'
+// transient error is demoted to a warning, since one transient member would
+// make the dispatcher read the whole join as transient; the permission
+// phase's error is joined as is, because its fan-out already drops each
+// workspace's transient error. The counts are summed.
+func scanGrafana(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := grafana.NewFromConfig(acct.cfg, func(o *grafana.Options) { o.Region = region })
+	total, inserted, permWorkspaces, err := scanGrafanaOlderPhases(ctx, client, acct, region, st, scanID)
+	t, i, perr := scanGrafanaPermissions(ctx, client, acct, region, st, scanID, permWorkspaces)
+	return total + t, inserted + i, errors.Join(demoteTransient(st, "grafana", acct, region, err), perr)
+}
 
+// grafanaParents are the workspaces the workspace phase stored, split by the
+// child phase that fans out over them.
+type grafanaParents struct {
+	serviceAccounts []childParent
+	permissions     []childParent
+}
+
+// scanGrafanaOlderPhases runs the workspace, service account and token
+// phases, stopping at the first hard error. It also returns the stored
+// workspaces that use, or may use, IAM Identity Center (see
+// grafanaMayUseIdentityCenter), which are empty when the workspace phase
+// failed.
+func scanGrafanaOlderPhases(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, permWorkspaces []childParent, err error) {
 	var (
-		workspaces []childParent
+		workspaces grafanaParents
 		accounts   []grafanaServiceAccount
 	)
 	for _, phase := range []func() (int, int, error){
@@ -52,7 +85,7 @@ func scanGrafana(ctx context.Context, acct *account, region string, st *store.St
 			return t, i, err
 		},
 		func() (t, i int, err error) {
-			accounts, t, i, err = scanGrafanaServiceAccounts(ctx, client, acct, region, st, scanID, workspaces)
+			accounts, t, i, err = scanGrafanaServiceAccounts(ctx, client, acct, region, st, scanID, workspaces.serviceAccounts)
 			return t, i, err
 		},
 		func() (int, int, error) {
@@ -63,27 +96,28 @@ func scanGrafana(ctx context.Context, acct *account, region string, st *store.St
 		total += t
 		inserted += i
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, inserted, workspaces.permissions, ferr
 		}
 	}
-	return total, inserted, nil
+	return total, inserted, workspaces.permissions, nil
 }
 
 // scanGrafanaWorkspaces stores every workspace and returns, as service
-// account fan-out parents, those whose Grafana version has service accounts.
-func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+// account fan-out parents, those whose Grafana version has service accounts
+// and, as permission fan-out parents, those that use IAM Identity Center.
+func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string) (grafanaParents, int, int, error) {
 	var (
 		batch   []*store.Resource
-		parents []childParent
+		parents grafanaParents
 	)
 	var nextToken *string
 	for {
 		out, err := client.ListWorkspaces(ctx, &grafana.ListWorkspacesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "grafana:ListWorkspaces", acct.ID, region, err)
+				return grafanaParents{}, 0, 0, skipIfAccessDenied(st, "grafana:ListWorkspaces", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("grafana:ListWorkspaces: %w", err)
+			return grafanaParents{}, 0, 0, fmt.Errorf("grafana:ListWorkspaces: %w", err)
 		}
 		for _, w := range out.Workspaces {
 			id := sv(w.Id)
@@ -99,7 +133,10 @@ func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account
 				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
 			})
 			if grafanaHasServiceAccounts(sv(w.GrafanaVersion)) && grafanaHasInstance(w.Status) {
-				parents = append(parents, childParent{id: id, arn: arn})
+				parents.serviceAccounts = append(parents.serviceAccounts, childParent{id: id, arn: arn})
+			}
+			if grafanaMayUseIdentityCenter(w.Authentication) {
+				parents.permissions = append(parents.permissions, childParent{id: id, arn: arn})
 			}
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
@@ -109,9 +146,21 @@ func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account
 	}
 	total, inserted, err := upsertBatch(st, batch, "grafana workspaces")
 	if err != nil {
-		return nil, 0, 0, err
+		return grafanaParents{}, 0, 0, err
 	}
 	return parents, total, inserted, nil
+}
+
+// grafanaMayUseIdentityCenter reports whether a workspace with this
+// authentication summary can hold the role grants ListPermissions lists: the
+// API documents them as grants to IAM Identity Center users and groups, so a
+// SAML-only workspace has none. A workspace whose summary or provider list
+// (both model-required) is missing is assumed to use Identity Center, so that
+// the list call's own result shows rather than the workspace being skipped
+// unseen.
+func grafanaMayUseIdentityCenter(auth *grafanatypes.AuthenticationSummary) bool {
+	return auth == nil || len(auth.Providers) == 0 ||
+		slices.Contains(auth.Providers, grafanatypes.AuthenticationProviderTypesAwsSso)
 }
 
 // grafanaHasInstance reports whether a workspace in this status has a running
@@ -232,6 +281,50 @@ func scanGrafanaServiceAccountTokens(ctx context.Context, client grafanaAPI, acc
 			}
 			return rows, nil
 		})
+}
+
+// scanGrafanaPermissions stores one row per user or group granted a role in
+// each given workspace, keyed by grafanaPermissionNativeID because the API
+// returns no ARN. The row carries the role, so a role change shows as a
+// change on that row. ListPermissions models ValidationException; whether a
+// workspace that is still being created, or has failed or is being deleted,
+// answers with it is unverified, so such a workspace is skipped with one
+// warning rather than failing the phase on every scan.
+func scanGrafanaPermissions(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) (int, int, error) {
+	return childFanOutSkipNotReady(ctx, st, acct, region, grafanaListPermissionsOp, workspaces, isGrafanaNotFound, byParentID,
+		"workspace(s)", "a workspace that is not active may refuse it",
+		func(ctx context.Context, w childParent) ([]*store.Resource, error) {
+			var rows []*store.Resource
+			pager := grafana.NewListPermissionsPaginator(client, &grafana.ListPermissionsInput{WorkspaceId: &w.id},
+				func(o *grafana.ListPermissionsPaginatorOptions) { o.Limit = grafanaPermissionPageLimit })
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, p := range out.Permissions {
+					if p.User == nil || sv(p.User.Id) == "" || p.User.Type == "" {
+						continue
+					}
+					userID := sv(p.User.Id)
+					rows = append(rows, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeGrafanaPermission, NativeID: grafanaPermissionNativeID(w.arn, p.User.Type, userID),
+						Name: &userID, Region: &region,
+						AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+					})
+				}
+			}
+			return rows, nil
+		})
+}
+
+// grafanaPermissionNativeID keys a role grant by its workspace and grantee,
+// {workspaceARN}/permission/{userType}/{userID}. The role is left out so that
+// a role change is a change on the grantee's row; this assumes, unverified,
+// that ListPermissions returns one entry per grantee.
+func grafanaPermissionNativeID(workspaceARN string, userType grafanatypes.UserType, userID string) string {
+	return workspaceARN + "/permission/" + string(userType) + "/" + userID
 }
 
 // isGrafanaNotFound matches a workspace or service account deleted between

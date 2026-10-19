@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
 	"reflect"
 	"slices"
@@ -29,6 +30,8 @@ const (
 	gfWsA     = "arn:aws:grafana:us-east-1:123456789012:/workspaces/g-a"
 	gfWsB     = "arn:aws:grafana:us-east-1:123456789012:/workspaces/g-b"
 	gfWsC     = "arn:aws:grafana:us-east-1:123456789012:/workspaces/g-c"
+	gfWsOld   = "arn:aws:grafana:us-east-1:123456789012:/workspaces/g-old"
+	gfWsSAML  = "arn:aws:grafana:us-east-1:123456789012:/workspaces/g-saml"
 	gfSaA1    = "arn:aws:grafana:us-east-1:123456789012:/workspaces/g-a/serviceaccount/1"
 	gfSaA2    = "arn:aws:grafana:us-east-1:123456789012:/workspaces/g-a/serviceaccount/2"
 	gfSaB1    = "arn:aws:grafana:us-east-1:123456789012:/workspaces/g-b/serviceaccount/1"
@@ -60,20 +63,26 @@ func TestGrafanaHasServiceAccounts(t *testing.T) {
 	}
 }
 
-// gfWorkspacesHandler serves g-a (10.4) and g-b (9.4) on page one, then g-c
-// (no version) and g-old (8.4) on page two.
+// gfWorkspacesHandler serves g-a (10.4, Identity Center) and g-b (9.4, SAML
+// and Identity Center) on page one, then g-c (no version, no authentication
+// summary), g-old (8.4, Identity Center) and g-saml (10.4, SAML only) on
+// page two, so the service account and permission parent sets differ both ways.
 func gfWorkspacesHandler(in any) (any, error) {
-	ws := func(id, version string) grafanatypes.WorkspaceSummary {
+	ws := func(id, version string, providers ...grafanatypes.AuthenticationProviderTypes) grafanatypes.WorkspaceSummary {
 		w := grafanatypes.WorkspaceSummary{Id: ptrStr(id), Name: ptrStr("ws-" + id), Status: grafanatypes.WorkspaceStatusActive}
 		if version != "" {
 			w.GrafanaVersion = ptrStr(version)
 		}
+		if providers != nil {
+			w.Authentication = &grafanatypes.AuthenticationSummary{Providers: providers}
+		}
 		return w
 	}
+	const sso, saml = grafanatypes.AuthenticationProviderTypesAwsSso, grafanatypes.AuthenticationProviderTypesSaml
 	if in.(*grafana.ListWorkspacesInput).NextToken == nil {
-		return &grafana.ListWorkspacesOutput{Workspaces: []grafanatypes.WorkspaceSummary{ws("g-a", "10.4"), ws("g-b", "9.4")}, NextToken: ptrStr("p2")}, nil
+		return &grafana.ListWorkspacesOutput{Workspaces: []grafanatypes.WorkspaceSummary{ws("g-a", "10.4", sso), ws("g-b", "9.4", saml, sso)}, NextToken: ptrStr("p2")}, nil
 	}
-	return &grafana.ListWorkspacesOutput{Workspaces: []grafanatypes.WorkspaceSummary{ws("g-c", ""), ws("g-old", "8.4")}}, nil
+	return &grafana.ListWorkspacesOutput{Workspaces: []grafanatypes.WorkspaceSummary{ws("g-c", ""), ws("g-old", "8.4", sso), ws("g-saml", "10.4", saml)}}, nil
 }
 
 // Every workspace is stored; only those whose version has service accounts
@@ -86,16 +95,52 @@ func TestScanGrafanaWorkspaces_ParentsSkipPreServiceAccountVersions(t *testing.T
 		t.Fatalf("scan: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeGrafanaWorkspace)
-	if total != 4 || len(rows) != 4 {
-		t.Errorf("total = %d, rows = %d; want 4, 4", total, len(rows))
+	if total != 5 || len(rows) != 5 {
+		t.Errorf("total = %d, rows = %d; want 5, 5", total, len(rows))
 	}
-	if _, ok := rows["arn:aws:grafana:us-east-1:123456789012:/workspaces/g-old"]; !ok {
+	if _, ok := rows[gfWsOld]; !ok {
 		t.Errorf("8.4 workspace not stored: %v", slices.Sorted(maps.Keys(rows)))
 	}
-	slices.SortFunc(parents, func(a, b childParent) int { return strings.Compare(a.id, b.id) })
-	want := []childParent{{id: "g-a", arn: gfWsA}, {id: "g-b", arn: gfWsB}, {id: "g-c", arn: gfWsC}}
-	if !slices.Equal(parents, want) {
-		t.Errorf("parents = %v, want %v", parents, want)
+	slices.SortFunc(parents.serviceAccounts, func(a, b childParent) int { return strings.Compare(a.id, b.id) })
+	want := []childParent{{id: "g-a", arn: gfWsA}, {id: "g-b", arn: gfWsB}, {id: "g-c", arn: gfWsC}, {id: "g-saml", arn: gfWsSAML}}
+	if !slices.Equal(parents.serviceAccounts, want) {
+		t.Errorf("service account parents = %v, want %v", parents.serviceAccounts, want)
+	}
+}
+
+// The SAML-only workspace is no permission parent; one without an
+// authentication summary is, and so is a pre-9 one, which has no service
+// accounts.
+func TestScanGrafanaWorkspaces_PermissionParentsSkipSAMLOnly(t *testing.T) {
+	st := newTestStore(t)
+	client := gfClient(map[string]func(any) (any, error){"ListWorkspaces": gfWorkspacesHandler})
+	parents, _, _, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	slices.SortFunc(parents.permissions, func(a, b childParent) int { return strings.Compare(a.id, b.id) })
+	want := []childParent{{id: "g-a", arn: gfWsA}, {id: "g-b", arn: gfWsB}, {id: "g-c", arn: gfWsC}, {id: "g-old", arn: gfWsOld}}
+	if !slices.Equal(parents.permissions, want) {
+		t.Errorf("permission parents = %v, want %v", parents.permissions, want)
+	}
+}
+
+func TestGrafanaMayUseIdentityCenter(t *testing.T) {
+	const sso, saml = grafanatypes.AuthenticationProviderTypesAwsSso, grafanatypes.AuthenticationProviderTypesSaml
+	for _, tc := range []struct {
+		name string
+		auth *grafanatypes.AuthenticationSummary
+		want bool
+	}{
+		{"identity center", &grafanatypes.AuthenticationSummary{Providers: []grafanatypes.AuthenticationProviderTypes{sso}}, true},
+		{"both", &grafanatypes.AuthenticationSummary{Providers: []grafanatypes.AuthenticationProviderTypes{saml, sso}}, true},
+		{"saml only", &grafanatypes.AuthenticationSummary{Providers: []grafanatypes.AuthenticationProviderTypes{saml}}, false},
+		{"no providers", &grafanatypes.AuthenticationSummary{}, true},
+		{"no summary", nil, true},
+	} {
+		if got := grafanaMayUseIdentityCenter(tc.auth); got != tc.want {
+			t.Errorf("%s: grafanaMayUseIdentityCenter = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }
 
@@ -145,8 +190,8 @@ func TestScanGrafanaWorkspaces_ParentsSkipInstancelessStates(t *testing.T) {
 		t.Errorf("total = %d, rows = %d; want 3, 3", total, n)
 	}
 	want := []childParent{{id: "g-updating", arn: "arn:aws:grafana:us-east-1:123456789012:/workspaces/g-updating"}}
-	if !slices.Equal(parents, want) {
-		t.Errorf("parents = %v, want %v", parents, want)
+	if !slices.Equal(parents.serviceAccounts, want) {
+		t.Errorf("service account parents = %v, want %v", parents.serviceAccounts, want)
 	}
 }
 
@@ -438,47 +483,58 @@ func TestGrafanaTokenSummary_FieldsReviewedForSecrets(t *testing.T) {
 }
 
 // gfTopLevelHandlers answers every op: the workspaces of gfWorkspacesHandler,
-// their service accounts and the service accounts' tokens.
-func gfTopLevelHandlers(saCalls, tokenCalls *parentCalls) map[string]func(in any) (any, error) {
+// their service accounts, the service accounts' tokens and the workspaces'
+// permissions.
+func gfTopLevelHandlers(saCalls, tokenCalls, permCalls *parentCalls) map[string]func(in any) (any, error) {
 	return map[string]func(in any) (any, error){
 		"ListWorkspaces":                    gfWorkspacesHandler,
 		"ListWorkspaceServiceAccounts":      gfServiceAccountHandler(saCalls, nil),
 		"ListWorkspaceServiceAccountTokens": gfTokenHandler(tokenCalls, nil),
+		"ListPermissions":                   gfPermissionHandler(permCalls, nil),
 	}
 }
 
 // Service accounts are listed for every workspace the workspace phase kept as
-// a parent, tokens for every service account stored, each under its parent.
-func TestScanGrafana_StoresServiceAccountsAndTokens(t *testing.T) {
+// a parent, tokens for every service account stored, permissions for every
+// workspace that may use Identity Center, each under its parent.
+func TestScanGrafana_StoresServiceAccountsTokensAndPermissions(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	var saCalls, tokenCalls parentCalls
-	acct.cfg = opStubConfig(gfTopLevelHandlers(&saCalls, &tokenCalls), gfDenied)
+	var saCalls, tokenCalls, permCalls parentCalls
+	acct.cfg = opStubConfig(gfTopLevelHandlers(&saCalls, &tokenCalls, &permCalls), gfDenied)
 
-	total, _, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
+	total, inserted, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanGrafana: %v", err)
 	}
-	if got := saCalls.distinct(); !slices.Equal(got, []string{"g-a", "g-b", "g-c"}) {
-		t.Errorf("service accounts listed for %v, want [g-a g-b g-c]", got)
+	if got := saCalls.distinct(); !slices.Equal(got, []string{"g-a", "g-b", "g-c", "g-saml"}) {
+		t.Errorf("service accounts listed for %v, want [g-a g-b g-c g-saml]", got)
 	}
-	if got := tokenCalls.distinct(); !slices.Equal(got, []string{"g-a/1", "g-a/2", "g-b/1", "g-c/1"}) {
-		t.Errorf("tokens listed for %v, want [g-a/1 g-a/2 g-b/1 g-c/1]", got)
+	if got := tokenCalls.distinct(); !slices.Equal(got, []string{"g-a/1", "g-a/2", "g-b/1", "g-c/1", "g-saml/1"}) {
+		t.Errorf("tokens listed for %v, want [g-a/1 g-a/2 g-b/1 g-c/1 g-saml/1]", got)
 	}
-	// 4 workspaces; 4 service accounts (g-a: 1 2, g-b: 1, g-c: 1);
-	// 5 tokens (g-a/1: 1 2, g-a/2: 1, g-b/1: 1, g-c/1: 1).
-	if total != 13 {
-		t.Errorf("total = %d, want 13", total)
+	if got := permCalls.distinct(); !slices.Equal(got, []string{"g-a", "g-b", "g-c", "g-old"}) {
+		t.Errorf("permissions listed for %v, want [g-a g-b g-c g-old]", got)
+	}
+	// 5 workspaces; 5 service accounts (g-a: 1 2, g-b: 1, g-c: 1, g-saml: 1);
+	// 6 tokens (g-a/1: 1 2, g-a/2: 1, g-b/1: 1, g-c/1: 1, g-saml/1: 1);
+	// 5 permissions (g-a: user, group; g-b, g-c, g-old: user).
+	if total != 21 || inserted != 21 {
+		t.Errorf("total, inserted = %d, %d; want 21, 21", total, inserted)
+	}
+	if n := len(rowsByNativeID(t, st, TypeGrafanaPermission)); n != 5 {
+		t.Errorf("permission rows = %d, want 5", n)
 	}
 	assertContainsNative(t, st, gfWsC, gfSaC1)
 	assertContainsNative(t, st, gfSaC1, gfSaC1+"/token/1")
+	assertContainsNative(t, st, gfWsC, gfPermC)
 }
 
 func TestScanGrafana_CallsGoToScannedRegion(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	var saCalls, tokenCalls, regions parentCalls
-	cfg := opStubConfig(gfTopLevelHandlers(&saCalls, &tokenCalls), gfDenied)
+	var saCalls, tokenCalls, permCalls, regions parentCalls
+	cfg := opStubConfig(gfTopLevelHandlers(&saCalls, &tokenCalls, &permCalls), gfDenied)
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
@@ -488,34 +544,36 @@ func TestScanGrafana_CallsGoToScannedRegion(t *testing.T) {
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
 		t.Errorf("calls went to regions %v, want [eu-west-1]", got)
 	}
-	if n := len(tokenCalls.distinct()); n != 4 {
-		t.Errorf("token list calls = %d service accounts, want 4", n)
+	if n := len(tokenCalls.distinct()); n != 5 {
+		t.Errorf("token list calls = %d service accounts, want 5", n)
 	}
 }
 
-// Each new phase runs after the workspace phase, tokens after service
-// accounts, and a phase's hard error reaches the caller with the counts
-// stored before it.
-func TestScanGrafana_NewPhaseErrorAfterExistingPhases(t *testing.T) {
+// Each child phase runs after the workspace phase and tokens after service
+// accounts; a phase's hard error reaches the caller with the counts stored
+// before it, and the permission phase runs whichever older phase fails.
+func TestScanGrafana_PhaseErrorKeepsOtherPhases(t *testing.T) {
 	for _, tc := range []struct {
-		op          string
-		wantTotal   int
-		wantSAsRows int
+		op                                    string
+		err                                   *smithy.GenericAPIError
+		wantTotal, wantSAs, wantTokens, perms int
 	}{
-		// 4 workspaces; the service account phase stores nothing.
-		{op: "ListWorkspaceServiceAccounts", wantTotal: 4},
-		// + 4 service accounts; every token list fails.
-		{op: "ListWorkspaceServiceAccountTokens", wantTotal: 8, wantSAsRows: 4},
+		// 5 workspaces + 5 permissions; the service account phase stores nothing.
+		{op: "ListWorkspaceServiceAccounts", err: gfBadInput, wantTotal: 10, perms: 5},
+		// + 5 service accounts; every token list fails.
+		{op: "ListWorkspaceServiceAccountTokens", err: gfBadInput, wantTotal: 15, wantSAs: 5, perms: 5},
+		// Every older phase stores its rows; every permission list fails.
+		{op: "ListPermissions", err: gfConflict, wantTotal: 16, wantSAs: 5, wantTokens: 6},
 	} {
 		t.Run(tc.op, func(t *testing.T) {
 			st := newTestStore(t)
 			acct := newTestAccount(testAccountID)
-			var saCalls, tokenCalls parentCalls
-			handlers := gfTopLevelHandlers(&saCalls, &tokenCalls)
+			var saCalls, tokenCalls, permCalls parentCalls
+			handlers := gfTopLevelHandlers(&saCalls, &tokenCalls, &permCalls)
 			var failed atomic.Bool
 			handlers[tc.op] = func(any) (any, error) {
 				failed.Store(true)
-				return nil, gfBadInput
+				return nil, tc.err
 			}
 			acct.cfg = opStubConfig(handlers, gfDenied)
 
@@ -523,19 +581,202 @@ func TestScanGrafana_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 			if !failed.Load() {
 				t.Fatalf("%s never called", tc.op)
 			}
-			assertAPICode(t, err, "ValidationException")
-			if n := len(rowsByNativeID(t, st, TypeGrafanaWorkspace)); n != 4 {
-				t.Errorf("workspace rows = %d, want 4 before the %s phase", n, tc.op)
-			}
+			assertAPICode(t, err, tc.err.Code)
 			if total != tc.wantTotal {
 				t.Errorf("total = %d, want %d", total, tc.wantTotal)
 			}
-			if n := len(rowsByNativeID(t, st, TypeGrafanaWorkspaceServiceAccount)); n != tc.wantSAsRows {
-				t.Errorf("service account rows = %d, want %d", n, tc.wantSAsRows)
-			}
-			if n := len(rowsByNativeID(t, st, TypeGrafanaWorkspaceServiceAccountToken)); n != 0 {
-				t.Errorf("token rows = %d, want 0", n)
+			for typ, want := range map[string]int{
+				TypeGrafanaWorkspace:                    5,
+				TypeGrafanaWorkspaceServiceAccount:      tc.wantSAs,
+				TypeGrafanaWorkspaceServiceAccountToken: tc.wantTokens,
+				TypeGrafanaPermission:                   tc.perms,
+			} {
+				if n := len(rowsByNativeID(t, st, typ)); n != want {
+					t.Errorf("%s rows = %d, want %d", typ, n, want)
+				}
 			}
 		})
 	}
+}
+
+// A failed workspace phase leaves the permission phase no parents.
+func TestScanGrafana_WorkspaceFailureListsNoPermissions(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	var saCalls, tokenCalls, permCalls parentCalls
+	handlers := gfTopLevelHandlers(&saCalls, &tokenCalls, &permCalls)
+	handlers["ListWorkspaces"] = func(any) (any, error) { return nil, gfBadInput }
+	acct.cfg = opStubConfig(handlers, gfDenied)
+
+	_, _, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
+	assertAPICode(t, err, "ValidationException")
+	if got := permCalls.distinct(); len(got) != 0 {
+		t.Errorf("permissions listed for %v, want none", got)
+	}
+}
+
+// An older phase's transient error is demoted to one warning so that it does
+// not make the dispatcher read the permission phase's hard error as transient.
+func TestScanGrafana_OlderPhaseTransientDoesNotMaskPermissionError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "grafana")
+	acct := newTestAccount(testAccountID)
+	var saCalls, tokenCalls, permCalls parentCalls
+	handlers := gfTopLevelHandlers(&saCalls, &tokenCalls, &permCalls)
+	handlers["ListWorkspaceServiceAccountTokens"] = func(any) (any, error) { return nil, apiErr("ServiceUnavailableException", "try later") }
+	handlers["ListPermissions"] = func(any) (any, error) { return nil, gfConflict }
+	acct.cfg = opStubConfig(handlers, gfDenied)
+
+	_, _, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
+	assertAPICode(t, err, "ConflictException")
+	if got := classifyServiceError(err); got != outcomeError {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
+	}
+	if *warns != 1 {
+		t.Errorf("warnings = %d, want 1 for the demoted transient", *warns)
+	}
+}
+
+const (
+	gfPermAUser  = gfWsA + "/permission/SSO_USER/u-1"
+	gfPermAGroup = gfWsA + "/permission/SSO_GROUP/g-1"
+	gfPermB      = gfWsB + "/permission/SSO_USER/u-1"
+	gfPermC      = gfWsC + "/permission/SSO_USER/u-1"
+)
+
+// gfPermissionHandler serves, for g-a, page one (user u-1, Admin) then page
+// two (group g-1, Editor, and elements with no user, no id and no type); any
+// other workspace gets one page with user u-1 as Viewer. A workspace in fail
+// returns that error. Every call's workspace is recorded; a call asking for
+// other than the model's maximum page size fails the test's assertion on rows.
+func gfPermissionHandler(calls *parentCalls, fail map[string]error) func(in any) (any, error) {
+	perm := func(role grafanatypes.Role, userType grafanatypes.UserType, id string) grafanatypes.PermissionEntry {
+		return grafanatypes.PermissionEntry{Role: role, User: &grafanatypes.User{Id: ptrStr(id), Type: userType}}
+	}
+	return func(in any) (any, error) {
+		req := in.(*grafana.ListPermissionsInput)
+		ws := sv(req.WorkspaceId)
+		calls.add(ws)
+		if err := fail[ws]; err != nil {
+			return nil, err
+		}
+		if req.MaxResults == nil || *req.MaxResults != 100 {
+			return &grafana.ListPermissionsOutput{}, nil
+		}
+		if ws != "g-a" {
+			return &grafana.ListPermissionsOutput{Permissions: []grafanatypes.PermissionEntry{perm(grafanatypes.RoleViewer, grafanatypes.UserTypeSsoUser, "u-1")}}, nil
+		}
+		if req.NextToken == nil {
+			return &grafana.ListPermissionsOutput{Permissions: []grafanatypes.PermissionEntry{perm(grafanatypes.RoleAdmin, grafanatypes.UserTypeSsoUser, "u-1")}, NextToken: ptrStr("p2")}, nil
+		}
+		return &grafana.ListPermissionsOutput{Permissions: []grafanatypes.PermissionEntry{
+			perm(grafanatypes.RoleEditor, grafanatypes.UserTypeSsoGroup, "g-1"),
+			{Role: grafanatypes.RoleAdmin},
+			{Role: grafanatypes.RoleAdmin, User: &grafanatypes.User{Type: grafanatypes.UserTypeSsoUser}},
+			{Role: grafanatypes.RoleAdmin, User: &grafanatypes.User{Id: ptrStr("u-9")}},
+		}}, nil
+	}
+}
+
+// scanGFPermissions seeds the workspace rows and fans out over them.
+func scanGFPermissions(t *testing.T, st *store.Store, handler func(in any) (any, error), ids ...string) (int, int, error) {
+	t.Helper()
+	parents := make([]childParent, 0, len(ids))
+	arns := make([]string, 0, len(ids))
+	for _, id := range ids {
+		arn := "arn:aws:grafana:us-east-1:123456789012:/workspaces/" + id
+		parents = append(parents, childParent{id: id, arn: arn})
+		arns = append(arns, arn)
+	}
+	seedParentRows(t, st, TypeGrafanaWorkspace, arns...)
+	client := gfClient(map[string]func(any) (any, error){"ListPermissions": handler})
+	return scanGrafanaPermissions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+}
+
+// Every page of every workspace is stored, one row per grantee keyed by its
+// type and id, under its workspace; elements missing the user, its id or its
+// type are dropped.
+func TestScanGrafanaPermissions_StoresEveryPageOfEveryWorkspace(t *testing.T) {
+	st := newTestStore(t)
+	var calls parentCalls
+	total, inserted, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, nil), "g-a", "g-b")
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != 3 || inserted != 3 {
+		t.Errorf("total, inserted = %d, %d; want 3, 3", total, inserted)
+	}
+	if got := calls.distinct(); !slices.Equal(got, []string{"g-a", "g-b"}) {
+		t.Errorf("listed for %v, want [g-a g-b]", got)
+	}
+	rows := rowsByNativeID(t, st, TypeGrafanaPermission)
+	if got, want := slices.Sorted(maps.Keys(rows)), []string{gfPermAGroup, gfPermAUser, gfPermB}; !slices.Equal(got, want) {
+		t.Fatalf("permission rows = %v, want %v", got, want)
+	}
+	r := rows[gfPermAGroup]
+	if r.Type != TypeGrafanaPermission || sv(r.Region) != testRegion || sv(r.Name) != "g-1" {
+		t.Errorf("row = type %q region %q name %q; want %q %q %q", r.Type, sv(r.Region), sv(r.Name), TypeGrafanaPermission, testRegion, "g-1")
+	}
+	var attrs grafanatypes.PermissionEntry
+	if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+		t.Fatalf("decode attrs: %v", err)
+	}
+	if attrs.Role != grafanatypes.RoleEditor || attrs.User == nil || attrs.User.Type != grafanatypes.UserTypeSsoGroup {
+		t.Errorf("attrs = %s, want the Editor grant to group g-1", r.AttributesJSON)
+	}
+	assertContainsNative(t, st, gfWsA, gfPermAUser)
+	assertContainsNative(t, st, gfWsA, gfPermAGroup)
+	assertContainsNative(t, st, gfWsB, gfPermB)
+}
+
+func TestScanGrafanaPermissions_Empty(t *testing.T) {
+	st := newTestStore(t)
+	total, _, err := scanGFPermissions(t, st, func(any) (any, error) { return &grafana.ListPermissionsOutput{}, nil }, "g-a")
+	if err != nil || total != 0 {
+		t.Errorf("total = %d, err = %v; want 0, nil", total, err)
+	}
+	if n := len(rowsByNativeID(t, st, TypeGrafanaPermission)); n != 0 {
+		t.Errorf("rows = %d, want 0", n)
+	}
+}
+
+// A failed workspace drops only its own grants: deleted since listing is
+// silent; a denial, a refusal with ValidationException or a transient error
+// after retries warns once however many workspaces hit it; any other error
+// fails the phase.
+func TestScanGrafanaPermissions_FailedWorkspace(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantWarns int
+	}{
+		{name: "gone", err: gfGone, wantWarns: 0},
+		{name: "denied", err: gfDenied, wantWarns: 1},
+		{name: "not ready", err: gfBadInput, wantWarns: 1},
+		{name: "throttled", err: apiErr("ThrottlingException", "rate exceeded"), wantWarns: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, grafanaListPermissionsOp)
+			var calls parentCalls
+			fail := map[string]error{"g-a": tc.err, "g-c": tc.err}
+			total, _, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, fail), "g-a", "g-b", "g-c")
+			if err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+			rows := rowsByNativeID(t, st, TypeGrafanaPermission)
+			if _, ok := rows[gfPermB]; total != 1 || len(rows) != 1 || !ok {
+				t.Errorf("total = %d, rows = %v; want 1, [%s]", total, slices.Sorted(maps.Keys(rows)), gfPermB)
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("warnings = %d, want %d", *warns, tc.wantWarns)
+			}
+		})
+	}
+	t.Run("other", func(t *testing.T) {
+		st := newTestStore(t)
+		var calls parentCalls
+		_, _, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, map[string]error{"g-b": gfConflict}), "g-a", "g-b")
+		assertAPICode(t, err, "ConflictException")
+	})
 }

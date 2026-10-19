@@ -1432,6 +1432,7 @@ const (
 	TypeGrafanaWorkspace                    = "aws:grafana:workspace"
 	TypeGrafanaWorkspaceServiceAccount      = "aws:grafana:workspace-service-account"
 	TypeGrafanaWorkspaceServiceAccountToken = "aws:grafana:workspace-service-account-token"
+	TypeGrafanaPermission                   = "aws:grafana:permission"
 	// FinSpace (finspace_scanners.go)
 	TypeFinSpaceEnvironment = "aws:fin-space:environment"
 	// FinSpace Managed kdb (finspace_kx_scanners.go)

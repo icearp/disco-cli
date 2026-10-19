@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.28177458033573,
-    "covered": 2011,
-    "uncovered": 1325,
+    "percent": 60.31175059952039,
+    "covered": 2012,
+    "uncovered": 1324,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -907,6 +907,7 @@
       "glue/usageprofile",
       "glue/userdefinedfunction",
       "glue/workflow",
+      "grafana/permission",
       "grafana/workspace",
       "grafana/workspaceserviceaccount",
       "grafana/workspaceserviceaccounttoken",
@@ -2642,7 +2643,6 @@
       "glue/statement",
       "glue/tableversion",
       "glue/workflowrun",
-      "grafana/permission",
       "greengrass/bulkdeployment",
       "greengrass/clientdevicesassociatedwithcoredevice",
       "greengrass/componentcandidate",
