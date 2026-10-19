@@ -453,6 +453,7 @@ const (
 	TypeECSTask                                = "aws:ecs:task"
 	TypeECSDaemon                              = "aws:ecs:daemon"
 	TypeECSDaemonTaskDefinition                = "aws:ecs:daemon-task-definition"
+	TypeECSAccountSetting                      = "aws:ecs:account-setting"
 	// ECR
 	TypeECRRepository                 = "aws:ecr:repository"
 	TypeECRPublicRepository           = "aws:ecr:public-repository"

@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.5515587529976,
-    "covered": 2020,
-    "uncovered": 1316,
+    "percent": 60.58153477218225,
+    "covered": 2021,
+    "uncovered": 1315,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -718,6 +718,7 @@
       "ecr/pullthroughcacherule",
       "ecr/repository",
       "ecr/repositorycreationtemplate",
+      "ecs/accountsetting",
       "ecs/capacityprovider",
       "ecs/cluster",
       "ecs/containerinstance",
@@ -2539,7 +2540,6 @@
       "ec2/vpnconnectiondevicetype",
       "ecr-public/image",
       "ecr/image",
-      "ecs/accountsetting",
       "ecs/daemondeployment",
       "ecs/daemonrevision",
       "ecs/servicedeployment",

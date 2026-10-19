@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -35,11 +36,27 @@ type ecsAPI interface {
 	DescribeTaskDefinition(context.Context, *ecs.DescribeTaskDefinitionInput, ...func(*ecs.Options)) (*ecs.DescribeTaskDefinitionOutput, error)
 }
 
-// scanECS discovers ECS clusters, services, and task definitions in one region.
-// Clusters are described first so their ARNs can be used for service listing.
-func scanECS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanECS runs the account-settings phase, then the cluster-rooted phases, so
+// a failure on either side costs the other no rows. Settings go first because
+// they take a couple of calls, while the cluster phases fan out per cluster and
+// can run into the service deadline. Both sides' transient errors are demoted
+// to warnings: one transient member would make the dispatcher read the whole
+// join as transient, hiding the other side's hard error and discarding every
+// phase's counts.
+func scanECS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ecs.NewFromConfig(acct.cfg, func(o *ecs.Options) { o.Region = region })
+	total, inserted, serr := scanECSAccountSettings(ctx, client, acct, region, st, scanID)
+	t, i, err := scanECSClusterPhases(ctx, client, acct, region, st, scanID)
+	return total + t, inserted + i, errors.Join(
+		demoteTransient(st, ecsListAccountSettingsOp, acct, region, serr),
+		demoteTransient(st, "ecs", acct, region, err),
+	)
+}
 
+// scanECSClusterPhases discovers ECS clusters, services, and task definitions
+// in one region, stopping at the first error. Clusters are described first so
+// their ARNs can be used for service listing.
+func scanECSClusterPhases(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	clusterARNs, tt, nn, err := scanECSClusters(ctx, client, acct, region, st, scanID)
 	if err != nil {
 		return 0, 0, err

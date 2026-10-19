@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.6% (2020/3336 listable) · depth0 72.3% · depth1 43.4% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.6% (2021/3336 listable) · depth0 72.4% · depth1 43.4% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1047 | 174 | 85.7 |
 | child-uncatalogued | 299 | 718 | 29.4 |
 | smithy-resource | 432 | 130 | 76.9 |
-| element-written | 200 | 216 | 48.1 |
+| element-written | 201 | 215 | 48.3 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -94,7 +94,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codepipeline | 3 | 5 | 37.5 |
 | cognito-idp | 8 | 5 | 61.5 |
 | controlcatalog | 0 | 5 | 0.0 |
-| ecs | 9 | 5 | 64.3 |
 | elasticmapreduce | 7 | 5 | 58.3 |
 | finspace-api | 0 | 5 | 0.0 |
 | groundstation | 5 | 5 | 50.0 |
@@ -118,6 +117,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codeconnections | 0 | 4 | 0.0 |
 | controltower | 3 | 4 | 42.9 |
 | dynamodb | 4 | 4 | 50.0 |
+| ecs | 10 | 4 | 71.4 |
 | eks | 11 | 4 | 73.3 |
 | fis | 2 | 4 | 33.3 |
 | frauddetector | 12 | 4 | 75.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1316)
+### Uncovered (listable, no scanner) (1315)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -868,7 +868,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/vpnconnectiondevicetype | 0 |  | sr-resource | ec2:GetVpnConnectionDeviceTypes |
 | ecr | ecr/image | 1 |  | child-uncatalogued | ecr:DescribeImageReplicationStatus, ecr:DescribeImageSigningStatus, ecr:DescribeImages, ecr:ListImages |
 | ecr-public | ecr-public/image | 1 |  | child-uncatalogued | ecr-public:DescribeImages |
-| ecs | ecs/accountsetting | 0 |  | element-written | ecs:ListAccountSettings |
 | ecs | ecs/daemondeployment | 2 |  | smithy-resource | ecs:DescribeDaemonDeployments |
 | ecs | ecs/daemonrevision | 2 |  | smithy-resource | ecs:DescribeDaemonRevisions |
 | ecs | ecs/servicedeployment | 2 |  | smithy-resource | ecs:DescribeServiceDeployments |
