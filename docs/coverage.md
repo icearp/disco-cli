@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.4% (2015/3336 listable) · depth0 72.3% · depth1 43.2% · depth2 35.2% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.5% (2018/3336 listable) · depth0 72.3% · depth1 43.3% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 295 | 722 | 29.0 |
+| child-uncatalogued | 298 | 719 | 29.3 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 199 | 217 | 47.8 |
 | element-arn | 36 | 70 | 34.0 |
@@ -32,7 +32,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iot | 33 | 16 | 67.3 |
 | lex | 8 | 16 | 33.3 |
 | mgn | 10 | 15 | 40.0 |
-| deadline | 13 | 14 | 48.1 |
 | dms | 11 | 14 | 44.0 |
 | ses | 20 | 14 | 58.8 |
 | cloudformation | 7 | 13 | 35.0 |
@@ -47,6 +46,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | quicksight | 32 | 12 | 72.7 |
 | wellarchitected | 12 | 12 | 50.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
+| deadline | 16 | 11 | 59.3 |
 | devicefarm | 8 | 11 | 42.1 |
 | clouddirectory | 2 | 10 | 16.7 |
 | codecatalyst | 0 | 10 | 0.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | verifiedpermissions | 5 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1321)
+### Uncovered (listable, no scanner) (1318)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -733,12 +733,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datazone | datazone/policygrant | 3 |  | child-uncatalogued | datazone:ListPolicyGrants |
 | datazone | datazone/subscriptionrequest | 1 |  | child-uncatalogued | datazone:ListSubscriptionRequests |
 | datazone | datazone/timeseriesdatapoint | 3 |  | child-uncatalogued | datazone:GetTimeSeriesDataPoint, datazone:ListTimeSeriesDataPoints |
-| deadline | deadline/farmmember | 1 |  | child-uncatalogued | deadline:ListFarmMembers |
-| deadline | deadline/fleetmember | 2 |  | child-uncatalogued | deadline:ListFleetMembers |
 | deadline | deadline/job | 2 |  | smithy-resource | deadline:BatchGetJob, deadline:GetJob, deadline:ListJobs, deadline:SearchJobs |
 | deadline | deadline/jobmember | 3 |  | child-uncatalogued | deadline:ListJobMembers |
 | deadline | deadline/jobparameterdefinition | 3 |  | child-uncatalogued | deadline:ListJobParameterDefinitions |
-| deadline | deadline/queuemember | 2 |  | child-uncatalogued | deadline:ListQueueMembers |
 | deadline | deadline/session | 3 |  | child-uncatalogued | deadline:BatchGetSession, deadline:GetSession, deadline:ListSessions, deadline:ListSessionsForWorker |
 | deadline | deadline/sessionaction | 3 |  | child-uncatalogued | deadline:ListSessionActions |
 | deadline | deadline/sessionsstatisticsaggregation | 1 |  | child-uncatalogued | deadline:GetSessionsStatisticsAggregation, deadline:StartSessionsStatisticsAggregation |

@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/deadline"
@@ -34,6 +35,9 @@ type deadlineAPI interface {
 	ListFleets(context.Context, *deadline.ListFleetsInput, ...func(*deadline.Options)) (*deadline.ListFleetsOutput, error)
 	ListLicenseEndpoints(context.Context, *deadline.ListLicenseEndpointsInput, ...func(*deadline.Options)) (*deadline.ListLicenseEndpointsOutput, error)
 	ListLimits(context.Context, *deadline.ListLimitsInput, ...func(*deadline.Options)) (*deadline.ListLimitsOutput, error)
+	ListFarmMembers(context.Context, *deadline.ListFarmMembersInput, ...func(*deadline.Options)) (*deadline.ListFarmMembersOutput, error)
+	ListFleetMembers(context.Context, *deadline.ListFleetMembersInput, ...func(*deadline.Options)) (*deadline.ListFleetMembersOutput, error)
+	ListQueueMembers(context.Context, *deadline.ListQueueMembersInput, ...func(*deadline.Options)) (*deadline.ListQueueMembersOutput, error)
 	ListMeteredProducts(context.Context, *deadline.ListMeteredProductsInput, ...func(*deadline.Options)) (*deadline.ListMeteredProductsOutput, error)
 	ListMonitors(context.Context, *deadline.ListMonitorsInput, ...func(*deadline.Options)) (*deadline.ListMonitorsOutput, error)
 	ListQueues(context.Context, *deadline.ListQueuesInput, ...func(*deadline.Options)) (*deadline.ListQueuesOutput, error)
@@ -45,28 +49,59 @@ type deadlineAPI interface {
 	ListVolumes(context.Context, *deadline.ListVolumesInput, ...func(*deadline.Options)) (*deadline.ListVolumesOutput, error)
 }
 
-// dlFarmRef carries (farmId, farmARN) and per-farm queue/fleet IDs across phases.
+// dlFarmRef carries (farmId, farmARN) and the farm's stored queues and fleets
+// across phases.
 type dlFarmRef struct {
-	id, arn  string
-	queues   []dlQueueRef
-	fleetIDs []string
-}
-
-type dlQueueRef struct {
 	id, arn string
+	queues  []childParent
+	fleets  []childParent
 }
 
 func deadlineFarmARN(region, acct, farmID string) string {
 	return fmt.Sprintf("arn:aws:deadline:%s:%s:farm/%s", region, acct, farmID)
 }
 
-func scanDeadline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanDeadline runs the member phases after every older phase, over the farms,
+// fleets and queues the older phases stored before any failure, so a member
+// phase's failure costs the older phases no rows, and an older phase's failure
+// costs the member phases only the members of parents it never stored. The
+// older side's demotable transient
+// error is demoted to a warning, since one transient member would make the
+// dispatcher read the whole join as transient and drop every phase's counts.
+// The member phases skip a parent still transient after the SDK's retries
+// (childFanOutSkipTransient), so no transient error leaves them. The errors are
+// joined and the counts summed.
+func scanDeadline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := deadline.NewFromConfig(acct.cfg, func(o *deadline.Options) { o.Region = region })
 
+	farms, total, inserted, err := scanDeadlineOlderPhases(ctx, client, acct, region, st, scanID)
+	errs := []error{demoteTransient(st, "deadline", acct, region, err)}
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanDeadlineFarmMembers(ctx, client, acct, region, st, scanID, farms) },
+		func() (int, int, error) {
+			return scanDeadlineFleetMembers(ctx, client, acct, region, st, scanID, farms)
+		},
+		func() (int, int, error) {
+			return scanDeadlineQueueMembers(ctx, client, acct, region, st, scanID, farms)
+		},
+	} {
+		t, i, perr := phase()
+		total += t
+		inserted += i
+		errs = append(errs, perr)
+	}
+	return total, inserted, errors.Join(errs...)
+}
+
+// scanDeadlineOlderPhases runs the phases that predate the member phases,
+// stopping at the first error any of them returns, transient ones included.
+// It returns the stored farms, each with the queues and fleets stored before
+// it stopped.
+func scanDeadlineOlderPhases(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string) (farms []dlFarmRef, total, inserted int, err error) {
 	// Phase 1: farms (top-level). Collect IDs for per-farm fan-out.
 	farms, t, i, ferr := scanDeadlineFarms(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return nil, total, inserted, ferr
 	}
 	total += t
 	inserted += i
@@ -91,7 +126,7 @@ func scanDeadline(ctx context.Context, acct *account, region string, st *store.S
 		} {
 			t, i, perr := phase()
 			if perr != nil {
-				return total, inserted, perr
+				return farms, total, inserted, perr
 			}
 			total += t
 			inserted += i
@@ -100,16 +135,16 @@ func scanDeadline(ctx context.Context, acct *account, region string, st *store.S
 		for _, qr := range fr.queues {
 			t, i, perr := scanDeadlineQueueEnvironments(ctx, client, acct, region, st, scanID, fr, qr)
 			if perr != nil {
-				return total, inserted, perr
+				return farms, total, inserted, perr
 			}
 			total += t
 			inserted += i
 		}
 		// Per-(farm, fleet) phase: ListVolumes requires both FarmId and FleetId.
-		for _, fleetID := range fr.fleetIDs {
-			t, i, perr := scanDeadlineVolumes(ctx, client, acct, region, st, scanID, fr, fleetID)
+		for _, fleet := range fr.fleets {
+			t, i, perr := scanDeadlineVolumes(ctx, client, acct, region, st, scanID, fr, fleet.id)
 			if perr != nil {
-				return total, inserted, perr
+				return farms, total, inserted, perr
 			}
 			total += t
 			inserted += i
@@ -119,7 +154,7 @@ func scanDeadline(ctx context.Context, acct *account, region string, st *store.S
 	// Phase: license-endpoints (top-level). Collect IDs for per-LE metered-products.
 	leIDs, t, i, ferr := scanDeadlineLicenseEndpoints(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return farms, total, inserted, ferr
 	}
 	total += t
 	inserted += i
@@ -128,7 +163,7 @@ func scanDeadline(ctx context.Context, acct *account, region string, st *store.S
 	for _, leID := range leIDs {
 		t, i, perr := scanDeadlineMeteredProducts(ctx, client, acct, region, st, scanID, leID)
 		if perr != nil {
-			return total, inserted, perr
+			return farms, total, inserted, perr
 		}
 		total += t
 		inserted += i
@@ -137,11 +172,11 @@ func scanDeadline(ctx context.Context, acct *account, region string, st *store.S
 	// Phase: monitors (top-level).
 	t, i, ferr = scanDeadlineMonitors(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return farms, total, inserted, ferr
 	}
 	total += t
 	inserted += i
-	return total, inserted, nil
+	return farms, total, inserted, nil
 }
 
 func scanDeadlineFarms(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string) ([]dlFarmRef, int, int, error) {
@@ -182,6 +217,7 @@ func scanDeadlineFarms(ctx context.Context, client deadlineAPI, acct *account, r
 func scanDeadlineFleets(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
 	pager := deadline.NewListFleetsPaginator(client, &deadline.ListFleetsInput{FarmId: &fr.id})
 	var batch []*store.Resource
+	var fleets []childParent
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -196,8 +232,8 @@ func scanDeadlineFleets(ctx context.Context, client deadlineAPI, acct *account, 
 			if id == "" {
 				continue
 			}
-			fr.fleetIDs = append(fr.fleetIDs, id)
 			arn := fmt.Sprintf("%s/fleet/%s", fr.arn, id)
+			fleets = append(fleets, childParent{id: id, arn: arn})
 			label := sv(f.DisplayName)
 			if label == "" {
 				label = id
@@ -209,7 +245,11 @@ func scanDeadlineFleets(ctx context.Context, client deadlineAPI, acct *account, 
 			})
 		}
 	}
-	return upsertBatch(st, batch, "deadline fleets")
+	t, i, err := upsertBatch(st, batch, "deadline fleets")
+	if err == nil {
+		fr.fleets = fleets
+	}
+	return t, i, err
 }
 
 func scanDeadlineLimits(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
@@ -308,6 +348,7 @@ func scanDeadlineStorageProfiles(ctx context.Context, client deadlineAPI, acct *
 func scanDeadlineQueues(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
 	pager := deadline.NewListQueuesPaginator(client, &deadline.ListQueuesInput{FarmId: &fr.id})
 	var batch []*store.Resource
+	var queues []childParent
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -327,7 +368,7 @@ func scanDeadlineQueues(ctx context.Context, client deadlineAPI, acct *account, 
 			if label == "" {
 				label = id
 			}
-			fr.queues = append(fr.queues, dlQueueRef{id: id, arn: arn})
+			queues = append(queues, childParent{id: id, arn: arn})
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDeadlineQueue, NativeID: arn,
@@ -335,7 +376,11 @@ func scanDeadlineQueues(ctx context.Context, client deadlineAPI, acct *account, 
 			})
 		}
 	}
-	return upsertBatch(st, batch, "deadline queues")
+	t, i, err := upsertBatch(st, batch, "deadline queues")
+	if err == nil {
+		fr.queues = queues
+	}
+	return t, i, err
 }
 
 func scanDeadlineQueueFleetAssociations(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
@@ -398,7 +443,7 @@ func scanDeadlineQueueLimitAssociations(ctx context.Context, client deadlineAPI,
 	return upsertBatch(st, batch, "deadline queue-limit-associations")
 }
 
-func scanDeadlineQueueEnvironments(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef, qr dlQueueRef) (int, int, error) {
+func scanDeadlineQueueEnvironments(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef, qr childParent) (int, int, error) {
 	pager := deadline.NewListQueueEnvironmentsPaginator(client, &deadline.ListQueueEnvironmentsInput{FarmId: &fr.id, QueueId: &qr.id})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

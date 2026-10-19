@@ -2,9 +2,11 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
+	dltypes "github.com/aws/aws-sdk-go-v2/service/deadline/types"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
@@ -50,6 +52,21 @@ func init() {
 	registerResolver(
 		resolveDeadlineLicenseEndpointVPC,
 		EdgeDecl{TypeDeadlineLicenseEndpoint, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(
+		noopDeadlineMemberHierarchy,
+		EdgeDecl{TypeDeadlineFarm, TypeDeadlineFarmMember, store.RelContains},
+		EdgeDecl{TypeDeadlineFleet, TypeDeadlineFleetMember, store.RelContains},
+		EdgeDecl{TypeDeadlineQueue, TypeDeadlineQueueMember, store.RelContains},
+	)
+	registerResolver(
+		resolveDeadlineMemberPrincipals,
+		EdgeDecl{TypeDeadlineFarmMember, TypeIdentityStoreUser, store.RelUses},
+		EdgeDecl{TypeDeadlineFarmMember, TypeIdentityStoreGroup, store.RelUses},
+		EdgeDecl{TypeDeadlineFleetMember, TypeIdentityStoreUser, store.RelUses},
+		EdgeDecl{TypeDeadlineFleetMember, TypeIdentityStoreGroup, store.RelUses},
+		EdgeDecl{TypeDeadlineQueueMember, TypeIdentityStoreUser, store.RelUses},
+		EdgeDecl{TypeDeadlineQueueMember, TypeIdentityStoreGroup, store.RelUses},
 	)
 	registerResolver(
 		resolveDeadlineMonitorRefs,
@@ -125,6 +142,86 @@ func resolveDeadlineLicenseEndpointVPC(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// noopDeadlineMemberHierarchy only declares the farm, fleet and queue →
+// member contains edges, which scanDeadline records at scan time via
+// childFanOut.
+func noopDeadlineMemberHierarchy(_ *account, _ *store.Store) error {
+	return nil
+}
+
+// resolveDeadlineMemberPrincipals links each farm, fleet and queue member to
+// the Identity Store user or group it names, when that principal is stored.
+// The member names its identity store, so the principal is matched on store
+// and id together. Only principals stored under the member's own account are
+// matched, so farms in a member account resolve nothing when the Identity
+// Center rows were stored by another account's scan. A member whose attributes
+// do not decode is reported and costs no other member its edge.
+func resolveDeadlineMemberPrincipals(acct *account, st *store.Store) error {
+	members, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeDeadlineFarmMember, TypeDeadlineFleetMember, TypeDeadlineQueueMember},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(members) == 0 {
+		return nil
+	}
+	principals, err := identityStorePrincipalsByStore(acct, st)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, m := range members {
+		var attrs struct {
+			IdentityStoreID *string                       `json:"IdentityStoreId"`
+			PrincipalID     *string                       `json:"PrincipalId"`
+			PrincipalType   dltypes.DeadlinePrincipalType `json:"PrincipalType"`
+		}
+		if err := json.Unmarshal([]byte(m.AttributesJSON), &attrs); err != nil {
+			errs = append(errs, fmt.Errorf("decode %s %s: %w", m.Type, m.NativeID, err))
+			continue
+		}
+		var kind string
+		switch attrs.PrincipalType {
+		case dltypes.DeadlinePrincipalTypeUser:
+			kind = "user"
+		case dltypes.DeadlinePrincipalTypeGroup:
+			kind = "group"
+		default:
+			continue
+		}
+		target, ok := principals[kind+"/"+sv(attrs.IdentityStoreID)+"/"+sv(attrs.PrincipalID)]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(m.ID, target, store.RelUses, "directed", nil); err != nil {
+			return errors.Join(append(errs, fmt.Errorf("upsert %s→identitystore principal: %w", m.Type, err))...)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// identityStorePrincipalsByStore maps the resource part of the NativeID of
+// each stored Identity Store user and group ("user/{IdentityStoreId}/{UserId}",
+// see identityStoreUserNativeID) to the row's ResourceID.
+func identityStorePrincipalsByStore(acct *account, st *store.Store) (map[string]string, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeIdentityStoreUser, TypeIdentityStoreGroup},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	index := make(map[string]string, len(rows))
+	for _, r := range rows {
+		index[r.NativeID[strings.LastIndexByte(r.NativeID, ':')+1:]] = r.ID
+	}
+	return index, nil
 }
 
 // resolveDeadlineMonitorRefs wires monitor → IAM role (RoleArn) and Identity

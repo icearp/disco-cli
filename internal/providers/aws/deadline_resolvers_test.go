@@ -1,11 +1,102 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	dltypes "github.com/aws/aws-sdk-go-v2/service/deadline/types"
 	"github.com/icearp/disco-cli/store"
 )
+
+// dlMemberAttrs is the stored attrs of a member of typ, marshalled from the
+// SDK member struct of that type.
+func dlMemberAttrs(typ, identityStoreID, principalID string, pt dltypes.DeadlinePrincipalType) string {
+	ids, pid := sdkaws.String(identityStoreID), sdkaws.String(principalID)
+	farm := sdkaws.String("farm-a")
+	switch typ {
+	case TypeDeadlineFleetMember:
+		return mustJSON(dltypes.FleetMember{FarmId: farm, FleetId: sdkaws.String("fleet-a"), IdentityStoreId: ids, PrincipalId: pid, PrincipalType: pt, MembershipLevel: dltypes.MembershipLevelViewer})
+	case TypeDeadlineQueueMember:
+		return mustJSON(dltypes.QueueMember{FarmId: farm, QueueId: sdkaws.String("queue-a"), IdentityStoreId: ids, PrincipalId: pid, PrincipalType: pt, MembershipLevel: dltypes.MembershipLevelViewer})
+	}
+	return mustJSON(dltypes.FarmMember{FarmId: farm, IdentityStoreId: ids, PrincipalId: pid, PrincipalType: pt, MembershipLevel: dltypes.MembershipLevelViewer})
+}
+
+// Each member links to the user or group it names in its own identity store,
+// and to nothing else: not to the same id in another store, nor to the other
+// principal kind sharing the id.
+func TestResolveDeadlineMemberPrincipals_LinksPrincipal(t *testing.T) {
+	user, group := dltypes.DeadlinePrincipalTypeUser, dltypes.DeadlinePrincipalTypeGroup
+	for _, typ := range []string{TypeDeadlineFarmMember, TypeDeadlineFleetMember, TypeDeadlineQueueMember} {
+		for _, pt := range []dltypes.DeadlinePrincipalType{user, group} {
+			t.Run(typ+"/"+string(pt), func(t *testing.T) {
+				st := newTestStore(t)
+				acct := newTestAccount(testAccountID)
+				userID := upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(acct.ID, dlTestStore, "p-1"), "", "{}")
+				groupID := upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreGroup, identityStoreGroupNativeID(acct.ID, dlTestStore, "p-1"), "", "{}")
+				upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(acct.ID, "d-0000000000", "p-1"), "", "{}")
+				upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreGroup, identityStoreGroupNativeID(acct.ID, "d-0000000000", "p-1"), "", "{}")
+				member := upsertTestResource(t, st, "aws", acct.ID, typ, dlTestFarmA+"/member/"+string(pt)+"/p-1", testRegion, dlMemberAttrs(typ, dlTestStore, "p-1", pt))
+
+				if err := resolveDeadlineMemberPrincipals(acct, st); err != nil {
+					t.Fatalf("resolveDeadlineMemberPrincipals: %v", err)
+				}
+				want := userID
+				if pt == group {
+					want = groupID
+				}
+				rels, err := st.RelationshipsFrom(member)
+				if err != nil {
+					t.Fatalf("RelationshipsFrom: %v", err)
+				}
+				if len(rels) != 1 {
+					t.Fatalf("edges = %v, want exactly one", rels)
+				}
+				assertRelationship(t, rels, member, want, store.RelUses)
+			})
+		}
+	}
+}
+
+// A member without attributes, or whose principal is not stored, links to
+// nothing.
+func TestResolveDeadlineMemberPrincipals_NoAttrsOrUnstoredPrincipal(t *testing.T) {
+	for _, typ := range []string{TypeDeadlineFarmMember, TypeDeadlineFleetMember, TypeDeadlineQueueMember} {
+		t.Run(typ, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(acct.ID, dlTestStore, "p-1"), "", "{}")
+			bare := upsertTestResource(t, st, "aws", acct.ID, typ, dlTestFarmA+"/member/USER/p-1", testRegion, "{}")
+			unstored := upsertTestResource(t, st, "aws", acct.ID, typ, dlTestFarmA+"/member/USER/p-2", testRegion, dlMemberAttrs(typ, dlTestStore, "p-2", dltypes.DeadlinePrincipalTypeUser))
+
+			if err := resolveDeadlineMemberPrincipals(acct, st); err != nil {
+				t.Fatalf("resolveDeadlineMemberPrincipals: %v", err)
+			}
+			assertNoEdgesFrom(t, st, bare)
+			assertNoEdgesFrom(t, st, unstored)
+		})
+	}
+}
+
+// A member whose attributes do not decode is reported and costs no other
+// member its edge.
+func TestResolveDeadlineMemberPrincipals_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	userID := upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(acct.ID, dlTestStore, "p-1"), "", "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineFarmMember, dlTestFarmA+"/member/USER/p-0", testRegion, `{"PrincipalId":7}`)
+	good := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineQueueMember, dlTestQueueA+"/member/USER/p-1", testRegion, dlMemberAttrs(TypeDeadlineQueueMember, dlTestStore, "p-1", dltypes.DeadlinePrincipalTypeUser))
+
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveDeadlineMemberPrincipals(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want a JSON type error", err)
+	}
+	rels, _ := st.RelationshipsFrom(good)
+	assertRelationship(t, rels, good, userID, store.RelUses)
+}
 
 func TestDeadlineFarmARNFromChild(t *testing.T) {
 	cases := []struct{ in, want string }{
