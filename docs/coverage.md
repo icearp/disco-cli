@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.7% (2026/3336 listable) · depth0 72.5% · depth1 43.7% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.8% (2029/3336 listable) · depth0 72.5% · depth1 44.0% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 302 | 715 | 29.7 |
+| child-uncatalogued | 305 | 712 | 30.0 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 203 | 213 | 48.8 |
 | element-arn | 36 | 70 | 34.0 |
@@ -18,8 +18,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
 | ec2 | 128 | 68 | 65.3 |
-| resiliencehub | 9 | 31 | 22.5 |
 | sagemaker | 56 | 31 | 64.4 |
+| resiliencehub | 12 | 28 | 30.0 |
 | ssm | 12 | 26 | 31.6 |
 | config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1310)
+### Uncovered (listable, no scanner) (1307)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1397,7 +1397,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | resiliencehub | resiliencehub/appassessmentresourcedrift | 1 |  | child-uncatalogued | resiliencehub:ListAppAssessmentResourceDrifts |
 | resiliencehub | resiliencehub/appcomponentcompliance | 1 |  | child-uncatalogued | resiliencehub:ListAppComponentCompliances |
 | resiliencehub | resiliencehub/appcomponentrecommendation | 1 |  | child-uncatalogued | resiliencehub:ListAppComponentRecommendations |
-| resiliencehub | resiliencehub/appinputsource | 1 |  | child-uncatalogued | resiliencehub:ListAppInputSources |
 | resiliencehub | resiliencehub/appversion | 1 |  | child-uncatalogued | resiliencehub:DescribeAppVersion, resiliencehub:ListAppVersions |
 | resiliencehub | resiliencehub/appversionappcomponent | 1 |  | child-uncatalogued | resiliencehub:DescribeAppVersionAppComponent, resiliencehub:ListAppVersionAppComponents |
 | resiliencehub | resiliencehub/appversionresource | 1 |  | child-uncatalogued | resiliencehub:DescribeAppVersionResource, resiliencehub:ListAppVersionResources |
@@ -1406,13 +1405,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | resiliencehub | resiliencehub/dependency | 0 |  | element-written | resiliencehub:ListDependencies |
 | resiliencehub | resiliencehub/failuremodeassessment | 1 |  | child-uncatalogued | resiliencehub:ListFailureModeAssessments |
 | resiliencehub | resiliencehub/failuremodefinding | 1 |  | child-uncatalogued | resiliencehub:GetFailureModeFinding, resiliencehub:ListFailureModeFindings |
-| resiliencehub | resiliencehub/inputsource | 1 |  | child-uncatalogued | resiliencehub:ListInputSources |
 | resiliencehub | resiliencehub/report | 0 |  | element-written | resiliencehub:ListReports |
 | resiliencehub | resiliencehub/resolvedtestruntargetresource | 2 |  | child-uncatalogued | resiliencehub:ListResolvedTestRunTargetResources |
 | resiliencehub | resiliencehub/resource | 1 |  | child-uncatalogued | resiliencehub:ListResources |
 | resiliencehub | resiliencehub/resourcegroupingrecommendation | 0 |  | element-created | resiliencehub:ListResourceGroupingRecommendations |
 | resiliencehub | resiliencehub/serviceevent | 1 |  | child-uncatalogued | resiliencehub:ListServiceEvents |
-| resiliencehub | resiliencehub/servicefunction | 1 |  | child-uncatalogued | resiliencehub:ListServiceFunctions |
 | resiliencehub | resiliencehub/servicetopologyedge | 1 |  | child-uncatalogued | resiliencehub:ListServiceTopologyEdges |
 | resiliencehub | resiliencehub/soprecommendation | 1 |  | child-uncatalogued | resiliencehub:ListSopRecommendations |
 | resiliencehub | resiliencehub/systemevent | 1 |  | child-uncatalogued | resiliencehub:ListSystemEvents |

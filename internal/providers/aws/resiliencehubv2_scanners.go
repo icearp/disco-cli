@@ -22,6 +22,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeResilienceHubSystem, Service: "resilience-hub"})
 	registerType(restype.Descriptor{Type: TypeResilienceHubTest, Service: "resilience-hub"})
 	registerType(restype.Descriptor{Type: TypeResilienceHubUserJourney, Service: "resilience-hub"})
+	registerType(restype.Descriptor{Type: TypeResilienceHubServiceFunction, Service: "resilience-hub"})
+	registerType(restype.Descriptor{Type: TypeResilienceHubInputSource, Service: "resilience-hub"})
 }
 
 type resilienceHubV2API interface {
@@ -30,48 +32,52 @@ type resilienceHubV2API interface {
 	ListSystems(context.Context, *resiliencehubv2.ListSystemsInput, ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListSystemsOutput, error)
 	ListTests(context.Context, *resiliencehubv2.ListTestsInput, ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListTestsOutput, error)
 	ListUserJourneys(context.Context, *resiliencehubv2.ListUserJourneysInput, ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListUserJourneysOutput, error)
+	ListServiceFunctions(context.Context, *resiliencehubv2.ListServiceFunctionsInput, ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListServiceFunctionsOutput, error)
+	ListInputSources(context.Context, *resiliencehubv2.ListInputSourcesInput, ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListInputSourcesOutput, error)
 }
 
 // scanResilienceHubV2 lists policies, services and systems, then fans out
 // tests per service and user journeys per system. ListPolicies doubles as the
 // deployment probe: when it reports the v2 API absent from the region, the
-// remaining phases are skipped.
-func scanResilienceHubV2(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// remaining phases are skipped. It returns the stored services' ARNs, once
+// their phase has succeeded, for the service-function and input-source
+// fan-outs.
+func scanResilienceHubV2(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) (serviceARNs []string, total, inserted int, err error) {
 	available, t, i, err := scanRHPolicies(ctx, client, acct, region, st, scanID)
 	if err != nil || !available {
-		return t, i, err
+		return nil, t, i, err
 	}
 	total += t
 	inserted += i
 
-	serviceARNs, t, i, err := scanRHServices(ctx, client, acct, region, st, scanID)
+	serviceARNs, t, i, err = scanRHServices(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return nil, total, inserted, err
 	}
 	total += t
 	inserted += i
 
 	systemARNs, t, i, err := scanRHSystems(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return serviceARNs, total, inserted, err
 	}
 	total += t
 	inserted += i
 
 	t, i, err = scanRHTests(ctx, client, acct, region, st, scanID, serviceARNs)
 	if err != nil {
-		return total, inserted, err
+		return serviceARNs, total, inserted, err
 	}
 	total += t
 	inserted += i
 
 	t, i, err = scanRHUserJourneys(ctx, client, acct, region, st, scanID, systemARNs)
 	if err != nil {
-		return total, inserted, err
+		return serviceARNs, total, inserted, err
 	}
 	total += t
 	inserted += i
-	return total, inserted, nil
+	return serviceARNs, total, inserted, nil
 }
 
 // rhHomedHere reports whether a v2 ARN names a resource of accountID homed
@@ -140,8 +146,8 @@ func scanRHPolicies(ctx context.Context, client resilienceHubV2API, acct *accoun
 	return true, total, inserted, err
 }
 
-// scanRHServices returns the stored services' ARNs: the parents ListTests
-// requires.
+// scanRHServices returns the stored services' ARNs: the parents ListTests,
+// ListServiceFunctions and ListInputSources require.
 func scanRHServices(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := resiliencehubv2.NewListServicesPaginator(client, &resiliencehubv2.ListServicesInput{})
 	var batch []*store.Resource
@@ -240,6 +246,68 @@ func scanRHUserJourneys(ctx context.Context, client resilienceHubV2API, acct *ac
 						continue
 					}
 					rows = append(rows, rhResource(acct, region, scanID, TypeResilienceHubUserJourney, systemARN+"/user-journey/"+id, sv(u.Name), "", u.CreatedAt, u))
+				}
+			}
+			return rows, nil
+		})
+}
+
+const rhListServiceFunctionsOp = "resiliencehub:ListServiceFunctions"
+
+// A service function has no ARN; its NativeID is
+// {serviceARN}/service-function/{serviceFunctionId}. Functions Resilience Hub
+// generated (Source AI_GENERATED) are stored like user-defined ones, not as
+// provider-managed: they hang off the customer's service and the model lets
+// the customer delete any function (DeleteServiceFunction).
+func scanRHServiceFunctions(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, serviceARNs []string) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, rhListServiceFunctionsOp, rhParents(serviceARNs), isRHParentGone,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			serviceARN := p.arn
+			var rows []*store.Resource
+			pager := resiliencehubv2.NewListServiceFunctionsPaginator(client, &resiliencehubv2.ListServiceFunctionsInput{ServiceArn: &serviceARN},
+				func(o *resiliencehubv2.ListServiceFunctionsPaginatorOptions) { o.Limit = rhPageLimit })
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, f := range out.ServiceFunctions {
+					id := sv(f.ServiceFunctionId)
+					if id == "" {
+						continue
+					}
+					rows = append(rows, rhResource(acct, region, scanID, TypeResilienceHubServiceFunction,
+						serviceARN+"/service-function/"+id, sv(f.Name), "", f.CreatedAt, f))
+				}
+			}
+			return rows, nil
+		})
+}
+
+const rhListInputSourcesOp = "resiliencehub:ListInputSources"
+
+// A v2 input source has no ARN; its NativeID is
+// {serviceARN}/input-source/{inputSourceId}. The id's model pattern (\S)
+// allows "/", so it goes last. The summary has no name.
+func scanRHInputSources(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, serviceARNs []string) (int, int, error) {
+	return childFanOut(ctx, st, acct, region, rhListInputSourcesOp, rhParents(serviceARNs), isRHParentGone,
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			serviceARN := p.arn
+			var rows []*store.Resource
+			pager := resiliencehubv2.NewListInputSourcesPaginator(client, &resiliencehubv2.ListInputSourcesInput{ServiceArn: &serviceARN},
+				func(o *resiliencehubv2.ListInputSourcesPaginatorOptions) { o.Limit = rhPageLimit })
+			for pager.HasMorePages() {
+				out, err := pager.NextPage(ctx)
+				if err != nil {
+					return nil, err
+				}
+				for _, src := range out.InputSourceSummaries {
+					id := sv(src.InputSourceId)
+					if id == "" {
+						continue
+					}
+					rows = append(rows, rhResource(acct, region, scanID, TypeResilienceHubInputSource,
+						serviceARN+"/input-source/"+id, "", "", src.CreatedAt, src))
 				}
 			}
 			return rows, nil
