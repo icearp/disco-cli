@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.7% (2024/3336 listable) · depth0 72.4% · depth1 43.7% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.7% (2026/3336 listable) · depth0 72.5% · depth1 43.7% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1047 | 174 | 85.7 |
 | child-uncatalogued | 302 | 715 | 29.7 |
 | smithy-resource | 432 | 130 | 76.9 |
-| element-written | 201 | 215 | 48.3 |
+| element-written | 203 | 213 | 48.8 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -24,11 +24,11 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
 | connect | 46 | 22 | 67.6 |
-| chime | 11 | 18 | 37.9 |
 | bedrock | 27 | 17 | 61.4 |
 | datazone | 19 | 17 | 52.8 |
 | glue | 25 | 17 | 59.5 |
 | bedrock-agentcore | 30 | 16 | 65.2 |
+| chime | 13 | 16 | 44.8 |
 | iot | 33 | 16 | 67.3 |
 | lex | 8 | 16 | 33.3 |
 | mgn | 10 | 15 | 40.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1312)
+### Uncovered (listable, no scanner) (1310)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -521,10 +521,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | chime | chime/proxysession | 1 |  | child-uncatalogued | chime:GetProxySession, chime:ListProxySessions |
 | chime | chime/room | 0 |  | element-written | chime:GetRoom, chime:ListRooms |
 | chime | chime/roommembership | 1 |  | child-uncatalogued | chime:ListRoomMemberships |
-| chime | chime/siprule | 0 |  | element-written | chime:GetSipRule, chime:ListSipRules |
 | chime | chime/subchannel | 1 |  | child-uncatalogued | chime:ListSubChannels |
 | chime | chime/user | 0 |  | element-written | chime:GetUser, chime:ListUsers |
-| chime | chime/voiceconnectorgroup | 0 |  | element-written | chime:GetVoiceConnectorGroup, chime:ListVoiceConnectorGroups |
 | cleanrooms | cleanrooms/analysislogexport | 1 |  | child-uncatalogued | cleanrooms:GetAnalysisLogExport, cleanrooms:ListAnalysisLogExports |
 | cleanrooms | cleanrooms/collaborationanalysistemplate | 1 |  | child-uncatalogued | cleanrooms:BatchGetCollaborationAnalysisTemplate, cleanrooms:GetCollaborationAnalysisTemplate, cleanrooms:ListCollaborationAnalysisTemplates |
 | cleanrooms | cleanrooms/collaborationchangerequest | 1 |  | child-uncatalogued | cleanrooms:GetCollaborationChangeRequest, cleanrooms:ListCollaborationChangeRequests |

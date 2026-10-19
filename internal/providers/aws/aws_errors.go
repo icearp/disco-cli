@@ -456,6 +456,11 @@ func isTransientNetworkError(err error) bool {
 		// transient so siblings continue rather than aborting the region.
 		"ThrottlingException", "Throttling", "ThrottledException", "RateExceededException",
 		"TooManyRequestsException",
+		// The Chime SDK models' 429 throttle and 500 failure. The SDK retryer
+		// does not retry ThrottledClientException (absent from
+		// DefaultThrottleErrorCodes, and 429 is not a retryable status), so a Chime
+		// throttle reaches us on its first attempt.
+		"ThrottledClientException", "ServiceFailureException",
 		// A throttle code in the SDK retryer's DefaultThrottleErrorCodes (e.g.
 		// modeled by rekognition:ListProjectPolicies).
 		"ProvisionedThroughputExceededException")

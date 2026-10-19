@@ -2,6 +2,8 @@ package aws
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	ci "github.com/aws/aws-sdk-go-v2/service/chimesdkidentity"
 	cp "github.com/aws/aws-sdk-go-v2/service/chimesdkmediapipelines"
@@ -24,6 +26,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeChimeVoiceConnector, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeVoiceProfileDomain, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeVoiceProfile, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeSipRule, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeVoiceConnectorGroup, Service: "chime"})
 	registerService(serviceEntry{
 		name: "aws:chime",
 		fn:   scanChime,
@@ -41,7 +45,7 @@ type chimeChannelFlowAttrs struct {
 // scanChime discovers the Chime SDK surface across five sub-SDKs: identity
 // (app-instances + per-instance bots/users), messaging (per-instance channel
 // flows), media-pipelines, and voice (SIP apps, voice connectors, voice-profile
-// domains + profiles). Channels (data-plane, needs ChimeBearer user identity) and
+// domains + profiles, SIP rules, voice connector groups). Channels (data-plane, needs ChimeBearer user identity) and
 // meetings (ephemeral, no list API) aren't scanned. Per-region; unsupported
 // regions surface as endpoint/access errors, dispatcher-tolerated.
 func scanChime(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -61,8 +65,11 @@ func scanChime(ctx context.Context, acct *account, region string, st *store.Stor
 	}
 	chimeMediaPipelines(ctx, mpClient, acct, region, st, scanID, &batch)
 	chimeVoice(ctx, vClient, acct, region, st, scanID, &batch)
+	routingErr := chimeVoiceRouting(ctx, vClient, acct, region, st, scanID, &batch)
 
-	return upsertBatch(st, batch, "chime")
+	// The rows of every phase are stored even when a routing phase failed.
+	total, inserted, err := upsertBatch(st, batch, "chime")
+	return total, inserted, errors.Join(err, routingErr)
 }
 
 // chimeListErr records a ScanWarning for an AccessDenied list failure (partial
@@ -367,4 +374,118 @@ func chimeVoiceProfileDomains(ctx context.Context, client *cv.Client, acct *acco
 			ptoken = out.NextToken
 		}
 	}
+}
+
+// chimeVoicePageLimit is the documented MaxResults cap (ResultMax) of
+// ListSipRules and ListVoiceConnectorGroups.
+const chimeVoicePageLimit = 100
+
+// chimeVoiceRoutingAPI is the Chime SDK Voice surface the SIP-rule and
+// voice-connector-group phases call.
+type chimeVoiceRoutingAPI interface {
+	ListSipRules(ctx context.Context, in *cv.ListSipRulesInput, optFns ...func(*cv.Options)) (*cv.ListSipRulesOutput, error)
+	ListVoiceConnectorGroups(ctx context.Context, in *cv.ListVoiceConnectorGroupsInput, optFns ...func(*cv.Options)) (*cv.ListVoiceConnectorGroupsOutput, error)
+}
+
+// chimeVoiceRouting lists SIP rules and voice connector groups into batch.
+// Unlike the older chime phases it returns unexpected errors, so it runs after
+// all of them; the two phases are independent and both always run.
+func chimeVoiceRouting(ctx context.Context, client chimeVoiceRoutingAPI, acct *account, region string, st *store.Store, scanID string, batch *[]*store.Resource) error {
+	sipErr := chimeSipRules(ctx, client, acct, region, st, scanID, batch)
+	groupErr := chimeVoiceConnectorGroups(ctx, client, acct, region, st, scanID, batch)
+	return errors.Join(sipErr, groupErr)
+}
+
+// chimeSipRuleNativeID builds a SIP rule's NativeID. AWS issues no SIP-rule ARN
+// (SipRule carries only SipRuleId, and the Service Reference lists no sip-rule
+// resource), so the id is synthesized in the chime ARN shape.
+func chimeSipRuleNativeID(region, accountID, sipRuleID string) string {
+	return "arn:aws:chime:" + region + ":" + accountID + ":sip-rule/" + sipRuleID
+}
+
+func chimeSipRules(ctx context.Context, client chimeVoiceRoutingAPI, acct *account, region string, st *store.Store, scanID string, batch *[]*store.Resource) error {
+	const op = "chime:ListSipRules"
+	p := cv.NewListSipRulesPaginator(client, &cv.ListSipRulesInput{},
+		func(o *cv.ListSipRulesPaginatorOptions) { o.Limit = chimeVoicePageLimit })
+	for firstPage := true; p.HasMorePages(); firstPage = false {
+		out, err := p.NextPage(ctx)
+		if err != nil {
+			return chimeVoicePhaseErr(st, op, acct, region, firstPage, err)
+		}
+		for _, r := range out.SipRules {
+			id := sv(r.SipRuleId)
+			if id == "" {
+				continue
+			}
+			*batch = append(*batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeChimeSipRule, NativeID: chimeSipRuleNativeID(region, acct.ID, id),
+				Name: r.Name, Region: &region, CreatedAt: tp(r.CreatedTimestamp),
+				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return nil
+}
+
+// chimeVoiceConnectorGroups lists voice connector groups, keyed by the
+// VoiceConnectorGroupArn the API returns. The model marks that ARN optional, so
+// groups without one are skipped under one warning naming the count.
+func chimeVoiceConnectorGroups(ctx context.Context, client chimeVoiceRoutingAPI, acct *account, region string, st *store.Store, scanID string, batch *[]*store.Resource) error {
+	const op = "chime:ListVoiceConnectorGroups"
+	var noARN skipTally
+	defer func() {
+		if noARN.count > 0 {
+			st.ReportWarning(store.ScanWarning{
+				Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+				Message: fmt.Sprintf("%d voice connector group(s) not stored: no VoiceConnectorGroupArn, first id %q", noARN.count, noARN.first),
+			})
+		}
+	}()
+	p := cv.NewListVoiceConnectorGroupsPaginator(client, &cv.ListVoiceConnectorGroupsInput{},
+		func(o *cv.ListVoiceConnectorGroupsPaginatorOptions) { o.Limit = chimeVoicePageLimit })
+	for firstPage := true; p.HasMorePages(); firstPage = false {
+		out, err := p.NextPage(ctx)
+		if err != nil {
+			return chimeVoicePhaseErr(st, op, acct, region, firstPage, err)
+		}
+		for _, g := range out.VoiceConnectorGroups {
+			arn := sv(g.VoiceConnectorGroupArn)
+			if arn == "" {
+				noARN.skipped(sv(g.VoiceConnectorGroupId), nil)
+				continue
+			}
+			*batch = append(*batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeChimeVoiceConnectorGroup, NativeID: arn,
+				Name: g.Name, Region: &region, CreatedAt: tp(g.CreatedTimestamp),
+				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return nil
+}
+
+// chimeVoicePhaseErr settles a SIP-rule or voice-connector-group list failure;
+// rows from earlier pages stay in batch. A denial goes through chimeListErr
+// like every chime phase. On the first page, an absent endpoint or operation
+// is a region gap and is skipped silently, as the older voice phases skip it:
+// Chime SDK Voice has its own endpoint host, and returning the gap would make
+// the dispatcher report the whole chime service unavailable in this region
+// while it stored rows from the other Chime endpoints. For the same reason an
+// NXDOMAIN after a page succeeded is never returned: it warns and keeps the
+// rows. A transient error is reported as a warning so it cannot hide the other
+// phase's error.
+func chimeVoicePhaseErr(st *store.Store, op string, acct *account, region string, firstPage bool, err error) error {
+	if isAccessDenied(err) {
+		chimeListErr(st, op, acct.ID, region, err)
+		return nil
+	}
+	if firstPage && (isDNSNotFound(err) || isOpNotDeployed(err)) {
+		return nil
+	}
+	if isDNSNotFound(err) {
+		return skipIfTransient(st, op, acct.ID, region, err)
+	}
+	return demoteTransient(st, op, acct, region, fmt.Errorf("%s: %w", op, err))
 }

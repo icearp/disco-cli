@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -25,6 +26,132 @@ func init() {
 		resolveChimeSipMediaApplicationLambda,
 		EdgeDecl{TypeChimeSipMediaApplication, TypeLambdaFunction, store.RelUses},
 	)
+	registerResolver(
+		resolveChimeSipRuleTargets,
+		EdgeDecl{TypeChimeSipRule, TypeChimeSipMediaApplication, store.RelRoutesTo},
+	)
+	registerResolver(
+		resolveChimeVoiceConnectorGroupItems,
+		EdgeDecl{TypeChimeVoiceConnectorGroup, TypeChimeVoiceConnector, store.RelRoutesTo},
+	)
+}
+
+// chimeRowsByAttrID indexes the stored rows of typ by key(attrs), skipping
+// rows whose key is empty. Rows whose attributes do not decode are skipped and
+// their errors returned joined.
+func chimeRowsByAttrID[A any](acct *account, st *store.Store, typ string, key func(a A) string) (map[string]string, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{typ}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]string, len(rows))
+	var decodeErrs []error
+	for _, r := range rows {
+		var a A
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s: %w", typ, r.NativeID, err))
+			continue
+		}
+		if k := key(a); k != "" {
+			idx[k] = r.ID
+		}
+	}
+	return idx, errors.Join(decodeErrs...)
+}
+
+// resolveChimeSipRuleTargets wires each SIP rule to the SIP media applications
+// it routes calls to. A target names the application by id and region, so the
+// applications are indexed by the SipMediaApplicationId and AwsRegion in their
+// attributes. FK-safe; a target in an unscanned region gets no edge.
+func resolveChimeSipRuleTargets(acct *account, st *store.Store) error {
+	type smaAttrs struct {
+		SipMediaApplicationID *string `json:"SipMediaApplicationId"`
+		AwsRegion             *string `json:"AwsRegion"`
+	}
+	smaKey := func(region, id string) string {
+		if region == "" || id == "" {
+			return ""
+		}
+		return region + "/" + id
+	}
+	smaByKey, err := chimeRowsByAttrID(acct, st, TypeChimeSipMediaApplication, func(a smaAttrs) string {
+		return smaKey(sv(a.AwsRegion), sv(a.SipMediaApplicationID))
+	})
+	if len(smaByKey) == 0 {
+		return err
+	}
+	errs := []error{err}
+
+	rules, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeChimeSipRule}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return errors.Join(append(errs, err)...)
+	}
+	for _, r := range rules {
+		var a struct {
+			TargetApplications []smaAttrs `json:"TargetApplications"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
+			errs = append(errs, fmt.Errorf("decode %s %s: %w", TypeChimeSipRule, r.NativeID, err))
+			continue
+		}
+		for _, t := range a.TargetApplications {
+			smaID, ok := smaByKey[smaKey(sv(t.AwsRegion), sv(t.SipMediaApplicationID))]
+			if !ok {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, smaID, store.RelRoutesTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert chime sip-rule→sip-media-application: %w", err)
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// resolveChimeVoiceConnectorGroupItems wires each voice connector group to the
+// voice connectors it routes inbound calls to. An item names the connector by
+// id only, and a group may hold connectors from other regions, so connectors
+// are indexed by the VoiceConnectorId in their attributes, account-wide. FK-safe.
+func resolveChimeVoiceConnectorGroupItems(acct *account, st *store.Store) error {
+	type vcRef struct {
+		VoiceConnectorID *string `json:"VoiceConnectorId"`
+	}
+	vcByID, err := chimeRowsByAttrID(acct, st, TypeChimeVoiceConnector, func(a vcRef) string {
+		return sv(a.VoiceConnectorID)
+	})
+	if len(vcByID) == 0 {
+		return err
+	}
+	errs := []error{err}
+
+	groups, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeChimeVoiceConnectorGroup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return errors.Join(append(errs, err)...)
+	}
+	for _, g := range groups {
+		var a struct {
+			VoiceConnectorItems []vcRef `json:"VoiceConnectorItems"`
+		}
+		if err := json.Unmarshal([]byte(g.AttributesJSON), &a); err != nil {
+			errs = append(errs, fmt.Errorf("decode %s %s: %w", TypeChimeVoiceConnectorGroup, g.NativeID, err))
+			continue
+		}
+		for _, it := range a.VoiceConnectorItems {
+			vcID, ok := vcByID[sv(it.VoiceConnectorID)]
+			if !ok {
+				continue
+			}
+			if err := st.UpsertRelationship(g.ID, vcID, store.RelRoutesTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert chime voice-connector-group→voice-connector: %w", err)
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // resolveChimeAppInstanceChildren wires bots, users and channel flows to their

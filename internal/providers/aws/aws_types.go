@@ -581,6 +581,8 @@ const (
 	TypeChimeVoiceConnector                      = "aws:chime:voice-connector"
 	TypeChimeVoiceProfileDomain                  = "aws:chime:voice-profile-domain"
 	TypeChimeVoiceProfile                        = "aws:chime:voice-profile"
+	TypeChimeSipRule                             = "aws:chime:sip-rule"
+	TypeChimeVoiceConnectorGroup                 = "aws:chime:voice-connector-group"
 	// ACM account-config (acm_scanners.go)
 	TypeACMAccount = "aws:acm:account"
 	// CloudWatch Logs (logs_scanners.go)
