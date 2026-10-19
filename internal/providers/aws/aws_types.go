@@ -2390,6 +2390,7 @@ const (
 	TypeWorkMailMobileDeviceAccessRule     = "aws:workmail:mobile-device-access-rule"
 	TypeWorkMailMobileDeviceAccessOverride = "aws:workmail:mobile-device-access-override"
 	TypeWorkMailPersonalAccessToken        = "aws:workmail:personal-access-token"
+	TypeWorkMailMailboxPermission          = "aws:workmail:mailbox-permission"
 	// Cases (Connect Cases) (cases_scanners.go); SDK module is connectcases,
 	// CFN segment is "Cases".
 	TypeCasesCaseRule    = "aws:cases:case-rule"

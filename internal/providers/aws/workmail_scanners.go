@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -25,6 +26,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeWorkMailMobileDeviceAccessRule, Service: "workmail"})
 	registerType(restype.Descriptor{Type: TypeWorkMailMobileDeviceAccessOverride, Service: "workmail"})
 	registerType(restype.Descriptor{Type: TypeWorkMailPersonalAccessToken, Service: "workmail"})
+	registerType(restype.Descriptor{Type: TypeWorkMailMailboxPermission, Service: "workmail"})
 	registerService(serviceEntry{
 		name: "aws:workmail",
 		fn:   scanWorkMail,
@@ -47,13 +49,15 @@ type workMailAPI interface {
 	ListMobileDeviceAccessRules(context.Context, *workmail.ListMobileDeviceAccessRulesInput, ...func(*workmail.Options)) (*workmail.ListMobileDeviceAccessRulesOutput, error)
 	ListMobileDeviceAccessOverrides(context.Context, *workmail.ListMobileDeviceAccessOverridesInput, ...func(*workmail.Options)) (*workmail.ListMobileDeviceAccessOverridesOutput, error)
 	ListPersonalAccessTokens(context.Context, *workmail.ListPersonalAccessTokensInput, ...func(*workmail.Options)) (*workmail.ListPersonalAccessTokensOutput, error)
+	ListMailboxPermissions(context.Context, *workmail.ListMailboxPermissionsInput, ...func(*workmail.Options)) (*workmail.ListMailboxPermissionsOutput, error)
 }
 
 // scanWorkMail discovers WorkMail organizations and, per organization, its
 // users, groups, resources, mail domains, access control rules, availability
 // configurations, impersonation roles, mobile device access rules and
-// overrides, and personal access tokens (metadata only: the list API never
-// returns a token's secret).
+// overrides, personal access tokens (metadata only: the list API never
+// returns a token's secret) and the mailbox permissions of its users and
+// resources.
 func scanWorkMail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := workmail.NewFromConfig(acct.cfg, func(o *workmail.Options) { o.Region = region })
 	return scanWorkMailIn(ctx, client, acct, region, st, scanID)
@@ -61,7 +65,8 @@ func scanWorkMail(ctx context.Context, acct *account, region string, st *store.S
 
 // scanWorkMailIn lists the organizations, then runs every child phase over
 // them even when one fails, so one phase's error costs no other phase its
-// rows.
+// rows. The mailbox permission phase runs last, because it fans out over the
+// users and resources the earlier phases stored.
 func scanWorkMailIn(ctx context.Context, client workMailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	orgs, total, inserted, err := scanWorkMailOrganizations(ctx, client, acct, region, st, scanID)
 	if err != nil {
@@ -72,6 +77,7 @@ func scanWorkMailIn(ctx context.Context, client workMailAPI, acct *account, regi
 	for _, phase := range []func(context.Context) (int, int, error){
 		s.users, s.groups, s.resources, s.mailDomains, s.accessControlRules, s.availabilityConfigurations,
 		s.impersonationRoles, s.mobileDeviceAccessRules, s.mobileDeviceAccessOverrides, s.personalAccessTokens,
+		s.mailboxPermissions,
 	} {
 		t, i, perr := phase(ctx)
 		total += t
@@ -139,7 +145,14 @@ type workMailScan struct {
 	// rejected holds the organizations whose state refused a member listing
 	// this scan; later phases skip them, so each is warned about once.
 	rejected map[string]bool
+	// mailboxes holds the ENABLED users and resources the users and resources
+	// phases stored, the parents of the mailbox permission phase.
+	mailboxes []workMailMailbox
 }
+
+// workMailMailbox is a stored user or resource whose mailbox permissions are
+// listed: entity.id is its entity id, entity.arn its row's NativeID.
+type workMailMailbox struct{ org, entity childParent }
 
 // listableOrgs returns the organizations no earlier phase saw rejected.
 func (s *workMailScan) listableOrgs() []childParent {
@@ -181,6 +194,13 @@ func (s *workMailScan) rejectOrg(op string, org childParent, err error) {
 // hard errors. A store write error is never transient (store formats the
 // cause with %s), and childFanOut returns one error, never a join.
 func (s *workMailScan) fanOut(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, error)) (int, int, error) {
+	return s.fanOutThen(ctx, op, list, nil)
+}
+
+// fanOutThen is fanOut that also runs stored, when not nil, once every row
+// list returned has been stored. It does not run when childFanOut fails,
+// because childFanOut then stores nothing.
+func (s *workMailScan) fanOutThen(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, error), stored func()) (int, int, error) {
 	total, inserted, err := childFanOut(ctx, s.st, s.acct, s.region, op, s.listableOrgs(), isWorkMailOrgGone,
 		func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 			rows, err := list(ctx, org)
@@ -190,10 +210,72 @@ func (s *workMailScan) fanOut(ctx context.Context, op string, list func(context.
 			}
 			return rows, err
 		})
+	// childFanOut stores nothing when it fails, and an organization it skips
+	// returned no rows.
+	if err == nil && stored != nil {
+		stored()
+	}
 	if isTransientNetworkError(err) {
 		return total, inserted, skipIfTransient(s.st, op, s.acct.ID, s.region, err)
 	}
 	return total, inserted, err
+}
+
+// fanOutMailboxes is fanOut for the users and resources phases: list also
+// returns the ENABLED entities among its rows, which are added to s.mailboxes
+// once the phase has stored its rows.
+func (s *workMailScan) fanOutMailboxes(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, []childParent, error)) (int, int, error) {
+	var (
+		mu      sync.Mutex
+		pending []workMailMailbox
+	)
+	return s.fanOutThen(ctx, op,
+		func(ctx context.Context, org childParent) ([]*store.Resource, error) {
+			rows, enabled, err := list(ctx, org)
+			if err != nil {
+				return nil, err
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			for _, e := range enabled {
+				pending = append(pending, workMailMailbox{org: org, entity: e})
+			}
+			return rows, nil
+		},
+		func() {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			s.mailboxes = append(s.mailboxes, pending...)
+		})
+}
+
+// The NativeID kinds of the entities a mailbox permission names, shared by
+// the scanner and the grantee resolver.
+const (
+	workMailUserKind     = "user"
+	workMailGroupKind    = "group"
+	workMailResourceKind = "resource"
+)
+
+// workMailChildNativeID keys a WorkMail child {parentARN}/{kind}/{id}.
+func workMailChildNativeID(parentARN, kind, id string) string {
+	return parentARN + "/" + kind + "/" + id
+}
+
+// workMailOrgARN returns the organization ARN that a WorkMail child NativeID
+// ({orgARN}/{kind}/{id}...) starts with. An organization id holds no "/" (its
+// model pattern is ^m-[0-9a-f]{32}$).
+func workMailOrgARN(nativeID string) (orgARN string, ok bool) {
+	const marker = ":organization/"
+	prefix, path, ok := strings.Cut(nativeID, marker)
+	if !ok {
+		return "", false
+	}
+	orgID, _, ok := strings.Cut(path, "/")
+	if !ok || orgID == "" {
+		return "", false
+	}
+	return prefix + marker + orgID, true
 }
 
 // isWorkMailOrgGone matches an organization deleted between ListOrganizations
@@ -202,12 +284,12 @@ func isWorkMailOrgGone(err error) bool {
 	return isAPIErrorCode(err, "OrganizationNotFoundException")
 }
 
-// row builds a child row keyed {orgARN}/{kind}/{id}: no WorkMail child list op
-// returns an ARN.
-func (s *workMailScan) row(typ string, org childParent, kind, id string, name, status, createdAt *string, attrs any) *store.Resource {
+// row builds a child row keyed by workMailChildNativeID under parent: no
+// WorkMail child list op returns an ARN.
+func (s *workMailScan) row(typ string, parent childParent, kind, id string, name, status, createdAt *string, attrs any) *store.Resource {
 	return &store.Resource{
 		Provider: "aws", AccountID: s.acct.ID, AccountName: &s.acct.Name,
-		Type: typ, NativeID: org.arn + "/" + kind + "/" + id,
+		Type: typ, NativeID: workMailChildNativeID(parent.arn, kind, id),
 		Name: name, Region: &s.region, Status: status, CreatedAt: createdAt,
 		AttributesJSON: mustJSON(attrs), DiscoveredBy: s.scanID,
 	}
@@ -216,23 +298,30 @@ func (s *workMailScan) row(typ string, org childParent, kind, id string, name, s
 // users stores every user except those in the DELETED state, which the
 // EntityState enum lets ListUsers return; disabled users are kept.
 func (s *workMailScan) users(ctx context.Context) (int, int, error) {
-	return s.fanOut(ctx, "workmail:ListUsers", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
-		var rows []*store.Resource
+	return s.fanOutMailboxes(ctx, "workmail:ListUsers", func(ctx context.Context, org childParent) ([]*store.Resource, []childParent, error) {
+		var (
+			rows    []*store.Resource
+			enabled []childParent
+		)
 		pager := workmail.NewListUsersPaginator(s.client, &workmail.ListUsersInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
 		for pager.HasMorePages() {
 			out, err := pager.NextPage(ctx)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			for _, u := range out.Users {
 				id := sv(u.Id)
 				if id == "" || u.State == workmailtypes.EntityStateDeleted {
 					continue
 				}
-				rows = append(rows, s.row(TypeWorkMailUser, org, "user", id, u.Name, nonEmptyPtr(string(u.State)), nil, u))
+				row := s.row(TypeWorkMailUser, org, workMailUserKind, id, u.Name, nonEmptyPtr(string(u.State)), nil, u)
+				rows = append(rows, row)
+				if u.State == workmailtypes.EntityStateEnabled {
+					enabled = append(enabled, childParent{id: id, arn: row.NativeID})
+				}
 			}
 		}
-		return rows, nil
+		return rows, enabled, nil
 	})
 }
 
@@ -251,7 +340,7 @@ func (s *workMailScan) groups(ctx context.Context) (int, int, error) {
 				if id == "" || g.State == workmailtypes.EntityStateDeleted {
 					continue
 				}
-				rows = append(rows, s.row(TypeWorkMailGroup, org, "group", id, g.Name, nonEmptyPtr(string(g.State)), nil, g))
+				rows = append(rows, s.row(TypeWorkMailGroup, org, workMailGroupKind, id, g.Name, nonEmptyPtr(string(g.State)), nil, g))
 			}
 		}
 		return rows, nil
@@ -261,23 +350,30 @@ func (s *workMailScan) groups(ctx context.Context) (int, int, error) {
 // resources stores every resource (room or equipment) except deleted ones,
 // as users does.
 func (s *workMailScan) resources(ctx context.Context) (int, int, error) {
-	return s.fanOut(ctx, "workmail:ListResources", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
-		var rows []*store.Resource
+	return s.fanOutMailboxes(ctx, "workmail:ListResources", func(ctx context.Context, org childParent) ([]*store.Resource, []childParent, error) {
+		var (
+			rows    []*store.Resource
+			enabled []childParent
+		)
 		pager := workmail.NewListResourcesPaginator(s.client, &workmail.ListResourcesInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
 		for pager.HasMorePages() {
 			out, err := pager.NextPage(ctx)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			for _, r := range out.Resources {
 				id := sv(r.Id)
 				if id == "" || r.State == workmailtypes.EntityStateDeleted {
 					continue
 				}
-				rows = append(rows, s.row(TypeWorkMailResource, org, "resource", id, r.Name, nonEmptyPtr(string(r.State)), nil, r))
+				row := s.row(TypeWorkMailResource, org, workMailResourceKind, id, r.Name, nonEmptyPtr(string(r.State)), nil, r)
+				rows = append(rows, row)
+				if r.State == workmailtypes.EntityStateEnabled {
+					enabled = append(enabled, childParent{id: id, arn: row.NativeID})
+				}
 			}
 		}
-		return rows, nil
+		return rows, enabled, nil
 	})
 }
 
@@ -432,4 +528,85 @@ func (s *workMailScan) personalAccessTokens(ctx context.Context) (int, int, erro
 		}
 		return rows, nil
 	})
+}
+
+// mailboxPermissions stores one row per grantee of each mailbox, keyed
+// {mailboxNativeID}/mailboxpermission/{granteeID} because the API returns no
+// ARN. The granted permissions (FULL_ACCESS, SEND_AS, SEND_ON_BEHALF) are left
+// out of the key, so a change to them is a change on the grantee's row.
+//
+// The mailboxes are the ENABLED users and resources the users and resources
+// phases stored (EntityId takes a user or resource id, not a group), outside
+// the organizations a phase saw rejected. DISABLED entities are not asked:
+// whether the op answers for a deregistered entity is unobserved, and its
+// grants cannot be used while it is DISABLED. The phase makes one call per
+// page of each mailbox's grants, within the service's shared serviceTimeout;
+// running out of it is a hard error and, like any other, drops every
+// organization's grants.
+//
+// A mailbox deleted, or in an organization deleted, since it was listed is
+// skipped silently (EntityNotFoundException, OrganizationNotFoundException).
+// A mailbox whose organization's state refuses the call
+// (OrganizationStateException) is skipped with one warning for the phase, as
+// is one whose call still fails transiently after the SDK's retries. Every
+// other error fails the phase, EntityStateException included, as the op does
+// not model it; since childFanOut stores nothing after a hard error, one such
+// error (say, for a user disabled between its listing and this call) drops
+// the grants of every organization in the region this scan.
+func (s *workMailScan) mailboxPermissions(ctx context.Context) (int, int, error) {
+	const op = "workmail:ListMailboxPermissions"
+	mailboxes, orgOf := s.listableMailboxes()
+	isGone := func(err error) bool {
+		return isAPIErrorCode(err, "EntityNotFoundException") || isWorkMailOrgGone(err)
+	}
+	var orgState skipTally
+	total, inserted, err := childFanOutSkipTransient(ctx, s.st, s.acct, s.region, op, mailboxes, isGone, byParentARN,
+		func(ctx context.Context, mailbox childParent) ([]*store.Resource, error) {
+			rows, err := s.listMailboxPermissions(ctx, orgOf[mailbox.arn], mailbox)
+			if orgState.dropCode("OrganizationStateException", mailbox.arn, err) {
+				return nil, nil
+			}
+			return rows, err
+		})
+	orgState.warnCode(s.st, op, s.acct, s.region, "OrganizationStateException", "mailbox(es)",
+		"the organization's state (for example, being created or deleted) can refuse the call")
+	return total, inserted, err
+}
+
+// listableMailboxes returns s.mailboxes outside the rejected organizations,
+// as fan-out parents, and the organization of each keyed by its NativeID.
+func (s *workMailScan) listableMailboxes() ([]childParent, map[string]childParent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var parents []childParent
+	orgOf := map[string]childParent{}
+	for _, m := range s.mailboxes {
+		if s.rejected[m.org.id] {
+			continue
+		}
+		parents = append(parents, m.entity)
+		orgOf[m.entity.arn] = m.org
+	}
+	return parents, orgOf
+}
+
+func (s *workMailScan) listMailboxPermissions(ctx context.Context, org, mailbox childParent) ([]*store.Resource, error) {
+	var rows []*store.Resource
+	pager := workmail.NewListMailboxPermissionsPaginator(s.client, &workmail.ListMailboxPermissionsInput{
+		OrganizationId: &org.id, EntityId: &mailbox.id, MaxResults: sdkaws.Int32(workMailPageSize),
+	})
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range out.Permissions {
+			grantee := sv(p.GranteeId)
+			if grantee == "" {
+				continue
+			}
+			rows = append(rows, s.row(TypeWorkMailMailboxPermission, mailbox, "mailboxpermission", grantee, &grantee, nil, nil, p))
+		}
+	}
+	return rows, nil
 }

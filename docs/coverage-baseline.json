@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.37170263788969,
-    "covered": 2014,
-    "uncovered": 1322,
+    "percent": 60.40167865707434,
+    "covered": 2015,
+    "uncovered": 1321,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1991,6 +1991,7 @@
       "workmail/availabilityconfiguration",
       "workmail/group",
       "workmail/impersonationrole",
+      "workmail/mailboxpermission",
       "workmail/maildomain",
       "workmail/mobiledeviceaccessoverride",
       "workmail/mobiledeviceaccessrule",
@@ -3335,7 +3336,6 @@
       "workmail/defaultretentionpolicy",
       "workmail/groupmember",
       "workmail/mailboxexportjob",
-      "workmail/mailboxpermission",
       "workmail/resourcedelegate",
       "workspaces-web/session",
       "workspaces/applicationassociation",

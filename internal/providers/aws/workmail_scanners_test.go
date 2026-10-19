@@ -483,6 +483,11 @@ func TestScanWorkMailIn_RunsEveryPhaseOverListedOrgs(t *testing.T) {
 			return p.out([]string{org + "-1"}, nil), nil
 		}
 	}
+	var mailboxes parentCalls
+	handlers["ListMailboxPermissions"] = func(in any) (any, error) {
+		mailboxes.add(wmMailboxOf(in))
+		return wmPerms(nil, "g-1"), nil
+	}
 	warned := countOpWarnings(st, "workmail:ListUsers")
 	total, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 
@@ -493,9 +498,22 @@ func TestScanWorkMailIn_RunsEveryPhaseOverListedOrgs(t *testing.T) {
 	if *warned != 1 {
 		t.Errorf("ListUsers state warnings = %d, want 1", *warned)
 	}
-	// 2 organizations + 1 user (m-a) + 0 groups + 1 child of m-a for each of the 8 later phases.
-	if total != 11 {
-		t.Errorf("total = %d, want 11", total)
+	// 2 organizations + 1 user (m-a) + 0 groups + 1 child of m-a for each of
+	// the 8 later list phases + 1 grant on each of m-a's user and resource.
+	if total != 13 {
+		t.Errorf("total = %d, want 13", total)
+	}
+	// m-a's user and resource share the id m-a-1.
+	if got := mailboxes.distinct(); !slices.Equal(got, []string{"m-a/m-a-1"}) {
+		t.Errorf("mailboxes queried = %v, want [m-a/m-a-1]", got)
+	}
+	for _, mailbox := range []string{wmOrgA + "/user/m-a-1", wmOrgA + "/resource/m-a-1"} {
+		grant := mailbox + "/mailboxpermission/g-1"
+		if _, ok := rowsByNativeID(t, st, TypeWorkMailMailboxPermission)[grant]; !ok {
+			t.Errorf("row %s missing", grant)
+			continue
+		}
+		assertContainsNative(t, st, mailbox, grant)
 	}
 	for _, p := range wmPhases {
 		want := []string{"m-a"}
@@ -586,5 +604,289 @@ func TestScanWorkMailIn_StoreWriteBesideTransientStaysHardError(t *testing.T) {
 	_, _, err = scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) || classifyServiceError(err) != outcomeStoreWrite {
 		t.Errorf("err = %v classified %v; want store.ErrStoreWrite, outcomeStoreWrite", err, classifyServiceError(err))
+	}
+}
+
+const (
+	wmUserA1     = wmOrgA + "/user/u1"
+	wmResourceA1 = wmOrgA + "/resource/r1"
+	wmUserB1     = wmOrgB + "/user/b1"
+	wmMailboxOp  = "workmail:ListMailboxPermissions"
+)
+
+var wmMailboxes = []workMailMailbox{
+	{org: wmOrgs[0], entity: childParent{id: "u1", arn: wmUserA1}},
+	{org: wmOrgs[0], entity: childParent{id: "r1", arn: wmResourceA1}},
+	{org: wmOrgs[1], entity: childParent{id: "b1", arn: wmUserB1}},
+}
+
+// wmMailboxScan stores the two organizations and three mailboxes (user u1 and
+// resource r1 of m-a, user b1 of m-b) and returns a scan holding them as the
+// users and resources phases leave it.
+func wmMailboxScan(t *testing.T, st *store.Store, client workMailAPI) *workMailScan {
+	t.Helper()
+	wmSeedOrgs(t, st)
+	for _, m := range wmMailboxes {
+		typ := TypeWorkMailUser
+		if m.entity.arn == wmResourceA1 {
+			typ = TypeWorkMailResource
+		}
+		upsertTestResource(t, st, "aws", testAccountID, typ, m.entity.arn, testRegion, "{}")
+	}
+	s := wmScan(client, st, wmOrgs)
+	s.mailboxes = slices.Clone(wmMailboxes)
+	return s
+}
+
+func wmMailboxOf(in any) string {
+	mp := in.(*workmail.ListMailboxPermissionsInput)
+	return sv(mp.OrganizationId) + "/" + sv(mp.EntityId)
+}
+
+func wmPerms(next *string, grantees ...string) *workmail.ListMailboxPermissionsOutput {
+	out := &workmail.ListMailboxPermissionsOutput{NextToken: next}
+	for _, g := range grantees {
+		out.Permissions = append(out.Permissions, workmailtypes.Permission{
+			GranteeId: wmStr(g), GranteeType: workmailtypes.MemberTypeUser,
+			PermissionValues: []workmailtypes.PermissionType{workmailtypes.PermissionTypeFullAccess},
+		})
+	}
+	return out
+}
+
+// Every mailbox is asked, u1's two pages are both stored, and a grant without
+// a grantee id is dropped.
+func TestWorkMailMailboxPermissions_StoresEveryMailboxsGrants(t *testing.T) {
+	st := newTestStore(t)
+	var calls parentCalls
+	client := wmClient(map[string]func(any) (any, error){"ListMailboxPermissions": func(in any) (any, error) {
+		mp := in.(*workmail.ListMailboxPermissionsInput)
+		calls.add(wmMailboxOf(in))
+		if mp.MaxResults == nil || *mp.MaxResults != 100 {
+			return nil, wmBadInput
+		}
+		switch wmMailboxOf(in) {
+		case "m-a/u1":
+			if mp.NextToken == nil {
+				return wmPerms(ptrStr("p2"), "g-1"), nil
+			}
+			return wmPerms(nil, "u-9"), nil
+		case "m-a/r1":
+			return wmPerms(nil, "u-1", ""), nil
+		}
+		return wmPerms(nil, "u-2"), nil
+	}})
+	total, inserted, err := wmMailboxScan(t, st, client).mailboxPermissions(context.Background())
+	if err != nil {
+		t.Fatalf("mailboxPermissions: %v", err)
+	}
+	if got := calls.distinct(); !slices.Equal(got, []string{"m-a/r1", "m-a/u1", "m-b/b1"}) {
+		t.Errorf("mailboxes queried = %v, want [m-a/r1 m-a/u1 m-b/b1]", got)
+	}
+	rows := rowsByNativeID(t, st, TypeWorkMailMailboxPermission)
+	want := map[string]string{
+		wmUserA1 + "/mailboxpermission/g-1":     "g-1",
+		wmUserA1 + "/mailboxpermission/u-9":     "u-9",
+		wmResourceA1 + "/mailboxpermission/u-1": "u-1",
+		wmUserB1 + "/mailboxpermission/u-2":     "u-2",
+	}
+	if total != 4 || inserted != 4 || len(rows) != 4 {
+		t.Errorf("total = %d, inserted = %d, rows = %v; want 4, 4, %v", total, inserted, slices.Sorted(maps.Keys(rows)), slices.Sorted(maps.Keys(want)))
+	}
+	for nid, grantee := range want {
+		r, ok := rows[nid]
+		if !ok {
+			t.Errorf("row %s missing", nid)
+			continue
+		}
+		if sv(r.Name) != grantee || sv(r.Region) != testRegion || r.Status != nil || r.CreatedAt != nil {
+			t.Errorf("%s Name, Region, Status, CreatedAt = %q, %q, %v, %v; want %q, %q, nil, nil", nid, sv(r.Name), sv(r.Region), r.Status, r.CreatedAt, grantee, testRegion)
+		}
+		var attrs workmailtypes.Permission
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			t.Fatalf("decode attrs %s: %v", nid, err)
+		}
+		if !slices.Equal(attrs.PermissionValues, []workmailtypes.PermissionType{workmailtypes.PermissionTypeFullAccess}) {
+			t.Errorf("%s PermissionValues = %v, want [FULL_ACCESS]", nid, attrs.PermissionValues)
+		}
+	}
+	assertContainsNative(t, st, wmUserA1, wmUserA1+"/mailboxpermission/u-9")
+	assertContainsNative(t, st, wmResourceA1, wmResourceA1+"/mailboxpermission/u-1")
+	assertContainsNative(t, st, wmUserB1, wmUserB1+"/mailboxpermission/u-2")
+	assertContainsEdgesDeclared(t, st)
+}
+
+func TestWorkMailMailboxPermissions_EmptyAndDenied(t *testing.T) {
+	t.Run("Empty", func(t *testing.T) {
+		st := newTestStore(t)
+		client := wmClient(map[string]func(any) (any, error){"ListMailboxPermissions": func(any) (any, error) { return wmPerms(nil), nil }})
+		total, _, err := wmMailboxScan(t, st, client).mailboxPermissions(context.Background())
+		if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeWorkMailMailboxPermission)) != 0 {
+			t.Errorf("err = %v, total = %d; want nil, 0 and no rows", err, total)
+		}
+	})
+	t.Run("AccessDeniedWarnsOnce", func(t *testing.T) {
+		st := newTestStore(t)
+		warned := countOpWarnings(st, wmMailboxOp)
+		total, _, err := wmMailboxScan(t, st, wmClient(nil)).mailboxPermissions(context.Background())
+		if err != nil || total != 0 || *warned != 1 {
+			t.Errorf("err = %v, total = %d, warnings = %d; want nil, 0, 1", err, total, *warned)
+		}
+	})
+}
+
+// An organization an earlier phase saw rejected is not asked about.
+func TestWorkMailMailboxPermissions_SkipsRejectedOrgs(t *testing.T) {
+	st := newTestStore(t)
+	var calls parentCalls
+	client := wmClient(map[string]func(any) (any, error){"ListMailboxPermissions": func(in any) (any, error) {
+		calls.add(wmMailboxOf(in))
+		return wmPerms(nil), nil
+	}})
+	s := wmMailboxScan(t, st, client)
+	s.rejected["m-b"] = true
+	if _, _, err := s.mailboxPermissions(context.Background()); err != nil {
+		t.Fatalf("mailboxPermissions: %v", err)
+	}
+	if got := calls.distinct(); !slices.Equal(got, []string{"m-a/r1", "m-a/u1"}) {
+		t.Errorf("mailboxes queried = %v, want [m-a/r1 m-a/u1]", got)
+	}
+}
+
+// m-a/u1 answers with one grant; m-a/r1 and m-b/b1 answer with fail.
+func wmMailboxErrScenario(t *testing.T, fail error) (rows map[string]store.Resource, total, warnings int, err error) {
+	t.Helper()
+	st := newTestStore(t)
+	warned := countOpWarnings(st, wmMailboxOp)
+	client := wmClient(map[string]func(any) (any, error){"ListMailboxPermissions": func(in any) (any, error) {
+		if wmMailboxOf(in) == "m-a/u1" {
+			return wmPerms(nil, "u-9"), nil
+		}
+		return nil, fail
+	}})
+	total, _, err = wmMailboxScan(t, st, client).mailboxPermissions(context.Background())
+	return rowsByNativeID(t, st, TypeWorkMailMailboxPermission), total, *warned, err
+}
+
+func TestWorkMailMailboxPermissions_PerMailboxErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		fail         error
+		wantWarnings int
+	}{
+		{"EntityGoneSkippedSilently", &smithy.GenericAPIError{Code: "EntityNotFoundException", Message: "gone"}, 0},
+		{"OrgGoneSkippedSilently", wmOrgGone, 0},
+		{"OrgStateWarnsOnce", wmOrgState, 1},
+		{"TransientWarnsOnce", wmThrottled, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, total, warnings, err := wmMailboxErrScenario(t, tc.fail)
+			if err != nil || warnings != tc.wantWarnings || total != 1 || len(rows) != 1 {
+				t.Errorf("err = %v, warnings = %d, total = %d, rows = %d; want nil, %d, 1, 1", err, warnings, total, len(rows), tc.wantWarnings)
+			}
+		})
+	}
+	for _, code := range []string{"InvalidParameterException", "EntityStateException"} {
+		t.Run(code+"Propagates", func(t *testing.T) {
+			_, _, warnings, err := wmMailboxErrScenario(t, &smithy.GenericAPIError{Code: code, Message: "no"})
+			var ae smithy.APIError
+			if !errors.As(err, &ae) || ae.ErrorCode() != code {
+				t.Errorf("err = %v, want %s", err, code)
+			}
+			if warnings != 0 {
+				t.Errorf("warnings = %d, want 0", warnings)
+			}
+		})
+	}
+}
+
+// The users and resources phases hand on their ENABLED entities as
+// mailboxes, not DISABLED ones and none from an organization whose listing
+// was refused, and only once the phase stored its rows: a hard or demoted
+// transient error, after which childFanOut stores nothing, hands on none.
+func TestWorkMailEntities_RecordStoredEnabledMailboxes(t *testing.T) {
+	for _, tc := range []struct {
+		op, kind string
+		run      func(*workMailScan, context.Context) (int, int, error)
+		out      any
+	}{
+		{"ListUsers", "user", (*workMailScan).users, &workmail.ListUsersOutput{Users: []workmailtypes.User{
+			{Id: ptrStr("on"), State: workmailtypes.EntityStateEnabled},
+			{Id: ptrStr("off"), State: workmailtypes.EntityStateDisabled},
+			{Id: ptrStr("del"), State: workmailtypes.EntityStateDeleted},
+		}}},
+		{"ListResources", "resource", (*workMailScan).resources, &workmail.ListResourcesOutput{Resources: []workmailtypes.Resource{
+			{Id: ptrStr("on"), State: workmailtypes.EntityStateEnabled},
+			{Id: ptrStr("off"), State: workmailtypes.EntityStateDisabled},
+			{Id: ptrStr("del"), State: workmailtypes.EntityStateDeleted},
+		}}},
+	} {
+		for _, mb := range []struct {
+			name    string
+			fail    error
+			wantErr bool
+			want    []workMailMailbox
+		}{
+			{"OrgRejected", wmOrgState, false, []workMailMailbox{{org: wmOrgs[0], entity: childParent{id: "on", arn: wmOrgA + "/" + tc.kind + "/on"}}}},
+			{"HardError", wmBadInput, true, nil},
+			{"Transient", wmThrottled, false, nil},
+		} {
+			t.Run(tc.op+"/"+mb.name, func(t *testing.T) {
+				st := newTestStore(t)
+				wmSeedOrgs(t, st)
+				client := wmClient(map[string]func(any) (any, error){tc.op: func(in any) (any, error) {
+					if wmOrgOf(in) == "m-b" {
+						return nil, mb.fail
+					}
+					return tc.out, nil
+				}})
+				s := wmScan(client, st, wmOrgs)
+				if _, _, err := tc.run(s, context.Background()); (err != nil) != mb.wantErr {
+					t.Errorf("err = %v, want error: %v", err, mb.wantErr)
+				}
+				if !slices.Equal(s.mailboxes, mb.want) {
+					t.Errorf("mailboxes = %v, want %v", s.mailboxes, mb.want)
+				}
+			})
+		}
+	}
+}
+
+// The mailbox permission phase runs after the entity phases, over the users
+// and resources they stored, and its hard error neither costs the earlier
+// phases their rows nor turns the service's error into a transient one.
+func TestScanWorkMailIn_MailboxPermissionsRunLast(t *testing.T) {
+	st := newTestStore(t)
+	var calls parentCalls
+	handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
+		"ListGroups": func(any) (any, error) { return nil, wmThrottled },
+		"ListMailboxPermissions": func(in any) (any, error) {
+			calls.add(wmMailboxOf(in))
+			if sv(in.(*workmail.ListMailboxPermissionsInput).OrganizationId) == "m-b" {
+				return nil, wmBadInput
+			}
+			return wmPerms(nil, "m-a-1"), nil
+		},
+	})
+	total, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+
+	if got := classifyServiceError(err); got != outcomeError {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
+	}
+	var ae smithy.APIError
+	if !errors.As(err, &ae) || ae.ErrorCode() != "InvalidParameterException" {
+		t.Errorf("err = %v, want the ListMailboxPermissions InvalidParameterException", err)
+	}
+	if got := calls.distinct(); !slices.Equal(got, []string{"m-a/m-a-1", "m-b/m-b-1"}) {
+		t.Errorf("mailboxes queried = %v, want the user and resource of each organization", got)
+	}
+	// 2 organizations + 2 children (one per organization) for each of the 9
+	// earlier phases that succeed; the m-b failure costs m-a its grants too,
+	// as childFanOut stores nothing after a hard error.
+	if total != 20 {
+		t.Errorf("total = %d, want 20", total)
+	}
+	if len(rowsByNativeID(t, st, TypeWorkMailUser)) != 2 {
+		t.Errorf("users = %d, want 2", len(rowsByNativeID(t, st, TypeWorkMailUser)))
 	}
 }
