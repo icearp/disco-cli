@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.6% (2021/3336 listable) · depth0 72.4% · depth1 43.4% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.6% (2023/3336 listable) · depth0 72.4% · depth1 43.6% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 299 | 718 | 29.4 |
+| child-uncatalogued | 301 | 716 | 29.6 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 201 | 215 | 48.3 |
 | element-arn | 36 | 70 | 34.0 |
@@ -210,7 +210,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sqs | 1 | 2 | 33.3 |
 | synthetics | 2 | 2 | 50.0 |
 | tax | 0 | 2 | 0.0 |
-| vpc-lattice | 13 | 2 | 86.7 |
 | account | 0 | 1 | 0.0 |
 | acm | 5 | 1 | 83.3 |
 | agent-registry | 2 | 1 | 66.7 |
@@ -354,9 +353,10 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | timestream-influxdb | 4 | 0 | 100.0 |
 | tnb | 5 | 0 | 100.0 |
 | verifiedpermissions | 5 | 0 | 100.0 |
+| vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1315)
+### Uncovered (listable, no scanner) (1313)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1627,8 +1627,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | voiceid | voiceid/speaker | 1 |  | child-uncatalogued | voiceid:DescribeSpeaker, voiceid:ListSpeakers |
 | voiceid | voiceid/speakerenrollmentjob | 1 |  | child-uncatalogued | voiceid:DescribeSpeakerEnrollmentJob, voiceid:ListSpeakerEnrollmentJobs |
 | voiceid | voiceid/watchlist | 1 |  | child-uncatalogued | voiceid:DescribeWatchlist, voiceid:ListWatchlists |
-| vpc-lattice | vpc-lattice/servicenetworkvpcendpointassociation | 1 |  | child-uncatalogued | vpc-lattice:ListServiceNetworkVpcEndpointAssociations |
-| vpc-lattice | vpc-lattice/target | 1 |  | child-uncatalogued | vpc-lattice:ListTargets |
 | waf | waf/loggingconfiguration | 0 |  | element-written | waf:GetLoggingConfiguration, waf:ListLoggingConfigurations |
 | waf-regional | waf-regional/loggingconfiguration | 0 |  | element-written | waf-regional:GetLoggingConfiguration, waf-regional:ListLoggingConfigurations |
 | wafv2 | wafv2/apikey | 0 |  | element-created | wafv2:ListAPIKeys |

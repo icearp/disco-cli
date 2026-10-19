@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/vpclattice"
@@ -48,42 +49,86 @@ type vpcLatticeAPI interface {
 	ListServiceNetworkServiceAssociations(context.Context, *vpclattice.ListServiceNetworkServiceAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListServiceNetworkServiceAssociationsOutput, error)
 	ListServiceNetworkVpcAssociations(context.Context, *vpclattice.ListServiceNetworkVpcAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListServiceNetworkVpcAssociationsOutput, error)
 	ListResourceEndpointAssociations(context.Context, *vpclattice.ListResourceEndpointAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListResourceEndpointAssociationsOutput, error)
+	ListServiceNetworkVpcEndpointAssociations(context.Context, *vpclattice.ListServiceNetworkVpcEndpointAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListServiceNetworkVpcEndpointAssociationsOutput, error)
+	ListTargets(context.Context, *vpclattice.ListTargetsInput, ...func(*vpclattice.Options)) (*vpclattice.ListTargetsOutput, error)
 }
 
-func scanVpcLattice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanVpcLattice runs the child phases (VPC endpoint associations, targets)
+// after every older phase, over the service networks and target groups the
+// older phases stored before any failure, so a child phase's failure costs the
+// older phases no rows. The older side's demotable transient error is demoted
+// to a warning, since one transient member would make the dispatcher read the
+// whole join as transient and drop every phase's counts. The child phases skip
+// a parent still transient after the SDK's retries, so no transient error
+// leaves them. The errors are joined and the counts summed.
+func scanVpcLattice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := vpclattice.NewFromConfig(acct.cfg, func(o *vpclattice.Options) { o.Region = region })
 
+	parents, total, inserted, err := scanVpcLatticeOlderPhases(ctx, client, acct, region, st, scanID)
+	errs := []error{demoteTransient(st, "vpclattice", acct, region, err)}
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanVLServiceNetworkVpcEndpointAssocs(ctx, client, acct, region, st, scanID, parents.networks)
+		},
+		func() (int, int, error) {
+			return scanVLTargets(ctx, client, acct, region, st, scanID, parents.targetGroups)
+		},
+	} {
+		t, i, perr := phase()
+		total += t
+		inserted += i
+		errs = append(errs, perr)
+	}
+	return total, inserted, errors.Join(errs...)
+}
+
+// vlChildParents are the parents of the child phases that the older phases
+// stored: every listed service network, shared-in ones included as in the
+// older per-network phases, and every target group.
+type vlChildParents struct {
+	networks     []childParent
+	targetGroups []childParent
+}
+
+// scanVpcLatticeOlderPhases runs the phases that predate the child phases,
+// stopping at the first error any of them returns, transient ones included.
+func scanVpcLatticeOlderPhases(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) (parents vlChildParents, total, inserted int, err error) {
 	svcARNs, t, i, ferr := scanVLServices(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return 0, 0, ferr
+		return parents, 0, 0, ferr
 	}
 	total += t
 	inserted += i
 
 	netARNs, t, i, ferr := scanVLServiceNetworks(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return parents, total, inserted, ferr
 	}
 	total += t
 	inserted += i
+	parents.networks = vlNetworkParents(netARNs)
 
 	listenerKeys, t, i, ferr := scanVLListeners(ctx, client, acct, region, st, scanID, svcARNs)
 	if ferr != nil {
-		return total, inserted, ferr
+		return parents, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	rcARNs, t, i, ferr := scanVLResourceConfigs(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return parents, total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanVLRules(ctx, client, acct, region, st, scanID, listenerKeys) },
-		func() (int, int, error) { return scanVLTargetGroups(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			tgs, t, i, err := scanVLTargetGroups(ctx, client, acct, region, st, scanID)
+			parents.targetGroups = tgs
+			return t, i, err
+		},
 		func() (int, int, error) {
 			return scanVLAccessLogSubs(ctx, client, acct, region, st, scanID, svcARNs, netARNs)
 		},
@@ -104,12 +149,12 @@ func scanVpcLattice(ctx context.Context, acct *account, region string, st *store
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return parents, total, inserted, ferr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+	return parents, total, inserted, nil
 }
 
 // vlListenerKey carries (serviceArn, listenerArn) — ListRules requires
@@ -261,23 +306,27 @@ func scanVLRules(ctx context.Context, client vpcLatticeAPI, acct *account, regio
 	return upsertBatch(st, batch, "vpclattice rules")
 }
 
-func scanVLTargetGroups(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanVLTargetGroups returns the target groups it stored, none when it
+// returns an error.
+func scanVLTargetGroups(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
 	pager := vpclattice.NewListTargetGroupsPaginator(client, &vpclattice.ListTargetGroupsInput{})
 	var batch []*store.Resource
+	var tgs []childParent
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "vpclattice:ListTargetGroups", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("vpclattice:ListTargetGroups: %w", perr)
+			return nil, 0, 0, fmt.Errorf("vpclattice:ListTargetGroups: %w", perr)
 		}
 		for _, tg := range out.Items {
 			arn := sv(tg.Arn)
 			if arn == "" {
 				continue
 			}
+			tgs = append(tgs, childParent{id: arn, arn: arn})
 			label := sv(tg.Name)
 			if label == "" {
 				label = sv(tg.Id)
@@ -289,7 +338,11 @@ func scanVLTargetGroups(ctx context.Context, client vpcLatticeAPI, acct *account
 			})
 		}
 	}
-	return upsertBatch(st, batch, "vpclattice target-groups")
+	t, i, err := upsertBatch(st, batch, "vpclattice target-groups")
+	if err != nil {
+		return nil, t, i, err
+	}
+	return tgs, t, i, nil
 }
 
 // scanVLAccessLogSubs runs per (service or service-network) — each can
