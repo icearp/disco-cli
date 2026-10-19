@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.4916067146283,
-    "covered": 2018,
-    "uncovered": 1318,
+    "percent": 60.52158273381295,
+    "covered": 2019,
+    "uncovered": 1317,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1749,6 +1749,7 @@
       "securityhub/insight",
       "securityhub/member",
       "securityhub/standard",
+      "securityhub/standardscontrolassociation",
       "securitylake/datalake",
       "securitylake/subscriber",
       "serverlessrepo/application",
@@ -3176,7 +3177,6 @@
       "securityhub/product",
       "securityhub/resource",
       "securityhub/standardscontrol",
-      "securityhub/standardscontrolassociation",
       "securitylake/datalakesource",
       "serverlessrepo/applicationdependency",
       "servicecatalog/associatedattributegroup",

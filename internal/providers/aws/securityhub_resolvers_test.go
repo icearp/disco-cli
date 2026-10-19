@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	securityhubtypes "github.com/aws/aws-sdk-go-v2/service/securityhub/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -191,4 +192,84 @@ func TestResolveSecurityHubMemberOrgAccount_MalformedRowReportedOthersWired(t *t
 		t.Fatalf("RelationshipsFrom: %v", rerr)
 	}
 	assertRelationship(t, rels, goodID, orgID, store.RelAttachedTo)
+}
+
+func shSeedSubscription(t *testing.T, st *store.Store, region, standard string) string {
+	t.Helper()
+	arn := fmt.Sprintf("arn:aws:securityhub:%s:%s:subscription/%s", region, testAccountID, standard)
+	attrs := mustJSON(securityhubtypes.StandardsSubscription{StandardsSubscriptionArn: ptrStr(arn), StandardsArn: ptrStr(standard), StandardsStatus: securityhubtypes.StandardsStatusReady})
+	return upsertTestResource(t, st, "aws", testAccountID, TypeSecurityHubStandardsSubscription, arn, region, attrs)
+}
+
+func shSeedAssoc(t *testing.T, st *store.Store, region, control, standard, attrs string) string {
+	t.Helper()
+	return upsertTestResource(t, st, "aws", testAccountID, TypeSecurityHubStandardsControlAssociation, shAssocNativeID(region, control, standard), region, attrs)
+}
+
+// An association is attached to the subscription to its standard in its own
+// region only; one whose standard has no stored subscription gets no edge.
+func TestResolveSecurityHubControlAssociationSubscriptions_AttachesSameRegionSubscription(t *testing.T) {
+	st := newTestStore(t)
+	cisHere := shSeedSubscription(t, st, testRegion, shStdCIS)
+	shSeedSubscription(t, st, "eu-west-1", shStdCIS)
+	shSeedSubscription(t, st, testRegion, "arn:aws:securityhub:us-east-1::standards/pci-dss/v/3.2.1")
+	assoc := shSeedAssoc(t, st, testRegion, shCtlS3, shStdCIS, mustJSON(shAssoc(shCtlS3, shStdCIS, securityhubtypes.AssociationStatusDisabled, "not used")))
+	orphan := shSeedAssoc(t, st, testRegion, shCtlS3, shStdFSBP(testRegion), mustJSON(shAssoc(shCtlS3, shStdFSBP(testRegion), securityhubtypes.AssociationStatusEnabled, "")))
+
+	if err := resolveSecurityHubControlAssociationSubscriptions(newTestAccount(testAccountID), st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(assoc)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, assoc, cisHere, store.RelAttachedTo)
+	if len(rels) != 1 {
+		t.Errorf("association edges = %v, want only the %s CIS subscription", rels, testRegion)
+	}
+	if rels, _ := st.RelationshipsFrom(orphan); len(rels) != 0 {
+		t.Errorf("association with no subscription has edges %v, want none", rels)
+	}
+}
+
+func TestResolveSecurityHubControlAssociationSubscriptions_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	upsertTestResource(t, st, "aws", testAccountID, TypeSecurityHubStandardsSubscription,
+		fmt.Sprintf("arn:aws:securityhub:%s:%s:subscription/empty", testRegion, testAccountID), testRegion, "{}")
+	assoc := shSeedAssoc(t, st, testRegion, shCtlS3, shStdCIS, "{}")
+	if err := resolveSecurityHubControlAssociationSubscriptions(newTestAccount(testAccountID), st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(assoc); len(rels) != 0 {
+		t.Errorf("edges from an association with no attributes = %v, want none", rels)
+	}
+}
+
+// A subscription or association whose attributes do not parse is reported,
+// and the other rows are still wired.
+func TestResolveSecurityHubControlAssociationSubscriptions_MalformedRowReportedOthersWired(t *testing.T) {
+	for _, malformed := range []string{"subscription", "association"} {
+		t.Run(malformed, func(t *testing.T) {
+			st := newTestStore(t)
+			if malformed == "subscription" {
+				upsertTestResource(t, st, "aws", testAccountID, TypeSecurityHubStandardsSubscription,
+					fmt.Sprintf("arn:aws:securityhub:%s:%s:subscription/bad", testRegion, testAccountID), testRegion, "{")
+			} else {
+				shSeedAssoc(t, st, testRegion, shCtlIAM, shStdCIS, "{")
+			}
+			sub := shSeedSubscription(t, st, testRegion, shStdCIS)
+			good := shSeedAssoc(t, st, testRegion, shCtlS3, shStdCIS, mustJSON(shAssoc(shCtlS3, shStdCIS, securityhubtypes.AssociationStatusEnabled, "")))
+
+			err := resolveSecurityHubControlAssociationSubscriptions(newTestAccount(testAccountID), st)
+			var syntaxErr *json.SyntaxError
+			if !errors.As(err, &syntaxErr) {
+				t.Errorf("err = %v, want the malformed row's *json.SyntaxError", err)
+			}
+			rels, rerr := st.RelationshipsFrom(good)
+			if rerr != nil {
+				t.Fatalf("RelationshipsFrom: %v", rerr)
+			}
+			assertRelationship(t, rels, good, sub, store.RelAttachedTo)
+		})
+	}
 }

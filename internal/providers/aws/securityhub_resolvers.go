@@ -24,16 +24,22 @@ func init() {
 		EdgeDecl{TypeSecurityHubHub, TypeSecurityHubProductSubscription, store.RelContains},
 		EdgeDecl{TypeSecurityHubHub, TypeSecurityHubActionTarget, store.RelContains},
 		EdgeDecl{TypeSecurityHubHub, TypeSecurityHubMember, store.RelContains},
+		EdgeDecl{TypeSecurityHubSecurityControl, TypeSecurityHubStandardsControlAssociation, store.RelContains},
 	)
 	registerResolver(
 		resolveSecurityHubMemberOrgAccount,
 		EdgeDecl{TypeSecurityHubMember, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveSecurityHubControlAssociationSubscriptions,
+		EdgeDecl{TypeSecurityHubStandardsControlAssociation, TypeSecurityHubStandardsSubscription, store.RelAttachedTo},
+	)
 }
 
 // noopSecurityHubHierarchy only carries EdgeDecl metadata: the scanner records
 // a hub→child contains pair for every child type upsertSecurityHubChildren
-// stores, itself.
+// stores, and a control→association pair for every standards-control
+// association, itself.
 func noopSecurityHubHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }
@@ -76,6 +82,56 @@ func resolveSecurityHubMemberOrgAccount(acct *account, st *store.Store) error {
 		orgID := store.ResourceID("aws", acct.ID, orgARN)
 		if err := st.UpsertRelationship(m.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert securityhub member→org account: %w", err)
+		}
+	}
+	return errors.Join(bad...)
+}
+
+// resolveSecurityHubControlAssociationSubscriptions emits an attached-to edge
+// from each standards-control association to the account's subscription to
+// that standard in the same region, matched on StandardsArn. An association
+// whose subscription was not stored gets no edge. A row whose attributes do
+// not parse is reported in the returned error after the remaining rows are
+// wired.
+func resolveSecurityHubControlAssociationSubscriptions(acct *account, st *store.Store) error {
+	assocs, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeSecurityHubStandardsControlAssociation}, IncludeManaged: true, Limit: util.AllResources,
+	})
+	if err != nil || len(assocs) == 0 {
+		return err
+	}
+	subs, err := listAccountRows(acct, st, TypeSecurityHubStandardsSubscription)
+	if err != nil {
+		return err
+	}
+	type standardsRef struct {
+		StandardsArn *string `json:"StandardsArn"`
+	}
+	var bad []error
+	subByStandard := make(map[string]string, len(subs))
+	for _, s := range subs {
+		var attrs standardsRef
+		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil {
+			bad = append(bad, fmt.Errorf("securityhub standards subscription %s attributes: %w", s.NativeID, err))
+			continue
+		}
+		if arn := sv(attrs.StandardsArn); arn != "" {
+			subByStandard[sv(s.Region)+"\x00"+arn] = s.ID
+		}
+	}
+	for _, a := range assocs {
+		var attrs standardsRef
+		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil {
+			bad = append(bad, fmt.Errorf("securityhub standards-control association %s attributes: %w", a.NativeID, err))
+			continue
+		}
+		subID, ok := subByStandard[sv(a.Region)+"\x00"+sv(attrs.StandardsArn)]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(a.ID, subID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert securityhub standards-control association→subscription: %w", err)
 		}
 	}
 	return errors.Join(bad...)

@@ -11,8 +11,9 @@ import (
 // scanSecurityHubExtended adds 11 disco types: V2 hub config, automation
 // rules, configuration policies, finding aggregators, security controls, and
 // standards. Phases tolerate isAccessDenied + isSecurityHubNotEnabled +
-// ResourceNotFoundException.
-func scanSecurityHubExtended(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// ResourceNotFoundException. controls are the security-control rows stored,
+// for scanSecurityHubControlAssociations.
+func scanSecurityHubExtended(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, controls []childParent, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanSHHubV2(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanSHOrgConfig(ctx, client, acct, region, st, scanID) },
@@ -23,17 +24,21 @@ func scanSecurityHubExtended(ctx context.Context, client securityhubAPI, acct *a
 		func() (int, int, error) { return scanSHConnectorsV2(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanSHFindingAggregators(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanSHPolicyAssociations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSHSecurityControls(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			t, i, stored, err := scanSHSecurityControls(ctx, client, acct, region, st, scanID)
+			controls = stored
+			return t, i, err
+		},
 		func() (int, int, error) { return scanSHStandards(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, inserted, nil, ferr
 		}
 		total += t
 		inserted += i
 	}
-	return total, inserted, nil
+	return total, inserted, controls, nil
 }
 
 func shSoftSkip(err error) bool {
@@ -307,17 +312,21 @@ func scanSHPolicyAssociations(ctx context.Context, client securityhubAPI, acct *
 }
 
 // scanSHSecurityControls — control catalogue is AWS-managed. Mark
-// ManagedByProvider=true so the entries hide from default list / graph.
-func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// ManagedByProvider=true so the entries hide from default list / graph. It
+// returns the controls it stored as parents (id = SecurityControlId).
+func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
 	pager := securityhub.NewListSecurityControlDefinitionsPaginator(client, &securityhub.ListSecurityControlDefinitionsInput{})
-	var batch []*store.Resource
+	var (
+		batch    []*store.Resource
+		controls []childParent
+	)
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if shSoftSkip(perr) {
-				return 0, 0, nil
+				return 0, 0, nil, nil
 			}
-			return 0, 0, fmt.Errorf("securityhub:ListSecurityControlDefinitions: %w", perr)
+			return 0, 0, nil, fmt.Errorf("securityhub:ListSecurityControlDefinitions: %w", perr)
 		}
 		for _, c := range out.SecurityControlDefinitions {
 			id := sv(c.SecurityControlId)
@@ -331,9 +340,14 @@ func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *ac
 				Type: TypeSecurityHubSecurityControl, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
+			controls = append(controls, childParent{id: id, arn: arn})
 		}
 	}
-	return upsertBatch(st, batch, "securityhub security-controls")
+	total, inserted, err := upsertBatch(st, batch, "securityhub security-controls")
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	return total, inserted, controls, nil
 }
 
 // scanSHStandards — DescribeStandards returns the AWS-managed standards

@@ -908,6 +908,8 @@ const (
 	TypeSecurityHubPolicyAssociation         = "aws:securityhub:policy-association"
 	TypeSecurityHubSecurityControl           = "aws:securityhub:security-control"
 	TypeSecurityHubStandard                  = "aws:securityhub:standard"
+	// SecurityHub — control enablement per standard (securityhub_scanners.go)
+	TypeSecurityHubStandardsControlAssociation = "aws:securityhub:standards-control-association"
 	// MediaConnect (mediaconnect_scanners.go)
 	TypeMediaConnectBridge                 = "aws:mediaconnect:bridge"
 	TypeMediaConnectBridgeOutput           = "aws:mediaconnect:bridge-output"
