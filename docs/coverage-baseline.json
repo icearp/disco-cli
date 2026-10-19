@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.52158273381295,
-    "covered": 2019,
-    "uncovered": 1317,
+    "percent": 60.5515587529976,
+    "covered": 2020,
+    "uncovered": 1316,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -989,6 +989,7 @@
       "inspector2/codesecurityintegration",
       "inspector2/codesecurityscanconfiguration",
       "inspector2/connector",
+      "inspector2/delegatedadminaccount",
       "inspector2/filter",
       "interconnect/connection",
       "interconnect/environment",
@@ -2697,7 +2698,6 @@
       "inspector2/cisscanresultsaggregatedbytargetresource",
       "inspector2/clustersforimage",
       "inspector2/connectorscanconfiguration",
-      "inspector2/delegatedadminaccount",
       "inspector2/finding",
       "inspector2/findingaggregation",
       "inspector2/getaccountstatus",

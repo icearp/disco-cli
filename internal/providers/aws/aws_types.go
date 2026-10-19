@@ -1825,6 +1825,7 @@ const (
 	TypeInspector2CodeSecurityIntegration       = "aws:inspector2:code-security-integration"
 	TypeInspector2CodeSecurityScanConfiguration = "aws:inspector2:code-security-scan-configuration"
 	TypeInspector2Connector                     = "aws:inspector2:connector"
+	TypeInspector2DelegatedAdminAccount         = "aws:inspector2:delegated-admin-account"
 	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
 	TypeGlueDatabase       = "aws:glue:database"
 	TypeGlueTable          = "aws:glue:table"

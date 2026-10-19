@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/inspector2"
@@ -16,6 +17,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityIntegration, Service: "inspectorv2"})
 	registerType(restype.Descriptor{Type: TypeInspector2CodeSecurityScanConfiguration, Service: "inspectorv2"})
 	registerType(restype.Descriptor{Type: TypeInspector2Connector, Service: "inspectorv2"})
+	registerType(restype.Descriptor{Type: TypeInspector2DelegatedAdminAccount, Service: "inspectorv2"})
 	registerService(serviceEntry{
 		name: "aws:inspector2",
 		fn:   scanInspector2,
@@ -31,44 +33,67 @@ type inspector2API interface {
 	ListCodeSecurityIntegrations(context.Context, *inspector2.ListCodeSecurityIntegrationsInput, ...func(*inspector2.Options)) (*inspector2.ListCodeSecurityIntegrationsOutput, error)
 	ListCodeSecurityScanConfigurations(context.Context, *inspector2.ListCodeSecurityScanConfigurationsInput, ...func(*inspector2.Options)) (*inspector2.ListCodeSecurityScanConfigurationsOutput, error)
 	ListConnectors(context.Context, *inspector2.ListConnectorsInput, ...func(*inspector2.Options)) (*inspector2.ListConnectorsOutput, error)
+	ListDelegatedAdminAccounts(context.Context, *inspector2.ListDelegatedAdminAccountsInput, ...func(*inspector2.Options)) (*inspector2.ListDelegatedAdminAccountsOutput, error)
 }
 
-// scanInspector2 discovers Inspector v2 finding-filters, member accounts
-// (delegated-admin perspective) and the scanInspector2Extended types in one
-// region, phase by phase.
+// scanInspector2 discovers Inspector v2 resources and the organization's
+// delegated administrator in one region.
 // Findings, coverage rows, and the singleton org-level configuration are
 // deliberately out of scope: findings are event data (matches Macie /
 // Detective / Security Hub precedent), coverage explodes the row count
 // (one entry per scanned resource × scan-type), and configuration is a
 // singleton config rather than a graph-edge target.
-func scanInspector2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+//
+// The delegated-admin phase runs whatever the other phases return, because
+// a management account can delegate Inspector without enabling it itself;
+// the other phases then end in the not-enabled sentinel. The sentinel is
+// returned only when no phase stored a row and the delegated-admin phase has
+// no error of its own: the dispatcher discards every count on a sentinel and
+// would hide that error behind "(account: disabled)".
+func scanInspector2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := inspector2.NewFromConfig(acct.cfg, func(o *inspector2.Options) { o.Region = region })
 
+	total, inserted, err := scanInspector2Resources(ctx, client, acct, region, st, scanID)
+	t, i, aerr := scanInspector2DelegatedAdmins(ctx, client, acct, region, st, scanID)
+	total += t
+	inserted += i
+	aerr = demoteTransient(st, "inspector2:ListDelegatedAdminAccounts", acct, region, aerr)
+	if errors.Is(err, errServiceDisabled) && (total > 0 || aerr != nil) {
+		err = nil
+	}
+	return total, inserted, errors.Join(demoteTransient(st, "inspector2", acct, region, err), aerr)
+}
+
+// scanInspector2Resources lists finding-filters, member accounts
+// (delegated-admin perspective) and the scanInspector2Extended types, phase
+// by phase; the first failing phase ends the listing, and the rows stored
+// before it stay counted.
+func scanInspector2Resources(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	{
 		t, i, ferr := scanInspector2Filters(ctx, client, acct, region, st, scanID)
+		total += t
+		inserted += i
 		if ferr != nil {
 			return total, inserted, ferr
 		}
-		total += t
-		inserted += i
 	}
 
 	{
 		t, i, ferr := scanInspector2Members(ctx, client, acct, region, st, scanID)
+		total += t
+		inserted += i
 		if ferr != nil {
 			return total, inserted, ferr
 		}
-		total += t
-		inserted += i
 	}
 
 	{
 		t, i, ferr := scanInspector2Extended(ctx, client, acct, region, st, scanID)
+		total += t
+		inserted += i
 		if ferr != nil {
 			return total, inserted, ferr
 		}
-		total += t
-		inserted += i
 	}
 
 	return total, inserted, nil

@@ -176,3 +176,56 @@ func scanInspector2Connectors(ctx context.Context, client inspector2API, acct *a
 	}
 	return upsertBatch(st, batch, "inspector2 connectors")
 }
+
+// inspector2DelegatedAdminNativeID synthesises an identifier for a delegated
+// administrator row: Inspector v2 issues no ARN for it. It is keyed by the
+// listing account, mirroring the Detective organization-admin shape.
+func inspector2DelegatedAdminNativeID(region, listingAccountID, adminAccountID string) string {
+	return fmt.Sprintf("arn:aws:inspector2:%s:%s:delegated-admin/%s", region, listingAccountID, adminAccountID)
+}
+
+// scanInspector2DelegatedAdmins lists the organization's Inspector v2
+// delegated administrator in one region (the designation is per region).
+// GetDelegatedAdminAccount is not called: it answers from member accounts
+// too, so every scanned member would store the same administrator under its
+// own NativeID. Which error ListDelegatedAdminAccounts returns to an account
+// that may not call it is unverified live, so a denial warns like any other.
+func scanInspector2DelegatedAdmins(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := inspector2.NewListDelegatedAdminAccountsPaginator(client, &inspector2.ListDelegatedAdminAccountsInput{},
+		func(o *inspector2.ListDelegatedAdminAccountsPaginatorOptions) { o.Limit = 5 })
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			// scanInspector2CisConfigs reports a not-enabled account through
+			// the service-disabled sentinel; a warning here would be an
+			// IAM-style warning no policy change can fix.
+			if isInspector2FeatureNotEnabled(err) {
+				break
+			}
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied(st, "inspector2:ListDelegatedAdminAccounts", acct.ID, region, err)
+				break
+			}
+			return 0, 0, fmt.Errorf("inspector2:ListDelegatedAdminAccounts: %w", err)
+		}
+		for _, a := range out.DelegatedAdminAccounts {
+			adminID := sv(a.AccountId)
+			if adminID == "" {
+				continue
+			}
+			r := &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type:     TypeInspector2DelegatedAdminAccount,
+				NativeID: inspector2DelegatedAdminNativeID(region, acct.ID, adminID),
+				Name:     &adminID, Region: &region,
+				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			}
+			if status := string(a.Status); status != "" {
+				r.Status = &status
+			}
+			batch = append(batch, r)
+		}
+	}
+	return upsertBatch(st, batch, "inspector2 delegated-admin-accounts")
+}
