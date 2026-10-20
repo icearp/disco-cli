@@ -25,7 +25,7 @@ func init() {
 	// and scope whether or not anyone configured it. Still not Managed: the
 	// customer can change it, and Managed rows are left out of default
 	// `disco check` input.
-	registerType(restype.Descriptor{Type: TypeConnectAttachedFilesConfiguration, Service: "connect"})
+	registerType(restype.Descriptor{Type: TypeConnectAttachedFilesConfiguration, Service: "connect", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeConnectHoursOfOperationOverride, Service: "connect"})
 	registerType(restype.Descriptor{Type: TypeConnectUseCase, Service: "connect"})
 	registerType(restype.Descriptor{Type: TypeConnectEvaluationFormVersion, Service: "connect"})

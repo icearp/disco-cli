@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeOSISPipeline, Service: "osis"})
-	registerType(restype.Descriptor{Type: TypeOSISPipelineBlueprint, Service: "osis", Managed: true})
+	registerType(restype.Descriptor{Type: TypeOSISPipelineBlueprint, Service: "osis", Managed: true, Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeOSISPipelineEndpoint, Service: "osis"})
 	registerType(restype.Descriptor{Type: TypeOSISPipelineEndpointConnection, Service: "osis"})
 	registerService(serviceEntry{

@@ -12,7 +12,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeAppFlowFlow, Service: "appflow"})
 	registerType(restype.Descriptor{Type: TypeAppFlowConnector, Service: "appflow"})
-	registerType(restype.Descriptor{Type: TypeAppFlowConnectorProfile, Service: "appflow"})
+	registerType(restype.Descriptor{Type: TypeAppFlowConnectorProfile, Service: "appflow", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:appflow",
 		fn:   scanAppFlow,

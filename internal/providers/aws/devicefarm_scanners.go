@@ -22,7 +22,7 @@ func init() {
 	// Url is a presigned S3 PUT URL: its signature is a bearer credential, and a
 	// presigned URL re-minted per read would version-split an unchanged upload.
 	// Redacting it to a constant covers both, so no Volatile rule is needed.
-	registerType(restype.Descriptor{Type: TypeDeviceFarmUpload, Service: "devicefarm", Redact: []redact.Rule{{Path: "Url", Mode: redact.RedactScalar}}})
+	registerType(restype.Descriptor{Type: TypeDeviceFarmUpload, Service: "devicefarm", Redact: []redact.Rule{{Path: "Url", Mode: redact.RedactScalar}}, Untaggable: true})
 	registerService(serviceEntry{
 		name:   "aws:devicefarm",
 		fn:     scanDeviceFarm,

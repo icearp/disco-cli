@@ -84,6 +84,7 @@ type serviceModel struct {
 	pagDefault paginated
 	ops        map[string]binding  // reachable operation shape id -> how it is bound
 	res        map[string]*resNode // reachable resource shape id -> node
+	creates    map[string][]string // Ident(X) -> ids of reachable operations named exactly "Create"+X
 }
 
 // newServiceModel walks the service shape's operations and resources. Only
@@ -109,6 +110,13 @@ func newServiceModel(m *smithyModel) *serviceModel {
 	}
 	sm.keepResourceSuffix()
 	sm.nestByIdentifiers()
+	sm.creates = map[string][]string{}
+	for _, id := range slices.Sorted(maps.Keys(sm.ops)) {
+		if subject, ok := strings.CutPrefix(shapeName(id), "Create"); ok && subject != "" {
+			key := sdkinv.Ident(subject)
+			sm.creates[key] = append(sm.creates[key], id)
+		}
+	}
 	return sm
 }
 

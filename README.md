@@ -114,7 +114,7 @@ disco summary -o json | jq '.byAccount, .byProvider'
 
 ### Tag-hygiene scorecard for cost-allocation
 
-Coverage rate per tag key, which is the precondition for chargeback and showback. Zero-coverage keys still appear so dashboards see the absent-tag signal. Tag KEYS shaped like AWS access-key IDs are flagged `[suspicious:aws-access-key-id]` so credential paste-into-tag mistakes don't render as legitimate scorecard rows.
+Coverage rate per tag key, which is the precondition for chargeback and showback. Zero-coverage keys still appear so dashboards see the absent-tag signal. The denominator leaves out provider-managed resources and the types disco declares untaggable. For an AWS type that disco's SDK extractor matches to an AWS Service Reference resource, the declaration follows that resource and the SDK models: no way to tag it and no SDK operation carrying tags, for example `aws:iam:group`. disco also declares by hand the account settings the Service Reference does not list. Every other type counts as taggable, including a Service Reference resource the extractor does not match to its type. `--include-managed` and `--include-untaggable` add them back. Tag KEYS shaped like AWS access-key IDs are flagged `[suspicious:aws-access-key-id]` so credential paste-into-tag mistakes don't render as legitimate scorecard rows.
 
 ```bash
 disco tag-coverage owner cost-center environment --case-insensitive

@@ -55,6 +55,24 @@
     },
     {
      "target": "ns#ListWidgetHealth"
+    },
+    {
+     "target": "ns#GetCrate"
+    },
+    {
+     "target": "ns#CreateSprocketPolicy"
+    },
+    {
+     "target": "ns#ListNuts"
+    },
+    {
+     "target": "ns#GetNut"
+    },
+    {
+     "target": "ns#DescribeBolt"
+    },
+    {
+     "target": "ns#GetBolt"
     }
    ],
    "traits": {
@@ -319,6 +337,9 @@
    "members": {
     "ZoneName": {
      "target": "smithy.api#String"
+    },
+    "Tags": {
+     "target": "ns#TagMap"
     }
    }
   },
@@ -454,6 +475,9 @@
      "traits": {
       "smithy.api#required": {}
      }
+    },
+    "Tags": {
+     "target": "ns#TagMap"
     }
    }
   },
@@ -571,6 +595,9 @@
    "members": {
     "Alias": {
      "target": "ns#Alias"
+    },
+    "Tags": {
+     "target": "ns#TagMap"
     }
    }
   },
@@ -668,6 +695,251 @@
    "members": {
     "Status": {
      "target": "smithy.api#String"
+    }
+   }
+  },
+  "ns#TagMap": {
+   "type": "map",
+   "key": {
+    "target": "smithy.api#String"
+   },
+   "value": {
+    "target": "smithy.api#String"
+   }
+  },
+  "ns#GetCrate": {
+   "type": "operation",
+   "input": {
+    "target": "ns#GetCrateRequest"
+   },
+   "output": {
+    "target": "ns#GetCrateResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   }
+  },
+  "ns#GetCrateRequest": {
+   "type": "structure",
+   "members": {
+    "CrateId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   }
+  },
+  "ns#GetCrateResponse": {
+   "type": "structure",
+   "members": {
+    "Crate": {
+     "target": "ns#Crate"
+    },
+    "Users": {
+     "target": "ns#UserList"
+    }
+   }
+  },
+  "ns#Crate": {
+   "type": "structure",
+   "members": {
+    "CrateId": {
+     "target": "smithy.api#String"
+    }
+   }
+  },
+  "ns#UserList": {
+   "type": "list",
+   "member": {
+    "target": "ns#User"
+   }
+  },
+  "ns#User": {
+   "type": "structure",
+   "members": {
+    "UserId": {
+     "target": "smithy.api#String"
+    },
+    "Tags": {
+     "target": "ns#TagMap"
+    }
+   }
+  },
+  "ns#CreateSprocketPolicy": {
+   "type": "operation",
+   "input": {
+    "target": "ns#CreateSprocketPolicyRequest"
+   },
+   "output": {
+    "target": "ns#CreateSprocketPolicyResponse"
+   },
+   "traits": {}
+  },
+  "ns#CreateSprocketPolicyRequest": {
+   "type": "structure",
+   "members": {
+    "SprocketUrl": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "Policy": {
+     "target": "smithy.api#String"
+    },
+    "Tags": {
+     "target": "ns#TagMap"
+    }
+   }
+  },
+  "ns#CreateSprocketPolicyResponse": {
+   "type": "structure",
+   "members": {}
+  },
+  "ns#ListNuts": {
+   "type": "operation",
+   "input": {
+    "target": "ns#ListNutsRequest"
+   },
+   "output": {
+    "target": "ns#ListNutsResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   }
+  },
+  "ns#ListNutsRequest": {
+   "type": "structure",
+   "members": {}
+  },
+  "ns#ListNutsResponse": {
+   "type": "structure",
+   "members": {
+    "Nuts": {
+     "target": "ns#NutList"
+    }
+   }
+  },
+  "ns#NutList": {
+   "type": "list",
+   "member": {
+    "target": "ns#Nut"
+   }
+  },
+  "ns#Nut": {
+   "type": "structure",
+   "members": {
+    "NutId": {
+     "target": "smithy.api#String"
+    },
+    "NutArn": {
+     "target": "smithy.api#String"
+    }
+   }
+  },
+  "ns#GetNut": {
+   "type": "operation",
+   "input": {
+    "target": "ns#GetNutRequest"
+   },
+   "output": {
+    "target": "ns#GetNutResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   }
+  },
+  "ns#GetNutRequest": {
+   "type": "structure",
+   "members": {
+    "WidgetId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "Slot": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   }
+  },
+  "ns#GetNutResponse": {
+   "type": "structure",
+   "members": {
+    "Status": {
+     "target": "smithy.api#String"
+    },
+    "Tags": {
+     "target": "ns#TagMap"
+    }
+   }
+  },
+  "ns#DescribeBolt": {
+   "type": "operation",
+   "input": {
+    "target": "ns#DescribeBoltRequest"
+   },
+   "output": {
+    "target": "ns#DescribeBoltResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   }
+  },
+  "ns#DescribeBoltRequest": {
+   "type": "structure",
+   "members": {
+    "BoltName": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   }
+  },
+  "ns#DescribeBoltResponse": {
+   "type": "structure",
+   "members": {
+    "Size": {
+     "target": "smithy.api#Integer"
+    }
+   }
+  },
+  "ns#GetBolt": {
+   "type": "operation",
+   "input": {
+    "target": "ns#GetBoltRequest"
+   },
+   "output": {
+    "target": "ns#GetBoltResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   }
+  },
+  "ns#GetBoltRequest": {
+   "type": "structure",
+   "members": {
+    "JobId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   }
+  },
+  "ns#GetBoltResponse": {
+   "type": "structure",
+   "members": {
+    "Status": {
+     "target": "smithy.api#String"
+    },
+    "Tags": {
+     "target": "ns#TagMap"
     }
    }
   }

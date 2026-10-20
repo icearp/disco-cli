@@ -751,6 +751,59 @@ func (x *universe) indexModel(sm *serviceModel, srAll map[string]*srService, fil
 	return diags, other
 }
 
+// tagMembers are the member names AWS models give a resource's own tags.
+// The catalog alone misses resources tagged only through their create or
+// update call, or whose TagResource names no resource (transcribe).
+var tagMembers = []string{"Tags", "TagList", "TagSpecifications"}
+
+// carriesTags reports whether the operation's output, its listed
+// element when the element's name holds the subject's (JobDefinition,
+// InputDeviceSummary, ResourceSharePermissionSummary), its create, put or
+// update input (for a bound resource) or its Create<Subject> input (for an
+// unbound one) has a tags member. Another element's tags are not the
+// subject's: GetGroup lists Users.
+func carriesTags(sm *serviceModel, f *opFacts) bool {
+	var shapes []string
+	if f.elem != "" && strings.Contains(sdkinv.Ident(shapeName(f.elem)), f.ident) {
+		shapes = append(shapes, f.elem)
+	}
+	// The operation's own input is not read: a listing's input can take a
+	// Tags filter, which says nothing about the subject.
+	if op := sm.m.Shapes[f.id]; op != nil && op.Output != nil {
+		shapes = append(shapes, op.Output.Target)
+	}
+	var creates []string
+	if res := sm.m.Shapes[f.bind.res]; res != nil {
+		for _, lc := range []*ref{res.Create, res.Put, res.Update} {
+			if lc != nil {
+				creates = append(creates, lc.Target)
+			}
+		}
+	} else {
+		// No resource shape names the subject's lifecycle, so its create is
+		// the operation named exactly "Create" + the subject (sesv2
+		// CreateMultiRegionEndpoint); another resource's create is not it.
+		creates = sm.creates[f.ident]
+	}
+	for _, id := range creates {
+		if op := sm.m.Shapes[id]; op != nil && op.Input != nil {
+			shapes = append(shapes, op.Input.Target)
+		}
+	}
+	for _, id := range shapes {
+		sh := sm.m.Shapes[id]
+		if sh == nil {
+			continue
+		}
+		for name := range sh.Members {
+			if slices.ContainsFunc(tagMembers, func(t string) bool { return strings.EqualFold(t, name) }) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // add files one candidate operation under its entry: an attribute nests under
 // its parent's identity, a resource or catalog row stands at the service.
 func (x *universe) add(sm *serviceModel, sr *srService, svc string, f *opFacts, op sdkinv.Operation, class sdkinv.Class, rule string) {
@@ -764,9 +817,12 @@ func (x *universe) add(sm *serviceModel, sr *srService, svc string, f *opFacts, 
 		x.entries[key] = en
 	}
 	en.nouns = append(en.nouns, f.disp)
+	en.opTagged = en.opTagged || carriesTags(sm, f)
 	if sr != nil {
 		if name, ok := sr.resCanon[f.ident]; ok {
 			en.srName = sdkinv.Canon(name)
+			en.srMatched = true
+			en.srTagged = en.srTagged || sr.tagged[f.ident]
 		}
 	}
 	// Operations folded in by their element are other ways to reach the

@@ -20,7 +20,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeQBusinessIndex, Service: "qbusiness"})
 	registerType(restype.Descriptor{Type: TypeQBusinessPlugin, Service: "qbusiness"})
 	registerType(restype.Descriptor{Type: TypeQBusinessRetriever, Service: "qbusiness"})
-	registerType(restype.Descriptor{Type: TypeQBusinessSubscription, Service: "qbusiness"})
+	registerType(restype.Descriptor{Type: TypeQBusinessSubscription, Service: "qbusiness", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeQBusinessWebExperience, Service: "qbusiness"})
 	registerService(serviceEntry{
 		name: "aws:qbusiness",

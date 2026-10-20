@@ -13,8 +13,8 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeResourceExplorer2Index, Service: "resource-explorer-2"})
 	registerType(restype.Descriptor{Type: TypeResourceExplorer2View, Service: "resource-explorer-2"})
-	registerType(restype.Descriptor{Type: TypeResourceExplorer2DefaultViewAssociation, Service: "resource-explorer-2"})
-	registerType(restype.Descriptor{Type: TypeResourceExplorer2ManagedView, Service: "resource-explorer-2", Managed: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2DefaultViewAssociation, Service: "resource-explorer-2", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2ManagedView, Service: "resource-explorer-2", Managed: true, Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:resource-explorer-2",
 		fn:   scanResourceExplorer2,

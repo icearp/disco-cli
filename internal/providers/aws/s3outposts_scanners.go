@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeS3OutpostsEndpoint, Service: "s3outposts"})
+	registerType(restype.Descriptor{Type: TypeS3OutpostsEndpoint, Service: "s3outposts", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeS3OutpostsBucket, Service: "s3outposts"})
 	registerType(restype.Descriptor{Type: TypeS3OutpostsAccessPoint, Service: "s3outposts"})
 	registerType(restype.Descriptor{Type: TypeS3OutpostsBucketPolicy, Service: "s3outposts"})

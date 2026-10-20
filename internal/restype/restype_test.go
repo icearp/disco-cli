@@ -7,6 +7,7 @@ import (
 	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/icearp/disco-cli/internal/managed"
 	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/untaggable"
 	"github.com/icearp/disco-cli/internal/volatile"
 )
 
@@ -26,15 +27,19 @@ func TestEmitReturnsCoverageDecl(t *testing.T) {
 
 func TestEmitForwardsFieldRules(t *testing.T) {
 	Emit(Descriptor{
-		Type:     "test:svc:rules",
-		Service:  "svc",
-		Managed:  true,
-		Redact:   []redact.Rule{{Path: "Secret", Mode: redact.RedactScalar}},
-		Volatile: []string{"Token"},
+		Type:       "test:svc:rules",
+		Service:    "svc",
+		Managed:    true,
+		Untaggable: true,
+		Redact:     []redact.Rule{{Path: "Secret", Mode: redact.RedactScalar}},
+		Volatile:   []string{"Token"},
 	})
 
 	if !managed.Is("test:svc:rules") {
 		t.Error("Managed:true not forwarded to managed registry")
+	}
+	if !untaggable.Is("test:svc:rules") {
+		t.Error("Untaggable:true not forwarded to untaggable registry")
 	}
 	if got := redact.Apply("test:svc:rules", `{"Secret":"hunter2"}`); strings.Contains(got, "hunter2") {
 		t.Errorf("redact rule not forwarded: %s", got)
@@ -49,6 +54,9 @@ func TestEmitNoRulesRegistersNothing(t *testing.T) {
 
 	if managed.Is("test:svc:bare") {
 		t.Error("bare descriptor registered as managed")
+	}
+	if untaggable.Is("test:svc:bare") {
+		t.Error("bare descriptor registered as untaggable")
 	}
 	if got := redact.Apply("test:svc:bare", `{"Secret":"x"}`); !strings.Contains(got, "x") {
 		t.Errorf("bare descriptor redacted a field: %s", got)

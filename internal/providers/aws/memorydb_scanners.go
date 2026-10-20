@@ -14,7 +14,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeMemoryDBACL, Service: "memorydb"})
 	registerType(restype.Descriptor{Type: TypeMemoryDBCluster, Service: "memorydb"})
 	registerType(restype.Descriptor{Type: TypeMemoryDBMultiRegionCluster, Service: "memorydb"})
-	registerType(restype.Descriptor{Type: TypeMemoryDBMultiRegionParameterGroup, Service: "memorydb"})
+	registerType(restype.Descriptor{Type: TypeMemoryDBMultiRegionParameterGroup, Service: "memorydb", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeMemoryDBParameterGroup, Service: "memorydb"})
 	registerType(restype.Descriptor{Type: TypeMemoryDBReservedNode, Service: "memorydb"})
 	registerType(restype.Descriptor{Type: TypeMemoryDBSnapshot, Service: "memorydb"})

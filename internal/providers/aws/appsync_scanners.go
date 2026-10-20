@@ -15,13 +15,13 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAppSyncAPICache, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncAPIKey, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncChannelNamespace, Service: "appsync"})
-	registerType(restype.Descriptor{Type: TypeAppSyncDataSource, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncDataSource, Service: "appsync", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeAppSyncDomainName, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncDomainNameAPIAssociation, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncFunctionConfiguration, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncGraphQLApi, Service: "appsync"})
 	registerType(restype.Descriptor{Type: TypeAppSyncGraphQLSchema, Service: "appsync"})
-	registerType(restype.Descriptor{Type: TypeAppSyncSourceAPIAssociation, Service: "appsync"})
+	registerType(restype.Descriptor{Type: TypeAppSyncSourceAPIAssociation, Service: "appsync", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeAppSyncResolver, Service: "appsync"})
 	registerService(serviceEntry{
 		name: "aws:appsync",

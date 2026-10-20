@@ -115,7 +115,10 @@
      "target": "gr#Fleet"
     }
    ],
-   "type": "resource"
+   "type": "resource",
+   "update": {
+    "target": "gr#UpdateFarm"
+   }
   },
   "gr#FarmDetail": {
    "members": {
@@ -626,6 +629,15 @@
    },
    "type": "list"
   },
+  "gr#TagMap": {
+   "key": {
+    "target": "smithy.api#String"
+   },
+   "type": "map",
+   "value": {
+    "target": "smithy.api#String"
+   }
+  },
   "gr#TagResource": {
    "input": {
     "target": "gr#TagResourceRequest"
@@ -653,6 +665,33 @@
    "type": "structure"
   },
   "gr#TagResourceResponse": {
+   "members": {},
+   "type": "structure"
+  },
+  "gr#UpdateFarm": {
+   "input": {
+    "target": "gr#UpdateFarmRequest"
+   },
+   "output": {
+    "target": "gr#UpdateFarmResponse"
+   },
+   "type": "operation"
+  },
+  "gr#UpdateFarmRequest": {
+   "members": {
+    "farmId": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "tags": {
+     "target": "gr#TagMap"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#UpdateFarmResponse": {
    "members": {},
    "type": "structure"
   },

@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeServerlessRepoApplication, Service: "serverlessrepo"})
+	registerType(restype.Descriptor{Type: TypeServerlessRepoApplication, Service: "serverlessrepo", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeServerlessRepoApplicationVersion, Service: "serverlessrepo"})
 	registerType(restype.Descriptor{Type: TypeServerlessRepoApplicationPolicy, Service: "serverlessrepo"})
 	registerService(serviceEntry{

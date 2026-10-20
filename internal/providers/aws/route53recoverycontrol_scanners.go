@@ -12,7 +12,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeR53RCCluster, Service: "route53-recovery-control"})
 	registerType(restype.Descriptor{Type: TypeR53RCControlPanel, Service: "route53-recovery-control"})
-	registerType(restype.Descriptor{Type: TypeR53RCRoutingControl, Service: "route53-recovery-control"})
+	registerType(restype.Descriptor{Type: TypeR53RCRoutingControl, Service: "route53-recovery-control", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeR53RCSafetyRule, Service: "route53-recovery-control"})
 	registerService(serviceEntry{
 		name:   "aws:route53-recovery-control",

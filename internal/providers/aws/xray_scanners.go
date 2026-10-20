@@ -13,10 +13,10 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeXRayGroup, Service: "xray"})
-	registerType(restype.Descriptor{Type: TypeXRayIndexingRule, Service: "xray"})
+	registerType(restype.Descriptor{Type: TypeXRayIndexingRule, Service: "xray", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeXRayResourcePolicy, Service: "xray"})
 	registerType(restype.Descriptor{Type: TypeXRaySamplingRule, Service: "xray"})
-	registerType(restype.Descriptor{Type: TypeXRayTransactionSearchConfig, Service: "xray"})
+	registerType(restype.Descriptor{Type: TypeXRayTransactionSearchConfig, Service: "xray", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:xray",
 		fn:   scanXRay,

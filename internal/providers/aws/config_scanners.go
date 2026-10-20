@@ -18,7 +18,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeConfigConformancePack, Service: "config"})
 	registerType(restype.Descriptor{Type: TypeConfigOrganizationConfigRule, Service: "config"})
 	registerType(restype.Descriptor{Type: TypeConfigOrganizationConformancePack, Service: "config"})
-	registerType(restype.Descriptor{Type: TypeConfigRemediationConfiguration, Service: "config"})
+	registerType(restype.Descriptor{Type: TypeConfigRemediationConfiguration, Service: "config", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeConfigStoredQuery, Service: "config"})
 	registerType(restype.Descriptor{Type: TypeConfigConnector, Service: "config"})
 	registerType(restype.Descriptor{Type: TypeConfigRemediationException, Service: "config"})

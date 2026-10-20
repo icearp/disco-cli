@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypePaymentCryptographyKey, Service: "payment-cryptography"})
-	registerType(restype.Descriptor{Type: TypePaymentCryptographyAlias, Service: "payment-cryptography"})
+	registerType(restype.Descriptor{Type: TypePaymentCryptographyAlias, Service: "payment-cryptography", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:payment-cryptography",
 		fn:   scanPaymentCryptography,

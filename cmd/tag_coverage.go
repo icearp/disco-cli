@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 
+	"github.com/icearp/disco-cli/internal/untaggable"
 	"github.com/icearp/disco-cli/store"
 	"github.com/spf13/cobra"
 )
@@ -22,24 +24,25 @@ import (
 var errTagCoverageBelow = errors.New("tag coverage below threshold")
 
 var (
-	tagCovProviders        []string
-	tagCovType             string
-	tagCovExcludeTypes     []string
-	tagCovRegions          []string
-	tagCovScanID           string
-	tagCovDiscoveredSince  = singleSetString{flag: "discovered-since"}
-	tagCovDiscoveredBefore = singleSetString{flag: "discovered-before"}
-	tagCovCreatedSince     = singleSetString{flag: "created-since"}
-	tagCovCreatedBefore    = singleSetString{flag: "created-before"}
-	tagCovOutputFmt        string
-	tagCovIncludeManaged   bool
-	tagCovSkipGlobals      bool
-	tagCovCaseInsensitive  bool
-	tagCovMinCoverage      float64
-	tagCovMinCovSet        bool
-	tagCovExitZero         bool
-	tagCovRequireResources bool
-	tagCovMinResources     uint64
+	tagCovProviders         []string
+	tagCovType              string
+	tagCovExcludeTypes      []string
+	tagCovRegions           []string
+	tagCovScanID            string
+	tagCovDiscoveredSince   = singleSetString{flag: "discovered-since"}
+	tagCovDiscoveredBefore  = singleSetString{flag: "discovered-before"}
+	tagCovCreatedSince      = singleSetString{flag: "created-since"}
+	tagCovCreatedBefore     = singleSetString{flag: "created-before"}
+	tagCovOutputFmt         string
+	tagCovIncludeManaged    bool
+	tagCovIncludeUntaggable bool
+	tagCovSkipGlobals       bool
+	tagCovCaseInsensitive   bool
+	tagCovMinCoverage       float64
+	tagCovMinCovSet         bool
+	tagCovExitZero          bool
+	tagCovRequireResources  bool
+	tagCovMinResources      uint64
 )
 
 var tagCoverageCmd = &cobra.Command{
@@ -52,9 +55,20 @@ its coverage rate. With one or more keys, restricts the report to those
 keys only (zero-coverage keys still appear so audit dashboards see the
 absent-tag signal).
 
-Customer-managed resources only by default; --include-managed expands the
-denominator. Filter scope with --providers / --type / --regions — useful for
-"tag coverage on EC2 instances only" rollups.
+The default denominator is customer-managed resources of taggable types.
+--include-managed adds provider-managed resources. --include-untaggable adds
+the types disco declares untaggable, whose rows can never carry a tag. For an
+AWS type that disco's SDK extractor matches to an AWS Service Reference
+resource, the declaration follows that resource and the SDK models:
+untaggable means the Service Reference lists no way to tag it and no SDK
+operation for it carries tags, as for aws:iam:group. disco also declares by
+hand the account settings the Service Reference does not list. Every other
+type counts as taggable, including a Service Reference resource the extractor
+does not match to its type. A provider that declares no untaggable type
+counts all of its types. --type
+naming an untaggable type is an error unless --include-untaggable is set.
+Filter scope with --providers / --type / --regions — useful for "tag coverage
+on EC2 instances only" rollups.
 
 This is tag-governance coverage (a property of resources disco already
 discovered). For scan-capability coverage — what disco knows how to scan vs.
@@ -72,6 +86,10 @@ what each cloud actually offers — see 'disco coverage'.`,
 		tagCovMinCovSet = cmd.Flags().Changed("min-coverage")
 		if tagCovMinCovSet && (tagCovMinCoverage < 0 || tagCovMinCoverage > 1) {
 			return fmt.Errorf("--min-coverage must be in [0,1] (got %v)", tagCovMinCoverage)
+		}
+
+		if tagCovType != "" && !tagCovIncludeUntaggable && untaggable.Is(tagCovType) {
+			return &untaggableTypeError{Type: tagCovType}
 		}
 
 		db, err := openDB()
@@ -105,10 +123,14 @@ what each cloud actually offers — see 'disco coverage'.`,
 		if err != nil {
 			return err
 		}
+		excludeTypes := tagCovExcludeTypes
+		if !tagCovIncludeUntaggable {
+			excludeTypes = slices.Concat(tagCovExcludeTypes, untaggable.Types())
+		}
 		rows, err := loadAllResourcesPaged(db, store.ResourceFilter{
 			Providers:        tagCovProviders,
 			Types:            types,
-			ExcludeTypes:     tagCovExcludeTypes,
+			ExcludeTypes:     excludeTypes,
 			Regions:          tagCovRegions,
 			SeenBy:           scanID,
 			DiscoveredSince:  discoveredSince,
@@ -140,6 +162,16 @@ what each cloud actually offers — see 'disco coverage'.`,
 		}
 		return nil
 	},
+}
+
+// untaggableTypeError rejects --type naming a type disco declares untaggable
+// when --include-untaggable is unset: the default denominator excludes that
+// type, so the report would be an empty 0/0 that reads like a result.
+type untaggableTypeError struct{ Type string }
+
+func (e *untaggableTypeError) Error() string {
+	return fmt.Sprintf("--type %s names a type disco declares untaggable, so its rows can never carry a tag; "+
+		"add --include-untaggable to report it anyway", e.Type)
 }
 
 func countBelow(rep []tagCoverage, t float64) int {
@@ -290,6 +322,7 @@ func init() {
 	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	_ = tagCoverageCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
+	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeUntaggable, "include-untaggable", false, "Include resource types disco declares untaggable")
 	tagCoverageCmd.Flags().BoolVar(&tagCovSkipGlobals, "exclude-global-region", false, "Exclude rows whose region is \"global\". By default --regions folds globals in.")
 	tagCoverageCmd.Flags().BoolVar(&tagCovCaseInsensitive, "case-insensitive", false, "Fold tag keys to lower-case so 'environment' and 'Environment' aggregate into one row")
 	tagCoverageCmd.Flags().Float64Var(&tagCovMinCoverage, "min-coverage", 0,

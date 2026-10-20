@@ -14,9 +14,9 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeDynamoDBTable, Service: "dynamodb"})
-	registerType(restype.Descriptor{Type: TypeDynamoDBGlobalTable, Service: "dynamodb"})
+	registerType(restype.Descriptor{Type: TypeDynamoDBGlobalTable, Service: "dynamodb", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeDynamoDBStream, Service: "dynamodb"})
-	registerType(restype.Descriptor{Type: TypeDynamoDBBackup, Service: "dynamodb"})
+	registerType(restype.Descriptor{Type: TypeDynamoDBBackup, Service: "dynamodb", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:dynamodb",
 		fn:   scanDynamoDB,

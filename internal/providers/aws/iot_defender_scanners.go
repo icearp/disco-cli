@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTAccountAuditConfiguration, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTAccountAuditConfiguration, Service: "iot", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeIoTScheduledAudit, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTMitigationAction, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTSecurityProfile, Service: "iot"})

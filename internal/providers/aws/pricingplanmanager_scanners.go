@@ -15,7 +15,7 @@ import (
 const pricingPlanManagerRegion = "us-east-1"
 
 func init() {
-	registerType(restype.Descriptor{Type: TypePricingPlanManagerSubscription, Service: "pricingplanmanager"})
+	registerType(restype.Descriptor{Type: TypePricingPlanManagerSubscription, Service: "pricingplanmanager", Untaggable: true})
 	registerService(serviceEntry{
 		name:   "aws:pricingplanmanager",
 		global: true,

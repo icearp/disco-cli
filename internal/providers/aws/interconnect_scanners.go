@@ -14,7 +14,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeInterconnectConnection, Service: "interconnect"})
-	registerType(restype.Descriptor{Type: TypeInterconnectEnvironment, Service: "interconnect", Managed: true})
+	registerType(restype.Descriptor{Type: TypeInterconnectEnvironment, Service: "interconnect", Managed: true, Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:interconnect",
 		fn:   scanInterconnect,

@@ -14,7 +14,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicy, Service: "verifiedpermissions"})
 	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicyTemplate, Service: "verifiedpermissions"})
 	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsIdentitySource, Service: "verifiedpermissions"})
-	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicyStoreAlias, Service: "verifiedpermissions"})
+	registerType(restype.Descriptor{Type: TypeVerifiedPermissionsPolicyStoreAlias, Service: "verifiedpermissions", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:verifiedpermissions",
 		fn:   scanVerifiedPermissions,

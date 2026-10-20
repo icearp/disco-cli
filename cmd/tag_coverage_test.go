@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/icearp/disco-cli/internal/untaggable"
 	"github.com/icearp/disco-cli/store"
+	"github.com/spf13/pflag"
 )
 
 // resetTagCoverageFlags clears flag-attached + package-var state between
@@ -24,6 +27,10 @@ func resetTagCoverageFlags() {
 	tagCovCreatedBefore.reset()
 	tagCovOutputFmt = ""
 	tagCovIncludeManaged = false
+	tagCovIncludeUntaggable = false
+	tagCovMinCoverage = 0
+	// RunE reads Changed("min-coverage"), which a reset variable leaves set.
+	tagCoverageCmd.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
 }
 
 // seedTagCoverageDB returns a store seeded with five customer rows carrying
@@ -163,4 +170,133 @@ func TestTagCoverage_UnknownFormat(t *testing.T) {
 		t.Errorf("ratio div-by-zero guard")
 	}
 	_ = fmt.Sprintf("%v", tagCoverage{}) // touch struct so unused-field linter stays calm
+}
+
+// testUntaggableType is registered untaggable by seedTagCoverageDenominatorDB.
+const testUntaggableType = "test:tagcov:untaggable"
+
+// seedTagCoverageDenominatorDB adds, beside seedTestDB's two untagged taggable
+// rows, one row per denominator rule: a tagged taggable row, an untagged
+// taggable row, an untagged row of a type declared untaggable and an untagged
+// provider-managed row.
+func seedTagCoverageDenominatorDB(t *testing.T) {
+	t.Helper()
+	untaggable.Register(testUntaggableType)
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	rows := []*store.Resource{
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "den-tagged",
+			AttributesJSON: "{}", TagsJSON: sp(`{"owner":"alice"}`), DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "den-untagged",
+			AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: testUntaggableType, NativeID: "den-untaggable",
+			AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "den-managed",
+			AttributesJSON: "{}", ManagedByProvider: true, DiscoveredBy: scanID,
+		},
+	}
+	if _, err := st.UpsertResources(rows); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+}
+
+// TestTagCoverage_Denominator pins who counts: taggable customer rows, tagged
+// or not; an untaggable type's rows and managed rows only when the matching
+// --include-* flag asks for them.
+func TestTagCoverage_Denominator(t *testing.T) {
+	tests := []struct {
+		name                  string
+		flags                 []string
+		wantTagged, wantTotal int
+	}{
+		// seedTestDB's i-1 and b-1 + den-tagged + den-untagged.
+		{name: "default", wantTagged: 1, wantTotal: 4},
+		{name: "include untaggable", flags: []string{"--include-untaggable"}, wantTagged: 1, wantTotal: 5},
+		{name: "include managed", flags: []string{"--include-managed"}, wantTagged: 1, wantTotal: 5},
+		{name: "include both", flags: []string{"--include-untaggable", "--include-managed"}, wantTagged: 1, wantTotal: 6},
+		// Only b-1 (aws:s3:bucket) is left.
+		{name: "exclude types", flags: []string{"--exclude-types", "aws:ec2:instance"}, wantTagged: 0, wantTotal: 1},
+		// b-1 + den-untaggable.
+		{
+			name:       "exclude types include untaggable",
+			flags:      []string{"--exclude-types", "aws:ec2:instance", "--include-untaggable"},
+			wantTagged: 0, wantTotal: 2,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			seedTagCoverageDenominatorDB(t)
+			resetTagCoverageFlags()
+
+			out, err := captureStdout(t, func() error {
+				rootCmd.SetArgs(append([]string{"tag-coverage", "owner", "--output", "json"}, tc.flags...))
+				return rootCmd.Execute()
+			})
+			if err != nil {
+				t.Fatalf("tag-coverage %v: %v", tc.flags, err)
+			}
+			var rep []tagCoverage
+			if err := json.Unmarshal([]byte(out), &rep); err != nil {
+				t.Fatalf("decode: %v\n%s", err, out)
+			}
+			if len(rep) != 1 {
+				t.Fatalf("tag-coverage %v: got %d rows, want 1: %v", tc.flags, len(rep), rep)
+			}
+			if rep[0].Tagged != tc.wantTagged || rep[0].Total != tc.wantTotal {
+				t.Errorf("tag-coverage %v: owner tagged/total = %d/%d; want %d/%d",
+					tc.flags, rep[0].Tagged, rep[0].Total, tc.wantTagged, tc.wantTotal)
+			}
+		})
+	}
+}
+
+// TestTagCoverage_UntaggableTypeFlag: --type naming an untaggable type is a
+// typed error without --include-untaggable, even under --min-coverage (which
+// would otherwise fail on an empty report), and a 0/N report with it.
+func TestTagCoverage_UntaggableTypeFlag(t *testing.T) {
+	for _, flags := range [][]string{nil, {"--min-coverage", "0.5"}} {
+		t.Run("rejected"+strings.Join(flags, ""), func(t *testing.T) {
+			seedTagCoverageDenominatorDB(t)
+			resetTagCoverageFlags()
+			t.Cleanup(resetTagCoverageFlags)
+
+			_, err := captureStdout(t, func() error {
+				rootCmd.SetArgs(append([]string{"tag-coverage", "owner", "--type", testUntaggableType, "--output", "json"}, flags...))
+				return rootCmd.Execute()
+			})
+			var ue *untaggableTypeError
+			if !errors.As(err, &ue) || ue.Type != testUntaggableType {
+				t.Fatalf("tag-coverage --type %s %v: err = %v; want *untaggableTypeError naming the type", testUntaggableType, flags, err)
+			}
+		})
+	}
+	t.Run("included", func(t *testing.T) {
+		seedTagCoverageDenominatorDB(t)
+		resetTagCoverageFlags()
+
+		out, err := captureStdout(t, func() error {
+			rootCmd.SetArgs([]string{"tag-coverage", "owner", "--type", testUntaggableType, "--include-untaggable", "--output", "json"})
+			return rootCmd.Execute()
+		})
+		if err != nil {
+			t.Fatalf("tag-coverage --include-untaggable: %v", err)
+		}
+		var rep []tagCoverage
+		if err := json.Unmarshal([]byte(out), &rep); err != nil {
+			t.Fatalf("decode: %v\n%s", err, out)
+		}
+		if len(rep) != 1 || rep[0].Tagged != 0 || rep[0].Total != 1 {
+			t.Errorf("tag-coverage --type %s --include-untaggable = %v; want one owner row 0/1", testUntaggableType, rep)
+		}
+	})
 }

@@ -12,7 +12,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypePinpointApp, Service: "pinpoint"})
 	registerType(restype.Descriptor{Type: TypePinpointApplicationSettings, Service: "pinpoint"})
-	registerType(restype.Descriptor{Type: TypePinpointEventStream, Service: "pinpoint"})
+	registerType(restype.Descriptor{Type: TypePinpointEventStream, Service: "pinpoint", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypePinpointCampaign, Service: "pinpoint"})
 	registerType(restype.Descriptor{Type: TypePinpointSegment, Service: "pinpoint"})
 	registerType(restype.Descriptor{Type: TypePinpointADMChannel, Service: "pinpoint"})

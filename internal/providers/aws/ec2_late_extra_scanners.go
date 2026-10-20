@@ -21,7 +21,7 @@ func init() {
 	// One per Verified Access instance, created with it and never deletable on
 	// its own (only modified). Still not Managed: the customer sets its logging
 	// options, and Managed rows are left out of default `disco check` input.
-	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessInstanceLoggingConfiguration, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2VerifiedAccessInstanceLoggingConfiguration, Service: "ec2", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeEC2ApplicationStatusCheck, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2RouteServerAssociation, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2RouteServerPropagation, Service: "ec2"})

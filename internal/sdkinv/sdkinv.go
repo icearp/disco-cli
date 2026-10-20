@@ -87,6 +87,9 @@ type Candidate struct {
 	// of this candidate could wire. Sorted, deduplicated, never the element's
 	// own id.
 	Refs []string `json:"refs,omitempty"`
+	// Taggable says whether this resource can carry tags, from the provider's
+	// catalog or an SDK operation that carries tags; nil when neither answers.
+	Taggable *bool `json:"taggable,omitempty"`
 }
 
 // Diagnostic records something an extractor could not classify confidently.

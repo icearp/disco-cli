@@ -26,7 +26,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEC2CapacityReservation, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2CapacityReservationFleet, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2InstanceConnectEndpoint, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2SnapshotBlockPublicAccess, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2SnapshotBlockPublicAccess, Service: "ec2", Untaggable: true})
 }
 
 // scanEC2ComputeMgmt discovers all compute resources: instances, security groups,

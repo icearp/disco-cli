@@ -13,7 +13,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeCodeDeployApplication, Service: "codedeploy"})
 	registerType(restype.Descriptor{Type: TypeCodeDeployDeploymentGroup, Service: "codedeploy"})
-	registerType(restype.Descriptor{Type: TypeCodeDeployDeploymentConfig, Service: "codedeploy"})
+	registerType(restype.Descriptor{Type: TypeCodeDeployDeploymentConfig, Service: "codedeploy", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:codedeploy",
 		fn:   scanCodeDeploy,

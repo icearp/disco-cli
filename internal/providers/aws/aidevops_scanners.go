@@ -16,10 +16,10 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeAidevopsAgentSpace, Service: "aidevops"})
 	registerType(restype.Descriptor{Type: TypeAidevopsService, Service: "aidevops"})
-	registerType(restype.Descriptor{Type: TypeAidevopsAssociations, Service: "aidevops"})
+	registerType(restype.Descriptor{Type: TypeAidevopsAssociations, Service: "aidevops", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeAidevopsPrivateConnection, Service: "aidevops"})
-	registerType(restype.Descriptor{Type: TypeAidevopsAsset, Service: "aidevops"})
-	registerType(restype.Descriptor{Type: TypeAidevopsTrigger, Service: "aidevops"})
+	registerType(restype.Descriptor{Type: TypeAidevopsAsset, Service: "aidevops", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeAidevopsTrigger, Service: "aidevops", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeAidevopsWebhook, Service: "aidevops"})
 	registerType(restype.Descriptor{Type: TypeAidevopsGoal, Service: "aidevops"})
 	registerService(serviceEntry{

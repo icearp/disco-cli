@@ -20,7 +20,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAppConfigExperimentDefinition, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigExtension, Service: "appconfig"})
 	registerType(restype.Descriptor{Type: TypeAppConfigExtensionAssociation, Service: "appconfig"})
-	registerType(restype.Descriptor{Type: TypeAppConfigHostedConfigurationVersion, Service: "appconfig"})
+	registerType(restype.Descriptor{Type: TypeAppConfigHostedConfigurationVersion, Service: "appconfig", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:appconfig",
 		fn:   scanAppConfig,

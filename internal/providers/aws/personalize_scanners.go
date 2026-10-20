@@ -12,12 +12,12 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypePersonalizeDataset, Service: "personalize"})
 	registerType(restype.Descriptor{Type: TypePersonalizeDatasetGroup, Service: "personalize"})
-	registerType(restype.Descriptor{Type: TypePersonalizeSchema, Service: "personalize"})
+	registerType(restype.Descriptor{Type: TypePersonalizeSchema, Service: "personalize", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypePersonalizeSolution, Service: "personalize"})
 	registerType(restype.Descriptor{Type: TypePersonalizeCampaign, Service: "personalize"})
 	registerType(restype.Descriptor{Type: TypePersonalizeEventTracker, Service: "personalize"})
 	registerType(restype.Descriptor{Type: TypePersonalizeFilter, Service: "personalize"})
-	registerType(restype.Descriptor{Type: TypePersonalizeMetricAttribution, Service: "personalize"})
+	registerType(restype.Descriptor{Type: TypePersonalizeMetricAttribution, Service: "personalize", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypePersonalizeRecommender, Service: "personalize"})
 	registerType(restype.Descriptor{Type: TypePersonalizeSolutionVersion, Service: "personalize"})
 	// LastUpdatedDateTime qualifies as volatile under the region-collision
@@ -32,7 +32,7 @@ func init() {
 	// per region when there is no per-region row. See
 	// TestVolatileRulesAreJustified, which holds this reason to region-less
 	// ARNs only.
-	registerType(restype.Descriptor{Type: TypePersonalizeRecipe, Service: "personalize", Managed: true, Volatile: []string{"LastUpdatedDateTime"}})
+	registerType(restype.Descriptor{Type: TypePersonalizeRecipe, Service: "personalize", Managed: true, Volatile: []string{"LastUpdatedDateTime"}, Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:personalize",
 		fn:   scanPersonalize,

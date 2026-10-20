@@ -10,15 +10,17 @@
 // coverage.Provider impl for each provider aggregates only its own types.
 //
 // Emit fans a Descriptor out into the shared redact/volatile/managed engines
-// (which Store consults at the upsert boundary) and returns the coverage
+// (which Store consults at the upsert boundary) and the untaggable registry
+// (which tag-coverage consults), and returns the coverage
 // TypeDecl for the caller to collect. Import graph:
-// restype -> {coverage, redact, volatile, managed}.
+// restype -> {coverage, redact, volatile, managed, untaggable}.
 package restype
 
 import (
 	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/icearp/disco-cli/internal/managed"
 	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/untaggable"
 	"github.com/icearp/disco-cli/internal/volatile"
 )
 
@@ -29,14 +31,21 @@ type Descriptor struct {
 	// Managed marks a type as UNCONDITIONALLY provider-managed; the store stamps
 	// ManagedByProvider by type. Do NOT set for types whose managed status is a
 	// per-row runtime decision — those stay scanner-set.
-	Managed  bool
-	Redact   []redact.Rule // field redaction rules, forwarded to the redact engine
-	Volatile []string      // dot-path volatile fields, forwarded to the volatile engine
+	Managed bool
+	// Untaggable declares that the type's rows can never carry a tag;
+	// tag-coverage leaves it out of its default denominator. AWS follows the
+	// Service Reference and SDK models where its SDK extractor matches the
+	// type to a Service Reference resource, and declares the account settings
+	// the Service Reference does not list by hand (see internal/untaggable).
+	// The zero value means taggable.
+	Untaggable bool
+	Redact     []redact.Rule // field redaction rules, forwarded to the redact engine
+	Volatile   []string      // dot-path volatile fields, forwarded to the volatile engine
 }
 
-// Emit forwards d's field-level rules into the shared redact/volatile/managed
-// engines and returns the coverage decl for the caller (a provider) to
-// aggregate into its own descriptor slice. Stateless — holds nothing itself.
+// Emit forwards d's field-level rules into the shared
+// redact/volatile/managed/untaggable engines and returns the coverage decl for
+// the caller (a provider) to aggregate into its own descriptor slice. Stateless — holds nothing itself.
 func Emit(d Descriptor) coverage.TypeDecl {
 	if len(d.Redact) > 0 {
 		redact.Register(redact.TypeRules{Type: d.Type, Attributes: d.Redact})
@@ -46,6 +55,9 @@ func Emit(d Descriptor) coverage.TypeDecl {
 	}
 	if d.Managed {
 		managed.Register(d.Type)
+	}
+	if d.Untaggable {
+		untaggable.Register(d.Type)
 	}
 	return coverage.TypeDecl{
 		Service:   d.Service,

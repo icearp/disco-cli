@@ -165,7 +165,11 @@
      "IsTaggingOnly": true
     }
    },
-   "Resources": []
+   "Resources": [
+    {
+     "Name": "widget"
+    }
+   ]
   },
   {
    "Name": "ListAliases",
@@ -388,6 +392,9 @@
    "Name": "gizmo",
    "ARNFormats": [
     "arn:${Partition}:widgets:${Region}:${Account}:gizmo/${GizmoId}"
+   ],
+   "ConditionKeys": [
+    "aws:ResourceTag/${TagKey}"
    ]
   },
   {

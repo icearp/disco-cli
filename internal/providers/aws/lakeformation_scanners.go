@@ -19,7 +19,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeLakeFormationResource, Service: "lakeformation"})
 	registerType(restype.Descriptor{Type: TypeLakeFormationDataCellsFilter, Service: "lakeformation"})
-	registerType(restype.Descriptor{Type: TypeLakeFormationDataLakeSettings, Service: "lakeformation"})
+	registerType(restype.Descriptor{Type: TypeLakeFormationDataLakeSettings, Service: "lakeformation", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeLakeFormationPrincipalPermissions, Service: "lakeformation"})
 	registerType(restype.Descriptor{Type: TypeLakeFormationTag, Service: "lakeformation"})
 	registerType(restype.Descriptor{Type: TypeLakeFormationOptIn, Service: "lakeformation"})

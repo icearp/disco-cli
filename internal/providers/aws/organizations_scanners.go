@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeOrganization, Service: "organizations"})
+	registerType(restype.Descriptor{Type: TypeOrganization, Service: "organizations", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeOrganizationsAccount, Service: "organizations"})
 	registerType(restype.Descriptor{Type: TypeOrganizationsOU, Service: "organizations"})
 	registerType(restype.Descriptor{Type: TypeOrganizationsSCP, Service: "organizations"})

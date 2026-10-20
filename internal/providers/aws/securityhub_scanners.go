@@ -22,7 +22,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSecurityHubAutomationRuleV2, Service: "securityhub"})
 	registerType(restype.Descriptor{Type: TypeSecurityHubConfigurationPolicy, Service: "securityhub"})
 	registerType(restype.Descriptor{Type: TypeSecurityHubConnectorV2, Service: "securityhub"})
-	registerType(restype.Descriptor{Type: TypeSecurityHubFindingAggregator, Service: "securityhub"})
+	registerType(restype.Descriptor{Type: TypeSecurityHubFindingAggregator, Service: "securityhub", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeSecurityHubHubV2, Service: "securityhub"})
 	registerType(restype.Descriptor{Type: TypeSecurityHubOrganizationConfiguration, Service: "securityhub"})
 	registerType(restype.Descriptor{Type: TypeSecurityHubPolicyAssociation, Service: "securityhub"})
@@ -31,7 +31,7 @@ func init() {
 	// Enabling a standard creates its control associations, and no API deletes
 	// one; only their status changes. Still not Managed: the customer sets that
 	// status, and Managed rows are left out of default `disco check` input.
-	registerType(restype.Descriptor{Type: TypeSecurityHubStandardsControlAssociation, Service: "securityhub"})
+	registerType(restype.Descriptor{Type: TypeSecurityHubStandardsControlAssociation, Service: "securityhub", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:securityhub",
 		fn:   scanSecurityHub,

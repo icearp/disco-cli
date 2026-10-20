@@ -18,7 +18,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeAutoScalingGroup, Service: "autoscaling"})
-	registerType(restype.Descriptor{Type: TypeAutoScalingLaunchConfiguration, Service: "autoscaling"})
+	registerType(restype.Descriptor{Type: TypeAutoScalingLaunchConfiguration, Service: "autoscaling", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeAutoScalingLifecycleHook, Service: "autoscaling"})
 	registerType(restype.Descriptor{Type: TypeAutoScalingNotificationConfiguration, Service: "autoscaling"})
 	registerType(restype.Descriptor{Type: TypeAutoScalingScalingPolicy, Service: "autoscaling"})

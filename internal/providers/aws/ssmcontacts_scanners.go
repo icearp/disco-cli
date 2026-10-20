@@ -13,7 +13,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeSSMContactsContact, Service: "ssm-contacts"})
 	registerType(restype.Descriptor{Type: TypeSSMContactsPlan, Service: "ssm-contacts"})
-	registerType(restype.Descriptor{Type: TypeSSMContactsContactChannel, Service: "ssm-contacts"})
+	registerType(restype.Descriptor{Type: TypeSSMContactsContactChannel, Service: "ssm-contacts", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeSSMContactsRotation, Service: "ssm-contacts"})
 	registerService(serviceEntry{
 		name: "aws:ssm-contacts",

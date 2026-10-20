@@ -31,7 +31,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEC2VPCEndpointServicePermissions, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VPCEndpointConnectionNotification, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2VPCPeeringConnection, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2VPCBlockPublicAccessOptions, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2VPCBlockPublicAccessOptions, Service: "ec2", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeEC2VPCBlockPublicAccessExclusion, Service: "ec2"})
 }
 

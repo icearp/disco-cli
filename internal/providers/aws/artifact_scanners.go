@@ -10,8 +10,8 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeArtifactCustomerAgreement, Service: "artifact"})
-	registerType(restype.Descriptor{Type: TypeArtifactReport, Service: "artifact", Managed: true})
+	registerType(restype.Descriptor{Type: TypeArtifactCustomerAgreement, Service: "artifact", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeArtifactReport, Service: "artifact", Managed: true, Untaggable: true})
 	registerService(serviceEntry{
 		name:   "aws:artifact",
 		global: true,

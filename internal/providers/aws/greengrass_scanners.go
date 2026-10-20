@@ -11,21 +11,21 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeGreengrassConnectorDefinition, Service: "greengrass"})
-	registerType(restype.Descriptor{Type: TypeGreengrassConnectorDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassConnectorDefinitionVersion, Service: "greengrass", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeGreengrassCoreDefinition, Service: "greengrass"})
-	registerType(restype.Descriptor{Type: TypeGreengrassCoreDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassCoreDefinitionVersion, Service: "greengrass", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeGreengrassDeviceDefinition, Service: "greengrass"})
-	registerType(restype.Descriptor{Type: TypeGreengrassDeviceDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassDeviceDefinitionVersion, Service: "greengrass", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeGreengrassFunctionDefinition, Service: "greengrass"})
-	registerType(restype.Descriptor{Type: TypeGreengrassFunctionDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassFunctionDefinitionVersion, Service: "greengrass", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeGreengrassLoggerDefinition, Service: "greengrass"})
-	registerType(restype.Descriptor{Type: TypeGreengrassLoggerDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassLoggerDefinitionVersion, Service: "greengrass", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeGreengrassResourceDefinition, Service: "greengrass"})
-	registerType(restype.Descriptor{Type: TypeGreengrassResourceDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassResourceDefinitionVersion, Service: "greengrass", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeGreengrassSubscriptionDefinition, Service: "greengrass"})
-	registerType(restype.Descriptor{Type: TypeGreengrassSubscriptionDefinitionVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassSubscriptionDefinitionVersion, Service: "greengrass", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeGreengrassGroup, Service: "greengrass"})
-	registerType(restype.Descriptor{Type: TypeGreengrassGroupVersion, Service: "greengrass"})
+	registerType(restype.Descriptor{Type: TypeGreengrassGroupVersion, Service: "greengrass", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:greengrass",
 		fn:   scanGreengrass,

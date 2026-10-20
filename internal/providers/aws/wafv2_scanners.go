@@ -19,7 +19,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeWAFv2LoggingConfiguration, Service: "wafv2"})
 	registerType(restype.Descriptor{Type: TypeWAFv2RegexPatternSet, Service: "wafv2"})
 	registerType(restype.Descriptor{Type: TypeWAFv2WebACLAssociation, Service: "wafv2"})
-	registerType(restype.Descriptor{Type: TypeWAFv2ManagedRuleSet, Service: "wafv2"})
+	registerType(restype.Descriptor{Type: TypeWAFv2ManagedRuleSet, Service: "wafv2", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:wafv2",
 		fn:   scanWAFv2,

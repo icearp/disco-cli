@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/managed"
+	"github.com/icearp/disco-cli/internal/untaggable"
 )
 
 // TestNoDoubleDeclaredTypes ensures a disco type is declared EITHER the legacy
@@ -123,6 +124,39 @@ func TestCustomerPostureTypesNotManaged(t *testing.T) {
 	} {
 		if managed.Is(ty) {
 			t.Errorf("%s registered Managed; customer posture must stay visible to default queries", ty)
+		}
+	}
+}
+
+// TestUntaggableTypesDeclared pins the customer-posture types 9053be5d
+// un-managed. Most are settings the Service Reference lists as no resource at
+// all, so TestUntaggableMatchesServiceReference cannot hold them; this list
+// does, without needing the SDK cache. The second list holds posture types
+// the Service Reference does list as taggable: they must stay in the
+// denominator.
+func TestUntaggableTypesDeclared(t *testing.T) {
+	for _, ty := range []string{
+		TypeACMAccount, TypeAPIGatewayAccount, TypeARCZonalShiftObserverStatus,
+		TypeCloudWatchOTelEnrichment, TypeConnectAttachedFilesConfiguration,
+		TypeEC2AllowedImagesSetting, TypeEC2SnapshotBlockPublicAccess,
+		TypeEC2VerifiedAccessInstanceLoggingConfiguration, TypeEC2VPCBlockPublicAccessOptions,
+		TypeECRPublicRegistry, TypeECRRegistryScanningConfig, TypeECRReplicationConfiguration, TypeECRRepositoryScanningConfig,
+		TypeECSAccountSetting, TypeIoTAccountAuditConfiguration, TypeIoTEncryptionConfiguration,
+		TypeLakeFormationDataLakeSettings, TypeNotificationsManagedNotificationAdditionalChannelAssoc,
+		TypeQuickSightAccount, TypeQuickSightKeyRegistration, TypeResourceExplorer2DefaultViewAssociation,
+		TypeRoute53ResolverResolverConfig, TypeSecurityHubStandardsControlAssociation,
+		TypeUXCAccountCustomization, TypeWickrNetworkSetting, TypeXRayIndexingRule, TypeXRayTransactionSearchConfig,
+	} {
+		if !untaggable.Is(ty) {
+			t.Errorf("%s not declared Untaggable; its rows would lower tag coverage", ty)
+		}
+	}
+	for _, ty := range []string{
+		TypeOrganizationsRoot, TypeQuickSightCustomization, TypeResourceExplorer2Index,
+		TypeRoute53ResolverFirewallConfig, TypeEC2Instance,
+	} {
+		if untaggable.Is(ty) {
+			t.Errorf("%s declared Untaggable; AWS can tag it, so it belongs in the tag-coverage denominator", ty)
 		}
 	}
 }

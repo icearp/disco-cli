@@ -21,7 +21,7 @@ func init() {
 	// op (UpdateNetworkSettings only changes them). Still not Managed: the
 	// customer sets them, and Managed rows are left out of default `disco check`
 	// input.
-	registerType(restype.Descriptor{Type: TypeWickrNetworkSetting, Service: "wickr"})
+	registerType(restype.Descriptor{Type: TypeWickrNetworkSetting, Service: "wickr", Untaggable: true})
 	// InviteCode is the registration code with which its holder joins the
 	// network as that user.
 	registerType(restype.Descriptor{

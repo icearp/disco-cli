@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTThing, Service: "iot"})
+	registerType(restype.Descriptor{Type: TypeIoTThing, Service: "iot", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeIoTThingGroup, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTThingType, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTBillingGroup, Service: "iot"})

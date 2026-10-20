@@ -18,7 +18,7 @@ import (
 // record published for validation, so neither needs one either.
 func init() {
 	registerType(restype.Descriptor{Type: TypeACMCertificate, Service: "acm"})
-	registerType(restype.Descriptor{Type: TypeACMAccount, Service: "acm"})
+	registerType(restype.Descriptor{Type: TypeACMAccount, Service: "acm", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeACMAcmeEndpoint, Service: "acm"})
 	registerType(restype.Descriptor{Type: TypeACMAcmeExternalAccountBinding, Service: "acm"})
 	registerType(restype.Descriptor{Type: TypeACMAcmeAccount, Service: "acm"})

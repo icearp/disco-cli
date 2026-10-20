@@ -22,7 +22,7 @@ import (
 const groundStationSatelliteRegion = "us-west-2"
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGroundStationSatellite, Service: "ground-station"})
+	registerType(restype.Descriptor{Type: TypeGroundStationSatellite, Service: "ground-station", Untaggable: true})
 	registerService(serviceEntry{
 		name:   "aws:ground-station-satellites",
 		global: true,

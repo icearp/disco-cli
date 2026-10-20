@@ -21,7 +21,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeCloudWatchDashboard, Service: "cloudwatch"})
 	registerType(restype.Descriptor{Type: TypeCloudWatchInsightRule, Service: "cloudwatch"})
 	registerType(restype.Descriptor{Type: TypeCloudWatchMetricStream, Service: "cloudwatch"})
-	registerType(restype.Descriptor{Type: TypeCloudWatchOTelEnrichment, Service: "cloudwatch"})
+	registerType(restype.Descriptor{Type: TypeCloudWatchOTelEnrichment, Service: "cloudwatch", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:cloudwatch",
 		fn:   scanCloudWatch,

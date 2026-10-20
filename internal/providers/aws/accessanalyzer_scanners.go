@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeAccessAnalyzerAnalyzer, Service: "accessanalyzer"})
-	registerType(restype.Descriptor{Type: TypeAccessAnalyzerArchiveRule, Service: "accessanalyzer"})
+	registerType(restype.Descriptor{Type: TypeAccessAnalyzerArchiveRule, Service: "accessanalyzer", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:accessanalyzer",
 		fn:   scanAccessAnalyzer,

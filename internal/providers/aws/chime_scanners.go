@@ -25,7 +25,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeChimeSipMediaApplication, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeVoiceConnector, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeVoiceProfileDomain, Service: "chime"})
-	registerType(restype.Descriptor{Type: TypeChimeVoiceProfile, Service: "chime"})
+	registerType(restype.Descriptor{Type: TypeChimeVoiceProfile, Service: "chime", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeChimeSipRule, Service: "chime"})
 	registerType(restype.Descriptor{Type: TypeChimeVoiceConnectorGroup, Service: "chime"})
 	registerService(serviceEntry{

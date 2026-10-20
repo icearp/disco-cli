@@ -14,14 +14,14 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeWAFRule, Service: "waf"})
 	registerType(restype.Descriptor{Type: TypeWAFRuleGroup, Service: "waf"})
 	registerType(restype.Descriptor{Type: TypeWAFRateBasedRule, Service: "waf"})
-	registerType(restype.Descriptor{Type: TypeWAFIPSet, Service: "waf"})
-	registerType(restype.Descriptor{Type: TypeWAFByteMatchSet, Service: "waf"})
-	registerType(restype.Descriptor{Type: TypeWAFGeoMatchSet, Service: "waf"})
-	registerType(restype.Descriptor{Type: TypeWAFRegexMatchSet, Service: "waf"})
-	registerType(restype.Descriptor{Type: TypeWAFRegexPatternSet, Service: "waf"})
-	registerType(restype.Descriptor{Type: TypeWAFSizeConstraintSet, Service: "waf"})
-	registerType(restype.Descriptor{Type: TypeWAFSQLInjectionMatchSet, Service: "waf"})
-	registerType(restype.Descriptor{Type: TypeWAFXSSMatchSet, Service: "waf"})
+	registerType(restype.Descriptor{Type: TypeWAFIPSet, Service: "waf", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeWAFByteMatchSet, Service: "waf", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeWAFGeoMatchSet, Service: "waf", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegexMatchSet, Service: "waf", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeWAFRegexPatternSet, Service: "waf", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeWAFSizeConstraintSet, Service: "waf", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeWAFSQLInjectionMatchSet, Service: "waf", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeWAFXSSMatchSet, Service: "waf", Untaggable: true})
 	registerService(serviceEntry{
 		name:   "aws:waf",
 		global: true,

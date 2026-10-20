@@ -17,7 +17,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeCodeArtifactDomain, Service: "codeartifact"})
 	registerType(restype.Descriptor{Type: TypeCodeArtifactRepository, Service: "codeartifact"})
 	registerType(restype.Descriptor{Type: TypeCodeArtifactPackageGroup, Service: "codeartifact"})
-	registerType(restype.Descriptor{Type: TypeCodeArtifactPackage, Service: "codeartifact"})
+	registerType(restype.Descriptor{Type: TypeCodeArtifactPackage, Service: "codeartifact", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:codeartifact",
 		fn:   scanCodeArtifact,

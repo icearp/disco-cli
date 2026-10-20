@@ -16,7 +16,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeElastiCacheCacheCluster, Service: "elasticache", Redact: []redact.Rule{{Path: "AuthToken", Mode: redact.RedactScalar}}})
 	registerType(restype.Descriptor{Type: TypeElastiCacheReplicationGroup, Service: "elasticache", Redact: []redact.Rule{{Path: "AuthToken", Mode: redact.RedactScalar}}})
-	registerType(restype.Descriptor{Type: TypeElastiCacheGlobalReplicationGroup, Service: "elasticache"})
+	registerType(restype.Descriptor{Type: TypeElastiCacheGlobalReplicationGroup, Service: "elasticache", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeElastiCacheServerlessCache, Service: "elasticache"})
 	registerType(restype.Descriptor{Type: TypeElastiCacheParameterGroup, Service: "elasticache"})
 	registerType(restype.Descriptor{Type: TypeElastiCacheSecurityGroup, Service: "elasticache"})

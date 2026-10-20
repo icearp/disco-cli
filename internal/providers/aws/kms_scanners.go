@@ -16,7 +16,7 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeKMSKey, Service: "kms"})
-	registerType(restype.Descriptor{Type: TypeKMSAlias, Service: "kms"})
+	registerType(restype.Descriptor{Type: TypeKMSAlias, Service: "kms", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeKMSGrant, Service: "kms"})
 	// No redaction rule. The model marks XksProxyConfiguration.AccessKeyId
 	// @sensitive, but it is only the identifier half of the XKS proxy's SigV4

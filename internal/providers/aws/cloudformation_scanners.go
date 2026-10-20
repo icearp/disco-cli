@@ -18,9 +18,9 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeCloudFormationStack, Service: "cloudformation"})
 	registerType(restype.Descriptor{Type: TypeCloudFormationStackSet, Service: "cloudformation"})
-	registerType(restype.Descriptor{Type: TypeCloudFormationGeneratedTemplate, Service: "cloudformation"})
-	registerType(restype.Descriptor{Type: TypeCloudFormationResourceScan, Service: "cloudformation"})
-	registerType(restype.Descriptor{Type: TypeCloudFormationType, Service: "cloudformation"})
+	registerType(restype.Descriptor{Type: TypeCloudFormationGeneratedTemplate, Service: "cloudformation", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeCloudFormationResourceScan, Service: "cloudformation", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeCloudFormationType, Service: "cloudformation", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeCloudFormationTypeHook, Service: "cloudformation"})
 	registerService(serviceEntry{
 		name: "aws:cloudformation",

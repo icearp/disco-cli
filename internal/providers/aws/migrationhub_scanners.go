@@ -14,7 +14,7 @@ import (
 // each stream are ephemeral state, not scanned. edge-less: no
 // outbound edges to other scanned AWS types.
 func init() {
-	registerType(restype.Descriptor{Type: TypeMigrationHubProgressUpdateStream, Service: "migrationhub"})
+	registerType(restype.Descriptor{Type: TypeMigrationHubProgressUpdateStream, Service: "migrationhub", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:migrationhub",
 		fn:   scanMigrationHub,

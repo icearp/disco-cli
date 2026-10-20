@@ -38,7 +38,7 @@ type apigatewayAPI interface {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeAPIGatewayAccount, Service: "apigateway"})
+	registerType(restype.Descriptor{Type: TypeAPIGatewayAccount, Service: "apigateway", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeAPIGatewayAPIKey, Service: "apigateway"})
 	registerType(restype.Descriptor{Type: TypeAPIGatewayAuthorizer, Service: "apigateway"})
 	registerType(restype.Descriptor{Type: TypeAPIGatewayBasePathMapping, Service: "apigateway"})

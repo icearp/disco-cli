@@ -19,7 +19,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindow, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindowTarget, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMMaintenanceWindowTask, Service: "ssm"})
-	registerType(restype.Descriptor{Type: TypeSSMResourceDataSync, Service: "ssm"})
+	registerType(restype.Descriptor{Type: TypeSSMResourceDataSync, Service: "ssm", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeSSMManagedInstance, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMOpsMetadata, Service: "ssm"})
 	registerType(restype.Descriptor{Type: TypeSSMActivation, Service: "ssm"})

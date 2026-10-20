@@ -34,7 +34,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeS3AccessGrantsLocation, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3AccessGrant, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3AccessPoint, Service: "s3"})
-	registerType(restype.Descriptor{Type: TypeS3MultiRegionAccessPoint, Service: "s3"})
+	registerType(restype.Descriptor{Type: TypeS3MultiRegionAccessPoint, Service: "s3", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeS3MultiRegionAccessPointPolicy, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3StorageLens, Service: "s3"})
 	registerType(restype.Descriptor{Type: TypeS3StorageLensGroup, Service: "s3"})

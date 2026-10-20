@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeTrustedAdvisorChecks, Service: "trustedadvisor", Managed: true})
+	registerType(restype.Descriptor{Type: TypeTrustedAdvisorChecks, Service: "trustedadvisor", Managed: true, Untaggable: true})
 	registerService(serviceEntry{
 		name:   "aws:trustedadvisor",
 		global: true,

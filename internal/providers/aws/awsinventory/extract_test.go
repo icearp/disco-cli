@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -48,6 +49,12 @@ func TestExtract_Fixture(t *testing.T) {
 		"widgets/grant":                   {sdkinv.ClassResource, 1, "widgets/widget", []string{"ListGrants"}},
 		"widgets/zone":                    {sdkinv.ClassCatalog, 0, "", []string{"DescribeZones"}},
 		"widgets/accountsetting":          {sdkinv.ClassAttribute, 0, "", []string{"GetAccountSettings"}},
+		"widgets/crate":                   {sdkinv.ClassAttribute, 0, "", []string{"GetCrate"}},
+		// GetNut nests under widget by its WidgetId, then folds into the nut
+		// listing (mergeDetailReads). GetBolt nests under a job handle that
+		// names no entry, so it renders as bolt and folds into DescribeBolt.
+		"widgets/nut":  {sdkinv.ClassResource, 0, "", []string{"GetNut", "ListNuts"}},
+		"widgets/bolt": {sdkinv.ClassAttribute, 0, "", []string{"DescribeBolt", "GetBolt"}},
 		// A primitive list named after the noun is a collection: WidgetTypes
 		// is a published catalog, SprocketUrls the sqs:ListQueues shape (#1).
 		"widgets/widgettype":   {sdkinv.ClassCatalog, 0, "", []string{"ListWidgetTypes"}},
@@ -132,6 +139,29 @@ func TestExtract_Fixture(t *testing.T) {
 	for key, want := range map[string]string{"gears/farm": "smithy-resource", "gears/worker": "smithy-resource", "gears/tag": "tagging"} {
 		if got[key].Rule != want {
 			t.Errorf("%s rule = %q, want %q (signals %v)", key, got[key].Rule, want, got[key].Signals)
+		}
+	}
+	// Taggable: a tagging-only action names widget; gizmo's policy can test its
+	// tags; alias is catalogued untagged but GetAlias answers Tags; sprocket has
+	// none of these. zone's listed element carries Tags; GetCrate lists Users
+	// that carry Tags, which are the users', not the crate's (iam GetGroup).
+	// gadget is bound to no resource shape and CreateGadget takes Tags;
+	// CreateSprocketPolicy's Tags belong to another resource, not sprocket.
+	// gears has no catalog resources: farm is taggable only because its update
+	// input takes tags, and fleet has no answer at all.
+	for key, want := range map[string]string{
+		"widgets/widget": "true", "widgets/gizmo": "true", "widgets/alias": "true", "widgets/sprocket": "false",
+		"widgets/zone": "true", "widgets/crate": "nil", "widgets/gadget": "true",
+		// Only the folded-in GetNut and GetBolt answer Tags.
+		"widgets/nut": "true", "widgets/bolt": "true",
+		"gears/farm": "true", "gears/fleet": "nil",
+	} {
+		g := "nil"
+		if tg := got[key].Taggable; tg != nil {
+			g = strconv.FormatBool(*tg)
+		}
+		if g != want {
+			t.Errorf("%s Taggable = %s, want %s", key, g, want)
 		}
 	}
 	// BatchGetFarms says "GetFarms": the model's own verb opens the noun.

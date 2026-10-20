@@ -40,8 +40,9 @@ type srDoc struct {
 		SDK               []struct{ Name string }          `json:"sdk"`
 	} `json:"operations"`
 	Resources []struct {
-		Name       string   `json:"name"`
-		ARNFormats []string `json:"arnFormats"`
+		Name          string   `json:"name"`
+		ARNFormats    []string `json:"arnFormats"`
+		ConditionKeys []string `json:"conditionKeys"`
 	} `json:"resources"`
 }
 
@@ -56,6 +57,7 @@ type srService struct {
 	levelStem map[string][]string // stem of a resource's own id variable -> resource names, sorted
 	resCanon  map[string]string   // Ident(resource name) -> resource name
 	resNS     map[string]string   // Ident(resource name) -> the ARN's service namespace
+	tagged    map[string]bool     // Ident(resource name) of resources that carry tags, see indexSR
 	name      string              // the catalog document's own service name
 	ops       map[string]bool     // every SDK operation name the document lists
 	sdkNames  map[string]bool     // SDK client names the document's operations are published under
@@ -93,9 +95,14 @@ var (
 )
 
 type entry struct {
-	service    string
-	nouns      []string // Canon of every op noun seen, for the display name
-	srName     string   // Canon of the catalog resource name when one matched
+	service string
+	nouns   []string // Canon of every op noun seen, for the display name
+	srName  string   // Canon of the catalog resource name when one matched
+	// Tagging facts, kept apart from srName: display() reads srName, so a
+	// fold must not change it.
+	srMatched  bool // a catalog resource matched
+	srTagged   bool // that resource carries tags, see indexSR
+	opTagged   bool // one of the entry's operations carries tags, see carriesTags
 	depth      int
 	parentID   string // Ident of the parent noun, "" at depth 0
 	parentDisp string // display form of the parent noun when no entry resolves it
@@ -207,6 +214,13 @@ func serviceAliases(aliases map[string]map[string]bool, cands []sdkinv.Candidate
 	return out
 }
 
+// foldTagging carries o's tagging facts into en when o's operations join en.
+func (en *entry) foldTagging(o *entry) {
+	en.srMatched = en.srMatched || o.srMatched
+	en.srTagged = en.srTagged || o.srTagged
+	en.opTagged = en.opTagged || o.opTagged
+}
+
 // mergeDetailReads folds an attribute keyed <svc>/<parent>/<noun> into the
 // resource <svc>/<noun> when that resource exists: the Get is the resource's
 // own detail read, mis-nested only because the subject id was not
@@ -229,6 +243,7 @@ func mergeDetailReads(entries map[string]*entry) {
 		// plural whenever the catalog name was a compound ("function alias").
 		res.nouns = append(res.nouns, en.nouns...)
 		res.ops = append(res.ops, en.ops...)
+		res.foldTagging(en)
 		for sig := range en.signals {
 			res.signals[sig] = true
 		}
@@ -287,13 +302,16 @@ func serviceReferenceVersion(indexPath string) (string, error) {
 func indexSR(d *srDoc) *srService {
 	s := &srService{
 		actions: map[string]srAction{}, opActions: map[string][]string{}, levels: map[string][]string{}, levelStem: map[string][]string{},
-		resCanon: map[string]string{}, resNS: map[string]string{}, name: d.Name, ops: map[string]bool{}, sdkNames: map[string]bool{},
+		resCanon: map[string]string{}, resNS: map[string]string{}, tagged: map[string]bool{}, name: d.Name, ops: map[string]bool{}, sdkNames: map[string]bool{},
 	}
 	for _, a := range d.Actions {
 		p := a.Annotations.Properties
 		act := srAction{isList: p.IsList, isWrite: p.IsWrite, taggingOnly: p.IsTaggingOnly}
 		for _, r := range a.Resources {
 			act.resources = append(act.resources, r.Name)
+			if p.IsTaggingOnly {
+				s.tagged[sdkinv.Ident(r.Name)] = true
+			}
 		}
 		s.actions[a.Name] = act
 	}
@@ -311,6 +329,14 @@ func indexSR(d *srDoc) *srService {
 	for _, r := range d.Resources {
 		if len(r.ARNFormats) == 0 { // a resource without an ARN is not addressable
 			continue
+		}
+		// A tagging-only action naming the resource is not the only proof:
+		// some services' TagResource names no resource at all (transcribe), and
+		// some resources take tags only through other writes (servicecatalog
+		// Portfolio). A resource whose policy
+		// can test its own tags carries tags.
+		if slices.ContainsFunc(r.ConditionKeys, func(k string) bool { return strings.HasPrefix(k, "aws:ResourceTag/") }) {
+			s.tagged[sdkinv.Ident(r.Name)] = true
 		}
 		for _, f := range r.ARNFormats {
 			if lv := arnLevels(f); len(lv) > len(s.levels[r.Name]) {
@@ -650,6 +676,7 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 		if dup := byKey[key]; dup != nil { // two identities with one display: fold the ops
 			dup.admit(en.class, en.rule)
 			dup.ops = append(dup.ops, en.ops...)
+			dup.foldTagging(en)
 			for s := range en.signals {
 				dup.signals[s] = true
 			}
@@ -669,6 +696,10 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 			if p := en.service + "/" + parentDisplay(entries, en); p != key {
 				c.Parent = p
 			}
+		}
+		if en.srMatched || en.opTagged {
+			taggable := en.srTagged || en.opTagged
+			c.Taggable = &taggable
 		}
 		for s := range en.signals {
 			c.Signals = append(c.Signals, s)

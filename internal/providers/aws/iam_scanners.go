@@ -22,7 +22,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeIAMAccount, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMUser, Service: "iam"})
-	registerType(restype.Descriptor{Type: TypeIAMGroup, Service: "iam"})
+	registerType(restype.Descriptor{Type: TypeIAMGroup, Service: "iam", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeIAMRole, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMServiceLinkedRole, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMPolicy, Service: "iam"})

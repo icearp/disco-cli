@@ -17,7 +17,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeEC2FastSnapshotRestore, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2FastLaunchImage, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2AllowedImagesSetting, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2AllowedImagesSetting, Service: "ec2", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeEC2ReservedInstancesListing, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2ServiceLinkVirtualInterface, Service: "ec2"})
 }

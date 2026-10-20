@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeECSAccountSetting, Service: "ecs"})
+	registerType(restype.Descriptor{Type: TypeECSAccountSetting, Service: "ecs", Untaggable: true})
 }
 
 const (

@@ -19,7 +19,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeBedrockIntelligentPromptRouter, Service: "bedrock"})
 	registerType(restype.Descriptor{Type: TypeBedrockApplicationInferenceProfile, Service: "bedrock"})
 	registerType(restype.Descriptor{Type: TypeBedrockInferenceProfile, Service: "bedrock"})
-	registerType(restype.Descriptor{Type: TypeBedrockFoundationModel, Service: "bedrock", Managed: true})
+	registerType(restype.Descriptor{Type: TypeBedrockFoundationModel, Service: "bedrock", Managed: true, Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeBedrockEnforcedGuardrailConfiguration, Service: "bedrock"})
 	registerType(restype.Descriptor{Type: TypeBedrockAgent, Service: "bedrock"})
 	registerType(restype.Descriptor{Type: TypeBedrockAgentAlias, Service: "bedrock"})

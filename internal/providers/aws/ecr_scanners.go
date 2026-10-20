@@ -14,18 +14,18 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeECRRepository, Service: "ecr"})
 	registerType(restype.Descriptor{Type: TypeECRPublicRepository, Service: "ecr"})
-	registerType(restype.Descriptor{Type: TypeECRPublicRegistry, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRPublicRegistry, Service: "ecr", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeECRPullThroughCacheRule, Service: "ecr"})
 	registerType(restype.Descriptor{Type: TypeECRPullTimeUpdateExclusion, Service: "ecr"})
 	registerType(restype.Descriptor{Type: TypeECRRegistryPolicy, Service: "ecr"})
-	registerType(restype.Descriptor{Type: TypeECRRegistryScanningConfig, Service: "ecr"})
-	registerType(restype.Descriptor{Type: TypeECRReplicationConfiguration, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRRegistryScanningConfig, Service: "ecr", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeECRReplicationConfiguration, Service: "ecr", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeECRRepositoryCreationTemplate, Service: "ecr"})
 	// Every repository has one, computed by ECR from the registry scanning
 	// rules (or the repository's own scan-on-push flag), with no Delete API.
 	// Still not Managed: those rules and flags are the customer's choice, and
 	// Managed rows are left out of default `disco check` input.
-	registerType(restype.Descriptor{Type: TypeECRRepositoryScanningConfig, Service: "ecr"})
+	registerType(restype.Descriptor{Type: TypeECRRepositoryScanningConfig, Service: "ecr", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeECRSigningConfiguration, Service: "ecr"})
 	registerService(serviceEntry{
 		name: "aws:ecr",

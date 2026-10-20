@@ -18,11 +18,11 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeSSOInstance, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOPermissionSet, Service: "sso"})
-	registerType(restype.Descriptor{Type: TypeSSOAccountAssignment, Service: "sso"})
+	registerType(restype.Descriptor{Type: TypeSSOAccountAssignment, Service: "sso", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeSSOApplication, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOApplicationAssignment, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOInstanceAccessControlAttributeConfiguration, Service: "sso"})
-	registerType(restype.Descriptor{Type: TypeSSOApplicationProvider, Service: "sso", Managed: true})
+	registerType(restype.Descriptor{Type: TypeSSOApplicationProvider, Service: "sso", Managed: true, Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeSSOTrustedTokenIssuer, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOApplicationAccessScope, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOApplicationAuthenticationMethod, Service: "sso"})
@@ -30,9 +30,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSSORegion, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOManagedPolicy, Service: "sso"})
 	registerType(restype.Descriptor{Type: TypeSSOCustomerManagedPolicyReference, Service: "sso"})
-	registerType(restype.Descriptor{Type: TypeIdentityStoreUser, Service: "identitystore"})
-	registerType(restype.Descriptor{Type: TypeIdentityStoreGroup, Service: "identitystore"})
-	registerType(restype.Descriptor{Type: TypeIdentityStoreGroupMembership, Service: "identitystore"})
+	registerType(restype.Descriptor{Type: TypeIdentityStoreUser, Service: "identitystore", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeIdentityStoreGroup, Service: "identitystore", Untaggable: true})
+	registerType(restype.Descriptor{Type: TypeIdentityStoreGroupMembership, Service: "identitystore", Untaggable: true})
 	registerService(serviceEntry{
 		name: "aws:sso-admin",
 		fn:   scanSSOAdmin,
