@@ -3809,6 +3809,9 @@ var ServiceRegions = map[string][]string{
 		"us-west-1",
 		"us-west-2",
 	},
+	"aws:mturk": {
+		"us-east-1",
+	},
 	"aws:mwaa": {
 		"af-south-1",
 		"ap-east-1",

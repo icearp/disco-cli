@@ -58,9 +58,10 @@ func init() {
 	// excluded from a default `disco scan aws`. Select it with
 	// --include-service-quotas or --services aws:servicequotas.
 	registerService(serviceEntry{
-		name:  "aws:servicequotas",
-		optIn: true,
-		fn:    scanServiceQuotas,
+		name:   "aws:servicequotas",
+		optIn:  true,
+		quotas: true,
+		fn:     scanServiceQuotas,
 	})
 }
 

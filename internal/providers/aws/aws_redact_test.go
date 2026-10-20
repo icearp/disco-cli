@@ -16,6 +16,7 @@ import (
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
 	mttypes "github.com/aws/aws-sdk-go-v2/service/mediatailor/types"
+	mturktypes "github.com/aws/aws-sdk-go-v2/service/mturk/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 
 	"github.com/icearp/disco-cli/internal/redact"
@@ -378,5 +379,23 @@ func TestRedact_ConnectTestCase_InitializationData(t *testing.T) {
 	}
 	if got["Name"] != "smoke" || got["Content"] != `{"Version":"2019-10-30"}` {
 		t.Errorf("siblings clobbered: Name=%v Content=%v", got["Name"], got["Content"])
+	}
+}
+
+func TestRedact_MTurkQualificationType_AnswerKey(t *testing.T) {
+	q := mturktypes.QualificationType{
+		QualificationTypeId: ptrStr(mturkTestIDA),
+		AnswerKey:           ptrStr("<AnswerKey><Question><QuestionIdentifier>q1</QuestionIdentifier></Question></AnswerKey>"),
+		Test:                ptrStr("<QuestionForm>q1</QuestionForm>"),
+		Description:         ptrStr("English grammar"),
+	}
+	got := applyAndDecode(t, TypeMTurkQualificationType, q)
+	if got["AnswerKey"] != redact.Placeholder {
+		t.Errorf("AnswerKey = %v, want redacted", got["AnswerKey"])
+	}
+	for k, want := range map[string]string{"Test": "<QuestionForm>q1</QuestionForm>", "Description": "English grammar", "QualificationTypeId": mturkTestIDA} {
+		if got[k] != want {
+			t.Errorf("%s = %v, want %q kept", k, got[k], want)
+		}
 	}
 }

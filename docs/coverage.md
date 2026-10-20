@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.9% (2031/3336 listable) · depth0 72.5% · depth1 44.1% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.9% (2032/3336 listable) · depth0 72.5% · depth1 44.1% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -11,7 +11,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sr-resource | 1047 | 174 | 85.7 |
 | child-uncatalogued | 307 | 710 | 30.2 |
 | smithy-resource | 432 | 130 | 76.9 |
-| element-written | 203 | 213 | 48.8 |
+| element-written | 204 | 212 | 49.0 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 6 | 8 | 42.9 |
 
@@ -156,7 +156,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | medical-imaging | 1 | 3 | 25.0 |
 | monitoring | 6 | 3 | 66.7 |
 | mpa | 3 | 3 | 50.0 |
-| mturk-requester | 0 | 3 | 0.0 |
 | organizations | 8 | 3 | 72.7 |
 | partnercentral-benefits | 0 | 3 | 0.0 |
 | partnercentral-channel | 0 | 3 | 0.0 |
@@ -193,6 +192,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mediaconnect | 8 | 2 | 80.0 |
 | mediastore | 0 | 2 | 0.0 |
 | migrationhub-strategy | 0 | 2 | 0.0 |
+| mturk-requester | 1 | 2 | 33.3 |
 | neptune-graph | 3 | 2 | 60.0 |
 | network-firewall | 9 | 2 | 81.8 |
 | networkflowmonitor | 2 | 2 | 50.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1305)
+### Uncovered (listable, no scanner) (1304)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1230,7 +1230,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | mpa | mpa/session | 0 |  | smithy-resource | mpa:ListSessions |
 | mturk-requester | mturk-requester/assignment | 0 |  | child-uncatalogued | mturk-requester:GetAssignment, mturk-requester:ListAssignmentsForHIT |
 | mturk-requester | mturk-requester/hit | 0 |  | element-written | mturk-requester:GetHIT, mturk-requester:ListHITs, mturk-requester:ListHITsForQualificationType, mturk-requester:ListReviewableHITs |
-| mturk-requester | mturk-requester/qualificationtype | 0 |  | element-written | mturk-requester:GetQualificationType, mturk-requester:ListQualificationTypes |
 | neptune-graph | neptune-graph/exporttask | 1 |  | sr-resource | neptune-graph:GetExportTask, neptune-graph:ListExportTasks |
 | neptune-graph | neptune-graph/importtask | 1 |  | sr-resource | neptune-graph:GetImportTask, neptune-graph:ListImportTasks |
 | network-firewall | network-firewall/analysisreport | 0 |  | element-written | network-firewall:ListAnalysisReports |

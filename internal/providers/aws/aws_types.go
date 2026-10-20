@@ -2697,4 +2697,7 @@ const (
 	// Account access manager (accountaccess_scanners.go).
 	TypeAccountAccessApplication = "aws:account-access:application"
 	TypeAccountAccessEntitlement = "aws:account-access:entitlement"
+
+	// Mechanical Turk requester (mturk_scanners.go).
+	TypeMTurkQualificationType = "aws:mturk:qualification-type"
 )

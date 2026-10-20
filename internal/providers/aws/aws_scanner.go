@@ -61,7 +61,7 @@ type Scanner struct {
 	sourceIdentity      string   // "" = off; "auto" = scan ID; else literal STS SourceIdentity stamped on assumed sessions
 	regionScopeDisabled bool     // when true, skip SSM global-infra region pre-scoping (--scope-regions=false)
 
-	includeServiceQuotas bool // when true, the opt-in aws:servicequotas scanner is added to the default scan (--include-service-quotas)
+	includeServiceQuotas bool // when true, the quota-tagged opt-in scanners (aws:servicequotas, aws:servicequotas-template) join the default scan (--include-service-quotas)
 }
 
 // Name implements providers.Scanner.
@@ -431,9 +431,10 @@ func (a *account) dispatchedRegions(name string) []string {
 
 // filteredServices returns the services to run. An explicit filter wins: when
 // non-empty, exactly the named services run (opt-in or not). With no filter, the
-// default set is every non-opt-in service, plus opt-in services only when
-// includeOptIn is set (--include-service-quotas).
-func filteredServices(filter []string, includeOptIn bool) []serviceEntry {
+// default set is every non-opt-in service, plus the quotas-tagged opt-in services
+// when includeServiceQuotas is set (--include-service-quotas). Any other opt-in
+// service runs only when named.
+func filteredServices(filter []string, includeServiceQuotas bool) []serviceEntry {
 	if len(filter) > 0 {
 		allowed := make(map[string]bool, len(filter))
 		for _, name := range filter {
@@ -449,7 +450,7 @@ func filteredServices(filter []string, includeOptIn bool) []serviceEntry {
 	}
 	out := make([]serviceEntry, 0, len(registeredServices))
 	for _, svc := range registeredServices {
-		if !svc.optIn || includeOptIn {
+		if !svc.optIn || (svc.quotas && includeServiceQuotas) {
 			out = append(out, svc)
 		}
 	}
@@ -499,8 +500,8 @@ type account struct {
 	// regional fan-out; not reset afterwards. See dispatchedRegions.
 	scanRegions []string
 
-	// includeServiceQuotas mirrors --include-service-quotas: when true the opt-in
-	// aws:servicequotas scanner is added to the default service set for this scan.
+	// includeServiceQuotas mirrors --include-service-quotas: when true the
+	// quota-tagged opt-in scanners join the default service set for this scan.
 	includeServiceQuotas bool
 }
 

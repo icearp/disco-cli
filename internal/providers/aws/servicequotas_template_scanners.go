@@ -31,6 +31,7 @@ func init() {
 		name:   "aws:servicequotas-template",
 		global: true,
 		optIn:  true,
+		quotas: true,
 		fn:     scanServiceQuotasTemplate,
 	})
 }

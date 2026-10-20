@@ -321,6 +321,7 @@ var expectedAWSServices = []string{
 	"aws:transcribe",
 	"aws:translate",
 	"aws:trustedadvisor",
+	"aws:mturk",
 }
 
 // TestRegisteredServices_NoDuplicates verifies no two services share a name.
@@ -357,8 +358,8 @@ func TestRegisteredServices_ExpectedNames(t *testing.T) {
 	}
 }
 
-func filteredServiceNames(filter []string, includeOptIn bool) []string {
-	svcs := filteredServices(filter, includeOptIn)
+func filteredServiceNames(filter []string, includeServiceQuotas bool) []string {
+	svcs := filteredServices(filter, includeServiceQuotas)
 	names := make([]string, len(svcs))
 	for i, s := range svcs {
 		names[i] = s.name
@@ -392,19 +393,46 @@ func TestFilteredServices_DefaultExcludesOptIn(t *testing.T) {
 	}
 }
 
-// TestFilteredServices_IncludeOptIn verifies the includeOptIn flag adds the opt-in
-// services to the default set, and that explicit selection by name also works.
+// TestFilteredServices_IncludeOptIn verifies the includeServiceQuotas flag adds
+// only the quotas-tagged opt-in services to the default set, and that explicit
+// selection by name works for any opt-in service.
 func TestFilteredServices_IncludeOptIn(t *testing.T) {
-	if got := filteredServiceNames(nil, true); !slices.Contains(got, "aws:servicequotas") {
-		t.Error("filteredServices(nil, true) must include aws:servicequotas")
+	got := filteredServiceNames(nil, true)
+	for _, name := range []string{"aws:servicequotas", "aws:servicequotas-template"} {
+		if !slices.Contains(got, name) {
+			t.Errorf("filteredServices(nil, true) must include %s", name)
+		}
 	}
-	if got := filteredServiceNames(nil, true); len(got) != len(registeredServices) {
-		t.Errorf("filteredServices(nil, true): got %d, want %d (all registered)", len(got), len(registeredServices))
+	if slices.Contains(got, "aws:mturk") {
+		t.Error("filteredServices(nil, true) must exclude aws:mturk: --include-service-quotas adds only quota services")
 	}
-	// Explicit selection wins regardless of includeOptIn.
-	got := filteredServiceNames([]string{"aws:servicequotas"}, false)
+	if want := len(registeredServices) - optInCount() + 2; len(got) != want {
+		t.Errorf("filteredServices(nil, true): got %d, want %d (non-opt-in plus the two quota services)", len(got), want)
+	}
+	// Explicit selection wins regardless of includeServiceQuotas.
+	got = filteredServiceNames([]string{"aws:servicequotas"}, false)
 	if len(got) != 1 || got[0] != "aws:servicequotas" {
 		t.Errorf("filteredServices([aws:servicequotas], false): got %v, want [aws:servicequotas]", got)
+	}
+}
+
+// TestRegisteredServices_QuotasTags pins which services --include-service-quotas
+// adds: exactly the two quota scanners carry quotas, and every other opt-in
+// service is listed here, so a new opt-in service forces a decision.
+func TestRegisteredServices_QuotasTags(t *testing.T) {
+	quotaServices := []string{"aws:servicequotas", "aws:servicequotas-template"}
+	optInOnly := []string{"aws:mturk"}
+	for _, s := range registeredServices {
+		wantQuotas := slices.Contains(quotaServices, s.name)
+		if s.quotas != wantQuotas {
+			t.Errorf("%s quotas = %v, want %v", s.name, s.quotas, wantQuotas)
+		}
+		if s.quotas && !s.optIn {
+			t.Errorf("%s is quotas-tagged but not opt-in", s.name)
+		}
+		if s.optIn && !s.quotas && !slices.Contains(optInOnly, s.name) {
+			t.Errorf("%s is opt-in without quotas; add it to optInOnly if --include-service-quotas must not add it", s.name)
+		}
 	}
 }
 
