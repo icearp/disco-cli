@@ -237,20 +237,16 @@ func scanAppRunnerAutoScalingConfigs(ctx context.Context, client apprunnerAPI, a
 			}
 			name := sv(c.AutoScalingConfigurationName)
 			batch = append(batch, &store.Resource{
-				Provider:    "aws",
-				AccountID:   acct.ID,
-				AccountName: &acct.Name,
-				Type:        TypeAppRunnerAutoScalingConfiguration,
-				NativeID:    arn,
-				Name:        &name,
-				Region:      &region,
-				CreatedAt:   tp(c.CreatedAt),
-				// Account-scoped AWS-supplied default revision (one per account, named
-				// "DefaultConfiguration"). Customer can promote any revision via
-				// UpdateDefaultAutoScalingConfiguration — flag tracks current SDK truth.
-				ManagedByProvider: c.IsDefault != nil && *c.IsDefault,
-				AttributesJSON:    mustJSON(c),
-				DiscoveredBy:      scanID,
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeAppRunnerAutoScalingConfiguration,
+				NativeID:       arn,
+				Name:           &name,
+				Region:         &region,
+				CreatedAt:      tp(c.CreatedAt),
+				AttributesJSON: mustJSON(c),
+				DiscoveredBy:   scanID,
 			})
 		}
 		if len(batch) > 0 {

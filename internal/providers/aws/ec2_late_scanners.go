@@ -17,7 +17,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeEC2FastSnapshotRestore, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2FastLaunchImage, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2AllowedImagesSetting, Service: "ec2", Managed: true})
+	registerType(restype.Descriptor{Type: TypeEC2AllowedImagesSetting, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2ReservedInstancesListing, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2ServiceLinkVirtualInterface, Service: "ec2"})
 }
@@ -165,8 +165,9 @@ func scanEC2FastLaunchImages(ctx context.Context, client ec2API, acct *account, 
 
 // scanEC2AllowedImagesSetting stores the Allowed AMIs setting, one per account
 // and Region. It cannot be created or deleted, only change state (the API
-// documents "disabled" as the state in which all AMIs are allowed), so the
-// type is provider-managed. AWS documents no ARN for it; the NativeID is
+// documents "disabled" as the state in which all AMIs are allowed). It is not
+// Managed: that state is the customer's choice, and Managed rows are left out
+// of default `disco check` input. AWS documents no ARN for it; the NativeID is
 // synthesized in ec2ARN shape and carries the Region, so Regions do not share
 // one row.
 func scanEC2AllowedImagesSetting(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

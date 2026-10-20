@@ -140,8 +140,8 @@ func TestScanECRPublic_StoresRegistriesAndContainsEdges(t *testing.T) {
 	if r.Type != TypeECRPublicRegistry || sv(r.Name) != "myalias" || sv(r.Region) != "us-east-1" {
 		t.Errorf("registry row = type %q name %q region %q, want %q myalias us-east-1", r.Type, sv(r.Name), sv(r.Region), TypeECRPublicRegistry)
 	}
-	if !r.ManagedByProvider {
-		t.Error("registry row not ManagedByProvider: AWS creates it implicitly and it cannot be deleted")
+	if r.ManagedByProvider {
+		t.Error("registry row is ManagedByProvider; PutRegistryCatalogData makes it customer config")
 	}
 	var attrs struct {
 		RegistryURI string `json:"RegistryUri"`
@@ -476,8 +476,8 @@ func TestScanECRRepositoryScanningConfigs_BatchesAndStores(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing row %s; have %d rows", ecrScanCfgNativeID("team/app"), len(rows))
 	}
-	if r.Type != TypeECRRepositoryScanningConfig || sv(r.Name) != "team/app" || sv(r.Region) != testRegion || !r.ManagedByProvider {
-		t.Errorf("row = type %q name %q region %q managed %v; want %q team/app %q true", r.Type, sv(r.Name), sv(r.Region), r.ManagedByProvider, TypeECRRepositoryScanningConfig, testRegion)
+	if r.Type != TypeECRRepositoryScanningConfig || sv(r.Name) != "team/app" || sv(r.Region) != testRegion || r.ManagedByProvider {
+		t.Errorf("row = type %q name %q region %q managed %v; want %q team/app %q false", r.Type, sv(r.Name), sv(r.Region), r.ManagedByProvider, TypeECRRepositoryScanningConfig, testRegion)
 	}
 	var attrs struct{ ScanFrequency string }
 	if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.ScanFrequency != "CONTINUOUS_SCAN" {

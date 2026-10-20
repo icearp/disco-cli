@@ -74,11 +74,10 @@ func resolveECRRepositoryRelationships(acct *account, st *store.Store) error {
 // stub-resource pass.
 func resolveECRReplicationConfiguration(acct *account, st *store.Store) error {
 	configs, err := st.ListResources(store.ResourceFilter{
-		Providers:      []string{"aws"},
-		AccountID:      acct.ID,
-		Types:          []string{TypeECRReplicationConfiguration},
-		IncludeManaged: true,
-		Limit:          util.AllResources,
+		Providers: []string{"aws"},
+		AccountID: acct.ID,
+		Types:     []string{TypeECRReplicationConfiguration},
+		Limit:     util.AllResources,
 	})
 	if err != nil {
 		return err

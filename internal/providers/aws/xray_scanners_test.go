@@ -100,7 +100,7 @@ func TestScanXRayIndexingRules_StoresEveryPage(t *testing.T) {
 		t.Errorf("NativeID = %q", xrayTestRuleA)
 	}
 	r := rows[xrayTestRuleA]
-	if r.Type != TypeXRayIndexingRule || sv(r.Name) != "Default" || sv(r.Region) != testRegion || !r.ManagedByProvider {
+	if r.Type != TypeXRayIndexingRule || sv(r.Name) != "Default" || sv(r.Region) != testRegion || r.ManagedByProvider {
 		t.Errorf("row = type %q name %q region %q managed %v", r.Type, sv(r.Name), sv(r.Region), r.ManagedByProvider)
 	}
 	attrs := xrayRuleAttrs(t, rows[xrayTestRuleB])

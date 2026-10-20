@@ -12,7 +12,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeIoTLogging, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTResourceSpecificLogging, Service: "iot"})
-	registerType(restype.Descriptor{Type: TypeIoTEncryptionConfiguration, Service: "iot", Managed: true})
+	registerType(restype.Descriptor{Type: TypeIoTEncryptionConfiguration, Service: "iot"})
 }
 
 type iotLoggingAPI interface {
@@ -149,7 +149,6 @@ func scanIoTEncryptionConfiguration(ctx context.Context, client iotLoggingAPI, a
 		Region:         &region,
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
-		// Per-(acct, region) AWS-managed singleton config row.
 	}
 	n, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {

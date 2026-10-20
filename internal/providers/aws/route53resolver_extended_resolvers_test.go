@@ -79,31 +79,27 @@ func r53rRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship
 	return rels
 }
 
-// An address links to its subnet, a default (managed) subnet included; an
-// address whose subnet was not scanned, or that names none, links to nothing.
+// An address links to its subnet; an address whose subnet was not scanned, or
+// that names none, links to nothing.
 func TestResolveR53REndpointIPSubnet(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-a"), testRegion, "{}")
-	defaultSubnetID := r53rUpsertManaged(t, st, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-default"), "{}")
 	ip := func(native string, a r53rtypes.IpAddressResponse) string {
 		return upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverEndpointIPAddress, native, testRegion, mustJSON(a))
 	}
 	inA := ip("ep/ip-address/rni-1", r53rtypes.IpAddressResponse{IpId: ptrStr("rni-1"), SubnetId: ptrStr("subnet-a")})
-	inDefault := ip("ep/ip-address/rni-2", r53rtypes.IpAddressResponse{IpId: ptrStr("rni-2"), SubnetId: ptrStr("subnet-default")})
 	unscanned := ip("ep/ip-address/rni-3", r53rtypes.IpAddressResponse{IpId: ptrStr("rni-3"), SubnetId: ptrStr("subnet-missing")})
 	noSubnet := ip("ep/ip-address/rni-4", r53rtypes.IpAddressResponse{IpId: ptrStr("rni-4")})
 
 	if err := resolveR53REndpointIPSubnet(acct, st); err != nil {
 		t.Fatalf("resolveR53REndpointIPSubnet: %v", err)
 	}
-	for _, tc := range []struct{ from, to string }{{inA, subnetID}, {inDefault, defaultSubnetID}} {
-		rels := r53rRelsFrom(t, st, tc.from)
-		if len(rels) != 1 {
-			t.Errorf("%s edges = %v, want one", tc.from, rels)
-		}
-		assertRelationship(t, rels, tc.from, tc.to, store.RelAttachedTo)
+	rels := r53rRelsFrom(t, st, inA)
+	if len(rels) != 1 {
+		t.Errorf("%s edges = %v, want one", inA, rels)
 	}
+	assertRelationship(t, rels, inA, subnetID, store.RelAttachedTo)
 	for _, id := range []string{unscanned, noSubnet} {
 		if rels := r53rRelsFrom(t, st, id); len(rels) != 0 {
 			t.Errorf("%s edges = %v, want none", id, rels)

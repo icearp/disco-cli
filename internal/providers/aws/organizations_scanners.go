@@ -18,7 +18,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeOrganizationsOU, Service: "organizations"})
 	registerType(restype.Descriptor{Type: TypeOrganizationsSCP, Service: "organizations"})
 	registerType(restype.Descriptor{Type: TypeOrganizationsResourcePolicy, Service: "organizations"})
-	registerType(restype.Descriptor{Type: TypeOrganizationsRoot, Service: "organizations", Managed: true})
+	registerType(restype.Descriptor{Type: TypeOrganizationsRoot, Service: "organizations"})
 	registerType(restype.Descriptor{Type: TypeOrganizationsResponsibilityTransfer, Service: "organizations"})
 	registerService(serviceEntry{
 		name:   "aws:organizations",
@@ -110,7 +110,8 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 
 // scanOrgRootResources lists organization roots as standalone
 // aws:organizations:root resources. Auto-created with the org and
-// undeletable while it exists, so provider-managed. (The org hierarchy walk
+// undeletable while it exists, but not provider-managed: EnablePolicyType and
+// DisablePolicyType set which policy types apply at it. (The org hierarchy walk
 // already records roots as OU containers; this phase surfaces the dedicated
 // root type for coverage.)
 func scanOrgRootResources(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
@@ -267,16 +268,15 @@ func scanOrgRoots(ctx context.Context, client *organizations.Client, acct *accou
 			arn := sv(root.Arn)
 			id := sv(root.Id)
 			batch = append(batch, &store.Resource{
-				Provider:          "aws",
-				AccountID:         acct.ID,
-				AccountName:       &acct.Name,
-				Region:            regionGlobal,
-				Type:              TypeOrganizationsOU,
-				NativeID:          arn,
-				Name:              root.Name,
-				AttributesJSON:    mustJSON(root),
-				DiscoveredBy:      scanID,
-				ManagedByProvider: true, // r-xxxx is AWS-default container.
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Region:         regionGlobal,
+				Type:           TypeOrganizationsOU,
+				NativeID:       arn,
+				Name:           root.Name,
+				AttributesJSON: mustJSON(root),
+				DiscoveredBy:   scanID,
 			})
 			rid := store.ResourceID("aws", acct.ID, arn)
 			rootIDs = append(rootIDs, id)

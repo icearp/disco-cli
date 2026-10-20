@@ -80,15 +80,14 @@ func TestScanECSAccountSettings_PagesAndFields(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("rows = %v; want 2", rows)
 	}
-	// Every row is provider-managed, whatever its Type: the descriptor
-	// marks the per-(account, region) singleton config type Managed.
+	// No row is provider-managed: the settings are customer posture, and managed
+	// rows are left out of default `disco check` input.
 	cases := []struct {
-		name    string
-		managed bool
-		value   string
+		name  string
+		value string
 	}{
-		{"containerInsights", true, "enabled"},
-		{"guardDutyActivate", true, "on"},
+		{"containerInsights", "enabled"},
+		{"guardDutyActivate", "on"},
 	}
 	for _, tc := range cases {
 		id := fmt.Sprintf("arn:aws:ecs:%s:%s:account-setting/%s", testRegion, testAccountID, tc.name)
@@ -97,9 +96,9 @@ func TestScanECSAccountSettings_PagesAndFields(t *testing.T) {
 			t.Errorf("row %s missing; rows = %v", id, rows)
 			continue
 		}
-		if r.Type != TypeECSAccountSetting || sv(r.Region) != testRegion || sv(r.Name) != tc.name || r.ManagedByProvider != tc.managed {
-			t.Errorf("row %s = type %s region %s name %s managed %v; want %s %s %s %v",
-				id, r.Type, sv(r.Region), sv(r.Name), r.ManagedByProvider, TypeECSAccountSetting, testRegion, tc.name, tc.managed)
+		if r.Type != TypeECSAccountSetting || sv(r.Region) != testRegion || sv(r.Name) != tc.name || r.ManagedByProvider {
+			t.Errorf("row %s = type %s region %s name %s managed %v; want %s %s %s false",
+				id, r.Type, sv(r.Region), sv(r.Name), r.ManagedByProvider, TypeECSAccountSetting, testRegion, tc.name)
 		}
 		var attrs ecstypes.Setting
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {

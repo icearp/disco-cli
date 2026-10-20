@@ -83,13 +83,11 @@ func serviceRegistered(name string) bool {
 // TestUnconditionalManagedStampedByType proves each unconditionally-managed
 // type's Descriptor.Managed:true reached the shared managed engine (which the
 // store consults to stamp ManagedByProvider), replacing the deleted scanner
-// literals. Dual-natured types (IAMPolicy, LambdaLayerVersion, OrganizationsOU)
-// are deliberately absent — their managed flag stays per-row scanner-set.
+// literals. Dual-natured types (IAMPolicy, LambdaLayerVersion) are
+// deliberately absent — their managed flag stays per-row scanner-set.
 func TestUnconditionalManagedStampedByType(t *testing.T) {
 	wantManaged := []string{
-		TypeQuickSightAccount, TypeQuickSightCustomization,
-		TypeOrganizationsRoot, TypeBedrockFoundationModel, TypeAPIGatewayAccount,
-		TypeSecurityHubStandard, TypeRoute53ResolverResolverConfig,
+		TypeBedrockFoundationModel, TypeSecurityHubStandard, TypeTrustedAdvisorChecks,
 	}
 	for _, ty := range wantManaged {
 		if !managed.Is(ty) {
@@ -97,9 +95,34 @@ func TestUnconditionalManagedStampedByType(t *testing.T) {
 		}
 	}
 	// Dual-natured types must NOT be type-stamped (would wrongly hide customer rows).
-	for _, ty := range []string{TypeIAMPolicy, TypeLambdaLayerVersion, TypeOrganizationsOU} {
+	for _, ty := range []string{TypeIAMPolicy, TypeLambdaLayerVersion} {
 		if managed.Is(ty) {
 			t.Errorf("%s type-stamped managed — dual-natured type must stay scanner-set", ty)
+		}
+	}
+}
+
+// TestCustomerPostureTypesNotManaged pins that config and posture types whose
+// values the customer sets are not type-stamped managed, even when AWS creates
+// the row and no API deletes it: managed rows are left out of default
+// `disco check` input, so a policy rule about this posture would see nothing.
+func TestCustomerPostureTypesNotManaged(t *testing.T) {
+	for _, ty := range []string{
+		TypeACMAccount, TypeAPIGatewayAccount, TypeARCZonalShiftObserverStatus,
+		TypeCloudWatchOTelEnrichment, TypeConnectAttachedFilesConfiguration,
+		TypeEC2AllowedImagesSetting, TypeEC2SnapshotBlockPublicAccess,
+		TypeEC2VerifiedAccessInstanceLoggingConfiguration, TypeEC2VPCBlockPublicAccessOptions,
+		TypeECRPublicRegistry, TypeECRRegistryScanningConfig, TypeECRReplicationConfiguration, TypeECRRepositoryScanningConfig,
+		TypeECSAccountSetting, TypeIoTAccountAuditConfiguration, TypeIoTEncryptionConfiguration,
+		TypeLakeFormationDataLakeSettings, TypeNotificationsManagedNotificationAdditionalChannelAssoc,
+		TypeOrganizationsRoot, TypeQuickSightAccount, TypeQuickSightCustomization,
+		TypeQuickSightKeyRegistration, TypeResourceExplorer2DefaultViewAssociation,
+		TypeResourceExplorer2Index, TypeRoute53ResolverFirewallConfig, TypeRoute53ResolverResolverConfig,
+		TypeSecurityHubStandardsControlAssociation, TypeUXCAccountCustomization,
+		TypeWickrNetworkSetting, TypeXRayIndexingRule, TypeXRayTransactionSearchConfig,
+	} {
+		if managed.Is(ty) {
+			t.Errorf("%s registered Managed; customer posture must stay visible to default queries", ty)
 		}
 	}
 }

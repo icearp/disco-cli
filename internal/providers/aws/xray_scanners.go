@@ -13,10 +13,10 @@ import (
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeXRayGroup, Service: "xray"})
-	registerType(restype.Descriptor{Type: TypeXRayIndexingRule, Service: "xray", Managed: true})
+	registerType(restype.Descriptor{Type: TypeXRayIndexingRule, Service: "xray"})
 	registerType(restype.Descriptor{Type: TypeXRayResourcePolicy, Service: "xray"})
 	registerType(restype.Descriptor{Type: TypeXRaySamplingRule, Service: "xray"})
-	registerType(restype.Descriptor{Type: TypeXRayTransactionSearchConfig, Service: "xray", Managed: true})
+	registerType(restype.Descriptor{Type: TypeXRayTransactionSearchConfig, Service: "xray"})
 	registerService(serviceEntry{
 		name: "aws:xray",
 		fn:   scanXRay,
@@ -96,8 +96,6 @@ func scanXRayGroups(ctx context.Context, client xrayAPI, acct *account, region s
 				Type: TypeXRayGroup, NativeID: arn,
 				Name: g.GroupName, Region: &region,
 				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-				// GroupName "Default" = AWS-managed default trace group present in every account.
-				ManagedByProvider: sv(g.GroupName) == "Default",
 			})
 		}
 	}
@@ -157,8 +155,6 @@ func scanXRaySamplingRules(ctx context.Context, client xrayAPI, acct *account, r
 				Type: TypeXRaySamplingRule, NativeID: arn,
 				Name: r.SamplingRule.RuleName, Region: &region,
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-				// RuleName "Default" = AWS-managed default sampling rule present in every account.
-				ManagedByProvider: sv(r.SamplingRule.RuleName) == "Default",
 			})
 		}
 	}
@@ -167,8 +163,7 @@ func scanXRaySamplingRules(ctx context.Context, client xrayAPI, acct *account, r
 
 // scanXRayTransactionSearchConfig captures the per-(account,region)
 // trace-segment-destination singleton backing X-Ray Transaction Search. No
-// ARN — synthesize one. ManagedByProvider=true: account/region config, not a
-// user-created resource.
+// ARN — synthesize one.
 func scanXRayTransactionSearchConfig(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetTraceSegmentDestination(ctx, &xray.GetTraceSegmentDestinationInput{})
 	if err != nil {
@@ -224,8 +219,9 @@ func xrayIndexingRuleNativeID(region, accountID, name string) string {
 
 // scanXRayIndexingRules stores the region's Transaction Search indexing rules.
 // The API has no create or delete operation for them (only GetIndexingRules and
-// UpdateIndexingRule), so every rule is AWS-created and cannot be deleted: the
-// type is Managed even though its sampling percentage can be updated. No rule
+// UpdateIndexingRule), so every rule is AWS-created and cannot be deleted. The
+// type is still not Managed: its sampling percentage is the customer's choice,
+// and Managed rows are left out of default `disco check` input. No rule
 // ARN exists (the Service Reference lists only group and sampling-rule ARNs),
 // so the NativeID is synthesized from the rule name, the identifier
 // UpdateIndexingRule takes, like the resource policy's. A denial after a page

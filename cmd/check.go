@@ -56,10 +56,11 @@ Both flags compose; both run in one pass against the full population.
 Curated full packs (Well-Architected complete, CIS-AWS-Foundations,
 NIST 800-53, PCI-DSS, ISO 27001) are not yet bundled.
 
-Every resource in the local DB (including provider-managed rows such as
-AWS-managed IAM policies and Azure built-in role definitions) is evaluated.
-The resource count is printed to stderr; -o json|jsonl|sarif stdout stays
-clean for piping.
+Every resource in the local DB is evaluated except provider-managed rows
+(such as AWS-managed IAM policies and Azure built-in role definitions), which
+are excluded unless --include-managed is passed. With --verbose the evaluated
+resource count is printed to stderr; -o json|jsonl|sarif stdout stays clean
+for piping.
 
 Input contract: each policy is evaluated once per resource. The input
 document carries these keys:

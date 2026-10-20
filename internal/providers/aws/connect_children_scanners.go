@@ -22,8 +22,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeConnectTestCase, Service: "connect", Redact: []redact.Rule{{Path: "InitializationData", Mode: redact.RedactScalar}}})
 	// ListAttachedFilesConfigurations returns the effective configuration for
 	// every attachment scope, defaults included, so a row exists per instance
-	// and scope whether or not anyone configured it.
-	registerType(restype.Descriptor{Type: TypeConnectAttachedFilesConfiguration, Service: "connect", Managed: true})
+	// and scope whether or not anyone configured it. Still not Managed: the
+	// customer can change it, and Managed rows are left out of default
+	// `disco check` input.
+	registerType(restype.Descriptor{Type: TypeConnectAttachedFilesConfiguration, Service: "connect"})
 	registerType(restype.Descriptor{Type: TypeConnectHoursOfOperationOverride, Service: "connect"})
 	registerType(restype.Descriptor{Type: TypeConnectUseCase, Service: "connect"})
 	registerType(restype.Descriptor{Type: TypeConnectEvaluationFormVersion, Service: "connect"})

@@ -63,10 +63,7 @@ func TestScanVPCBlockPublicAccessOptions_PerRegion(t *testing.T) {
 		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeEC2VPCBlockPublicAccessOptions},
-		// The type is registered Managed, and ListResources hides managed rows
-		// by default.
-		IncludeManaged: true,
-		Limit:          1000,
+		Limit:     1000,
 	})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)

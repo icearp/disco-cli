@@ -18,14 +18,14 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallRuleGroup, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallRuleGroupAssociation, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverOutpostResolver, Service: "route53resolver"})
-	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverConfig, Service: "route53resolver", Managed: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverConfig, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverDNSSECConfig, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverEndpoint, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverQueryLoggingConfig, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverQueryLoggingConfigAssociation, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverRule, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverRuleAssociation, Service: "route53resolver"})
-	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallConfig, Service: "route53resolver", Managed: true})
+	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallConfig, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverFirewallRule, Service: "route53resolver"})
 	registerType(restype.Descriptor{Type: TypeRoute53ResolverResolverEndpointIPAddress, Service: "route53resolver"})
 	registerService(serviceEntry{
@@ -413,7 +413,6 @@ func scanR53RResolverConfigs(ctx context.Context, client route53ResolverAPI, acc
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverResolverConfig, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-				// Per-VPC AWS-managed config row, one per VPC by default.
 			})
 		}
 	}
@@ -623,7 +622,7 @@ func scanR53RResolverRuleAssocs(ctx context.Context, client route53ResolverAPI, 
 }
 
 // scanR53RFirewallConfigs — per-VPC DNS Firewall config state. No native ARN;
-// synth from (region, acct, Id). AWS-managed per-VPC config row.
+// synth from (region, acct, Id).
 func scanR53RFirewallConfigs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := route53resolver.NewListFirewallConfigsPaginator(client, &route53resolver.ListFirewallConfigsInput{})
 	var batch []*store.Resource
@@ -647,7 +646,6 @@ func scanR53RFirewallConfigs(ctx context.Context, client route53ResolverAPI, acc
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverFirewallConfig, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-				// Per-VPC AWS-managed config row, one per VPC by default.
 			})
 		}
 	}

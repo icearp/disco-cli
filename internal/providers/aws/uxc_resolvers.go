@@ -17,16 +17,13 @@ func init() {
 // resolveUXCAccountCustomizationToOrgAccount links the per-account UXC
 // console-customization singleton to its aws:organizations:account row.
 // No-ops when the org tree wasn't scanned (member-only scan, standalone
-// account) — an edge to a phantom target would FK-fail. IncludeManaged is set
-// because default-state customizations are flagged ManagedByProvider=true at
-// scan time.
+// account) — an edge to a phantom target would FK-fail.
 func resolveUXCAccountCustomizationToOrgAccount(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Providers:      []string{"aws"},
-		AccountID:      acct.ID,
-		Types:          []string{TypeUXCAccountCustomization},
-		IncludeManaged: true,
-		Limit:          util.AllResources,
+		Providers: []string{"aws"},
+		AccountID: acct.ID,
+		Types:     []string{TypeUXCAccountCustomization},
+		Limit:     util.AllResources,
 	})
 	if err != nil {
 		return err

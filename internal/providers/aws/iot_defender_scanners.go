@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeIoTAccountAuditConfiguration, Service: "iot", Managed: true})
+	registerType(restype.Descriptor{Type: TypeIoTAccountAuditConfiguration, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTScheduledAudit, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTMitigationAction, Service: "iot"})
 	registerType(restype.Descriptor{Type: TypeIoTSecurityProfile, Service: "iot"})
@@ -84,7 +84,6 @@ func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI
 		Region:         &region,
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
-		// Per-(acct, region) AWS-managed singleton config row.
 	}
 	n, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {

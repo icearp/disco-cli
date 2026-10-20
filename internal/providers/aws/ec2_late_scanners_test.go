@@ -217,9 +217,9 @@ func TestEC2LateNativeIDShapes(t *testing.T) {
 	}
 }
 
-// The setting is stored once per Region, provider-managed, keyed so that two
-// Regions do not share one row.
-func TestScanEC2AllowedImagesSetting_StoresManagedRowPerRegion(t *testing.T) {
+// The setting is stored once per Region, not provider-managed, keyed so that
+// two Regions do not share one row.
+func TestScanEC2AllowedImagesSetting_StoresRowPerRegion(t *testing.T) {
 	st := newTestStore(t)
 	client := lateClient(map[string]func(any) (any, error){"GetAllowedImagesSettings": lateAllowedHandler})
 	for _, region := range []string{testRegion, lateOtherZone} {
@@ -235,8 +235,8 @@ func TestScanEC2AllowedImagesSetting_StoresManagedRowPerRegion(t *testing.T) {
 		t.Fatalf("rows = %v, want %v", got, want)
 	}
 	r := rows[east]
-	if sv(r.Status) != "audit-mode" || sv(r.Region) != testRegion || !r.ManagedByProvider {
-		t.Errorf("status/region/managed = %q/%q/%v, want audit-mode/%s/true", sv(r.Status), sv(r.Region), r.ManagedByProvider, testRegion)
+	if sv(r.Status) != "audit-mode" || sv(r.Region) != testRegion || r.ManagedByProvider {
+		t.Errorf("status/region/managed = %q/%q/%v, want audit-mode/%s/false", sv(r.Status), sv(r.Region), r.ManagedByProvider, testRegion)
 	}
 	if got := sv(rows[west].Region); got != lateOtherZone {
 		t.Errorf("west region = %q, want %s", got, lateOtherZone)

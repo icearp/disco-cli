@@ -11,9 +11,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeResourceExplorer2Index, Service: "resource-explorer-2", Managed: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2Index, Service: "resource-explorer-2"})
 	registerType(restype.Descriptor{Type: TypeResourceExplorer2View, Service: "resource-explorer-2"})
-	registerType(restype.Descriptor{Type: TypeResourceExplorer2DefaultViewAssociation, Service: "resource-explorer-2", Managed: true})
+	registerType(restype.Descriptor{Type: TypeResourceExplorer2DefaultViewAssociation, Service: "resource-explorer-2"})
 	registerType(restype.Descriptor{Type: TypeResourceExplorer2ManagedView, Service: "resource-explorer-2", Managed: true})
 	registerService(serviceEntry{
 		name: "aws:resource-explorer-2",
@@ -98,10 +98,7 @@ func scanRE2Views(ctx context.Context, client resourceExplorer2API, acct *accoun
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeResourceExplorer2View, NativeID: viewArn,
 				Name: &name, Region: &region,
-				// Default views are named after their region (view/{region}/{uuid}); a
-				// customer view carries a chosen name (view/{name}/{uuid}).
-				ManagedByProvider: name == region,
-				AttributesJSON:    mustJSON(map[string]string{"ViewArn": viewArn}), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(map[string]string{"ViewArn": viewArn}), DiscoveredBy: scanID,
 			})
 		}
 	}

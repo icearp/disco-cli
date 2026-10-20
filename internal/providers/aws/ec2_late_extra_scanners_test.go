@@ -525,8 +525,8 @@ var elxWidePhases = []elxWidePhase{
 		contained: map[string]string{elxVALogID(elxVAI1): elxARN("verified-access-instance", elxVAI1)},
 		check: func(t *testing.T, rows map[string]store.Resource) {
 			r := rows[elxVALogID(elxVAI1)]
-			if !r.ManagedByProvider {
-				t.Errorf("logging configuration ManagedByProvider = false, want true")
+			if r.ManagedByProvider {
+				t.Errorf("logging configuration ManagedByProvider = true, want false: it is customer posture")
 			}
 			logs, _ := ipxAttrs(t, r)["AccessLogs"].(map[string]any)
 			if s3, _ := logs["S3"].(map[string]any); s3["BucketName"] != "lx-logs" {

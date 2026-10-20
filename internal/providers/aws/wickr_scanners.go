@@ -18,8 +18,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeWickrSecurityGroup, Service: "wickr"})
 	registerType(restype.Descriptor{Type: TypeWickrBot, Service: "wickr"})
 	// A network's settings come into being with the network and have no delete
-	// op (UpdateNetworkSettings only changes them).
-	registerType(restype.Descriptor{Type: TypeWickrNetworkSetting, Service: "wickr", Managed: true})
+	// op (UpdateNetworkSettings only changes them). Still not Managed: the
+	// customer sets them, and Managed rows are left out of default `disco check`
+	// input.
+	registerType(restype.Descriptor{Type: TypeWickrNetworkSetting, Service: "wickr"})
 	// InviteCode is the registration code with which its holder joins the
 	// network as that user.
 	registerType(restype.Descriptor{
@@ -198,8 +200,8 @@ func wickrStorePages[Page any](ctx context.Context, st *store.Store, op, network
 }
 
 // scanWickrSecurityGroups stores each network's security groups. The default
-// group is ManagedByProvider: every network has exactly one (IsDefault), and
-// DeleteSecurityGroup rejects it.
+// group (IsDefault) is not provider-managed although DeleteSecurityGroup rejects
+// it: UpdateSecurityGroup changes its settings, which are customer posture.
 func scanWickrSecurityGroups(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, int, error) {
 	return wickrChildFanOut(ctx, st, acct, region, wickrListSecurityGroupsOp, networks,
 		func(ctx context.Context, n childParent) (int, int, error) {
@@ -220,7 +222,7 @@ func scanWickrSecurityGroups(ctx context.Context, client wickrAPI, acct *account
 						rows = append(rows, &store.Resource{
 							Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 							Type: TypeWickrSecurityGroup, NativeID: wickrChildNativeID(n.arn, "security-group", id),
-							Name: g.Name, Region: &region, ManagedByProvider: sdkaws.ToBool(g.IsDefault),
+							Name: g.Name, Region: &region,
 							AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 						})
 					}

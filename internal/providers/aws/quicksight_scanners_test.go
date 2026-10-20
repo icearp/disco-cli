@@ -93,7 +93,7 @@ func seedQSParents(t *testing.T, st *store.Store, parentType, kind string, ids .
 
 func qsRows(t *testing.T, st *store.Store, rtype string) map[string]store.Resource {
 	t.Helper()
-	rows, err := st.ListResources(store.ResourceFilter{Types: []string{rtype}, IncludeManaged: true, Limit: util.AllResources})
+	rows, err := st.ListResources(store.ResourceFilter{Types: []string{rtype}, Limit: util.AllResources})
 	if err != nil {
 		t.Fatalf("ListResources(%s): %v", rtype, err)
 	}
@@ -473,8 +473,8 @@ func TestScanQSKeyRegistration(t *testing.T) {
 			if !ok {
 				return
 			}
-			if !r.ManagedByProvider || sv(r.Region) != testRegion {
-				t.Errorf("managed=%v region=%q; want true %q", r.ManagedByProvider, sv(r.Region), testRegion)
+			if r.ManagedByProvider || sv(r.Region) != testRegion {
+				t.Errorf("managed=%v region=%q; want false %q", r.ManagedByProvider, sv(r.Region), testRegion)
 			}
 			var attrs map[string]json.RawMessage
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {

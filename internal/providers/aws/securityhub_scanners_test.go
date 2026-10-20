@@ -548,7 +548,7 @@ func TestScanSecurityHubControlAssociations_StoresEveryPageUnderControl(t *testi
 		t.Fatalf("total/inserted = %d/%d, rows = %v; want 3/3 and %v", total, inserted, got, want)
 	}
 	cis := rows[s3CIS]
-	if sv(cis.Name) != shCtlS3 || sv(cis.Status) != "DISABLED" || sv(cis.Region) != testRegion || !cis.ManagedByProvider ||
+	if sv(cis.Name) != shCtlS3 || sv(cis.Status) != "DISABLED" || sv(cis.Region) != testRegion || cis.ManagedByProvider ||
 		!jsonHasString(t, cis.AttributesJSON, "UpdatedReason", "not used") || !jsonHasString(t, cis.AttributesJSON, "StandardsArn", shStdCIS) {
 		t.Errorf("row %s name/status/region/managed = %q/%q/%q/%v, attrs = %s", s3CIS, sv(cis.Name), sv(cis.Status), sv(cis.Region), cis.ManagedByProvider, cis.AttributesJSON)
 	}

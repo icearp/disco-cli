@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeQuickSightAccount, Service: "quicksight", Managed: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightAccount, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightActionConnector, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightAgent, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightAnalysis, Service: "quicksight"})
@@ -22,7 +22,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeQuickSightApprovalPolicy, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightAssignment, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightBrand, Service: "quicksight"})
-	registerType(restype.Descriptor{Type: TypeQuickSightCustomization, Service: "quicksight", Managed: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightCustomization, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightCustomPermissions, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightDashboard, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightDataSet, Service: "quicksight"})
@@ -33,7 +33,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeQuickSightFolderMember, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightGroup, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightGroupMembership, Service: "quicksight"})
-	registerType(restype.Descriptor{Type: TypeQuickSightKeyRegistration, Service: "quicksight", Managed: true})
+	registerType(restype.Descriptor{Type: TypeQuickSightKeyRegistration, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightKnowledgeBase, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightLimitsProfile, Service: "quicksight"})
 	registerType(restype.Descriptor{Type: TypeQuickSightNamespace, Service: "quicksight"})

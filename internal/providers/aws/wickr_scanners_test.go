@@ -264,8 +264,8 @@ func TestScanWickr_StoresNetworkChildren(t *testing.T) {
 	}
 
 	groups := rowsByNativeID(t, st, TypeWickrSecurityGroup)
-	if g := groups[wkSGDefault]; !g.ManagedByProvider || sv(g.Name) != "Default" || sv(g.Region) != testRegion {
-		t.Errorf("default group = managed %v name %q region %q, want managed Default in %s", g.ManagedByProvider, sv(g.Name), sv(g.Region), testRegion)
+	if g := groups[wkSGDefault]; g.ManagedByProvider || sv(g.Name) != "Default" || sv(g.Region) != testRegion {
+		t.Errorf("default group = managed %v name %q region %q, want unmanaged Default in %s", g.ManagedByProvider, sv(g.Name), sv(g.Region), testRegion)
 	}
 	if g := groups[wkSGOps]; g.ManagedByProvider || wkAttrs(t, g)["ActiveMembers"] != float64(2) {
 		t.Errorf("ops group = managed %v attrs %s, want unmanaged with ActiveMembers 2", g.ManagedByProvider, g.AttributesJSON)
@@ -277,8 +277,8 @@ func TestScanWickr_StoresNetworkChildren(t *testing.T) {
 
 	set := rowsByNativeID(t, st, TypeWickrNetworkSetting)[wkSetB]
 	settings, _ := wkAttrs(t, set)["Settings"].([]any)
-	if !set.ManagedByProvider || sv(set.Region) != testRegion || len(settings) != 1 || settings[0].(map[string]any)["Value"] != wkNetIDB {
-		t.Errorf("%s row = managed %v region %q attrs %s, want managed with B's one setting", wkSetB, set.ManagedByProvider, sv(set.Region), set.AttributesJSON)
+	if set.ManagedByProvider || sv(set.Region) != testRegion || len(settings) != 1 || settings[0].(map[string]any)["Value"] != wkNetIDB {
+		t.Errorf("%s row = managed %v region %q attrs %s, want unmanaged with B's one setting", wkSetB, set.ManagedByProvider, sv(set.Region), set.AttributesJSON)
 	}
 
 	u := rowsByNativeID(t, st, TypeWickrUser)[wkUserA1]

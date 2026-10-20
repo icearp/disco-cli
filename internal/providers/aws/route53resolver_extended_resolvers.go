@@ -46,8 +46,7 @@ func noopR53RHierarchy(_ *account, _ *store.Store) error {
 }
 
 // resolveR53REndpointIPSubnet links each resolver endpoint IP address to the
-// subnet it sits in. The subnet set includes managed rows: the EC2 scanner
-// marks a default subnet (DefaultForAz) managed, and an endpoint can sit in one.
+// subnet it sits in.
 func resolveR53REndpointIPSubnet(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53ResolverResolverEndpointIPAddress}, Limit: util.AllResources,
@@ -56,7 +55,7 @@ func resolveR53REndpointIPSubnet(acct *account, st *store.Store) error {
 		return err
 	}
 	subnetRows, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Subnet}, IncludeManaged: true, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Subnet}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

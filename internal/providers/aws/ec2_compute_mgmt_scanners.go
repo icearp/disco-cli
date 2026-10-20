@@ -26,7 +26,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEC2CapacityReservation, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2CapacityReservationFleet, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2InstanceConnectEndpoint, Service: "ec2"})
-	registerType(restype.Descriptor{Type: TypeEC2SnapshotBlockPublicAccess, Service: "ec2", Managed: true})
+	registerType(restype.Descriptor{Type: TypeEC2SnapshotBlockPublicAccess, Service: "ec2"})
 }
 
 // scanEC2ComputeMgmt discovers all compute resources: instances, security groups,
@@ -132,9 +132,6 @@ func scanSecurityGroups(ctx context.Context, client ec2API, acct *account, regio
 					TagsJSON:       awsTagsJSON(sg.Tags),
 					AttributesJSON: mustJSON(sg),
 					DiscoveredBy:   scanID,
-					// GroupName "default" is the AWS-default security group
-					// auto-created in every VPC.
-					ManagedByProvider: name == "default",
 				})
 			}
 			return out

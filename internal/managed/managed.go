@@ -1,9 +1,16 @@
 // Package managed records disco resource types that are UNCONDITIONALLY
 // provider-managed — created automatically by the cloud and not user-deletable
 // (Azure built-in policy/role definitions, AWS-owned prefix lists,
-// per-(account,region) singleton config rows, ...). Store.UpsertResources
-// consults it at the store boundary and stamps Resource.ManagedByProvider,
-// mirroring how redact/volatile apply per-type rules there.
+// AWS-published catalogs, ...). Store.UpsertResources consults it at the
+// store boundary and stamps Resource.ManagedByProvider, mirroring how
+// redact/volatile apply per-type rules there.
+//
+// A row the customer can configure is never managed, by type here or per row
+// in a scanner, even when AWS creates it and nothing deletes it (default VPCs
+// and security groups, account settings, default users). A managed row is
+// left out of default `disco check` input, is terminal in a graph walk and is
+// hidden from listings without --include-managed, so a policy rule about that
+// row's posture would see nothing.
 //
 // This registry is for the always-managed case only. Types whose managed
 // status depends on a per-row SDK field (OwnerId=="AWS", PolicyType==Managed,

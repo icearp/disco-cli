@@ -29,8 +29,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSecurityHubSecurityControl, Service: "securityhub", Managed: true})
 	registerType(restype.Descriptor{Type: TypeSecurityHubStandard, Service: "securityhub", Managed: true})
 	// Enabling a standard creates its control associations, and no API deletes
-	// one; only their status changes.
-	registerType(restype.Descriptor{Type: TypeSecurityHubStandardsControlAssociation, Service: "securityhub", Managed: true})
+	// one; only their status changes. Still not Managed: the customer sets that
+	// status, and Managed rows are left out of default `disco check` input.
+	registerType(restype.Descriptor{Type: TypeSecurityHubStandardsControlAssociation, Service: "securityhub"})
 	registerService(serviceEntry{
 		name: "aws:securityhub",
 		fn:   scanSecurityHub,

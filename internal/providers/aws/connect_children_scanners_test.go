@@ -480,7 +480,7 @@ func TestScanConnectAttachedFilesConfigurations_OneRowPerScope(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing %s; have %v", id, rows)
 	}
-	if r.Type != TypeConnectAttachedFilesConfiguration || sv(r.Region) != testRegion || sv(r.Name) != "EMAIL" || !r.ManagedByProvider {
+	if r.Type != TypeConnectAttachedFilesConfiguration || sv(r.Region) != testRegion || sv(r.Name) != "EMAIL" || r.ManagedByProvider {
 		t.Errorf("row = %+v", r)
 	}
 	var attrs struct{ MaximumSizeLimitInBytes int64 }

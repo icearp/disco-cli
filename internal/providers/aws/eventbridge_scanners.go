@@ -155,8 +155,6 @@ func scanEventBridgeBuses(ctx context.Context, client eventbridgeAPI, acct *acco
 				Region:         &region,
 				AttributesJSON: attrsJSON,
 				DiscoveredBy:   scanID,
-				// "default" is AWS's managed default bus, present in every region.
-				ManagedByProvider: sv(b.Name) == "default",
 			})
 			busNames = append(busNames, sv(b.Name))
 		}

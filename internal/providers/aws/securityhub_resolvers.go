@@ -96,7 +96,7 @@ func resolveSecurityHubMemberOrgAccount(acct *account, st *store.Store) error {
 func resolveSecurityHubControlAssociationSubscriptions(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
-		Types: []string{TypeSecurityHubStandardsControlAssociation}, IncludeManaged: true, Limit: util.AllResources,
+		Types: []string{TypeSecurityHubStandardsControlAssociation}, Limit: util.AllResources,
 	})
 	if err != nil || len(assocs) == 0 {
 		return err

@@ -12,7 +12,7 @@ import (
 func init() {
 	registerType(restype.Descriptor{Type: TypeNotificationsChannelAssociation, Service: "notifications"})
 	registerType(restype.Descriptor{Type: TypeNotificationsEventRule, Service: "notifications"})
-	registerType(restype.Descriptor{Type: TypeNotificationsManagedNotificationAdditionalChannelAssoc, Service: "notifications", Managed: true})
+	registerType(restype.Descriptor{Type: TypeNotificationsManagedNotificationAdditionalChannelAssoc, Service: "notifications"})
 	registerType(restype.Descriptor{Type: TypeNotificationsNotificationConfiguration, Service: "notifications"})
 	registerType(restype.Descriptor{Type: TypeNotificationsNotificationHub, Service: "notifications"})
 	registerType(restype.Descriptor{Type: TypeNotificationsOrganizationalUnitAssociation, Service: "notifications"})
@@ -298,8 +298,6 @@ func scanNotifManagedChannelAssocs(ctx context.Context, client notifsAPI, acct *
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNotificationsManagedNotificationAdditionalChannelAssoc, NativeID: arn,
 				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				// Always AWS-default — emitted only by AWS-managed
-				// notification configurations.
 			})
 		}
 	}
