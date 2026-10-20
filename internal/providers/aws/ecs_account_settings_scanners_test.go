@@ -171,8 +171,6 @@ func ecsTopLevelHandlers() map[string]func(any) (any, error) {
 		"DescribeClusters": func(any) (any, error) {
 			return &ecs.DescribeClustersOutput{Clusters: []ecstypes.Cluster{{ClusterArn: sdkaws.String(ecsTestClusterARN), ClusterName: sdkaws.String("cl-1")}}}, nil
 		},
-		// The services phase re-sends a denied ListServices request until the
-		// context ends, so it is answered.
 		"ListServices": func(any) (any, error) { return &ecs.ListServicesOutput{}, nil },
 		"ListAccountSettings": ecsAccountSettingsHandler([][]ecstypes.Setting{
 			{ecsSetting(ecstypes.SettingNameContainerInsights, "enabled", ecstypes.SettingTypeUser)},

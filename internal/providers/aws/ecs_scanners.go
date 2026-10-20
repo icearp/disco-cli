@@ -152,14 +152,21 @@ func scanECSClusters(ctx context.Context, client ecsAPI, acct *account, region s
 // scanECSServices iterates each cluster ARN, pages through ListServices, and
 // batch-describes services via DescribeServices (max 10 per call).
 func scanECSServices(ctx context.Context, client ecsAPI, acct *account, region string, clusterARNs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+	listDenied := false
 	for _, clusterARN := range clusterARNs {
 		var serviceARNs []string
 		pager := ecs.NewListServicesPaginator(client, &ecs.ListServicesInput{Cluster: &clusterARN})
 		for pager.HasMorePages() {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
+				// A failed NextPage keeps its token, so retrying the loop
+				// re-sends the same denied request until the deadline.
 				if isAccessDenied(err) {
-					continue
+					if !listDenied {
+						listDenied = true
+						_ = skipIfAccessDenied(st, "ecs:ListServices", acct.ID, region, err)
+					}
+					break
 				}
 				return total, inserted, fmt.Errorf("ecs:ListServices (cluster %s): %w", clusterARN, err)
 			}
