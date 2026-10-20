@@ -76,6 +76,22 @@ func (coverageProvider) ResolverEdgeSources() []string {
 	return out
 }
 
+// MembershipEdges implements coverage.MembershipModeler: the edges of every
+// resolver registered with registerMembershipResolver, under its listing's op
+// label.
+func (coverageProvider) MembershipEdges() []coverage.MembershipEdge {
+	var out []coverage.MembershipEdge
+	for _, r := range registeredResolvers {
+		if r.membershipOp == "" {
+			continue
+		}
+		for _, e := range r.emits {
+			out = append(out, coverage.MembershipEdge{Op: r.membershipOp, Source: e.Source, Target: e.Target, Kind: e.Kind})
+		}
+	}
+	return out
+}
+
 // canonService normalizes a service segment: lowercase, separators
 // stripped. Services are NOT de-pluralized — many legitimately end in "s"
 // (aidevops, logs, ecs, sns) and CFN/SR agree on the plural.

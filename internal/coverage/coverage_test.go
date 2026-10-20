@@ -476,3 +476,93 @@ func TestBuildInventory_OpsDedupe(t *testing.T) {
 		t.Errorf("ops = %v", r.Ops)
 	}
 }
+
+// TestBuildInventory_MembershipEdge: a membership listing a scanner lists is
+// credited through the declared edges that model its elements, not through
+// the parent type its scanner stores the listing in; a declaration alone
+// covers nothing.
+func TestBuildInventory_MembershipEdge(t *testing.T) {
+	edges := []MembershipEdge{
+		{Op: "kms:Listkeymember", Source: "aws:ec2:instance", Target: "aws:kms:key", Kind: "attached-to"},
+		{Op: "kms:Listkeymember", Source: "aws:s3:bucket", Target: "aws:kms:key", Kind: "attached-to"},
+	}
+	parentTypeListing := &pairing.Pairing{Key: "kms/keymember", Kind: "emits", Types: []string{"aws:kms:key"}}
+	cases := []struct {
+		name        string
+		pairing     *pairing.Pairing
+		memberships []MembershipEdge
+		bucket      Bucket
+		discoType   string
+		reason      string
+		signals     []string
+	}{
+		{
+			"listed and declared", parentTypeListing, edges,
+			BucketCovered, "", ReasonMembership,
+			[]string{"edge:attached-to->aws:kms:key", "sr-resource"},
+		},
+		{
+			"sidecar listing and declared", &pairing.Pairing{Key: "kms/keymember", Kind: "sidecar"}, edges,
+			BucketCovered, "", ReasonMembership,
+			[]string{"edge:attached-to->aws:kms:key", "sr-resource"},
+		},
+		{
+			"declared, not listed", nil, edges,
+			BucketUncovered, "", "",
+			[]string{"sr-resource"},
+		},
+		{
+			"listed, declared for another op", parentTypeListing,
+			[]MembershipEdge{{Op: "kms:ListOther", Source: "aws:ec2:instance", Target: "aws:kms:key", Kind: "attached-to"}},
+			BucketCovered, "aws:kms:key", "",
+			[]string{"sr-resource"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := testInputs()
+			in.Universe.Candidates = append(in.Universe.Candidates, cand("kms", "kms/keymember", sdkinv.ClassResource, 1, "sr-resource"))
+			if tc.pairing != nil {
+				in.Pairings = append(in.Pairings, *tc.pairing)
+			}
+			in.Memberships = tc.memberships
+			m := BuildInventory(in)
+			r, ok := rowByKey(m, "kms/keymember", "")
+			if !ok {
+				t.Fatal("no kms/keymember row")
+			}
+			if r.Bucket != tc.bucket || r.DiscoType != tc.discoType || r.Reason != tc.reason || r.DiscoTypes != nil {
+				t.Errorf("row = %s %q %q %v, want %s %q %q []", r.Bucket, r.DiscoType, r.Reason, r.DiscoTypes, tc.bucket, tc.discoType, tc.reason)
+			}
+			if !slices.Equal(r.Signals, tc.signals) {
+				t.Errorf("signals = %v, want %v", r.Signals, tc.signals)
+			}
+			if parent, _ := rowByKey(m, "kms/key", ""); parent.Bucket != BucketCovered || parent.DiscoType != "aws:kms:key" || parent.Reason != "" {
+				t.Errorf("parent row = %+v, want untouched", parent)
+			}
+		})
+	}
+}
+
+// A type stored only by a membership listing is not accounted by that row,
+// which names no disco type, so it still surfaces as disco-only.
+func TestBuildInventory_MembershipOnlyPairingStaysDiscoOnly(t *testing.T) {
+	in := testInputs()
+	in.Universe.Candidates = append(in.Universe.Candidates, cand("kms", "kms/keymember", sdkinv.ClassResource, 1))
+	in.Emits = append(in.Emits, TypeDecl{Service: "kms", DiscoType: "aws:kms:key-member"})
+	in.Pairings = append(in.Pairings, pairing.Pairing{Key: "kms/keymember", Kind: "emits", Types: []string{"aws:kms:key-member"}})
+	in.Memberships = []MembershipEdge{{Op: "kms:Listkeymember", Source: "aws:ec2:instance", Target: "aws:kms:key", Kind: "attached-to"}}
+	m := BuildInventory(in)
+	if r, _ := rowByKey(m, "kms/keymember", ""); r.Reason != ReasonMembership {
+		t.Fatalf("kms/keymember reason = %q; want %q", r.Reason, ReasonMembership)
+	}
+	var buckets []Bucket
+	for _, r := range m.Rows {
+		if r.DiscoType == "aws:kms:key-member" || slices.Contains(r.DiscoTypes, "aws:kms:key-member") {
+			buckets = append(buckets, r.Bucket)
+		}
+	}
+	if !slices.Equal(buckets, []Bucket{BucketDiscoOnly}) {
+		t.Errorf("rows naming aws:kms:key-member have buckets %v; want one disco-only row", buckets)
+	}
+}

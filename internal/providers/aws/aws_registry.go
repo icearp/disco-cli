@@ -105,6 +105,9 @@ type resolverEntry struct {
 	name  string
 	fn    func(acct *account, st *store.Store) error
 	emits []EdgeDecl
+	// membershipOp is the op label of the SDK listing whose elements emits
+	// models; empty for an ordinary resolver.
+	membershipOp string
 }
 
 // registeredResolvers is populated by each *_resolvers.go file's init().
@@ -118,6 +121,17 @@ var registeredResolvers []resolverEntry
 func registerResolver(fn func(acct *account, st *store.Store) error, emits ...EdgeDecl) {
 	registeredResolvers = append(registeredResolvers, resolverEntry{
 		name: resolverName(fn), fn: fn, emits: emits,
+	})
+}
+
+// registerMembershipResolver registers fn like registerResolver and records
+// that its edges model the elements of the SDK listing op (an op label such
+// as "fms:ListResourceSetResources"): a listing of references to resources
+// stored under their own types, which coverage credits through these edges
+// (coverage.MembershipModeler).
+func registerMembershipResolver(fn func(acct *account, st *store.Store) error, op string, emits ...EdgeDecl) {
+	registeredResolvers = append(registeredResolvers, resolverEntry{
+		name: resolverName(fn), fn: fn, emits: emits, membershipOp: op,
 	})
 }
 

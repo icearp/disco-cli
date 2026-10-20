@@ -101,6 +101,25 @@ type ResolverAuditor interface {
 	ResolverEdgeSources() []string // distinct EdgeDecl.Source disco-types across all resolvers
 }
 
+// MembershipModeler is implemented by providers whose resolvers model the
+// elements of some SDK listings as edges rather than rows. A membership
+// listing (the resources associated to a set) answers references to resources
+// stored under their own types, so it has no type of its own to pair; the
+// declared edge is what models it.
+type MembershipModeler interface {
+	MembershipEdges() []MembershipEdge
+}
+
+// MembershipEdge declares that a resolver's Kind edges from Source to Target
+// model the elements of the SDK listing whose op label is Op. Op is in the
+// provider's own op-label grammar, the form sdkinv.Operation.Label carries.
+type MembershipEdge struct {
+	Op     string
+	Source string
+	Target string
+	Kind   string
+}
+
 // RegionRow categorises a single region across the static-vs-live diff.
 // Status values:
 //   - "covered" — region appears in both disco's static RegionNames list

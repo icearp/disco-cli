@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.851318944844124,
-    "covered": 2030,
-    "uncovered": 1306,
+    "percent": 60.881294964028775,
+    "covered": 2031,
+    "uncovered": 1305,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -827,6 +827,7 @@
       "fms/policy",
       "fms/protocolslist",
       "fms/resourceset",
+      "fms/resourcesetresource",
       "forecast/dataset",
       "forecast/datasetgroup",
       "forecast/explainability",
@@ -2599,7 +2600,6 @@
       "fis/experimenttargetaccountconfiguration",
       "fms/compliancestatus",
       "fms/discoveredresource",
-      "fms/resourcesetresource",
       "forecast/datasetimportjob",
       "forecast/explainabilityexport",
       "forecast/forecastexportjob",

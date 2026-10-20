@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.9% (2030/3336 listable) · depth0 72.5% · depth1 44.0% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.9% (2031/3336 listable) · depth0 72.5% · depth1 44.1% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 306 | 711 | 30.1 |
+| child-uncatalogued | 307 | 710 | 30.2 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 203 | 213 | 48.8 |
 | element-arn | 36 | 70 | 34.0 |
@@ -146,7 +146,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | elasticbeanstalk | 5 | 3 | 62.5 |
 | emr-serverless | 1 | 3 | 25.0 |
 | events | 8 | 3 | 72.7 |
-| fms | 4 | 3 | 57.1 |
 | gameliftstreams | 2 | 3 | 40.0 |
 | globalaccelerator | 8 | 3 | 72.7 |
 | internetmonitor | 1 | 3 | 25.0 |
@@ -184,6 +183,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | elasticache | 12 | 2 | 85.7 |
 | entityresolution | 4 | 2 | 66.7 |
 | finspace | 8 | 2 | 80.0 |
+| fms | 5 | 2 | 71.4 |
 | fsx | 8 | 2 | 80.0 |
 | glacier | 1 | 2 | 33.3 |
 | healthlake | 3 | 2 | 60.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1306)
+### Uncovered (listable, no scanner) (1305)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -918,7 +918,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | fis | fis/experimenttargetaccountconfiguration | 1 |  | child-uncatalogued | fis:GetExperimentTargetAccountConfiguration, fis:ListExperimentTargetAccountConfigurations |
 | fms | fms/compliancestatus | 1 |  | child-uncatalogued | fms:ListComplianceStatus |
 | fms | fms/discoveredresource | 1 |  | child-uncatalogued | fms:ListDiscoveredResources |
-| fms | fms/resourcesetresource | 1 |  | child-uncatalogued | fms:ListResourceSetResources |
 | forecast | forecast/datasetimportjob | 0 |  | sr-resource | forecast:DescribeDatasetImportJob, forecast:ListDatasetImportJobs |
 | forecast | forecast/explainabilityexport | 0 |  | sr-resource | forecast:DescribeExplainabilityExport, forecast:DescribeForecastExportJob, forecast:ListExplainabilityExports |
 | forecast | forecast/forecastexportjob | 0 |  | element-written | forecast:ListForecastExportJobs |

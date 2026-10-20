@@ -12,8 +12,12 @@ import (
 // and, when scannerDir names the provider's scanner package, pairs it with
 // the scanners. Errors wrap sdkinv.ErrNotFetched when the cache is absent so
 // callers can hint at `disco coverage sdk fetch`.
-func InputsFromCache(ctx context.Context, cache sdkinv.Cache, provider string, emits []TypeDecl, scannerDir string) (Inputs, error) {
-	in := Inputs{Provider: provider, Emits: emits}
+func InputsFromCache(ctx context.Context, cache sdkinv.Cache, p Provider, scannerDir string) (Inputs, error) {
+	provider := p.Name()
+	in := Inputs{Provider: provider, Emits: p.Emits()}
+	if mm, ok := p.(MembershipModeler); ok {
+		in.Memberships = mm.MembershipEdges()
+	}
 	e, ok := sdkinv.Get(provider)
 	if !ok {
 		return in, fmt.Errorf("no SDK extractor for provider %s", provider)

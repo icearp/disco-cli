@@ -146,7 +146,7 @@ func inventory(ctx context.Context, prov coverage.Provider, cache sdkinv.Cache, 
 	if sourceRoot != "" {
 		scannerDir = filepath.Join(sourceRoot, "internal", "providers", prov.Name())
 	}
-	in, err := coverage.InputsFromCache(ctx, cache, prov.Name(), prov.Emits(), scannerDir)
+	in, err := coverage.InputsFromCache(ctx, cache, prov, scannerDir)
 	if err != nil {
 		return coverage.Matrix{}, err
 	}

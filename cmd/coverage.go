@@ -459,7 +459,7 @@ func inventoryInputs(ctx context.Context, o servicesOptions, p coverage.Provider
 	} else {
 		scannerDir = filepath.Join(o.sourceRoot, "internal", "providers", p.Name())
 	}
-	in, err := coverage.InputsFromCache(ctx, o.cache, p.Name(), p.Emits(), scannerDir)
+	in, err := coverage.InputsFromCache(ctx, o.cache, p, scannerDir)
 	if in.Universe != nil {
 		reportExtractorWarnings(p.Name(), in.Universe.Diagnostics)
 	}

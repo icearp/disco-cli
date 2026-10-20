@@ -11,6 +11,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// errRepeatedNextToken fails a hand-rolled pagination loop whose service
+// returned the token it was just sent: following it would loop forever, and
+// stopping silently would store a partial listing as if it were complete.
+var errRepeatedNextToken = errors.New("AWS returned the same NextToken twice in a row, so the listing stopped incomplete; rescan, and report it if it recurs")
+
 // pageScan drives an AWS SDK v2 paginator, converts each page's items to
 // *store.Resource via toResource, and upserts in per-page batches. iamAction
 // labels the call for AccessDenied warnings (e.g. "secretsmanager:ListSecrets").

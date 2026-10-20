@@ -625,8 +625,8 @@ func TestScanApplicationAutoScaling_RepeatedTargetTokenFailsAndKeepsNamespace(t 
 	}
 
 	_, err := scanApplicationAutoScalingWith(t, st, h)
-	if !errors.Is(err, errAASRepeatedNextToken) {
-		t.Fatalf("scanApplicationAutoScaling err = %v, want errAASRepeatedNextToken", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("scanApplicationAutoScaling err = %v, want errRepeatedNextToken", err)
 	}
 	if got := calls.perNS[aasOpNS{"DescribeScalableTargets", aastypes.ServiceNamespaceEcs}]; got != 2 {
 		t.Errorf("ECS DescribeScalableTargets calls = %d, want 2 (the first page, then the repeated token)", got)

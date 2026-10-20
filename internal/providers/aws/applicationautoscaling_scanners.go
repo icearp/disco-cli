@@ -115,8 +115,6 @@ func scanApplicationAutoScalingScalableTargets(ctx context.Context, client appli
 	return total, inserted, noTargets, nil
 }
 
-var errAASRepeatedNextToken = errors.New("AWS returned the same NextToken twice in a row, so the listing stopped incomplete; rescan, and report it if it recurs")
-
 // listApplicationAutoScalingScalableTargets stores one namespace's scalable
 // targets. empty is true only when the listing completed and returned no
 // target, counting targets skipped for a missing id.
@@ -175,7 +173,7 @@ func listApplicationAutoScalingScalableTargets(ctx context.Context, client appli
 		// A repeated token would loop forever; the listing is then incomplete,
 		// so it fails instead of reporting the namespace as listed.
 		if next == sv(nextToken) {
-			return false, total, inserted, fmt.Errorf("application-autoscaling:DescribeScalableTargets %s: NextToken %q: %w", ns, next, errAASRepeatedNextToken)
+			return false, total, inserted, fmt.Errorf("application-autoscaling:DescribeScalableTargets %s: NextToken %q: %w", ns, next, errRepeatedNextToken)
 		}
 		nextToken = out.NextToken
 	}

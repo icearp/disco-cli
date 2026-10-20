@@ -53,7 +53,16 @@ const (
 	// async-operation tracking, and types under locations/{location}.
 	ReasonARMOperation   = "arm-operation"
 	ReasonLocationScoped = "location-scoped"
+	// ReasonMembership: a scanner lists the candidate and a resolver declares
+	// the edges that model its elements (MembershipEdge). The types the
+	// listing's scanner stores are the parent's, not the candidate's, so the
+	// row names none.
+	ReasonMembership = "membership-edge"
 )
+
+// signalEdge prefixes the "<kind>-><target>" of each edge that models a
+// membership row.
+const signalEdge = "edge:"
 
 // SignalScannerLists marks an excluded row a scanner demonstrably lists and
 // stores: a classifier bug to triage, not a settled exclusion.
@@ -147,6 +156,9 @@ type Inputs struct {
 	// indistinguishable from no source tree, and every gate keys on the
 	// difference.
 	Paired bool
+	// Memberships are the provider's declared membership edges
+	// (MembershipModeler); nil when it declares none.
+	Memberships []MembershipEdge
 }
 
 // pairingKinds are the pairing kinds that prove a scanner lists a candidate.
@@ -158,18 +170,7 @@ var pairingKinds = map[string]bool{"emits": true, "sidecar": true, "derived": tr
 // seven types counts once, seven ops storing one type mark seven candidates.
 func BuildInventory(in Inputs) Matrix {
 	m := Matrix{Provider: in.Provider, Pins: in.Universe.Pins, Pairing: in.Paired}
-	types := map[string]map[string]bool{} // candidate key -> paired disco types
-	for _, p := range in.Pairings {
-		if p.Key == "" || !pairingKinds[p.Kind] {
-			continue
-		}
-		if types[p.Key] == nil {
-			types[p.Key] = map[string]bool{} // present with no types: a listing nothing stores (sidecar)
-		}
-		for _, t := range p.Types {
-			types[p.Key][t] = true
-		}
-	}
+	types := pairedTypesByKey(in.Pairings)
 	byIdent := map[string]string{} // canonical type identity -> disco type
 	for _, e := range in.Emits {
 		for _, id := range typeIdents(e.DiscoType) {
@@ -178,12 +179,22 @@ func BuildInventory(in Inputs) Matrix {
 			}
 		}
 	}
+	byOp := map[string][]MembershipEdge{}
+	for _, e := range in.Memberships {
+		byOp[e.Op] = append(byOp[e.Op], e)
+	}
 	accounted := map[string]bool{}
 	for _, c := range in.Universe.Candidates {
 		row := Row{Provider: in.Provider, Service: c.Service, Key: c.Key, Depth: c.Depth, Parent: c.Parent, Rule: c.Rule, Signals: c.Signals, Refs: c.Refs}
 		row.Ops, row.Scope = opCells(c.Ops, in.Universe.Scopes)
 		paired, listed := types[c.Key]
+		edges := membershipEdges(c, byOp)
 		switch {
+		case len(edges) > 0 && listed:
+			// A membership row names no disco type, so the types its listing
+			// stores are not accounted by it: a type stored only there must
+			// still surface as disco-only.
+			creditMembership(&row, edges)
 		case len(paired) > 0:
 			assignPairedTypes(&row, paired, c, accounted)
 		case listed:
@@ -562,6 +573,57 @@ func sortRows(rows []Row) {
 		}
 		return a.DiscoType < b.DiscoType
 	})
+}
+
+// membershipEdges returns the declared membership edges that model one of the
+// candidate's ops.
+func membershipEdges(c sdkinv.Candidate, byOp map[string][]MembershipEdge) []MembershipEdge {
+	var out []MembershipEdge
+	for _, op := range c.Ops {
+		out = append(out, byOp[op.Label]...)
+	}
+	return out
+}
+
+// pairedTypesByKey maps each candidate key a pairing lists to the disco types
+// it stores. A key present with no types is a listing nothing stores (sidecar).
+func pairedTypesByKey(pairings []pairing.Pairing) map[string]map[string]bool {
+	types := map[string]map[string]bool{}
+	for _, p := range pairings {
+		if p.Key == "" || !pairingKinds[p.Kind] {
+			continue
+		}
+		if types[p.Key] == nil {
+			types[p.Key] = map[string]bool{}
+		}
+		for _, t := range p.Types {
+			types[p.Key][t] = true
+		}
+	}
+	return types
+}
+
+// creditMembership credits a row a scanner lists through the declared edges
+// that model its elements. The caller checks the listing and that edges is
+// non-empty: without either there is nothing to resolve the edges from.
+func creditMembership(row *Row, edges []MembershipEdge) {
+	row.Reason = ReasonMembership
+	row.Signals = edgeSignals(row.Signals, edges)
+}
+
+// edgeSignals adds one "edge:<kind>-><target>" signal per distinct kind and
+// target to signals, sorted. Sources are left out: one membership listing
+// can hold resources of many types.
+func edgeSignals(signals []string, edges []MembershipEdge) []string {
+	out := slices.Clone(signals)
+	for _, e := range edges {
+		s := signalEdge + e.Kind + "->" + e.Target
+		if !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func hasSignal(c sdkinv.Candidate, s string) bool {

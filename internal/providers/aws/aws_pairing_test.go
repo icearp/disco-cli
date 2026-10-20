@@ -69,7 +69,7 @@ func TestEveryEmittedTypePaired(t *testing.T) {
 // catalog matched it and neither holds. A type whose candidates the extractor
 // says nothing about keeps whatever it declares.
 func TestUntaggableMatchesServiceReference(t *testing.T) {
-	in, err := coverage.InputsFromCache(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, "aws", CollectEmits(), ".")
+	in, err := coverage.InputsFromCache(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, coverageProvider{}, ".")
 	if errors.Is(err, sdkinv.ErrNotFetched) {
 		t.Skip(err)
 	}
@@ -112,4 +112,38 @@ func TestUntaggableMatchesServiceReference(t *testing.T) {
 	}
 	slices.Sort(unmatched)
 	t.Logf("%d of %d types have no tagging answer from the extractor and keep their declaration: %v", len(unmatched), len(CollectEmits()), unmatched)
+}
+
+// TestMembershipEdgesCreditTheirListing: every op a membership resolver names
+// is a candidate op the scanners list, so its row is credited through the
+// declared edges. A misspelled or unlisted op would credit nothing, silently.
+func TestMembershipEdgesCreditTheirListing(t *testing.T) {
+	in, err := coverage.InputsFromCache(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, coverageProvider{}, ".")
+	if errors.Is(err, sdkinv.ErrNotFetched) {
+		t.Skip(err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	ops := map[string]bool{}
+	for _, e := range (coverageProvider{}).MembershipEdges() {
+		ops[e.Op] = true
+	}
+	if !ops["fms:ListResourceSetResources"] {
+		t.Fatalf("membership ops = %v; want fms:ListResourceSetResources among them", ops)
+	}
+	for _, row := range coverage.BuildInventory(in).Rows {
+		for _, op := range row.Ops {
+			if !ops[op] {
+				continue
+			}
+			delete(ops, op)
+			if row.Bucket != coverage.BucketCovered || row.Reason != coverage.ReasonMembership {
+				t.Errorf("%s (%s) = %s %q; want covered %q", row.Key, op, row.Bucket, row.Reason, coverage.ReasonMembership)
+			}
+		}
+	}
+	for op := range ops {
+		t.Errorf("membership op %s names no candidate", op)
+	}
 }
