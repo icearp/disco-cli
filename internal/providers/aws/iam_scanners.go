@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/icearp/disco-cli/internal/redact"
@@ -42,6 +43,9 @@ func init() {
 	// reaches AWS, so the body is kept as the certificate's identity.
 	registerType(restype.Descriptor{Type: TypeIAMSigningCertificate, Service: "iam"})
 	registerType(restype.Descriptor{Type: TypeIAMSSHPublicKey, Service: "iam"})
+	// Nothing to redact: SendDelegationToken hands the partner its token out of
+	// band, and the listed request carries no credential.
+	registerType(restype.Descriptor{Type: TypeIAMDelegationRequest, Service: "iam", Untaggable: true})
 	registerService(serviceEntry{
 		name:   "aws:iam",
 		global: true,
@@ -72,6 +76,7 @@ type iamAPI interface {
 	ListServiceSpecificCredentials(context.Context, *iam.ListServiceSpecificCredentialsInput, ...func(*iam.Options)) (*iam.ListServiceSpecificCredentialsOutput, error)
 	ListSigningCertificates(context.Context, *iam.ListSigningCertificatesInput, ...func(*iam.Options)) (*iam.ListSigningCertificatesOutput, error)
 	ListSSHPublicKeys(context.Context, *iam.ListSSHPublicKeysInput, ...func(*iam.Options)) (*iam.ListSSHPublicKeysOutput, error)
+	ListDelegationRequests(context.Context, *iam.ListDelegationRequestsInput, ...func(*iam.Options)) (*iam.ListDelegationRequestsOutput, error)
 }
 
 // scanIAM discovers all IAM resources. Phase 1 fans out the independent
@@ -90,6 +95,14 @@ type iamAPI interface {
 // signing certificates, SSH public keys). They run after every existing phase,
 // and each runs whatever the others return, so a failure in one costs no other
 // phase its rows.
+//
+// Phase 4: scanIAMDelegationRequests. It needs no user list, so it runs even
+// when phase 1 fails or reading the users back fails.
+//
+// Every error that is joined with another phase's, phase 1's included, is
+// demoted when transient before the join: the
+// dispatcher reads a join holding any transient member as transient, which
+// would hide another phase's hard error and discard every phase's counts.
 //
 // IAM is a global service scanned once per account.
 func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -118,28 +131,43 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 		add(tt, nn)
 		return e
 	})
+	// Phase 4 lists delegation requests, which depend on nothing. It runs last,
+	// not inside g1, because g1 cancels its siblings on the first error, so a
+	// delegation-request failure there would cost phase 1 its rows.
+	scanDelegationRequests := func() error {
+		tt, nn, e := scanIAMDelegationRequests(ctx, client, acct, st, scanID)
+		add(tt, nn)
+		return demoteTransient(st, "iam:ListDelegationRequests", acct, "global", e)
+	}
 	if err = g1.Wait(); err != nil {
-		return int(t.Load()), int(n.Load()), err
+		// Phases 2-3 need the users phase 1 stores; phase 4 does not.
+		// g1's error does not say which member failed, so the warning names
+		// the service.
+		perr := scanDelegationRequests()
+		return int(t.Load()), int(n.Load()), errors.Join(demoteTransient(st, "iam", acct, "global", err), perr)
 	}
 
 	// Phase 2: scanIAMAccessKeys depends on user list being in the DB.
-	tt, nn, e := scanIAMAccessKeys(ctx, client, acct, st, scanID)
-	add(tt, nn)
-	errs := []error{e}
-
-	users, err := iamScannedUsers(st, acct, scanID)
-	if err != nil {
-		return int(t.Load()), int(n.Load()), errors.Join(e, err)
-	}
-	for _, phase := range []func(context.Context, iamAPI, []childParent, *account, *store.Store, string) (int, int, error){
-		scanIAMServiceSpecificCredentials,
-		scanIAMSigningCertificates,
-		scanIAMSSHPublicKeys,
-	} {
-		tt, nn, e := phase(ctx, client, users, acct, st, scanID)
+	var errs []error
+	collect := func(op string, tt, nn int, e error) {
 		add(tt, nn)
-		errs = append(errs, e)
+		errs = append(errs, demoteTransient(st, op, acct, "global", e))
 	}
+	tt, nn, e := scanIAMAccessKeys(ctx, client, acct, st, scanID)
+	collect("iam:ListAccessKeys", tt, nn, e)
+
+	if users, uerr := iamScannedUsers(st, acct, scanID); uerr != nil {
+		errs = append(errs, uerr)
+	} else {
+		tt, nn, e = scanIAMServiceSpecificCredentials(ctx, client, users, acct, st, scanID)
+		collect("iam:ListServiceSpecificCredentials", tt, nn, e)
+		tt, nn, e = scanIAMSigningCertificates(ctx, client, users, acct, st, scanID)
+		collect("iam:ListSigningCertificates", tt, nn, e)
+		tt, nn, e = scanIAMSSHPublicKeys(ctx, client, users, acct, st, scanID)
+		collect("iam:ListSSHPublicKeys", tt, nn, e)
+	}
+
+	errs = append(errs, scanDelegationRequests())
 	return int(t.Load()), int(n.Load()), errors.Join(errs...)
 }
 
@@ -872,4 +900,93 @@ func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParen
 			}
 			return rows, nil
 		})
+}
+
+// iamDelegationRequestNativeID builds the delegation-request ARN in the format
+// the IAM Service Reference documents
+// (arn:aws:iam::{account}:delegation-request/{id}); the API returns no ARN.
+// The account slot is the scanned account, the one whose listing returned the
+// request. Unverified live: AWS may fill that slot with the requestor's
+// (partner's) account (RequestorId) instead, which is plausible because the
+// partner calls CreateDelegationRequest and so creates the resource. The SDK
+// DelegationRequest also carries OwnerAccountId, the likeliest true value. The
+// scanned account is still used because a type takes one fixed NativeID
+// source, applied to every row, and the model does not mark OwnerAccountId
+// @required, so a row without it would need a fallback or be dropped.
+// Neither candidate can be verified here.
+func iamDelegationRequestNativeID(accountID, id string) string {
+	return "arn:aws:iam::" + accountID + ":delegation-request/" + id
+}
+
+// scanIAMDelegationRequests stores what an unfiltered ListDelegationRequests
+// returns: delegation requests, each a partner's request for temporary
+// delegated access. The SDK documents one exclusion: a request assigned to the
+// account but with no owner is not in that account's output. Unverified live:
+// that the unfiltered call (no OwnerId) returns every request the account owns.
+//
+// The list element is the DelegationRequest shape GetDelegationRequest also
+// returns; Get adds only a permission check relative to the caller, so no
+// per-request Get is made. GetHumanReadableSummary is not called: an LLM
+// generates its text asynchronously, so the text describes the request and is
+// not state of it.
+func scanIAMDelegationRequests(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+	const op = "iam:ListDelegationRequests"
+	// The model does not mark DelegationRequestId required, and a row cannot be
+	// keyed without it, so such requests are counted and warned about once.
+	idless := 0
+	defer func() {
+		if idless > 0 {
+			st.ReportWarning(store.ScanWarning{
+				Provider: "aws", Service: op, Scope: acct.ID,
+				Message: fmt.Sprintf("delegation requests listed without a DelegationRequestId: %d, not stored, because disco keys each row by that id; report it if it recurs", idless),
+			})
+		}
+	}()
+	input := &iam.ListDelegationRequestsInput{MaxItems: sdkaws.Int32(1000)}
+	for {
+		out, err := client.ListDelegationRequests(ctx, input)
+		if err != nil {
+			if isAccessDenied(err) {
+				return total, inserted, skipIfAccessDenied(st, op, acct.ID, "global", err)
+			}
+			return total, inserted, fmt.Errorf("%s: %w", op, err)
+		}
+		var batch []*store.Resource
+		for _, r := range out.DelegationRequests {
+			id := sv(r.DelegationRequestId)
+			if id == "" {
+				idless++
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Region:         regionGlobal,
+				Type:           TypeIAMDelegationRequest,
+				NativeID:       iamDelegationRequestNativeID(acct.ID, id),
+				Name:           &id,
+				Status:         nonEmptyPtr(string(r.State)),
+				CreatedAt:      tp(r.CreateDate),
+				AttributesJSON: mustJSON(r),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert IAM delegation requests: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+		next := sv(out.Marker)
+		if next == "" {
+			return total, inserted, nil
+		}
+		if next == sv(input.Marker) {
+			return total, inserted, fmt.Errorf("%s: Marker %q: %w", op, next, errRepeatedNextToken)
+		}
+		input.Marker = out.Marker
+	}
 }

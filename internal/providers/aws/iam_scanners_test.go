@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -353,6 +354,205 @@ func TestScanIAM_CredentialPhaseFailureKeepsOtherPhases(t *testing.T) {
 				if n := len(rowsByNativeID(t, st, c.typ)); n != 4 {
 					t.Errorf("%s rows = %d, want 4 despite %s failing", c.typ, n, failed)
 				}
+			}
+		})
+	}
+}
+
+const iamTestBoundaryARN = "arn:aws:iam::" + testAccountID + ":policy/partner-boundary"
+
+func iamTestDelegationNativeID(id string) string {
+	return "arn:aws:iam::" + testAccountID + ":delegation-request/" + id
+}
+
+// iamTestDelegationPage builds one ListDelegationRequests page. Request "dr-1"
+// carries a state, a create date and a permission boundary; "" is a request
+// with no id.
+func iamTestDelegationPage(next *string, ids ...string) *iam.ListDelegationRequestsOutput {
+	out := &iam.ListDelegationRequestsOutput{Marker: next, IsTruncated: next != nil}
+	for _, id := range ids {
+		r := iamtypes.DelegationRequest{DelegationRequestId: nonEmptyPtr(id), RequestorName: ptrStr("Partner Co")}
+		if id == "dr-1" {
+			r.State = iamtypes.StateTypeAccepted
+			r.CreateDate = &iamTestDay
+			r.RolePermissionRestrictionArns = []string{iamTestBoundaryARN}
+		}
+		out.DelegationRequests = append(out.DelegationRequests, r)
+	}
+	return out
+}
+
+// iamDelegationHandler serves two pages (dr-1 and an id-less request; then
+// dr-2 and another id-less one) and records each call's input.
+func iamDelegationHandler(inputs *[]iam.ListDelegationRequestsInput) func(in any) (any, error) {
+	return func(in any) (any, error) {
+		i := in.(*iam.ListDelegationRequestsInput)
+		*inputs = append(*inputs, *i)
+		if i.Marker == nil {
+			return iamTestDelegationPage(ptrStr("m2"), "dr-1", ""), nil
+		}
+		return iamTestDelegationPage(nil, "dr-2", ""), nil
+	}
+}
+
+func scanIAMDelegationWith(t *testing.T, st *store.Store, h func(in any) (any, error)) (int, int, error) {
+	t.Helper()
+	client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){"ListDelegationRequests": h}, iamDenied))
+	return scanIAMDelegationRequests(context.Background(), client, newTestAccount(testAccountID), st, testScanID)
+}
+
+func TestScanIAMDelegationRequests_StoresEveryPage(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "iam:ListDelegationRequests")
+	var inputs []iam.ListDelegationRequestsInput
+	total, inserted, err := scanIAMDelegationWith(t, st, iamDelegationHandler(&inputs))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if *warns != 1 {
+		t.Errorf("warnings = %d, want 1 for the request with no id", *warns)
+	}
+	rows := rowsByNativeID(t, st, TypeIAMDelegationRequest)
+	want := []string{iamTestDelegationNativeID("dr-1"), iamTestDelegationNativeID("dr-2")}
+	if got := nativeIDs(rows); total != 2 || inserted != 2 || !slices.Equal(got, want) {
+		t.Fatalf("total/inserted = %d/%d, rows = %v; want 2/2, %v", total, inserted, got, want)
+	}
+	if len(inputs) != 2 || sv(inputs[1].Marker) != "m2" {
+		t.Errorf("calls = %+v, want a second call with Marker m2", inputs)
+	}
+	for _, in := range inputs {
+		if in.MaxItems == nil || *in.MaxItems != 1000 {
+			t.Errorf("MaxItems = %v, want 1000 (the model's cap)", in.MaxItems)
+		}
+	}
+	first := rows[iamTestDelegationNativeID("dr-1")]
+	if sv(first.Name) != "dr-1" || sv(first.Status) != "ACCEPTED" || sv(first.Region) != "global" ||
+		sv(first.CreatedAt) != iamTestDay.Format(time.RFC3339) || !jsonHasString(t, first.AttributesJSON, "RequestorName", "Partner Co") {
+		t.Errorf("row name/status/region/created = %q/%q/%q/%q, attrs = %s", sv(first.Name), sv(first.Status), sv(first.Region), sv(first.CreatedAt), first.AttributesJSON)
+	}
+	if second := rows[iamTestDelegationNativeID("dr-2")]; second.Status != nil {
+		t.Errorf("dr-2 status = %q, want unset for an absent State", sv(second.Status))
+	}
+}
+
+func TestScanIAMDelegationRequests_Empty(t *testing.T) {
+	st := newTestStore(t)
+	total, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return iamTestDelegationPage(nil), nil })
+	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeIAMDelegationRequest)) != 0 {
+		t.Errorf("total = %d, err = %v; want 0 rows, nil", total, err)
+	}
+}
+
+func TestScanIAMDelegationRequests_AccessDeniedWarns(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "iam:ListDelegationRequests")
+	total, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return nil, iamDenied })
+	if err != nil || total != 0 || *warns != 1 {
+		t.Errorf("total = %d, warnings = %d, err = %v; want 0, 1, nil", total, *warns, err)
+	}
+}
+
+// Any other error fails the phase, NoSuchEntity included: the model lists it,
+// but an unfiltered listing names no entity that could be missing. A failure on
+// a later page keeps the rows already stored.
+func TestScanIAMDelegationRequests_OtherErrorsFail(t *testing.T) {
+	for _, failure := range []*smithy.GenericAPIError{iamFailure, iamGone} {
+		t.Run(failure.Code+"/first-page", func(t *testing.T) {
+			st := newTestStore(t)
+			_, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return nil, failure })
+			assertAPICode(t, err, failure.Code)
+		})
+		t.Run(failure.Code+"/second-page", func(t *testing.T) {
+			st := newTestStore(t)
+			total, _, err := scanIAMDelegationWith(t, st, func(in any) (any, error) {
+				if in.(*iam.ListDelegationRequestsInput).Marker == nil {
+					return iamTestDelegationPage(ptrStr("m2"), "dr-1"), nil
+				}
+				return nil, failure
+			})
+			assertAPICode(t, err, failure.Code)
+			if total != 1 || len(rowsByNativeID(t, st, TypeIAMDelegationRequest)) != 1 {
+				t.Errorf("total = %d; want page one's row kept", total)
+			}
+		})
+	}
+}
+
+// ListDelegationRequests has no SDK paginator: a page repeating the marker it
+// was sent fails the phase rather than looping or passing as complete.
+func TestScanIAMDelegationRequests_RepeatedMarkerFails(t *testing.T) {
+	st := newTestStore(t)
+	var calls atomic.Int32
+	total, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) {
+		n := calls.Add(1)
+		if n > 3 {
+			return nil, iamFailure
+		}
+		return iamTestDelegationPage(ptrStr("same"), "dr-"+strconv.Itoa(int(n))), nil
+	})
+	if !errors.Is(err, errRepeatedNextToken) || total != 2 || calls.Load() != 2 {
+		t.Errorf("total = %d, calls = %d, err = %v; want 2 rows from 2 calls, errRepeatedNextToken", total, calls.Load(), err)
+	}
+}
+
+// The delegation-request phase depends on no other phase: a phase-1 failure
+// does not cost it its rows, and its failure costs no other phase its rows.
+func TestScanIAM_DelegationRequestsRunLastAndFailAlone(t *testing.T) {
+	t.Run("stored despite a phase-1 failure", func(t *testing.T) {
+		st := newTestStore(t)
+		handlers := iamTopLevelHandlers(map[string]error{"GetAccountAuthorizationDetails": iamFailure})
+		var inputs []iam.ListDelegationRequestsInput
+		handlers["ListDelegationRequests"] = iamDelegationHandler(&inputs)
+		err := scanIAMTopLevel(t, st, handlers)
+		if got := classifyServiceError(err); got != outcomeError {
+			t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
+		}
+		assertAPICode(t, err, "ServiceFailure")
+		if n := len(rowsByNativeID(t, st, TypeIAMDelegationRequest)); n != 2 {
+			t.Errorf("delegation request rows = %d, want 2", n)
+		}
+	})
+	t.Run("its failure keeps the other phases", func(t *testing.T) {
+		st := newTestStore(t)
+		err := scanIAMTopLevel(t, st, iamTopLevelHandlers(map[string]error{"ListDelegationRequests": iamFailure}))
+		assertAPICode(t, err, "ServiceFailure")
+		keys := rowsByNativeID(t, st, TypeIAMAccessKey)
+		for _, u := range []string{"alice", "bob"} {
+			if _, ok := keys[iamTestUserARN(u)+"/access-key/AKIA"+u]; !ok {
+				t.Errorf("%s's access key missing", u)
+			}
+		}
+		for _, c := range iamCredCases {
+			if n := len(rowsByNativeID(t, st, c.typ)); n != 4 {
+				t.Errorf("%s rows = %d, want 4", c.typ, n)
+			}
+		}
+	})
+}
+
+// A transient error in one phase is demoted to a warning, so another phase's
+// hard error still classifies the service as failed, whichever side throttles.
+func TestScanIAM_TransientPhaseDoesNotMaskHardFailure(t *testing.T) {
+	throttled := &smithy.GenericAPIError{Code: "Throttling", Message: "Rate exceeded"}
+	for _, c := range []struct{ transientOp, hardOp, warnedAs string }{
+		{"ListAccessKeys", "ListDelegationRequests", "iam:ListAccessKeys"},
+		{"ListDelegationRequests", "ListSSHPublicKeys", "iam:ListDelegationRequests"},
+		// A phase-1 error names no member op, so it warns under the service.
+		{"GetAccountAuthorizationDetails", "ListDelegationRequests", "iam"},
+	} {
+		t.Run(c.transientOp, func(t *testing.T) {
+			st := newTestStore(t)
+			warned := countOpWarnings(st, c.warnedAs)
+			err := scanIAMTopLevel(t, st, iamTopLevelHandlers(map[string]error{
+				c.transientOp: throttled,
+				c.hardOp:      iamFailure,
+			}))
+			if got := classifyServiceError(err); got != outcomeError {
+				t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
+			}
+			assertAPICode(t, err, "ServiceFailure")
+			if *warned != 1 {
+				t.Errorf("%s transient warnings = %d, want 1", c.transientOp, *warned)
 			}
 		})
 	}

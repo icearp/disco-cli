@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.9% (2032/3336 listable) · depth0 72.5% · depth1 44.1% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.9% (2033/3336 listable) · depth0 72.6% · depth1 44.1% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1047 | 174 | 85.7 |
+| sr-resource | 1048 | 173 | 85.8 |
 | child-uncatalogued | 307 | 710 | 30.2 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 204 | 212 | 49.0 |
@@ -73,7 +73,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | servicecatalog | 13 | 7 | 65.0 |
 | aidevops | 8 | 6 | 57.1 |
 | forecast | 8 | 6 | 57.1 |
-| iam | 17 | 6 | 73.9 |
 | lookoutequipment | 5 | 6 | 45.5 |
 | medialive | 17 | 6 | 73.9 |
 | outposts | 3 | 6 | 33.3 |
@@ -99,6 +98,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | groundstation | 5 | 5 | 50.0 |
 | guardduty | 12 | 5 | 70.6 |
 | health | 0 | 5 | 0.0 |
+| iam | 18 | 5 | 78.3 |
 | iotmanagedintegrations | 12 | 5 | 70.6 |
 | iottwinmaker | 5 | 5 | 50.0 |
 | lambda | 16 | 5 | 76.2 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1304)
+### Uncovered (listable, no scanner) (1303)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -999,7 +999,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iam | iam/attachedrolepolicy | 1 |  | child-uncatalogued | iam:ListAttachedGroupPolicies, iam:ListAttachedRolePolicies, iam:ListAttachedUserPolicies |
 | iam | iam/contextkeysforprincipalpolicy | 1 |  | child-uncatalogued | iam:GetContextKeysForPrincipalPolicy |
 | iam | iam/custompolicy | 0 |  | child-uncatalogued | iam:SimulateCustomPolicy, iam:SimulatePrincipalPolicy |
-| iam | iam/delegationrequest | 0 |  | sr-resource | iam:GetDelegationRequest, iam:ListDelegationRequests |
 | iam | iam/entity | 1 |  | child-uncatalogued | iam:ListEntitiesForPolicy |
 | iam | iam/policyversion | 1 |  | child-uncatalogued | iam:GetPolicyVersion, iam:ListPolicyVersions |
 | imagebuilder | imagebuilder/componentbuildversion | 0 |  | element-written | imagebuilder:ListComponentBuildVersions |

@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.91127098321343,
-    "covered": 2032,
-    "uncovered": 1304,
+    "percent": 60.94124700239808,
+    "covered": 2033,
+    "uncovered": 1303,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -963,6 +963,7 @@
       "healthlake/fhirdatastore",
       "iam/accesskey",
       "iam/accountauthorizationdetail",
+      "iam/delegationrequest",
       "iam/group",
       "iam/grouppolicy",
       "iam/instanceprofile",
@@ -2682,7 +2683,6 @@
       "iam/attachedrolepolicy",
       "iam/contextkeysforprincipalpolicy",
       "iam/custompolicy",
-      "iam/delegationrequest",
       "iam/entity",
       "iam/policyversion",
       "imagebuilder/componentbuildversion",

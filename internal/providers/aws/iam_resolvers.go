@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -147,6 +148,10 @@ func init() {
 		resolveIAMPermissionBoundaries,
 		EdgeDecl{TypeIAMRole, TypeIAMPolicy, store.RelBoundedBy},
 		EdgeDecl{TypeIAMUser, TypeIAMPolicy, store.RelBoundedBy},
+	)
+	registerResolver(
+		resolveIAMDelegationRequestBoundaries,
+		EdgeDecl{TypeIAMDelegationRequest, TypeIAMPolicy, store.RelBoundedBy},
 	)
 }
 
@@ -1260,4 +1265,63 @@ func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// resolveIAMDelegationRequestBoundaries emits `bounded-by` edges from each
+// delegation request to the permission-boundary policies it attaches to the
+// roles its delegated session may create (RolePermissionRestrictionArns).
+// Elsewhere `bounded-by` starts at the principal a boundary scopes. Here the
+// request is the source because the roles do not exist until the session
+// creates them, and the request is the only stored row that names the
+// boundaries. No other edge kind fits: `uses` and `attached-to` would hide
+// that the policy is a boundary.
+//
+// FK-safe: a boundary not stored as a managed policy of this account is
+// skipped. IncludeManaged keeps AWS-managed policies (arn:aws:iam::aws:policy/*)
+// as targets. A row whose attributes do not decode costs only its own edges;
+// its error is returned after the rest resolve.
+func resolveIAMDelegationRequestBoundaries(acct *account, st *store.Store) error {
+	requests, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"},
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMDelegationRequest},
+		Limit:     util.AllResources,
+	})
+	if err != nil || len(requests) == 0 {
+		return err
+	}
+	policyRows, err := st.ListResources(store.ResourceFilter{
+		Providers:      []string{"aws"},
+		AccountID:      acct.ID,
+		Types:          []string{TypeIAMPolicy},
+		IncludeManaged: true,
+		Limit:          util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	policies := make(map[string]struct{}, len(policyRows))
+	for _, p := range policyRows {
+		policies[p.ID] = struct{}{}
+	}
+	var decodeErrs []error
+	for _, r := range requests {
+		var attrs struct {
+			RolePermissionRestrictionArns []string `json:"RolePermissionRestrictionArns"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode delegation request %s: %w", r.NativeID, err))
+			continue
+		}
+		for _, arn := range attrs.RolePermissionRestrictionArns {
+			toID := store.ResourceID("aws", acct.ID, arn)
+			if _, ok := policies[toID]; !ok {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, toID, store.RelBoundedBy, "directed", nil); err != nil {
+				return fmt.Errorf("upsert delegation-request→boundary: %w", err)
+			}
+		}
+	}
+	return errors.Join(decodeErrs...)
 }

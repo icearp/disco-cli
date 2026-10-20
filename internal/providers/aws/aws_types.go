@@ -210,6 +210,8 @@ const (
 	TypeIAMServiceSpecificCredential = "aws:iam:service-specific-credential"
 	TypeIAMSigningCertificate        = "aws:iam:signing-certificate"
 	TypeIAMSSHPublicKey              = "aws:iam:ssh-public-key"
+	// IAM — partner requests for temporary delegated access
+	TypeIAMDelegationRequest = "aws:iam:delegation-request"
 	// IAM — identity provider and certificate resources
 	TypeIAMInstanceProfile   = "aws:iam:instance-profile"
 	TypeIAMOIDCProvider      = "aws:iam:oidc-provider"

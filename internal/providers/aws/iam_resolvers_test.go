@@ -1,6 +1,8 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"net/url"
 	"testing"
 
@@ -1076,4 +1078,78 @@ func TestResolveIAMPermissionBoundaries(t *testing.T) {
 	if len(relsUnscanned) != 0 {
 		t.Errorf("unscanned-boundary role should emit zero edges, got %+v", relsUnscanned)
 	}
+}
+
+// --- resolveIAMDelegationRequestBoundaries ---
+
+func TestResolveIAMDelegationRequestBoundaries(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, iamTestBoundaryARN, "global", "{}")
+	attrs := mustJSON(iamtypes.DelegationRequest{
+		DelegationRequestId:           ptrStr("dr-1"),
+		RolePermissionRestrictionArns: []string{iamTestBoundaryARN, "arn:aws:iam::" + testAccountID + ":policy/unscanned"},
+	})
+	reqID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMDelegationRequest, iamTestDelegationNativeID("dr-1"), "global", attrs)
+	bareID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMDelegationRequest, iamTestDelegationNativeID("dr-2"), "global", "{}")
+
+	if err := resolveIAMDelegationRequestBoundaries(acct, st); err != nil {
+		t.Fatalf("resolveIAMDelegationRequestBoundaries: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(reqID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 || rels[0].ToID != policyID || rels[0].Kind != store.RelBoundedBy {
+		t.Errorf("dr-1 edges = %+v, want one bounded-by to the stored boundary only", rels)
+	}
+	if bare, _ := st.RelationshipsFrom(bareID); len(bare) != 0 {
+		t.Errorf("dr-2 with no boundaries has edges %+v, want none", bare)
+	}
+}
+
+// An AWS-managed boundary policy is stored ManagedByProvider and still gets
+// its edge.
+func TestResolveIAMDelegationRequestBoundaries_AWSManagedPolicy(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	managedARN := "arn:aws:iam::aws:policy/PowerUserAccess"
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: acct.ID, Type: TypeIAMPolicy, NativeID: managedARN,
+		Region: regionGlobal, AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: true,
+	}); err != nil {
+		t.Fatalf("seed managed policy: %v", err)
+	}
+	attrs := mustJSON(iamtypes.DelegationRequest{RolePermissionRestrictionArns: []string{managedARN}})
+	reqID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMDelegationRequest, iamTestDelegationNativeID("dr-1"), "global", attrs)
+
+	if err := resolveIAMDelegationRequestBoundaries(acct, st); err != nil {
+		t.Fatalf("resolveIAMDelegationRequestBoundaries: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(reqID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, reqID, store.ResourceID("aws", acct.ID, managedARN), store.RelBoundedBy)
+}
+
+// A row whose attributes do not decode fails the resolver without costing a
+// later sibling its edge (ListResources orders by name, so dr-0 comes first).
+func TestResolveIAMDelegationRequestBoundaries_DecodeErrorKeepsSiblings(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, iamTestBoundaryARN, "global", "{}")
+	attrs := mustJSON(iamtypes.DelegationRequest{RolePermissionRestrictionArns: []string{iamTestBoundaryARN}})
+	reqID := upsertTestResourceNamed(t, st, TypeIAMDelegationRequest, iamTestDelegationNativeID("dr-1"), "global", attrs, "dr-1")
+	upsertTestResourceNamed(t, st, TypeIAMDelegationRequest, iamTestDelegationNativeID("dr-0"), "global", `{"RolePermissionRestrictionArns":"not-a-list"}`, "dr-0")
+
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveIAMDelegationRequestBoundaries(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want the dr-0 decode error", err)
+	}
+	rels, err := st.RelationshipsFrom(reqID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, reqID, policyID, store.RelBoundedBy)
 }
