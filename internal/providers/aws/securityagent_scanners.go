@@ -37,11 +37,12 @@ func init() {
 	})
 }
 
-// saActorAuthRedact blanks an actor's Authentication.Value. For the
-// SECRETS_MANAGER, AWS_LAMBDA and AWS_IAM_ROLE provider types it is documented
-// as an ARN, but for AWS_INTERNAL its content is undocumented, and the redact
-// package has no rule that keeps a value only when it is an ARN.
-var saActorAuthRedact = redact.Rule{Path: "Assets.Actors[*].Authentication.Value", Mode: redact.RedactScalar}
+// saActorAuthRedact keeps an actor's Authentication.Value only when it is a
+// reference or a boolean. For the SECRETS_MANAGER, AWS_LAMBDA and
+// AWS_IAM_ROLE provider types it is documented as an ARN, but for
+// AWS_INTERNAL its content is undocumented, so any other value is treated
+// as a credential.
+var saActorAuthRedact = redact.Rule{Path: "Assets.Actors[*].Authentication.Value", Mode: redact.RedactUnlessSafe, KeyIsSensitive: true}
 
 type securityAgentAPI interface {
 	ListAgentSpaces(context.Context, *securityagent.ListAgentSpacesInput, ...func(*securityagent.Options)) (*securityagent.ListAgentSpacesOutput, error)

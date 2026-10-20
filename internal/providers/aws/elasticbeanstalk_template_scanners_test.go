@@ -34,14 +34,51 @@ var (
 	ebCreated  = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 )
 
-// ebSettingCases are the "base" template's option settings; the store must
-// blank every value and keep every key.
-var ebSettingCases = []ebtypes.ConfigurationOptionSetting{
-	{Namespace: sdkaws.String("aws:autoscaling:launchconfiguration"), OptionName: sdkaws.String("InstanceType"), Value: sdkaws.String("t3.micro")},
-	{Namespace: sdkaws.String("aws:elasticbeanstalk:application:environment"), OptionName: sdkaws.String("DB_PASS"), Value: sdkaws.String("hunter2")},
-	{Namespace: sdkaws.String("aws:elasticbeanstalk:eks:environment"), OptionName: sdkaws.String("env-variables"), Value: sdkaws.String(`{"API_TOKEN":"tok-eks-secret"}`)},
-	{Namespace: sdkaws.String("aws:rds:dbinstance"), OptionName: sdkaws.String("DBPassword"), Value: sdkaws.String("hunter3")},
-	{Namespace: sdkaws.String("aws:elasticbeanstalk:sns:topics"), OptionName: sdkaws.String("Notification Endpoint"), ResourceName: sdkaws.String("res-1"), Value: sdkaws.String("https://u:pw-sns@hooks.example.com/x")},
+// ebSettingCases are the "base" template's option settings and the value the
+// store must hold for each: only references, booleans and EC2 resource ids
+// are kept; every other value, however innocuous, numbers included, is
+// replaced by its reason-tagged placeholder.
+var ebSettingCases = []struct {
+	setting ebtypes.ConfigurationOptionSetting
+	want    string
+}{
+	{ebSetting("aws:elasticbeanstalk:application:environment", "UPLOADER", "AKIAIOSFODNN7EXAMPLE"), redact.PlaceholderValueShape},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "UPSTREAM_HEADER", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"), redact.PlaceholderValueShape},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "TLS_BUNDLE", "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----"), redact.PlaceholderValueShape},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "DB_PASS", "hunter2"), redact.PlaceholderKeyName},
+	{ebSetting("aws:rds:dbinstance", "DBPassword", "hunter3"), redact.PlaceholderKeyName},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "WEBHOOK_ID", "q2Wx8zPl0vB7nR4tY6uK3mHs"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:eks:environment", "env-variables", `{"API_TOKEN":"tok-eks-secret"}`), redact.PlaceholderValueShape},
+	{ebtypes.ConfigurationOptionSetting{
+		Namespace: sdkaws.String("aws:elasticbeanstalk:sns:topics"), OptionName: sdkaws.String("Notification Endpoint"),
+		ResourceName: sdkaws.String("res-1"), Value: sdkaws.String("https://u:pw-sns@hooks.example.com/x"),
+	}, redact.PlaceholderValueShape},
+	{ebSetting("aws:elasticbeanstalk:application:environmentsecrets", "DB_PASSWORD", "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-AbCdEf"), "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-AbCdEf"},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "API_TOKEN", "{{resolve:ssm-secure:/web/api-token:1}}"), "{{resolve:ssm-secure:/web/api-token:1}}"},
+	{ebSetting("aws:elasticbeanstalk:cloudwatch:logs", "StreamLogs", "true"), "true"},
+	{ebSetting("aws:autoscaling:asg", "MinSize", "1"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "ADMIN_PASSCODE", "482915"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "STRIPE_KEY_LIVE", "4111111111111111"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "BACKUP_ROLE", "arn:aws:x:::Hunter2!pass"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "LEGACY", "{{resolve:ssm:Hunter2!pass}}"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "DB_PW", "app-cafe1234"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:application:environment", "ROLE", "arn:aws:a:::xAKIAIOSFODNN7EXAMPLE"), redact.PlaceholderValueShape},
+	{ebtypes.ConfigurationOptionSetting{Namespace: sdkaws.String("aws:elasticbeanstalk:application:environment"), Value: sdkaws.String("998877")}, redact.PlaceholderKeyName},
+	{ebSetting("aws:autoscaling:launchconfiguration", "SecurityGroups", "sg-0123456789abcdef0"), "sg-0123456789abcdef0"},
+	{ebSetting("aws:autoscaling:launchconfiguration", "InstanceType", "t3.micro"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:cloudwatch:logs", "LogGroupName", "/aws/elasticbeanstalk/web"), redact.PlaceholderRule},
+}
+
+func ebSetting(namespace, name, value string) ebtypes.ConfigurationOptionSetting {
+	return ebtypes.ConfigurationOptionSetting{Namespace: sdkaws.String(namespace), OptionName: sdkaws.String(name), Value: sdkaws.String(value)}
+}
+
+func ebSettings() []ebtypes.ConfigurationOptionSetting {
+	out := make([]ebtypes.ConfigurationOptionSetting, 0, len(ebSettingCases))
+	for _, c := range ebSettingCases {
+		out = append(out, c.setting)
+	}
+	return out
 }
 
 func ebTemplate(app, name string) ebtypes.ConfigurationSettingsDescription {
@@ -91,7 +128,7 @@ func ebHandlers(templateCalls *parentCalls) map[string]func(in any) (any, error)
 			d := ebTemplate(app, tpl)
 			switch app + "/" + tpl {
 			case "web/base":
-				d.OptionSettings = slices.Clone(ebSettingCases)
+				d.OptionSettings = ebSettings()
 				return &elasticbeanstalk.DescribeConfigurationSettingsOutput{ConfigurationSettings: []ebtypes.ConfigurationSettingsDescription{d}}, nil
 			case "web/prod/v2":
 				return &elasticbeanstalk.DescribeConfigurationSettingsOutput{ConfigurationSettings: []ebtypes.ConfigurationSettingsDescription{
@@ -170,7 +207,8 @@ func TestScanElasticBeanstalk_StoresConfigurationTemplates(t *testing.T) {
 	assertEBOlderRows(t, st)
 }
 
-// Every option value comes back blanked, whatever its namespace, while each
+// Each option value is kept or replaced by its reason-tagged placeholder as
+// its case says, no replaced value is stored as any string of the row, and each
 // setting's Namespace, OptionName and ResourceName stay and no setting is lost.
 func TestScanElasticBeanstalk_RedactsOptionValues(t *testing.T) {
 	st := newTestStore(t)
@@ -186,21 +224,33 @@ func TestScanElasticBeanstalk_RedactsOptionValues(t *testing.T) {
 	if len(attrs.OptionSettings) != len(ebSettingCases) {
 		t.Fatalf("stored %d settings, want %d", len(attrs.OptionSettings), len(ebSettingCases))
 	}
-	for i, want := range ebSettingCases {
+	for i, c := range ebSettingCases {
+		want := c.setting
 		t.Run(sv(want.Namespace)+"/"+sv(want.OptionName), func(t *testing.T) {
 			got := attrs.OptionSettings[i]
 			if sv(got.Namespace) != sv(want.Namespace) || sv(got.OptionName) != sv(want.OptionName) || sv(got.ResourceName) != sv(want.ResourceName) {
 				t.Errorf("keys = %q/%q/%q, want %q/%q/%q", sv(got.Namespace), sv(got.OptionName), sv(got.ResourceName),
 					sv(want.Namespace), sv(want.OptionName), sv(want.ResourceName))
 			}
-			if sv(got.Value) != redact.Placeholder {
-				t.Errorf("value = %q, want %q", sv(got.Value), redact.Placeholder)
+			if sv(got.Value) != c.want {
+				t.Errorf("value of %q = %q, want %q", sv(want.Value), sv(got.Value), c.want)
 			}
-			if strings.Contains(raw, sv(want.Value)) {
+			if c.want != sv(want.Value) && strings.Contains(raw, `"`+jsonText(t, sv(want.Value))+`"`) {
 				t.Errorf("stored attributes still contain %q", sv(want.Value))
 			}
 		})
 	}
+}
+
+// jsonText is s as it appears inside a JSON string, so a value with
+// newlines or quotes is found in a stored row.
+func jsonText(t *testing.T, s string) string {
+	t.Helper()
+	b, err := json.Marshal(s)
+	if err != nil {
+		t.Fatalf("marshal %q: %v", s, err)
+	}
+	return strings.Trim(string(b), `"`)
 }
 
 // A response without the requested template stores nothing for it and is

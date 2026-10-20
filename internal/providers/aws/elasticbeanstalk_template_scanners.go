@@ -12,14 +12,13 @@ import (
 
 func init() {
 	// Values in several option namespaces can hold credentials (environment
-	// properties, EKS env-variables, custom options, URLs with userinfo), and
-	// a path rule cannot select settings by their sibling Namespace, so every
-	// value is blanked; Namespace, OptionName and ResourceName stay. A
-	// classifying redact mode would let the non-secret values be kept.
+	// properties, EKS env-variables, custom options, URLs with userinfo), so
+	// each value is classified under its OptionName and kept only when it is
+	// judged safe; Namespace, OptionName and ResourceName always stay.
 	registerType(restype.Descriptor{
 		Type:    TypeBeanstalkConfigurationTemplate,
 		Service: "elasticbeanstalk",
-		Redact:  []redact.Rule{{Path: "OptionSettings[*].Value", Mode: redact.RedactScalar}},
+		Redact:  []redact.Rule{{Path: "OptionSettings[*].Value", Mode: redact.RedactUnlessSafe, KeyField: "OptionName"}},
 	})
 }
 

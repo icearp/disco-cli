@@ -31,9 +31,6 @@ const (
 	saSpace2ARN = "arn:aws:securityagent:us-east-1:123456789012:agent-space/s2"
 	saPack1ARN  = "arn:aws:securityagent:us-east-1:123456789012:security-requirement-pack/pk1"
 	saPack2ARN  = "arn:aws:securityagent:us-east-1:123456789012:security-requirement-pack/pk2"
-	// saActorSecret stands in for an AWS_INTERNAL authentication value, whose
-	// content is undocumented.
-	saActorSecret = "internal-credential-material"
 )
 
 var (
@@ -41,17 +38,46 @@ var (
 	saPacks  = []childParent{{id: "pk1", arn: saPack1ARN}, {id: "pk2", arn: saPack2ARN}}
 )
 
-// saAssets is the assets block of every full definition in these tests: one
-// actor whose authentication value must be redacted.
-func saAssets() *satypes.Assets {
-	return &satypes.Assets{Actors: []satypes.Actor{{
-		Identifier:     ptrStr("tester"),
-		Authentication: &satypes.Authentication{ProviderType: satypes.AuthenticationProviderTypeAwsInternal, Value: ptrStr(saActorSecret)},
-	}}}
+// saActorCases are the actors of every full definition in these tests and
+// the authentication value the store must hold for each. The value is
+// treated as a credential whatever its provider type, so only references
+// and booleans are kept; a plain number or word is replaced too.
+var saActorCases = []struct {
+	provider satypes.AuthenticationProviderType
+	value    string
+	want     string
+}{
+	{satypes.AuthenticationProviderTypeAwsInternal, "internal-credential-material", redact.PlaceholderKeyName},
+	{satypes.AuthenticationProviderTypeAwsInternal, "hunter2", redact.PlaceholderKeyName},
+	{satypes.AuthenticationProviderTypeAwsInternal, "4821", redact.PlaceholderKeyName},
+	{satypes.AuthenticationProviderTypeAwsInternal, "AKIAIOSFODNN7EXAMPLE", redact.PlaceholderValueShape},
+	{satypes.AuthenticationProviderTypeAwsInternal, "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U", redact.PlaceholderValueShape},
+	{satypes.AuthenticationProviderTypeAwsInternal, "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----", redact.PlaceholderValueShape},
+	{satypes.AuthenticationProviderTypeAwsInternal, "https://tester:pw-actor@app.example.com/login", redact.PlaceholderValueShape},
+	{satypes.AuthenticationProviderTypeAwsInternal, "q2Wx8zPl0vB7nR4tY6uK3mHs", redact.PlaceholderKeyName},
+	{satypes.AuthenticationProviderTypeSecretsManager, "arn:aws:secretsmanager:us-east-1:123456789012:secret:tester-AbCdEf", "arn:aws:secretsmanager:us-east-1:123456789012:secret:tester-AbCdEf"},
+	{satypes.AuthenticationProviderTypeAwsLambda, "arn:aws:lambda:us-east-1:123456789012:function:login", "arn:aws:lambda:us-east-1:123456789012:function:login"},
+	{satypes.AuthenticationProviderTypeAwsIamRole, "arn:aws:iam::123456789012:role/tester", "arn:aws:iam::123456789012:role/tester"},
+	{satypes.AuthenticationProviderTypeAwsInternal, "{{resolve:ssm-secure:/pentest/tester:1}}", "{{resolve:ssm-secure:/pentest/tester:1}}"},
+	{satypes.AuthenticationProviderTypeAwsInternal, "true", "true"},
+	{satypes.AuthenticationProviderTypeAwsInternal, "i-0123456789abcdef0", redact.PlaceholderKeyName},
 }
 
-// assertSAActorRedacted fails unless r's actor authentication value is the
-// redaction placeholder.
+// saAssets is the assets block of every full definition in these tests: one
+// actor per saActorCases entry.
+func saAssets() *satypes.Assets {
+	actors := make([]satypes.Actor, 0, len(saActorCases))
+	for _, c := range saActorCases {
+		actors = append(actors, satypes.Actor{
+			Identifier:     ptrStr("tester"),
+			Authentication: &satypes.Authentication{ProviderType: c.provider, Value: ptrStr(c.value)},
+		})
+	}
+	return &satypes.Assets{Actors: actors}
+}
+
+// assertSAActorRedacted fails unless every actor of r holds its case's
+// authentication value and no replaced value appears anywhere in r.
 func assertSAActorRedacted(t *testing.T, r store.Resource) {
 	t.Helper()
 	var attrs struct {
@@ -60,8 +86,17 @@ func assertSAActorRedacted(t *testing.T, r store.Resource) {
 	if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 		t.Fatalf("attrs of %s: %v", r.NativeID, err)
 	}
-	if len(attrs.Assets.Actors) != 1 || sv(attrs.Assets.Actors[0].Authentication.Value) != redact.Placeholder {
-		t.Errorf("%s actor authentication not redacted: %s", r.NativeID, r.AttributesJSON)
+	if len(attrs.Assets.Actors) != len(saActorCases) {
+		t.Fatalf("%s stored %d actors, want %d", r.NativeID, len(attrs.Assets.Actors), len(saActorCases))
+	}
+	for i, c := range saActorCases {
+		got := attrs.Assets.Actors[i].Authentication
+		if got == nil || got.ProviderType != c.provider || sv(got.Value) != c.want {
+			t.Errorf("%s actor %d (%s %q) authentication = %s, want value %q", r.NativeID, i, c.provider, c.value, mustJSON(got), c.want)
+		}
+		if c.want != c.value && strings.Contains(r.AttributesJSON, jsonText(t, c.value)) {
+			t.Errorf("%s stored attributes still contain %q", r.NativeID, c.value)
+		}
 	}
 }
 

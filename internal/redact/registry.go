@@ -18,12 +18,28 @@ const (
 	// RedactSubtree wholesale-redacts every scalar descendant of the
 	// terminal node.
 	RedactSubtree
+	// RedactUnlessSafe keeps a value judged safe from its shape and its key
+	// name and replaces any other with a reason-tagged placeholder
+	// (PlaceholderKeyName, PlaceholderValueShape, PlaceholderRule), for a
+	// field that only sometimes holds a secret.
+	RedactUnlessSafe
 )
 
 // Rule names a path inside AttributesJSON and the redaction mode.
 type Rule struct {
 	Path string
 	Mode Mode
+	// KeyField, for RedactUnlessSafe, names the sibling of the path's last
+	// named segment whose string value is the terminal value's key name, for
+	// an array of name/value objects (OptionSettings[*].Value keyed by
+	// OptionName); a missing or non-string sibling counts as a sensitive key.
+	// Unset, the key name is the map key or literal that leads to the value.
+	KeyField string
+	// KeyIsSensitive, for RedactUnlessSafe, judges every value as if its key
+	// name were secret-looking, so only references and booleans are kept: for
+	// a field that holds either a credential or a pointer to one under a key
+	// that does not say so (Authentication.Value).
+	KeyIsSensitive bool
 }
 
 // TypeRules bundles every Rule for one resource type.
@@ -33,8 +49,10 @@ type TypeRules struct {
 }
 
 type compiledRule struct {
-	segs []segment
-	mode Mode
+	segs           []segment
+	mode           Mode
+	keyField       string
+	keyIsSensitive bool
 }
 
 var (
@@ -52,8 +70,10 @@ func Register(r TypeRules) {
 	compiled := make([]compiledRule, 0, len(r.Attributes))
 	for _, rule := range r.Attributes {
 		compiled = append(compiled, compiledRule{
-			segs: compilePath(rule.Path),
-			mode: rule.Mode,
+			segs:           compilePath(rule.Path),
+			mode:           rule.Mode,
+			keyField:       rule.KeyField,
+			keyIsSensitive: rule.KeyIsSensitive,
 		})
 	}
 	regMu.Lock()
