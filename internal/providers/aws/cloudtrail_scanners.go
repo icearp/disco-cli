@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -130,7 +131,8 @@ func scanCloudTrailOlderPhases(ctx context.Context, client cloudtrailAPI, acct *
 			arn := sv(trail.TrailARN)
 			var statusData any
 			if statusOut, sErr := client.GetTrailStatus(ctx, &cloudtrail.GetTrailStatusInput{Name: &arn}); sErr == nil {
-				statusData = statusOut
+				// Through mustJSON so the nested output drops ResultMetadata.
+				statusData = json.RawMessage(mustJSON(statusOut))
 			}
 			attrs := trailWithStatus{Trail: trail, Status: statusData}
 			r := &store.Resource{

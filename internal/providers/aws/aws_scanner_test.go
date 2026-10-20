@@ -3,6 +3,10 @@ package aws
 import (
 	"slices"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/service/drs"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 // expectedAWSServices is the authoritative list of service names that must be
@@ -429,5 +433,65 @@ func TestFilteredServices_Multiple(t *testing.T) {
 	got := filteredServices([]string{"aws:ec2", "aws:s3"}, false)
 	if len(got) != 2 {
 		t.Errorf("filteredServices([aws:ec2,aws:s3]): got %d results, want 2", len(got))
+	}
+}
+
+func TestMustJSON_ResultMetadata(t *testing.T) {
+	// The SDK fills ResultMetadata on every call; set a value so the case
+	// matches a real output rather than a zero one.
+	identity := &sts.GetCallerIdentityOutput{Account: ptrStr("123456789012"), Arn: ptrStr("arn:aws:iam::123456789012:root"), UserId: ptrStr("AIDA1")}
+	identity.ResultMetadata.Set("requestID", "req-1")
+	var nilIdentity *sts.GetCallerIdentityOutput
+
+	cases := []struct {
+		name string
+		v    any
+		want string
+	}{
+		{
+			"output pointer drops the key and keeps every other field", identity,
+			`{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:root","UserId":"AIDA1"}`,
+		},
+		{
+			"output value drops the key", *identity,
+			`{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:root","UserId":"AIDA1"}`,
+		},
+		{"output with no members becomes an empty object", &drs.DeleteJobOutput{}, `{}`},
+		{"nil output pointer stays null", nilIdentity, `null`},
+		{"element without the field is unchanged", ec2types.Tag{Key: ptrStr("team"), Value: ptrStr("dr")}, `{"Key":"team","Value":"dr"}`},
+		{
+			"own field named ResultMetadata of another type is kept",
+			struct{ ResultMetadata map[string]string }{map[string]string{}},
+			`{"ResultMetadata":{}}`,
+		},
+		{"map key named ResultMetadata is kept", map[string]any{"ResultMetadata": map[string]any{}}, `{"ResultMetadata":{}}`},
+		{
+			// Only the wrapper path re-marshals through a map, so its keys come back sorted.
+			"wrapper with fields after the embedded output drops the mid-object key",
+			struct {
+				*sts.GetCallerIdentityOutput
+				Extra string
+			}{identity, "x"},
+			`{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:root","Extra":"x","UserId":"AIDA1"}`,
+		},
+		{
+			"wrapper keeps a nested member of the same name",
+			struct {
+				Pre map[string]any
+				*drs.DeleteJobOutput
+				Extra string
+			}{map[string]any{"ResultMetadata": map[string]any{}}, &drs.DeleteJobOutput{}, "x"},
+			`{"Extra":"x","Pre":{"ResultMetadata":{}}}`,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// The second call answers from hasResultMetadata's type cache.
+			for call := range 2 {
+				if got := mustJSON(c.v); got != c.want {
+					t.Errorf("call %d: mustJSON = %s, want %s", call+1, got, c.want)
+				}
+			}
+		})
 	}
 }

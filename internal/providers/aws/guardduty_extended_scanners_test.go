@@ -120,8 +120,8 @@ func TestScanGDOrganizationConfigurations_MergesPagesPerDetector(t *testing.T) {
 		if !sdkaws.ToBool(got.AutoEnable) || got.DataSources == nil || got.DataSources.S3Logs == nil || !sdkaws.ToBool(got.DataSources.S3Logs.AutoEnable) {
 			t.Errorf("%s deprecated AutoEnable / DataSources = %v / %+v; want both kept from the first page", did, got.AutoEnable, got.DataSources)
 		}
-		if string(attrs["NextToken"]) != "null" || string(attrs["ResultMetadata"]) != "{}" {
-			t.Errorf("%s envelope NextToken=%s ResultMetadata=%s; want null and {} so the row is stable across scans", did, attrs["NextToken"], attrs["ResultMetadata"])
+		if _, hasMeta := attrs["ResultMetadata"]; string(attrs["NextToken"]) != "null" || hasMeta {
+			t.Errorf("%s envelope NextToken=%s ResultMetadata=%s; want null and absent so the row is stable across scans", did, attrs["NextToken"], attrs["ResultMetadata"])
 		}
 		assertQSContains(t, st, guardDutyDetectorARN(testRegion, testAccountID, did), gdOrgConfigARN(did))
 	}

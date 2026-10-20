@@ -5,6 +5,8 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,6 +15,7 @@ import (
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/middleware"
 	"github.com/icearp/disco-cli/internal/providers"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
@@ -488,7 +491,69 @@ type s3BucketEncryptionEntry struct {
 	Config *s3types.ServerSideEncryptionConfiguration
 }
 
-func mustJSON(v any) string   { return util.MustJSON(v) }
+// mustJSON marshals v for a row's AttributesJSON. When v is an SDK operation
+// output, or a disco struct embedding one (a struct, or pointer to one, with a
+// ResultMetadata middleware.Metadata field, direct or promoted), it drops the
+// top-level "ResultMetadata" member: that field is SDK response plumbing, not
+// resource data, and is the same {} on every row because middleware.Metadata
+// has only unexported fields.
+func mustJSON(v any) string {
+	s := util.MustJSON(v)
+	if !hasResultMetadata(reflect.TypeOf(v)) {
+		return s
+	}
+	// Fast path for a bare output. Smithy codegen declares ResultMetadata as
+	// the last exported field of every output struct and encoding/json writes
+	// fields in declaration order, so the member ends the object.
+	if body, ok := strings.CutSuffix(s, `"ResultMetadata":{}}`); ok {
+		return strings.TrimSuffix(body, ",") + "}"
+	}
+	// A wrapper that embeds an output and adds fields after it
+	// (sesConfigurationSetAttrs) puts the member mid-object. The map round trip
+	// sorts the keys, which only such wrappers' rows see; a nil pointer's null
+	// stays null.
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(s), &members); err != nil {
+		return s
+	}
+	delete(members, "ResultMetadata")
+	return util.MustJSON(members)
+}
+
+var (
+	resultMetadataType = reflect.TypeFor[middleware.Metadata]()
+	// hasResultMetadataCache maps reflect.Type to bool. FieldByName allocates
+	// and scans every field, a cost every row of a wide element struct such as
+	// ec2 Instance would pay; a scan marshals few distinct types.
+	hasResultMetadataCache sync.Map
+)
+
+// hasResultMetadata reports whether t (or the type t points to) is a struct
+// with a ResultMetadata field of type middleware.Metadata. Matching on the
+// field's type, not only its name, keeps any resource shape's own field named
+// ResultMetadata out of the strip.
+func hasResultMetadata(t reflect.Type) bool {
+	if t == nil {
+		return false
+	}
+	if cached, ok := hasResultMetadataCache.Load(t); ok {
+		return cached.(bool)
+	}
+	elem := t
+	if elem.Kind() == reflect.Pointer {
+		elem = elem.Elem()
+	}
+	has := false
+	if elem.Kind() == reflect.Struct {
+		// FieldByName matches the Go field name, not a JSON tag; no wrapper
+		// renames a field to ResultMetadata.
+		f, ok := elem.FieldByName("ResultMetadata")
+		has = ok && f.Type == resultMetadataType
+	}
+	hasResultMetadataCache.Store(t, has)
+	return has
+}
+
 func sv(p *string) string     { return util.Sv(p) }
 func tp(t *time.Time) *string { return util.TimeRFC3339(t) }
 

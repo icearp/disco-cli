@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -98,7 +99,7 @@ func cloudTrailHandlers(insightCalls, evCfgCalls *parentCalls) map[string]func(i
 				{Name: ptrStr(ctTestTrailOrg), TrailARN: ptrStr(ctTestTrailOrgARN), HasInsightSelectors: sdkaws.Bool(true), IsOrganizationTrail: sdkaws.Bool(true)},
 			}}, nil
 		},
-		"GetTrailStatus": func(any) (any, error) { return &cloudtrail.GetTrailStatusOutput{}, nil },
+		"GetTrailStatus": func(any) (any, error) { return &cloudtrail.GetTrailStatusOutput{IsLogging: sdkaws.Bool(true)}, nil },
 		"ListTags":       func(any) (any, error) { return &cloudtrail.ListTagsOutput{}, nil },
 		"ListEventDataStores": func(in any) (any, error) {
 			if in.(*cloudtrail.ListEventDataStoresInput).NextToken == nil {
@@ -240,6 +241,15 @@ func TestScanCloudTrail_StoresParentConfigurations(t *testing.T) {
 	}
 	if evCfgAttrs["MaxEventSize"] != "Large" {
 		t.Errorf("eds-1 MaxEventSize = %v, want Large", evCfgAttrs["MaxEventSize"])
+	}
+
+	trail := rowsByNativeID(t, st, TypeCloudTrailTrail)[ctTestTrailMainARN]
+	var trailAttrs struct{ Status map[string]json.RawMessage }
+	if err := json.Unmarshal([]byte(trail.AttributesJSON), &trailAttrs); err != nil {
+		t.Fatalf("trail attrs %s: %v", trail.AttributesJSON, err)
+	}
+	if string(trailAttrs.Status["IsLogging"]) != "true" || strings.Contains(trail.AttributesJSON, "ResultMetadata") {
+		t.Errorf("trail attrs = %s, want Status.IsLogging true and no SDK ResultMetadata envelope", trail.AttributesJSON)
 	}
 
 	assertContainsNative(t, st, ctTestTrailMainARN, ctTestMainInsight)

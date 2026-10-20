@@ -150,8 +150,8 @@ func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAP
 				attrs.Features = append(attrs.Features, out.Features...)
 			}
 			// Page 1 carries the settings; clearing its NextToken keeps a paginated
-			// answer identical across scans. ResultMetadata needs no reset: it has
-			// only unexported fields and always marshals as {}.
+			// answer identical across scans. ResultMetadata needs no reset:
+			// mustJSON drops it.
 			attrs.NextToken = nil
 			label := "organization-configuration"
 			return []*store.Resource{{

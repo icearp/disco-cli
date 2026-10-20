@@ -589,6 +589,9 @@ func TestScanDRSReplicationConfigurations_OneRowPerServer(t *testing.T) {
 		len(attrs.PitPolicy) != 1 || attrs.PitPolicy[0].Units != drstypes.PITPolicyRuleUnitsMinute || attrs.StagingAreaTags["team"] != "dr" {
 		t.Errorf("attrs = %s", row.AttributesJSON)
 	}
+	if strings.Contains(row.AttributesJSON, "ResultMetadata") {
+		t.Errorf("attrs carry the SDK's ResultMetadata envelope: %s", row.AttributesJSON)
+	}
 }
 
 func TestScanDRSReplicationConfigurations_NoServersNoCalls(t *testing.T) {

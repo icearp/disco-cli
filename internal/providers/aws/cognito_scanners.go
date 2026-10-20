@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -385,7 +386,7 @@ func scanCognitoIdentityPools(ctx context.Context, idClient cognitoidentityAPI, 
 				NativeID:       arn,
 				Name:           descOut.IdentityPoolName,
 				Region:         &region,
-				AttributesJSON: mustJSON(idPoolAttrs{Pool: descOut, Roles: roles}),
+				AttributesJSON: mustJSON(idPoolAttrs{Pool: json.RawMessage(mustJSON(descOut)), Roles: roles}),
 				DiscoveredBy:   scanID,
 			})
 		}
