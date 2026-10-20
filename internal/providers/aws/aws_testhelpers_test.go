@@ -167,8 +167,10 @@ func upsertTestResourceNamed(t *testing.T, st *store.Store, rtype, nativeID, reg
 }
 
 // newTestAccount returns a minimal account struct for use in resolver tests.
+// scanRegions defaults to us-east-1, so a test that calls a region-electing
+// scanner (dispatchedRegions) in another region must set it.
 func newTestAccount(id string) *account {
-	return &account{ID: id, Name: "Test Account", Regions: []string{"us-east-1"}}
+	return &account{ID: id, Name: "Test Account", Regions: []string{"us-east-1"}, scanRegions: []string{"us-east-1"}}
 }
 
 // assertRelationship fails the test if no relationship with the given

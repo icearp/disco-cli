@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -261,6 +262,7 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 	// serviceAvailableInRegion, a genuine data dependency, so it must join here
 	// before dispatching; that join is the only necessary serial point.
 	buildRegionAvailability(ctx, acct, services, st, kept)
+	acct.scanRegions = kept
 	for _, region := range kept {
 		wg.Go(func() {
 			if err := regionSem.Acquire(ctx, 1); err != nil {
@@ -367,8 +369,7 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 		// opinion. Note the SDK half applies even for a single-region scan,
 		// where buildRegionAvailability skips the catalog lookup entirely;
 		// --no-scope-regions is what turns both off.
-		if !acct.regionScopeDisabled &&
-			!serviceAvailableInRegion(acct.availByCode, svc.name, regionAvailabilityCode(svc.name), region) {
+		if !acct.dispatchesTo(svc.name, region) {
 			st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceUnavailable)
 			continue
 		}
@@ -411,6 +412,21 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 		})
 	}
 	wg.Wait()
+}
+
+// dispatchesTo reports whether scanRegion dispatches the regional service name
+// into region: always under --scope-regions=false, otherwise when
+// serviceAvailableInRegion says AWS offers it there.
+func (a *account) dispatchesTo(name, region string) bool {
+	return a.regionScopeDisabled || serviceAvailableInRegion(a.availByCode, name, regionAvailabilityCode(name), region)
+}
+
+// dispatchedRegions returns the regions of this scan that the regional service
+// name runs in, in fan-out order. A scanner that elects one region to store
+// region-less rows chooses from this list, so the elected region is one where
+// it actually runs.
+func (a *account) dispatchedRegions(name string) []string {
+	return slices.DeleteFunc(slices.Clone(a.scanRegions), func(r string) bool { return !a.dispatchesTo(name, r) })
 }
 
 // filteredServices returns the services to run. An explicit filter wins: when
@@ -477,6 +493,11 @@ type account struct {
 	// (--scope-regions=false) turns scoping off outright.
 	availByCode         map[string]map[string]bool
 	regionScopeDisabled bool
+
+	// scanRegions is the regional fan-out list: acct.Regions minus the regions
+	// enabledScanRegions dropped. nil until scanAccount sets it, just before the
+	// regional fan-out; not reset afterwards. See dispatchedRegions.
+	scanRegions []string
 
 	// includeServiceQuotas mirrors --include-service-quotas: when true the opt-in
 	// aws:servicequotas scanner is added to the default service set for this scan.

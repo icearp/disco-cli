@@ -1251,7 +1251,7 @@ func scanLogsS3TableSources(ctx context.Context, client cwlogsAPI, obs logsS3Tab
 func listLogsS3TableIntegrations(ctx context.Context, client logsS3TableIntegrationLister, acct *account, region string, st *store.Store) ([]string, error) {
 	const op = "observabilityadmin:ListS3TableIntegrations"
 	const svc = "aws:observabilityadmin"
-	if !acct.regionScopeDisabled && !serviceAvailableInRegion(acct.availByCode, svc, regionAvailabilityCode(svc), region) {
+	if !acct.dispatchesTo(svc, region) {
 		return nil, nil
 	}
 	pager := observabilityadmin.NewListS3TableIntegrationsPaginator(client, &observabilityadmin.ListS3TableIntegrationsInput{},
