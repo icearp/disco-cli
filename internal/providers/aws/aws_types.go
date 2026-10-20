@@ -2356,9 +2356,9 @@ const (
 	TypeSecurityAgentIntegratedResource      = "aws:security-agent:integrated-resource"
 	TypeSecurityAgentSecurityRequirement     = "aws:security-agent:security-requirement"
 	// SecurityLake (securitylake_scanners.go).
-	TypeSecurityLakeAwsLogSource = "aws:security-lake:aws-log-source"
-	TypeSecurityLakeDataLake     = "aws:security-lake:data-lake"
-	TypeSecurityLakeSubscriber   = "aws:security-lake:subscriber"
+	TypeSecurityLakeDataLake       = "aws:security-lake:data-lake"
+	TypeSecurityLakeDataLakeSource = "aws:security-lake:data-lake-source"
+	TypeSecurityLakeSubscriber     = "aws:security-lake:subscriber"
 	// ServiceCatalogAppRegistry (servicecatalogappregistry_scanners.go).
 	TypeSCARApplication               = "aws:service-catalog-app-registry:application"
 	TypeSCARAttributeGroup            = "aws:service-catalog-app-registry:attribute-group"

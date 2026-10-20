@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.8% (2029/3336 listable) · depth0 72.5% · depth1 44.0% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.9% (2030/3336 listable) · depth0 72.5% · depth1 44.0% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -9,7 +9,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1047 | 174 | 85.7 |
-| child-uncatalogued | 305 | 712 | 30.0 |
+| child-uncatalogued | 306 | 711 | 30.1 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 203 | 213 | 48.8 |
 | element-arn | 36 | 70 | 34.0 |
@@ -272,7 +272,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | s3vectors | 2 | 1 | 66.7 |
 | schemas | 3 | 1 | 75.0 |
 | sdb | 0 | 1 | 0.0 |
-| securitylake | 2 | 1 | 66.7 |
 | serverlessrepo | 3 | 1 | 75.0 |
 | servicequotas | 2 | 1 | 66.7 |
 | signer | 2 | 1 | 66.7 |
@@ -345,6 +344,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | s3tables | 3 | 0 | 100.0 |
 | savingsplans | 1 | 0 | 100.0 |
 | scheduler | 2 | 0 | 100.0 |
+| securitylake | 3 | 0 | 100.0 |
 | servicediscovery | 3 | 0 | 100.0 |
 | ssm-quicksetup | 2 | 0 | 100.0 |
 | supportapp | 1 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1307)
+### Uncovered (listable, no scanner) (1306)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1499,7 +1499,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | securityhub | securityhub/product | 0 |  | sr-resource | securityhub:DescribeProducts, securityhub:DescribeProductsV2 |
 | securityhub | securityhub/resource | 0 |  | element-written | securityhub:GetResourcesV2 |
 | securityhub | securityhub/standardscontrol | 1 |  | child-uncatalogued | securityhub:DescribeStandardsControls |
-| securitylake | securitylake/datalakesource | 1 |  | child-uncatalogued | securitylake:GetDataLakeSources |
 | serverlessrepo | serverlessrepo/applicationdependency | 1 |  | child-uncatalogued | serverlessrepo:ListApplicationDependencies |
 | servicecatalog | servicecatalog/associatedattributegroup | 1 |  | child-uncatalogued | servicecatalog:ListAssociatedAttributeGroups |
 | servicecatalog | servicecatalog/budget | 2 |  | child-uncatalogued | servicecatalog:ListBudgetsForResource |
