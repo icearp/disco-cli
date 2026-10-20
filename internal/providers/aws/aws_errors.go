@@ -117,6 +117,10 @@ var accessDeniedCodes = []string{
 // Reads ae.ErrorMessage() directly rather than err.Error(), so the match
 // is decoupled from the Smithy "api error CODE: MSG" wrapper format and
 // from outer SDK "operation error <Op>: ..." wrapping.
+//
+// ErrorMessage() is only reliable on a client built from an account config:
+// errorMessageKeyRepair (aws_error_body.go) is what lets a schema-serde module
+// read a message whose key case differs from the model's member name.
 func isAPIErrorWithMessage(err error, code, needle string) bool {
 	var ae smithy.APIError
 	if !errors.As(err, &ae) {
@@ -309,6 +313,10 @@ func isSCPExplicitDeny(err error) bool {
 // denials always identify the action in the message; the empty-message
 // variant is the closed-state signal. Precedent surfaces: Amazon Fraud
 // Detector, IoT FleetWise, Rekognition Custom Labels.
+//
+// An empty message is only evidence when the message was readable: without
+// errorMessageKeyRepair a schema-serde module drops a "Message" key, and a real
+// denial would read as closed and be skipped silently.
 func isClosedToNewCustomers(err error) bool {
 	if !isAccessDenied(err) {
 		return false

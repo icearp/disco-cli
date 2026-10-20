@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/middleware"
 	"github.com/spf13/viper"
 )
 
@@ -52,6 +53,25 @@ type accountCfg struct {
 	RoleChain []string `mapstructure:"role_chain"`
 }
 
+// baseLoadOptions returns the SDK load options every account config derives
+// from; profile, when non-empty, selects a named credential profile.
+// Adaptive retry mode uses a client-side token bucket that learns from
+// throttling responses and slows requests proactively. 10 max attempts gives
+// backoff enough headroom for low-rate-limit services like IAM. The API option
+// gives every client the error-message repair the message-based predicates in
+// aws_errors.go depend on (errorMessageKeyRepair).
+func baseLoadOptions(profile string) []func(*awsconfig.LoadOptions) error {
+	opts := []func(*awsconfig.LoadOptions) error{
+		awsconfig.WithRetryMaxAttempts(10),
+		awsconfig.WithRetryMode(sdkaws.RetryModeAdaptive),
+		awsconfig.WithAPIOptions([]func(*middleware.Stack) error{normalizeErrorMessageKey}),
+	}
+	if profile != "" {
+		opts = append(opts, awsconfig.WithSharedConfigProfile(profile))
+	}
+	return opts
+}
+
 // loadAccounts parses the viper config and returns a resolved account slice.
 // When no accounts are configured, the current account is detected via STS.
 // profile selects a named entry from ~/.aws/config ("" = default chain).
@@ -72,20 +92,8 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 		cfg.DefaultRegions = []string{"us-east-1"}
 	}
 
-	// Build SDK load options; optionally select a named credential profile.
-	// Adaptive retry mode uses a client-side token bucket that learns from
-	// throttling responses and slows requests proactively. 10 max attempts
-	// gives backoff enough headroom for low-rate-limit services like IAM.
-	opts := []func(*awsconfig.LoadOptions) error{
-		awsconfig.WithRetryMaxAttempts(10),
-		awsconfig.WithRetryMode(sdkaws.RetryModeAdaptive),
-	}
-	if profile != "" {
-		opts = append(opts, awsconfig.WithSharedConfigProfile(profile))
-	}
-
 	// Load the base SDK config once (uses default credential chain: env → ~/.aws → IAM role).
-	baseCfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
+	baseCfg, err := awsconfig.LoadDefaultConfig(ctx, baseLoadOptions(profile)...)
 	if err != nil {
 		return nil, explainConfigLoadError(err, profile)
 	}

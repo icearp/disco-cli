@@ -128,7 +128,8 @@ type stubDeserializeHandler struct {
 	status int
 	body   string
 	err    error
-	raw    any // when non-nil, returned instead of a *smithyhttp.Response
+	raw    any       // when non-nil, returned instead of a *smithyhttp.Response
+	reader io.Reader // when non-nil, the body stream instead of body
 }
 
 func (s stubDeserializeHandler) HandleDeserialize(context.Context, middleware.DeserializeInput) (
@@ -139,12 +140,59 @@ func (s stubDeserializeHandler) HandleDeserialize(context.Context, middleware.De
 	}
 	out := middleware.DeserializeOutput{RawResponse: s.raw}
 	if s.raw == nil {
+		var body io.Reader = strings.NewReader(s.body)
+		if s.reader != nil {
+			body = s.reader
+		}
 		out.RawResponse = &smithyhttp.Response{Response: &http.Response{
 			StatusCode: s.status,
-			Body:       io.NopCloser(strings.NewReader(s.body)),
+			Body:       io.NopCloser(body),
 		}}
 	}
 	return out, middleware.Metadata{}, nil
+}
+
+// failingAfter yields data, then fails every later Read with err — a
+// connection dropped part-way through the body. A Read after the failure
+// returns io.EOF, as a stream that has already failed may, so the test can
+// tell whether the middleware replays the original error or re-reads.
+type failingAfter struct {
+	data   *strings.Reader
+	err    error
+	failed bool
+}
+
+func (f *failingAfter) Read(p []byte) (int, error) {
+	if f.data.Len() > 0 {
+		return f.data.Read(p)
+	}
+	if f.failed {
+		return 0, io.EOF
+	}
+	f.failed = true
+	return 0, f.err
+}
+
+// assertReadErrorReplayed reads the body the middleware left behind and checks
+// it yields the bytes read before the failure, then the original error.
+func assertReadErrorReplayed(t *testing.T, out middleware.DeserializeOutput, wantHead string, wantErr error) {
+	t.Helper()
+	resp, ok := out.RawResponse.(*smithyhttp.Response)
+	if !ok || resp.Body == nil {
+		t.Fatalf("no response body on output %#v", out.RawResponse)
+	}
+	got, err := io.ReadAll(resp.Body)
+	if string(got) != wantHead {
+		t.Errorf("body = %q, want the bytes read before the failure %q", got, wantHead)
+	}
+	if !errors.Is(err, wantErr) {
+		t.Errorf("read err = %v, want the original read error %v", err, wantErr)
+	}
+}
+
+// readFailure is a stub response whose body fails after head.
+func readFailure(head string, err error) stubDeserializeHandler {
+	return stubDeserializeHandler{status: 403, reader: &failingAfter{data: strings.NewReader(head), err: err}}
 }
 
 // TestRewrapBareXMLError_HandleDeserialize covers the wiring around the repair:
@@ -203,7 +251,7 @@ func TestRewrapBareXMLError_HandleDeserialize(t *testing.T) {
 		// the first N bytes of an XML document is strictly worse than handing it
 		// the unparseable-but-intact original: truncation turns a readable error
 		// into a parse failure.
-		big := "<Error>" + strings.Repeat("x", maxBareErrorBodyBytes) + "</Error>"
+		big := "<Error>" + strings.Repeat("x", maxErrorBodyBytes) + "</Error>"
 		out, _, err := rewrapBareXMLError{}.HandleDeserialize(context.Background(),
 			middleware.DeserializeInput{}, stubDeserializeHandler{status: 403, body: big})
 		if err != nil {
@@ -216,6 +264,17 @@ func TestRewrapBareXMLError_HandleDeserialize(t *testing.T) {
 		if got != big {
 			t.Errorf("oversized body was altered: got %d bytes, want the original %d", len(got), len(big))
 		}
+	})
+
+	t.Run("body read error is replayed after the bytes already read", func(t *testing.T) {
+		const head = "<Error><Code>Acc"
+		readErr := errors.New("connection reset by peer")
+		out, _, err := rewrapBareXMLError{}.HandleDeserialize(context.Background(),
+			middleware.DeserializeInput{}, readFailure(head, readErr))
+		if err != nil {
+			t.Fatalf("HandleDeserialize: %v", err)
+		}
+		assertReadErrorReplayed(t, out, head, readErr)
 	})
 
 	t.Run("non-HTTP raw response is ignored", func(t *testing.T) {

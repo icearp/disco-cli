@@ -606,13 +606,17 @@ func TestScanSESEmailIdentityCertificates_NotDeployed(t *testing.T) {
 	}
 }
 
-// TestSESCertificateErrors_PreSerdePinReadsCapitalisedMessage guards the sesv2 pin below v1.75.0 (CHANGELOG "Enable schema-based (de)serialization").
+// TestSESCertificateErrors_ReadCapitalisedGatewayMessage is a forward guard for
+// the sesv2 >= v1.75.0 bump, and is inert until that bump lands: at the
+// v1.74.0 pin the deserializer reads "message" and "Message" alike, so the test
+// passes with or without errorMessageKeyRepair.
 //
-// The predicates key on the error message, and the API Gateway in front of
-// SES sends it as "Message". v1.74.0 reads "message" or "Message"; v1.75.0's
-// schema member is "message" only, so a gateway NotFoundException would carry
-// no message and read as a deleted identity.
-func TestSESCertificateErrors_PreSerdePinReadsCapitalisedMessage(t *testing.T) {
+// SES's gateway sends its message under "Message". From v1.75.0 (CHANGELOG
+// "Enable schema-based (de)serialization") sesv2 reads only "message" for a
+// modeled error, so without the repair a gateway NotFoundException would carry
+// no message and read as a deleted identity. The client is built from the
+// account config, as a scan's clients are.
+func TestSESCertificateErrors_ReadCapitalisedGatewayMessage(t *testing.T) {
 	const gateway = "Unable to determine service/operation name to be authorized"
 	cases := []struct {
 		name, code, message string
@@ -632,9 +636,8 @@ func TestSESCertificateErrors_PreSerdePinReadsCapitalisedMessage(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(map[string]string{"Message": tc.message})
 			}))
 			defer srv.Close()
-			client := sesv2.New(sesv2.Options{
-				Region: testRegion, BaseEndpoint: sdkaws.String(srv.URL),
-				Credentials: sdkaws.AnonymousCredentials{}, RetryMaxAttempts: 1,
+			client := sesv2.NewFromConfig(accountConfigForTest(t), func(o *sesv2.Options) {
+				o.BaseEndpoint = sdkaws.String(srv.URL)
 			})
 
 			_, err := client.ListEmailIdentityCertificates(context.Background(),

@@ -11,14 +11,6 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// maxBareErrorBodyBytes caps how much of an S3 Control error body
-// rewrapBareXMLError will buffer. AWS error bodies are a few hundred bytes; the
-// cap exists so a malformed or hostile response cannot make the scanner hold an
-// unbounded buffer per in-flight request. A body larger than this is passed
-// through untouched rather than truncated — a truncated XML document would
-// deserialize worse than the original.
-const maxBareErrorBodyBytes = 64 << 10
-
 // errorResponseOpen and errorResponseClose are the envelope the generated S3
 // Control deserializers expect around an <Error> element.
 const (
@@ -95,25 +87,17 @@ func (rewrapBareXMLError) HandleDeserialize(
 
 	// Read one byte past the cap so an oversized body is detectable without
 	// buffering all of it.
-	head, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBareErrorBodyBytes+1))
-	if readErr != nil || len(head) > maxBareErrorBodyBytes {
-		// Hand the deserializer the original stream back, whole: what was already
-		// read, followed by whatever remains. Truncating here would turn a body
-		// this middleware merely declined to repair into invalid XML — a worse
-		// outcome than the unreadable-but-intact body it started with.
-		resp.Body = rejoinedBody{Reader: io.MultiReader(bytes.NewReader(head), resp.Body), Closer: resp.Body}
+	head, readErr := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes+1))
+	if readErr != nil || len(head) > maxErrorBodyBytes {
+		// Truncating here would turn a body this middleware merely declined to
+		// repair into invalid XML — a worse outcome than the
+		// unreadable-but-intact body it started with.
+		passBodyThrough(resp, head, readErr)
 		return out, metadata, err
 	}
 	resp.Body.Close()
 	resp.Body = io.NopCloser(bytes.NewReader(wrapBareXMLError(head)))
 	return out, metadata, err
-}
-
-// rejoinedBody rejoins a partially-consumed body to its original Closer, so
-// replacing the stream does not leak the underlying connection.
-type rejoinedBody struct {
-	io.Reader
-	io.Closer
 }
 
 // wrapBareXMLError returns body wrapped in an <ErrorResponse> envelope when its
