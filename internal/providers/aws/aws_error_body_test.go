@@ -15,8 +15,10 @@ import (
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/accountaccess"
+	"github.com/aws/aws-sdk-go-v2/service/backup"
 	"github.com/aws/aws-sdk-go-v2/service/computeoptimizer"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/keyspaces"
 	"github.com/aws/aws-sdk-go-v2/service/keyspacesstreams"
 	"github.com/aws/aws-sdk-go-v2/service/lambdacore"
 	"github.com/aws/aws-sdk-go-v2/service/odb"
@@ -222,7 +224,7 @@ var protocolFamilies = []protocolFamily{
 		},
 	},
 	{
-		name: "restJson1 pre-serde (sesv2)", deniedCode: "AccessDeniedException", deniedUnmodeled: true,
+		name: "restJson1 schema-serde (sesv2)", deniedCode: "AccessDeniedException", deniedUnmodeled: true,
 		keys: []string{"message", "Message"}, write: writeJSONError,
 		call: func(cfg sdkaws.Config, url string) error {
 			_, err := sesv2.NewFromConfig(cfg, func(o *sesv2.Options) { o.BaseEndpoint = &url }).
@@ -240,11 +242,29 @@ var protocolFamilies = []protocolFamily{
 		},
 	},
 	{
-		name: "awsJson1_0 pre-serde (odb)", deniedCode: "AccessDeniedException",
+		name: "awsJson1_0 schema-serde (odb)", deniedCode: "AccessDeniedException",
 		keys: []string{"message", "Message"}, write: writeJSONError,
 		call: func(cfg sdkaws.Config, url string) error {
 			_, err := odb.NewFromConfig(cfg, func(o *odb.Options) { o.BaseEndpoint = &url }).
 				ListCloudExadataInfrastructures(context.Background(), &odb.ListCloudExadataInfrastructuresInput{})
+			return err
+		},
+	},
+	{
+		name: "restJson1 pre-serde (backup)", deniedCode: "AccessDeniedException", deniedUnmodeled: true,
+		keys: []string{"message", "Message"}, write: writeJSONError,
+		call: func(cfg sdkaws.Config, url string) error {
+			_, err := backup.NewFromConfig(cfg, func(o *backup.Options) { o.BaseEndpoint = &url }).
+				ListBackupVaults(context.Background(), &backup.ListBackupVaultsInput{})
+			return err
+		},
+	},
+	{
+		name: "awsJson1_0 pre-serde (keyspaces)", deniedCode: "AccessDeniedException",
+		keys: []string{"message", "Message"}, write: writeJSONError,
+		call: func(cfg sdkaws.Config, url string) error {
+			_, err := keyspaces.NewFromConfig(cfg, func(o *keyspaces.Options) { o.BaseEndpoint = &url }).
+				ListKeyspaces(context.Background(), &keyspaces.ListKeyspacesInput{})
 			return err
 		},
 	},

@@ -253,7 +253,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/computeoptimizer v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/computeoptimizerautomation v1.11.0
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.68.3
-	github.com/aws/aws-sdk-go-v2/service/connect v1.192.1
+	github.com/aws/aws-sdk-go-v2/service/connect v1.201.0
 	github.com/aws/aws-sdk-go-v2/service/connectcampaigns v1.23.3
 	github.com/aws/aws-sdk-go-v2/service/connectcampaignsv2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/service/connectcases v1.44.3
@@ -317,7 +317,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/greengrass v1.35.3
 	github.com/aws/aws-sdk-go-v2/service/greengrassv2 v1.45.3
 	github.com/aws/aws-sdk-go-v2/service/groundstation v1.45.3
-	github.com/aws/aws-sdk-go-v2/service/guardduty v1.93.0
+	github.com/aws/aws-sdk-go-v2/service/guardduty v1.94.0
 	github.com/aws/aws-sdk-go-v2/service/healthlake v1.42.3
 	github.com/aws/aws-sdk-go-v2/service/iam v1.58.0
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.39.3
@@ -390,7 +390,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/novaact v1.3.3
 	github.com/aws/aws-sdk-go-v2/service/oam v1.26.3
 	github.com/aws/aws-sdk-go-v2/service/observabilityadmin v1.22.0
-	github.com/aws/aws-sdk-go-v2/service/odb v1.22.0
+	github.com/aws/aws-sdk-go-v2/service/odb v1.23.0
 	github.com/aws/aws-sdk-go-v2/service/omics v1.49.4
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.75.3
 	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.34.3
@@ -454,7 +454,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.43.3
 	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.37.3
 	github.com/aws/aws-sdk-go-v2/service/ses v1.37.3
-	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.74.0
+	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.75.0
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.45.3
 	github.com/aws/aws-sdk-go-v2/service/shield v1.37.3
 	github.com/aws/aws-sdk-go-v2/service/signer v1.35.3
@@ -493,7 +493,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/waf v1.33.3
 	github.com/aws/aws-sdk-go-v2/service/wafregional v1.33.3
 	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.77.2
-	github.com/aws/aws-sdk-go-v2/service/wellarchitected v1.45.1
+	github.com/aws/aws-sdk-go-v2/service/wellarchitected v1.49.0
 	github.com/aws/aws-sdk-go-v2/service/wickr v1.10.0
 	github.com/aws/aws-sdk-go-v2/service/workmail v1.39.3
 	github.com/aws/aws-sdk-go-v2/service/workspaces v1.73.0

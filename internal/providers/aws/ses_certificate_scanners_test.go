@@ -606,16 +606,15 @@ func TestScanSESEmailIdentityCertificates_NotDeployed(t *testing.T) {
 	}
 }
 
-// TestSESCertificateErrors_ReadCapitalisedGatewayMessage is a forward guard for
-// the sesv2 >= v1.75.0 bump, and is inert until that bump lands: at the
-// v1.74.0 pin the deserializer reads "message" and "Message" alike, so the test
-// passes with or without errorMessageKeyRepair.
+// TestSESCertificateErrors_ReadCapitalisedGatewayMessage guards
+// errorMessageKeyRepair for SES certificate errors.
 //
 // SES's gateway sends its message under "Message". From v1.75.0 (CHANGELOG
 // "Enable schema-based (de)serialization") sesv2 reads only "message" for a
 // modeled error, so without the repair a gateway NotFoundException would carry
 // no message and read as a deleted identity. The client is built from the
-// account config, as a scan's clients are.
+// account config, as a scan's clients are; a client built without
+// baseLoadOptions fails this test.
 func TestSESCertificateErrors_ReadCapitalisedGatewayMessage(t *testing.T) {
 	const gateway = "Unable to determine service/operation name to be authorized"
 	cases := []struct {
