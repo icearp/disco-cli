@@ -89,6 +89,12 @@ func scanKafkaOlderPhases(ctx context.Context, client kafkaAllAPI, acct *account
 		func() (int, int, error) { return scanKafkaConfigurations(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanKafkaReplicators(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanKafkaVpcConnections(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanKafkaClusterPolicies(ctx, client, acct, region, st, scanID, clusters)
+		},
+		func() (int, int, error) {
+			return scanKafkaScramSecrets(ctx, client, acct, region, st, scanID, clusters)
+		},
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -96,19 +102,6 @@ func scanKafkaOlderPhases(ctx context.Context, client kafkaAllAPI, acct *account
 		}
 		total += t
 		inserted += i
-	}
-	for _, c := range clusters {
-		for _, phase := range []func() (int, int, error){
-			func() (int, int, error) { return scanKafkaClusterPolicy(ctx, client, acct, region, st, scanID, c.arn) },
-			func() (int, int, error) { return scanKafkaScramSecrets(ctx, client, acct, region, st, scanID, c.arn) },
-		} {
-			t, i, perr := phase()
-			if perr != nil {
-				return total, inserted, clusters, perr
-			}
-			total += t
-			inserted += i
-		}
 	}
 	return total, inserted, clusters, nil
 }

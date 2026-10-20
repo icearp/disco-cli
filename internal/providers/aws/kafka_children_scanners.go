@@ -95,15 +95,15 @@ func warnKafkaRejected(st *store.Store, op, kind string, acct *account, region s
 }
 
 // kafkaChildErrs is the per-cluster error policy of the child phases, on top
-// of fanOutErrs: NotFoundException (the cluster was deleted since listing) is
-// skipped silently, a transient error after the SDK's retries is skipped with
-// one warning for all such clusters, and a rejection (isKafkaRejected) is
+// of fanOutErrs: an error gone accepts (the cluster was deleted since listing)
+// is skipped silently, a transient error after the SDK's retries is skipped
+// with one warning for all such clusters, and a rejection (isKafkaRejected) is
 // skipped with one warning for all such clusters.
 //
-// NotFoundException is treated as gone for every child op, including the two
-// whose model does not list it (ListTopics, ListClientVpcConnections):
-// ListClustersV2 still lists a DELETING cluster, so a child call racing its
-// deletion is expected.
+// gone is isKafkaGone only for an op whose model lists NotFoundException
+// (ListChannels, ListNodes); for one whose model does not (ListTopics,
+// ListClientVpcConnections) it is neverSkip, so a NotFoundException there
+// fails the phase like any other unexpected error.
 //
 // BadRequestException is the only client error, besides the authorization
 // codes, that the model lists for every child op, and which clusters each op
@@ -113,6 +113,7 @@ func warnKafkaRejected(st *store.Store, op, kind string, acct *account, region s
 // input error, so it warns and keeps the siblings.
 type kafkaChildErrs struct {
 	op        string
+	gone      func(error) bool
 	transient transientTally
 	rejected  transientTally
 }
@@ -143,7 +144,7 @@ func kafkaChildFanOut(
 	ctx context.Context, st *store.Store, acct *account, region string, errs *kafkaChildErrs, parents []childParent,
 	list func(context.Context, childParent) ([]*store.Resource, error),
 ) (int, int, error) {
-	t, i, err := childFanOut(ctx, st, acct, region, errs.op, parents, isKafkaGone, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+	t, i, err := childFanOut(ctx, st, acct, region, errs.op, parents, errs.gone, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 		rows, err := list(ctx, p)
 		if err != nil && errs.tallied(p.id, err) {
 			return nil, nil
@@ -161,9 +162,9 @@ func kafkaChildFanOut(
 // while its replicas lag; it is real state, not a value rotated per read.
 // A topic without a TopicArn is not stored.
 func scanKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
-	errs := &kafkaChildErrs{op: kafkaListTopicsOp}
+	errs := &kafkaChildErrs{op: kafkaListTopicsOp, gone: neverSkip}
 	parents := kafkaParents(clusters, func(kafkaCluster) bool { return true })
-	t, i, err := childFanOutStored(ctx, st, acct, region, errs.op, parents, isKafkaGone, func(ctx context.Context, p childParent) (int, int, error) {
+	t, i, err := childFanOutStored(ctx, st, acct, region, errs.op, parents, errs.gone, func(ctx context.Context, p childParent) (int, int, error) {
 		t, i, err := storeKafkaTopics(ctx, client, acct, region, st, scanID, p)
 		if err != nil && errs.tallied(p.id, err) {
 			return t, i, nil
@@ -220,7 +221,7 @@ func storeKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, 
 // with one warning for every denial in the region, as fanOutErrs.keyErr does
 // for a denied parent.
 func scanKafkaChannels(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
-	errs := &kafkaChildErrs{op: kafkaListChannelsOp}
+	errs := &kafkaChildErrs{op: kafkaListChannelsOp, gone: isKafkaGone}
 	parents := kafkaParents(clusters, func(c kafkaCluster) bool { return c.express })
 	var (
 		describeDenied   sync.Once
@@ -291,7 +292,7 @@ func listKafkaChannelARNs(ctx context.Context, client kafkaChildAPI, clusterARN 
 // account (Owner) that view lacks. A connection without a VpcConnectionArn is
 // not stored.
 func scanKafkaClientVpcConnections(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
-	errs := &kafkaChildErrs{op: kafkaListClientVpcConnectionsOp}
+	errs := &kafkaChildErrs{op: kafkaListClientVpcConnectionsOp, gone: neverSkip}
 	parents := kafkaParents(clusters, func(kafkaCluster) bool { return true })
 	return kafkaChildFanOut(ctx, st, acct, region, errs, parents, func(ctx context.Context, cluster childParent) ([]*store.Resource, error) {
 		pager := kafka.NewListClientVpcConnectionsPaginator(client,
@@ -323,7 +324,7 @@ func scanKafkaClientVpcConnections(ctx context.Context, client kafkaChildAPI, ac
 // scanKafkaNodes stores the nodes of every provisioned cluster; a serverless
 // cluster exposes no brokers. A node without a NodeARN is not stored.
 func scanKafkaNodes(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
-	errs := &kafkaChildErrs{op: kafkaListNodesOp}
+	errs := &kafkaChildErrs{op: kafkaListNodesOp, gone: isKafkaGone}
 	parents := kafkaParents(clusters, func(c kafkaCluster) bool { return c.clusterType == kafkatypes.ClusterTypeProvisioned })
 	return kafkaChildFanOut(ctx, st, acct, region, errs, parents, func(ctx context.Context, cluster childParent) ([]*store.Resource, error) {
 		pager := kafka.NewListNodesPaginator(client,

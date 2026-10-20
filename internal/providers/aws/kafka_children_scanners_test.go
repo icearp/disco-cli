@@ -360,11 +360,13 @@ func TestScanKafka_NoChildren(t *testing.T) {
 
 // A cluster (or, for DescribeChannel, a channel) deleted since listing,
 // denied, failing transiently or rejected with BadRequestException drops only
-// its own children: NotFoundException is skipped silently for every child op,
-// and each of the others warns once however many parents hit it. A
-// BadRequestException naming maxResults or nextToken (any case) is disco's own
-// input and is returned, as is any other error. Every other phase, older ones
-// included, still stores its rows.
+// its own children: NotFoundException is skipped silently for the ops whose
+// model lists it (ListChannels, DescribeChannel, ListNodes), and each of the
+// others warns once however many parents hit it. NotFoundException from an op
+// whose model does not list it (ListTopics, ListClientVpcConnections) fails
+// the phase. A BadRequestException naming maxResults or nextToken (any case)
+// is disco's own input and is returned, as is any other error. Every other
+// phase, older ones included, still stores its rows.
 func TestScanKafka_FailedChildParent(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -391,9 +393,9 @@ func TestScanKafka_FailedChildParent(t *testing.T) {
 			"", kafkaChildRowsWithout(TypeMSKTopic, kafkaAllChildRows[TypeMSKTopic]...), 1,
 		},
 		{
-			"topics gone", "ListTopics", kafkaListTopicsOp,
+			"topics not found is unmodelled", "ListTopics", kafkaListTopicsOp,
 			map[string]error{kafkaTestClusterA: kafkaGone},
-			"", kafkaChildRowsWithout(TypeMSKTopic, kafkaTestTopicA1, kafkaTestTopicA2), 0,
+			"NotFoundException", kafkaChildRowsWithout(TypeMSKTopic, kafkaAllChildRows[TypeMSKTopic]...), 0,
 		},
 		{
 			"topics page size rejected", "ListTopics", kafkaListTopicsOp,
@@ -481,9 +483,9 @@ func TestScanKafka_FailedChildParent(t *testing.T) {
 			"BadRequestException", kafkaChildRowsWithout(TypeMSKClientVpcConnection, kafkaAllChildRows[TypeMSKClientVpcConnection]...), 0,
 		},
 		{
-			"client connections gone", "ListClientVpcConnections", kafkaListClientVpcConnectionsOp,
+			"client connections not found is unmodelled", "ListClientVpcConnections", kafkaListClientVpcConnectionsOp,
 			map[string]error{kafkaTestClusterA: kafkaGone},
-			"", kafkaChildRowsWithout(TypeMSKClientVpcConnection, kafkaAllChildRows[TypeMSKClientVpcConnection]...), 0,
+			"NotFoundException", kafkaChildRowsWithout(TypeMSKClientVpcConnection, kafkaAllChildRows[TypeMSKClientVpcConnection]...), 0,
 		},
 		{
 			"client connections other", "ListClientVpcConnections", kafkaListClientVpcConnectionsOp,
